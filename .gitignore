@@ -1,9 +1,5 @@
 .env
 backend/.env
 node_modules/
-<<<<<<< HEAD
 backend/node_modules/
 .DS_Store
-=======
-backend/node_modules/
->>>>>>> b99d62a5f077ac3c5abe3234a47b0f80370adc53

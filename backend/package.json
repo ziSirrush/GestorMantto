@@ -2,16 +2,10 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-<<<<<<< HEAD
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
-=======
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
->>>>>>> b99d62a5f077ac3c5abe3234a47b0f80370adc53
   },
   "keywords": [],
   "author": "",
