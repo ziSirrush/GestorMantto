@@ -340,6 +340,78 @@ async function syncTickets(req, res) {
   }
 }
 
+async function syncPortafolio(req, res) {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+  if (!rows.length) {
+    return res.status(400).json({
+      ok: false,
+      message: 'No se recibieron filas para sincronizar portafolio.'
+    });
+  }
+
+  try {
+    const [columnsResult] = await db.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'portafolio'
+    `);
+
+    const validColumns = columnsResult.map(c => c.COLUMN_NAME);
+    const ignoredColumns = ['ID_SB', 'id_SB', 'created_at', 'updated_at'];
+
+    let insertedOrUpdated = 0;
+
+    for (const row of rows) {
+      const cleanRow = {};
+
+      Object.keys(row).forEach(key => {
+        if (
+          validColumns.includes(key) &&
+          !ignoredColumns.includes(key) &&
+          row[key] !== undefined
+        ) {
+          cleanRow[key] = row[key];
+        }
+      });
+
+      if (!cleanRow.numero_equipo) continue;
+
+      const columns = Object.keys(cleanRow);
+      const placeholders = columns.map(() => '?').join(', ');
+      const values = columns.map(col => cleanRow[col]);
+
+      const updateClause = columns
+        .filter(col => col !== 'numero_equipo')
+        .map(col => `\`${col}\` = VALUES(\`${col}\`)`)
+        .join(', ');
+
+      const sql = `
+        INSERT INTO portafolio (${columns.map(col => `\`${col}\``).join(', ')})
+        VALUES (${placeholders})
+        ON DUPLICATE KEY UPDATE
+        ${updateClause || '`numero_equipo` = VALUES(`numero_equipo`)'}
+      `;
+
+      await db.query(sql, values);
+      insertedOrUpdated++;
+    }
+
+    return res.json({
+      ok: true,
+      message: 'Portafolio sincronizado correctamente.',
+      total: insertedOrUpdated
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error sincronizando portafolio.',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   getTickets,
   getPortafolio,
@@ -350,5 +422,6 @@ module.exports = {
   getZonas,
   getUsuarioZop,
   getProyectos,
-  syncTickets
+  syncTickets,
+  syncPortafolio
 };

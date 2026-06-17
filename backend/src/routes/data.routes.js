@@ -7,6 +7,7 @@ router.get('/tickets', dataController.getTickets);
 router.post('/tickets/sync', dataController.syncTickets);
 
 router.get('/portafolio', dataController.getPortafolio);
+router.post('/portafolio/sync', dataController.syncPortafolio);
 router.get('/equipos', dataController.getEquipos);
 router.get('/proyectos', dataController.getProyectos);
 
