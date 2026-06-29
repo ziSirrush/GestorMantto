@@ -2066,31 +2066,54 @@ function mapTicketRow(row) {
     return s;
   }
   function t(v) { return v ? String(v).replace(/^1899-12-3[01]T/,'').slice(0,5) : null; }
+
+  var rawEstadoTicket = gv(row, [
+    'Estado_Ticket','estado_ticket','Estado Ticket','EstadoTicket',
+    'estadoTicket','estatus_ticket','Estatus_Ticket','status_ticket',
+    'Estado Ticket ','Estado_Ticket '
+  ], null);
+
+  var rawEstadoGeneral = gv(row, [
+    'Estado','estado','estatus','status','Estado General','estado_general'
+  ], null);
+
   return {
-    n:   String(row['No. Ticket']||''),
-    et:  row['Estado Ticket']||null,   edo: row['Estado']||null,
-    ciu: row['Ciudad']||null,          pro: row['Proyecto']||null,
-    cod: row['Código Equipo']||null,   ref: row['Referencia en Sitio']||null,
-    zon: row['Zona Operativa']||null,  asu: row['Asunto']||null,
-    fr:  d(row['F Reporte']||row['Fecha Reporte']||row['F. Reporte']),
-    hr:  t(row['H Reporte']||row['Hora Reporte']),
-    eqi: row['Estatus Equipo Inicial']||null,
-    fl:  d(row['F Llegada']),          hl:  t(row['H Llegada']),
-    pat: row['Persona que atiende']||null,
-    fs:  d(row['F Solución']),         hs:  t(row['H Solución']),
-    tec: row['Técnico de Solución']||null,
-    eqf: row['Estatus Equipo Final']||null,
-    cau: row['Causa']||null,           acc: row['Acción en Cierre']||null,
-    res: row['RESPONSABILIDAD']||null, caf: row['Causa de Falla']||null,
-    tll: row['Tiempo Llegada (hrs)']?String(row['Tiempo Llegada (hrs)']):null,
-    tso: row['Tiempo Solución (hrs)']?String(row['Tiempo Solución (hrs)']):null,
-    prd: row['Producto']||null,        pri: row['Prioridad Proyecto']||null,
-    ejc: row['Ejecutivo Call Center']||null,
-    mes: row['Mes reporte']?String(row['Mes reporte']).split('T')[0]:null,
-    blt: row['BLT Empleado Cierre ']||null,
-    xat: row['Ticket excede tiempo de atención (Motivo)']||null,
-    xso: row['Ticket excede tiempo de solución (Motivo)']||null,
-    ens: row['Técnico se encontraba en sitio al solicitar ticket']||null,
+    n:   String(gv(row, ['No_Ticket','No. Ticket','No Ticket','ticket','Ticket','folio','Folio','id','id_SB'], '')),
+    et:  normalizeTicketStatus(rawEstadoTicket || rawEstadoGeneral),
+    edo: gv(row, ['Estado','estado','estado_region','estado_ubicacion'], null),
+    ciu: gv(row, ['Ciudad','ciudad'], null),
+    pro: gv(row, ['Proyecto','proyecto'], null),
+    cod: gv(row, ['Codigo_Equipo','Código Equipo','codigo_equipo','Codigo Equipo','CodigoEquipo','equipo','Numero de Equipo','Numero_de_Equipo'], null),
+    ref: gv(row, ['Referencia_en_Zona_Operativa','Referencia en Zona Operativa','Referencia en Sitio','referencia_en_zona_operativa','referencia','referencia_sitio'], null),
+    zon: gv(row, ['Zona_Operativa','Zona Operativa','zona_operativa','zona','Z. Oper.','z_op'], null),
+    asu: gv(row, ['Asunto','asunto','descripcion','Descripción','descripción'], null),
+    fr:  d(gv(row, ['F_Reporte','F Reporte','F. Reporte','Fecha Reporte','fecha_reporte','created_at'], null)),
+    hr:  t(gv(row, ['H_Reporte','H Reporte','Hora Reporte','h_reporte','hora_reporte'], null)),
+    eqi: gv(row, ['Estatus_Equipo_Ir','Estatus Equipo Inicial','estatus_equipo_ir','estatus_equipo_inicial'], null),
+    fl:  d(gv(row, ['F_Llegada','F Llegada','fecha_llegada'], null)),
+    hl:  t(gv(row, ['H_Llegada','H Llegada','h_llegada','hora_llegada'], null)),
+    pat: gv(row, ['Persona_que_atiende','Persona que atiende','persona_que_atiende','persona_atiende'], null),
+    fs:  d(gv(row, ['F_Solucion','F Solución','F Solucion','fecha_cierre','fecha_solucion'], null)),
+    hs:  t(gv(row, ['H_Solucion','H Solución','H Solucion','h_solucion','hora_solucion'], null)),
+    tec: gv(row, ['Tecnico_de_Solucion','Técnico de Solución','Tecnico de Solucion','tecnico'], null),
+    eqf: gv(row, ['Estatus_Equipo_Final','Estatus Equipo Final','estatus_equipo_final'], null),
+    cau: gv(row, ['Causa','causa'], null),
+    acc: gv(row, ['Accion_en_Cierre','Acción en Cierre','Accion en Cierre','accion_en_cierre','accion_cierre'], null),
+    res: normalizeResponsabilidad(gv(row, ['RESPONSABILID','RESPONSABILIDAD','Responsabilidad','responsabilidad'], null)),
+    caf: gv(row, ['Causa_de_Falla','Causa de Falla','causa_falla'], null),
+    tll: gv(row, ['Tiempo_Llegada','Tiempo Llegada (hrs)','Tiempo Llegada','tiempo_llegada'], null),
+    tso: gv(row, ['Tiempo_Solucion','Tiempo Solución (hrs)','Tiempo Solucion','tiempo_solucion'], null),
+    prd: gv(row, ['Producto','producto','tipo_equipo','Tipo Equipo'], null),
+    pri: gv(row, ['Prioridad_Proyecto','Prioridad Proyecto','prioridad'], null),
+    ejc: gv(row, ['Ejecutivo_Call','Ejecutivo Call Center','ejecutivo_call'], null),
+    mes: d(gv(row, ['Mes_reporte','Mes reporte','mes_reporte','mes'], null)),
+    blt: gv(row, ['BLT_Empleado','BLT Empleado Cierre ','blt_empleado'], null),
+    xat: gv(row, ['Tiempo_Llegada_II','Ticket excede tiempo de atención (Motivo)','ticket_excede_atencion','xat'], null),
+    xso: gv(row, ['Tiempo_Solucion_II','Ticket excede tiempo de solución (Motivo)','ticket_excede_solucion','xso'], null),
+    ens: gv(row, ['Ticket_excede','ticket_excede','Técnico se encontraba en sitio al solicitar ticket','ens'], null),
+    zon_adm:   gv(row, ['Zona_Administrativa','zona_administrativa'], null),
+    zon_falla: gv(row, ['Zona_de_falla','zona_de_falla'], null),
+    pro_padre: gv(row, ['Proyecto_Padre','proyecto_padre'], null),
   };
 }
 
@@ -2725,6 +2748,79 @@ function gv(row, names, fallback) {
   }
   return fallback === undefined ? null : fallback;
 }
+
+function normalizeTicketStatus(v) {
+  var s = String(v || '').trim();
+  if (!s) return null;
+
+  var n = s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    n === 'cerrado' ||
+    n === 'cerrada' ||
+    n === 'solucionado' ||
+    n === 'solucionada' ||
+    n === 'resuelto' ||
+    n === 'resuelta' ||
+    n === 'finalizado' ||
+    n === 'finalizada' ||
+    n === 'close' ||
+    n === 'closed'
+  ) return 'Cerrado';
+
+  if (
+    n === 'en curso' ||
+    n === 'en proceso' ||
+    n === 'proceso' ||
+    n === 'trabajando' ||
+    n === 'asignado' ||
+    n === 'asignada' ||
+    n === 'atendiendo' ||
+    n === 'pendiente tecnico' ||
+    n === 'pendiente tecnico de solucion' ||
+    n === 'pendiente de solucion' ||
+    n === 'pending solution' ||
+    n === 'in progress'
+  ) return 'En curso';
+
+  if (
+    n === 'abierto' ||
+    n === 'abierta' ||
+    n === 'nuevo' ||
+    n === 'nueva' ||
+    n === 'open' ||
+    n === 'pendiente' ||
+    n === 'sin atender' ||
+    n === 'levantado' ||
+    n === 'levantada'
+  ) return 'Abierto';
+
+  if (n.includes('cerrad') || n.includes('solucion') || n.includes('resuelt') || n.includes('finaliz')) return 'Cerrado';
+  if (n.includes('curso') || n.includes('proceso') || n.includes('asign') || n.includes('atend') || n.includes('trabaj')) return 'En curso';
+  if (n.includes('abiert') || n.includes('nuevo') || n.includes('pendiente') || n.includes('levant')) return 'Abierto';
+
+  return s;
+}
+
+function normalizeResponsabilidad(v) {
+  var s = String(v || '').trim();
+  if (!s) return null;
+
+  var n = s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (n.includes('cliente') || n.includes('client')) return 'CLIENTE';
+  if (n.includes('blt') || n.includes('brilliant') || n.includes('mantenimiento')) return 'BLT';
+
+  return s.toUpperCase();
+}
+
 function normalizeDateAiven(v) {
   if (!v) return null;
   return String(v).split('T')[0].slice(0,10);
@@ -2753,40 +2849,50 @@ function normalizeRoleAiven(row) {
 }
 
 function mapTicketRowSB(row) {
+  var rawEstadoTicket = gv(row, [
+    'Estado_Ticket','estado_ticket','Estado Ticket','EstadoTicket',
+    'estadoTicket','estatus_ticket','Estatus_Ticket','status_ticket',
+    'Estado Ticket ','Estado_Ticket '
+  ], null);
+
+  var rawEstadoGeneral = gv(row, [
+    'Estado','estado','estatus','status','Estado General','estado_general'
+  ], null);
+
   return {
-    n:   String(gv(row, ['No_Ticket','No. Ticket','ticket','folio','id','id_SB'], '')),
-    et:  gv(row, ['Estado_Ticket','Estado Ticket','estado','estatus','status'], null),
-    edo: gv(row, ['Estado','estado_region','estado_ubicacion'], null),
+    n:   String(gv(row, ['No_Ticket','No. Ticket','No Ticket','ticket','Ticket','folio','Folio','id','id_SB'], '')),
+    et:  normalizeTicketStatus(rawEstadoTicket || rawEstadoGeneral),
+    edo: gv(row, ['Estado','estado','estado_region','estado_ubicacion'], null),
     ciu: gv(row, ['Ciudad','ciudad'], null),
     pro: gv(row, ['Proyecto','proyecto'], null),
-    cod: gv(row, ['Codigo_Equipo','Código Equipo','codigo_equipo','equipo','Numero de Equipo','Numero_de_Equipo'], null),
-    ref: gv(row, ['Referencia_en_Zona_Operativa','Referencia en Sitio','referencia','referencia_sitio'], null),
-    zon: gv(row, ['Zona_Operativa','Zona Operativa','zona','Z. Oper.','z_op'], null),
-    asu: gv(row, ['Asunto','asunto','descripcion','descripción'], null),
+    cod: gv(row, ['Codigo_Equipo','Código Equipo','codigo_equipo','Codigo Equipo','CodigoEquipo','equipo','Numero de Equipo','Numero_de_Equipo'], null),
+    ref: gv(row, ['Referencia_en_Zona_Operativa','Referencia en Zona Operativa','Referencia en Sitio','referencia_en_zona_operativa','referencia','referencia_sitio'], null),
+    zon: gv(row, ['Zona_Operativa','Zona Operativa','zona_operativa','zona','Z. Oper.','z_op'], null),
+    asu: gv(row, ['Asunto','asunto','descripcion','Descripción','descripción'], null),
     fr:  normalizeDateAiven(gv(row, ['F_Reporte','F Reporte','Fecha Reporte','fecha_reporte','created_at'], null)),
-    hr:  normalizeTimeAiven(gv(row, ['H_Reporte','H Reporte','hora_reporte'], null)),
-    eqi: gv(row, ['Estatus_Equipo_Ir','Estatus Equipo Inicial','estatus_equipo_inicial'], null),
+    hr:  normalizeTimeAiven(gv(row, ['H_Reporte','H Reporte','h_reporte','hora_reporte'], null)),
+    eqi: gv(row, ['Estatus_Equipo_Ir','Estatus Equipo Inicial','estatus_equipo_ir','estatus_equipo_inicial'], null),
     fl:  normalizeDateAiven(gv(row, ['F_Llegada','F Llegada','fecha_llegada'], null)),
-    hl:  normalizeTimeAiven(gv(row, ['H_Llegada','H Llegada','hora_llegada'], null)),
-    pat: gv(row, ['Persona_que_atiende','Persona que atiende','persona_atiende'], null),
-    fs:  normalizeDateAiven(gv(row, ['F_Solucion','F Solución','fecha_cierre','fecha_solucion'], null)),
-    hs:  normalizeTimeAiven(gv(row, ['H_Solucion','H Solución','hora_solucion'], null)),
-    tec: gv(row, ['Tecnico_de_Solucion','Técnico de Solución','tecnico'], null),
+    hl:  normalizeTimeAiven(gv(row, ['H_Llegada','H Llegada','h_llegada','hora_llegada'], null)),
+    pat: gv(row, ['Persona_que_atiende','Persona que atiende','persona_que_atiende','persona_atiende'], null),
+    fs:  normalizeDateAiven(gv(row, ['F_Solucion','F Solución','F Solucion','fecha_cierre','fecha_solucion'], null)),
+    hs:  normalizeTimeAiven(gv(row, ['H_Solucion','H Solución','H Solucion','h_solucion','hora_solucion'], null)),
+    tec: gv(row, ['Tecnico_de_Solucion','Técnico de Solución','Tecnico de Solucion','tecnico'], null),
     eqf: gv(row, ['Estatus_Equipo_Final','Estatus Equipo Final','estatus_equipo_final'], null),
     cau: gv(row, ['Causa','causa'], null),
-    acc: gv(row, ['Accion_en_Cierre','Acción en Cierre','accion_cierre'], null),
-    res: gv(row, ['RESPONSABILID','RESPONSABILIDAD','responsabilidad'], null),
+    acc: gv(row, ['Accion_en_Cierre','Acción en Cierre','Accion en Cierre','accion_en_cierre','accion_cierre'], null),
+    res: normalizeResponsabilidad(gv(row, ['RESPONSABILID','RESPONSABILIDAD','Responsabilidad','responsabilidad'], null)),
     caf: gv(row, ['Causa_de_Falla','Causa de Falla','causa_falla'], null),
-    tll: gv(row, ['Tiempo_Llegada','Tiempo Llegada (hrs)','tiempo_llegada'], null),
-    tso: gv(row, ['Tiempo_Solucion','Tiempo Solución (hrs)','tiempo_solucion'], null),
-    prd: gv(row, ['Producto','producto','tipo_equipo'], null),
+    tll: gv(row, ['Tiempo_Llegada','Tiempo Llegada (hrs)','Tiempo Llegada','tiempo_llegada'], null),
+    tso: gv(row, ['Tiempo_Solucion','Tiempo Solución (hrs)','Tiempo Solucion','tiempo_solucion'], null),
+    prd: gv(row, ['Producto','producto','tipo_equipo','Tipo Equipo'], null),
     pri: gv(row, ['Prioridad_Proyecto','Prioridad Proyecto','prioridad'], null),
     ejc: gv(row, ['Ejecutivo_Call','Ejecutivo Call Center','ejecutivo_call'], null),
-    mes: normalizeDateAiven(gv(row, ['Mes_reporte','Mes reporte','mes'], null)),
+    mes: normalizeDateAiven(gv(row, ['Mes_reporte','Mes reporte','mes_reporte','mes'], null)),
     blt: gv(row, ['BLT_Empleado','BLT Empleado Cierre ','blt_empleado'], null),
-    xat: gv(row, ['Tiempo_Llegada_II','Ticket excede tiempo de atención (Motivo)','xat'], null),
-    xso: gv(row, ['Tiempo_Solucion_II','Ticket excede tiempo de solución (Motivo)','xso'], null),
-    ens: gv(row, ['Ticket_excede','Técnico se encontraba en sitio al solicitar ticket','ens'], null),
+    xat: gv(row, ['Tiempo_Llegada_II','Ticket excede tiempo de atención (Motivo)','ticket_excede_atencion','xat'], null),
+    xso: gv(row, ['Tiempo_Solucion_II','Ticket excede tiempo de solución (Motivo)','ticket_excede_solucion','xso'], null),
+    ens: gv(row, ['Ticket_excede','ticket_excede','Técnico se encontraba en sitio al solicitar ticket','ens'], null),
     zon_adm:   gv(row, ['Zona_Administrativa','zona_administrativa'], null),
     zon_falla: gv(row, ['Zona_de_falla','zona_de_falla'], null),
     pro_padre: gv(row, ['Proyecto_Padre','proyecto_padre'], null),
