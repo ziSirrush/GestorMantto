@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="styles.css">
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -190,113 +192,90 @@
 </div>
 
 <!-- =====================================================
-     HEADER
+     ENCABEZADO - DISEÑO OFICIAL HOME
 ===================================================== -->
-<header class="hdr">
+<header class="topbar">
 
-  <div class="hdr-left">
+  <a class="logo-home" href="#" onclick="showTab('home');return false;" title="Ir a inicio">
+    <div class="brand-badge">BLT</div>
+    <div class="brand-name">BRILLIANT</div>
+  </a>
 
-    <button id="home-btn"
-            onclick="showTab('home')"
-            class="home-btn-hidden hdr-home-btn">
+  <div class="system-title">Sistema de Gestión de Operaciones</div>
 
-      <i class="ti ti-home"></i>
-      Inicio
 
+  <div class="header-actions">
+    <button class="help-btn" onclick="showTab('support'); showSupportView('home');" title="Centro de ayuda" type="button">
+      <span>?</span>
     </button>
 
-    <img src="assets/logo.png"
-         alt="BLT Brilliant"
-         class="hdr-logo">
-
-    <div class="hdr-system">
-
-      <div class="hdr-system-name">
-        Sistema de Gestión de Mantenimientos
-      </div>
-
-      <div class="hdr-system-subtitle">
-        Mantto Gestor
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <div class="hdr-right">
-
-    <!-- Estado de conexión -->
-    <div id="hdr-status"
-         class="hdr-status">
-
-      <span class="hdr-status-dot"></span>
-
-      <span id="hdr-status-text">
-        Conectado
-      </span>
-
-    </div>
-
-
-    <!-- Notificaciones (Sprint futuro) -->
-    <button id="hdr-notifications"
-            class="hdr-icon-btn"
-            title="Notificaciones">
-
-      <i class="ti ti-bell"></i>
-
-      <span id="hdr-notif-count"
-            class="hdr-badge"
-            style="display:none;">
-        0
-      </span>
-
-    </button>
-
-
-    <!-- Centro de Ayuda -->
-    <button id="hdr-support"
-            class="hdr-icon-btn"
-            onclick="showTab('support')"
-            title="Centro de Ayuda">
-
-      <i class="ti ti-help-circle"></i>
-
-    </button>
-
-
-    <div class="hdr-user">
-
-        <div class="hdr-av" id="hdr-av"></div>
-
-        <div class="hdr-user-box">
-
-            <span id="hdr-name"></span>
-
-            <span id="hdr-company" class="hdr-company"></span>
-
-            <span id="hdr-role" class="hdr-role"></span>
-
+    <div class="notif-wrap">
+      <button class="notif-btn" onclick="toggleNotifications(event)" title="Notificaciones" type="button">
+        <span class="notif-icon">🔔</span>
+        <span class="notif-badge" id="notifCount">0</span>
+      </button>
+      <div class="notif-menu" id="notifMenu">
+        <div class="notif-head">
+          <strong>Notificaciones</strong>
+          <small id="notifSub">Sin pendientes</small>
         </div>
-
+        <div class="notif-list" id="notifList"></div>
+      </div>
     </div>
 
+  <div class="user-box">
+    <div class="avatar" id="hdr-av"></div>
 
-    <button id="btn-logout"
-            class="hdr-logout"
-            onclick="logoutMantto()"
-            type="button">
+    <div class="user-info">
+      <div class="user-name" id="hdr-name"></div>
 
-      <i class="ti ti-logout"></i>
+      <!--
+        Empresa pendiente.
+        Se activará cuando exista la columna correspondiente
+        en la tabla usuarios.
 
-      Cerrar sesión
+        <span class="user-company" id="hdr-company"></span>
+      -->
 
-    </button>
+      <span class="user-role" id="hdr-role"></span>
 
+      <button id="btn-logout" class="logout" onclick="logoutMantto()" type="button">
+        Cerrar sesión
+      </button>
+    </div>
+  </div>
   </div>
 
 </header>
+
+<!-- =====================================================
+     INDICADORES DE CONEXIÓN
+===================================================== -->
+<section class="statusbar admin-only">
+  <div class="connection-services">
+    <div class="service-item">
+      <span class="dot green"></span>
+      Servicios de conexión
+    </div>
+
+    <div class="service-item">
+      <span id="sb-dot-sql" class="dot green"></span>
+      <span id="sb-lbl-sql">SQL activo</span>
+    </div>
+
+    <div class="service-item">
+      <span id="sb-dot-api" class="dot green"></span>
+      <span id="sb-lbl-api">API operativa</span>
+    </div>
+
+    <div class="service-item">
+      <span id="sb-dot-sync" class="dot yellow"></span>
+      <span id="sb-lbl-sync">Sincronización pendiente</span>
+    </div>
+  </div>
+
+  <button class="reload" onclick="loadFromAiven()" type="button">↻ Recargar</button>
+</section>
 
 <!-- NAV -->
 <div id="api-bar" style="display:none;align-items:center;gap:10px;padding:8px 20px;font-size:12px;background:#fff;color:#0D2E6E;border-bottom:2px solid #0D2E6E">
@@ -352,12 +331,15 @@
   <button class="nav-btn" id="tab-users" onclick="showTab('users')">
     <i class="ti ti-users"></i>Usuarios
   </button>
+  <button class="nav-btn" id="tab-support" onclick="showTab('support')">
+    <i class="ti ti-help-circle"></i>Centro de ayuda
+  </button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════════════
      PANEL: TICKETS
 ════════════════════════════════════════════════════════ -->
-<div id="panel-home" class="panel" style="padding:0;background:#F4F6FA;min-height:calc(100vh - 52px)">
+<div id="panel-home" class="panel on" style="padding:0;background:#F4F6FA;min-height:calc(100vh - 52px)">
 
   <!-- Welcome bar -->
   <div style="background:#fff;border-bottom:1px solid rgba(13,46,110,.18);padding:20px 20px 16px">
@@ -369,6 +351,20 @@
   <!-- Nav grid -->
   <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
 
+    <button onclick="showTab('support')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+      <div style="width:44px;height:44px;background:#EEF4FF;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#1B4FD8;font-size:22px;font-weight:900">?</div>
+      <div>
+        <p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Centro<br>de ayuda</p>
+        <p style="font-size:10px;color:#94A3B8;margin-top:3px">Nori y solicitudes</p>
+      </div>
+    </button>
+
+
+    <button onclick="showTab('notif')" style="background:#fff;border:1px solid rgba(13,46,110,.15);border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+      <div style="width:44px;height:44px;background:#FFF7ED;border-radius:10px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+      <div><p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Notificaciones<br>y Mensajes</p><p style="font-size:10px;color:#94A3B8;margin-top:3px">Mensajes no leidos</p></div>
+    </button>
+
     <button onclick="showTab('resumen')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
       <div style="width:44px;height:44px;background:#EEF2FF;border-radius:10px;display:flex;align-items:center;justify-content:center">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B4FD8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -376,6 +372,16 @@
       <div>
         <p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Resumen<br>del día</p>
         <p style="font-size:10px;color:#94A3B8;margin-top:3px">Actividad diaria</p>
+      </div>
+    </button>
+
+    <button onclick="showTab('criticos')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+      <div style="width:44px;height:44px;background:#FFF1F2;border-radius:10px;display:flex;align-items:center;justify-content:center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Equipos<br>Críticos</p>
+        <p style="font-size:10px;color:#94A3B8;margin-top:3px">Fallas recurrentes</p>
       </div>
     </button>
 
@@ -389,6 +395,16 @@
       </div>
     </button>
 
+    <button onclick="showTab('operativo')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+      <div style="width:44px;height:44px;background:#F5F3FF;border-radius:10px;display:flex;align-items:center;justify-content:center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <div>
+        <p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br>Operativo</p>
+        <p style="font-size:10px;color:#94A3B8;margin-top:3px">Servicios y Vo.Bo.</p>
+      </div>
+    </button>
+
     <button onclick="showTab('portafolio')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
       <div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -399,6 +415,11 @@
       </div>
     </button>
 
+    <button onclick="showTab('movimientos')" style="background:#fff;border:1px solid rgba(13,46,110,.15);border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+      <div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></div>
+      <div><p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Movimientos<br>de Portafolio</p><p style="font-size:10px;color:#94A3B8;margin-top:3px">Cambios de estatus</p></div>
+    </button>
+
     <button onclick="showTab('proyectos')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
       <div style="width:44px;height:44px;background:#FFFBEB;border-radius:10px;display:flex;align-items:center;justify-content:center">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -406,16 +427,6 @@
       <div>
         <p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Proyectos</p>
         <p style="font-size:10px;color:#94A3B8;margin-top:3px">Sitios y equipos</p>
-      </div>
-    </button>
-
-    <button onclick="showTab('operativo')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
-      <div style="width:44px;height:44px;background:#F5F3FF;border-radius:10px;display:flex;align-items:center;justify-content:center">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-      </div>
-      <div>
-        <p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br>Operativo</p>
-        <p style="font-size:10px;color:#94A3B8;margin-top:3px">Servicios y Vo.Bo.</p>
       </div>
     </button>
 
@@ -430,15 +441,21 @@
     </button>
 
   </div>
+
+  </div>
 </div>
 
 
 <div id="panel-tickets" class="panel">
 
-  <!-- Aiven API banner -->
-  <div class="card fb" style="display:none;margin-bottom:12px">
-    <input type="hidden" id="aiven-api-base" value="https://gestormantto-production.up.railway.app/api">
-    <span id="aiven-status">Sin conectar</span>
+  <!-- Supabase banner -->
+  <div class="card fb" style="margin-bottom:12px">
+    <i class="ti ti-database" style="color:#1B4FD8;font-size:15px;flex-shrink:0"></i>
+    <strong style="font-size:12px;color:#0D2E6E">Supabase:</strong>
+    <input type="text" id="sb-url" placeholder="https://xxxx.supabase.co" style="flex:1;min-width:120px">
+    <input type="text" id="sb-key" placeholder="anon key..." style="flex:1;min-width:120px">
+    <button class="btn btn-primary btn-sm" onclick="connectSB()">Conectar</button>
+    <span id="sb-status" style="font-size:11px;color:#94A3B8">Sin conectar</span>
   </div>
 
   <!-- Role bar -->
@@ -509,16 +526,20 @@
      PANEL: DASHBOARD
 ════════════════════════════════════════════════════════ -->
 <!-- PANEL: RESUMEN DEL DÍA -->
-<div id="panel-resumen" class="panel on">
+<div id="panel-resumen" class="panel">
 
   <!-- Day navigator -->
-  <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:14px 20px;background:#fff;border:1px solid #0D2E6E;border-radius:12px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-    <button onclick="changeDay(-1)" class="btn" style="width:38px;height:38px;padding:0;justify-content:center;font-size:20px">&#8592;</button>
-    <div style="text-align:center;min-width:220px">
+  <div style="display:flex;align-items:center;justify-content:center;gap:14px;padding:14px 20px;background:#fff;border:1px solid #0D2E6E;border-radius:12px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <button onclick="changeDay(-1)" class="btn" style="width:38px;height:38px;padding:0;justify-content:center;font-size:20px;flex-shrink:0">&#8592;</button>
+    <div style="text-align:center;min-width:200px;position:relative;flex-shrink:0">
       <div id="day-label" style="font-size:19px;font-weight:700;color:#0D2E6E"></div>
       <div id="day-sub"   style="font-size:11px;color:#94A3B8;margin-top:2px"></div>
+      <input type="date" id="rd-date-picker" onchange="goToDate(this.value)" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;top:0;left:0">
     </div>
-    <button onclick="changeDay(1)" class="btn" style="width:38px;height:38px;padding:0;justify-content:center;font-size:20px">&#8594;</button>
+    <button onclick="changeDay(1)" class="btn" style="width:38px;height:38px;padding:0;justify-content:center;font-size:20px;flex-shrink:0">&#8594;</button>
+    <button onclick="openDayCalendar()" title="Ir a una fecha" style="width:38px;height:38px;flex-shrink:0;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;color:#0D2E6E;font-size:16px;display:flex;align-items:center;justify-content:center">
+      <i class="ti ti-calendar"></i>
+    </button>
   </div>
 
   <!-- FILA 1: tickets + resp BLT + resp cliente (6 cuadros) -->
@@ -561,7 +582,7 @@
   </div>
 
   <!-- FILA 2: alertas (4 cuadros) -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px">
     <div class="card db-kpi" style="background:linear-gradient(135deg,#DC2626,#991B1B);min-height:120px;padding:12px 8px;cursor:pointer" onclick="openRdDetail('atrap')">
       <div style="font-size:22px">&#128680;</div>
       <div style="font-size:26px;font-weight:800;color:#fff;line-height:1" id="rd-atrap">—</div>
@@ -586,6 +607,12 @@
       <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">En críticos</div>
       <div style="font-size:9px;color:rgba(255,255,255,.5)">Ver detalle</div>
     </div>
+    <div class="card db-kpi" style="background:linear-gradient(135deg,#475569,#1E293B);min-height:120px;padding:12px 8px;cursor:pointer" onclick="openRdDetail('nofunc')">
+      <div style="font-size:22px">&#128679;</div>
+      <div style="font-size:26px;font-weight:800;color:#fff;line-height:1" id="rd-nofunc">—</div>
+      <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">No Funcionando</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.5)">Ver detalle</div>
+    </div>
   </div>
 
   <!-- DETAIL SECTIONS (expandibles bajo fila 2) -->
@@ -594,6 +621,7 @@
   <div id="rd-detail-voltaje"  style="display:none;margin-bottom:12px"></div>
   <div id="rd-detail-criticos" style="display:none;margin-bottom:12px"></div>
   <div id="rd-detail-sla"      style="display:none;margin-bottom:12px"></div>
+  <div id="rd-detail-nofunc"   style="display:none;margin-bottom:12px"></div>
 
   <!-- FILA 3: tiempos + SLA -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
@@ -621,28 +649,28 @@
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
     <div class="card" style="padding:16px">
       <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Estado tickets</p>
-      <svg id="rd-svg-estado" width="120" height="120" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
+      <svg id="rd-svg-estado" width="170" height="170" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
       <div id="rd-leg-estado" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>
     </div>
     <div class="card" style="padding:16px">
       <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Responsabilidad</p>
-      <svg id="rd-svg-resp" width="120" height="120" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
+      <svg id="rd-svg-resp" width="170" height="170" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
       <div id="rd-leg-resp" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>
     </div>
     <div class="card" style="padding:16px">
       <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Causa falla — BLT</p>
-      <svg id="rd-svg-caf-blt" width="120" height="120" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
+      <svg id="rd-svg-caf-blt" width="170" height="170" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
       <div id="rd-leg-caf-blt" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>
     </div>
     <div class="card" style="padding:16px">
       <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Causa falla — Cliente</p>
-      <svg id="rd-svg-caf-cli" width="120" height="120" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
+      <svg id="rd-svg-caf-cli" width="170" height="170" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
       <div id="rd-leg-caf-cli" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>
     </div>
   </div>
 
   <!-- BARRAS: full width, sin scroll -->
-  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
     <div class="card" style="padding:16px">
       <h3 style="font-size:12px;font-weight:700;color:#0D2E6E;margin-bottom:12px">&#128205; Tickets por zona operativa</h3>
       <div id="rd-bar-zona"></div>
@@ -651,10 +679,12 @@
       <h3 style="font-size:12px;font-weight:700;color:#0D2E6E;margin-bottom:12px">&#128736; Por tipo de equipo</h3>
       <div id="rd-bar-tipo"></div>
     </div>
-    <div class="card" style="padding:16px">
-      <h3 style="font-size:12px;font-weight:700;color:#0D2E6E;margin-bottom:12px">&#128202; Por estado</h3>
-      <div id="rd-bar-estado"></div>
-    </div>
+  </div>
+
+  <!-- Fallas por estado de la República -->
+  <div class="card" style="padding:16px;margin-bottom:16px">
+    <h3 style="font-size:12px;font-weight:700;color:#0D2E6E;margin-bottom:12px">&#127968; Fallas por estado de la República</h3>
+    <div id="rd-bar-edo"></div>
   </div>
 
   <!-- TABLA TICKETS DEL DÍA -->
@@ -664,25 +694,25 @@
         &#127915; Tickets del día
         <span id="rd-count" style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:4px"></span>
       </h3>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="rd-search" placeholder="Buscar..." oninput="renderDayTable()" style="width:120px;height:28px;font-size:12px">
         <select id="rd-filter-et" onchange="renderDayTable()" style="height:28px;font-size:12px">
           <option value="">Todos</option>
           <option>Abierto</option><option>En curso</option><option>Cerrado</option>
         </select>
+        <button class="btn btn-sm" onclick="toggleRdCols()" style="height:28px;font-size:11px;background:#EEF2FF;color:#1B4FD8;border-color:#C7D2FE">&#9868; Columnas</button>
       </div>
     </div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead style="background:#0D2E6E"><tr>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Ticket</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Proyecto</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Zona</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Estado</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Resp.</th>
-        <th style="padding:8px"></th>
-      </tr></thead>
+    <div id="rd-col-panel" style="display:none;background:#F8FAFC;border-bottom:1px solid #E2E8F0;padding:12px 16px;margin:0 -16px 12px">
+      <p style="font-size:10px;font-weight:700;color:#0D2E6E;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Columnas visibles — arrastra para reordenar</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px" id="rd-col-checks"></div>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:900px">
+      <thead style="background:#0D2E6E" id="rd-tbl-thead"></thead>
       <tbody id="rd-tbl-body"></tbody>
     </table>
+    </div>
   </div>
 
 </div>
@@ -856,65 +886,32 @@
         &#127915; Tickets del período
         <span id="cc-count" style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:4px"></span>
       </h3>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="cc-search" placeholder="Buscar..." oninput="renderCCTable()" style="width:120px;height:28px;font-size:12px">
         <select id="cc-filter-et" onchange="renderCCTable()" style="height:28px;font-size:12px">
           <option value="">Todos</option>
           <option>Abierto</option><option>En curso</option><option>Cerrado</option>
         </select>
+        <button class="btn btn-sm" onclick="toggleCcCols()" style="height:28px;font-size:11px;background:#EEF2FF;color:#1B4FD8;border-color:#C7D2FE">&#9868; Columnas</button>
       </div>
     </div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead style="background:#0D2E6E"><tr>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Ticket</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Proyecto</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Zona</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Estado</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Resp.</th>
-        <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Fecha</th>
-        <th style="padding:8px"></th>
-      </tr></thead>
+    <div id="cc-col-panel" style="display:none;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px;margin-bottom:12px">
+      <p style="font-size:10px;font-weight:700;color:#0D2E6E;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Columnas visibles — arrastra para reordenar</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px" id="cc-col-checks"></div>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:700px">
+      <thead style="background:#0D2E6E" id="cc-tbl-thead"></thead>
       <tbody id="cc-tbl-body"></tbody>
     </table>
+    </div>
   </div>
 
 
 
 
   <!-- EQUIPOS CRÍTICOS DEL PERÍODO -->
-  <div class="card" style="padding:16px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-      <h3 style="font-size:13px;font-weight:700;color:#991B1B;display:flex;align-items:center;gap:6px">
-        &#9888; Equipos críticos del período
-      </h3>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <label style="font-size:11px;color:#64748B">Fallas BLT mínimas:</label>
-        <input type="number" id="cc-crit-min" value="3" min="1" max="20"
-          style="width:60px;height:28px;text-align:center;font-weight:700"
-          oninput="renderCCCriticos()">
-        <label style="font-size:11px;color:#64748B">Días anteriores:</label>
-        <input type="number" id="cc-crit-dias" value="35" min="7" max="365"
-          style="width:70px;height:28px;text-align:center;font-weight:700"
-          oninput="renderCCCriticos()">
-        <span id="cc-crit-count" style="font-size:11px;color:#94A3B8"></span>
-      </div>
-    </div>
-    <div id="cc-crit-table-wrap">
-      <table style="width:100%;border-collapse:collapse">
-        <thead style="background:#991B1B"><tr>
-          <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Código</th>
-          <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Proyecto</th>
-          <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Zona</th>
-          <th style="padding:8px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Fallas BLT</th>
-          <th style="padding:8px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Total tickets</th>
-          <th style="padding:8px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Último ticket</th>
-          <th style="padding:8px"></th>
-        </tr></thead>
-        <tbody id="cc-crit-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-
+  
   <!-- Mensajes no leídos -->
   <div style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;overflow:hidden;margin-top:16px">
     <div style="padding:12px 16px;border-bottom:1px solid rgba(13,46,110,.18);display:flex;align-items:center;gap:10px">
@@ -937,6 +934,44 @@
     </div>
   </div>
 
+</div>
+
+<div id="panel-criticos" class="panel">
+  <div class="card db-filter" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <i class="ti ti-alert-triangle" style="color:#DC2626;font-size:15px"></i>
+    <strong style="font-size:12px;color:#DC2626">Equipos Críticos</strong>
+    <label style="font-size:10px;font-weight:600;color:#94A3B8;text-transform:uppercase">Fallas BLT mín.</label>
+    <input type="number" id="crit-min-fallas" value="3" min="1" style="width:55px;height:30px;text-align:center;font-size:13px;font-weight:600;border:1px solid rgba(13,46,110,.3);border-radius:6px">
+    <label style="font-size:10px;font-weight:600;color:#94A3B8;text-transform:uppercase">Días</label>
+    <input type="number" id="crit-dias" value="35" min="1" placeholder="ej. 35" style="width:65px;height:30px;text-align:center;font-size:13px;font-weight:600;border:1px solid rgba(13,46,110,.3);border-radius:6px">
+    <button class="btn btn-sm btn-primary" onclick="renderCriticos()" style="height:30px">Aplicar</button>
+    
+    <button class="btn btn-sm" onclick="exportCriticosPDF()" style="height:30px;background:#FEF2F2;color:#DC2626;border-color:#FECACA">&#128196; PDF</button>
+    <span id="crit-count" style="font-size:11px;color:#94A3B8;margin-left:auto"></span>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;margin-top:12px">
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:1400px">
+      <thead id="crit-thead" style="background:#DC2626"><tr>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#fff;white-space:nowrap">Zona</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#fff;white-space:nowrap">Proyecto</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#fff;white-space:nowrap">Código</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#fff;white-space:nowrap">Ref. en sitio</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#fff;white-space:nowrap">Operativo</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Calls año</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Resp BLT</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Último BLT</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Resp Cliente</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Último Cliente</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Última Llamada</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">MTBC</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;width:60px">Disponibilidad</th>
+        <th style="padding:8px 6px;width:60px"></th>
+      </tr></thead>
+      <tbody id="crit-tbody"></tbody>
+    </table>
+    </div>
+  </div>
 </div>
 
 <div id="panel-portafolio" class="panel">
@@ -991,68 +1026,7 @@
       <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:4px">Funcionando</div>
       <div style="font-size:9px;color:rgba(255,255,255,.5)">Último ticket: funcionando · o sin tickets</div>
     </div>
-    <div class="card db-kpi" style="background:linear-gradient(135deg,#DC2626,#991B1B);min-height:110px;padding:12px 8px;cursor:pointer" onclick="openPfDetail('parado')">
-      <div style="font-size:20px">&#9940;</div>
-      <div style="font-size:26px;font-weight:800;color:#fff;line-height:1" id="pf-parado">—</div>
-      <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:4px">Parados</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.5)">Último ticket: no funcionando</div>
-    </div>
-    <div class="card db-kpi" style="background:linear-gradient(135deg,#7C3AED,#5B21B6);min-height:110px;padding:12px 8px">
-      <div style="font-size:20px">&#128200;</div>
-      <div style="font-size:26px;font-weight:800;color:#fff;line-height:1" id="pf-pct-func">—</div>
-      <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:4px">% Funcionando</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.6)" id="pf-pct-sub"></div>
-    </div>
-  </div>
-
-  <!-- KPI fila 3: MTBC + Disponibilidad -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
-    <div class="card" style="padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-        <h3 style="font-size:12px;font-weight:700;color:#0D2E6E;display:flex;align-items:center;gap:5px">
-          &#9201; MTBC — Días entre fallas BLT
-        </h3>
-        <span style="font-size:10px;color:#94A3B8">Últimos 365 días</span>
-      </div>
-      <!-- Global MTBC -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-        <div style="background:#F0FDF4;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#16A34A" id="pf-mtbc-avg">—</div>
-          <div style="font-size:10px;color:#64748B;margin-top:2px">Prom. empresa</div>
-          <div style="font-size:9px;color:#94A3B8">días entre fallas</div>
-        </div>
-        <div style="background:#EFF6FF;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#1B4FD8" id="pf-mtbc-count">—</div>
-          <div style="font-size:10px;color:#64748B;margin-top:2px">Equipos</div>
-          <div style="font-size:9px;color:#94A3B8">con dato MTBC</div>
-        </div>
-        <div style="background:#FEF9C3;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#CA8A04" id="pf-mtbc-nodata">—</div>
-          <div style="font-size:10px;color:#64748B;margin-top:2px">Sin dato</div>
-          <div style="font-size:9px;color:#94A3B8">solo 1 falla BLT</div>
-        </div>
-      </div>
-      <!-- MTBC by group -->
-      <div style="font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">Por zona (prom. días)</div>
-      <div id="pf-mtbc-zona" style="display:flex;flex-direction:column;gap:4px"></div>
-    </div>
-
-    <div class="card" style="padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-        <h3 style="font-size:12px;font-weight:700;color:#0D2E6E;display:flex;align-items:center;gap:5px">
-          &#128200; Disponibilidad de equipos
-        </h3>
-        <span style="font-size:10px;color:#94A3B8">Últimos 365 días</span>
-      </div>
-      <!-- Global availability -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-        <div style="background:#F0FDF4;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#16A34A" id="pf-disp-avg">—</div>
-          <div style="font-size:10px;color:#64748B;margin-top:2px">Disponibilidad prom.</div>
-          <div style="font-size:9px;color:#94A3B8">empresa · 365 días</div>
-        </div>
-        <div style="background:#FEF2F2;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#DC2626" id="pf-disp-hrs">—</div>
+    
           <div style="font-size:10px;color:#64748B;margin-top:2px">Horas parado total</div>
           <div style="font-size:9px;color:#94A3B8">suma todos equipos</div>
         </div>
@@ -1143,34 +1117,7 @@
 
 
 
-  <!-- Movimientos del último mes -->
-  <div style="background:#fff;border:1px solid #334155;border-radius:12px;overflow:hidden;margin-top:16px;box-shadow:0 2px 8px rgba(51,65,85,.1)">
-    <div style="padding:12px 16px;border-bottom:1px solid rgba(51,65,85,.3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <p style="font-size:13px;font-weight:700;color:#0D2E6E">&#128198; Movimientos del último mes
-        <span id="mov-count" style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px"></span>
-      </p>
-      <span style="font-size:11px;color:#94A3B8">Equipos con cambio de estatus vs cierre anterior</span>
-    </div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead style="background:#334155"><tr>
-        <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Código</th>
-        <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Proyecto</th>
-        <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Zona</th>
-        <th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Estatus anterior</th>
-        <th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Estatus actual</th>
-        <th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Cambio</th>
-        <th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Fecha corte</th>
-        <th style="padding:9px 12px"></th>
-      </tr></thead>
-      <tbody id="mov-tbody"></tbody>
-    </table>
-  </div>
-
-</div>
-
-
-<div id="panel-operativo" class="panel">
-
+  
   <!-- Filter bar -->
   <div class="card db-filter">
     <i class="ti ti-adjustments-horizontal" style="color:#16A34A;font-size:15px"></i>
@@ -1352,8 +1299,10 @@
       <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">Parados</div>
     </div>
     <div class="card db-kpi" style="background:linear-gradient(135deg,#16A34A,#166534);min-height:100px;padding:12px 8px">
-      <div style="font-size:20px">&#128200;</div>
-      <div style="font-size:24px;font-weight:800;color:#fff;line-height:1" id="proy-k-disp">&#8212;</div>
+      <div style="font-size:20px">&#9201;</div>
+      <div style="font-size:24px;font-weight:800;color:#fff;line-height:1" id="proy-k-mtbc">&#8212;</div>
+      <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:4px">MTBC PROM.</div>
+    </div>
       <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">Disp. prom.</div>
     </div>
   </div>
@@ -1368,7 +1317,7 @@
         <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Parados</th>
         <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Tickets 35d</th>
         <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">MTBC prom</th>
-        <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Disp. prom</th>
+        
         <th style="padding:10px 12px"></th>
       </tr></thead>
       <tbody id="proy-tbody"></tbody>
@@ -1385,44 +1334,129 @@
     <span id="proy-page-badge" style="background:rgba(255,255,255,.15);color:#fff;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:500;flex-shrink:0"></span>
   </div>
   <div style="flex:1;overflow-y:auto;padding:16px">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px" id="proy-det-kpis"></div>
+
+    <!-- 1. DATOS GENERALES -->
+    <div class="card" style="padding:16px;margin-bottom:16px">
+      <p style="font-size:11px;font-weight:700;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">&#128203; Datos generales</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px" id="proy-datos-generales"></div>
+    </div>
+
+    <!-- 2. LISTADO DE EQUIPOS -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(13,46,110,.12);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <p style="font-size:13px;font-weight:700;color:#0D2E6E">Listado de equipos
+          <span id="proy-det-eq-count" style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px"></span>
+        </p>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="proy-det-filter" onchange="renderProyDetEquipos()" style="height:28px;font-size:12px">
+            <option value="">Todos</option>
+            <option value="parado">Solo parados</option>
+            <option value="funcionando">Solo funcionando</option>
+          </select>
+          <button class="btn btn-sm" onclick="toggleProyEqCols()" style="height:28px;font-size:11px;background:#EEF2FF;color:#1B4FD8;border-color:#C7D2FE">&#9868; Columnas</button>
+        </div>
+      </div>
+      <div id="proy-eq-col-panel" style="display:none;background:#F8FAFC;border-bottom:1px solid #E2E8F0;padding:12px 16px">
+        <p style="font-size:10px;font-weight:700;color:#0D2E6E;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Columnas visibles — arrastra para reordenar</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px" id="proy-eq-col-checks"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:900px">
+          <thead style="background:#0D2E6E" id="proy-det-thead"></thead>
+          <tbody id="proy-det-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. GRÁFICAS: fallas por mes (año en curso / año anterior) -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div class="card" style="padding:16px">
-        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Estado tickets</p>
+        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Fallas por mes — año en curso</p>
+        <div id="proy-bars-mes-year"></div>
+      </div>
+      <div class="card" style="padding:16px">
+        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Fallas por mes — año anterior</p>
+        <div id="proy-bars-mes-prev"></div>
+      </div>
+    </div>
+
+    <!-- GRÁFICAS: fallas por equipo (año en curso / año anterior) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px">
+        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Fallas por equipo — año en curso</p>
+        <div id="proy-bars-eq-year"></div>
+      </div>
+      <div class="card" style="padding:16px">
+        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Fallas por equipo — año anterior</p>
+        <div id="proy-bars-eq-prev"></div>
+      </div>
+    </div>
+
+    <!-- GRÁFICAS: dona responsabilidad -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px">
+        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Estado tickets — año en curso</p>
         <svg id="proy-det-svg-estado" width="120" height="120" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
         <div id="proy-det-leg-estado" style="display:flex;flex-direction:column;gap:3px;margin-top:8px"></div>
       </div>
       <div class="card" style="padding:16px">
-        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Responsabilidad</p>
+        <p style="font-size:11px;font-weight:600;color:#0D2E6E;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Responsabilidad — año en curso</p>
         <svg id="proy-det-svg-resp" width="120" height="120" viewBox="0 0 130 130" style="display:block;margin:0 auto"></svg>
         <div id="proy-det-leg-resp" style="display:flex;flex-direction:column;gap:3px;margin-top:8px"></div>
       </div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:12px 16px;border-bottom:1px solid rgba(13,46,110,.12);display:flex;align-items:center;justify-content:space-between">
-        <p style="font-size:13px;font-weight:700;color:#0D2E6E">Equipos del proyecto
-          <span id="proy-det-eq-count" style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px"></span>
-        </p>
-        <select id="proy-det-filter" onchange="renderProyDetEquipos()" style="height:28px;font-size:12px">
-          <option value="">Todos</option>
-          <option value="parado">Solo parados</option>
-          <option value="funcionando">Solo funcionando</option>
-        </select>
+
+    <!-- 4. KPIs: promedios, MTBC, disponibilidad -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div class="card db-kpi" style="background:linear-gradient(135deg,#0F766E,#0D6E64);min-height:90px;padding:10px 8px">
+        <div style="font-size:20px;font-weight:800;color:#fff;line-height:1" id="proy-avg-ll">—</div>
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">Prom. llegada (año actual)</div>
       </div>
-      <table style="width:100%;border-collapse:collapse">
-        <thead style="background:#0D2E6E"><tr>
-          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Codigo</th>
-          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Tipo</th>
-          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Contrato</th>
-          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Operativo</th>
-          <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Dias parado</th>
-          <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">MTBC</th>
-          <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Disp.</th>
-          <th style="padding:8px 12px"></th>
-        </tr></thead>
-        <tbody id="proy-det-tbody"></tbody>
-      </table>
+      <div class="card db-kpi" style="background:linear-gradient(135deg,#1E40AF,#1E3A8A);min-height:90px;padding:10px 8px">
+        <div style="font-size:20px;font-weight:800;color:#fff;line-height:1" id="proy-avg-sol">—</div>
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">Prom. equipo funcionando (año actual)</div>
+      </div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div class="card db-kpi" style="background:linear-gradient(135deg,#16A34A,#166534);min-height:90px;padding:10px 8px">
+        <div style="font-size:20px;font-weight:800;color:#fff;line-height:1" id="proy-mtbc-year">—</div>
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">MTBC año en curso</div>
+      </div>
+      <div class="card db-kpi" style="background:linear-gradient(135deg,#15803D,#14532D);min-height:90px;padding:10px 8px">
+        <div style="font-size:20px;font-weight:800;color:#fff;line-height:1" id="proy-mtbc-365">—</div>
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">MTBC últimos 365 días</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">Disponibilidad año en curso</div>
+      </div>
+      
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.85);text-transform:uppercase;margin-top:3px">Disponibilidad últimos 365 días</div>
+      </div>
+    </div>
+
+    <!-- 5. TABLA DE TICKETS POR AÑO -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(13,46,110,.12);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <p style="font-size:13px;font-weight:700;color:#0D2E6E">Tickets por año <span id="proy-tkt-count" style="font-size:11px;font-weight:400;color:#94A3B8"></span></p>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="proy-tkt-year" onchange="renderProyTicketsTable()" style="height:28px;font-size:12px"></select>
+          <button class="btn btn-sm" onclick="toggleProyTktCols()" style="height:28px;font-size:11px;background:#EEF2FF;color:#1B4FD8;border-color:#C7D2FE">&#9868; Columnas</button>
+        </div>
+      </div>
+      <div id="proy-tkt-col-panel" style="display:none;background:#F8FAFC;border-bottom:1px solid #E2E8F0;padding:12px 16px">
+        <p style="font-size:10px;font-weight:700;color:#0D2E6E;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Columnas visibles — arrastra para reordenar</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px" id="proy-tkt-col-checks"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:800px">
+          <thead style="background:#0D2E6E" id="proy-tkt-thead"></thead>
+          <tbody id="proy-tkt-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1555,7 +1589,143 @@
 
 <div class="toast" id="toast"></div>
 
+<div id="notif-page" style="display:none;padding:16px;max-width:1200px;margin:0 auto;background:#F0F4F8">
+
+  <!-- Sección 1: Mensajes no leídos -->
+  <div style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:15px;font-weight:700;color:#0D2E6E">&#128172; Mensajes no leídos</span>
+      <span id="notif-msg-badge" style="background:#DC2626;color:#fff;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:700;display:none">0</span>
+    </div>
+    <div style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="background:#0D2E6E"><tr>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-align:left">Ticket</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-align:left">Asunto</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-align:left">Proyecto</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-align:left">De</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-align:left">Último mensaje</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-align:left">Estado</th>
+        </tr></thead>
+        <tbody id="notif-msg-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sección 2: Nuevos equipos críticos -->
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:15px;font-weight:700;color:#DC2626">&#128165; Nuevos equipos críticos</span>
+      <span id="notif-crit-badge" style="background:#DC2626;color:#fff;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:700;display:none">0</span>
+    </div>
+    <div style="background:#fff;border:1px solid #DC2626;border-radius:12px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="background:#DC2626"><tr>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#fff;text-align:left">Equipo</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#fff;text-align:left">Proyecto</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#fff;text-align:left">Zona</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#fff;text-align:center">Fallas</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#fff;text-align:left">Último ticket</th>
+        </tr></thead>
+        <tbody id="notif-crit-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<div id="movimientos-page" class="panel" style="display:none;padding:16px;max-width:1200px;margin:0 auto"><div style="margin-bottom:16px"><h2 style="font-size:16px;font-weight:700;color:#0D2E6E">&#8644; Movimientos de Portafolio</h2></div><div style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse"><thead style="background:#0D2E6E"><tr><th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Codigo</th><th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Proyecto</th><th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Zona</th><th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Estatus anterior</th><th style="padding:9px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">Estatus actual</th></tr></thead><tbody id="mov-page-tbody"></tbody></table></div></div>
 <!-- ═══════════════ SCRIPT ════════════════════════════════ -->
+
+<!-- =====================================================
+     PANEL: CENTRO DE AYUDA / NORI
+===================================================== -->
+<div id="panel-support" class="panel">
+  <section class="welcome support-welcome-integrated">
+    <h1>Centro de Ayuda</h1>
+    <p>Preguntas frecuentes, solicitudes y guía Nori.</p>
+  </section>
+<div class="support-shell">
+          <div class="support-tabs">
+            <button class="support-tab active" data-view="home" onclick="showSupportView('home')">Preguntas frecuentes</button>
+            <button class="support-tab" data-view="new" onclick="showSupportView('new')">Generar solicitud</button>
+            <button class="support-tab" data-view="requests" onclick="showSupportView('requests')">Mis solicitudes</button>
+          </div>
+
+          <div id="support-view-home" class="support-view active">
+            <div class="support-layout">
+              <div class="support-main-card">
+                <div class="panel-head-clean">
+                  <div>
+                    <h2>Preguntas frecuentes</h2>
+                    <span>Contenido demo basado en estructura de FAQ y categorías de soporte</span>
+                  </div>
+                  <input class="search" id="supportSearch" type="text" placeholder="Buscar: login, usuario, API..." oninput="renderSupportContent()" />
+                </div>
+                <div id="supportContent" class="support-list"></div>
+              </div>
+
+              <aside class="support-side-card">
+                <h2>¿No encontraste solución?</h2>
+                <p>Genera una solicitud para que el equipo de soporte revise tu caso.</p>
+                <button class="btn-primary" onclick="showSupportView('new')">Generar Solicitud</button>
+                <button class="support-btn-secondary" onclick="showSupportView('requests')">Ver mis solicitudes</button>
+              </aside>
+            </div>
+          </div>
+
+          <div id="support-view-new" class="support-view">
+            <section class="support-page-card">
+              <div class="support-page-head">
+                <div>
+                  <button class="back-link" onclick="showSupportView('home')">← Centro de ayuda</button>
+                  <h2>Generar solicitud</h2>
+                  <p>Describe el problema o requerimiento para que el equipo de soporte pueda revisarlo.</p>
+                </div>
+              </div>
+
+              <div class="support-page-body">
+                <div class="support-form-grid">
+                  <div class="support-form-field">
+                    <label>Módulo afectado <span class="support-required">*</span></label>
+                    <select id="reqModulo">
+                      <option value="">Seleccionar módulo</option>
+                      <option>Login / Acceso</option>
+                      <option>Usuarios</option>
+                      <option>Portafolio</option>
+                      <option>Tickets</option>
+                      <option>Centro de ayuda</option>
+                      <option>Backend / API</option>
+                    </select>
+                  </div>
+
+                  <div class="support-form-field">
+                    <label>Asunto <span class="support-required">*</span></label>
+                    <input id="reqAsunto" type="text" placeholder="Ej. No puedo iniciar sesión" />
+                  </div>
+
+                  <div class="support-form-field full">
+                    <label>Descripción <span class="support-required">*</span></label>
+                    <textarea id="reqDescripcion" placeholder="Describe qué ocurrió, en qué pantalla estabas y qué esperabas que pasara."></textarea>
+                  </div>
+
+                  <div class="support-form-field full">
+                    <label>Adjuntar evidencias</label>
+                    <input id="reqAdjuntos" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" />
+                    <div class="support-help-text">Puedes adjuntar hasta 5 archivos. Tamaño máximo sugerido: 10 MB por archivo. Formatos permitidos: PDF, JPG, PNG, DOCX y XLSX.</div>
+                  </div>
+                </div>
+
+                <div class="support-form-error" id="reqError">Completa los campos obligatorios antes de enviar.</div>
+              </div>
+
+              <div class="support-request-actions">
+                <button class="support-btn-secondary" onclick="clearRequestForm(); showSupportView('home')">Cancelar</button>
+                <button class="support-btn-primary" onclick="submitDemoRequest()">Enviar solicitud</button>
+              </div>
+            
+</div>
+
+
 <script>
 
 
@@ -2312,15 +2482,21 @@ function hydrateSessionUI() {
       'Usuario';
 
   var hdrName = document.getElementById('hdr-name');
-  if (hdrName)
+  if (hdrName) {
       hdrName.textContent = CURRENT_USER;
+  }
 
   var hdrAv = document.getElementById('hdr-av');
-  if (hdrAv)
-      hdrAv.textContent = initials(CURRENT_USER);
+  if (hdrAv) {
+      hdrAv.textContent =
+          user.iniciales ||
+          user.initials ||
+          initials(CURRENT_USER);
+  }
 
   /* ==========================================
      Rol
+     Proviene de usuarios/roles desde backend.
   ========================================== */
 
   var hdrRole = document.getElementById('hdr-role');
@@ -2330,6 +2506,8 @@ function hydrateSessionUI() {
       hdrRole.textContent =
           user.rol ||
           user.role ||
+          user.rol_nombre ||
+          user.puesto ||
           '';
 
       hdrRole.style.display =
@@ -5931,6 +6109,1452 @@ function initHome() {
       ab.style.display = 'none';
     }
   }
+}
+
+
+
+/* =====================================================
+   MGS-INT-001 | LOGICA NUEVOS MODULOS + SOPORTE/NORI
+===================================================== */
+var _CC_COLS = [
+  {key:'n',         label:'Ticket',               visible:true},
+  {key:'et',        label:'Estado Ticket',        visible:true},
+  {key:'edo',       label:'Estado (República)',   visible:false},
+  {key:'ciu',       label:'Ciudad',               visible:false},
+  {key:'pro',       label:'Proyecto',             visible:true},
+  {key:'pro_padre', label:'Proyecto Padre',       visible:false},
+  {key:'cod',       label:'Código Equipo',        visible:false},
+  {key:'ref',       label:'Referencia en sitio',  visible:false},
+  {key:'zon',       label:'Zona Operativa',       visible:true},
+  {key:'zon_adm',   label:'Zona Administrativa',  visible:false},
+  {key:'zon_falla', label:'Zona de falla',        visible:false},
+  {key:'asu',       label:'Asunto',               visible:true},
+  {key:'fr',        label:'Fecha Reporte',        visible:false},
+  {key:'hr',        label:'Hora Reporte',         visible:false},
+  {key:'eqi',       label:'Estatus Equipo (ir)',  visible:false},
+  {key:'fl',        label:'Fecha Llegada',        visible:false},
+  {key:'hl',        label:'Hora Llegada',         visible:false},
+  {key:'pat',       label:'Persona que atiende',  visible:false},
+  {key:'fs',        label:'Fecha Solución',       visible:false},
+  {key:'hs',        label:'Hora Solución',        visible:false},
+  {key:'tec',       label:'Técnico de Solución',  visible:false},
+  {key:'eqf',       label:'Estatus Equipo Final', visible:false},
+  {key:'cau',       label:'Causa',                visible:false},
+  {key:'acc',       label:'Acción en Cierre',     visible:false},
+  {key:'res',       label:'Responsabilidad',      visible:true},
+  {key:'caf',       label:'Causa de Falla',       visible:false},
+  {key:'tll',       label:'Tiempo Llegada (h)',   visible:false},
+  {key:'tso',       label:'Tiempo Solución (h)',  visible:false},
+  {key:'prd',       label:'Producto/Tipo equipo', visible:false},
+  {key:'pri',       label:'Prioridad',            visible:false},
+  {key:'ejc',       label:'Ejecutivo Call',       visible:false},
+  {key:'blt',       label:'Empleado BLT',         visible:false},
+  {key:'xat',       label:'Tiempo Llegada II',    visible:false},
+  {key:'xso',       label:'Tiempo Solución II',   visible:false},
+  {key:'ens',       label:'Ticket excede SLA',    visible:false},
+  {key:'ver',       label:'',                     visible:true},
+];
+var _CRIT_COLS = {
+  zon:      {label:'Zona',          visible:true},
+  pro:      {label:'Proyecto',      visible:true},
+  cod:      {label:'Código',        visible:true},
+  ref:      {label:'Ref. en sitio', visible:true},
+  oper:     {label:'Operativo',     visible:true},
+  callyear: {label:'Calls año',     visible:true},
+  blt:      {label:'Resp BLT',      visible:true},
+  diasblt:  {label:'Último BLT',   visible:true},
+  cli:      {label:'Resp Cliente',  visible:true},
+  diascli:  {label:'Último Cliente',visible:true},
+  last:     {label:'Última Llamada',visible:true},
+  mtbc:     {label:'MTBC',          visible:true},
+  ver:      {label:'',              visible:true},
+};
+var _EQ_HIST_COLS = [
+  {key:'n',   label:'Ticket',      visible:true},
+  {key:'fr',  label:'Fecha',       visible:true},
+  {key:'hr',  label:'Hora',        visible:false},
+  {key:'asu', label:'Asunto',      visible:true},
+  {key:'pro', label:'Proyecto',    visible:false},
+  {key:'zon', label:'Zona',        visible:false},
+  {key:'caf', label:'Causa falla', visible:true},
+  {key:'cau', label:'Causa',       visible:false},
+  {key:'res', label:'Resp.',       visible:true},
+  {key:'tec', label:'Técnico',     visible:false},
+  {key:'tll', label:'T.llegada (h)', visible:false},
+  {key:'tso', label:'T.solución (h)',visible:false},
+  {key:'et',  label:'Estado',      visible:true},
+  {key:'ver', label:'',            visible:true},
+];
+var _PROY_EQ_COLS = [
+  {key:'cod',     label:'Código',                visible:true},
+  {key:'ref',     label:'Referencia sitio',       visible:true},
+  {key:'tipo',    label:'Tipo',                   visible:true},
+  {key:'contrato',label:'Contrato',               visible:true},
+  {key:'oper',    label:'Operativo',              visible:true},
+  {key:'diaspar', label:'Días parado',            visible:true},
+  {key:'callyear',label:'Llamadas año actual',    visible:true},
+  {key:'callprev',label:'Llamadas año anterior',  visible:false},
+  {key:'blt',     label:'Resp. BLT',              visible:false},
+  {key:'cli',     label:'Resp. Cliente',          visible:false},
+  {key:'diasblt', label:'Días últ. falla BLT',    visible:true},
+  {key:'diascli', label:'Días últ. falla Cliente',visible:false},
+  {key:'mtbc',    label:'MTBC',                   visible:true},
+  {key:'ver',     label:'',                       visible:true},
+];
+var _PROY_TKT_COLS = [
+  {key:'n',   label:'Ticket',      visible:true},
+  {key:'cod', label:'Equipo',      visible:true},
+  {key:'fr',  label:'Fecha',       visible:true},
+  {key:'asu', label:'Asunto',      visible:true},
+  {key:'caf', label:'Causa falla', visible:true},
+  {key:'res', label:'Resp.',       visible:true},
+  {key:'et',  label:'Estado',      visible:true},
+  {key:'ver', label:'',            visible:true},
+];
+var _RD_COLS = [
+  {key:'n',         label:'Ticket',               visible:true},
+  {key:'et',        label:'Estado Ticket',        visible:true},
+  {key:'edo',       label:'Estado (República)',   visible:false},
+  {key:'ciu',       label:'Ciudad',               visible:false},
+  {key:'pro',       label:'Proyecto',             visible:true},
+  {key:'pro_padre', label:'Proyecto Padre',       visible:false},
+  {key:'cod',       label:'Código Equipo',        visible:false},
+  {key:'ref',       label:'Referencia en sitio',  visible:false},
+  {key:'zon',       label:'Zona Operativa',       visible:true},
+  {key:'zon_adm',   label:'Zona Administrativa',  visible:false},
+  {key:'zon_falla', label:'Zona de falla',        visible:false},
+  {key:'asu',       label:'Asunto',               visible:true},
+  {key:'fr',        label:'Fecha Reporte',        visible:false},
+  {key:'hr',        label:'Hora Reporte',         visible:false},
+  {key:'eqi',       label:'Estatus Equipo (ir)',  visible:false},
+  {key:'fl',        label:'Fecha Llegada',        visible:false},
+  {key:'hl',        label:'Hora Llegada',         visible:false},
+  {key:'pat',       label:'Persona que atiende',  visible:false},
+  {key:'fs',        label:'Fecha Solución',       visible:false},
+  {key:'hs',        label:'Hora Solución',        visible:false},
+  {key:'tec',       label:'Técnico de Solución',  visible:false},
+  {key:'eqf',       label:'Estatus Equipo Final', visible:false},
+  {key:'cau',       label:'Causa',                visible:false},
+  {key:'acc',       label:'Acción en Cierre',     visible:false},
+  {key:'res',       label:'Responsabilidad',      visible:true},
+  {key:'caf',       label:'Causa de Falla',       visible:false},
+  {key:'tll',       label:'Tiempo Llegada (h)',   visible:false},
+  {key:'tso',       label:'Tiempo Solución (h)',  visible:false},
+  {key:'prd',       label:'Producto/Tipo equipo', visible:false},
+  {key:'pri',       label:'Prioridad',            visible:false},
+  {key:'ejc',       label:'Ejecutivo Call',       visible:false},
+  {key:'blt',       label:'Empleado BLT',         visible:false},
+  {key:'xat',       label:'Tiempo Llegada II',    visible:false},
+  {key:'xso',       label:'Tiempo Solución II',   visible:false},
+  {key:'ens',       label:'Ticket excede SLA',    visible:false},
+  {key:'ver',       label:'',                     visible:true},
+];
+var _ccDragSrcIdx = null;
+var _eqHistDragSrcIdx = null;
+var _proyEqDragSrcIdx = null;
+var _proyTktDragSrcIdx = null;
+var _rdDragSrcIdx = null;
+function _buildCritSet(dias, minFal) {
+  dias   = dias   || parseInt((document.getElementById('crit-dias')&&document.getElementById('crit-dias').value)||'35') || 35;
+  minFal = minFal || parseInt((document.getElementById('crit-min-fallas')&&document.getElementById('crit-min-fallas').value)||'3') || 3;
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - dias);
+  var cutStr = cutoff.toISOString().slice(0,10);
+  var byEq = {};
+  ALL_TICKETS.forEach(function(t) {
+    if (!t.cod || !t.fr || t.fr < cutStr) return;
+    if (!byEq[t.cod]) byEq[t.cod] = 0;
+    if (t.res === 'BLT') byEq[t.cod]++;
+  });
+  window._critSet = new Set(
+    Object.keys(byEq).filter(function(cod){ return byEq[cod] >= minFal; })
+  );
+}
+
+function _ccDragOver(e)  { e.preventDefault(); }
+
+function _ccDragStart(e) { _ccDragSrcIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx')); e.dataTransfer.effectAllowed = 'move'; }
+
+function _ccDrop(e) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx'));
+  if (_ccDragSrcIdx === null || targetIdx === _ccDragSrcIdx) return;
+  var moved = _CC_COLS.splice(_ccDragSrcIdx, 1)[0];
+  _CC_COLS.splice(targetIdx, 0, moved);
+  _ccDragSrcIdx = null;
+  _renderCcColChecks();
+  renderCCTable();
+}
+
+function _daysSince(dateStr) {
+  if (!dateStr) return null;
+  var d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  var now = new Date();
+  return Math.max(0, Math.round((now - d) / (1000*60*60*24)));
+}
+
+function _eqHistCellValue(t, key) {
+    if (key === 'cod') return t.cod ? '<span style="cursor:pointer;color:#0D2E6E" onclick="openEqPage(\'' + t.cod + '\')">' + critBadge(t.cod) + t.cod + '</span>' : '—';
+  if (key === 'n')   return '<span style="font-weight:600;color:#1B4FD8;cursor:pointer" onclick="openDetail(\'' + t.n + '\')">' + critBadge(t.cod||'') + t.n + '</span>';
+  if (key === 'fr')  return t.fr || '—';
+  if (key === 'hr')  return t.hr || '—';
+  if (key === 'asu') return '<span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle" title="' + (t.asu||'').replace(/"/g,"'") + '">' + (t.asu||'—') + '</span>';
+  if (key === 'pro') return t.pro || '—';
+  if (key === 'zon') return t.zon || '—';
+  if (key === 'caf') return (t.caf||'—').replace(/^\d+ - /,'');
+  if (key === 'cau') return t.cau || '—';
+  if (key === 'res') return '<span style="font-weight:600;color:' + (t.res==='BLT'?'#DC2626':t.res==='CLIENTE'?'#D97706':'#94A3B8') + '">' + (t.res||'—') + '</span>';
+  if (key === 'tec') return t.tec || '—';
+  if (key === 'tll') return t.tll || '—';
+  if (key === 'tso') return t.tso || '—';
+  if (key === 'et')  return etBdg(t.et);
+  if (key === 'ver') return '<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="openDetail(\'' + t.n + '\')">Ver →</button>';
+  return '—';
+}
+
+function _eqHistDragOver(e) { e.preventDefault(); }
+
+function _eqHistDragStart(e) {
+  _eqHistDragSrcIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx'));
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function _eqHistDrop(e) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx'));
+  if (_eqHistDragSrcIdx === null || targetIdx === _eqHistDragSrcIdx) return;
+  var moved = _EQ_HIST_COLS.splice(_eqHistDragSrcIdx, 1)[0];
+  _EQ_HIST_COLS.splice(targetIdx, 0, moved);
+  _eqHistDragSrcIdx = null;
+  renderEqHistColChecks();
+  renderEqHistorial();
+}
+
+function _proyEqDragOver(e) { e.preventDefault(); }
+
+function _proyEqDragStart(e) { _proyEqDragSrcIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx')); e.dataTransfer.effectAllowed = 'move'; }
+
+function _proyEqDrop(e) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx'));
+  if (_proyEqDragSrcIdx === null || targetIdx === _proyEqDragSrcIdx) return;
+  var moved = _PROY_EQ_COLS.splice(_proyEqDragSrcIdx, 1)[0];
+  _PROY_EQ_COLS.splice(targetIdx, 0, moved);
+  _proyEqDragSrcIdx = null;
+  _renderProyEqColChecks();
+  renderProyDetEquipos();
+}
+
+function _proyTktCellValue(t, key) {
+  if (key === 'n')   return '<span style="font-weight:700;color:#1B4FD8;cursor:pointer" onclick="openDetail(\'' + t.n + '\')">' + t.n + '</span>';
+  if (key === 'cod') return '<span style="cursor:pointer;color:#0D2E6E" onclick="openEqPage(\'' + t.cod + '\')">' + critBadge(t.cod||'') + (t.cod||'—') + '</span>'; 
+  if (key === 'fr')  return t.fr || '—';
+  if (key === 'asu') return '<span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle" title="'+(t.asu||'').replace(/"/g,"'")+'">' + (t.asu||'—') + '</span>';
+  if (key === 'caf') return (t.caf||'—').replace(/^\\d+ - /,'');
+  if (key === 'res') return '<span style="font-weight:600;color:' + (t.res==='BLT'?'#DC2626':t.res==='CLIENTE'?'#D97706':'#94A3B8') + '">' + (t.res||'—') + '</span>';
+  if (key === 'et')  return etBdg(t.et);
+  if (key === 'ver') return '<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="openDetail(\'' + t.n + '\')">Ver →</button>';
+  return '—';
+}
+
+function _proyTktDragOver(e) { e.preventDefault(); }
+
+function _proyTktDragStart(e) { _proyTktDragSrcIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx')); e.dataTransfer.effectAllowed = 'move'; }
+
+function _proyTktDrop(e) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx'));
+  if (_proyTktDragSrcIdx === null || targetIdx === _proyTktDragSrcIdx) return;
+  var moved = _PROY_TKT_COLS.splice(_proyTktDragSrcIdx, 1)[0];
+  _PROY_TKT_COLS.splice(targetIdx, 0, moved);
+  _proyTktDragSrcIdx = null;
+  _renderProyTktColChecks();
+  renderProyTicketsTable();
+}
+
+function _rdCellValue(t, key) {
+  var pc = {ALTA:'#DC2626',MEDIA:'#D97706',BAJA:'#16A34A',PLUS:'#7C3AED'};
+  var pb = {ALTA:'#FEE2E2',MEDIA:'#FEF3C7',BAJA:'#DCFCE7',PLUS:'#EDE9FE'};
+  function trunc(val, w) {
+    return '<span style="max-width:'+w+'px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle" title="'+String(val||'').replace(/"/g,"'")+'">' + (val||'—') + '</span>';
+  }
+  if (key === 'n') {
+    var _bdg=critBadge(t.cod||'');
+    var _tx=((t.asu||'')+(t.cau||'')+(t.acc||'')).toLowerCase();
+    if(ATRAP_KW&&ATRAP_KW.some(function(k){return _tx.includes(k);}))_bdg+='🚨';
+    if(AGUA_KW&&AGUA_KW.some(function(k){return _tx.includes(k);}))_bdg+='💧';
+    if(VOLT_KW&&VOLT_KW.some(function(k){return _tx.includes(k);}))_bdg+='⚡';
+    return '<span style="font-weight:600;color:#1B4FD8;cursor:pointer" onclick="openDetail(\''+ t.n + '\')">' + _bdg + t.n + '</span>';
+  }
+  if (key === 'et')        return etBdg(t.et);
+  if (key === 'edo')       return t.edo || '—';
+  if (key === 'ciu')       return t.ciu || '—';
+  if (key === 'pro')       return trunc(t.pro, 140);
+  if (key === 'pro_padre') return trunc(t.pro_padre, 140);
+  if (key === 'cod')       return t.cod ? critBadge(t.cod) + t.cod : '—';
+  if (key === 'ref')       return t.ref ? critBadge(t.cod||'') + trunc(t.ref, 130) : '—';
+  if (key === 'zon')       return t.zon || '—';
+  if (key === 'zon_adm')   return t.zon_adm || '—';
+  if (key === 'zon_falla') return t.zon_falla || '—';
+  if (key === 'asu')       return trunc(t.asu, 180);
+  if (key === 'fr')        return t.fr || '—';
+  if (key === 'hr')        return t.hr || '—';
+  if (key === 'eqi')       return t.eqi || '—';
+  if (key === 'fl')        return t.fl || '—';
+  if (key === 'hl')        return t.hl || '—';
+  if (key === 'pat')       return trunc(t.pat, 120);
+  if (key === 'fs')        return t.fs || '—';
+  if (key === 'hs')        return t.hs || '—';
+  if (key === 'tec')       return trunc(t.tec, 120);
+  if (key === 'eqf')       return t.eqf || '—';
+  if (key === 'cau')       return trunc(t.cau, 150);
+  if (key === 'acc')       return trunc(t.acc, 150);
+  if (key === 'res')       return t.res ? '<span style="font-weight:600;color:'+(t.res==='BLT'?'#1B4FD8':'#D97706')+'">'+t.res+'</span>' : '<span style="color:#94A3B8">—</span>';
+  if (key === 'caf')       return (t.caf||'—').replace(/^\d+ - /,'');
+  if (key === 'tll')       return t.tll || '—';
+  if (key === 'tso')       return t.tso || '—';
+  if (key === 'prd')       return t.prd || '—';
+  if (key === 'pri')       return t.pri ? '<span style="background:'+(pb[t.pri]||'#F1F5F9')+';color:'+(pc[t.pri]||'#64748B')+';border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600">'+t.pri+'</span>' : '—';
+  if (key === 'ejc')       return trunc(t.ejc, 120);
+  if (key === 'blt')       return trunc(t.blt, 120);
+  if (key === 'xat')       return t.xat || '—';
+  if (key === 'xso')       return t.xso || '—';
+  if (key === 'ens')       return t.ens || '—';
+  if (key === 'ver')       return '<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="openDetail(\'' + t.n + '\')">Ver →</button>';
+  return '—';
+}
+
+function _rdDragOver(e) { e.preventDefault(); }
+
+function _rdDragStart(e) { _rdDragSrcIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx')); e.dataTransfer.effectAllowed = 'move'; }
+
+function _rdDrop(e) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.target.closest('[data-idx]').getAttribute('data-idx'));
+  if (_rdDragSrcIdx === null || targetIdx === _rdDragSrcIdx) return;
+  var moved = _RD_COLS.splice(_rdDragSrcIdx, 1)[0];
+  _RD_COLS.splice(targetIdx, 0, moved);
+  _rdDragSrcIdx = null;
+  _renderRdColChecks();
+  renderDayTable();
+}
+
+function _renderCcColChecks() {
+  var checks = document.getElementById('cc-col-checks');
+  if (!checks) return;
+  checks.innerHTML = _CC_COLS.map(function(c, idx) {
+    if (c.key === 'ver') return '';
+    return '<label draggable="true" data-idx="' + idx + '" ondragstart="_ccDragStart(event)" ondragover="_ccDragOver(event)" ondrop="_ccDrop(event)" ' +
+      'style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:grab;background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;user-select:none">' +
+      '<i class="ti ti-grip-vertical" style="color:#CBD5E1;font-size:13px"></i>' +
+      '<input type="checkbox" ' + (c.visible?'checked':'') + ' onchange="setCcCol(' + idx + ',this.checked)" style="cursor:pointer">' +
+      c.label + '</label>';
+  }).join('');
+}
+
+function _renderProyEqColChecks() {
+  var checks = document.getElementById('proy-eq-col-checks');
+  if (!checks) return;
+  checks.innerHTML = _PROY_EQ_COLS.map(function(c, idx) {
+    if (c.key === 'ver') return '';
+    return '<label draggable="true" data-idx="' + idx + '" ondragstart="_proyEqDragStart(event)" ondragover="_proyEqDragOver(event)" ondrop="_proyEqDrop(event)" ' +
+      'style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:grab;background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;user-select:none">' +
+      '<i class="ti ti-grip-vertical" style="color:#CBD5E1;font-size:13px"></i>' +
+      '<input type="checkbox" ' + (c.visible?'checked':'') + ' onchange="setProyEqCol(' + idx + ',this.checked)" style="cursor:pointer">' +
+      c.label + '</label>';
+  }).join('');
+}
+
+function _renderProyTktColChecks() {
+  var checks = document.getElementById('proy-tkt-col-checks');
+  if (!checks) return;
+  checks.innerHTML = _PROY_TKT_COLS.map(function(c, idx) {
+    if (c.key === 'ver') return '';
+    return '<label draggable="true" data-idx="' + idx + '" ondragstart="_proyTktDragStart(event)" ondragover="_proyTktDragOver(event)" ondrop="_proyTktDrop(event)" ' +
+      'style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:grab;background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;user-select:none">' +
+      '<i class="ti ti-grip-vertical" style="color:#CBD5E1;font-size:13px"></i>' +
+      '<input type="checkbox" ' + (c.visible?'checked':'') + ' onchange="setProyTktCol(' + idx + ',this.checked)" style="cursor:pointer">' +
+      c.label + '</label>';
+  }).join('');
+}
+
+function _renderRdColChecks() {
+  var checks = document.getElementById('rd-col-checks');
+  if (!checks) return;
+  checks.innerHTML = _RD_COLS.map(function(c, idx) {
+    if (c.key === 'ver') return '';
+    return '<label draggable="true" data-idx="' + idx + '" ondragstart="_rdDragStart(event)" ondragover="_rdDragOver(event)" ondrop="_rdDrop(event)" ' +
+      'style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:grab;background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;user-select:none">' +
+      '<i class="ti ti-grip-vertical" style="color:#CBD5E1;font-size:13px"></i>' +
+      '<input type="checkbox" ' + (c.visible?'checked':'') + ' onchange="setRdCol(' + idx + ',this.checked)" style="cursor:pointer">' +
+      c.label + '</label>';
+  }).join('');
+}
+
+function _resetCcColsToDefault() {
+  var def = ['n', 'et', 'pro', 'ref', 'zon', 'asu', 'fr', 'hr', 'hl', 'fs', 'hs', 'eqf', 'cau', 'acc', 'res', 'caf', 'tll', 'tso', 'ver'];
+  _CC_COLS.forEach(function(c){ c.visible = def.indexOf(c.key) !== -1; });
+}
+
+function _resetRdColsToDefault() {
+  var defaultVisible = ['n', 'et', 'pro', 'ref', 'zon', 'asu', 'fr', 'hr', 'hl', 'fs', 'hs', 'eqf', 'cau', 'acc', 'res', 'caf', 'tll', 'tso', 'ver'];
+  _RD_COLS.forEach(function(c) {
+    c.visible = defaultVisible.indexOf(c.key) !== -1;
+  });
+}
+
+function _yearBounds() {
+  var now = new Date();
+  var curYearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0,10);
+  var prevYearStart = new Date(now.getFullYear()-1, 0, 1).toISOString().slice(0,10);
+  var prevYearEnd   = new Date(now.getFullYear()-1, 11, 31).toISOString().slice(0,10);
+  return {curYearStart: curYearStart, prevYearStart: prevYearStart, prevYearEnd: prevYearEnd};
+}
+
+function applyCritCols() { /* all 16 cols always visible — no toggle */ }
+
+function buildKpiSet(allTksForScope) {
+  var yb = _yearBounds();
+  var tksYear  = allTksForScope.filter(function(t){ return t.fr && t.fr >= yb.curYearStart; });
+  var tksPrev  = allTksForScope.filter(function(t){ return t.fr && t.fr >= yb.prevYearStart && t.fr <= yb.prevYearEnd; });
+  var tks365   = allTksForScope; // ya viene filtrado a 365 días por el caller si aplica
+
+  // Última falla BLT / Cliente (de TODOS los tickets, no solo año en curso)
+  var bltTks = allTksForScope.filter(function(t){ return t.res === 'BLT' && t.fr; }).sort(function(a,b){ return b.fr.localeCompare(a.fr); });
+  var cliTks = allTksForScope.filter(function(t){ return t.res === 'CLIENTE' && t.fr; }).sort(function(a,b){ return b.fr.localeCompare(a.fr); });
+  var diasUltimaBLT = bltTks.length ? _daysSince(bltTks[0].fr) : null;
+  var diasUltimaCli = cliTks.length ? _daysSince(cliTks[0].fr) : null;
+
+  // Promedio llegada (año en curso, solo cerrados)
+  var llegadas = tksYear.filter(function(t){return t.et==='Cerrado';}).map(function(t){return parseFloat(t.tll);}).filter(function(n){return !isNaN(n)&&n>0&&n<=24;});
+  var avgLleg = llegadas.length ? Math.round(llegadas.reduce(function(a,b){return a+b;},0)/llegadas.length*60) : null;
+
+  // Promedio tiempo de solución / equipo funcionando (año en curso)
+  var soluciones = tksYear.filter(function(t){return t.tso;}).map(function(t){return parseFloat(t.tso);}).filter(function(n){return !isNaN(n)&&n>0;});
+  var avgSol = soluciones.length ? (soluciones.reduce(function(a,b){return a+b;},0)/soluciones.length) : null;
+
+  // MTBC año en curso vs últimos 365 días
+  var mtbcYear = calcMTBC(tksYear);
+  var mtbc365  = calcMTBC(tks365);
+
+  // Disponibilidad año en curso vs últimos 365 días
+  var dispYear = null;
+  var disp365  = null;
+
+  // Responsabilidad año en curso (para dona)
+  var bltN = tksYear.filter(function(t){return t.res==='BLT';}).length;
+  var cliN = tksYear.filter(function(t){return t.res==='CLIENTE';}).length;
+  var sinN = tksYear.filter(function(t){return !t.res;}).length;
+
+  // Fallas por mes — año en curso (12 meses Ene-Dic)
+  var mesesLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var fallasPorMesYear = mesesLabels.map(function(_, idx) {
+    var mStr = String(idx+1).padStart(2,'0');
+    return tksYear.filter(function(t){ return t.fr && t.fr.slice(5,7) === mStr; }).length;
+  });
+  var fallasPorMesPrev = mesesLabels.map(function(_, idx) {
+    var mStr = String(idx+1).padStart(2,'0');
+    return tksPrev.filter(function(t){ return t.fr && t.fr.slice(5,7) === mStr; }).length;
+  });
+
+  return {
+    diasUltimaBLT: diasUltimaBLT, diasUltimaCli: diasUltimaCli,
+    avgLleg: avgLleg, avgSol: avgSol,
+    mtbcYear: mtbcYear, mtbc365: mtbc365,
+    bltN: bltN, cliN: cliN, sinN: sinN,
+    tksYearCount: tksYear.length, tksPrevCount: tksPrev.length,
+    fallasPorMesYear: fallasPorMesYear, fallasPorMesPrev: fallasPorMesPrev,
+    mesesLabels: mesesLabels,
+    yb: yb,
+  };
+}
+
+function critBadge(cod) {
+  return isCritico(cod) ? '💥 ' : '';
+}
+
+function drawBarsClick(id, items, onBarClick) {
+  const el=document.getElementById(id); if(!el) return;
+  const maxV = Math.max.apply(null, items.map(function(i){return i.v;}).concat([1]));
+  el.innerHTML=items.map(function(item, idx) {
+    const pct = maxV ? Math.round(item.v/maxV*100) : 0;
+    // Misma lógica que rojo/verde original, pero con paleta BLT:
+    // % alto (mayor proporción) = naranja, % bajo = azul
+    const col = pct>=66?'#EA580C':pct>=33?'#1B4FD8':'#1B4FD8';
+    const bg  = pct>=66?'#FFF7ED':pct>=33?'#EFF6FF':'#EFF6FF';
+    const barColor = pct>=66?'#EA580C':'#1B4FD8';
+    return '<div class="db-bar-row" data-bar-idx="'+idx+'" style="cursor:pointer;border-radius:8px;padding:4px;margin:-4px;transition:background .15s" onmouseover="this.style.background=\'#F1F5F9\'" onmouseout="this.style.background=\'\'">'+
+      '<div class="db-bar-top">'+
+        '<span class="db-bar-label">'+item.l+'</span>'+
+        '<div style="display:flex;align-items:center;gap:5px">'+
+          '<span style="font-size:11px;color:#94A3B8">'+item.v+'/'+item.t+'</span>'+
+          '<span class="db-bar-pct" style="color:'+col+';background:'+bg+'">'+(item.t?Math.round(item.v/item.t*100):0)+'%</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="db-bar-track"><div class="db-bar-fill" style="width:'+pct+'%;background:'+barColor+'"></div></div>'+
+    '</div>';
+  }).join('');
+  if (onBarClick) {
+    el.querySelectorAll('[data-bar-idx]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var idx = parseInt(row.getAttribute('data-bar-idx'));
+        onBarClick(items[idx].l, items[idx]);
+      });
+    });
+  }
+}
+
+function exportCriticosPDF() {
+  if (!window._critRows || !window._critRows.length) {
+    alert('No hay equipos críticos para exportar con el filtro actual.');
+    return;
+  }
+  if (typeof window.jspdf === 'undefined') {
+    alert('La librería de PDF no cargó. Verifica tu conexión a internet.');
+    return;
+  }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({orientation:'landscape', unit:'pt', format:'letter'});
+  var dias   = (window._critFilters && window._critFilters.dias)   || 35;
+  var minFal = (window._critFilters && window._critFilters.minFal) || 3;
+  var now    = new Date();
+  var fecha  = now.toLocaleDateString('es-MX', {day:'2-digit', month:'long', year:'numeric'});
+  var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - dias);
+  var cutStr = cutoff.toISOString().slice(0,10);
+
+  doc.setFontSize(16);
+  doc.setTextColor(13,46,110);
+  doc.text('BLT Brilliant — Equipos Críticos', 40, 40);
+  doc.setFontSize(10);
+  doc.setTextColor(100,100,100);
+  doc.text('Generado: ' + fecha + '  |  Período: últimos ' + dias + ' días  |  Fallas BLT mínimas: ' + minFal, 40, 58);
+  doc.text('Total de equipos críticos: ' + window._critRows.length, 40, 72);
+
+  var colDefs = [
+    {key:'cod',   label:'Código'},
+    {key:'pro',   label:'Proyecto'},
+    {key:'zon',   label:'Zona'},
+    {key:'blt',   label:'Fallas BLT'},
+    {key:'total', label:'Total tickets'},
+    {key:'last',  label:'Último ticket'},
+    {key:'mtbc',  label:'MTBC'},
+  ];
+  var visibleCols = colDefs.filter(function(c){ return _CRIT_COLS[c.key] && _CRIT_COLS[c.key].visible; });
+  var head = [visibleCols.map(function(c){ return c.label; })];
+  var body = window._critRows.map(function(eq){
+    return visibleCols.map(function(c){
+      if (c.key === 'cod')   return eq.cod;
+      if (c.key === 'pro')   return eq.pro || '—';
+      if (c.key === 'zon')   return eq.zon || '—';
+      if (c.key === 'blt')   return String(eq.bltN);
+      if (c.key === 'total') return String(eq.total);
+      if (c.key === 'last')  return eq.last || '—';
+      if (c.key === 'mtbc')  return eq.mtbc !== null ? Math.round(eq.mtbc) + ' d' : '—';
+      return '';
+    });
+  });
+
+  doc.autoTable({
+    head: head, body: body, startY: 90, theme: 'grid',
+    headStyles: { fillColor: [220,38,38], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 8.5, textColor: [55,65,81] },
+    alternateRowStyles: { fillColor: [254,242,242] },
+    margin: { left: 40, right: 40 },
+  });
+
+  window._critRows.forEach(function(eq) {
+    var tks = ALL_TICKETS.filter(function(t){ return t.cod === eq.cod && t.fr && t.fr >= cutStr; })
+                          .sort(function(a,b){ return (b.fr||'').localeCompare(a.fr||''); });
+    if (!tks.length) return;
+    doc.addPage();
+    doc.setFontSize(13);
+    doc.setTextColor(13,46,110);
+    doc.text('Desglose de fallas — ' + eq.cod, 40, 40);
+    doc.setFontSize(9);
+    doc.setTextColor(100,100,100);
+    doc.text((eq.pro||'—') + '  |  Zona: ' + (eq.zon||'—') + '  |  Fallas BLT: ' + eq.bltN + '  |  MTBC: ' + (eq.mtbc!==null?Math.round(eq.mtbc)+' días':'—'), 40, 56);
+    var ticketBody = tks.map(function(t){
+      return [ t.n||'—', t.fr||'—', (t.asu||'—').slice(0,60), t.res||'—', t.et||'—', t.caf||'—' ];
+    });
+    doc.autoTable({
+      head: [['Ticket','Fecha','Asunto','Resp.','Estado','Causa de falla']],
+      body: ticketBody, startY: 70, theme: 'grid',
+      headStyles: { fillColor: [13,46,110], textColor: 255, fontSize: 8.5, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 8, textColor: [55,65,81] },
+      alternateRowStyles: { fillColor: [248,250,252] },
+      margin: { left: 40, right: 40 },
+      columnStyles: { 2: {cellWidth: 220}, 5: {cellWidth: 140} },
+    });
+  });
+
+  doc.save('Equipos_Criticos_Desglose_' + now.toISOString().slice(0,10) + '.pdf');
+}
+
+function goToDate(dateStr) {
+  console.log('[Calendar] goToDate called with:', dateStr);
+  if (!dateStr) return;
+  if (!ALL_DATES.length) ALL_DATES = [...new Set(ALL_TICKETS.map(t=>t.fr).filter(Boolean))].sort().reverse();
+  var idx = ALL_DATES.indexOf(dateStr);
+  if (idx === -1) {
+    // Fecha sin tickets: buscar la fecha disponible más cercana (anterior)
+    var sorted = ALL_DATES.slice().sort(); // ascendente
+    var closest = null;
+    for (var i = 0; i < sorted.length; i++) {
+      if (sorted[i] <= dateStr) closest = sorted[i];
+    }
+    if (closest) {
+      idx = ALL_DATES.indexOf(closest);
+    }
+  }
+  if (idx !== -1) {
+    currentDayIdx = idx;
+    renderResumen();
+  } else {
+    alert('No hay tickets registrados en o antes de esa fecha.');
+  }
+}
+
+function initCriticos() {
+  renderCriticos();
+}
+
+function isCritico(cod) {
+  return window._critSet && window._critSet.has && window._critSet.has(cod);
+}
+
+function openDayCalendar() {
+  var picker = document.getElementById('rd-date-picker');
+  if (!picker) return;
+  // Preset al valor del día actualmente mostrado
+  if (ALL_DATES[currentDayIdx]) picker.value = ALL_DATES[currentDayIdx];
+  // Asegurar que sea interactivo SIEMPRE antes de abrir (algunos navegadores
+  // bloquean el evento change si pointer-events estaba en none)
+  picker.style.pointerEvents = 'auto';
+  picker.style.opacity = '0'; // sigue invisible visualmente, pero ya es interactivo
+  try {
+    if (picker.showPicker) {
+      picker.showPicker();
+    } else {
+      picker.focus();
+      picker.click();
+    }
+  } catch(e) {
+    console.warn('[Calendar] showPicker error:', e);
+    picker.style.opacity = '1';
+    picker.style.position = 'fixed';
+    picker.style.top = '50%';
+    picker.style.left = '50%';
+    picker.style.zIndex = '9999';
+    picker.focus();
+  }
+}
+
+function renderCriticos() {
+  window._critRows = [];
+  var dias   = parseInt(document.getElementById('crit-dias') ? document.getElementById('crit-dias').value : 35) || 35;
+  if (dias < 1) dias = 1;
+  var minFal = parseInt(document.getElementById('crit-min-fallas') ? document.getElementById('crit-min-fallas').value : 3) || 3;
+  var tbody  = document.getElementById('crit-tbody');
+  var cnt    = document.getElementById('crit-count');
+  if (!tbody) return;
+
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - dias);
+  var cutStr = cutoff.toISOString().slice(0,10);
+
+  // Group tickets by equipo
+  var byEq = {};
+  ALL_TICKETS.forEach(function(t) {
+    if (!t.cod || !t.fr || t.fr < cutStr) return;
+    if (!byEq[t.cod]) byEq[t.cod] = [];
+    byEq[t.cod].push(t);
+  });
+
+  // Filter: BLT fallas >= minFal
+  var criticos = [];
+  Object.keys(byEq).forEach(function(cod) {
+    var tks  = byEq[cod];
+    var bltN = tks.filter(function(t){ return t.res === 'BLT'; }).length;
+    if (bltN < minFal) return;
+    var eq   = PF_DATA.filter(function(e){ return e.cod === cod; })[0];
+    var mtbc = calcMTBC(tks);
+    // Extra computed fields
+    var _yb = (typeof _yearBounds==='function')?_yearBounds():{curYearStart:new Date(new Date().getFullYear(),0,1).toISOString().slice(0,10),prevYearStart:new Date(new Date().getFullYear()-1,0,1).toISOString().slice(0,10),prevYearEnd:new Date(new Date().getFullYear()-1,11,31).toISOString().slice(0,10)};
+    var _callY = tks.filter(function(t){return t.fr&&t.fr>=_yb.curYearStart;}).length;
+    var _callP = tks.filter(function(t){return t.fr&&t.fr>=_yb.prevYearStart&&t.fr<=_yb.prevYearEnd;}).length;
+    var _bltS  = tks.filter(function(t){return t.res==='BLT'&&t.fr;}).sort(function(a,b){return b.fr.localeCompare(a.fr);});
+    var _cliS  = tks.filter(function(t){return t.res==='CLIENTE'&&t.fr;}).sort(function(a,b){return b.fr.localeCompare(a.fr);});
+    var _dBlt  = _bltS.length?(typeof _daysSince==='function'?_daysSince(_bltS[0].fr):null):null;
+    var _dCli  = _cliS.length?(typeof _daysSince==='function'?_daysSince(_cliS[0].fr):null):null;
+    var _c365  = (function(){var d=new Date();d.setDate(d.getDate()-365);return d.toISOString().slice(0,10);})();
+    var _t365  = tks.filter(function(t){return t.res==='BLT'&&t.fr&&t.fr>=_c365;});
+    var _opM   = (typeof _buildOperativoStatus==='function')?_buildOperativoStatus():{};
+    var _oper  = _opM[cod]?_opM[cod].status:'Funcionando';
+    criticos.push({
+      cod:  cod,
+      pro:  eq ? eq.pro  : (tks[0] ? tks[0].pro : '—'),
+      zon:  eq ? eq.zon  : '—',
+      ref:  eq ? (eq.ref||'—') : '—',
+      cli:  tks.filter(function(t){return t.res==='CLIENTE'&&t.fr&&t.fr>=_yb.curYearStart;}).length,
+      tipo:     eq?(eq.tipo||'—'):'—',
+      contrato: eq?(eq.contrato||'—'):'—',
+      oper:     _oper,
+      bltN:     bltN,
+      blt:      bltN,
+      total:    tks.length,
+      callyear: _callY,
+      callprev: _callP,
+      diasblt:  _dBlt,
+      diascli:  _dCli,
+      last:     tks.map(function(t){return t.fr||'';}).sort().reverse()[0] || '—',
+      mtbc:     mtbc,
+    });
+  });
+
+  criticos.sort(function(a,b){ return b.bltN - a.bltN; });
+  window._critRows = criticos;
+  window._critFilters = {dias:dias, minFal:minFal};
+  // Build fast lookup set for criticos indicator
+  window._critSet = new Set(criticos.map(function(c){ return c.cod; }));
+
+  if (cnt) cnt.textContent = criticos.length + ' equipo' + (criticos.length!==1?'s':'');
+
+  if (!criticos.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">Sin equipos críticos en el período</td></tr>';
+    return;
+  }
+
+  var rows = document.createElement('tbody');
+  criticos.forEach(function(eq) {
+    var tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid rgba(13,46,110,.1)';
+    tr.style.cursor = 'pointer';
+    tr.onmouseover = function(){ this.style.background='#FFF5F5'; };
+    tr.onmouseout  = function(){ this.style.background=''; };
+    (function(cod){ tr.onclick = function(){ toggleCritDetail(cod, tr); }; })(eq.cod);
+    tr.innerHTML =
+                  '<td style="padding:8px 10px;font-size:12px;color:#64748B">' + (eq.zon||'—') + '</td>' +
+      '<td style="padding:8px 10px;font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (eq.pro||'—') + '</td>' +
+      '<td style="padding:8px 10px;font-size:12px;font-weight:700;color:#1B4FD8;white-space:nowrap;cursor:pointer">🚨 ' + eq.cod + '</td>' +
+      '<td style="padding:8px 10px;font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (eq.ref||'—') + '</td>' +
+      '<td style="padding:8px 10px;font-size:12px;font-weight:600;color:' + (eq.oper==='Funcionando'?'#16A34A':'#DC2626') + '">' + (eq.oper||'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px">' + (eq.callyear!==undefined?eq.callyear:'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px"><span style="background:#FEF2F2;color:#DC2626;border-radius:12px;padding:2px 8px;font-weight:700">' + (eq.blt||eq.bltN||0) + '</span></td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px;color:' + ((eq.diasblt!==null&&eq.diasblt!==undefined&&eq.diasblt<=7)?'#DC2626':'#374151') + '">' + (eq.diasblt!==null&&eq.diasblt!==undefined?eq.diasblt+' d':'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px;color:#D97706;font-weight:600">' + (eq.cli!==undefined?eq.cli:'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px;color:#94A3B8">' + (eq.diascli!==null&&eq.diascli!==undefined?eq.diascli+' d':'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px;color:#64748B">' + (eq.last||'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:600;color:#0D2E6E">' + (eq.mtbc!==null?Math.round(eq.mtbc)+' d':'—') + '</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:600;color:' + (eq.disp>=99?'#16A34A':eq.disp>=95?'#D97706':'#DC2626') + '">' + (eq.disp!==undefined&&eq.disp!==null?(typeof eq.disp==='number'?eq.disp.toFixed(1):eq.disp)+'%':'—') + '</td>' +
+      '<td style="padding:8px 6px"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openEqPage(\'' + eq.cod + '\')" style="font-size:11px;padding:3px 8px">Ver</button></td>';
+    rows.appendChild(tr);
+  });
+  tbody.innerHTML = '';
+  while(rows.firstChild) tbody.appendChild(rows.firstChild);
+  applyCritCols();
+}
+
+function renderEqHistColChecks() {
+  var checks = document.getElementById('eq-hist-col-checks');
+  if (!checks) return;
+  checks.innerHTML = _EQ_HIST_COLS.map(function(c, idx) {
+    if (c.key === 'ver') return '';
+    return '<label draggable="true" data-idx="' + idx + '" ondragstart="_eqHistDragStart(event)" ondragover="_eqHistDragOver(event)" ondrop="_eqHistDrop(event)" ' +
+      'style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:grab;background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;user-select:none">' +
+      '<i class="ti ti-grip-vertical" style="color:#CBD5E1;font-size:13px"></i>' +
+      '<input type="checkbox" ' + (c.visible?'checked':'') + ' onchange="setEqHistCol(' + idx + ',this.checked)" style="cursor:pointer">' +
+      c.label + '</label>';
+  }).join('');
+}
+
+function renderFallasPorEquipoBars(idYear, idPrev, codesList, yb) {
+  var elY = document.getElementById(idYear);
+  var elP = document.getElementById(idPrev);
+  if (!elY && !elP) return;
+
+  var dataYear = codesList.map(function(cod) {
+    var n = ALL_TICKETS.filter(function(t){ return t.cod===cod && t.fr && t.fr>=yb.curYearStart; }).length;
+    return {l: cod, v: n};
+  }).filter(function(d){return d.v>0;}).sort(function(a,b){return b.v-a.v;}).slice(0,15);
+
+  var dataPrev = codesList.map(function(cod) {
+    var n = ALL_TICKETS.filter(function(t){ return t.cod===cod && t.fr && t.fr>=yb.prevYearStart && t.fr<=yb.prevYearEnd; }).length;
+    return {l: cod, v: n};
+  }).filter(function(d){return d.v>0;}).sort(function(a,b){return b.v-a.v;}).slice(0,15);
+
+  var maxY = Math.max.apply(null, dataYear.map(function(d){return d.v;}).concat([1]));
+  var maxP = Math.max.apply(null, dataPrev.map(function(d){return d.v;}).concat([1]));
+
+  function barsHtml(data, max, color) {
+    if (!data.length) return '<p style="font-size:11px;color:#94A3B8;text-align:center;padding:12px">Sin fallas registradas</p>';
+    return data.map(function(d) {
+      var pct = Math.round(d.v / max * 100);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+        '<span style="width:90px;font-size:10px;color:#64748B;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + d.l + '">' + d.l + '</span>' +
+        '<div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden">' +
+          '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:4px"></div>' +
+        '</div>' +
+        '<span style="width:24px;text-align:right;font-size:10px;font-weight:600;color:#374151">' + d.v + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  if (elY) elY.innerHTML = barsHtml(dataYear, maxY, '#DC2626');
+  if (elP) elP.innerHTML = barsHtml(dataPrev, maxP, '#94A3B8');
+}
+
+function renderFallasPorMesBars(idYear, idPrev, kpis) {
+  var elY = document.getElementById(idYear);
+  var elP = document.getElementById(idPrev);
+  var maxY = Math.max.apply(null, kpis.fallasPorMesYear.concat([1]));
+  var maxP = Math.max.apply(null, kpis.fallasPorMesPrev.concat([1]));
+  if (elY) {
+    elY.innerHTML = kpis.mesesLabels.map(function(m, idx) {
+      var v = kpis.fallasPorMesYear[idx];
+      var pct = Math.round(v / maxY * 100);
+      var col = v === 0 ? '#E2E8F0' : '#1B4FD8';
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+        '<span style="width:28px;font-size:10px;color:#64748B;flex-shrink:0">' + m + '</span>' +
+        '<div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden">' +
+          '<div style="height:100%;width:' + pct + '%;background:' + col + ';border-radius:4px"></div>' +
+        '</div>' +
+        '<span style="width:24px;text-align:right;font-size:10px;font-weight:600;color:#374151">' + v + '</span>' +
+      '</div>';
+    }).join('');
+  }
+  if (elP) {
+    elP.innerHTML = kpis.mesesLabels.map(function(m, idx) {
+      var v = kpis.fallasPorMesPrev[idx];
+      var pct = Math.round(v / maxP * 100);
+      var col = v === 0 ? '#E2E8F0' : '#64748B';
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+        '<span style="width:28px;font-size:10px;color:#64748B;flex-shrink:0">' + m + '</span>' +
+        '<div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden">' +
+          '<div style="height:100%;width:' + pct + '%;background:' + col + ';border-radius:4px"></div>' +
+        '</div>' +
+        '<span style="width:24px;text-align:right;font-size:10px;font-weight:600;color:#374151">' + v + '</span>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+function renderKpiCardsFinal(prefix, kpis) {
+  function _s(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  _s(prefix+'-avg-ll',  kpis.avgLleg !== null ? kpis.avgLleg+' min' : '—');
+  _s(prefix+'-avg-sol', kpis.avgSol !== null ? (kpis.avgSol < 1 ? Math.round(kpis.avgSol*60)+' min' : kpis.avgSol.toFixed(1)+' h') : '—');
+  _s(prefix+'-mtbc-year', kpis.mtbcYear !== null ? Math.round(kpis.mtbcYear)+' d' : '—');
+  _s(prefix+'-mtbc-365',  kpis.mtbc365  !== null ? Math.round(kpis.mtbc365)+' d'  : '—');
+}
+
+function renderMovimientosPage(){
+  var tbody=document.getElementById('mov-page-tbody');if(!tbody)return;tbody.innerHTML='';
+  var data=PF_DATA.filter(function(e){return e.estatus_ul_mes&&e.estatus_ul_mes!==e.estatus;});
+  if(!data.length){tbody.innerHTML='<tr><td colspan="5" style="padding:32px;text-align:center;color:#94A3B8">Sin movimientos</td></tr>';return;}
+  data.forEach(function(e){
+    var tr=document.createElement('tr');tr.style.borderBottom='1px solid #F1F5F9';
+    var col=e.estatus_ul_mes==='Fuera de Servicio'?'#DC2626':'#16A34A';
+    tr.innerHTML='<td style="padding:9px 12px;font-weight:600;color:#1B4FD8;font-size:12px">'+(e.cod||'')+'</td>'
+      +'<td style="padding:9px 12px;font-size:12px">'+(e.pro||'')+'</td>'
+      +'<td style="padding:9px 12px;font-size:12px">'+(e.zon||'')+'</td>'
+      +'<td style="padding:9px 12px;font-size:12px">'+(e.estatus||'')+'</td>'
+      +'<td style="padding:9px 12px;font-size:12px;font-weight:600;color:'+col+'">'+(e.estatus_ul_mes||'')+'</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function renderNotifPage(){
+  var msgTbody  = document.getElementById('notif-msg-tbody');
+  var critTbody = document.getElementById('notif-crit-tbody');
+  var msgBadge  = document.getElementById('notif-msg-badge');
+  var critBadge = document.getElementById('notif-crit-badge');
+  if (!msgTbody || !critTbody) return;
+
+  // ── Mensajes no leidos ────────────────────────────────────────────
+  msgTbody.innerHTML = '';
+  var unread = Object.keys(UNREAD||{}).filter(function(n){ return (UNREAD[n]||0) > 0; });
+  if (msgBadge) { msgBadge.textContent=unread.length; msgBadge.style.display=unread.length?'inline-block':'none'; }
+  if (!unread.length) {
+    msgTbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">Sin mensajes no leídos</td></tr>';
+  } else {
+    unread.forEach(function(n){
+      var t   = ALL_TICKETS.find(function(tk){ return tk.n===n; });
+      var msgs = (CHATS[n]||[]).filter(function(msg){ return msg.u !== CURRENT_USER && !msg.leido; });
+      var last = msgs[msgs.length-1] || {};
+      var tr = document.createElement('tr');
+      tr.style.cssText = 'border-bottom:1px solid #F1F5F9;cursor:pointer';
+      tr.onmouseover = function(){ this.style.background='#EFF6FF'; };
+      tr.onmouseout  = function(){ this.style.background=''; };
+      (function(id){ tr.onclick = function(){ openDetail(id); }; })(n);
+      tr.innerHTML =
+        '<td style="padding:9px 12px;font-weight:700;color:#1B4FD8;font-size:12px">'+n+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px">'+(t?t.asu:'—')+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px">'+(t?t.pro:'—')+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px">'+(last.u||'—')+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(last.m||'—')+'</td>'+
+        '<td style="padding:9px 12px">'+(t?etBdg(t.et):'—')+'</td>';
+      msgTbody.appendChild(tr);
+    });
+  }
+
+  // ── Nuevos equipos criticos (ticket cerrado en últimos 30 días) ───
+  critTbody.innerHTML = '';
+  var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
+  var cutStr = cutoff.toISOString().slice(0,10);
+  var critEqs = [];
+  (_critSet||new Set()).forEach(function(cod){
+    var tks = ALL_TICKETS.filter(function(t){ return t.cod===cod; });
+    var recent = tks.filter(function(t){ return t.et==='Cerrado' && t.fs && t.fs>=cutStr; });
+    if (recent.length) {
+      var eq = PF_DATA.find(function(e){ return e.cod===cod; });
+      var last = recent.sort(function(a,b){ return b.fs>a.fs?1:-1; })[0];
+      critEqs.push({ cod:cod, pro:eq?eq.pro:'—', zon:eq?eq.zon:'—', fallas:tks.length, lastTk:last.n });
+    }
+  });
+  if (critBadge) { critBadge.textContent=critEqs.length; critBadge.style.display=critEqs.length?'inline-block':'none'; }
+  if (!critEqs.length) {
+    critTbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">Sin nuevos equipos críticos este mes</td></tr>';
+  } else {
+    critEqs.forEach(function(e){
+      var tr = document.createElement('tr');
+      tr.style.cssText = 'border-bottom:1px solid #FEF2F2;cursor:pointer';
+      tr.onmouseover = function(){ this.style.background='#FEF2F2'; };
+      tr.onmouseout  = function(){ this.style.background=''; };
+      (function(id){ tr.onclick = function(){ openDetail(id); }; })(e.lastTk);
+      tr.innerHTML =
+        '<td style="padding:9px 12px;font-weight:700;color:#DC2626;font-size:12px">💥 '+e.cod+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px">'+e.pro+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px">'+e.zon+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px;text-align:center">'+e.fallas+'</td>'+
+        '<td style="padding:9px 12px;font-size:12px;font-weight:600;color:#1B4FD8">'+e.lastTk+'</td>';
+      critTbody.appendChild(tr);
+    });
+  }
+}
+
+function renderProyTicketsTable() {
+  var yearSel = document.getElementById('proy-tkt-year');
+  var year = yearSel ? yearSel.value : null;
+  var allTks = window._proyAllTks || [];
+  var tks = year ? allTks.filter(function(t){ return t.fr && t.fr.slice(0,4) === year; }) : allTks;
+  tks = tks.slice().sort(function(a,b){ return (b.fr||'').localeCompare(a.fr||''); });
+
+  var cnt = document.getElementById('proy-tkt-count');
+  if (cnt) cnt.textContent = tks.length + ' tickets';
+
+  var visCols = _PROY_TKT_COLS.filter(function(c){ return c.visible; });
+  var thead = document.getElementById('proy-tkt-thead');
+  if (thead) {
+    thead.innerHTML = '<tr>' + visCols.map(function(c) {
+      return '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:rgba(255,255,255,.85)">' + c.label + '</th>';
+    }).join('') + '</tr>';
+  }
+
+  var tbody = document.getElementById('proy-tkt-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = tks.map(function(t) {
+    var cells = visCols.map(function(c) {
+      return '<td style="padding:8px 12px;font-size:12px;color:#374151">' + _proyTktCellValue(t, c.key) + '</td>';
+    }).join('');
+    return '<tr style="border-bottom:1px solid rgba(13,46,110,.1)" onmouseover="this.style.background=\'#EFF6FF\'" onmouseout="this.style.background=\'\'">' + cells + '</tr>';
+  }).join('') || '<tr><td colspan="' + (visCols.length||8) + '" style="padding:16px;text-align:center;color:#94A3B8">Sin tickets</td></tr>';
+}
+
+function setCcCol(idx, visible) {
+  if (!_CC_COLS[idx]) return;
+  _CC_COLS[idx].visible = visible;
+  renderCCTable();
+}
+
+function setCritCol(key, visible) {
+  if (!_CRIT_COLS[key]) return;
+  _CRIT_COLS[key].visible = visible;
+  applyCritCols();
+}
+
+function setEqHistCol(idx, visible) {
+  if (!_EQ_HIST_COLS[idx]) return;
+  _EQ_HIST_COLS[idx].visible = visible;
+  renderEqHistorial();
+}
+
+function setProyEqCol(idx, visible) {
+  if (!_PROY_EQ_COLS[idx]) return;
+  _PROY_EQ_COLS[idx].visible = visible;
+  renderProyDetEquipos();
+}
+
+function setProyTktCol(idx, visible) {
+  if (!_PROY_TKT_COLS[idx]) return;
+  _PROY_TKT_COLS[idx].visible = visible;
+  renderProyTicketsTable();
+}
+
+function setRdCol(idx, visible) {
+  if (!_RD_COLS[idx]) return;
+  _RD_COLS[idx].visible = visible;
+  renderDayTable();
+}
+
+function toggleCcCols() {
+  var panel = document.getElementById('cc-col-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  _renderCcColChecks();
+  panel.style.display = 'block';
+}
+
+function toggleCritCols() {
+  var panel = document.getElementById('crit-col-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+
+  var checks = document.getElementById('crit-col-checks');
+  if (!checks) return;
+  checks.innerHTML = Object.keys(_CRIT_COLS).map(function(k) {
+    var col = _CRIT_COLS[k];
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px">' +
+      '<input type="checkbox" ' + (col.visible?'checked':'') + ' onchange="setCritCol(\'' + k + '\',this.checked)" style="cursor:pointer">' +
+      col.label + '</label>';
+  }).join('');
+  panel.style.display = 'block';
+}
+
+function toggleCritDetail(cod, trRef) {
+  var existing = document.getElementById('crit-detail-row');
+  if (existing) {
+    var wasFor = existing.getAttribute('data-cod');
+    existing.remove();
+    if (wasFor === cod) return;
+  }
+  var dias = (window._critFilters && window._critFilters.dias) || 35;
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - dias);
+  var cutStr = cutoff.toISOString().slice(0,10);
+  var tks = ALL_TICKETS.filter(function(t){ return t.cod === cod && t.fr && t.fr >= cutStr; })
+                        .sort(function(a,b){ return (b.fr||'').localeCompare(a.fr||''); });
+  var detailRow = document.createElement('tr');
+  detailRow.id = 'crit-detail-row';
+  detailRow.setAttribute('data-cod', cod);
+  var colCount = Object.keys(_CRIT_COLS).filter(function(k){return _CRIT_COLS[k].visible;}).length || 8;
+  var td = document.createElement('td');
+  td.colSpan = colCount;
+  td.style.padding = '0';
+  td.style.background = '#FFF7F7';
+  var rowsHtml = tks.map(function(t){
+    var etColor = t.et==='Cerrado' ? '#16A34A' : t.et==='En curso' ? '#D97706' : '#DC2626';
+    return '<tr style="border-bottom:1px solid rgba(220,38,38,.1)">' +
+      '<td style="padding:7px 12px 7px 32px;font-weight:600;color:#1B4FD8;font-size:11px;cursor:pointer" onclick="event.stopPropagation();openDetail(\''+t.n+'\')">' + t.n + '</td>' +
+      '<td style="padding:7px 12px;font-size:11px;color:#64748B">' + (t.fr||'—') + '</td>' +
+      '<td style="padding:7px 12px;font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (t.asu||'—') + '</td>' +
+      '<td style="padding:7px 12px;font-size:11px;color:' + (t.res==='BLT'?'#DC2626':'#64748B') + ';font-weight:600">' + (t.res||'—') + '</td>' +
+      '<td style="padding:7px 12px;text-align:center"><span style="background:' + etColor + '22;color:' + etColor + ';border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600">' + (t.et||'—') + '</span></td>' +
+    '</tr>';
+  }).join('');
+  td.innerHTML = '<div style="padding:8px 0">' +
+    '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr style="background:#FEE2E2">' +
+      '<th style="padding:6px 12px 6px 32px;text-align:left;font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase">Ticket</th>' +
+      '<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase">Fecha</th>' +
+      '<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase">Asunto</th>' +
+      '<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase">Resp.</th>' +
+      '<th style="padding:6px 12px;text-align:center;font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase">Estado</th>' +
+    '</tr></thead><tbody>' + (rowsHtml || '<tr><td colspan="5" style="padding:10px 32px;color:#94A3B8;font-size:11px">Sin tickets en el período</td></tr>') + '</tbody></table></div>';
+  detailRow.appendChild(td);
+  trRef.parentNode.insertBefore(detailRow, trRef.nextSibling);
+}
+
+function toggleEqHistCols() {
+  var panel = document.getElementById('eq-hist-col-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  renderEqHistColChecks();
+  panel.style.display = 'block';
+}
+
+function toggleEqServGrid() {
+  var grid = document.getElementById('eq-serv-grid');
+  var chevron = document.getElementById('eq-serv-chevron');
+  if (!grid) return;
+  var isHidden = grid.style.display === 'none';
+  grid.style.display = isHidden ? 'grid' : 'none';
+  if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function toggleProyEqCols() {
+  var panel = document.getElementById('proy-eq-col-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  _renderProyEqColChecks();
+  panel.style.display = 'block';
+}
+
+function toggleProyTktCols() {
+  var panel = document.getElementById('proy-tkt-col-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  _renderProyTktColChecks();
+  panel.style.display = 'block';
+}
+
+function toggleRdCols() {
+  var panel = document.getElementById('rd-col-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  _renderRdColChecks();
+  panel.style.display = 'block';
+}
+function showSupportView(viewName) {
+      document.querySelectorAll(".support-view").forEach(view => view.classList.remove("active"));
+      document.querySelectorAll(".support-tab").forEach(tab => tab.classList.remove("active"));
+
+      const view = document.getElementById("support-view-" + viewName);
+      if (view) view.classList.add("active");
+
+      const tab = document.querySelector(`.support-tab[data-view="${viewName}"]`);
+      if (tab) tab.classList.add("active");
+
+      if (viewName === "home") renderSupportContent();
+      if (viewName === "requests") renderRequests();
+
+      document.querySelector(".main").scrollTop = 0;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+function renderSupportContent() {
+      const query = (document.getElementById("supportSearch")?.value || "").toLowerCase();
+      const container = document.getElementById("supportContent");
+      const data = SUPPORT_CONTENT.filter(item => `${item.tipo} ${item.modulo} ${item.titulo} ${item.descripcion}`.toLowerCase().includes(query));
+
+      container.innerHTML = data.map(item => `
+        <article class="support-result">
+          <span class="support-tag">${item.tipo}</span>
+          <h3>${item.titulo}</h3>
+          <p>${item.descripcion}</p>
+          <small>${item.modulo}</small>
+        </article>
+      `).join("");
+    }
+function renderRequests() {
+      const container = document.getElementById("requestList");
+      container.innerHTML = REQUESTS.map(req => `
+        <article class="request-card request-button" onclick="openRequestDetail('${req.id}')">
+          <div>
+            <strong>${req.id}</strong>
+            <h3>${req.asunto}</h3>
+            <p>${req.descripcion}</p>
+            <small>${req.modulo} · ${req.fecha}</small>
+          </div>
+          <span>${req.estado}</span>
+        </article>
+      `).join("");
+    }
+function submitDemoRequest() {
+      const modulo = document.getElementById("reqModulo").value;
+      const asunto = document.getElementById("reqAsunto").value.trim();
+      const descripcion = document.getElementById("reqDescripcion").value.trim();
+      const files = Array.from(document.getElementById("reqAdjuntos").files || []);
+
+      if (!modulo || !asunto || !descripcion) {
+        document.getElementById("reqError").classList.add("active");
+        return;
+      }
+
+      if (files.length > 5) {
+        alert("Puedes adjuntar máximo 5 archivos por solicitud.");
+        return;
+      }
+
+      const newId = "SUP-" + String(REQUESTS.length + 1).padStart(3, "0");
+      REQUESTS.unshift({
+        id: newId,
+        asunto,
+        modulo,
+        estado: "Abierta",
+        prioridad: "Alta",
+        categoria: "Operación",
+        tipo: "Incidencia",
+        solicitante: SESSION.user.iniciales,
+        fecha: new Date().toLocaleString("es-MX"),
+        descripcion,
+        evidencias: files.map(file => ({ nombre: file.name, tipo: "Adjunto", usuario: SESSION.user.iniciales, fecha: new Date().toLocaleString("es-MX") })),
+        comentarios: [{ usuario: SESSION.user.iniciales, rol: "usuario", fecha: new Date().toLocaleString("es-MX"), texto: "Solicitud generada desde prototipo visual.", evidencia: files[0]?.name || null }],
+        historial: [new Date().toLocaleString("es-MX") + " · Solicitud creada"]
+      });
+
+      NOTIFICATIONS.unshift({ id: Date.now(), leida: false, tipo: "solicitud", titulo: "Solicitud creada", descripcion: `${newId} fue registrada correctamente.`, target: newId });
+      clearRequestForm();
+      renderNotifications();
+      openRequestDetail(newId);
+    }
+function clearRequestForm() {
+      document.getElementById("reqModulo").value = "";
+      document.getElementById("reqAsunto").value = "";
+      document.getElementById("reqDescripcion").value = "";
+      document.getElementById("reqAdjuntos").value = "";
+      document.getElementById("reqError").classList.remove("active");
+    }
+function openRequestDetail(requestId) {
+      currentRequestId = requestId;
+      renderRequestDetail();
+      showSupportView("detail");
+    }
+function getCurrentRequest() {
+      return REQUESTS.find(req => req.id === currentRequestId);
+    }
+function renderRequestDetail() {
+      const req = getCurrentRequest();
+      if (!req) return;
+
+      document.getElementById("detailTitle").textContent = `${req.id} · ${req.asunto}`;
+      document.getElementById("detailSubtitle").textContent = "Seguimiento de solicitud de soporte";
+      document.getElementById("detailStatusBadge").textContent = req.estado;
+      document.getElementById("detailId").textContent = req.id;
+      document.getElementById("detailModulo").textContent = req.modulo;
+      document.getElementById("detailFecha").textContent = req.fecha;
+      document.getElementById("detailSolicitante").textContent = req.solicitante;
+      document.getElementById("detailDescripcion").textContent = req.descripcion;
+
+      document.getElementById("internalStatus").value = req.estado;
+      document.getElementById("internalPriority").value = req.prioridad;
+      document.getElementById("internalCategory").value = req.categoria;
+      document.getElementById("internalType").value = req.tipo;
+
+      document.body.classList.toggle("is-programmer", SESSION.demoRole === "programador");
+      renderConversation(req);
+      renderEvidence(req);
+      renderHistory(req);
+    }
+function renderConversation(req) {
+      const container = document.getElementById("conversationList");
+      container.innerHTML = req.comentarios.map(comment => `
+        <div class="conversation-item ${comment.rol === "programador" ? "from-support" : "from-user"}">
+          <div class="conversation-meta"><strong>${comment.usuario}</strong><span>${comment.fecha}</span></div>
+          <div class="conversation-text">${comment.texto}</div>
+          ${comment.evidencia ? `<div class="conversation-file">📎 ${comment.evidencia}</div>` : ""}
+        </div>
+      `).join("");
+    }
+function renderEvidence(req) {
+      const container = document.getElementById("evidenceList");
+      if (!req.evidencias.length) {
+        container.innerHTML = '<div class="empty-state">Sin evidencias adjuntas.</div>';
+        return;
+      }
+
+      container.innerHTML = req.evidencias.map(file => `
+        <div class="evidence-item">
+          <div class="evidence-icon">${file.nombre.match(/png|jpg|jpeg/i) ? "IMG" : "DOC"}</div>
+          <div>
+            <strong>${file.nombre}</strong>
+            <small>${file.usuario} · ${file.fecha}</small>
+          </div>
+          <button class="download-btn programmer-only" onclick="downloadEvidence('${file.nombre}')">⬇</button>
+        </div>
+      `).join("");
+    }
+function renderHistory(req) {
+      const container = document.getElementById("internalHistory");
+      container.innerHTML = req.historial.map(item => `<div class="history-item">${item}</div>`).join("");
+    }
+function addCommentToRequest() {
+      const req = getCurrentRequest();
+      if (!req) return;
+
+      const text = document.getElementById("newComment").value.trim();
+      const files = Array.from(document.getElementById("newEvidence").files || []);
+
+      if (!text && !files.length) {
+        alert("Agrega un comentario o una evidencia antes de enviar.");
+        return;
+      }
+
+      if (files.length > 5) {
+        alert("Puedes adjuntar máximo 5 archivos por comentario.");
+        return;
+      }
+
+      const now = new Date().toLocaleString("es-MX");
+      files.forEach(file => req.evidencias.push({ nombre: file.name, tipo: "Adjunto", usuario: SESSION.user.iniciales, fecha: now }));
+
+      req.comentarios.push({
+        usuario: SESSION.demoRole === "programador" ? "SOP" : SESSION.user.iniciales,
+        rol: SESSION.demoRole === "programador" ? "programador" : "usuario",
+        fecha: now,
+        texto: text || "Se agregó evidencia a la solicitud.",
+        evidencia: files[0]?.name || null
+      });
+
+      req.historial.push(`${now} · Comentario agregado por ${SESSION.demoRole === "programador" ? "soporte" : "usuario"}`);
+      document.getElementById("newComment").value = "";
+      document.getElementById("newEvidence").value = "";
+      renderRequestDetail();
+    }
+function updateInternalFields() {
+      const req = getCurrentRequest();
+      if (!req || SESSION.demoRole !== "programador") return;
+      req.estado = document.getElementById("internalStatus").value;
+      req.prioridad = document.getElementById("internalPriority").value;
+      req.categoria = document.getElementById("internalCategory").value;
+      req.tipo = document.getElementById("internalType").value;
+      req.historial.push(new Date().toLocaleString("es-MX") + " · Campos internos actualizados");
+      renderRequestDetail();
+    }
+function downloadEvidence(fileName) {
+      alert("Descarga demo de evidencia: " + fileName);
+    }
+function changeDemoRole() {
+      SESSION.demoRole = document.getElementById("demoRole").value;
+      document.body.classList.toggle("is-programmer", SESSION.demoRole === "programador");
+      if (currentRequestId) renderRequestDetail();
+    }
+function toggleNotifications(event) {
+      if (event) event.stopPropagation();
+      document.getElementById("notifMenu").classList.toggle("open");
+    }
+function renderNotifications() {
+      const unread = NOTIFICATIONS.filter(n => !n.leida).length;
+      document.getElementById("notifCount").textContent = unread;
+      document.getElementById("notifCount").style.display = unread ? "grid" : "none";
+      document.getElementById("notifSub").textContent = unread ? `${unread} sin leer` : "Sin pendientes";
+
+      document.getElementById("notifList").innerHTML = NOTIFICATIONS.map(notif => `
+        <button class="notif-item ${notif.leida ? "read" : ""}" onclick="openNotification(${notif.id})">
+          <strong>${notif.titulo}</strong>
+          <span>${notif.descripcion}</span>
+        </button>
+      `).join("");
+    }
+function openNotification(id) {
+      const notif = NOTIFICATIONS.find(n => n.id === id);
+      if (!notif) return;
+      notif.leida = true;
+      renderNotifications();
+      document.getElementById("notifMenu").classList.remove("open");
+
+      if (notif.target === "support-home") {
+        showTab("support");
+        showSupportView("home");
+        return;
+      }
+      if (notif.target?.startsWith("SUP-")) {
+        showTab("support");
+        openRequestDetail(notif.target);
+      }
+    }
+function togglePandaChat(forceState) {
+      const chat = document.getElementById("pandaChat");
+      const shouldOpen = typeof forceState === "boolean" ? forceState : !chat.classList.contains("open");
+      chat.classList.toggle("open", shouldOpen);
+
+      if (shouldOpen && !noriStarted) {
+        startNoriGuide();
+      }
+    }
+function startNoriGuide() {
+      const messages = document.getElementById("pandaMessages");
+      messages.innerHTML = "";
+      noriStarted = true;
+      renderNoriStep("inicio");
+    }
+function appendNoriMessage(text, type = "bot") {
+      const messages = document.getElementById("pandaMessages");
+      messages.insertAdjacentHTML("beforeend", `<div class="chat-msg ${type}">${text}</div>`);
+      messages.scrollTop = messages.scrollHeight;
+    }
+function renderNoriStep(stepKey) {
+      const step = NORI_FLOW[stepKey] || NORI_FLOW.inicio;
+      appendNoriMessage(step.mensaje, "bot");
+
+      const messages = document.getElementById("pandaMessages");
+      const optionsHtml = step.opciones.map(option => {
+        const payload = encodeURIComponent(JSON.stringify(option));
+        return `<button class="nori-option" onclick="handleNoriOption('${payload}')">${option.label}</button>`;
+      }).join("");
+
+      messages.insertAdjacentHTML("beforeend", `<div class="nori-options">${optionsHtml}</div>`);
+      messages.scrollTop = messages.scrollHeight;
+    }
+function handleNoriOption(encodedOption) {
+      const option = JSON.parse(decodeURIComponent(encodedOption));
+      appendNoriMessage(option.label, "user");
+
+      if (option.next) {
+        renderNoriStep(option.next);
+        return;
+      }
+
+      if (option.action === "close") {
+        appendNoriMessage("Perfecto. Me alegra haber ayudado. Si necesitas algo más, aquí estaré.", "bot");
+        return;
+      }
+
+      if (option.action === "supportHome") {
+        showTab("support");
+        showSupportView("home");
+        appendNoriMessage("Abrí el Centro de ayuda para que puedas revisar las preguntas frecuentes.", "bot");
+        return;
+      }
+
+      if (option.action === "requests") {
+        showTab("support");
+        showSupportView("requests");
+        appendNoriMessage("Abrí tus solicitudes para que puedas revisar el seguimiento.", "bot");
+        return;
+      }
+
+      if (option.action === "newRequest") {
+        openNoriRequest(option.modulo, option.asunto);
+        return;
+      }
+    }
+function openNoriRequest(modulo, asunto) {
+      showTab("support");
+      showSupportView("new");
+      document.getElementById("reqModulo").value = modulo || "Centro de ayuda";
+      document.getElementById("reqAsunto").value = asunto || "Solicitud de soporte";
+      document.getElementById("reqDescripcion").focus();
+      appendNoriMessage("Vamos a generar una solicitud. Agrega la descripción y las evidencias si aplica.", "bot");
+    }
+
+// ── TABS OVERRIDE MGS-INT-001 ─────────────────────────────────────────
+function showTab(tab, skipReset) {
+  if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
+  var homeBtn = document.getElementById('home-btn');
+  if (homeBtn) { homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible'; }
+  ['home','tickets','resumen','callcenter','portafolio','operativo','proyectos','criticos','users','support'].forEach(function(t){
+    var btn = document.getElementById('tab-'+t);
+    var pnl = document.getElementById('panel-'+t);
+    if (btn) btn.classList.toggle('on', t===tab);
+    if (pnl) pnl.classList.toggle('on', t===tab);
+  });
+  ['notif-page','movimientos-page'].forEach(function(pid){
+    var el=document.getElementById(pid),btn=document.getElementById('tab-'+pid.replace('-page',''));
+    var isActive=(tab===pid.replace('-page',''));
+    if(el){
+      el.style.display=isActive?'block':'none';
+      el.style.position=isActive?'fixed':'';
+      el.style.top=isActive?'120px':'';
+      el.style.left=isActive?'0':'';
+      el.style.right=isActive?'0':'';
+      el.style.bottom=isActive?'0':'';
+      el.style.overflowY=isActive?'auto':'';
+      el.style.zIndex=isActive?'10':'';
+      el.style.background=isActive?'#F0F4F8':'';
+    }
+    if(btn) btn.classList.toggle('on',isActive);
+  });
+  if (tab==='users')      { if (typeof forceUsersFromAiven === 'function') forceUsersFromAiven(); else if (typeof renderUsers === 'function') renderUsers(); setTimeout(initAllTables,100); }
+  if (tab==='resumen')    initResumen();
+  document.onkeydown = tab==='resumen' ? function(e){ if(e.key==='ArrowLeft') changeDay(-1); if(e.key==='ArrowRight') changeDay(1); } : null;
+  if (tab==='callcenter') initCC();
+  if (tab==='portafolio') initPortafolio();
+  if (tab==='home')       initHome();
+  if (tab==='operativo')  initCumplimiento();
+  if (tab==='proyectos')  initProyectos();
+  if (tab==='criticos' && typeof renderCriticos === 'function') renderCriticos();
+  if (tab==='notif' && typeof renderNotifPage === 'function') renderNotifPage();
+  if (tab==='movimientos' && typeof renderMovimientosPage === 'function') renderMovimientosPage();
+  if (tab==='support') { if (typeof showSupportView === 'function') showSupportView('home'); if (typeof renderSupportContent === 'function') renderSupportContent(); if (typeof renderRequests === 'function') renderRequests(); }
 }
 
 function bootManttoApp() {
