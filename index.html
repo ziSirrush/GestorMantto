@@ -194,9 +194,8 @@
   <div class="hdr-title-main">SISTEMA DE GESTIÓN DE OPERACIONES</div>
 
   <div class="hdr-right app-topbar-actions">
-    <button class="hdr-support-btn" id="hdr-support" onclick="showTab('support'); showSupportView('home');" title="Centro de Soporte" type="button">
+    <button class="hdr-support-btn" id="hdr-support" onclick="showTab('support'); showSupportView('home');" title="Centro de Soporte" type="button" aria-label="Centro de Soporte">
       <i class="ti ti-help-circle"></i>
-      <span>Centro de Soporte</span>
     </button>
 
     <div class="hdr-notif-wrap">
@@ -1293,7 +1292,7 @@
 <div class="panel-head-clean">
 <div>
 <h2>Preguntas frecuentes</h2>
-<span>Contenido demo basado en estructura de FAQ y categorías de soporte</span>
+<span>Contenido cargado desde tablas de soporte</span>
 </div>
 <input class="search" id="supportSearch" oninput="renderSupportContent()" placeholder="Buscar: login, usuario, API..." type="text">
 </input></div>
@@ -1371,7 +1370,7 @@
 </div>
 <div class="panda-chat-body" id="pandaMessages"></div>
 <div class="nori-guide-footer">
-<span>Interacción guiada por botones</span>
+<span>Asistente preparado para soporte</span>
 <button onclick="startNoriGuide()" type="button">Reiniciar guía</button>
 </div>
 </section>
@@ -2350,7 +2349,7 @@ function showTab(tab, skipReset) {
   if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
 
   var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) {
+  if (homeBtn && !homeBtn.classList.contains('hdr-logo-btn')) {
     homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible';
   }
 
@@ -2388,6 +2387,7 @@ function showTab(tab, skipReset) {
 
   if (tab === 'support') {
     if (typeof showSupportView === 'function') showSupportView('home');
+    if (typeof loadSupportFromAiven === 'function') loadSupportFromAiven();
     if (typeof renderSupportContent === 'function') renderSupportContent();
     if (typeof renderRequests === 'function') renderRequests();
   }
@@ -5813,20 +5813,54 @@ function showSupportView(viewName) {
 function renderSupportContent() {
       const query = (document.getElementById("supportSearch")?.value || "").toLowerCase();
       const container = document.getElementById("supportContent");
-      const data = SUPPORT_CONTENT.filter(item => `${item.tipo} ${item.modulo} ${item.titulo} ${item.descripcion}`.toLowerCase().includes(query));
+      if (!container) return;
+
+      const rows = Array.isArray(SUPPORT_CONTENT) ? SUPPORT_CONTENT : [];
+      const data = rows.filter(item => `${item.tipo || item.tipo_contenido || "FAQ"} ${item.modulo || item.categoria || ""} ${item.titulo || item.pregunta || ""} ${item.descripcion || item.respuesta || ""}`.toLowerCase().includes(query));
+
+      if (!data.length) {
+        container.innerHTML = `
+          <article class="support-result support-empty-state">
+            <span class="support-tag">Aiven / Soporte</span>
+            <h3>Centro de Soporte preparado</h3>
+            <p>El contenido se cargará desde las tablas de soporte cuando el backend exponga los endpoints del módulo.</p>
+            <small>sup_faq · sup_faq_categorias · sup_flujos · sup_nodos · sup_opciones</small>
+          </article>
+        `;
+        return;
+      }
 
       container.innerHTML = data.map(item => `
         <article class="support-result">
-          <span class="support-tag">${item.tipo}</span>
-          <h3>${item.titulo}</h3>
-          <p>${item.descripcion}</p>
-          <small>${item.modulo}</small>
+          <span class="support-tag">${item.tipo || item.tipo_contenido || "FAQ"}</span>
+          <h3>${item.titulo || item.pregunta || "Sin título"}</h3>
+          <p>${item.descripcion || item.respuesta || ""}</p>
+          <small>${item.modulo || item.categoria || ""}</small>
         </article>
       `).join("");
     }
 function renderRequests() {
       const container = document.getElementById("requestList");
-      container.innerHTML = SUPPORT_REQUESTS.map(req => `
+      if (!container) return;
+
+      const rows = Array.isArray(SUPPORT_REQUESTS) ? SUPPORT_REQUESTS : [];
+
+      if (!rows.length) {
+        container.innerHTML = `
+          <article class="request-card">
+            <div>
+              <strong>Sin solicitudes</strong>
+              <h3>No hay solicitudes cargadas todavía</h3>
+              <p>Cuando conectemos backend, aquí aparecerán tus tickets de soporte desde Aiven.</p>
+              <small>sup_tickets</small>
+            </div>
+            <span>Pendiente API</span>
+          </article>
+        `;
+        return;
+      }
+
+      container.innerHTML = rows.map(req => `
         <article class="request-card request-button" onclick="openRequestDetail('${req.id}')">
           <div>
             <strong>${req.id}</strong>
@@ -6042,12 +6076,14 @@ function renderNoriStep(stepKey) {
       appendNoriMessage(step.mensaje, "bot");
 
       const messages = document.getElementById("pandaMessages");
-      const optionsHtml = step.opciones.map(option => {
-        const payload = encodeURIComponent(JSON.stringify(option));
-        return `<button class="nori-option" onclick="handleNoriOption('${payload}')">${option.label}</button>`;
-      }).join("");
-
-      messages.insertAdjacentHTML("beforeend", `<div class="nori-options">${optionsHtml}</div>`);
+      const opciones = Array.isArray(step.opciones) ? step.opciones : [];
+      if (opciones.length) {
+        const optionsHtml = opciones.map(option => {
+          const payload = encodeURIComponent(JSON.stringify(option));
+          return `<button class="nori-option" onclick="handleNoriOption('${payload}')">${option.label}</button>`;
+        }).join("");
+        messages.insertAdjacentHTML("beforeend", `<div class="nori-options">${optionsHtml}</div>`);
+      }
       messages.scrollTop = messages.scrollHeight;
     }
 function handleNoriOption(encodedOption) {
@@ -11445,7 +11481,7 @@ function initHome() {
 
 
 /* =====================================================
-   MGS-NORI-DATA-FALLBACK | Variables seguras hasta API
+   MGS-NORI-DATA-SOURCE | Preparado para tablas Aiven sup_*
 ===================================================== */
 var supportCurrentRequestId = window.supportCurrentRequestId || null;
 var noriStarted = window.noriStarted || false;
@@ -11455,38 +11491,33 @@ var SUPPORT_NOTIFICATIONS = window.SUPPORT_NOTIFICATIONS || [];
 var NORI_FLOW = window.NORI_FLOW || {
   inicio: {
     mensaje: (SESSION && SESSION.user)
-      ? 'Hola, soy Nori. Puedo guiarte en el Centro de Soporte o ayudarte a generar una solicitud.'
-      : 'Hola, soy Nori. Puedo ayudarte si tienes problemas para iniciar sesión, recuperar tu contraseña o completar tu primer acceso.',
-    opciones: [
-      { label:'No puedo iniciar sesión', next:'login' },
-      { label:'Recuperar contraseña', next:'recuperar' },
-      { label:'Primer acceso', next:'primer_acceso' },
-      { label:'Crear solicitud de soporte', action:'newRequest', modulo:'Login / Acceso', asunto:'Ayuda para iniciar sesión' }
-    ]
-  },
-  login: {
-    mensaje:'Verifica que el correo esté escrito completo y que tu contraseña sea la actual. Si el usuario está bloqueado o inactivo, genera una solicitud de soporte.',
-    opciones:[
-      { label:'Quiero recuperar contraseña', next:'recuperar' },
-      { label:'Generar solicitud', action:'newRequest', modulo:'Login / Acceso', asunto:'No puedo iniciar sesión' },
-      { label:'Cerrar guía', action:'close' }
-    ]
-  },
-  recuperar: {
-    mensaje:'Usa la opción Recuperar contraseña. El sistema te pedirá tu correo, tu pregunta de seguridad y después podrás definir una nueva contraseña.',
-    opciones:[
-      { label:'Generar solicitud', action:'newRequest', modulo:'Login / Acceso', asunto:'Problema al recuperar contraseña' },
-      { label:'Regresar al inicio', next:'inicio' }
-    ]
-  },
-  primer_acceso: {
-    mensaje:'En el primer acceso debes cambiar tu contraseña temporal y configurar tu pregunta de seguridad. Si no aparece la pantalla, genera una solicitud.',
-    opciones:[
-      { label:'Generar solicitud', action:'newRequest', modulo:'Login / Acceso', asunto:'Problema con primer acceso' },
-      { label:'Regresar al inicio', next:'inicio' }
-    ]
+      ? 'Hola, soy Nori. Estoy listo para guiarte usando el Centro de Soporte. La información se cargará desde las tablas de soporte cuando el backend esté conectado.'
+      : 'Hola, soy Nori. Puedo orientarte con acceso, recuperación de contraseña y primer acceso. La conexión con soporte quedará activa al conectar el backend.',
+    opciones: []
   }
 };
+
+async function loadSupportFromAiven() {
+  if (typeof apiFetch !== 'function') return;
+
+  try {
+    var menuPayload = await apiFetch('/support/menu');
+    var menuRows = rowsFromPayload(menuPayload);
+    if (Array.isArray(menuRows)) SUPPORT_CONTENT = menuRows;
+  } catch (err) {
+    SUPPORT_CONTENT = SUPPORT_CONTENT || [];
+  }
+
+  try {
+    var flowPayload = await apiFetch('/support/flow');
+    var flowRows = rowsFromPayload(flowPayload);
+    if (Array.isArray(flowRows) && flowRows.length) {
+      window.NORI_FLOW_SOURCE = flowRows;
+    }
+  } catch (err) {}
+
+  if (typeof renderSupportContent === 'function') renderSupportContent();
+}
 
 /* =====================================================
    MGS-HEADER-NORI-STEP1 | Header global + Nori preparado
@@ -11627,14 +11658,14 @@ function getSupportRoleMode() {
 }
 
 function submitSupportRequest() {
-  if (typeof submitDemoRequest === 'function') return submitDemoRequest();
+  if (typeof submitSupportRequestDraft === 'function') return submitSupportRequestDraft();
 }
 
 (function prepareNoriGlobal(){
   var chatSub = document.querySelector('.panda-chat-title small');
-  if (chatSub) chatSub.textContent = 'Guía de soporte';
+  if (chatSub) chatSub.textContent = 'Asistente de soporte';
   var supportTitle = document.querySelector('#panel-support .support-welcome-integrated p');
-  if (supportTitle) supportTitle.textContent = 'Preguntas frecuentes, solicitudes y guía Nori.';
+  if (supportTitle) supportTitle.textContent = 'Preguntas frecuentes, solicitudes y guía Nori conectadas al módulo de soporte.';
 })();
 
 </script>

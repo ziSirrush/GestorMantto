@@ -1989,3 +1989,43 @@ body:not(.is-programmer) #aiven-status-bar{display:none!important}
   .hdr-user{max-width:none;width:100%}
   .hdr-user-name,.hdr-user-meta{max-width:calc(100vw - 110px)}
 }
+
+
+/* =====================================================
+   MGS-HEADER-NORI-STEP2 | Ajustes finales logo + soporte
+===================================================== */
+.hdr.app-topbar .hdr-logo-btn,
+.hdr.app-topbar #home-btn.hdr-logo-btn{
+  display:flex!important;
+  align-items:center;
+  justify-content:flex-start;
+  border:0!important;
+  background:transparent!important;
+  padding:0!important;
+  margin:0!important;
+  box-shadow:none!important;
+  cursor:pointer;
+}
+.hdr.app-topbar .hdr-logo-btn:hover{
+  background:transparent!important;
+  box-shadow:none!important;
+  transform:none!important;
+}
+.hdr.app-topbar .hdr-logo-img{
+  height:50px;
+  width:auto;
+  max-width:235px;
+  object-fit:contain;
+  display:block!important;
+}
+.hdr.app-topbar .hdr-support-btn{
+  width:38px;
+  height:38px;
+  min-width:38px;
+  padding:0;
+  border-radius:50%;
+  gap:0;
+}
+.hdr.app-topbar .hdr-support-btn span{display:none!important}
+.hdr.app-topbar .hdr-support-btn i{font-size:20px}
+.support-empty-state{background:#fbfdff}
