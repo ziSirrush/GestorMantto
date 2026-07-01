@@ -50,6 +50,7 @@ async function getUsuarios(req, res) {
         u.iniciales,
         u.puesto,
         u.area,
+        u.empresa,
         u.rol_id,
         r.rol,
         r.descripcion AS rol_descripcion,
@@ -61,7 +62,21 @@ async function getUsuarios(req, res) {
         ps.pregunta AS pregunta_seguridad,
         u.ultimo_acceso,
         u.created_at,
-        u.updated_at
+        u.updated_at,
+        COALESCE(
+          JSON_ARRAYAGG(
+            CASE
+              WHEN r2.id_rol IS NULL THEN NULL
+              ELSE JSON_OBJECT(
+                'id_rol', r2.id_rol,
+                'rol', r2.rol,
+                'principal', ur.principal,
+                'activo', ur.activo
+              )
+            END
+          ),
+          JSON_ARRAY()
+        ) AS roles_detalle
       FROM usuarios u
       LEFT JOIN roles r
         ON r.id_rol = u.rol_id
@@ -69,6 +84,31 @@ async function getUsuarios(req, res) {
         ON jefe.id_SB = u.reporta_a
       LEFT JOIN preguntas_seguridad ps
         ON ps.id_pregunta = u.id_pregunta
+      LEFT JOIN usuario_roles ur
+        ON ur.id_usuario = u.id_SB
+       AND ur.activo = 1
+      LEFT JOIN roles r2
+        ON r2.id_rol = ur.id_rol
+       AND r2.estado = 1
+      GROUP BY
+        u.id_SB,
+        u.nombre,
+        u.iniciales,
+        u.puesto,
+        u.area,
+        u.empresa,
+        u.rol_id,
+        r.rol,
+        r.descripcion,
+        u.correo,
+        u.reporta_a,
+        jefe.nombre,
+        u.estado,
+        u.id_pregunta,
+        ps.pregunta,
+        u.ultimo_acceso,
+        u.created_at,
+        u.updated_at
       ORDER BY
         CASE r.rol
           WHEN 'Director General' THEN 1

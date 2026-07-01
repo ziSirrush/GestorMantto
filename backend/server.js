@@ -6,6 +6,7 @@ const db = require('./src/config/db');
 
 const authRoutes = require('./src/routes/auth.routes');
 const dataRoutes = require('./src/routes/data.routes');
+const supportRoutes = require('./src/routes/support.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -33,6 +34,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/support', supportRoutes);
 app.use('/api', dataRoutes);
 
 app.listen(PORT, () => {

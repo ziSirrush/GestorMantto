@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { loadUserRoles } = require('../middleware/auth.middleware');
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -27,10 +28,22 @@ async function login(req, res) {
 
   try {
     const [rows] = await db.query(
-      `SELECT id_SB, nombre, iniciales, rol_id, correo, pass, estado,
-              must_change_password, failed_login_attempts, locked_until
-       FROM usuarios
-       WHERE correo = ?
+      `SELECT
+         u.id_SB,
+         u.nombre,
+         u.iniciales,
+         u.empresa,
+         u.rol_id,
+         r.rol,
+         u.correo,
+         u.pass,
+         u.estado,
+         u.must_change_password,
+         u.failed_login_attempts,
+         u.locked_until
+       FROM usuarios u
+       LEFT JOIN roles r ON r.id_rol = u.rol_id
+       WHERE u.correo = ?
        LIMIT 1`,
       [correo]
     );
@@ -98,11 +111,19 @@ async function login(req, res) {
 
     await audit(user.id_SB, 'LOGIN_SUCCESS', 'Login correcto', ipAddress);
 
+    const rolesDetalle = await loadUserRoles(user.id_SB);
+    const roles = rolesDetalle.map(row => row.rol).filter(Boolean);
+    const isProgramador = roles.includes('Programador') || user.rol === 'Programador';
+
     const token = jwt.sign(
       {
         id_SB: user.id_SB,
         correo: user.correo,
-        rol_id: user.rol_id
+        rol_id: user.rol_id,
+        rol: user.rol,
+        roles,
+        empresa: user.empresa,
+        is_programador: isProgramador
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
@@ -118,7 +139,13 @@ async function login(req, res) {
         nombre: user.nombre,
         iniciales: user.iniciales,
         correo: user.correo,
-        rol_id: user.rol_id
+        empresa: user.empresa,
+        rol_id: user.rol_id,
+        rol: user.rol,
+        role: user.rol,
+        roles,
+        roles_detalle: rolesDetalle,
+        is_programador: isProgramador
       }
     });
   } catch (error) {
