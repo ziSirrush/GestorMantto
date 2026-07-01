@@ -2006,6 +2006,12 @@ body:not(.is-programmer) #aiven-status-bar{display:none!important}
   box-shadow:none!important;
   cursor:pointer;
 }
+.hdr.app-topbar .hdr-logo-btn:focus,
+.hdr.app-topbar .hdr-logo-btn:active{
+  outline:none!important;
+  border:none!important;
+  box-shadow:none!important;
+}
 .hdr.app-topbar .hdr-logo-btn:hover{
   background:transparent!important;
   box-shadow:none!important;
