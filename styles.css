@@ -1841,3 +1841,151 @@ html,body{height:100%}
 .panda-chat{
   z-index:10002!important;
 }
+
+
+/* =====================================================
+   MGS-HEADER-NORI-STEP1 | Barra superior global
+===================================================== */
+.hdr.app-topbar{
+  height:76px;
+  display:grid;
+  grid-template-columns:260px 1fr minmax(420px,560px);
+  align-items:center;
+  gap:16px;
+  padding:0 22px;
+  background:#fff;
+  border-bottom:2px solid #0D2E6E;
+  position:sticky;
+  top:0;
+  z-index:900;
+  box-shadow:0 4px 18px rgba(13,46,110,.08);
+}
+.hdr-logo-btn{
+  border:0;
+  background:transparent;
+  padding:0;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  width:fit-content;
+}
+.hdr-logo-img{
+  height:48px;
+  max-width:230px;
+  object-fit:contain;
+  display:block;
+}
+.hdr-title-main{
+  text-align:center;
+  color:#0D2E6E;
+  font-size:15px;
+  font-weight:900;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.hdr-right.app-topbar-actions{
+  justify-self:end;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+  min-width:0;
+}
+.hdr-support-btn{
+  height:38px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:0 13px;
+  border-radius:999px;
+  border:1px solid rgba(13,46,110,.22);
+  background:#fff;
+  color:#0D2E6E;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+  box-shadow:0 4px 12px rgba(13,46,110,.08);
+}
+.hdr-support-btn:hover{background:#EFF6FF;transform:translateY(-1px)}
+.hdr-support-btn i{font-size:18px}
+.hdr-user{
+  margin-left:0;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:210px;
+  max-width:300px;
+}
+.hdr-av{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  background:#0D2E6E;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  font-weight:900;
+  box-shadow:0 4px 12px rgba(13,46,110,.18);
+  flex-shrink:0;
+}
+.hdr-user-box{
+  align-items:flex-start;
+  gap:2px;
+  min-width:0;
+  line-height:1.2;
+}
+.hdr-user-name{
+  color:#0D2E6E;
+  font-size:13px;
+  font-weight:900;
+  max-width:230px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.hdr-user-meta{
+  color:#334155;
+  font-size:11px;
+  max-width:240px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.hdr-role::before{content:' - '}
+.hdr-logout{
+  border:0;
+  background:transparent;
+  color:#DC2626;
+  font-size:10px;
+  font-weight:800;
+  cursor:pointer;
+  padding:0;
+  text-decoration:underline;
+  text-underline-offset:2px;
+  line-height:1.1;
+}
+.hdr-logout:hover{color:#991B1B}
+#api-bar,#aiven-status-bar{position:relative;z-index:850}
+body:not(.is-programmer) #api-bar,
+body:not(.is-programmer) #aiven-status-bar{display:none!important}
+.panda-float{z-index:99999!important}
+.panda-chat{z-index:99998!important}
+.login-actions-row{justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:1120px){
+  .hdr.app-topbar{grid-template-columns:210px 1fr minmax(340px,460px);padding:0 14px;gap:10px}
+  .hdr-title-main{font-size:13px;letter-spacing:2px}
+  .hdr-support-btn span{display:none}
+  .hdr-user{min-width:180px}
+}
+@media(max-width:760px){
+  .hdr.app-topbar{height:auto;grid-template-columns:1fr;align-items:start;padding:12px;gap:10px}
+  .hdr-title-main{text-align:left;white-space:normal;line-height:1.25}
+  .hdr-right.app-topbar-actions{justify-self:stretch;justify-content:flex-start;flex-wrap:wrap}
+  .hdr-user{max-width:none;width:100%}
+  .hdr-user-name,.hdr-user-meta{max-width:calc(100vw - 110px)}
+}

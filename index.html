@@ -34,6 +34,7 @@
 <button class="btn btn-primary" onclick="loginMantto()" style="height:40px;justify-content:center;font-size:13px">Iniciar sesión</button>
 <div class="login-actions-row">
 <button class="login-link" onclick="openRecoveryStart()">Recuperar contraseña</button>
+<button class="login-link" onclick="openGuestNori()" type="button">Ayuda para iniciar sesión</button>
 </div>
 </div>
 </div>
@@ -185,66 +186,42 @@
 <!-- =====================================================
      HEADER
 ===================================================== -->
-<header class="hdr">
-<div class="hdr-left">
-<button class="home-btn-hidden hdr-home-btn" id="home-btn" onclick="showTab('home')">
-<i class="ti ti-home"></i>
-      Inicio
+<header class="hdr app-topbar">
+  <button class="hdr-logo-btn" id="home-btn" onclick="showTab('home')" title="Inicio" type="button">
+    <img alt="BLT Brilliant" class="hdr-logo-img" src="assets/logo.png"/>
+  </button>
 
+  <div class="hdr-title-main">SISTEMA DE GESTIÓN DE OPERACIONES</div>
+
+  <div class="hdr-right app-topbar-actions">
+    <button class="hdr-support-btn" id="hdr-support" onclick="showTab('support'); showSupportView('home');" title="Centro de Soporte" type="button">
+      <i class="ti ti-help-circle"></i>
+      <span>Centro de Soporte</span>
     </button>
-<img alt="BLT Brilliant" class="hdr-logo" src="assets/logo.png"/>
-<div class="hdr-system">
-<div class="hdr-system-name">
-        Sistema de Gestión de Mantenimientos
-      </div>
-<div class="hdr-system-subtitle">
-        Mantto Gestor
-      </div>
-</div>
-</div>
-<div class="hdr-right">
-<!-- Estado de conexión -->
-<div class="hdr-status" id="hdr-status">
-<span class="hdr-status-dot"></span>
-<span id="hdr-status-text">
-        Conectado
-      </span>
-</div>
-<!-- Notificaciones -->
-<div class="hdr-notif-wrap">
-<button class="hdr-icon-btn" id="hdr-notifications" onclick="toggleNotifications(event)" title="Notificaciones" type="button">
-<i class="ti ti-bell"></i>
-<span class="hdr-badge" id="hdr-notif-count" style="display:none;">
-          0
-        </span>
-</button>
-<div class="notif-menu" id="notifMenu">
-<div class="notif-head">
-<strong>Notificaciones</strong>
-<small id="notifSub">Sin pendientes</small>
-</div>
-<div class="notif-list" id="notifList"></div>
-</div>
-</div>
-<!-- Centro de Ayuda -->
-<button class="hdr-icon-btn" id="hdr-support" onclick="showTab('support'); showSupportView('home');" title="Centro de Ayuda">
-<i class="ti ti-help-circle"></i>
-</button>
-<div class="hdr-user">
-<div class="hdr-av" id="hdr-av"></div>
-<div class="hdr-user-box">
-<span id="hdr-name"></span>
-<span class="hdr-company" id="hdr-company"></span>
-<span class="hdr-role" id="hdr-role"></span>
-</div>
-</div>
-<button class="hdr-logout" id="btn-logout" onclick="logoutMantto()" type="button">
-<i class="ti ti-logout"></i>
 
-      Cerrar sesión
+    <div class="hdr-notif-wrap">
+      <button class="hdr-icon-btn" id="hdr-notifications" onclick="toggleNotifications(event)" title="Notificaciones" type="button">
+        <i class="ti ti-bell"></i>
+        <span class="hdr-badge" id="hdr-notif-count" style="display:none;">0</span>
+      </button>
+      <div class="notif-menu" id="notifMenu">
+        <div class="notif-head">
+          <strong>Notificaciones</strong>
+          <small id="notifSub">Sin pendientes</small>
+        </div>
+        <div class="notif-list" id="notifList"></div>
+      </div>
+    </div>
 
-    </button>
-</div>
+    <div class="hdr-user">
+      <div class="hdr-av" id="hdr-av"></div>
+      <div class="hdr-user-box">
+        <span class="hdr-user-name" id="hdr-name"></span>
+        <span class="hdr-user-meta"><span class="hdr-company" id="hdr-company"></span><span class="hdr-role" id="hdr-role"></span></span>
+        <button class="hdr-logout" id="btn-logout" onclick="logoutMantto()" type="button">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
 </header>
 <!-- NAV -->
 <div id="api-bar" style="display:none;align-items:center;gap:10px;padding:8px 20px;font-size:12px;background:#fff;color:#0D2E6E;border-bottom:2px solid #0D2E6E">
@@ -1371,10 +1348,15 @@
 </div>
 <div class="support-request-actions">
 <button class="support-btn-secondary" onclick="clearRequestForm(); showSupportView('home')">Cancelar</button>
-<button class="support-btn-primary" onclick="submitDemoRequest()">Enviar solicitud</button>
+<button class="support-btn-primary" onclick="submitSupportRequest()">Enviar solicitud</button>
 </div>
 </section></div>
-<button class="panda-float" onclick="togglePandaChat()" title="Chat guía Nori">
+</div>
+</div>
+<!-- =====================================================
+     NORI GLOBAL
+===================================================== -->
+<button class="panda-float" onclick="togglePandaChat()" title="Nori soporte">
 <img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png">
 <span class="panda-fallback-icon">🐼</span>
 <span class="panda-notif"></span>
@@ -1383,7 +1365,7 @@
 <div class="panda-chat-head">
 <div class="panda-chat-title">
 <span class="panda-face">🐼</span>
-<div><strong>Nori</strong><small>Guía de soporte · Demo</small></div>
+<div><strong>Nori</strong><small>Guía de soporte</small></div>
 </div>
 <button onclick="togglePandaChat(false)">×</button>
 </div>
@@ -11457,6 +11439,202 @@ function initHome() {
       if(typeof renderRequests==='function') renderRequests();
     }
   };
+})();
+
+
+
+
+/* =====================================================
+   MGS-NORI-DATA-FALLBACK | Variables seguras hasta API
+===================================================== */
+var supportCurrentRequestId = window.supportCurrentRequestId || null;
+var noriStarted = window.noriStarted || false;
+var SUPPORT_CONTENT = window.SUPPORT_CONTENT || [];
+var SUPPORT_REQUESTS = window.SUPPORT_REQUESTS || [];
+var SUPPORT_NOTIFICATIONS = window.SUPPORT_NOTIFICATIONS || [];
+var NORI_FLOW = window.NORI_FLOW || {
+  inicio: {
+    mensaje: (SESSION && SESSION.user)
+      ? 'Hola, soy Nori. Puedo guiarte en el Centro de Soporte o ayudarte a generar una solicitud.'
+      : 'Hola, soy Nori. Puedo ayudarte si tienes problemas para iniciar sesión, recuperar tu contraseña o completar tu primer acceso.',
+    opciones: [
+      { label:'No puedo iniciar sesión', next:'login' },
+      { label:'Recuperar contraseña', next:'recuperar' },
+      { label:'Primer acceso', next:'primer_acceso' },
+      { label:'Crear solicitud de soporte', action:'newRequest', modulo:'Login / Acceso', asunto:'Ayuda para iniciar sesión' }
+    ]
+  },
+  login: {
+    mensaje:'Verifica que el correo esté escrito completo y que tu contraseña sea la actual. Si el usuario está bloqueado o inactivo, genera una solicitud de soporte.',
+    opciones:[
+      { label:'Quiero recuperar contraseña', next:'recuperar' },
+      { label:'Generar solicitud', action:'newRequest', modulo:'Login / Acceso', asunto:'No puedo iniciar sesión' },
+      { label:'Cerrar guía', action:'close' }
+    ]
+  },
+  recuperar: {
+    mensaje:'Usa la opción Recuperar contraseña. El sistema te pedirá tu correo, tu pregunta de seguridad y después podrás definir una nueva contraseña.',
+    opciones:[
+      { label:'Generar solicitud', action:'newRequest', modulo:'Login / Acceso', asunto:'Problema al recuperar contraseña' },
+      { label:'Regresar al inicio', next:'inicio' }
+    ]
+  },
+  primer_acceso: {
+    mensaje:'En el primer acceso debes cambiar tu contraseña temporal y configurar tu pregunta de seguridad. Si no aparece la pantalla, genera una solicitud.',
+    opciones:[
+      { label:'Generar solicitud', action:'newRequest', modulo:'Login / Acceso', asunto:'Problema con primer acceso' },
+      { label:'Regresar al inicio', next:'inicio' }
+    ]
+  }
+};
+
+/* =====================================================
+   MGS-HEADER-NORI-STEP1 | Header global + Nori preparado
+===================================================== */
+function normalizeRoleName(value) {
+  return String(value || '').trim();
+}
+
+function getSessionUserRoles(user) {
+  user = user || (SESSION && SESSION.user) || {};
+  var roles = [];
+
+  function pushRole(value) {
+    value = normalizeRoleName(value);
+    if (value && !roles.some(function(r){ return r.toLowerCase() === value.toLowerCase(); })) roles.push(value);
+  }
+
+  pushRole(user.rol);
+  pushRole(user.role);
+  pushRole(user.puesto);
+  pushRole(user.rol_principal);
+  pushRole(user.role_principal);
+
+  var list = user.roles || user.usuario_roles || user.roles_usuario || [];
+  if (Array.isArray(list)) {
+    list.forEach(function(item){
+      if (typeof item === 'string') pushRole(item);
+      else if (item) pushRole(item.rol || item.role || item.nombre || item.name);
+    });
+  }
+
+  return roles;
+}
+
+function getPrimaryRole(user) {
+  user = user || (SESSION && SESSION.user) || {};
+  return normalizeRoleName(user.rol_principal || user.role_principal || user.rol || user.role || user.puesto || '');
+}
+
+function userHasRole(roleName) {
+  var target = String(roleName || '').toLowerCase();
+  return getSessionUserRoles().some(function(role){ return String(role).toLowerCase() === target; });
+}
+
+function isProgrammerUser() {
+  return userHasRole('Programador') || getSessionUserRoles().some(function(role){
+    return /programador|sistemas|admin/i.test(role);
+  });
+}
+
+function setProgrammerBarsVisible() {
+  var visible = !!(SESSION && SESSION.user && isProgrammerUser());
+  ['api-bar','aiven-status-bar'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = visible && el.dataset.wasShown === '1' ? 'flex' : 'none';
+  });
+  document.body.classList.toggle('is-programmer', visible);
+  return visible;
+}
+
+function hydrateSessionUI() {
+  var user = SESSION && SESSION.user ? SESSION.user : {};
+  CURRENT_USER = user.nombre || user.name || user.correo || user.email || 'Usuario';
+
+  var company = user.empresa || user.company || user.razon_social || user.razonSocial || '';
+  var primaryRole = getPrimaryRole(user);
+
+  var hdrName = document.getElementById('hdr-name');
+  if (hdrName) hdrName.textContent = CURRENT_USER;
+
+  var hdrAv = document.getElementById('hdr-av');
+  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || (typeof initials === 'function' ? initials(CURRENT_USER) : 'U');
+
+  var hdrCompany = document.getElementById('hdr-company');
+  if (hdrCompany) {
+    hdrCompany.textContent = company || 'Empresa no asignada';
+    hdrCompany.style.display = '';
+  }
+
+  var hdrRole = document.getElementById('hdr-role');
+  if (hdrRole) {
+    hdrRole.textContent = primaryRole || 'Rol no asignado';
+    hdrRole.style.display = '';
+  }
+
+  var isAdminUser = isProgrammerUser();
+  document.querySelectorAll('.admin-only').forEach(function(el) {
+    el.style.display = isAdminUser ? '' : 'none';
+  });
+
+  setProgrammerBarsVisible();
+  hideAllAuthScreens();
+}
+
+function showAPIBar(msg, type) {
+  var el = document.getElementById('api-bar');
+  if (!el) return;
+
+  if (!isProgrammerUser()) {
+    el.dataset.wasShown = '0';
+    el.style.display = 'none';
+    return;
+  }
+
+  var c = {loading:{bg:'#EFF6FF',col:'#1E40AF',bd:'#BFDBFE'},
+           ok:{bg:'#F0FDF4',col:'#166534',bd:'#BBF7D0'},
+           error:{bg:'#FEF2F2',col:'#991B1B',bd:'#FECACA'},
+           warn:{bg:'#FFFBEB',col:'#92400E',bd:'#FDE68A'}}[type] || {bg:'#F8FAFC',col:'#64748B',bd:'#E2E8F0'};
+
+  el.dataset.wasShown = '1';
+  el.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:12px;background:'+c.bg+';color:'+c.col+';border-bottom:1px solid '+c.bd+';transition:all .3s';
+  var msgEl = el.querySelector('#api-msg');
+  if (!msgEl) return;
+
+  if (window._apiCountdown) { clearInterval(window._apiCountdown); window._apiCountdown = null; }
+
+  if (type === 'loading') {
+    var secs = 0;
+    msgEl.textContent = msg;
+    window._apiCountdown = setInterval(function(){
+      secs++;
+      msgEl.textContent = msg + ' (' + secs + 's)';
+    }, 1000);
+  } else {
+    msgEl.textContent = msg;
+  }
+}
+
+function openGuestNori() {
+  if (typeof togglePandaChat === 'function') togglePandaChat(true);
+  window.NORI_MODE = 'guest';
+  window.noriStarted = false;
+  if (typeof startNoriGuide === 'function') startNoriGuide();
+}
+
+function getSupportRoleMode() {
+  return isProgrammerUser() ? 'programador' : 'usuario';
+}
+
+function submitSupportRequest() {
+  if (typeof submitDemoRequest === 'function') return submitDemoRequest();
+}
+
+(function prepareNoriGlobal(){
+  var chatSub = document.querySelector('.panda-chat-title small');
+  if (chatSub) chatSub.textContent = 'Guía de soporte';
+  var supportTitle = document.querySelector('#panel-support .support-welcome-integrated p');
+  if (supportTitle) supportTitle.textContent = 'Preguntas frecuentes, solicitudes y guía Nori.';
 })();
 
 </script>
