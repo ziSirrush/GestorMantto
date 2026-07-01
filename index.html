@@ -227,7 +227,7 @@
 </div>
 </div>
 <!-- Centro de Ayuda -->
-<button class="hdr-icon-btn" id="hdr-support" onclick="showTab(\'support\'); showSupportView(\'home\');" title="Centro de Ayuda">
+<button class="hdr-icon-btn" id="hdr-support" onclick="showTab('support'); showSupportView('home');" title="Centro de Ayuda">
 <i class="ti ti-help-circle"></i>
 </button>
 <div class="hdr-user">
@@ -274,37 +274,17 @@
 <span id="sb-last-sync" style="margin-left:auto;color:#94A3B8;font-size:10px">Sin sincronizar</span>
 </div>
 <nav class="nav">
-<button class="nav-btn on" id="tab-home" onclick="showTab('home')">
-<i class="ti ti-home"></i>Inicio
-  </button>
-<button class="nav-btn" id="tab-tickets" onclick="showTab('tickets')">
-<i class="ti ti-ticket"></i>Tickets
-  </button>
-<button class="nav-btn" id="tab-resumen" onclick="showTab('resumen')">
-<i class="ti ti-calendar-stats"></i>Resumen del día
-  </button>
-<button class="nav-btn" id="tab-callcenter" onclick="showTab('callcenter')">
-<i class="ti ti-phone-call"></i>Dashboard Call Center
-  </button>
-<button class="nav-btn" id="tab-portafolio" onclick="showTab('portafolio')">
-<i class="ti ti-building"></i>Dashboard Portafolio
-  </button>
-<button class="nav-btn" id="tab-operativo" onclick="showTab('operativo')">
-<i class="ti ti-chart-bar"></i>Dashboard Operativo
-  </button>
-<button class="nav-btn" id="tab-proyectos" onclick="showTab('proyectos')">
-<i class="ti ti-building-skyscraper"></i>Proyectos
-  </button>
-<button class="nav-btn" id="tab-users" onclick="showTab('users')">
-<i class="ti ti-users"></i>Usuarios
-  </button>
-<button class="nav-btn" id="tab-support" onclick="showTab('support')">
-<i class="ti ti-help-circle"></i>Centro de ayuda
-  </button>
-
-<button class="nav-btn" id="tab-criticos" onclick="showTab('criticos')">
-<i class="ti ti-alert-triangle"></i>Equipos Críticos
-  </button></nav>
+<button class="nav-btn on" id="tab-home" onclick="showTab('home')"><i class="ti ti-home"></i>Inicio</button>
+<button class="nav-btn" id="tab-resumen" onclick="showTab('resumen')"><i class="ti ti-calendar-stats"></i>Resumen del día</button>
+<button class="nav-btn" id="tab-criticos" onclick="showTab('criticos')"><i class="ti ti-alert-triangle"></i>Equipos Críticos</button>
+<button class="nav-btn" id="tab-callcenter" onclick="showTab('callcenter')"><i class="ti ti-phone-call"></i>Dashboard Call Center</button>
+<button class="nav-btn" id="tab-operativo" onclick="showTab('operativo')"><i class="ti ti-chart-bar"></i>Dashboard Operativo</button>
+<button class="nav-btn" id="tab-portafolio" onclick="showTab('portafolio')"><i class="ti ti-building"></i>Dashboard Portafolio</button>
+<button class="nav-btn" id="tab-movimientos" onclick="showTab('movimientos')"><i class="ti ti-arrows-exchange"></i>Movimientos</button>
+<button class="nav-btn" id="tab-proyectos" onclick="showTab('proyectos')"><i class="ti ti-building-skyscraper"></i>Proyectos</button>
+<button class="nav-btn admin-only" id="tab-users" onclick="showTab('users')"><i class="ti ti-users"></i>Usuarios</button>
+<button class="nav-btn" id="tab-support" onclick="showTab('support')"><i class="ti ti-help-circle"></i>Centro de ayuda</button>
+</nav>
 <!-- ═══════════════════════════════════════════════════════
      PANEL: TICKETS
 ════════════════════════════════════════════════════════ -->
@@ -315,16 +295,12 @@
 <p id="home-fecha" style="font-size:12px;color:#94A3B8;margin-top:2px"></p>
 <p id="home-status" style="font-size:11px;color:#94A3B8"></p>
 </div>
+
 <!-- Nav grid -->
 <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-<button onclick="showTab('support')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
-<div style="width:44px;height:44px;background:#EEF4FF;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#1B4FD8;font-size:22px;font-weight:900">?</div>
-<div>
-<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Centro<br/>de ayuda</p>
-<p style="font-size:10px;color:#94A3B8;margin-top:3px">Nori y solicitudes</p>
-</div>
-</button>
-<button onclick="showTab('resumen')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
+
+<!-- 2. Resumen del día -->
+<button onclick="showTab('resumen')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
 <div style="width:44px;height:44px;background:#EEF2FF;border-radius:10px;display:flex;align-items:center;justify-content:center">
 <svg fill="none" height="22" stroke="#1B4FD8" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><rect height="18" rx="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
 </div>
@@ -333,52 +309,8 @@
 <p style="font-size:10px;color:#94A3B8;margin-top:3px">Actividad diaria</p>
 </div>
 </button>
-<button onclick="showTab('callcenter')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
-<div style="width:44px;height:44px;background:#ECFEFF;border-radius:10px;display:flex;align-items:center;justify-content:center">
-<svg fill="none" height="22" stroke="#0891B2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.03 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"></path></svg>
-</div>
-<div>
-<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br/>Call Center</p>
-<p style="font-size:10px;color:#94A3B8;margin-top:3px">KPIs y alertas</p>
-</div>
-</button>
-<button onclick="showTab('portafolio')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
-<div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center">
-<svg fill="none" height="22" stroke="#16A34A" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-</div>
-<div>
-<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br/>Portafolio</p>
-<p style="font-size:10px;color:#94A3B8;margin-top:3px">Equipos y estado</p>
-</div>
-</button>
-<button onclick="showTab('proyectos')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
-<div style="width:44px;height:44px;background:#FFFBEB;border-radius:10px;display:flex;align-items:center;justify-content:center">
-<svg fill="none" height="22" stroke="#D97706" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-</div>
-<div>
-<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Proyectos</p>
-<p style="font-size:10px;color:#94A3B8;margin-top:3px">Sitios y equipos</p>
-</div>
-</button>
-<button onclick="showTab('operativo')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
-<div style="width:44px;height:44px;background:#F5F3FF;border-radius:10px;display:flex;align-items:center;justify-content:center">
-<svg fill="none" height="22" stroke="#7C3AED" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"></path></svg>
-</div>
-<div>
-<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br/>Operativo</p>
-<p style="font-size:10px;color:#94A3B8;margin-top:3px">Servicios y Vo.Bo.</p>
-</div>
-</button>
-<button onclick="showTab('users')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07);border:1px solid #0D2E6E">
-<div style="width:44px;height:44px;background:#FFF1F2;border-radius:10px;display:flex;align-items:center;justify-content:center">
-<svg fill="none" height="22" stroke="#E11D48" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"></path></svg>
-</div>
-<div>
-<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Usuarios</p>
-<p style="font-size:10px;color:#94A3B8;margin-top:3px">Gestión de accesos</p>
-</div>
-</button>
 
+<!-- 3. Críticos -->
 <button onclick="showTab('criticos')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
 <div style="width:44px;height:44px;background:#FFF1F2;border-radius:10px;display:flex;align-items:center;justify-content:center">
 <svg fill="none" height="22" stroke="#DC2626" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path><line x1="12" x2="12" y1="9" y2="13"></line><line x1="12" x2="12.01" y1="17" y2="17"></line></svg>
@@ -388,10 +320,74 @@
 <p style="font-size:10px;color:#94A3B8;margin-top:3px">Fallas recurrentes</p>
 </div>
 </button>
-<button onclick="showTab('movimientos')" style="background:#fff;border:1px solid rgba(13,46,110,.15);border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
-<div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center"><svg fill="none" height="22" stroke="#16A34A" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M7 16V4m0 0L3 8m4-4l4 4"></path><path d="M17 8v12m0 0l4-4m-4 4l-4-4"></path></svg></div>
-<div><p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Movimientos<br/>de Portafolio</p><p style="font-size:10px;color:#94A3B8;margin-top:3px">Cambios de estatus</p></div>
-</button></div>
+
+<!-- 4. Dashboard Call Center -->
+<button onclick="showTab('callcenter')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+<div style="width:44px;height:44px;background:#ECFEFF;border-radius:10px;display:flex;align-items:center;justify-content:center">
+<svg fill="none" height="22" stroke="#0891B2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.03 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"></path></svg>
+</div>
+<div>
+<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br/>Call Center</p>
+<p style="font-size:10px;color:#94A3B8;margin-top:3px">KPIs y alertas</p>
+</div>
+</button>
+
+<!-- 5. Dashboard Operativo -->
+<button onclick="showTab('operativo')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+<div style="width:44px;height:44px;background:#F5F3FF;border-radius:10px;display:flex;align-items:center;justify-content:center">
+<svg fill="none" height="22" stroke="#7C3AED" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"></path></svg>
+</div>
+<div>
+<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br/>Operativo</p>
+<p style="font-size:10px;color:#94A3B8;margin-top:3px">Servicios y Vo.Bo.</p>
+</div>
+</button>
+
+<!-- 6. Dashboard Portafolio -->
+<button onclick="showTab('portafolio')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+<div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center">
+<svg fill="none" height="22" stroke="#16A34A" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+</div>
+<div>
+<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Dashboard<br/>Portafolio</p>
+<p style="font-size:10px;color:#94A3B8;margin-top:3px">Equipos y estado</p>
+</div>
+</button>
+
+<!-- 7. Movimientos -->
+<button onclick="showTab('movimientos')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+<div style="width:44px;height:44px;background:#F0FDF4;border-radius:10px;display:flex;align-items:center;justify-content:center">
+<svg fill="none" height="22" stroke="#16A34A" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M7 16V4m0 0L3 8m4-4l4 4"></path><path d="M17 8v12m0 0l4-4m-4 4l-4-4"></path></svg>
+</div>
+<div>
+<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Movimientos<br/>de Portafolio</p>
+<p style="font-size:10px;color:#94A3B8;margin-top:3px">Cambios de estatus</p>
+</div>
+</button>
+
+<!-- 8. Proyectos -->
+<button onclick="showTab('proyectos')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+<div style="width:44px;height:44px;background:#FFFBEB;border-radius:10px;display:flex;align-items:center;justify-content:center">
+<svg fill="none" height="22" stroke="#D97706" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+</div>
+<div>
+<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Proyectos</p>
+<p style="font-size:10px;color:#94A3B8;margin-top:3px">Sitios y equipos</p>
+</div>
+</button>
+
+<!-- 9. Usuarios -->
+<button class="admin-only" onclick="showTab('users')" style="background:#fff;border:1px solid #0D2E6E;border-radius:12px;padding:20px 14px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(13,46,110,.07)">
+<div style="width:44px;height:44px;background:#FFF1F2;border-radius:10px;display:flex;align-items:center;justify-content:center">
+<svg fill="none" height="22" stroke="#E11D48" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"></path></svg>
+</div>
+<div>
+<p style="font-size:13px;font-weight:700;color:#0D2E6E;line-height:1.3">Usuarios</p>
+<p style="font-size:10px;color:#94A3B8;margin-top:3px">Gestión de accesos</p>
+</div>
+</button>
+
+</div>
 </div>
 <div class="panel" id="panel-tickets">
 <!-- Aiven API banner -->
@@ -1728,25 +1724,8 @@ async function loadFromAPI() {
   return loadFromAiven();
 }
 
-function _refreshAfterLoad() {
-  document.querySelectorAll("table[data-si]").forEach(t=>delete t.dataset.si);
-  rebuildFilterOptions();
-  applyFilters();
-  ALL_DATES = [...new Set(ALL_TICKETS.map(t=>t.fr).filter(Boolean))].sort().reverse();
-  // If equipos came from Sheets (no estatus_ul_mes), enrich from Aiven
-  if (PF_DATA.length && PF_DATA[0].estatus_ul_mes === null) enrichPFDataFromAiven();
-  const activeTab = (function(){var _n=document.querySelector('.nav-btn.on');return _n?_n.id.replace('tab-',''):''})();
-  if (activeTab === 'callcenter') initCC();
-  if (activeTab === 'portafolio') initPortafolio();
-  if (activeTab === 'proyectos') initProyectos();
-  // Refresh home alert banner if visible
-  if (activeTab === 'home') initHome();
-  if (activeTab === 'resumen')    initResumen();
-  if (activeTab === 'proyectos') initProyectos();
-  // Start auto-refresh after first load
-  if (!_autoRefreshInterval) startAutoRefresh();
-  loadChatsFromSB();
-}
+
+
 
 
 function mapTicketRow(row) {
@@ -2160,6 +2139,16 @@ function hydrateSessionUI() {
   if (hdrAv)
       hdrAv.textContent = initials(CURRENT_USER);
 
+    var roleText = String(user.rol || user.role || user.puesto || '').toLowerCase();
+  var isAdminUser =
+    roleText.includes('admin') ||
+    roleText.includes('programador') ||
+    roleText.includes('sistemas');
+
+  document.querySelectorAll('.admin-only').forEach(function(el) {
+    el.style.display = isAdminUser ? '' : 'none';
+  });
+
   /* ==========================================
      Rol
   ========================================== */
@@ -2377,26 +2366,45 @@ async function dbInsert(tbl,d) {
 // ── TABS ──────────────────────────────────────────────────────────────
 function showTab(tab, skipReset) {
   if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
+
   var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) { homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible'; }
-  ['home','tickets','resumen','callcenter','portafolio','operativo','proyectos','users','support'].forEach(function(t) {
-    var btn = document.getElementById('tab-'+t);
-    var pnl = document.getElementById('panel-'+t);
-    if (btn) btn.classList.toggle('on', t===tab);
-    if (pnl) pnl.classList.toggle('on', t===tab);
+  if (homeBtn) {
+    homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible';
+  }
+
+  ['home','tickets','resumen','criticos','callcenter','operativo','portafolio','movimientos','proyectos','users','support'].forEach(function(t) {
+    var btn = document.getElementById('tab-' + t);
+    var pnl = document.getElementById('panel-' + t);
+
+    if (btn) btn.classList.toggle('on', t === tab);
+    if (pnl) pnl.classList.toggle('on', t === tab);
   });
-  if (tab==='users')      { forceUsersFromAiven(); setTimeout(initAllTables,100); }
-  if (tab==='resumen')    initResumen();
-  document.onkeydown = tab==='resumen' ? (function(e){
-    if(e.key==='ArrowLeft') changeDay(-1);
-    if(e.key==='ArrowRight') changeDay(1);
-  }) : null;
-  if (tab==='callcenter') initCC();
-  if (tab==='portafolio') initPortafolio();
-  if (tab==='home')       initHome();
-  if (tab==='operativo')  initCumplimiento();
-  if (tab==='proyectos')  initProyectos();
-  if (tab==='support') {
+
+  if (tab === 'users') {
+    forceUsersFromAiven();
+    setTimeout(initAllTables, 100);
+  }
+
+  if (tab === 'resumen') initResumen();
+
+  document.onkeydown = tab === 'resumen' ? function(e) {
+    if (e.key === 'ArrowLeft') changeDay(-1);
+    if (e.key === 'ArrowRight') changeDay(1);
+  } : null;
+
+  if (tab === 'criticos' && typeof renderCriticos === 'function') renderCriticos();
+  if (tab === 'callcenter') initCC();
+  if (tab === 'operativo') initCumplimiento();
+  if (tab === 'portafolio') initPortafolio();
+
+  if (tab === 'movimientos' && typeof renderMovimientosPage === 'function') {
+    renderMovimientosPage();
+  }
+
+  if (tab === 'proyectos') initProyectos();
+  if (tab === 'home') initHome();
+
+  if (tab === 'support') {
     if (typeof showSupportView === 'function') showSupportView('home');
     if (typeof renderSupportContent === 'function') renderSupportContent();
     if (typeof renderRequests === 'function') renderRequests();
@@ -2602,7 +2610,7 @@ function normalizeRoleAiven(row) {
   return map[rid] || 'tecnico';
 }
 
-function mapTicketRowSB(row) {
+function mapTicketRowAPI(row) {
   var rawEstadoTicket = gv(row, [
     'Estado_Ticket','estado_ticket','Estado Ticket','EstadoTicket',
     'estadoTicket','estatus_ticket','Estatus_Ticket','status_ticket',
@@ -2653,7 +2661,7 @@ function mapTicketRowSB(row) {
   };
 }
 
-function mapEquipoRowSB(row) {
+function mapEquipoRowAPI(row) {
   var numEq = String(gv(row, ['Numero de Equipo','Numero_de_Equipo','numero_equipo','codigo_equipo','equipo','cod'], '') || '');
   var parts = numEq.split('-');
   var tipoCode = parts.length >= 3 ? parts[2] : '';
@@ -2759,41 +2767,41 @@ async function loadFromAiven() {
   showAPIBar('Conectando con API Aiven...', 'loading');
 
   try {
-    _setSBStatus('cc','loading','Conectando...');
+    _setAPIStatus('cc','loading','Conectando...');
     var ticketsPayload = await apiFetch('/tickets');
     var ticketRows = rowsFromPayload(ticketsPayload);
     ALL_TICKETS.length = 0;
-    ticketRows.forEach(function(row) { ALL_TICKETS.push(mapTicketRowSB(row)); });
-    _setSBStatus('cc','ok', ALL_TICKETS.length.toLocaleString() + ' tickets');
+    ticketRows.forEach(function(row) { ALL_TICKETS.push(mapTicketRowAPI(row)); });
+    _setAPIStatus('cc','ok', ALL_TICKETS.length.toLocaleString() + ' tickets');
 
-    _setSBStatus('pf','loading','Conectando...');
+    _setAPIStatus('pf','loading','Conectando...');
     var equiposPayload;
     try { equiposPayload = await apiFetch('/portafolio'); }
     catch(ePf) { equiposPayload = await apiFetch('/equipos'); }
     var equipoRows = rowsFromPayload(equiposPayload);
-    PF_DATA = equipoRows.map(mapEquipoRowSB);
-    _setSBStatus('pf','ok', PF_DATA.length.toLocaleString() + ' equipos');
+    PF_DATA = equipoRows.map(mapEquipoRowAPI);
+    _setAPIStatus('pf','ok', PF_DATA.length.toLocaleString() + ' equipos');
 
     var usersCount = 0;
     try { usersCount = await loadUsersFromAiven(); }
     catch(eUsr) { console.warn('[Aiven] usuarios no disponibles:', eUsr.message); }
 
     try {
-      _setSBStatus('sh','loading','Conectando...');
+      _setAPIStatus('sh','loading','Conectando...');
       var proyPayload = await apiFetch('/proyectos');
       var proyRows = rowsFromPayload(proyPayload);
       window._PROY_LIST = proyRows.map(function(r){ return gv(r, ['Proyecto','proyecto','nombre'], ''); }).filter(Boolean);
-      _setSBStatus('sh','ok', window._PROY_LIST.length + ' proyectos');
+      _setAPIStatus('sh','ok', window._PROY_LIST.length + ' proyectos');
     } catch(eP) {
       window._PROY_LIST = Array.from(new Set(PF_DATA.map(function(e){ return e.pro; }).filter(Boolean)));
-      _setSBStatus('sh','ok', window._PROY_LIST.length + ' proyectos');
+      _setAPIStatus('sh','ok', window._PROY_LIST.length + ' proyectos');
     }
 
     showAPIBar('✓ ' + ALL_TICKETS.length.toLocaleString() + ' tickets · ' + PF_DATA.length.toLocaleString() + ' equipos · ' + usersCount.toLocaleString() + ' usuarios — Aiven', 'ok');
     API_LOADING = false;
     _refreshAfterLoad();
   } catch(err) {
-    _setSBStatus('cc','error', err.message.slice(0,30));
+    _setAPIStatus('cc','error', err.message.slice(0,30));
     showAPIBar('⚠️ Sin conexión con API Aiven', 'warn');
     API_LOADING = false;
     console.error('Aiven API error:', err);
@@ -2801,7 +2809,7 @@ async function loadFromAiven() {
   }
 }
 
-function _setSBStatus(source, state, label) {
+function _setAPIStatus(source, state, label) {
   console.log('[Aiven]', source, state, label);
   // source: 'cc' | 'pf' | 'sh'
   // state: 'loading' | 'ok' | 'error' | 'idle'
@@ -2950,7 +2958,7 @@ function stopAutoRefresh() {
   }
 }
 
-async function loadChatsFromSB() {
+async function loadChatsFromAPI() {
   if (!CHAT_API_AVAILABLE) return;
   try {
     var rows = rowsFromPayload(await apiFetch('/ticket-comentarios'));
@@ -3396,7 +3404,7 @@ function saveVobo(n) {
   const now = new Date();
   const at = now.toLocaleDateString('es-MX')+' '+now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   VOBO[n] = {v:val, c:cmt, by:CURRENT_USER, at};
-  sbUpsert('ticket_validaciones',{no_ticket:n,vobo:val,comentario:cmt,guardado_por:CURRENT_USER,guardado_en:at});
+  dbInsert('ticket_validaciones',{no_ticket:n,vobo:val,comentario:cmt,guardado_por:CURRENT_USER,guardado_en:at});
   showToast('Vo.bo. guardado — #'+n);
   openDetail(n);
 }
@@ -4333,7 +4341,7 @@ function toggleServicio(cod, mesKey) {
     delete SERVICIO_CONFIRM[key];
   } else {
     SERVICIO_CONFIRM[key] = {confirmed:true, by:CURRENT_USER, at};
-    sbUpsert('servicio_preventivo', {equipo_cod:cod, mes_key:mesKey, confirmado_por:CURRENT_USER, confirmado_en:at});
+    dbInsert('servicio_preventivo', {equipo_cod:cod, mes_key:mesKey, confirmado_por:CURRENT_USER, confirmado_en:at});
   }
   renderCumplimiento();
   showToast(SERVICIO_CONFIRM[key] ? 'Servicio confirmado ✓' : 'Confirmación retirada');
@@ -6750,91 +6758,8 @@ function loadViaJsonp(url, cbName) {
 }
 
 
-async function loadFromAPI() {
-  if (API_LOADING) return;
-  API_LOADING = true;
 
-  var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  showAPIBar('Cargando datos desde Google Sheets...', 'loading');
 
-  // ── JSONP path (Safari iOS / Android) ──────────────────────────
-  if (isMobile) {
-    var ticketsOk = false, equiposOk = false;
-    try {
-      showAPIBar('📡 Conectando con Google Sheets... (primera carga puede tardar 2-3 min)', 'loading');
-      await loadViaJsonp(APPS_SCRIPT_URL + '?action=tickets', '_cb_tkt');
-      ticketsOk = true;
-    } catch(e) {
-      // If timeout, try one more time
-      try {
-        showAPIBar('Reintentando conexión...', 'loading');
-        await loadViaJsonp(APPS_SCRIPT_URL + '?action=tickets', '_cb_tkt2'); // retry
-        ticketsOk = true;
-      } catch(e2) {
-        showAPIBar('⚠️ Sin conexión a Sheets. Toca Recargar para intentar de nuevo.', 'error');
-      }
-    }
-    if (ticketsOk) {
-      // Equipos: cargados desde Supabase (Sheets desactivado temporalmente)
-      equiposOk = true;
-      try {
-        await loadViaJsonp(APPS_SCRIPT_URL + '?action=proyectos', '_cb_proy');
-      } catch(e) {}
-      var eq = equiposOk ? ' · ' + PF_DATA.length.toLocaleString() + ' equipos' : '';
-      showAPIBar('✓ ' + ALL_TICKETS.length.toLocaleString() + ' tickets' + eq + ' — datos en vivo', 'ok');
-    }
-    API_LOADING = false;
-    _refreshAfterLoad();
-    return;
-  }
-
-  // ── fetch path (desktop Chrome / Firefox) ──────────────────────
-  try {
-    var r1 = await fetch(APPS_SCRIPT_URL + '?action=tickets');
-    var d1 = await r1.json();
-    if (d1.ok && d1.data && d1.data.length) {
-      ALL_TICKETS.length = 0;
-      d1.data.map(mapTicketRow).forEach(t => ALL_TICKETS.push(t));
-    } else {
-      showAPIBar('Error tickets: ' + (d1.error||'sin datos'), 'error');
-    }
-  } catch(e) {
-    showAPIBar('No se pudo conectar con Google Sheets', 'error');
-    API_LOADING = false;
-    return;
-  }
-  // Cargar equipos desde Supabase Portafolio
-  try {
-    _setSBStatus('pf','loading','Cargando...');
-    var pgSzE=1000, pgNE=0, rowsEE=[], goEE=true;
-    while(goEE) {
-      var urlEE=SUPABASE_URL+'/rest/v1/Portafolio?select=*&offset='+(pgNE*pgSzE)+'&limit='+pgSzE;
-      var respEE=await fetch(urlEE,{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      if(!respEE.ok){_setSBStatus('pf','error',respEE.status+' Error');goEE=false;break;}
-      var batchEE=await respEE.json();
-      rowsEE=rowsEE.concat(batchEE);
-      if(batchEE.length<pgSzE) goEE=false; else pgNE++;
-    }
-    if(rowsEE.length){
-      PF_DATA=rowsEE.map(mapEquipoRowSB);
-      _setSBStatus('pf','ok',PF_DATA.length.toLocaleString()+' equipos');
-      console.log('[PF] Loaded from Supabase via loadFromAPI:',PF_DATA.length,'first estatus_ul_mes:',PF_DATA[0]&&PF_DATA[0].estatus_ul_mes);
-    }
-  } catch(eE){_setSBStatus('pf','error','Error');console.warn('[PF] Error:',eE.message);}
-
-  // Cargar lista de proyectos desde Sheets
-  try {
-    var r3 = await fetch(APPS_SCRIPT_URL + '?action=proyectos');
-    var d3 = await r3.json();
-    if (d3.ok && d3.data && d3.data.length) {
-      window._PROY_LIST = d3.data.map(function(r){ return r['Proyecto']||r['proyecto']||''; }).filter(Boolean);
-    }
-  } catch(e) {}
-
-  showAPIBar('✓ ' + ALL_TICKETS.length.toLocaleString() + ' tickets · ' + PF_DATA.length.toLocaleString() + ' equipos — datos en vivo', 'ok');
-  API_LOADING = false;
-  _refreshAfterLoad();
-}
 
 function _refreshAfterLoad() {
   document.querySelectorAll("table[data-si]").forEach(t=>delete t.dataset.si);
@@ -6842,8 +6767,8 @@ function _refreshAfterLoad() {
   applyFilters();
   _buildCritSet();
   ALL_DATES = [...new Set(ALL_TICKETS.map(t=>t.fr).filter(Boolean))].sort().reverse();
-  // If equipos came from Sheets (no estatus_ul_mes), enrich from Supabase
-  if (PF_DATA.length && PF_DATA[0].estatus_ul_mes === null) enrichPFDataFromSupabase();
+  // If equipos came from Sheets (no estatus_ul_mes), enrich from Aiven
+  if (PF_DATA.length && PF_DATA[0].estatus_ul_mes === null) enrichPFDataFromAiven();
   var activeTab = (function(){var _n=document.querySelector('.nav-btn.on');return _n?_n.id.replace('tab-',''):''})();
   if (activeTab === 'callcenter') initCC();
   if (activeTab === 'portafolio') initPortafolio();
@@ -6857,7 +6782,7 @@ function _refreshAfterLoad() {
   _buildCritSet();
   // Start auto-refresh after first load
   if (!_autoRefreshInterval) startAutoRefresh();
-  loadChatsFromSB();
+  loadChatsFromAPI();
 }
 
 
@@ -6950,7 +6875,7 @@ function mapEquipoRow(row) {
     operativo,
     estatus:          estatus||null,
     inactivo:         inactivo||null,
-    estatus_ul_mes:       null,  // se enriquece desde Supabase
+    estatus_ul_mes:       null,  // se enriquece desde Aiven
     estatus_ul_mes_fecha: null,
     historial,
   };
@@ -6980,76 +6905,22 @@ function showAPIBar(msg, type) {
     msgEl.textContent = msg;
   }
 }
-var sbUrl = '', sbKey = '';
+function connectAivenLegacy() {
+  showToast('API Aiven conectada');
+}
 
+async function apiUpsertLegacy(tbl, d) {
+  return dbInsert(tbl, d);
+}
 
-function connectSB() {
-  sbUrl = document.getElementById('sb-url').value.trim();
-  sbKey = document.getElementById('sb-key').value.trim();
-  if (!sbUrl || !sbKey) { showToast('Ingresa URL y key'); return; }
-  document.getElementById('sb-status').textContent = '✓ Conectado';
-  document.getElementById('sb-status').style.color = '#16A34A';
-  showToast('Supabase conectado');
+async function apiInsertLegacy(tbl, d) {
+  return dbInsert(tbl, d);
 }
-async function sbUpsert(tbl,d) {
-  if (!sbUrl) return;
-  fetch(sbUrl+'/rest/v1/'+tbl,{method:'POST',headers:{'apikey':sbKey,'Authorization':'Bearer '+sbKey,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify(d)}).catch(()=>{});
-}
-async function sbInsert(tbl,d) {
-  var url = (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : sbUrl);
-  var key = (typeof SUPABASE_KEY !== 'undefined' ? SUPABASE_KEY : sbKey);
-  if (!url) return;
-  fetch(url+'/rest/v1/'+tbl,{
-    method:'POST',
-    headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'return=minimal'},
-    body:JSON.stringify(d)
-  }).catch(function(e){ console.warn('[SB] Insert error:', e); });
-}
+
 
 // ── TABS ──────────────────────────────────────────────────────────────
-function showTab(tab, skipReset) {
-  if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
-  // Show back button on all tabs except home
-  var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) { homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible'; }
-  ['home','tickets','resumen','callcenter','portafolio','operativo','proyectos','criticos','users'].forEach(t => {
-    var btn = document.getElementById('tab-'+t);
-    var pnl = document.getElementById('panel-'+t);
-    if (btn) btn.classList.toggle('on', t===tab);
-    if (pnl) pnl.classList.toggle('on', t===tab);
-  });
-  ['notif-page','movimientos-page'].forEach(function(pid){
-    var el=document.getElementById(pid),btn=document.getElementById('tab-'+pid.replace('-page',''));
-    var isActive=(tab===pid.replace('-page',''));
-    if(el){
-      el.style.display=isActive?'block':'none';
-      el.style.position=isActive?'fixed':'';
-      el.style.top=isActive?'116px':'';
-      el.style.left=isActive?'0':'';
-      el.style.right=isActive?'0':'';
-      el.style.bottom=isActive?'0':'';
-      el.style.overflowY=isActive?'auto':'';
-      el.style.zIndex=isActive?'10':'';
-      el.style.background=isActive?'#F0F4F8':'';
-    }
-    if(btn) btn.classList.toggle('on',isActive);
-  });
-  if (tab==='users')      { renderUsers(); setTimeout(initAllTables,100); }
-  if (tab==='resumen')    initResumen();
-  // Arrow key navigation for resumen
-  document.onkeydown = tab==='resumen' ? (e=>{
-    if(e.key==='ArrowLeft') changeDay(-1);
-    if(e.key==='ArrowRight') changeDay(1);
-  }) : null;
-  if (tab==='callcenter') initCC();
-  if (tab==='portafolio') initPortafolio();
-  if (tab==='home')       initHome();
-  if (tab==='operativo')  initCumplimiento();
-  if (tab==='proyectos')  initProyectos();
-  if (tab==='criticos')   renderCriticos();
-  if (tab==='notif')      renderNotifPage();
-  if (tab==='movimientos') renderMovimientosPage();
-}
+
+
 
 // ── ROLES / FILTERS ───────────────────────────────────────────────────
 
@@ -7110,238 +6981,22 @@ function getCritCods(dias) {
   return new Set(Object.keys(counts).filter(function(k) { return counts[k] >= 3; }));
 }
 
-function mapTicketRowSB(row) {
-  function d(v) {
-    if (!v) return null;
-    return String(v).split('T')[0];
-  }
-  // Parse a time/duration field from Supabase.
-  // Handles: decimal hours ("0.32", ".72"), Excel timestamps ("1899-12-30T06:36:36.000Z"),
-  // and rejects future dates (data errors like "2026-05-02T07:00:00.000Z")
-  function dur(v) {
-    if (!v) return null;
-    var s = String(v).trim();
-    if (!s) return null;
-    // Pure decimal: ".32", "0.72", "1.5"
-    if (/^\.?\d+(\.\d+)?$/.test(s)) {
-      var n = parseFloat(s);
-      return (!isNaN(n) && n >= 0 && n < 744) ? String(n) : null; // max 31 days
-    }
-    // ISO timestamp: extract time component only
-    var iso = s.match(/T(\d{2}):(\d{2}):(\d{2})/);
-    if (iso) {
-      var yr = parseInt(s.slice(0,4));
-      // Reject actual calendar dates (year >= 1901 = real date, not Excel time serial)
-      if (yr >= 1901) return null;
-      // 1899/1900 base = Excel time serial → extract HH:MM:SS → decimal hours
-      var h = parseInt(iso[1]), m2 = parseInt(iso[2]), sec = parseInt(iso[3]);
-      var hrs = h + m2/60 + sec/3600;
-      return hrs > 0 ? String(Math.round(hrs*100)/100) : null;
-    }
-    return null;
-  }
-  function ti(v) {
-    if (!v) return null;
-    var m = String(v).match(/^(\d{2}:\d{2})/);
-    return m ? m[1] : null;
-  }
-  return {
-    n:   String(row.No_Ticket  || row.id_SB || ''),
-    et:  row.Estado_Ticket     || null,
-    edo: row.Estado            || null,
-    ciu: row.Ciudad            || null,
-    pro: row.Proyecto          || null,
-    cod: row.Codigo_Equipo     || null,
-    ref: row.Identificacion_en_Sitio || row.Referencia_en_Sitio || row.Referencia_en_Zona_Operativa || null,
-    zon: row.Zona_Operativa    || null,
-    asu: row.Asunto            || null,
-    fr:  d(row.F_Reporte),
-    hr:  ti(row.H_Reporte),
-    eqi: row.Estatus_Equipo_Ir || null,
-    fl:  d(row.F_Llegada),
-    hl:  ti(row.H_Llegada),
-    pat: row.Persona_que_atiende || null,
-    fs:  d(row.F_Solucion),
-    hs:  ti(row.H_Solucion),
-    tec: row.Tecnico_de_Solucion || null,
-    eqf: row.Estatus_Equipo_Final || null,
-    cau: row.Causa             || null,
-    acc: row.Accion_en_Cierre  || null,
-    res: row.RESPONSABILID     || null,
-    caf: row.Causa_de_Falla    || null,
-    tll: dur(row.Tiempo_Llegada)    || null,
-    tso: dur(row.Tiempo_Solucion)   || null,
-    prd: row.Producto          || null,
-    pri: row.Prioridad_Proyecto || null,
-    ejc: row.Ejecutivo_Call    || null,
-    mes: row.Mes_reporte       || null,
-    blt: row.BLT_Empleado      || null,
-    xat: dur(row.Tiempo_Llegada_II) || null,
-    xso: dur(row.Tiempo_Solucion_II) || null,
-    ens: row.Ticket_excede     || null,
-    zon_adm:   row.Zona_Administrativa || null,
-    zon_falla: row.Zona_de_falla      || null,
-    pro_padre: row.Proyecto_Padre     || null,
-  };
+
+
+
+
+async function loadFromLegacyData() {
+  return loadFromAiven();
 }
 
 
-async function loadFromSupabase() {
-  if (API_LOADING) return;
-  API_LOADING = true;
-  showAPIBar('Conectando con Supabase...', 'loading');
-
-  try {
-    _setSBStatus('cc','loading','Conectando...');
-    var pageSize = 1000;
-    var page = 0;
-    var allRows = [];
-    var keepGoing = true;
-
-    while (keepGoing) {
-      var from = page * pageSize;
-      var url  = SUPABASE_URL + '/rest/v1/CC?select=*&order=F_Reporte.desc&offset=' + from + '&limit=' + pageSize;
-      var resp = await fetch(url, {
-        headers: {
-          'apikey':        SUPABASE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_KEY,
-        }
-      });
-      if (!resp.ok) {
-        var err = await resp.text();
-        _setSBStatus('cc','error', resp.status + ' Error');
-        throw new Error('Supabase ' + resp.status + ': ' + err.slice(0,150));
-      }
-      var rows = await resp.json();
-      allRows = allRows.concat(rows);
-      _setSBStatus('cc','loading', allRows.length.toLocaleString() + ' filas...');
-      showAPIBar('Cargando tickets... ' + allRows.length.toLocaleString(), 'loading');
-      if (rows.length < pageSize) keepGoing = false;
-      else page++;
-    }
-
-    ALL_TICKETS.length = 0;
-    allRows.forEach(function(row) { ALL_TICKETS.push(mapTicketRowSB(row)); });
-    _setSBStatus('cc','ok', ALL_TICKETS.length.toLocaleString() + ' tickets');
-    showAPIBar('✓ ' + ALL_TICKETS.length.toLocaleString() + ' tickets desde Supabase — cargando equipos...', 'ok');
-
-    // Load equipos from Supabase Portafolio table
-    try {
-      _setSBStatus('pf','loading','Conectando...');
-      var pgSize = 1000, pgE = 0, rowsE = [], goE = true;
-      while (goE) {
-        var urlE = SUPABASE_URL + '/rest/v1/Portafolio?select=*&offset=' + (pgE*pgSize) + '&limit=' + pgSize;
-        var respE = await fetch(urlE, {
-          headers: {'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY}
-        });
-        if (!respE.ok) { _setSBStatus('pf','error',respE.status+' Error'); goE = false; break; }
-        var batchE = await respE.json();
-        rowsE = rowsE.concat(batchE);
-        _setSBStatus('pf','loading', rowsE.length + ' filas...');
-        if (batchE.length < pgSize) goE = false; else pgE++;
-      }
-      if (rowsE.length) {
-        PF_DATA = rowsE.map(mapEquipoRowSB);
-        _setSBStatus('pf','ok', PF_DATA.length.toLocaleString() + ' equipos');
-        console.log('[PF] Loaded from Supabase:', PF_DATA.length, 'first estatus_ul_mes:', PF_DATA[0] && PF_DATA[0].estatus_ul_mes);
-      } else {
-        _setSBStatus('pf','error','Sin datos');
-        console.warn('[PF] Supabase returned 0 rows');
-      }
-    } catch(e) { _setSBStatus('pf','error','Error'); console.warn('[PF] Portafolio SB error:', e.message); }
-
-    // Load proyectos from Sheets (no Supabase table yet)
-    try {
-      _setSBStatus('sh','loading','Conectando...');
-      var r3 = await fetch(APPS_SCRIPT_URL + '?action=proyectos');
-      var d3 = await r3.json();
-      if (d3.ok && d3.data && d3.data.length) {
-        window._PROY_LIST = d3.data.map(function(r){ return r['Proyecto']||''; }).filter(Boolean);
-        _setSBStatus('sh','ok', window._PROY_LIST.length + ' proyectos');
-      } else {
-        _setSBStatus('sh','error','Sin datos');
-      }
-    } catch(e) { _setSBStatus('sh','error','Sin conexión'); }
-
-    var eq = PF_DATA.length ? ' · ' + PF_DATA.length.toLocaleString() + ' equipos' : '';
-    showAPIBar('✓ ' + ALL_TICKETS.length.toLocaleString() + ' tickets' + eq + ' — datos en vivo', 'ok');
-    API_LOADING = false;
-    _refreshAfterLoad();
-
-  } catch(err) {
-    _setSBStatus('cc','error', err.message.slice(0,30));
-    showAPIBar('⚠️ Sin conexión — funcionando sin datos', 'warn');
-    API_LOADING = false;
-    console.error('Supabase error:', err);
-    // Still refresh UI so home renders correctly
-    _refreshAfterLoad();
-  }
-}
 
 
-function mapEquipoRowSB(row) {
-  var numEq = row['Numero de Equipo'] || '';
-  var parts = numEq.split('-');
-  var tipoCode = parts.length >= 3 ? parts[2] : '';
-  var tipoMap = {ELE:'ELEVADOR',ESC:'ESCALERA',MON:'MONTACARGAS',RAM:'RAMPA',PLA:'PLATAFORMA',API:'MONTAPLATOS'};
-  var tipo = tipoMap[tipoCode] || tipoCode || 'OTRO';
-
-  var inactivo = row['Inactivo'];
-  var estatus  = row['Estatus Servicio'] || '';
-  var contrato = 'Servicio';
-  if (inactivo === 'true' || inactivo === true || inactivo === 'Sí') {
-    contrato = 'Inactivo';
-  } else if (estatus === 'No en Servicio') {
-    contrato = 'No en Servicio';
-  } else if (row['Mes Termino Gratuitos'] && !row['Mes Objetivo Inicio Cobranza']) {
-    contrato = 'Gratuito';
-  } else if (row['Mes Objetivo Inicio Cobranza']) {
-    contrato = 'Cobranza';
-  }
-
-  return {
-    cod:      numEq,
-    pro:      row['Proyecto']                   || null,
-    ciu:      row['Ciudad']                     || null,
-    edo:      row['Estado']                     || null,
-    zon:      row['Z. Oper.']                   || null,
-    ref:      row['Identificacion en Sitio']    || null,
-    sup:      row['Supervisor Zona']            || null,
-    supe:     row['Superintendente']            || null,
-    dir:      row['Direccion']                  || null,
-    tipo,
-    contrato,
-    inactivo: inactivo || null,
-    estatus:  estatus  || null,
-    operativo: (estatus === 'En Servicio' && inactivo !== 'true') ? 'Funcionando' : 'Parado',
-    estatus_ul_mes:       row['estatus_ul_mes']       || null,
-    estatus_ul_mes_fecha: row['estatus_ul_mes_fecha']  || null,
-    historial: {},
-  };
-}
 
 
-function _setSBStatus(source, state, label) {
-  console.log('[SB]', source, state, label);
-  // source: 'cc' | 'pf' | 'sh'
-  // state: 'loading' | 'ok' | 'error' | 'idle'
-  var colors = {loading:'#F59E0B', ok:'#16A34A', error:'#DC2626', idle:'#CBD5E1'};
-  var dot = document.getElementById('sb-dot-' + source);
-  var lbl = document.getElementById('sb-lbl-' + source);
-  if (dot) dot.style.background = colors[state] || colors.idle;
-  if (lbl) { lbl.textContent = label || ''; lbl.style.color = state === 'ok' ? '#16A34A' : state === 'error' ? '#DC2626' : '#94A3B8'; }
-  if (state === 'ok' || state === 'error') {
-    var sync = document.getElementById('sb-last-sync');
-    if (sync) {
-      var now = new Date();
-      sync.textContent = 'Sync ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
-    }
-  }
-  // Pulse animation for loading
-  if (dot) {
-    dot.style.animation = state === 'loading' ? 'sbPulse 1s ease-in-out infinite' : 'none';
-  }
-}
+
+
+
 
 // ── Detección de cambios de estatus vs último mes ─────────────────────
 function getEstatusAlert(e) {
@@ -7432,57 +7087,11 @@ function renderMovimientos() {
   while (rows.firstChild) tbody.appendChild(rows.firstChild);
 }
 
-// Enriquece PF_DATA con estatus_ul_mes desde Supabase (para cuando equipos vienen de Sheets)
-async function enrichPFDataFromSupabase() {
-  if (!PF_DATA.length) return;
-  window._enrichPending = true;
-  try {
-    // Solo traer los campos necesarios - en lotes de 1000
-    var page = 0, pageSize = 1000, keepGoing = true;
-    var sbMap = {};
-    while (keepGoing) {
-      var url = SUPABASE_URL + '/rest/v1/Portafolio?select=Numero+de+Equipo,Identificacion+en+Sitio,estatus_ul_mes,estatus_ul_mes_fecha&offset=' + (page*pageSize) + '&limit=' + pageSize;
-      var resp = await fetch(url, {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-      });
-      if (!resp.ok) break;
-      var rows = await resp.json();
-      rows.forEach(function(r) {
-        var cod = r['Numero de Equipo'] || r['Numero_de_Equipo'] || '';
-        if (cod) sbMap[cod] = {
-          ref:                  r['Identificacion en Sitio'] || null,
-          estatus_ul_mes:       r.estatus_ul_mes       || null,
-          estatus_ul_mes_fecha: r.estatus_ul_mes_fecha || null
-        };
-      });
-      if (rows.length < pageSize) keepGoing = false;
-      else page++;
-    }
-    // Merge into PF_DATA
-    var enriched = 0;
-    PF_DATA.forEach(function(e) {
-      var sb = sbMap[e.cod];
-      if (sb) {
-        if (sb.ref) e.ref = sb.ref;  // Identificacion en Sitio from Supabase
-        e.estatus_ul_mes       = sb.estatus_ul_mes;
-        e.estatus_ul_mes_fecha = sb.estatus_ul_mes_fecha;
-        if (sb.estatus_ul_mes) enriched++;
-      }
-    });
-    console.log('[SB] Enriched', enriched, 'equipos with estatus_ul_mes');
-    // Log sample of enriched data
-    var sampleDiff = PF_DATA.filter(function(e){
-      return e.estatus_ul_mes && e.estatus && e.estatus !== e.estatus_ul_mes;
-    });
-    console.log('[SB] Equipos con diferencia:', sampleDiff.length, sampleDiff.slice(0,3).map(function(e){return {cod:e.cod,cur:e.estatus,prev:e.estatus_ul_mes};}));
-    window._enrichPending = false;
-    // Re-render movimientos after enrichment completes
-    renderMovimientos();
-  } catch(e) {
-    window._enrichPending = false;
-    console.warn('[SB] enrichPFData error:', e);
-  }
+// Enriquece PF_DATA con estatus_ul_mes desde Aiven (para cuando equipos vienen de Sheets)
+async function enrichPFDataFromAivenLegacy() {
+  return enrichPFDataFromAiven();
 }
+
 
 // ── Auto-refresh cada 5 minutos ──────────────────────────────────────
 
@@ -7495,7 +7104,7 @@ function startAutoRefresh() {
       return _n ? _n.id.replace('tab-','') : 'home';
     })();
     // Silent reload - no show loading bar
-    loadFromSupabase && loadFromSupabase();
+    if (typeof loadFromAiven === 'function') loadFromAiven();
     // Update status bar
     var sync = document.getElementById('sb-last-sync');
     if (sync) {
@@ -7513,51 +7122,11 @@ function stopAutoRefresh() {
   }
 }
 
-async function loadChatsFromSB() {
-  var url = (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : sbUrl);
-  var key = (typeof SUPABASE_KEY !== 'undefined' ? SUPABASE_KEY : sbKey);
-  if (!url) return;
-  try {
-    var resp = await fetch(url + '/rest/v1/ticket_comentarios?select=*&order=ts.asc', {
-      headers: {'apikey': key, 'Authorization': 'Bearer ' + key}
-    });
-    if (!resp.ok) return;
-    var rows = await resp.json();
-    // Reset CHATS
-    CHATS = {};
-    rows.forEach(function(r) {
-      var n = r.no_ticket;
-      if (!n) return;
-      if (!CHATS[n]) CHATS[n] = [];
-      CHATS[n].push({u: r.usuario||'—', m: r.mensaje||'', t: r.ts||'', id: r.id, leido: r.leido});
-    });
-    // Calculate UNREAD - messages not sent by current user and not read
-    Object.keys(CHATS).forEach(function(n) {
-      var unread = CHATS[n].filter(function(m){
-        return m.u !== CURRENT_USER && !m.leido;
-      }).length;
-      if (unread > 0) UNREAD[n] = unread;
-    });
-    updateNotif();
-    renderMensajesNoLeidos();
-    console.log('[CHAT] Loaded', rows.length, 'messages from Supabase');
-  } catch(e) {
-    console.warn('[CHAT] loadChats error:', e);
-  }
-}
 
-async function markChatAsRead(n) {
-  var url = (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : sbUrl);
-  var key = (typeof SUPABASE_KEY !== 'undefined' ? SUPABASE_KEY : sbKey);
-  if (!url || !n) return;
-  try {
-    await fetch(url + '/rest/v1/ticket_comentarios?no_ticket=eq.' + encodeURIComponent(n), {
-      method: 'PATCH',
-      headers: {'apikey': key, 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'},
-      body: JSON.stringify({leido: true})
-    });
-  } catch(e) {}
-}
+
+
+
+
 
 function renderMensajesNoLeidos() {
   var container = document.getElementById('dash-mensajes-tbody');
@@ -8698,7 +8267,7 @@ function saveVobo(n) {
   var now = new Date();
   var at = now.toLocaleDateString('es-MX')+' '+now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   VOBO[n] = {v:val, c:cmt, by:CURRENT_USER, at};
-  sbUpsert('ticket_validaciones',{no_ticket:n,vobo:val,comentario:cmt,guardado_por:CURRENT_USER,guardado_en:at});
+  dbInsert('ticket_validaciones',{no_ticket:n,vobo:val,comentario:cmt,guardado_por:CURRENT_USER,guardado_en:at});
   showToast('Vo.bo. guardado — #'+n);
   openDetail(n);
 }
@@ -8733,7 +8302,7 @@ function sendChat() {
   var ts = now.toLocaleDateString('es-MX')+' '+now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   if (!CHATS[n]) CHATS[n] = [];
   CHATS[n].push({u:CURRENT_USER, m:msg, t:ts});
-  sbInsert('ticket_comentarios',{no_ticket:n,usuario:CURRENT_USER,mensaje:msg,ts,leido:false});
+  dbInsert('ticket_comentarios',{no_ticket:n,usuario:CURRENT_USER,mensaje:msg,ts,leido:false});
   renderChat(n);
 }
 
@@ -9400,7 +8969,7 @@ function closeKpiDet() {
 // ── CUMPLIMIENTO DASHBOARD ─────────────────────────────────────────────
 // Simulated equipment portfolio — will come from Portafolio Mtto 2 sheet
 
-// Service confirmations stored locally (will sync to Supabase)
+// Service confirmations stored locally (will sync to Aiven)
 // Key: equipoId + '_' + 'YYYY_MM' → {confirmed, by, at, notes}
 
 // Generate simulated portfolio from ticket data
@@ -9623,7 +9192,7 @@ function toggleServicio(cod, mesKey) {
     delete SERVICIO_CONFIRM[key];
   } else {
     SERVICIO_CONFIRM[key] = {confirmed:true, by:CURRENT_USER, at};
-    sbUpsert('servicio_preventivo', {equipo_cod:cod, mes_key:mesKey, confirmado_por:CURRENT_USER, confirmado_en:at});
+    dbInsert('servicio_preventivo', {equipo_cod:cod, mes_key:mesKey, confirmado_por:CURRENT_USER, confirmado_en:at});
   }
   renderCumplimiento();
   showToast(SERVICIO_CONFIRM[key] ? 'Servicio confirmado ✓' : 'Confirmación retirada');
@@ -11573,25 +11142,8 @@ async function loadFromAPI() {
   return loadFromAiven();
 }
 
-function _refreshAfterLoad() {
-  document.querySelectorAll("table[data-si]").forEach(t=>delete t.dataset.si);
-  rebuildFilterOptions();
-  applyFilters();
-  ALL_DATES = [...new Set(ALL_TICKETS.map(t=>t.fr).filter(Boolean))].sort().reverse();
-  // If equipos came from Sheets (no estatus_ul_mes), enrich from Aiven
-  if (PF_DATA.length && PF_DATA[0].estatus_ul_mes === null) enrichPFDataFromAiven();
-  const activeTab = (function(){var _n=document.querySelector('.nav-btn.on');return _n?_n.id.replace('tab-',''):''})();
-  if (activeTab === 'callcenter') initCC();
-  if (activeTab === 'portafolio') initPortafolio();
-  if (activeTab === 'proyectos') initProyectos();
-  // Refresh home alert banner if visible
-  if (activeTab === 'home') initHome();
-  if (activeTab === 'resumen')    initResumen();
-  if (activeTab === 'proyectos') initProyectos();
-  // Start auto-refresh after first load
-  if (!_autoRefreshInterval) startAutoRefresh();
-  loadChatsFromSB();
-}
+
+
 
 function mapTicketRow(row) {
   function d(v) {
@@ -11769,33 +11321,8 @@ function connectAiven() {
   showToast('API Aiven configurada');
 }
 
-function showTab(tab, skipReset) {
-  if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
-  var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) { homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible'; }
-  ['home','tickets','resumen','callcenter','portafolio','operativo','proyectos','users','support'].forEach(function(t) {
-    var btn = document.getElementById('tab-'+t);
-    var pnl = document.getElementById('panel-'+t);
-    if (btn) btn.classList.toggle('on', t===tab);
-    if (pnl) pnl.classList.toggle('on', t===tab);
-  });
-  if (tab==='users')      { forceUsersFromAiven(); setTimeout(initAllTables,100); }
-  if (tab==='resumen')    initResumen();
-  document.onkeydown = tab==='resumen' ? (function(e){
-    if(e.key==='ArrowLeft') changeDay(-1);
-    if(e.key==='ArrowRight') changeDay(1);
-  }) : null;
-  if (tab==='callcenter') initCC();
-  if (tab==='portafolio') initPortafolio();
-  if (tab==='home')       initHome();
-  if (tab==='operativo')  initCumplimiento();
-  if (tab==='proyectos')  initProyectos();
-  if (tab==='support') {
-    if (typeof showSupportView === 'function') showSupportView('home');
-    if (typeof renderSupportContent === 'function') renderSupportContent();
-    if (typeof renderRequests === 'function') renderRequests();
-  }
-}
+
+
 
 async function forceUsersFromAiven() {
   var body = document.getElementById('usr-body');

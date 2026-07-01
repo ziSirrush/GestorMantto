@@ -1828,3 +1828,16 @@ body {
 html,body{height:100%}
 .panel.on{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100vh - 100px)}
 #movimientos-page{box-sizing:border-box}
+
+/* Fix Nori flotante */
+.panda-float{
+  position:fixed!important;
+  right:22px!important;
+  bottom:22px!important;
+  z-index:10001!important;
+  display:flex!important;
+}
+
+.panda-chat{
+  z-index:10002!important;
+}
