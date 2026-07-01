@@ -2102,25 +2102,80 @@ function loadManttoSession() {
 }
 
 function hydrateSessionUI() {
-
   var user = SESSION && SESSION.user ? SESSION.user : {};
 
   CURRENT_USER =
-      user.nombre ||
-      user.name ||
-      user.correo ||
-      user.email ||
-      'Usuario';
+    user.nombre ||
+    user.name ||
+    user.correo ||
+    user.email ||
+    'Usuario';
+
+  function _normRole(value) {
+    return String(value || '').trim();
+  }
+
+  function _pushRole(list, value) {
+    value = _normRole(value);
+    if (value && !list.some(function(r){ return String(r).toLowerCase() === value.toLowerCase(); })) {
+      list.push(value);
+    }
+  }
+
+  function _rolesFromUser(u) {
+    var list = [];
+    _pushRole(list, u.rol_principal);
+    _pushRole(list, u.role_principal);
+    _pushRole(list, u.rol);
+    _pushRole(list, u.role);
+    _pushRole(list, u.puesto);
+
+    var rawRoles = u.roles || u.usuario_roles || u.roles_usuario || [];
+    if (Array.isArray(rawRoles)) {
+      rawRoles.forEach(function(item) {
+        if (typeof item === 'string') _pushRole(list, item);
+        else if (item) _pushRole(list, item.rol || item.role || item.nombre || item.name);
+      });
+    }
+    return list;
+  }
+
+  var userRoles = _rolesFromUser(user);
+  var primaryRole =
+    _normRole(user.rol_principal) ||
+    _normRole(user.role_principal) ||
+    _normRole(user.rol) ||
+    _normRole(user.role) ||
+    _normRole(user.puesto) ||
+    userRoles[0] ||
+    '';
+
+  var company =
+    user.empresa ||
+    user.company ||
+    user.razon_social ||
+    user.razonSocial ||
+    '';
 
   var hdrName = document.getElementById('hdr-name');
-  if (hdrName)
-      hdrName.textContent = CURRENT_USER;
+  if (hdrName) hdrName.textContent = CURRENT_USER;
 
   var hdrAv = document.getElementById('hdr-av');
-  if (hdrAv)
-      hdrAv.textContent = initials(CURRENT_USER);
+  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || initials(CURRENT_USER);
 
-    var roleText = String(user.rol || user.role || user.puesto || '').toLowerCase();
+  var hdrCompany = document.getElementById('hdr-company');
+  if (hdrCompany) {
+    hdrCompany.textContent = company || 'Empresa no asignada';
+    hdrCompany.style.display = '';
+  }
+
+  var hdrRole = document.getElementById('hdr-role');
+  if (hdrRole) {
+    hdrRole.textContent = primaryRole || 'Rol no asignado';
+    hdrRole.style.display = '';
+  }
+
+  var roleText = String(userRoles.join(' ') + ' ' + primaryRole).toLowerCase();
   var isAdminUser =
     roleText.includes('admin') ||
     roleText.includes('programador') ||
@@ -2130,55 +2185,22 @@ function hydrateSessionUI() {
     el.style.display = isAdminUser ? '' : 'none';
   });
 
-  /* ==========================================
-     Rol
-  ========================================== */
-
-  var hdrRole = document.getElementById('hdr-role');
-
-  if (hdrRole) {
-
-      hdrRole.textContent =
-          user.rol ||
-          user.role ||
-          '';
-
-      hdrRole.style.display =
-          hdrRole.textContent ? '' : 'none';
-
+  if (typeof setProgrammerBarsVisible === 'function') {
+    setProgrammerBarsVisible();
+  } else {
+    document.body.classList.toggle('is-programmer', isAdminUser);
   }
 
-  /* ==========================================
-     Empresa
-     Pendiente de implementar cuando el campo
-     sea agregado a la tabla "usuarios".
-
-     Ejemplo:
-     user.nombre_empresa
-     o
-     user.empresa
-
-  ========================================== */
-
-  /*
-  var hdrCompany = document.getElementById('hdr-company');
-
-  if (hdrCompany) {
-
-      hdrCompany.textContent =
-          user.empresa ||
-          user.company ||
-          '';
-
-      hdrCompany.style.display =
-          hdrCompany.textContent ? '' : 'none';
-
+  var homeBtn = document.getElementById('home-btn');
+  if (homeBtn) {
+    homeBtn.classList.remove('home-btn-hidden');
+    homeBtn.classList.add('hdr-logo-btn');
+    homeBtn.style.display = '';
   }
-  */
 
   hideAllAuthScreens();
-
 }
+
 
 function checkExistingSession() {
   var saved = loadManttoSession();
@@ -2349,8 +2371,9 @@ function showTab(tab, skipReset) {
   if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
 
   var homeBtn = document.getElementById('home-btn');
-  if (homeBtn && !homeBtn.classList.contains('hdr-logo-btn')) {
-    homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible';
+  if (homeBtn) {
+    homeBtn.classList.remove('home-btn-hidden');
+    homeBtn.classList.add('hdr-logo-btn');
   }
 
   ['home','tickets','resumen','criticos','callcenter','operativo','portafolio','movimientos','proyectos','users','support'].forEach(function(t) {
@@ -11580,16 +11603,65 @@ function setProgrammerBarsVisible() {
 
 function hydrateSessionUI() {
   var user = SESSION && SESSION.user ? SESSION.user : {};
-  CURRENT_USER = user.nombre || user.name || user.correo || user.email || 'Usuario';
 
-  var company = user.empresa || user.company || user.razon_social || user.razonSocial || '';
-  var primaryRole = getPrimaryRole(user);
+  CURRENT_USER =
+    user.nombre ||
+    user.name ||
+    user.correo ||
+    user.email ||
+    'Usuario';
+
+  function _normRole(value) {
+    return String(value || '').trim();
+  }
+
+  function _pushRole(list, value) {
+    value = _normRole(value);
+    if (value && !list.some(function(r){ return String(r).toLowerCase() === value.toLowerCase(); })) {
+      list.push(value);
+    }
+  }
+
+  function _rolesFromUser(u) {
+    var list = [];
+    _pushRole(list, u.rol_principal);
+    _pushRole(list, u.role_principal);
+    _pushRole(list, u.rol);
+    _pushRole(list, u.role);
+    _pushRole(list, u.puesto);
+
+    var rawRoles = u.roles || u.usuario_roles || u.roles_usuario || [];
+    if (Array.isArray(rawRoles)) {
+      rawRoles.forEach(function(item) {
+        if (typeof item === 'string') _pushRole(list, item);
+        else if (item) _pushRole(list, item.rol || item.role || item.nombre || item.name);
+      });
+    }
+    return list;
+  }
+
+  var userRoles = _rolesFromUser(user);
+  var primaryRole =
+    _normRole(user.rol_principal) ||
+    _normRole(user.role_principal) ||
+    _normRole(user.rol) ||
+    _normRole(user.role) ||
+    _normRole(user.puesto) ||
+    userRoles[0] ||
+    '';
+
+  var company =
+    user.empresa ||
+    user.company ||
+    user.razon_social ||
+    user.razonSocial ||
+    '';
 
   var hdrName = document.getElementById('hdr-name');
   if (hdrName) hdrName.textContent = CURRENT_USER;
 
   var hdrAv = document.getElementById('hdr-av');
-  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || (typeof initials === 'function' ? initials(CURRENT_USER) : 'U');
+  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || initials(CURRENT_USER);
 
   var hdrCompany = document.getElementById('hdr-company');
   if (hdrCompany) {
@@ -11603,14 +11675,32 @@ function hydrateSessionUI() {
     hdrRole.style.display = '';
   }
 
-  var isAdminUser = isProgrammerUser();
+  var roleText = String(userRoles.join(' ') + ' ' + primaryRole).toLowerCase();
+  var isAdminUser =
+    roleText.includes('admin') ||
+    roleText.includes('programador') ||
+    roleText.includes('sistemas');
+
   document.querySelectorAll('.admin-only').forEach(function(el) {
     el.style.display = isAdminUser ? '' : 'none';
   });
 
-  setProgrammerBarsVisible();
+  if (typeof setProgrammerBarsVisible === 'function') {
+    setProgrammerBarsVisible();
+  } else {
+    document.body.classList.toggle('is-programmer', isAdminUser);
+  }
+
+  var homeBtn = document.getElementById('home-btn');
+  if (homeBtn) {
+    homeBtn.classList.remove('home-btn-hidden');
+    homeBtn.classList.add('hdr-logo-btn');
+    homeBtn.style.display = '';
+  }
+
   hideAllAuthScreens();
 }
+
 
 function showAPIBar(msg, type) {
   var el = document.getElementById('api-bar');
