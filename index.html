@@ -9,6 +9,7 @@
 <title>BLT Brilliant — Gestión de Mantenimientos</title>
 <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" rel="stylesheet"/>
 <link href="styles.css" rel="stylesheet"/>
+
 </head>
 <body>
 <!-- LOGIN -->
@@ -261,6 +262,21 @@
 <button class="nav-btn admin-only" id="tab-users" onclick="showTab('users')"><i class="ti ti-users"></i>Usuarios</button>
 <button class="nav-btn" id="tab-support" onclick="showTab('support')"><i class="ti ti-help-circle"></i>Centro de ayuda</button>
 </nav>
+<div id="app-context-nav" aria-live="polite">
+  <div class="app-context-inner">
+    <button id="app-back-btn" type="button" onclick="manttoGoBack()">
+      <i class="ti ti-arrow-left"></i>
+      <span id="app-back-label">Regresar</span>
+    </button>
+    <div class="app-context-title-wrap">
+      <div id="app-context-title">Inicio</div>
+      <div id="app-context-subtitle"></div>
+    </div>
+  </div>
+</div>
+
+<main id="app-content" aria-label="Contenido principal de Mantto Gestor"></main>
+
 <!-- ═══════════════════════════════════════════════════════
      PANEL: TICKETS
 ════════════════════════════════════════════════════════ -->
@@ -1355,11 +1371,11 @@
 <!-- =====================================================
      NORI GLOBAL
 ===================================================== -->
-<button class="panda-float" onclick="togglePandaChat()" title="Nori soporte">
-<img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png">
+<button class="panda-float" onclick="togglePandaChat()" title="Nori soporte" type="button">
+<img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png"/>
 <span class="panda-fallback-icon">🐼</span>
 <span class="panda-notif"></span>
-</img></button>
+</button>
 <section class="panda-chat" id="pandaChat">
 <div class="panda-chat-head">
 <div class="panda-chat-title">
@@ -1374,6 +1390,21 @@
 <button onclick="startNoriGuide()" type="button">Reiniciar guía</button>
 </div>
 </section>
+<script id="mantto-move-panels-to-app-content">
+(function(){
+  function movePanelsToAppContent(){
+    var appContent = document.getElementById('app-content');
+    if (!appContent) return;
+    var panels = Array.prototype.slice.call(document.body.children).filter(function(el){
+      return el && el.classList && el.classList.contains('panel');
+    });
+    panels.forEach(function(panel){
+      appContent.appendChild(panel);
+    });
+  }
+  movePanelsToAppContent();
+})();
+</script>
 <script>
 
 
@@ -1730,15 +1761,15 @@ function mapTicketRow(row) {
   ], null);
 
   return {
-    n:   String(gv(row, ['No_Ticket','No. Ticket','No Ticket','ticket','Ticket','folio','Folio','id','id_SB'], '')),
+    n:   String(gv(row, ['No_Ticket','No. Ticket','No Ticket','ticket','Ticket','folio','Folio','id_interno','id','id_SB'], '')),
     et:  normalizeTicketStatus(rawEstadoTicket || rawEstadoGeneral),
     edo: gv(row, ['Estado','estado','estado_region','estado_ubicacion'], null),
     ciu: gv(row, ['Ciudad','ciudad'], null),
     pro: gv(row, ['Proyecto','proyecto'], null),
-    cod: gv(row, ['Codigo_Equipo','Código Equipo','codigo_equipo','Codigo Equipo','CodigoEquipo','equipo','Numero de Equipo','Numero_de_Equipo'], null),
+    cod: gv(row, ['Codigo_Equipo','Código Equipo','codigo_equipo','Codigo Equipo','CodigoEquipo','equipo','numero_equipo','Numero de Equipo','Numero_de_Equipo'], null),
     ref: gv(row, ['Referencia_en_Zona_Operativa','Referencia en Zona Operativa','Referencia en Sitio','referencia_en_zona_operativa','referencia','referencia_sitio'], null),
     zon: gv(row, ['Zona_Operativa','Zona Operativa','zona_operativa','zona','Z. Oper.','z_op'], null),
-    asu: gv(row, ['Asunto','asunto','descripcion','Descripción','descripción'], null),
+    asu: gv(row, ['Asunto','asunto','descripcion','Descripción','descripción','detalle','problema'], null),
     fr:  d(gv(row, ['F_Reporte','F Reporte','F. Reporte','Fecha Reporte','fecha_reporte','created_at'], null)),
     hr:  t(gv(row, ['H_Reporte','H Reporte','Hora Reporte','h_reporte','hora_reporte'], null)),
     eqi: gv(row, ['Estatus_Equipo_Ir','Estatus Equipo Inicial','estatus_equipo_ir','estatus_equipo_inicial'], null),
@@ -1765,7 +1796,8 @@ function mapTicketRow(row) {
     ens: gv(row, ['Ticket_excede','ticket_excede','Técnico se encontraba en sitio al solicitar ticket','ens'], null),
     zon_adm:   gv(row, ['Zona_Administrativa','zona_administrativa'], null),
     zon_falla: gv(row, ['Zona_de_falla','zona_de_falla'], null),
-    pro_padre: gv(row, ['Proyecto_Padre','proyecto_padre'], null),
+    pro_padre: gv(row, ['Proyecto_Padre','proyecto_padre','proyecto_cc_x_port'], null),
+    vobo: normalizeVoboAiven(gv(row, ['vobo_estado','Vo.bo.','VoBo','vobo','voboEstado'], null)),
   };
 }
 
@@ -2102,105 +2134,76 @@ function loadManttoSession() {
 }
 
 function hydrateSessionUI() {
+
   var user = SESSION && SESSION.user ? SESSION.user : {};
 
   CURRENT_USER =
-    user.nombre ||
-    user.name ||
-    user.correo ||
-    user.email ||
-    'Usuario';
-
-  function _normRole(value) {
-    return String(value || '').trim();
-  }
-
-  function _pushRole(list, value) {
-    value = _normRole(value);
-    if (value && !list.some(function(r){ return String(r).toLowerCase() === value.toLowerCase(); })) {
-      list.push(value);
-    }
-  }
-
-  function _rolesFromUser(u) {
-    var list = [];
-    _pushRole(list, u.rol_principal);
-    _pushRole(list, u.role_principal);
-    _pushRole(list, u.rol);
-    _pushRole(list, u.role);
-    _pushRole(list, u.puesto);
-
-    var rawRoles = u.roles || u.usuario_roles || u.roles_usuario || [];
-    if (Array.isArray(rawRoles)) {
-      rawRoles.forEach(function(item) {
-        if (typeof item === 'string') _pushRole(list, item);
-        else if (item) _pushRole(list, item.rol || item.role || item.nombre || item.name);
-      });
-    }
-    return list;
-  }
-
-  var userRoles = _rolesFromUser(user);
-  var primaryRole =
-    _normRole(user.rol_principal) ||
-    _normRole(user.role_principal) ||
-    _normRole(user.rol) ||
-    _normRole(user.role) ||
-    _normRole(user.puesto) ||
-    userRoles[0] ||
-    '';
-
-  var company =
-    user.empresa ||
-    user.company ||
-    user.razon_social ||
-    user.razonSocial ||
-    '';
+      user.nombre ||
+      user.name ||
+      user.correo ||
+      user.email ||
+      'Usuario';
 
   var hdrName = document.getElementById('hdr-name');
-  if (hdrName) hdrName.textContent = CURRENT_USER;
+  if (hdrName)
+      hdrName.textContent = CURRENT_USER;
 
   var hdrAv = document.getElementById('hdr-av');
-  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || initials(CURRENT_USER);
+  if (hdrAv)
+      hdrAv.textContent = initials(CURRENT_USER);
+
+var rolesText = Array.isArray(user.roles) ? user.roles.join(' ') : '';
+var roleText = String(
+  (user.rol || '') + ' ' +
+  (user.role || '') + ' ' +
+  (user.puesto || '') + ' ' +
+  rolesText
+).toLowerCase();
+
+  /* ==========================================
+     Rol
+  ========================================== */
+
+  var hdrRole = document.getElementById('hdr-role');
+
+  if (hdrRole) {
+
+      hdrRole.textContent =
+          user.rol ||
+          user.role ||
+          '';
+
+      hdrRole.style.display =
+          hdrRole.textContent ? '' : 'none';
+
+  }
+
+  /* ==========================================
+     Empresa
+     Pendiente de implementar cuando el campo
+     sea agregado a la tabla "usuarios".
+
+     Ejemplo:
+     user.nombre_empresa
+     o
+     user.empresa
+
+  ========================================== */
 
   var hdrCompany = document.getElementById('hdr-company');
+
   if (hdrCompany) {
-    hdrCompany.textContent = company || 'Empresa no asignada';
+    hdrCompany.textContent =
+      user.empresa ||
+      user.company ||
+      'Empresa no asignada';
+
     hdrCompany.style.display = '';
   }
 
-  var hdrRole = document.getElementById('hdr-role');
-  if (hdrRole) {
-    hdrRole.textContent = primaryRole || 'Rol no asignado';
-    hdrRole.style.display = '';
+    hideAllAuthScreens();
+
   }
-
-  var roleText = String(userRoles.join(' ') + ' ' + primaryRole).toLowerCase();
-  var isAdminUser =
-    roleText.includes('admin') ||
-    roleText.includes('programador') ||
-    roleText.includes('sistemas');
-
-  document.querySelectorAll('.admin-only').forEach(function(el) {
-    el.style.display = isAdminUser ? '' : 'none';
-  });
-
-  if (typeof setProgrammerBarsVisible === 'function') {
-    setProgrammerBarsVisible();
-  } else {
-    document.body.classList.toggle('is-programmer', isAdminUser);
-  }
-
-  var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) {
-    homeBtn.classList.remove('home-btn-hidden');
-    homeBtn.classList.add('hdr-logo-btn');
-    homeBtn.style.display = '';
-  }
-
-  hideAllAuthScreens();
-}
-
 
 function checkExistingSession() {
   var saved = loadManttoSession();
@@ -2371,9 +2374,8 @@ function showTab(tab, skipReset) {
   if (!skipReset && !window._NAV_RESTORING && window._NAV_STACK) window._NAV_STACK = [];
 
   var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) {
-    homeBtn.classList.remove('home-btn-hidden');
-    homeBtn.classList.add('hdr-logo-btn');
+  if (homeBtn && !homeBtn.classList.contains('hdr-logo-btn')) {
+    homeBtn.className = tab === 'home' ? 'home-btn-hidden' : 'home-btn-visible';
   }
 
   ['home','tickets','resumen','criticos','callcenter','operativo','portafolio','movimientos','proyectos','users','support'].forEach(function(t) {
@@ -2588,6 +2590,47 @@ function normalizeResponsabilidad(v) {
   return s.toUpperCase();
 }
 
+function normalizeVoboAiven(v) {
+  var s = String(v || '').trim();
+  if (!s) return '';
+  var n = s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (n.includes('valid')) return 'Validado';
+  if (n.includes('rechaz')) return 'Rechazado con observaciones';
+  if (n.includes('informacion') || n.includes('info')) return 'Requiere información adicional';
+  if (n.includes('escal')) return 'Escalado a superior';
+  if (n.includes('pend')) return 'Pendiente';
+  return s;
+}
+
+function servicioMonthKeyFromDate(v) {
+  if (!v) return null;
+  var s = String(v).split('T')[0].slice(0, 10);
+  var m = s.match(/^(\d{4})-(\d{2})/);
+  if (m) return m[1] + '_' + m[2];
+  var m2 = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m2) return m2[3] + '_' + m2[2];
+  return null;
+}
+
+function normalizeServicioRow(row) {
+  var cod = String(gv(row, ['numero_equipo','Numero de Equipo','codigo_equipo','equipo'], '') || '');
+  var mesKey = servicioMonthKeyFromDate(gv(row, ['mes_servicio','mes','Mes'], null));
+  if (!cod || !mesKey) return null;
+  var realizado = gv(row, ['servicio_realizado','realizado','confirmed'], 0);
+  var confirmed = realizado === true || realizado === 1 || String(realizado).toLowerCase() === 'true' || String(realizado) === '1';
+  return {
+    key: getServicioKey(cod, mesKey),
+    confirmed: confirmed,
+    by: gv(row, ['confirmado_por_iniciales','realizado_por','confirmado_por','usuario'], '') || '—',
+    at: normalizeDateAiven(gv(row, ['fecha_servicio','programado_para','updated_at','created_at'], null)) || '—',
+    raw: row
+  };
+}
+
 function normalizeDateAiven(v) {
   if (!v) return null;
   return String(v).split('T')[0].slice(0,10);
@@ -2671,7 +2714,7 @@ function mapEquipoRowAPI(row) {
   var parts = numEq.split('-');
   var tipoCode = parts.length >= 3 ? parts[2] : '';
   var tipoMap = {ELE:'ELEVADOR',ESC:'ESCALERA',MON:'MONTACARGAS',RAM:'RAMPA',PLA:'PLATAFORMA',API:'MONTAPLATOS'};
-  var tipo = gv(row, ['Tipo','tipo','tipo_equipo'], null) || tipoMap[tipoCode] || tipoCode || 'OTRO';
+  var tipo = gv(row, ['Tipo','tipo','tipo_equipo','producto','Producto'], null) || tipoMap[tipoCode] || tipoCode || 'OTRO';
   var inactivo = gv(row, ['Inactivo','inactivo','estado_inactivo'], null);
   var estatus  = gv(row, ['Estatus Servicio','Estatus_Servicio','estatus_servicio','estatus','estado_servicio'], '') || '';
   var contrato = gv(row, ['contrato','Contrato','tipo_contrato'], null) || 'Servicio';
@@ -2690,18 +2733,20 @@ function mapEquipoRowAPI(row) {
     pro:      gv(row, ['Proyecto','proyecto'], null),
     ciu:      gv(row, ['Ciudad','ciudad'], null),
     edo:      gv(row, ['Estado','estado'], null),
-    zon:      gv(row, ['Z. Oper.','Z_Oper','Zona Operativa','Zona_Operativa','zona'], null),
-    ref:      gv(row, ['Identificacion en Sitio','Identificacion_en_Sitio','referencia','referencia_sitio'], null),
-    sup:      gv(row, ['Supervisor Zona','Supervisor_Zona','supervisor'], null),
+    zon:      gv(row, ['Z. Oper.','Z_Oper','Zona Operativa','Zona_Operativa','zona_operativa','zona','z_op'], null),
+    ref:      gv(row, ['Identificacion en Sitio','Identificacion_en_Sitio','identificacion_sitio','referencia','referencia_sitio'], null),
+    sup:      gv(row, ['Supervisor Zona','Supervisor_Zona','supervisor_zona','supervisor'], null),
     supe:     gv(row, ['Superintendente','superintendente'], null),
     dir:      gv(row, ['Direccion','Dirección','direccion'], null),
     tipo:     tipo,
     contrato: contrato,
     inactivo: inactivo || null,
     estatus:  estatus || null,
-    operativo: (estatus === 'En Servicio' && inactivo !== 'true' && inactivo !== 1 && inactivo !== true) ? 'Funcionando' : 'Parado',
+    operativo: (String(estatus).toLowerCase().includes('en servicio') && inactivo !== 'true' && inactivo !== 1 && inactivo !== true) ? 'Funcionando' : 'Parado',
     estatus_ul_mes:       gv(row, ['estatus_ul_mes','Estatus Ultimo Mes'], null),
     estatus_ul_mes_fecha: gv(row, ['estatus_ul_mes_fecha','Estatus Ultimo Mes Fecha'], null),
+    estado_registro: gv(row, ['estado_registro','Estado Registro'], null),
+    proyecto_cc_x_port: gv(row, ['proyecto_cc_x_port','Proyecto CC x Port','Proyecto_CC_X_Port'], null),
     historial: {},
   };
 }
@@ -2766,6 +2811,23 @@ async function forceUsersFromAiven() {
   renderUsers();
 }
 
+async function loadServiciosPreventivosFromAiven() {
+  var payload = null;
+  try { payload = await apiFetch('/servicios-preventivos'); }
+  catch(e1) {
+    try { payload = await apiFetch('/servicios_preventivos'); }
+    catch(e2) { throw e1; }
+  }
+  var rows = rowsFromPayload(payload);
+  SERVICIO_CONFIRM = {};
+  rows.forEach(function(row) {
+    var mapped = normalizeServicioRow(row);
+    if (mapped) SERVICIO_CONFIRM[mapped.key] = {confirmed:mapped.confirmed, by:mapped.by, at:mapped.at, raw:mapped.raw};
+  });
+  console.log('[Aiven] servicios_preventivos cargados:', rows.length);
+  return rows.length;
+}
+
 async function loadFromAiven() {
   if (API_LOADING) return;
   API_LOADING = true;
@@ -2776,7 +2838,12 @@ async function loadFromAiven() {
     var ticketsPayload = await apiFetch('/tickets');
     var ticketRows = rowsFromPayload(ticketsPayload);
     ALL_TICKETS.length = 0;
-    ticketRows.forEach(function(row) { ALL_TICKETS.push(mapTicketRowAPI(row)); });
+    VOBO = {};
+    ticketRows.forEach(function(row) {
+      var mapped = mapTicketRowAPI(row);
+      ALL_TICKETS.push(mapped);
+      if (mapped.n && mapped.vobo) VOBO[mapped.n] = {v: mapped.vobo, c:'Aiven', by:'Sistema', at:mapped.fr || ''};
+    });
     _setAPIStatus('cc','ok', ALL_TICKETS.length.toLocaleString() + ' tickets');
 
     _setAPIStatus('pf','loading','Conectando...');
@@ -2790,6 +2857,9 @@ async function loadFromAiven() {
     var usersCount = 0;
     try { usersCount = await loadUsersFromAiven(); }
     catch(eUsr) { console.warn('[Aiven] usuarios no disponibles:', eUsr.message); }
+
+    try { await loadServiciosPreventivosFromAiven(); }
+    catch(eSrv) { console.warn('[Aiven] servicios_preventivos no disponibles:', eSrv.message); }
 
     try {
       _setAPIStatus('sh','loading','Conectando...');
@@ -4128,8 +4198,19 @@ let SERVICIO_CONFIRM = {};
 
 // Generate simulated portfolio from ticket data
 function getPortfolio() {
-  const seen = {};
-  ALL_TICKETS.forEach(t => {
+  var source = Array.isArray(PF_DATA) && PF_DATA.length ? PF_DATA : [];
+  if (source.length) {
+    return source.filter(function(e) {
+      var inactive = e.inactivo === true || e.inactivo === 1 || String(e.inactivo || '').toLowerCase() === 'true' || String(e.inactivo || '').toLowerCase() === 'sí' || String(e.inactivo || '').toLowerCase() === 'si';
+      var estadoRegistro = String(e.estado_registro || '').toLowerCase();
+      if (inactive) return false;
+      if (estadoRegistro && ['0','inactivo','baja','eliminado'].includes(estadoRegistro)) return false;
+      return !!e.cod;
+    });
+  }
+
+  var seen = {};
+  ALL_TICKETS.forEach(function(t) {
     if (!t.cod) return;
     if (!seen[t.cod]) {
       seen[t.cod] = {
@@ -4346,7 +4427,7 @@ function toggleServicio(cod, mesKey) {
     delete SERVICIO_CONFIRM[key];
   } else {
     SERVICIO_CONFIRM[key] = {confirmed:true, by:CURRENT_USER, at};
-    dbInsert('servicio_preventivo', {equipo_cod:cod, mes_key:mesKey, confirmado_por:CURRENT_USER, confirmado_en:at});
+    dbInsert('servicios_preventivos', {numero_equipo:cod, mes_servicio:mesKey.replace('_','-')+'-01', tipo_servicio:'PREVENTIVO', servicio_realizado:1, confirmado_por_iniciales:CURRENT_USER, fuente:'frontend', observaciones:'Confirmado desde Dashboard Operativo'});
   }
   renderCumplimiento();
   showToast(SERVICIO_CONFIRM[key] ? 'Servicio confirmado ✓' : 'Confirmación retirada');
@@ -6074,82 +6155,12 @@ function openNotification(id) {
         openRequestDetail(notif.target);
       }
     }
-function togglePandaChat(forceState) {
-      const chat = document.getElementById("pandaChat");
-      const shouldOpen = typeof forceState === "boolean" ? forceState : !chat.classList.contains("open");
-      chat.classList.toggle("open", shouldOpen);
-
-      if (shouldOpen && !noriStarted) {
-        startNoriGuide();
-      }
-    }
-function startNoriGuide() {
-      const messages = document.getElementById("pandaMessages");
-      messages.innerHTML = "";
-      noriStarted = true;
-      renderNoriStep("inicio");
-    }
-function appendNoriMessage(text, type = "bot") {
-      const messages = document.getElementById("pandaMessages");
-      messages.insertAdjacentHTML("beforeend", `<div class="chat-msg ${type}">${text}</div>`);
-      messages.scrollTop = messages.scrollHeight;
-    }
-function renderNoriStep(stepKey) {
-      const step = NORI_FLOW[stepKey] || NORI_FLOW.inicio;
-      appendNoriMessage(step.mensaje, "bot");
-
-      const messages = document.getElementById("pandaMessages");
-      const opciones = Array.isArray(step.opciones) ? step.opciones : [];
-      if (opciones.length) {
-        const optionsHtml = opciones.map(option => {
-          const payload = encodeURIComponent(JSON.stringify(option));
-          return `<button class="nori-option" onclick="handleNoriOption('${payload}')">${option.label}</button>`;
-        }).join("");
-        messages.insertAdjacentHTML("beforeend", `<div class="nori-options">${optionsHtml}</div>`);
-      }
-      messages.scrollTop = messages.scrollHeight;
-    }
-function handleNoriOption(encodedOption) {
-      const option = JSON.parse(decodeURIComponent(encodedOption));
-      appendNoriMessage(option.label, "user");
-
-      if (option.next) {
-        renderNoriStep(option.next);
-        return;
-      }
-
-      if (option.action === "close") {
-        appendNoriMessage("Perfecto. Me alegra haber ayudado. Si necesitas algo más, aquí estaré.", "bot");
-        return;
-      }
-
-      if (option.action === "supportHome") {
-        showTab("support");
-        showSupportView("home");
-        appendNoriMessage("Abrí el Centro de ayuda para que puedas revisar las preguntas frecuentes.", "bot");
-        return;
-      }
-
-      if (option.action === "requests") {
-        showTab("support");
-        showSupportView("requests");
-        appendNoriMessage("Abrí tus solicitudes para que puedas revisar el seguimiento.", "bot");
-        return;
-      }
-
-      if (option.action === "newRequest") {
-        openNoriRequest(option.modulo, option.asunto);
-        return;
-      }
-    }
-function openNoriRequest(modulo, asunto) {
-      showTab("support");
-      showSupportView("new");
-      document.getElementById("reqModulo").value = modulo || "Centro de ayuda";
-      document.getElementById("reqAsunto").value = asunto || "Solicitud de soporte";
-      document.getElementById("reqDescripcion").focus();
-      appendNoriMessage("Vamos a generar una solicitud. Agrega la descripción y las evidencias si aplica.", "bot");
-    }
+/* =====================================================
+   NORI LEGACY ENGINE DISABLED
+   El flujo activo se define más abajo en MGS-NORI-AIVEN.
+   Mantener estos nombres libres evita que el motor anterior
+   mezcle opciones con el render actual.
+===================================================== */
 
 function renderNotifications() {
   var data = window.SUPPORT_NOTIFICATIONS || [];
@@ -6252,6 +6263,258 @@ if (document.readyState === 'loading') {
 
 
 
+
+
+
+/* =====================================================
+   MANTTO — Navegación contextual + Back nativo
+   Regla visual: Header -> 20px -> botón -> 16px -> panel
+===================================================== */
+(function(){
+  if (window.__MANTTO_NATIVE_HISTORY_READY__) return;
+  window.__MANTTO_NATIVE_HISTORY_READY__ = true;
+
+  var TAB_LABELS = {
+    home: 'Inicio',
+    tickets: 'Tickets',
+    resumen: 'Resumen del día',
+    criticos: 'Equipos Críticos',
+    callcenter: 'Dashboard Call Center',
+    operativo: 'Dashboard Operativo',
+    portafolio: 'Dashboard Portafolio',
+    movimientos: 'Movimientos',
+    proyectos: 'Proyectos',
+    users: 'Usuarios',
+    support: 'Centro de ayuda'
+  };
+
+  var raw = {
+    showTab: window.showTab,
+    openDetail: window.openDetail,
+    openEqPage: window.openEqPage,
+    openProyPage: window.openProyPage,
+    openUdet: window.openUdet,
+    closeDetail: window.closeDetail,
+    closeEqPage: window.closeEqPage,
+    closeProyPage: window.closeProyPage,
+    closeUdet: window.closeUdet
+  };
+
+  var suppress = false;
+  var currentState = null;
+
+  function clone(obj){ return JSON.parse(JSON.stringify(obj || {})); }
+
+  function activeTab(){
+    var btn = document.querySelector('.nav-btn.on');
+    return btn ? btn.id.replace('tab-','') : 'home';
+  }
+
+  function isFlexOpen(id){
+    var el = document.getElementById(id);
+    return !!(el && el.style.display === 'flex');
+  }
+
+  function hideOverlayPages(){
+    ['det-page','eq-page','proy-page','kpi-det-page','crit-page','udet-page'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
+
+  function stateFromUI(){
+    if (isFlexOpen('det-page')) return { view:'det', id: window.activeTicketN || '', baseTab: activeTab() };
+    if (isFlexOpen('eq-page')) return { view:'eq', id: window._currentEqCod || '', baseTab: activeTab() };
+    if (isFlexOpen('proy-page')) return { view:'proy', id: window._currentProy && window._currentProy.pro || '', baseTab: activeTab() };
+    if (isFlexOpen('udet-page')) return { view:'udet', id: window._currentUdetId || '', baseTab: activeTab() };
+    if (isFlexOpen('kpi-det-page')) return { view:'kpi', id:'kpi', baseTab: activeTab() };
+    if (isFlexOpen('crit-page')) return { view:'crit', id:'crit', baseTab: activeTab() };
+    return { view:'tab', tab: activeTab() };
+  }
+
+  function labelFor(state){
+    state = state || stateFromUI();
+    if (state.view === 'tab') return TAB_LABELS[state.tab] || 'Pantalla anterior';
+    if (state.view === 'det') return state.id ? ('Ticket #' + state.id) : 'Ticket';
+    if (state.view === 'eq') return state.id ? ('Equipo ' + state.id) : 'Equipo';
+    if (state.view === 'proy') return state.id ? ('Proyecto ' + state.id) : 'Proyecto';
+    if (state.view === 'udet') return 'Usuario';
+    if (state.view === 'kpi') return 'Detalle';
+    if (state.view === 'crit') return 'Críticos';
+    return 'Pantalla anterior';
+  }
+
+  function canShowBack(state){
+    state = state || currentState || stateFromUI();
+    return !(state.view === 'tab' && (state.tab || 'home') === 'home');
+  }
+
+  function updateContextBar(state){
+    var bar = document.getElementById('app-context-nav');
+    var label = document.getElementById('app-back-label');
+    var title = document.getElementById('app-context-title');
+    var subtitle = document.getElementById('app-context-subtitle');
+    var backBtn = document.getElementById('app-back-btn');
+    if (!bar || !label) return;
+
+    state = state || currentState || stateFromUI();
+    var isBackVisible = canShowBack(state);
+    var screenTitle = labelFor(state);
+    if (state && state.view === 'tab') screenTitle = TAB_LABELS[state.tab || 'home'] || screenTitle;
+
+    if (title) title.textContent = screenTitle || 'Inicio';
+    if (subtitle) subtitle.textContent = '';
+
+    if (isBackVisible) {
+      var target = state && state.backLabel ? state.backLabel : 'pantalla anterior';
+      label.textContent = 'Regresar';
+      if (backBtn) backBtn.style.display = 'inline-flex';
+      document.body.classList.add('mantto-has-context-back');
+    } else {
+      label.textContent = 'Regresar';
+      if (backBtn) backBtn.style.display = 'none';
+      document.body.classList.remove('mantto-has-context-back');
+    }
+
+    bar.classList.add('is-visible');
+  }
+
+  function buildState(next){
+    var prev = currentState || stateFromUI();
+    var st = clone(next);
+    st.backLabel = st.backLabel || labelFor(prev);
+    st.baseTab = st.baseTab || activeTab();
+    return st;
+  }
+
+  function renderState(state){
+    if (!state) state = { view:'tab', tab:'home' };
+    currentState = clone(state);
+    suppress = true;
+    window._NAV_RESTORING = true;
+
+    try {
+      if (state.view === 'tab') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.tab || 'home', true);
+      } else if (state.view === 'det') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.baseTab || activeTab() || 'home', true);
+        if (typeof raw.openDetail === 'function') raw.openDetail(state.id);
+      } else if (state.view === 'eq') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.baseTab || activeTab() || 'home', true);
+        if (typeof raw.openEqPage === 'function') raw.openEqPage(state.id);
+      } else if (state.view === 'proy') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.baseTab || 'proyectos', true);
+        if (typeof raw.openProyPage === 'function') raw.openProyPage(state.id);
+      } else if (state.view === 'udet') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.baseTab || 'users', true);
+        if (typeof raw.openUdet === 'function') raw.openUdet(state.id);
+      } else if (state.view === 'kpi') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.baseTab || activeTab() || 'home', true);
+        var kpi = document.getElementById('kpi-det-page');
+        if (kpi) kpi.style.display = 'flex';
+      } else if (state.view === 'crit') {
+        hideOverlayPages();
+        if (typeof raw.showTab === 'function') raw.showTab(state.baseTab || 'criticos', true);
+        var crit = document.getElementById('crit-page');
+        if (crit) crit.style.display = 'flex';
+      }
+    } finally {
+      window._NAV_RESTORING = false;
+      suppress = false;
+      updateContextBar(currentState);
+    }
+  }
+
+  function pushState(next){
+    var st = buildState(next);
+    currentState = clone(st);
+    try {
+      history.pushState({ mantto:true, state:st }, '', makeHash(st));
+    } catch(e) {}
+    renderState(st);
+  }
+
+  function replaceState(st){
+    currentState = clone(st);
+    try { history.replaceState({ mantto:true, state:st }, '', makeHash(st)); } catch(e) {}
+    updateContextBar(st);
+  }
+
+  function makeHash(state){
+    if (!state || state.view === 'tab') return '#/' + encodeURIComponent((state && state.tab) || 'home');
+    return '#/' + encodeURIComponent(state.view) + '/' + encodeURIComponent(state.id || '');
+  }
+
+  window.manttoGoBack = function(){
+    history.back();
+  };
+
+  window.showTab = function(tab, skipReset){
+    if (suppress || skipReset === true) {
+      if (typeof raw.showTab === 'function') raw.showTab(tab, true);
+      currentState = { view:'tab', tab:tab || 'home', backLabel:(currentState && currentState.backLabel) || '' };
+      updateContextBar(currentState);
+      return;
+    }
+    pushState({ view:'tab', tab:tab || 'home' });
+  };
+
+  if (typeof raw.openDetail === 'function') {
+    window.openDetail = function(n){
+      if (suppress) return raw.openDetail(n);
+      pushState({ view:'det', id:n, baseTab:activeTab() });
+    };
+  }
+
+  if (typeof raw.openEqPage === 'function') {
+    window.openEqPage = function(cod){
+      if (suppress) return raw.openEqPage(cod);
+      pushState({ view:'eq', id:cod, baseTab:activeTab() });
+    };
+  }
+
+  if (typeof raw.openProyPage === 'function') {
+    window.openProyPage = function(pro){
+      if (suppress) return raw.openProyPage(pro);
+      pushState({ view:'proy', id:pro, baseTab:activeTab() });
+    };
+  }
+
+  if (typeof raw.openUdet === 'function') {
+    window.openUdet = function(uid){
+      window._currentUdetId = uid;
+      if (suppress) return raw.openUdet(uid);
+      pushState({ view:'udet', id:uid, baseTab:activeTab() });
+    };
+  }
+
+  window.closeDetail = function(){ history.back(); };
+  window.closeEqPage = function(){ history.back(); };
+  window.closeProyPage = function(){ history.back(); };
+  window.closeUdet = function(){ history.back(); };
+
+  window.addEventListener('popstate', function(ev){
+    if (ev.state && ev.state.mantto && ev.state.state) {
+      renderState(ev.state.state);
+    } else {
+      var home = { view:'tab', tab:'home' };
+      renderState(home);
+      replaceState(home);
+    }
+  });
+
+  setTimeout(function(){
+    var st = stateFromUI();
+    if (st.view === 'tab' && !st.tab) st.tab = 'home';
+    replaceState(st);
+  }, 0);
+})();
 
 </script>
 <!-- Critical equipment detail panel -->
@@ -9015,8 +9278,19 @@ function closeKpiDet() {
 
 // Generate simulated portfolio from ticket data
 function getPortfolio() {
+  var source = Array.isArray(PF_DATA) && PF_DATA.length ? PF_DATA : [];
+  if (source.length) {
+    return source.filter(function(e) {
+      var inactive = e.inactivo === true || e.inactivo === 1 || String(e.inactivo || '').toLowerCase() === 'true' || String(e.inactivo || '').toLowerCase() === 'sí' || String(e.inactivo || '').toLowerCase() === 'si';
+      var estadoRegistro = String(e.estado_registro || '').toLowerCase();
+      if (inactive) return false;
+      if (estadoRegistro && ['0','inactivo','baja','eliminado'].includes(estadoRegistro)) return false;
+      return !!e.cod;
+    });
+  }
+
   var seen = {};
-  ALL_TICKETS.forEach(t => {
+  ALL_TICKETS.forEach(function(t) {
     if (!t.cod) return;
     if (!seen[t.cod]) {
       seen[t.cod] = {
@@ -9233,7 +9507,7 @@ function toggleServicio(cod, mesKey) {
     delete SERVICIO_CONFIRM[key];
   } else {
     SERVICIO_CONFIRM[key] = {confirmed:true, by:CURRENT_USER, at};
-    dbInsert('servicio_preventivo', {equipo_cod:cod, mes_key:mesKey, confirmado_por:CURRENT_USER, confirmado_en:at});
+    dbInsert('servicios_preventivos', {numero_equipo:cod, mes_servicio:mesKey.replace('_','-')+'-01', tipo_servicio:'PREVENTIVO', servicio_realizado:1, confirmado_por_iniciales:CURRENT_USER, fuente:'frontend', observaciones:'Confirmado desde Dashboard Operativo'});
   }
   renderCumplimiento();
   showToast(SERVICIO_CONFIRM[key] ? 'Servicio confirmado ✓' : 'Confirmación retirada');
@@ -11603,65 +11877,16 @@ function setProgrammerBarsVisible() {
 
 function hydrateSessionUI() {
   var user = SESSION && SESSION.user ? SESSION.user : {};
+  CURRENT_USER = user.nombre || user.name || user.correo || user.email || 'Usuario';
 
-  CURRENT_USER =
-    user.nombre ||
-    user.name ||
-    user.correo ||
-    user.email ||
-    'Usuario';
-
-  function _normRole(value) {
-    return String(value || '').trim();
-  }
-
-  function _pushRole(list, value) {
-    value = _normRole(value);
-    if (value && !list.some(function(r){ return String(r).toLowerCase() === value.toLowerCase(); })) {
-      list.push(value);
-    }
-  }
-
-  function _rolesFromUser(u) {
-    var list = [];
-    _pushRole(list, u.rol_principal);
-    _pushRole(list, u.role_principal);
-    _pushRole(list, u.rol);
-    _pushRole(list, u.role);
-    _pushRole(list, u.puesto);
-
-    var rawRoles = u.roles || u.usuario_roles || u.roles_usuario || [];
-    if (Array.isArray(rawRoles)) {
-      rawRoles.forEach(function(item) {
-        if (typeof item === 'string') _pushRole(list, item);
-        else if (item) _pushRole(list, item.rol || item.role || item.nombre || item.name);
-      });
-    }
-    return list;
-  }
-
-  var userRoles = _rolesFromUser(user);
-  var primaryRole =
-    _normRole(user.rol_principal) ||
-    _normRole(user.role_principal) ||
-    _normRole(user.rol) ||
-    _normRole(user.role) ||
-    _normRole(user.puesto) ||
-    userRoles[0] ||
-    '';
-
-  var company =
-    user.empresa ||
-    user.company ||
-    user.razon_social ||
-    user.razonSocial ||
-    '';
+  var company = user.empresa || user.company || user.razon_social || user.razonSocial || '';
+  var primaryRole = getPrimaryRole(user);
 
   var hdrName = document.getElementById('hdr-name');
   if (hdrName) hdrName.textContent = CURRENT_USER;
 
   var hdrAv = document.getElementById('hdr-av');
-  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || initials(CURRENT_USER);
+  if (hdrAv) hdrAv.textContent = user.iniciales || user.initials || (typeof initials === 'function' ? initials(CURRENT_USER) : 'U');
 
   var hdrCompany = document.getElementById('hdr-company');
   if (hdrCompany) {
@@ -11675,32 +11900,14 @@ function hydrateSessionUI() {
     hdrRole.style.display = '';
   }
 
-  var roleText = String(userRoles.join(' ') + ' ' + primaryRole).toLowerCase();
-  var isAdminUser =
-    roleText.includes('admin') ||
-    roleText.includes('programador') ||
-    roleText.includes('sistemas');
-
+  var isAdminUser = isProgrammerUser();
   document.querySelectorAll('.admin-only').forEach(function(el) {
     el.style.display = isAdminUser ? '' : 'none';
   });
 
-  if (typeof setProgrammerBarsVisible === 'function') {
-    setProgrammerBarsVisible();
-  } else {
-    document.body.classList.toggle('is-programmer', isAdminUser);
-  }
-
-  var homeBtn = document.getElementById('home-btn');
-  if (homeBtn) {
-    homeBtn.classList.remove('home-btn-hidden');
-    homeBtn.classList.add('hdr-logo-btn');
-    homeBtn.style.display = '';
-  }
-
+  setProgrammerBarsVisible();
   hideAllAuthScreens();
 }
-
 
 function showAPIBar(msg, type) {
   var el = document.getElementById('api-bar');
@@ -11758,6 +11965,1192 @@ function submitSupportRequest() {
   if (supportTitle) supportTitle.textContent = 'Preguntas frecuentes, solicitudes y guía Nori conectadas al módulo de soporte.';
 })();
 
+/* =====================================================
+   MGS-FIX-NORI-CONNECTION-20260701
+   Nori conectado a BD como motor de flujo + barra retractil
+===================================================== */
+(function manttoNoriAndConnectionFix(){
+  var NORI_START_NODE_ID = 1;
+  window.NORI_NODE_CACHE = window.NORI_NODE_CACHE || {};
+  window.NORI_OPTIONS_CACHE = window.NORI_OPTIONS_CACHE || {};
+  window.NORI_CREATE_REQUEST_CONTEXT = window.NORI_CREATE_REQUEST_CONTEXT || null;
+  window.NORI_SUPPORT_CONNECTING = false;
+  window.NORI_HISTORY = window.NORI_HISTORY || [];
+  window.NORI_CURRENT_NODE_ID = window.NORI_CURRENT_NODE_ID || null;
+
+  function repairSupportText(value) {
+    return String(value || '')
+      .replace(/opci¢n/g, 'opción')
+      .replace(/soluci¢n/g, 'solución')
+      .replace(/informaci¢n/g, 'información')
+      .replace(/contrase¤a/g, 'contraseña')
+      .replace(/tambi‚n/g, 'también')
+      .replace(/m¢dulo/g, 'módulo')
+      .replace(/sesi¢n/g, 'sesión')
+      .replace(/¢/g, 'ó')
+      .replace(/¤/g, 'ñ');
+  }
+
+  function getSupportData(payload) {
+    if (!payload) return {};
+    if (payload.data && !Array.isArray(payload.data)) return payload.data;
+    return payload;
+  }
+
+  function normalizeNoriNode(row) {
+    row = row || {};
+    return {
+      id_nodo: Number(row.id_nodo || row.id || row.node_id || 0),
+      id_flujo: Number(row.id_flujo || row.flow_id || 0),
+      titulo_nodo: repairSupportText(row.titulo_nodo || row.titulo || row.title || 'Nori'),
+      descripcion_nodo: repairSupportText(row.descripcion_nodo || row.descripcion || row.mensaje || row.message || ''),
+      tipo_nodo: row.tipo_nodo || row.tipo || 'menu',
+      orden_visualizacion: Number(row.orden_visualizacion || row.orden || 0),
+      activo: row.activo === undefined ? 1 : row.activo
+    };
+  }
+
+  function normalizeNoriOption(row) {
+    row = row || {};
+    return {
+      id_opcion: Number(row.id_opcion || row.id || row.option_id || 0),
+      id_nodo: Number(row.id_nodo || row.node_id || 0),
+      texto_opcion: repairSupportText(row.texto_opcion || row.label || row.nombre || row.text || 'Opción'),
+      accion_opcion: String(row.accion_opcion || row.action || 'continuar'),
+      id_destino: row.id_destino === null || row.id_destino === undefined || row.id_destino === '' ? null : Number(row.id_destino),
+      orden_visualizacion: Number(row.orden_visualizacion || row.orden || 0),
+      activo: row.activo === undefined ? 1 : row.activo
+    };
+  }
+
+  function cacheNodeAndOptions(nodo, opciones) {
+    var n = normalizeNoriNode(nodo);
+    if (!n.id_nodo) return null;
+    window.NORI_NODE_CACHE[n.id_nodo] = n;
+    window.NORI_OPTIONS_CACHE[n.id_nodo] = (Array.isArray(opciones) ? opciones : [])
+      .map(normalizeNoriOption)
+      .filter(function(op){ return op.activo === 1 || op.activo === true || op.activo === '1'; })
+      .sort(function(a,b){ return a.orden_visualizacion - b.orden_visualizacion; });
+    return n;
+  }
+
+  function cacheFlowPayload(payload) {
+    var data = getSupportData(payload);
+    if (!data) return;
+
+    if (data.nodo) cacheNodeAndOptions(data.nodo, data.opciones || data.options || []);
+
+    var nodos = data.nodos || data.nodes || data.sup_nodos || [];
+    var opciones = data.opciones || data.options || data.sup_opciones || [];
+    if (Array.isArray(nodos)) nodos.forEach(function(n){ cacheNodeAndOptions(n, []); });
+    if (Array.isArray(opciones)) {
+      opciones.map(normalizeNoriOption).forEach(function(op){
+        if (!op.id_nodo) return;
+        if (!window.NORI_OPTIONS_CACHE[op.id_nodo]) window.NORI_OPTIONS_CACHE[op.id_nodo] = [];
+        if (!window.NORI_OPTIONS_CACHE[op.id_nodo].some(function(x){ return x.id_opcion && x.id_opcion === op.id_opcion; })) {
+          window.NORI_OPTIONS_CACHE[op.id_nodo].push(op);
+        }
+      });
+      Object.keys(window.NORI_OPTIONS_CACHE).forEach(function(id){
+        window.NORI_OPTIONS_CACHE[id].sort(function(a,b){ return a.orden_visualizacion - b.orden_visualizacion; });
+      });
+    }
+
+    var rows = rowsFromPayload(payload);
+    if (Array.isArray(rows) && rows.length) {
+      rows.forEach(function(r){
+        if (r.id_nodo && (r.titulo_nodo || r.descripcion_nodo || r.tipo_nodo)) {
+          if (!window.NORI_NODE_CACHE[Number(r.id_nodo)]) cacheNodeAndOptions(r, []);
+        }
+        if (r.id_opcion && r.id_nodo && r.texto_opcion) {
+          var op = normalizeNoriOption(r);
+          if (!window.NORI_OPTIONS_CACHE[op.id_nodo]) window.NORI_OPTIONS_CACHE[op.id_nodo] = [];
+          if (!window.NORI_OPTIONS_CACHE[op.id_nodo].some(function(x){ return x.id_opcion === op.id_opcion; })) window.NORI_OPTIONS_CACHE[op.id_nodo].push(op);
+        }
+      });
+    }
+  }
+
+  async function fetchNoriNode(nodeId) {
+    nodeId = Number(nodeId || NORI_START_NODE_ID);
+    if (window.NORI_NODE_CACHE[nodeId]) {
+      return {
+        nodo: window.NORI_NODE_CACHE[nodeId],
+        opciones: window.NORI_OPTIONS_CACHE[nodeId] || []
+      };
+    }
+
+    var attempts = [
+      '/support/menu?id_nodo=' + encodeURIComponent(nodeId),
+      '/support/menu?node_id=' + encodeURIComponent(nodeId),
+      '/support/nodo?id_nodo=' + encodeURIComponent(nodeId),
+      '/support/node?node_id=' + encodeURIComponent(nodeId),
+      '/support/nodos/' + encodeURIComponent(nodeId),
+      '/support/nodo/' + encodeURIComponent(nodeId),
+      '/support/node/' + encodeURIComponent(nodeId)
+    ];
+
+    for (var i = 0; i < attempts.length; i++) {
+      try {
+        var payload = await apiFetch(attempts[i]);
+        cacheFlowPayload(payload);
+        if (window.NORI_NODE_CACHE[nodeId]) {
+          return { nodo: window.NORI_NODE_CACHE[nodeId], opciones: window.NORI_OPTIONS_CACHE[nodeId] || [] };
+        }
+      } catch (err) {}
+    }
+
+    return null;
+  }
+
+  window.loadSupportFromAiven = async function loadSupportFromAivenFixed() {
+    if (typeof apiFetch !== 'function') return null;
+    var loaded = null;
+
+    try {
+      var menuPayload = await apiFetch('/support/menu');
+      cacheFlowPayload(menuPayload);
+      var data = getSupportData(menuPayload);
+      if (data.nodo) loaded = { nodo: normalizeNoriNode(data.nodo), opciones: (data.opciones || []).map(normalizeNoriOption) };
+    } catch (err) {
+      console.warn('[Nori] No se pudo cargar /support/menu:', err && err.message ? err.message : err);
+    }
+
+    try {
+      var flowPayload = await apiFetch('/support/flow');
+      cacheFlowPayload(flowPayload);
+      window.NORI_FLOW_SOURCE = flowPayload;
+    } catch (errFlow) {}
+
+    // El Centro de Ayuda debe leer FAQ cuando el backend lo exponga. Si no, mostramos nodos como respaldo visual.
+    SUPPORT_CONTENT = Object.keys(window.NORI_NODE_CACHE).map(function(id){
+      var n = window.NORI_NODE_CACHE[id];
+      return {
+        tipo: 'Guía',
+        categoria: 'Nori',
+        titulo: n.titulo_nodo,
+        descripcion: n.descripcion_nodo
+      };
+    });
+    window.SUPPORT_CONTENT = SUPPORT_CONTENT;
+
+    if (typeof renderSupportContent === 'function') renderSupportContent();
+    return loaded;
+  };
+
+  function getNoriMessagesEl() {
+    return document.getElementById('pandaMessages');
+  }
+
+  function scrollNoriToBottom() {
+    var messages = getNoriMessagesEl();
+    if (!messages) return;
+    requestAnimationFrame(function(){
+      messages.scrollTop = messages.scrollHeight;
+    });
+  }
+
+  function clearNoriConversation() {
+    var messages = getNoriMessagesEl();
+    if (!messages) return;
+    messages.innerHTML = '';
+    messages.scrollTop = 0;
+  }
+
+  function resetNoriHistory() {
+    window.NORI_HISTORY = [];
+    window.NORI_CURRENT_NODE_ID = null;
+  }
+
+  function normalizeNoriCommandText(value) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[↩↪↵⟵⟶←→‹›«»]/g, ' ')
+      .replace(/^[\s\-_:;,.]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function renderNoriDestination(nodeId, opts) {
+    opts = opts || {};
+    var target = Number(nodeId || 0);
+    if (!target) return goNoriHome();
+    if (opts.resetHistory) resetNoriHistory();
+    else if (opts.pushHistory) pushNoriHistoryFromCurrent(target);
+    return renderNoriNode(target);
+  }
+
+  function goNoriHome(destino) {
+    resetNoriHistory();
+    return renderNoriNode(Number(destino || NORI_START_NODE_ID));
+  }
+
+  function goNoriBack(destino) {
+    // Prioridad: si la tabla sup_opciones trae id_destino para regresar, se respeta.
+    // Si no existe destino explícito, usamos la pila local de navegación.
+    var explicitDestination = Number(destino || 0);
+    if (explicitDestination) return renderNoriDestination(explicitDestination, {resetHistory:false, pushHistory:false});
+    var previous = window.NORI_HISTORY && window.NORI_HISTORY.length ? window.NORI_HISTORY.pop() : null;
+    if (!previous) return goNoriHome();
+    return renderNoriNode(previous);
+  }
+
+  function pushNoriHistoryFromCurrent(nextNodeId) {
+    var current = Number(window.NORI_CURRENT_NODE_ID || 0);
+    var next = Number(nextNodeId || 0);
+    if (!current || !next || current === next) return;
+    window.NORI_HISTORY = Array.isArray(window.NORI_HISTORY) ? window.NORI_HISTORY : [];
+    if (window.NORI_HISTORY[window.NORI_HISTORY.length - 1] !== current) {
+      window.NORI_HISTORY.push(current);
+    }
+  }
+
+  function isNoriBackAction(action, label) {
+    var a = normalizeNoriCommandText(action);
+    var s = normalizeNoriCommandText(label);
+    return a === 'regresar' || a === 'volver' || a === 'atras' || a === 'back' ||
+           s === 'regresar' || s === 'volver' || s === 'atras' || s === 'back' ||
+           s.indexOf('regresar') === 0 || s.indexOf('volver') === 0;
+  }
+
+  function isNoriBackLabel(label) {
+    return isNoriBackAction('', label);
+  }
+
+  function isNoriHomeAction(action, label) {
+    var a = normalizeNoriCommandText(action);
+    var s = normalizeNoriCommandText(label);
+    return a === 'inicio' || a === 'volver_inicio' || a === 'volver al inicio' || a === 'menu principal' ||
+           s === 'volver al inicio' || s === 'inicio' || s === 'menu principal' ||
+           s === 'volver al menu principal' || s.indexOf('volver al inicio') === 0 ||
+           s.indexOf('volver al menu principal') === 0;
+  }
+
+  function isNoriHomeLabel(label) {
+    return isNoriHomeAction('', label);
+  }
+
+  window.appendNoriMessage = function appendNoriMessageFixed(text, type) {
+    var messages = document.getElementById('pandaMessages');
+    if (!messages) return;
+    var div = document.createElement('div');
+    div.className = 'chat-msg ' + (type || 'bot');
+    div.textContent = repairSupportText(text || '');
+    messages.appendChild(div);
+    scrollNoriToBottom();
+  };
+
+  function appendNoriActionButton(label, onClick) {
+    var messages = document.getElementById('pandaMessages');
+    if (!messages) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'nori-options';
+    var btn = document.createElement('button');
+    btn.className = 'nori-option';
+    btn.textContent = label;
+    btn.onclick = onClick;
+    wrap.appendChild(btn);
+    messages.appendChild(wrap);
+    scrollNoriToBottom();
+  }
+
+  window.renderNoriNode = async function renderNoriNodeFixed(nodeId) {
+    var messages = document.getElementById('pandaMessages');
+    if (!messages) return;
+
+    var nodeData = await fetchNoriNode(nodeId);
+    if (!nodeData || !nodeData.nodo) {
+      appendNoriMessage('No pude cargar esta parte de la guía. Puedes intentar reiniciar la guía o crear una solicitud de soporte.', 'bot');
+      appendNoriActionButton('Crear solicitud', function(){ prepareNoriRequest('Centro de ayuda', 'No pude continuar la guía de Nori'); });
+      return;
+    }
+
+    window.NORI_CURRENT_NODE_ID = Number(nodeId || NORI_START_NODE_ID);
+    appendNoriMessage(nodeData.nodo.descripcion_nodo || nodeData.nodo.titulo_nodo || 'Selecciona una opción para continuar.', 'bot');
+
+    var opciones = Array.isArray(nodeData.opciones) ? nodeData.opciones : [];
+    if (!opciones.length) {
+      appendNoriActionButton('Volver al inicio', function(){ goNoriHome(); });
+      return;
+    }
+
+    var wrap = document.createElement('div');
+    wrap.className = 'nori-options';
+    opciones.forEach(function(option){
+      var btn = document.createElement('button');
+      btn.className = 'nori-option';
+      btn.textContent = repairSupportText(option.texto_opcion || 'Opción');
+      btn.onclick = function(){ handleNoriOption(encodeURIComponent(JSON.stringify(option))); };
+      wrap.appendChild(btn);
+    });
+    messages.appendChild(wrap);
+    scrollNoriToBottom();
+  };
+
+  window.startNoriGuide = async function startNoriGuideFixed() {
+    var messages = document.getElementById('pandaMessages');
+    if (!messages) return;
+    clearNoriSupportSearch();
+    clearNoriConversation();
+    resetNoriHistory();
+    window.noriStarted = true;
+    if (typeof noriStarted !== 'undefined') noriStarted = true;
+
+    appendNoriMessage('Cargando Centro de Soporte...', 'bot');
+    await window.loadSupportFromAiven();
+    clearNoriConversation();
+
+    await renderNoriNode(NORI_START_NODE_ID);
+  };
+
+  window.togglePandaChat = function togglePandaChatFixed(forceState) {
+    var chat = document.getElementById('pandaChat');
+    if (!chat) return;
+    var shouldOpen = typeof forceState === 'boolean' ? forceState : !chat.classList.contains('open');
+    chat.classList.toggle('open', shouldOpen);
+    if (shouldOpen && !window.noriStarted) window.startNoriGuide();
+  };
+
+  window.openGuestNori = function openGuestNoriFixed() {
+    window.NORI_MODE = 'guest';
+    window.noriStarted = false;
+    if (typeof noriStarted !== 'undefined') noriStarted = false;
+    window.togglePandaChat(true);
+  };
+
+  function prepareNoriRequest(modulo, asunto) {
+    window.NORI_CREATE_REQUEST_CONTEXT = {
+      modulo: modulo || 'Centro de ayuda',
+      asunto: asunto || 'Solicitud generada desde Nori',
+      descripcion: 'Solicitud iniciada desde la guía de Nori.'
+    };
+
+    var moduloEl = document.getElementById('reqModulo');
+    var asuntoEl = document.getElementById('reqAsunto');
+    var descEl = document.getElementById('reqDescripcion');
+    if (moduloEl) moduloEl.value = window.NORI_CREATE_REQUEST_CONTEXT.modulo;
+    if (asuntoEl) asuntoEl.value = window.NORI_CREATE_REQUEST_CONTEXT.asunto;
+    if (descEl && !descEl.value) descEl.value = window.NORI_CREATE_REQUEST_CONTEXT.descripcion;
+
+    clearNoriSupportSearch();
+    clearNoriConversation();
+    resetNoriHistory();
+    window.noriStarted = false;
+    if (typeof noriStarted !== 'undefined') noriStarted = false;
+
+    var chatBody = document.getElementById('pandaMessages');
+    if (chatBody) chatBody.scrollTop = 0;
+
+    if (typeof showSupportView === 'function') {
+      showTab('support');
+      showSupportView('new');
+    }
+  }
+
+  function clearNoriSupportSearch() {
+    if (window.NORI_SUPPORT_TIMER) {
+      clearTimeout(window.NORI_SUPPORT_TIMER);
+      window.NORI_SUPPORT_TIMER = null;
+    }
+    if (window.NORI_SUPPORT_INTERVAL) {
+      clearInterval(window.NORI_SUPPORT_INTERVAL);
+      window.NORI_SUPPORT_INTERVAL = null;
+    }
+    window.NORI_SUPPORT_CONNECTING = false;
+  }
+
+  function formatNoriWaitTime(totalSeconds) {
+    totalSeconds = Math.max(0, Number(totalSeconds || 0));
+    var mins = Math.floor(totalSeconds / 60);
+    var secs = totalSeconds % 60;
+    return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+  }
+
+  function openNoriRequestFromQueue(label) {
+    clearNoriSupportSearch();
+    appendNoriMessage('Entendido. Cancelaré la búsqueda del asesor y prepararemos una solicitud para que el equipo de soporte dé seguimiento.', 'bot');
+    prepareNoriRequest('Centro de ayuda', label || 'Contacto con soporte solicitado desde Nori');
+  }
+
+  function appendNoriSupportQueueCard(label) {
+    var messages = document.getElementById('pandaMessages');
+    if (!messages) return null;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'nori-support-wait-card';
+    wrap.innerHTML = '' +
+      '<div class="nori-support-wait-title">Buscando un asesor disponible...</div>' +
+      '<div class="nori-support-wait-text">Tiempo máximo de espera:</div>' +
+      '<div class="nori-support-wait-timer" id="noriSupportTimer">03:00</div>' +
+      '<div class="nori-support-wait-note" id="noriSupportNote">Puedes crear una solicitud ahora si prefieres no esperar.</div>' +
+      '<button class="nori-option nori-request-now-btn" type="button">Crear solicitud</button>';
+
+    var btn = wrap.querySelector('button');
+    if (btn) btn.onclick = function(){ openNoriRequestFromQueue(label); };
+
+    messages.appendChild(wrap);
+    scrollNoriToBottom();
+    return wrap;
+  }
+
+  function tryConnectSupportThenOfferTicket(label) {
+    clearNoriSupportSearch();
+    window.NORI_SUPPORT_CONNECTING = true;
+
+    appendNoriMessage('Voy a intentar conectarte con un asesor de soporte.', 'bot');
+    var card = appendNoriSupportQueueCard(label);
+    var remaining = 180;
+
+    window.NORI_SUPPORT_INTERVAL = setInterval(function(){
+      remaining -= 1;
+      var timer = card ? card.querySelector('#noriSupportTimer') : document.getElementById('noriSupportTimer');
+      if (timer) timer.textContent = formatNoriWaitTime(remaining);
+    }, 1000);
+
+    window.NORI_SUPPORT_TIMER = setTimeout(function(){
+      clearNoriSupportSearch();
+      var note = card ? card.querySelector('#noriSupportNote') : document.getElementById('noriSupportNote');
+      var title = card ? card.querySelector('.nori-support-wait-title') : null;
+      var timer = card ? card.querySelector('#noriSupportTimer') : document.getElementById('noriSupportTimer');
+
+      if (title) title.textContent = 'No encontré un asesor disponible.';
+      if (timer) timer.textContent = '00:00';
+      if (note) note.textContent = 'Generemos una solicitud para que el equipo de soporte dé seguimiento.';
+
+      appendNoriMessage('No encontré un asesor disponible en este momento. Generemos una solicitud para darle seguimiento.', 'bot');
+    }, 180000);
+  }
+
+  window.noriSupportAdvisorConnected = function noriSupportAdvisorConnected(advisorName) {
+    clearNoriSupportSearch();
+    appendNoriMessage((advisorName || 'Un asesor') + ' se unió a la conversación.', 'bot');
+  };
+
+  window.handleNoriOption = async function handleNoriOptionFixed(encodedOption) {
+    var option = {};
+    try { option = JSON.parse(decodeURIComponent(encodedOption)); } catch(e) {}
+    var label = repairSupportText(option.texto_opcion || option.label || 'Opción');
+
+    var currentButtons = document.querySelectorAll('#pandaMessages .nori-options .nori-option:not(:disabled)');
+    currentButtons.forEach(function(btn){
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled','true');
+    });
+
+    appendNoriMessage(label, 'user');
+
+    var actionRaw = option.accion_opcion || option.action || '';
+    var action = normalizeNoriCommandText(actionRaw);
+    var labelCmd = normalizeNoriCommandText(label);
+
+    if (isNoriHomeAction(actionRaw, label)) {
+      await goNoriHome(option.id_destino);
+      return;
+    }
+
+    if (isNoriBackAction(actionRaw, label)) {
+      await goNoriBack(option.id_destino);
+      return;
+    }
+
+    if (action === 'contactar_soporte' || action === 'contactar soporte' || labelCmd.includes('contactar soporte')) {
+      tryConnectSupportThenOfferTicket(label);
+      return;
+    }
+
+    if ((action === 'continuar' || action === 'ir_nodo' || action === 'ir a nodo' || action === 'navegar' || !action) && option.id_destino) {
+      var looksLikeUnresolved =
+        labelCmd.includes('problema continua') ||
+        labelCmd === 'no' ||
+        labelCmd.indexOf('no,') === 0 ||
+        labelCmd.includes('no se resolvio') ||
+        labelCmd.includes('no funciono') ||
+        labelCmd.includes('sigue igual');
+
+      if (looksLikeUnresolved) {
+        tryConnectSupportThenOfferTicket(label);
+        return;
+      }
+
+      await renderNoriDestination(option.id_destino, {pushHistory:true});
+      return;
+    }
+
+    if (action === 'crear_ticket' || action === 'nueva_solicitud' || action === 'crear solicitud' || action === 'nueva solicitud') {
+      tryConnectSupportThenOfferTicket(label);
+      return;
+    }
+
+    if (action === 'abrir_solicitudes' || action === 'abrir solicitudes' || action === 'mis_solicitudes' || action === 'mis solicitudes') {
+      appendNoriMessage('Puedes consultar tus solicitudes desde el Centro de Ayuda, en la pestaña “Mis solicitudes”.', 'bot');
+      appendNoriActionButton('Ir a Mis solicitudes', function(){ showTab('support'); showSupportView('requests'); });
+      appendNoriActionButton('Volver al inicio', function(){ goNoriHome(); });
+      return;
+    }
+
+    if (action === 'abrir_faq' || action === 'abrir faq' || action === 'abrir_categoria_faq' || action === 'abrir categoria faq' || action === 'faq') {
+      appendNoriMessage('Las preguntas frecuentes están disponibles en el Centro de Ayuda. También puedo seguir guiándote desde aquí.', 'bot');
+      appendNoriActionButton('Ver preguntas frecuentes', function(){ showTab('support'); showSupportView('home'); });
+      appendNoriActionButton('Volver al inicio', function(){ goNoriHome(); });
+      return;
+    }
+
+    appendNoriMessage('Esta opción aún no tiene una acción configurada. Puedo ayudarte a crear una solicitud si necesitas apoyo.', 'bot');
+    appendNoriActionButton('Crear solicitud', function(){ prepareNoriRequest('Centro de ayuda', label); });
+    appendNoriActionButton('Volver al inicio', function(){ goNoriHome(); });
+  };
+
+  function initConnectionPanel() {
+    var api = document.getElementById('api-bar');
+    var aiven = document.getElementById('aiven-status-bar');
+    var header = document.querySelector('header.hdr.app-topbar');
+    if (!api || !aiven || !header) return null;
+
+    var panel = document.getElementById('programmer-connection-panel');
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'programmer-connection-panel';
+      panel.className = 'programmer-connection-panel';
+      panel.innerHTML = '<button id="connection-toggle-btn" class="connection-toggle-btn" type="button" onclick="toggleConnectionPanel()"><span>Estado de conexión</span><strong id="connection-toggle-state">Mostrar</strong></button><div id="connection-panel-body" class="connection-panel-body"></div>';
+      header.insertAdjacentElement('afterend', panel);
+      var body = panel.querySelector('#connection-panel-body');
+      body.appendChild(api);
+      body.appendChild(aiven);
+    }
+    return panel;
+  }
+
+  window.toggleConnectionPanel = function toggleConnectionPanel(forceState) {
+    var panel = initConnectionPanel();
+    if (!panel) return;
+    var isCollapsed = panel.classList.contains('collapsed');
+    var nextCollapsed = typeof forceState === 'boolean' ? !forceState : !isCollapsed;
+    panel.classList.toggle('collapsed', nextCollapsed);
+    localStorage.setItem('mantto_connection_collapsed', nextCollapsed ? '1' : '0');
+    updateConnectionPanelVisibility();
+  };
+
+  window.updateConnectionPanelVisibility = function updateConnectionPanelVisibility() {
+    var panel = initConnectionPanel();
+    if (!panel) return;
+    var programmer = !!(SESSION && SESSION.user && typeof isProgrammerUser === 'function' && isProgrammerUser());
+    panel.style.display = programmer ? 'block' : 'none';
+    document.body.classList.toggle('is-programmer', programmer);
+
+    var collapsed = localStorage.getItem('mantto_connection_collapsed') === '1';
+    panel.classList.toggle('collapsed', collapsed);
+
+    var state = document.getElementById('connection-toggle-state');
+    if (state) state.textContent = collapsed ? 'Mostrar' : 'Ocultar';
+
+    var body = document.getElementById('connection-panel-body');
+    if (body) body.style.display = programmer && !collapsed ? 'block' : 'none';
+  };
+
+  window.setProgrammerBarsVisible = function setProgrammerBarsVisibleFixed() {
+    updateConnectionPanelVisibility();
+    return !!(SESSION && SESSION.user && isProgrammerUser());
+  };
+
+  window.showAPIBar = function showAPIBarFixed(msg, type) {
+    var el = document.getElementById('api-bar');
+    if (!el) return;
+
+    if (typeof isProgrammerUser === 'function' && !isProgrammerUser()) {
+      el.dataset.wasShown = '0';
+      el.style.display = 'none';
+      updateConnectionPanelVisibility();
+      return;
+    }
+
+    var c = {loading:{bg:'#EFF6FF',col:'#1E40AF',bd:'#BFDBFE'}, ok:{bg:'#F0FDF4',col:'#166534',bd:'#BBF7D0'}, error:{bg:'#FEF2F2',col:'#991B1B',bd:'#FECACA'}, warn:{bg:'#FFFBEB',col:'#92400E',bd:'#FDE68A'}}[type] || {bg:'#F8FAFC',col:'#64748B',bd:'#E2E8F0'};
+    el.dataset.wasShown = '1';
+    el.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:12px;background:'+c.bg+';color:'+c.col+';border-bottom:1px solid '+c.bd+';transition:all .3s';
+    var msgEl = el.querySelector('#api-msg');
+    if (msgEl) msgEl.textContent = msg || '';
+    updateConnectionPanelVisibility();
+  };
+
+  var previousHydrate = window.hydrateSessionUI || (typeof hydrateSessionUI === 'function' ? hydrateSessionUI : null);
+  window.hydrateSessionUI = function hydrateSessionUIWithConnection() {
+    if (previousHydrate) previousHydrate();
+    updateConnectionPanelVisibility();
+  };
+
+  function bootFixes() {
+    initConnectionPanel();
+    updateConnectionPanelVisibility();
+    if (typeof loadSupportFromAiven === 'function') loadSupportFromAiven();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootFixes);
+  else bootFixes();
+})();
+
+/* =====================================================
+   MGS-NORI-CANONICAL-FLOW-20260701
+   Motor unico de Nori + flujo oficial tipo Wizard
+===================================================== */
+(function manttoNoriCanonicalFlow(){
+  var NORI_START = 'inicio';
+  var noriState = {
+    current: null,
+    history: [],
+    context: {},
+    timers: []
+  };
+
+  function repairText(value) {
+    return String(value || '')
+      .replace(/opci¢n/g, 'opción')
+      .replace(/soluci¢n/g, 'solución')
+      .replace(/informaci¢n/g, 'información')
+      .replace(/contrase¤a/g, 'contraseña')
+      .replace(/m¢dulo/g, 'módulo')
+      .replace(/sesi¢n/g, 'sesión')
+      .replace(/tambi‚n/g, 'también')
+      .replace(/¢/g, 'ó')
+      .replace(/¤/g, 'ñ');
+  }
+
+  function getMessages() {
+    return document.getElementById('pandaMessages');
+  }
+
+  function scrollBottom() {
+    var el = getMessages();
+    if (!el) return;
+    requestAnimationFrame(function(){ el.scrollTop = el.scrollHeight; });
+  }
+
+  function clearTimers() {
+    (noriState.timers || []).forEach(function(t){
+      if (t.type === 'interval') clearInterval(t.id);
+      else clearTimeout(t.id);
+    });
+    noriState.timers = [];
+    window.NORI_SUPPORT_CONNECTING = false;
+  }
+
+  function clearConversation() {
+    var el = getMessages();
+    if (!el) return;
+    el.innerHTML = '';
+    el.scrollTop = 0;
+  }
+
+  function resetState() {
+    clearTimers();
+    noriState.current = null;
+    noriState.history = [];
+    noriState.context = {};
+    window.NORI_HISTORY = [];
+    window.NORI_CURRENT_NODE_ID = null;
+  }
+
+  function addMsg(text, type) {
+    var el = getMessages();
+    if (!el) return null;
+    var div = document.createElement('div');
+    div.className = 'chat-msg ' + (type || 'bot');
+    div.textContent = repairText(text || '');
+    el.appendChild(div);
+    scrollBottom();
+    return div;
+  }
+
+  function normalize(value) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[↩↪↵⟵⟶←→‹›«»]/g, ' ')
+      .replace(/^[\s\-_:;,.]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function uniqueByText(items) {
+    var seen = {};
+    return (items || []).filter(function(item){
+      var key = normalize(item.text || item.texto_opcion || item.label);
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+
+  function getModulesFromCache() {
+    var fromDb = [];
+    var caches = window.NORI_OPTIONS_CACHE || {};
+    Object.keys(caches).forEach(function(nodeId){
+      (caches[nodeId] || []).forEach(function(op){
+        var txt = repairText(op.texto_opcion || '').trim();
+        var key = normalize(txt);
+        if (!txt) return;
+        if (['inicio','dashboard','portafolio','tickets','usuarios','call center','reportes','otro modulo','otro módulo','centro de ayuda','backend / api'].includes(key)) {
+          fromDb.push({ text: txt, next: 'categoria', set: { modulo: txt } });
+        }
+      });
+    });
+
+    var fallback = [
+      'Inicio', 'Resumen del día', 'Equipos Críticos', 'Dashboard Call Center',
+      'Dashboard Operativo', 'Dashboard Portafolio', 'Movimientos de Portafolio',
+      'Proyectos', 'Usuarios', 'Tickets', 'Centro de ayuda', 'Backend / API', 'Otro módulo'
+    ].map(function(m){ return { text: m, next: 'categoria', set: { modulo: m } }; });
+
+    var merged = uniqueByText(fromDb.concat(fallback));
+    return merged.concat([{ text: '← Regresar', action: 'back' }, { text: '← Volver al inicio', action: 'home' }]);
+  }
+
+  function currentModule() {
+    return noriState.context.modulo || 'el módulo seleccionado';
+  }
+
+  function getCanonicalNode(id) {
+    var moduleName = currentModule();
+    var nodes = {
+      inicio: {
+        message: 'Hola, soy Nori 👋 Estoy aquí para ayudarte con cualquier duda relacionada con el Sistema de Gestión de Operaciones. Selecciona una opción para comenzar.',
+        options: [
+          { text: '🔐 Tengo problemas para ingresar', next: 'acceso' },
+          { text: '🖥️ Algo no funciona dentro del sistema', next: 'modulo' },
+          { text: '📋 Consultar mis solicitudes', action: 'requests' },
+          { text: '❔ Preguntas frecuentes', action: 'faq' },
+          { text: '👨🏻‍💻 Contactar soporte', action: 'support' }
+        ]
+      },
+      acceso: {
+        message: 'Vamos a ayudarte a recuperar el acceso al sistema.',
+        options: [
+          { text: 'Olvidé mi contraseña', next: 'sol_acceso_password', set: { modulo: 'Login / Acceso', categoria: 'Olvidé mi contraseña' } },
+          { text: 'Mi usuario está bloqueado', next: 'sol_acceso_bloqueado', set: { modulo: 'Login / Acceso', categoria: 'Usuario bloqueado' } },
+          { text: 'Es mi primer acceso', next: 'sol_acceso_primero', set: { modulo: 'Login / Acceso', categoria: 'Primer acceso' } },
+          { text: '← Volver al inicio', action: 'home' }
+        ]
+      },
+      sol_acceso_password: {
+        message: 'Usa la opción “Recuperar contraseña” en la pantalla de inicio de sesión. Si tienes pregunta de seguridad configurada, podrás validar tu identidad y crear una nueva contraseña.',
+        options: resolutionOptions('Login / Acceso', 'Olvidé mi contraseña')
+      },
+      sol_acceso_bloqueado: {
+        message: 'Si el usuario está bloqueado por intentos fallidos, espera el tiempo de bloqueo configurado o solicita apoyo de soporte para validar el desbloqueo.',
+        options: resolutionOptions('Login / Acceso', 'Usuario bloqueado')
+      },
+      sol_acceso_primero: {
+        message: 'En el primer acceso debes entrar con tu contraseña temporal, cambiarla y configurar tu pregunta de seguridad. Si no aparece la pantalla de primer acceso, contacta a soporte.',
+        options: resolutionOptions('Login / Acceso', 'Primer acceso')
+      },
+      modulo: {
+        message: '¿En qué módulo ocurre el problema?',
+        options: getModulesFromCache()
+      },
+      categoria: {
+        message: 'Selecciona la situación que mejor describa el problema en ' + moduleName + '.',
+        options: [
+          { text: 'No carga la información', next: 'sol_generica', set: { categoria: 'No carga la información' } },
+          { text: 'Los datos se ven en cero o sin datos', next: 'sol_generica', set: { categoria: 'Datos en cero o sin datos' } },
+          { text: 'Un botón o acción no responde', next: 'sol_generica', set: { categoria: 'Botón o acción no responde' } },
+          { text: 'Aparece un error en pantalla', next: 'sol_generica', set: { categoria: 'Error en pantalla' } },
+          { text: 'El flujo no avanza correctamente', next: 'sol_generica', set: { categoria: 'Flujo no avanza' } },
+          { text: 'Otro problema', next: 'sol_generica', set: { categoria: 'Otro problema' } },
+          { text: '← Regresar', action: 'back' },
+          { text: '← Volver al inicio', action: 'home' }
+        ]
+      },
+      sol_generica: {
+        message: 'Prueba esto primero: recarga la información del módulo, confirma que la API esté conectada, cierra y vuelve a abrir la pantalla. Si el problema es de datos, valida que existan registros reales para ese módulo y que tu usuario tenga permiso para verlos.',
+        options: resolutionOptions(moduleName, noriState.context.categoria || 'Problema dentro del sistema')
+      }
+    };
+    return nodes[id] || null;
+  }
+
+  function resolutionOptions(modulo, categoria) {
+    return [
+      { text: 'Sí, ya quedó solucionado', action: 'resolved' },
+      { text: 'No, el problema continúa', action: 'unresolved', set: { modulo: modulo, categoria: categoria } },
+      { text: '← Regresar', action: 'back' },
+      { text: '← Volver al inicio', action: 'home' }
+    ];
+  }
+
+  function renderOptions(options) {
+    var el = getMessages();
+    if (!el) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'nori-options';
+
+    (options || []).forEach(function(opt){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'nori-option';
+      btn.textContent = repairText(opt.text || opt.texto_opcion || opt.label || 'Opción');
+      btn.onclick = function(){ handleOption(opt); };
+      wrap.appendChild(btn);
+    });
+
+    el.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function disableActiveOptions() {
+    document.querySelectorAll('#pandaMessages .nori-options .nori-option:not(:disabled)').forEach(function(btn){
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+    });
+  }
+
+  function renderNode(id, pushHistory) {
+    var node = getCanonicalNode(id);
+    if (!node) node = getCanonicalNode(NORI_START);
+
+    if (pushHistory && noriState.current && noriState.current !== id) {
+      noriState.history.push(noriState.current);
+    }
+
+    noriState.current = id;
+    window.NORI_CURRENT_NODE_ID = id;
+    window.NORI_HISTORY = noriState.history.slice();
+
+    addMsg(node.message, 'bot');
+    renderOptions(node.options);
+  }
+
+  function goHome() {
+    clearTimers();
+    noriState.history = [];
+    noriState.context = {};
+    renderNode(NORI_START, false);
+  }
+
+  function goBack() {
+    clearTimers();
+    var previous = noriState.history.pop();
+    if (!previous) return goHome();
+    renderNode(previous, false);
+  }
+
+  function openRequests() {
+    addMsg('Puedes consultar tus solicitudes desde el Centro de Ayuda, en la pestaña “Mis solicitudes”.', 'bot');
+    renderOptions([
+      { text: 'Ir a Mis solicitudes', action: 'open_requests' },
+      { text: '← Volver al inicio', action: 'home' }
+    ]);
+  }
+
+  function openFaq() {
+    addMsg('Las preguntas frecuentes están disponibles en el Centro de Ayuda. También puedo seguir guiándote desde aquí.', 'bot');
+    renderOptions([
+      { text: 'Ver preguntas frecuentes', action: 'open_faq' },
+      { text: '← Volver al inicio', action: 'home' }
+    ]);
+  }
+
+  function prepareRequest(modulo, asunto, descripcion) {
+    var mod = modulo || noriState.context.modulo || 'Centro de ayuda';
+    var subject = asunto || noriState.context.categoria || 'Solicitud generada desde Nori';
+    var desc = descripcion || 'Solicitud iniciada desde Nori. Módulo: ' + mod + '. Situación: ' + subject + '.';
+
+    window.NORI_CREATE_REQUEST_CONTEXT = { modulo: mod, asunto: subject, descripcion: desc };
+
+    var moduloEl = document.getElementById('reqModulo');
+    var asuntoEl = document.getElementById('reqAsunto');
+    var descEl = document.getElementById('reqDescripcion');
+
+    if (moduloEl) {
+      var found = Array.prototype.some.call(moduloEl.options, function(o){ return o.value === mod || o.textContent === mod; });
+      moduloEl.value = found ? mod : (moduloEl.querySelector('option[value="Centro de ayuda"]') ? 'Centro de ayuda' : moduloEl.value);
+    }
+    if (asuntoEl) asuntoEl.value = subject;
+    if (descEl && !descEl.value) descEl.value = desc;
+
+    clearTimers();
+    if (typeof showTab === 'function') showTab('support');
+    if (typeof showSupportView === 'function') showSupportView('new');
+    var chatBody = getMessages();
+    if (chatBody) chatBody.scrollTop = 0;
+  }
+
+  function formatWait(sec) {
+    sec = Math.max(0, Number(sec || 0));
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function startSupportQueue() {
+    clearTimers();
+    window.NORI_SUPPORT_CONNECTING = true;
+    addMsg('Voy a intentar conectarte con un asesor de soporte. Si no se encuentra uno disponible, podrás generar una solicitud.', 'bot');
+
+    var el = getMessages();
+    if (!el) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'nori-support-wait-card';
+    wrap.innerHTML = '' +
+      '<div class="nori-support-wait-title">Buscando un asesor disponible...</div>' +
+      '<div class="nori-support-wait-text">Tiempo máximo de espera:</div>' +
+      '<div class="nori-support-wait-timer">03:00</div>' +
+      '<div class="nori-support-wait-note">El botón de solicitud se habilitará al terminar la espera.</div>' +
+      '<button class="nori-option nori-request-now-btn" type="button" disabled>Crear solicitud</button>';
+
+    var timer = wrap.querySelector('.nori-support-wait-timer');
+    var note = wrap.querySelector('.nori-support-wait-note');
+    var title = wrap.querySelector('.nori-support-wait-title');
+    var btn = wrap.querySelector('button');
+    var remaining = 180;
+
+    btn.onclick = function(){
+      prepareRequest(noriState.context.modulo || 'Centro de ayuda', noriState.context.categoria || 'Contacto con soporte');
+    };
+
+    el.appendChild(wrap);
+    scrollBottom();
+
+    var intId = setInterval(function(){
+      remaining -= 1;
+      if (timer) timer.textContent = formatWait(remaining);
+      if (remaining <= 0) {
+        clearInterval(intId);
+        window.NORI_SUPPORT_CONNECTING = false;
+        if (title) title.textContent = 'No encontré un asesor disponible.';
+        if (note) note.textContent = 'Generemos una solicitud para que el equipo de soporte dé seguimiento.';
+        if (btn) btn.disabled = false;
+        addMsg('No encontré un asesor disponible en este momento. Ya puedes generar una solicitud para darle seguimiento.', 'bot');
+      }
+    }, 1000);
+    noriState.timers.push({ type: 'interval', id: intId });
+  }
+
+  function handleOption(opt) {
+    opt = opt || {};
+    var label = repairText(opt.text || opt.texto_opcion || opt.label || 'Opción');
+    disableActiveOptions();
+    addMsg(label, 'user');
+
+    if (opt.set) {
+      Object.keys(opt.set).forEach(function(k){ noriState.context[k] = opt.set[k]; });
+    }
+
+    var action = normalize(opt.action || opt.accion_opcion || '');
+    if (action === 'home' || action === 'inicio' || normalize(label).indexOf('volver al inicio') === 0) return goHome();
+    if (action === 'back' || action === 'regresar' || normalize(label).indexOf('regresar') === 0) return goBack();
+    if (action === 'resolved') {
+      addMsg('Perfecto. Me alegra que haya quedado solucionado. Reiniciaré la guía para dejar Nori listo de nuevo.', 'bot');
+      var t = setTimeout(function(){ clearConversation(); resetState(); renderNode(NORI_START, false); }, 900);
+      noriState.timers.push({ type: 'timeout', id: t });
+      return;
+    }
+    if (action === 'unresolved' || action === 'support') return startSupportQueue();
+    if (action === 'requests') return openRequests();
+    if (action === 'faq') return openFaq();
+    if (action === 'open_requests') { if (typeof showTab === 'function') showTab('support'); if (typeof showSupportView === 'function') showSupportView('requests'); return; }
+    if (action === 'open_faq') { if (typeof showTab === 'function') showTab('support'); if (typeof showSupportView === 'function') showSupportView('home'); return; }
+    if (action === 'create_request') return prepareRequest();
+
+    if (opt.next) return renderNode(opt.next, true);
+    if (opt.id_destino) return renderNode(String(opt.id_destino), true);
+
+    addMsg('Esta opción aún no tiene una acción configurada. Puedo ayudarte a crear una solicitud.', 'bot');
+    renderOptions([{ text: 'Crear solicitud', action: 'create_request' }, { text: '← Volver al inicio', action: 'home' }]);
+  }
+
+  window.appendNoriMessage = addMsg;
+  window.startNoriGuide = async function startNoriGuideCanonical(){
+    clearTimers();
+    clearConversation();
+    resetState();
+    window.noriStarted = true;
+    if (typeof noriStarted !== 'undefined') noriStarted = true;
+    try { if (typeof window.loadSupportFromAiven === 'function') await window.loadSupportFromAiven(); } catch(e) {}
+    clearConversation();
+    renderNode(NORI_START, false);
+  };
+
+  window.togglePandaChat = function togglePandaChatCanonical(forceState){
+    var chat = document.getElementById('pandaChat');
+    if (!chat) return;
+    var shouldOpen = typeof forceState === 'boolean' ? forceState : !chat.classList.contains('open');
+    chat.classList.toggle('open', shouldOpen);
+    if (shouldOpen && !window.noriStarted) window.startNoriGuide();
+  };
+
+  window.openGuestNori = function openGuestNoriCanonical(){
+    window.NORI_MODE = 'guest';
+    window.noriStarted = false;
+    if (typeof noriStarted !== 'undefined') noriStarted = false;
+    window.togglePandaChat(true);
+  };
+
+  window.handleNoriOption = function handleNoriOptionCanonical(encoded){
+    var opt = {};
+    try { opt = JSON.parse(decodeURIComponent(encoded)); } catch(e) {}
+    handleOption(opt);
+  };
+
+  window.noriSupportAdvisorConnected = function noriSupportAdvisorConnectedCanonical(advisorName){
+    clearTimers();
+    addMsg((advisorName || 'Un asesor') + ' se unió a la conversación.', 'bot');
+  };
+})();
+
 </script>
+
+<script id="mantto-final-context-layout-nav">
+(function manttoFinalContextLayoutNav(){
+  if (window.__MANTTO_FINAL_CONTEXT_NAV_READY__) return;
+  window.__MANTTO_FINAL_CONTEXT_NAV_READY__ = true;
+
+  var TAB_LABELS = {
+    home:'Inicio', tickets:'Tickets', resumen:'Resumen del día', criticos:'Equipos Críticos',
+    callcenter:'Dashboard Call Center', operativo:'Dashboard Operativo', portafolio:'Dashboard Portafolio',
+    movimientos:'Movimientos', proyectos:'Proyectos', users:'Usuarios', support:'Centro de ayuda'
+  };
+
+  function byId(id){ return document.getElementById(id); }
+
+  function ensureLayout(){
+    var header = document.querySelector('header.hdr.app-topbar');
+    var context = byId('app-context-nav');
+    var content = byId('app-content');
+
+    if (!content) {
+      content = document.createElement('main');
+      content.id = 'app-content';
+      content.setAttribute('aria-label','Contenido principal de Mantto Gestor');
+      if (context && context.parentNode) context.insertAdjacentElement('afterend', content);
+      else if (header && header.parentNode) header.insertAdjacentElement('afterend', content);
+      else document.body.appendChild(content);
+    }
+
+    if (!context) {
+      context = document.createElement('div');
+      context.id = 'app-context-nav';
+      context.setAttribute('aria-live','polite');
+      context.innerHTML = '<div class="app-context-inner"><button id="app-back-btn" type="button" onclick="manttoGoBack()"><i class="ti ti-arrow-left"></i><span id="app-back-label">Regresar</span></button><div class="app-context-title-wrap"><div id="app-context-title">Inicio</div><div id="app-context-subtitle"></div></div></div>';
+      content.insertAdjacentElement('beforebegin', context);
+    }
+
+    // La barra contextual siempre debe vivir antes del contenido.
+    if (context.nextElementSibling !== content) {
+      content.insertAdjacentElement('beforebegin', context);
+    }
+
+    // Mover todos los paneles de primer nivel al contenedor scrollable.
+    Array.prototype.slice.call(document.body.children).forEach(function(el){
+      if (el && el.classList && el.classList.contains('panel')) content.appendChild(el);
+    });
+
+    // La barra de conexión se conserva para diagnóstico, pero ya no forma parte del layout principal.
+    ['api-bar','aiven-status-bar','programmer-connection-panel'].forEach(function(id){
+      var el = byId(id);
+      if (el) {
+        el.classList.add('mantto-connection-detached');
+        el.style.display = 'none';
+      }
+    });
+
+    return {context:context, content:content};
+  }
+
+  function activeTab(){
+    var onPanel = document.querySelector('#app-content > .panel.on');
+    if (onPanel && onPanel.id && onPanel.id.indexOf('panel-') === 0) return onPanel.id.replace('panel-','');
+    var onBtn = document.querySelector('.nav-btn.on');
+    if (onBtn && onBtn.id) return onBtn.id.replace('tab-','');
+    return 'home';
+  }
+
+  function setContext(tab, backLabel){
+    ensureLayout();
+    tab = tab || activeTab() || 'home';
+    var title = byId('app-context-title');
+    var subtitle = byId('app-context-subtitle');
+    var backBtn = byId('app-back-btn');
+    var label = byId('app-back-label');
+    var isHome = tab === 'home';
+
+    if (title) title.textContent = TAB_LABELS[tab] || 'Pantalla';
+    if (subtitle) subtitle.textContent = '';
+    if (backBtn) backBtn.style.display = isHome ? 'none' : 'inline-flex';
+    if (label) label.textContent = 'Regresar';
+    document.body.classList.toggle('mantto-has-context-back', !isHome);
+  }
+
+  var rawShowTab = window.showTab;
+  function callRawShowTab(tab){
+    if (typeof rawShowTab === 'function') rawShowTab(tab, true);
+  }
+
+  function renderTab(tab, backLabel){
+    ensureLayout();
+    tab = tab || 'home';
+    try {
+      callRawShowTab(tab);
+    } catch(e) {
+      console.warn('[ContextNav] showTab interno falló, se conserva la barra contextual:', e);
+    }
+    setContext(tab || activeTab() || 'home', backLabel || 'Inicio');
+    var content = byId('app-content');
+    if (content) content.scrollTop = 0;
+  }
+
+  window.showTab = function manttoFinalShowTab(tab, skipReset){
+    ensureLayout();
+    tab = tab || 'home';
+    var prev = activeTab() || 'home';
+
+    if (skipReset === true || window._NAV_RESTORING) {
+      renderTab(tab, TAB_LABELS[prev] || 'Inicio');
+      return;
+    }
+
+    var state = {
+      manttoFinal:true,
+      tab:tab,
+      backLabel:TAB_LABELS[prev] || 'Inicio'
+    };
+
+    try { history.pushState(state, '', '#/' + encodeURIComponent(tab)); } catch(e) {}
+    renderTab(tab, state.backLabel);
+  };
+
+  window.manttoGoBack = function manttoFinalGoBack(){
+    try { history.back(); } catch(e) { window.showTab('home'); }
+  };
+
+  var backBtn = byId('app-back-btn');
+  if (backBtn) backBtn.onclick = window.manttoGoBack;
+
+  window.addEventListener('popstate', function(ev){
+    ensureLayout();
+    if (ev.state && ev.state.manttoFinal) {
+      renderTab(ev.state.tab || 'home', ev.state.backLabel || 'Inicio');
+      return;
+    }
+    var hashTab = (location.hash || '').replace(/^#\//,'');
+    hashTab = decodeURIComponent(hashTab || 'home');
+    if (!TAB_LABELS[hashTab]) hashTab = 'home';
+    renderTab(hashTab, 'Inicio');
+  });
+
+  function boot(){
+    ensureLayout();
+    var tab = activeTab() || 'home';
+    try {
+      history.replaceState({manttoFinal:true, tab:tab, backLabel:'Inicio'}, '', '#/' + encodeURIComponent(tab));
+    } catch(e) {}
+    setContext(tab, 'Inicio');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  setTimeout(boot, 0);
+  setTimeout(boot, 250);
+})();
+</script>
+
 </body>
 </html>
