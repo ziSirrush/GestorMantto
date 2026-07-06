@@ -305,9 +305,104 @@ async function firstLoginSecurityQuestion(req, res) {
   }
 }
 
+
+async function recoveryStart(req, res) {
+  const { correo } = req.body;
+
+  if (!correo) {
+    return res.status(400).json({ ok: false, message: 'El correo es obligatorio.' });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT u.id_SB, u.correo, u.id_pregunta, u.respuesta_recuperacion, ps.pregunta
+       FROM usuarios u
+       LEFT JOIN preguntas_seguridad ps ON ps.id_pregunta = u.id_pregunta
+       WHERE u.correo = ?
+         AND u.estado = 1
+       LIMIT 1`,
+      [correo]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'No se encontró un usuario activo con ese correo.' });
+    }
+
+    const user = rows[0];
+    if (!user.id_pregunta || !user.respuesta_recuperacion || Number(user.id_pregunta) === 11) {
+      return res.status(400).json({ ok: false, message: 'Este usuario no tiene pregunta de recuperación configurada.' });
+    }
+
+    return res.json({ ok: true, id_pregunta: user.id_pregunta, pregunta: user.pregunta });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error iniciando recuperación.', error: error.message });
+  }
+}
+
+async function recoveryReset(req, res) {
+  const { correo, respuesta, answer, new_password, password } = req.body;
+  const finalAnswer = respuesta || answer;
+  const newPassword = new_password || password;
+  const ipAddress = req.ip;
+
+  if (!correo || !finalAnswer || !newPassword) {
+    return res.status(400).json({ ok: false, message: 'Correo, respuesta y nueva contraseña son obligatorios.' });
+  }
+
+  if (String(newPassword).length < 10) {
+    return res.status(400).json({ ok: false, message: 'La contraseña debe tener mínimo 10 caracteres.' });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT id_SB, respuesta_recuperacion
+       FROM usuarios
+       WHERE correo = ?
+         AND estado = 1
+       LIMIT 1`,
+      [correo]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+
+    const user = rows[0];
+    if (!user.respuesta_recuperacion) {
+      return res.status(400).json({ ok: false, message: 'No hay respuesta de recuperación configurada.' });
+    }
+
+    const validAnswer = await bcrypt.compare(String(finalAnswer).trim().toLowerCase(), user.respuesta_recuperacion);
+    if (!validAnswer) {
+      await audit(user.id_SB, 'RECOVERY_FAILED', 'Respuesta de seguridad incorrecta', ipAddress);
+      return res.status(401).json({ ok: false, message: 'Respuesta incorrecta.' });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.query(
+      `UPDATE usuarios
+       SET pass = ?,
+           must_change_password = 0,
+           password_changed_at = NOW(),
+           failed_login_attempts = 0,
+           locked_until = NULL
+       WHERE id_SB = ?`,
+      [hash, user.id_SB]
+    );
+
+    await audit(user.id_SB, 'PASSWORD_RECOVERY_RESET', 'Contraseña actualizada por recuperación', ipAddress);
+
+    return res.json({ ok: true, message: 'Contraseña actualizada correctamente.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error actualizando contraseña.', error: error.message });
+  }
+}
+
 module.exports = {
   login,
   firstLoginPassword,
   securityQuestions,
-  firstLoginSecurityQuestion
+  firstLoginSecurityQuestion,
+  recoveryStart,
+  recoveryReset
 };

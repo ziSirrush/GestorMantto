@@ -1,0 +1,87 @@
+<div class="ec-page">
+  <section class="ec-head card">
+    <div>
+      <p class="ec-eyebrow">Módulo en pruebas</p>
+      <h1>Equipos Críticos</h1>
+      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. Los criterios son independientes por tabla y no modifican Resumen del Día.</p>
+    </div>
+    <button type="button" class="ec-btn ec-btn-soft" data-ec-action="refresh-all">↻ Actualizar todo</button>
+  </section>
+
+  <section class="ec-panel card" aria-label="Equipos críticos">
+    <div class="ec-panel-head">
+      <div>
+        <h2>Equipos Críticos</h2>
+        <small id="ec-eq-count">Sin cargar</small>
+      </div>
+      <div class="ec-actions">
+        <button type="button" class="ec-btn" data-ec-action="clear-equipos">Limpiar filtros</button>
+        <button type="button" class="ec-btn ec-btn-danger" data-ec-action="pdf-equipos">PDF Equipos</button>
+      </div>
+    </div>
+
+    <div class="ec-filters">
+      <label>Fallas BLT mín.<input type="number" id="ec-eq-min" min="1" value="3" /></label>
+      <label>Días<input type="number" id="ec-eq-dias" min="1" value="35" /></label>
+      <label>Zona<input type="text" id="ec-eq-zona" placeholder="Ej. NOR" /></label>
+      <label>Proyecto<input type="text" id="ec-eq-proyecto" placeholder="Proyecto" /></label>
+      <label>Buscar<input type="search" id="ec-eq-search" placeholder="Equipo, ticket, ref." /></label>
+      <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos">Aplicar</button>
+    </div>
+
+    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>.</div>
+
+    <div class="ec-table-wrap">
+      <table class="ec-table">
+        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT</th><th>Último BLT</th><th>Resp. Cliente</th><th>Último Cliente</th><th>MTBC</th><th></th></tr></thead>
+        <tbody id="ec-eq-body"><tr><td colspan="12" class="ec-empty">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="ec-pagination"><button type="button" id="ec-eq-prev">← Anterior</button><span id="ec-eq-page">—</span><button type="button" id="ec-eq-next">Siguiente →</button></div>
+  </section>
+
+  <section class="ec-panel card" aria-label="Proyectos críticos">
+    <div class="ec-panel-head">
+      <div>
+        <h2>Proyectos Críticos</h2>
+        <small id="ec-pro-count">Sin cargar</small>
+      </div>
+      <div class="ec-actions">
+        <button type="button" class="ec-btn" data-ec-action="clear-proyectos">Limpiar filtros</button>
+        <button type="button" class="ec-btn ec-btn-danger" data-ec-action="pdf-proyectos">PDF Proyectos</button>
+      </div>
+    </div>
+
+    <div class="ec-filters">
+      <label>Fallas BLT mín.<input type="number" id="ec-pro-min" min="1" value="5" /></label>
+      <label>Días<input type="number" id="ec-pro-dias" min="1" value="35" /></label>
+      <label>Fallas por equipo<input type="number" id="ec-pro-min-equipo" min="1" value="3" /></label>
+      <label>Zona<input type="text" id="ec-pro-zona" placeholder="Ej. CNA" /></label>
+      <label>Proyecto<input type="text" id="ec-pro-proyecto" placeholder="Proyecto" /></label>
+      <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-proyectos">Aplicar</button>
+    </div>
+
+    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo.</div>
+
+    <div class="ec-table-wrap">
+      <table class="ec-table">
+        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th></th></tr></thead>
+        <tbody id="ec-pro-body"><tr><td colspan="10" class="ec-empty">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="ec-pagination"><button type="button" id="ec-pro-prev">← Anterior</button><span id="ec-pro-page">—</span><button type="button" id="ec-pro-next">Siguiente →</button></div>
+  </section>
+</div>
+
+<section id="ec-detail-modal" class="ec-detail" hidden>
+  <div class="ec-detail-panel">
+    <div class="ec-detail-head">
+      <button type="button" id="ec-detail-close">×</button>
+      <div><h2 id="ec-detail-title">Detalle</h2><p id="ec-detail-sub">Historial</p></div>
+      <button type="button" class="ec-btn ec-btn-danger" id="ec-detail-pdf">PDF detalle</button>
+    </div>
+    <div class="ec-detail-body">
+      <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Ticket</th><th>Fecha reporte</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Zona</th><th>Responsabilidad</th><th>Causa</th><th>T. llegada</th><th>T. solución</th></tr></thead><tbody id="ec-detail-body"></tbody></table></div>
+    </div>
+  </div>
+</section>

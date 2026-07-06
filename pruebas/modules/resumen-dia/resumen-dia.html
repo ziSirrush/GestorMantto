@@ -1,0 +1,82 @@
+<section id="view-resumen" class="view resumen-page" data-view="resumen" aria-label="Resumen del día">
+  <div class="rd-card rd-header">
+    <div class="rd-title">
+      <h1>Resumen del día</h1>
+      <p>Vista ejecutiva diaria con tickets, responsabilidades, alertas, tiempos, gráficas y tabla detallada.</p>
+    </div>
+    <div class="rd-actions">
+      <button class="rd-btn" id="rd-prev-day" type="button">← Día anterior</button>
+      <div class="rd-date-box">
+        <div class="rd-date-label" id="rd-day-label">—</div>
+        <div class="rd-date-sub" id="rd-day-sub">Sin datos cargados</div>
+      </div>
+      <button class="rd-btn" id="rd-next-day" type="button">Día siguiente →</button>
+      <button class="rd-btn primary" id="rd-refresh" type="button">↻ Actualizar</button>
+      <div class="rd-status loading" id="rd-api-status"><span class="dot"></span><span>Cargando Aiven...</span></div>
+    </div>
+  </div>
+
+  <div class="rd-grid kpi-6">
+    <article class="rd-kpi g-blue"><div class="ico">🎫</div><div class="val" id="rd-total">—</div><div class="lbl">Tickets</div><div class="sub">Reportados en el día</div></article>
+    <article class="rd-kpi g-green clickable" data-rd-detail="cerrados"><div class="ico">✓</div><div class="val" id="rd-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="rd-cerrados-pct">—</div></article>
+    <article class="rd-kpi g-amber clickable" data-rd-detail="encurso"><div class="ico">⏳</div><div class="val" id="rd-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="rd-encurso-pct">—</div></article>
+    <article class="rd-kpi g-orange clickable" data-rd-detail="abiertos"><div class="ico">🔴</div><div class="val" id="rd-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="rd-abiertos-pct">—</div></article>
+    <article class="rd-kpi g-blue clickable" data-rd-detail="blt"><div class="ico">🛠</div><div class="val" id="rd-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="rd-blt-pct">—</div></article>
+    <article class="rd-kpi g-cyan clickable" data-rd-detail="cliente"><div class="ico">👤</div><div class="val" id="rd-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="rd-cli-pct">—</div></article>
+  </div>
+
+  <div class="rd-grid kpi-5">
+    <article class="rd-kpi g-red clickable" data-rd-detail="atrap"><div class="ico">🚨</div><div class="val" id="rd-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-cyan clickable" data-rd-detail="agua"><div class="ico">💧</div><div class="val" id="rd-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-purple clickable" data-rd-detail="voltaje"><div class="ico">⚡</div><div class="val" id="rd-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-red clickable" data-rd-detail="criticos"><div class="ico">⚠</div><div class="val" id="rd-criticos-dia">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-dark clickable" data-rd-detail="nofunc"><div class="ico">🚧</div><div class="val" id="rd-nofunc">—</div><div class="lbl">No funcionando</div><div class="sub">Ver detalle</div></article>
+  </div>
+
+  <div id="rd-detail" class="rd-detail rd-card"></div>
+
+  <div class="rd-grid kpi-3">
+    <article class="rd-kpi g-teal"><div class="ico">⏱</div><div class="val" id="rd-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">minutos</div></article>
+    <article class="rd-kpi g-blue"><div class="ico">🕐</div><div class="val" id="rd-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">equipos resueltos</div></article>
+    <article class="rd-kpi g-slate clickable" data-rd-detail="sla"><div class="ico">⌛</div><div class="val" id="rd-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="rd-sla-pct">—</div></article>
+  </div>
+
+  <div class="rd-grid two">
+    <div class="rd-card rd-section"><div class="rd-section-head"><h2>Estado tickets</h2><small>clic en leyenda</small></div><div class="rd-donut"><svg id="rd-svg-estado" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-estado"></div></div></div>
+    <div class="rd-card rd-section"><div class="rd-section-head"><h2>Responsabilidad</h2><small>cerrados</small></div><div class="rd-donut"><svg id="rd-svg-resp" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-resp"></div></div></div>
+    <div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — BLT</h2><small>clic para detalle</small></div><div class="rd-donut"><svg id="rd-svg-caf-blt" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-caf-blt"></div></div></div>
+    <div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — Cliente</h2><small>clic para detalle</small></div><div class="rd-donut"><svg id="rd-svg-caf-cli" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-caf-cli"></div></div></div>
+  </div>
+
+  <div class="rd-grid two">
+    <div class="rd-card rd-section"><div class="rd-section-head"><h2>Tickets por zona operativa</h2></div><div class="rd-bars" id="rd-bar-zona"></div></div>
+    <div class="rd-card rd-section"><div class="rd-section-head"><h2>Por tipo de equipo</h2></div><div class="rd-bars" id="rd-bar-tipo"></div></div>
+  </div>
+
+  <div class="rd-card rd-section"><div class="rd-section-head"><h2>Fallas por estado de la República</h2></div><div class="rd-bars" id="rd-bar-edo"></div></div>
+
+  <div class="rd-card rd-section">
+    <div class="rd-section-head">
+      <h2>Equipos con más llamadas del periodo <small id="rd-top-eq-count"></small></h2>
+      <small>Top 20 · BLT + Cliente</small>
+    </div>
+    <div class="rd-table-wrap"><table class="rd-table rd-table-compact"><thead><tr><th>Zona</th><th>Proyecto</th><th>Referencia en sitio</th><th>Llamadas del periodo</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>Crítico</th></tr></thead><tbody id="rd-top-eq-body"></tbody></table></div>
+  </div>
+
+  <div class="rd-card rd-section">
+    <div class="rd-section-head">
+      <h2>Tickets del periodo <small id="rd-count"></small></h2>
+      <div class="rd-filters"><input id="rd-search" type="search" placeholder="Buscar ticket, proyecto, zona..." /><select id="rd-filter-et"><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select></div>
+    </div>
+    <div class="rd-table-wrap"><table class="rd-table"><thead id="rd-thead"></thead><tbody id="rd-tbody"></tbody></table></div>
+    <div class="rd-pagination"><button id="rd-page-prev" type="button">← Anterior</button><span id="rd-page-info">—</span><button id="rd-page-next" type="button">Siguiente →</button></div>
+  </div>
+
+  <div class="rd-card rd-section">
+    <div class="rd-section-head">
+      <h2>Proyectos con más llamadas del periodo <small id="rd-top-proy-count"></small></h2>
+      <small>Top 20 · BLT + Cliente</small>
+    </div>
+    <div class="rd-table-wrap"><table class="rd-table rd-table-compact"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipos activos</th><th>Llamadas del periodo</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>Equipos críticos</th></tr></thead><tbody id="rd-top-proy-body"></tbody></table></div>
+  </div>
+</section>

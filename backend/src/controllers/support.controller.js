@@ -156,25 +156,26 @@ async function getNode(req, res) {
 
 async function getFaq(req, res) {
   try {
-    const columns = await getTableColumns('sup_faq');
-    const categoryColumn = pickColumn(columns, ['id_categoria', 'categoria_id']);
-
-    let sql = 'SELECT f.*';
-    if (categoryColumn) sql += ', c.categoria AS categoria, c.nombre_categoria AS nombre_categoria';
-    sql += ' FROM sup_faq f';
-    if (categoryColumn) {
-      sql += ` LEFT JOIN sup_faq_categorias c ON c.id_categoria = f.\`${categoryColumn}\``;
-    }
-    sql += ' WHERE COALESCE(f.activo, 1) = 1';
+    let sql = `
+      SELECT
+        f.*,
+        c.nombre_categoria,
+        c.descripcion_categoria,
+        c.icono_categoria
+      FROM sup_faq f
+      LEFT JOIN sup_faq_categorias c
+        ON c.id_faq_categoria = f.id_faq_categoria
+      WHERE COALESCE(f.activo, 1) = 1
+    `;
 
     const params = [];
     if (req.query.q) {
       const q = `%${req.query.q}%`;
-      sql += ' AND (f.pregunta LIKE ? OR f.respuesta LIKE ?)';
-      params.push(q, q);
+      sql += ` AND (f.pregunta_faq LIKE ? OR f.respuesta_faq LIKE ? OR f.palabras_clave LIKE ?)`;
+      params.push(q, q, q);
     }
 
-    sql += ' ORDER BY COALESCE(f.orden_visualizacion, 999), f.id_faq ASC';
+    sql += ` ORDER BY COALESCE(f.orden_visualizacion, 999), f.id_faq ASC`;
 
     const [rows] = await db.query(sql, params);
 
@@ -194,7 +195,7 @@ async function getAvisos(req, res) {
       SELECT *
       FROM sup_avisos
       WHERE COALESCE(activo, 1) = 1
-      ORDER BY COALESCE(fecha_inicio, created_at, NOW()) DESC
+      ORDER BY COALESCE(fecha_inicio, fecha_creacion, NOW()) DESC
       LIMIT 50
     `);
 
@@ -332,13 +333,61 @@ async function updateTicket(req, res) {
   }
 }
 
+
+async function createTicketV1(req, res) {
+  try {
+    const [cats] = await db.query(`
+      SELECT id_ticket_categoria
+      FROM sup_ticket_categorias
+      WHERE COALESCE(activo, 1) = 1
+      ORDER BY orden_visualizacion ASC, id_ticket_categoria ASC
+      LIMIT 1
+    `);
+
+    const categoriaId = req.body.id_ticket_categoria || (cats[0] && cats[0].id_ticket_categoria) || 1;
+    const folio = 'SUP-' + Date.now();
+    const historial = [supportEvent(req, 'ticket_creado', {
+      asunto: req.body.asunto || req.body.titulo || req.body.subject,
+      modulo: req.body.modulo || req.body.modulo_ticket || req.body.categoria
+    })];
+
+    const [result] = await db.query(
+      `INSERT INTO sup_tickets
+       (folio, id_usuario, id_ticket_categoria, tipo_ticket, estado_ticket, prioridad_ticket, origen_ticket, modulo_ticket, asunto_ticket, descripcion_ticket, historial, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        folio,
+        req.user.id_SB,
+        categoriaId,
+        req.body.tipo_ticket || 'Soporte',
+        req.body.estado_ticket || 'Abierto',
+        req.body.prioridad_ticket || req.body.prioridad || 'Media',
+        req.body.origen_ticket || 'Portal',
+        req.body.modulo || req.body.modulo_ticket || null,
+        req.body.asunto || req.body.titulo || req.body.subject || 'Solicitud de soporte',
+        req.body.descripcion || req.body.detalle || req.body.description || 'Sin descripción',
+        JSON.stringify(historial)
+      ]
+    );
+
+    return res.status(201).json({
+      ok: true,
+      message: 'Solicitud creada correctamente.',
+      id: result.insertId,
+      folio
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error creando solicitud.', error: error.message });
+  }
+}
+
 async function getNotificaciones(req, res) {
   try {
     const [rows] = await db.query(
       `SELECT *
        FROM sup_notificaciones
        WHERE id_usuario = ?
-       ORDER BY COALESCE(created_at, fecha, NOW()) DESC
+       ORDER BY COALESCE(fecha_creacion, fecha_actualizacion, NOW()) DESC
        LIMIT 100`,
       [req.user.id_SB]
     );
@@ -354,7 +403,7 @@ module.exports = {
   getNode,
   getFaq,
   getAvisos,
-  createTicket,
+  createTicket: createTicketV1,
   getTickets,
   updateTicket,
   getNotificaciones
