@@ -21,15 +21,72 @@
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  function authHeaders(){ return window.ManttoAuth ? window.ManttoAuth.authHeaders() : {}; }
+  function authHeaders(){
+    if(window.ManttoAuth && typeof window.ManttoAuth.authHeaders === 'function'){
+      const headers = window.ManttoAuth.authHeaders() || {};
+      if(headers.Authorization || headers.authorization) return headers;
+    }
+
+    const token =
+      localStorage.getItem('mantto_token') ||
+      localStorage.getItem('MANTTO_TOKEN') ||
+      localStorage.getItem('token') ||
+      sessionStorage.getItem('mantto_token') ||
+      sessionStorage.getItem('MANTTO_TOKEN') ||
+      sessionStorage.getItem('token') ||
+      '';
+
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  }
+
+  function clearLocalSession(){
+    [
+      'mantto_token',
+      'MANTTO_TOKEN',
+      'token',
+      'mantto_user',
+      'MANTTO_USER',
+      'user',
+      'auth_user',
+      'session_user',
+      'mantto_session',
+      'MANTTO_SESSION'
+    ].forEach(key => {
+      try{ localStorage.removeItem(key); }catch(e){}
+      try{ sessionStorage.removeItem(key); }catch(e){}
+    });
+  }
+
+  function handleInvalidSession(message){
+    console.warn('Sesión inválida en Home:', message);
+
+    if(window.ManttoAuth && typeof window.ManttoAuth.logout === 'function'){
+      try{ window.ManttoAuth.logout(); return; }catch(e){}
+    }
+
+    clearLocalSession();
+    alert('Tu sesión expiró o pertenece a otro entorno. Inicia sesión nuevamente.');
+    window.location.hash = '#/login';
+  }
 
   async function apiRequest(path, options){
     const opts = options || {};
-    const headers = Object.assign({ 'Accept': 'application/json' }, authHeaders(), opts.headers || {});
+    const headers = Object.assign({ Accept: 'application/json' }, authHeaders(), opts.headers || {});
     if(opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+
     const response = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
     const json = await response.json().catch(() => ({}));
-    if(!response.ok || (json && json.ok === false)) throw new Error((json && json.message) || ('HTTP ' + response.status + ' en ' + path));
+
+    if(response.status === 401){
+      const message = (json && json.message) || 'Sesión inválida';
+      handleInvalidSession(message);
+      throw new Error(message);
+    }
+
+    if(!response.ok || (json && json.ok === false)){
+      throw new Error((json && json.message) || ('HTTP ' + response.status + ' en ' + path));
+    }
+
     return json;
   }
 
@@ -43,7 +100,7 @@
 
   function getCurrentUser(){
     if(window.ManttoAuth && window.ManttoAuth.getUser()) return window.ManttoAuth.getUser();
-    const candidates = ['mantto_user','MANTTO_USER','user','auth_user','session_user'];
+    const candidates = ['mantto_user','MANTTO_USER','user','auth_user','session_user','mantto_session','MANTTO_SESSION'];
     for(const key of candidates){
       try{
         const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
