@@ -118,6 +118,28 @@
     return String(state.user?.correo || state.user?.email || '').trim();
   }
 
+
+  function canSeeTaskForCurrentUser(row){
+    const task = row || {};
+    const tipo = String(task.tipo_pendiente || task.tipo || 'PERSONAL').trim().toUpperCase();
+    const userEmail = currentUserEmail().toLowerCase();
+    const userInitials = currentUserInitials();
+    const creatorEmail = String(task.creado_por_email || task.created_by_email || '').trim().toLowerCase();
+    const responsables = String(task.responsables || '')
+      .split(',')
+      .map(v => String(v || '').trim().toUpperCase())
+      .filter(Boolean);
+
+    if(tipo === 'PERSONAL') return Boolean(userEmail && creatorEmail && creatorEmail === userEmail);
+    if(tipo === 'COLABORATIVA'){
+      return Boolean(
+        (userEmail && creatorEmail && creatorEmail === userEmail) ||
+        (userInitials && responsables.includes(userInitials))
+      );
+    }
+    return false;
+  }
+
   function formatDateInput(value){
     if(!value) return '';
     if(/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value).slice(0,10);
@@ -667,10 +689,16 @@
     try{
       const boot = await apiRequest('/api/home/bootstrap');
       const data = boot.data || boot || {};
-      state.tasks = (data.pendientes || []).map(normalizeTask);
-      state.notifications = (data.notificaciones_abiertas || []).map(normalizeNotification);
-      state.unreadNotifications = (data.notificaciones_nuevas || []).map(normalizeNotification);
-      state.activities = (data.actividad_reciente || []).map(normalizeActivity);
+      state.tasks = (data.pendientes || []).filter(canSeeTaskForCurrentUser).map(normalizeTask);
+      const visibleTaskIds = new Set(state.tasks.map(t => String(t.id)).filter(Boolean));
+      const canShowHomeRelatedItem = item => {
+        const route = item && item.route ? item.route : {};
+        if(String(route.module || '').toLowerCase() !== 'tareas') return true;
+        return Boolean(route.id && visibleTaskIds.has(String(route.id)));
+      };
+      state.notifications = (data.notificaciones_abiertas || []).map(normalizeNotification).filter(canShowHomeRelatedItem);
+      state.unreadNotifications = (data.notificaciones_nuevas || []).map(normalizeNotification).filter(canShowHomeRelatedItem);
+      state.activities = (data.actividad_reciente || []).map(normalizeActivity).filter(canShowHomeRelatedItem);
       if(data.catalogos) state.catalogs = Object.assign({ areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [] }, state.catalogs || {}, data.catalogos);
       updateHeaderBadge(state.unreadNotifications.length);
       state.apiOk = true;

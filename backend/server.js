@@ -8,6 +8,10 @@ const db = require('./src/config/db');
 const authRoutes = require('./src/routes/auth.routes');
 const dataRoutes = require('./src/routes/data.routes');
 const supportRoutes = require('./src/routes/support.routes');
+const usuariosRoutes = require('./src/routes/usuarios.routes');
+const catalogosRoutes = require('./src/routes/catalogos.routes');
+const devRoutes = require('./src/routes/dev.routes');
+const { startPortafolioCierreMensualJob } = require('./src/jobs/portafolioCierreMensual.job');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,8 +41,12 @@ app.get('/api/health', async (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/catalogos', catalogosRoutes);
+app.use('/api/dev', devRoutes);
 app.use('/api', dataRoutes);
 
 app.listen(PORT, () => {
   console.log('Mantto Gestor API escuchando en http://localhost:' + PORT);
+  startPortafolioCierreMensualJob();
 });

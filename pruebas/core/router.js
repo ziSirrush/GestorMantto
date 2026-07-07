@@ -141,6 +141,60 @@
   }
 
 
+  function showCallCenter(){
+    const view=document.getElementById('view-callcenter');
+    if(!view) return false;
+    activateViewById('view-callcenter');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="cc-page"><section class="cc-card cc-head"><div><p class="cc-eyebrow">Cargando módulo</p><h1>Dashboard Call Center</h1><p>Inicializando vista de pruebas...</p></div></section></div>';
+    }
+    setActiveSide('callcenter');
+    updateContext('callcenter','Dashboard Call Center · KPIs y llamadas por período desde Aiven');
+    if(window.ManttoCallCenter) window.ManttoCallCenter.init();
+    return true;
+  }
+
+
+  function showOperativo(){
+    const view=document.getElementById('view-operativo');
+    if(!view) return false;
+    activateViewById('view-operativo');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="op-page"><section class="op-card op-head"><div><p class="op-eyebrow">Cargando módulo</p><h1>Dashboard Operativo</h1><p>Inicializando vista de pruebas...</p></div></section></div>';
+    }
+    setActiveSide('operativo');
+    updateContext('operativo','Dashboard Operativo · cumplimiento mensual, preventivos y Vo.Bo. desde Aiven');
+    if(window.ManttoDashboardOperativo) window.ManttoDashboardOperativo.init();
+    return true;
+  }
+
+
+  function showMovimientos(){
+    const view=document.getElementById('view-movimientos');
+    if(!view) return false;
+    activateViewById('view-movimientos');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="mov-page"><section class="mov-card mov-head"><div><p class="mov-eyebrow">Cargando módulo</p><h1>Movimientos de Portafolio</h1><p>Inicializando vista de pruebas...</p></div></section></div>';
+    }
+    setActiveSide('movimientos');
+    updateContext('movimientos','Movimientos de Portafolio · comparación mensual de estatus desde Aiven');
+    if(window.ManttoMovimientosPortafolio) window.ManttoMovimientosPortafolio.init();
+    return true;
+  }
+
+
+
+
+  function showUsuarios(){
+    const view=document.getElementById('view-usuarios');
+    if(!view) return false;
+    activateViewById('view-usuarios');
+    setActiveSide('usuarios');
+    updateContext('usuarios','Mi perfil y directorio de usuarios · datos reales desde Aiven');
+    if(window.ManttoUsuarios) window.ManttoUsuarios.init();
+    return true;
+  }
+
   async function showNotifications(payload){
     const view = activateViewById('view-placeholder');
     setActiveSide('notifications');
@@ -190,6 +244,10 @@
     if(route==='criticos' && showCriticos()) return;
     if(route==='portafolio' && showPortafolio()) return;
     if(route==='proyectos' && showProyectos()) return;
+    if(route==='callcenter' && showCallCenter()) return;
+    if(route==='operativo' && showOperativo()) return;
+    if(route==='movimientos' && showMovimientos()) return;
+    if(route==='usuarios' && showUsuarios()) return;
     if(route==='help' && showView('help','Centro de Ayuda · flujos y FAQ desde Aiven')) return;
     if(route==='notifications'){ showNotifications(payload); return; }
     if(route==='support-request' && showView('support-request','Crear solicitud de soporte en Aiven')) return;

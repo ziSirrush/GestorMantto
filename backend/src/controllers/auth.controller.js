@@ -6,6 +6,12 @@ const { loadUserRoles } = require('../middleware/auth.middleware');
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
 
+function validatePasswordRules(password) {
+  const value = String(password || '');
+  if (value.length < 10) return 'La contraseña debe tener mínimo 10 caracteres.';
+  return null;
+}
+
 async function audit(usuarioId, eventType, eventDetails, ipAddress) {
   try {
     await db.query(
@@ -167,8 +173,9 @@ async function firstLoginPassword(req, res) {
     return res.status(400).json({ ok: false, message: 'La nueva contraseña es obligatoria.' });
   }
 
-  if (String(newPassword).length < 10) {
-    return res.status(400).json({ ok: false, message: 'La contraseña debe tener mínimo 10 caracteres.' });
+  const passwordError = validatePasswordRules(newPassword);
+  if (passwordError) {
+    return res.status(400).json({ ok: false, message: passwordError });
   }
 
   try {
@@ -349,8 +356,9 @@ async function recoveryReset(req, res) {
     return res.status(400).json({ ok: false, message: 'Correo, respuesta y nueva contraseña son obligatorios.' });
   }
 
-  if (String(newPassword).length < 10) {
-    return res.status(400).json({ ok: false, message: 'La contraseña debe tener mínimo 10 caracteres.' });
+  const passwordError = validatePasswordRules(newPassword);
+  if (passwordError) {
+    return res.status(400).json({ ok: false, message: passwordError });
   }
 
   try {
@@ -398,8 +406,198 @@ async function recoveryReset(req, res) {
   }
 }
 
+
+async function me(req, res) {
+  const authUser = req.user;
+  try {
+    const [rows] = await db.query(`
+      SELECT
+        u.id_SB,
+        u.nombre,
+        u.iniciales,
+        u.puesto,
+        u.area,
+        u.empresa,
+        u.rol_id,
+        r.rol,
+        r.descripcion AS rol_descripcion,
+        u.correo,
+        u.reporta_a,
+        jefe.nombre AS reporta_a_nombre,
+        u.estado,
+        u.id_pregunta,
+        ps.pregunta AS pregunta_seguridad,
+        u.ultimo_acceso,
+        u.password_changed_at,
+        u.first_login_completed_at,
+        u.two_factor_enabled,
+        COALESCE((
+          SELECT JSON_ARRAYAGG(JSON_OBJECT(
+            'id_rol', rr.id_rol,
+            'rol', rr.rol,
+            'principal', ur.principal,
+            'activo', ur.activo
+          ))
+          FROM usuario_roles ur
+          INNER JOIN roles rr ON rr.id_rol = ur.id_rol
+          WHERE ur.id_usuario = u.id_SB
+            AND ur.activo = 1
+            AND rr.estado = 1
+        ), JSON_ARRAY()) AS roles_detalle,
+        COALESCE((
+          SELECT JSON_ARRAYAGG(JSON_OBJECT(
+            'id_zona', z.id_zona,
+            'zona', z.zona,
+            'nombre', z.nombre
+          ))
+          FROM usuario_zop uz
+          INNER JOIN z_op z ON z.id_zona = uz.zona_id
+          WHERE uz.usuario_id = u.id_SB
+            AND uz.estado = 1
+            AND z.estado = 1
+        ), JSON_ARRAY()) AS zonas_detalle
+      FROM usuarios u
+      LEFT JOIN roles r ON r.id_rol = u.rol_id
+      LEFT JOIN usuarios jefe ON jefe.id_SB = u.reporta_a
+      LEFT JOIN preguntas_seguridad ps ON ps.id_pregunta = u.id_pregunta
+      WHERE u.id_SB = ?
+      LIMIT 1
+    `, [authUser.id_SB]);
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+
+    return res.json({ ok: true, source: 'aiven', data: rows[0] });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando perfil.', error: error.message });
+  }
+}
+
+async function changePassword(req, res) {
+  const { current_password, currentPassword, new_password, newPassword, confirm_password, confirmPassword } = req.body;
+  const current = current_password || currentPassword;
+  const next = new_password || newPassword;
+  const confirm = confirm_password || confirmPassword;
+  const ipAddress = req.ip;
+
+  if (!current || !next || !confirm) {
+    return res.status(400).json({ ok: false, message: 'Contraseña actual, nueva y confirmación son obligatorias.' });
+  }
+
+  if (next !== confirm) {
+    return res.status(400).json({ ok: false, message: 'La contraseña nueva y su confirmación no coinciden.' });
+  }
+
+  const passwordError = validatePasswordRules(next);
+  if (passwordError) {
+    return res.status(400).json({ ok: false, message: passwordError });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT id_SB, pass FROM usuarios WHERE id_SB = ? AND estado = 1 LIMIT 1`,
+      [req.user.id_SB]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+
+    const validCurrent = await bcrypt.compare(current, rows[0].pass);
+    if (!validCurrent) {
+      await audit(req.user.id_SB, 'PROFILE_PASSWORD_CHANGE_FAILED', 'Contraseña actual incorrecta', ipAddress);
+      return res.status(401).json({ ok: false, message: 'Los datos actuales no coinciden. Contacta a soporte.' });
+    }
+
+    const hash = await bcrypt.hash(next, 10);
+    await db.query(
+      `UPDATE usuarios
+       SET pass = ?,
+           must_change_password = 0,
+           password_changed_at = NOW(),
+           failed_login_attempts = 0,
+           locked_until = NULL
+       WHERE id_SB = ?`,
+      [hash, req.user.id_SB]
+    );
+
+    await audit(req.user.id_SB, 'PROFILE_PASSWORD_CHANGED', 'Contraseña actualizada desde Mi Perfil', ipAddress);
+    return res.json({ ok: true, message: 'Contraseña actualizada correctamente.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error actualizando contraseña.', error: error.message });
+  }
+}
+
+async function changeSecurityQuestion(req, res) {
+  const {
+    current_password,
+    currentPassword,
+    current_answer,
+    currentAnswer,
+    id_pregunta,
+    question_id,
+    new_answer,
+    newAnswer
+  } = req.body;
+  const currentPass = current_password || currentPassword;
+  const currentAnswerValue = current_answer || currentAnswer;
+  const preguntaId = id_pregunta || question_id;
+  const newAnswerValue = new_answer || newAnswer;
+  const ipAddress = req.ip;
+
+  if (!currentPass || !currentAnswerValue || !preguntaId || !newAnswerValue) {
+    return res.status(400).json({ ok: false, message: 'Contraseña actual, respuesta actual, nueva pregunta y nueva respuesta son obligatorias.' });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT id_SB, pass, respuesta_recuperacion
+       FROM usuarios
+       WHERE id_SB = ?
+         AND estado = 1
+       LIMIT 1`,
+      [req.user.id_SB]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+
+    const user = rows[0];
+    if (!user.respuesta_recuperacion) {
+      return res.status(400).json({ ok: false, message: 'No hay respuesta actual configurada. Contacta a soporte.' });
+    }
+
+    const validPass = await bcrypt.compare(currentPass, user.pass);
+    const validAnswer = await bcrypt.compare(String(currentAnswerValue).trim().toLowerCase(), user.respuesta_recuperacion);
+
+    if (!validPass || !validAnswer) {
+      await audit(req.user.id_SB, 'PROFILE_SECURITY_QUESTION_CHANGE_FAILED', 'Datos actuales incorrectos', ipAddress);
+      return res.status(401).json({ ok: false, message: 'Los datos actuales no coinciden. Contacta a soporte.' });
+    }
+
+    const newAnswerHash = await bcrypt.hash(String(newAnswerValue).trim().toLowerCase(), 10);
+    await db.query(
+      `UPDATE usuarios
+       SET id_pregunta = ?,
+           respuesta_recuperacion = ?
+       WHERE id_SB = ?`,
+      [preguntaId, newAnswerHash, req.user.id_SB]
+    );
+
+    await audit(req.user.id_SB, 'PROFILE_SECURITY_QUESTION_CHANGED', 'Pregunta de seguridad actualizada desde Mi Perfil', ipAddress);
+    return res.json({ ok: true, message: 'Pregunta de seguridad actualizada correctamente.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error actualizando pregunta de seguridad.', error: error.message });
+  }
+}
+
 module.exports = {
   login,
+  me,
+  changePassword,
+  changeSecurityQuestion,
   firstLoginPassword,
   securityQuestions,
   firstLoginSecurityQuestion,

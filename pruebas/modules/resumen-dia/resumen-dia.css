@@ -208,3 +208,22 @@
 .rd-ticket-vobo-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.rd-ticket-vobo-actions button{height:38px;border-radius:12px;border:1px solid #1B4FD8;background:#1B4FD8;color:#fff;font-weight:900;padding:0 14px;cursor:pointer}.rd-ticket-vobo-actions button:disabled{opacity:.6;cursor:wait}
 .rd-ticket-vobo-readonly{padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;background:#fff}.rd-ticket-vobo-readonly .rd-ticket-field{border:1px solid #EDF2F7}
 @media(max-width:760px){.rd-ticket-vobo-grid{grid-template-columns:1fr}.rd-ticket-close-x{width:38px!important;min-width:38px!important;height:38px!important}}
+
+
+/* =====================================================
+   V1.1.6 - Detalles de Resumen en ventana flotante
+===================================================== */
+body.rd-modal-open{overflow:hidden}
+.rd-detail{display:none!important}
+.rd-detail-modal{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(13,46,110,.38);backdrop-filter:blur(3px)}
+.rd-detail-modal[hidden]{display:none!important}
+.rd-detail-modal-panel{width:min(1280px,calc(100vw - 36px));max-height:calc(100vh - 36px);display:grid;grid-template-rows:auto minmax(0,1fr);background:#fff;border:1px solid rgba(217,226,239,.95);border-radius:22px;box-shadow:0 22px 70px rgba(13,46,110,.24);overflow:hidden}
+.rd-detail-modal-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;background:linear-gradient(135deg,#F8FAFC,#EEF4FF);border-bottom:1px solid #D9E2EF}
+.rd-detail-modal-head h2{margin:0;color:#0D2E6E;font-size:18px;font-weight:950;letter-spacing:-.02em}
+.rd-detail-modal-head p{margin:3px 0 0;color:#667085;font-size:12px;font-weight:750}
+.rd-detail-modal-close{width:38px;height:38px;border:none;border-radius:13px;background:#fff;color:#0D2E6E;font-size:26px;font-weight:900;line-height:1;box-shadow:0 8px 22px rgba(13,46,110,.12);cursor:pointer}
+.rd-detail-modal-close:hover{background:#0D2E6E;color:#fff}
+.rd-detail-modal-body{min-height:0;overflow:auto;padding:14px;background:#F8FAFC}
+.rd-detail-table-wrap{max-height:none;border:1px solid #D9E2EF;border-radius:16px;background:#fff;overflow:auto}
+.rd-detail-empty{padding:28px;text-align:center;background:#fff;border:1px solid #D9E2EF;border-radius:16px}
+@media(max-width:760px){.rd-detail-modal{padding:0}.rd-detail-modal-panel{width:100vw;height:100vh;max-height:100vh;border-radius:0}.rd-detail-modal-head{align-items:flex-start}.rd-detail-modal-body{padding:10px}.rd-detail-table-wrap{border-radius:12px}}

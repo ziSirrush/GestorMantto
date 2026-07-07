@@ -20,7 +20,7 @@ function likeParam(value) {
 
 function formatProyectoNombre(value) {
   const raw = String(value || '').trim();
-  const m = raw.match(/^(\d+)-(\d{2})-(\d{2})$/);
+  const m = raw.match(/^(\d+)-(\d{2})-(\d{2})(?:T.*)?$/);
   if (!m) return raw;
   const numero = String(Number(m[1]) || m[1].replace(/^0+/, '') || m[1]);
   const meses = {
@@ -35,10 +35,12 @@ function formatProyectoNombre(value) {
 
 function decorateProyectoRow(row) {
   if (!row) return row;
+  const codigo = row.proyecto_codigo || row.proyecto;
+  const rawNombre = row.proyecto_nombre || row.proyecto_cc_x_port || codigo;
   return {
     ...row,
-    proyecto_codigo: row.proyecto_codigo || row.proyecto,
-    proyecto_nombre: row.proyecto_nombre || formatProyectoNombre(row.proyecto_codigo || row.proyecto)
+    proyecto_codigo: codigo,
+    proyecto_nombre: formatProyectoNombre(rawNombre || codigo)
   };
 }
 
@@ -62,12 +64,13 @@ function portafolioFilters(req, alias) {
     clauses.push(`(
       ${a}.numero_equipo LIKE ?
       OR ${a}.proyecto LIKE ?
+      OR ${a}.proyecto_cc_x_port LIKE ?
       OR ${a}.ciudad LIKE ?
       OR ${a}.estado LIKE ?
       OR ${a}.identificacion_sitio LIKE ?
       OR ${a}.supervisor_zona LIKE ?
     )`);
-    params.push(search, search, search, search, search, search);
+    params.push(search, search, search, search, search, search, search);
   }
   if (operativo === 'parado') {
     clauses.push(`UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%'`);
@@ -95,6 +98,8 @@ const latestTicketJoin = `
 const portafolioBaseSelect = `
   p.id_portafolio,
   p.proyecto,
+  p.proyecto AS proyecto_codigo,
+  COALESCE(NULLIF(TRIM(p.proyecto_cc_x_port), ''), p.proyecto) AS proyecto_nombre,
   p.ciudad,
   p.estado,
   p.numero_equipo,
@@ -143,6 +148,134 @@ const portafolioBaseSelect = `
   END AS dias_parado
 `;
 
+
+async function getPortafolioMovimientos(req, res) {
+  try {
+    const [cols] = await db.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'portafolio'
+        AND COLUMN_NAME IN ('estatus_ul_mes','estatus_ul_mes_fecha')
+    `);
+    const available = new Set(cols.map(c => c.COLUMN_NAME));
+    if (!available.has('estatus_ul_mes')) {
+      return res.json({
+        ok: true,
+        source: 'aiven',
+        warning: 'Movimientos pendiente: la tabla portafolio no tiene estatus_ul_mes para comparar contra el corte mensual.',
+        kpis: { total: 0, degradados: 0, recuperados: 0, cambios: 0 },
+        corte: null,
+        filters: { zonas: [] },
+        data: []
+      });
+    }
+
+    const params = [];
+    const clauses = [
+      'p.estado_registro = 1',
+      '(p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN (\'SI\',\'SÍ\',\'1\',\'TRUE\',\'INACTIVO\'))',
+      'p.estatus_ul_mes IS NOT NULL',
+      "TRIM(p.estatus_ul_mes) <> ''",
+      'p.estatus_servicio IS NOT NULL',
+      "TRIM(p.estatus_servicio) <> ''",
+      'LOWER(TRIM(p.estatus_ul_mes)) <> LOWER(TRIM(p.estatus_servicio))'
+    ];
+
+    const zona = likeParam(req.query.zona);
+    const search = likeParam(req.query.search || req.query.buscar);
+    const tipo = String(req.query.tipo || '').trim().toUpperCase();
+
+    if (zona) { clauses.push('p.zona_operativa LIKE ?'); params.push(zona); }
+    if (search) {
+      clauses.push(`(
+        p.numero_equipo LIKE ?
+        OR p.proyecto LIKE ?
+        OR p.proyecto_cc_x_port LIKE ?
+        OR p.ciudad LIKE ?
+        OR p.estado LIKE ?
+        OR p.identificacion_sitio LIKE ?
+        OR p.supervisor_zona LIKE ?
+      )`);
+      params.push(search, search, search, search, search, search, search);
+    }
+
+    const tipoExpr = `CASE
+      WHEN LOWER(TRIM(p.estatus_ul_mes)) IN ('en servicio','servicio')
+        AND LOWER(TRIM(p.estatus_servicio)) NOT IN ('en servicio','servicio') THEN 'DEGRADADO'
+      WHEN LOWER(TRIM(p.estatus_ul_mes)) NOT IN ('en servicio','servicio')
+        AND LOWER(TRIM(p.estatus_servicio)) IN ('en servicio','servicio') THEN 'RECUPERADO'
+      ELSE 'CAMBIO'
+    END`;
+
+    if (['DEGRADADO', 'RECUPERADO', 'CAMBIO'].includes(tipo)) {
+      clauses.push(`${tipoExpr} = ?`);
+      params.push(tipo);
+    }
+
+    const fechaCorteExpr = available.has('estatus_ul_mes_fecha') ? 'p.estatus_ul_mes_fecha' : 'NULL';
+    const where = clauses.join(' AND ');
+
+    const [rows] = await db.query(`
+      SELECT
+        p.id_portafolio,
+        p.numero_equipo,
+        p.proyecto,
+        p.proyecto AS proyecto_codigo,
+        COALESCE(NULLIF(TRIM(p.proyecto_cc_x_port), ''), p.proyecto) AS proyecto_nombre,
+        p.ciudad,
+        p.estado,
+        p.identificacion_sitio,
+        p.zona_operativa AS zona,
+        p.supervisor_zona AS supervisor,
+        p.superintendente,
+        p.estatus_ul_mes AS estatus_anterior,
+        p.estatus_servicio AS estatus_actual,
+        ${fechaCorteExpr} AS fecha_corte,
+        ${tipoExpr} AS tipo_movimiento
+      FROM portafolio p
+      WHERE ${where}
+      ORDER BY tipo_movimiento ASC, p.zona_operativa ASC, p.proyecto ASC, p.numero_equipo ASC
+      LIMIT 1000
+    `, params);
+
+    const [zonas] = await db.query(`
+      SELECT DISTINCT zona_operativa AS value
+      FROM portafolio p
+      WHERE p.estado_registro = 1
+        AND p.zona_operativa IS NOT NULL
+        AND p.zona_operativa <> ''
+      ORDER BY p.zona_operativa ASC
+    `);
+
+    const kpis = rows.reduce((acc, row) => {
+      acc.total += 1;
+      if (row.tipo_movimiento === 'DEGRADADO') acc.degradados += 1;
+      else if (row.tipo_movimiento === 'RECUPERADO') acc.recuperados += 1;
+      else acc.cambios += 1;
+      return acc;
+    }, { total: 0, degradados: 0, recuperados: 0, cambios: 0 });
+
+    const corte = rows.map(r => r.fecha_corte).filter(Boolean).sort().pop() || null;
+    const decoratedRows = rows.map(decorateProyectoRow);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      kpis,
+      corte,
+      filters: { zonas: zonas.map(r => r.value).filter(Boolean) },
+      data: decoratedRows
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando movimientos de portafolio.',
+      error: error.message
+    });
+  }
+}
+
 async function getPortafolioFiltros(req, res) {
   try {
     const [zonas] = await db.query(`
@@ -178,6 +311,91 @@ async function getPortafolioFiltros(req, res) {
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando filtros de portafolio.', error: error.message });
+  }
+}
+
+async function getPortafolioMovimientoDetalle(req, res) {
+  const codigo = String(req.params.codigo || '').trim();
+  if (!codigo) return res.status(400).json({ ok: false, message: 'No se recibio numero de equipo.' });
+
+  try {
+    const [equipos] = await db.query(`
+      SELECT
+        ${portafolioBaseSelect},
+        p.estatus_ul_mes,
+        p.estatus_ul_mes_fecha,
+        CASE
+          WHEN LOWER(TRIM(COALESCE(p.estatus_ul_mes,''))) IN ('en servicio','servicio')
+            AND LOWER(TRIM(COALESCE(p.estatus_servicio,''))) NOT IN ('en servicio','servicio') THEN 'DEGRADADO'
+          WHEN LOWER(TRIM(COALESCE(p.estatus_ul_mes,''))) NOT IN ('en servicio','servicio')
+            AND LOWER(TRIM(COALESCE(p.estatus_servicio,''))) IN ('en servicio','servicio') THEN 'RECUPERADO'
+          ELSE 'CAMBIO'
+        END AS tipo_movimiento
+      FROM portafolio p
+      ${latestTicketJoin}
+      WHERE p.numero_equipo = ?
+      LIMIT 1
+    `, [codigo]);
+
+    if (!equipos.length) return res.status(404).json({ ok: false, message: 'Equipo no encontrado en portafolio.' });
+    const equipo = decorateProyectoRow(equipos[0]);
+
+    let proyecto = null;
+    if (equipo.proyecto) {
+      const [proyectos] = await db.query(`
+        SELECT
+          p.proyecto,
+          p.proyecto AS proyecto_codigo,
+          COALESCE(NULLIF(MAX(TRIM(p.proyecto_cc_x_port)), ''), p.proyecto) AS proyecto_nombre,
+          MAX(p.ciudad) AS ciudad,
+          MAX(p.estado) AS estado,
+          MAX(p.zona_operativa) AS zona,
+          MAX(p.supervisor_zona) AS supervisor,
+          MAX(p.superintendente) AS superintendente,
+          COUNT(*) AS equipos,
+          SUM(CASE WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 1 ELSE 0 END) AS no_en_servicio,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(p.estatus_servicio,''))) IN ('en servicio','servicio') THEN 1 ELSE 0 END) AS en_servicio
+        FROM portafolio p
+        WHERE p.estado_registro = 1
+          AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
+          AND p.proyecto = ?
+        GROUP BY p.proyecto
+        LIMIT 1
+      `, [equipo.proyecto]);
+      proyecto = proyectos[0] ? decorateProyectoRow(proyectos[0]) : null;
+    }
+
+    const [tickets] = await db.query(`
+      SELECT
+        t.ticket,
+        t.codigo_equipo,
+        t.equipo,
+        t.folio,
+        t.estado_ticket,
+        t.estado,
+        t.proyecto,
+        t.descripcion,
+        t.fecha_reporte,
+        t.fecha_cierre,
+        t.responsabilidad,
+        t.causa_falla,
+        t.causa,
+        t.tiempo_llegada,
+        t.tiempo_solucion,
+        t.estatus_equipo_final
+      FROM tickets t
+      WHERE t.codigo_equipo = ?
+      ORDER BY t.fecha_reporte DESC, t.id DESC
+      LIMIT 300
+    `, [codigo]);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: { equipo, proyecto, tickets: tickets.map(decorateProyectoRow) }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando detalle de movimiento de portafolio.', error: error.message });
   }
 }
 
@@ -1087,6 +1305,39 @@ async function getNotificaciones(req, res) {
       params.push(user.id);
     }
 
+    const userCorreo = String(user.correo || '').trim().toLowerCase();
+    const userIniciales = String(user.iniciales || '').trim().toUpperCase();
+    const canScopeTasks = Boolean(userCorreo && userIniciales);
+    if (canScopeTasks) {
+      where += ` AND (
+        n.accion_notificacion <> 'ABRIR_TAREA'
+        OR n.id_referencia IS NULL
+        OR EXISTS (
+          SELECT 1
+          FROM pendientes p
+          WHERE p.id_pendiente = n.id_referencia
+            AND (
+              (p.tipo_pendiente = 'PERSONAL' AND LOWER(TRIM(p.creado_por_email)) = ?)
+              OR
+              (
+                p.tipo_pendiente = 'COLABORATIVA'
+                AND (
+                  LOWER(TRIM(p.creado_por_email)) = ?
+                  OR EXISTS (
+                    SELECT 1
+                    FROM pendientes_usuarios pu_auth
+                    WHERE pu_auth.id_pendiente = p.id_pendiente
+                      AND pu_auth.tipo_relacion = 'RESPONSABLE'
+                      AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
+                  )
+                )
+              )
+            )
+        )
+      )`;
+      params.push(userCorreo, userCorreo, userIniciales);
+    }
+
     const leido = notificationStateFilter(req.query.estado || req.query.status || req.query.tipo_vista);
     if (leido !== null) {
       where += ' AND n.leido = ?';
@@ -1162,6 +1413,34 @@ async function getHomeBootstrap(req, res) {
     const allowedEmpresas = await resolveAllowedEmpresas(user);
     const empresa = (allowedEmpresas.length === 1 ? allowedEmpresas[0] : (user.empresa || null));
 
+    const userCorreo = String(user.correo || '').trim().toLowerCase();
+    const userIniciales = String(user.iniciales || '').trim().toUpperCase();
+
+    if (!userCorreo || !userIniciales) {
+      return res.status(401).json({ ok: false, message: 'Sesion sin usuario valido para consultar Home.' });
+    }
+
+    const userTaskWhere = `
+      (
+        (p.tipo_pendiente = 'PERSONAL' AND LOWER(TRIM(p.creado_por_email)) = ?)
+        OR
+        (
+          p.tipo_pendiente = 'COLABORATIVA'
+          AND (
+            LOWER(TRIM(p.creado_por_email)) = ?
+            OR EXISTS (
+              SELECT 1
+              FROM pendientes_usuarios pu_auth
+              WHERE pu_auth.id_pendiente = p.id_pendiente
+                AND pu_auth.tipo_relacion = 'RESPONSABLE'
+                AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
+            )
+          )
+        )
+      )
+    `;
+    const userTaskParams = [userCorreo, userCorreo, userIniciales];
+
     const [pendientes] = await db.query(`
       SELECT
         p.*,
@@ -1190,6 +1469,7 @@ async function getHomeBootstrap(req, res) {
         FROM pendientes_usuarios
         GROUP BY id_pendiente
       ) rel ON rel.id_pendiente = p.id_pendiente
+      WHERE ${userTaskWhere}
       ORDER BY
         CASE p.prioridad WHEN 'CRITICA' THEN 1 WHEN 'ALTA' THEN 2 WHEN 'MEDIA' THEN 3 WHEN 'BAJA' THEN 4 ELSE 5 END,
         CASE p.estatus WHEN 'Pendiente' THEN 1 WHEN 'En proceso' THEN 2 WHEN 'Cerrado' THEN 3 ELSE 4 END,
@@ -1197,25 +1477,36 @@ async function getHomeBootstrap(req, res) {
         p.due_date ASC,
         p.updated_at DESC
       LIMIT 200
-    `);
+    `, userTaskParams);
 
     const notifParams = [];
-    let notifWhere = 'WHERE activo = 1';
-    if (user.id) { notifWhere += ' AND id_usuario = ?'; notifParams.push(user.id); }
+    let notifWhere = 'WHERE n.activo = 1';
+    if (user.id) { notifWhere += ' AND n.id_usuario = ?'; notifParams.push(user.id); }
+    notifWhere += ` AND (
+      n.accion_notificacion <> 'ABRIR_TAREA'
+      OR n.id_referencia IS NULL
+      OR EXISTS (
+        SELECT 1
+        FROM pendientes p
+        WHERE p.id_pendiente = n.id_referencia
+          AND ${userTaskWhere}
+      )
+    )`;
+    const notifScopedParams = [...notifParams, ...userTaskParams];
 
     const [notificacionesNuevas] = await db.query(`
-      SELECT * FROM sup_notificaciones
-      ${notifWhere} AND leido = 0
-      ORDER BY fecha_creacion DESC
+      SELECT n.* FROM sup_notificaciones n
+      ${notifWhere} AND n.leido = 0
+      ORDER BY n.fecha_creacion DESC
       LIMIT 30
-    `, notifParams);
+    `, notifScopedParams);
 
     const [notificacionesAbiertas] = await db.query(`
-      SELECT * FROM sup_notificaciones
-      ${notifWhere} AND leido = 1
-      ORDER BY COALESCE(fecha_lectura, fecha_creacion) DESC, fecha_creacion DESC
+      SELECT n.* FROM sup_notificaciones n
+      ${notifWhere} AND n.leido = 1
+      ORDER BY COALESCE(n.fecha_lectura, n.fecha_creacion) DESC, n.fecha_creacion DESC
       LIMIT 80
-    `, notifParams);
+    `, notifScopedParams);
 
     const [actividades] = await db.query(`
       SELECT * FROM (
@@ -1228,6 +1519,7 @@ async function getHomeBootstrap(req, res) {
           '✅' AS icono,
           p.id_pendiente AS id_referencia
         FROM pendientes p
+        WHERE ${userTaskWhere}
         UNION ALL
         SELECT
           pc.id_comentario AS id,
@@ -1240,10 +1532,11 @@ async function getHomeBootstrap(req, res) {
         FROM pendientes_comentarios pc
         INNER JOIN pendientes p ON p.id_pendiente = pc.id_pendiente
         LEFT JOIN usuarios u ON u.id_SB = pc.id_usuario
+        WHERE ${userTaskWhere}
       ) x
       ORDER BY fecha_creacion DESC
       LIMIT 20
-    `);
+    `, [...userTaskParams, ...userTaskParams]);
 
     const [areasRows] = await db.query(`
       SELECT DISTINCT area AS value
@@ -1296,32 +1589,65 @@ async function getHomeBootstrap(req, res) {
 }
 
 async function getActividadReciente(req, res) {
+  const user = currentUserRef(req);
   try {
+    const userCorreo = String(user.correo || '').trim().toLowerCase();
+    const userIniciales = String(user.iniciales || '').trim().toUpperCase();
+
+    if (!userCorreo || !userIniciales) {
+      return res.status(401).json({ ok: false, message: 'Sesion sin usuario valido para consultar actividad.' });
+    }
+
+    const userTaskWhere = `
+      (
+        (p.tipo_pendiente = 'PERSONAL' AND LOWER(TRIM(p.creado_por_email)) = ?)
+        OR
+        (
+          p.tipo_pendiente = 'COLABORATIVA'
+          AND (
+            LOWER(TRIM(p.creado_por_email)) = ?
+            OR EXISTS (
+              SELECT 1
+              FROM pendientes_usuarios pu_auth
+              WHERE pu_auth.id_pendiente = p.id_pendiente
+                AND pu_auth.tipo_relacion = 'RESPONSABLE'
+                AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
+            )
+          )
+        )
+      )
+    `;
+    const userTaskParams = [userCorreo, userCorreo, userIniciales];
+
     const [rows] = await db.query(`
-      SELECT
-        p.id_pendiente AS id,
-        'tareas' AS modulo,
-        p.pendiente AS titulo,
-        CONCAT('Pendiente ', LOWER(p.estatus), ' · ', p.tipo_pendiente) AS descripcion,
-        p.updated_at AS fecha_creacion,
-        '✅' AS icono,
-        p.id_pendiente AS id_referencia
-      FROM pendientes p
-      UNION ALL
-      SELECT
-        pc.id_comentario AS id,
-        'tareas' AS modulo,
-        p.pendiente AS titulo,
-        CONCAT(COALESCE(u.iniciales, 'Usuario'), ' agregó comentario') AS descripcion,
-        pc.fecha AS fecha_creacion,
-        '💬' AS icono,
-        p.id_pendiente AS id_referencia
-      FROM pendientes_comentarios pc
-      INNER JOIN pendientes p ON p.id_pendiente = pc.id_pendiente
-      LEFT JOIN usuarios u ON u.id_SB = pc.id_usuario
+      SELECT * FROM (
+        SELECT
+          p.id_pendiente AS id,
+          'tareas' AS modulo,
+          p.pendiente AS titulo,
+          CONCAT('Pendiente ', LOWER(p.estatus), ' · ', p.tipo_pendiente) AS descripcion,
+          p.updated_at AS fecha_creacion,
+          '✅' AS icono,
+          p.id_pendiente AS id_referencia
+        FROM pendientes p
+        WHERE ${userTaskWhere}
+        UNION ALL
+        SELECT
+          pc.id_comentario AS id,
+          'tareas' AS modulo,
+          p.pendiente AS titulo,
+          CONCAT(COALESCE(u.iniciales, 'Usuario'), ' agregó comentario') AS descripcion,
+          pc.fecha AS fecha_creacion,
+          '💬' AS icono,
+          p.id_pendiente AS id_referencia
+        FROM pendientes_comentarios pc
+        INNER JOIN pendientes p ON p.id_pendiente = pc.id_pendiente
+        LEFT JOIN usuarios u ON u.id_SB = pc.id_usuario
+        WHERE ${userTaskWhere}
+      ) x
       ORDER BY fecha_creacion DESC
       LIMIT 20
-    `);
+    `, [...userTaskParams, ...userTaskParams]);
     return res.json({ ok: true, source: 'aiven', data: rows });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando actividad reciente.', error: error.message });
@@ -1350,20 +1676,31 @@ async function getUsuarios(req, res) {
         u.ultimo_acceso,
         u.created_at,
         u.updated_at,
-        COALESCE(
-          JSON_ARRAYAGG(
-            CASE
-              WHEN r2.id_rol IS NULL THEN NULL
-              ELSE JSON_OBJECT(
-                'id_rol', r2.id_rol,
-                'rol', r2.rol,
-                'principal', ur.principal,
-                'activo', ur.activo
-              )
-            END
-          ),
-          JSON_ARRAY()
-        ) AS roles_detalle
+        COALESCE((
+          SELECT JSON_ARRAYAGG(JSON_OBJECT(
+            'id_rol', rr.id_rol,
+            'rol', rr.rol,
+            'principal', ur.principal,
+            'activo', ur.activo
+          ))
+          FROM usuario_roles ur
+          INNER JOIN roles rr ON rr.id_rol = ur.id_rol
+          WHERE ur.id_usuario = u.id_SB
+            AND ur.activo = 1
+            AND rr.estado = 1
+        ), JSON_ARRAY()) AS roles_detalle,
+        COALESCE((
+          SELECT JSON_ARRAYAGG(JSON_OBJECT(
+            'id_zona', z.id_zona,
+            'zona', z.zona,
+            'nombre', z.nombre
+          ))
+          FROM usuario_zop uz
+          INNER JOIN z_op z ON z.id_zona = uz.zona_id
+          WHERE uz.usuario_id = u.id_SB
+            AND uz.estado = 1
+            AND z.estado = 1
+        ), JSON_ARRAY()) AS zonas_detalle
       FROM usuarios u
       LEFT JOIN roles r
         ON r.id_rol = u.rol_id
@@ -1371,31 +1708,6 @@ async function getUsuarios(req, res) {
         ON jefe.id_SB = u.reporta_a
       LEFT JOIN preguntas_seguridad ps
         ON ps.id_pregunta = u.id_pregunta
-      LEFT JOIN usuario_roles ur
-        ON ur.id_usuario = u.id_SB
-       AND ur.activo = 1
-      LEFT JOIN roles r2
-        ON r2.id_rol = ur.id_rol
-       AND r2.estado = 1
-      GROUP BY
-        u.id_SB,
-        u.nombre,
-        u.iniciales,
-        u.puesto,
-        u.area,
-        u.empresa,
-        u.rol_id,
-        r.rol,
-        r.descripcion,
-        u.correo,
-        u.reporta_a,
-        jefe.nombre,
-        u.estado,
-        u.id_pregunta,
-        ps.pregunta,
-        u.ultimo_acceso,
-        u.created_at,
-        u.updated_at
       ORDER BY
         CASE r.rol
           WHEN 'Director General' THEN 1
@@ -2038,6 +2350,8 @@ module.exports = {
   getProyectosFiltros,
   getProyectoDetalle,
   getPortafolioFiltros,
+  getPortafolioMovimientos,
+  getPortafolioMovimientoDetalle,
   getPortafolioDashboard,
   getPortafolioEquipos,
   getPortafolioEquipoDetalle,

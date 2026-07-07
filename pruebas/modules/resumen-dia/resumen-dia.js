@@ -198,13 +198,13 @@
   function pfByCod(cod){ return portafolioItems.find(p=>p.cod===cod); }
   function openEquipo(cod){
     if(!cod) return;
+    if(window.ManttoDetails && window.ManttoDetails.openEquipo) return window.ManttoDetails.openEquipo(cod);
     if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'portafolio', id:cod, source:'resumen-dia'});
-    else if(window.showTab) window.showTab('portafolio');
   }
   function openProyecto(pro){
     if(!pro) return;
+    if(window.ManttoDetails && window.ManttoDetails.openProyecto) return window.ManttoDetails.openProyecto(pro);
     if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'proyectos', id:pro, source:'resumen-dia'});
-    else if(window.showTab) window.showTab('proyectos');
   }
   function formatProyectoName(value){
     const raw=String(value || '').trim();
@@ -238,11 +238,11 @@
     txt('rd-day-label','Sin datos reales');
     txt('rd-day-sub','Verifica que el backend local esté activo y conectado a Aiven');
     ['rd-total','rd-cerrados','rd-encurso','rd-abiertos','rd-blt','rd-cli','rd-atrap','rd-agua','rd-voltaje','rd-criticos-dia','rd-nofunc','rd-avg-llegada','rd-avg-cierre','rd-sla'].forEach(id=>txt(id,'0'));
-    ['rd-cerrados-pct','rd-encurso-pct','rd-abiertos-pct','rd-blt-pct','rd-cli-pct','rd-sla-pct','rd-count','rd-top-eq-count','rd-top-proy-count'].forEach(id=>txt(id,'—'));
+    ['rd-cerrados-pct','rd-encurso-pct','rd-abiertos-pct','rd-blt-pct','rd-cli-pct','rd-sla-pct','rd-count'].forEach(id=>txt(id,'—'));
     ['rd-leg-estado','rd-leg-resp','rd-leg-caf-blt','rd-leg-caf-cli','rd-bar-zona','rd-bar-tipo','rd-bar-edo'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<div class="rd-empty">Sin datos reales para mostrar.</div>'; });
-    ['rd-top-eq-body','rd-tbody','rd-top-proy-body'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<tr><td colspan="9" class="rd-empty">Sin datos reales para mostrar.</td></tr>'; });
+    ['rd-tbody'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<tr><td colspan="9" class="rd-empty">Sin datos reales para mostrar.</td></tr>'; });
     ['rd-svg-estado','rd-svg-resp','rd-svg-caf-blt','rd-svg-caf-cli'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML=''; });
-    const detail = byId('rd-detail'); if(detail){ detail.style.display='none'; detail.innerHTML=''; }
+    hideDetail();
     const pageInfo = byId('rd-page-info'); if(pageInfo) pageInfo.textContent='Página 0 de 0';
   }
 
@@ -266,7 +266,6 @@
     drawDonut('rd-svg-resp','rd-leg-resp',[{l:'BLT',v:blt,rows:data.blt},{l:'Cliente',v:cli,rows:data.cliente},{l:'Sin dato',v:closed.filter(t=>!t.res).length,rows:closed.filter(t=>!t.res)}], closed.length||1);
     const bltRows=tks.filter(t=>t.res==='BLT'), cliRows=tks.filter(t=>t.res==='CLIENTE'); drawDonut('rd-svg-caf-blt','rd-leg-caf-blt', cafCount(bltRows).map(x=>({...x,rows:bltRows.filter(t=>((t.caf||'SIN DATO').replace(/^\d+ - /,'').trim()||'SIN DATO')===x.l)})), bltRows.length||1); drawDonut('rd-svg-caf-cli','rd-leg-caf-cli', cafCount(cliRows).map(x=>({...x,rows:cliRows.filter(t=>((t.caf||'SIN DATO').replace(/^\d+ - /,'').trim()||'SIN DATO')===x.l)})), cliRows.length||1);
     drawBars('rd-bar-zona', groupRows(tks,'zon'), total); drawBars('rd-bar-tipo', groupRows(tks,'prd'), total); drawBars('rd-bar-edo', groupRows(tks,'edo'), total);
-    renderTopEquipos(tks); renderTopProyectos(tks);
     page=0; renderTable(); hideDetail();
   }
   function groupRows(rows,key){ const map={}; rows.forEach(t=>{ const k=t[key]||'Sin dato'; if(!map[k]) map[k]=[]; map[k].push(t); }); return Object.keys(map).sort().map(l=>({l,v:map[l].length,rows:map[l]})).sort((a,b)=>b.v-a.v); }
@@ -323,8 +322,9 @@
   function renderTopEquipos(rows){
     const body=byId('rd-top-eq-body'); if(!body) return;
     const data=topEquiposData(rows); txt('rd-top-eq-count', data.length ? data.length+' equipos' : '');
-    body.innerHTML = data.length ? data.map(e=>`<tr class="rd-click-row" data-equipo="${escapeHtml(e.cod)}"><td>${escapeHtml(e.zon)}</td><td>${escapeHtml(formatProyectoName(e.pro))}</td><td title="${escapeHtml(e.ref)}">${escapeHtml(e.ref)}</td><td><b>${e.total}</b></td><td>${e.blt}</td><td>${e.cli}</td><td>${e.critico?'💥':''}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin equipos para este periodo</td></tr>';
-    body.querySelectorAll('[data-equipo]').forEach(tr=>tr.addEventListener('click',()=>openEquipo(tr.dataset.equipo)));
+    body.innerHTML = data.length ? data.map(e=>`<tr class="rd-click-row" data-equipo="${escapeHtml(e.cod)}"><td>${escapeHtml(e.zon)}</td><td><button class="rd-link" data-proyecto-link="${escapeHtml(e.pro)}">${escapeHtml(formatProyectoName(e.pro))}</button></td><td title="${escapeHtml(e.ref)}">${escapeHtml(e.ref)}</td><td><b>${e.total}</b></td><td>${e.blt}</td><td>${e.cli}</td><td>${e.critico?'💥':''}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin equipos para este periodo</td></tr>';
+    body.querySelectorAll('[data-proyecto-link]').forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();openProyecto(btn.dataset.proyectoLink);}));
+    body.querySelectorAll('tr[data-equipo]').forEach(tr=>tr.addEventListener('click',()=>openEquipo(tr.dataset.equipo)));
   }
   function renderTopProyectos(rows){
     const body=byId('rd-top-proy-body'); if(!body) return;
@@ -335,20 +335,67 @@
   function badge(et){ const cls=et==='Cerrado'?'cerrado':et==='En curso'?'curso':'abierto'; return `<span class="rd-badge ${cls}">${et||'—'}</span>`; }
   function ticketBtn(t){ return `<button class="rd-link" data-ticket="${escapeHtml(t.n)}">${escapeHtml(t.n||'—')}</button>`; }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function renderRows(rows, tbody){ tbody.innerHTML = rows.length ? rows.map(t=>`<tr><td>${ticketBtn(t)}</td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}">${escapeHtml(formatProyectoName(t.pro))}</td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td>${escapeHtml(t.cod||'—')}</td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>openTicket(btn.dataset.ticket))); }
+  function renderRows(rows, tbody){ tbody.innerHTML = rows.length ? rows.map(t=>`<tr><td>${ticketBtn(t)}</td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${escapeHtml(formatProyectoName(t.pro))}</button></td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${escapeHtml(t.cod||'—')}</button></td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); })); tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); })); tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); })); }
   function renderTable(){ const search=nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase(); const et=nrm(byId('rd-filter-et')&&byId('rd-filter-et').value); tableFiltered=currentDayTickets.filter(t=>(!et||t.et===et)&&(!search||(t.n+t.pro+t.zon+t.asu+t.cod).toLowerCase().includes(search))).sort((a,b)=>((b.fr||'')+(b.hr||'')).localeCompare((a.fr||'')+(a.hr||'')) || String(b.n||'').localeCompare(String(a.n||''))); const totalPages=Math.max(1,Math.ceil(tableFiltered.length/pageSize)); if(page>=totalPages) page=totalPages-1; const slice=tableFiltered.slice(page*pageSize,page*pageSize+pageSize); const th=byId('rd-thead'), tb=byId('rd-tbody'); if(th) th.innerHTML='<tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr>'; if(tb) renderRows(slice,tb); txt('rd-count', tableFiltered.length+' tickets'); txt('rd-page-info','Página '+(page+1)+' de '+totalPages+' · '+tableFiltered.length+' tickets'); const p=byId('rd-page-prev'), n=byId('rd-page-next'); if(p)p.disabled=page===0; if(n)n.disabled=page>=totalPages-1; }
-  function showDetail(title, rows){
-    const box=byId('rd-detail'); if(!box) return;
-    const key = String(title || '').trim();
-    if(box.classList.contains('on') && box.dataset.activeDetail === key){ hideDetail(); return; }
-    box.dataset.activeDetail = key;
-    box.className='rd-detail rd-card on';
-    box.innerHTML=`<div class="rd-detail-box"><h3>${escapeHtml(title)} <button class="rd-btn" id="rd-close-detail" type="button">Cerrar ×</button></h3><div class="rd-table-wrap"><table class="rd-table"><thead><tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr></thead><tbody id="rd-detail-body"></tbody></table></div></div>`;
-    renderRows(rows,byId('rd-detail-body'));
-    byId('rd-close-detail').addEventListener('click',hideDetail);
-    box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  function ensureDetailModal(){
+    let modal = byId('rd-detail-modal');
+    if(modal) return modal;
+    modal = document.createElement('section');
+    modal.id = 'rd-detail-modal';
+    modal.className = 'rd-detail-modal';
+    modal.setAttribute('aria-label','Detalle de Resumen del día');
+    modal.setAttribute('aria-modal','true');
+    modal.setAttribute('role','dialog');
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="rd-detail-modal-panel">
+        <div class="rd-detail-modal-head">
+          <div>
+            <h2 id="rd-detail-modal-title">Detalle</h2>
+            <p id="rd-detail-modal-subtitle">Resumen del día</p>
+          </div>
+          <button class="rd-detail-modal-close" id="rd-detail-modal-close" type="button" aria-label="Cerrar detalle" title="Cerrar">×</button>
+        </div>
+        <div class="rd-detail-modal-body" id="rd-detail-modal-body"></div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(ev){ if(ev.target === modal) hideDetail(); });
+    byId('rd-detail-modal-close')?.addEventListener('click', hideDetail);
+    return modal;
   }
-  function hideDetail(){ const box=byId('rd-detail'); if(box){ box.className='rd-detail rd-card'; box.innerHTML=''; box.dataset.activeDetail=''; } }
+  function showDetail(title, rows){
+    const modal = ensureDetailModal();
+    const body = byId('rd-detail-modal-body');
+    const titleEl = byId('rd-detail-modal-title');
+    const subEl = byId('rd-detail-modal-subtitle');
+    const safeTitle = title || 'Detalle';
+    if(titleEl) titleEl.textContent = safeTitle;
+    if(subEl) subEl.textContent = (rows && rows.length ? rows.length : 0) + ' registros encontrados';
+    modal.dataset.activeDetail = safeTitle;
+    modal.hidden = false;
+    modal.classList.add('open');
+    document.body.classList.add('rd-modal-open');
+    if(!body) return;
+    if(!rows.length){
+      body.innerHTML = '<div class="rd-empty rd-detail-empty">Sin datos para ' + escapeHtml(safeTitle) + '</div>';
+      return;
+    }
+    body.innerHTML = `<div class="rd-table-wrap rd-detail-table-wrap"><table class="rd-table"><thead><tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr></thead><tbody id="rd-detail-body"></tbody></table></div>`;
+    renderRows(rows, byId('rd-detail-body'));
+  }
+  function hideDetail(){
+    const modal = byId('rd-detail-modal');
+    if(modal){
+      modal.classList.remove('open');
+      modal.hidden = true;
+      modal.dataset.activeDetail = '';
+      const body = byId('rd-detail-modal-body');
+      if(body) body.innerHTML = '';
+    }
+    document.body.classList.remove('rd-modal-open');
+    const box=byId('rd-detail');
+    if(box){ box.className='rd-detail rd-card'; box.innerHTML=''; box.dataset.activeDetail=''; box.style.display='none'; }
+  }
   function ticketField(label, value, cls){
     const safe = escapeHtml(value || '—');
     return `<div class="rd-ticket-field"><label>${escapeHtml(label)}</label><span class="${cls||''}">${safe}</span></div>`;
@@ -504,8 +551,8 @@
     const goEquipo = byId('rd-ticket-go-equipo'); if(goEquipo){ goEquipo.disabled = !t.cod; goEquipo.onclick = () => openEquipo(t.cod); }
     const goProyecto = byId('rd-ticket-go-proyecto'); if(goProyecto){ goProyecto.disabled = !t.pro; goProyecto.onclick = () => openProyecto(t.pro); }
   }
-  function bind(){ byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
+  function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
   async function load(){ const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); }
   function init(){ if(!byId('view-resumen')) return; if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
-  window.ManttoResumenDia = { init, load, _detailData:{} };
+  window.ManttoResumenDia = { init, load, openTicket, _detailData:{} };
 })();

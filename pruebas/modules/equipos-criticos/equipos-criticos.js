@@ -181,11 +181,13 @@
   function renderEquipos(){
     const body=$('ec-eq-body');
     if(!state.eq.rows.length){ body.innerHTML='<tr><td colspan="12" class="ec-empty">Sin equipos críticos para este criterio</td></tr>'; }
-    else body.innerHTML=state.eq.rows.map(r=>`<tr>
-      <td>${esc(r.zona)}</td><td>${esc(formatProyectoName(r.proyecto))}</td><td class="ec-code">${esc(r.codigo_equipo)}</td><td>${esc(r.referencia_en_sitio)}</td><td>${esc(r.estatus_servicio)}</td>
+    else body.innerHTML=state.eq.rows.map(r=>`<tr class="ec-click-row" data-ec-equipo="${esc(r.codigo_equipo)}">
+      <td>${esc(r.zona)}</td><td><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${esc(formatProyectoName(r.proyecto))}</button></td><td class="ec-code"><button class="ec-link" type="button" data-equipo="${esc(r.codigo_equipo)}">${esc(r.codigo_equipo)}</button></td><td>${esc(r.referencia_en_sitio)}</td><td>${esc(r.estatus_servicio)}</td>
       <td class="ec-num">${esc(r.calls_anio)}</td><td class="ec-num"><span class="ec-tag">${esc(r.fallas_blt_periodo)}</span></td><td>${date(r.ultimo_blt)}</td>
       <td class="ec-num">${esc(r.resp_cliente_periodo)}</td><td>${date(r.ultimo_cliente)}</td><td class="ec-num">${r.mtbc_dias==null?'—':esc(r.mtbc_dias)+' d'}</td>
       <td><button class="ec-btn" type="button" onclick="ManttoEquiposCriticos.openEquipo('${esc(r.codigo_equipo)}')">Ver</button></td></tr>`).join('');
+    if(window.ManttoDetails && window.ManttoDetails.bindLinks) window.ManttoDetails.bindLinks(body);
+    body.querySelectorAll('tr[data-ec-equipo]').forEach(tr=>tr.addEventListener('click', ev=>{ if(ev.target.closest('button')) return; openEquipo(tr.dataset.ecEquipo); }));
     renderPage('eq','ec-eq');
     $('ec-eq-count').textContent=`${state.eq.total} equipos · mostrando ${state.eq.rows.length}`;
   }
@@ -265,10 +267,11 @@
     const body=$('ec-pro-body');
     if(!state.pro.rows.length){ body.innerHTML='<tr><td colspan="10" class="ec-empty">Sin proyectos críticos para este criterio</td></tr>'; }
     else body.innerHTML=state.pro.rows.map(r=>`<tr>
-      <td>${esc(r.zona)}</td><td class="ec-code">${esc(formatProyectoName(r.proyecto))}<br><small>${esc(r.proyecto)}</small></td><td>${esc(r.ciudad)}</td><td>${esc(r.supervisor)}</td>
+      <td>${esc(r.zona)}</td><td class="ec-code"><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${esc(formatProyectoName(r.proyecto))}</button><br><small>${esc(r.proyecto)}</small></td><td>${esc(r.ciudad)}</td><td>${esc(r.supervisor)}</td>
       <td class="ec-num">${esc(r.equipos_activos)}</td><td class="ec-num"><span class="ec-tag">${esc(r.fallas_blt_periodo)}</span></td>
       <td class="ec-num">${esc(r.equipos_con_falla)}</td><td class="ec-num">${esc(r.equipos_criticos)}</td><td>${date(r.ultimo_blt)}</td>
       <td><button class="ec-btn" type="button" onclick="ManttoEquiposCriticos.openProyecto('${encodeURIComponent(r.proyecto||'')}')">Ver</button></td></tr>`).join('');
+    if(window.ManttoDetails && window.ManttoDetails.bindLinks) window.ManttoDetails.bindLinks(body);
     renderPage('pro','ec-pro');
     $('ec-pro-count').textContent=`${state.pro.total} proyectos · mostrando ${state.pro.rows.length}`;
   }
@@ -282,15 +285,15 @@
 
   async function openEquipo(codigo){
     const c=state.eq.lastCriteria || eqCriteria();
+    if(window.ManttoDetails && window.ManttoDetails.openEquipoCritico){
+      return window.ManttoDetails.openEquipoCritico(codigo, { dias:c.dias, min_fallas:c.min_fallas });
+    }
     await openDetail('Equipo '+codigo, `${c.min_fallas} fallas BLT en ${c.dias} días`, '/api/equipos-criticos/'+encodeURIComponent(codigo)+'/tickets?'+qs({dias:c.dias,responsabilidad:'BLT'}));
   }
   async function openProyecto(proyectoEncoded){
     const proyecto=decodeURIComponent(proyectoEncoded||'');
     if(!proyecto) return;
-    if(window.ManttoRouter && window.ManttoRouter.openTarget){
-      window.ManttoRouter.openTarget({module:'proyectos', id:proyecto, source:'equipos-criticos'});
-      return;
-    }
+    if(window.ManttoDetails && window.ManttoDetails.openProyecto) return window.ManttoDetails.openProyecto(proyecto);
     const c=state.pro.lastCriteria || proCriteria();
     await openDetail('Proyecto '+formatProyectoName(proyecto), `${c.min_fallas} fallas BLT en ${c.dias} días`, '/api/proyectos-criticos/'+encodeURIComponent(proyecto)+'/tickets?'+qs({dias:c.dias}));
   }

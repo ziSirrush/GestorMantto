@@ -26,6 +26,13 @@
       el.addEventListener('click', e=>{
         const route = el.dataset.route;
         if(route) window.ManttoRouter.go(route);
+        if(route && el.classList && el.classList.contains('side-item')){
+          const sb = document.getElementById('sidebar');
+          if(sb){
+            if(window.innerWidth <= 920) sb.classList.remove('open');
+            else sb.classList.add('collapsed');
+          }
+        }
       });
     });
     const backBtn = document.getElementById('app-back-btn');

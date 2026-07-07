@@ -1,0 +1,76 @@
+<div class="mov-page">
+  <section class="mov-card mov-head">
+    <div>
+      <p class="mov-eyebrow">Aiven · Portafolio</p>
+      <h1>Movimientos de Portafolio</h1>
+      <p>Equipos cuyo estatus actual cambió contra el estatus registrado del último corte mensual.</p>
+    </div>
+    <div class="mov-head-actions">
+      <span class="mov-status loading" id="mov-status"><span class="mov-dot"></span><span>Cargando Aiven...</span></span>
+      <button type="button" class="mov-btn mov-btn-primary" data-mov-action="refresh">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="mov-card mov-filters" aria-label="Filtros de Movimientos de Portafolio">
+    <label>Zona
+      <select id="mov-filter-zona"><option value="">Todas</option></select>
+    </label>
+    <label>Tipo de movimiento
+      <select id="mov-filter-tipo">
+        <option value="">Todos</option>
+        <option value="DEGRADADO">Salida de servicio</option>
+        <option value="RECUPERADO">Regreso a servicio</option>
+        <option value="CAMBIO">Cambio operativo</option>
+      </select>
+    </label>
+    <label>Buscar
+      <input id="mov-filter-search" type="search" placeholder="Equipo, proyecto, supervisor..." />
+    </label>
+    <button type="button" class="mov-btn" data-mov-action="clear">Limpiar</button>
+    <button type="button" class="mov-btn mov-btn-primary" data-mov-action="apply">Aplicar</button>
+  </section>
+
+  <section class="mov-grid mov-kpis" aria-label="Indicadores de movimientos">
+    <article class="mov-kpi mov-kpi-blue" data-mov-detail="total"><i class="mov-led blue"></i><strong id="mov-kpi-total">—</strong><b>Movimientos</b><small>cambios detectados</small></article>
+    <article class="mov-kpi mov-kpi-red" data-mov-detail="degradados"><i class="mov-led red"></i><strong id="mov-kpi-degradados">—</strong><b>Salidas de servicio</b><small>equipos detenidos</small></article>
+    <article class="mov-kpi mov-kpi-green" data-mov-detail="recuperados"><i class="mov-led green"></i><strong id="mov-kpi-recuperados">—</strong><b>Regresos a servicio</b><small>equipos recuperados</small></article>
+    <article class="mov-kpi mov-kpi-amber" data-mov-detail="cambios"><i class="mov-led amber"></i><strong id="mov-kpi-cambios">—</strong><b>Cambios operativos</b><small>estatus distinto</small></article>
+  </section>
+
+  <section class="mov-card mov-table-section">
+    <div class="mov-section-head">
+      <div>
+        <h2>Detalle de movimientos</h2>
+        <p id="mov-count">—</p>
+      </div>
+      <small id="mov-corte">Corte mensual: —</small>
+    </div>
+    <div class="mov-table-wrap">
+      <table class="mov-table">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Código</th>
+            <th>Proyecto</th>
+            <th>Zona</th>
+            <th>Estatus anterior</th>
+            <th>Estatus actual</th>
+            <th>Supervisor</th>
+            <th>Fecha corte</th>
+          </tr>
+        </thead>
+        <tbody id="mov-body"><tr><td colspan="8" class="mov-empty">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="mov-detail-modal" class="mov-detail" hidden>
+    <div class="mov-detail-panel">
+      <div class="mov-detail-head">
+        <button type="button" id="mov-detail-close" aria-label="Cerrar">×</button>
+        <div><h2 id="mov-detail-title">Detalle</h2><p id="mov-detail-sub">Movimientos de Portafolio</p></div>
+      </div>
+      <div class="mov-detail-body" id="mov-detail-body"></div>
+    </div>
+  </section>
+</div>

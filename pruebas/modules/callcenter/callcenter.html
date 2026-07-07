@@ -1,0 +1,84 @@
+<div class="cc-page">
+  <section class="cc-card cc-head">
+    <div>
+      <p class="cc-eyebrow">Dashboard</p>
+      <h1>Dashboard Call Center</h1>
+      <p>KPIs, alertas, gráficas y llamadas recurrentes por período.</p>
+    </div>
+    <div class="cc-status" id="cc-status"><span class="cc-dot loading"></span><span>Cargando Aiven...</span></div>
+  </section>
+
+  <section class="cc-card cc-filters">
+    <label>Desde <input type="date" id="cc-from" /></label>
+    <label>Hasta <input type="date" id="cc-to" /></label>
+    <label>Zona <select id="cc-zona"><option value="">Todas</option></select></label>
+    <button class="cc-btn primary" id="cc-refresh" type="button">↻ Actualizar</button>
+    <span id="cc-updated" class="cc-updated">—</span>
+  </section>
+
+  <section class="cc-grid kpi-6">
+    <article class="cc-kpi g-blue"><div class="ico">🎫</div><div class="val" id="cc-total">—</div><div class="lbl">Tickets</div><div class="sub">Período seleccionado</div></article>
+    <article class="cc-kpi g-green clickable" data-cc-detail="cerrados"><div class="ico">✓</div><div class="val" id="cc-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="cc-cerrados-pct">—</div></article>
+    <article class="cc-kpi g-orange clickable" data-cc-detail="encurso"><div class="ico">⏳</div><div class="val" id="cc-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="cc-encurso-pct">—</div></article>
+    <article class="cc-kpi g-red clickable" data-cc-detail="abiertos"><div class="ico">🔴</div><div class="val" id="cc-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="cc-abiertos-pct">—</div></article>
+    <article class="cc-kpi g-indigo clickable" data-cc-detail="blt"><div class="ico">🛠️</div><div class="val" id="cc-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="cc-blt-pct">—</div></article>
+    <article class="cc-kpi g-cyan clickable" data-cc-detail="cliente"><div class="ico">👤</div><div class="val" id="cc-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="cc-cli-pct">—</div></article>
+  </section>
+
+  <section class="cc-grid kpi-5">
+    <article class="cc-kpi g-red clickable" data-cc-detail="atrap"><div class="ico">🚨</div><div class="val" id="cc-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
+    <article class="cc-kpi g-cyan clickable" data-cc-detail="agua"><div class="ico">💧</div><div class="val" id="cc-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
+    <article class="cc-kpi g-purple clickable" data-cc-detail="voltaje"><div class="ico">⚡</div><div class="val" id="cc-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
+    <article class="cc-kpi g-darkred clickable" data-cc-detail="criticos"><div class="ico">⚠️</div><div class="val" id="cc-criticos">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+    <article class="cc-kpi g-slate clickable" data-cc-detail="sla"><div class="ico">⌛</div><div class="val" id="cc-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="cc-sla-pct">—</div></article>
+  </section>
+
+  <section class="cc-grid kpi-2">
+    <article class="cc-kpi g-teal"><div class="ico">⏱️</div><div class="val" id="cc-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">Tiempo promedio</div></article>
+    <article class="cc-kpi g-blue"><div class="ico">🕘</div><div class="val" id="cc-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">Equipos resueltos</div></article>
+  </section>
+
+  <section class="cc-chart-grid">
+    <article class="cc-card cc-chart"><h2>Estado tickets</h2><svg id="cc-svg-estado" viewBox="0 0 130 130"></svg><div class="cc-legend" id="cc-leg-estado"></div></article>
+    <article class="cc-card cc-chart"><h2>Responsabilidad</h2><svg id="cc-svg-resp" viewBox="0 0 130 130"></svg><div class="cc-legend" id="cc-leg-resp"></div></article>
+    <article class="cc-card cc-chart"><h2>Causa falla — BLT</h2><svg id="cc-svg-caf-blt" viewBox="0 0 130 130"></svg><div class="cc-legend" id="cc-leg-caf-blt"></div></article>
+    <article class="cc-card cc-chart"><h2>Causa falla — Cliente</h2><svg id="cc-svg-caf-cli" viewBox="0 0 130 130"></svg><div class="cc-legend" id="cc-leg-caf-cli"></div></article>
+  </section>
+
+  <section class="cc-bars-grid">
+    <article class="cc-card cc-section"><h2>📍 Tickets por zona operativa</h2><div class="cc-bars" id="cc-bar-zona"></div></article>
+    <article class="cc-card cc-section"><h2>🛠️ Por tipo de equipo</h2><div class="cc-bars" id="cc-bar-tipo"></div></article>
+    <article class="cc-card cc-section"><h2>📊 Por estado</h2><div class="cc-bars" id="cc-bar-estado"></div></article>
+  </section>
+
+  <section class="cc-card cc-section">
+    <div class="cc-section-head"><h2>☎️ Equipos con más llamadas del período</h2><span id="cc-top-eq-count">—</span></div>
+    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>Crítico</th></tr></thead><tbody id="cc-top-equipos-tbody"></tbody></table></div>
+  </section>
+
+  <section class="cc-card cc-section">
+    <div class="cc-section-head"><h2>🏢 Proyectos con más llamadas del período</h2><span id="cc-top-pro-count">—</span></div>
+    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipos activos</th><th>Llamadas</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>Críticos</th></tr></thead><tbody id="cc-top-proyectos-tbody"></tbody></table></div>
+  </section>
+
+  <section class="cc-card cc-section">
+    <div class="cc-section-head cc-ticket-head">
+      <h2>🎫 Tickets del período <small id="cc-count"></small></h2>
+      <div class="cc-ticket-tools">
+        <input id="cc-search" type="search" placeholder="Buscar ticket, proyecto, zona..." />
+        <select id="cc-filter-et"><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select>
+        <button class="cc-btn" id="cc-cols-toggle" type="button">Columnas</button>
+      </div>
+    </div>
+    <div class="cc-cols" id="cc-cols" hidden><div id="cc-col-checks"></div></div>
+    <div class="cc-table-wrap"><table class="cc-table"><thead id="cc-thead"></thead><tbody id="cc-tbody"></tbody></table></div>
+    <div class="cc-pagination"><button id="cc-page-prev" type="button">← Anterior</button><span id="cc-page-info">—</span><button id="cc-page-next" type="button">Siguiente →</button></div>
+  </section>
+
+  <section class="cc-modal" id="cc-detail-modal" hidden>
+    <div class="cc-modal-panel">
+      <div class="cc-modal-head"><div><h2 id="cc-modal-title">Detalle</h2><p id="cc-modal-subtitle">—</p></div><button class="cc-modal-close" id="cc-modal-close" type="button">×</button></div>
+      <div class="cc-table-wrap cc-modal-table"><table class="cc-table"><thead id="cc-modal-thead"></thead><tbody id="cc-modal-tbody"></tbody></table></div>
+    </div>
+  </section>
+</div>
