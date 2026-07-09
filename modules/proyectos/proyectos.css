@@ -21,3 +21,6 @@
   color:#64748b;
   font-weight:600;
 }
+
+/* En tablas de detalle, proyectos/equipos/tickets deben abrir su detalle flotante. */
+.mg-link{border:0;background:transparent;color:#1B4FD8;text-decoration:underline;cursor:pointer;font:inherit;padding:0;font-weight:700}.mg-link:hover{color:#0D2E6E}

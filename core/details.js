@@ -42,7 +42,7 @@
   function bindLinks(root){
     (root || document).querySelectorAll('[data-proyecto]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openProyecto(el.getAttribute('data-proyecto')); }));
     (root || document).querySelectorAll('[data-equipo]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openEquipo(el.getAttribute('data-equipo')); }));
-    (root || document).querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); if(window.ManttoResumenDia && window.ManttoResumenDia.openTicket) window.ManttoResumenDia.openTicket(el.getAttribute('data-ticket')); else alert('Ticket: '+el.getAttribute('data-ticket')); }));
+    (root || document).querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openTicket(el.getAttribute('data-ticket')); }));
   }
   async function openProyecto(proyecto){
     proyecto = String(proyecto || '').trim(); if(!proyecto || proyecto === '—') return;
@@ -68,6 +68,71 @@
       bindLinks(body);
     }catch(e){ show('Equipo', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
+  function pickTicket(rows, ticketId){
+    const key = String(ticketId || '').trim();
+    return (rows || []).find(t => String(t.ticket || t.n || t.folio || '').trim() === key) || null;
+  }
+  function ticketDetailHtml(t, ticketId){
+    const equipo = t.codigo_equipo || t.cod || t.equipo || '';
+    const proyecto = t.proyecto || t.pro || '';
+    return '<section class="mg-detail-section"><h3>Datos generales</h3>'+grid([
+      ['Ticket', t.ticket || t.n || ticketId],
+      ['Folio', t.folio],
+      ['Estado ticket', t.estado_ticket || t.estado || t.et],
+      ['Proyecto', proyecto ? '<button class="mg-link" data-proyecto="'+esc(proyecto)+'">'+esc(proyecto)+'</button>' : '—'],
+      ['Equipo', equipo ? '<button class="mg-link" data-equipo="'+esc(equipo)+'">'+esc(equipo)+'</button>' : '—'],
+      ['Zona', t.zona || t.zon],
+      ['Ciudad', t.ciudad],
+      ['Prioridad', t.prioridad || t.pri]
+    ])+'</section>'+
+    '<section class="mg-detail-section"><h3>Reporte y atención</h3>'+grid([
+      ['Fecha reporte', fmtDate(t.fecha_reporte || t.fr)],
+      ['Hora reporte', t.h_reporte || t.hr],
+      ['Fecha llegada', fmtDate(t.fecha_llegada || t.fl)],
+      ['Hora llegada', t.h_llegada || t.hl],
+      ['Fecha cierre', fmtDate(t.fecha_cierre || t.fs)],
+      ['Hora solución', t.h_solucion || t.hs],
+      ['Técnico', t.tecnico || t.tec],
+      ['Supervisor', t.supervisor || t.sup],
+      ['Persona que atiende', t.persona_que_atiende || t.persona_atiende],
+      ['Ejecutivo Call Center', t.ejecutivo_call]
+    ])+'</section>'+
+    '<section class="mg-detail-section"><h3>Diagnóstico</h3>'+grid([
+      ['Estatus inicial', t.estatus_equipo_ir || t.eqi],
+      ['Estatus final', t.estatus_equipo_final || t.eqf],
+      ['Responsabilidad', t.responsabilidad || t.res],
+      ['Causa falla', t.causa_falla || t.caf],
+      ['Tiempo llegada', t.tiempo_llegada ?? t.tll],
+      ['Tiempo solución', t.tiempo_solucion ?? t.tso],
+      ['Tipo equipo', t.tipo_equipo || t.prd],
+      ['SLA / excede', t.ticket_excede || t.xat]
+    ])+'</section>'+
+    '<section class="mg-detail-section"><h3>Descripción y cierre</h3>'+grid([
+      ['Referencia zona operativa', t.referencia_en_zona_operativa || t.ref],
+      ['Descripción', t.descripcion || t.asu],
+      ['Causa', t.causa || t.cau],
+      ['Acción en cierre', t.accion_en_cierre || t.acc],
+      ['Vo.Bo. estado', t.vobo_estado],
+      ['Vo.Bo. comentario', t.vobo_comentario]
+    ])+'</section>';
+  }
+  async function openTicket(ticketId){
+    ticketId = String(ticketId || '').trim(); if(!ticketId || ticketId === '—') return;
+    if(window.ManttoResumenDia && window.ManttoResumenDia.openTicket && document.getElementById('rd-ticket-detail')){
+      return window.ManttoResumenDia.openTicket(ticketId);
+    }
+    show('Ticket', ticketId, '<div class="mg-empty">Cargando detalle del ticket...</div>');
+    try{
+      const data = await fetchJson('/api/tickets');
+      const rows = data.data || data.tickets || [];
+      const t = pickTicket(rows, ticketId);
+      if(!t) throw new Error('No se encontró el ticket en la respuesta de Aiven.');
+      show('Ticket · ' + (t.ticket || t.n || ticketId), [t.proyecto || t.pro, t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId));
+      const body=document.getElementById('mg-detail-body');
+      body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+      bindLinks(body);
+    }catch(e){ show('Ticket', ticketId, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
+  }
   async function openEquipoCritico(codigo, opts){
     codigo = String(codigo || '').trim(); if(!codigo) return;
     const dias = (opts && opts.dias) || 35;
@@ -89,5 +154,5 @@
       const body=document.getElementById('mg-detail-body'); body.innerHTML=body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); bindLinks(body);
     }catch(e){ show('Equipo crítico', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
-  window.ManttoDetails = { show, close, openProyecto, openEquipo, openEquipoCritico, bindLinks, ticketsTable };
+  window.ManttoDetails = { show, close, openProyecto, openEquipo, openTicket, openEquipoCritico, bindLinks, ticketsTable };
 })();

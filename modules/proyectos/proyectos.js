@@ -234,6 +234,7 @@
       '<section class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>Responsabilidad</h2><p>'+int(totalTickets)+' tickets en detalle</p></div></div>'+renderResp(resp)+'</section>'+
       '<section class="proy-card"><div class="proy-section-head"><div><h2>Equipos del proyecto</h2><p>'+int(equipos.length)+' equipos</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Código</th><th>Referencia</th><th>Tipo</th><th>Contrato</th><th>Operativo</th><th>Días parado</th><th>Último ticket</th></tr></thead><tbody>'+renderEquipos(equipos)+'</tbody></table></div></section>'+
       '<section class="proy-card"><div class="proy-section-head"><div><h2>Tickets recientes</h2><p>'+int(tickets.length)+' últimos registros</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Ticket</th><th>Equipo</th><th>Estado</th><th>Reporte</th><th>Cierre</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>'+renderTickets(tickets)+'</tbody></table></div></section>';
+    bindDetalleTablaLinks(body);
   }
 
   function chartCard(title, rows){ return '<div class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>'+esc(title)+'</h2><p>Tickets por mes</p></div></div>'+bars(rows, 'mes', 'total')+'</div>'; }
@@ -249,13 +250,27 @@
     const total=rows.reduce((a,r)=>a+num(r.total),0);
     return '<div class="proy-bars">'+rows.map(r=>'<div class="proy-bar-row"><span>'+esc(r.responsabilidad || 'Sin dato')+'</span><div class="proy-bar-track"><div class="proy-bar-fill" style="width:'+pct(r.total,total)+'%"></div></div><b>'+int(r.total)+'</b></div>').join('')+'</div>';
   }
+  function detailBtn(kind, value, label){
+    value = String(value || '').trim();
+    if(!value || value === '—') return esc(label || value || '—');
+    const attr = kind === 'equipo' ? 'data-equipo' : kind === 'ticket' ? 'data-ticket' : 'data-proyecto';
+    return '<button type="button" class="mg-link" '+attr+'="'+esc(value)+'">'+esc(label || value)+'</button>';
+  }
   function renderEquipos(rows){
     if(!rows || !rows.length) return '<tr><td colspan="7" class="proy-empty">Sin equipos</td></tr>';
-    return rows.map(e=>'<tr><td class="proy-name">'+esc(e.numero_equipo)+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.tipo_equipo)+'</td><td>'+esc(e.contrato)+'</td><td>'+badgeOper(e.estado_operativo)+'</td><td class="num">'+(e.dias_parado==null?'—':int(e.dias_parado))+'</td><td>'+esc(e.ultimo_ticket)+'</td></tr>').join('');
+    return rows.map(e=>'<tr><td class="proy-name">'+detailBtn('equipo', e.numero_equipo)+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.tipo_equipo)+'</td><td>'+esc(e.contrato)+'</td><td>'+badgeOper(e.estado_operativo)+'</td><td class="num">'+(e.dias_parado==null?'—':int(e.dias_parado))+'</td><td>'+detailBtn('ticket', e.ultimo_ticket)+'</td></tr>').join('');
   }
   function renderTickets(rows){
     if(!rows || !rows.length) return '<tr><td colspan="7" class="proy-empty">Sin tickets</td></tr>';
-    return rows.map(t=>'<tr><td class="proy-name">'+esc(t.ticket)+'</td><td>'+esc(t.codigo_equipo)+'</td><td>'+esc(t.estado_ticket || t.estado)+'</td><td>'+date(t.fecha_reporte)+'</td><td>'+date(t.fecha_cierre)+'</td><td>'+esc(t.responsabilidad)+'</td><td>'+esc(t.causa_falla || t.causa)+'</td></tr>').join('');
+    return rows.map(t=>'<tr><td class="proy-name">'+detailBtn('ticket', t.ticket)+'</td><td>'+detailBtn('equipo', t.codigo_equipo)+'</td><td>'+esc(t.estado_ticket || t.estado)+'</td><td>'+date(t.fecha_reporte)+'</td><td>'+date(t.fecha_cierre)+'</td><td>'+esc(t.responsabilidad)+'</td><td>'+esc(t.causa_falla || t.causa)+'</td></tr>').join('');
+  }
+  function bindDetalleTablaLinks(root){
+    if(window.ManttoDetails && window.ManttoDetails.bindLinks){
+      window.ManttoDetails.bindLinks(root || document);
+      return;
+    }
+    (root || document).querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const cod=btn.getAttribute('data-equipo'); if(window.ManttoDetails && window.ManttoDetails.openEquipo) window.ManttoDetails.openEquipo(cod); }));
+    (root || document).querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const ticket=btn.getAttribute('data-ticket'); if(window.ManttoDetails && window.ManttoDetails.openTicket) window.ManttoDetails.openTicket(ticket); }));
   }
   function badgeOper(v){ return String(v).toLowerCase()==='parado' ? '<span class="proy-badge proy-badge-bad">Parado</span>' : '<span class="proy-badge proy-badge-ok">Funcionando</span>'; }
 
