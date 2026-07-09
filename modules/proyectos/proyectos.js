@@ -214,6 +214,7 @@
     const p=d.proyecto || d.resumen || d.kpis || {};
     const equipos=d.equipos || [];
     const tickets=d.tickets || [];
+    if(window.ManttoDetails && window.ManttoDetails.registerTickets) window.ManttoDetails.registerTickets(tickets);
     const months=d.monthly_current || d.fallas_mes_actual || d.meses_actual || [];
     const prev=d.monthly_previous || d.fallas_mes_anterior || d.meses_anterior || [];
     const resp=d.responsabilidad || d.responsabilidades || [];

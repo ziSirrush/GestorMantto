@@ -1,5 +1,13 @@
 (function(){
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
+  const ticketCache = new Map();
+  function ticketKey(v){ return String(v || '').trim(); }
+  function registerTickets(rows){
+    (rows || []).forEach(t => {
+      const k = ticketKey(t && (t.ticket || t.n || t.folio));
+      if(k) ticketCache.set(k, t);
+    });
+  }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function fmtDate(v){ if(!v) return '—'; const d = new Date(v); return Number.isNaN(d.getTime()) ? esc(v) : d.toLocaleDateString('es-MX'); }
   async function fetchJson(path){
@@ -69,8 +77,8 @@
     }catch(e){ show('Equipo', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
   function pickTicket(rows, ticketId){
-    const key = String(ticketId || '').trim();
-    return (rows || []).find(t => String(t.ticket || t.n || t.folio || '').trim() === key) || null;
+    const key = ticketKey(ticketId);
+    return ticketCache.get(key) || (rows || []).find(t => ticketKey(t.ticket || t.n || t.folio) === key) || null;
   }
   function ticketDetailHtml(t, ticketId){
     const equipo = t.codigo_equipo || t.cod || t.equipo || '';
@@ -116,17 +124,25 @@
       ['Vo.Bo. comentario', t.vobo_comentario]
     ])+'</section>';
   }
-  async function openTicket(ticketId){
-    ticketId = String(ticketId || '').trim(); if(!ticketId || ticketId === '—') return;
-    if(window.ManttoResumenDia && window.ManttoResumenDia.openTicket && document.getElementById('rd-ticket-detail')){
-      return window.ManttoResumenDia.openTicket(ticketId);
-    }
+  async function openTicket(ticketId, knownTicket){
+    ticketId = ticketKey(ticketId); if(!ticketId || ticketId === '—') return;
+    if(knownTicket) registerTickets([knownTicket]);
     show('Ticket', ticketId, '<div class="mg-empty">Cargando detalle del ticket...</div>');
     try{
-      const data = await fetchJson('/api/tickets');
-      const rows = data.data || data.tickets || [];
-      const t = pickTicket(rows, ticketId);
-      if(!t) throw new Error('No se encontró el ticket en la respuesta de Aiven.');
+      let rows = [];
+      let t = pickTicket(rows, ticketId);
+      if(!t){
+        try{
+          const data = await fetchJson('/api/tickets');
+          rows = data.data || data.tickets || [];
+          registerTickets(rows);
+          t = pickTicket(rows, ticketId);
+        }catch(fetchErr){
+          t = ticketCache.get(ticketId) || knownTicket || null;
+          if(!t) throw fetchErr;
+        }
+      }
+      if(!t) t = { ticket: ticketId };
       show('Ticket · ' + (t.ticket || t.n || ticketId), [t.proyecto || t.pro, t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId));
       const body=document.getElementById('mg-detail-body');
       body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
@@ -154,5 +170,5 @@
       const body=document.getElementById('mg-detail-body'); body.innerHTML=body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); bindLinks(body);
     }catch(e){ show('Equipo crítico', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
-  window.ManttoDetails = { show, close, openProyecto, openEquipo, openTicket, openEquipoCritico, bindLinks, ticketsTable };
+  window.ManttoDetails = { show, close, openProyecto, openEquipo, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
 })();
