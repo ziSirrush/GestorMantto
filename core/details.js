@@ -5,7 +5,7 @@
   function registerTickets(rows){
     (rows || []).forEach(t => {
       const k = ticketKey(t && (t.ticket || t.n || t.folio));
-      if(k) ticketCache.set(k, t);
+      if(k) ticketCache.set(k, Object.assign({}, ticketCache.get(k) || {}, t));
     });
   }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -129,19 +129,26 @@
     if(knownTicket) registerTickets([knownTicket]);
     show('Ticket', ticketId, '<div class="mg-empty">Cargando detalle del ticket...</div>');
     try{
-      let rows = [];
-      let t = pickTicket(rows, ticketId);
-      if(!t){
-        try{
-          const data = await fetchJson('/api/tickets');
-          rows = data.data || data.tickets || [];
-          registerTickets(rows);
-          t = pickTicket(rows, ticketId);
-        }catch(fetchErr){
-          t = ticketCache.get(ticketId) || knownTicket || null;
-          if(!t) throw fetchErr;
+      let t = null;
+
+      try{
+        const data = await fetchJson('/api/tickets/' + encodeURIComponent(ticketId));
+        t = data.data || data.ticket || data;
+        if(t && (t.ticket || t.folio)) registerTickets([t]);
+      }catch(detailErr){
+        t = ticketCache.get(ticketId) || knownTicket || null;
+        if(!t){
+          try{
+            const data = await fetchJson('/api/tickets');
+            const rows = data.data || data.tickets || [];
+            registerTickets(rows);
+            t = pickTicket(rows, ticketId);
+          }catch(listErr){
+            throw detailErr;
+          }
         }
       }
+
       if(!t) t = { ticket: ticketId };
       show('Ticket · ' + (t.ticket || t.n || ticketId), [t.proyecto || t.pro, t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId));
       const body=document.getElementById('mg-detail-body');

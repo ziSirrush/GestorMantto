@@ -586,6 +586,35 @@ async function getTickets(req, res) {
   }
 }
 
+async function getTicketDetalle(req, res) {
+  try {
+    const ticket = String(req.params.ticket || '').trim();
+    if (!ticket) {
+      return res.status(400).json({ ok: false, message: 'Ticket requerido.' });
+    }
+
+    const [rows] = await db.query(`
+      SELECT *
+      FROM tickets
+      WHERE ticket = ? OR folio = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `, [ticket, ticket]);
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Ticket no encontrado.' });
+    }
+
+    return res.json({ ok: true, source: 'tickets', data: rows[0] });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando detalle de ticket.',
+      error: error.message
+    });
+  }
+}
+
 async function getPortafolio(req, res) {
   try {
     const [rows] = await db.query(`
@@ -2345,6 +2374,7 @@ async function syncPortafolio(req, res) {
 
 module.exports = {
   getTickets,
+  getTicketDetalle,
   saveTicketVobo,
   getPortafolio,
   getProyectosFiltros,
