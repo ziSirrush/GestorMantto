@@ -5,7 +5,7 @@
     proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
-    profile:'Perfil de usuario', 'support-request':'Solicitud de soporte'
+    profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle'
   };
 
   let currentRoute = 'home';
@@ -21,7 +21,9 @@
   function payloadKey(payload){ try{return JSON.stringify(payload || null);}catch(e){return ''; } }
   function routeUrl(route, payload){
     let hash = '#/' + encodeURIComponent(route || 'home');
-    if(payload && payload.id) hash += '/' + encodeURIComponent(payload.id);
+    if(route === 'detalle' && payload && payload.type && payload.id){
+      hash += '/' + encodeURIComponent(payload.type) + '/' + encodeURIComponent(payload.id);
+    } else if(payload && payload.id) hash += '/' + encodeURIComponent(payload.id);
     return hash;
   }
   function syncBrowserHistory(route, payload, replace){
@@ -239,7 +241,19 @@
     return true;
   }
 
+  function showDetalle(payload){
+    const view = document.getElementById('view-detalle');
+    if(!view && window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Detalle','Mantto Gestor','<div class="mg-empty">Preparando detalle...</div>');
+    activateViewById('view-detalle');
+    setActiveSide('');
+    const typeLabel = payload && payload.type === 'proyecto' ? 'Proyecto' : payload && payload.type === 'equipo' ? 'Equipo' : payload && payload.type === 'ticket' ? 'Ticket' : 'Detalle';
+    updateContext('detalle', typeLabel + (payload && payload.id ? ' · ' + payload.id : ''));
+    if(window.ManttoDetails && window.ManttoDetails.render) window.ManttoDetails.render(payload || {});
+    return true;
+  }
+
   function showPlaceholder(route, payload){
+    if(route==='detalle' && showDetalle(payload)) return;
     if(route==='resumen' && showResumen()) return;
     if(route==='criticos' && showCriticos()) return;
     if(route==='portafolio' && showPortafolio()) return;
@@ -292,7 +306,8 @@
     const nextRoute = route || 'home';
     const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(payload || null);
     if(!options.replace && currentRoute && !same){
-      historyStack.push({ route: currentRoute, payload: currentPayload });
+      const main = document.querySelector('.main-content');
+      historyStack.push({ route: currentRoute, payload: currentPayload, scrollY: main ? main.scrollTop : 0 });
       if(historyStack.length > 25) historyStack.shift();
     }
     currentRoute = nextRoute;
@@ -308,6 +323,7 @@
       currentRoute = previous.route;
       currentPayload = previous.payload || null;
       render(currentRoute, currentPayload);
+      window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=previous.scrollY || 0; }, 0);
     } else if(currentRoute !== 'home') {
       currentRoute = 'home';
       currentPayload = null;

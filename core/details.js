@@ -20,28 +20,67 @@
     if(!r.ok || data.ok === false) throw new Error(data.message || data.error || 'Error consultando backend');
     return data;
   }
-  function ensure(){
-    let modal = document.getElementById('mg-detail-modal');
-    if(modal) return modal;
-    const css = document.createElement('style');
-    css.textContent = `
-      .mg-detail-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:950;display:flex;align-items:center;justify-content:center;padding:18px}
-      .mg-detail-panel{width:min(1180px,96vw);max-height:92vh;background:#fff;border-radius:16px;border:1px solid #0D2E6E;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden}
-      .mg-detail-head{background:#0D2E6E;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}.mg-detail-head h2{font-size:16px;margin:0}.mg-detail-head p{margin:2px 0 0;color:rgba(255,255,255,.72);font-size:12px}.mg-detail-close{margin-left:auto;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;width:34px;height:34px;font-size:20px;cursor:pointer}
-      .mg-detail-body{padding:16px;overflow:auto;background:#F8FAFC}.mg-detail-section{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;overflow:hidden}.mg-detail-section h3{margin:0;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px}.mg-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0}.mg-field{padding:10px 12px;border-right:1px solid #EEF2FF;border-bottom:1px solid #EEF2FF}.mg-field label{display:block;font-size:10px;color:#64748B;text-transform:uppercase;font-weight:700;margin-bottom:3px}.mg-field span{font-size:12px;color:#1E293B}.mg-table-wrap{overflow:auto}.mg-table{width:100%;border-collapse:collapse;min-width:760px}.mg-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:11px;padding:8px}.mg-table td{font-size:12px;padding:8px;border-bottom:1px solid #E2E8F0;color:#334155}.mg-link{border:0;background:transparent;color:#1B4FD8;text-decoration:underline;cursor:pointer;font:inherit;padding:0}.mg-empty{padding:18px;text-align:center;color:#64748B}`;
-    document.head.appendChild(css);
-    modal = document.createElement('section');
-    modal.id = 'mg-detail-modal';
-    modal.className = 'mg-detail-modal';
-    modal.hidden = true;
-    modal.innerHTML = '<div class="mg-detail-panel"><div class="mg-detail-head"><div><h2 id="mg-detail-title">Detalle</h2><p id="mg-detail-sub">Mantto Gestor</p></div><button class="mg-detail-close" id="mg-detail-close" type="button">×</button></div><div class="mg-detail-body" id="mg-detail-body"></div></div>';
-    document.body.appendChild(modal);
-    document.getElementById('mg-detail-close').addEventListener('click', close);
-    modal.addEventListener('click', ev => { if(ev.target === modal) close(); });
-    return modal;
+  function currentDetailMatches(type, id){
+    if(!window.ManttoRouter || !window.ManttoRouter.getCurrent) return false;
+    const current = window.ManttoRouter.getCurrent();
+    return current.route === 'detalle' && current.payload && current.payload.type === type && String(current.payload.id || '') === String(id || '');
   }
-  function show(title, sub, html){ const modal=ensure(); document.getElementById('mg-detail-title').textContent=title||'Detalle'; document.getElementById('mg-detail-sub').textContent=sub||'Mantto Gestor'; document.getElementById('mg-detail-body').innerHTML=html||''; modal.hidden=false; }
-  function close(){ const modal=document.getElementById('mg-detail-modal'); if(modal) modal.hidden=true; }
+  function navigate(type, id, extra){
+    if(!window.ManttoRouter || !window.ManttoRouter.go) return false;
+    window.ManttoRouter.go('detalle', Object.assign({ type, id:String(id || '') }, extra || {}));
+    return true;
+  }
+  function ensure(){
+    let view = document.getElementById('view-detalle');
+    if(!view){
+      view = document.createElement('section');
+      view.id = 'view-detalle';
+      view.className = 'view mg-detail-view';
+      view.dataset.view = 'detalle';
+      view.setAttribute('aria-label', 'Detalle');
+      const main = document.querySelector('.main-content');
+      if(main) main.appendChild(view);
+    }
+    if(!document.getElementById('mg-detail-styles')){
+      const css = document.createElement('style');
+      css.id = 'mg-detail-styles';
+      css.textContent = `
+        .mg-detail-view{min-height:100%;background:#F8FAFC;padding:0 0 24px}
+        .mg-detail-page{width:100%;min-height:100%;display:flex;flex-direction:column}
+        .mg-detail-head{background:#0D2E6E;color:#fff;padding:16px 20px;display:flex;align-items:center;gap:14px;border-radius:14px 14px 0 0}
+        .mg-detail-head-copy{min-width:0}.mg-detail-head h2{font-size:18px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-detail-head p{margin:3px 0 0;color:rgba(255,255,255,.76);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .mg-detail-body{padding:16px;overflow:visible;background:#F8FAFC}
+        .mg-detail-section{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;overflow:hidden}.mg-detail-section h3{margin:0;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px}.mg-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0}.mg-field{padding:10px 12px;border-right:1px solid #EEF2FF;border-bottom:1px solid #EEF2FF}.mg-field label{display:block;font-size:10px;color:#64748B;text-transform:uppercase;font-weight:700;margin-bottom:3px}.mg-field span{font-size:12px;color:#1E293B}.mg-table-wrap{overflow:auto}.mg-table{width:100%;border-collapse:collapse;min-width:760px}.mg-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:11px;padding:8px}.mg-table td{font-size:12px;padding:8px;border-bottom:1px solid #E2E8F0;color:#334155}.mg-link{border:0;background:transparent;color:#1B4FD8;text-decoration:underline;cursor:pointer;font:inherit;padding:0}.mg-empty{padding:18px;text-align:center;color:#64748B}
+        @media(max-width:760px){.mg-detail-view{padding:0}.mg-detail-head{border-radius:0;padding:12px;align-items:flex-start}.mg-detail-head h2{font-size:16px}.mg-detail-body{padding:10px}.mg-detail-grid{grid-template-columns:1fr}.mg-table{min-width:680px}}
+      `;
+      document.head.appendChild(css);
+    }
+    if(!view.querySelector('.mg-detail-page')){
+      view.innerHTML = '<div class="mg-detail-page"><div class="mg-detail-head"><div class="mg-detail-head-copy"><h2 id="mg-detail-title">Detalle</h2><p id="mg-detail-sub">Mantto Gestor</p></div></div><div class="mg-detail-body" id="mg-detail-body"></div></div>';
+    }
+    return view;
+  }
+  function show(title, sub, html){
+    ensure();
+    const titleEl=document.getElementById('mg-detail-title');
+    const subEl=document.getElementById('mg-detail-sub');
+    const body=document.getElementById('mg-detail-body');
+    if(titleEl) titleEl.textContent=title||'Detalle';
+    if(subEl) subEl.textContent=sub||'Mantto Gestor';
+    if(body) body.innerHTML=html||'';
+  }
+  function close(){
+    if(window.ManttoRouter && window.ManttoRouter.back) window.ManttoRouter.back();
+  }
+  function render(payload){
+    const type = payload && payload.type;
+    const id = payload && payload.id;
+    if(type === 'proyecto') return openProyecto(id);
+    if(type === 'equipo') return openEquipo(id);
+    if(type === 'ticket') return openTicket(id, payload && payload.knownTicket);
+    if(type === 'equipo-critico') return openEquipoCritico(id, payload && payload.options);
+    show('Detalle', 'Mantto Gestor', '<div class="mg-empty">No se indicó un detalle válido.</div>');
+  }
   function grid(items){ return '<div class="mg-detail-grid">'+items.map(([k,v])=>'<div class="mg-field"><label>'+esc(k)+'</label><span>'+esc(v)+'</span></div>').join('')+'</div>'; }
   function ticketsTable(rows){
     if(!rows || !rows.length) return '<div class="mg-empty">Sin tickets relacionados</div>';
@@ -54,6 +93,7 @@
   }
   async function openProyecto(proyecto){
     proyecto = String(proyecto || '').trim(); if(!proyecto || proyecto === '—') return;
+    if(!currentDetailMatches('proyecto', proyecto) && navigate('proyecto', proyecto)) return;
     show('Proyecto', proyecto, '<div class="mg-empty">Cargando detalle del proyecto...</div>');
     try{
       const data = await fetchJson('/api/proyectos/detalle/' + encodeURIComponent(proyecto));
@@ -66,6 +106,7 @@
   }
   async function openEquipo(codigo){
     codigo = String(codigo || '').trim(); if(!codigo || codigo === '—') return;
+    if(!currentDetailMatches('equipo', codigo) && navigate('equipo', codigo)) return;
     show('Equipo', codigo, '<div class="mg-empty">Cargando detalle del equipo...</div>');
     try{
       const data = await fetchJson('/api/portafolio/equipos/' + encodeURIComponent(codigo));
@@ -126,6 +167,7 @@
   }
   async function openTicket(ticketId, knownTicket){
     ticketId = ticketKey(ticketId); if(!ticketId || ticketId === '—') return;
+    if(!currentDetailMatches('ticket', ticketId) && navigate('ticket', ticketId, knownTicket ? { knownTicket } : null)) return;
     if(knownTicket) registerTickets([knownTicket]);
     show('Ticket', ticketId, '<div class="mg-empty">Cargando detalle del ticket...</div>');
     try{
@@ -158,6 +200,7 @@
   }
   async function openEquipoCritico(codigo, opts){
     codigo = String(codigo || '').trim(); if(!codigo) return;
+    if(!currentDetailMatches('equipo-critico', codigo) && navigate('equipo-critico', codigo, { options:opts || {} })) return;
     const dias = (opts && opts.dias) || 35;
     show('Equipo crítico', codigo, '<div class="mg-empty">Cargando detalle combinado...</div>');
     try{
@@ -177,5 +220,5 @@
       const body=document.getElementById('mg-detail-body'); body.innerHTML=body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); bindLinks(body);
     }catch(e){ show('Equipo crítico', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
-  window.ManttoDetails = { show, close, openProyecto, openEquipo, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
+  window.ManttoDetails = { show, close, render, openProyecto, openEquipo, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
 })();

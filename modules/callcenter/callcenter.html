@@ -25,17 +25,23 @@
     <article class="cc-kpi g-cyan clickable" data-cc-detail="cliente"><div class="ico">👤</div><div class="val" id="cc-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="cc-cli-pct">—</div></article>
   </section>
 
-  <section class="cc-grid kpi-5">
+  <section class="cc-grid kpi-6">
     <article class="cc-kpi g-red clickable" data-cc-detail="atrap"><div class="ico">🚨</div><div class="val" id="cc-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
     <article class="cc-kpi g-cyan clickable" data-cc-detail="agua"><div class="ico">💧</div><div class="val" id="cc-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
     <article class="cc-kpi g-purple clickable" data-cc-detail="voltaje"><div class="ico">⚡</div><div class="val" id="cc-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
     <article class="cc-kpi g-darkred clickable" data-cc-detail="criticos"><div class="ico">⚠️</div><div class="val" id="cc-criticos">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+    <article class="cc-kpi g-dark clickable" data-cc-detail="nofunc"><div class="ico">🔴</div><div class="val" id="cc-nofunc">—</div><div class="lbl">No Funcionando</div><div class="sub">Ver detalle</div></article>
+  </section>
+
+  <section class="cc-grid kpi-3">
+    <article class="cc-kpi g-teal"><div class="ico">⏱️</div><div class="val" id="cc-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">Tiempo promedio</div></article>
+    <article class="cc-kpi g-blue"><div class="ico">🕘</div><div class="val" id="cc-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">Equipos resueltos</div></article>
     <article class="cc-kpi g-slate clickable" data-cc-detail="sla"><div class="ico">⌛</div><div class="val" id="cc-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="cc-sla-pct">—</div></article>
   </section>
 
-  <section class="cc-grid kpi-2">
-    <article class="cc-kpi g-teal"><div class="ico">⏱️</div><div class="val" id="cc-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">Tiempo promedio</div></article>
-    <article class="cc-kpi g-blue"><div class="ico">🕘</div><div class="val" id="cc-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">Equipos resueltos</div></article>
+  <section class="cc-grid kpi-2 cc-u365-actions">
+    <button class="cc-kpi g-blue clickable cc-kpi-button" id="cc-u365-proy-open" type="button"><div class="ico">📊</div><div class="lbl">Llamadas U365d</div><div class="sub">Por proyecto · Ver resumen</div></button>
+    <button class="cc-kpi g-indigo clickable cc-kpi-button" id="cc-u365-eq-open" type="button"><div class="ico">🔧</div><div class="lbl">Llamadas U365d</div><div class="sub">Por equipo · Ver resumen</div></button>
   </section>
 
   <section class="cc-chart-grid">
@@ -48,8 +54,12 @@
   <section class="cc-bars-grid">
     <article class="cc-card cc-section"><h2>📍 Tickets por zona operativa</h2><div class="cc-bars" id="cc-bar-zona"></div></article>
     <article class="cc-card cc-section"><h2>🛠️ Por tipo de equipo</h2><div class="cc-bars" id="cc-bar-tipo"></div></article>
-    <article class="cc-card cc-section"><h2>📊 Por estado</h2><div class="cc-bars" id="cc-bar-estado"></div></article>
+    <article class="cc-card cc-section"><h2>📊 Por estado de la República</h2><div class="cc-bars" id="cc-bar-estado"></div></article>
   </section>
+
+  <section class="cc-card cc-section" id="cc-u365-proy-section"><div class="cc-section-head"><h2>📊 Llamadas últimos 365 días — Por Proyecto</h2><span id="cc-u365-proy-count">—</span></div><div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Total llamadas</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>Equipos activos</th><th>Prom. por equipo</th></tr></thead><tbody id="cc-u365-proy-tbody"></tbody></table></div></section>
+
+  <section class="cc-card cc-section" id="cc-u365-eq-section"><div class="cc-section-head"><h2>🔧 Llamadas últimos 365 días — Por Equipo</h2><span id="cc-u365-eq-count">—</span></div><div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas U365d</th><th>Resp. Cliente</th><th>Resp. BLT</th></tr></thead><tbody id="cc-u365-eq-tbody"></tbody></table></div></section>
 
   <section class="cc-card cc-section">
     <div class="cc-section-head"><h2>☎️ Equipos con más llamadas del período</h2><span id="cc-top-eq-count">—</span></div>
@@ -74,6 +84,8 @@
     <div class="cc-table-wrap"><table class="cc-table"><thead id="cc-thead"></thead><tbody id="cc-tbody"></tbody></table></div>
     <div class="cc-pagination"><button id="cc-page-prev" type="button">← Anterior</button><span id="cc-page-info">—</span><button id="cc-page-next" type="button">Siguiente →</button></div>
   </section>
+
+  <section class="cc-card cc-section cc-no-func"><div class="cc-section-head"><h2>🔴 Equipos No Funcionando en el período</h2><span id="cc-nf-info">—</span></div><div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Ticket</th><th>Estado</th><th>Equipo</th><th>Proyecto</th><th>Zona</th><th>Asunto</th><th>F. Reporte</th><th>Resp.</th><th>Crítico</th></tr></thead><tbody id="cc-nofunc-tbody"></tbody></table></div><div class="cc-pagination"><button id="cc-nf-prev" type="button">← Anterior</button><span></span><button id="cc-nf-next" type="button">Siguiente →</button></div></section>
 
   <section class="cc-modal" id="cc-detail-modal" hidden>
     <div class="cc-modal-panel">

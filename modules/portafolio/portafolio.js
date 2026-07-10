@@ -141,7 +141,8 @@
     const body=$('pf-parados-body'); if(!body) return;
     text('pf-parados-count', int(rows.length) + ' equipos mostrados');
     if(!rows.length){ body.innerHTML='<tr><td colspan="8" class="pf-empty">Sin equipos parados con el criterio actual</td></tr>'; return; }
-    body.innerHTML = rows.map(r=>`<tr><td class="pf-code">${esc(r.numero_equipo)}</td><td>${esc(r.proyecto)}</td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td><span class="pf-tag red">${esc(r.dias_parado)} d</span></td><td>${date(r.fecha_inicio_paro)}</td><td>${esc(r.ultimo_ticket)}</td><td>${esc(r.supervisor)}</td></tr>`).join('');
+    body.innerHTML = rows.map(r=>`<tr><td class="pf-code"><button class="mg-link" data-pf-equipo="${esc(r.numero_equipo)}" type="button">${esc(r.numero_equipo)}</button></td><td><button class="mg-link" data-pf-proyecto="${esc(r.proyecto)}" type="button">${esc(r.proyecto)}</button></td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td><span class="pf-tag red">${esc(r.dias_parado)} d</span></td><td>${date(r.fecha_inicio_paro)}</td><td><button class="mg-link" data-pf-ticket="${esc(r.ultimo_ticket)}" type="button">${esc(r.ultimo_ticket)}</button></td><td>${esc(r.supervisor)}</td></tr>`).join('');
+    bindGeneralDetailLinks(body);
   }
 
   function renderEquipos(){
@@ -155,13 +156,25 @@
       const op = String(r.estado_operativo || '').toLowerCase() === 'parado';
       const contrato = String(r.contrato || '').toLowerCase();
       let contratoClass = contrato.includes('cobranza') ? 'amber' : contrato.includes('servicio') ? 'green' : '';
-      return `<tr><td class="pf-code">${esc(r.numero_equipo)}</td><td>${esc(r.proyecto)}</td><td>${esc(r.ciudad)}</td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td>${esc(r.supervisor)}</td><td><span class="pf-tag ${contratoClass}">${esc(r.contrato)}</span></td><td><span class="pf-tag ${op?'red':'green'}">${esc(r.estado_operativo)}</span></td><td>${r.dias_parado == null ? '—' : esc(r.dias_parado) + ' d'}</td><td><button type="button" class="pf-btn" onclick="ManttoPortafolio.openEquipo('${encodeURIComponent(r.numero_equipo || '')}')">Ver</button></td></tr>`;
+      return `<tr><td class="pf-code"><button class="mg-link" data-pf-equipo="${esc(r.numero_equipo)}" type="button">${esc(r.numero_equipo)}</button></td><td><button class="mg-link" data-pf-proyecto="${esc(r.proyecto)}" type="button">${esc(r.proyecto)}</button></td><td>${esc(r.ciudad)}</td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td>${esc(r.supervisor)}</td><td><span class="pf-tag ${contratoClass}">${esc(r.contrato)}</span></td><td><span class="pf-tag ${op?'red':'green'}">${esc(r.estado_operativo)}</span></td><td>${r.dias_parado == null ? '—' : esc(r.dias_parado) + ' d'}</td><td><button type="button" class="pf-btn" data-pf-equipo="${esc(r.numero_equipo)}">Ver</button></td></tr>`;
     }).join('');
+    bindGeneralDetailLinks(body);
+  }
+
+  function bindGeneralDetailLinks(root){
+    const scope=root||document;
+    scope.querySelectorAll('[data-pf-equipo]').forEach(el=>el.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation(); if(window.ManttoDetails&&window.ManttoDetails.openEquipo) window.ManttoDetails.openEquipo(el.dataset.pfEquipo); }));
+    scope.querySelectorAll('[data-pf-proyecto]').forEach(el=>el.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation(); if(window.ManttoDetails&&window.ManttoDetails.openProyecto) window.ManttoDetails.openProyecto(el.dataset.pfProyecto); }));
+    scope.querySelectorAll('[data-pf-ticket]').forEach(el=>el.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation(); const id=String(el.dataset.pfTicket||'').trim(); if(id&&id!=='—'&&window.ManttoDetails&&window.ManttoDetails.openTicket) window.ManttoDetails.openTicket(id); }));
   }
 
   async function openEquipo(codigoEncoded){
     const codigo = decodeURIComponent(codigoEncoded || '');
     if(!codigo) return;
+    if(window.ManttoDetails && window.ManttoDetails.openEquipo){
+      window.ManttoDetails.openEquipo(codigo);
+      return;
+    }
     const modal=$('pf-detail-modal'); const body=$('pf-detail-body');
     $('pf-detail-title').textContent = codigo;
     $('pf-detail-sub').textContent = 'Detalle de equipo desde Aiven';

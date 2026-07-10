@@ -494,6 +494,10 @@
   function openTicket(id){
     const ticketId = nrm(id);
     const t = allTickets.find(x => x.n === ticketId) || currentDayTickets.find(x => x.n === ticketId) || tableFiltered.find(x => x.n === ticketId);
+    if(window.ManttoDetails && window.ManttoDetails.openTicket){
+      window.ManttoDetails.openTicket(ticketId, t || null);
+      return;
+    }
     const box = byId('rd-ticket-detail');
     if(!box){
       if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'tickets',id:ticketId,source:'resumen-dia'});

@@ -156,6 +156,10 @@
 
   async function openDetail(project){
     if(!project) return;
+    if(window.ManttoDetails && window.ManttoDetails.openProyecto){
+      window.ManttoDetails.openProyecto(project);
+      return;
+    }
     state.currentProject=project;
     const modal=$('proy-detail-modal'), body=$('proy-detail-body');
     if(modal) modal.hidden=false;
