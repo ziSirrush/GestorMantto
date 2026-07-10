@@ -13,7 +13,7 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./assets/img/icons/favicon.ico" sizes="any" />
   <link rel="apple-touch-icon" href="./assets/img/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./styles/base.css?v=20260705-v115" />
+  <link rel="stylesheet" href="./styles/base.css?v=20260710-sidebar-v015" />
   <link rel="stylesheet" href="./styles/home.css?v=20260705-v115" />
   <link rel="stylesheet" href="./modules/resumen-dia/resumen-dia.css?v=20260707-v116" />
   <link rel="stylesheet" href="./modules/equipos-criticos/equipos-criticos.css?v=20260706-v031" />
@@ -158,16 +158,94 @@
 
     <div class="app-body">
       <aside class="sidebar" id="sidebar">
-        <nav class="side-nav" aria-label="Modulos">
-          <button class="side-item" data-route="resumen" title="Pendiente: relacionar a Proyectos"><span>📅</span><b>Resumen del día</b></button>
-          <button class="side-item" data-route="criticos" title="Pendiente: relacionar a Proyectos"><span>⚠️</span><b>Equipos Críticos</b></button>
-          <button class="side-item" data-route="callcenter"><span>☎️</span><b>Dashboard Call Center</b></button>
-          <button class="side-item" data-route="operativo"><span>📊</span><b>Dashboard Operativo</b></button>
-          <button class="side-item" data-route="portafolio"><span>🏢</span><b>Dashboard Portafolio</b></button>
-          <button class="side-item" data-route="movimientos"><span>⇄</span><b>Movimientos Portafolio</b></button>
-          <button class="side-item" data-route="proyectos"><span>🏗️</span><b>Proyectos</b></button>
-          <button class="side-item" data-route="usuarios" title="Aún sin realizar"><span>👥</span><b>Usuarios</b></button>
-          <button class="side-item programmer" data-route="panel-control" title="Aún sin realizar"><span>🛠️</span><b>Panel de Control</b></button>
+        <nav class="side-nav" aria-label="Módulos">
+          <button class="side-item side-standalone" data-route="home" data-permission="home" type="button"><span>🏠</span><b>Inicio</b></button>
+
+          <div class="side-divider" aria-hidden="true"></div>
+
+          <section class="side-group" data-group="operacion">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-operacion">
+              <span class="side-group-icon">🛠️</span><b>Operación</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-operacion">
+              <button class="side-item" data-route="resumen" data-permission="operacion_resumen" type="button"><span>📅</span><b>Resumen del Día</b></button>
+              <button class="side-item" data-route="criticos" data-permission="operacion_criticos" type="button"><span>⚠️</span><b>Equipos Críticos</b></button>
+              <button class="side-item" data-route="callcenter" data-permission="operacion_callcenter" type="button"><span>☎️</span><b>Dashboard Call Center</b></button>
+              <button class="side-item" data-route="operativo" data-permission="operacion_operativo" type="button"><span>📊</span><b>Dashboard Operativo</b></button>
+            </div>
+          </section>
+
+          <section class="side-group" data-group="portafolio">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-portafolio">
+              <span class="side-group-icon">🏢</span><b>Portafolio</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-portafolio">
+              <button class="side-item" data-route="portafolio" data-permission="portafolio_dashboard" type="button"><span>📈</span><b>Dashboard Portafolio</b></button>
+              <button class="side-item" data-route="movimientos" data-permission="portafolio_movimientos" type="button"><span>⇄</span><b>Movimientos Portafolio</b></button>
+              <button class="side-item" data-route="proyectos" data-permission="portafolio_proyectos" type="button"><span>🏗️</span><b>Proyectos de Mantenimiento</b></button>
+            </div>
+          </section>
+
+          <section class="side-group" data-group="ventas">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-ventas">
+              <span class="side-group-icon">🤝</span><b>Ventas</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-ventas">
+              <button class="side-item" data-route="ventas-dashboard" data-permission="ventas_dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
+              <button class="side-item" data-route="ventas-vendidos" data-permission="ventas_vendidos" type="button"><span>🤝</span><b>Vendidos</b></button>
+              <button class="side-item" data-route="ventas-proyeccion" data-permission="ventas_proyeccion" type="button"><span>📈</span><b>Proyección</b></button>
+              <button class="side-item" data-route="ventas-perdidos" data-permission="ventas_perdidos" type="button"><span>📉</span><b>Perdidos</b></button>
+              <button class="side-item" data-route="ventas-fotos-mapa" data-permission="ventas_fotos_mapa" type="button"><span>🗺️</span><b>Fotos Mapa</b></button>
+              <button class="side-item" data-route="ventas-clientes" data-permission="ventas_clientes" type="button"><span>👤</span><b>Clientes</b></button>
+              <button class="side-item" data-route="ventas-cotizaciones" data-permission="ventas_cotizaciones" type="button"><span>💬</span><b>Cotizaciones</b></button>
+              <button class="side-item" data-route="ventas-prospeccion" data-permission="ventas_prospeccion" type="button"><span>🔎</span><b>Prospección</b></button>
+              <button class="side-item" data-route="ventas-mapa-prospeccion" data-permission="ventas_mapa_prospeccion" type="button"><span>📍</span><b>Mapa Prospección</b></button>
+              <button class="side-item" data-route="ventas-asignacion-redes" data-permission="ventas_asignacion_redes" type="button"><span>🌐</span><b>Asignación Redes</b></button>
+            </div>
+          </section>
+
+          <section class="side-group" data-group="logistica">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-logistica">
+              <span class="side-group-icon">🚚</span><b>Logística</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-logistica">
+              <button class="side-item" data-route="logistica-reporte" data-permission="logistica_reporte" type="button"><span>📋</span><b>Reporte de Logística</b></button>
+              <button class="side-item" data-route="logistica-pvo" data-permission="logistica_pvo" type="button"><span>🧭</span><b>PVO</b></button>
+              <button class="side-item" data-route="logistica-produccion" data-permission="logistica_produccion" type="button"><span>🏭</span><b>Producción</b></button>
+              <button class="side-item" data-route="logistica-documentos" data-permission="logistica_documentos" type="button"><span>📁</span><b>Documentos de Producción</b></button>
+            </div>
+          </section>
+
+          <section class="side-group" data-group="instalaciones">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-instalaciones">
+              <span class="side-group-icon">🏗️</span><b>Instalaciones</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-instalaciones">
+              <button class="side-item" data-route="instalaciones-dashboard" data-permission="instalaciones_dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
+              <button class="side-item" data-route="instalaciones-proyectos" data-permission="instalaciones_proyectos" type="button"><span>🏢</span><b>Proyectos</b></button>
+              <button class="side-item" data-route="instalaciones-concentrado-cliente" data-permission="instalaciones_concentrado_cliente" type="button"><span>👥</span><b>Concentrado Cliente</b></button>
+              <button class="side-item" data-route="instalaciones-reporte" data-permission="instalaciones_reporte" type="button"><span>📈</span><b>Reporte de Instalaciones</b></button>
+              <button class="side-item" data-route="instalaciones-pmm" data-permission="instalaciones_pmm" type="button"><span>🧩</span><b>PM&amp;M</b></button>
+              <button class="side-item" data-route="instalaciones-documentacion" data-permission="instalaciones_documentacion" type="button"><span>📄</span><b>Documentación Pendiente</b></button>
+              <button class="side-item" data-route="instalaciones-cerrados" data-permission="instalaciones_cerrados" type="button"><span>✅</span><b>Proyectos Cerrados</b></button>
+            </div>
+          </section>
+
+          <section class="side-group" data-group="cobranza">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-cobranza">
+              <span class="side-group-icon">💰</span><b>Cobranza</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-cobranza">
+              <button class="side-item" data-route="cobranza-dashboard" data-permission="cobranza_dashboard" type="button"><span>📊</span><b>Dashboard Cobranza</b></button>
+              <button class="side-item" data-route="cobranza-estados-cuenta" data-permission="cobranza_estados_cuenta" type="button"><span>🧾</span><b>Estados de Cuenta</b></button>
+              <button class="side-item" data-route="cobranza-aditivas" data-permission="cobranza_aditivas" type="button"><span>➕</span><b>Aditivas</b></button>
+            </div>
+          </section>
+
+          <div class="side-divider" aria-hidden="true"></div>
+
+          <button class="side-item side-standalone" data-route="usuarios" data-permission="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
+          <button class="side-item side-standalone programmer" data-route="panel-control" data-permission="panel_control" type="button"><span>⚙️</span><b>Panel de Control</b></button>
         </nav>
       </aside>
 
@@ -368,7 +446,7 @@
   <script src="./core/daily-phrases.js?v=20260705-v114"></script>
   <script src="./core/config.js?v=20260705-v114"></script>
   <script src="./core/auth.js?v=20260705-v114"></script>
-  <script src="./core/router.js?v=20260710-detail-page-v001"></script>
+  <script src="./core/router.js?v=20260710-sidebar-v001"></script>
   <script src="./modules/home/home.js?v=20260705-v114"></script>
   <script src="./modules/resumen-dia/resumen-dia.js?v=20260710-detail-page-v001"></script>
   <script src="./modules/equipos-criticos/equipos-criticos.js?v=20260707-v032"></script>
@@ -380,6 +458,6 @@
   <script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
   <script src="./modules/support/support.js?v=20260705-v114"></script>
   <script src="./core/details.js?v=20260710-detail-page-v001"></script>
-  <script src="./core/app.js?v=20260707-v116"></script>
+  <script src="./core/app.js?v=20260710-sidebar-v015"></script>
 </body>
 </html>

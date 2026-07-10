@@ -20,7 +20,84 @@
     window.setInterval(render, 30000);
   }
 
+  const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({
+    home:true,
+    operacion_resumen:true, operacion_criticos:true, operacion_callcenter:true, operacion_operativo:true,
+    portafolio_dashboard:true, portafolio_movimientos:true, portafolio_proyectos:true,
+    cobranza_dashboard:true, cobranza_estados_cuenta:true, cobranza_aditivas:true,
+    logistica_reporte:true, logistica_pvo:true, logistica_produccion:true, logistica_documentos:true,
+    instalaciones_dashboard:true, instalaciones_proyectos:true, instalaciones_concentrado_cliente:true,
+    instalaciones_reporte:true, instalaciones_pmm:true, instalaciones_documentacion:true, instalaciones_cerrados:true,
+    ventas_dashboard:true, ventas_vendidos:true, ventas_proyeccion:true, ventas_perdidos:true,
+    ventas_fotos_mapa:true, ventas_clientes:true, ventas_cotizaciones:true, ventas_prospeccion:true,
+    ventas_mapa_prospeccion:true, ventas_asignacion_redes:true,
+    usuarios:true, panel_control:true
+  });
+
+  function applyTemporarySidebarPermissions(){
+    document.querySelectorAll('[data-permission]').forEach(function(el){
+      const permission = el.dataset.permission;
+      el.hidden = TEMP_SIDEBAR_PERMISSIONS[permission] !== true;
+    });
+    document.querySelectorAll('.side-group').forEach(function(group){
+      const visibleItems = Array.from(group.querySelectorAll('.side-item')).some(function(item){ return !item.hidden; });
+      group.hidden = !visibleItems;
+    });
+  }
+
+  function openSidebarGroup(groupToOpen){
+    document.querySelectorAll('.side-group').forEach(function(group){
+      const shouldOpen = group === groupToOpen;
+      group.classList.toggle('open', shouldOpen);
+      const toggle = group.querySelector('.side-group-toggle');
+      if(toggle) toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    });
+  }
+
+  function openGroupForCurrentRoute(){
+    const active = document.querySelector('.side-item.active');
+    const group = active ? active.closest('.side-group') : null;
+    if(group) openSidebarGroup(group);
+  }
+
   function bindGlobalNavigation(){
+    applyTemporarySidebarPermissions();
+    openSidebarGroup(null);
+
+    document.querySelectorAll('.side-group-toggle').forEach(function(toggle){
+      toggle.addEventListener('click', function(){
+        const group = toggle.closest('.side-group');
+        if(!group) return;
+        const willOpen = !group.classList.contains('open');
+        if(willOpen) openSidebarGroup(group);
+        else {
+          group.classList.remove('open');
+          toggle.setAttribute('aria-expanded','false');
+        }
+      });
+    });
+
+    const sidebar = document.getElementById('sidebar');
+    if(sidebar){
+      sidebar.addEventListener('click', function(event){
+        if(window.innerWidth <= 920 || !sidebar.classList.contains('collapsed')) return;
+
+        // Solo los encabezados de grupos expanden la barra cuando esta contraida.
+        // Los accesos directos (Inicio, Usuarios y Panel de Control) conservan
+        // su accion normal y no modifican el estado contraido del panel.
+        const groupToggle = event.target.closest('.side-group-toggle');
+        if(!groupToggle) return;
+
+        const clickedGroup = groupToggle.closest('.side-group');
+        sidebar.classList.remove('collapsed');
+        if(clickedGroup) openSidebarGroup(clickedGroup);
+
+        // El primer clic solo expande y abre el grupo; no navega.
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }, true);
+    }
+
     document.querySelectorAll('[data-route]').forEach(el=>{
       if(el.id === 'app-back-btn') return;
       el.addEventListener('click', e=>{
@@ -32,6 +109,7 @@
             if(window.innerWidth <= 920) sb.classList.remove('open');
             else sb.classList.add('collapsed');
           }
+          if(!el.closest('.side-group')) openSidebarGroup(null);
         }
       });
     });
@@ -46,7 +124,10 @@
     document.getElementById('btnToggleSidebar').addEventListener('click',()=>{
       const sb = document.getElementById('sidebar');
       if(window.innerWidth <= 920) sb.classList.toggle('open');
-      else sb.classList.toggle('collapsed');
+      else {
+        sb.classList.toggle('collapsed');
+        if(!sb.classList.contains('collapsed')) openGroupForCurrentRoute();
+      }
     });
 
     const noriFloat = document.getElementById('noriFloat');

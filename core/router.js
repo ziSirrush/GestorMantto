@@ -5,7 +5,15 @@
     proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
-    profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle'
+    profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
+    'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-aditivas':'Aditivas',
+    'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-documentos':'Documentos de Producción',
+    'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
+    'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
+    'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
+    'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
+    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-cotizaciones':'Cotizaciones',
+    'ventas-prospeccion':'Prospección', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes'
   };
 
   let currentRoute = 'home';
@@ -69,7 +77,30 @@
   }
 
   function setActiveSide(route){
-    document.querySelectorAll('.side-item').forEach(b=>b.classList.toggle('active', b.dataset.route===route));
+    let activeItem = null;
+    document.querySelectorAll('.side-item').forEach(function(button){
+      const active = button.dataset.route === route;
+      button.classList.toggle('active', active);
+      if(active) activeItem = button;
+    });
+    const sidebar = document.getElementById('sidebar');
+    const activeGroup = activeItem ? activeItem.closest('.side-group') : null;
+    const canExpandGroup = sidebar && !sidebar.classList.contains('collapsed');
+    document.querySelectorAll('.side-group').forEach(function(group){
+      const isActiveGroup = Boolean(activeGroup && group === activeGroup);
+      const shouldOpen = Boolean(canExpandGroup && isActiveGroup);
+
+      // El grupo conserva el estado visual activo aunque la barra esté contraída.
+      // Así, el emoji del área actual queda resaltado igual que Inicio/Usuarios.
+      group.classList.toggle('active', isActiveGroup);
+      group.classList.toggle('open', shouldOpen);
+
+      const toggle = group.querySelector('.side-group-toggle');
+      if(toggle){
+        toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        toggle.setAttribute('aria-current', isActiveGroup ? 'true' : 'false');
+      }
+    });
   }
 
   function activateViewById(viewId){
