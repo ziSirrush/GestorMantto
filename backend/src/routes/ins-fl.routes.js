@@ -4,7 +4,7 @@ const insFlController = require('../controllers/ins-fl.controller');
 
 router.post('/sync', insFlController.syncInsFl);
 router.get('/', insFlController.getInsFl);
-router.get('/proyectos', insFlController.getInsFlProyectos);
+router.get('/proyectos', insFlController.getInsFlProjects);
 router.get('/:id', insFlController.getInsFlById);
 
 module.exports = router;
