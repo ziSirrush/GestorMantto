@@ -1,0 +1,152 @@
+<div class="insproy-page">
+  <section id="insproy-list-view">
+    <section class="insproy-card insproy-head">
+      <div>
+        <p class="insproy-eyebrow">Aiven · Instalaciones</p>
+        <h1>Proyectos de Instalación</h1>
+        <p>Concentrado de proyectos y equipos registrados en la tabla ins_fl.</p>
+      </div>
+      <div class="insproy-head-actions">
+        <span class="insproy-status loading" id="insproy-status"><span class="insproy-dot"></span><span>Cargando Aiven...</span></span>
+        <button type="button" class="insproy-btn insproy-btn-primary" data-insproy-action="refresh">↻ Actualizar</button>
+      </div>
+    </section>
+
+    <section class="insproy-card insproy-filters" aria-label="Filtros de Proyectos de Instalación">
+      <label>Estado<select id="insproy-filter-estado"><option value="">Todos</option></select></label>
+      <label>Supervisor<select id="insproy-filter-supervisor"><option value="">Todos</option></select></label>
+      <label>Asesor<select id="insproy-filter-asesor"><option value="">Todos</option></select></label>
+      <label>Aux. administrativo<select id="insproy-filter-admin"><option value="">Todos</option></select></label>
+      <label class="insproy-search-label">Buscar<input id="insproy-filter-search" type="search" placeholder="Proyecto, ID, ciudad o cliente..." /></label>
+      <button type="button" class="insproy-btn" data-insproy-action="clear">Limpiar</button>
+    </section>
+
+    <section class="insproy-grid insproy-kpis" aria-label="Indicadores de Proyectos de Instalación">
+      <article class="insproy-kpi insproy-kpi-blue"><span>🏢</span><strong id="insproy-kpi-proyectos">—</strong><b>Proyectos</b><small>registros agrupados</small></article>
+      <article class="insproy-kpi insproy-kpi-indigo"><span>🛗</span><strong id="insproy-kpi-equipos">—</strong><b>Equipos</b><small>total en ins_fl</small></article>
+      <article class="insproy-kpi insproy-kpi-green"><span>✅</span><strong id="insproy-kpi-activos">—</strong><b>Equipos activos</b><small>marcados como activos</small></article>
+      <article class="insproy-kpi insproy-kpi-amber"><span>🏁</span><strong id="insproy-kpi-terminados">—</strong><b>Terminados</b><small>estatus 08-T</small></article>
+    </section>
+
+    <section class="insproy-card">
+      <div class="insproy-section-head"><div><h2>Listado de proyectos</h2><p id="insproy-count">—</p></div></div>
+      <div class="insproy-table-wrap">
+        <table class="insproy-table">
+          <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th>Número de Equipos</th><th>Asesor</th><th>Supervisor</th><th>Aux Administrativo</th><th>Cliente</th><th>Acciones</th></tr></thead>
+          <tbody id="insproy-body"><tr><td colspan="10" class="insproy-empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section id="insproy-detail-view" class="insproy-detail-view" hidden aria-label="Detalle del proyecto de instalación">
+    <section class="insproy-card insproy-detail-head">
+      <button type="button" class="insproy-btn" data-insproy-action="back-list">← Volver a proyectos</button>
+      <div class="insproy-detail-title"><p class="insproy-eyebrow">Instalaciones</p><h1>Proyecto</h1><p id="insproy-detail-subtitle">Cargando detalle...</p></div>
+      <button type="button" class="insproy-btn insproy-btn-primary" data-insproy-action="new-task">＋ Generar pendiente</button>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>1. Datos generales del proyecto</h2><p>Información consolidada del PP NS seleccionado.</p></div></div>
+      <div id="insproy-general-grid" class="insproy-general-grid"></div>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head insproy-section-head-actions">
+        <div><h2>2. Producción y Logística</h2><p>Consulta el detalle logístico relacionado con el PP NS.</p></div>
+      </div>
+      <div class="insproy-logistics-summary"><span>PP NS</span><strong id="insproy-logistics-ppns">—</strong><small id="insproy-project-logistics-count">Consultando registros relacionados...</small></div>
+      <div class="insproy-table-wrap insproy-logistics-table-wrap">
+        <table class="insproy-table insproy-logistics-table">
+          <thead><tr><th>Sección del reporte</th><th>No. control</th><th>Marca</th><th>Cantidad</th><th>Fecha producción</th><th>Fecha entrega</th><th>Acciones</th></tr></thead>
+          <tbody id="insproy-project-logistics-body"><tr><td colspan="7" class="insproy-empty">Consultando Logística...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>3. Avance del proyecto</h2><p>Fórmula: (OC × 40%) + (MO × 40%) + (AJ × 20%).</p></div></div>
+      <div class="insproy-progress-wrap">
+        <div class="insproy-progress-meta"><strong id="insproy-progress-label">0%</strong><span>Avance ponderado</span></div>
+        <div class="insproy-progress"><span id="insproy-progress-bar" style="width:0%"></span></div>
+      </div>
+      <div class="insproy-chart-card">
+        <h3>Avance por equipo</h3>
+        <div id="insproy-equipment-chart" class="insproy-equipment-chart"></div>
+      </div>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>Equipos relacionados</h2><p id="insproy-equipment-count">—</p></div></div>
+      <div class="insproy-table-wrap">
+        <table class="insproy-table insproy-equipment-table">
+          <thead><tr><th>Nombre de equipo</th><th>Estatus de producción</th><th>Fecha de descarga</th><th>Estatus</th><th>Avance general</th><th>Obra civil</th><th>Montaje</th><th>Ajuste</th><th>Entrega al cliente</th><th>Acciones</th></tr></thead>
+          <tbody id="insproy-equipment-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section id="insproy-equipment-detail-view" class="insproy-detail-view" hidden aria-label="Detalle del equipo de instalación">
+    <section class="insproy-card insproy-detail-head">
+      <button type="button" class="insproy-btn" data-insproy-action="back-project">← Volver al proyecto</button>
+      <div class="insproy-detail-title"><p class="insproy-eyebrow">Equipo de instalación</p><h1 id="insproy-equipment-title">Equipo</h1><p id="insproy-equipment-status">Estatus: —</p></div>
+      <button type="button" class="insproy-btn insproy-btn-primary" data-insproy-action="new-task">＋ Generar pendiente</button>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>1. Avance del equipo</h2><p>Consulta el avance general y el detalle por etapa.</p></div></div>
+      <div class="insproy-stage-list">
+        <article class="insproy-stage-card">
+          <div class="insproy-stage-head"><div><small>Avance general del equipo</small><strong id="insproy-equipment-general-label">0.00%</strong></div></div>
+          <div class="insproy-progress"><span id="insproy-equipment-general-bar" style="width:0%"></span></div>
+        </article>
+
+        <article class="insproy-stage-card">
+          <button type="button" class="insproy-stage-toggle" data-progress-expand="oc" aria-expanded="false">
+            <span><small>Avance de obra civil</small><strong id="insproy-equipment-oc-label">0.00%</strong></span><b>Ver detalle</b>
+          </button>
+          <div class="insproy-progress"><span id="insproy-equipment-oc-bar" style="width:0%"></span></div>
+          <div id="insproy-expand-oc" class="insproy-expand-grid" hidden></div>
+        </article>
+
+        <article class="insproy-stage-card">
+          <button type="button" class="insproy-stage-toggle" data-progress-expand="mo" aria-expanded="false">
+            <span><small>Avance de instalación</small><strong id="insproy-equipment-mo-label">0.00%</strong></span><b>Ver detalle</b>
+          </button>
+          <div class="insproy-progress"><span id="insproy-equipment-mo-bar" style="width:0%"></span></div>
+          <div id="insproy-expand-mo" class="insproy-expand-grid" hidden></div>
+        </article>
+
+        <article class="insproy-stage-card">
+          <button type="button" class="insproy-stage-toggle" data-progress-expand="aj" aria-expanded="false">
+            <span><small>Avance de ajuste</small><strong id="insproy-equipment-aj-label">0.00%</strong></span><b>Ver detalle</b>
+          </button>
+          <div class="insproy-progress"><span id="insproy-equipment-aj-bar" style="width:0%"></span></div>
+          <div id="insproy-expand-aj" class="insproy-expand-grid" hidden></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>2. Generales del equipo</h2><p>Características principales del equipo.</p></div></div>
+      <div id="insproy-equipment-general-grid" class="insproy-general-grid"></div>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>3. Logística y materiales</h2><p>Información relacionada con el PP NS del proyecto.</p></div></div>
+      <div id="insproy-equipment-logistics-grid" class="insproy-general-grid"></div>
+    </section>
+
+    <section class="insproy-card insproy-detail-section">
+      <div class="insproy-section-head"><div><h2>4. Supervisión de obra / instalaciones</h2><p>Seguimiento de visitas y comentarios del supervisor.</p></div></div>
+      <div class="insproy-table-wrap">
+        <table class="insproy-table insproy-detail-table"><tbody id="insproy-supervision-body"></tbody></table>
+      </div>
+    </section>
+  </section>
+
+  <div id="insproy-task-choice" class="insproy-choice" hidden>
+    <div class="insproy-choice-card"><h2>Generar pendiente</h2><p>Selecciona el tipo de tarea que deseas crear.</p><div><button type="button" class="insproy-btn" data-task-type="PERSONAL">Personal</button><button type="button" class="insproy-btn insproy-btn-primary" data-task-type="COLABORATIVA">Colaborativa</button></div><button type="button" class="insproy-choice-close" data-insproy-action="close-task-choice">×</button></div>
+  </div>
+</div>

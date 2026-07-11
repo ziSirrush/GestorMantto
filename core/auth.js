@@ -49,7 +49,9 @@
       el.style.display = isProg ? '' : 'none';
     });
   }
+  function hideBootstrap(){ const el=$('auth-bootstrap-screen'); if(el) el.classList.add('hidden'); }
   function showApp(){
+    hideBootstrap();
     const auth=$('auth-screen'), app=$('app');
     if(auth) auth.classList.add('hidden');
     if(app) app.classList.remove('auth-hidden');
@@ -57,6 +59,7 @@
     document.dispatchEvent(new CustomEvent('mantto:auth-ready', { detail:{ user:getUser(), token:getToken() } }));
   }
   function showLogin(){
+    hideBootstrap();
     const auth=$('auth-screen'), app=$('app');
     if(auth) auth.classList.remove('hidden');
     if(app) app.classList.add('auth-hidden');
@@ -112,7 +115,7 @@
       setForm('login-form');
     }catch(err){ msg('recovery-msg', err.message || 'No fue posible recuperar la contraseña.','error'); }
   }
-  function init(){
+  async function init(){
     $('login-form')?.addEventListener('submit', handleLogin);
     $('first-login-form')?.addEventListener('submit', handleFirstLogin);
     $('recovery-form')?.addEventListener('submit', handleRecovery);
@@ -123,8 +126,22 @@
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     const savedToken = localStorage.getItem(TOKEN_KEY);
     const savedUser = safeJson(localStorage.getItem(USER_KEY));
-    if(savedToken && savedUser){ state.token=savedToken; state.user=savedUser; showApp(); }
-    else showLogin();
+    if(!savedToken){ showLogin(); return; }
+
+    state.token=savedToken;
+    state.user=savedUser;
+    try{
+      const validation=await apiGet('/api/auth/me');
+      const validatedUser=validation?.user || validation?.data || savedUser;
+      if(!validatedUser) throw new Error('Sesión sin usuario válido.');
+      state.user=validatedUser;
+      localStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
+      showApp();
+    }catch(error){
+      clearSession();
+      showLogin();
+      msg('login-msg','Tu sesión expiró. Inicia sesión nuevamente.','info');
+    }
   }
   function logout(){ clearSession(); showLogin(); }
   window.ManttoAuth = { init, logout, getToken, getUser, api, apiGet, apiPost, authHeaders(){ const t=getToken(); return t?{Authorization:'Bearer '+t}:{}; } };

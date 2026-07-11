@@ -7,7 +7,7 @@
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
     'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-aditivas':'Aditivas',
-    'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-documentos':'Documentos de Producción',
+    'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-documentos':'Documentos de Producción',
     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
     'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
@@ -34,9 +34,9 @@
     } else if(payload && payload.id) hash += '/' + encodeURIComponent(payload.id);
     return hash;
   }
-  function syncBrowserHistory(route, payload, replace){
+  function syncBrowserHistory(route, payload, replace, scrollY){
     if(browserNavActive || !window.history) return;
-    const state = { mantto:true, route:route || 'home', payload:payload || null };
+    const state = { mantto:true, route:route || 'home', payload:payload || null, scrollY:Number(scrollY)||0 };
     const url = routeUrl(route || 'home', payload || null);
     try{
       if(replace) window.history.replaceState(state, '', url);
@@ -218,6 +218,46 @@
 
 
 
+  function showInstalacionesProyectos(){
+    const view=document.getElementById('view-instalaciones-proyectos');
+    if(!view) return false;
+    activateViewById('view-instalaciones-proyectos');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="insproy-page"><section class="insproy-card insproy-head"><div><p class="insproy-eyebrow">Cargando módulo</p><h1>Proyectos de Instalación</h1><p>Inicializando vista de pruebas...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-proyectos');
+    updateContext('instalaciones-proyectos','Proyectos de Instalación · concentrado desde ins_fl en Aiven');
+    if(window.ManttoInstalacionesProyectos) window.ManttoInstalacionesProyectos.init();
+    return true;
+  }
+
+  function showLogisticaDashboard(){
+    const view=document.getElementById('view-logistica-dashboard');
+    if(!view) return false;
+    activateViewById('view-logistica-dashboard');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="dl-page"><section class="dl-card dl-head"><div><p class="dl-eyebrow">Cargando módulo</p><h1>Dashboard Logística</h1><p>Inicializando vista desde Aiven...</p></div></section></div>';
+    }
+    setActiveSide('logistica-dashboard');
+    updateContext('logistica-dashboard','Dashboard Logística · producción, tránsito y movimientos semanales desde Aiven');
+    if(window.ManttoDashboardLogistica) window.ManttoDashboardLogistica.init();
+    return true;
+  }
+
+
+  function showLogisticaReporte(){
+    const view=document.getElementById('view-logistica-reporte');
+    if(!view) return false;
+    activateViewById('view-logistica-reporte');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="rl-page"><section class="rl-card rl-head"><div><p class="rl-eyebrow">Cargando módulo</p><h1>Reporte de Logística</h1><p>Inicializando detalle desde Aiven...</p></div></section></div>';
+    }
+    setActiveSide('logistica-reporte');
+    updateContext('logistica-reporte','Reporte de Logística · detalle operativo por estatus desde Aiven');
+    if(window.ManttoReporteLogistica) window.ManttoReporteLogistica.init(currentPayload || {});
+    return true;
+  }
+
   function showUsuarios(){
     const view=document.getElementById('view-usuarios');
     if(!view) return false;
@@ -292,6 +332,9 @@
     if(route==='callcenter' && showCallCenter()) return;
     if(route==='operativo' && showOperativo()) return;
     if(route==='movimientos' && showMovimientos()) return;
+    if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
+    if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
+    if(route==='logistica-reporte' && showLogisticaReporte()) return;
     if(route==='usuarios' && showUsuarios()) return;
     if(route==='help' && showView('help','Centro de Ayuda · flujos y FAQ desde Aiven')) return;
     if(route==='notifications'){ showNotifications(payload); return; }
@@ -344,7 +387,8 @@
     currentRoute = nextRoute;
     currentPayload = payload || null;
     render(currentRoute, currentPayload);
-    syncBrowserHistory(currentRoute, currentPayload, !!options.replace);
+    window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=0; window.scrollTo?.({top:0,behavior:'auto'}); },0);
+    syncBrowserHistory(currentRoute, currentPayload, !!options.replace, 0);
   }
 
   function internalBack(opts){
@@ -362,7 +406,7 @@
     } else {
       render('home', null);
     }
-    if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, false);
+    if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, false, previous ? previous.scrollY : 0);
   }
 
   window.addEventListener('popstate', function(ev){
@@ -373,6 +417,7 @@
         currentRoute = state.route || 'home';
         currentPayload = state.payload || null;
         render(currentRoute, currentPayload);
+        window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=Number(state.scrollY)||0; },0);
       } else {
         internalBack({fromBrowser:true});
       }

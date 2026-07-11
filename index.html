@@ -14,11 +14,14 @@
   <link rel="icon" href="./assets/img/icons/favicon.ico" sizes="any" />
   <link rel="apple-touch-icon" href="./assets/img/icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="./styles/base.css?v=20260710-sidebar-v015" />
+  <link rel="stylesheet" href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" />
+  <link rel="stylesheet" href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" />
   <link rel="stylesheet" href="./styles/home.css?v=20260705-v115" />
   <link rel="stylesheet" href="./modules/resumen-dia/resumen-dia.css?v=20260707-v116" />
   <link rel="stylesheet" href="./modules/equipos-criticos/equipos-criticos.css?v=20260706-v031" />
   <link rel="stylesheet" href="./modules/portafolio/portafolio.css?v=20260706-v001" />
   <link rel="stylesheet" href="./modules/proyectos/proyectos.css?v=20260706-v001" />
+  <link rel="stylesheet" href="./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260711-v005" />
   <link rel="stylesheet" href="./modules/callcenter/callcenter.css?v=20260707-v001" />
   <link rel="stylesheet" href="./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001" />
   <link rel="stylesheet" href="./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003" />
@@ -27,10 +30,17 @@
   <style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
     [hidden]{display:none!important}
+    .auth-bootstrap-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#f4f7fc;color:#0d2e6e;font-family:Arial,sans-serif}
+    .auth-bootstrap-card{display:flex;align-items:center;gap:14px;padding:20px 24px;border:1px solid #d7e0ef;border-radius:18px;background:#fff;box-shadow:0 18px 45px rgba(13,46,110,.12);font-weight:800}
+    .auth-bootstrap-spinner{width:28px;height:28px;border:4px solid #dbe5f5;border-top-color:#1f56d8;border-radius:50%;animation:manttoSpin .8s linear infinite}
+    @keyframes manttoSpin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
-  <section id="auth-screen" class="auth-screen" aria-label="Inicio de sesión Mantto Gestor">
+  <section id="auth-bootstrap-screen" class="auth-bootstrap-screen" aria-live="polite" aria-label="Validando sesión">
+    <div class="auth-bootstrap-card"><span class="auth-bootstrap-spinner" aria-hidden="true"></span><span>Validando sesión...</span></div>
+  </section>
+  <section id="auth-screen" class="auth-screen hidden" aria-label="Inicio de sesión Mantto Gestor">
     <div class="auth-card">
       <div class="auth-brand">
         <img alt="BLT Brilliant" src="assets/logo.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />
@@ -209,6 +219,7 @@
               <span class="side-group-icon">🚚</span><b>Logística</b><i>⌄</i>
             </button>
             <div class="side-group-items" id="side-group-logistica">
+              <button class="side-item" data-route="logistica-dashboard" data-permission="logistica_dashboard" type="button"><span>📊</span><b>Dashboard Logística</b></button>
               <button class="side-item" data-route="logistica-reporte" data-permission="logistica_reporte" type="button"><span>📋</span><b>Reporte de Logística</b></button>
               <button class="side-item" data-route="logistica-pvo" data-permission="logistica_pvo" type="button"><span>🧭</span><b>PVO</b></button>
               <button class="side-item" data-route="logistica-produccion" data-permission="logistica_produccion" type="button"><span>🏭</span><b>Producción</b></button>
@@ -254,6 +265,7 @@
         <section id="view-portafolio" class="view pf-view" data-view="portafolio" aria-label="Portafolio"></section>
         <section id="view-usuarios" class="view usr-view" data-view="usuarios" aria-label="Usuarios"></section>
         <section id="view-proyectos" class="view proy-view" data-view="proyectos" aria-label="Proyectos"></section>
+        <section id="view-instalaciones-proyectos" class="view insproy-view" data-view="instalaciones-proyectos" aria-label="Proyectos de Instalación"></section>
         <section id="view-resumen" class="view resumen-page" data-view="resumen" aria-label="Resumen del día">
   <div class="rd-card rd-header">
     <div class="rd-title">
@@ -371,6 +383,8 @@
 
         <section id="view-callcenter" class="view cc-view" data-view="callcenter" aria-label="Dashboard Call Center"></section>
         <section id="view-operativo" class="view op-view" data-view="operativo" aria-label="Dashboard Operativo"></section>
+        <section id="view-logistica-dashboard" class="view dl-view" data-view="logistica-dashboard" aria-label="Dashboard Logística"></section>
+        <section id="view-logistica-reporte" class="view rl-view" data-view="logistica-reporte" aria-label="Reporte de Logística"></section>
         <section id="view-movimientos" class="view mov-view" data-view="movimientos" aria-label="Movimientos de Portafolio"></section>
 
         <section id="view-criticos" class="view" data-view="criticos" aria-label="Equipos críticos"></section>
@@ -445,16 +459,19 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="./core/daily-phrases.js?v=20260705-v114"></script>
   <script src="./core/config.js?v=20260705-v114"></script>
-  <script src="./core/auth.js?v=20260705-v114"></script>
-  <script src="./core/router.js?v=20260710-sidebar-v001"></script>
+  <script src="./core/auth.js?v=20260711-neutral-auth-v001"></script>
+  <script src="./core/router.js?v=20260711-scroll-history-v002"></script>
   <script src="./modules/home/home.js?v=20260705-v114"></script>
   <script src="./modules/resumen-dia/resumen-dia.js?v=20260710-detail-page-v001"></script>
   <script src="./modules/equipos-criticos/equipos-criticos.js?v=20260707-v032"></script>
   <script src="./modules/portafolio/portafolio.js?v=20260710-detail-page-v001"></script>
   <script src="./modules/proyectos/proyectos.js?v=20260710-detail-page-v001"></script>
+  <script src="./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260711-v005"></script>
   <script src="./modules/callcenter/callcenter.js?v=20260707-v002"></script>
   <script src="./modules/dashboard-operativo/dashboard-operativo.js?v=20260707-v001"></script>
   <script src="./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260707-v004"></script>
+  <script src="./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003"></script>
+  <script src="./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004"></script>
   <script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
   <script src="./modules/support/support.js?v=20260705-v114"></script>
   <script src="./core/details.js?v=20260710-detail-page-v001"></script>
