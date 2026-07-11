@@ -468,27 +468,32 @@ async function getInsFlProjects(req, res) {
     const where = [];
 
     if (req.query.proyecto) {
-      where.push('proyecto LIKE ?');
+      where.push('f.proyecto LIKE ?');
       params.push(`%${String(req.query.proyecto)}%`);
     }
 
     if (req.query.id_sup) {
-      where.push('id_sup = ?');
+      where.push('f.id_sup = ?');
       params.push(Number(req.query.id_sup));
     }
 
     if (req.query.id_asesor) {
-      where.push('id_asesor = ?');
+      where.push('f.id_asesor = ?');
       params.push(Number(req.query.id_asesor));
     }
 
     if (req.query.id_admin) {
-      where.push('id_admin = ?');
+      where.push(`EXISTS (
+        SELECT 1
+        FROM usuarios_rel_admin ura_filter
+        WHERE ura_filter.id_asesor = f.id_asesor
+          AND ura_filter.id_admin = ?
+      )`);
       params.push(Number(req.query.id_admin));
     }
 
     if (req.query.activo !== undefined && req.query.activo !== '') {
-      where.push('activo = ?');
+      where.push('f.activo = ?');
       params.push(normalizeActive(req.query.activo));
     }
 
@@ -496,22 +501,45 @@ async function getInsFlProjects(req, res) {
 
     const [rows] = await db.query(
       `SELECT
-         id_proyecto,
-         MAX(proyecto) AS proyecto,
-         MAX(cliente) AS cliente,
-         MAX(vendedor) AS vendedor,
-         MAX(estado) AS estado,
-         MAX(ciudad) AS ciudad,
-         MAX(id_sup) AS id_sup,
-         MAX(id_asesor) AS id_asesor,
-         MAX(id_admin) AS id_admin,
+         f.id_proyecto,
+         MAX(f.proyecto) AS proyecto,
+         MAX(f.cliente) AS cliente,
+         MAX(f.vendedor) AS vendedor,
+         MAX(f.estado) AS estado,
+         MAX(f.ciudad) AS ciudad,
+         MAX(f.id_sup) AS id_sup,
+         MAX(f.id_asesor) AS id_asesor,
+         MAX(admin_rel.id_admin) AS id_admin,
+         MAX(u_sup.iniciales) AS supervisor_iniciales,
+         MAX(u_asesor.iniciales) AS asesor_iniciales,
+         MAX(admin_rel.admin_iniciales) AS admin_iniciales,
          COUNT(*) AS total_equipos,
-         SUM(CASE WHEN activo = 1 THEN 1 ELSE 0 END) AS equipos_activos,
-         SUM(CASE WHEN estatus = '08-T' THEN 1 ELSE 0 END) AS equipos_terminados,
-         MAX(updated_at) AS ultima_actualizacion
-       FROM ins_fl
+         SUM(CASE WHEN f.activo = 1 THEN 1 ELSE 0 END) AS equipos_activos,
+         SUM(CASE WHEN f.estatus = '08-T' THEN 1 ELSE 0 END) AS equipos_terminados,
+         MAX(f.updated_at) AS ultima_actualizacion
+       FROM ins_fl f
+       LEFT JOIN usuarios u_sup ON u_sup.id_SB = f.id_sup
+       LEFT JOIN usuarios u_asesor ON u_asesor.id_SB = f.id_asesor
+       LEFT JOIN (
+         SELECT
+           ura.id_asesor,
+           GROUP_CONCAT(
+             DISTINCT ura.id_admin
+             ORDER BY ura.id_admin
+             SEPARATOR ','
+           ) AS id_admin,
+           GROUP_CONCAT(
+             DISTINCT u_admin.iniciales
+             ORDER BY u_admin.iniciales
+             SEPARATOR ', '
+           ) AS admin_iniciales
+         FROM usuarios_rel_admin ura
+         INNER JOIN usuarios u_admin
+           ON u_admin.id_SB = ura.id_admin
+         GROUP BY ura.id_asesor
+       ) admin_rel ON admin_rel.id_asesor = f.id_asesor
        ${whereSql}
-       GROUP BY id_proyecto
+       GROUP BY f.id_proyecto
        ORDER BY proyecto ASC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
