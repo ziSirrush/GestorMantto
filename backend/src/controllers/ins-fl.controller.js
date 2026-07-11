@@ -1,0 +1,541 @@
+const db = require('../config/db');
+
+const DB_FIELDS = [
+  'proyecto',
+  'id_proyecto',
+  'referencia_sitio',
+  'estatus',
+  'fecha_visita',
+  'comentarios_fl',
+  'avance_oc',
+  'avance_mo',
+  'avance_aj',
+  'numero_pisos',
+  'numero_desembarques',
+  'numero_puertas',
+  'velocidad_ms',
+  'capacidad_kg',
+  'entrepiso_mm',
+  'longitud_mm',
+  'ancho_peldano_mm',
+  'fecha_cpvp',
+  'estatus_produccion',
+  'fecha_descarga',
+  'fecha_colocacion_esc_ramp',
+  'fecha_ccnr',
+  'fecha_ccr',
+  'subcontratista',
+  'fecha_inicio_montaje',
+  'fecha_fin_montaje_planeado',
+  'fecha_fin_montaje_modificado',
+  'fecha_fin_montaje_real',
+  'dias_restantes',
+  'fecha_cti',
+  'fecha_revision_supervisor',
+  'fecha_minuta_revision_ajuste',
+  'fecha_liberacion_ajuste',
+  'ajustador',
+  'fecha_inicio_ajuste',
+  'fecha_fin_ajuste_planeado',
+  'fecha_fin_ajuste_modificado',
+  'fecha_fin_ajuste_real',
+  'fecha_reporte_ajuste',
+  'fecha_protocolo_aceptacion',
+  'estatus_inspeccion_calidad',
+  'pendientes_calidad',
+  'fecha_entrega_cliente',
+  'formato_caf_pg',
+  'estatus_equipo_entrega',
+  'anio_termino',
+  'dias_sin_visita',
+  'dias_sin_ccnr',
+  'estado',
+  'supervisor_fl',
+  'ciudad',
+  'fecha_posible_recepcion_cubo',
+  'fecha_posible_inicio_ajuste',
+  'condiciones_obra',
+  'evaluacion_subcontrato',
+  'minuta_interfon',
+  'certificado_regulador',
+  'vendedor',
+  'cliente',
+  'id_sup',
+  'id_asesor',
+  'id_admin',
+  'activo'
+];
+
+const REQUIRED_FIELDS = ['proyecto', 'id_proyecto', 'referencia_sitio'];
+
+const DATE_FIELDS = new Set([
+  'fecha_visita',
+  'fecha_cpvp',
+  'fecha_descarga',
+  'fecha_colocacion_esc_ramp',
+  'fecha_ccnr',
+  'fecha_ccr',
+  'fecha_inicio_montaje',
+  'fecha_fin_montaje_planeado',
+  'fecha_fin_montaje_modificado',
+  'fecha_fin_montaje_real',
+  'fecha_cti',
+  'fecha_revision_supervisor',
+  'fecha_minuta_revision_ajuste',
+  'fecha_liberacion_ajuste',
+  'fecha_inicio_ajuste',
+  'fecha_fin_ajuste_planeado',
+  'fecha_fin_ajuste_modificado',
+  'fecha_fin_ajuste_real',
+  'fecha_reporte_ajuste',
+  'fecha_protocolo_aceptacion',
+  'fecha_entrega_cliente',
+  'fecha_posible_recepcion_cubo',
+  'fecha_posible_inicio_ajuste'
+]);
+
+const INTEGER_FIELDS = new Set([
+  'numero_pisos',
+  'numero_desembarques',
+  'numero_puertas',
+  'capacidad_kg',
+  'entrepiso_mm',
+  'longitud_mm',
+  'ancho_peldano_mm',
+  'dias_restantes',
+  'anio_termino',
+  'dias_sin_visita',
+  'dias_sin_ccnr',
+  'id_sup',
+  'id_asesor',
+  'id_admin',
+  'activo'
+]);
+
+const DECIMAL_FIELDS = new Set([
+  'avance_oc',
+  'avance_mo',
+  'avance_aj',
+  'velocidad_ms'
+]);
+
+function cleanValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (!text || text === '-' || text === '.' || text.toUpperCase() === 'N/A') {
+      return null;
+    }
+    return text;
+  }
+
+  return value;
+}
+
+function normalizeDateOnly(value) {
+  const cleaned = cleanValue(value);
+  if (cleaned === null) return null;
+
+  if (cleaned instanceof Date && !Number.isNaN(cleaned.getTime())) {
+    return cleaned.toISOString().slice(0, 10);
+  }
+
+  const text = String(cleaned).trim();
+  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return text;
+}
+
+function normalizeNumber(value, { integer = false, percent = false } = {}) {
+  const cleaned = cleanValue(value);
+  if (cleaned === null) return null;
+
+  if (typeof cleaned === 'number' && Number.isFinite(cleaned)) {
+    const numeric = percent && Math.abs(cleaned) <= 1 ? cleaned * 100 : cleaned;
+    return integer ? Math.trunc(numeric) : numeric;
+  }
+
+  const raw = String(cleaned).trim();
+  const hasPercent = raw.includes('%');
+  const normalized = raw
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .replace(/[^\d.-]/g, '');
+
+  if (!normalized || normalized === '-' || normalized === '.') return null;
+
+  let numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) return null;
+
+  if (percent && !hasPercent && Math.abs(numeric) <= 1) {
+    numeric *= 100;
+  }
+
+  return integer ? Math.trunc(numeric) : numeric;
+}
+
+function normalizeActive(value) {
+  const cleaned = cleanValue(value);
+  if (cleaned === null) return 1;
+
+  if (typeof cleaned === 'boolean') return cleaned ? 1 : 0;
+  if (typeof cleaned === 'number') return cleaned ? 1 : 0;
+
+  const text = String(cleaned).trim().toUpperCase();
+  if (['0', 'NO', 'FALSE', 'INACTIVO'].includes(text)) return 0;
+  if (['1', 'SI', 'SÍ', 'TRUE', 'ACTIVO'].includes(text)) return 1;
+
+  return 1;
+}
+
+function normalizeIncomingRow(row) {
+  const incoming = {};
+
+  for (const field of DB_FIELDS) {
+    if (field === 'activo') {
+      incoming[field] = normalizeActive(row[field]);
+      continue;
+    }
+
+    if (DATE_FIELDS.has(field)) {
+      incoming[field] = normalizeDateOnly(row[field]);
+      continue;
+    }
+
+    if (INTEGER_FIELDS.has(field)) {
+      incoming[field] = normalizeNumber(row[field], { integer: true });
+      continue;
+    }
+
+    if (DECIMAL_FIELDS.has(field)) {
+      incoming[field] = normalizeNumber(row[field], {
+        integer: false,
+        percent: field.startsWith('avance_')
+      });
+      continue;
+    }
+
+    incoming[field] = cleanValue(row[field]);
+  }
+
+  return incoming;
+}
+
+function comparable(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'number') return String(value);
+
+  return String(value).trim();
+}
+
+function rowChanged(existing, incoming) {
+  return DB_FIELDS.some(
+    field => comparable(existing[field]) !== comparable(incoming[field])
+  );
+}
+
+async function syncInsFl(req, res) {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+  if (!rows.length) {
+    return res.status(400).json({
+      ok: false,
+      message: 'No se recibieron filas para sincronizar ins_fl.'
+    });
+  }
+
+  const conn = await db.getConnection();
+  const summary = {
+    received: rows.length,
+    inserted: 0,
+    updated: 0,
+    unchanged: 0,
+    rejected: 0,
+    errors: []
+  };
+
+  try {
+    await conn.beginTransaction();
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const incoming = normalizeIncomingRow(rows[index] || {});
+
+      const missing = REQUIRED_FIELDS.filter(field => !incoming[field]);
+      if (missing.length) {
+        summary.rejected += 1;
+        summary.errors.push({
+          index,
+          id_proyecto: incoming.id_proyecto,
+          referencia_sitio: incoming.referencia_sitio,
+          message: `Faltan campos obligatorios: ${missing.join(', ')}`
+        });
+        continue;
+      }
+
+      const [existingRows] = await conn.query(
+        `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
+         FROM ins_fl
+         WHERE id_proyecto = ?
+           AND referencia_sitio = ?
+         LIMIT 1`,
+        [incoming.id_proyecto, incoming.referencia_sitio]
+      );
+
+      if (!existingRows.length) {
+        const placeholders = DB_FIELDS.map(() => '?').join(', ');
+        const values = DB_FIELDS.map(field => incoming[field]);
+
+        await conn.query(
+          `INSERT INTO ins_fl (${DB_FIELDS.join(', ')})
+           VALUES (${placeholders})`,
+          values
+        );
+
+        summary.inserted += 1;
+        continue;
+      }
+
+      if (!rowChanged(existingRows[0], incoming)) {
+        summary.unchanged += 1;
+        continue;
+      }
+
+      const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');
+      const values = [
+        ...DB_FIELDS.map(field => incoming[field]),
+        existingRows[0].id_ins_fl
+      ];
+
+      await conn.query(
+        `UPDATE ins_fl
+         SET ${assignments}
+         WHERE id_ins_fl = ?`,
+        values
+      );
+
+      summary.updated += 1;
+    }
+
+    await conn.commit();
+
+    return res.json({
+      ok: true,
+      message: 'ins_fl sincronizada correctamente.',
+      ...summary
+    });
+  } catch (error) {
+    await conn.rollback();
+
+    return res.status(500).json({
+      ok: false,
+      message: 'Error sincronizando ins_fl.',
+      error: error.message,
+      ...summary
+    });
+  } finally {
+    conn.release();
+  }
+}
+
+async function getInsFl(req, res) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 500, 1), 5000);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const params = [];
+    const where = [];
+
+    if (req.query.id_proyecto) {
+      where.push('id_proyecto = ?');
+      params.push(String(req.query.id_proyecto));
+    }
+
+    if (req.query.proyecto) {
+      where.push('proyecto LIKE ?');
+      params.push(`%${String(req.query.proyecto)}%`);
+    }
+
+    if (req.query.referencia_sitio) {
+      where.push('referencia_sitio LIKE ?');
+      params.push(`%${String(req.query.referencia_sitio)}%`);
+    }
+
+    if (req.query.estatus) {
+      where.push('estatus = ?');
+      params.push(String(req.query.estatus));
+    }
+
+    if (req.query.id_sup) {
+      where.push('id_sup = ?');
+      params.push(Number(req.query.id_sup));
+    }
+
+    if (req.query.id_asesor) {
+      where.push('id_asesor = ?');
+      params.push(Number(req.query.id_asesor));
+    }
+
+    if (req.query.id_admin) {
+      where.push('id_admin = ?');
+      params.push(Number(req.query.id_admin));
+    }
+
+    if (req.query.activo !== undefined && req.query.activo !== '') {
+      where.push('activo = ?');
+      params.push(normalizeActive(req.query.activo));
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const [rows] = await db.query(
+      `SELECT *
+       FROM ins_fl
+       ${whereSql}
+       ORDER BY id_ins_fl ASC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: rows,
+      limit,
+      offset
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando ins_fl.',
+      error: error.message
+    });
+  }
+}
+
+async function getInsFlById(req, res) {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: 'ID inválido.'
+      });
+    }
+
+    const [rows] = await db.query(
+      'SELECT * FROM ins_fl WHERE id_ins_fl = ? LIMIT 1',
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: 'Registro de instalación no encontrado.'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: rows[0]
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando el registro de instalación.',
+      error: error.message
+    });
+  }
+}
+
+async function getInsFlProjects(req, res) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 500, 1), 5000);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const params = [];
+    const where = [];
+
+    if (req.query.proyecto) {
+      where.push('proyecto LIKE ?');
+      params.push(`%${String(req.query.proyecto)}%`);
+    }
+
+    if (req.query.id_sup) {
+      where.push('id_sup = ?');
+      params.push(Number(req.query.id_sup));
+    }
+
+    if (req.query.id_asesor) {
+      where.push('id_asesor = ?');
+      params.push(Number(req.query.id_asesor));
+    }
+
+    if (req.query.id_admin) {
+      where.push('id_admin = ?');
+      params.push(Number(req.query.id_admin));
+    }
+
+    if (req.query.activo !== undefined && req.query.activo !== '') {
+      where.push('activo = ?');
+      params.push(normalizeActive(req.query.activo));
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const [rows] = await db.query(
+      `SELECT
+         id_proyecto,
+         MAX(proyecto) AS proyecto,
+         MAX(cliente) AS cliente,
+         MAX(vendedor) AS vendedor,
+         MAX(estado) AS estado,
+         MAX(ciudad) AS ciudad,
+         MAX(id_sup) AS id_sup,
+         MAX(id_asesor) AS id_asesor,
+         MAX(id_admin) AS id_admin,
+         COUNT(*) AS total_equipos,
+         SUM(CASE WHEN activo = 1 THEN 1 ELSE 0 END) AS equipos_activos,
+         SUM(CASE WHEN estatus = '08-T' THEN 1 ELSE 0 END) AS equipos_terminados,
+         MAX(updated_at) AS ultima_actualizacion
+       FROM ins_fl
+       ${whereSql}
+       GROUP BY id_proyecto
+       ORDER BY proyecto ASC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: rows,
+      limit,
+      offset
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando proyectos de instalaciones.',
+      error: error.message
+    });
+  }
+}
+
+module.exports = {
+  syncInsFl,
+  getInsFl,
+  getInsFlById,
+  getInsFlProjects
+};
