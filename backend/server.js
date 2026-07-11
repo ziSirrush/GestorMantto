@@ -11,6 +11,8 @@ const supportRoutes = require('./src/routes/support.routes');
 const usuariosRoutes = require('./src/routes/usuarios.routes');
 const catalogosRoutes = require('./src/routes/catalogos.routes');
 const devRoutes = require('./src/routes/dev.routes');
+const logisticaRoutes = require('./src/routes/logistica.routes');
+const usuariosRelAdminRoutes = require('./src/routes/usuarios-rel-admin.routes');
 const { startPortafolioCierreMensualJob } = require('./src/jobs/portafolioCierreMensual.job');
 
 const app = express();
@@ -44,6 +46,8 @@ app.use('/api/support', supportRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/catalogos', catalogosRoutes);
 app.use('/api/dev', devRoutes);
+app.use('/api/logistica', logisticaRoutes);
+app.use('/api/usuarios-rel-admin', usuariosRelAdminRoutes);
 app.use('/api', dataRoutes);
 
 app.listen(PORT, () => {
