@@ -635,10 +635,68 @@ async function getInsFlProjectPhotos(req, res) {
   }
 }
 
+async function getInsFlClientConcentrate(req, res) {
+  const baseSelect = photoJoin => `SELECT
+      f.id_proyecto,
+      MAX(f.proyecto) AS proyecto,
+      MAX(f.cliente) AS cliente,
+      MAX(f.estado) AS estado,
+      MAX(f.ciudad) AS ciudad,
+      MAX(f.id_sup) AS id_sup,
+      MAX(f.id_asesor) AS id_asesor,
+      MAX(u_sup.iniciales) AS supervisor_iniciales,
+      MAX(u_asesor.iniciales) AS asesor_iniciales,
+      COUNT(*) AS total_equipos,
+      SUM(CASE WHEN f.estatus = '08-T' THEN 1 ELSE 0 END) AS equipos_terminados,
+      ${photoJoin ? `MAX(p.carpeta) AS carpeta,
+      MAX(p.foto_blt_1) AS foto_blt_1,
+      MAX(p.foto_blt_2) AS foto_blt_2,
+      MAX(p.foto_blt_3) AS foto_blt_3,
+      MAX(p.foto_blt_4) AS foto_blt_4,
+      MAX(p.foto_blt_5) AS foto_blt_5,
+      MAX(p.foto_blt_6) AS foto_blt_6,
+      MAX(p.foto_blt_7) AS foto_blt_7,
+      MAX(p.imagen_drive) AS imagen_drive,
+      MAX(p.imagen_p_g) AS imagen_p_g` : `NULL AS carpeta,
+      NULL AS foto_blt_1, NULL AS foto_blt_2, NULL AS foto_blt_3,
+      NULL AS foto_blt_4, NULL AS foto_blt_5, NULL AS foto_blt_6,
+      NULL AS foto_blt_7, NULL AS imagen_drive, NULL AS imagen_p_g`}
+    FROM ins_fl f
+    LEFT JOIN usuarios u_sup ON u_sup.id_SB = f.id_sup
+    LEFT JOIN usuarios u_asesor ON u_asesor.id_SB = f.id_asesor
+    ${photoJoin ? 'LEFT JOIN ins_proyecto_fotos p ON p.id_ppns = f.id_proyecto' : ''}
+    WHERE f.cliente IS NOT NULL
+      AND TRIM(f.cliente) <> ''
+    GROUP BY f.id_proyecto
+    ORDER BY cliente ASC, proyecto ASC`;
+
+  try {
+    let rows;
+    try {
+      [rows] = await db.query(baseSelect(true));
+    } catch (error) {
+      if (error && (error.code === 'ER_NO_SUCH_TABLE' || error.errno === 1146)) {
+        [rows] = await db.query(baseSelect(false));
+      } else {
+        throw error;
+      }
+    }
+
+    return res.json({ ok: true, source: 'aiven', data: rows });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando el concentrado de clientes de Instalaciones.',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   syncInsFl,
   getInsFl,
   getInsFlById,
   getInsFlProjects,
-  getInsFlProjectPhotos
+  getInsFlProjectPhotos,
+  getInsFlClientConcentrate
 };
