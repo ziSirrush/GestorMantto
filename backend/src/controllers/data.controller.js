@@ -2021,6 +2021,114 @@ async function getProyectos(req, res) {
   }
 }
 
+
+async function getProyectoInstalacionDetalle(proyecto) {
+  const [rows] = await db.query(`
+    SELECT
+      f.*,
+      COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
+      COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
+      uad.nombre AS administrativo_nombre
+    FROM ins_fl f
+    LEFT JOIN usuarios us ON us.id_SB = f.id_sup
+    LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
+    LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
+    WHERE f.activo = 1
+      AND (f.id_proyecto = ? OR f.proyecto = ?)
+    ORDER BY f.referencia_sitio ASC, f.id_ins_fl ASC
+  `, [proyecto, proyecto]);
+
+  if (!rows.length) return null;
+
+  const first = rows[0];
+  const proyectoId = first.id_proyecto || proyecto;
+  const proyectoNombre = first.proyecto || proyectoId;
+  const terminados = rows.filter(r => String(r.estatus || '').trim().toUpperCase() === '08-T').length;
+
+  const [tickets] = await db.query(`
+    SELECT
+      t.ticket, t.codigo_equipo, t.equipo, t.folio, t.estado_ticket, t.estado,
+      t.fecha_reporte, t.fecha_cierre, t.responsabilidad, t.causa_falla,
+      t.causa, t.tiempo_llegada, t.tiempo_solucion, t.estatus_equipo_final
+    FROM tickets t
+    WHERE t.proyecto IN (?, ?)
+       OR t.codigo_equipo IN (
+         SELECT referencia_sitio
+         FROM ins_fl
+         WHERE activo = 1 AND (id_proyecto = ? OR proyecto = ?)
+       )
+    ORDER BY t.fecha_reporte DESC, t.id DESC
+    LIMIT 300
+  `, [proyectoId, proyectoNombre, proyectoId, proyectoNombre]);
+
+  const equipos = rows.map(r => ({
+    numero_equipo: r.referencia_sitio || r.id_ins_fl,
+    identificacion_sitio: r.referencia_sitio,
+    tipo_equipo: r.numero_pisos ? `Instalación · ${r.numero_pisos} pisos` : 'Instalación',
+    contrato: r.subcontratista || null,
+    estado_operativo: String(r.estatus || '').trim().toUpperCase() === '08-T' ? 'Terminado' : (r.estatus || 'En proceso'),
+    estatus_servicio: r.estatus,
+    dias_parado: null,
+    ultimo_ticket: null,
+    ciudad: r.ciudad,
+    estado: r.estado,
+    zona: null,
+    supervisor: r.supervisor_nombre || r.supervisor_fl,
+    proyecto: proyectoId,
+    proyecto_nombre: proyectoNombre,
+    id_ins_fl: r.id_ins_fl,
+    avance_oc: r.avance_oc,
+    avance_mo: r.avance_mo,
+    avance_aj: r.avance_aj,
+    fecha_inicio_montaje: r.fecha_inicio_montaje,
+    fecha_fin_montaje_real: r.fecha_fin_montaje_real,
+    fecha_inicio_ajuste: r.fecha_inicio_ajuste,
+    fecha_fin_ajuste_real: r.fecha_fin_ajuste_real,
+    fecha_entrega_cliente: r.fecha_entrega_cliente
+  }));
+
+  const monthlyCurrent = [];
+  const monthlyPrevious = [];
+  const responsabilidadMap = new Map();
+  for (const ticket of tickets) {
+    const key = String(ticket.responsabilidad || '').trim() || 'Sin dato';
+    responsabilidadMap.set(key, (responsabilidadMap.get(key) || 0) + 1);
+  }
+
+  return {
+    ok: true,
+    source: 'aiven-ins_fl',
+    proyecto: {
+      proyecto: proyectoId,
+      proyecto_codigo: proyectoId,
+      proyecto_nombre: proyectoNombre,
+      ciudad: first.ciudad,
+      estado: first.estado,
+      zona: null,
+      supervisor: first.supervisor_nombre || first.supervisor_fl,
+      asesor: first.asesor_nombre || first.vendedor,
+      administrativo: first.administrativo_nombre,
+      cliente: first.cliente,
+      equipos: rows.length,
+      equipos_terminados: terminados,
+      parados: 0,
+      tickets_35d: tickets.filter(t => {
+        if (!t.fecha_reporte) return false;
+        const d = new Date(t.fecha_reporte);
+        return !Number.isNaN(d.getTime()) && d >= new Date(Date.now() - 35 * 86400000);
+      }).length,
+      fallas_blt_365d: tickets.filter(t => String(t.responsabilidad || '').trim().toUpperCase() === 'BLT').length,
+      mtbc_365: null,
+      origen: 'instalaciones'
+    },
+    equipos,
+    tickets,
+    monthly_current: monthlyCurrent,
+    monthly_previous: monthlyPrevious,
+    responsabilidad: Array.from(responsabilidadMap, ([responsabilidad, total]) => ({ responsabilidad, total }))
+  };
+}
+
 async function getProyectoDetalle(req, res) {
   const proyecto = String(req.params.proyecto || req.query.proyecto || '').trim();
   if (!proyecto) return res.status(400).json({ ok: false, message: 'Proyecto requerido.' });
@@ -2069,7 +2177,11 @@ async function getProyectoDetalle(req, res) {
       GROUP BY p.proyecto
     `, [proyecto]);
 
-    if (!proyectos.length) return res.status(404).json({ ok: false, message: 'Proyecto no encontrado en portafolio activo.' });
+    if (!proyectos.length) {
+      const instalacion = await getProyectoInstalacionDetalle(proyecto);
+      if (instalacion) return res.json(instalacion);
+      return res.status(404).json({ ok: false, message: 'Proyecto no encontrado en Portafolio ni en Instalaciones.' });
+    }
 
     const [equipos] = await db.query(`
       SELECT ${portafolioBaseSelect}
