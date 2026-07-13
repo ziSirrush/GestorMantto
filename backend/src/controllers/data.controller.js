@@ -509,19 +509,91 @@ async function getPortafolioEquipos(req, res) {
 
 async function getPortafolioEquipoDetalle(req, res) {
   const codigo = String(req.params.codigo || '').trim();
-  if (!codigo) return res.status(400).json({ ok: false, message: 'No se recibio numero de equipo.' });
+  if (!codigo) return res.status(400).json({ ok: false, message: 'No se recibio numero de equipo o referencia en sitio.' });
+
   try {
-    const [rows] = await db.query(`
+    // Mantenimiento puede recibirse por codigo de equipo o por identificacion en sitio.
+    const [manttoRows] = await db.query(`
       SELECT ${portafolioBaseSelect}
       FROM portafolio p
       ${latestTicketJoin}
-      WHERE p.numero_equipo = ?
+      WHERE TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?)
+         OR TRIM(COALESCE(p.identificacion_sitio, '')) = TRIM(?)
+      ORDER BY CASE WHEN TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?) THEN 0 ELSE 1 END
       LIMIT 1
-    `, [codigo]);
-    if (!rows.length) return res.status(404).json({ ok: false, message: 'Equipo no encontrado en portafolio.' });
-    return res.json({ ok: true, source: 'aiven', data: rows[0] });
+    `, [codigo, codigo, codigo]);
+
+    const mantenimiento = manttoRows[0] || null;
+    const referencias = [
+      codigo,
+      mantenimiento && mantenimiento.identificacion_sitio,
+      mantenimiento && mantenimiento.numero_equipo
+    ].map(v => String(v || '').trim()).filter(Boolean);
+
+    let instalaciones = [];
+    if (referencias.length) {
+      const placeholders = referencias.map(() => '?').join(', ');
+      const [insRows] = await db.query(`
+        SELECT
+          f.*,
+          COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
+          COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
+          uad.nombre AS administrativo_nombre
+        FROM ins_fl f
+        LEFT JOIN usuarios us ON us.id_SB = f.id_sup
+        LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
+        LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
+        WHERE TRIM(COALESCE(f.referencia_sitio, '')) IN (${placeholders})
+        ORDER BY f.id_ins_fl DESC
+      `, referencias);
+      instalaciones = insRows;
+    }
+
+    if (!mantenimiento && !instalaciones.length) {
+      return res.status(404).json({ ok: false, message: 'Equipo no encontrado en Mantenimiento ni en Instalaciones.' });
+    }
+
+    const ticketCodes = [...new Set([
+      mantenimiento && mantenimiento.numero_equipo,
+      codigo,
+      ...instalaciones.map(row => row.referencia_sitio)
+    ].map(v => String(v || '').trim()).filter(Boolean))];
+
+    let tickets = [];
+    if (ticketCodes.length) {
+      const placeholders = ticketCodes.map(() => '?').join(', ');
+      const [ticketRows] = await db.query(`
+        SELECT *
+        FROM tickets
+        WHERE TRIM(COALESCE(codigo_equipo, '')) IN (${placeholders})
+        ORDER BY fecha_reporte DESC, id DESC
+        LIMIT 300
+      `, ticketCodes);
+      tickets = ticketRows;
+    }
+
+    const principal = mantenimiento || {
+      numero_equipo: codigo,
+      identificacion_sitio: instalaciones[0]?.referencia_sitio || codigo,
+      proyecto: instalaciones[0]?.id_proyecto || instalaciones[0]?.proyecto || null,
+      proyecto_nombre: instalaciones[0]?.proyecto || null,
+      ciudad: instalaciones[0]?.ciudad || null,
+      estado: instalaciones[0]?.estado || null,
+      supervisor: instalaciones[0]?.supervisor_nombre || instalaciones[0]?.supervisor_fl || null,
+      estado_operativo: String(instalaciones[0]?.estatus || '').trim().toUpperCase() === '08-T' ? 'Terminado' : 'En proceso',
+      estatus_servicio: instalaciones[0]?.estatus || null
+    };
+
+    return res.json({
+      ok: true,
+      source: mantenimiento && instalaciones.length ? 'aiven-combinado' : (mantenimiento ? 'aiven-portafolio' : 'aiven-ins_fl'),
+      data: principal,
+      mantenimiento,
+      instalaciones,
+      tickets
+    });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando detalle de equipo.', error: error.message });
+    return res.status(500).json({ ok: false, message: 'Error consultando detalle combinado de equipo.', error: error.message });
   }
 }
 
