@@ -561,9 +561,84 @@ async function getInsFlProjects(req, res) {
   }
 }
 
+async function getInsFlProjectPhotos(req, res) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 5000, 1), 5000);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const params = [];
+    const where = [];
+
+    if (req.query.id_ppns) {
+      where.push('p.id_ppns = ?');
+      params.push(String(req.query.id_ppns).trim());
+    }
+
+    if (req.query.solo_con_fotos === '1' || req.query.solo_con_fotos === 'true') {
+      where.push(`(
+        NULLIF(TRIM(p.foto_blt_1), '') IS NOT NULL OR
+        NULLIF(TRIM(p.foto_blt_2), '') IS NOT NULL OR
+        NULLIF(TRIM(p.foto_blt_3), '') IS NOT NULL OR
+        NULLIF(TRIM(p.foto_blt_4), '') IS NOT NULL OR
+        NULLIF(TRIM(p.foto_blt_5), '') IS NOT NULL
+      )`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const [rows] = await db.query(
+      `SELECT
+         p.id_photo,
+         p.id_ppns AS \`ID Proyecto\`,
+         MAX(f.proyecto) AS \`Proyecto\`,
+         MAX(f.ciudad) AS \`Ciudad\`,
+         MAX(f.estado) AS \`Estado\`,
+         MAX(f.cliente) AS \`Cliente\`,
+         MAX(f.vendedor) AS \`Asesor\`,
+         MAX(f.supervisor_fl) AS \`Supervisor\`,
+         p.carpeta AS \`Carpeta\`,
+         p.foto_blt_1 AS \`FOTO BLT\`,
+         p.foto_blt_2 AS \`FOTO BLT 2\`,
+         p.foto_blt_3 AS \`FOTO BLT 3\`,
+         p.foto_blt_4 AS \`FOTO BLT 4\`,
+         p.foto_blt_5 AS \`FOTO BLT 5\`,
+         p.foto_blt_6 AS \`FOTO BLT 6\`,
+         p.foto_blt_7 AS \`FOTO BLT 7\`,
+         p.imagen_drive AS \`Imagen Drive\`,
+         p.imagen_p_g AS \`Imagen P G\`
+       FROM ins_proyecto_fotos p
+       LEFT JOIN ins_fl f
+         ON TRIM(f.id_proyecto) = TRIM(p.id_ppns)
+       ${whereSql}
+       GROUP BY
+         p.id_photo, p.id_ppns, p.carpeta,
+         p.foto_blt_1, p.foto_blt_2, p.foto_blt_3,
+         p.foto_blt_4, p.foto_blt_5, p.foto_blt_6,
+         p.foto_blt_7, p.imagen_drive, p.imagen_p_g
+       ORDER BY Proyecto ASC, p.id_ppns ASC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: rows,
+      limit,
+      offset
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando fotografias de proyectos.',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   syncInsFl,
   getInsFl,
   getInsFlById,
-  getInsFlProjects
+  getInsFlProjects,
+  getInsFlProjectPhotos
 };
