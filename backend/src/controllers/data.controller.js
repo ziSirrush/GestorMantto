@@ -2033,8 +2033,10 @@ async function getProyectoInstalacionDetalle(proyecto) {
     LEFT JOIN usuarios us ON us.id_SB = f.id_sup
     LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
     LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
-    WHERE f.activo = 1
-      AND (f.id_proyecto = ? OR f.proyecto = ?)
+    WHERE (
+      TRIM(COALESCE(f.id_proyecto, '')) = TRIM(?)
+      OR TRIM(COALESCE(f.proyecto, '')) = TRIM(?)
+    )
     ORDER BY f.referencia_sitio ASC, f.id_ins_fl ASC
   `, [proyecto, proyecto]);
 
@@ -2043,7 +2045,14 @@ async function getProyectoInstalacionDetalle(proyecto) {
   const first = rows[0];
   const proyectoId = first.id_proyecto || proyecto;
   const proyectoNombre = first.proyecto || proyectoId;
-  const terminados = rows.filter(r => String(r.estatus || '').trim().toUpperCase() === '08-T').length;
+  const estatusNormalizados = rows.map(r => String(r.estatus || '').trim().toUpperCase());
+  const terminados = estatusNormalizados.filter(estatus => estatus === '08-T').length;
+  const esCerrado = rows.length > 0 && terminados === rows.length;
+  const esActivo = !esCerrado && rows.some((r, index) => {
+    const estatus = estatusNormalizados[index];
+    return Number(r.activo) === 1 || (estatus && estatus !== '08-T');
+  });
+  const clasificacion = esCerrado ? 'CERRADO' : (esActivo ? 'ACTIVO' : 'SIN_CLASIFICAR');
 
   const [tickets] = await db.query(`
     SELECT
@@ -2055,7 +2064,10 @@ async function getProyectoInstalacionDetalle(proyecto) {
        OR t.codigo_equipo IN (
          SELECT referencia_sitio
          FROM ins_fl
-         WHERE activo = 1 AND (id_proyecto = ? OR proyecto = ?)
+         WHERE (
+           TRIM(COALESCE(id_proyecto, '')) = TRIM(?)
+           OR TRIM(COALESCE(proyecto, '')) = TRIM(?)
+         )
        )
     ORDER BY t.fecha_reporte DESC, t.id DESC
     LIMIT 300
@@ -2119,8 +2131,11 @@ async function getProyectoInstalacionDetalle(proyecto) {
       }).length,
       fallas_blt_365d: tickets.filter(t => String(t.responsabilidad || '').trim().toUpperCase() === 'BLT').length,
       mtbc_365: null,
-      origen: 'instalaciones'
+      origen: 'instalaciones',
+      clasificacion,
+      activo: clasificacion === 'ACTIVO' ? 1 : 0
     },
+    clasificacion,
     equipos,
     tickets,
     monthly_current: monthlyCurrent,
