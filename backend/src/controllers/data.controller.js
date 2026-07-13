@@ -508,31 +508,22 @@ async function getPortafolioEquipos(req, res) {
 }
 
 async function getPortafolioEquipoDetalle(req, res) {
-  const codigo = String(req.params.codigo || '').trim();
-  if (!codigo) return res.status(400).json({ ok: false, message: 'No se recibio numero de equipo o referencia en sitio.' });
+  const rawCodigo = String(req.params.codigo || '').trim();
+  if (!rawCodigo) return res.status(400).json({ ok: false, message: 'No se recibio numero de equipo o referencia en sitio.' });
+
+  // Cuando el detalle nace desde Instalaciones recibimos: proyecto|||referencia_sitio.
+  // Esto evita cruzar referencias genericas como "Rampa 1" entre proyectos distintos.
+  const separator = '|||';
+  const parts = rawCodigo.includes(separator) ? rawCodigo.split(separator) : [];
+  const proyectoOrigen = String(parts[0] || '').trim();
+  const referenciaOrigen = String(parts.slice(1).join(separator) || '').trim();
+  const codigo = referenciaOrigen || rawCodigo;
 
   try {
-    // Mantenimiento puede recibirse por codigo de equipo o por identificacion en sitio.
-    const [manttoRows] = await db.query(`
-      SELECT ${portafolioBaseSelect}
-      FROM portafolio p
-      ${latestTicketJoin}
-      WHERE TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?)
-         OR TRIM(COALESCE(p.identificacion_sitio, '')) = TRIM(?)
-      ORDER BY CASE WHEN TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?) THEN 0 ELSE 1 END
-      LIMIT 1
-    `, [codigo, codigo, codigo]);
-
-    const mantenimiento = manttoRows[0] || null;
-    const referencias = [
-      codigo,
-      mantenimiento && mantenimiento.identificacion_sitio,
-      mantenimiento && mantenimiento.numero_equipo
-    ].map(v => String(v || '').trim()).filter(Boolean);
-
     let instalaciones = [];
-    if (referencias.length) {
-      const placeholders = referencias.map(() => '?').join(', ');
+    let mantenimiento = null;
+
+    if (proyectoOrigen && referenciaOrigen) {
       const [insRows] = await db.query(`
         SELECT
           f.*,
@@ -543,10 +534,72 @@ async function getPortafolioEquipoDetalle(req, res) {
         LEFT JOIN usuarios us ON us.id_SB = f.id_sup
         LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
         LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
-        WHERE TRIM(COALESCE(f.referencia_sitio, '')) IN (${placeholders})
+        WHERE (
+          TRIM(UPPER(COALESCE(f.proyecto, ''))) = TRIM(UPPER(?))
+          OR TRIM(UPPER(COALESCE(f.id_proyecto, ''))) = TRIM(UPPER(?))
+        )
+          AND TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
         ORDER BY f.id_ins_fl DESC
-      `, referencias);
+      `, [proyectoOrigen, proyectoOrigen, referenciaOrigen]);
       instalaciones = insRows;
+
+      const proyectoNombre = instalaciones[0]?.proyecto || proyectoOrigen;
+      const [manttoRows] = await db.query(`
+        SELECT ${portafolioBaseSelect}
+        FROM portafolio p
+        ${latestTicketJoin}
+        WHERE TRIM(UPPER(COALESCE(p.proyecto, ''))) = TRIM(UPPER(?))
+          AND TRIM(UPPER(COALESCE(p.identificacion_sitio, ''))) = TRIM(UPPER(?))
+        LIMIT 1
+      `, [proyectoNombre, referenciaOrigen]);
+      mantenimiento = manttoRows[0] || null;
+    } else {
+      // Cuando el detalle nace desde Mantenimiento puede recibirse el codigo de equipo
+      // o la identificacion en sitio. Se prioriza siempre numero_equipo.
+      const [manttoRows] = await db.query(`
+        SELECT ${portafolioBaseSelect}
+        FROM portafolio p
+        ${latestTicketJoin}
+        WHERE TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?)
+           OR TRIM(COALESCE(p.identificacion_sitio, '')) = TRIM(?)
+        ORDER BY CASE WHEN TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?) THEN 0 ELSE 1 END
+        LIMIT 1
+      `, [codigo, codigo, codigo]);
+      mantenimiento = manttoRows[0] || null;
+
+      if (mantenimiento) {
+        const [insRows] = await db.query(`
+          SELECT
+            f.*,
+            COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
+            COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
+            uad.nombre AS administrativo_nombre
+          FROM ins_fl f
+          LEFT JOIN usuarios us ON us.id_SB = f.id_sup
+          LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
+          LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
+          WHERE TRIM(UPPER(COALESCE(f.proyecto, ''))) = TRIM(UPPER(?))
+            AND TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
+          ORDER BY f.id_ins_fl DESC
+        `, [mantenimiento.proyecto, mantenimiento.identificacion_sitio]);
+        instalaciones = insRows;
+      } else {
+        // Fallback para equipos que aun solo existen en Instalaciones.
+        const [insRows] = await db.query(`
+          SELECT
+            f.*,
+            COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
+            COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
+            uad.nombre AS administrativo_nombre
+          FROM ins_fl f
+          LEFT JOIN usuarios us ON us.id_SB = f.id_sup
+          LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
+          LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
+          WHERE TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
+          ORDER BY f.id_ins_fl DESC
+        `, [codigo]);
+        instalaciones = insRows;
+      }
     }
 
     if (!mantenimiento && !instalaciones.length) {
@@ -554,9 +607,7 @@ async function getPortafolioEquipoDetalle(req, res) {
     }
 
     const ticketCodes = [...new Set([
-      mantenimiento && mantenimiento.numero_equipo,
-      codigo,
-      ...instalaciones.map(row => row.referencia_sitio)
+      mantenimiento && mantenimiento.numero_equipo
     ].map(v => String(v || '').trim()).filter(Boolean))];
 
     let tickets = [];
