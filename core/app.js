@@ -102,7 +102,7 @@
       if(el.id === 'app-back-btn') return;
       el.addEventListener('click', e=>{
         const route = el.dataset.route;
-        if(route) window.ManttoRouter.go(route);
+        if(route) window.ManttoRouter.go(route, null, { navigationType:'open' });
         if(route && el.classList && el.classList.contains('side-item')){
           const sb = document.getElementById('sidebar');
           if(sb){

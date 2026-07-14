@@ -206,7 +206,9 @@
 #view-instalaciones-proyectos{
   --py-navy:#102a56;--py-blue:#1d4ed8;--py-text:#1e293b;--py-muted:#64748b;
   --py-line:#dfe6ef;--py-soft:#f8fafc;--py-page:#f4f7fb;--py-card:#fff;
-  background:var(--py-page);color:var(--py-text);padding:0!important;overflow:visible!important;
+  background:var(--py-page);color:var(--py-text);padding:0!important;
+  height:100%;min-height:0;overflow-x:hidden!important;overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;
 }
 #view-instalaciones-proyectos #py-page{
   position:relative;inset:auto;z-index:auto;min-height:70vh;overflow:visible;
@@ -261,7 +263,15 @@
 #view-instalaciones-proyectos .py-filters input:focus,
 #view-instalaciones-proyectos .py-filters select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 #view-instalaciones-proyectos .py-filters input[type="text"]{min-width:260px;flex:1}
-#view-instalaciones-proyectos .py-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:11px;max-height:620px}
+#view-instalaciones-proyectos .py-table-wrap{
+  overflow-x:auto;
+  overflow-y:visible;
+  max-height:none;
+  height:auto;
+  border:1px solid #e2e8f0;
+  border-radius:11px;
+  -webkit-overflow-scrolling:touch;
+}
 #view-instalaciones-proyectos table.py-table,
 #view-instalaciones-proyectos table.py-table-reporte{border:0;border-radius:0;width:max-content;min-width:100%;font-size:12px}
 #view-instalaciones-proyectos table.py-table th,
@@ -287,6 +297,48 @@
   #view-instalaciones-proyectos .py-head-actions{justify-content:flex-start}
   #view-instalaciones-proyectos .py-section{padding:14px}
 }
+
+/* Scroll vertical de la vista: los tabs crecen con su contenido. */
+#view-instalaciones-proyectos .py-section.active{
+  height:auto;
+  min-height:0;
+  max-height:none;
+  overflow:visible;
+}
+#view-instalaciones-proyectos #py-fotografias-galeria{
+  height:auto;
+  min-height:0;
+  max-height:none;
+  overflow:visible;
+}
+@media(max-width:820px){
+  #view-instalaciones-proyectos{
+    height:100%!important;
+    min-height:0;
+    max-height:none!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-y:contain;
+    touch-action:pan-y;
+  }
+  #view-instalaciones-proyectos #py-page,
+  #view-instalaciones-proyectos .py-section.active{
+    height:auto!important;
+    min-height:0;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  #view-instalaciones-proyectos #py-page{padding-bottom:28px}
+  #view-instalaciones-proyectos .py-table-wrap{
+    overflow-x:auto;
+    overflow-y:visible;
+    max-height:none;
+    height:auto;
+    touch-action:pan-x pan-y;
+  }
+}
+
 @media(max-width:560px){
   #view-instalaciones-proyectos .py-title{font-size:21px}
   #view-instalaciones-proyectos .py-grid{grid-template-columns:1fr 1fr}

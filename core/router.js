@@ -20,6 +20,97 @@
   let currentPayload = null;
   const historyStack = [];
   let browserNavActive = false;
+  let initialRouteRestored = false;
+  const NAV_CURRENT_KEY = 'mantto:navigation:current';
+
+  function readSession(key, fallback){
+    try{
+      const raw = window.sessionStorage ? window.sessionStorage.getItem(key) : null;
+      return raw ? JSON.parse(raw) : fallback;
+    }catch(e){ return fallback; }
+  }
+  function writeSession(key, value){
+    try{ if(window.sessionStorage) window.sessionStorage.setItem(key, JSON.stringify(value)); }catch(e){}
+  }
+  function contextKey(route, payload){ return String(route || 'home') + '::' + payloadKey(payload); }
+  function activeView(){ return document.querySelector('.view.active'); }
+  function captureControls(root){
+    const values = {};
+    if(!root) return values;
+    root.querySelectorAll('input,select,textarea').forEach(function(el, index){
+      const key = el.id ? 'id:'+el.id : (el.name ? 'name:'+el.name+':'+index : 'idx:'+index);
+      if(el.type === 'checkbox' || el.type === 'radio') values[key] = { checked:!!el.checked };
+      else values[key] = { value:el.value };
+    });
+    return values;
+  }
+  function captureContext(route, payload){
+    const view = activeView();
+    const main = document.querySelector('.main-content');
+    return {
+      key:contextKey(route, payload),
+      scroll:{
+        view:view ? Number(view.scrollTop) || 0 : 0,
+        main:main ? Number(main.scrollTop) || 0 : 0,
+        window:Number(window.scrollY || window.pageYOffset) || 0
+      },
+      controls:captureControls(view),
+      capturedAt:Date.now()
+    };
+  }
+  function restoreControls(root, controls){
+    if(!root || !controls) return;
+    let index = 0;
+    root.querySelectorAll('input,select,textarea').forEach(function(el){
+      const key = el.id ? 'id:'+el.id : (el.name ? 'name:'+el.name+':'+index : 'idx:'+index);
+      index += 1;
+      const saved = controls[key];
+      if(!saved) return;
+      if(Object.prototype.hasOwnProperty.call(saved,'checked')) el.checked = !!saved.checked;
+      else if(Object.prototype.hasOwnProperty.call(saved,'value')) el.value = saved.value;
+    });
+  }
+  function restoreContext(context){
+    if(!context) return;
+    const apply = function(){
+      const view = activeView();
+      const main = document.querySelector('.main-content');
+      restoreControls(view, context.controls);
+      if(view) view.scrollTop = Number(context.scroll && context.scroll.view) || 0;
+      if(main) main.scrollTop = Number(context.scroll && context.scroll.main) || 0;
+      window.scrollTo?.({ top:Number(context.scroll && context.scroll.window) || 0, behavior:'auto' });
+      document.dispatchEvent(new CustomEvent('mantto:navigation-restore',{ detail:{ route:currentRoute, payload:currentPayload, context:context } }));
+    };
+    window.setTimeout(apply, 0);
+    window.setTimeout(apply, 160);
+    window.setTimeout(apply, 450);
+  }
+  function resetScroll(){
+    const view = activeView();
+    const main = document.querySelector('.main-content');
+    if(view) view.scrollTop = 0;
+    if(main) main.scrollTop = 0;
+    window.scrollTo?.({top:0,behavior:'auto'});
+  }
+  function saveCurrentRoute(){
+    writeSession(NAV_CURRENT_KEY,{ route:currentRoute || 'home', payload:currentPayload || null, savedAt:Date.now() });
+  }
+  function updateBrowserCurrentContext(context){
+    if(!window.history) return;
+    try{
+      const previous = window.history.state || {};
+      window.history.replaceState(Object.assign({}, previous, { mantto:true, route:currentRoute, payload:currentPayload, context:context || null }), '', routeUrl(currentRoute,currentPayload));
+    }catch(e){}
+  }
+  function parseHashRoute(){
+    const raw = String(window.location.hash || '').replace(/^#\/?/,'');
+    if(!raw) return null;
+    const parts = raw.split('/').filter(Boolean).map(function(v){ try{return decodeURIComponent(v);}catch(e){return v;} });
+    if(!parts.length) return null;
+    const route = parts[0];
+    if(route === 'detalle' && parts[1] && parts[2]) return { route:'detalle', payload:{ type:parts[1], id:parts.slice(2).join('/') } };
+    return { route:route, payload:parts[1] ? { id:parts.slice(1).join('/') } : null };
+  }
 
   function label(route){ return routeNames[route] || route || 'Inicio'; }
   function safeText(value){
@@ -36,7 +127,7 @@
   }
   function syncBrowserHistory(route, payload, replace, scrollY){
     if(browserNavActive || !window.history) return;
-    const state = { mantto:true, route:route || 'home', payload:payload || null, scrollY:Number(scrollY)||0 };
+    const state = { mantto:true, route:route || 'home', payload:payload || null, scrollY:Number(scrollY)||0, context:null };
     const url = routeUrl(route || 'home', payload || null);
     try{
       if(replace) window.history.replaceState(state, '', url);
@@ -398,18 +489,28 @@
 
   function internalGo(route, payload, opts){
     const options = opts || {};
+    const navigationType = options.navigationType || 'forward';
     const nextRoute = route || 'home';
-    const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(payload || null);
-    if(!options.replace && currentRoute && !same){
-      const main = document.querySelector('.main-content');
-      historyStack.push({ route: currentRoute, payload: currentPayload });
+    const nextPayload = payload || null;
+    const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(nextPayload);
+
+    if(!options.replace && !options.skipHistory && currentRoute && !same){
+      const previousContext = captureContext(currentRoute, currentPayload);
+      historyStack.push({ route:currentRoute, payload:currentPayload, context:previousContext });
       if(historyStack.length > 25) historyStack.shift();
+      updateBrowserCurrentContext(previousContext);
     }
+
     currentRoute = nextRoute;
-    currentPayload = payload || null;
+    currentPayload = nextPayload;
     render(currentRoute, currentPayload);
-    window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=0; window.scrollTo?.({top:0,behavior:'auto'}); },0);
+    saveCurrentRoute();
+
+    if(navigationType === 'back' && options.context) restoreContext(options.context);
+    else window.setTimeout(resetScroll,0);
+
     syncBrowserHistory(currentRoute, currentPayload, !!options.replace, 0);
+    document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:navigationType, route:currentRoute, payload:currentPayload } }));
   }
 
   function internalBack(opts){
@@ -419,15 +520,20 @@
       currentRoute = previous.route;
       currentPayload = previous.payload || null;
       render(currentRoute, currentPayload);
-      window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=0; window.scrollTo?.({top:0,behavior:'auto'}); }, 0);
+      saveCurrentRoute();
+      restoreContext(previous.context);
     } else if(currentRoute !== 'home') {
       currentRoute = 'home';
       currentPayload = null;
       render('home', null);
+      saveCurrentRoute();
+      window.setTimeout(resetScroll,0);
     } else {
       render('home', null);
+      window.setTimeout(resetScroll,0);
     }
-    if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, false, 0);
+    if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, true, 0);
+    document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:'back', route:currentRoute, payload:currentPayload } }));
   }
 
   window.addEventListener('popstate', function(ev){
@@ -438,7 +544,10 @@
         currentRoute = state.route || 'home';
         currentPayload = state.payload || null;
         render(currentRoute, currentPayload);
-        window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=0; window.scrollTo?.({top:0,behavior:'auto'}); },0);
+        saveCurrentRoute();
+        if(state.context) restoreContext(state.context);
+        else window.setTimeout(resetScroll,0);
+        document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:'back', route:currentRoute, payload:currentPayload } }));
       } else {
         internalBack({fromBrowser:true});
       }
@@ -449,6 +558,7 @@
 
   window.ManttoRouter = {
     go(route, payload, opts){ internalGo(route, payload, opts); },
+    open(route, payload){ internalGo(route, payload, { navigationType:'open' }); },
     back(){ internalBack(); },
     openTarget(target){
       if(!target) return;
@@ -456,11 +566,26 @@
     },
     getHistory(){ return historyStack.slice(); },
     getCurrent(){ return { route: currentRoute, payload: currentPayload }; },
-    reset(){ historyStack.length = 0; internalGo('home', null, {replace:true}); }
+    reset(){ historyStack.length = 0; internalGo('home', null, {replace:true,navigationType:'open',skipHistory:true}); }
   };
 
-  document.addEventListener('DOMContentLoaded', function(){
-    syncBrowserHistory(currentRoute, currentPayload, true);
+  function restoreInitialRoute(){
+    if(initialRouteRestored) return;
+    initialRouteRestored = true;
+    const hashRoute = parseHashRoute();
+    const stored = readSession(NAV_CURRENT_KEY, null);
+    let target = hashRoute || stored || { route:'home', payload:null };
+    if(hashRoute && stored && hashRoute.route === stored.route){
+      const sameDetail = hashRoute.route !== 'detalle' || (hashRoute.payload && stored.payload && String(hashRoute.payload.type||'')===String(stored.payload.type||'') && String(hashRoute.payload.id||'')===String(stored.payload.id||''));
+      if(sameDetail) target = { route:hashRoute.route, payload:Object.assign({}, stored.payload || {}, hashRoute.payload || {}) };
+    }
+    internalGo(target.route || 'home', target.payload || null, { replace:true, skipHistory:true, navigationType:'refresh' });
     updateBackButton();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if(!window.ManttoAuth) window.setTimeout(restoreInitialRoute, 0);
+    else window.setTimeout(function(){ if(!initialRouteRestored) restoreInitialRoute(); }, 800);
   });
+  document.addEventListener('mantto:auth-ready', restoreInitialRoute);
 })();
