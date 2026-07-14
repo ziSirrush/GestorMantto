@@ -407,6 +407,13 @@ async function getInsFl(req, res) {
       [...params, limit, offset]
     );
 
+    rows.forEach(row => {
+      const campo = row.foto_principal;
+      row.foto_portada =
+        (campo && row[campo]) ? row[campo] :
+        (row['FOTO BLT'] || row['FOTO BLT 2'] || row['FOTO BLT 3'] || row['FOTO BLT 4'] || row['FOTO BLT 5'] || row['FOTO BLT 6'] || row['FOTO BLT 7'] || null);
+    });
+
     return res.json({
       ok: true,
       source: 'aiven',
@@ -545,6 +552,13 @@ async function getInsFlProjects(req, res) {
       [...params, limit, offset]
     );
 
+    rows.forEach(row => {
+      const campo = row.foto_principal;
+      row.foto_portada =
+        (campo && row[campo]) ? row[campo] :
+        (row['FOTO BLT'] || row['FOTO BLT 2'] || row['FOTO BLT 3'] || row['FOTO BLT 4'] || row['FOTO BLT 5'] || row['FOTO BLT 6'] || row['FOTO BLT 7'] || null);
+    });
+
     return res.json({
       ok: true,
       source: 'aiven',
@@ -613,11 +627,18 @@ async function getInsFlProjectPhotos(req, res) {
          p.id_photo, p.id_ppns, p.carpeta,
          p.foto_blt_1, p.foto_blt_2, p.foto_blt_3,
          p.foto_blt_4, p.foto_blt_5, p.foto_blt_6,
-         p.foto_blt_7, p.imagen_drive, p.imagen_p_g
+         p.foto_blt_7, p.foto_principal, p.imagen_drive, p.imagen_p_g
        ORDER BY Proyecto ASC, p.id_ppns ASC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
+
+    rows.forEach(row => {
+      const campo = row.foto_principal;
+      row.foto_portada =
+        (campo && row[campo]) ? row[campo] :
+        (row['FOTO BLT'] || row['FOTO BLT 2'] || row['FOTO BLT 3'] || row['FOTO BLT 4'] || row['FOTO BLT 5'] || row['FOTO BLT 6'] || row['FOTO BLT 7'] || null);
+    });
 
     return res.json({
       ok: true,
@@ -630,6 +651,55 @@ async function getInsFlProjectPhotos(req, res) {
     return res.status(500).json({
       ok: false,
       message: 'Error consultando fotografias de proyectos.',
+      error: error.message
+    });
+  }
+}
+
+async function updateInsFlProjectMainPhoto(req, res) {
+  const allowedFields = new Set([
+    'foto_blt_1', 'foto_blt_2', 'foto_blt_3', 'foto_blt_4',
+    'foto_blt_5', 'foto_blt_6', 'foto_blt_7'
+  ]);
+
+  try {
+    const idPpns = String(req.params.id_ppns || '').trim();
+    const field = String(req.body && req.body.campo || '').trim();
+
+    if (!idPpns) {
+      return res.status(400).json({ ok: false, message: 'ID de proyecto requerido.' });
+    }
+    if (!allowedFields.has(field)) {
+      return res.status(400).json({ ok: false, message: 'La fotografía seleccionada no es válida.' });
+    }
+
+    const [rows] = await db.query(
+      `SELECT id_photo, ${field} AS selected_url
+       FROM ins_proyecto_fotos
+       WHERE TRIM(id_ppns) = TRIM(?)
+       LIMIT 1`,
+      [idPpns]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'No se encontró el registro fotográfico del proyecto.' });
+    }
+    if (!rows[0].selected_url || !String(rows[0].selected_url).trim()) {
+      return res.status(400).json({ ok: false, message: 'La fotografía seleccionada está vacía.' });
+    }
+
+    await db.query(
+      `UPDATE ins_proyecto_fotos
+       SET foto_principal = ?
+       WHERE id_photo = ?`,
+      [field, rows[0].id_photo]
+    );
+
+    return res.json({ ok: true, id_ppns: idPpns, foto_principal: field });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error actualizando la fotografía principal del proyecto.',
       error: error.message
     });
   }
@@ -698,5 +768,6 @@ module.exports = {
   getInsFlById,
   getInsFlProjects,
   getInsFlProjectPhotos,
+  updateInsFlProjectMainPhoto,
   getInsFlClientConcentrate
 };
