@@ -287,7 +287,7 @@ async function syncInsFl(req, res) {
       const [existingRows] = await conn.query(
         `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
          FROM ins_fl
-         WHERE id_proyecto = ?
+         WHERE f.id_proyecto = ?
            AND referencia_sitio = ?
          LIMIT 1`,
         [incoming.id_proyecto, incoming.referencia_sitio]
@@ -357,52 +357,67 @@ async function getInsFl(req, res) {
     const where = [];
 
     if (req.query.id_proyecto) {
-      where.push('id_proyecto = ?');
+      where.push('f.id_proyecto = ?');
       params.push(String(req.query.id_proyecto));
     }
 
     if (req.query.proyecto) {
-      where.push('proyecto LIKE ?');
+      where.push('f.proyecto LIKE ?');
       params.push(`%${String(req.query.proyecto)}%`);
     }
 
     if (req.query.referencia_sitio) {
-      where.push('referencia_sitio LIKE ?');
+      where.push('f.referencia_sitio LIKE ?');
       params.push(`%${String(req.query.referencia_sitio)}%`);
     }
 
     if (req.query.estatus) {
-      where.push('estatus = ?');
+      where.push('f.estatus = ?');
       params.push(String(req.query.estatus));
     }
 
     if (req.query.id_sup) {
-      where.push('id_sup = ?');
+      where.push('f.id_sup = ?');
       params.push(Number(req.query.id_sup));
     }
 
     if (req.query.id_asesor) {
-      where.push('id_asesor = ?');
+      where.push('f.id_asesor = ?');
       params.push(Number(req.query.id_asesor));
     }
 
     if (req.query.id_admin) {
-      where.push('id_admin = ?');
+      where.push('f.id_admin = ?');
       params.push(Number(req.query.id_admin));
     }
 
     if (req.query.activo !== undefined && req.query.activo !== '') {
-      where.push('activo = ?');
+      where.push('f.activo = ?');
       params.push(normalizeActive(req.query.activo));
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const [rows] = await db.query(
-      `SELECT *
-       FROM ins_fl
+      `SELECT
+         f.*,
+         COALESCE(
+           (
+             SELECT GROUP_CONCAT(DISTINCT u_admin.iniciales ORDER BY u_admin.iniciales SEPARATOR ', ')
+             FROM usuarios_rel_admin ura
+             INNER JOIN usuarios u_admin ON u_admin.id_SB = ura.id_admin
+             WHERE ura.id_asesor = f.id_asesor
+           ),
+           (
+             SELECT u_directo.iniciales
+             FROM usuarios u_directo
+             WHERE u_directo.id_SB = f.id_admin
+             LIMIT 1
+           )
+         ) AS rel_admin
+       FROM ins_fl f
        ${whereSql}
-       ORDER BY id_ins_fl ASC
+       ORDER BY f.id_ins_fl ASC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
@@ -475,17 +490,17 @@ async function getInsFlProjects(req, res) {
     const where = [];
 
     if (req.query.proyecto) {
-      where.push('f.proyecto LIKE ?');
+      where.push('f.f.proyecto LIKE ?');
       params.push(`%${String(req.query.proyecto)}%`);
     }
 
     if (req.query.id_sup) {
-      where.push('f.id_sup = ?');
+      where.push('f.f.id_sup = ?');
       params.push(Number(req.query.id_sup));
     }
 
     if (req.query.id_asesor) {
-      where.push('f.id_asesor = ?');
+      where.push('f.f.id_asesor = ?');
       params.push(Number(req.query.id_asesor));
     }
 
@@ -494,13 +509,13 @@ async function getInsFlProjects(req, res) {
         SELECT 1
         FROM usuarios_rel_admin ura_filter
         WHERE ura_filter.id_asesor = f.id_asesor
-          AND ura_filter.id_admin = ?
+          AND ura_filter.f.id_admin = ?
       )`);
       params.push(Number(req.query.id_admin));
     }
 
     if (req.query.activo !== undefined && req.query.activo !== '') {
-      where.push('f.activo = ?');
+      where.push('f.f.activo = ?');
       params.push(normalizeActive(req.query.activo));
     }
 
