@@ -36,11 +36,40 @@ function formatProyectoNombre(value) {
 function decorateProyectoRow(row) {
   if (!row) return row;
   const codigo = row.proyecto_codigo || row.proyecto;
-  const rawNombre = row.proyecto_nombre || row.proyecto_cc_x_port || codigo;
+  const rawNombre = row.nombre_publico || row.proyecto_nombre || row.proyecto_cc_x_port || codigo;
   return {
     ...row,
     proyecto_codigo: codigo,
-    proyecto_nombre: formatProyectoNombre(rawNombre || codigo)
+    proyecto_nombre: row.nombre_publico || formatProyectoNombre(rawNombre || codigo)
+  };
+}
+
+async function resolveProyectoEquivalencia(proyecto) {
+  const value = String(proyecto || '').trim();
+  if (!value) {
+    return { proyecto_busqueda: value, nombre_publico: value, equivalencia: null };
+  }
+
+  const [rows] = await db.query(`
+    SELECT
+      proyecto_corellian,
+      proyecto_united,
+      nombre_publico
+    FROM proyecto_equivalencias
+    WHERE activo = 1
+      AND (
+        UPPER(TRIM(proyecto_corellian)) = UPPER(TRIM(?))
+        OR UPPER(TRIM(proyecto_united)) = UPPER(TRIM(?))
+        OR UPPER(TRIM(nombre_publico)) = UPPER(TRIM(?))
+      )
+    LIMIT 1
+  `, [value, value, value]);
+
+  const equivalencia = rows[0] || null;
+  return {
+    proyecto_busqueda: equivalencia?.proyecto_united || value,
+    nombre_publico: equivalencia?.nombre_publico || value,
+    equivalencia
   };
 }
 
@@ -2085,6 +2114,7 @@ async function getProyectos(req, res) {
     const [rows] = await db.query(`
       SELECT
         p.proyecto,
+        MAX(pe.nombre_publico) AS nombre_publico,
         MAX(p.ciudad) AS ciudad,
         MAX(p.estado) AS estado,
         MAX(p.zona_operativa) AS zona,
@@ -2103,6 +2133,9 @@ async function getProyectos(req, res) {
           ELSE NULL
         END AS mtbc_365
       FROM portafolio p
+      LEFT JOIN proyecto_equivalencias pe
+        ON pe.activo = 1
+       AND UPPER(TRIM(pe.proyecto_united)) = UPPER(TRIM(p.proyecto))
       ${latestTicketJoin}
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS tickets_35d
@@ -2268,14 +2301,25 @@ async function getProyectoInstalacionDetalle(proyecto) {
 }
 
 async function getProyectoDetalle(req, res) {
-  const proyecto = String(req.params.proyecto || req.query.proyecto || '').trim();
+  const proyectoSolicitado = String(req.params.proyecto || req.query.proyecto || '').trim();
   const soloPortafolio = String(req.query.origen || '').trim().toLowerCase() === 'portafolio';
-  if (!proyecto) return res.status(400).json({ ok: false, message: 'Proyecto requerido.' });
+  if (!proyectoSolicitado) return res.status(400).json({ ok: false, message: 'Proyecto requerido.' });
 
   try {
+    const equivalencia = await resolveProyectoEquivalencia(proyectoSolicitado);
+    const proyecto = equivalencia.proyecto_busqueda;
+    const nombrePublico = equivalencia.nombre_publico;
+    const filtroVisible = soloPortafolio
+      ? 'p.estado_registro = 1'
+      : "p.estado_registro = 1 AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))";
+    const filtroVisibleSubquery = soloPortafolio
+      ? 'estado_registro = 1'
+      : "estado_registro = 1 AND (inactivo IS NULL OR UPPER(inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))";
+
     const [proyectos] = await db.query(`
       SELECT
         p.proyecto,
+        MAX(p.proyecto_cc_x_port) AS proyecto_cc_x_port,
         MAX(p.ciudad) AS ciudad,
         MAX(p.estado) AS estado,
         MAX(p.zona_operativa) AS zona,
@@ -2310,9 +2354,8 @@ async function getProyectoDetalle(req, res) {
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
       ) blt ON blt.codigo_equipo = p.numero_equipo
-      WHERE p.estado_registro = 1
-        AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
-        AND p.proyecto = ?
+      WHERE ${filtroVisible}
+        AND UPPER(TRIM(p.proyecto)) = UPPER(TRIM(?))
       GROUP BY p.proyecto
     `, [proyecto]);
 
@@ -2325,7 +2368,7 @@ async function getProyectoDetalle(req, res) {
         });
       }
 
-      const instalacion = await getProyectoInstalacionDetalle(proyecto);
+      const instalacion = await getProyectoInstalacionDetalle(proyectoSolicitado);
       if (instalacion) return res.json(instalacion);
       return res.status(404).json({ ok: false, message: 'Proyecto no encontrado en Portafolio ni en Instalaciones.' });
     }
@@ -2334,9 +2377,8 @@ async function getProyectoDetalle(req, res) {
       SELECT ${portafolioBaseSelect}
       FROM portafolio p
       ${latestTicketJoin}
-      WHERE p.estado_registro = 1
-        AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
-        AND p.proyecto = ?
+      WHERE ${filtroVisible}
+        AND UPPER(TRIM(p.proyecto)) = UPPER(TRIM(?))
       ORDER BY p.numero_equipo ASC
     `, [proyecto]);
 
@@ -2345,13 +2387,12 @@ async function getProyectoDetalle(req, res) {
         t.ticket, t.codigo_equipo, t.equipo, t.folio, t.estado_ticket, t.estado, t.fecha_reporte, t.fecha_cierre,
         t.responsabilidad, t.causa_falla, t.causa, t.tiempo_llegada, t.tiempo_solucion, t.estatus_equipo_final
       FROM tickets t
-      WHERE t.proyecto = ?
+      WHERE UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?))
          OR t.codigo_equipo IN (
           SELECT numero_equipo
           FROM portafolio
-          WHERE estado_registro = 1
-            AND (inactivo IS NULL OR UPPER(inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
-            AND proyecto = ?
+          WHERE ${filtroVisibleSubquery}
+            AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         )
       ORDER BY t.fecha_reporte DESC, t.id DESC
       LIMIT 300
@@ -2361,8 +2402,8 @@ async function getProyectoDetalle(req, res) {
       SELECT DATE_FORMAT(t.fecha_reporte, '%Y-%m') AS mes, COUNT(*) AS total
       FROM tickets t
       WHERE YEAR(t.fecha_reporte) = YEAR(CURDATE())
-        AND (t.proyecto = ? OR t.codigo_equipo IN (
-          SELECT numero_equipo FROM portafolio WHERE estado_registro = 1 AND proyecto = ?
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
       GROUP BY DATE_FORMAT(t.fecha_reporte, '%Y-%m')
       ORDER BY mes ASC
@@ -2372,8 +2413,8 @@ async function getProyectoDetalle(req, res) {
       SELECT DATE_FORMAT(t.fecha_reporte, '%Y-%m') AS mes, COUNT(*) AS total
       FROM tickets t
       WHERE YEAR(t.fecha_reporte) = YEAR(CURDATE()) - 1
-        AND (t.proyecto = ? OR t.codigo_equipo IN (
-          SELECT numero_equipo FROM portafolio WHERE estado_registro = 1 AND proyecto = ?
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
       GROUP BY DATE_FORMAT(t.fecha_reporte, '%Y-%m')
       ORDER BY mes ASC
@@ -2383,19 +2424,39 @@ async function getProyectoDetalle(req, res) {
       SELECT COALESCE(NULLIF(TRIM(t.responsabilidad),''),'Sin dato') AS responsabilidad, COUNT(*) AS total
       FROM tickets t
       WHERE t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-        AND (t.proyecto = ? OR t.codigo_equipo IN (
-          SELECT numero_equipo FROM portafolio WHERE estado_registro = 1 AND proyecto = ?
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
       GROUP BY COALESCE(NULLIF(TRIM(t.responsabilidad),''),'Sin dato')
       ORDER BY total DESC
     `, [proyecto, proyecto]);
 
+    const proyectoDecorado = decorateProyectoRow({
+      ...proyectos[0],
+      nombre_publico: nombrePublico,
+      proyecto_busqueda: proyecto
+    });
+    proyectoDecorado.nombre_publico = nombrePublico;
+    proyectoDecorado.proyecto_nombre = nombrePublico || proyectoDecorado.proyecto_nombre;
+    proyectoDecorado.proyecto_busqueda = proyecto;
+
+    const equiposDecorados = equipos.map(row => ({
+      ...decorateProyectoRow(row),
+      nombre_publico: nombrePublico,
+      proyecto_nombre: nombrePublico || row.proyecto_nombre,
+      proyecto_busqueda: proyecto
+    }));
+
     return res.json({
       ok: true,
       source: 'aiven-portafolio',
       origen: 'PORTAFOLIO',
-      proyecto: decorateProyectoRow(proyectos[0]),
-      equipos,
+      equivalencia: equivalencia.equivalencia ? {
+        proyecto_corellian: equivalencia.equivalencia.proyecto_corellian,
+        proyecto_united: equivalencia.equivalencia.proyecto_united
+      } : null,
+      proyecto: proyectoDecorado,
+      equipos: equiposDecorados,
       tickets,
       monthly_current: monthlyCurrent,
       monthly_previous: monthlyPrevious,
