@@ -169,7 +169,14 @@
     }
     setActiveSide('proyectos');
     updateContext('proyectos','Proyectos · vista agregada desde Portafolio y Tickets Aiven');
-    if(window.ManttoProyectos) window.ManttoProyectos.init(currentPayload);
+    // El payload con id es una instruccion de apertura de una sola vez.
+    // Se limpia antes de que el detalle navegue para que al regresar a Proyectos
+    // no vuelva a abrir automaticamente el mismo proyecto.
+    const launchPayload = currentPayload;
+    if(launchPayload && (launchPayload.id || launchPayload.proyecto || launchPayload.project || launchPayload.codigo)){
+      currentPayload = null;
+    }
+    if(window.ManttoProyectos) window.ManttoProyectos.init(launchPayload);
     return true;
   }
 
@@ -226,8 +233,21 @@
       view.innerHTML = '<div class="insproy-page"><section class="insproy-card insproy-head"><div><p class="insproy-eyebrow">Cargando módulo</p><h1>Proyectos de Instalación</h1><p>Inicializando vista de pruebas...</p></div></section></div>';
     }
     setActiveSide('instalaciones-proyectos');
-    updateContext('instalaciones-proyectos','Proyectos de Instalación · concentrado desde ins_fl en Aiven');
+    updateContext('instalaciones-proyectos','Proyectos de Instalación · gestión integral desde Aiven');
     if(window.ManttoInstalacionesProyectos) window.ManttoInstalacionesProyectos.init();
+    return true;
+  }
+
+  function showInstalacionesConcentradoCliente(){
+    const view=document.getElementById('view-instalaciones-concentrado-cliente');
+    if(!view) return false;
+    activateViewById('view-instalaciones-concentrado-cliente');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="icc-page"><section class="icc-card icc-head"><div><p class="icc-eyebrow">Cargando módulo</p><h1>Concentrado Cliente</h1><p>Inicializando vista desde Aiven...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-concentrado-cliente');
+    updateContext('instalaciones-concentrado-cliente','Concentrado de proyectos por cliente · datos desde Aiven');
+    if(window.ManttoInstalacionesConcentradoCliente) window.ManttoInstalacionesConcentradoCliente.init();
     return true;
   }
 
@@ -333,6 +353,7 @@
     if(route==='operativo' && showOperativo()) return;
     if(route==='movimientos' && showMovimientos()) return;
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
+    if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
     if(route==='usuarios' && showUsuarios()) return;
@@ -381,7 +402,7 @@
     const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(payload || null);
     if(!options.replace && currentRoute && !same){
       const main = document.querySelector('.main-content');
-      historyStack.push({ route: currentRoute, payload: currentPayload, scrollY: main ? main.scrollTop : 0 });
+      historyStack.push({ route: currentRoute, payload: currentPayload });
       if(historyStack.length > 25) historyStack.shift();
     }
     currentRoute = nextRoute;
@@ -398,7 +419,7 @@
       currentRoute = previous.route;
       currentPayload = previous.payload || null;
       render(currentRoute, currentPayload);
-      window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=previous.scrollY || 0; }, 0);
+      window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=0; window.scrollTo?.({top:0,behavior:'auto'}); }, 0);
     } else if(currentRoute !== 'home') {
       currentRoute = 'home';
       currentPayload = null;
@@ -406,7 +427,7 @@
     } else {
       render('home', null);
     }
-    if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, false, previous ? previous.scrollY : 0);
+    if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, false, 0);
   }
 
   window.addEventListener('popstate', function(ev){
@@ -417,7 +438,7 @@
         currentRoute = state.route || 'home';
         currentPayload = state.payload || null;
         render(currentRoute, currentPayload);
-        window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=Number(state.scrollY)||0; },0);
+        window.setTimeout(function(){ const main=document.querySelector('.main-content'); if(main) main.scrollTop=0; window.scrollTo?.({top:0,behavior:'auto'}); },0);
       } else {
         internalBack({fromBrowser:true});
       }

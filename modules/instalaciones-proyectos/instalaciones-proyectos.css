@@ -1,50 +1,377 @@
-.insproy-view{background:#F4F6FA}
-.insproy-page{display:flex;flex-direction:column;gap:16px;padding:18px;max-width:1500px;margin:0 auto;color:#1E293B}
-.insproy-card{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:16px;box-shadow:0 8px 24px rgba(13,46,110,.07)}
-.insproy-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-color:#0D2E6E}
-.insproy-head h1{font-size:22px;color:#0D2E6E;margin:2px 0}.insproy-head p{color:#64748B;font-size:13px}.insproy-eyebrow{font-size:11px!important;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:#D97706!important}
-.insproy-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.insproy-status{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;border-radius:999px;padding:7px 11px;background:#F8FAFC;color:#64748B;border:1px solid #E2E8F0}.insproy-dot{width:8px;height:8px;border-radius:99px;background:#94A3B8}.insproy-status.ok{background:#ECFDF5;color:#166534;border-color:#BBF7D0}.insproy-status.ok .insproy-dot{background:#16A34A}.insproy-status.error{background:#FEF2F2;color:#991B1B;border-color:#FECACA}.insproy-status.error .insproy-dot{background:#DC2626}.insproy-status.loading .insproy-dot{animation:insproyPulse 1s infinite}@keyframes insproyPulse{0%,100%{opacity:1}50%{opacity:.25}}
-.insproy-btn{height:34px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;color:#0D2E6E;font-weight:700;font-size:12px;padding:0 12px;cursor:pointer}.insproy-btn:hover{background:#F8FAFC}.insproy-btn-primary{background:#1B4FD8;border-color:#1B4FD8;color:#fff}
-.insproy-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:14px}.insproy-filters label{display:flex;flex-direction:column;gap:5px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#64748B;font-weight:800}.insproy-filters select,.insproy-filters input{height:34px;border:1px solid rgba(13,46,110,.3);border-radius:9px;background:#fff;padding:0 10px;font-size:12px;color:#1E293B;min-width:145px}.insproy-filters input{min-width:250px;text-transform:none;letter-spacing:0}.insproy-search-label{flex:1}.insproy-search-label input{width:100%}
-.insproy-grid{display:grid;gap:10px}.insproy-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.insproy-kpi{min-height:112px;border-radius:16px;padding:14px 12px;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:3px}.insproy-kpi span{font-size:24px}.insproy-kpi strong{font-size:30px;line-height:1}.insproy-kpi b{font-size:11px;text-transform:uppercase;letter-spacing:.05em}.insproy-kpi small{font-size:10px;color:rgba(255,255,255,.72)}.insproy-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.insproy-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.insproy-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.insproy-kpi-amber{background:linear-gradient(135deg,#D97706,#92400E)}
-.insproy-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid #E2E8F0}.insproy-section-head h2{font-size:15px;color:#0D2E6E}.insproy-section-head p{font-size:12px;color:#94A3B8;margin-top:2px}.insproy-table-wrap{overflow:auto}.insproy-table{width:100%;border-collapse:collapse;min-width:1180px}.insproy-table thead{background:#0D2E6E}.insproy-table th{padding:10px 12px;text-align:left;font-size:11px;color:rgba(255,255,255,.9);font-weight:800;white-space:nowrap}.insproy-table td{padding:10px 12px;border-bottom:1px solid #EEF2F7;font-size:12px;color:#475569;vertical-align:middle}.insproy-table tbody tr:hover td{background:#EFF6FF}.insproy-table .insproy-name{font-weight:800;color:#0D2E6E}.insproy-table .insproy-id{font-weight:700;color:#1B4FD8;white-space:nowrap}.insproy-table .insproy-num{text-align:center;font-weight:800;color:#0D2E6E}.insproy-person{display:inline-flex;align-items:center;justify-content:center;min-width:38px;padding:4px 8px;border-radius:999px;background:#EAF0FF;color:#0D2E6E;font-weight:800}.insproy-empty{text-align:center!important;color:#94A3B8!important;padding:24px!important}
-@media(max-width:920px){.insproy-page{padding:12px}.insproy-head{align-items:flex-start;flex-direction:column}.insproy-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.insproy-filters label,.insproy-filters select,.insproy-filters input{width:100%;min-width:100%}.insproy-btn{width:100%}}
-@media(max-width:560px){.insproy-kpis{grid-template-columns:1fr}.insproy-kpi{min-height:96px}.insproy-kpi strong{font-size:26px}}
-.insproy-view-btn{white-space:nowrap}.insproy-detail-view{display:flex;flex-direction:column;gap:16px}.insproy-detail-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:16px 20px;border-color:#0D2E6E}.insproy-detail-title h1{font-size:24px;color:#0D2E6E;margin:2px 0}.insproy-detail-title p:last-child{font-size:13px;color:#64748B}.insproy-detail-section{overflow:hidden}.insproy-section-head-actions{align-items:center}.insproy-general-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:16px}.insproy-general-grid article{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;min-width:0}.insproy-general-grid small{display:block;color:#64748B;font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.04em;margin-bottom:5px}.insproy-general-grid strong{display:block;color:#0D2E6E;font-size:13px;overflow-wrap:anywhere}.insproy-logistics-summary{display:flex;align-items:center;gap:12px;padding:18px}.insproy-logistics-summary span{font-size:11px;text-transform:uppercase;color:#64748B;font-weight:800}.insproy-logistics-summary strong{font-size:20px;color:#1B4FD8}.insproy-logistics-summary small{color:#94A3B8}.insproy-progress-wrap{padding:18px}.insproy-progress-meta{display:flex;align-items:end;justify-content:space-between;margin-bottom:8px}.insproy-progress-meta strong{font-size:30px;color:#0D2E6E}.insproy-progress-meta span{font-size:12px;color:#64748B}.insproy-progress{height:18px;background:#E2E8F0;border-radius:999px;overflow:hidden}.insproy-progress span{display:block;height:100%;background:linear-gradient(90deg,#1B4FD8,#16A34A);border-radius:999px;transition:width .35s ease}.insproy-chart-card{padding:0 18px 18px}.insproy-chart-card h3{font-size:14px;color:#0D2E6E;margin-bottom:12px}.insproy-equipment-chart{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}.insproy-chart-row{display:grid;grid-template-columns:minmax(120px,220px) 1fr 48px;align-items:center;gap:10px;font-size:11px}.insproy-chart-row>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#475569}.insproy-chart-row>div{height:12px;background:#E2E8F0;border-radius:999px;overflow:hidden}.insproy-chart-row i{display:block;height:100%;background:#1B4FD8;border-radius:999px}.insproy-chart-row b{color:#0D2E6E;text-align:right}.insproy-equipment-table td b{display:inline-block;margin-left:6px;color:#0D2E6E}.insproy-mini-progress{display:inline-block;width:70px;height:8px;background:#E2E8F0;border-radius:99px;overflow:hidden;vertical-align:middle}.insproy-mini-progress span{display:block;height:100%;background:#16A34A}.insproy-choice{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:grid;place-items:center;padding:16px}.insproy-choice[hidden]{display:none}.insproy-choice-card{position:relative;background:#fff;border-radius:16px;padding:24px;max-width:420px;width:100%;box-shadow:0 24px 60px rgba(15,23,42,.25);text-align:center}.insproy-choice-card h2{color:#0D2E6E;margin-bottom:8px}.insproy-choice-card p{color:#64748B;margin-bottom:18px}.insproy-choice-card>div{display:flex;gap:10px;justify-content:center}.insproy-choice-close{position:absolute;right:10px;top:8px;border:0;background:transparent;font-size:24px;color:#64748B;cursor:pointer}
-@media(max-width:1100px){.insproy-general-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:720px){.insproy-detail-head{grid-template-columns:1fr}.insproy-detail-head .insproy-btn{width:100%}.insproy-general-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.insproy-section-head-actions{align-items:flex-start;flex-direction:column}.insproy-section-head-actions .insproy-btn{width:100%}.insproy-chart-row{grid-template-columns:100px 1fr 42px}}
-@media(max-width:480px){.insproy-general-grid{grid-template-columns:1fr}}
 
-/* v003: gráfica de barras, tabla ampliada y detalle principal de equipo */
-.insproy-equipment-table{min-width:1450px}
-.insproy-percent{font-variant-numeric:tabular-nums;font-weight:800;color:#0D2E6E!important;white-space:nowrap}
-.insproy-bar-chart{min-width:720px;display:flex;flex-direction:column;gap:10px;padding:4px 0 2px}
-.insproy-chart-axis,.insproy-bar-row{display:grid;grid-template-columns:minmax(150px,240px) 1fr 72px;align-items:center;gap:12px}
-.insproy-chart-axis>div{height:24px;position:relative;border-bottom:1px solid #CBD5E1}
-.insproy-chart-axis b{position:absolute;bottom:3px;transform:translateX(-50%);font-size:10px;color:#64748B;font-weight:700}
-.insproy-bar-row>span{font-size:11px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.insproy-bar-row>b{font-size:11px;color:#0D2E6E;text-align:right;font-variant-numeric:tabular-nums}
-.insproy-bar-plot{position:relative;height:24px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:4px;overflow:hidden}
-.insproy-bar-plot .insproy-grid-line{position:absolute;top:0;bottom:0;width:1px;background:#E2E8F0;z-index:1}
-.insproy-bar-plot em{position:absolute;left:0;top:4px;bottom:4px;background:linear-gradient(90deg,#1B4FD8,#0891B2);border-radius:3px;z-index:2;min-width:0}
-.insproy-stage-list{display:grid;gap:14px;padding:16px}
-.insproy-stage-card{border:1px solid #E2E8F0;border-radius:14px;padding:16px;background:#F8FAFC}
-.insproy-stage-head,.insproy-stage-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
-.insproy-stage-head>div,.insproy-stage-toggle>span{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
-.insproy-stage-head small,.insproy-stage-toggle small{font-size:12px;color:#475569;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-.insproy-stage-head strong,.insproy-stage-toggle strong{font-size:20px;color:#0D2E6E;font-variant-numeric:tabular-nums}
-.insproy-stage-toggle{border:0;background:transparent;padding:0;cursor:pointer;text-align:left;color:inherit}
-.insproy-stage-toggle>b{font-size:11px;color:#1B4FD8;white-space:nowrap}
-.insproy-stage-toggle[aria-expanded="true"]>b::before{content:'Ocultar '}
-.insproy-stage-toggle[aria-expanded="false"]>b::before{content:''}
-.insproy-expand-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px;padding-top:14px;border-top:1px dashed #CBD5E1}
-.insproy-expand-grid article{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:11px;min-width:0}
-.insproy-expand-grid small{display:block;font-size:10px;text-transform:uppercase;color:#64748B;font-weight:800;margin-bottom:4px}
-.insproy-expand-grid strong{display:block;font-size:12px;color:#0D2E6E;overflow-wrap:anywhere}
-.insproy-detail-table{min-width:760px}
-.insproy-detail-table th{width:34%;background:#F8FAFC;color:#0D2E6E;border-bottom:1px solid #E2E8F0;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
-.insproy-detail-table td{white-space:normal;line-height:1.45}
-@media(max-width:900px){.insproy-expand-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){.insproy-bar-chart{min-width:620px}.insproy-expand-grid{grid-template-columns:1fr}.insproy-stage-toggle>span,.insproy-stage-head>div{align-items:flex-start;flex-direction:column;gap:4px}}
+  /*
+    NOTA DE INTEGRACION:
+    Frontend Modular aislado. Paleta neutra provisional, sustituir por
+    variables oficiales de index.html al integrar.
 
-.insproy-logistics-table-wrap{margin-top:14px;max-height:390px}.insproy-logistics-table{min-width:880px}.insproy-logistics-section{display:inline-flex;align-items:center;border-radius:999px;background:#eef4ff;color:#1d4ed8;padding:5px 9px;font-size:11px;font-weight:900;white-space:normal}.insproy-logistics-table tbody tr:hover{background:#f8fbff}
+    FUENTES DE DATOS REALES (Portafolio_Mtto_BLT_TASK_CORELLIAN.xlsx):
+    1) PY_PROYECTOS: 1022 proyectos reales de la hoja "Proyectos Instalaciones".
+    2) PY_EQUIPOS: 2564 equipos reales de la hoja "Equipos Venta-Instalaciones"
+       (67 columnas reales, agrupadas en 7 bloques para el detalle -- ver nota
+       en el codigo, es organizacion propia para lectura).
+    Vinculo por "ID Proyecto"/"ID PROYECTO" (formato P#####): 946 de 948
+    proyectos con ID tienen al menos un equipo; 2 no tienen ninguno; 0 equipos
+    huerfanos. Este ID es la MISMA llave "PH NS"/"PP NS" usada en Logistica y
+    Cobranza (confirmado por el usuario).
+    Sin conexion aun a Google Sheets en vivo ni a Supabase.
+  */
+  #view-instalaciones-proyectos{
+    --bg:#f4f5f7; --card:#ffffff; --text:#1f2430; --muted:#6b7280;
+    --border:#e5e7eb; --accent:#2563eb;
+    --ok:#16a34a; --warn:#d97706; --bad:#dc2626;
+    --radius:14px;
+  }
+  #view-instalaciones-proyectos, #view-instalaciones-proyectos *{box-sizing:border-box;}
+  #view-instalaciones-proyectos{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+  #py-page{ position:fixed; top:0; left:0; right:0; bottom:0; overflow-y:auto; z-index:15; padding-top:130px; background:var(--bg); -webkit-overflow-scrolling:touch; }
+  .py-header{ position:fixed; top:0; left:0; right:0; z-index:16; background:var(--card); border-bottom:1px solid var(--border); padding:14px 18px; display:flex; align-items:center; gap:14px; }
+  .py-back{ border:none; background:none; color:var(--accent); font-size:15px; font-weight:600; cursor:pointer; padding:6px 8px; }
+  .py-title{font-size:17px; font-weight:700; margin:0;}
+  .py-tabs{ position:fixed; top:53px; left:0; right:0; z-index:16; background:var(--bg); display:flex; gap:8px; padding:10px 16px; overflow-x:auto; border-bottom:1px solid var(--border);}
+  .py-tab{ border:1px solid var(--border); background:var(--card); color:var(--muted); padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .py-tab.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .py-section{ display:none; padding:8px 16px 40px; }
+  .py-section.active{ display:block; }
+
+  .py-note{ font-size:12px; color:var(--muted); background:#fff8e6; border:1px solid #fde68a; padding:10px 12px; border-radius:10px; margin-bottom:16px; }
+  .py-empty{ text-align:center; color:var(--muted); font-size:13px; padding:30px 0; }
+
+  .py-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+  .py-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+  .py-card .label{ font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em;}
+  .py-card .value{ font-size:22px; font-weight:800; margin-top:4px; }
+
+  .py-filters{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .py-filters select, .py-filters input{ padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; background:#fff; }
+  .py-filters input[type="text"]{ min-width:220px; }
+
+  table.py-table{ width:100%; border-collapse:collapse; background:var(--card); border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); font-size:12.5px; }
+  table.py-table th{ text-align:left; background:#fafafa; padding:9px; font-size:10.5px; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border);}
+  table.py-table td{ padding:9px; border-bottom:1px solid var(--border); vertical-align:top; }
+  table.py-table tr:last-child td{ border-bottom:none; }
+  table.py-table tr.clickable{ cursor:pointer; }
+  table.py-table tr.clickable:hover{ background:#f8fafc; }
+  .py-table-wrap{ overflow-x:auto; border-radius:var(--radius); }
+
+  /* Reporte de Instalaciones: table-layout fixed para que los anchos se respeten
+     de verdad (sin esto, el navegador puede colapsar columnas de forma rara,
+     como paso con COMENTARIO). Los anchos base se definen aqui; el ancho de
+     PROYECTO/REFERENCIA se ajusta por seccion via <colgroup> generado en JS. */
+  table.py-table-reporte{ table-layout:fixed; width:100%; border-collapse:collapse; background:var(--card); border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); font-size:12px; }
+  table.py-table-reporte th{ text-align:left; background:#fafafa; padding:8px 6px 10px; font-size:9.5px; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border); white-space:normal; word-break:break-word; line-height:1.5; }
+  table.py-table-reporte td{ padding:8px; border-bottom:1px solid var(--border); vertical-align:top; white-space:normal; word-break:break-word; overflow-wrap:break-word; }
+  table.py-table-reporte tr:last-child td{ border-bottom:none; }
+  table.py-table-reporte td.col-fecha, table.py-table-reporte th.col-fecha{ white-space:nowrap; }
+  table.py-table-reporte td.col-pct, table.py-table-reporte th.col-pct{ white-space:nowrap; text-align:right; }
+  table.py-table-reporte td.dias-negativo{ color:#dc2626; font-weight:800; background:#fef2f2; }
+  table.py-table-reporte td.fecha-invertida{ color:#92620a; font-weight:700; background:#fffbeb; }
+  table.py-table-reporte td.col-icono, table.py-table-reporte th.col-icono{ white-space:nowrap; text-align:center; padding-left:2px; padding-right:2px; }
+  table.py-table-reporte td.col-icono.con-alerta{ font-weight:800; color:var(--bad); background:#fef2f2; }
+  .py-leyenda-notif{ font-size:11.5px; color:var(--muted); background:#fff8e6; border:1px solid #fde68a; padding:8px 12px; border-radius:10px; margin-bottom:14px; }
+
+  .py-grafica-wrap{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin-bottom:20px; }
+  .py-grafica-titulo{ font-weight:800; font-size:14px; margin-bottom:12px; }
+  .py-grafica-fila{ display:flex; align-items:center; gap:10px; margin-bottom:7px; }
+  .py-grafica-label{ width:150px; font-size:11.5px; font-weight:700; color:var(--text); flex-shrink:0; }
+  .py-grafica-barra-fondo{ flex:1; background:#f1f3f5; border-radius:6px; height:20px; overflow:hidden; }
+  .py-grafica-barra{ height:100%; background:var(--accent); border-radius:6px; display:flex; align-items:center; justify-content:flex-end; padding-right:6px; box-sizing:border-box; min-width:2px; }
+  .py-grafica-valor{ color:#fff; font-size:10.5px; font-weight:800; }
+  .py-grafica-valor.fuera{ color:var(--text); margin-left:6px; }
+
+  .py-status-chip{ display:inline-block; padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:700; white-space:nowrap; background:#eef2ff; color:var(--accent); }
+  .st-ACTIVO{ background:#dcfce7; color:var(--ok); }
+  .st-INACTIVOS{ background:#e5e7eb; color:var(--muted); }
+
+  #py-detail-page, #py-detail-page-2{
+    display:none; position:fixed; inset:0; background:var(--bg);
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  #py-detail-page{ z-index:40; }
+  #py-detail-page-2{ z-index:50; }
+  #py-detail-page.open, #py-detail-page-2.open{ display:block; }
+  .py-detail-header{
+    position:fixed; top:0; left:0; right:0; z-index:1; background:var(--card);
+    border-bottom:1px solid var(--border); padding:14px 18px; display:flex; align-items:center; gap:14px;
+  }
+  .py-detail-body{ padding:82px 16px 40px; }
+  .py-modal-title{ font-size:18px; font-weight:800; margin:0 0 2px; }
+  .py-modal-sub{ color:var(--muted); font-size:13px; margin-bottom:14px; }
+  .py-modal-block-title{ font-weight:700; font-size:14px; margin:18px 0 8px; }
+  .py-modal-back{ border:none; background:none; color:var(--accent); font-weight:600; font-size:15px; cursor:pointer; padding:6px 8px; }
+
+  .py-galeria{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+  .py-galeria img{ width:120px; height:120px; object-fit:cover; border-radius:10px; border:1px solid var(--border); cursor:pointer; }
+  .py-links-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+  .py-links-row a{ font-size:12.5px; color:var(--accent); text-decoration:none; background:#eef2ff; padding:6px 12px; border-radius:8px; font-weight:600; }
+
+  .py-foto-grupo{ margin-bottom:24px; }
+  .py-pdf-btn{ border:1px solid var(--accent); background:#fff; color:var(--accent); padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+  .py-pdf-btn:hover{ background:#eef2ff; }
+  .py-print-header{ display:none; }
+
+  @media print {
+    body *{ visibility:hidden; }
+    #py-tab-reporte, #py-tab-reporte *{ visibility:visible; }
+    .py-header, .py-tabs, .py-note, .py-filters, #py-detail-page, #py-detail-page-2, #py-lightbox{ display:none !important; }
+    #py-page{ position:static; padding-top:0; }
+    #py-tab-reporte{ position:static; padding:0; }
+    .py-print-header{ display:flex; align-items:center; gap:14px; border-bottom:3px solid #1f2430; padding-bottom:10px; margin-bottom:16px; }
+    .py-print-header .logo{ font-weight:900; font-size:20px; letter-spacing:.02em; }
+    .py-print-header .titulo{ font-size:16px; font-weight:800; flex:1; text-align:center; }
+    .py-print-header .fecha{ font-size:11px; color:var(--muted); }
+    .py-foto-grupo{ page-break-inside:avoid; break-inside:avoid; page-break-after:always; }
+    .py-foto-grupo-title{ background:#1f2430; color:#fff; padding:8px 12px; border-radius:6px 6px 0 0; border-bottom:none; }
+    table.py-table-reporte th{ background:#eef2ff; }
+    table.py-table-reporte{ font-size:9px; }
+  }
+
+  .py-foto-grupo-title{ font-size:14px; font-weight:800; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid var(--border); }
+  .py-foto-grupo-title .count{ color:var(--muted); font-weight:600; font-size:12px; }
+  .py-foto-mosaico{ display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px; }
+  .py-foto-tile{ cursor:pointer; }
+  .py-foto-tile img{ width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:10px; border:1px solid var(--border); display:block; }
+  .py-foto-tile .nombre{ font-size:11.5px; color:var(--text); margin-top:5px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .py-foto-tile .n-fotos{ font-size:10px; color:var(--muted); }
+  .py-upload-tile{ width:120px; height:120px; border:2px dashed var(--accent); border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; color:var(--accent); font-size:11px; font-weight:700; gap:4px; background:#eef2ff; }
+  .py-upload-tile:hover{ background:#e0e7ff; }
+  .py-upload-tile .plus{ font-size:26px; line-height:1; }
+  .py-foto-slots-nota{ font-size:11px; color:var(--muted); margin-top:8px; }
+  .py-links-row a:hover{ text-decoration:underline; }
+
+  /* Lightbox de imagenes (flotante, no pestana nueva) */
+  #py-lightbox{ display:none; position:fixed; inset:0; background:rgba(15,20,30,0.85); z-index:70; align-items:center; justify-content:center; padding:30px; }
+  #py-lightbox.open{ display:flex; }
+  #py-lightbox img{ max-width:100%; max-height:100%; border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+  #py-lightbox-close{ position:absolute; top:20px; right:24px; border:none; background:rgba(255,255,255,0.15); color:#fff; width:38px; height:38px; border-radius:999px; font-size:20px; cursor:pointer; }
+  .py-lightbox-nav{ position:absolute; top:50%; transform:translateY(-50%); border:none; background:rgba(255,255,255,0.15); color:#fff; width:46px; height:46px; border-radius:999px; font-size:22px; cursor:pointer; }
+  .py-lightbox-nav:hover{ background:rgba(255,255,255,0.3); }
+  #py-lightbox-prev{ left:20px; }
+  #py-lightbox-next{ right:20px; }
+  #py-lightbox-contador{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); color:#fff; font-size:13px; background:rgba(0,0,0,0.4); padding:5px 14px; border-radius:999px; }
+  #py-lightbox-proyecto{ position:absolute; top:20px; left:24px; color:#fff; font-size:13px; background:rgba(0,0,0,0.4); padding:6px 14px; border-radius:999px; text-decoration:none; font-weight:600; }
+
+  /* Visor de carpeta Drive incrustado */
+  .py-drive-browser{ border:1px solid var(--border); border-radius:12px; margin-top:8px; padding:12px; background:#fafafa; }
+  .py-drive-breadcrumb{ font-size:12px; color:var(--muted); margin-bottom:10px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .py-drive-breadcrumb span.link{ color:var(--accent); cursor:pointer; font-weight:600; }
+  .py-drive-lista{ display:flex; flex-direction:column; gap:6px; }
+  .py-drive-item{ display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#fff; border:1px solid var(--border); font-size:13px; }
+  .py-drive-item.folder{ cursor:pointer; font-weight:600; }
+  .py-drive-item.folder:hover{ border-color:var(--accent); background:#eef2ff; }
+  .py-drive-item.file a{ color:var(--accent); text-decoration:none; font-weight:500; }
+  .py-drive-item.file a:hover{ text-decoration:underline; }
+  .py-drive-loading, .py-drive-error{ font-size:12.5px; color:var(--muted); padding:8px 0; }
+  .py-drive-error{ color:var(--bad); }
+  .py-drive-note{ font-size:11px; color:var(--muted); margin-top:6px; }
+
+  table.py-resumen-table{ width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:10px; }
+  table.py-resumen-table td{ padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px; }
+  table.py-resumen-table tr:last-child td{ border-bottom:none; }
+  table.py-resumen-table td.l{ color:var(--muted); font-weight:600; width:40%; background:#fafafa; }
+  table.py-resumen-table td.v{ font-weight:600; }
+
+  .py-modal-group-title{ font-weight:700; font-size:13px; margin:16px 0 6px; color:var(--accent); text-transform:uppercase; letter-spacing:.03em;}
+
+  .py-cj-caja{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+  .py-cj-textarea{ width:100%; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:13px; font-family:inherit; resize:vertical; box-sizing:border-box; }
+  .py-cj-fila-resp{ display:flex; gap:8px; margin-top:8px; }
+  .py-cj-input{ flex:1; border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:13px; }
+  .py-cj-btn{ border:none; background:var(--accent); color:#fff; font-weight:700; font-size:13px; padding:8px 18px; border-radius:8px; cursor:pointer; }
+  .py-cj-btn:hover{ opacity:.9; }
+  .py-cj-nota{ font-size:10.5px; color:var(--muted); margin-top:8px; line-height:1.4; }
+  .py-cj-item{ background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+  .py-cj-item-top{ display:flex; justify-content:space-between; gap:10px; font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .py-cj-item-semana{ background:var(--accent); color:#fff; font-weight:800; border-radius:999px; padding:2px 9px; font-size:10px; }
+  .py-cj-item-texto{ font-size:13px; }
+
+  .py-dash-sup-checks{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .py-dash-sup-chip{ display:flex; align-items:center; gap:6px; border:1px solid var(--border); background:var(--card); padding:7px 12px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer; }
+  .py-dash-sup-chip.activo{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .py-dash-sub-titulo{ font-weight:800; font-size:14px; margin:22px 0 8px; padding-bottom:6px; border-bottom:2px solid var(--border); }
+  table.py-field-table{ width:100%; border-collapse:collapse; }
+  table.py-field-table td{ padding:5px 8px; border-bottom:1px solid var(--border); font-size:12.5px; }
+  .py-field-label{ color:var(--muted); width:45%; }
+
+/* Integracion Gestor Mantto: conserva el diseño de Desarrollo dentro del contenedor modular. */
+#view-instalaciones-proyectos{padding:0!important;overflow:visible!important}
+#view-instalaciones-proyectos #py-page{position:relative;inset:auto;min-height:70vh;overflow:visible;padding-top:84px;background:var(--bg);z-index:auto}
+#view-instalaciones-proyectos .py-header{position:sticky;top:0;z-index:6}
+#view-instalaciones-proyectos .py-tabs{position:sticky;top:53px;z-index:5}
+#view-instalaciones-proyectos #py-detail-page,#view-instalaciones-proyectos #py-detail-page-2{position:fixed;top:var(--app-header-height,0);z-index:1200}
+#view-instalaciones-proyectos .py-detail-header{position:sticky;top:0}
+#view-instalaciones-proyectos .py-detail-body{padding-top:24px}
+@media(max-width:760px){#view-instalaciones-proyectos #py-page{padding-top:0}.py-filters input[type="text"]{min-width:100%;width:100%}.py-header{align-items:flex-start}.py-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ===== Gestor Mantto visual system: Proyectos de Instalacion ===== */
+#view-instalaciones-proyectos{
+  --py-navy:#102a56;--py-blue:#1d4ed8;--py-text:#1e293b;--py-muted:#64748b;
+  --py-line:#dfe6ef;--py-soft:#f8fafc;--py-page:#f4f7fb;--py-card:#fff;
+  background:var(--py-page);color:var(--py-text);padding:0!important;overflow:visible!important;
+}
+#view-instalaciones-proyectos #py-page{
+  position:relative;inset:auto;z-index:auto;min-height:70vh;overflow:visible;
+  padding:18px;display:flex;flex-direction:column;gap:16px;background:transparent;
+}
+#view-instalaciones-proyectos .py-card-shell,
+#view-instalaciones-proyectos .py-section.active{
+  background:var(--py-card);border:1px solid var(--py-line);border-radius:16px;
+  box-shadow:0 8px 24px rgba(15,39,78,.06);
+}
+#view-instalaciones-proyectos .py-module-head{
+  position:relative;top:auto;left:auto;right:auto;z-index:auto;padding:18px 20px;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+}
+#view-instalaciones-proyectos .py-eyebrow{margin:0 0 4px;color:var(--py-blue);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+#view-instalaciones-proyectos .py-title{margin:0;color:var(--py-navy);font-size:25px;font-weight:800}
+#view-instalaciones-proyectos .py-subtitle{margin:5px 0 0;color:var(--py-muted);font-size:14px}
+#view-instalaciones-proyectos .py-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+#view-instalaciones-proyectos .py-connection-status{display:inline-flex;align-items:center;gap:7px;color:var(--py-muted);font-size:12px;font-weight:800;white-space:nowrap}
+#view-instalaciones-proyectos .py-connection-dot{width:9px;height:9px;border-radius:50%;background:#16a34a}
+#view-instalaciones-proyectos .py-refresh-btn,
+#view-instalaciones-proyectos .py-pdf-btn,
+#view-instalaciones-proyectos .py-cj-btn{
+  border:1px solid #cbd5e1;background:#fff;color:#12305f;border-radius:10px;padding:9px 13px;font-weight:800;cursor:pointer
+}
+#view-instalaciones-proyectos .py-refresh-btn:hover,
+#view-instalaciones-proyectos .py-pdf-btn:hover{background:#f3f7ff;border-color:#93b4e8}
+#view-instalaciones-proyectos .py-nav-card{padding:10px 12px;overflow:hidden}
+#view-instalaciones-proyectos .py-tabs{
+  position:relative;top:auto;left:auto;right:auto;z-index:auto;background:transparent;border:0;padding:0;
+  display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin
+}
+#view-instalaciones-proyectos .py-tab{
+  border:1px solid #d8e1ec;background:#fbfdff;color:#475569;padding:9px 13px;border-radius:10px;
+  font-size:12px;font-weight:800;white-space:nowrap;transition:.15s ease
+}
+#view-instalaciones-proyectos .py-tab:hover{background:#f3f7ff;border-color:#b9cbe4;color:var(--py-navy)}
+#view-instalaciones-proyectos .py-tab.active{background:var(--py-navy);border-color:var(--py-navy);color:#fff;box-shadow:0 5px 12px rgba(16,42,86,.16)}
+#view-instalaciones-proyectos .py-source-note-wrap{padding:0}
+#view-instalaciones-proyectos .py-note{margin:0;background:#fffaf0;border:1px solid #f5d58a;border-radius:12px;padding:11px 13px;color:#6b5a2d;font-size:12px;line-height:1.5}
+#view-instalaciones-proyectos .py-section{display:none;padding:18px;margin:0}
+#view-instalaciones-proyectos .py-section.active{display:block}
+#view-instalaciones-proyectos .py-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+#view-instalaciones-proyectos .py-card{border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:14px;box-shadow:none}
+#view-instalaciones-proyectos .py-card .label{color:var(--py-muted);font-size:11px;font-weight:800;letter-spacing:.04em}
+#view-instalaciones-proyectos .py-card .value{color:var(--py-navy);font-size:24px;font-weight:900}
+#view-instalaciones-proyectos .py-filters{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 14px}
+#view-instalaciones-proyectos .py-filters input,
+#view-instalaciones-proyectos .py-filters select{
+  min-height:40px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#334155;padding:9px 11px;font-size:13px;outline:none
+}
+#view-instalaciones-proyectos .py-filters input:focus,
+#view-instalaciones-proyectos .py-filters select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+#view-instalaciones-proyectos .py-filters input[type="text"]{min-width:260px;flex:1}
+#view-instalaciones-proyectos .py-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:11px;max-height:620px}
+#view-instalaciones-proyectos table.py-table,
+#view-instalaciones-proyectos table.py-table-reporte{border:0;border-radius:0;width:max-content;min-width:100%;font-size:12px}
+#view-instalaciones-proyectos table.py-table th,
+#view-instalaciones-proyectos table.py-table-reporte th{position:sticky;top:0;z-index:1;background:#f8fafc;color:#64748b;padding:10px;text-transform:uppercase;font-size:10px;letter-spacing:.04em;white-space:nowrap}
+#view-instalaciones-proyectos table.py-table td,
+#view-instalaciones-proyectos table.py-table-reporte td{padding:10px;border-top:1px solid #edf2f7;border-bottom:0;color:#334155;white-space:nowrap}
+#view-instalaciones-proyectos table.py-table tbody tr.clickable:hover,
+#view-instalaciones-proyectos table.py-table tbody tr:hover{background:#f8fbff}
+#view-instalaciones-proyectos .py-empty{padding:28px;color:#94a3b8}
+#view-instalaciones-proyectos .py-modal-block-title,
+#view-instalaciones-proyectos .py-grafica-titulo{color:var(--py-navy);font-weight:800}
+#view-instalaciones-proyectos .py-grafica-wrap,
+#view-instalaciones-proyectos .py-cj-caja,
+#view-instalaciones-proyectos .py-drive-browser{border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:none}
+#view-instalaciones-proyectos #py-detail-page,
+#view-instalaciones-proyectos #py-detail-page-2{position:fixed;inset:0;z-index:1200;background:var(--py-page);padding:18px;overflow:auto}
+#view-instalaciones-proyectos .py-detail-header{position:sticky;top:0;z-index:2;border:1px solid var(--py-line);border-radius:14px;background:#fff;padding:12px 16px;box-shadow:0 8px 24px rgba(15,39,78,.08)}
+#view-instalaciones-proyectos .py-detail-body{padding:16px 0 30px}
+#view-instalaciones-proyectos .py-modal-back{border:1px solid #cbd5e1;background:#fff;color:#12305f;border-radius:10px;padding:9px 13px;font-weight:800}
+@media(max-width:820px){
+  #view-instalaciones-proyectos #py-page{padding:12px}
+  #view-instalaciones-proyectos .py-module-head{align-items:flex-start;flex-direction:column}
+  #view-instalaciones-proyectos .py-head-actions{justify-content:flex-start}
+  #view-instalaciones-proyectos .py-section{padding:14px}
+}
+@media(max-width:560px){
+  #view-instalaciones-proyectos .py-title{font-size:21px}
+  #view-instalaciones-proyectos .py-grid{grid-template-columns:1fr 1fr}
+  #view-instalaciones-proyectos .py-filters input[type="text"]{min-width:100%;width:100%}
+}
+
+
+/* Accesos contextuales Corellian -> Mantenimiento United */
+#view-instalaciones-proyectos .py-detail-title-row{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  margin-bottom:8px;
+}
+#view-instalaciones-proyectos .py-detail-title-row>div:first-child{min-width:0;flex:1}
+#view-instalaciones-proyectos .py-detail-crosslink{display:flex;align-items:center;min-height:36px}
+#view-instalaciones-proyectos .py-crosslink-btn{
+  border:1px solid #0d2e6e;background:#0d2e6e;color:#fff;border-radius:10px;
+  padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;
+  box-shadow:0 4px 12px rgba(13,46,110,.16);transition:transform .15s ease,background .15s ease;
+}
+#view-instalaciones-proyectos .py-crosslink-btn:hover{background:#123d8f;transform:translateY(-1px)}
+#view-instalaciones-proyectos .py-crosslink-btn:focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:2px}
+@media(max-width:560px){
+  #view-instalaciones-proyectos .py-detail-title-row{align-items:stretch}
+  #view-instalaciones-proyectos .py-detail-crosslink{width:100%}
+  #view-instalaciones-proyectos .py-crosslink-btn{width:100%}
+}
+
+/* View Proyecto Corellian - plantilla Mantto Gestor */
+#view-instalaciones-proyectos .py-project-overview{display:grid;grid-template-columns:1fr;gap:16px;margin:16px 0}
+#view-instalaciones-proyectos .py-project-overview.has-photo{grid-template-columns:minmax(260px,.72fr) minmax(380px,1.28fr)}
+#view-instalaciones-proyectos .py-project-photo{display:block;width:100%;min-height:270px;max-height:410px;border:1px solid #dbe5f2;border-radius:14px;overflow:hidden;background:#eef3f8;padding:0;cursor:pointer;box-shadow:0 8px 22px rgba(15,39,78,.08)}
+#view-instalaciones-proyectos .py-project-photo img{display:block;width:100%;height:100%;min-height:270px;object-fit:cover}
+#view-instalaciones-proyectos .py-project-general,#view-instalaciones-proyectos .py-project-equipment,#view-instalaciones-proyectos .py-project-progress-card,#view-instalaciones-proyectos .py-project-mantto{background:#fff;border:1px solid #dbe5f2;border-radius:14px;overflow:hidden;box-shadow:0 7px 20px rgba(15,39,78,.06);margin:16px 0}
+#view-instalaciones-proyectos .py-project-overview .py-project-general{margin:0}
+#view-instalaciones-proyectos .py-project-section-title{padding:12px 16px;background:#eff6ff;color:#0d2e6e;font-size:13px;font-weight:900;border-bottom:1px solid #dbe5f2}
+#view-instalaciones-proyectos .py-project-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0}
+#view-instalaciones-proyectos .py-project-info-item{padding:12px 14px;border-right:1px solid #edf2f7;border-bottom:1px solid #edf2f7}
+#view-instalaciones-proyectos .py-project-info-item span{display:block;color:#64748b;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+#view-instalaciones-proyectos .py-project-info-item strong{display:block;color:#1e293b;font-size:13px;line-height:1.35}
+#view-instalaciones-proyectos .py-project-progress-card{padding-bottom:10px}
+#view-instalaciones-proyectos .py-project-progress-row{padding:12px 16px 5px}
+#view-instalaciones-proyectos .py-project-progress-label{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#334155;font-size:12px;font-weight:800;margin-bottom:7px}
+#view-instalaciones-proyectos .py-project-progress-label strong{color:#0d2e6e}
+#view-instalaciones-proyectos .py-project-progress-track{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}
+#view-instalaciones-proyectos .py-project-progress-fill{height:100%;border-radius:inherit}.py-project-progress-fill.general{background:#1b4fd8}.py-project-progress-fill.oc{background:#c83b3b}.py-project-progress-fill.mo{background:#d7a514}.py-project-progress-fill.aj{background:#238b45}
+#view-instalaciones-proyectos .py-project-mantto-actions{padding:12px 16px;display:flex;justify-content:flex-end}
+#py-lightbox .py-lightbox-principal{position:absolute;left:50%;bottom:25px;transform:translateX(-50%);z-index:4;border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0d2e6e;color:#fff;padding:10px 15px;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+#py-lightbox .py-lightbox-principal:disabled{background:#475569;cursor:default;opacity:.9}
+@media(max-width:900px){#view-instalaciones-proyectos .py-project-overview.has-photo{grid-template-columns:1fr}#view-instalaciones-proyectos .py-project-photo{max-height:330px}}
+
+
+/* Paginación por estados - pestaña Fotografías */
+.py-foto-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  margin:18px 0 4px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:#fff;
+}
+.py-foto-pagination span{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+  text-align:center;
+}
+.py-foto-pagination button{
+  border:1px solid #0D2E6E;
+  border-radius:8px;
+  background:#0D2E6E;
+  color:#fff;
+  padding:8px 14px;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.py-foto-pagination button:disabled{
+  opacity:.42;
+  cursor:not-allowed;
+}
+@media(max-width:560px){
+  .py-foto-pagination{gap:8px;padding:10px 8px}
+  .py-foto-pagination button{padding:8px 10px}
+  .py-foto-pagination span{font-size:11px}
+}

@@ -1,0 +1,61 @@
+<div class="icc-page">
+  <section class="icc-card icc-head">
+    <div>
+      <p class="icc-eyebrow">INSTALACIONES · CLIENTES</p>
+      <h1>Concentrado Cliente</h1>
+      <p>Consulta consolidada de proyectos activos, cerrados y evidencias fotográficas por cliente.</p>
+    </div>
+    <button id="icc-refresh" class="icc-btn icc-btn-primary" type="button">↻ Actualizar</button>
+  </section>
+
+  <section class="icc-card icc-filter-card">
+    <label for="icc-search">Buscar</label>
+    <input id="icc-search" type="search" placeholder="Cliente, proyecto o ID de proyecto..." autocomplete="off">
+    <label for="icc-client-select">Cliente</label>
+    <select id="icc-client-select">
+      <option value="">Selecciona un cliente...</option>
+    </select>
+    <span id="icc-status" class="icc-status">Consultando Aiven...</span>
+  </section>
+
+  <section id="icc-empty" class="icc-card icc-empty">
+    <div class="icc-empty-icon">👥</div>
+    <h2>Selecciona un cliente</h2>
+    <p>Se mostrarán sus proyectos activos, cerrados y fotografías disponibles.</p>
+  </section>
+
+  <div id="icc-content" class="icc-content" hidden>
+    <section class="icc-kpis">
+      <article class="icc-card icc-kpi"><span>Proyectos activos</span><strong id="icc-kpi-active">0</strong></article>
+      <article class="icc-card icc-kpi"><span>Proyectos cerrados</span><strong id="icc-kpi-closed">0</strong></article>
+      <article class="icc-card icc-kpi"><span>Con fotografía</span><strong id="icc-kpi-photos">0</strong></article>
+    </section>
+
+    <section class="icc-card icc-client-info">
+      <div class="icc-section-title"><div><h2 id="icc-client-name">Cliente</h2><p>Información disponible en Aiven</p></div></div>
+      <div id="icc-client-grid" class="icc-info-grid"></div>
+    </section>
+
+    <section class="icc-card icc-section">
+      <div class="icc-section-title"><div><h2>Proyectos activos</h2><p id="icc-active-count">0 proyectos</p></div></div>
+      <div class="icc-table-wrap"><table class="icc-table"><thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th></tr></thead><tbody id="icc-active-body"></tbody></table></div>
+    </section>
+
+    <section class="icc-card icc-section">
+      <div class="icc-section-title"><div><h2>Proyectos cerrados</h2><p id="icc-closed-count">0 proyectos</p></div></div>
+      <div class="icc-table-wrap"><table class="icc-table"><thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th></tr></thead><tbody id="icc-closed-body"></tbody></table></div>
+    </section>
+
+    <section class="icc-card icc-section">
+      <div class="icc-section-title"><div><h2>Fotografías</h2><p id="icc-photo-count">0 proyectos con evidencia</p></div></div>
+      <div id="icc-photo-grid" class="icc-photo-grid"></div>
+    </section>
+  </div>
+
+  <div id="icc-lightbox" class="icc-lightbox" hidden>
+    <button id="icc-lightbox-close" type="button" aria-label="Cerrar">×</button>
+    <button id="icc-lightbox-prev" class="icc-lightbox-nav prev" type="button" aria-label="Anterior">‹</button>
+    <figure><img id="icc-lightbox-image" alt="Fotografía del proyecto"><figcaption id="icc-lightbox-caption"></figcaption></figure>
+    <button id="icc-lightbox-next" class="icc-lightbox-nav next" type="button" aria-label="Siguiente">›</button>
+  </div>
+</div>

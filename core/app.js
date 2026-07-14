@@ -134,7 +134,76 @@
     const noriClose = document.getElementById('noriClose');
     const noriChat = document.getElementById('pandaChat');
     if(noriFloat && noriChat){
-      noriFloat.addEventListener('click',()=>noriChat.classList.toggle('open'));
+      const defaultInlinePosition = {
+        left: noriFloat.style.left || '',
+        right: noriFloat.style.right || '',
+        top: noriFloat.style.top || '',
+        bottom: noriFloat.style.bottom || '',
+        transform: noriFloat.style.transform || ''
+      };
+      let drag = null;
+      let suppressClick = false;
+
+      const isMobileNori = () => window.matchMedia('(max-width: 760px)').matches;
+      const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+      const resetNoriPosition = () => {
+        noriFloat.style.left = defaultInlinePosition.left;
+        noriFloat.style.right = defaultInlinePosition.right;
+        noriFloat.style.top = defaultInlinePosition.top;
+        noriFloat.style.bottom = defaultInlinePosition.bottom;
+        noriFloat.style.transform = defaultInlinePosition.transform;
+      };
+
+      noriFloat.style.touchAction = 'none';
+      noriFloat.addEventListener('pointerdown', event => {
+        if(!isMobileNori() || event.button !== 0) return;
+        const rect = noriFloat.getBoundingClientRect();
+        drag = {
+          pointerId: event.pointerId,
+          offsetX: event.clientX - rect.left,
+          offsetY: event.clientY - rect.top,
+          startX: event.clientX,
+          startY: event.clientY,
+          moved: false
+        };
+        noriFloat.setPointerCapture?.(event.pointerId);
+      });
+      noriFloat.addEventListener('pointermove', event => {
+        if(!drag || event.pointerId !== drag.pointerId || !isMobileNori()) return;
+        const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+        if(distance > 6) drag.moved = true;
+        if(!drag.moved) return;
+        event.preventDefault();
+        const rect = noriFloat.getBoundingClientRect();
+        const margin = 8;
+        const left = clamp(event.clientX - drag.offsetX, margin, window.innerWidth - rect.width - margin);
+        const top = clamp(event.clientY - drag.offsetY, margin, window.innerHeight - rect.height - margin);
+        noriFloat.style.left = left + 'px';
+        noriFloat.style.top = top + 'px';
+        noriFloat.style.right = 'auto';
+        noriFloat.style.bottom = 'auto';
+        noriFloat.style.transform = 'none';
+      });
+      const finishNoriDrag = event => {
+        if(!drag || event.pointerId !== drag.pointerId) return;
+        suppressClick = drag.moved;
+        drag = null;
+        window.setTimeout(() => { suppressClick = false; }, 0);
+      };
+      noriFloat.addEventListener('pointerup', finishNoriDrag);
+      noriFloat.addEventListener('pointercancel', finishNoriDrag);
+      noriFloat.addEventListener('click', event => {
+        if(suppressClick){
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        resetNoriPosition();
+        noriChat.classList.toggle('open');
+      });
+      window.addEventListener('resize', () => {
+        if(!isMobileNori()) resetNoriPosition();
+      });
     }
     if(noriClose && noriChat){
       noriClose.addEventListener('click',()=>noriChat.classList.remove('open'));
