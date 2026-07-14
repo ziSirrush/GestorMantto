@@ -16,6 +16,7 @@ router.get('/portafolio/movimientos', dataController.getPortafolioMovimientos);
 router.get('/portafolio/movimientos/:codigo/detalle', dataController.getPortafolioMovimientoDetalle);
 router.get('/portafolio/equipos/:codigo', dataController.getPortafolioEquipoDetalle);
 router.get('/portafolio/equipos', dataController.getPortafolioEquipos);
+router.get('/portafolio/proyectos/detalle/:proyecto', dataController.getPortafolioProyectoDetalle);
 router.get('/portafolio', dataController.getPortafolio);
 router.post('/portafolio/sync', dataController.syncPortafolio);
 router.get('/equipos', dataController.getEquipos);

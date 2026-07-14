@@ -2269,6 +2269,7 @@ async function getProyectoInstalacionDetalle(proyecto) {
 
 async function getProyectoDetalle(req, res) {
   const proyecto = String(req.params.proyecto || req.query.proyecto || '').trim();
+  const soloPortafolio = String(req.query.origen || '').trim().toLowerCase() === 'portafolio';
   if (!proyecto) return res.status(400).json({ ok: false, message: 'Proyecto requerido.' });
 
   try {
@@ -2316,6 +2317,14 @@ async function getProyectoDetalle(req, res) {
     `, [proyecto]);
 
     if (!proyectos.length) {
+      if (soloPortafolio) {
+        return res.status(404).json({
+          ok: false,
+          source: 'aiven-portafolio',
+          message: 'Proyecto no encontrado en Portafolio.'
+        });
+      }
+
       const instalacion = await getProyectoInstalacionDetalle(proyecto);
       if (instalacion) return res.json(instalacion);
       return res.status(404).json({ ok: false, message: 'Proyecto no encontrado en Portafolio ni en Instalaciones.' });
@@ -2383,7 +2392,8 @@ async function getProyectoDetalle(req, res) {
 
     return res.json({
       ok: true,
-      source: 'aiven',
+      source: 'aiven-portafolio',
+      origen: 'PORTAFOLIO',
       proyecto: decorateProyectoRow(proyectos[0]),
       equipos,
       tickets,
@@ -2394,6 +2404,12 @@ async function getProyectoDetalle(req, res) {
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando detalle de proyecto.', error: error.message });
   }
+}
+
+
+async function getPortafolioProyectoDetalle(req, res) {
+  req.query = Object.assign({}, req.query, { origen: 'portafolio' });
+  return getProyectoDetalle(req, res);
 }
 
 async function syncTickets(req, res) {
@@ -2629,6 +2645,7 @@ module.exports = {
   getPortafolio,
   getProyectosFiltros,
   getProyectoDetalle,
+  getPortafolioProyectoDetalle,
   getPortafolioFiltros,
   getPortafolioMovimientos,
   getPortafolioMovimientoDetalle,
