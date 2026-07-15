@@ -538,142 +538,147 @@ async function getPortafolioEquipos(req, res) {
 
 async function getPortafolioEquipoDetalle(req, res) {
   const rawCodigo = String(req.params.codigo || '').trim();
-  if (!rawCodigo) return res.status(400).json({ ok: false, message: 'No se recibio numero de equipo o referencia en sitio.' });
 
-  // Cuando el detalle nace desde Instalaciones recibimos: proyecto|||referencia_sitio.
-  // Esto evita cruzar referencias genericas como "Rampa 1" entre proyectos distintos.
+  if (!rawCodigo) {
+    return res.status(400).json({
+      ok: false,
+      message: 'No se recibio numero de equipo o referencia en sitio.'
+    });
+  }
+
   const separator = '|||';
-  const parts = rawCodigo.includes(separator) ? rawCodigo.split(separator) : [];
-  const proyectoOrigen = String(parts[0] || '').trim();
-  const referenciaOrigen = String(parts.slice(1).join(separator) || '').trim();
-  const codigo = referenciaOrigen || rawCodigo;
+  const isCorellianRequest = rawCodigo.includes(separator);
 
   try {
-    let instalaciones = [];
-    let mantenimiento = null;
-
-    if (proyectoOrigen && referenciaOrigen) {
-      const [insRows] = await db.query(`
-        SELECT
-          f.*,
-          COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
-          COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
-          uad.nombre AS administrativo_nombre
-        FROM ins_fl f
-        LEFT JOIN usuarios us ON us.id_SB = f.id_sup
-        LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
-        LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
-        WHERE (
-          TRIM(UPPER(COALESCE(f.proyecto, ''))) = TRIM(UPPER(?))
-          OR TRIM(UPPER(COALESCE(f.id_proyecto, ''))) = TRIM(UPPER(?))
-        )
-          AND TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
-        ORDER BY f.id_ins_fl DESC
-      `, [proyectoOrigen, proyectoOrigen, referenciaOrigen]);
-      instalaciones = insRows;
-
-      const proyectoNombre = instalaciones[0]?.proyecto || proyectoOrigen;
-      const [manttoRows] = await db.query(`
-        SELECT ${portafolioBaseSelect}
-        FROM portafolio p
-        ${latestTicketJoin}
-        WHERE TRIM(UPPER(COALESCE(p.proyecto, ''))) = TRIM(UPPER(?))
-          AND TRIM(UPPER(COALESCE(p.identificacion_sitio, ''))) = TRIM(UPPER(?))
-        LIMIT 1
-      `, [proyectoNombre, referenciaOrigen]);
-      mantenimiento = manttoRows[0] || null;
-    } else {
-      // Cuando el detalle nace desde Mantenimiento puede recibirse el codigo de equipo
-      // o la identificacion en sitio. Se prioriza siempre numero_equipo.
+    // UNITED: cuando llega numero_equipo, este flujo consulta exclusivamente Portafolio.
+    if (!isCorellianRequest) {
       const [manttoRows] = await db.query(`
         SELECT ${portafolioBaseSelect}
         FROM portafolio p
         ${latestTicketJoin}
         WHERE TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?)
-           OR TRIM(COALESCE(p.identificacion_sitio, '')) = TRIM(?)
-        ORDER BY CASE WHEN TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?) THEN 0 ELSE 1 END
         LIMIT 1
-      `, [codigo, codigo, codigo]);
-      mantenimiento = manttoRows[0] || null;
+      `, [rawCodigo]);
 
-      if (mantenimiento) {
-        const [insRows] = await db.query(`
-          SELECT
-            f.*,
-            COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
-            COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
-            uad.nombre AS administrativo_nombre
-          FROM ins_fl f
-          LEFT JOIN usuarios us ON us.id_SB = f.id_sup
-          LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
-          LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
-          WHERE TRIM(UPPER(COALESCE(f.proyecto, ''))) = TRIM(UPPER(?))
-            AND TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
-          ORDER BY f.id_ins_fl DESC
-        `, [mantenimiento.proyecto, mantenimiento.identificacion_sitio]);
-        instalaciones = insRows;
-      } else {
-        // Fallback para equipos que aun solo existen en Instalaciones.
-        const [insRows] = await db.query(`
-          SELECT
-            f.*,
-            COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
-            COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
-            uad.nombre AS administrativo_nombre
-          FROM ins_fl f
-          LEFT JOIN usuarios us ON us.id_SB = f.id_sup
-          LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
-          LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
-          WHERE TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
-          ORDER BY f.id_ins_fl DESC
-        `, [codigo]);
-        instalaciones = insRows;
+      const mantenimiento = manttoRows[0] || null;
+
+      if (!mantenimiento) {
+        return res.status(404).json({
+          ok: false,
+          message: 'Equipo no encontrado en Portafolio.'
+        });
       }
+
+      const [tickets] = await db.query(`
+        SELECT *
+        FROM tickets
+        WHERE TRIM(COALESCE(codigo_equipo, '')) = TRIM(?)
+        ORDER BY fecha_reporte DESC, id DESC
+        LIMIT 300
+      `, [mantenimiento.numero_equipo]);
+
+      return res.json({
+        ok: true,
+        source: 'aiven-portafolio',
+        data: mantenimiento,
+        mantenimiento,
+        instalaciones: [],
+        tickets
+      });
     }
 
-    if (!mantenimiento && !instalaciones.length) {
-      return res.status(404).json({ ok: false, message: 'Equipo no encontrado en Mantenimiento ni en Instalaciones.' });
+    // CORELLIAN: la llave compuesta proyecto|||referencia_sitio conserva su flujo propio.
+    const parts = rawCodigo.split(separator);
+    const proyectoOrigen = String(parts[0] || '').trim();
+    const referenciaOrigen = String(parts.slice(1).join(separator) || '').trim();
+
+    if (!proyectoOrigen || !referenciaOrigen) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La referencia de Instalaciones no es valida.'
+      });
     }
 
-    const ticketCodes = [...new Set([
-      mantenimiento && mantenimiento.numero_equipo
-    ].map(v => String(v || '').trim()).filter(Boolean))];
+    const [insRows] = await db.query(`
+      SELECT
+        f.*,
+        COALESCE(us.nombre, f.supervisor_fl) AS supervisor_nombre,
+        COALESCE(ua.nombre, f.vendedor) AS asesor_nombre,
+        uad.nombre AS administrativo_nombre
+      FROM ins_fl f
+      LEFT JOIN usuarios us ON us.id_SB = f.id_sup
+      LEFT JOIN usuarios ua ON ua.id_SB = f.id_asesor
+      LEFT JOIN usuarios uad ON uad.id_SB = f.id_admin
+      WHERE (
+        TRIM(UPPER(COALESCE(f.proyecto, ''))) = TRIM(UPPER(?))
+        OR TRIM(UPPER(COALESCE(f.id_proyecto, ''))) = TRIM(UPPER(?))
+      )
+        AND TRIM(UPPER(COALESCE(f.referencia_sitio, ''))) = TRIM(UPPER(?))
+      ORDER BY f.id_ins_fl DESC
+    `, [proyectoOrigen, proyectoOrigen, referenciaOrigen]);
 
+    const instalaciones = insRows;
+
+    if (!instalaciones.length) {
+      return res.status(404).json({
+        ok: false,
+        message: 'Equipo no encontrado en Instalaciones.'
+      });
+    }
+
+    const proyectoNombre = instalaciones[0]?.proyecto || proyectoOrigen;
+    const [manttoRows] = await db.query(`
+      SELECT ${portafolioBaseSelect}
+      FROM portafolio p
+      ${latestTicketJoin}
+      WHERE TRIM(UPPER(COALESCE(p.proyecto, ''))) = TRIM(UPPER(?))
+        AND TRIM(UPPER(COALESCE(p.identificacion_sitio, ''))) = TRIM(UPPER(?))
+      LIMIT 1
+    `, [proyectoNombre, referenciaOrigen]);
+
+    const mantenimiento = manttoRows[0] || null;
     let tickets = [];
-    if (ticketCodes.length) {
-      const placeholders = ticketCodes.map(() => '?').join(', ');
+
+    if (mantenimiento?.numero_equipo) {
       const [ticketRows] = await db.query(`
         SELECT *
         FROM tickets
-        WHERE TRIM(COALESCE(codigo_equipo, '')) IN (${placeholders})
+        WHERE TRIM(COALESCE(codigo_equipo, '')) = TRIM(?)
         ORDER BY fecha_reporte DESC, id DESC
         LIMIT 300
-      `, ticketCodes);
+      `, [mantenimiento.numero_equipo]);
       tickets = ticketRows;
     }
 
     const principal = mantenimiento || {
-      numero_equipo: codigo,
-      identificacion_sitio: instalaciones[0]?.referencia_sitio || codigo,
+      numero_equipo: referenciaOrigen,
+      identificacion_sitio: instalaciones[0]?.referencia_sitio || referenciaOrigen,
       proyecto: instalaciones[0]?.id_proyecto || instalaciones[0]?.proyecto || null,
       proyecto_nombre: instalaciones[0]?.proyecto || null,
       ciudad: instalaciones[0]?.ciudad || null,
       estado: instalaciones[0]?.estado || null,
       supervisor: instalaciones[0]?.supervisor_nombre || instalaciones[0]?.supervisor_fl || null,
-      estado_operativo: String(instalaciones[0]?.estatus || '').trim().toUpperCase() === '08-T' ? 'Terminado' : 'En proceso',
+      estado_operativo:
+        String(instalaciones[0]?.estatus || '').trim().toUpperCase() === '08-T'
+          ? 'Terminado'
+          : 'En proceso',
       estatus_servicio: instalaciones[0]?.estatus || null
     };
 
     return res.json({
       ok: true,
-      source: mantenimiento && instalaciones.length ? 'aiven-combinado' : (mantenimiento ? 'aiven-portafolio' : 'aiven-ins_fl'),
+      source: mantenimiento ? 'aiven-combinado' : 'aiven-ins_fl',
       data: principal,
       mantenimiento,
       instalaciones,
       tickets
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando detalle combinado de equipo.', error: error.message });
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando detalle de equipo.',
+      error: error.message
+    });
   }
 }
 
