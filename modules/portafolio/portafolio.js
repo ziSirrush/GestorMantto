@@ -1,7 +1,7 @@
 (function(){
   const MODULE_VERSION = '20260706-v001';
   const COLORS = ['#1B4FD8','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED','#64748B','#E87722'];
-  const state = { loaded:false, filtersLoaded:false, dashboard:null, rows:[], total:0, page:1, pageSize:25, lastParams:{} };
+  const state = { loaded:false, filtersLoaded:false, dashboard:null, rows:[], total:0, page:1, pageSize:25, lastParams:{}, tickets:[], criticalCodes:new Set() };
 
   const PF_INLINE_HTML = `
 <div class="pf-page"><section class="pf-card pf-head"><div><p class="pf-eyebrow">Aiven · Portafolio</p><h1>Dashboard Portafolio</h1><p>Vista operativa de equipos, contrato, disponibilidad estimada y equipos parados.</p></div><div class="pf-head-actions"><span class="pf-status loading" id="pf-status"><span class="pf-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="pf-btn pf-btn-primary" data-pf-action="refresh">↻ Actualizar</button></div></section><section class="pf-card pf-filters" aria-label="Filtros de Portafolio"><label>Zona<select id="pf-filter-zona"><option value="">Todas</option></select></label><label>Tipo<select id="pf-filter-tipo"><option value="">Todos</option></select></label><label>Supervisor<select id="pf-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="pf-filter-search" type="search" placeholder="Proyecto, equipo, ciudad..." /></label><button type="button" class="pf-btn" data-pf-action="clear">Limpiar</button><button type="button" class="pf-btn pf-btn-primary" data-pf-action="apply">Aplicar</button></section><section class="pf-grid pf-kpis" aria-label="Indicadores de Portafolio"><article class="pf-kpi pf-kpi-blue" data-pf-detail="total"><span>📦</span><strong id="pf-kpi-total">—</strong><b>Total portafolio</b><small>Activos registrados</small></article><article class="pf-kpi pf-kpi-indigo" data-pf-detail="servicio"><span>🛠️</span><strong id="pf-kpi-servicio">—</strong><b>En servicio</b><small>Contrato activo</small></article><article class="pf-kpi pf-kpi-amber" data-pf-detail="cobranza"><span>💰</span><strong id="pf-kpi-cobranza">—</strong><b>En cobranza</b><small>Objetivo de cobro</small></article><article class="pf-kpi pf-kpi-slate" data-pf-detail="gratuito"><span>🎁</span><strong id="pf-kpi-gratuito">—</strong><b>Gratuito / garantía</b><small>Sin cobro todavía</small></article><article class="pf-kpi pf-kpi-green" data-pf-detail="funcionando"><span>✅</span><strong id="pf-kpi-funcionando">—</strong><b>Funcionando</b><small>Último estado operativo</small></article><article class="pf-kpi pf-kpi-red" data-pf-detail="parado"><span>⛔</span><strong id="pf-kpi-parado">—</strong><b>Parados</b><small>Último ticket no funcionando</small></article></section><section class="pf-grid pf-donuts" aria-label="Distribuciones"><article class="pf-card pf-chart"><h3>Tipo de contrato</h3><div id="pf-donut-contrato" class="pf-donut-box"></div></article><article class="pf-card pf-chart"><h3>Estado operativo</h3><div id="pf-donut-operativo" class="pf-donut-box"></div></article><article class="pf-card pf-chart"><h3>Por tipo de equipo</h3><div id="pf-donut-tipo" class="pf-donut-box"></div></article><article class="pf-card pf-chart"><h3>Por zona</h3><div id="pf-donut-zona" class="pf-donut-box"></div></article></section><section class="pf-card pf-table-section"><div class="pf-section-head"><div><h2>Equipos parados</h2><p id="pf-parados-count">—</p></div></div><div class="pf-table-wrap"><table class="pf-table"><thead><tr><th>Código</th><th>Proyecto</th><th>Zona</th><th>Tipo</th><th>Días parado</th><th>Desde</th><th>Último ticket</th><th>Supervisor</th></tr></thead><tbody id="pf-parados-body"><tr><td colspan="8" class="pf-empty">Cargando...</td></tr></tbody></table></div></section><section class="pf-card pf-table-section"><div class="pf-section-head"><div><h2>Detalle de equipos</h2><p id="pf-equipos-count">—</p></div><div class="pf-inline-actions"><select id="pf-filter-operativo"><option value="">Todos</option><option value="funcionando">Funcionando</option><option value="parado">Parado</option></select></div></div><div class="pf-table-wrap"><table class="pf-table"><thead><tr><th>Código</th><th>Proyecto</th><th>Ciudad</th><th>Zona</th><th>Tipo</th><th>Supervisor</th><th>Contrato</th><th>Operativo</th><th>Días parado</th><th></th></tr></thead><tbody id="pf-equipos-body"><tr><td colspan="10" class="pf-empty">Cargando...</td></tr></tbody></table></div><div class="pf-pagination"><button type="button" id="pf-prev">← Anterior</button><span id="pf-page-info">—</span><button type="button" id="pf-next">Siguiente →</button></div></section><section id="pf-detail-modal" class="pf-detail" hidden><div class="pf-detail-panel"><div class="pf-detail-head"><button type="button" id="pf-detail-close" aria-label="Cerrar">×</button><div><h2 id="pf-detail-title">Detalle</h2><p id="pf-detail-sub">Portafolio</p></div></div><div class="pf-detail-body" id="pf-detail-body"></div></div></section></div>`;
@@ -12,6 +12,12 @@
   function int(v){ const n = Number(v || 0); return Number.isFinite(n) ? n.toLocaleString('es-MX') : '0'; }
   function val(id){ const el=$(id); return el ? el.value.trim() : ''; }
   function date(v){ if(!v) return '—'; const d = new Date(v); return Number.isNaN(d.getTime()) ? esc(String(v).slice(0,10)) : d.toLocaleDateString('es-MX'); }
+  function ticketCode(row){return String((row&& (row.codigo_equipo||row.cod||row.numero_equipo))||'').trim();}
+  function buildCriticalCodes(rows){const cut=new Date();cut.setDate(cut.getDate()-35);const key=cut.toISOString().slice(0,10),counts={};(rows||[]).forEach(t=>{const cod=ticketCode(t),fr=String(t.fecha_reporte||t.fr||'').slice(0,10),res=String(t.responsabilidad||t.res||'').toUpperCase();if(cod&&fr>=key&&res==='BLT')counts[cod]=(counts[cod]||0)+1;});return new Set(Object.keys(counts).filter(c=>counts[c]>=3));}
+  function ticketById(id){return state.tickets.find(t=>String(t.ticket||t.n||'')===String(id||''))||null;}
+  function visualCodes(row){ if(Array.isArray(row&&row.estados_visuales)) return row.estados_visuales.map(x=>typeof x==='string'?x:x.codigo).filter(Boolean); const cod=String(row&&row.numero_equipo||''); return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.codesForEquipo(row,[],{critico:state.criticalCodes.has(cod)}):[]; }
+  function ticketVisualIdentifier(id){const t=ticketById(id);const codes=window.EstadosVisuales_gnral&&t?window.EstadosVisuales_gnral.codesForTicket(t):[];return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(codes,id):esc(id);}
+  function visualIdentifier(row,text){ return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(visualCodes(row),text):esc(text); }
   function qs(params){ const u = new URLSearchParams(); Object.entries(params || {}).forEach(([k,v])=>{ if(v !== undefined && v !== null && String(v).trim() !== '') u.set(k, v); }); return u.toString(); }
 
   async function fetchJson(path){
@@ -84,8 +90,11 @@
     el.innerHTML = first + (values || []).filter(Boolean).map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
   }
 
+  async function loadTicketsVisuales(){try{const data=await fetchJson('/api/tickets?limit=20000');state.tickets=data.data||data.rows||data.tickets||[];state.criticalCodes=new Set(state.tickets.map(t=>String(t.codigo_equipo||t.cod||'').trim()).filter(c=>c&&window.EstadosVisuales_gnral&&window.EstadosVisuales_gnral.isCriticoEquipo(c)));}catch(e){state.tickets=[];state.criticalCodes=new Set();}}
+
   async function refreshAll(page){
     await loadFilters();
+    await loadTicketsVisuales();
     await Promise.all([loadDashboard(), loadEquipos(page || state.page || 1)]);
   }
 
@@ -141,7 +150,7 @@
     const body=$('pf-parados-body'); if(!body) return;
     text('pf-parados-count', int(rows.length) + ' equipos mostrados');
     if(!rows.length){ body.innerHTML='<tr><td colspan="8" class="pf-empty">Sin equipos parados con el criterio actual</td></tr>'; return; }
-    body.innerHTML = rows.map(r=>`<tr><td class="pf-code"><button class="mg-link" data-pf-equipo="${esc(r.numero_equipo)}" type="button">${esc(r.numero_equipo)}</button></td><td><button class="mg-link" data-pf-proyecto="${esc(r.proyecto)}" type="button">${esc(r.proyecto)}</button></td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td><span class="pf-tag red">${esc(r.dias_parado)} d</span></td><td>${date(r.fecha_inicio_paro)}</td><td><button class="mg-link" data-pf-ticket="${esc(r.ultimo_ticket)}" type="button">${esc(r.ultimo_ticket)}</button></td><td>${esc(r.supervisor)}</td></tr>`).join('');
+    body.innerHTML = rows.map(r=>`<tr><td class="pf-code"><button class="mg-link" data-pf-equipo="${esc(r.numero_equipo)}" type="button">${visualIdentifier(r,r.numero_equipo)}</button></td><td><button class="mg-link" data-pf-proyecto="${esc(r.proyecto)}" type="button">${esc(r.proyecto)}</button></td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td><span class="pf-tag red">${esc(r.dias_parado)} d</span></td><td>${date(r.fecha_inicio_paro)}</td><td><button class="mg-link" data-pf-ticket="${esc(r.ultimo_ticket)}" type="button">${ticketVisualIdentifier(r.ultimo_ticket)}</button></td><td>${esc(r.supervisor)}</td></tr>`).join('');
     bindGeneralDetailLinks(body);
   }
 
@@ -156,7 +165,7 @@
       const op = String(r.estado_operativo || '').toLowerCase() === 'parado';
       const contrato = String(r.contrato || '').toLowerCase();
       let contratoClass = contrato.includes('cobranza') ? 'amber' : contrato.includes('servicio') ? 'green' : '';
-      return `<tr><td class="pf-code"><button class="mg-link" data-pf-equipo="${esc(r.numero_equipo)}" type="button">${esc(r.numero_equipo)}</button></td><td><button class="mg-link" data-pf-proyecto="${esc(r.proyecto)}" type="button">${esc(r.proyecto)}</button></td><td>${esc(r.ciudad)}</td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td>${esc(r.supervisor)}</td><td><span class="pf-tag ${contratoClass}">${esc(r.contrato)}</span></td><td><span class="pf-tag ${op?'red':'green'}">${esc(r.estado_operativo)}</span></td><td>${r.dias_parado == null ? '—' : esc(r.dias_parado) + ' d'}</td><td><button type="button" class="pf-btn" data-pf-equipo="${esc(r.numero_equipo)}">Ver</button></td></tr>`;
+      return `<tr><td class="pf-code"><button class="mg-link" data-pf-equipo="${esc(r.numero_equipo)}" type="button">${visualIdentifier(r,r.numero_equipo)}</button></td><td><button class="mg-link" data-pf-proyecto="${esc(r.proyecto)}" type="button">${esc(r.proyecto)}</button></td><td>${esc(r.ciudad)}</td><td>${esc(r.zona)}</td><td>${esc(r.tipo_equipo)}</td><td>${esc(r.supervisor)}</td><td><span class="pf-tag ${contratoClass}">${esc(r.contrato)}</span></td><td><span class="pf-tag ${op?'red':'green'}">${esc(r.estado_operativo)}</span></td><td>${r.dias_parado == null ? '—' : esc(r.dias_parado) + ' d'}</td><td><button type="button" class="pf-btn" data-pf-equipo="${esc(r.numero_equipo)}">Ver</button></td></tr>`;
     }).join('');
     bindGeneralDetailLinks(body);
   }
@@ -200,6 +209,7 @@
   }
 
   async function init(){
+    if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa();
     await loadHtml();
     await refreshAll(1);
   }

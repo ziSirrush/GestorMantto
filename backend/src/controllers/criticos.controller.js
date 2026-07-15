@@ -351,9 +351,73 @@ async function getProyectoCriticoTickets(req, res) {
   }
 }
 
+async function getCriticidadCorporativa(req, res) {
+  const minFallas = positiveInt(req.query.min_fallas || req.query.minFallas, 3, 1, 9999);
+  try {
+    const [anioRows] = await db.query(`
+      SELECT
+        t.codigo_equipo,
+        MAX(COALESCE(t.proyecto, p.proyecto)) AS proyecto,
+        MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
+        MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
+        COUNT(*) AS fallas_blt,
+        MAX(t.fecha_reporte) AS ultimo_blt
+      FROM tickets t
+      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE t.codigo_equipo IS NOT NULL
+        AND t.codigo_equipo <> ''
+        AND t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${responsabilidadBlt('t')}
+      GROUP BY t.codigo_equipo
+      HAVING COUNT(*) >= ?
+      ORDER BY fallas_blt DESC, ultimo_blt DESC, t.codigo_equipo ASC
+    `, [minFallas]);
+
+    const [u365Rows] = await db.query(`
+      SELECT
+        t.codigo_equipo,
+        MAX(COALESCE(t.proyecto, p.proyecto)) AS proyecto,
+        MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
+        MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
+        MAX(COALESCE(p.estatus_servicio, t.estatus_equipo_final)) AS estatus_servicio,
+        COUNT(*) AS fallas_blt_365,
+        (
+          SELECT COUNT(*)
+          FROM tickets tx
+          WHERE tx.codigo_equipo = t.codigo_equipo
+            AND tx.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+            AND tx.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        ) AS llamadas_365,
+        MAX(t.fecha_reporte) AS ultimo_blt
+      FROM tickets t
+      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE t.codigo_equipo IS NOT NULL
+        AND t.codigo_equipo <> ''
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${responsabilidadBlt('t')}
+      GROUP BY t.codigo_equipo
+      HAVING COUNT(*) >= ?
+      ORDER BY fallas_blt_365 DESC, ultimo_blt DESC, t.codigo_equipo ASC
+    `, [minFallas]);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      criteria: { min_fallas_blt: minFallas, responsabilidad: 'BLT' },
+      anio_en_curso: { desde: `${new Date().getFullYear()}-01-01`, hasta: 'hoy', data: anioRows },
+      ultimos_365_dias: { desde: 'hoy - 365 dias', hasta: 'hoy', data: u365Rows }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando criticidad corporativa.', error: error.message });
+  }
+}
+
 module.exports = {
   getEquiposCriticos,
   getEquipoCriticoTickets,
   getProyectosCriticos,
-  getProyectoCriticoTickets
+  getProyectoCriticoTickets,
+  getCriticidadCorporativa
 };

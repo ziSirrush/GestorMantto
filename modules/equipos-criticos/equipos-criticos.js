@@ -4,6 +4,7 @@
     loaded:false,
     eq:{ page:1, pageSize:25, total:0, rows:[], lastCriteria:null },
     pro:{ page:1, pageSize:25, total:0, rows:[], lastCriteria:null },
+    u365:{ rows:[] },
     detail:{ title:'Detalle', rows:[] }
   };
   const EC_INLINE_HTML = '<div class="ec-page">\n  <section class="ec-head card">\n    <div>\n      <p class="ec-eyebrow">Módulo en pruebas</p>\n      <h1>Equipos Críticos</h1>\n      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. Los criterios son independientes por tabla y no modifican Resumen del Día.</p>\n    </div>\n    <button type="button" class="ec-btn ec-btn-soft" data-ec-action="refresh-all">↻ Actualizar todo</button>\n  </section>\n\n  <section class="ec-panel card" aria-label="Equipos críticos">\n    <div class="ec-panel-head">\n      <div>\n        <h2>Equipos Críticos</h2>\n        <small id="ec-eq-count">Sin cargar</small>\n      </div>\n      <div class="ec-actions">\n        <button type="button" class="ec-btn" data-ec-action="clear-equipos">Limpiar filtros</button>\n        <button type="button" class="ec-btn ec-btn-danger" data-ec-action="pdf-equipos">PDF Equipos</button>\n      </div>\n    </div>\n\n    <div class="ec-filters">\n      <label>Fallas BLT mín.<input type="number" id="ec-eq-min" min="1" value="3" /></label>\n      <label>Días<input type="number" id="ec-eq-dias" min="1" value="35" /></label>\n      <label>Zona<input type="text" id="ec-eq-zona" placeholder="Ej. NOR" /></label>\n      <label>Proyecto<input type="text" id="ec-eq-proyecto" placeholder="Proyecto" /></label>\n      <label>Buscar<input type="search" id="ec-eq-search" placeholder="Equipo, ticket, ref." /></label>\n      <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos">Aplicar</button>\n    </div>\n\n    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>.</div>\n\n    <div class="ec-table-wrap">\n      <table class="ec-table">\n        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT</th><th>Último BLT</th><th>Resp. Cliente</th><th>Último Cliente</th><th>MTBC</th><th></th></tr></thead>\n        <tbody id="ec-eq-body"><tr><td colspan="12" class="ec-empty">Cargando...</td></tr></tbody>\n      </table>\n    </div>\n    <div class="ec-pagination"><button type="button" id="ec-eq-prev">← Anterior</button><span id="ec-eq-page">—</span><button type="button" id="ec-eq-next">Siguiente →</button></div>\n  </section>\n\n  <section class="ec-panel card" aria-label="Proyectos críticos">\n    <div class="ec-panel-head">\n      <div>\n        <h2>Proyectos Críticos</h2>\n        <small id="ec-pro-count">Sin cargar</small>\n      </div>\n      <div class="ec-actions">\n        <button type="button" class="ec-btn" data-ec-action="clear-proyectos">Limpiar filtros</button>\n        <button type="button" class="ec-btn ec-btn-danger" data-ec-action="pdf-proyectos">PDF Proyectos</button>\n      </div>\n    </div>\n\n    <div class="ec-filters">\n      <label>Fallas BLT mín.<input type="number" id="ec-pro-min" min="1" value="5" /></label>\n      <label>Días<input type="number" id="ec-pro-dias" min="1" value="35" /></label>\n      <label>Fallas por equipo<input type="number" id="ec-pro-min-equipo" min="1" value="3" /></label>\n      <label>Zona<input type="text" id="ec-pro-zona" placeholder="Ej. CNA" /></label>\n      <label>Proyecto<input type="text" id="ec-pro-proyecto" placeholder="Proyecto" /></label>\n      <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-proyectos">Aplicar</button>\n    </div>\n\n    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo.</div>\n\n    <div class="ec-table-wrap">\n      <table class="ec-table">\n        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th></th></tr></thead>\n        <tbody id="ec-pro-body"><tr><td colspan="10" class="ec-empty">Cargando...</td></tr></tbody>\n      </table>\n    </div>\n    <div class="ec-pagination"><button type="button" id="ec-pro-prev">← Anterior</button><span id="ec-pro-page">—</span><button type="button" id="ec-pro-next">Siguiente →</button></div>\n  </section>\n</div>\n\n<section id="ec-detail-modal" class="ec-detail" hidden>\n  <div class="ec-detail-panel">\n    <div class="ec-detail-head">\n      <button type="button" id="ec-detail-close">×</button>\n      <div><h2 id="ec-detail-title">Detalle</h2><p id="ec-detail-sub">Historial</p></div>\n      <button type="button" class="ec-btn ec-btn-danger" id="ec-detail-pdf">PDF detalle</button>\n    </div>\n    <div class="ec-detail-body">\n      <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Ticket</th><th>Fecha reporte</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Zona</th><th>Responsabilidad</th><th>Causa</th><th>T. llegada</th><th>T. solución</th></tr></thead><tbody id="ec-detail-body"></tbody></table></div>\n    </div>\n  </div>\n</section>\n';
@@ -139,7 +140,7 @@
     document.querySelectorAll('[data-ec-action]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const a=btn.dataset.ecAction;
-        if(a==='refresh-all'){ loadEquipos(1); loadProyectos(1); }
+        if(a==='refresh-all'){ loadEquipos(1); loadProyectos(1); loadU365(); }
         if(a==='load-equipos') loadEquipos(1);
         if(a==='load-proyectos') loadProyectos(1);
         if(a==='clear-equipos') { ['ec-eq-zona','ec-eq-proyecto','ec-eq-search'].forEach(id=>$(id).value=''); $('ec-eq-min').value=3; $('ec-eq-dias').value=35; loadEquipos(1); }
@@ -178,11 +179,12 @@
     }catch(e){ body.innerHTML='<tr><td colspan="12" class="ec-empty">Error: '+esc(e.message)+'</td></tr>'; }
   }
 
+  function visualIdentifier(codes,text){ return window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.renderIdentifier(codes,text) : esc(text); }
   function renderEquipos(){
     const body=$('ec-eq-body');
     if(!state.eq.rows.length){ body.innerHTML='<tr><td colspan="12" class="ec-empty">Sin equipos críticos para este criterio</td></tr>'; }
     else body.innerHTML=state.eq.rows.map(r=>`<tr class="ec-click-row" data-ec-equipo="${esc(r.codigo_equipo)}">
-      <td>${esc(r.zona)}</td><td><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${esc(formatProyectoName(r.proyecto))}</button></td><td class="ec-code"><button class="ec-link" type="button" data-equipo="${esc(r.codigo_equipo)}">${esc(r.codigo_equipo)}</button></td><td>${esc(r.referencia_en_sitio)}</td><td>${esc(r.estatus_servicio)}</td>
+      <td>${esc(r.zona)}</td><td><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${visualIdentifier([],formatProyectoName(r.proyecto))}</button></td><td class="ec-code"><button class="ec-link" type="button" data-equipo="${esc(r.codigo_equipo)}">${visualIdentifier([],r.codigo_equipo)}</button></td><td>${esc(r.referencia_en_sitio)}</td><td>${esc(r.estatus_servicio)}</td>
       <td class="ec-num">${esc(r.calls_anio)}</td><td class="ec-num"><span class="ec-tag">${esc(r.fallas_blt_periodo)}</span></td><td>${date(r.ultimo_blt)}</td>
       <td class="ec-num">${esc(r.resp_cliente_periodo)}</td><td>${date(r.ultimo_cliente)}</td><td class="ec-num">${r.mtbc_dias==null?'—':esc(r.mtbc_dias)+' d'}</td>
       <td><button class="ec-btn" type="button" onclick="ManttoEquiposCriticos.openEquipo('${esc(r.codigo_equipo)}')">Ver</button></td></tr>`).join('');
@@ -263,11 +265,30 @@
     return { rows: rows.slice((pageNow-1)*pageSize, (pageNow-1)*pageSize + pageSize), total, page:pageNow };
   }
 
+  async function loadU365(){
+    const body=$('ec-365-body');
+    if(body) body.innerHTML='<tr><td colspan="9" class="ec-empty">Cargando...</td></tr>';
+    try{
+      if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa(true);
+      state.u365.rows=window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.getCriticos365():[];
+      renderU365();
+    }catch(error){
+      if(body) body.innerHTML='<tr><td colspan="9" class="ec-empty">Error: '+esc(error.message)+'</td></tr>';
+    }
+  }
+  function renderU365(){
+    const body=$('ec-365-body'); if(!body) return;
+    const rows=state.u365.rows||[];
+    body.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.zona)}</td><td><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${esc(formatProyectoName(r.proyecto))}</button></td><td class="ec-code"><button class="ec-link" type="button" data-equipo="${esc(r.codigo_equipo)}">${esc(r.codigo_equipo)}</button></td><td>${esc(r.referencia_en_sitio)}</td><td>${esc(r.estatus_servicio)}</td><td class="ec-num">${esc(r.llamadas_365)}</td><td class="ec-num"><span class="ec-tag">${esc(r.fallas_blt_365)}</span></td><td>${date(r.ultimo_blt)}</td><td>${window.EstadosVisuales_gnral&&window.EstadosVisuales_gnral.isCriticoEquipo(r.codigo_equipo)?'Sí':'No'}</td></tr>`).join(''):'<tr><td colspan="9" class="ec-empty">Sin equipos con 3 o más RESP BLT en los últimos 365 días</td></tr>';
+    if(window.ManttoDetails&&window.ManttoDetails.bindLinks)window.ManttoDetails.bindLinks(body);
+    const count=$('ec-365-count'); if(count) count.textContent=rows.length+' equipos';
+  }
+
   function renderProyectos(){
     const body=$('ec-pro-body');
     if(!state.pro.rows.length){ body.innerHTML='<tr><td colspan="10" class="ec-empty">Sin proyectos críticos para este criterio</td></tr>'; }
     else body.innerHTML=state.pro.rows.map(r=>`<tr>
-      <td>${esc(r.zona)}</td><td class="ec-code"><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${esc(formatProyectoName(r.proyecto))}</button><br><small>${esc(r.proyecto)}</small></td><td>${esc(r.ciudad)}</td><td>${esc(r.supervisor)}</td>
+      <td>${esc(r.zona)}</td><td class="ec-code"><button class="ec-link" type="button" data-proyecto="${esc(r.proyecto)}">${visualIdentifier([],formatProyectoName(r.proyecto))}</button><br><small>${esc(r.proyecto)}</small></td><td>${esc(r.ciudad)}</td><td>${esc(r.supervisor)}</td>
       <td class="ec-num">${esc(r.equipos_activos)}</td><td class="ec-num"><span class="ec-tag">${esc(r.fallas_blt_periodo)}</span></td>
       <td class="ec-num">${esc(r.equipos_con_falla)}</td><td class="ec-num">${esc(r.equipos_criticos)}</td><td>${date(r.ultimo_blt)}</td>
       <td><button class="ec-btn" type="button" onclick="ManttoEquiposCriticos.openProyecto('${encodeURIComponent(r.proyecto||'')}')">Ver</button></td></tr>`).join('');
@@ -346,7 +367,8 @@
   async function init(){
     try{
       await loadHtml();
-      await Promise.all([loadEquipos(state.eq.page), loadProyectos(state.pro.page)]);
+      if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa();
+      await Promise.all([loadEquipos(state.eq.page), loadProyectos(state.pro.page), loadU365()]);
     }catch(e){
       const view=$('view-criticos');
       if(view) view.innerHTML = '<div class="ec-page"><section class="ec-head card"><div><p class="ec-eyebrow">Error de carga</p><h1>Equipos Críticos</h1><p>No se pudo inicializar el módulo: '+esc(e.message)+'</p></div></section></div>';

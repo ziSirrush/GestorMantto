@@ -17,6 +17,7 @@
   function upper(v){ return nrm(v).toUpperCase(); }
   function ymd(v){
     if(!v) return null;
+    if(v instanceof Date && !isNaN(v.getTime())) return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
     const s = String(v).trim();
     if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
     if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){ const [d,m,y]=s.split('/'); return `${y}-${m}-${d}`; }
@@ -226,10 +227,30 @@
     if(currentDayIdx >= dates.length) currentDayIdx = 0;
   }
   function hasTxt(t,kws){ const s = (t.asu+' '+t.cau+' '+t.acc).toLowerCase(); return kws.some(k=>s.includes(k)); }
+  function visualCodesForRows(rows, isCritical){
+    const list = Array.isArray(rows) ? rows : [];
+    const codes = [];
+    if(isCritical) codes.push('CRITICO');
+    if(list.some(t=>hasTxt(t,ATRAP_KW))) codes.push('ATRAPADO');
+    if(list.some(t=>hasTxt(t,AGUA_KW))) codes.push('FILTRACION');
+    if(list.some(t=>hasTxt(t,VOLTAJE_KW))) codes.push('VOLTAJE');
+    if(list.some(t=>String(t.eqf||'').toLowerCase()==='no funcionando')) codes.push('NO_FUNCIONANDO');
+    if(list.some(t=>!!t.xat)) codes.push('FUERA_SLA');
+    return codes;
+  }
+  function renderVisuales(codes, empty){
+    return window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.renderMany(codes,{empty:empty||''}) : (empty||'');
+  }
+  function renderIdentificador(codes, text){
+    return window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.renderIdentifier(codes,text) : escapeHtml(text||'—');
+  }
   function pct(v,total){ return total ? Math.round(v/total*100)+'%' : '—'; }
   function critSet(){
-    const cut = new Date(); cut.setDate(cut.getDate()-35); const cutKey = cut.toISOString().slice(0,10);
-    const counts = {}; allTickets.forEach(t=>{ if(t.cod && t.fr>=cutKey && t.res==='BLT') counts[t.cod]=(counts[t.cod]||0)+1; });
+    if(window.EstadosVisuales_gnral && window.EstadosVisuales_gnral.isCriticoEquipo){
+      return new Set(allTickets.map(t=>t.cod).filter(c=>c&&window.EstadosVisuales_gnral.isCriticoEquipo(c)));
+    }
+    const year=String(new Date().getFullYear());
+    const counts={}; allTickets.forEach(t=>{if(t.cod&&t.fr&&t.fr.slice(0,4)===year&&t.res==='BLT')counts[t.cod]=(counts[t.cod]||0)+1;});
     return new Set(Object.keys(counts).filter(k=>counts[k]>=3));
   }
   function avgMin(arr){ const nums = arr.map(num).filter(n=>n!=null && n>0 && n<744); return nums.length ? Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*60) : null; }
@@ -254,13 +275,13 @@
     const tks=currentDayTickets, total=tks.length, closed=tks.filter(t=>t.et==='Cerrado'), cerr=closed.length, curso=tks.filter(t=>t.et==='En curso').length, abiertos=tks.filter(t=>t.et==='Abierto').length;
     const blt=closed.filter(t=>t.res==='BLT').length, cli=closed.filter(t=>t.res==='CLIENTE').length, crit=critSet();
     const data = {
-      atrap:tks.filter(t=>hasTxt(t,ATRAP_KW)), agua:tks.filter(t=>hasTxt(t,AGUA_KW)), voltaje:tks.filter(t=>hasTxt(t,VOLTAJE_KW)), criticos:tks.filter(t=>crit.has(t.cod)), nofunc:tks.filter(t=>t.eqf.toLowerCase()==='no funcionando'), sla:tks.filter(t=>t.xat),
+      atrap:tks.filter(t=>hasTxt(t,ATRAP_KW)), agua:tks.filter(t=>hasTxt(t,AGUA_KW)), voltaje:tks.filter(t=>hasTxt(t,VOLTAJE_KW)), criticos:tks.filter(t=>crit.has(t.cod)), nofunc:tks.filter(t=>String(t.eqf||'').toLowerCase()==='no funcionando'), sla:tks.filter(t=>t.xat),
       cerrados:closed, encurso:tks.filter(t=>t.et==='En curso'), abiertos:tks.filter(t=>t.et==='Abierto'), blt:closed.filter(t=>t.res==='BLT'), cliente:closed.filter(t=>t.res==='CLIENTE')
     };
     window.ManttoResumenDia._detailData = data;
     txt('rd-total', total||'—'); txt('rd-cerrados', cerr); txt('rd-cerrados-pct', pct(cerr,total)); txt('rd-encurso', curso); txt('rd-encurso-pct', pct(curso,total)); txt('rd-abiertos', abiertos); txt('rd-abiertos-pct', pct(abiertos,total));
     txt('rd-blt', blt); txt('rd-blt-pct', pct(blt,closed.length)); txt('rd-cli', cli); txt('rd-cli-pct', pct(cli,closed.length));
-    txt('rd-atrap', data.atrap.length); txt('rd-agua', data.agua.length); txt('rd-voltaje', data.voltaje.length); txt('rd-criticos-dia', data.criticos.length); txt('rd-nofunc', data.nofunc.length); txt('rd-sla', data.sla.length); txt('rd-sla-pct', total?pct(data.sla.length,total)+' del total':'—');
+    txt('rd-atrap', data.atrap.length); txt('rd-agua', data.agua.length); txt('rd-voltaje', data.voltaje.length); txt('rd-criticos-dia', new Set(data.criticos.map(t=>t.cod).filter(Boolean)).size); txt('rd-nofunc', data.nofunc.length); txt('rd-sla', data.sla.length); txt('rd-sla-pct', total?pct(data.sla.length,total)+' del total':'—');
     const avgLlegVal = avgMin(closed.map(t=>t.tll)); const avgCierreVal = avgMin(closed.filter(t=>String(t.eqf||'').toLowerCase().includes('funcion')).map(t=>t.tso)); txt('rd-avg-llegada', avgLlegVal!=null ? avgLlegVal+' min' : '—'); txt('rd-avg-cierre', avgCierreVal!=null ? avgCierreVal+' min' : '—');
     drawDonut('rd-svg-estado','rd-leg-estado',[{l:'Cerrados',v:cerr,rows:data.cerrados},{l:'En curso',v:curso,rows:data.encurso},{l:'Abiertos',v:abiertos,rows:data.abiertos}], total);
     drawDonut('rd-svg-resp','rd-leg-resp',[{l:'BLT',v:blt,rows:data.blt},{l:'Cliente',v:cli,rows:data.cliente},{l:'Sin dato',v:closed.filter(t=>!t.res).length,rows:closed.filter(t=>!t.res)}], closed.length||1);
@@ -295,8 +316,8 @@
     rows.forEach(t=>{
       if(!t.cod) return;
       const pf = pfByCod(t.cod);
-      if(!map[t.cod]) map[t.cod] = {cod:t.cod, zon:t.zon || (pf&&pf.zon) || '—', pro:t.pro || (pf&&pf.pro) || '—', ref:t.ref || (pf&&pf.ref) || '—', total:0, blt:0, cli:0, critico:crit.has(t.cod)};
-      map[t.cod].total++;
+      if(!map[t.cod]) map[t.cod] = {cod:t.cod, zon:t.zon || (pf&&pf.zon) || '—', pro:t.pro || (pf&&pf.pro) || '—', ref:t.ref || (pf&&pf.ref) || '—', total:0, blt:0, cli:0, critico:crit.has(t.cod), rows:[]};
+      map[t.cod].total++; map[t.cod].rows.push(t);
       if(t.res==='BLT') map[t.cod].blt++;
       if(t.res==='CLIENTE') map[t.cod].cli++;
     });
@@ -307,8 +328,8 @@
     const map = {};
     rows.forEach(t=>{
       const pro = t.pro || 'Sin proyecto';
-      if(!map[pro]) map[pro] = {pro, zon:t.zon || '—', total:0, blt:0, cli:0, cods:new Set(), critCods:new Set()};
-      map[pro].total++;
+      if(!map[pro]) map[pro] = {pro, zon:t.zon || '—', total:0, blt:0, cli:0, cods:new Set(), critCods:new Set(), rows:[]};
+      map[pro].total++; map[pro].rows.push(t);
       if(t.zon && map[pro].zon==='—') map[pro].zon=t.zon;
       if(t.res==='BLT') map[pro].blt++;
       if(t.res==='CLIENTE') map[pro].cli++;
@@ -322,20 +343,20 @@
   function renderTopEquipos(rows){
     const body=byId('rd-top-eq-body'); if(!body) return;
     const data=topEquiposData(rows); txt('rd-top-eq-count', data.length ? data.length+' equipos' : '');
-    body.innerHTML = data.length ? data.map(e=>`<tr class="rd-click-row" data-equipo="${escapeHtml(e.cod)}"><td>${escapeHtml(e.zon)}</td><td><button class="rd-link" data-proyecto-link="${escapeHtml(e.pro)}">${escapeHtml(formatProyectoName(e.pro))}</button></td><td title="${escapeHtml(e.ref)}">${escapeHtml(e.ref)}</td><td><b>${e.total}</b></td><td>${e.blt}</td><td>${e.cli}</td><td>${e.critico?'💥':''}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin equipos para este periodo</td></tr>';
+    body.innerHTML = data.length ? data.map(e=>`<tr class="rd-click-row" data-equipo="${escapeHtml(e.cod)}"><td>${escapeHtml(e.zon)}</td><td><button class="rd-link" data-proyecto-link="${escapeHtml(e.pro)}">${renderIdentificador(visualCodesForRows(e.rows,e.critico),formatProyectoName(e.pro))}</button></td><td title="${escapeHtml(e.ref)}">${renderIdentificador(visualCodesForRows(e.rows,e.critico),e.ref)}</td><td><b>${e.total}</b></td><td>${e.blt}</td><td>${e.cli}</td><td>${renderVisuales(visualCodesForRows(e.rows,e.critico),'')}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin equipos para este periodo</td></tr>';
     body.querySelectorAll('[data-proyecto-link]').forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();openProyecto(btn.dataset.proyectoLink);}));
     body.querySelectorAll('tr[data-equipo]').forEach(tr=>tr.addEventListener('click',()=>openEquipo(tr.dataset.equipo)));
   }
   function renderTopProyectos(rows){
     const body=byId('rd-top-proy-body'); if(!body) return;
     const data=topProyectosData(rows); txt('rd-top-proy-count', data.length ? data.length+' proyectos' : '');
-    body.innerHTML = data.length ? data.map(p=>`<tr class="rd-click-row" data-proyecto="${escapeHtml(p.pro)}"><td>${escapeHtml(p.zon)}</td><td>${escapeHtml(formatProyectoName(p.pro))}<br><small>${escapeHtml(p.pro)}</small></td><td>${p.activos}</td><td><b>${p.total}</b></td><td>${p.blt}</td><td>${p.cli}</td><td>${p.criticos?('💥 ('+p.criticos+')'):''}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin proyectos para este periodo</td></tr>';
+    body.innerHTML = data.length ? data.map(p=>`<tr class="rd-click-row" data-proyecto="${escapeHtml(p.pro)}"><td>${escapeHtml(p.zon)}</td><td>${renderIdentificador(visualCodesForRows(p.rows,p.criticos>0),formatProyectoName(p.pro))}<br><small>${escapeHtml(p.pro)}</small></td><td>${p.activos}</td><td><b>${p.total}</b></td><td>${p.blt}</td><td>${p.cli}</td><td>${renderVisuales(visualCodesForRows(p.rows,p.criticos>0),'')}${p.criticos?(' ('+p.criticos+')'):''}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin proyectos para este periodo</td></tr>';
     body.querySelectorAll('[data-proyecto]').forEach(tr=>tr.addEventListener('click',()=>openProyecto(tr.dataset.proyecto)));
   }
   function badge(et){ const cls=et==='Cerrado'?'cerrado':et==='En curso'?'curso':'abierto'; return `<span class="rd-badge ${cls}">${et||'—'}</span>`; }
   function ticketBtn(t){ return `<button class="rd-link" data-ticket="${escapeHtml(t.n)}">${escapeHtml(t.n||'—')}</button>`; }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function renderRows(rows, tbody){ tbody.innerHTML = rows.length ? rows.map(t=>`<tr><td>${ticketBtn(t)}</td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${escapeHtml(formatProyectoName(t.pro))}</button></td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${escapeHtml(t.cod||'—')}</button></td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); })); tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); })); tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); })); }
+  function renderRows(rows, tbody){ const criticalCodes=critSet(); tbody.innerHTML = rows.length ? rows.map(t=>{ const ticketCodes=visualCodesForRows([t],false); const projectCodes=criticalCodes.has(t.cod)?['CRITICO']:[]; return `<tr><td><button class="rd-link" data-ticket="${escapeHtml(t.n)}">${renderIdentificador(ticketCodes,t.n)}</button></td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${renderIdentificador(projectCodes,formatProyectoName(t.pro))}</button></td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${escapeHtml(t.cod||'—')}</button></td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`; }).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); })); tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); })); tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); })); }
   function renderTable(){ const search=nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase(); const et=nrm(byId('rd-filter-et')&&byId('rd-filter-et').value); tableFiltered=currentDayTickets.filter(t=>(!et||t.et===et)&&(!search||(t.n+t.pro+t.zon+t.asu+t.cod).toLowerCase().includes(search))).sort((a,b)=>((b.fr||'')+(b.hr||'')).localeCompare((a.fr||'')+(a.hr||'')) || String(b.n||'').localeCompare(String(a.n||''))); const totalPages=Math.max(1,Math.ceil(tableFiltered.length/pageSize)); if(page>=totalPages) page=totalPages-1; const slice=tableFiltered.slice(page*pageSize,page*pageSize+pageSize); const th=byId('rd-thead'), tb=byId('rd-tbody'); if(th) th.innerHTML='<tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr>'; if(tb) renderRows(slice,tb); txt('rd-count', tableFiltered.length+' tickets'); txt('rd-page-info','Página '+(page+1)+' de '+totalPages+' · '+tableFiltered.length+' tickets'); const p=byId('rd-page-prev'), n=byId('rd-page-next'); if(p)p.disabled=page===0; if(n)n.disabled=page>=totalPages-1; }
   function ensureDetailModal(){
     let modal = byId('rd-detail-modal');
@@ -556,7 +577,7 @@
     const goProyecto = byId('rd-ticket-go-proyecto'); if(goProyecto){ goProyecto.disabled = !t.pro; goProyecto.onclick = () => openProyecto(t.pro); }
   }
   function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
-  async function load(){ const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); }
+  async function load(){ if(window.EstadosVisuales_gnral){ await window.EstadosVisuales_gnral.load(); await window.EstadosVisuales_gnral.loadCriticidadCorporativa(); } const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen')); }
   function init(){ if(!byId('view-resumen')) return; if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
   window.ManttoResumenDia = { init, load, openTicket, _detailData:{} };
 })();

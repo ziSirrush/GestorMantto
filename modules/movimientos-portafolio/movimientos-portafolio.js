@@ -180,8 +180,8 @@
       const tag = tagFor(row.tipo_movimiento);
       return '<tr class="mov-row" data-mov-idx="'+idx+'" data-codigo="'+esc(row.numero_equipo)+'">'
         + '<td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(row.tipo_movimiento))+'</span></td>'
-        + '<td class="mov-code">'+esc(row.numero_equipo)+'</td>'
-        + '<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto)+'">'+esc(row.proyecto_nombre || row.proyecto)+'</button></td>'
+        + '<td class="mov-code">'+visualIdentifier(row,row.numero_equipo)+'</td>'
+        + '<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto)+'">'+visualIdentifier(row,row.proyecto_nombre || row.proyecto)+'</button></td>'
         + '<td>'+esc(row.zona)+'</td>'
         + '<td>'+statusPill(row.estatus_anterior)+'</td>'
         + '<td>'+statusPill(row.estatus_actual)+'</td>'
@@ -199,6 +199,8 @@
 
   function renderError(msg){ ['mov-kpi-total','mov-kpi-degradados','mov-kpi-recuperados','mov-kpi-cambios'].forEach(id=>text(id, '0')); text('mov-count', '0 movimientos'); const body=$('mov-body'); if(body) body.innerHTML = '<tr><td colspan="8" class="mov-empty">Error: '+esc(msg)+'</td></tr>'; }
   function tagFor(type){ const t=String(type||'').toUpperCase(); if(t==='DEGRADADO') return { cls:'red' }; if(t==='RECUPERADO') return { cls:'green' }; return { cls:'amber' }; }
+  function visualCodes(row){ const supplied=Array.isArray(row&&row.estados_visuales)?row.estados_visuales.map(x=>typeof x==='string'?x:x.codigo):[]; if(String(row&&row.tipo_movimiento||'').toUpperCase()==='DEGRADADO') supplied.push('NO_FUNCIONANDO'); return [...new Set(supplied.filter(Boolean))]; }
+  function visualIdentifier(row,text){ return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(visualCodes(row),text):esc(text); }
   function filteredByType(type){ if(type === 'degradados') return state.rows.filter(r=>r.tipo_movimiento === 'DEGRADADO'); if(type === 'recuperados') return state.rows.filter(r=>r.tipo_movimiento === 'RECUPERADO'); if(type === 'cambios') return state.rows.filter(r=>r.tipo_movimiento === 'CAMBIO'); return state.rows; }
   function openDetailModal(title, sub, html){ const modal=$('mov-detail-modal'), body=$('mov-detail-body'); if(!modal || !body) return; text('mov-detail-title', title); text('mov-detail-sub', sub); body.innerHTML = html || ''; modal.hidden = false; }
   function closeDetailModal(){ const modal=$('mov-detail-modal'); if(modal) modal.hidden = true; }

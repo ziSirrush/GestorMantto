@@ -17,20 +17,20 @@
   </div>
 
   <div class="rd-grid kpi-6">
-    <article class="rd-kpi g-blue"><div class="ico">🎫</div><div class="val" id="rd-total">—</div><div class="lbl">Tickets</div><div class="sub">Reportados en el día</div></article>
-    <article class="rd-kpi g-green clickable" data-rd-detail="cerrados"><div class="ico">✓</div><div class="val" id="rd-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="rd-cerrados-pct">—</div></article>
-    <article class="rd-kpi g-amber clickable" data-rd-detail="encurso"><div class="ico">⏳</div><div class="val" id="rd-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="rd-encurso-pct">—</div></article>
-    <article class="rd-kpi g-orange clickable" data-rd-detail="abiertos"><div class="ico">🔴</div><div class="val" id="rd-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="rd-abiertos-pct">—</div></article>
-    <article class="rd-kpi g-blue clickable" data-rd-detail="blt"><div class="ico">🛠</div><div class="val" id="rd-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="rd-blt-pct">—</div></article>
-    <article class="rd-kpi g-cyan clickable" data-rd-detail="cliente"><div class="ico">👤</div><div class="val" id="rd-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="rd-cli-pct">—</div></article>
+    <article class="rd-kpi g-blue"><div class="ico" data-estado-visual="TICKET">🎫</div><div class="val" id="rd-total">—</div><div class="lbl">Tickets</div><div class="sub">Reportados en el día</div></article>
+    <article class="rd-kpi g-green clickable" data-rd-detail="cerrados"><div class="ico" data-estado-visual="CERRADO">✓</div><div class="val" id="rd-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="rd-cerrados-pct">—</div></article>
+    <article class="rd-kpi g-amber clickable" data-rd-detail="encurso"><div class="ico" data-estado-visual="EN_CURSO">⏳</div><div class="val" id="rd-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="rd-encurso-pct">—</div></article>
+    <article class="rd-kpi g-orange clickable" data-rd-detail="abiertos"><div class="ico" data-estado-visual="ABIERTO">🔴</div><div class="val" id="rd-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="rd-abiertos-pct">—</div></article>
+    <article class="rd-kpi g-blue clickable" data-rd-detail="blt"><div class="ico" data-estado-visual="RESPONSABILIDAD_BLT">🛠</div><div class="val" id="rd-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="rd-blt-pct">—</div></article>
+    <article class="rd-kpi g-cyan clickable" data-rd-detail="cliente"><div class="ico" data-estado-visual="RESPONSABILIDAD_CLIENTE">👤</div><div class="val" id="rd-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="rd-cli-pct">—</div></article>
   </div>
 
   <div class="rd-grid kpi-5">
-    <article class="rd-kpi g-red clickable" data-rd-detail="atrap"><div class="ico">🚨</div><div class="val" id="rd-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
-    <article class="rd-kpi g-cyan clickable" data-rd-detail="agua"><div class="ico">💧</div><div class="val" id="rd-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
-    <article class="rd-kpi g-purple clickable" data-rd-detail="voltaje"><div class="ico">⚡</div><div class="val" id="rd-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
-    <article class="rd-kpi g-red clickable" data-rd-detail="criticos"><div class="ico">⚠</div><div class="val" id="rd-criticos-dia">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
-    <article class="rd-kpi g-dark clickable" data-rd-detail="nofunc"><div class="ico">🚧</div><div class="val" id="rd-nofunc">—</div><div class="lbl">No funcionando</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-red clickable" data-rd-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="rd-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-cyan clickable" data-rd-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="rd-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-purple clickable" data-rd-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="rd-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-red clickable" data-rd-detail="criticos"><div class="ico" data-estado-visual="CRITICO">💥</div><div class="val" id="rd-criticos-dia">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+    <article class="rd-kpi g-dark clickable" data-rd-detail="nofunc"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="rd-nofunc">—</div><div class="lbl">No funcionando</div><div class="sub">Ver detalle</div></article>
   </div>
 
   <div id="rd-detail" class="rd-detail rd-card"></div>
@@ -38,7 +38,7 @@
   <div class="rd-grid kpi-3">
     <article class="rd-kpi g-teal"><div class="ico">⏱</div><div class="val" id="rd-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">minutos</div></article>
     <article class="rd-kpi g-blue"><div class="ico">🕐</div><div class="val" id="rd-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">equipos resueltos</div></article>
-    <article class="rd-kpi g-slate clickable" data-rd-detail="sla"><div class="ico">⌛</div><div class="val" id="rd-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="rd-sla-pct">—</div></article>
+    <article class="rd-kpi g-slate clickable" data-rd-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="rd-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="rd-sla-pct">—</div></article>
   </div>
 
   <div class="rd-grid two">
@@ -62,6 +62,7 @@
       <h2>Tickets del periodo <small id="rd-count"></small></h2>
       <div class="rd-filters"><input id="rd-search" type="search" placeholder="Buscar ticket, proyecto, zona..." /><select id="rd-filter-et"><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select></div>
     </div>
+    <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
     <div class="rd-table-wrap"><table class="rd-table"><thead id="rd-thead"></thead><tbody id="rd-tbody"></tbody></table></div>
     <div class="rd-pagination"><button id="rd-page-prev" type="button">← Anterior</button><span id="rd-page-info">—</span><button id="rd-page-next" type="button">Siguiente →</button></div>
   </div>
