@@ -10,7 +10,25 @@
     });
   }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function fmtDate(v){ if(!v) return '—'; const d = new Date(v); return Number.isNaN(d.getTime()) ? esc(v) : d.toLocaleDateString('es-MX'); }
+  function fmtDate(v){
+    if(!v) return '—';
+    const s=String(v).trim();
+
+    // Fechas operativas DATE/ISO: conservar el día recibido y no reinterpretar UTC.
+    let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[3]+'/'+m[2]+'/'+m[1];
+
+    // Fechas ya formateadas para México.
+    m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if(m) return m[1]+'/'+m[2]+'/'+m[3];
+
+    // Formato alternativo de MySQL: AAAA/MM/DD.
+    m=s.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
+    if(m) return m[3]+'/'+m[2]+'/'+m[1];
+
+    // No convertir cadenas desconocidas a Date: evita cambiar el día por zona horaria.
+    return esc(s);
+  }
   async function fetchJson(path){
     const headers = Object.assign({ 'Accept':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
     const r = await fetch(API() + path, { headers, cache:'no-store' });

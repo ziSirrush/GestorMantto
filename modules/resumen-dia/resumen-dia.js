@@ -16,12 +16,30 @@
   function nrm(v){ return (v==null?'':String(v)).trim(); }
   function upper(v){ return nrm(v).toUpperCase(); }
   function ymd(v){
-    if(!v) return null;
-    if(v instanceof Date && !isNaN(v.getTime())) return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+    if(v === null || v === undefined || v === '') return null;
+
+    // Las fechas operativas de MySQL (DATE) representan un dia de calendario,
+    // no un instante UTC. Por eso nunca se convierten con toISOString().
+    if(v instanceof Date && !isNaN(v.getTime())){
+      return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+    }
+
     const s = String(v).trim();
-    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-    if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){ const [d,m,y]=s.split('/'); return `${y}-${m}-${d}`; }
-    const d = new Date(s); return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+    if(!s || s.toLowerCase() === 'null') return null;
+
+    // MySQL DATE, DATETIME o cadena ISO: conservar literalmente YYYY-MM-DD.
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+    if(m) return m[1]+'-'+m[2]+'-'+m[3];
+
+    // Variantes sin conversion de zona horaria.
+    m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})(?:$|[T\s])/);
+    if(m) return m[1]+'-'+m[2]+'-'+m[3];
+
+    m = s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})(?:$|[T\s])/);
+    if(m) return m[3]+'-'+m[2]+'-'+m[1];
+
+    console.warn('[Resumen del Dia] Fecha operativa no reconocida; no se transforma:', v);
+    return null;
   }
   function hm(v){
     if(!v) return null;
