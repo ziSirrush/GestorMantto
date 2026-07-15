@@ -119,7 +119,7 @@
     const type = payload && payload.type;
     const id = payload && payload.id;
     if(type === 'proyecto') return openProyecto(id, payload || {});
-    if(type === 'equipo') return openEquipo(id);
+    if(type === 'equipo') return openEquipo_gnral(id);
     if(type === 'ticket') return openTicket(id, payload && payload.knownTicket);
     if(type === 'equipo-critico') return openEquipoCritico(id, payload && payload.options);
     show('Detalle', 'Mantto Gestor', '<div class="mg-empty">No se indicó un detalle válido.</div>');
@@ -131,7 +131,7 @@
   }
   function bindLinks(root){
     (root || document).querySelectorAll('[data-proyecto]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openProyecto(el.getAttribute('data-proyecto')); }));
-    (root || document).querySelectorAll('[data-equipo]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openEquipo(el.getAttribute('data-equipo')); }));
+    (root || document).querySelectorAll('[data-equipo]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openEquipo_gnral(el.getAttribute('data-equipo')); }));
     (root || document).querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openTicket(el.getAttribute('data-ticket')); }));
   }
   function toPct(value){
@@ -268,7 +268,7 @@
       const p = data.proyecto || data.data?.proyecto || {};
       const equipos = data.equipos || data.data?.equipos || [];
       const tickets = data.tickets || data.data?.tickets || [];
-      show('Proyecto · ' + (p.proyecto_nombre || p.proyecto || proyecto), proyecto, '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid([['Proyecto',p.proyecto_nombre || p.proyecto || proyecto],['Código',p.proyecto_codigo || p.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d],['MTBC 365d',p.mtbc_365]])+'</section><section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+ (equipos.length?equipos.map(e=>{const equipoKey=(e.proyecto_nombre||e.proyecto)&&e.identificacion_sitio?(String(e.proyecto_nombre||e.proyecto)+'|||'+String(e.identificacion_sitio)):String(e.numero_equipo||e.identificacion_sitio||'');return '<tr><td><button class="mg-link" data-equipo="'+esc(equipoKey)+'">'+esc(e.numero_equipo||e.identificacion_sitio)+'</button></td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.zona)+'</td><td>'+esc(e.estatus_servicio)+'</td><td>'+esc(e.estado_operativo)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mg-empty">Sin equipos</td></tr>') + '</tbody></table></div></section><section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(tickets)+'</section>');
+      show('Proyecto · ' + (p.proyecto_nombre || p.proyecto || proyecto), proyecto, '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid([['Proyecto',p.proyecto_nombre || p.proyecto || proyecto],['Código',p.proyecto_codigo || p.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d],['MTBC 365d',p.mtbc_365]])+'</section><section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+ (equipos.length?equipos.map(e=>{const equipoKey=String(e.numero_equipo||'').trim();const equipoCell=equipoKey?'<button class="mg-link" data-equipo="'+esc(equipoKey)+'">'+esc(equipoKey)+'</button>':'—';return '<tr><td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.zona)+'</td><td>'+esc(e.estatus_servicio)+'</td><td>'+esc(e.estado_operativo)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mg-empty">Sin equipos</td></tr>') + '</tbody></table></div></section><section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(tickets)+'</section>');
       bindLinks(document.getElementById('mg-detail-body'));
     }catch(e){ show('Proyecto', proyecto, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
@@ -309,7 +309,34 @@
       }
     }));
   }
-  async function openEquipo(codigo){
+  async function openEquipo_uni(codigo){
+    codigo = String(codigo || '').trim(); if(!codigo || codigo === '—') return;
+    if(!currentDetailMatches('equipo', codigo) && navigate('equipo', codigo)) return;
+    show('Equipo', codigo, '<div class="mg-empty">Cargando detalle del equipo...</div>');
+    try{
+      const data = await fetchJson('/api/portafolio/equipos/' + encodeURIComponent(codigo));
+      const e = data.data || data.mantenimiento || data.equipo || {};
+      const tickets = Array.isArray(data.tickets)
+        ? data.tickets
+        : (data.data && Array.isArray(data.data.tickets) ? data.data.tickets : []);
+      if(!e || !String(e.numero_equipo || '').trim()){
+        show('Equipo', codigo, '<div class="mg-empty">Equipo no encontrado en Portafolio.</div>');
+        return;
+      }
+      registerTickets(tickets);
+      show('Equipo · ' + (e.numero_equipo || codigo), e.proyecto || 'Detalle de equipo', '<section class="mg-detail-section"><h3>Detalle del Equipo</h3>'+grid([['Código',e.numero_equipo || codigo],['Proyecto',e.proyecto],['Ciudad',e.ciudad],['Estado',e.estado],['Zona',e.zona],['Supervisor',e.supervisor],['Superintendente',e.superintendente],['Contrato',e.contrato],['Operativo',e.estado_operativo],['Estatus servicio',e.estatus_servicio],['Días parado',e.dias_parado == null ? '—' : e.dias_parado + ' d'],['Último ticket',e.ultimo_ticket],['Última fecha reporte',fmtDate(e.ultimo_fecha_reporte)],['Identificación sitio',e.identificacion_sitio],['Dirección',e.direccion]])+'</section><section class="mg-detail-section"><h3>Accesos relacionados</h3>'+grid([['Proyecto','<button class="mg-link" data-proyecto="'+esc(e.proyecto)+'">'+esc(e.proyecto)+'</button>']])+'</section><section class="mg-detail-section"><h3>Tickets relacionados al equipo</h3>'+ticketsTable(tickets)+'</section>');
+      const body=document.getElementById('mg-detail-body');
+      body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+      bindLinks(body);
+    }catch(e){ show('Equipo', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
+  }
+
+  function openEquipo_gnral(codigo){
+    const key = String(codigo || '').trim();
+    return key.includes('|||') ? openEquipo_cor(key) : openEquipo_uni(key);
+  }
+
+  async function openEquipo_cor(codigo){
     codigo = String(codigo || '').trim(); if(!codigo || codigo === '—') return;
     if(!currentDetailMatches('equipo', codigo) && navigate('equipo', codigo)) return;
     show('Equipo', codigo, '<div class="mg-empty">Cargando detalle del equipo...</div>');
@@ -507,5 +534,5 @@
       const body=document.getElementById('mg-detail-body'); body.innerHTML=body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); bindLinks(body);
     }catch(e){ show('Equipo crítico', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
-  window.ManttoDetails = { show, close, render, openProyecto, openEquipo, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
+  window.ManttoDetails = { show, close, render, openProyecto, openEquipo:openEquipo_gnral, openEquipo_uni, openEquipo_cor, openEquipo_gnral, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
 })();
