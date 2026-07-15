@@ -2632,6 +2632,58 @@ async function syncTickets(req, res) {
     });
   }
 }
+
+async function getEstadosVisuales(req, res) {
+  try {
+    const codigosRaw = String(req.query.codigos || req.query.codigo || '').trim();
+    const codigos = [...new Set(
+      codigosRaw
+        .split(',')
+        .map(value => value.trim().toUpperCase())
+        .filter(Boolean)
+    )];
+
+    const clauses = ['activo = 1'];
+    const params = [];
+
+    if (codigos.length) {
+      clauses.push(`UPPER(codigo) IN (${codigos.map(() => '?').join(', ')})`);
+      params.push(...codigos);
+    }
+
+    const [rows] = await db.query(`
+      SELECT
+        id_estado_visual,
+        codigo,
+        nombre,
+        descripcion,
+        categoria,
+        emoji,
+        icono,
+        color_texto,
+        color_fondo,
+        color_borde,
+        prioridad,
+        activo
+      FROM estados_visuales
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY prioridad ASC, nombre ASC
+    `, params);
+
+    return res.json({
+      ok: true,
+      data: rows,
+      total: rows.length
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'No fue posible cargar los estados visuales.',
+      error: error.message
+    });
+  }
+}
+
 async function syncPortafolio(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
 
@@ -2705,6 +2757,7 @@ async function syncPortafolio(req, res) {
 }
 
 module.exports = {
+  getEstadosVisuales,
   getTickets,
   getTicketDetalle,
   saveTicketVobo,

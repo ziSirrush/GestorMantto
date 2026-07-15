@@ -5,6 +5,7 @@ const dataController = require('../controllers/data.controller');
 const criticosController = require('../controllers/criticos.controller');
 const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
 
+router.get('/estados-visuales', dataController.getEstadosVisuales);
 router.get('/tickets', dataController.getTickets);
 router.get('/tickets/:ticket', dataController.getTicketDetalle);
 router.post('/tickets/:ticket/vobo', requireAuth, dataController.saveTicketVobo);
