@@ -101,7 +101,22 @@ async function getEquiposCriticos(req, res) {
         MAX(p.superintendente) AS superintendente,
         MAX(COALESCE(p.estatus_servicio, base.estatus_equipo_final)) AS estatus_servicio,
         COUNT(*) AS fallas_blt_periodo,
-        SUM(CASE WHEN YEAR(base.fecha_reporte) = YEAR(CURDATE()) THEN 1 ELSE 0 END) AS calls_blt_anio,
+        (
+          SELECT COUNT(*)
+          FROM tickets tay
+          WHERE tay.codigo_equipo = base.codigo_equipo
+            AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+            AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%'
+        ) AS fallas_blt_anio,
+        (
+          SELECT COUNT(*)
+          FROM tickets t365
+          WHERE t365.codigo_equipo = base.codigo_equipo
+            AND t365.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+            AND t365.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%'
+        ) AS fallas_blt_365,
         (
           SELECT COUNT(*)
           FROM tickets ty
@@ -127,7 +142,29 @@ async function getEquiposCriticos(req, res) {
         CASE
           WHEN COUNT(*) <= 1 THEN NULL
           ELSE ROUND(DATEDIFF(MAX(base.fecha_reporte), MIN(base.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
-        END AS mtbc_dias
+        END AS mtbc_dias,
+        (
+          SELECT CASE
+            WHEN COUNT(*) <= 1 THEN NULL
+            ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+          END
+          FROM tickets tay
+          WHERE tay.codigo_equipo = base.codigo_equipo
+            AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+            AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%'
+        ) AS mtbc_anio,
+        (
+          SELECT CASE
+            WHEN COUNT(*) <= 1 THEN NULL
+            ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+          END
+          FROM tickets t365
+          WHERE t365.codigo_equipo = base.codigo_equipo
+            AND t365.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+            AND t365.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%'
+        ) AS mtbc_365
       FROM (
         SELECT t.*
         FROM tickets t
@@ -351,6 +388,180 @@ async function getProyectoCriticoTickets(req, res) {
   }
 }
 
+
+async function getMtbcEquipos(req, res) {
+  const { page, pageSize, offset } = pagination(req);
+  const filters = buildOptionalFilters(req, 't', 'p');
+
+  try {
+    const [countRows] = await db.query(`
+      SELECT COUNT(DISTINCT t.codigo_equipo) AS total
+      FROM tickets t
+      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE t.codigo_equipo IS NOT NULL
+        AND t.codigo_equipo <> ''
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${responsabilidadBlt('t')}
+        ${filters.sql}
+    `, filters.params);
+
+    const [rows] = await db.query(`
+      SELECT
+        t.codigo_equipo,
+        MAX(COALESCE(t.proyecto, p.proyecto)) AS proyecto,
+        MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
+        MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
+        MAX(COALESCE(t.supervisor, p.supervisor_zona)) AS supervisor,
+        SUM(CASE
+          WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          THEN 1 ELSE 0 END) AS fallas_blt_anio,
+        COUNT(*) AS fallas_blt_365,
+        CASE
+          WHEN SUM(CASE
+            WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+             AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            THEN 1 ELSE 0 END) <= 1
+          THEN NULL
+          ELSE ROUND(
+            DATEDIFF(
+              MAX(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END),
+              MIN(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END)
+            ) /
+            NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END) - 1, 0),
+            1
+          )
+        END AS mtbc_anio,
+        CASE
+          WHEN COUNT(*) <= 1 THEN NULL
+          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+        END AS mtbc_365,
+        MAX(t.fecha_reporte) AS ultimo_blt
+      FROM tickets t
+      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE t.codigo_equipo IS NOT NULL
+        AND t.codigo_equipo <> ''
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${responsabilidadBlt('t')}
+        ${filters.sql}
+      GROUP BY t.codigo_equipo
+      ORDER BY fallas_blt_anio DESC, fallas_blt_365 DESC, ultimo_blt DESC, t.codigo_equipo ASC
+      LIMIT ? OFFSET ?
+    `, [...filters.params, pageSize, offset]);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      rule: {
+        responsabilidad: 'BLT',
+        mtbc: '(ultima fecha de falla - primera fecha de falla) / (numero de fallas - 1)',
+        anio_en_curso: '01 de enero hasta hoy',
+        ultimos_365_dias: 'ventana movil desde hoy - 365 dias hasta hoy'
+      },
+      pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando MTBC por equipo.', error: error.message });
+  }
+}
+
+async function getMtbcProyectos(req, res) {
+  const { page, pageSize, offset } = pagination(req);
+  const zona = likeParam(req.query.zona);
+  const proyecto = likeParam(req.query.proyecto || req.query.search || req.query.buscar);
+  const clauses = [];
+  const params = [];
+
+  if (zona) {
+    clauses.push('COALESCE(t.zona, p.zona_operativa) LIKE ?');
+    params.push(zona);
+  }
+  if (proyecto) {
+    clauses.push('COALESCE(t.proyecto, p.proyecto) LIKE ?');
+    params.push(proyecto);
+  }
+  const filterSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
+
+  try {
+    const [countRows] = await db.query(`
+      SELECT COUNT(DISTINCT COALESCE(t.proyecto, p.proyecto)) AS total
+      FROM tickets t
+      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE COALESCE(t.proyecto, p.proyecto) IS NOT NULL
+        AND COALESCE(t.proyecto, p.proyecto) <> ''
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${responsabilidadBlt('t')}
+        ${filterSql}
+    `, params);
+
+    const [rows] = await db.query(`
+      SELECT
+        COALESCE(t.proyecto, p.proyecto) AS proyecto,
+        MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
+        COUNT(DISTINCT t.codigo_equipo) AS equipos_con_falla_blt_365,
+        COUNT(DISTINCT CASE
+          WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.codigo_equipo
+          ELSE NULL END) AS equipos_con_falla_blt_anio,
+        SUM(CASE
+          WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          THEN 1 ELSE 0 END) AS fallas_blt_anio,
+        COUNT(*) AS fallas_blt_365,
+        CASE
+          WHEN SUM(CASE
+            WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+             AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            THEN 1 ELSE 0 END) <= 1
+          THEN NULL
+          ELSE ROUND(
+            DATEDIFF(
+              MAX(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END),
+              MIN(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END)
+            ) /
+            NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END) - 1, 0),
+            1
+          )
+        END AS mtbc_anio,
+        CASE
+          WHEN COUNT(*) <= 1 THEN NULL
+          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+        END AS mtbc_365,
+        MAX(t.fecha_reporte) AS ultimo_blt
+      FROM tickets t
+      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE COALESCE(t.proyecto, p.proyecto) IS NOT NULL
+        AND COALESCE(t.proyecto, p.proyecto) <> ''
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${responsabilidadBlt('t')}
+        ${filterSql}
+      GROUP BY COALESCE(t.proyecto, p.proyecto)
+      ORDER BY fallas_blt_anio DESC, fallas_blt_365 DESC, ultimo_blt DESC, proyecto ASC
+      LIMIT ? OFFSET ?
+    `, [...params, pageSize, offset]);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      rule: {
+        responsabilidad: 'BLT',
+        aggregation: 'todas las fallas RESP BLT de los equipos pertenecientes al proyecto',
+        mtbc: '(ultima fecha de falla - primera fecha de falla) / (numero de fallas - 1)',
+        anio_en_curso: '01 de enero hasta hoy',
+        ultimos_365_dias: 'ventana movil desde hoy - 365 dias hasta hoy'
+      },
+      pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando MTBC por proyecto.', error: error.message });
+  }
+}
+
 async function getCriticidadCorporativa(req, res) {
   const minFallas = positiveInt(req.query.min_fallas || req.query.minFallas, 3, 1, 9999);
   try {
@@ -361,6 +572,10 @@ async function getCriticidadCorporativa(req, res) {
         MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
         MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
         COUNT(*) AS fallas_blt,
+        CASE
+          WHEN COUNT(*) <= 1 THEN NULL
+          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+        END AS mtbc_anio,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
       LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
@@ -389,6 +604,10 @@ async function getCriticidadCorporativa(req, res) {
             AND tx.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
             AND tx.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
         ) AS llamadas_365,
+        CASE
+          WHEN COUNT(*) <= 1 THEN NULL
+          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+        END AS mtbc_365,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
       LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
@@ -419,5 +638,7 @@ module.exports = {
   getEquipoCriticoTickets,
   getProyectosCriticos,
   getProyectoCriticoTickets,
-  getCriticidadCorporativa
+  getCriticidadCorporativa,
+  getMtbcEquipos,
+  getMtbcProyectos
 };

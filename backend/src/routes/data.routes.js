@@ -27,6 +27,8 @@ router.get('/proyectos/detalle/:proyecto', dataController.getProyectoDetalle);
 router.get('/proyectos/:proyecto', dataController.getProyectoDetalle);
 router.get('/proyectos', dataController.getProyectos);
 
+router.get('/indicadores/mtbc/equipos', criticosController.getMtbcEquipos);
+router.get('/indicadores/mtbc/proyectos', criticosController.getMtbcProyectos);
 router.get('/criticidad-corporativa', criticosController.getCriticidadCorporativa);
 router.get('/equipos-criticos', criticosController.getEquiposCriticos);
 router.get('/equipos-criticos/:codigo/tickets', criticosController.getEquipoCriticoTickets);
