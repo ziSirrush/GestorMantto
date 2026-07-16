@@ -478,42 +478,207 @@
     }catch(e){ $('ec-detail-body').innerHTML='<tr><td colspan="10" class="ec-empty">Error: '+esc(e.message)+'</td></tr>'; }
   }
 
-  function exportTablePdf(type){
-    const rows = type==='equipos' ? state.eq.rows : state.pro.rows;
-    const title = type==='equipos' ? 'Equipos Críticos' : 'Proyectos Críticos';
-    const criteria = type==='equipos' ? state.eq.lastCriteria : state.pro.lastCriteria;
-    if(!rows.length){ alert('No hay datos para exportar.'); return; }
-    if(!window.jspdf || !window.jspdf.jsPDF) return exportCsvFallback(title, rows);
-    const doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'pt', format:'letter' });
-    doc.setFontSize(14); doc.text(title, 36, 36);
-    doc.setFontSize(9); doc.text('Generado: '+new Date().toLocaleString('es-MX'), 36, 52);
-    doc.text('Criterio: '+(criteria?.min_fallas||'—')+' fallas BLT en '+(criteria?.dias||'—')+' días', 36, 66);
-    const keys = type==='equipos'
-      ? ['zona','proyecto','codigo_equipo','referencia_en_sitio','estatus_servicio','calls_anio','fallas_blt_periodo','ultimo_blt','resp_cliente_periodo','ultimo_cliente','mtbc_anio','mtbc_365']
-      : ['zona','proyecto','ciudad','supervisor','equipos_activos','fallas_blt_periodo','equipos_con_falla','equipos_criticos','ultimo_blt','mtbc_anio','mtbc_365'];
-    const headers = type==='equipos'
-      ? ['Zona','Proyecto','Código','Ref. sitio','Estatus','Calls año','Fallas BLT período','Último BLT','Resp. Cliente período','Último Cliente','MTBC Año Actual','MTBC U365']
-      : ['Zona','Proyecto','Ciudad','Supervisor','Equipos activos','Fallas BLT período','Equipos con falla','Equipos críticos','Último BLT','MTBC Año Actual','MTBC U365'];
-    doc.autoTable({ startY:82, head:[headers], body: rows.map(r=>keys.map(k=>String(r[k]??'—'))), styles:{fontSize:7, cellPadding:3}, headStyles:{fillColor:[153,27,27]} });
-    doc.save(title.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+  async function fetchAllEquiposForPdf(criteria){
+    const rows=[];
+    let page=1;
+    let total=0;
+    do{
+      const query=Object.assign({},criteria,{page,page_size:100});
+      const data=await fetchJson('/api/equipos-criticos?'+qs(query));
+      const batch=Array.isArray(data.data)?data.data:[];
+      rows.push(...batch);
+      total=Number(data.pagination?.total||rows.length);
+      page+=1;
+    }while(rows.length<total);
+    return rows;
   }
+
+  async function fetchEquipoTicketsForPdf(equipo, criteria){
+    const data=await fetchJson('/api/equipos-criticos/'+encodeURIComponent(equipo.codigo_equipo)+'/tickets?'+qs({dias:criteria.dias,responsabilidad:'BLT'}));
+    return Array.isArray(data.data)?data.data:[];
+  }
+
+  function pdfDate(value){
+    if(!value) return '—';
+    const raw=String(value).slice(0,10);
+    const parts=raw.split('-');
+    if(parts.length===3) return parts[2]+'/'+parts[1]+'/'+parts[0];
+    return date(value);
+  }
+
+  function pdfMtbc(value){
+    const n=Number(value);
+    return value===null || value===undefined || value==='' || Number.isNaN(n) ? '—' : n.toFixed(1).replace(/\.0$/,'')+' d';
+  }
+
+
+  function pdfLongDate(){
+    return new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+  }
+
+  async function buildEquiposPdf(){
+    const criteria=Object.assign({},state.eq.lastCriteria||eqCriteria());
+    const equipos=await fetchAllEquiposForPdf(criteria);
+    if(!equipos.length) throw new Error('No hay equipos críticos para exportar con los filtros actuales.');
+
+    const details=[];
+    for(let i=0;i<equipos.length;i+=5){
+      const group=equipos.slice(i,i+5);
+      const result=await Promise.all(group.map(async equipo=>({
+        equipo,
+        tickets:await fetchEquipoTicketsForPdf(equipo,criteria)
+      })));
+      details.push(...result);
+    }
+
+    const sections=[{
+      title:'BLT Brilliant — Equipos Críticos',
+      titleColor:[30,64,175],
+      showDate:false,
+      lines:[
+        'Generado: '+pdfLongDate()+' | Período: últimos '+criteria.dias+' días | Fallas BLT mínimas: '+criteria.min_fallas,
+        'Total de equipos críticos: '+equipos.length
+      ],
+      rows:equipos,
+      columns:[
+        {key:'codigo_equipo',label:'Código'},
+        {key:'proyecto',label:'Proyecto',value:r=>formatProyectoName(r.proyecto)},
+        {key:'zona',label:'Zona'},
+        {key:'fallas_blt_periodo',label:'Fallas BLT'},
+        {key:'ultimo_blt',label:'Último ticket',value:r=>pdfDate(r.ultimo_blt)},
+        {key:'mtbc_anio',label:'MTBC Año Actual',value:r=>pdfMtbc(r.mtbc_anio)},
+        {key:'mtbc_365',label:'MTBC U365',value:r=>pdfMtbc(r.mtbc_365)}
+      ],
+      columnStyles:{
+        0:{cellWidth:88},
+        1:{cellWidth:230},
+        2:{cellWidth:58},
+        3:{cellWidth:54,halign:'center'},
+        4:{cellWidth:70,halign:'center'},
+        5:{cellWidth:78,halign:'center'},
+        6:{cellWidth:70,halign:'center'}
+      },
+      headStyles:{fillColor:[220,38,38]},
+      alternateRowStyles:{fillColor:[254,242,242]},
+      styles:{fontSize:6.8,cellPadding:2.6}
+    }];
+
+    details.forEach(item=>{
+      sections.push({
+        title:'Desglose de fallas — '+item.equipo.codigo_equipo,
+        titleColor:[30,64,175],
+        showDate:false,
+        lines:[
+          formatProyectoName(item.equipo.proyecto)+' | Zona: '+(item.equipo.zona||'—')+
+          ' | Fallas BLT: '+(item.equipo.fallas_blt_periodo||0)+
+          ' | MTBC Año Actual: '+pdfMtbc(item.equipo.mtbc_anio)+
+          ' | MTBC U365: '+pdfMtbc(item.equipo.mtbc_365)
+        ],
+        rows:item.tickets,
+        columns:[
+          {key:'ticket',label:'Ticket'},
+          {key:'fecha_reporte',label:'Fecha',value:r=>pdfDate(r.fecha_reporte)},
+          {key:'descripcion',label:'Asunto'},
+          {key:'responsabilidad',label:'Resp.'},
+          {key:'estado_ticket',label:'Estado',value:r=>r.estado_ticket||r.estado},
+          {key:'causa_falla',label:'Causa de falla',value:r=>r.causa_falla||r.causa}
+        ],
+        columnStyles:{
+          0:{cellWidth:55},
+          1:{cellWidth:72},
+          2:{cellWidth:250},
+          3:{cellWidth:62},
+          4:{cellWidth:68},
+          5:{cellWidth:175}
+        },
+        headStyles:{fillColor:[13,46,110]},
+        alternateRowStyles:{fillColor:[239,246,255]},
+        styles:{fontSize:7,cellPadding:3}
+      });
+    });
+
+    window.ManttoPdf_gnral.exportReport({
+      title:'Equipos Críticos',
+      fileName:'Equipos_Criticos_Desglose',
+      sections,
+      footerText:'Mantto Gestor · United Elevadores'
+    });
+  }
+
+  async function buildProyectosPdf(){
+    const criteria=Object.assign({},state.pro.lastCriteria||proCriteria(),{page:1,page_size:1000000});
+    const result=await buildProyectosCriticosFromFrontend(criteria);
+    const rows=await enrichProjectMtbc_uni(result.rows,criteria);
+    if(!rows.length) throw new Error('No hay proyectos críticos para exportar con los filtros actuales.');
+    window.ManttoPdf_gnral.exportReport({
+      title:'Proyectos Críticos',
+      fileName:'Proyectos_Criticos',
+      footerText:'Mantto Gestor · United Elevadores',
+      sections:[{
+        title:'BLT Brilliant — Proyectos Críticos',
+        titleColor:[30,64,175],
+        showDate:false,
+        lines:[
+          'Generado: '+pdfLongDate()+' | Período: últimos '+criteria.dias+' días | Fallas BLT mínimas: '+criteria.min_fallas,
+          'Total de proyectos críticos: '+rows.length
+        ],
+        rows,
+        columns:[
+          {key:'zona',label:'Zona'},
+          {key:'proyecto',label:'Proyecto',value:r=>formatProyectoName(r.proyecto)},
+          {key:'equipos_activos',label:'Equipos activos'},
+          {key:'fallas_blt_periodo',label:'Fallas BLT'},
+          {key:'equipos_criticos',label:'Equipos críticos'},
+          {key:'mtbc_anio',label:'MTBC Año Actual',value:r=>pdfMtbc(r.mtbc_anio)},
+          {key:'mtbc_365',label:'MTBC U365',value:r=>pdfMtbc(r.mtbc_365)}
+        ],
+        columnStyles:{
+          0:{cellWidth:72},
+          1:{cellWidth:300},
+          2:{cellWidth:78,halign:'center'},
+          3:{cellWidth:68,halign:'center'},
+          4:{cellWidth:78,halign:'center'},
+          5:{cellWidth:82,halign:'center'},
+          6:{cellWidth:72,halign:'center'}
+        },
+        headStyles:{fillColor:[220,38,38]},
+        alternateRowStyles:{fillColor:[254,242,242]},
+        styles:{fontSize:6.8,cellPadding:2.6}
+      }]
+    });
+  }
+
+  async function exportTablePdf(type){
+    if(!window.ManttoPdf_gnral || typeof window.ManttoPdf_gnral.exportReport !== 'function'){
+      alert('El motor general de PDF no está disponible.');
+      return;
+    }
+    try{
+      if(type==='equipos') await buildEquiposPdf();
+      else await buildProyectosPdf();
+    }catch(error){
+      alert('No se pudo generar el PDF: '+error.message);
+    }
+  }
+
   function exportDetailPdf(){
-    if(!state.detail.rows.length){ alert('No hay detalle para exportar.'); return; }
-    if(!window.jspdf || !window.jspdf.jsPDF) return exportCsvFallback(state.detail.title.replace(/\s+/g,'_'), state.detail.rows);
-    const doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'pt', format:'letter' });
-    doc.setFontSize(14); doc.text(state.detail.title, 36, 36);
-    doc.setFontSize(9); doc.text('Generado: '+new Date().toLocaleString('es-MX'), 36, 52);
-    const keys=['ticket','fecha_reporte','estado_ticket','proyecto','codigo_equipo','zona','responsabilidad','causa_falla','tiempo_llegada','tiempo_solucion'];
-    const headers=['Ticket','Fecha reporte','Estado','Proyecto','Equipo','Zona','Responsabilidad','Causa','T. llegada','T. solución'];
-    doc.autoTable({ startY:70, head:[headers], body: state.detail.rows.map(r=>keys.map(k=>String(r[k]??'—'))), styles:{fontSize:7, cellPadding:3}, headStyles:{fillColor:[13,46,110]} });
-    doc.save(state.detail.title.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
-  }
-  function exportCsvFallback(name, rows){
-    // Fallback si no cargan jsPDF/autoTable, por ejemplo sin internet o bloqueo de CDN.
-    const keys=Object.keys(rows[0]||{});
-    const csv=[keys.join(',')].concat(rows.map(r=>keys.map(k=>'"'+String(r[k]??'').replace(/"/g,'""')+'"').join(','))).join('\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name+'_'+new Date().toISOString().slice(0,10)+'.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    if(!window.ManttoPdf_gnral || typeof window.ManttoPdf_gnral.exportTable !== 'function'){
+      alert('El motor general de PDF no está disponible.');
+      return;
+    }
+    window.ManttoPdf_gnral.exportTable({
+      title:state.detail.title,
+      fileName:state.detail.title,
+      rows:state.detail.rows,
+      columns:[
+        {key:'ticket',label:'Ticket'}, {key:'fecha_reporte',label:'Fecha reporte'},
+        {key:'estado_ticket',label:'Estado'}, {key:'proyecto',label:'Proyecto'},
+        {key:'codigo_equipo',label:'Equipo'}, {key:'zona',label:'Zona'},
+        {key:'responsabilidad',label:'Responsabilidad'}, {key:'causa_falla',label:'Causa'},
+        {key:'tiempo_llegada',label:'T. llegada'}, {key:'tiempo_solucion',label:'T. solución'}
+      ],
+      headStyles:{fillColor:[13,46,110]}
+    });
   }
 
   async function init(){

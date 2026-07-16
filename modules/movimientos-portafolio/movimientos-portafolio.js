@@ -1,14 +1,13 @@
 (function(){
-  const MODULE_VERSION = '20260707-v004';
-  const state = { loaded:false, rows:[], filtersLoaded:false };
+  const MODULE_VERSION = '20260716-v005';
+  const state = { loaded:false, rows:[], filtersLoaded:false, weeklyCatalog:[], weeklyRows:[] };
 
-  const MOV_INLINE_HTML = `
-<div class="mov-page">
+  const MOV_INLINE_HTML = `<div class="mov-page">
   <section class="mov-card mov-head">
     <div>
       <p class="mov-eyebrow">Aiven · Portafolio</p>
       <h1>Movimientos de Portafolio</h1>
-      <p>Equipos cuyo estatus actual cambió contra el estatus registrado del último corte mensual.</p>
+      <p>Comparativo mensual vigente e histórico de cortes semanales.</p>
     </div>
     <div class="mov-head-actions">
       <span class="mov-status loading" id="mov-status"><span class="mov-dot"></span><span>Cargando Aiven...</span></span>
@@ -16,28 +15,58 @@
     </div>
   </section>
 
-  <section class="mov-card mov-filters" aria-label="Filtros de Movimientos de Portafolio">
-    <label>Zona<select id="mov-filter-zona"><option value="">Todas</option></select></label>
-    <label>Tipo de movimiento<select id="mov-filter-tipo"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
-    <label>Buscar<input id="mov-filter-search" type="search" placeholder="Equipo, proyecto, supervisor..." /></label>
-    <button type="button" class="mov-btn" data-mov-action="clear">Limpiar</button>
-    <button type="button" class="mov-btn mov-btn-primary" data-mov-action="apply">Aplicar</button>
-  </section>
-
-  <section class="mov-grid mov-kpis" aria-label="Indicadores de movimientos">
-    <article class="mov-kpi mov-kpi-blue" data-mov-detail="total"><i class="mov-led blue"></i><strong id="mov-kpi-total">—</strong><b>Movimientos</b><small>cambios detectados</small></article>
+  <section class="mov-grid mov-kpis" aria-label="Indicadores de movimientos mensuales">
+    <article class="mov-kpi mov-kpi-blue" data-mov-detail="total"><i class="mov-led blue"></i><strong id="mov-kpi-total">—</strong><b>Diferencias vigentes</b><small>contra corte mensual</small></article>
     <article class="mov-kpi mov-kpi-red" data-mov-detail="degradados"><i class="mov-led red"></i><strong id="mov-kpi-degradados">—</strong><b>Salidas de servicio</b><small>equipos detenidos</small></article>
     <article class="mov-kpi mov-kpi-green" data-mov-detail="recuperados"><i class="mov-led green"></i><strong id="mov-kpi-recuperados">—</strong><b>Regresos a servicio</b><small>equipos recuperados</small></article>
     <article class="mov-kpi mov-kpi-amber" data-mov-detail="cambios"><i class="mov-led amber"></i><strong id="mov-kpi-cambios">—</strong><b>Cambios operativos</b><small>estatus distinto</small></article>
   </section>
 
-  <section class="mov-card mov-table-section">
-    <div class="mov-section-head"><div><h2>Detalle de movimientos</h2><p id="mov-count">—</p></div><small id="mov-corte">Corte mensual: —</small></div>
-    <div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Estatus anterior</th><th>Estatus actual</th><th>Supervisor</th><th>Fecha corte</th></tr></thead><tbody id="mov-body"><tr><td colspan="8" class="mov-empty">Cargando...</td></tr></tbody></table></div>
+  <section class="mov-card mov-collapsible is-open" data-mov-panel="monthly">
+    <button type="button" class="mov-panel-toggle" data-mov-toggle="monthly" aria-expanded="true">
+      <span><b>Detalle de movimientos mensuales</b><small>Comparativo contra el último corte mensual</small></span><span class="mov-chevron">⌄</span>
+    </button>
+    <div class="mov-panel-content" data-mov-content="monthly">
+      <section class="mov-filters" aria-label="Filtros mensuales">
+        <label>Zona<select id="mov-filter-zona"><option value="">Todas</option></select></label>
+        <label>Tipo de movimiento<select id="mov-filter-tipo"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
+        <label>Buscar<input id="mov-filter-search" type="search" placeholder="Equipo, proyecto, supervisor..." /></label>
+        <button type="button" class="mov-btn" data-mov-action="clear">Limpiar</button>
+        <button type="button" class="mov-btn mov-btn-primary" data-mov-action="apply">Aplicar</button>
+      </section>
+      <div class="mov-section-head"><div><h2>Comparativo mensual</h2><p id="mov-count">—</p></div><small id="mov-corte">Corte mensual: —</small></div>
+      <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,NO_FUNCIONANDO"></div>
+      <div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Estatus anterior</th><th>Estatus actual</th><th>Supervisor</th><th>Fecha corte</th></tr></thead><tbody id="mov-body"><tr><td colspan="8" class="mov-empty">Cargando...</td></tr></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="mov-card mov-collapsible" data-mov-panel="weekly">
+    <button type="button" class="mov-panel-toggle" data-mov-toggle="weekly" aria-expanded="false">
+      <span><b>Histórico semanal</b><small>Cortes dominicales · 12:00 hrs CDMX</small></span><span class="mov-chevron">⌄</span>
+    </button>
+    <div class="mov-panel-content" data-mov-content="weekly" hidden>
+      <section class="mov-filters mov-weekly-filters" aria-label="Filtros semanales">
+        <label>Año<select id="mov-week-year"><option value="">Selecciona</option></select></label>
+        <label>Semana<select id="mov-week-number"><option value="">Selecciona</option></select></label>
+        <label>Buscar proyecto<input id="mov-week-search" type="search" placeholder="Proyecto o código de equipo..." /></label>
+        <label>Tipo de movimiento<select id="mov-week-type"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
+        <button type="button" class="mov-btn" data-mov-week-action="clear">Limpiar</button>
+        <button type="button" class="mov-btn mov-btn-primary" data-mov-week-action="consult">Consultar</button>
+      </section>
+      <div class="mov-section-head"><div><h2 id="mov-week-title">Semana sin seleccionar</h2><p id="mov-week-count">Selecciona un año y una semana</p></div><small id="mov-week-range">Corte semanal: —</small></div>
+      <section class="mov-grid mov-week-kpis" aria-label="Indicadores semanales">
+        <article class="mov-mini-kpi"><strong id="mov-week-total">—</strong><span>Movimientos</span></article>
+        <article class="mov-mini-kpi"><strong id="mov-week-outs">—</strong><span>Salidas</span></article>
+        <article class="mov-mini-kpi"><strong id="mov-week-returns">—</strong><span>Regresos</span></article>
+        <article class="mov-mini-kpi"><strong id="mov-week-changes">—</strong><span>Otros cambios</span></article>
+      </section>
+      <div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Fecha corte</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Estatus anterior</th><th>Estatus actual</th><th>Supervisor</th></tr></thead><tbody id="mov-week-body"><tr><td colspan="8" class="mov-empty">Sin semana seleccionada</td></tr></tbody></table></div>
+    </div>
   </section>
 
   <section id="mov-detail-modal" class="mov-detail" hidden><div class="mov-detail-panel"><div class="mov-detail-head"><button type="button" id="mov-detail-close" aria-label="Cerrar">×</button><div><h2 id="mov-detail-title">Detalle</h2><p id="mov-detail-sub">Movimientos de Portafolio</p></div></div><div class="mov-detail-body" id="mov-detail-body"></div></div></section>
-</div>`;
+</div>
+`;
 
   function API(){ return (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, ''); }
   function $(id){ return document.getElementById(id); }
@@ -150,6 +179,10 @@
     const search = $('mov-filter-search'); if(search) search.addEventListener('keydown', ev=>{ if(ev.key === 'Enter'){ ev.preventDefault(); refresh(); } });
     const close = $('mov-detail-close'); if(close) close.addEventListener('click', ()=>{ $('mov-detail-modal').hidden = true; });
     document.querySelectorAll('[data-mov-detail]').forEach(el=>el.addEventListener('click', ()=>openDetail(el.dataset.movDetail)));
+    document.querySelectorAll('[data-mov-toggle]').forEach(btn=>btn.addEventListener('click', ()=>togglePanel(btn.dataset.movToggle)));
+    document.querySelectorAll('[data-mov-week-action]').forEach(btn=>btn.addEventListener('click', ()=>{ if(btn.dataset.movWeekAction === 'consult') loadWeekly(); else clearWeeklyFilters(); }));
+    const year=$('mov-week-year'); if(year) year.addEventListener('change', ()=>fillWeeksForYear(year.value));
+    const weekSearch=$('mov-week-search'); if(weekSearch) weekSearch.addEventListener('keydown', ev=>{ if(ev.key === 'Enter'){ ev.preventDefault(); loadWeekly(); } });
   }
 
   function clearFilters(){ ['mov-filter-zona','mov-filter-tipo','mov-filter-search'].forEach(id=>{ const el=$(id); if(el) el.value=''; }); refresh(); }
@@ -260,6 +293,87 @@
     body.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const t=btn.getAttribute('data-ticket'); if(window.ManttoResumenDia && window.ManttoResumenDia.openTicket) window.ManttoResumenDia.openTicket(t); else if(window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Ticket', t, '<div class="mg-empty">Ticket: '+esc(t)+'</div>'); }));
   }
 
+  function togglePanel(name){
+    const panel=document.querySelector('[data-mov-panel="'+name+'"]');
+    const content=document.querySelector('[data-mov-content="'+name+'"]');
+    const button=document.querySelector('[data-mov-toggle="'+name+'"]');
+    if(!panel || !content || !button) return;
+    const open=content.hidden;
+    content.hidden=!open;
+    panel.classList.toggle('is-open', open);
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if(open && name === 'weekly' && !state.weeklyCatalog.length) loadWeeklyCatalog();
+  }
+
+  async function loadWeeklyCatalog(){
+    const year=$('mov-week-year'), week=$('mov-week-number');
+    try{
+      const data=await fetchJson('/api/portafolio/movimientos-semanales/catalogo');
+      state.weeklyCatalog=Array.isArray(data.data)?data.data:[];
+      const years=[...new Set(state.weeklyCatalog.map(row=>String(row.anio_iso)))];
+      if(year) year.innerHTML='<option value="">Selecciona</option>'+years.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+      if(years.length){ year.value=years[0]; fillWeeksForYear(years[0]); }
+      if(!state.weeklyCatalog.length && week) week.innerHTML='<option value="">Sin cortes disponibles</option>';
+    }catch(e){
+      if(week) week.innerHTML='<option value="">Error al cargar</option>';
+      text('mov-week-count', e.message);
+    }
+  }
+
+  function fillWeeksForYear(value){
+    const week=$('mov-week-number'); if(!week) return;
+    const rows=state.weeklyCatalog.filter(row=>String(row.anio_iso)===String(value));
+    week.innerHTML='<option value="">Selecciona</option>'+rows.map(row=>'<option value="'+esc(row.semana_iso)+'">Semana '+esc(row.semana_iso)+' · '+fmtDate(row.fecha_inicio)+' al '+fmtDate(row.fecha_fin)+'</option>').join('');
+    if(rows.length) week.value=String(rows[0].semana_iso);
+  }
+
+  function clearWeeklyFilters(){
+    const year=$('mov-week-year');
+    const search=$('mov-week-search'); const type=$('mov-week-type');
+    if(search) search.value=''; if(type) type.value='';
+    if(year && state.weeklyCatalog.length){ year.value=String(state.weeklyCatalog[0].anio_iso); fillWeeksForYear(year.value); }
+    state.weeklyRows=[];
+    renderWeeklyEmpty('Selecciona un año y una semana');
+  }
+
+  function renderWeeklyEmpty(message){
+    text('mov-week-title','Semana sin seleccionar'); text('mov-week-count',message || 'Sin información'); text('mov-week-range','Corte semanal: —');
+    ['mov-week-total','mov-week-outs','mov-week-returns','mov-week-changes'].forEach(id=>text(id,'—'));
+    const body=$('mov-week-body'); if(body) body.innerHTML='<tr><td colspan="8" class="mov-empty">'+esc(message || 'Sin información')+'</td></tr>';
+  }
+
+  async function loadWeekly(){
+    const anio=val('mov-week-year'), semana=val('mov-week-number');
+    if(!anio || !semana){ renderWeeklyEmpty('Selecciona año y semana'); return; }
+    const body=$('mov-week-body'); if(body) body.innerHTML='<tr><td colspan="8" class="mov-empty">Consultando corte semanal...</td></tr>';
+    try{
+      const data=await fetchJson('/api/portafolio/movimientos-semanales?'+qs({anio,semana,search:val('mov-week-search'),tipo:val('mov-week-type')}));
+      state.weeklyRows=Array.isArray(data.data)?data.data:[];
+      const c=data.corte||{};
+      text('mov-week-title','Semana '+c.semana_iso+' de '+c.anio_iso);
+      text('mov-week-count',int(data.total_filtrado)+' movimientos mostrados');
+      text('mov-week-range','Del '+fmtDate(c.fecha_inicio)+' al '+fmtDate(c.fecha_fin)+' · Corte: '+fmtDate(c.fecha_corte));
+      text('mov-week-total',int(c.total_movimientos)); text('mov-week-outs',int(c.total_salidas)); text('mov-week-returns',int(c.total_regresos)); text('mov-week-changes',int(c.total_cambios));
+      renderWeeklyRows();
+    }catch(e){ renderWeeklyEmpty(e.message); }
+  }
+
+  function renderWeeklyRows(){
+    const body=$('mov-week-body'); if(!body) return;
+    if(!state.weeklyRows.length){ body.innerHTML='<tr><td colspan="8" class="mov-empty">Sin movimientos para los filtros seleccionados</td></tr>'; return; }
+    body.innerHTML=state.weeklyRows.map(row=>{
+      const type=String(row.tipo||'CAMBIO').toUpperCase(); const tag=tagFor(type);
+      return '<tr>'
+        +'<td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(type))+'</span></td>'
+        +'<td>'+fmtDate(row.fecha_movimiento)+'</td>'
+        +'<td class="mov-code">'+esc(row.equipo)+'</td>'
+        +'<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto_codigo||row.proyecto)+'">'+esc(row.proyecto||row.proyecto_codigo)+'</button></td>'
+        +'<td>'+esc(row.zona)+'</td><td>'+statusPill(row.estatus_anterior)+'</td><td>'+statusPill(row.estatus_actual)+'</td><td>'+esc(row.supervisor)+'</td></tr>';
+    }).join('');
+    bindTableRows(body);
+  }
+
   async function init(){ await loadHtml(); await refresh(); }
+
   window.ManttoMovimientosPortafolio = { init, refresh, openRow };
 })();

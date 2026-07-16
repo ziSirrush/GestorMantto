@@ -3,7 +3,7 @@
     <div>
       <p class="pf-eyebrow">Aiven · Portafolio</p>
       <h1>Dashboard Portafolio</h1>
-      <p>Vista operativa de equipos, contrato, disponibilidad estimada y equipos parados.</p>
+      <p>Vista ejecutiva del portafolio comercial y del estado operativo de los equipos.</p>
     </div>
     <div class="pf-head-actions">
       <span class="pf-status loading" id="pf-status"><span class="pf-dot"></span><span>Cargando Aiven...</span></span>
@@ -11,57 +11,43 @@
     </div>
   </section>
 
-  <section class="pf-card pf-filters" aria-label="Filtros de Portafolio">
-    <label>Zona
-      <select id="pf-filter-zona"><option value="">Todas</option></select>
-    </label>
-    <label>Tipo
-      <select id="pf-filter-tipo"><option value="">Todos</option></select>
-    </label>
-    <label>Supervisor
-      <select id="pf-filter-supervisor"><option value="">Todos</option></select>
-    </label>
-    <label>Buscar
-      <input id="pf-filter-search" type="search" placeholder="Proyecto, equipo, ciudad..." />
-    </label>
-    <button type="button" class="pf-btn" data-pf-action="clear">Limpiar</button>
-    <button type="button" class="pf-btn pf-btn-primary" data-pf-action="apply">Aplicar</button>
-  </section>
-
   <section class="pf-grid pf-kpis" aria-label="Indicadores de Portafolio">
-    <article class="pf-kpi pf-kpi-blue" data-pf-detail="total"><span>📦</span><strong id="pf-kpi-total">—</strong><b>Total portafolio</b><small>Activos registrados</small></article>
-    <article class="pf-kpi pf-kpi-indigo" data-pf-detail="servicio"><span>🛠️</span><strong id="pf-kpi-servicio">—</strong><b>En servicio</b><small>Contrato activo</small></article>
-    <article class="pf-kpi pf-kpi-amber" data-pf-detail="cobranza"><span>💰</span><strong id="pf-kpi-cobranza">—</strong><b>En cobranza</b><small>Objetivo de cobro</small></article>
-    <article class="pf-kpi pf-kpi-slate" data-pf-detail="gratuito"><span>🎁</span><strong id="pf-kpi-gratuito">—</strong><b>Gratuito / garantía</b><small>Sin cobro todavía</small></article>
-    <article class="pf-kpi pf-kpi-green" data-pf-detail="funcionando"><span>✅</span><strong id="pf-kpi-funcionando">—</strong><b>Funcionando</b><small>Último estado operativo</small></article>
-    <article class="pf-kpi pf-kpi-red" data-pf-detail="parado"><span>⛔</span><strong id="pf-kpi-parado">—</strong><b>Parados</b><small>Último ticket no funcionando</small></article>
+    <article class="pf-kpi pf-kpi-blue" data-pf-detail="total"><span>📦</span><strong id="pf-kpi-total">—</strong><b>Total portafolio</b><small>Universo activo del portafolio</small></article>
+    <article class="pf-kpi pf-kpi-amber" data-pf-detail="cobranza"><span>💰</span><strong id="pf-kpi-cobranza">—</strong><b>En cobranza</b><small id="pf-kpi-cobranza-sub">Categoría comercial</small></article>
+    <article class="pf-kpi pf-kpi-slate" data-pf-detail="gratuito"><span>🎁</span><strong id="pf-kpi-gratuito">—</strong><b>Gratuito / garantía</b><small id="pf-kpi-gratuito-sub">Categoría comercial</small></article>
+    <article class="pf-kpi pf-kpi-indigo pf-kpi-development" data-pf-detail="conversiones"><span>⇄</span><strong id="pf-kpi-conversiones">En desarrollo</strong><b>Conversiones</b><small>Pendiente de definición de Dirección</small></article>
+    <article class="pf-kpi pf-kpi-green" data-pf-detail="funcionando"><span>✅</span><strong id="pf-kpi-funcionando">—</strong><b>Funcionando</b><small id="pf-kpi-funcionando-sub">— equipos</small></article>
+    <article class="pf-kpi pf-kpi-red" data-pf-detail="parado"><span>⛔</span><strong id="pf-kpi-parado">—</strong><b>Parados</b><small id="pf-kpi-parado-sub">— equipos</small></article>
   </section>
 
   <section class="pf-grid pf-donuts" aria-label="Distribuciones">
-    <article class="pf-card pf-chart"><h3>Tipo de contrato</h3><div id="pf-donut-contrato" class="pf-donut-box"></div></article>
+    <article class="pf-card pf-chart"><h3>Distribución comercial</h3><div id="pf-donut-contrato" class="pf-donut-box"></div></article>
     <article class="pf-card pf-chart"><h3>Estado operativo</h3><div id="pf-donut-operativo" class="pf-donut-box"></div></article>
     <article class="pf-card pf-chart"><h3>Por tipo de equipo</h3><div id="pf-donut-tipo" class="pf-donut-box"></div></article>
     <article class="pf-card pf-chart"><h3>Por zona</h3><div id="pf-donut-zona" class="pf-donut-box"></div></article>
   </section>
 
   <section class="pf-card pf-table-section">
-    <div class="pf-section-head">
-      <div><h2>Equipos parados</h2><p id="pf-parados-count">—</p></div>
-    </div>
-    <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,NO_FUNCIONANDO"></div>
-    <div class="pf-table-wrap">
-      <table class="pf-table">
-        <thead><tr><th>Código</th><th>Proyecto</th><th>Zona</th><th>Tipo</th><th>Días parado</th><th>Desde</th><th>Último ticket</th><th>Supervisor</th></tr></thead>
-        <tbody id="pf-parados-body"><tr><td colspan="8" class="pf-empty">Cargando...</td></tr></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="pf-card pf-table-section">
-    <div class="pf-section-head">
-      <div><h2>Detalle de equipos</h2><p id="pf-equipos-count">—</p></div>
-      <div class="pf-inline-actions">
-        <select id="pf-filter-operativo"><option value="">Todos</option><option value="funcionando">Funcionando</option><option value="parado">Parado</option></select>
+    <div class="pf-section-head pf-table-head">
+      <div class="pf-table-title"><h2>Tabla Portafolio</h2><p id="pf-equipos-count">—</p></div>
+      <div class="pf-filters pf-table-filters" aria-label="Filtros de la Tabla Portafolio">
+        <label>Zona
+          <select id="pf-filter-zona"><option value="">Todas</option></select>
+        </label>
+        <label>Tipo
+          <select id="pf-filter-tipo"><option value="">Todos</option></select>
+        </label>
+        <label>Supervisor
+          <select id="pf-filter-supervisor"><option value="">Todos</option></select>
+        </label>
+        <label>Estado operativo
+          <select id="pf-filter-operativo"><option value="">Todos</option><option value="funcionando">Funcionando</option><option value="parado">Parado</option></select>
+        </label>
+        <label class="pf-filter-search">Buscar
+          <input id="pf-filter-search" type="search" placeholder="Proyecto, equipo, ciudad..." />
+        </label>
+        <button type="button" class="pf-btn" data-pf-action="clear">Limpiar</button>
+        <button type="button" class="pf-btn pf-btn-primary" data-pf-action="apply">Aplicar</button>
       </div>
     </div>
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,NO_FUNCIONANDO"></div>

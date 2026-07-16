@@ -18,12 +18,12 @@
   </section>
 
   <section class="op-grid op-kpi-grid">
-    <article class="op-kpi g-cyan"><div class="ico">🛠️</div><div class="val" id="op-total-eq">0</div><div class="lbl">Total equipos</div><div class="sub">En portafolio activo</div></article>
+    <article class="op-kpi g-cyan"><div class="ico">🛠️</div><div class="val" id="op-total-eq">0</div><div class="lbl">Total de equipos</div><div class="sub">En portafolio activo</div></article>
     <article class="op-kpi g-green clickable" data-detail="con_servicio"><div class="ico">✓</div><div class="val" id="op-con-serv">0</div><div class="lbl">Con servicio</div><div class="sub" id="op-pct-serv">0% del total</div></article>
-    <article class="op-kpi g-orange clickable" data-detail="sin_servicio"><div class="ico">⏱️</div><div class="val" id="op-sin-serv">0</div><div class="lbl">Sin servicio aún</div><div class="sub">Toca para ver lista</div></article>
-    <article class="op-kpi g-purple clickable" data-detail="vobo"><div class="ico">☆</div><div class="val" id="op-vobo-pct">0%</div><div class="lbl">Tickets validados</div><div class="sub">Vo.Bo. del período</div></article>
-    <article class="op-kpi g-indigo"><div class="ico">📈</div><div class="val" id="op-mtbc-anio">—</div><div class="lbl">Prom. MTBC Año Actual</div><div class="sub">Equipos filtrados · RESP BLT</div></article>
-    <article class="op-kpi g-slate"><div class="ico">📆</div><div class="val" id="op-mtbc-365">—</div><div class="lbl">Prom. MTBC U365</div><div class="sub">Equipos filtrados · RESP BLT</div></article>
+    <article class="op-kpi g-orange clickable" data-detail="sin_servicio"><div class="ico">⏱️</div><div class="val" id="op-sin-serv">0</div><div class="lbl">Pendientes</div><div class="sub">Servicio preventivo</div></article>
+    <article class="op-kpi g-purple clickable" data-detail="tickets_total"><div class="ico">🎫</div><div class="val" id="op-total-tickets">0</div><div class="lbl">Total tickets</div><div class="sub">Tickets del período</div></article>
+    <article class="op-kpi g-indigo clickable" data-detail="vobo"><div class="ico">☆</div><div class="val" id="op-vobo-valid">0</div><div class="lbl">Validados</div><div class="sub">Vo.Bo. del período</div></article>
+    <article class="op-kpi g-slate clickable" data-detail="vobo_pendiente"><div class="ico">⌛</div><div class="val" id="op-vobo-pend">0</div><div class="lbl">Pend. validar</div><div class="sub">Vo.Bo. pendiente</div></article>
   </section>
 
   <section class="op-bars-grid">
@@ -34,24 +34,6 @@
   <section class="op-bars-grid">
     <article class="op-card op-section"><h2>🛡️ % Vo.Bo. validados por zona</h2><div class="op-bars" id="op-bar-vobo-zona"></div></article>
     <article class="op-card op-section"><h2>👤 % Vo.Bo. validados por supervisor</h2><div class="op-bars" id="op-bar-vobo-sup"></div></article>
-  </section>
-
-  <section class="op-card op-section">
-    <div class="op-section-head op-ticket-head">
-      <h2>📋 Equipos — confirmación de servicio preventivo <small id="op-eq-count"></small></h2>
-      <div class="op-tools">
-        <input id="op-eq-search" type="search" placeholder="Buscar equipo..." />
-        <select id="op-eq-filter-serv"><option value="">Todos</option><option value="con">Con servicio</option><option value="sin">Sin servicio</option></select>
-      </div>
-    </div>
-    <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,NO_FUNCIONANDO,PREVENTIVO_REALIZADO,PREVENTIVO_PENDIENTE"></div>
-    <div class="op-table-wrap"><table class="op-table"><thead><tr><th>Código equipo</th><th>Proyecto</th><th>Ciudad</th><th>Zona</th><th>Supervisor</th><th>Tipo</th><th>Estatus</th><th>Servicio mes actual</th><th>Confirmado por</th></tr></thead><tbody id="op-equipos-tbody"></tbody></table></div>
-  </section>
-
-  <section class="op-card op-section">
-    <h2>🕘 Histórico de servicios preventivos</h2>
-    <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,NO_FUNCIONANDO,PREVENTIVO_REALIZADO,PREVENTIVO_PENDIENTE"></div>
-    <div class="op-table-wrap"><table class="op-table op-hist-table"><thead><tr id="op-hist-thead"><th>Equipo</th><th>Proyecto</th><th>Zona</th></tr></thead><tbody id="op-hist-tbody"></tbody></table></div>
   </section>
 
   <section class="op-modal" id="op-detail-modal" hidden>

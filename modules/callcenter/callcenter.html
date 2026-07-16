@@ -16,34 +16,63 @@
     <span id="cc-updated" class="cc-updated">—</span>
   </section>
 
-  <section class="cc-grid kpi-6">
-    <article class="cc-kpi g-blue"><div class="ico" data-estado-visual="TICKET">🎫</div><div class="val" id="cc-total">—</div><div class="lbl">Tickets</div><div class="sub">Período seleccionado</div></article>
-    <article class="cc-kpi g-green clickable" data-cc-detail="cerrados"><div class="ico" data-estado-visual="CERRADO">✓</div><div class="val" id="cc-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="cc-cerrados-pct">—</div></article>
-    <article class="cc-kpi g-orange clickable" data-cc-detail="encurso"><div class="ico" data-estado-visual="EN_CURSO">⏳</div><div class="val" id="cc-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="cc-encurso-pct">—</div></article>
-    <article class="cc-kpi g-red clickable" data-cc-detail="abiertos"><div class="ico" data-estado-visual="ABIERTO">🔴</div><div class="val" id="cc-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="cc-abiertos-pct">—</div></article>
-    <article class="cc-kpi g-indigo clickable" data-cc-detail="blt"><div class="ico" data-estado-visual="RESPONSABILIDAD_BLT">🛠️</div><div class="val" id="cc-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="cc-blt-pct">—</div></article>
-    <article class="cc-kpi g-cyan clickable" data-cc-detail="cliente"><div class="ico" data-estado-visual="RESPONSABILIDAD_CLIENTE">👤</div><div class="val" id="cc-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="cc-cli-pct">—</div></article>
+  <section class="cc-kpi-group" data-cc-group="operacion">
+    <button class="cc-group-toggle" type="button" data-cc-group-toggle="operacion" aria-expanded="true">
+      <span>Operación</span><span class="cc-group-chevron">⌄</span>
+    </button>
+    <div class="cc-grid kpi-6 cc-kpi-grid">
+      <article class="cc-kpi g-blue"><div class="ico" data-estado-visual="TICKET">🎫</div><div class="val" id="cc-total">—</div><div class="lbl">Tickets</div><div class="sub">Período seleccionado</div></article>
+      <article class="cc-kpi g-green clickable" data-cc-detail="cerrados"><div class="ico" data-estado-visual="CERRADO">✓</div><div class="val" id="cc-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="cc-cerrados-pct">—</div></article>
+      <article class="cc-kpi g-orange clickable" data-cc-detail="encurso"><div class="ico" data-estado-visual="EN_CURSO">⏳</div><div class="val" id="cc-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="cc-encurso-pct">—</div></article>
+      <article class="cc-kpi g-red clickable" data-cc-detail="abiertos"><div class="ico" data-estado-visual="ABIERTO">🔴</div><div class="val" id="cc-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="cc-abiertos-pct">—</div></article>
+      <article class="cc-kpi g-indigo clickable" data-cc-detail="blt"><div class="ico" data-estado-visual="RESPONSABILIDAD_BLT">🛠️</div><div class="val" id="cc-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="cc-blt-pct">—</div></article>
+      <article class="cc-kpi g-cyan clickable" data-cc-detail="cliente"><div class="ico" data-estado-visual="RESPONSABILIDAD_CLIENTE">👤</div><div class="val" id="cc-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="cc-cli-pct">—</div></article>
+    </div>
   </section>
 
-  <section class="cc-grid kpi-6">
-    <article class="cc-kpi g-red clickable" data-cc-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="cc-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
-    <article class="cc-kpi g-cyan clickable" data-cc-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="cc-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
-    <article class="cc-kpi g-purple clickable" data-cc-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="cc-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
-    <article class="cc-kpi g-darkred clickable" data-cc-detail="criticos"><div class="ico" data-estado-visual="CRITICO">💥</div><div class="val" id="cc-criticos">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
-    <article class="cc-kpi g-dark clickable" data-cc-detail="nofunc"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="cc-nofunc">—</div><div class="lbl">No Funcionando</div><div class="sub">Ver detalle</div></article>
+  <section class="cc-kpi-group" data-cc-group="alertas">
+    <button class="cc-group-toggle" type="button" data-cc-group-toggle="alertas" aria-expanded="true">
+      <span>Alertas</span><span class="cc-group-chevron">⌄</span>
+    </button>
+    <div class="cc-grid kpi-6 cc-kpi-grid">
+      <article class="cc-kpi g-red clickable" data-cc-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="cc-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
+      <article class="cc-kpi g-cyan clickable" data-cc-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="cc-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
+      <article class="cc-kpi g-purple clickable" data-cc-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="cc-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
+      <article class="cc-kpi g-darkred clickable" data-cc-detail="criticos"><div class="ico" data-estado-visual="CRITICO">💥</div><div class="val" id="cc-criticos">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+      <button class="cc-kpi g-dark clickable cc-kpi-button" id="cc-nofunc-toggle" type="button" aria-expanded="false"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="cc-nofunc">—</div><div class="lbl">No Funcionando</div><div class="sub">Mostrar tabla</div></button>
+      <article class="cc-kpi g-slate clickable" data-cc-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="cc-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="cc-sla-pct">—</div></article>
+    </div>
+    <section class="cc-card cc-section cc-no-func cc-context-panel" id="cc-nofunc-section" hidden>
+      <div class="cc-section-head"><h2>🚧 Equipos No Funcionando en el período</h2><span id="cc-nf-info">—</span></div>
+      <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
+      <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Ticket</th><th>Estado</th><th>Equipo</th><th>Proyecto</th><th>Zona</th><th>Asunto</th><th>F. Reporte</th><th>Resp.</th><th>Crítico</th></tr></thead><tbody id="cc-nofunc-tbody"></tbody></table></div>
+      <div class="cc-pagination"><button id="cc-nf-prev" type="button">← Anterior</button><span></span><button id="cc-nf-next" type="button">Siguiente →</button></div>
+    </section>
   </section>
 
-  <section class="cc-grid kpi-5">
-    <article class="cc-kpi g-teal"><div class="ico">⏱️</div><div class="val" id="cc-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">Tiempo promedio</div></article>
-    <article class="cc-kpi g-blue"><div class="ico">🕘</div><div class="val" id="cc-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">Equipos resueltos</div></article>
-    <article class="cc-kpi g-slate clickable" data-cc-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="cc-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="cc-sla-pct">—</div></article>
-    <article class="cc-kpi g-indigo"><div class="ico">📈</div><div class="val" id="cc-mtbc-anio">—</div><div class="lbl">Prom. MTBC Año Actual</div><div class="sub">Equipos · RESP BLT</div></article>
-    <article class="cc-kpi g-purple"><div class="ico">📆</div><div class="val" id="cc-mtbc-365">—</div><div class="lbl">Prom. MTBC U365</div><div class="sub">Equipos · RESP BLT</div></article>
+  <section class="cc-kpi-group cc-mobile-collapsed" data-cc-group="indicadores">
+    <button class="cc-group-toggle" type="button" data-cc-group-toggle="indicadores" aria-expanded="false">
+      <span>Indicadores</span><span class="cc-group-chevron">›</span>
+    </button>
+    <div class="cc-grid kpi-4 cc-kpi-grid">
+      <article class="cc-kpi g-teal"><div class="ico">⏱️</div><div class="val" id="cc-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">Tiempo promedio</div></article>
+      <article class="cc-kpi g-blue"><div class="ico">🕘</div><div class="val" id="cc-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">Equipos resueltos</div></article>
+      <article class="cc-kpi g-indigo"><div class="ico">📈</div><div class="val" id="cc-mtbc-anio">—</div><div class="lbl">Prom. MTBC Año Actual</div><div class="sub">Equipos · RESP BLT</div></article>
+      <article class="cc-kpi g-purple"><div class="ico">📆</div><div class="val" id="cc-mtbc-365">—</div><div class="lbl">Prom. MTBC U365</div><div class="sub">Equipos · RESP BLT</div></article>
+    </div>
   </section>
 
-  <section class="cc-grid kpi-2 cc-u365-actions">
-    <button class="cc-kpi g-blue clickable cc-kpi-button" id="cc-u365-proy-open" type="button"><div class="ico">📊</div><div class="lbl">Llamadas U365d</div><div class="sub">Por proyecto · Ver resumen</div></button>
-    <button class="cc-kpi g-indigo clickable cc-kpi-button" id="cc-u365-eq-open" type="button"><div class="ico">🔧</div><div class="lbl">Llamadas U365d</div><div class="sub">Por equipo · Ver resumen</div></button>
+  <section class="cc-u365-block">
+    <div class="cc-grid kpi-2 cc-u365-actions">
+      <button class="cc-kpi g-blue clickable cc-kpi-button" id="cc-u365-proy-open" type="button" aria-expanded="false"><div class="ico">📊</div><div class="lbl">Llamadas U365d</div><div class="sub">Por proyecto · Ver resumen</div></button>
+      <button class="cc-kpi g-indigo clickable cc-kpi-button" id="cc-u365-eq-open" type="button" aria-expanded="false"><div class="ico">🔧</div><div class="lbl">Llamadas U365d</div><div class="sub">Por equipo · Ver resumen</div></button>
+    </div>
+    <div class="cc-u365-panel" id="cc-u365-panel" hidden>
+      <section class="cc-card cc-section" id="cc-u365-proy-section" hidden><div class="cc-section-head"><h2>📊 Llamadas últimos 365 días — Por Proyecto</h2><span id="cc-u365-proy-count">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
+        <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Total llamadas</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>Equipos activos</th><th>Prom. por equipo</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="cc-u365-proy-tbody"></tbody></table></div></section>
+      <section class="cc-card cc-section" id="cc-u365-eq-section" hidden><div class="cc-section-head"><h2>🔧 Llamadas últimos 365 días — Por Equipo</h2><span id="cc-u365-eq-count">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
+        <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas U365d</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="cc-u365-eq-tbody"></tbody></table></div></section>
+    </div>
   </section>
 
   <section class="cc-chart-grid">
@@ -59,11 +88,9 @@
     <article class="cc-card cc-section"><h2>📊 Por estado de la República</h2><div class="cc-bars" id="cc-bar-estado"></div></article>
   </section>
 
-  <section class="cc-card cc-section" id="cc-u365-proy-section"><div class="cc-section-head"><h2>📊 Llamadas últimos 365 días — Por Proyecto</h2><span id="cc-u365-proy-count">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Total llamadas</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>Equipos activos</th><th>Prom. por equipo</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="cc-u365-proy-tbody"></tbody></table></div></section>
 
-  <section class="cc-card cc-section" id="cc-u365-eq-section"><div class="cc-section-head"><h2>🔧 Llamadas últimos 365 días — Por Equipo</h2><span id="cc-u365-eq-count">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas U365d</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="cc-u365-eq-tbody"></tbody></table></div></section>
+
+
 
   <section class="cc-card cc-section">
     <div class="cc-section-head"><h2>☎️ Equipos con más llamadas del período</h2><span id="cc-top-eq-count">—</span></div>
@@ -92,8 +119,7 @@
     <div class="cc-pagination"><button id="cc-page-prev" type="button">← Anterior</button><span id="cc-page-info">—</span><button id="cc-page-next" type="button">Siguiente →</button></div>
   </section>
 
-  <section class="cc-card cc-section cc-no-func"><div class="cc-section-head"><h2>🔴 Equipos No Funcionando en el período</h2><span id="cc-nf-info">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Ticket</th><th>Estado</th><th>Equipo</th><th>Proyecto</th><th>Zona</th><th>Asunto</th><th>F. Reporte</th><th>Resp.</th><th>Crítico</th></tr></thead><tbody id="cc-nofunc-tbody"></tbody></table></div><div class="cc-pagination"><button id="cc-nf-prev" type="button">← Anterior</button><span></span><button id="cc-nf-next" type="button">Siguiente →</button></div></section>
+
 
   <section class="cc-modal" id="cc-detail-modal" hidden>
     <div class="cc-modal-panel">
