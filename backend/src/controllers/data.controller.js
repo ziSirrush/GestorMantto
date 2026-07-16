@@ -304,6 +304,136 @@ async function getPortafolioMovimientos(req, res) {
   }
 }
 
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === '') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+async function getPortafolioSemanasDisponibles(req, res) {
+  try {
+    const [rows] = await db.query(`
+      SELECT
+        id_corte,
+        anio_iso,
+        semana_iso,
+        fecha_inicio,
+        fecha_fin,
+        fecha_corte,
+        total_portafolio,
+        total_movimientos,
+        total_salidas,
+        total_regresos,
+        total_cambios,
+        estado
+      FROM portafolio_cortes_semanales
+      WHERE estado = 'CERRADO'
+      ORDER BY anio_iso DESC, semana_iso DESC
+    `);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      total: rows.length,
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando el catálogo de cortes semanales.',
+      error: error.message
+    });
+  }
+}
+
+async function getPortafolioMovimientosSemanales(req, res) {
+  try {
+    const anio = Number.parseInt(req.query.anio, 10);
+    const semana = Number.parseInt(req.query.semana, 10);
+
+    if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) {
+      return res.status(400).json({ ok: false, message: 'El año ISO es obligatorio y no es válido.' });
+    }
+    if (!Number.isInteger(semana) || semana < 1 || semana > 53) {
+      return res.status(400).json({ ok: false, message: 'La semana ISO es obligatoria y debe estar entre 1 y 53.' });
+    }
+
+    const [rows] = await db.query(`
+      SELECT
+        id_corte,
+        anio_iso,
+        semana_iso,
+        fecha_inicio,
+        fecha_fin,
+        fecha_corte,
+        id_corte_anterior,
+        total_portafolio,
+        total_movimientos,
+        total_salidas,
+        total_regresos,
+        total_cambios,
+        movimientos_json,
+        estado,
+        hash_contenido,
+        generado_por,
+        created_at,
+        updated_at
+      FROM portafolio_cortes_semanales
+      WHERE anio_iso = ?
+        AND semana_iso = ?
+        AND estado = 'CERRADO'
+      LIMIT 1
+    `, [anio, semana]);
+
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: `No existe un corte cerrado para la semana ${semana} de ${anio}.`
+      });
+    }
+
+    const corte = rows[0];
+    const search = String(req.query.search || req.query.buscar || '').trim().toLowerCase();
+    const tipo = String(req.query.tipo || '').trim().toUpperCase();
+    const tiposValidos = new Set(['DEGRADADO', 'RECUPERADO', 'CAMBIO']);
+
+    let movimientos = parseJsonArray(corte.movimientos_json);
+
+    if (search) {
+      movimientos = movimientos.filter(row => {
+        const values = [row.proyecto, row.proyecto_codigo, row.equipo, row.zona, row.supervisor];
+        return values.some(value => String(value || '').toLowerCase().includes(search));
+      });
+    }
+
+    if (tiposValidos.has(tipo)) {
+      movimientos = movimientos.filter(row => String(row.tipo || '').toUpperCase() === tipo);
+    }
+
+    delete corte.movimientos_json;
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      corte,
+      total_filtrado: movimientos.length,
+      data: movimientos
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando movimientos semanales de portafolio.',
+      error: error.message
+    });
+  }
+}
+
 async function getPortafolioFiltros(req, res) {
   try {
     const [zonas] = await db.query(`
@@ -2760,6 +2890,8 @@ module.exports = {
   getPortafolioProyectoDetalle,
   getPortafolioFiltros,
   getPortafolioMovimientos,
+  getPortafolioSemanasDisponibles,
+  getPortafolioMovimientosSemanales,
   getPortafolioMovimientoDetalle,
   getPortafolioDashboard,
   getPortafolioEquipos,
