@@ -29,22 +29,27 @@
       <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos">Aplicar</button>
     </div>
 
-    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>.</div>
+    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. El filtro determina qué equipos aparecen; el MTBC corporativo se calcula únicamente con RESP BLT en Año en curso y U365.</div>
 
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
       <table class="ec-table">
-        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT</th><th>Último BLT</th><th>Resp. Cliente</th><th>Último Cliente</th><th>MTBC</th><th></th></tr></thead>
-        <tbody id="ec-eq-body"><tr><td colspan="12" class="ec-empty">Cargando...</td></tr></tbody>
+        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT período</th><th>Último BLT</th><th>Resp. Cliente período</th><th>Último Cliente</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>
+        <tbody id="ec-eq-body"><tr><td colspan="13" class="ec-empty">Cargando...</td></tr></tbody>
       </table>
     </div>
     <div class="ec-pagination"><button type="button" id="ec-eq-prev">← Anterior</button><span id="ec-eq-page">—</span><button type="button" id="ec-eq-next">Siguiente →</button></div>
   </section>
 
-  <section class="ec-panel card" aria-label="Equipos críticos últimos 365 días">
-    <div class="ec-panel-head"><div><h2>Equipos críticos · últimos 365 días</h2><small id="ec-365-count">Sin cargar</small></div></div>
-    <div class="ec-note">Criterio corporativo móvil: <b>3 o más RESP BLT en los últimos 365 días</b>. Se actualiza diariamente con la fecha actual.</div>
-    <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Llamadas 365d</th><th>Fallas BLT 365d</th><th>Último BLT</th><th>Crítico año actual</th></tr></thead><tbody id="ec-365-body"><tr><td colspan="9" class="ec-empty">Cargando...</td></tr></tbody></table></div>
+  <section class="ec-panel card ec-collapsible is-collapsed" id="ec-365-panel" aria-label="Equipos críticos últimos 365 días">
+    <div class="ec-panel-head ec-collapsible-head">
+      <div><h2>Equipos críticos · últimos 365 días</h2><small id="ec-365-count">Sin cargar</small></div>
+      <button type="button" class="ec-btn ec-btn-soft ec-toggle" data-ec-action="toggle-u365" id="ec-365-toggle" aria-expanded="false" aria-controls="ec-365-content">▼ Expandir</button>
+    </div>
+    <div id="ec-365-content" class="ec-collapsible-content" hidden>
+      <div class="ec-note">Criterio corporativo móvil: <b>3 o más RESP BLT en los últimos 365 días</b>. Se actualiza diariamente con la fecha actual.</div>
+      <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Llamadas 365d</th><th>Fallas BLT 365d</th><th>Último BLT</th><th>Crítico año actual</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="ec-365-body"><tr><td colspan="11" class="ec-empty">Cargando...</td></tr></tbody></table></div>
+    </div>
   </section>
 
   <section class="ec-panel card" aria-label="Proyectos críticos">
@@ -68,13 +73,13 @@
       <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-proyectos">Aplicar</button>
     </div>
 
-    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo.</div>
+    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo. El MTBC de proyecto agrega todas las RESP BLT de sus equipos para Año en curso y U365.</div>
 
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
       <table class="ec-table">
-        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th></th></tr></thead>
-        <tbody id="ec-pro-body"><tr><td colspan="10" class="ec-empty">Cargando...</td></tr></tbody>
+        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT período</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>
+        <tbody id="ec-pro-body"><tr><td colspan="12" class="ec-empty">Cargando...</td></tr></tbody>
       </table>
     </div>
     <div class="ec-pagination"><button type="button" id="ec-pro-prev">← Anterior</button><span id="ec-pro-page">—</span><button type="button" id="ec-pro-next">Siguiente →</button></div>

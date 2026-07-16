@@ -29,14 +29,16 @@
     <article class="cc-kpi g-red clickable" data-cc-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="cc-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
     <article class="cc-kpi g-cyan clickable" data-cc-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="cc-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
     <article class="cc-kpi g-purple clickable" data-cc-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="cc-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
-    <article class="cc-kpi g-darkred clickable" data-cc-detail="criticos"><div class="ico" data-estado-visual="CRITICO">⚠️</div><div class="val" id="cc-criticos">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+    <article class="cc-kpi g-darkred clickable" data-cc-detail="criticos"><div class="ico" data-estado-visual="CRITICO">💥</div><div class="val" id="cc-criticos">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
     <article class="cc-kpi g-dark clickable" data-cc-detail="nofunc"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="cc-nofunc">—</div><div class="lbl">No Funcionando</div><div class="sub">Ver detalle</div></article>
   </section>
 
-  <section class="cc-grid kpi-3">
+  <section class="cc-grid kpi-5">
     <article class="cc-kpi g-teal"><div class="ico">⏱️</div><div class="val" id="cc-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">Tiempo promedio</div></article>
     <article class="cc-kpi g-blue"><div class="ico">🕘</div><div class="val" id="cc-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">Equipos resueltos</div></article>
     <article class="cc-kpi g-slate clickable" data-cc-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="cc-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="cc-sla-pct">—</div></article>
+    <article class="cc-kpi g-indigo"><div class="ico">📈</div><div class="val" id="cc-mtbc-anio">—</div><div class="lbl">Prom. MTBC Año Actual</div><div class="sub">Equipos · RESP BLT</div></article>
+    <article class="cc-kpi g-purple"><div class="ico">📆</div><div class="val" id="cc-mtbc-365">—</div><div class="lbl">Prom. MTBC U365</div><div class="sub">Equipos · RESP BLT</div></article>
   </section>
 
   <section class="cc-grid kpi-2 cc-u365-actions">
@@ -58,21 +60,21 @@
   </section>
 
   <section class="cc-card cc-section" id="cc-u365-proy-section"><div class="cc-section-head"><h2>📊 Llamadas últimos 365 días — Por Proyecto</h2><span id="cc-u365-proy-count">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Total llamadas</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>Equipos activos</th><th>Prom. por equipo</th></tr></thead><tbody id="cc-u365-proy-tbody"></tbody></table></div></section>
+    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Total llamadas</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>Equipos activos</th><th>Prom. por equipo</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="cc-u365-proy-tbody"></tbody></table></div></section>
 
   <section class="cc-card cc-section" id="cc-u365-eq-section"><div class="cc-section-head"><h2>🔧 Llamadas últimos 365 días — Por Equipo</h2><span id="cc-u365-eq-count">—</span></div><div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas U365d</th><th>Resp. Cliente</th><th>Resp. BLT</th></tr></thead><tbody id="cc-u365-eq-tbody"></tbody></table></div></section>
+    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas U365d</th><th>Resp. Cliente</th><th>Resp. BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="cc-u365-eq-tbody"></tbody></table></div></section>
 
   <section class="cc-card cc-section">
     <div class="cc-section-head"><h2>☎️ Equipos con más llamadas del período</h2><span id="cc-top-eq-count">—</span></div>
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>Crítico</th></tr></thead><tbody id="cc-top-equipos-tbody"></tbody></table></div>
+    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipo</th><th>Ref. en sitio</th><th>Llamadas</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>MTBC Año Actual</th><th>MTBC U365</th><th>Crítico</th></tr></thead><tbody id="cc-top-equipos-tbody"></tbody></table></div>
   </section>
 
   <section class="cc-card cc-section">
     <div class="cc-section-head"><h2>🏢 Proyectos con más llamadas del período</h2><span id="cc-top-pro-count">—</span></div>
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA"></div>
-    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipos activos</th><th>Llamadas</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>Críticos</th></tr></thead><tbody id="cc-top-proyectos-tbody"></tbody></table></div>
+    <div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Equipos activos</th><th>Llamadas</th><th>Resp. BLT</th><th>Resp. Cliente</th><th>MTBC Año Actual</th><th>MTBC U365</th><th>Críticos</th></tr></thead><tbody id="cc-top-proyectos-tbody"></tbody></table></div>
   </section>
 
   <section class="cc-card cc-section">
