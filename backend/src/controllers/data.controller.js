@@ -163,9 +163,8 @@ const portafolioBaseSelect = `
   lt.responsabilidad AS ultima_responsabilidad,
   CASE
     WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-    WHEN p.mes_objetivo_inicio_cobranza IS NOT NULL AND TRIM(p.mes_objetivo_inicio_cobranza) <> '' THEN 'Cobranza'
     WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
-    ELSE 'Servicio'
+    ELSE 'En Cobranza'
   END AS contrato,
   CASE
     WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado'
@@ -434,8 +433,7 @@ async function getPortafolioDashboard(req, res) {
     const [kpiRows] = await db.query(`
       SELECT
         COUNT(*) AS total_activos,
-        SUM(CASE WHEN contrato = 'Servicio' THEN 1 ELSE 0 END) AS en_servicio,
-        SUM(CASE WHEN contrato = 'Cobranza' THEN 1 ELSE 0 END) AS en_cobranza,
+        SUM(CASE WHEN contrato = 'En Cobranza' THEN 1 ELSE 0 END) AS en_cobranza,
         SUM(CASE WHEN contrato = 'Gratuito/Garantía' THEN 1 ELSE 0 END) AS gratuito_garantia,
         SUM(CASE WHEN contrato = 'No en Servicio' THEN 1 ELSE 0 END) AS no_en_servicio,
         SUM(CASE WHEN estado_operativo = 'Funcionando' THEN 1 ELSE 0 END) AS funcionando,
@@ -444,9 +442,8 @@ async function getPortafolioDashboard(req, res) {
         SELECT
           CASE
             WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-            WHEN p.mes_objetivo_inicio_cobranza IS NOT NULL AND TRIM(p.mes_objetivo_inicio_cobranza) <> '' THEN 'Cobranza'
             WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
-            ELSE 'Servicio'
+            ELSE 'En Cobranza'
           END AS contrato,
           CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado' ELSE 'Funcionando' END AS estado_operativo
         FROM portafolio p
@@ -470,21 +467,11 @@ async function getPortafolioDashboard(req, res) {
 
     const contratoExpr = `CASE
       WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-      WHEN p.mes_objetivo_inicio_cobranza IS NOT NULL AND TRIM(p.mes_objetivo_inicio_cobranza) <> '' THEN 'Cobranza'
       WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
-      ELSE 'Servicio'
+      ELSE 'En Cobranza'
     END`;
     const operativoExpr = `CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado' ELSE 'Funcionando' END`;
 
-    const [parados] = await db.query(`
-      SELECT ${portafolioBaseSelect}
-      FROM portafolio p
-      ${latestTicketJoin}
-      WHERE ${filters.where}
-        AND UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%'
-      ORDER BY dias_parado DESC, lt.fecha_reporte ASC
-      LIMIT 50
-    `, filters.params);
 
     return res.json({
       ok: true,
@@ -495,8 +482,7 @@ async function getPortafolioDashboard(req, res) {
         operativo: await distBy(operativoExpr),
         tipo: await distBy(`COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo')`),
         zona: await distBy(`COALESCE(p.zona_operativa, 'Sin zona')`)
-      },
-      parados
+      }
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando dashboard de portafolio.', error: error.message });
