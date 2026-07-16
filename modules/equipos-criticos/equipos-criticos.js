@@ -5,9 +5,10 @@
     eq:{ page:1, pageSize:25, total:0, rows:[], lastCriteria:null },
     pro:{ page:1, pageSize:25, total:0, rows:[], lastCriteria:null },
     u365:{ rows:[], expanded:false },
-    detail:{ title:'Detalle', rows:[] }
+    detail:{ title:'Detalle', rows:[] },
+    preferences:{ fallas:3, periodo:35, loaded:false, saving:false }
   };
-  const EC_INLINE_HTML = "<div class=\"ec-page\">\n  <section class=\"ec-head card\">\n    <div>\n      <p class=\"ec-eyebrow\">Módulo en pruebas</p>\n      <h1>Equipos Críticos</h1>\n      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. Los criterios son independientes por tabla y no modifican Resumen del Día.</p>\n    </div>\n    <button type=\"button\" class=\"ec-btn ec-btn-soft\" data-ec-action=\"refresh-all\">↻ Actualizar todo</button>\n  </section>\n\n  <section class=\"ec-panel card\" aria-label=\"Equipos críticos\">\n    <div class=\"ec-panel-head\">\n      <div>\n        <h2>Equipos Críticos</h2>\n        <small id=\"ec-eq-count\">Sin cargar</small>\n      </div>\n      <div class=\"ec-actions\">\n        <button type=\"button\" class=\"ec-btn\" data-ec-action=\"clear-equipos\">Limpiar filtros</button>\n        <button type=\"button\" class=\"ec-btn ec-btn-danger\" data-ec-action=\"pdf-equipos\">PDF Equipos</button>\n      </div>\n    </div>\n\n    <div class=\"ec-filters\">\n      <label>Fallas BLT mín.<input type=\"number\" id=\"ec-eq-min\" min=\"1\" value=\"3\" /></label>\n      <label>Días<input type=\"number\" id=\"ec-eq-dias\" min=\"1\" value=\"35\" /></label>\n      <label>Zona<input type=\"text\" id=\"ec-eq-zona\" placeholder=\"Ej. NOR\" /></label>\n      <label>Proyecto<input type=\"text\" id=\"ec-eq-proyecto\" placeholder=\"Proyecto\" /></label>\n      <label>Buscar<input type=\"search\" id=\"ec-eq-search\" placeholder=\"Equipo, ticket, ref.\" /></label>\n      <button type=\"button\" class=\"ec-btn ec-btn-primary\" data-ec-action=\"load-equipos\">Aplicar</button>\n    </div>\n\n    <div class=\"ec-note\">Criterio actual de esta tabla: <b id=\"ec-eq-criteria\">3 fallas BLT en 35 días</b>. El filtro determina qué equipos aparecen; el MTBC corporativo se calcula únicamente con RESP BLT en Año en curso y U365.</div>\n\n    <div class=\"estado-leyenda-host-gnral\" data-estados-leyenda=\"CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA\" data-estados-excluir=\"CRITICO\"></div>\n    <div class=\"ec-table-wrap\">\n      <table class=\"ec-table\">\n        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT período</th><th>Último BLT</th><th>Resp. Cliente período</th><th>Último Cliente</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>\n        <tbody id=\"ec-eq-body\"><tr><td colspan=\"13\" class=\"ec-empty\">Cargando...</td></tr></tbody>\n      </table>\n    </div>\n    <div class=\"ec-pagination\"><button type=\"button\" id=\"ec-eq-prev\">← Anterior</button><span id=\"ec-eq-page\">—</span><button type=\"button\" id=\"ec-eq-next\">Siguiente →</button></div>\n  </section>\n\n  <section class=\"ec-panel card ec-collapsible is-collapsed\" id=\"ec-365-panel\" aria-label=\"Equipos críticos últimos 365 días\">\n    <div class=\"ec-panel-head ec-collapsible-head\">\n      <div><h2>Equipos críticos · últimos 365 días</h2><small id=\"ec-365-count\">Sin cargar</small></div>\n      <button type=\"button\" class=\"ec-btn ec-btn-soft ec-toggle\" data-ec-action=\"toggle-u365\" id=\"ec-365-toggle\" aria-expanded=\"false\" aria-controls=\"ec-365-content\">▼ Expandir</button>\n    </div>\n    <div id=\"ec-365-content\" class=\"ec-collapsible-content\" hidden>\n      <div class=\"ec-note\">Criterio corporativo móvil: <b>3 o más RESP BLT en los últimos 365 días</b>. Se actualiza diariamente con la fecha actual.</div>\n      <div class=\"ec-table-wrap\"><table class=\"ec-table\"><thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Llamadas 365d</th><th>Fallas BLT 365d</th><th>Último BLT</th><th>Crítico año actual</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id=\"ec-365-body\"><tr><td colspan=\"11\" class=\"ec-empty\">Cargando...</td></tr></tbody></table></div>\n    </div>\n  </section>\n\n  <section class=\"ec-panel card\" aria-label=\"Proyectos críticos\">\n    <div class=\"ec-panel-head\">\n      <div>\n        <h2>Proyectos Críticos</h2>\n        <small id=\"ec-pro-count\">Sin cargar</small>\n      </div>\n      <div class=\"ec-actions\">\n        <button type=\"button\" class=\"ec-btn\" data-ec-action=\"clear-proyectos\">Limpiar filtros</button>\n        <button type=\"button\" class=\"ec-btn ec-btn-danger\" data-ec-action=\"pdf-proyectos\">PDF Proyectos</button>\n      </div>\n    </div>\n\n    <div class=\"ec-filters\">\n      <label>Fallas BLT mín.<input type=\"number\" id=\"ec-pro-min\" min=\"1\" value=\"5\" /></label>\n      <label>Días<input type=\"number\" id=\"ec-pro-dias\" min=\"1\" value=\"35\" /></label>\n      <label>Fallas por equipo<input type=\"number\" id=\"ec-pro-min-equipo\" min=\"1\" value=\"3\" /></label>\n      <label>Zona<input type=\"text\" id=\"ec-pro-zona\" placeholder=\"Ej. CNA\" /></label>\n      <label>Proyecto<input type=\"text\" id=\"ec-pro-proyecto\" placeholder=\"Proyecto\" /></label>\n      <button type=\"button\" class=\"ec-btn ec-btn-primary\" data-ec-action=\"load-proyectos\">Aplicar</button>\n    </div>\n\n    <div class=\"ec-note\">Criterio actual de esta tabla: <b id=\"ec-pro-criteria\">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo. El MTBC de proyecto agrega todas las RESP BLT de sus equipos para Año en curso y U365.</div>\n\n    <div class=\"estado-leyenda-host-gnral\" data-estados-leyenda=\"CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA\" data-estados-excluir=\"CRITICO\"></div>\n    <div class=\"ec-table-wrap\">\n      <table class=\"ec-table\">\n        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT período</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>\n        <tbody id=\"ec-pro-body\"><tr><td colspan=\"12\" class=\"ec-empty\">Cargando...</td></tr></tbody>\n      </table>\n    </div>\n    <div class=\"ec-pagination\"><button type=\"button\" id=\"ec-pro-prev\">← Anterior</button><span id=\"ec-pro-page\">—</span><button type=\"button\" id=\"ec-pro-next\">Siguiente →</button></div>\n  </section>\n</div>\n\n<section id=\"ec-detail-modal\" class=\"ec-detail\" hidden>\n  <div class=\"ec-detail-panel\">\n    <div class=\"ec-detail-head\">\n      <button type=\"button\" id=\"ec-detail-close\">×</button>\n      <div><h2 id=\"ec-detail-title\">Detalle</h2><p id=\"ec-detail-sub\">Historial</p></div>\n      <button type=\"button\" class=\"ec-btn ec-btn-danger\" id=\"ec-detail-pdf\">PDF detalle</button>\n    </div>\n    <div class=\"ec-detail-body\">\n      <div class=\"estado-leyenda-host-gnral\" data-estados-leyenda=\"CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA\" data-estados-excluir=\"CRITICO\"></div>\n      <div class=\"ec-table-wrap\"><table class=\"ec-table\"><thead><tr><th>Ticket</th><th>Fecha reporte</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Zona</th><th>Responsabilidad</th><th>Causa</th><th>T. llegada</th><th>T. solución</th></tr></thead><tbody id=\"ec-detail-body\"></tbody></table></div>\n    </div>\n  </div>\n</section>\n";
+  const EC_INLINE_HTML = "<div class=\"ec-page\">\n  <section class=\"ec-head card\">\n    <div>\n      <p class=\"ec-eyebrow\">Módulo en pruebas</p>\n      <h1>Equipos Críticos</h1>\n      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. El criterio de Equipos es personal por usuario y también gobierna el emoji de criticidad en los demás módulos.</p>\n    </div>\n    <button type=\"button\" class=\"ec-btn ec-btn-soft\" data-ec-action=\"refresh-all\">↻ Actualizar todo</button>\n  </section>\n\n  <section class=\"ec-panel card\" aria-label=\"Equipos críticos\">\n    <div class=\"ec-panel-head\">\n      <div>\n        <h2>Equipos Críticos</h2>\n        <small id=\"ec-eq-count\">Sin cargar</small>\n      </div>\n      <div class=\"ec-actions\">\n        <button type=\"button\" class=\"ec-btn\" data-ec-action=\"clear-equipos\">Limpiar filtros</button>\n        <button type=\"button\" class=\"ec-btn ec-btn-danger\" data-ec-action=\"pdf-equipos\">PDF Equipos</button>\n      </div>\n    </div>\n\n    <div class=\"ec-filters\">\n      <label>Fallas BLT mín.<input type=\"number\" id=\"ec-eq-min\" min=\"1\" value=\"3\" /></label>\n      <label>Días<input type=\"number\" id=\"ec-eq-dias\" min=\"1\" value=\"35\" /></label>\n      <label>Zona<input type=\"text\" id=\"ec-eq-zona\" placeholder=\"Ej. NOR\" /></label>\n      <label>Proyecto<input type=\"text\" id=\"ec-eq-proyecto\" placeholder=\"Proyecto\" /></label>\n      <label>Buscar<input type=\"search\" id=\"ec-eq-search\" placeholder=\"Equipo, ticket, ref.\" /></label>\n      <button type=\"button\" class=\"ec-btn ec-btn-primary\" data-ec-action=\"load-equipos\" id=\"ec-eq-apply\">Aplicar y guardar</button>\n    </div>\n\n    <div class=\"ec-note\">Criterio personal activo: <b id=\"ec-eq-criteria\">3 fallas BLT en 35 días</b>. Se guarda en el usuario y gobierna qué equipos reciben 💥 en el Gestor. El MTBC se calcula únicamente con RESP BLT en Año Actual y U365.</div>\n\n    <div class=\"estado-leyenda-host-gnral\" data-estados-leyenda=\"CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA\" data-estados-excluir=\"CRITICO\"></div>\n    <div class=\"ec-table-wrap\">\n      <table class=\"ec-table\">\n        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT período</th><th>Último BLT</th><th>Resp. Cliente período</th><th>Último Cliente</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>\n        <tbody id=\"ec-eq-body\"><tr><td colspan=\"13\" class=\"ec-empty\">Cargando...</td></tr></tbody>\n      </table>\n    </div>\n    <div class=\"ec-pagination\"><button type=\"button\" id=\"ec-eq-prev\">← Anterior</button><span id=\"ec-eq-page\">—</span><button type=\"button\" id=\"ec-eq-next\">Siguiente →</button></div>\n  </section>\n\n  <section class=\"ec-panel card ec-collapsible is-collapsed\" id=\"ec-365-panel\" aria-label=\"Equipos críticos últimos 365 días\">\n    <div class=\"ec-panel-head ec-collapsible-head\">\n      <div><h2>Equipos críticos · últimos 365 días</h2><small id=\"ec-365-count\">Sin cargar</small></div>\n      <button type=\"button\" class=\"ec-btn ec-btn-soft ec-toggle\" data-ec-action=\"toggle-u365\" id=\"ec-365-toggle\" aria-expanded=\"false\" aria-controls=\"ec-365-content\">▼ Expandir</button>\n    </div>\n    <div id=\"ec-365-content\" class=\"ec-collapsible-content\" hidden>\n      <div class=\"ec-note\">Criterio corporativo móvil: <b>3 o más RESP BLT en los últimos 365 días</b>. Se actualiza diariamente con la fecha actual.</div>\n      <div class=\"ec-table-wrap\"><table class=\"ec-table\"><thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Llamadas 365d</th><th>Fallas BLT 365d</th><th>Último BLT</th><th>Crítico año actual</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id=\"ec-365-body\"><tr><td colspan=\"11\" class=\"ec-empty\">Cargando...</td></tr></tbody></table></div>\n    </div>\n  </section>\n\n  <section class=\"ec-panel card\" aria-label=\"Proyectos críticos\">\n    <div class=\"ec-panel-head\">\n      <div>\n        <h2>Proyectos Críticos</h2>\n        <small id=\"ec-pro-count\">Sin cargar</small>\n      </div>\n      <div class=\"ec-actions\">\n        <button type=\"button\" class=\"ec-btn\" data-ec-action=\"clear-proyectos\">Limpiar filtros</button>\n        <button type=\"button\" class=\"ec-btn ec-btn-danger\" data-ec-action=\"pdf-proyectos\">PDF Proyectos</button>\n      </div>\n    </div>\n\n    <div class=\"ec-filters\">\n      <label>Fallas BLT mín.<input type=\"number\" id=\"ec-pro-min\" min=\"1\" value=\"5\" /></label>\n      <label>Días<input type=\"number\" id=\"ec-pro-dias\" min=\"1\" value=\"35\" /></label>\n      <label>Fallas por equipo<input type=\"number\" id=\"ec-pro-min-equipo\" min=\"1\" value=\"3\" /></label>\n      <label>Zona<input type=\"text\" id=\"ec-pro-zona\" placeholder=\"Ej. CNA\" /></label>\n      <label>Proyecto<input type=\"text\" id=\"ec-pro-proyecto\" placeholder=\"Proyecto\" /></label>\n      <button type=\"button\" class=\"ec-btn ec-btn-primary\" data-ec-action=\"load-proyectos\">Aplicar</button>\n    </div>\n\n    <div class=\"ec-note\">Criterio actual de esta tabla: <b id=\"ec-pro-criteria\">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo. El MTBC de proyecto agrega todas las RESP BLT de sus equipos para Año en curso y U365.</div>\n\n    <div class=\"estado-leyenda-host-gnral\" data-estados-leyenda=\"CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA\" data-estados-excluir=\"CRITICO\"></div>\n    <div class=\"ec-table-wrap\">\n      <table class=\"ec-table\">\n        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT período</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>\n        <tbody id=\"ec-pro-body\"><tr><td colspan=\"12\" class=\"ec-empty\">Cargando...</td></tr></tbody>\n      </table>\n    </div>\n    <div class=\"ec-pagination\"><button type=\"button\" id=\"ec-pro-prev\">← Anterior</button><span id=\"ec-pro-page\">—</span><button type=\"button\" id=\"ec-pro-next\">Siguiente →</button></div>\n  </section>\n</div>\n\n<section id=\"ec-detail-modal\" class=\"ec-detail\" hidden>\n  <div class=\"ec-detail-panel\">\n    <div class=\"ec-detail-head\">\n      <button type=\"button\" id=\"ec-detail-close\">×</button>\n      <div><h2 id=\"ec-detail-title\">Detalle</h2><p id=\"ec-detail-sub\">Historial</p></div>\n      <button type=\"button\" class=\"ec-btn ec-btn-danger\" id=\"ec-detail-pdf\">PDF detalle</button>\n    </div>\n    <div class=\"ec-detail-body\">\n      <div class=\"estado-leyenda-host-gnral\" data-estados-leyenda=\"CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA\" data-estados-excluir=\"CRITICO\"></div>\n      <div class=\"ec-table-wrap\"><table class=\"ec-table\"><thead><tr><th>Ticket</th><th>Fecha reporte</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Zona</th><th>Responsabilidad</th><th>Causa</th><th>T. llegada</th><th>T. solución</th></tr></thead><tbody id=\"ec-detail-body\"></tbody></table></div>\n    </div>\n  </div>\n</section>\n";
 
   function $(id){ return document.getElementById(id); }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -111,11 +112,83 @@
     return monthName ? `${tail} de ${monthName} #${num}` : raw;
   }
 
-  async function fetchJson(path){
-    const r = await fetch(API()+path, { headers:{ 'Accept':'application/json' }});
+  async function requestJson(path, options){
+    const opts = Object.assign({ method:'GET' }, options || {});
+    if(window.ManttoAuth && typeof window.ManttoAuth.api === 'function') return window.ManttoAuth.api(path, opts);
+    const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, opts.headers || {});
+    if(window.ManttoAuth && typeof window.ManttoAuth.authHeaders === 'function') Object.assign(headers, window.ManttoAuth.authHeaders());
+    const r = await fetch(API()+path, Object.assign({}, opts, { headers }));
     const data = await r.json().catch(()=>({ ok:false, message:'Respuesta invalida del backend' }));
     if(!r.ok || !data.ok) throw new Error(data.message || data.error || 'Error consultando backend');
     return data;
+  }
+  async function fetchJson(path){ return requestJson(path, { method:'GET' }); }
+
+  function positivePreference(value, fallback){
+    const n = Number.parseInt(value, 10);
+    return Number.isInteger(n) && n > 0 ? n : fallback;
+  }
+  function updateCachedUserPreferences(fallas, periodo){
+    const user = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function' ? window.ManttoAuth.getUser() : null;
+    if(user){
+      user.criticos_fallas = fallas;
+      user.criticos_periodo = periodo;
+      try{ localStorage.setItem('mantto_user', JSON.stringify(user)); }catch(e){}
+    }
+  }
+  function applyPreferencesToInputs(){
+    if($('ec-eq-min')) $('ec-eq-min').value = state.preferences.fallas;
+    if($('ec-eq-dias')) $('ec-eq-dias').value = state.preferences.periodo;
+  }
+  async function loadUserPreferences(){
+    let fallas = 3;
+    let periodo = 35;
+    try{
+      const data = await fetchJson('/api/usuarios/me/criticos-preferencias');
+      fallas = positivePreference(data.data && data.data.criticos_fallas, 3);
+      periodo = positivePreference(data.data && data.data.criticos_periodo, 35);
+    }catch(error){
+      const user = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function' ? window.ManttoAuth.getUser() : null;
+      fallas = positivePreference(user && user.criticos_fallas, 3);
+      periodo = positivePreference(user && user.criticos_periodo, 35);
+      console.warn('[Equipos Criticos] Preferencias no disponibles; se usan valores de sesión/default.', error);
+    }
+    state.preferences = { fallas, periodo, loaded:true, saving:false };
+    applyPreferencesToInputs();
+    updateCachedUserPreferences(fallas, periodo);
+  }
+  async function saveUserPreferences(){
+    const fallas = num('ec-eq-min', state.preferences.fallas || 3);
+    const periodo = num('ec-eq-dias', state.preferences.periodo || 35);
+    if(fallas < 1 || periodo < 1) throw new Error('Fallas y período deben ser mayores a cero.');
+    const button = $('ec-eq-apply');
+    state.preferences.saving = true;
+    if(button){ button.disabled = true; button.textContent = 'Guardando...'; }
+    try{
+      const data = await requestJson('/api/usuarios/me/criticos-preferencias', { method:'PATCH', body:JSON.stringify({ criticos_fallas:fallas, criticos_periodo:periodo }) });
+      const savedFallas = positivePreference(data.data && data.data.criticos_fallas, fallas);
+      const savedPeriodo = positivePreference(data.data && data.data.criticos_periodo, periodo);
+      state.preferences = { fallas:savedFallas, periodo:savedPeriodo, loaded:true, saving:false };
+      applyPreferencesToInputs();
+      updateCachedUserPreferences(savedFallas, savedPeriodo);
+      document.dispatchEvent(new CustomEvent('mantto:criticos-preferencias-updated', { detail:{ criticos_fallas:savedFallas, criticos_periodo:savedPeriodo } }));
+      return state.preferences;
+    }finally{
+      state.preferences.saving = false;
+      if(button){ button.disabled = false; button.textContent = 'Aplicar y guardar'; }
+    }
+  }
+  async function applyEquipoCriteria(){
+    const count = $('ec-eq-count');
+    if(count) count.textContent = 'Guardando criterio personal...';
+    try{
+      await saveUserPreferences();
+      await loadEquipos(1);
+    }catch(error){
+      if(count) count.textContent = 'No se pudo guardar el criterio';
+      const body = $('ec-eq-body');
+      if(body) body.innerHTML = '<tr><td colspan="13" class="ec-empty">Error: '+esc(error.message)+'</td></tr>';
+    }
   }
 
   async function loadHtml(){
@@ -141,11 +214,11 @@
     document.querySelectorAll('[data-ec-action]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const a=btn.dataset.ecAction;
-        if(a==='refresh-all'){ loadEquipos(1); loadProyectos(1); loadU365(); }
+        if(a==='refresh-all'){ applyEquipoCriteria().then(()=>Promise.all([loadProyectos(1), loadU365()])); }
         if(a==='toggle-u365') toggleU365();
-        if(a==='load-equipos') loadEquipos(1);
+        if(a==='load-equipos') applyEquipoCriteria();
         if(a==='load-proyectos') loadProyectos(1);
-        if(a==='clear-equipos') { ['ec-eq-zona','ec-eq-proyecto','ec-eq-search'].forEach(id=>$(id).value=''); $('ec-eq-min').value=3; $('ec-eq-dias').value=35; loadEquipos(1); }
+        if(a==='clear-equipos') { ['ec-eq-zona','ec-eq-proyecto','ec-eq-search'].forEach(id=>$(id).value=''); applyPreferencesToInputs(); loadEquipos(1); }
         if(a==='clear-proyectos') { ['ec-pro-zona','ec-pro-proyecto'].forEach(id=>$(id).value=''); $('ec-pro-min').value=5; $('ec-pro-dias').value=35; $('ec-pro-min-equipo').value=3; loadProyectos(1); }
         if(a==='pdf-equipos') exportTablePdf('equipos');
         if(a==='pdf-proyectos') exportTablePdf('proyectos');
@@ -157,8 +230,8 @@
     $('ec-pro-next').addEventListener('click',()=>loadProyectos(state.pro.page+1));
     $('ec-detail-close').addEventListener('click',()=>{ $('ec-detail-modal').hidden=true; });
     $('ec-detail-pdf').addEventListener('click',()=>exportDetailPdf());
-    ['ec-eq-search','ec-eq-zona','ec-eq-proyecto','ec-pro-zona','ec-pro-proyecto'].forEach(id=>{
-      const el=$(id); if(el) el.addEventListener('keydown', ev=>{ if(ev.key==='Enter') { ev.preventDefault(); id.startsWith('ec-eq') ? loadEquipos(1) : loadProyectos(1); } });
+    ['ec-eq-min','ec-eq-dias','ec-eq-search','ec-eq-zona','ec-eq-proyecto','ec-pro-zona','ec-pro-proyecto'].forEach(id=>{
+      const el=$(id); if(el) el.addEventListener('keydown', ev=>{ if(ev.key==='Enter') { ev.preventDefault(); id.startsWith('ec-eq') ? applyEquipoCriteria() : loadProyectos(1); } });
     });
   }
 
@@ -446,6 +519,7 @@
   async function init(){
     try{
       await loadHtml();
+      await loadUserPreferences();
       if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa();
       await Promise.all([loadEquipos(state.eq.page), loadProyectos(state.pro.page), loadU365()]);
     }catch(e){

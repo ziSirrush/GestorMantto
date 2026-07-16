@@ -4,6 +4,8 @@
   const AGUA_KW = ['agua','filtracion','filtración','inundacion','inundación','goteras','humedad'];
   const VOLTAJE_KW = ['voltaje','variacion de voltaje','variación de voltaje','sobre voltaje','bajo voltaje','pico de voltaje','falla electrica','falla eléctrica','corte de luz','falla de energia','falla de energía','sin energia','sin energía','apagon','apagón'];
   let allTickets = [], portafolioItems = [], dates = [], currentDayIdx = 0, currentDayTickets = [], tableFiltered = [], page = 0;
+  let criticalEquipmentCodes = new Set();
+  let criticalCriteria = { fallas: 3, periodo: 35 };
   const pageSize = 30;
 
   function byId(id){ return document.getElementById(id); }
@@ -214,6 +216,40 @@
     }
     return [];
   }
+  async function fetchCriticidadUsuario(){
+    const authHeaders = Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {});
+
+    try{
+      const prefResponse = await fetch(apiUrl('/api/usuarios/me/criticos-preferencias'), {cache:'no-store', headers:authHeaders});
+      if(prefResponse.ok){
+        const prefPayload = await prefResponse.json().catch(()=>({}));
+        const pref = prefPayload.data || prefPayload.preferencias || prefPayload.user || prefPayload || {};
+        const fallas = parseInt(pref.criticos_fallas, 10);
+        const periodo = parseInt(pref.criticos_periodo, 10);
+        criticalCriteria = {
+          fallas: Number.isFinite(fallas) && fallas > 0 ? fallas : 3,
+          periodo: Number.isFinite(periodo) && periodo > 0 ? periodo : 35
+        };
+      }
+    }catch(error){
+      criticalCriteria = { fallas: 3, periodo: 35 };
+    }
+
+    try{
+      // No enviamos min_fallas ni dias: el backend usa las preferencias
+      // específicas del usuario autenticado y sus defaults 3/35.
+      const response = await fetch(apiUrl('/api/equipos-criticos?page=1&page_size=5000'), {cache:'no-store', headers:authHeaders});
+      if(!response.ok) throw new Error('HTTP '+response.status);
+      const payload = await response.json();
+      const rows = Array.isArray(payload) ? payload : (payload.data || payload.rows || []);
+      criticalEquipmentCodes = new Set(rows.map(row=>nrm(row.codigo_equipo || row.numero_equipo || row.equipo || row.cod)).filter(Boolean));
+      return criticalEquipmentCodes;
+    }catch(error){
+      console.warn('[Resumen del Día] No se pudo cargar la criticidad del usuario:', error.message);
+      criticalEquipmentCodes = new Set();
+      return criticalEquipmentCodes;
+    }
+  }
   function pfByCod(cod){ return portafolioItems.find(p=>p.cod===cod); }
   function openEquipo(cod){
     if(!cod) return;
@@ -264,12 +300,7 @@
   }
   function pct(v,total){ return total ? Math.round(v/total*100)+'%' : '—'; }
   function critSet(){
-    if(window.EstadosVisuales_gnral && window.EstadosVisuales_gnral.isCriticoEquipo){
-      return new Set(allTickets.map(t=>t.cod).filter(c=>c&&window.EstadosVisuales_gnral.isCriticoEquipo(c)));
-    }
-    const year=String(new Date().getFullYear());
-    const counts={}; allTickets.forEach(t=>{if(t.cod&&t.fr&&t.fr.slice(0,4)===year&&t.res==='BLT')counts[t.cod]=(counts[t.cod]||0)+1;});
-    return new Set(Object.keys(counts).filter(k=>counts[k]>=3));
+    return new Set(criticalEquipmentCodes);
   }
   function avgMin(arr){ const nums = arr.map(num).filter(n=>n!=null && n>0 && n<744); return nums.length ? Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*60) : null; }
   function cafCount(rows){ const map={}; rows.forEach(t=>{ const k=(t.caf||'SIN DATO').replace(/^\d+ - /,'').trim() || 'SIN DATO'; map[k]=(map[k]||0)+1; }); return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([l,v])=>({l,v})); }
@@ -368,13 +399,13 @@
   function renderTopProyectos(rows){
     const body=byId('rd-top-proy-body'); if(!body) return;
     const data=topProyectosData(rows); txt('rd-top-proy-count', data.length ? data.length+' proyectos' : '');
-    body.innerHTML = data.length ? data.map(p=>`<tr class="rd-click-row" data-proyecto="${escapeHtml(p.pro)}"><td>${escapeHtml(p.zon)}</td><td>${renderIdentificador(visualCodesForRows(p.rows,p.criticos>0),formatProyectoName(p.pro))}<br><small>${escapeHtml(p.pro)}</small></td><td>${p.activos}</td><td><b>${p.total}</b></td><td>${p.blt}</td><td>${p.cli}</td><td>${renderVisuales(visualCodesForRows(p.rows,p.criticos>0),'')}${p.criticos?(' ('+p.criticos+')'):''}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin proyectos para este periodo</td></tr>';
+    body.innerHTML = data.length ? data.map(p=>`<tr class="rd-click-row" data-proyecto="${escapeHtml(p.pro)}"><td>${escapeHtml(p.zon)}</td><td>${renderIdentificador([],formatProyectoName(p.pro))}<br><small>${escapeHtml(p.pro)}</small></td><td>${p.activos}</td><td><b>${p.total}</b></td><td>${p.blt}</td><td>${p.cli}</td><td>${p.criticos||0}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin proyectos para este periodo</td></tr>';
     body.querySelectorAll('[data-proyecto]').forEach(tr=>tr.addEventListener('click',()=>openProyecto(tr.dataset.proyecto)));
   }
   function badge(et){ const cls=et==='Cerrado'?'cerrado':et==='En curso'?'curso':'abierto'; return `<span class="rd-badge ${cls}">${et||'—'}</span>`; }
   function ticketBtn(t){ return `<button class="rd-link" data-ticket="${escapeHtml(t.n)}">${escapeHtml(t.n||'—')}</button>`; }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function renderRows(rows, tbody){ const criticalCodes=critSet(); tbody.innerHTML = rows.length ? rows.map(t=>{ const ticketCodes=visualCodesForRows([t],false); const projectCodes=criticalCodes.has(t.cod)?['CRITICO']:[]; return `<tr><td><button class="rd-link" data-ticket="${escapeHtml(t.n)}">${renderIdentificador(ticketCodes,t.n)}</button></td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${renderIdentificador(projectCodes,formatProyectoName(t.pro))}</button></td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${escapeHtml(t.cod||'—')}</button></td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`; }).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); })); tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); })); tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); })); }
+  function renderRows(rows, tbody){ const criticalCodes=critSet(); tbody.innerHTML = rows.length ? rows.map(t=>{ const ticketCodes=visualCodesForRows([t],false); const equipmentCodes=criticalCodes.has(t.cod)?['CRITICO']:[]; return `<tr><td><button class="rd-link" data-ticket="${escapeHtml(t.n)}">${renderIdentificador(ticketCodes,t.n)}</button></td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${renderIdentificador([],formatProyectoName(t.pro))}</button></td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${renderIdentificador(equipmentCodes,t.cod||'—')}</button></td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`; }).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); })); tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); })); tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); })); }
   function renderTable(){ const search=nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase(); const et=nrm(byId('rd-filter-et')&&byId('rd-filter-et').value); tableFiltered=currentDayTickets.filter(t=>(!et||t.et===et)&&(!search||(t.n+t.pro+t.zon+t.asu+t.cod).toLowerCase().includes(search))).sort((a,b)=>((b.fr||'')+(b.hr||'')).localeCompare((a.fr||'')+(a.hr||'')) || String(b.n||'').localeCompare(String(a.n||''))); const totalPages=Math.max(1,Math.ceil(tableFiltered.length/pageSize)); if(page>=totalPages) page=totalPages-1; const slice=tableFiltered.slice(page*pageSize,page*pageSize+pageSize); const th=byId('rd-thead'), tb=byId('rd-tbody'); if(th) th.innerHTML='<tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr>'; if(tb) renderRows(slice,tb); txt('rd-count', tableFiltered.length+' tickets'); txt('rd-page-info','Página '+(page+1)+' de '+totalPages+' · '+tableFiltered.length+' tickets'); const p=byId('rd-page-prev'), n=byId('rd-page-next'); if(p)p.disabled=page===0; if(n)n.disabled=page>=totalPages-1; }
   function ensureDetailModal(){
     let modal = byId('rd-detail-modal');
@@ -595,7 +626,7 @@
     const goProyecto = byId('rd-ticket-go-proyecto'); if(goProyecto){ goProyecto.disabled = !t.pro; goProyecto.onclick = () => openProyecto(t.pro); }
   }
   function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
-  async function load(){ if(window.EstadosVisuales_gnral){ await window.EstadosVisuales_gnral.load(); await window.EstadosVisuales_gnral.loadCriticidadCorporativa(); } const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen')); }
+  async function load(){ if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.load(); const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio(), fetchCriticidadUsuario()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen')); }
   function init(){ if(!byId('view-resumen')) return; if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
   window.ManttoResumenDia = { init, load, openTicket, _detailData:{} };
 })();

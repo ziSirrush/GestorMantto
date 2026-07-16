@@ -3,7 +3,7 @@
     <div>
       <p class="ec-eyebrow">Módulo en pruebas</p>
       <h1>Equipos Críticos</h1>
-      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. Los criterios son independientes por tabla y no modifican Resumen del Día.</p>
+      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. El criterio de Equipos es personal por usuario y también gobierna el emoji de criticidad en los demás módulos.</p>
     </div>
     <button type="button" class="ec-btn ec-btn-soft" data-ec-action="refresh-all">↻ Actualizar todo</button>
   </section>
@@ -26,10 +26,10 @@
       <label>Zona<input type="text" id="ec-eq-zona" placeholder="Ej. NOR" /></label>
       <label>Proyecto<input type="text" id="ec-eq-proyecto" placeholder="Proyecto" /></label>
       <label>Buscar<input type="search" id="ec-eq-search" placeholder="Equipo, ticket, ref." /></label>
-      <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos">Aplicar</button>
+      <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos" id="ec-eq-apply">Aplicar y guardar</button>
     </div>
 
-    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. El filtro determina qué equipos aparecen; el MTBC corporativo se calcula únicamente con RESP BLT en Año en curso y U365.</div>
+    <div class="ec-note">Criterio personal activo: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. Se guarda en el usuario y gobierna qué equipos reciben 💥 en el Gestor. El MTBC se calcula únicamente con RESP BLT en Año Actual y U365.</div>
 
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
