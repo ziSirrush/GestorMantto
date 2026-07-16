@@ -697,17 +697,42 @@ async function getPortafolioEquipoDetalle(req, res) {
         ORDER BY fecha_reporte DESC, id DESC
       `, [mantenimiento.numero_equipo]);
 
-      const tickets = allTickets.filter(ticket => {
-        const value = ticket && ticket.fecha_reporte;
-        if (!value) return false;
-        const year = Number(String(value).slice(0, 4));
-        return year === anioTickets;
-      });
+      const dateParts = value => {
+        if (!value) return null;
+        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+          return {
+            year: value.getFullYear(),
+            month: value.getMonth() + 1,
+            day: value.getDate(),
+            date: value
+          };
+        }
+        const text = String(value).trim();
+        const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+          const year = Number(match[1]);
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          return { year, month, day, date: new Date(year, month - 1, day) };
+        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return {
+          year: parsed.getFullYear(),
+          month: parsed.getMonth() + 1,
+          day: parsed.getDate(),
+          date: parsed
+        };
+      };
+      const yearOf = value => dateParts(value)?.year || null;
+      const monthKeyOf = value => {
+        const parts = dateParts(value);
+        return parts ? `${parts.year}-${String(parts.month).padStart(2, '0')}` : null;
+      };
 
-      const ticketYears = Array.from(new Set(allTickets.map(ticket => {
-        const value = ticket && ticket.fecha_reporte;
-        return value ? Number(String(value).slice(0, 4)) : null;
-      }).filter(Boolean))).sort((a, b) => b - a);
+      const tickets = allTickets.filter(ticket => yearOf(ticket && ticket.fecha_reporte) === anioTickets);
+
+      const ticketYears = Array.from(new Set(allTickets.map(ticket => yearOf(ticket && ticket.fecha_reporte)).filter(Boolean))).sort((a, b) => b - a);
 
       const normalize = value => String(value == null ? '' : value).trim().toUpperCase();
       const blob = ticket => normalize([
@@ -734,11 +759,14 @@ async function getPortafolioEquipoDetalle(req, res) {
       const hasAny = (ticket, words) => words.some(word => blob(ticket).includes(word));
       const isBlt = ticket => normalize(ticket.responsabilidad).includes('BLT');
       const isClient = ticket => normalize(ticket.responsabilidad).includes('CLIENTE');
-      const inCurrentYear = ticket => Number(String(ticket.fecha_reporte || '').slice(0, 4)) === new Date().getFullYear();
+      const inCurrentYear = ticket => yearOf(ticket.fecha_reporte) === new Date().getFullYear();
+      const u365Start = new Date();
+      u365Start.setHours(0, 0, 0, 0);
+      u365Start.setDate(u365Start.getDate() - 364);
       const inU365 = ticket => {
-        const date = new Date(ticket.fecha_reporte);
-        if (Number.isNaN(date.getTime())) return false;
-        return date >= new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+        const date = dateParts(ticket.fecha_reporte)?.date;
+        if (!date || Number.isNaN(date.getTime())) return false;
+        return date >= u365Start;
       };
       const mtbc = (rows, periodDays) => {
         const dates = rows.map(ticket => new Date(ticket.fecha_reporte)).filter(date => !Number.isNaN(date.getTime())).sort((a, b) => a - b);
@@ -780,11 +808,11 @@ async function getPortafolioEquipoDetalle(req, res) {
       const monthlyCurrentMap = new Map();
       const monthlyU365Map = new Map();
       currentYearBlt.forEach(ticket => {
-        const month = String(ticket.fecha_reporte || '').slice(0, 7);
+        const month = monthKeyOf(ticket.fecha_reporte);
         if (month) monthlyCurrentMap.set(month, (monthlyCurrentMap.get(month) || 0) + 1);
       });
       u365Blt.forEach(ticket => {
-        const month = String(ticket.fecha_reporte || '').slice(0, 7);
+        const month = monthKeyOf(ticket.fecha_reporte);
         if (month) monthlyU365Map.set(month, (monthlyU365Map.get(month) || 0) + 1);
       });
 
@@ -797,6 +825,8 @@ async function getPortafolioEquipoDetalle(req, res) {
         tickets,
         ticket_years: ticketYears,
         ticket_year_selected: anioTickets,
+        u365_desde: u365Start.toISOString().slice(0, 10),
+        u365_hasta: new Date().toISOString().slice(0, 10),
         metrics,
         fallas_blt_mes_anio: Array.from(monthlyCurrentMap, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes)),
         fallas_blt_mes_u365: Array.from(monthlyU365Map, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes))
