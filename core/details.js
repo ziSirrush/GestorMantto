@@ -91,7 +91,7 @@
         .mg-company-block.corellian .mg-company-head{background:#0D2E6E}.mg-company-block.united .mg-company-head{background:#0D2E6E}.mg-company-content{padding:14px}.mg-company-content .mg-detail-section:last-child{margin-bottom:0}
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
-        .mg-project-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.mg-project-kpi{border:1px solid #E2E8F0;border-radius:11px;background:#F8FAFC;padding:11px}.mg-project-kpi span{display:block;font-size:9px;text-transform:uppercase;font-weight:800;color:#64748B}.mg-project-kpi strong{display:block;margin-top:4px;color:#0D2E6E;font-size:20px}
+        .mg-project-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.mg-project-kpi{border:1px solid #E2E8F0;border-radius:11px;background:#F8FAFC;padding:11px}.mg-project-kpi span{display:block;font-size:9px;text-transform:uppercase;font-weight:800;color:#64748B}.mg-project-kpi strong{display:block;margin-top:4px;color:#0D2E6E;font-size:20px}.mg-project-kpi-button{width:100%;text-align:left;cursor:pointer;font:inherit}.mg-project-kpi-button:hover{border-color:#1B4FD8;background:#EFF6FF}.mg-project-kpi-button.is-active{border-color:#1B4FD8;background:#DBEAFE;box-shadow:0 0 0 2px rgba(27,79,216,.12)}.mg-project-equipment-row[hidden]{display:none}.mg-project-equipment-empty{display:none}.mg-project-equipment-empty.is-visible{display:table-row}
         .mg-equipment-identity{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;padding:14px 16px}.mg-equipment-identity h3{margin:0;color:#0D2E6E;font-size:20px}.mg-equipment-identity strong{display:block;margin-top:4px;color:#1E293B;font-size:13px}.mg-equipment-identity span{display:inline-flex;margin-top:7px;padding:4px 9px;border-radius:999px;background:#EAF1FF;color:#0D2E6E;font-size:10px;font-weight:800}
         .mg-progress-panel{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;overflow:hidden}.mg-progress-panel-title{margin:0;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px}.mg-progress-list{padding:12px 14px}.mg-progress-item{border-bottom:1px solid #E2E8F0;padding:10px 0}.mg-progress-item:last-child{border-bottom:0}.mg-progress-button{display:block;width:100%;border:0;background:transparent;padding:0;cursor:pointer;text-align:left;color:inherit}.mg-progress-button:focus-visible{outline:2px solid #1B4FD8;outline-offset:4px;border-radius:6px}.mg-progress-label-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px}.mg-progress-label{font-size:11px;font-weight:800;color:#334155}.mg-progress-percent{font-size:11px;font-weight:900;color:#0D2E6E}.mg-progress-track{height:7px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-progress-fill{height:100%;border-radius:inherit;transition:width .25s ease}.mg-progress-fill.general{background:#1B4FD8}.mg-progress-fill.oc{background:#C83B3B}.mg-progress-fill.mo{background:#D7A514}.mg-progress-fill.aj{background:#238B45}.mg-progress-chevron{display:inline-block;margin-left:6px;font-size:10px;transition:transform .2s ease}.mg-progress-item.is-open .mg-progress-chevron{transform:rotate(180deg)}.mg-progress-detail{display:none;margin-top:11px;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;background:#F8FAFC}.mg-progress-item.is-open .mg-progress-detail{display:block}
         .mg-compact-table{width:100%;border-collapse:collapse}.mg-compact-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:10px;padding:8px;white-space:nowrap}.mg-compact-table td{font-size:11px;color:#334155;padding:9px 8px;border-bottom:1px solid #E2E8F0;vertical-align:top}.mg-compact-table tr:last-child td{border-bottom:0}.mg-compact-table-wrap{overflow:auto}.mg-section-hidden{display:none!important}
@@ -187,6 +187,27 @@
     (root || document).querySelectorAll('[data-proyecto]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openProyecto(el.getAttribute('data-proyecto')); }));
     (root || document).querySelectorAll('[data-equipo]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openEquipo_gnral(el.getAttribute('data-equipo')); }));
     (root || document).querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openTicket(el.getAttribute('data-ticket')); }));
+  }
+  function bindProjectEquipmentKpis(root){
+    const scope=root||document;
+    const buttons=Array.from(scope.querySelectorAll('[data-project-equipment-filter]'));
+    const rows=Array.from(scope.querySelectorAll('[data-project-equipment-row]'));
+    const empty=scope.querySelector('[data-project-equipment-empty]');
+    if(!buttons.length||!rows.length) return;
+    buttons.forEach(button=>button.addEventListener('click',()=>{
+      const filter=button.getAttribute('data-project-equipment-filter')||'all';
+      const alreadyActive=button.classList.contains('is-active');
+      buttons.forEach(item=>item.classList.remove('is-active'));
+      const effective=alreadyActive?'all':filter;
+      if(!alreadyActive&&filter!=='all') button.classList.add('is-active');
+      let visible=0;
+      rows.forEach(row=>{
+        const showRow=effective==='all'||row.getAttribute('data-is-stopped')==='1';
+        row.hidden=!showRow;
+        if(showRow) visible+=1;
+      });
+      if(empty) empty.classList.toggle('is-visible',visible===0);
+    }));
   }
   function toPct(value){
     const n=Number(String(value == null ? '' : value).replace('%','').trim());
@@ -322,8 +343,29 @@
       const p = data.proyecto || data.data?.proyecto || {};
       const equipos = data.equipos || data.data?.equipos || [];
       const tickets = data.tickets || data.data?.tickets || [];
-      show('Proyecto · ' + (p.proyecto_nombre || p.proyecto || proyecto), proyecto, '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid([['Proyecto',p.proyecto_nombre || p.proyecto || proyecto],['Código',p.proyecto_codigo || p.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d],['MTBC 365d',p.mtbc_365]])+'</section><section class="mg-detail-section"><h3>Equipos del proyecto</h3>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+ (equipos.length?equipos.map(e=>{const equipoKey=String(e.numero_equipo||'').trim();const equipoCodes=visualCodesEquipo(e,tickets);const equipoCell=equipoKey?'<button class="mg-link" data-equipo="'+esc(equipoKey)+'">'+renderIdentifierVisual(equipoCodes,equipoKey)+'</button>':'—';return '<tr><td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.zona)+'</td><td>'+esc(e.estatus_servicio)+'</td><td>'+esc(e.estado_operativo)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mg-empty">Sin equipos</td></tr>') + '</tbody></table></div></section><section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(tickets)+'</section>');
-      bindLinks(document.getElementById('mg-detail-body'));
+      const isStopped=e=>{const state=String(e.estado_operativo||e.estatus_equipo_final||'').trim().toUpperCase();return state.includes('NO FUNC')||state.includes('PARAD');};
+      const totalEquipos=equipos.length||Number(p.equipos||0);
+      const totalParados=equipos.length?equipos.filter(isStopped).length:Number(p.parados||0);
+      const equipmentRows=equipos.length?equipos.map(e=>{const equipoKey=String(e.numero_equipo||'').trim();const equipoCodes=visualCodesEquipo(e,tickets);const equipoCell=equipoKey?'<button class="mg-link" data-equipo="'+esc(equipoKey)+'">'+renderIdentifierVisual(equipoCodes,equipoKey)+'</button>':'—';return '<tr data-project-equipment-row data-is-stopped="'+(isStopped(e)?'1':'0')+'"><td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.zona||e.zona_operativa)+'</td><td>'+esc(e.estatus_servicio)+'</td><td>'+esc(e.estado_operativo)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mg-empty">Sin equipos</td></tr>';
+      const general=[
+        ['Ciudad',p.ciudad],
+        ['Estado',p.estado],
+        ['Estatus de servicio',p.estatus_servicio],
+        ['Zona Op',p.zona_operativa||p.zona],
+        ['Dirección',p.direccion],
+        ['Fecha instalación',fmtDate(p.fecha_instalacion)],
+        ['Fecha ingreso Portafolio',fmtDate(p.fecha_ingreso_portafolio)],
+        ['Superintendente',p.superintendente],
+        ['Supervisor',p.supervisor_zona||p.supervisor]
+      ];
+      const equipmentKpis='<div class="mg-project-kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button type="button" class="mg-project-kpi mg-project-kpi-button" data-project-equipment-filter="all"><span>Total de equipos</span><strong>'+esc(totalEquipos)+'</strong></button><button type="button" class="mg-project-kpi mg-project-kpi-button" data-project-equipment-filter="stopped"><span>Parados</span><strong>'+esc(totalParados)+'</strong></button></div>';
+      show('Proyecto · ' + (p.proyecto_nombre || p.nombre_publico || p.proyecto || proyecto), proyecto,
+        '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid(general)+'</section>'+ 
+        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3><div style="padding:12px 14px 0">'+equipmentKpis+'</div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+equipmentRows+'<tr class="mg-project-equipment-empty" data-project-equipment-empty><td colspan="5" class="mg-empty">No hay equipos parados en este proyecto.</td></tr></tbody></table></div></section>'+ 
+        '<section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(tickets)+'</section>');
+      const detailRoot=document.getElementById('mg-detail-body');
+      bindLinks(detailRoot);
+      bindProjectEquipmentKpis(detailRoot);
     }catch(e){ show('Proyecto', proyecto, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
   function hasValue(v){
