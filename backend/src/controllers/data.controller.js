@@ -304,99 +304,6 @@ async function getPortafolioMovimientos(req, res) {
   }
 }
 
-
-async function getPortafolioSemanasDisponibles(req, res) {
-  try {
-    const [rows] = await db.query(`
-      SELECT anio_iso, semana_iso, fecha_inicio, fecha_fin, fecha_corte,
-             total_movimientos, total_salidas, total_regresos, total_cambios
-      FROM portafolio_cortes_semanales
-      WHERE estado = 'CERRADO'
-      ORDER BY anio_iso DESC, semana_iso DESC
-    `);
-
-    const years = [...new Set(rows.map(row => Number(row.anio_iso)))];
-    return res.json({ ok: true, source: 'aiven', years, data: rows });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      message: 'Error consultando el catálogo de cortes semanales.',
-      error: error.message
-    });
-  }
-}
-
-async function getPortafolioMovimientosSemanales(req, res) {
-  try {
-    const anio = Number.parseInt(req.query.anio, 10);
-    const semana = Number.parseInt(req.query.semana, 10);
-    if (!Number.isInteger(anio) || !Number.isInteger(semana)) {
-      return res.status(400).json({ ok: false, message: 'Año y semana son obligatorios.' });
-    }
-
-    const [rows] = await db.query(`
-      SELECT id_corte, anio_iso, semana_iso, fecha_inicio, fecha_fin, fecha_corte,
-             total_portafolio, total_movimientos, total_salidas, total_regresos,
-             total_cambios, movimientos_json, estado
-      FROM portafolio_cortes_semanales
-      WHERE anio_iso = ? AND semana_iso = ? AND estado = 'CERRADO'
-      LIMIT 1
-    `, [anio, semana]);
-
-    if (!rows.length) {
-      return res.status(404).json({ ok: false, message: `No existe un corte cerrado para la semana ${semana} de ${anio}.` });
-    }
-
-    const row = rows[0];
-    let movements = row.movimientos_json;
-    if (typeof movements === 'string') {
-      try { movements = JSON.parse(movements); } catch (error) { movements = []; }
-    }
-    if (!Array.isArray(movements)) movements = [];
-
-    const search = String(req.query.search || req.query.buscar || '').trim().toLowerCase();
-    const tipo = String(req.query.tipo || '').trim().toUpperCase();
-    const validTypes = new Set(['DEGRADADO', 'RECUPERADO', 'CAMBIO']);
-
-    const filtered = movements.filter(item => {
-      if (tipo && validTypes.has(tipo) && String(item.tipo || '').toUpperCase() !== tipo) return false;
-      if (search) {
-        const haystack = [item.proyecto, item.proyecto_codigo, item.equipo, item.zona, item.supervisor]
-          .map(value => String(value || '').toLowerCase())
-          .join(' ');
-        if (!haystack.includes(search)) return false;
-      }
-      return true;
-    });
-
-    return res.json({
-      ok: true,
-      source: 'aiven',
-      corte: {
-        id_corte: row.id_corte,
-        anio_iso: row.anio_iso,
-        semana_iso: row.semana_iso,
-        fecha_inicio: row.fecha_inicio,
-        fecha_fin: row.fecha_fin,
-        fecha_corte: row.fecha_corte,
-        total_portafolio: row.total_portafolio,
-        total_movimientos: row.total_movimientos,
-        total_salidas: row.total_salidas,
-        total_regresos: row.total_regresos,
-        total_cambios: row.total_cambios
-      },
-      total_filtrado: filtered.length,
-      data: filtered
-    });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      message: 'Error consultando movimientos semanales de portafolio.',
-      error: error.message
-    });
-  }
-}
-
 async function getPortafolioFiltros(req, res) {
   try {
     const [zonas] = await db.query(`
@@ -2406,8 +2313,15 @@ async function getProyectoDetalle(req, res) {
         MAX(p.proyecto_cc_x_port) AS proyecto_cc_x_port,
         MAX(p.ciudad) AS ciudad,
         MAX(p.estado) AS estado,
+        GROUP_CONCAT(DISTINCT NULLIF(TRIM(p.estatus_servicio), '') ORDER BY p.estatus_servicio SEPARATOR ' / ') AS estatus_servicio,
         MAX(p.zona_operativa) AS zona,
+        MAX(p.zona_operativa) AS zona_operativa,
+        MAX(p.direccion) AS direccion,
+        MIN(p.fecha_instalacion) AS fecha_instalacion,
+        MIN(p.fecha_ingreso_portafolio) AS fecha_ingreso_portafolio,
+        MAX(p.superintendente) AS superintendente,
         MAX(p.supervisor_zona) AS supervisor,
+        MAX(p.supervisor_zona) AS supervisor_zona,
         COUNT(*) AS equipos,
         SUM(CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 1 ELSE 0 END) AS parados,
         SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
@@ -2846,8 +2760,6 @@ module.exports = {
   getPortafolioProyectoDetalle,
   getPortafolioFiltros,
   getPortafolioMovimientos,
-  getPortafolioSemanasDisponibles,
-  getPortafolioMovimientosSemanales,
   getPortafolioMovimientoDetalle,
   getPortafolioDashboard,
   getPortafolioEquipos,
