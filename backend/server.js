@@ -15,6 +15,7 @@ const logisticaRoutes = require('./src/routes/logistica.routes');
 const usuariosRelAdminRoutes = require('./src/routes/usuarios-rel-admin.routes');
 const insFlRoutes = require('./src/routes/ins-fl.routes');
 const { startPortafolioCierreMensualJob } = require('./src/jobs/portafolioCierreMensual.job');
+const { startPortafolioCierreSemanalJob } = require('./src/jobs/portafolioCierreSemanal.job');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,4 +56,5 @@ app.use('/api', dataRoutes);
 app.listen(PORT, () => {
   console.log('Mantto Gestor API escuchando en http://localhost:' + PORT);
   startPortafolioCierreMensualJob();
+  startPortafolioCierreSemanalJob();
 });
