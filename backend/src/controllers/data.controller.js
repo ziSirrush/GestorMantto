@@ -685,13 +685,108 @@ async function getPortafolioEquipoDetalle(req, res) {
         });
       }
 
-      const [tickets] = await db.query(`
+      const anioTicketsRaw = Number.parseInt(req.query.anio_tickets, 10);
+      const anioTickets = Number.isInteger(anioTicketsRaw) && anioTicketsRaw >= 2000 && anioTicketsRaw <= 2100
+        ? anioTicketsRaw
+        : new Date().getFullYear();
+
+      const [allTickets] = await db.query(`
         SELECT *
         FROM tickets
         WHERE TRIM(COALESCE(codigo_equipo, '')) = TRIM(?)
         ORDER BY fecha_reporte DESC, id DESC
-        LIMIT 300
       `, [mantenimiento.numero_equipo]);
+
+      const tickets = allTickets.filter(ticket => {
+        const value = ticket && ticket.fecha_reporte;
+        if (!value) return false;
+        const year = Number(String(value).slice(0, 4));
+        return year === anioTickets;
+      });
+
+      const ticketYears = Array.from(new Set(allTickets.map(ticket => {
+        const value = ticket && ticket.fecha_reporte;
+        return value ? Number(String(value).slice(0, 4)) : null;
+      }).filter(Boolean))).sort((a, b) => b - a);
+
+      const normalize = value => String(value == null ? '' : value).trim().toUpperCase();
+      const blob = ticket => normalize([
+        ticket.descripcion,
+        ticket.asunto,
+        ticket.causa,
+        ticket.causa_falla,
+        ticket.accion_en_cierre
+      ].filter(Boolean).join(' '));
+      const durationHours = value => {
+        if (value === null || value === undefined || String(value).trim() === '') return null;
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        const text = String(value).trim();
+        const numeric = Number(text.replace(',', '.'));
+        if (Number.isFinite(numeric)) return numeric;
+        const match = text.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
+        if (!match) return null;
+        return Number(match[1]) + Number(match[2]) / 60 + Number(match[3] || 0) / 3600;
+      };
+      const status = ticket => normalize(ticket.estado_ticket || ticket.estado);
+      const isClosed = ticket => status(ticket).includes('CERR');
+      const isOpen = ticket => status(ticket).includes('ABIER');
+      const isInProgress = ticket => !isClosed(ticket) && !isOpen(ticket);
+      const hasAny = (ticket, words) => words.some(word => blob(ticket).includes(word));
+      const isBlt = ticket => normalize(ticket.responsabilidad).includes('BLT');
+      const isClient = ticket => normalize(ticket.responsabilidad).includes('CLIENTE');
+      const inCurrentYear = ticket => Number(String(ticket.fecha_reporte || '').slice(0, 4)) === new Date().getFullYear();
+      const inU365 = ticket => {
+        const date = new Date(ticket.fecha_reporte);
+        if (Number.isNaN(date.getTime())) return false;
+        return date >= new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      };
+      const mtbc = (rows, periodDays) => {
+        const dates = rows.map(ticket => new Date(ticket.fecha_reporte)).filter(date => !Number.isNaN(date.getTime())).sort((a, b) => a - b);
+        if (!dates.length) return null;
+        if (dates.length === 1) return periodDays;
+        return Math.round(((dates[dates.length - 1] - dates[0]) / 86400000 / (dates.length - 1)) * 10) / 10;
+      };
+      const average = values => {
+        const nums = values.filter(value => value !== null && Number.isFinite(value));
+        return nums.length ? Math.round((nums.reduce((sum, value) => sum + value, 0) / nums.length) * 10) / 10 : null;
+      };
+
+      const currentYear = new Date().getFullYear();
+      const currentYearStart = new Date(currentYear, 0, 1);
+      const elapsedCurrentYearDays = Math.max(1, Math.floor((Date.now() - currentYearStart.getTime()) / 86400000) + 1);
+      const currentYearBlt = allTickets.filter(ticket => inCurrentYear(ticket) && isBlt(ticket));
+      const u365Blt = allTickets.filter(ticket => inU365(ticket) && isBlt(ticket));
+      const metrics = {
+        cerrados: allTickets.filter(isClosed).length,
+        en_curso: allTickets.filter(isInProgress).length,
+        abiertos: allTickets.filter(isOpen).length,
+        filtracion: allTickets.filter(ticket => hasAny(ticket, ['FILTRACION', 'FILTRACIÓN', 'AGUA', 'INUNDACION', 'INUNDACIÓN', 'GOTERA'])).length,
+        atrapados: allTickets.filter(ticket => hasAny(ticket, ['ATRAPADO', 'ATRAPADA', 'ENCERRADO', 'ENCERRADA', 'RESCATE'])).length,
+        voltaje: allTickets.filter(ticket => hasAny(ticket, ['VOLTAJE', 'FALLA ELECTRICA', 'FALLA ELÉCTRICA', 'SIN ENERGIA', 'SIN ENERGÍA', 'APAGON', 'APAGÓN'])).length,
+        en_sla: allTickets.filter(ticket => {
+          const llegada = durationHours(ticket.tiempo_llegada);
+          const solucion = durationHours(ticket.tiempo_solucion);
+          return llegada !== null && solucion !== null && llegada <= 4 && solucion <= 24;
+        }).length,
+        promedio_llegada: average(allTickets.map(ticket => durationHours(ticket.tiempo_llegada))),
+        promedio_solucion: average(allTickets.map(ticket => durationHours(ticket.tiempo_solucion))),
+        tickets_anio: allTickets.filter(inCurrentYear).length,
+        resp_blt_anio: currentYearBlt.length,
+        resp_cliente_anio: allTickets.filter(ticket => inCurrentYear(ticket) && isClient(ticket)).length,
+        mtbc_anio: mtbc(currentYearBlt, elapsedCurrentYearDays),
+        mtbc_u365: mtbc(u365Blt, 365)
+      };
+
+      const monthlyCurrentMap = new Map();
+      const monthlyU365Map = new Map();
+      currentYearBlt.forEach(ticket => {
+        const month = String(ticket.fecha_reporte || '').slice(0, 7);
+        if (month) monthlyCurrentMap.set(month, (monthlyCurrentMap.get(month) || 0) + 1);
+      });
+      u365Blt.forEach(ticket => {
+        const month = String(ticket.fecha_reporte || '').slice(0, 7);
+        if (month) monthlyU365Map.set(month, (monthlyU365Map.get(month) || 0) + 1);
+      });
 
       return res.json({
         ok: true,
@@ -699,7 +794,12 @@ async function getPortafolioEquipoDetalle(req, res) {
         data: mantenimiento,
         mantenimiento,
         instalaciones: [],
-        tickets
+        tickets,
+        ticket_years: ticketYears,
+        ticket_year_selected: anioTickets,
+        metrics,
+        fallas_blt_mes_anio: Array.from(monthlyCurrentMap, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes)),
+        fallas_blt_mes_u365: Array.from(monthlyU365Map, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes))
       });
     }
 
