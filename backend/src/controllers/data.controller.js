@@ -2430,6 +2430,8 @@ async function getProyectoDetalle(req, res) {
     const equivalencia = await resolveProyectoEquivalencia(proyectoSolicitado);
     const proyecto = equivalencia.proyecto_busqueda;
     const nombrePublico = equivalencia.nombre_publico;
+    const anioTicketsRaw = Number.parseInt(req.query.anio_tickets, 10);
+    const anioTickets = Number.isInteger(anioTicketsRaw) && anioTicketsRaw >= 2000 && anioTicketsRaw <= 2100 ? anioTicketsRaw : null;
     const filtroVisible = soloPortafolio
       ? 'p.estado_registro = 1'
       : "p.estado_registro = 1 AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))";
@@ -2502,7 +2504,13 @@ async function getProyectoDetalle(req, res) {
     }
 
     const [equipos] = await db.query(`
-      SELECT ${portafolioBaseSelect}
+      SELECT ${portafolioBaseSelect},
+        (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
+        (SELECT MAX(tay.fecha_reporte) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS ultimo_blt,
+        (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tcli.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
+        (SELECT MAX(tcli.fecha_reporte) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS ultimo_cliente,
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1 ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN 365 ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets t365 WHERE t365.codigo_equipo = p.numero_equipo AND t365.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) AND t365.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
       FROM portafolio p
       ${latestTicketJoin}
       WHERE ${filtroVisible}
@@ -2510,20 +2518,37 @@ async function getProyectoDetalle(req, res) {
       ORDER BY p.numero_equipo ASC
     `, [proyecto]);
 
+    const ticketParams = [proyecto, proyecto];
+    const ticketYearSql = anioTickets ? ' AND YEAR(t.fecha_reporte) = ?' : '';
+    if (anioTickets) ticketParams.push(anioTickets);
     const [tickets] = await db.query(`
       SELECT
-        t.ticket, t.codigo_equipo, t.equipo, t.folio, t.estado_ticket, t.estado, t.fecha_reporte, t.fecha_cierre,
-        t.responsabilidad, t.causa_falla, t.causa, t.tiempo_llegada, t.tiempo_solucion, t.estatus_equipo_final
+        t.ticket, t.codigo_equipo, t.equipo, t.folio, t.estado_ticket, t.estado,
+        t.descripcion, t.fecha_reporte, t.h_reporte, t.estatus_equipo_ir,
+        t.fecha_llegada, t.h_llegada, t.tiempo_llegada,
+        t.fecha_cierre, t.h_solucion, t.tiempo_solucion,
+        t.estatus_equipo_final, t.causa, t.causa_falla, t.accion_en_cierre, t.responsabilidad
       FROM tickets t
-      WHERE UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?))
+      WHERE (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?))
          OR t.codigo_equipo IN (
           SELECT numero_equipo
           FROM portafolio
           WHERE ${filtroVisibleSubquery}
             AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
-        )
-      ORDER BY t.fecha_reporte DESC, t.id DESC
-      LIMIT 300
+        ))
+        ${ticketYearSql}
+      ORDER BY t.codigo_equipo ASC, t.fecha_reporte DESC, t.id DESC
+      LIMIT 3000
+    `, ticketParams);
+
+    const [ticketYears] = await db.query(`
+      SELECT DISTINCT YEAR(t.fecha_reporte) AS anio
+      FROM tickets t
+      WHERE t.fecha_reporte IS NOT NULL
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        ))
+      ORDER BY anio DESC
     `, [proyecto, proyecto]);
 
     const [monthlyCurrent] = await db.query(`
@@ -2586,6 +2611,8 @@ async function getProyectoDetalle(req, res) {
       proyecto: proyectoDecorado,
       equipos: equiposDecorados,
       tickets,
+      ticket_years: ticketYears.map(row => Number(row.anio)).filter(Boolean),
+      ticket_year_selected: anioTickets,
       monthly_current: monthlyCurrent,
       monthly_previous: monthlyPrevious,
       responsabilidad
