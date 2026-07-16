@@ -94,12 +94,14 @@
         .mg-project-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.mg-project-kpi{border:1px solid #E2E8F0;border-radius:11px;background:#F8FAFC;padding:11px}.mg-project-kpi span{display:block;font-size:9px;text-transform:uppercase;font-weight:800;color:#64748B}.mg-project-kpi strong{display:block;margin-top:4px;color:#0D2E6E;font-size:20px}.mg-project-kpi-button{width:100%;text-align:left;cursor:pointer;font:inherit}.mg-project-kpi-button:hover{border-color:#1B4FD8;background:#EFF6FF}.mg-project-kpi-button.is-active{border-color:#1B4FD8;background:#DBEAFE;box-shadow:0 0 0 2px rgba(27,79,216,.12)}.mg-project-equipment-row[hidden]{display:none}.mg-project-equipment-empty{display:none}.mg-project-equipment-empty.is-visible{display:table-row}
         .mg-equipment-identity{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;padding:14px 16px}.mg-equipment-identity h3{margin:0;color:#0D2E6E;font-size:20px}.mg-equipment-identity strong{display:block;margin-top:4px;color:#1E293B;font-size:13px}.mg-equipment-identity span{display:inline-flex;margin-top:7px;padding:4px 9px;border-radius:999px;background:#EAF1FF;color:#0D2E6E;font-size:10px;font-weight:800}
         .mg-progress-panel{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;overflow:hidden}.mg-progress-panel-title{margin:0;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px}.mg-progress-list{padding:12px 14px}.mg-progress-item{border-bottom:1px solid #E2E8F0;padding:10px 0}.mg-progress-item:last-child{border-bottom:0}.mg-progress-button{display:block;width:100%;border:0;background:transparent;padding:0;cursor:pointer;text-align:left;color:inherit}.mg-progress-button:focus-visible{outline:2px solid #1B4FD8;outline-offset:4px;border-radius:6px}.mg-progress-label-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px}.mg-progress-label{font-size:11px;font-weight:800;color:#334155}.mg-progress-percent{font-size:11px;font-weight:900;color:#0D2E6E}.mg-progress-track{height:7px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-progress-fill{height:100%;border-radius:inherit;transition:width .25s ease}.mg-progress-fill.general{background:#1B4FD8}.mg-progress-fill.oc{background:#C83B3B}.mg-progress-fill.mo{background:#D7A514}.mg-progress-fill.aj{background:#238B45}.mg-progress-chevron{display:inline-block;margin-left:6px;font-size:10px;transition:transform .2s ease}.mg-progress-item.is-open .mg-progress-chevron{transform:rotate(180deg)}.mg-progress-detail{display:none;margin-top:11px;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;background:#F8FAFC}.mg-progress-item.is-open .mg-progress-detail{display:block}
+        .mg-clickable-row{cursor:pointer}.mg-clickable-row:hover td{background:#EFF6FF}.mg-clickable-row:focus-visible{outline:2px solid #1B4FD8;outline-offset:-2px}.mg-project-equipment-table{min-width:1180px}.mg-project-ticket-table{min-width:2100px}.mg-ticket-group td{background:#EAF1FF!important;color:#0D2E6E!important;font-weight:900;border-top:2px solid #BFDBFE}.mg-ticket-group span{font-weight:600;color:#64748B;margin-left:8px}.mg-section-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EFF6FF;padding-right:14px}.mg-section-toolbar h3{flex:1}.mg-section-toolbar label{display:flex;align-items:center;gap:7px;color:#0D2E6E;font-size:11px;font-weight:800}.mg-section-toolbar select{border:1px solid #BFDBFE;border-radius:8px;background:#fff;padding:6px 28px 6px 9px;color:#0D2E6E;font-weight:700}
+        .mg-equipment-kpi-group{margin-bottom:14px}.mg-equipment-kpi-group h4{margin:0 0 8px;color:#0D2E6E;font-size:11px;text-transform:uppercase;letter-spacing:.05em}.mg-equipment-kpis{display:grid;gap:9px}.mg-equipment-kpis.cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.mg-equipment-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-equipment-kpi{border:1px solid #D7E1F1;border-radius:11px;background:#F8FAFC;padding:10px;text-align:left;min-height:76px}.mg-equipment-kpi{cursor:default}.mg-equipment-kpi span{display:block;color:#64748B;font-size:9px;font-weight:800;text-transform:uppercase}.mg-equipment-kpi strong{display:block;margin-top:5px;color:#0D2E6E;font-size:20px}.mg-equipment-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px}.mg-line-chart{border:1px solid #E2E8F0;border-radius:11px;padding:12px;background:#fff}.mg-line-chart h4{margin:0;color:#0D2E6E;font-size:12px}.mg-line-chart p{margin:3px 0 10px;color:#64748B;font-size:10px}.mg-line-chart svg{display:block;width:100%;height:auto}.mg-line-chart .grid{stroke:#E2E8F0;stroke-width:1}.mg-line-chart .axis-label{fill:#64748B;font-size:8px}.mg-line-chart .line{fill:none;stroke:#1B4FD8;stroke-width:2.5}.mg-line-chart .point{fill:#fff;stroke:#1B4FD8;stroke-width:2}.mg-service-panel-toggle{width:100%;border:0;background:#EFF6FF;color:#0D2E6E;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:800;cursor:pointer}.mg-service-months{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px}.mg-service-month{border:1px solid #FED7AA;border-radius:10px;background:#FFF7ED;padding:10px;text-align:center;min-height:66px}.mg-service-month.confirmed{border-color:#86EFAC;background:#F0FDF4}.mg-service-month button{border:0;background:transparent;width:100%;cursor:pointer;color:inherit}.mg-service-month button:disabled{cursor:default}.mg-service-month strong{display:block;color:#0D2E6E;font-size:10px}.mg-service-month span{display:block;margin-top:4px;color:#D97706;font-size:9px}.mg-service-month.confirmed span{color:#15803D}.mg-equipment-ticket-table{min-width:2100px}.mg-equipment-ticket-row[hidden]{display:none}.mg-mobile-fold-title{display:none}
         .mg-compact-table{width:100%;border-collapse:collapse}.mg-compact-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:10px;padding:8px;white-space:nowrap}.mg-compact-table td{font-size:11px;color:#334155;padding:9px 8px;border-bottom:1px solid #E2E8F0;vertical-align:top}.mg-compact-table tr:last-child td{border-bottom:0}.mg-compact-table-wrap{overflow:auto}.mg-section-hidden{display:none!important}
         .mg-project-overview{display:grid;grid-template-columns:minmax(250px,36%) 1fr;gap:14px;margin-bottom:14px}.mg-project-overview.no-photo{grid-template-columns:1fr}.mg-project-cover{display:block;width:100%;height:260px;border:0;border-radius:12px;overflow:hidden;padding:0;background:#E2E8F0;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.08)}.mg-project-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}.mg-project-overview .mg-detail-section{margin-bottom:0}
         .mg-stage-bars{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;padding:14px;margin-bottom:14px}.mg-stage-row{margin:11px 0}.mg-stage-row:first-child{margin-top:0}.mg-stage-row:last-child{margin-bottom:0}.mg-stage-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;font-size:11px;font-weight:800;color:#334155}.mg-stage-track{height:9px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-stage-fill{height:100%;border-radius:inherit}.mg-stage-fill.general{background:#1B4FD8}.mg-stage-fill.oc{background:#C83B3B}.mg-stage-fill.mo{background:#D7A514}.mg-stage-fill.aj{background:#238B45}
         .mg-photo-lightbox{position:fixed;inset:0;z-index:10050;background:rgba(2,6,23,.92);display:grid;place-items:center;padding:28px}.mg-photo-lightbox[hidden]{display:none}.mg-photo-lightbox figure{margin:0;max-width:min(1120px,88vw);text-align:center}.mg-photo-lightbox img{display:block;max-width:100%;max-height:76vh;margin:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}.mg-photo-lightbox figcaption{color:#fff;margin-top:10px;font-size:12px}.mg-photo-close,.mg-photo-nav{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.mg-photo-close{top:18px;right:22px;width:44px;height:44px;border-radius:50%;font-size:30px}.mg-photo-nav{top:50%;transform:translateY(-50%);width:50px;height:70px;border-radius:12px;font-size:46px}.mg-photo-nav.prev{left:18px}.mg-photo-nav.next{right:18px}.mg-photo-principal{margin-top:14px;border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0D2E6E;color:#fff;padding:10px 15px;font-weight:800;cursor:pointer}.mg-photo-principal:disabled{background:#475569;cursor:default;opacity:.9}
-        @media(max-width:900px){.mg-project-overview{grid-template-columns:1fr}.mg-project-cover{height:210px}.mg-chart-grid{grid-template-columns:1fr}.mg-project-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:760px){.mg-detail-view{padding:0}.mg-detail-head{border-radius:0;padding:12px;align-items:flex-start}.mg-detail-head h2{font-size:16px}.mg-detail-body{padding:10px}.mg-detail-grid{grid-template-columns:1fr}.mg-table{min-width:680px}}
+        @media(max-width:900px){.mg-project-overview{grid-template-columns:1fr}.mg-project-cover{height:210px}.mg-chart-grid{grid-template-columns:1fr}.mg-project-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-equipment-kpis.cols-6,.mg-equipment-kpis.cols-4{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-equipment-charts{grid-template-columns:1fr}.mg-service-months{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:760px){.mg-detail-view{padding:0}.mg-detail-head{border-radius:0;padding:12px;align-items:flex-start}.mg-detail-head h2{font-size:16px}.mg-detail-body{padding:10px}.mg-detail-grid{grid-template-columns:1fr}.mg-table{min-width:680px}.mg-equipment-kpis.cols-6,.mg-equipment-kpis.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-service-months{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `;
       document.head.appendChild(css);
     }
@@ -337,36 +339,72 @@
     proyecto = String(proyecto || '').trim(); if(!proyecto || proyecto === '—') return;
     if(!currentDetailMatches('proyecto', proyecto) && navigate('proyecto', proyecto, options)) return;
     if(options.template==='cliente-unificado'||options.source==='instalaciones-concentrado-cliente'){try{return await openUnifiedClientProject(proyecto,options);}catch(e){show('Proyecto',proyecto,'<div class="mg-empty">Error: '+esc(e.message)+'</div>');return;}}
+    const currentYear=new Date().getFullYear();
+    let selectedYear=Number(options.anio_tickets)||currentYear;
     show('Proyecto', proyecto, '<div class="mg-empty">Cargando detalle del proyecto...</div>');
-    try{
-      const data = await fetchJson('/api/proyectos/detalle/' + encodeURIComponent(proyecto));
-      const p = data.proyecto || data.data?.proyecto || {};
-      const equipos = data.equipos || data.data?.equipos || [];
-      const tickets = data.tickets || data.data?.tickets || [];
-      const isStopped=e=>{const state=String(e.estado_operativo||e.estatus_equipo_final||'').trim().toUpperCase();return state.includes('NO FUNC')||state.includes('PARAD');};
+
+    const isStopped=e=>{const state=String(e.estado_operativo||e.estatus_equipo_final||'').trim().toUpperCase();return state.includes('NO FUNC')||state.includes('PARAD');};
+    const fmtTime=v=>{if(!v)return '—';const value=String(v).trim();const match=value.match(/(?:T|\s)(\d{2}:\d{2})(?::\d{2})?/);if(match)return match[1];const plain=value.match(/^(\d{1,2}:\d{2})/);return plain?plain[1]:value;};
+    const fmtDuration=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' h':String(v);};
+    const fmtMtbc=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' d':String(v);};
+    const normalizeResponsibility=v=>{const value=String(v||'').trim();return value||'—';};
+
+    function equipmentRows(equipos,tickets){
+      if(!equipos.length)return '<tr><td colspan="9" class="mg-empty">Sin equipos</td></tr>';
+      return equipos.map(e=>{
+        const equipoKey=String(e.numero_equipo||'').trim();
+        const equipoCodes=visualCodesEquipo(e,tickets);
+        const equipoCell=equipoKey?renderIdentifierVisual(equipoCodes,equipoKey):'—';
+        return '<tr class="mg-project-equipment-row mg-clickable-row" data-equipo="'+esc(equipoKey)+'" data-is-stopped="'+(isStopped(e)?'1':'0')+'" tabindex="0" role="button">'+
+          '<td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.estado_operativo)+'</td><td>'+esc(e.fallas_blt_anio||0)+'</td><td>'+fmtDate(e.ultimo_blt)+'</td><td>'+esc(e.resp_cliente_anio||0)+'</td><td>'+fmtDate(e.ultimo_cliente)+'</td><td>'+fmtMtbc(e.mtbc_anio)+'</td><td>'+fmtMtbc(e.mtbc_365)+'</td></tr>';
+      }).join('');
+    }
+
+    function groupedTicketRows(tickets){
+      if(!tickets.length)return '<tr><td colspan="16" class="mg-empty">Sin tickets para el año seleccionado.</td></tr>';
+      const groups=new Map();
+      tickets.forEach(ticket=>{
+        const key=String(ticket.codigo_equipo||ticket.equipo||'Sin equipo').trim()||'Sin equipo';
+        if(!groups.has(key))groups.set(key,[]);
+        groups.get(key).push(ticket);
+      });
+      return Array.from(groups.entries()).map(([equipo,rows])=>{
+        const header='<tr class="mg-ticket-group"><td colspan="16">Equipo: '+esc(equipo)+' <span>'+rows.length+' ticket(s)</span></td></tr>';
+        const body=rows.map(t=>{
+          const ticketId=String(t.ticket||t.folio||'').trim();
+          return '<tr class="mg-clickable-row" data-ticket="'+esc(ticketId)+'" tabindex="0" role="button">'+
+            '<td>'+esc(ticketId)+'</td><td>'+fmtDate(t.fecha_reporte)+'</td><td>'+esc(fmtTime(t.h_reporte))+'</td><td>'+esc(t.estado_ticket||t.estado)+'</td><td>'+esc(t.descripcion||t.asunto)+'</td><td>'+esc(t.estatus_equipo_ir)+'</td><td>'+fmtDate(t.fecha_llegada)+'</td><td>'+esc(fmtTime(t.h_llegada))+'</td><td>'+esc(fmtDuration(t.tiempo_llegada))+'</td><td>'+fmtDate(t.fecha_cierre)+'</td><td>'+esc(fmtTime(t.h_solucion))+'</td><td>'+esc(fmtDuration(t.tiempo_solucion))+'</td><td>'+esc(t.estatus_equipo_final)+'</td><td>'+esc(t.causa||t.causa_falla)+'</td><td>'+esc(t.accion_en_cierre)+'</td><td>'+esc(normalizeResponsibility(t.responsabilidad))+'</td></tr>';
+        }).join('');
+        return header+body;
+      }).join('');
+    }
+
+    async function load(year){
+      selectedYear=Number(year)||currentYear;
+      const data=await fetchJson('/api/proyectos/detalle/'+encodeURIComponent(proyecto)+'?anio_tickets='+encodeURIComponent(selectedYear));
+      const p=data.proyecto||data.data?.proyecto||{};
+      const equipos=data.equipos||data.data?.equipos||[];
+      const tickets=data.tickets||data.data?.tickets||[];
+      const years=Array.from(new Set((data.ticket_years||[]).map(Number).filter(Boolean).concat([selectedYear]))).sort((a,b)=>b-a);
+      registerTickets(tickets);
       const totalEquipos=equipos.length||Number(p.equipos||0);
       const totalParados=equipos.length?equipos.filter(isStopped).length:Number(p.parados||0);
-      const equipmentRows=equipos.length?equipos.map(e=>{const equipoKey=String(e.numero_equipo||'').trim();const equipoCodes=visualCodesEquipo(e,tickets);const equipoCell=equipoKey?'<button class="mg-link" data-equipo="'+esc(equipoKey)+'">'+renderIdentifierVisual(equipoCodes,equipoKey)+'</button>':'—';return '<tr data-project-equipment-row data-is-stopped="'+(isStopped(e)?'1':'0')+'"><td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.zona||e.zona_operativa)+'</td><td>'+esc(e.estatus_servicio)+'</td><td>'+esc(e.estado_operativo)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mg-empty">Sin equipos</td></tr>';
-      const general=[
-        ['Ciudad',p.ciudad],
-        ['Estado',p.estado],
-        ['Estatus de servicio',p.estatus_servicio],
-        ['Zona Op',p.zona_operativa||p.zona],
-        ['Dirección',p.direccion],
-        ['Fecha instalación',fmtDate(p.fecha_instalacion)],
-        ['Fecha ingreso Portafolio',fmtDate(p.fecha_ingreso_portafolio)],
-        ['Superintendente',p.superintendente],
-        ['Supervisor',p.supervisor_zona||p.supervisor]
-      ];
+      const general=[['Ciudad',p.ciudad],['Estado',p.estado],['Estatus de servicio',p.estatus_servicio],['Zona Op',p.zona_operativa||p.zona],['Dirección',p.direccion],['Fecha instalación',fmtDate(p.fecha_instalacion)],['Fecha ingreso Portafolio',fmtDate(p.fecha_ingreso_portafolio)],['Superintendente',p.superintendente],['Supervisor',p.supervisor_zona||p.supervisor]];
       const equipmentKpis='<div class="mg-project-kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button type="button" class="mg-project-kpi mg-project-kpi-button" data-project-equipment-filter="all"><span>Total de equipos</span><strong>'+esc(totalEquipos)+'</strong></button><button type="button" class="mg-project-kpi mg-project-kpi-button" data-project-equipment-filter="stopped"><span>Parados</span><strong>'+esc(totalParados)+'</strong></button></div>';
-      show('Proyecto · ' + (p.proyecto_nombre || p.nombre_publico || p.proyecto || proyecto), proyecto,
+      const yearOptions=years.map(y=>'<option value="'+y+'" '+(y===selectedYear?'selected':'')+'>'+y+'</option>').join('');
+      show('Proyecto · '+(p.proyecto_nombre||p.nombre_publico||p.proyecto||proyecto),proyecto,
         '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid(general)+'</section>'+ 
-        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3><div style="padding:12px 14px 0">'+equipmentKpis+'</div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+equipmentRows+'<tr class="mg-project-equipment-empty" data-project-equipment-empty><td colspan="5" class="mg-empty">No hay equipos parados en este proyecto.</td></tr></tbody></table></div></section>'+ 
-        '<section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(tickets)+'</section>');
+        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3><div style="padding:12px 14px 0">'+equipmentKpis+'</div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'<tr class="mg-project-equipment-empty" data-project-equipment-empty><td colspan="9" class="mg-empty">No hay equipos parados en este proyecto.</td></tr></tbody></table></div></section>'+ 
+        '<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Proyecto</h3><label>Año <select id="mg-project-ticket-year">'+yearOptions+'</select></label></div><div class="mg-table-wrap"><table class="mg-table mg-project-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody>'+groupedTicketRows(tickets)+'</tbody></table></div></section>');
       const detailRoot=document.getElementById('mg-detail-body');
       bindLinks(detailRoot);
       bindProjectEquipmentKpis(detailRoot);
-    }catch(e){ show('Proyecto', proyecto, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
+      detailRoot.querySelectorAll('.mg-clickable-row').forEach(row=>row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();row.click();}}));
+      const yearSelect=detailRoot.querySelector('#mg-project-ticket-year');
+      if(yearSelect)yearSelect.addEventListener('change',()=>load(yearSelect.value).catch(e=>show('Proyecto',proyecto,'<div class="mg-empty">Error: '+esc(e.message)+'</div>')));
+    }
+
+    try{await load(selectedYear);}catch(e){show('Proyecto',proyecto,'<div class="mg-empty">Error: '+esc(e.message)+'</div>');}
   }
   function hasValue(v){
     return v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '—';
@@ -408,23 +446,80 @@
   async function openEquipo_uni(codigo){
     codigo = String(codigo || '').trim(); if(!codigo || codigo === '—') return;
     if(!currentDetailMatches('equipo', codigo) && navigate('equipo', codigo)) return;
+    const currentYear=new Date().getFullYear();
+    let selectedYear=currentYear;
+    let activeFilter='all';
     show('Equipo', codigo, '<div class="mg-empty">Cargando detalle del equipo...</div>');
-    try{
-      const data = await fetchJson('/api/portafolio/equipos/' + encodeURIComponent(codigo));
-      const e = data.data || data.mantenimiento || data.equipo || {};
-      const tickets = Array.isArray(data.tickets)
-        ? data.tickets
-        : (data.data && Array.isArray(data.data.tickets) ? data.data.tickets : []);
-      if(!e || !String(e.numero_equipo || '').trim()){
-        show('Equipo', codigo, '<div class="mg-empty">Equipo no encontrado en Portafolio.</div>');
-        return;
-      }
+
+    const fmtTime=v=>{if(!v)return '—';const value=String(v).trim();const match=value.match(/(?:T|\s)(\d{2}:\d{2})(?::\d{2})?/);if(match)return match[1];const plain=value.match(/^(\d{1,2}:\d{2})/);return plain?plain[1]:value;};
+    const fmtDuration=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' h':String(v);};
+    const fmtMtbc=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' d':String(v);};
+    const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+    const ticketBlob=t=>normalize([t.descripcion,t.asunto,t.causa,t.causa_falla,t.accion_en_cierre].filter(Boolean).join(' '));
+    const ticketStatus=t=>normalize(t.estado_ticket||t.estado);
+    const filterMatch=(t,key)=>{
+      if(key==='all')return true;
+      if(key==='closed')return ticketStatus(t).includes('CERR');
+      if(key==='open')return ticketStatus(t).includes('ABIER');
+      if(key==='progress')return !ticketStatus(t).includes('CERR')&&!ticketStatus(t).includes('ABIER');
+      if(key==='water')return ['FILTRACION','AGUA','INUNDACION','GOTERA'].some(v=>ticketBlob(t).includes(v));
+      if(key==='trapped')return ['ATRAPADO','ATRAPADA','ENCERRADO','ENCERRADA','RESCATE'].some(v=>ticketBlob(t).includes(v));
+      if(key==='voltage')return ['VOLTAJE','FALLA ELECTRICA','SIN ENERGIA','APAGON'].some(v=>ticketBlob(t).includes(v));
+      if(key==='blt')return normalize(t.responsabilidad).includes('BLT');
+      if(key==='client')return normalize(t.responsabilidad).includes('CLIENTE');
+      return true;
+    };
+    const monthLabel=key=>{const [y,m]=String(key).split('-').map(Number);return new Intl.DateTimeFormat('es-MX',{month:'short',year:'2-digit'}).format(new Date(y,m-1,1)).replace('.','');};
+    const lineChart=(title,subtitle,rows,keys)=>{
+      const map=new Map((rows||[]).map(r=>[String(r.mes),Number(r.total||0)]));
+      const vals=keys.map(k=>map.get(k)||0);const max=Math.max(1,...vals);const w=620,h=190,left=34,right=12,top=14,bottom=34;const cw=w-left-right,ch=h-top-bottom;
+      const pts=vals.map((v,i)=>{const x=left+(keys.length===1?cw/2:(i*cw/(keys.length-1)));const y=top+ch-(v/max*ch);return{x,y,v,key:keys[i]};});
+      const lines=[0,.25,.5,.75,1].map(f=>{const y=top+ch-(f*ch);return '<line class="grid" x1="'+left+'" y1="'+y+'" x2="'+(w-right)+'" y2="'+y+'"/><text class="axis-label" x="2" y="'+(y+3)+'">'+Math.round(max*f)+'</text>';}).join('');
+      const labels=pts.map((p,i)=>i%2===0?'<text class="axis-label" text-anchor="middle" x="'+p.x+'" y="'+(h-8)+'">'+esc(monthLabel(p.key))+'</text>':'').join('');
+      const points=pts.map(p=>'<circle class="point" cx="'+p.x+'" cy="'+p.y+'" r="4"><title>'+esc(monthLabel(p.key))+': '+p.v+'</title></circle>').join('');
+      return '<article class="mg-line-chart"><h4>'+esc(title)+'</h4><p>'+esc(subtitle)+'</p><svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+esc(title)+'">'+lines+'<polyline class="line" points="'+pts.map(p=>p.x+','+p.y).join(' ')+'"/>'+points+labels+'</svg></article>';
+    };
+    const ticketRows=(tickets,year,availableYears)=>{
+      const rows=tickets.map(t=>{const id=String(t.ticket||t.folio||'').trim();return '<tr class="mg-clickable-row mg-equipment-ticket-row" data-ticket="'+esc(id)+'" tabindex="0" role="button"><td>'+esc(id)+'</td><td>'+fmtDate(t.fecha_reporte)+'</td><td>'+esc(fmtTime(t.h_reporte))+'</td><td>'+esc(t.estado_ticket||t.estado)+'</td><td>'+esc(t.descripcion||t.asunto)+'</td><td>'+esc(t.estatus_equipo_ir)+'</td><td>'+fmtDate(t.fecha_llegada)+'</td><td>'+esc(fmtTime(t.h_llegada))+'</td><td>'+esc(fmtDuration(t.tiempo_llegada))+'</td><td>'+fmtDate(t.fecha_cierre)+'</td><td>'+esc(fmtTime(t.h_solucion))+'</td><td>'+esc(fmtDuration(t.tiempo_solucion))+'</td><td>'+esc(t.estatus_equipo_final)+'</td><td>'+esc(t.causa||t.causa_falla)+'</td><td>'+esc(t.accion_en_cierre)+'</td><td>'+esc(t.responsabilidad)+'</td></tr>';}).join('');
+      if(rows)return rows;
+      const latest=(availableYears||[]).find(y=>Number(y)!==Number(year));
+      const extra=latest?' Último año con información: '+latest+'.':'';
+      return '<tr><td colspan="16" class="mg-empty">Sin tickets registrados en '+esc(year)+'.'+esc(extra)+'</td></tr>';
+    };
+
+    function userTokens(){const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};return [u.nombre,u.name,u.iniciales,u.initials,u.correo,u.email,u.puesto,u.rol,u.role,u.rol_nombre,u.role_name].map(normalize).filter(Boolean);}
+    function isDirectorAllowed(){const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};const containers=[u,u.permisos,u.permissions,u.permiso,u.access].filter(Boolean);const keys=['dashboard_operativo_confirmar','confirmar_servicio_operativo','operativo_confirmar_servicio','director_confirmar_servicio','puede_confirmar_operativo'];return userTokens().some(v=>v.includes('DIRECTOR'))&&containers.some(obj=>keys.some(k=>obj[k]===true||obj[k]===1||obj[k]==='1'||String(obj[k]).toLowerCase()==='true'));}
+    function canConfirm(e){const assigned=[e.supervisor,e.superintendente].map(normalize).filter(Boolean);return assigned.some(name=>userTokens().some(token=>name===token||name.includes(token)||token.includes(name)))||isDirectorAllowed();}
+    function serviceMonths(e){const storageKey='mantto_operativo_servicio_confirm_v1';let confirmations={};try{confirmations=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}catch(_e){}const items=[];const now=new Date();for(let i=0;i<12;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const key=d.getFullYear()+'_'+String(d.getMonth()+1).padStart(2,'0');const conf=confirmations[codigo+'__'+key];items.push({key,label:new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric'}).format(d),conf});}return{storageKey,confirmations,items};}
+
+    async function load(year){
+      selectedYear=Number(year)||currentYear;
+      const data=await fetchJson('/api/portafolio/equipos/'+encodeURIComponent(codigo)+'?anio_tickets='+encodeURIComponent(selectedYear));
+      const e=data.data||data.mantenimiento||data.equipo||{};const tickets=Array.isArray(data.tickets)?data.tickets:[];const metrics=data.metrics||{};
+      if(!e||!String(e.numero_equipo||'').trim()){show('Equipo',codigo,'<div class="mg-empty">Equipo no encontrado en Portafolio.</div>');return;}
       registerTickets(tickets);
-      show('Equipo · ' + (e.numero_equipo || codigo), e.proyecto || 'Detalle de equipo', '<section class="mg-detail-section"><h3>Detalle del Equipo</h3>'+grid([['Código',e.numero_equipo || codigo],['Proyecto',e.proyecto],['Ciudad',e.ciudad],['Estado',e.estado],['Zona',e.zona],['Supervisor',e.supervisor],['Superintendente',e.superintendente],['Contrato',e.contrato],['Operativo',e.estado_operativo],['Estatus servicio',e.estatus_servicio],['Días parado',e.dias_parado == null ? '—' : e.dias_parado + ' d'],['Último ticket',e.ultimo_ticket],['Última fecha reporte',fmtDate(e.ultimo_fecha_reporte)],['Identificación sitio',e.identificacion_sitio],['Dirección',e.direccion]])+'</section><section class="mg-detail-section"><h3>Accesos relacionados</h3>'+grid([['Proyecto','<button class="mg-link" data-proyecto="'+esc(e.proyecto)+'">'+esc(e.proyecto)+'</button>']])+'</section><section class="mg-detail-section"><h3>Tickets relacionados al equipo</h3>'+ticketsTable(tickets)+'</section>');
-      const body=document.getElementById('mg-detail-body');
-      body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
-      bindLinks(body);
-    }catch(e){ show('Equipo', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
+      const years=Array.from(new Set((data.ticket_years||[]).map(Number).filter(Boolean).concat([selectedYear]))).sort((a,b)=>b-a);
+      const yearOptions=years.map(y=>'<option value="'+y+'" '+(y===selectedYear?'selected':'')+'>'+y+'</option>').join('');
+      const general=[['Ciudad',e.ciudad],['Estado',e.estado],['Estatus de servicio',e.estatus_servicio],['Zona Op',e.zona],['Dirección',e.direccion],['Fecha instalación',fmtDate(e.fecha_instalacion)],['Fecha ingreso Portafolio',fmtDate(e.fecha_ingreso_portafolio)],['Superintendente',e.superintendente],['Supervisor',e.supervisor]];
+      const kpi=(label,value)=>'<article class="mg-equipment-kpi"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong></article>';
+      const kpis='<div style="padding:12px 14px"><div class="mg-equipment-kpi-group"><h4>Estado de tickets</h4><div class="mg-equipment-kpis cols-6">'+kpi('Total cerrados',metrics.cerrados||0)+kpi('Total en curso',metrics.en_curso||0)+kpi('Total abiertos',metrics.abiertos||0)+kpi('Con filtración',metrics.filtracion||0)+kpi('Atrapados',metrics.atrapados||0)+kpi('Por voltaje',metrics.voltaje||0)+'</div></div><div class="mg-equipment-kpi-group"><h4>Desempeño operativo</h4><div class="mg-equipment-kpis cols-4">'+kpi('Total en SLA',metrics.en_sla||0)+kpi('Prom. T. llegada',fmtDuration(metrics.promedio_llegada))+kpi('Prom. T. solución',fmtDuration(metrics.promedio_solucion))+kpi('Tickets año actual',metrics.tickets_anio||0)+'</div></div><div class="mg-equipment-kpi-group"><h4>Responsabilidad y confiabilidad</h4><div class="mg-equipment-kpis cols-4">'+kpi('Resp. BLT año actual',metrics.resp_blt_anio||0)+kpi('Resp. Cliente año actual',metrics.resp_cliente_anio||0)+kpi('MTBC año actual',fmtMtbc(metrics.mtbc_anio))+kpi('MTBC U365',fmtMtbc(metrics.mtbc_u365))+'</div></div></div>';
+      const currentKeys=Array.from({length:12},(_,i)=>currentYear+'-'+String(i+1).padStart(2,'0'));
+      const u365Start=data.u365_desde?new Date(data.u365_desde+'T00:00:00'):new Date(Date.now()-364*86400000);
+      const u365End=data.u365_hasta?new Date(data.u365_hasta+'T00:00:00'):new Date();
+      const u365Keys=[];for(let d=new Date(u365Start.getFullYear(),u365Start.getMonth(),1);d<=new Date(u365End.getFullYear(),u365End.getMonth(),1);d.setMonth(d.getMonth()+1)){u365Keys.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));}
+      const u365Subtitle='Del '+fmtDate(data.u365_desde)+' al '+fmtDate(data.u365_hasta);
+      const charts='<section class="mg-detail-section"><h3>Fallas BLT por mes</h3><div class="mg-equipment-charts">'+lineChart('Año en curso',String(currentYear),data.fallas_blt_mes_anio||[],currentKeys)+lineChart('Bloque 365 días',u365Subtitle,data.fallas_blt_mes_u365||[],u365Keys)+'</div></section>';
+      const services=serviceMonths(e);const confirmed=services.items.filter(item=>item.conf&&item.conf.confirmed).length;const allowed=canConfirm(e);
+      const serviceCards=services.items.map(item=>'<article class="mg-service-month '+(item.conf&&item.conf.confirmed?'confirmed':'')+'"><button type="button" data-service-month="'+item.key+'" '+(allowed?'':'disabled')+'><strong>'+esc(item.label)+'</strong><span>'+(item.conf&&item.conf.confirmed?'Confirmado · '+esc(item.conf.by||'Usuario'):'Pendiente')+'</span></button></article>').join('');
+      const servicesHtml='<section class="mg-detail-section"><button class="mg-service-panel-toggle" type="button" id="mg-service-toggle" aria-expanded="false"><span>🗓️ Servicios mensuales · '+confirmed+' de 12 confirmados</span><span>⌄</span></button><div id="mg-service-content" hidden><div class="mg-service-months">'+serviceCards+'</div></div></section>';
+      show('Equipo · '+(e.numero_equipo||codigo),e.proyecto||'Detalle de equipo','<section class="mg-detail-section"><h3>Detalle del Equipo</h3>'+grid(general)+'</section><section class="mg-detail-section"><h3>Indicadores del equipo</h3>'+kpis+'</section>'+charts+servicesHtml+'<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Equipo</h3><label>Año <select id="mg-equipment-ticket-year">'+yearOptions+'</select></label></div><div class="mg-table-wrap"><table class="mg-table mg-equipment-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody id="mg-equipment-ticket-body">'+ticketRows(tickets,selectedYear,years)+'</tbody></table></div></section>');
+      const root=document.getElementById('mg-detail-body');bindLinks(root);
+      root.querySelectorAll('.mg-clickable-row').forEach(row=>row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();row.click();}}));
+      const yearSelect=root.querySelector('#mg-equipment-ticket-year');if(yearSelect)yearSelect.addEventListener('change',()=>load(yearSelect.value).catch(err=>show('Equipo',codigo,'<div class="mg-empty">Error: '+esc(err.message)+'</div>')));
+      const toggle=root.querySelector('#mg-service-toggle');if(toggle)toggle.addEventListener('click',()=>{const content=root.querySelector('#mg-service-content');const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!open));content.hidden=open;toggle.lastElementChild.textContent=open?'⌄':'⌃';});
+      root.querySelectorAll('[data-service-month]').forEach(btn=>btn.addEventListener('click',()=>{if(!allowed)return;const key=btn.dataset.serviceMonth;const store=serviceMonths(e);const storageKey=codigo+'__'+key;if(store.confirmations[storageKey]&&store.confirmations[storageKey].confirmed){delete store.confirmations[storageKey];}else{const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};store.confirmations[storageKey]={confirmed:true,by:u.iniciales||u.nombre||u.correo||'Usuario',at:new Date().toLocaleString('es-MX'),mes:key,role:'SUPERVISION'};}localStorage.setItem(store.storageKey,JSON.stringify(store.confirmations));load(selectedYear).catch(()=>{});}));
+    }
+    try{await load(selectedYear);}catch(error){show('Equipo',codigo,'<div class="mg-empty">Error: '+esc(error.message)+'</div>');}
   }
 
   function openEquipo_gnral(codigo){
