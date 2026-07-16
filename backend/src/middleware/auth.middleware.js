@@ -39,6 +39,8 @@ async function hydrateAuthUser(decoded) {
        u.empresa,
        u.rol_id,
        u.estado,
+       u.criticos_fallas,
+       u.criticos_periodo,
        r.rol AS rol
      FROM usuarios u
      LEFT JOIN roles r ON r.id_rol = u.rol_id
@@ -62,6 +64,8 @@ async function hydrateAuthUser(decoded) {
     rol: rows[0].rol,
     roles: roleNames,
     roles_detalle: rolesRows,
+    criticos_fallas: Number(rows[0].criticos_fallas || 3),
+    criticos_periodo: Number(rows[0].criticos_periodo || 35),
     is_programador: roleNames.includes('Programador') || rows[0].rol === 'Programador'
   };
 }

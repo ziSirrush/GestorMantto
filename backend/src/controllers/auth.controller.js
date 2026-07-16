@@ -63,7 +63,9 @@ async function login(req, res) {
         u.estado,
         u.must_change_password,
         u.failed_login_attempts,
-        u.locked_until
+        u.locked_until,
+        u.criticos_fallas,
+        u.criticos_periodo
       FROM usuarios u
       LEFT JOIN roles r
         ON r.id_rol = u.rol_id
@@ -232,7 +234,9 @@ async function login(req, res) {
         role: user.rol,
         roles,
         roles_detalle: rolesDetalle,
-        is_programador: isProgramador
+        is_programador: isProgramador,
+        criticos_fallas: Number(user.criticos_fallas || 3),
+        criticos_periodo: Number(user.criticos_periodo || 35)
       }
     });
   } catch (error) {

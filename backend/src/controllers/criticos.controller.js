@@ -6,6 +6,27 @@ function positiveInt(value, fallback, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+function getUserCriticidadCriteria(req) {
+  const userFallas = Number(req.user && req.user.criticos_fallas) || 3;
+  const userPeriodo = Number(req.user && req.user.criticos_periodo) || 35;
+
+  const dias = positiveInt(
+    req.query.dias || req.query.periodo || req.query.criticos_periodo,
+    userPeriodo,
+    1,
+    3650
+  );
+
+  const minFallas = positiveInt(
+    req.query.min_fallas || req.query.minFallas || req.query.fallas || req.query.criticos_fallas,
+    userFallas,
+    1,
+    9999
+  );
+
+  return { dias, minFallas };
+}
+
 function likeParam(value) {
   const s = String(value || '').trim();
   return s ? '%' + s + '%' : null;
@@ -66,8 +87,7 @@ function buildOptionalFilters(req, alias, portAlias) {
 }
 
 async function getEquiposCriticos(req, res) {
-  const dias = positiveInt(req.query.dias, 35, 1, 3650);
-  const minFallas = positiveInt(req.query.min_fallas || req.query.minFallas, 3, 1, 9999);
+  const { dias, minFallas } = getUserCriticidadCriteria(req);
   const { page, pageSize, offset } = pagination(req);
   const filters = buildOptionalFilters(req, 't', 'p');
 
@@ -196,7 +216,7 @@ async function getEquiposCriticos(req, res) {
 
 async function getEquipoCriticoTickets(req, res) {
   const codigo = String(req.params.codigo || '').trim();
-  const dias = positiveInt(req.query.dias, 35, 1, 3650);
+  const { dias } = getUserCriticidadCriteria(req);
   const responsabilidad = String(req.query.responsabilidad || 'BLT').toUpperCase();
   if (!codigo) return res.status(400).json({ ok: false, message: 'No se recibio codigo de equipo.' });
 
@@ -241,9 +261,15 @@ async function getEquipoCriticoTickets(req, res) {
 }
 
 async function getProyectosCriticos(req, res) {
-  const dias = positiveInt(req.query.dias, 35, 1, 3650);
+  const userCriteria = getUserCriticidadCriteria(req);
+  const dias = userCriteria.dias;
   const minFallas = positiveInt(req.query.min_fallas || req.query.minFallas, 5, 1, 9999);
-  const minFallasEquipo = positiveInt(req.query.min_fallas_equipo || req.query.minFallasEquipo, 3, 1, 9999);
+  const minFallasEquipo = positiveInt(
+    req.query.min_fallas_equipo || req.query.minFallasEquipo,
+    userCriteria.minFallas,
+    1,
+    9999
+  );
   const { page, pageSize, offset } = pagination(req);
 
   const zona = likeParam(req.query.zona);
@@ -345,7 +371,7 @@ async function getProyectosCriticos(req, res) {
 
 async function getProyectoCriticoTickets(req, res) {
   const proyecto = String(req.params.proyecto || '').trim();
-  const dias = positiveInt(req.query.dias, 35, 1, 3650);
+  const { dias } = getUserCriticidadCriteria(req);
   if (!proyecto) return res.status(400).json({ ok: false, message: 'No se recibio proyecto.' });
 
   try {
@@ -563,31 +589,30 @@ async function getMtbcProyectos(req, res) {
 }
 
 async function getCriticidadCorporativa(req, res) {
-  const minFallas = positiveInt(req.query.min_fallas || req.query.minFallas, 3, 1, 9999);
+  const { dias, minFallas } = getUserCriticidadCriteria(req);
+
   try {
-    const [anioRows] = await db.query(`
+    const [periodoRows] = await db.query(`
       SELECT
         t.codigo_equipo,
         MAX(COALESCE(t.proyecto, p.proyecto)) AS proyecto,
         MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
         MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
+        MAX(COALESCE(p.estatus_servicio, t.estatus_equipo_final)) AS estatus_servicio,
         COUNT(*) AS fallas_blt,
-        CASE
-          WHEN COUNT(*) <= 1 THEN NULL
-          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
-        END AS mtbc_anio,
-        MAX(t.fecha_reporte) AS ultimo_blt
+        MAX(t.fecha_reporte) AS ultimo_blt,
+        1 AS es_critico
       FROM tickets t
       LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
       WHERE t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
-        AND t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
         AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
         AND ${responsabilidadBlt('t')}
       GROUP BY t.codigo_equipo
       HAVING COUNT(*) >= ?
       ORDER BY fallas_blt DESC, ultimo_blt DESC, t.codigo_equipo ASC
-    `, [minFallas]);
+    `, [dias, minFallas]);
 
     const [u365Rows] = await db.query(`
       SELECT
@@ -604,10 +629,6 @@ async function getCriticidadCorporativa(req, res) {
             AND tx.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
             AND tx.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
         ) AS llamadas_365,
-        CASE
-          WHEN COUNT(*) <= 1 THEN NULL
-          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
-        END AS mtbc_365,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
       LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
@@ -621,15 +642,40 @@ async function getCriticidadCorporativa(req, res) {
       ORDER BY fallas_blt_365 DESC, ultimo_blt DESC, t.codigo_equipo ASC
     `, [minFallas]);
 
+    const criteria = {
+      dias,
+      min_fallas_blt: minFallas,
+      responsabilidad: 'BLT',
+      source: req.user ? 'usuario' : 'default'
+    };
+
     return res.json({
       ok: true,
       source: 'aiven',
-      criteria: { min_fallas_blt: minFallas, responsabilidad: 'BLT' },
-      anio_en_curso: { desde: `${new Date().getFullYear()}-01-01`, hasta: 'hoy', data: anioRows },
-      ultimos_365_dias: { desde: 'hoy - 365 dias', hasta: 'hoy', data: u365Rows }
+      criteria,
+      periodo_activo: {
+        desde: `hoy - ${dias} dias`,
+        hasta: 'hoy',
+        data: periodoRows
+      },
+      // Alias temporal para consumidores anteriores. Ahora contiene el periodo activo del usuario.
+      anio_en_curso: {
+        desde: `hoy - ${dias} dias`,
+        hasta: 'hoy',
+        data: periodoRows
+      },
+      ultimos_365_dias: {
+        desde: 'hoy - 365 dias',
+        hasta: 'hoy',
+        data: u365Rows
+      }
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando criticidad corporativa.', error: error.message });
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando criticidad parametrica.',
+      error: error.message
+    });
   }
 }
 

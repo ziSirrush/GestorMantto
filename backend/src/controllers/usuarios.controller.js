@@ -379,6 +379,93 @@ async function updateUsuario(req, res) {
   }
 }
 
+
+async function getCriticosPreferencias(req, res) {
+  try {
+    const userId = Number(req.user && req.user.id_SB);
+    if (!Number.isFinite(userId)) {
+      return res.status(401).json({ ok: false, message: 'Sesión requerida.' });
+    }
+
+    const [rows] = await db.query(
+      `SELECT criticos_fallas, criticos_periodo
+       FROM usuarios
+       WHERE id_SB = ?
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: {
+        criticos_fallas: Number(rows[0].criticos_fallas || 3),
+        criticos_periodo: Number(rows[0].criticos_periodo || 35)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando preferencias de criticidad.',
+      error: error.message
+    });
+  }
+}
+
+async function updateCriticosPreferencias(req, res) {
+  const fallas = Number.parseInt(req.body && req.body.criticos_fallas, 10);
+  const periodo = Number.parseInt(req.body && req.body.criticos_periodo, 10);
+
+  if (!Number.isInteger(fallas) || fallas < 1 || fallas > 9999) {
+    return res.status(400).json({
+      ok: false,
+      message: 'criticos_fallas debe ser un entero entre 1 y 9999.'
+    });
+  }
+
+  if (!Number.isInteger(periodo) || periodo < 1 || periodo > 3650) {
+    return res.status(400).json({
+      ok: false,
+      message: 'criticos_periodo debe ser un entero entre 1 y 3650.'
+    });
+  }
+
+  try {
+    const userId = Number(req.user && req.user.id_SB);
+    if (!Number.isFinite(userId)) {
+      return res.status(401).json({ ok: false, message: 'Sesión requerida.' });
+    }
+
+    await db.query(
+      `UPDATE usuarios
+       SET criticos_fallas = ?,
+           criticos_periodo = ?,
+           updated_by = ?
+       WHERE id_SB = ?`,
+      [fallas, periodo, req.user.correo || null, userId]
+    );
+
+    return res.json({
+      ok: true,
+      message: 'Preferencias de criticidad actualizadas.',
+      data: {
+        criticos_fallas: fallas,
+        criticos_periodo: periodo
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error actualizando preferencias de criticidad.',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   listUsuarios,
   directorio,
@@ -386,5 +473,7 @@ module.exports = {
   rolesUsuario,
   zonasUsuario,
   createUsuario,
-  updateUsuario
+  updateUsuario,
+  getCriticosPreferencias,
+  updateCriticosPreferencias
 };

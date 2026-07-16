@@ -29,11 +29,11 @@ router.get('/proyectos', dataController.getProyectos);
 
 router.get('/indicadores/mtbc/equipos', criticosController.getMtbcEquipos);
 router.get('/indicadores/mtbc/proyectos', criticosController.getMtbcProyectos);
-router.get('/criticidad-corporativa', criticosController.getCriticidadCorporativa);
-router.get('/equipos-criticos', criticosController.getEquiposCriticos);
-router.get('/equipos-criticos/:codigo/tickets', criticosController.getEquipoCriticoTickets);
-router.get('/proyectos-criticos', criticosController.getProyectosCriticos);
-router.get('/proyectos-criticos/:proyecto/tickets', criticosController.getProyectoCriticoTickets);
+router.get('/criticidad-corporativa', optionalAuth, criticosController.getCriticidadCorporativa);
+router.get('/equipos-criticos', optionalAuth, criticosController.getEquiposCriticos);
+router.get('/equipos-criticos/:codigo/tickets', optionalAuth, criticosController.getEquipoCriticoTickets);
+router.get('/proyectos-criticos', optionalAuth, criticosController.getProyectosCriticos);
+router.get('/proyectos-criticos/:proyecto/tickets', optionalAuth, criticosController.getProyectoCriticoTickets);
 
 router.get('/home/bootstrap', requireAuth, dataController.getHomeBootstrap);
 router.get('/pendientes/catalogos', requireAuth, dataController.getPendientesCatalogos);

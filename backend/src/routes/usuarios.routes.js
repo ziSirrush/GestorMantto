@@ -4,6 +4,8 @@ const usuariosController = require('../controllers/usuarios.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 
 router.get('/', requireAuth, usuariosController.listUsuarios);
+router.get('/me/criticos-preferencias', requireAuth, usuariosController.getCriticosPreferencias);
+router.patch('/me/criticos-preferencias', requireAuth, usuariosController.updateCriticosPreferencias);
 router.get('/directorio', requireAuth, usuariosController.directorio);
 router.get('/:id/detalle', requireAuth, usuariosController.detalle);
 router.get('/:id/roles', requireAuth, usuariosController.rolesUsuario);
