@@ -246,7 +246,7 @@
     }
     setActiveSide('portafolio');
     updateContext('portafolio','Dashboard Portafolio · datos reales desde Aiven');
-    if(window.ManttoPortafolio) window.ManttoPortafolio.init();
+    if(window.ManttoPortafolio) window.ManttoPortafolio.init(currentPayload);
     return true;
   }
 

@@ -1,8 +1,8 @@
 (function(){
-  const MODULE_VERSION = '20260706-v014';
+  const MODULE_VERSION = '20260717-v015';
   const state = { loaded:false, filtersLoaded:false, rows:[], summary:null, currentProject:null, tickets:[], criticalCodes:new Set(), criticalProjects:new Set() };
 
-  const INLINE_HTML = '<div class="proy-page"><section class="proy-card proy-head"><div><p class="proy-eyebrow">Aiven · Proyectos</p><h1>Proyectos</h1><p>Vista agregada desde Portafolio y Tickets.</p></div><div class="proy-head-actions"><span class="proy-status loading" id="proy-status"><span class="proy-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="proy-btn proy-btn-primary" data-proy-action="refresh">↻ Actualizar</button></div></section><section class="proy-card proy-filters"><label>Zona<select id="proy-filter-zona"><option value="">Todas</option></select></label><label>Estado<select id="proy-filter-estado"><option value="">Todos</option></select></label><label>Supervisor<select id="proy-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="proy-filter-search" type="search" placeholder="Proyecto, código, ciudad, supervisor..."></label><button type="button" class="proy-btn" data-proy-action="clear">Limpiar</button><button type="button" class="proy-btn proy-btn-primary" data-proy-action="apply">Aplicar</button></section><section class="proy-grid proy-kpis"><article class="proy-kpi proy-kpi-blue"><span>🏢</span><strong id="proy-kpi-proyectos">—</strong><b>Proyectos</b><small>con equipos activos</small></article><article class="proy-kpi proy-kpi-indigo"><span>🛠️</span><strong id="proy-kpi-equipos">—</strong><b>Equipos</b><small>portafolio activo</small></article><article class="proy-kpi proy-kpi-red"><span>⛔</span><strong id="proy-kpi-parados">—</strong><b>Parados</b><small>último ticket no funcionando</small></article><article class="proy-kpi proy-kpi-green"><span>⏱️</span><strong id="proy-kpi-mtbc">—</strong><b>MTBC prom.</b><small>estimado 365 días</small></article></section><section class="proy-card"><div class="proy-section-head"><div><h2>Listado de proyectos</h2><p id="proy-count">—</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Proyecto</th><th>Ciudad</th><th>Estado</th><th>Zona</th><th>Supervisor</th><th>Equipos</th><th>Parados</th><th>Tickets 35d</th><th>BLT 365d</th><th>MTBC</th><th></th></tr></thead><tbody id="proy-body"><tr><td colspan="11" class="proy-empty">Cargando...</td></tr></tbody></table></div></section><section id="proy-detail-modal" class="proy-detail" hidden><div class="proy-detail-panel"><div class="proy-detail-head"><button type="button" id="proy-detail-close">×</button><div><h2 id="proy-detail-title">Detalle de proyecto</h2><p id="proy-detail-sub">Aiven</p></div></div><div class="proy-detail-body" id="proy-detail-body"></div></div></section></div>';
+  const INLINE_HTML = '<div class="proy-page"><section class="proy-card proy-head"><div><p class="proy-eyebrow">Aiven · Proyectos</p><h1>Proyectos</h1><p>Vista agregada desde Portafolio y Tickets.</p></div><div class="proy-head-actions"><span class="proy-status loading" id="proy-status"><span class="proy-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="proy-btn proy-btn-primary" data-proy-action="refresh">↻ Actualizar</button></div></section><section class="proy-card proy-filters"><label>Zona<select id="proy-filter-zona"><option value="">Todas</option></select></label><label>Estado<select id="proy-filter-estado"><option value="">Todos</option></select></label><label>Supervisor<select id="proy-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="proy-filter-search" type="search" placeholder="Proyecto, código, ciudad, supervisor..."></label><button type="button" class="proy-btn" data-proy-action="clear">Limpiar</button><button type="button" class="proy-btn proy-btn-primary" data-proy-action="apply">Aplicar</button></section><section class="proy-grid proy-kpis"><article class="proy-kpi proy-kpi-blue"><span>🏢</span><strong id="proy-kpi-proyectos">—</strong><b>Proyectos</b><small>con equipos activos</small></article><article class="proy-kpi proy-kpi-indigo"><span>🛠️</span><strong id="proy-kpi-equipos">—</strong><b>Equipos</b><small>portafolio activo</small></article><article class="proy-kpi proy-kpi-red"><span>⛔</span><strong id="proy-kpi-parados">—</strong><b>Parados</b><small>último ticket no funcionando</small></article><article class="proy-kpi proy-kpi-green"><span>⏱️</span><strong id="proy-kpi-mtbc">—</strong><b>MTBC prom.</b><small>estimado 365 días</small></article></section><section class="proy-card"><div class="proy-section-head"><div><h2>Listado de proyectos</h2><p id="proy-count">—</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Proyecto</th><th>Ciudad</th><th>Estado</th><th>Zona</th><th>Supervisor</th><th>Equipos</th><th>Parados</th><th>Tickets 35d</th><th>BLT 365d</th><th>Llamadas Resp. BLT (Año)</th><th>Última llamada BLT</th><th>Llamadas Resp. Cliente (Año)</th><th>Última llamada Cliente</th><th>MTBC</th><th></th></tr></thead><tbody id="proy-body"><tr><td colspan="15" class="proy-empty">Cargando...</td></tr></tbody></table></div></section><section id="proy-detail-modal" class="proy-detail" hidden><div class="proy-detail-panel"><div class="proy-detail-head"><button type="button" id="proy-detail-close">×</button><div><h2 id="proy-detail-title">Detalle de proyecto</h2><p id="proy-detail-sub">Aiven</p></div></div><div class="proy-detail-body" id="proy-detail-body"></div></div></section></div>';
 
   function API(){ return (window.MANTTO_API_BASE || '').replace(/\/$/, ''); }
   function $(id){ return document.getElementById(id); }
@@ -100,7 +100,7 @@
   async function refresh(){
     await loadFilters().catch(e=>setStatus('error', e.message));
     setStatus('loading','Consultando Proyectos...');
-    const body=$('proy-body'); if(body) body.innerHTML='<tr><td colspan="11" class="proy-empty">Cargando proyectos...</td></tr>';
+    const body=$('proy-body'); if(body) body.innerHTML='<tr><td colspan="15" class="proy-empty">Cargando proyectos...</td></tr>';
     try{
       await loadVisualTickets();
       const data=await fetchJson('/api/proyectos?' + qs(currentParams()));
@@ -111,7 +111,7 @@
       setStatus('ok','Proyectos actualizados');
     }catch(e){
       setStatus('error', e.message);
-      if(body) body.innerHTML='<tr><td colspan="11" class="proy-empty">'+esc(e.message)+'</td></tr>';
+      if(body) body.innerHTML='<tr><td colspan="15" class="proy-empty">'+esc(e.message)+'</td></tr>';
     }
   }
 
@@ -146,12 +146,12 @@
     const body=$('proy-body'); if(!body) return;
     const rows=state.rows || [];
     setText('proy-count', rows.length + ' proyectos');
-    if(!rows.length){ body.innerHTML='<tr><td colspan="11" class="proy-empty">Sin proyectos para los filtros seleccionados</td></tr>'; return; }
+    if(!rows.length){ body.innerHTML='<tr><td colspan="15" class="proy-empty">Sin proyectos para los filtros seleccionados</td></tr>'; return; }
     body.innerHTML=rows.map(r=>{
       const parados=num(r.parados);
       const badge=parados>0 ? '<span class="proy-badge proy-badge-bad">'+int(parados)+'</span>' : '<span class="proy-badge proy-badge-ok">0</span>';
       return '<tr>'+
-        '<td class="proy-name">'+visualIdentifier(r,proyectoNombre(r))+'<small class="proy-code">'+esc(proyectoCodigo(r))+'</small></td>'+
+        '<td class="proy-name">'+visualIdentifier(r,proyectoNombre(r))+'</td>'+
         '<td>'+esc(r.ciudad)+'</td>'+
         '<td>'+esc(r.estado)+'</td>'+
         '<td>'+esc(r.zona)+'</td>'+
@@ -160,6 +160,10 @@
         '<td class="num">'+badge+'</td>'+
         '<td class="num">'+int(r.tickets_35d)+'</td>'+
         '<td class="num">'+int(r.fallas_blt_365d)+'</td>'+
+        '<td class="num">'+int(r.llamadas_blt_anio)+'</td>'+
+        '<td class="date">'+date(r.ultima_llamada_blt)+'</td>'+
+        '<td class="num">'+int(r.llamadas_cliente_anio)+'</td>'+
+        '<td class="date">'+date(r.ultima_llamada_cliente)+'</td>'+
         '<td class="num">'+(r.mtbc_365 ? int(r.mtbc_365)+' d' : '—')+'</td>'+
         '<td><button type="button" class="proy-btn" data-proy-open="'+esc(proyectoCodigo(r))+'">Ver</button></td>'+
       '</tr>';
