@@ -801,26 +801,27 @@ async function getPortafolioEquipoDetalle(req, res) {
       const currentYear = new Date().getFullYear();
       const currentYearStart = new Date(currentYear, 0, 1);
       const elapsedCurrentYearDays = Math.max(1, Math.floor((Date.now() - currentYearStart.getTime()) / 86400000) + 1);
-      const currentYearBlt = allTickets.filter(ticket => inCurrentYear(ticket) && isBlt(ticket));
+      const currentYearTickets = allTickets.filter(inCurrentYear);
+      const currentYearBlt = currentYearTickets.filter(isBlt);
       const u365Blt = allTickets.filter(ticket => inU365(ticket) && isBlt(ticket));
       const metrics = {
-        cerrados: allTickets.filter(isClosed).length,
-        en_curso: allTickets.filter(isInProgress).length,
-        abiertos: allTickets.filter(isOpen).length,
-        filtracion: allTickets.filter(ticket => hasAny(ticket, ['FILTRACION', 'FILTRACIÓN', 'AGUA', 'INUNDACION', 'INUNDACIÓN', 'GOTERA'])).length,
-        atrapados: allTickets.filter(ticket => hasAny(ticket, ['ATRAPADO', 'ATRAPADA', 'ENCERRADO', 'ENCERRADA', 'RESCATE'])).length,
-        voltaje: allTickets.filter(ticket => hasAny(ticket, ['VOLTAJE', 'FALLA ELECTRICA', 'FALLA ELÉCTRICA', 'SIN ENERGIA', 'SIN ENERGÍA', 'APAGON', 'APAGÓN'])).length,
-        en_sla: allTickets.filter(ticket => {
+        cerrados: currentYearTickets.filter(isClosed).length,
+        en_curso: currentYearTickets.filter(isInProgress).length,
+        abiertos: currentYearTickets.filter(isOpen).length,
+        filtracion: currentYearTickets.filter(ticket => hasAny(ticket, ['FILTRACION', 'FILTRACIÓN', 'AGUA', 'INUNDACION', 'INUNDACIÓN', 'GOTERA'])).length,
+        atrapados: currentYearTickets.filter(ticket => hasAny(ticket, ['ATRAPADO', 'ATRAPADA', 'ENCERRADO', 'ENCERRADA', 'RESCATE'])).length,
+        voltaje: currentYearTickets.filter(ticket => hasAny(ticket, ['VOLTAJE', 'FALLA ELECTRICA', 'FALLA ELÉCTRICA', 'SIN ENERGIA', 'SIN ENERGÍA', 'APAGON', 'APAGÓN'])).length,
+        en_sla: currentYearTickets.filter(ticket => {
           const llegada = durationHours(ticket.tiempo_llegada);
           const solucion = durationHours(ticket.tiempo_solucion);
           return llegada !== null && solucion !== null && llegada <= 4 && solucion <= 24;
         }).length,
-        promedio_llegada: average(allTickets.map(ticket => durationHours(ticket.tiempo_llegada))),
-        promedio_solucion: average(allTickets.map(ticket => durationHours(ticket.tiempo_solucion))),
-        tickets_anio: allTickets.filter(inCurrentYear).length,
+        promedio_llegada: average(currentYearTickets.map(ticket => durationHours(ticket.tiempo_llegada))),
+        promedio_solucion: average(currentYearTickets.map(ticket => durationHours(ticket.tiempo_solucion))),
+        tickets_anio: currentYearTickets.length,
         resp_blt_anio: currentYearBlt.length,
-        resp_cliente_anio: allTickets.filter(ticket => inCurrentYear(ticket) && isClient(ticket)).length,
-        sin_responsabilidad_anio: allTickets.filter(ticket => inCurrentYear(ticket) && !isBlt(ticket) && !isClient(ticket)).length,
+        resp_cliente_anio: currentYearTickets.filter(isClient).length,
+        sin_responsabilidad_anio: currentYearTickets.filter(ticket => !isBlt(ticket) && !isClient(ticket)).length,
         mtbc_anio: mtbc(currentYearBlt, elapsedCurrentYearDays),
         mtbc_u365: mtbc(u365Blt, 365)
       };
