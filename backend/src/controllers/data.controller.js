@@ -85,6 +85,7 @@ function portafolioFilters(req, alias) {
   const supervisor = likeParam(req.query.supervisor);
   const search = likeParam(req.query.search || req.query.buscar);
   const operativo = String(req.query.operativo || '').trim().toLowerCase();
+  const contrato = String(req.query.contrato || '').trim().toLowerCase();
 
   if (zona) { clauses.push(`${a}.zona_operativa LIKE ?`); params.push(zona); }
   if (supervisor) { clauses.push(`${a}.supervisor_zona LIKE ?`); params.push(supervisor); }
@@ -105,6 +106,16 @@ function portafolioFilters(req, alias) {
     clauses.push(`UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%'`);
   } else if (operativo === 'funcionando') {
     clauses.push(`(lt.ticket IS NULL OR UPPER(COALESCE(lt.estatus_equipo_final,'')) NOT LIKE '%NO FUNC%')`);
+  }
+
+  if (contrato === 'no_servicio') {
+    clauses.push(`UPPER(COALESCE(${a}.estatus_servicio,'')) LIKE '%NO EN SERVICIO%'`);
+  } else if (contrato === 'gratuito') {
+    clauses.push(`UPPER(COALESCE(${a}.estatus_servicio,'')) NOT LIKE '%NO EN SERVICIO%'`);
+    clauses.push(`(( ${a}.mes_termino_gratuitos IS NOT NULL AND TRIM(${a}.mes_termino_gratuitos) <> '') OR (${a}.termino_garantia IS NOT NULL AND TRIM(${a}.termino_garantia) <> ''))`);
+  } else if (contrato === 'cobranza') {
+    clauses.push(`UPPER(COALESCE(${a}.estatus_servicio,'')) NOT LIKE '%NO EN SERVICIO%'`);
+    clauses.push(`((${a}.mes_termino_gratuitos IS NULL OR TRIM(${a}.mes_termino_gratuitos) = '') AND (${a}.termino_garantia IS NULL OR TRIM(${a}.termino_garantia) = ''))`);
   }
 
   return { where: clauses.join(' AND '), params };
@@ -163,8 +174,8 @@ const portafolioBaseSelect = `
   lt.responsabilidad AS ultima_responsabilidad,
   CASE
     WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-    WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'En Cobranza'
-    ELSE 'Gratuito/Garantía'
+    WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
+    ELSE 'En Cobranza'
   END AS contrato,
   CASE
     WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado'
@@ -572,8 +583,8 @@ async function getPortafolioDashboard(req, res) {
         SELECT
           CASE
             WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-            WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'En Cobranza'
-            ELSE 'Gratuito/Garantía'
+            WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
+            ELSE 'En Cobranza'
           END AS contrato,
           CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado' ELSE 'Funcionando' END AS estado_operativo
         FROM portafolio p
@@ -597,8 +608,8 @@ async function getPortafolioDashboard(req, res) {
 
     const contratoExpr = `CASE
       WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-      WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'En Cobranza'
-      ELSE 'Gratuito/Garantía'
+      WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
+      ELSE 'En Cobranza'
     END`;
     const operativoExpr = `CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado' ELSE 'Funcionando' END`;
 
@@ -621,9 +632,17 @@ async function getPortafolioDashboard(req, res) {
 
 async function getPortafolioEquipos(req, res) {
   const page = positiveInt(req.query.page, 1, 1, 100000);
-  const pageSize = positiveInt(req.query.page_size || req.query.pageSize, 25, 5, 100);
+  const pageSize = positiveInt(req.query.page_size || req.query.pageSize, 30, 5, 100);
   const offset = (page - 1) * pageSize;
   const filters = portafolioFilters(req, 'p');
+  const sortMap = {
+    numero_equipo: 'p.numero_equipo', proyecto: 'p.proyecto', ciudad: 'p.ciudad',
+    zona: 'p.zona_operativa', tipo_equipo: "COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo')",
+    supervisor: 'p.supervisor_zona', dias_parado: "CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte)) ELSE NULL END"
+  };
+  const sortKey = String(req.query.sort || 'proyecto').trim();
+  const sortExpr = sortMap[sortKey] || sortMap.proyecto;
+  const sortDirection = String(req.query.direction || '').trim().toLowerCase() === 'desc' ? 'DESC' : 'ASC';
   try {
     const [countRows] = await db.query(`
       SELECT COUNT(*) AS total
@@ -637,7 +656,7 @@ async function getPortafolioEquipos(req, res) {
       FROM portafolio p
       ${latestTicketJoin}
       WHERE ${filters.where}
-      ORDER BY p.proyecto ASC, p.numero_equipo ASC
+      ORDER BY ${sortExpr} ${sortDirection}, p.proyecto ASC, p.numero_equipo ASC
       LIMIT ? OFFSET ?
     `, [...filters.params, pageSize, offset]);
 
