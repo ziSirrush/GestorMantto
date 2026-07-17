@@ -2889,19 +2889,29 @@ async function getProyectoDetalle(req, res) {
 
     const [equipmentResponsibilityDistribution] = await db.query(`
       SELECT
-        t.codigo_equipo AS label,
+        COALESCE(NULLIF(TRIM(eq.identificacion_sitio), ''), t.codigo_equipo) AS label,
+        t.codigo_equipo,
         UPPER(TRIM(t.responsabilidad)) AS responsabilidad,
         COUNT(*) AS total
       FROM tickets t
+      LEFT JOIN (
+        SELECT
+          numero_equipo,
+          MAX(NULLIF(TRIM(identificacion_sitio), '')) AS identificacion_sitio
+        FROM portafolio
+        WHERE ${filtroVisibleSubquery}
+          AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        GROUP BY numero_equipo
+      ) eq ON eq.numero_equipo = t.codigo_equipo
       WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
         AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
         AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) IN ('BLT','CLIENTE')
         AND t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         )
-      GROUP BY t.codigo_equipo, UPPER(TRIM(t.responsabilidad))
+      GROUP BY t.codigo_equipo, eq.identificacion_sitio, UPPER(TRIM(t.responsabilidad))
       ORDER BY total DESC, label ASC
-    `, [proyecto]);
+    `, [proyecto, proyecto]);
 
     const proyectoDecorado = decorateProyectoRow({
       ...proyectos[0],
