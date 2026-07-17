@@ -820,6 +820,7 @@ async function getPortafolioEquipoDetalle(req, res) {
         tickets_anio: allTickets.filter(inCurrentYear).length,
         resp_blt_anio: currentYearBlt.length,
         resp_cliente_anio: allTickets.filter(ticket => inCurrentYear(ticket) && isClient(ticket)).length,
+        sin_responsabilidad_anio: allTickets.filter(ticket => inCurrentYear(ticket) && !isBlt(ticket) && !isClient(ticket)).length,
         mtbc_anio: mtbc(currentYearBlt, elapsedCurrentYearDays),
         mtbc_u365: mtbc(u365Blt, 365)
       };
