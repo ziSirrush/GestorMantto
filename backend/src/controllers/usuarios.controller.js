@@ -466,6 +466,85 @@ async function updateCriticosPreferencias(req, res) {
   }
 }
 
+
+async function supervisoresMantenimiento(req, res) {
+  try {
+    const [rows] = await db.query(
+      `SELECT DISTINCT
+         u.id_SB,
+         u.nombre,
+         u.iniciales,
+         u.correo,
+         r.rol,
+         z.id_zona,
+         z.zona,
+         z.nombre AS zona_nombre
+       FROM usuarios u
+       INNER JOIN (
+         SELECT id_SB AS id_usuario, rol_id AS id_rol
+         FROM usuarios
+         WHERE rol_id IS NOT NULL
+         UNION
+         SELECT id_usuario, id_rol
+         FROM usuario_roles
+         WHERE activo = 1
+       ) ux ON ux.id_usuario = u.id_SB
+       INNER JOIN roles r
+         ON r.id_rol = ux.id_rol
+        AND r.estado = 1
+       LEFT JOIN usuario_zop uz
+         ON uz.usuario_id = u.id_SB
+        AND uz.estado = 1
+       LEFT JOIN z_op z
+         ON z.id_zona = uz.zona_id
+        AND z.estado = 1
+       WHERE u.estado = 1
+         AND UPPER(TRIM(COALESCE(u.empresa, ''))) = 'UNITED ELEVADORES'
+         AND UPPER(TRIM(r.rol)) LIKE 'SUPERVISOR MANTENIMIENTO%'
+       ORDER BY u.nombre ASC, z.zona ASC`
+    );
+
+    const byUser = new Map();
+    rows.forEach(row => {
+      const id = Number(row.id_SB);
+      if (!byUser.has(id)) {
+        byUser.set(id, {
+          id_SB: id,
+          nombre: row.nombre,
+          iniciales: row.iniciales,
+          correo: row.correo,
+          roles: [],
+          zonas: []
+        });
+      }
+
+      const supervisor = byUser.get(id);
+      if (row.rol && !supervisor.roles.includes(row.rol)) {
+        supervisor.roles.push(row.rol);
+      }
+      if (row.id_zona && !supervisor.zonas.some(zona => Number(zona.id_zona) === Number(row.id_zona))) {
+        supervisor.zonas.push({
+          id_zona: Number(row.id_zona),
+          zona: row.zona,
+          nombre: row.zona_nombre
+        });
+      }
+    });
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: Array.from(byUser.values())
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando supervisores de mantenimiento.',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   listUsuarios,
   directorio,
@@ -475,5 +554,6 @@ module.exports = {
   createUsuario,
   updateUsuario,
   getCriticosPreferencias,
-  updateCriticosPreferencias
+  updateCriticosPreferencias,
+  supervisoresMantenimiento
 };
