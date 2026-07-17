@@ -227,3 +227,33 @@ body.rd-modal-open{overflow:hidden}
 .rd-detail-table-wrap{max-height:none;border:1px solid #D9E2EF;border-radius:16px;background:#fff;overflow:auto}
 .rd-detail-empty{padding:28px;text-align:center;background:#fff;border:1px solid #D9E2EF;border-radius:16px}
 @media(max-width:760px){.rd-detail-modal{padding:0}.rd-detail-modal-panel{width:100vw;height:100vh;max-height:100vh;border-radius:0}.rd-detail-modal-head{align-items:flex-start}.rd-detail-modal-body{padding:10px}.rd-detail-table-wrap{border-radius:12px}}
+
+
+/* Tickets_contextual_Uni + KPI de criticidad */
+.resumen-page .rd-kpi.g-critical{
+  background:linear-gradient(135deg,#F2C94C,#D4A017)!important;
+  border-color:#B8860B!important;
+  box-shadow:inset 0 0 0 1px rgba(184,134,11,.38)!important;
+  color:#1F2937!important;
+}
+.resumen-page .rd-kpi.g-critical .ico{font-size:29px;filter:drop-shadow(0 2px 2px rgba(255,255,255,.35))}
+.resumen-page .rd-kpi.g-critical .val,
+.resumen-page .rd-kpi.g-critical .lbl,
+.resumen-page .rd-kpi.g-critical .sub{color:#FFFFFF!important;opacity:1}
+.rd-ticket-emoji-note{margin:0 0 10px;padding:10px 12px;border:1px solid #D9E2EF;border-radius:12px;background:#F8FAFC;color:#344054;font-size:12px;line-height:1.45;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap}
+.rd-ticket-emoji-note strong{color:#0D2E6E}
+.rd-ticket-emoji-note span{display:inline-flex;align-items:center;white-space:nowrap;font-weight:750}
+.rd-tickets-contextual-uni{min-width:2580px}
+.rd-tickets-contextual-uni th,.rd-tickets-contextual-uni td{vertical-align:middle}
+.rd-tickets-contextual-uni td{max-width:220px}
+.rd-tickets-contextual-uni .rd-cell-wide{min-width:220px;max-width:320px}
+.rd-tickets-contextual-uni th:nth-child(1),.rd-tickets-contextual-uni td:nth-child(1){min-width:130px}
+.rd-tickets-contextual-uni th:nth-child(2),.rd-tickets-contextual-uni td:nth-child(2){min-width:210px}
+.rd-tickets-contextual-uni th:nth-child(3),.rd-tickets-contextual-uni td:nth-child(3){min-width:145px}
+.rd-tickets-contextual-uni th:nth-child(5),.rd-tickets-contextual-uni td:nth-child(5),
+.rd-tickets-contextual-uni th:nth-child(9),.rd-tickets-contextual-uni td:nth-child(9),
+.rd-tickets-contextual-uni th:nth-child(12),.rd-tickets-contextual-uni td:nth-child(12){min-width:112px;text-align:center}
+.rd-tickets-contextual-uni th:nth-child(6),.rd-tickets-contextual-uni td:nth-child(6),
+.rd-tickets-contextual-uni th:nth-child(10),.rd-tickets-contextual-uni td:nth-child(10),
+.rd-tickets-contextual-uni th:nth-child(13),.rd-tickets-contextual-uni td:nth-child(13){min-width:105px;text-align:center}
+.rd-tickets-contextual-uni th:nth-child(11),.rd-tickets-contextual-uni td:nth-child(11){min-width:115px;text-align:center}

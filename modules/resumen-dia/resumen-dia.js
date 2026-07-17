@@ -90,6 +90,16 @@
     const hrs = (b - a) / 3600000;
     return hrs > 0 && hrs < 24*30 ? hrs : null;
   }
+  function fmtDate(v){
+    const value = ymd(v);
+    if(!value) return '—';
+    const parts = value.split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : '—';
+  }
+  function tableText(value){
+    const text = nrm(value) || '—';
+    return `<span title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+  }
   function fmtDuration(v){
     const h = durHours(v);
     if(h == null) return '—';
@@ -310,7 +320,7 @@
     ['rd-total','rd-cerrados','rd-encurso','rd-abiertos','rd-blt','rd-cli','rd-atrap','rd-agua','rd-voltaje','rd-criticos-dia','rd-nofunc','rd-avg-llegada','rd-avg-cierre','rd-sla'].forEach(id=>txt(id,'0'));
     ['rd-cerrados-pct','rd-encurso-pct','rd-abiertos-pct','rd-blt-pct','rd-cli-pct','rd-sla-pct','rd-count'].forEach(id=>txt(id,'—'));
     ['rd-leg-estado','rd-leg-resp','rd-leg-caf-blt','rd-leg-caf-cli','rd-bar-zona','rd-bar-tipo','rd-bar-edo'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<div class="rd-empty">Sin datos reales para mostrar.</div>'; });
-    ['rd-tbody'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<tr><td colspan="9" class="rd-empty">Sin datos reales para mostrar.</td></tr>'; });
+    ['rd-tbody'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<tr><td colspan="18" class="rd-empty">Sin datos reales para mostrar.</td></tr>'; });
     ['rd-svg-estado','rd-svg-resp','rd-svg-caf-blt','rd-svg-caf-cli'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML=''; });
     hideDetail();
     const pageInfo = byId('rd-page-info'); if(pageInfo) pageInfo.textContent='Página 0 de 0';
@@ -405,8 +415,58 @@
   function badge(et){ const cls=et==='Cerrado'?'cerrado':et==='En curso'?'curso':'abierto'; return `<span class="rd-badge ${cls}">${et||'—'}</span>`; }
   function ticketBtn(t){ return `<button class="rd-link" data-ticket="${escapeHtml(t.n)}">${escapeHtml(t.n||'—')}</button>`; }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function renderRows(rows, tbody){ const criticalCodes=critSet(); tbody.innerHTML = rows.length ? rows.map(t=>{ const ticketCodes=visualCodesForRows([t],false); const equipmentCodes=criticalCodes.has(t.cod)?['CRITICO']:[]; return `<tr><td><button class="rd-link" data-ticket="${escapeHtml(t.n)}">${renderIdentificador(ticketCodes,t.n)}</button></td><td>${badge(t.et)}</td><td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${renderIdentificador([],formatProyectoName(t.pro))}</button></td><td>${escapeHtml(t.zon||'—')}</td><td title="${escapeHtml(t.asu)}">${escapeHtml(t.asu||'—')}</td><td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${renderIdentificador(equipmentCodes,t.cod||'—')}</button></td><td>${escapeHtml(t.res||'—')}</td><td>${escapeHtml(t.prd||'—')}</td></tr>`; }).join('') : '<tr><td colspan="8" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>'; tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); })); tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); })); tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); })); }
-  function renderTable(){ const search=nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase(); const et=nrm(byId('rd-filter-et')&&byId('rd-filter-et').value); tableFiltered=currentDayTickets.filter(t=>(!et||t.et===et)&&(!search||(t.n+t.pro+t.zon+t.asu+t.cod).toLowerCase().includes(search))).sort((a,b)=>((b.fr||'')+(b.hr||'')).localeCompare((a.fr||'')+(a.hr||'')) || String(b.n||'').localeCompare(String(a.n||''))); const totalPages=Math.max(1,Math.ceil(tableFiltered.length/pageSize)); if(page>=totalPages) page=totalPages-1; const slice=tableFiltered.slice(page*pageSize,page*pageSize+pageSize); const th=byId('rd-thead'), tb=byId('rd-tbody'); if(th) th.innerHTML='<tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr>'; if(tb) renderRows(slice,tb); txt('rd-count', tableFiltered.length+' tickets'); txt('rd-page-info','Página '+(page+1)+' de '+totalPages+' · '+tableFiltered.length+' tickets'); const p=byId('rd-page-prev'), n=byId('rd-page-next'); if(p)p.disabled=page===0; if(n)n.disabled=page>=totalPages-1; }
+  const TICKETS_CONTEXTUAL_UNI_HEADERS = ['No. Ticket','Proyecto','Equipo','Estado','Fecha Reporte','Hora Reporte','Asunto','Estatus inicial','Fecha Llegada','Hora Llegada','T. llegada','Fecha Solución','Hora Solución','Estatus final','Causa','Acción cierre','Responsabilidad','Causa de falla'];
+  function ticketsContextualUniHead(){
+    return '<tr>' + TICKETS_CONTEXTUAL_UNI_HEADERS.map(label=>`<th>${escapeHtml(label)}</th>`).join('') + '</tr>';
+  }
+  function renderRows(rows, tbody){
+    const criticalCodes=critSet();
+    tbody.innerHTML = rows.length ? rows.map(t=>{
+      const ticketCodes=visualCodesForRows([t],false);
+      const equipmentCodes=criticalCodes.has(t.cod)?['CRITICO']:[];
+      return `<tr>
+        <td><button class="rd-link" data-ticket="${escapeHtml(t.n)}">${renderIdentificador(ticketCodes,t.n)}</button></td>
+        <td title="${escapeHtml(t.pro)}"><button class="rd-link" data-proyecto="${escapeHtml(t.pro)}">${renderIdentificador([],formatProyectoName(t.pro))}</button></td>
+        <td><button class="rd-link" data-equipo="${escapeHtml(t.cod)}">${renderIdentificador(equipmentCodes,t.cod||'—')}</button></td>
+        <td>${tableText(t.edo)}</td>
+        <td>${fmtDate(t.fr)}</td>
+        <td>${escapeHtml(t.hr||'—')}</td>
+        <td class="rd-cell-wide">${tableText(t.asu)}</td>
+        <td>${tableText(t.eqi)}</td>
+        <td>${fmtDate(t.fl)}</td>
+        <td>${escapeHtml(t.hl||'—')}</td>
+        <td>${escapeHtml(fmtDuration(t.tll))}</td>
+        <td>${fmtDate(t.fs)}</td>
+        <td>${escapeHtml(t.hs||'—')}</td>
+        <td>${tableText(t.eqf)}</td>
+        <td class="rd-cell-wide">${tableText(t.cau)}</td>
+        <td class="rd-cell-wide">${tableText(t.acc)}</td>
+        <td>${tableText(t.res)}</td>
+        <td class="rd-cell-wide">${tableText(t.caf)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="18" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>';
+    tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); }));
+    tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); }));
+    tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); }));
+  }
+  function renderTable(){
+    const search=nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase();
+    const et=nrm(byId('rd-filter-et')&&byId('rd-filter-et').value);
+    tableFiltered=currentDayTickets.filter(t=>(!et||t.et===et)&&(!search||[
+      t.n,t.pro,t.cod,t.edo,t.asu,t.eqi,t.eqf,t.cau,t.acc,t.res,t.caf
+    ].join(' ').toLowerCase().includes(search))).sort((a,b)=>((b.fr||'')+(b.hr||'')).localeCompare((a.fr||'')+(a.hr||'')) || String(b.n||'').localeCompare(String(a.n||'')));
+    const totalPages=Math.max(1,Math.ceil(tableFiltered.length/pageSize));
+    if(page>=totalPages) page=totalPages-1;
+    const slice=tableFiltered.slice(page*pageSize,page*pageSize+pageSize);
+    const th=byId('rd-thead'), tb=byId('rd-tbody');
+    if(th) th.innerHTML=ticketsContextualUniHead();
+    if(tb) renderRows(slice,tb);
+    txt('rd-count', tableFiltered.length+' tickets');
+    txt('rd-page-info','Página '+(page+1)+' de '+totalPages+' · '+tableFiltered.length+' tickets');
+    const p=byId('rd-page-prev'), n=byId('rd-page-next');
+    if(p)p.disabled=page===0;
+    if(n)n.disabled=page>=totalPages-1;
+  }
   function ensureDetailModal(){
     let modal = byId('rd-detail-modal');
     if(modal) return modal;
@@ -450,7 +510,7 @@
       body.innerHTML = '<div class="rd-empty rd-detail-empty">Sin datos para ' + escapeHtml(safeTitle) + '</div>';
       return;
     }
-    body.innerHTML = `<div class="rd-table-wrap rd-detail-table-wrap"><table class="rd-table"><thead><tr><th>Ticket</th><th>Estado</th><th>Proyecto</th><th>Zona</th><th>Descripción</th><th>Equipo</th><th>Resp.</th><th>Tipo</th></tr></thead><tbody id="rd-detail-body"></tbody></table></div>`;
+    body.innerHTML = `<div class="rd-table-wrap rd-detail-table-wrap"><table class="rd-table rd-tickets-contextual-uni"><thead>${ticketsContextualUniHead()}</thead><tbody id="rd-detail-body"></tbody></table></div>`;
     renderRows(rows, byId('rd-detail-body'));
   }
   function hideDetail(){
@@ -625,8 +685,38 @@
     const goEquipo = byId('rd-ticket-go-equipo'); if(goEquipo){ goEquipo.disabled = !t.cod; goEquipo.onclick = () => openEquipo(t.cod); }
     const goProyecto = byId('rd-ticket-go-proyecto'); if(goProyecto){ goProyecto.disabled = !t.pro; goProyecto.onclick = () => openProyecto(t.pro); }
   }
+  function ensureResumenVisualFixes(){
+    const view = byId('view-resumen');
+    if(!view) return;
+
+    const criticalIcon = view.querySelector('[data-rd-detail="criticos"] .ico');
+    if(criticalIcon){
+      criticalIcon.removeAttribute('data-estado-visual');
+      criticalIcon.setAttribute('aria-label','Críticos');
+      criticalIcon.textContent = '💥';
+    }
+
+    let note = byId('rd-ticket-emoji-note');
+    if(!note){
+      note = view.querySelector('[role="note"][aria-label="Nota informativa de emojis"]');
+      if(note) note.id = 'rd-ticket-emoji-note';
+    }
+    if(!note){
+      const tableWrap = view.querySelector('.rd-table-wrap');
+      if(tableWrap){
+        note = document.createElement('div');
+        note.id = 'rd-ticket-emoji-note';
+        note.className = 'rd-ticket-emoji-note';
+        note.setAttribute('role','note');
+        note.setAttribute('aria-label','Nota informativa de emojis');
+        note.innerHTML = '<strong>Leyenda:</strong><span>🚨 Atrapado</span><span>💧 Filtración</span><span>⚡ Voltaje</span><span>🚧 No funcionando</span><span>⌛ Fuera de SLA</span><span>💥 Equipo crítico</span>';
+        tableWrap.parentNode.insertBefore(note, tableWrap);
+      }
+    }
+  }
+
   function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
-  async function load(){ if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.load(); const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio(), fetchCriticidadUsuario()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen')); }
-  function init(){ if(!byId('view-resumen')) return; if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
+  async function load(){ ensureResumenVisualFixes(); if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.load(); const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio(), fetchCriticidadUsuario()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen')); ensureResumenVisualFixes(); }
+  function init(){ if(!byId('view-resumen')) return; ensureResumenVisualFixes(); if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
   window.ManttoResumenDia = { init, load, openTicket, _detailData:{} };
 })();

@@ -39,3 +39,79 @@
   .cc-kpi .ico{font-size:19px}
   .cc-kpi .val{font-size:22px}
 }
+
+/* Tickets Contextual Uni: evita que textos largos invadan columnas vecinas. */
+.cc-table.rd-tickets-contextual-uni{
+  table-layout:fixed;
+  width:2580px;
+  min-width:2580px;
+}
+.cc-table.rd-tickets-contextual-uni th,
+.cc-table.rd-tickets-contextual-uni td{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  vertical-align:middle;
+}
+.cc-table.rd-tickets-contextual-uni td{
+  max-width:220px;
+}
+.cc-table.rd-tickets-contextual-uni .cc-link{
+  display:block;
+  width:100%;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  text-align:left;
+}
+.cc-table.rd-tickets-contextual-uni th:nth-child(1),
+.cc-table.rd-tickets-contextual-uni td:nth-child(1){width:130px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(2),
+.cc-table.rd-tickets-contextual-uni td:nth-child(2){width:210px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(3),
+.cc-table.rd-tickets-contextual-uni td:nth-child(3){width:145px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(4),
+.cc-table.rd-tickets-contextual-uni td:nth-child(4){width:130px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(5),
+.cc-table.rd-tickets-contextual-uni td:nth-child(5),
+.cc-table.rd-tickets-contextual-uni th:nth-child(9),
+.cc-table.rd-tickets-contextual-uni td:nth-child(9),
+.cc-table.rd-tickets-contextual-uni th:nth-child(12),
+.cc-table.rd-tickets-contextual-uni td:nth-child(12){width:112px;text-align:center}
+.cc-table.rd-tickets-contextual-uni th:nth-child(6),
+.cc-table.rd-tickets-contextual-uni td:nth-child(6),
+.cc-table.rd-tickets-contextual-uni th:nth-child(10),
+.cc-table.rd-tickets-contextual-uni td:nth-child(10),
+.cc-table.rd-tickets-contextual-uni th:nth-child(13),
+.cc-table.rd-tickets-contextual-uni td:nth-child(13){width:105px;text-align:center}
+.cc-table.rd-tickets-contextual-uni th:nth-child(7),
+.cc-table.rd-tickets-contextual-uni td:nth-child(7){width:300px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(8),
+.cc-table.rd-tickets-contextual-uni td:nth-child(8){width:180px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(11),
+.cc-table.rd-tickets-contextual-uni td:nth-child(11){width:115px;text-align:center}
+.cc-table.rd-tickets-contextual-uni th:nth-child(14),
+.cc-table.rd-tickets-contextual-uni td:nth-child(14){width:180px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(15),
+.cc-table.rd-tickets-contextual-uni td:nth-child(15){width:220px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(16),
+.cc-table.rd-tickets-contextual-uni td:nth-child(16){width:300px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(17),
+.cc-table.rd-tickets-contextual-uni td:nth-child(17){width:150px}
+.cc-table.rd-tickets-contextual-uni th:nth-child(18),
+.cc-table.rd-tickets-contextual-uni td:nth-child(18){width:220px}
+
+
+/* Call Center U365D: subvistas internas sin alterar la distribución original. */
+.cc-dashboard-view{display:contents}
+.cc-u365-detail{width:100%;min-width:0}
+.cc-u365-detail[hidden],.cc-dashboard-view[hidden]{display:none!important}
+.cc-u365-detail:not([hidden]){display:flex;flex-direction:column;gap:14px}
+.cc-detail-head{align-items:center}
+.cc-detail-count{font-weight:900;color:#0D2E6E;white-space:nowrap}
+.cc-u365-detail-table{min-width:1780px}
+.cc-sort-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;text-align:left;cursor:pointer}
+.cc-sort-head:hover,.cc-sort-head:focus-visible{color:#1B4FD8;outline:none}
+.cc-sort-head.is-active{color:#1B4FD8}
+.cc-sort-arrow{display:inline-block;min-width:12px;font-size:10px}

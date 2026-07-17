@@ -29,13 +29,13 @@
       <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos" id="ec-eq-apply">Aplicar y guardar</button>
     </div>
 
-    <div class="ec-note">Criterio personal activo: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. Se guarda en el usuario y gobierna qué equipos reciben 💥 en el Gestor. El MTBC se calcula únicamente con RESP BLT en Año Actual y U365.</div>
+    <div class="ec-note">Criterio personal activo: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. Se guarda en el usuario y gobierna qué equipos reciben 💥 en el Gestor. El MTBC se calcula únicamente con RESP BLT: (días transcurridos × equipos considerados) ÷ fallas BLT. Año Actual usa los días transcurridos desde el 1 de enero; U365 usa 365 días.</div>
 
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
       <table class="ec-table">
-        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT período</th><th>Último BLT</th><th>Resp. Cliente período</th><th>Último Cliente</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>
-        <tbody id="ec-eq-body"><tr><td colspan="13" class="ec-empty">Cargando...</td></tr></tbody>
+        <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT período</th><th>BLT fuera del período</th><th>Último BLT</th><th>Resp. Cliente período</th><th>Cliente fuera del período</th><th>Último Cliente</th><th title="(Días transcurridos desde el 1 de enero × equipos considerados) ÷ fallas BLT del año">MTBC Año Actual</th><th title="(365 × equipos considerados) ÷ fallas BLT de los últimos 365 días">MTBC U365</th><th></th></tr></thead>
+        <tbody id="ec-eq-body"><tr><td colspan="15" class="ec-empty">Cargando...</td></tr></tbody>
       </table>
     </div>
     <div class="ec-pagination"><button type="button" id="ec-eq-prev">← Anterior</button><span id="ec-eq-page">—</span><button type="button" id="ec-eq-next">Siguiente →</button></div>
@@ -48,7 +48,7 @@
     </div>
     <div id="ec-365-content" class="ec-collapsible-content" hidden>
       <div class="ec-note">Criterio corporativo móvil: <b>3 o más RESP BLT en los últimos 365 días</b>. Se actualiza diariamente con la fecha actual.</div>
-      <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Llamadas 365d</th><th>Fallas BLT 365d</th><th>Último BLT</th><th>Crítico año actual</th><th>MTBC Año Actual</th><th>MTBC U365</th></tr></thead><tbody id="ec-365-body"><tr><td colspan="11" class="ec-empty">Cargando...</td></tr></tbody></table></div>
+      <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Llamadas 365d</th><th>Fallas BLT 365d</th><th>Último BLT</th><th>Crítico año actual</th><th title="(Días transcurridos desde el 1 de enero × equipos considerados) ÷ fallas BLT del año">MTBC Año Actual</th><th title="(365 × equipos considerados) ÷ fallas BLT de los últimos 365 días">MTBC U365</th></tr></thead><tbody id="ec-365-body"><tr><td colspan="11" class="ec-empty">Cargando...</td></tr></tbody></table></div>
     </div>
   </section>
 
@@ -73,12 +73,12 @@
       <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-proyectos">Aplicar</button>
     </div>
 
-    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo. El MTBC de proyecto agrega todas las RESP BLT de sus equipos para Año en curso y U365.</div>
+    <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo. El MTBC de proyecto usa: (días transcurridos × equipos activos en servicio) ÷ fallas BLT. Año Actual usa los días transcurridos desde el 1 de enero; U365 usa 365 días.</div>
 
     <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
       <table class="ec-table">
-        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT período</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th>MTBC Año Actual</th><th>MTBC U365</th><th></th></tr></thead>
+        <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT período</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th title="(Días transcurridos desde el 1 de enero × equipos considerados) ÷ fallas BLT del año">MTBC Año Actual</th><th title="(365 × equipos considerados) ÷ fallas BLT de los últimos 365 días">MTBC U365</th><th></th></tr></thead>
         <tbody id="ec-pro-body"><tr><td colspan="12" class="ec-empty">Cargando...</td></tr></tbody>
       </table>
     </div>

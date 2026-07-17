@@ -281,7 +281,7 @@
     }
     setActiveSide('callcenter');
     updateContext('callcenter','Dashboard Call Center · KPIs y llamadas por período desde Aiven');
-    if(window.ManttoCallCenter) window.ManttoCallCenter.init();
+    if(window.ManttoCallCenter) window.ManttoCallCenter.init(currentPayload || { view:'dashboard' });
     return true;
   }
 
