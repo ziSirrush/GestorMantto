@@ -46,6 +46,12 @@ function responsabilidadBlt(alias) {
   return `UPPER(COALESCE(${alias}.responsabilidad,'')) LIKE '%BLT%'`;
 }
 
+function portafolioOperativo(alias) {
+  return `${alias}.estado_registro = 1
+    AND (${alias}.inactivo IS NULL OR UPPER(TRIM(CAST(${alias}.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE'))
+    AND UPPER(TRIM(COALESCE(${alias}.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'`;
+}
+
 function buildOptionalFilters(req, alias, portAlias) {
   const clauses = [];
   const params = [];
@@ -99,8 +105,9 @@ async function getEquiposCriticos(req, res) {
       FROM (
         SELECT t.codigo_equipo
         FROM tickets t
-        LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-        WHERE ${dateCondition('t')}
+        INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+        WHERE ${portafolioOperativo('p')}
+          AND ${dateCondition('t')}
           AND t.codigo_equipo IS NOT NULL
           AND t.codigo_equipo <> ''
           AND ${responsabilidadBlt('t')}
@@ -152,6 +159,22 @@ async function getEquiposCriticos(req, res) {
             AND tc.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
             AND UPPER(COALESCE(tc.responsabilidad,'')) LIKE '%CLIENTE%'
         ) AS resp_cliente_periodo,
+        (
+          SELECT COUNT(*)
+          FROM tickets tbf
+          WHERE tbf.codigo_equipo = base.codigo_equipo
+            AND tbf.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+            AND tbf.fecha_reporte < DATE_SUB(CURDATE(), INTERVAL ? DAY)
+            AND UPPER(COALESCE(tbf.responsabilidad,'')) LIKE '%BLT%'
+        ) AS fallas_blt_fuera_periodo,
+        (
+          SELECT COUNT(*)
+          FROM tickets tcf
+          WHERE tcf.codigo_equipo = base.codigo_equipo
+            AND tcf.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+            AND tcf.fecha_reporte < DATE_SUB(CURDATE(), INTERVAL ? DAY)
+            AND UPPER(COALESCE(tcf.responsabilidad,'')) LIKE '%CLIENTE%'
+        ) AS resp_cliente_fuera_periodo,
         MAX(base.fecha_reporte) AS ultimo_blt,
         (
           SELECT MAX(tcli.fecha_reporte)
@@ -160,13 +183,13 @@ async function getEquiposCriticos(req, res) {
             AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%'
         ) AS ultimo_cliente,
         CASE
-          WHEN COUNT(*) <= 1 THEN NULL
-          ELSE ROUND(DATEDIFF(MAX(base.fecha_reporte), MIN(base.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+          WHEN COUNT(*) = 0 THEN NULL
+          ELSE ROUND(? / NULLIF(COUNT(*), 0), 1)
         END AS mtbc_dias,
         (
           SELECT CASE
-            WHEN COUNT(*) <= 1 THEN NULL
-            ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+            WHEN COUNT(*) = 0 THEN NULL
+            ELSE ROUND((DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1) / NULLIF(COUNT(*), 0), 1)
           END
           FROM tickets tay
           WHERE tay.codigo_equipo = base.codigo_equipo
@@ -176,8 +199,8 @@ async function getEquiposCriticos(req, res) {
         ) AS mtbc_anio,
         (
           SELECT CASE
-            WHEN COUNT(*) <= 1 THEN NULL
-            ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+            WHEN COUNT(*) = 0 THEN NULL
+            ELSE ROUND(365 / NULLIF(COUNT(*), 0), 1)
           END
           FROM tickets t365
           WHERE t365.codigo_equipo = base.codigo_equipo
@@ -188,19 +211,21 @@ async function getEquiposCriticos(req, res) {
       FROM (
         SELECT t.*
         FROM tickets t
-        LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-        WHERE ${dateCondition('t')}
+        INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+        WHERE ${portafolioOperativo('p')}
+          AND ${dateCondition('t')}
           AND t.codigo_equipo IS NOT NULL
           AND t.codigo_equipo <> ''
           AND ${responsabilidadBlt('t')}
           ${filters.sql}
       ) base
-      LEFT JOIN portafolio p ON p.numero_equipo = base.codigo_equipo
+      INNER JOIN portafolio p ON p.numero_equipo = base.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
       GROUP BY base.codigo_equipo
       HAVING COUNT(*) >= ?
       ORDER BY fallas_blt_periodo DESC, ultimo_blt DESC, base.codigo_equipo ASC
       LIMIT ? OFFSET ?
-    `, [dias, ...paramsBase, minFallas, pageSize, offset]);
+    `, [dias, dias, dias, dias, ...paramsBase, minFallas, pageSize, offset]);
 
     return res.json({
       ok: true,
@@ -248,7 +273,9 @@ async function getEquipoCriticoTickets(req, res) {
         t.ticket_excede,
         t.vobo_estado
       FROM tickets t
-      WHERE t.codigo_equipo = ?
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
+        AND t.codigo_equipo = ?
         AND ${dateCondition('t')}
         ${respSql}
       ORDER BY t.fecha_reporte DESC, t.id DESC
@@ -295,7 +322,8 @@ async function getProyectosCriticos(req, res) {
     AND p.proyecto <> ''
     AND p.numero_equipo IS NOT NULL
     AND p.numero_equipo <> ''
-    AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE'))
+    AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE'))
+    AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'
   `;
 
   const equiposConFallaSql = `
@@ -401,8 +429,9 @@ async function getProyectoCriticoTickets(req, res) {
         t.ticket_excede,
         t.vobo_estado
       FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE COALESCE(t.proyecto, p.proyecto) = ?
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
+        AND p.proyecto = ?
         AND ${dateCondition('t')}
         AND ${responsabilidadBlt('t')}
       ORDER BY t.fecha_reporte DESC, t.id DESC
@@ -423,8 +452,9 @@ async function getMtbcEquipos(req, res) {
     const [countRows] = await db.query(`
       SELECT COUNT(DISTINCT t.codigo_equipo) AS total
       FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE t.codigo_equipo IS NOT NULL
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
+        AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
         AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
         AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
@@ -448,25 +478,23 @@ async function getMtbcEquipos(req, res) {
           WHEN SUM(CASE
             WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
              AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-            THEN 1 ELSE 0 END) <= 1
+            THEN 1 ELSE 0 END) = 0
           THEN NULL
           ELSE ROUND(
-            DATEDIFF(
-              MAX(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END),
-              MIN(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END)
-            ) /
-            NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END) - 1, 0),
+            (DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1) /
+            NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END), 0),
             1
           )
         END AS mtbc_anio,
         CASE
-          WHEN COUNT(*) <= 1 THEN NULL
-          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
+          WHEN COUNT(*) = 0 THEN NULL
+          ELSE ROUND(365 / NULLIF(COUNT(*), 0), 1)
         END AS mtbc_365,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE t.codigo_equipo IS NOT NULL
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
+        AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
         AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
         AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
@@ -482,7 +510,7 @@ async function getMtbcEquipos(req, res) {
       source: 'aiven',
       rule: {
         responsabilidad: 'BLT',
-        mtbc: '(ultima fecha de falla - primera fecha de falla) / (numero de fallas - 1)',
+        mtbc: '(dias transcurridos x cantidad de equipos) / numero de fallas BLT',
         anio_en_curso: '01 de enero hasta hoy',
         ultimos_365_dias: 'ventana movil desde hoy - 365 dias hasta hoy'
       },
@@ -502,71 +530,63 @@ async function getMtbcProyectos(req, res) {
   const params = [];
 
   if (zona) {
-    clauses.push('COALESCE(t.zona, p.zona_operativa) LIKE ?');
+    clauses.push('p.zona_operativa LIKE ?');
     params.push(zona);
   }
   if (proyecto) {
-    clauses.push('COALESCE(t.proyecto, p.proyecto) LIKE ?');
+    clauses.push('p.proyecto LIKE ?');
     params.push(proyecto);
   }
   const filterSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
 
-  try {
-    const [countRows] = await db.query(`
-      SELECT COUNT(DISTINCT COALESCE(t.proyecto, p.proyecto)) AS total
-      FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE COALESCE(t.proyecto, p.proyecto) IS NOT NULL
-        AND COALESCE(t.proyecto, p.proyecto) <> ''
-        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-        AND ${responsabilidadBlt('t')}
-        ${filterSql}
-    `, params);
+  const baseSql = `
+    SELECT
+      p.proyecto,
+      MAX(p.zona_operativa) AS zona,
+      COUNT(DISTINCT p.numero_equipo) AS equipos_activos,
+      COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN t.codigo_equipo END) AS equipos_con_falla_blt_365,
+      COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.codigo_equipo END) AS equipos_con_falla_blt_anio,
+      SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END) AS fallas_blt_anio,
+      SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN 1 ELSE 0 END) AS fallas_blt_365,
+      CASE
+        WHEN SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND(
+          ((DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1) * COUNT(DISTINCT p.numero_equipo)) /
+          NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END), 0),
+          1
+        )
+      END AS mtbc_anio,
+      CASE
+        WHEN SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND(
+          (365 * COUNT(DISTINCT p.numero_equipo)) /
+          NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN 1 ELSE 0 END), 0),
+          1
+        )
+      END AS mtbc_365,
+      MAX(t.fecha_reporte) AS ultimo_blt
+    FROM portafolio p
+    LEFT JOIN tickets t
+      ON t.codigo_equipo = p.numero_equipo
+      AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+      AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+      AND ${responsabilidadBlt('t')}
+    WHERE ${portafolioOperativo('p')}
+      AND p.proyecto IS NOT NULL
+      AND p.proyecto <> ''
+      AND p.numero_equipo IS NOT NULL
+      AND p.numero_equipo <> ''
+      ${filterSql}
+    GROUP BY p.proyecto
+    HAVING fallas_blt_365 > 0
+  `;
 
+  try {
+    const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM (${baseSql}) q`, params);
     const [rows] = await db.query(`
-      SELECT
-        COALESCE(t.proyecto, p.proyecto) AS proyecto,
-        MAX(COALESCE(t.zona, p.zona_operativa)) AS zona,
-        COUNT(DISTINCT t.codigo_equipo) AS equipos_con_falla_blt_365,
-        COUNT(DISTINCT CASE
-          WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.codigo_equipo
-          ELSE NULL END) AS equipos_con_falla_blt_anio,
-        SUM(CASE
-          WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-          THEN 1 ELSE 0 END) AS fallas_blt_anio,
-        COUNT(*) AS fallas_blt_365,
-        CASE
-          WHEN SUM(CASE
-            WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-             AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-            THEN 1 ELSE 0 END) <= 1
-          THEN NULL
-          ELSE ROUND(
-            DATEDIFF(
-              MAX(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END),
-              MIN(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN t.fecha_reporte END)
-            ) /
-            NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) THEN 1 ELSE 0 END) - 1, 0),
-            1
-          )
-        END AS mtbc_anio,
-        CASE
-          WHEN COUNT(*) <= 1 THEN NULL
-          ELSE ROUND(DATEDIFF(MAX(t.fecha_reporte), MIN(t.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1)
-        END AS mtbc_365,
-        MAX(t.fecha_reporte) AS ultimo_blt
-      FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE COALESCE(t.proyecto, p.proyecto) IS NOT NULL
-        AND COALESCE(t.proyecto, p.proyecto) <> ''
-        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-        AND ${responsabilidadBlt('t')}
-        ${filterSql}
-      GROUP BY COALESCE(t.proyecto, p.proyecto)
-      ORDER BY fallas_blt_anio DESC, fallas_blt_365 DESC, ultimo_blt DESC, proyecto ASC
+      SELECT *
+      FROM (${baseSql}) q
+      ORDER BY q.fallas_blt_anio DESC, q.fallas_blt_365 DESC, q.ultimo_blt DESC, q.proyecto ASC
       LIMIT ? OFFSET ?
     `, [...params, pageSize, offset]);
 
@@ -575,8 +595,8 @@ async function getMtbcProyectos(req, res) {
       source: 'aiven',
       rule: {
         responsabilidad: 'BLT',
-        aggregation: 'todas las fallas RESP BLT de los equipos pertenecientes al proyecto',
-        mtbc: '(ultima fecha de falla - primera fecha de falla) / (numero de fallas - 1)',
+        aggregation: 'fallas BLT de equipos activos y en servicio del proyecto',
+        mtbc: '(dias transcurridos x cantidad de equipos activos) / numero de fallas BLT',
         anio_en_curso: '01 de enero hasta hoy',
         ultimos_365_dias: 'ventana movil desde hoy - 365 dias hasta hoy'
       },
@@ -603,8 +623,9 @@ async function getCriticidadCorporativa(req, res) {
         MAX(t.fecha_reporte) AS ultimo_blt,
         1 AS es_critico
       FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE t.codigo_equipo IS NOT NULL
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
+        AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
         AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
         AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
@@ -631,8 +652,9 @@ async function getCriticidadCorporativa(req, res) {
         ) AS llamadas_365,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
-      LEFT JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-      WHERE t.codigo_equipo IS NOT NULL
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE ${portafolioOperativo('p')}
+        AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
         AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
         AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
