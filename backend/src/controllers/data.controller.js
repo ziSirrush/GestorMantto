@@ -2758,7 +2758,7 @@ async function getProyectoDetalle(req, res) {
       ORDER BY p.numero_equipo ASC
     `, [proyecto]);
 
-    const ticketParams = [proyecto, proyecto];
+    const ticketParams = [proyecto, proyecto, proyecto];
     const ticketYearSql = anioTickets ? ' AND YEAR(t.fecha_reporte) = ?' : '';
     if (anioTickets) ticketParams.push(anioTickets);
     const [tickets] = await db.query(`
@@ -2767,8 +2767,18 @@ async function getProyectoDetalle(req, res) {
         t.descripcion, t.fecha_reporte, t.h_reporte, t.estatus_equipo_ir,
         t.fecha_llegada, t.h_llegada, t.tiempo_llegada,
         t.fecha_cierre, t.h_solucion, t.tiempo_solucion,
-        t.estatus_equipo_final, t.causa, t.causa_falla, t.accion_en_cierre, t.responsabilidad
+        t.estatus_equipo_final, t.causa, t.causa_falla, t.accion_en_cierre, t.responsabilidad,
+        eq.identificacion_sitio
       FROM tickets t
+      LEFT JOIN (
+        SELECT
+          numero_equipo,
+          MAX(NULLIF(TRIM(identificacion_sitio), '')) AS identificacion_sitio
+        FROM portafolio
+        WHERE ${filtroVisibleSubquery}
+          AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        GROUP BY numero_equipo
+      ) eq ON eq.numero_equipo = t.codigo_equipo
       WHERE (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?))
          OR t.codigo_equipo IN (
           SELECT numero_equipo
