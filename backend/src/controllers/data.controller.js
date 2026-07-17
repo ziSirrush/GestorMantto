@@ -779,13 +779,20 @@ async function getPortafolioEquipoDetalle(req, res) {
       const isBlt = ticket => normalize(ticket.responsabilidad).includes('BLT');
       const isClient = ticket => normalize(ticket.responsabilidad).includes('CLIENTE');
       const inCurrentYear = ticket => yearOf(ticket.fecha_reporte) === new Date().getFullYear();
-      const u365Start = new Date();
-      u365Start.setHours(0, 0, 0, 0);
-      u365Start.setDate(u365Start.getDate() - 364);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+      const u365Start = new Date(today);
+      u365Start.setDate(u365Start.getDate() - 365);
+      const localDateKey = date => {
+        const value = new Date(date);
+        return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
+      };
       const inU365 = ticket => {
         const date = dateParts(ticket.fecha_reporte)?.date;
         if (!date || Number.isNaN(date.getTime())) return false;
-        return date >= u365Start;
+        return date >= u365Start && date <= todayEnd;
       };
       const mtbc = (rows, periodDays) => {
         const dates = rows.map(ticket => new Date(ticket.fecha_reporte)).filter(date => !Number.isNaN(date.getTime())).sort((a, b) => a - b);
@@ -826,7 +833,9 @@ async function getPortafolioEquipoDetalle(req, res) {
         mtbc_u365: mtbc(u365Blt, 365)
       };
 
-      const monthlyCurrentMap = new Map();
+      const monthlyCurrentMap = new Map(
+        Array.from({ length: 12 }, (_, index) => [currentYear + '-' + String(index + 1).padStart(2, '0'), 0])
+      );
       const monthlyU365Map = new Map();
       currentYearBlt.forEach(ticket => {
         const month = monthKeyOf(ticket.fecha_reporte);
@@ -846,8 +855,8 @@ async function getPortafolioEquipoDetalle(req, res) {
         tickets,
         ticket_years: ticketYears,
         ticket_year_selected: anioTickets,
-        u365_desde: u365Start.toISOString().slice(0, 10),
-        u365_hasta: new Date().toISOString().slice(0, 10),
+        u365_desde: localDateKey(u365Start),
+        u365_hasta: localDateKey(today),
         metrics,
         fallas_blt_mes_anio: Array.from(monthlyCurrentMap, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes)),
         fallas_blt_mes_u365: Array.from(monthlyU365Map, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes))
