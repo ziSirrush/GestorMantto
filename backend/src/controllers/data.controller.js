@@ -2460,6 +2460,10 @@ async function getProyectos(req, res) {
         SUM(CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 1 ELSE 0 END) AS parados,
         SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
         SUM(COALESCE(blt.blt_365d, 0)) AS fallas_blt_365d,
+        SUM(COALESCE(resp_anio.llamadas_blt_anio, 0)) AS llamadas_blt_anio,
+        MAX(resp_anio.ultima_llamada_blt) AS ultima_llamada_blt,
+        SUM(COALESCE(resp_anio.llamadas_cliente_anio, 0)) AS llamadas_cliente_anio,
+        MAX(resp_anio.ultima_llamada_cliente) AS ultima_llamada_cliente,
         CASE
           WHEN COUNT(*) > 0 THEN ROUND(AVG(
             CASE
@@ -2489,6 +2493,20 @@ async function getProyectos(req, res) {
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
       ) blt ON blt.codigo_equipo = p.numero_equipo
+      LEFT JOIN (
+        SELECT
+          codigo_equipo,
+          SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
+          MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT' THEN fecha_reporte END) AS ultima_llamada_blt,
+          SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
+          MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
+        FROM tickets
+        WHERE fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+          AND fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+          AND codigo_equipo IS NOT NULL
+          AND TRIM(codigo_equipo) <> ''
+        GROUP BY codigo_equipo
+      ) resp_anio ON resp_anio.codigo_equipo = p.numero_equipo
       WHERE ${filters.where}
       GROUP BY p.proyecto
       ORDER BY parados DESC, tickets_35d DESC, p.proyecto ASC
