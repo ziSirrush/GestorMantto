@@ -32,6 +32,8 @@ router.get('/proyectos', dataController.getProyectos);
 
 router.get('/indicadores/mtbc/equipos', criticosController.getMtbcEquipos);
 router.get('/indicadores/mtbc/proyectos', criticosController.getMtbcProyectos);
+router.get('/callcenter/u365/proyectos', optionalAuth, criticosController.getCallCenterU365Proyectos);
+router.get('/callcenter/u365/equipos', optionalAuth, criticosController.getCallCenterU365Equipos);
 router.get('/criticidad-corporativa', optionalAuth, criticosController.getCriticidadCorporativa);
 router.get('/equipos-criticos', optionalAuth, criticosController.getEquiposCriticos);
 router.get('/equipos-criticos/:codigo/tickets', optionalAuth, criticosController.getEquipoCriticoTickets);

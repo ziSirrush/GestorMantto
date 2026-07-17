@@ -608,6 +608,285 @@ async function getMtbcProyectos(req, res) {
   }
 }
 
+
+function buildCallCenterU365TicketAggregate(diasCriticos) {
+  return {
+    sql: `
+      SELECT
+        t.codigo_equipo,
+        SUM(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          THEN 1 ELSE 0 END) AS llamadas_365,
+        SUM(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+           AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%CLIENTE%'
+          THEN 1 ELSE 0 END) AS resp_cliente_365,
+        SUM(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+           AND ${responsabilidadBlt('t')}
+          THEN 1 ELSE 0 END) AS fallas_blt_365,
+        SUM(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+           AND TRIM(COALESCE(t.responsabilidad, '')) = ''
+          THEN 1 ELSE 0 END) AS sin_responsabilidad_365,
+        SUM(CASE
+          WHEN t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+           AND ${responsabilidadBlt('t')}
+          THEN 1 ELSE 0 END) AS fallas_blt_anio,
+        SUM(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+           AND ${responsabilidadBlt('t')}
+          THEN 1 ELSE 0 END) AS fallas_blt_periodo_critico,
+        MAX(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          THEN t.fecha_reporte ELSE NULL END) AS ultima_llamada_365,
+        MAX(CASE
+          WHEN t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+           AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+           AND ${responsabilidadBlt('t')}
+          THEN t.fecha_reporte ELSE NULL END) AS ultima_falla_blt_365
+      FROM tickets t
+      WHERE t.codigo_equipo IS NOT NULL
+        AND t.codigo_equipo <> ''
+        AND t.fecha_reporte IS NOT NULL
+        AND t.fecha_reporte >= LEAST(
+          DATE_SUB(CURDATE(), INTERVAL 365 DAY),
+          MAKEDATE(YEAR(CURDATE()), 1),
+          DATE_SUB(CURDATE(), INTERVAL ? DAY)
+        )
+        AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+      GROUP BY t.codigo_equipo
+    `,
+    params: [diasCriticos, diasCriticos]
+  };
+}
+
+function callCenterActivePortfolioSql() {
+  return `
+    SELECT
+      p.numero_equipo,
+      MAX(p.proyecto) AS proyecto,
+      MAX(p.zona_operativa) AS zona,
+      MAX(p.identificacion_sitio) AS referencia_en_sitio,
+      MAX(p.supervisor_zona) AS supervisor,
+      MAX(p.superintendente) AS superintendente
+    FROM portafolio p
+    WHERE ${portafolioOperativo('p')}
+      AND p.numero_equipo IS NOT NULL
+      AND p.numero_equipo <> ''
+      AND p.proyecto IS NOT NULL
+      AND p.proyecto <> ''
+    GROUP BY p.numero_equipo
+  `;
+}
+
+async function getCallCenterU365Equipos(req, res) {
+  const { page, pageSize, offset } = pagination(req);
+  const { dias, minFallas } = getUserCriticidadCriteria(req);
+  const zona = likeParam(req.query.zona);
+  const proyecto = likeParam(req.query.proyecto);
+  const search = likeParam(req.query.search || req.query.buscar);
+  const clauses = [];
+  const filterParams = [];
+
+  if (zona) {
+    clauses.push('ap.zona LIKE ?');
+    filterParams.push(zona);
+  }
+  if (proyecto) {
+    clauses.push('ap.proyecto LIKE ?');
+    filterParams.push(proyecto);
+  }
+  if (search) {
+    clauses.push(`(
+      ap.proyecto LIKE ?
+      OR ap.numero_equipo LIKE ?
+      OR ap.referencia_en_sitio LIKE ?
+      OR ap.zona LIKE ?
+    )`);
+    filterParams.push(search, search, search, search);
+  }
+
+  const filterSql = clauses.length ? ` AND ${clauses.join(' AND ')}` : '';
+  const ticketAggregate = buildCallCenterU365TicketAggregate(dias);
+  const activePortfolio = callCenterActivePortfolioSql();
+  const baseSql = `
+    SELECT
+      ap.numero_equipo,
+      ap.numero_equipo AS codigo_equipo,
+      ap.proyecto,
+      ap.zona,
+      ap.referencia_en_sitio,
+      ap.supervisor,
+      ap.superintendente,
+      COALESCE(ta.llamadas_365, 0) AS llamadas_365,
+      COALESCE(ta.resp_cliente_365, 0) AS resp_cliente_365,
+      COALESCE(ta.fallas_blt_365, 0) AS fallas_blt_365,
+      COALESCE(ta.sin_responsabilidad_365, 0) AS sin_responsabilidad_365,
+      COALESCE(ta.fallas_blt_anio, 0) AS fallas_blt_anio,
+      CASE
+        WHEN COALESCE(ta.fallas_blt_anio, 0) = 0 THEN NULL
+        ELSE ROUND(
+          (DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1) /
+          NULLIF(ta.fallas_blt_anio, 0),
+          1
+        )
+      END AS mtbc_anio,
+      CASE
+        WHEN COALESCE(ta.fallas_blt_365, 0) = 0 THEN NULL
+        ELSE ROUND(365 / NULLIF(ta.fallas_blt_365, 0), 1)
+      END AS mtbc_365,
+      CASE
+        WHEN COALESCE(ta.fallas_blt_periodo_critico, 0) >= ? THEN 1
+        ELSE 0
+      END AS es_critico,
+      ta.ultima_llamada_365,
+      ta.ultima_falla_blt_365
+    FROM (${activePortfolio}) ap
+    INNER JOIN (${ticketAggregate.sql}) ta ON ta.codigo_equipo = ap.numero_equipo
+    WHERE COALESCE(ta.llamadas_365, 0) > 0
+      ${filterSql}
+  `;
+
+  try {
+    const baseParams = [minFallas, ...ticketAggregate.params, ...filterParams];
+    const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM (${baseSql}) q`, baseParams);
+    const [rows] = await db.query(`
+      SELECT *
+      FROM (${baseSql}) q
+      ORDER BY q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.numero_equipo ASC
+      LIMIT ? OFFSET ?
+    `, [...baseParams, pageSize, offset]);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      view: 'Detalle Llamadas U365D - Equipos',
+      rule: {
+        universo: 'equipos activos y en servicio del portafolio con al menos una llamada en los ultimos 365 dias',
+        responsabilidad_mtbc: 'BLT',
+        mtbc_equipo: 'dias del periodo / numero de fallas BLT del equipo',
+        criticidad: `${minFallas} o mas fallas BLT en ${dias} dias`
+      },
+      criteria: { dias_criticidad: dias, min_fallas_blt: minFallas },
+      pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando detalle U365D por equipo.',
+      error: error.message
+    });
+  }
+}
+
+async function getCallCenterU365Proyectos(req, res) {
+  const { page, pageSize, offset } = pagination(req);
+  const { dias, minFallas } = getUserCriticidadCriteria(req);
+  const zona = likeParam(req.query.zona);
+  const proyecto = likeParam(req.query.proyecto || req.query.search || req.query.buscar);
+  const clauses = [];
+  const filterParams = [];
+
+  if (zona) {
+    clauses.push('ap.zona LIKE ?');
+    filterParams.push(zona);
+  }
+  if (proyecto) {
+    clauses.push('ap.proyecto LIKE ?');
+    filterParams.push(proyecto);
+  }
+
+  const filterSql = clauses.length ? ` AND ${clauses.join(' AND ')}` : '';
+  const ticketAggregate = buildCallCenterU365TicketAggregate(dias);
+  const activePortfolio = callCenterActivePortfolioSql();
+  const baseSql = `
+    SELECT
+      ap.proyecto,
+      MAX(ap.zona) AS zona,
+      COUNT(*) AS equipos_activos,
+      SUM(CASE WHEN COALESCE(ta.llamadas_365, 0) > 0 THEN 1 ELSE 0 END) AS equipos_con_llamadas_365,
+      SUM(COALESCE(ta.llamadas_365, 0)) AS llamadas_365,
+      SUM(COALESCE(ta.resp_cliente_365, 0)) AS resp_cliente_365,
+      SUM(COALESCE(ta.fallas_blt_365, 0)) AS fallas_blt_365,
+      SUM(COALESCE(ta.sin_responsabilidad_365, 0)) AS sin_responsabilidad_365,
+      SUM(COALESCE(ta.fallas_blt_anio, 0)) AS fallas_blt_anio,
+      ROUND(
+        SUM(COALESCE(ta.llamadas_365, 0)) / NULLIF(COUNT(*), 0),
+        1
+      ) AS promedio_llamadas_por_equipo,
+      CASE
+        WHEN SUM(COALESCE(ta.fallas_blt_anio, 0)) = 0 THEN NULL
+        ELSE ROUND(
+          ((DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1) * COUNT(*)) /
+          NULLIF(SUM(COALESCE(ta.fallas_blt_anio, 0)), 0),
+          1
+        )
+      END AS mtbc_anio,
+      CASE
+        WHEN SUM(COALESCE(ta.fallas_blt_365, 0)) = 0 THEN NULL
+        ELSE ROUND(
+          (365 * COUNT(*)) /
+          NULLIF(SUM(COALESCE(ta.fallas_blt_365, 0)), 0),
+          1
+        )
+      END AS mtbc_365,
+      SUM(CASE
+        WHEN COALESCE(ta.fallas_blt_periodo_critico, 0) >= ? THEN 1
+        ELSE 0
+      END) AS equipos_criticos,
+      MAX(ta.ultima_llamada_365) AS ultima_llamada_365,
+      MAX(ta.ultima_falla_blt_365) AS ultima_falla_blt_365
+    FROM (${activePortfolio}) ap
+    LEFT JOIN (${ticketAggregate.sql}) ta ON ta.codigo_equipo = ap.numero_equipo
+    WHERE 1 = 1
+      ${filterSql}
+    GROUP BY ap.proyecto
+    HAVING SUM(COALESCE(ta.llamadas_365, 0)) > 0
+  `;
+
+  try {
+    const baseParams = [minFallas, ...ticketAggregate.params, ...filterParams];
+    const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM (${baseSql}) q`, baseParams);
+    const [rows] = await db.query(`
+      SELECT *
+      FROM (${baseSql}) q
+      ORDER BY q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.proyecto ASC
+      LIMIT ? OFFSET ?
+    `, [...baseParams, pageSize, offset]);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      view: 'Detalle Llamadas U365D - Proyectos',
+      rule: {
+        universo: 'equipos activos y en servicio del portafolio, agrupados por proyecto',
+        llamadas: 'todas las llamadas de los ultimos 365 dias',
+        responsabilidad_mtbc: 'BLT',
+        mtbc_proyecto: '(dias del periodo x equipos activos) / numero de fallas BLT',
+        criticidad: `${minFallas} o mas fallas BLT por equipo en ${dias} dias`
+      },
+      criteria: { dias_criticidad: dias, min_fallas_blt: minFallas },
+      pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando detalle U365D por proyecto.',
+      error: error.message
+    });
+  }
+}
+
 async function getCriticidadCorporativa(req, res) {
   const { dias, minFallas } = getUserCriticidadCriteria(req);
 
@@ -708,5 +987,7 @@ module.exports = {
   getProyectoCriticoTickets,
   getCriticidadCorporativa,
   getMtbcEquipos,
-  getMtbcProyectos
+  getMtbcProyectos,
+  getCallCenterU365Equipos,
+  getCallCenterU365Proyectos
 };
