@@ -2684,6 +2684,12 @@ async function getProyectoDetalle(req, res) {
         MAX(p.zona_operativa) AS zona_operativa,
         MAX(p.direccion) AS direccion,
         MIN(p.fecha_instalacion) AS fecha_instalacion,
+        MIN(p.fecha_entrega) AS fecha_entrega,
+        MAX(p.termino_garantia) AS termino_garantia,
+        MIN(p.fecha_recepcion_mantenimiento) AS fecha_recepcion_mantenimiento,
+        MAX(p.mes_inicio_gratuitos) AS mes_inicio_gratuitos,
+        MAX(p.mes_termino_gratuitos) AS mes_termino_gratuitos,
+        MAX(p.mes_objetivo_inicio_cobranza) AS mes_objetivo_inicio_cobranza,
         MIN(p.fecha_ingreso_portafolio) AS fecha_ingreso_portafolio,
         MAX(p.superintendente) AS superintendente,
         MAX(p.supervisor_zona) AS supervisor,
@@ -2818,6 +2824,85 @@ async function getProyectoDetalle(req, res) {
       ORDER BY total DESC
     `, [proyecto, proyecto]);
 
+    const projectMetrics = {
+      equipos_activos: equipos.length,
+      equipos_detenidos: equipos.filter(row => {
+        const value = String(row.estado_operativo || row.estatus_equipo_final || '').trim().toUpperCase();
+        return value.includes('NO FUNC') || value.includes('PARAD');
+      }).length,
+      equipos_criticos_anio: 0,
+      llamadas_total_anio: 0,
+      llamadas_blt_anio: 0,
+      llamadas_cliente_anio: 0,
+      llamadas_sin_responsable_anio: 0
+    };
+
+    const [callMetricsRows] = await db.query(`
+      SELECT
+        COUNT(*) AS llamadas_total_anio,
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
+        SUM(CASE WHEN TRIM(COALESCE(t.responsabilidad,'')) = '' OR UPPER(TRIM(t.responsabilidad)) NOT IN ('BLT','CLIENTE') THEN 1 ELSE 0 END) AS llamadas_sin_responsable_anio
+      FROM tickets t
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        ))
+    `, [proyecto, proyecto]);
+    Object.assign(projectMetrics, callMetricsRows[0] || {});
+
+    const [criticalRows] = await db.query(`
+      SELECT COUNT(*) AS equipos_criticos_anio
+      FROM (
+        SELECT t.codigo_equipo
+        FROM tickets t
+        WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+          AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+          AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT'
+          AND t.codigo_equipo IN (
+            SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+          )
+        GROUP BY t.codigo_equipo
+        HAVING COUNT(*) >= 3
+      ) critical
+    `, [proyecto]);
+    projectMetrics.equipos_criticos_anio = Number(criticalRows[0]?.equipos_criticos_anio || 0);
+
+    const [responsibilityDistribution] = await db.query(`
+      SELECT
+        CASE
+          WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT' THEN 'Resp. BLT'
+          WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'CLIENTE' THEN 'Resp. Cliente'
+          ELSE 'Sin Responsable'
+        END AS label,
+        COUNT(*) AS total
+      FROM tickets t
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        ))
+      GROUP BY label
+      ORDER BY total DESC
+    `, [proyecto, proyecto]);
+
+    const [equipmentResponsibilityDistribution] = await db.query(`
+      SELECT
+        t.codigo_equipo AS label,
+        UPPER(TRIM(t.responsabilidad)) AS responsabilidad,
+        COUNT(*) AS total
+      FROM tickets t
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) IN ('BLT','CLIENTE')
+        AND t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        )
+      GROUP BY t.codigo_equipo, UPPER(TRIM(t.responsabilidad))
+      ORDER BY total DESC, label ASC
+    `, [proyecto]);
+
     const proyectoDecorado = decorateProyectoRow({
       ...proyectos[0],
       nombre_publico: nombrePublico,
@@ -2849,7 +2934,13 @@ async function getProyectoDetalle(req, res) {
       ticket_year_selected: anioTickets,
       monthly_current: monthlyCurrent,
       monthly_previous: monthlyPrevious,
-      responsabilidad
+      responsabilidad,
+      project_metrics: projectMetrics,
+      project_distributions: {
+        total_responsabilidad: responsibilityDistribution,
+        blt_por_equipo: equipmentResponsibilityDistribution.filter(row => row.responsabilidad === 'BLT'),
+        cliente_por_equipo: equipmentResponsibilityDistribution.filter(row => row.responsabilidad === 'CLIENTE')
+      }
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando detalle de proyecto.', error: error.message });
