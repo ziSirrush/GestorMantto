@@ -928,6 +928,73 @@ async function getPortafolioEquipoDetalle(req, res) {
   }
 }
 
+
+async function getPortafolioEquipoTicketsLote(req, res) {
+  const rawEquipos = Array.isArray(req.body?.equipos) ? req.body.equipos : [];
+  const equipos = Array.from(new Set(
+    rawEquipos
+      .map(value => String(value == null ? '' : value).trim())
+      .filter(Boolean)
+  ));
+
+  if (!equipos.length) {
+    return res.status(400).json({
+      ok: false,
+      message: 'Se requiere al menos un numero de equipo.'
+    });
+  }
+
+  if (equipos.length > 1000) {
+    return res.status(400).json({
+      ok: false,
+      message: 'La consulta por lote admite un maximo de 1000 equipos.'
+    });
+  }
+
+  const anioRaw = Number.parseInt(req.body?.anio, 10);
+  const anio = Number.isInteger(anioRaw) && anioRaw >= 2000 && anioRaw <= 2100
+    ? anioRaw
+    : new Date().getFullYear();
+  const fechaInicio = `${anio}-01-01`;
+  const fechaFin = `${anio + 1}-01-01`;
+  const placeholders = equipos.map(() => '?').join(', ');
+
+  try {
+    const [rows] = await db.query(`
+      SELECT *
+      FROM tickets
+      WHERE TRIM(COALESCE(codigo_equipo, '')) IN (${placeholders})
+        AND fecha_reporte >= ?
+        AND fecha_reporte < ?
+      ORDER BY TRIM(COALESCE(codigo_equipo, '')) ASC, fecha_reporte DESC, id DESC
+    `, [...equipos, fechaInicio, fechaFin]);
+
+    const ticketsPorEquipo = Object.fromEntries(equipos.map(codigo => [codigo, []]));
+    rows.forEach(ticket => {
+      const codigo = String(ticket.codigo_equipo || '').trim();
+      if (!Object.prototype.hasOwnProperty.call(ticketsPorEquipo, codigo)) {
+        ticketsPorEquipo[codigo] = [];
+      }
+      ticketsPorEquipo[codigo].push(ticket);
+    });
+
+    return res.json({
+      ok: true,
+      source: 'aiven-tickets-lote',
+      anio,
+      total_equipos: equipos.length,
+      total_tickets: rows.length,
+      data: ticketsPorEquipo
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando tickets por lote.',
+      error: error.message
+    });
+  }
+}
+
 async function saveTicketVobo(req, res) {
   const ticket = String(req.params.ticket || '').trim();
   const voboEstado = String(req.body?.vobo_estado || '').trim() || 'Pendiente';
@@ -3053,6 +3120,7 @@ module.exports = {
   getPortafolioDashboard,
   getPortafolioEquipos,
   getPortafolioEquipoDetalle,
+  getPortafolioEquipoTicketsLote,
   getEquipos,
   getPendientesCatalogos,
   getPendientes,

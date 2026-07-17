@@ -17,6 +17,7 @@ router.get('/portafolio/movimientos', dataController.getPortafolioMovimientos);
 router.get('/portafolio/movimientos-semanales/catalogo', dataController.getPortafolioSemanasDisponibles);
 router.get('/portafolio/movimientos-semanales', dataController.getPortafolioMovimientosSemanales);
 router.get('/portafolio/movimientos/:codigo/detalle', dataController.getPortafolioMovimientoDetalle);
+router.post('/portafolio/equipos/tickets-lote', dataController.getPortafolioEquipoTicketsLote);
 router.get('/portafolio/equipos/:codigo', dataController.getPortafolioEquipoDetalle);
 router.get('/portafolio/equipos', dataController.getPortafolioEquipos);
 router.get('/portafolio/proyectos/detalle/:proyecto', dataController.getPortafolioProyectoDetalle);
