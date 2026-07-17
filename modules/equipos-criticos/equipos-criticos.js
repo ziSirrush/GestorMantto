@@ -702,8 +702,11 @@
 
   async function buildProyectosPdf(){
     const criteria=Object.assign({},state.pro.lastCriteria||proCriteria(),{page:1,page_size:1000000});
-    const result=await buildProyectosCriticosFromFrontend(criteria);
-    const rows=await enrichProjectMtbc_uni(result.rows,criteria);
+    // El PDF debe reutilizar la misma fuente oficial que la tabla en pantalla.
+    // Así los proyectos, equipos activos y equipos críticos se obtienen desde
+    // Portafolio por código de equipo, evitando cruces por nombre de proyecto.
+    const result=await fetchJson('/api/proyectos-criticos?'+qs(criteria));
+    const rows=await enrichProjectMtbc_uni(result.data || [],criteria);
     if(!rows.length) throw new Error('No hay proyectos críticos para exportar con los filtros actuales.');
     window.ManttoPdf_gnral.exportReport({
       title:'Proyectos Críticos',

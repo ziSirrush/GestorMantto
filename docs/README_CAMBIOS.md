@@ -1,21 +1,43 @@
-# Reimplementación frontend Call Center U365D
+# Fix PDF Proyectos Críticos
 
-Archivos modificados:
-- `callcenter/callcenter.html`
-- `callcenter/callcenter.js`
-- `callcenter/callcenter.css`
-- `router.js`
-- `index.html`
+## Archivo modificado
 
-## Cambios
-- Los KPI existentes abren subvistas internas de Call Center mediante el router general.
-- El historial distingue `dashboard`, `u365-proyectos` y `u365-equipos` mediante `payload.view`.
-- Se mantiene un solo botón Back: el general del proyecto.
-- Las tablas U365D se precargan junto con el Dashboard y no vuelven a consultar al abrirse.
-- Los encabezados ordenan ascendente/descendente y solo una columna queda activa.
-- El MTBC mostrado proviene de los endpoints backend U365D, calculados con responsabilidad BLT.
-- La distribución original del Dashboard se conserva usando `display: contents` en el contenedor lógico.
+- `equipos-criticos/equipos-criticos.js`
 
-## Endpoints requeridos
-- `GET /api/callcenter/u365/proyectos`
-- `GET /api/callcenter/u365/equipos`
+## Corrección
+
+El PDF de **Proyectos Críticos** ya no reconstruye los proyectos en el frontend mediante una comparación exacta entre el nombre del proyecto de Tickets y el nombre del proyecto de Portafolio.
+
+Ahora consume la misma fuente oficial utilizada por la tabla en pantalla:
+
+```text
+GET /api/proyectos-criticos
+```
+
+Esto mantiene consistentes entre pantalla y PDF los siguientes valores:
+
+- Proyecto oficial de Portafolio.
+- Equipos activos.
+- Fallas BLT del período.
+- Equipos críticos.
+- Filtros de días, fallas mínimas, fallas por equipo, zona y proyecto.
+
+El enriquecimiento de MTBC se conserva sin cambios.
+
+## Alcance
+
+No se modificaron:
+
+- Pantalla de Equipos Críticos.
+- Tabla de Proyectos Críticos.
+- PDF de Equipos Críticos.
+- HTML o CSS.
+- Backend o base de datos.
+
+## Validación
+
+Se validó la sintaxis JavaScript con:
+
+```text
+node --check equipos-criticos/equipos-criticos.js
+```
