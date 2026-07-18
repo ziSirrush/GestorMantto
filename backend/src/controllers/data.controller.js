@@ -85,6 +85,7 @@ function portafolioFilters(req, alias) {
   const supervisor = likeParam(req.query.supervisor);
   const search = likeParam(req.query.search || req.query.buscar);
   const operativo = String(req.query.operativo || '').trim().toLowerCase();
+  const contrato = String(req.query.contrato || '').trim().toLowerCase();
 
   if (zona) { clauses.push(`${a}.zona_operativa LIKE ?`); params.push(zona); }
   if (supervisor) { clauses.push(`${a}.supervisor_zona LIKE ?`); params.push(supervisor); }
@@ -105,6 +106,16 @@ function portafolioFilters(req, alias) {
     clauses.push(`UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%'`);
   } else if (operativo === 'funcionando') {
     clauses.push(`(lt.ticket IS NULL OR UPPER(COALESCE(lt.estatus_equipo_final,'')) NOT LIKE '%NO FUNC%')`);
+  }
+
+  if (contrato === 'no_servicio') {
+    clauses.push(`UPPER(COALESCE(${a}.estatus_servicio,'')) LIKE '%NO EN SERVICIO%'`);
+  } else if (contrato === 'gratuito') {
+    clauses.push(`UPPER(COALESCE(${a}.estatus_servicio,'')) NOT LIKE '%NO EN SERVICIO%'`);
+    clauses.push(`(( ${a}.mes_termino_gratuitos IS NOT NULL AND TRIM(${a}.mes_termino_gratuitos) <> '') OR (${a}.termino_garantia IS NOT NULL AND TRIM(${a}.termino_garantia) <> ''))`);
+  } else if (contrato === 'cobranza') {
+    clauses.push(`UPPER(COALESCE(${a}.estatus_servicio,'')) NOT LIKE '%NO EN SERVICIO%'`);
+    clauses.push(`((${a}.mes_termino_gratuitos IS NULL OR TRIM(${a}.mes_termino_gratuitos) = '') AND (${a}.termino_garantia IS NULL OR TRIM(${a}.termino_garantia) = ''))`);
   }
 
   return { where: clauses.join(' AND '), params };
@@ -163,9 +174,8 @@ const portafolioBaseSelect = `
   lt.responsabilidad AS ultima_responsabilidad,
   CASE
     WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-    WHEN p.mes_objetivo_inicio_cobranza IS NOT NULL AND TRIM(p.mes_objetivo_inicio_cobranza) <> '' THEN 'Cobranza'
     WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
-    ELSE 'Servicio'
+    ELSE 'En Cobranza'
   END AS contrato,
   CASE
     WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado'
@@ -305,6 +315,136 @@ async function getPortafolioMovimientos(req, res) {
   }
 }
 
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === '') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+async function getPortafolioSemanasDisponibles(req, res) {
+  try {
+    const [rows] = await db.query(`
+      SELECT
+        id_corte,
+        anio_iso,
+        semana_iso,
+        fecha_inicio,
+        fecha_fin,
+        fecha_corte,
+        total_portafolio,
+        total_movimientos,
+        total_salidas,
+        total_regresos,
+        total_cambios,
+        estado
+      FROM portafolio_cortes_semanales
+      WHERE estado = 'CERRADO'
+      ORDER BY anio_iso DESC, semana_iso DESC
+    `);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      total: rows.length,
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando el catálogo de cortes semanales.',
+      error: error.message
+    });
+  }
+}
+
+async function getPortafolioMovimientosSemanales(req, res) {
+  try {
+    const anio = Number.parseInt(req.query.anio, 10);
+    const semana = Number.parseInt(req.query.semana, 10);
+
+    if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) {
+      return res.status(400).json({ ok: false, message: 'El año ISO es obligatorio y no es válido.' });
+    }
+    if (!Number.isInteger(semana) || semana < 1 || semana > 53) {
+      return res.status(400).json({ ok: false, message: 'La semana ISO es obligatoria y debe estar entre 1 y 53.' });
+    }
+
+    const [rows] = await db.query(`
+      SELECT
+        id_corte,
+        anio_iso,
+        semana_iso,
+        fecha_inicio,
+        fecha_fin,
+        fecha_corte,
+        id_corte_anterior,
+        total_portafolio,
+        total_movimientos,
+        total_salidas,
+        total_regresos,
+        total_cambios,
+        movimientos_json,
+        estado,
+        hash_contenido,
+        generado_por,
+        created_at,
+        updated_at
+      FROM portafolio_cortes_semanales
+      WHERE anio_iso = ?
+        AND semana_iso = ?
+        AND estado = 'CERRADO'
+      LIMIT 1
+    `, [anio, semana]);
+
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: `No existe un corte cerrado para la semana ${semana} de ${anio}.`
+      });
+    }
+
+    const corte = rows[0];
+    const search = String(req.query.search || req.query.buscar || '').trim().toLowerCase();
+    const tipo = String(req.query.tipo || '').trim().toUpperCase();
+    const tiposValidos = new Set(['DEGRADADO', 'RECUPERADO', 'CAMBIO']);
+
+    let movimientos = parseJsonArray(corte.movimientos_json);
+
+    if (search) {
+      movimientos = movimientos.filter(row => {
+        const values = [row.proyecto, row.proyecto_codigo, row.equipo, row.zona, row.supervisor];
+        return values.some(value => String(value || '').toLowerCase().includes(search));
+      });
+    }
+
+    if (tiposValidos.has(tipo)) {
+      movimientos = movimientos.filter(row => String(row.tipo || '').toUpperCase() === tipo);
+    }
+
+    delete corte.movimientos_json;
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      corte,
+      total_filtrado: movimientos.length,
+      data: movimientos
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando movimientos semanales de portafolio.',
+      error: error.message
+    });
+  }
+}
+
 async function getPortafolioFiltros(req, res) {
   try {
     const [zonas] = await db.query(`
@@ -434,8 +574,7 @@ async function getPortafolioDashboard(req, res) {
     const [kpiRows] = await db.query(`
       SELECT
         COUNT(*) AS total_activos,
-        SUM(CASE WHEN contrato = 'Servicio' THEN 1 ELSE 0 END) AS en_servicio,
-        SUM(CASE WHEN contrato = 'Cobranza' THEN 1 ELSE 0 END) AS en_cobranza,
+        SUM(CASE WHEN contrato = 'En Cobranza' THEN 1 ELSE 0 END) AS en_cobranza,
         SUM(CASE WHEN contrato = 'Gratuito/Garantía' THEN 1 ELSE 0 END) AS gratuito_garantia,
         SUM(CASE WHEN contrato = 'No en Servicio' THEN 1 ELSE 0 END) AS no_en_servicio,
         SUM(CASE WHEN estado_operativo = 'Funcionando' THEN 1 ELSE 0 END) AS funcionando,
@@ -444,9 +583,8 @@ async function getPortafolioDashboard(req, res) {
         SELECT
           CASE
             WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-            WHEN p.mes_objetivo_inicio_cobranza IS NOT NULL AND TRIM(p.mes_objetivo_inicio_cobranza) <> '' THEN 'Cobranza'
             WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
-            ELSE 'Servicio'
+            ELSE 'En Cobranza'
           END AS contrato,
           CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado' ELSE 'Funcionando' END AS estado_operativo
         FROM portafolio p
@@ -470,21 +608,11 @@ async function getPortafolioDashboard(req, res) {
 
     const contratoExpr = `CASE
       WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
-      WHEN p.mes_objetivo_inicio_cobranza IS NOT NULL AND TRIM(p.mes_objetivo_inicio_cobranza) <> '' THEN 'Cobranza'
       WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
-      ELSE 'Servicio'
+      ELSE 'En Cobranza'
     END`;
     const operativoExpr = `CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado' ELSE 'Funcionando' END`;
 
-    const [parados] = await db.query(`
-      SELECT ${portafolioBaseSelect}
-      FROM portafolio p
-      ${latestTicketJoin}
-      WHERE ${filters.where}
-        AND UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%'
-      ORDER BY dias_parado DESC, lt.fecha_reporte ASC
-      LIMIT 50
-    `, filters.params);
 
     return res.json({
       ok: true,
@@ -495,8 +623,7 @@ async function getPortafolioDashboard(req, res) {
         operativo: await distBy(operativoExpr),
         tipo: await distBy(`COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo')`),
         zona: await distBy(`COALESCE(p.zona_operativa, 'Sin zona')`)
-      },
-      parados
+      }
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando dashboard de portafolio.', error: error.message });
@@ -505,9 +632,17 @@ async function getPortafolioDashboard(req, res) {
 
 async function getPortafolioEquipos(req, res) {
   const page = positiveInt(req.query.page, 1, 1, 100000);
-  const pageSize = positiveInt(req.query.page_size || req.query.pageSize, 25, 5, 100);
+  const pageSize = positiveInt(req.query.page_size || req.query.pageSize, 30, 5, 100);
   const offset = (page - 1) * pageSize;
   const filters = portafolioFilters(req, 'p');
+  const sortMap = {
+    numero_equipo: 'p.numero_equipo', proyecto: 'p.proyecto', ciudad: 'p.ciudad',
+    zona: 'p.zona_operativa', tipo_equipo: "COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo')",
+    supervisor: 'p.supervisor_zona', dias_parado: "CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte)) ELSE NULL END"
+  };
+  const sortKey = String(req.query.sort || 'proyecto').trim();
+  const sortExpr = sortMap[sortKey] || sortMap.proyecto;
+  const sortDirection = String(req.query.direction || '').trim().toLowerCase() === 'desc' ? 'DESC' : 'ASC';
   try {
     const [countRows] = await db.query(`
       SELECT COUNT(*) AS total
@@ -521,7 +656,7 @@ async function getPortafolioEquipos(req, res) {
       FROM portafolio p
       ${latestTicketJoin}
       WHERE ${filters.where}
-      ORDER BY p.proyecto ASC, p.numero_equipo ASC
+      ORDER BY ${sortExpr} ${sortDirection}, p.proyecto ASC, p.numero_equipo ASC
       LIMIT ? OFFSET ?
     `, [...filters.params, pageSize, offset]);
 
@@ -569,13 +704,147 @@ async function getPortafolioEquipoDetalle(req, res) {
         });
       }
 
-      const [tickets] = await db.query(`
+      const anioTicketsRaw = Number.parseInt(req.query.anio_tickets, 10);
+      const anioTickets = Number.isInteger(anioTicketsRaw) && anioTicketsRaw >= 2000 && anioTicketsRaw <= 2100
+        ? anioTicketsRaw
+        : new Date().getFullYear();
+
+      const [allTickets] = await db.query(`
         SELECT *
         FROM tickets
         WHERE TRIM(COALESCE(codigo_equipo, '')) = TRIM(?)
         ORDER BY fecha_reporte DESC, id DESC
-        LIMIT 300
       `, [mantenimiento.numero_equipo]);
+
+      const dateParts = value => {
+        if (!value) return null;
+        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+          return {
+            year: value.getFullYear(),
+            month: value.getMonth() + 1,
+            day: value.getDate(),
+            date: value
+          };
+        }
+        const text = String(value).trim();
+        const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+          const year = Number(match[1]);
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          return { year, month, day, date: new Date(year, month - 1, day) };
+        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return {
+          year: parsed.getFullYear(),
+          month: parsed.getMonth() + 1,
+          day: parsed.getDate(),
+          date: parsed
+        };
+      };
+      const yearOf = value => dateParts(value)?.year || null;
+      const monthKeyOf = value => {
+        const parts = dateParts(value);
+        return parts ? `${parts.year}-${String(parts.month).padStart(2, '0')}` : null;
+      };
+
+      const tickets = allTickets.filter(ticket => yearOf(ticket && ticket.fecha_reporte) === anioTickets);
+
+      const ticketYears = Array.from(new Set(allTickets.map(ticket => yearOf(ticket && ticket.fecha_reporte)).filter(Boolean))).sort((a, b) => b - a);
+
+      const normalize = value => String(value == null ? '' : value).trim().toUpperCase();
+      const blob = ticket => normalize([
+        ticket.descripcion,
+        ticket.asunto,
+        ticket.causa,
+        ticket.causa_falla,
+        ticket.accion_en_cierre
+      ].filter(Boolean).join(' '));
+      const durationHours = value => {
+        if (value === null || value === undefined || String(value).trim() === '') return null;
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        const text = String(value).trim();
+        const numeric = Number(text.replace(',', '.'));
+        if (Number.isFinite(numeric)) return numeric;
+        const match = text.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
+        if (!match) return null;
+        return Number(match[1]) + Number(match[2]) / 60 + Number(match[3] || 0) / 3600;
+      };
+      const status = ticket => normalize(ticket.estado_ticket || ticket.estado);
+      const isClosed = ticket => status(ticket).includes('CERR');
+      const isOpen = ticket => status(ticket).includes('ABIER');
+      const isInProgress = ticket => !isClosed(ticket) && !isOpen(ticket);
+      const hasAny = (ticket, words) => words.some(word => blob(ticket).includes(word));
+      const isBlt = ticket => normalize(ticket.responsabilidad).includes('BLT');
+      const isClient = ticket => normalize(ticket.responsabilidad).includes('CLIENTE');
+      const inCurrentYear = ticket => yearOf(ticket.fecha_reporte) === new Date().getFullYear();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+      const u365Start = new Date(today);
+      u365Start.setDate(u365Start.getDate() - 365);
+      const localDateKey = date => {
+        const value = new Date(date);
+        return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
+      };
+      const inU365 = ticket => {
+        const date = dateParts(ticket.fecha_reporte)?.date;
+        if (!date || Number.isNaN(date.getTime())) return false;
+        return date >= u365Start && date <= todayEnd;
+      };
+      const mtbc = (rows, periodDays) => {
+        const dates = rows.map(ticket => new Date(ticket.fecha_reporte)).filter(date => !Number.isNaN(date.getTime())).sort((a, b) => a - b);
+        if (!dates.length) return null;
+        if (dates.length === 1) return periodDays;
+        return Math.round(((dates[dates.length - 1] - dates[0]) / 86400000 / (dates.length - 1)) * 10) / 10;
+      };
+      const average = values => {
+        const nums = values.filter(value => value !== null && Number.isFinite(value));
+        return nums.length ? Math.round((nums.reduce((sum, value) => sum + value, 0) / nums.length) * 10) / 10 : null;
+      };
+
+      const currentYear = new Date().getFullYear();
+      const currentYearStart = new Date(currentYear, 0, 1);
+      const elapsedCurrentYearDays = Math.max(1, Math.floor((Date.now() - currentYearStart.getTime()) / 86400000) + 1);
+      const currentYearTickets = allTickets.filter(inCurrentYear);
+      const currentYearBlt = currentYearTickets.filter(isBlt);
+      const u365Blt = allTickets.filter(ticket => inU365(ticket) && isBlt(ticket));
+      const metrics = {
+        cerrados: currentYearTickets.filter(isClosed).length,
+        en_curso: currentYearTickets.filter(isInProgress).length,
+        abiertos: currentYearTickets.filter(isOpen).length,
+        filtracion: currentYearTickets.filter(ticket => hasAny(ticket, ['FILTRACION', 'FILTRACIÓN', 'AGUA', 'INUNDACION', 'INUNDACIÓN', 'GOTERA'])).length,
+        atrapados: currentYearTickets.filter(ticket => hasAny(ticket, ['ATRAPADO', 'ATRAPADA', 'ENCERRADO', 'ENCERRADA', 'RESCATE'])).length,
+        voltaje: currentYearTickets.filter(ticket => hasAny(ticket, ['VOLTAJE', 'FALLA ELECTRICA', 'FALLA ELÉCTRICA', 'SIN ENERGIA', 'SIN ENERGÍA', 'APAGON', 'APAGÓN'])).length,
+        en_sla: currentYearTickets.filter(ticket => {
+          const llegada = durationHours(ticket.tiempo_llegada);
+          const solucion = durationHours(ticket.tiempo_solucion);
+          return llegada !== null && solucion !== null && llegada <= 4 && solucion <= 24;
+        }).length,
+        promedio_llegada: average(currentYearTickets.map(ticket => durationHours(ticket.tiempo_llegada))),
+        promedio_solucion: average(currentYearTickets.map(ticket => durationHours(ticket.tiempo_solucion))),
+        tickets_anio: currentYearTickets.length,
+        resp_blt_anio: currentYearBlt.length,
+        resp_cliente_anio: currentYearTickets.filter(isClient).length,
+        sin_responsabilidad_anio: currentYearTickets.filter(ticket => !isBlt(ticket) && !isClient(ticket)).length,
+        mtbc_anio: mtbc(currentYearBlt, elapsedCurrentYearDays),
+        mtbc_u365: mtbc(u365Blt, 365)
+      };
+
+      const monthlyCurrentMap = new Map(
+        Array.from({ length: 12 }, (_, index) => [currentYear + '-' + String(index + 1).padStart(2, '0'), 0])
+      );
+      const monthlyU365Map = new Map();
+      currentYearBlt.forEach(ticket => {
+        const month = monthKeyOf(ticket.fecha_reporte);
+        if (month) monthlyCurrentMap.set(month, (monthlyCurrentMap.get(month) || 0) + 1);
+      });
+      u365Blt.forEach(ticket => {
+        const month = monthKeyOf(ticket.fecha_reporte);
+        if (month) monthlyU365Map.set(month, (monthlyU365Map.get(month) || 0) + 1);
+      });
 
       return res.json({
         ok: true,
@@ -583,7 +852,14 @@ async function getPortafolioEquipoDetalle(req, res) {
         data: mantenimiento,
         mantenimiento,
         instalaciones: [],
-        tickets
+        tickets,
+        ticket_years: ticketYears,
+        ticket_year_selected: anioTickets,
+        u365_desde: localDateKey(u365Start),
+        u365_hasta: localDateKey(today),
+        metrics,
+        fallas_blt_mes_anio: Array.from(monthlyCurrentMap, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes)),
+        fallas_blt_mes_u365: Array.from(monthlyU365Map, ([mes, total]) => ({ mes, total })).sort((a, b) => a.mes.localeCompare(b.mes))
       });
     }
 
@@ -682,46 +958,118 @@ async function getPortafolioEquipoDetalle(req, res) {
   }
 }
 
-async function saveTicketVobo(req, res) {
-  const ticket = String(req.params.ticket || '').trim();
-  const voboEstado = String(req.body?.vobo_estado || '').trim() || 'Pendiente';
-  const voboComentario = String(req.body?.vobo_comentario || '').trim();
 
-  if (!ticket) {
-    return res.status(400).json({ ok: false, message: 'No se recibio ticket.' });
+async function getPortafolioEquipoTicketsLote(req, res) {
+  const rawEquipos = Array.isArray(req.body?.equipos) ? req.body.equipos : [];
+  const equipos = Array.from(new Set(
+    rawEquipos
+      .map(value => String(value == null ? '' : value).trim())
+      .filter(Boolean)
+  ));
+
+  if (!equipos.length) {
+    return res.status(400).json({
+      ok: false,
+      message: 'Se requiere al menos un numero de equipo.'
+    });
   }
 
-  try {
-    const [result] = await db.query(
-      `UPDATE tickets
-       SET vobo_estado = ?,
-           vobo_comentario = ?,
-           actualizado_en = CURRENT_TIMESTAMP
-       WHERE ticket = ? OR folio = ?
-       LIMIT 1`,
-      [voboEstado, voboComentario, ticket, ticket]
-    );
+  if (equipos.length > 1000) {
+    return res.status(400).json({
+      ok: false,
+      message: 'La consulta por lote admite un maximo de 1000 equipos.'
+    });
+  }
 
-    if (!result.affectedRows) {
-      return res.status(404).json({ ok: false, message: 'Ticket no encontrado.' });
-    }
+  const anioRaw = Number.parseInt(req.body?.anio, 10);
+  const anio = Number.isInteger(anioRaw) && anioRaw >= 2000 && anioRaw <= 2100
+    ? anioRaw
+    : new Date().getFullYear();
+  const fechaInicio = `${anio}-01-01`;
+  const fechaFin = `${anio + 1}-01-01`;
+  const placeholders = equipos.map(() => '?').join(', ');
+
+  try {
+    const [rows] = await db.query(`
+      SELECT *
+      FROM tickets
+      WHERE TRIM(COALESCE(codigo_equipo, '')) IN (${placeholders})
+        AND fecha_reporte >= ?
+        AND fecha_reporte < ?
+      ORDER BY TRIM(COALESCE(codigo_equipo, '')) ASC, fecha_reporte DESC, id DESC
+    `, [...equipos, fechaInicio, fechaFin]);
+
+    const ticketsPorEquipo = Object.fromEntries(equipos.map(codigo => [codigo, []]));
+    rows.forEach(ticket => {
+      const codigo = String(ticket.codigo_equipo || '').trim();
+      if (!Object.prototype.hasOwnProperty.call(ticketsPorEquipo, codigo)) {
+        ticketsPorEquipo[codigo] = [];
+      }
+      ticketsPorEquipo[codigo].push(ticket);
+    });
 
     return res.json({
       ok: true,
-      message: 'Vo.Bo. guardado correctamente.',
-      data: {
-        ticket,
-        vobo_estado: voboEstado,
-        vobo_comentario: voboComentario
-      }
+      source: 'aiven-tickets-lote',
+      anio,
+      total_equipos: equipos.length,
+      total_tickets: rows.length,
+      data: ticketsPorEquipo
     });
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      message: 'Error guardando Vo.Bo.',
+      message: 'Error consultando tickets por lote.',
       error: error.message
     });
   }
+}
+
+async function saveTicketVobo(req, res) { return saveTicketValidacion(req, res); }
+
+async function getTicketInteracciones(req, res) {
+  const ticket = String(req.params.ticket || '').trim();
+  try {
+    const row = await findTicketRow(ticket);
+    if (!row) return res.status(404).json({ ok:false, message:'Ticket no encontrado.' });
+    const [comentarios] = await db.query(`SELECT c.id_comentario,c.id_usuario,c.comentario,c.fecha_creacion,u.nombre AS autor_nombre,u.iniciales AS autor_iniciales,
+      DATE_FORMAT(c.fecha_creacion,'%d/%m/%Y %H:%i') AS fecha_formateada FROM ticket_comentarios c LEFT JOIN usuarios u ON u.id_SB=c.id_usuario
+      WHERE c.id_ticket=? AND c.activo=1 ORDER BY c.fecha_creacion ASC,c.id_comentario ASC`, [row.id]);
+    const [validaciones] = await db.query(`SELECT v.*,u.nombre AS autor_nombre,u.iniciales AS autor_iniciales FROM ticket_validaciones v LEFT JOIN usuarios u ON u.id_SB=v.id_usuario
+      WHERE v.id_ticket=? ORDER BY v.fecha_creacion DESC,v.id_validacion DESC`, [row.id]);
+    const names=(await ticketResponsibleNames(row)).map(v=>v.toLowerCase());
+    const user=req.user||{}; const identity=[user.nombre,user.iniciales,user.correo].filter(Boolean).map(v=>String(v).toLowerCase());
+    const responsible=identity.some(v=>names.includes(v));
+    const canRevert=ticketCanRevert(req);
+    return res.json({ok:true,data:{comentarios,validaciones,permisos:{puede_comentar:Boolean(user.id_SB||user.id),puede_validar:ticketCanValidateRole(req)&&(responsible||ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'))),puede_revertir:canRevert}}});
+  } catch(error) { return res.status(500).json({ok:false,message:'Error consultando interacciones del ticket.',error:error.message}); }
+}
+async function createTicketComentario(req, res) {
+  const ticket=String(req.params.ticket||'').trim(); const comentario=String(req.body?.comentario||'').trim().slice(0,2000); const user=currentUserRef(req);
+  if(!comentario)return res.status(400).json({ok:false,message:'El comentario es obligatorio.'});
+  const conn=await db.getConnection();
+  try { await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
+    const [result]=await conn.query('INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario) VALUES (?,?,?)',[row.id,user.id,comentario]);
+    await createTicketNotifications(conn,row,user,'TICKET_COMENTARIO',`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
+    await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId}});
+  } catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error agregando comentario.',error:error.message});} finally{conn.release();}
+}
+async function saveTicketValidacion(req,res){
+  const ticket=String(req.params.ticket||'').trim(); const estado=String(req.body?.vobo_estado||'Pendiente').trim(); const comentario=String(req.body?.vobo_comentario||'').trim().slice(0,2000); const user=currentUserRef(req);
+  if(!['Pendiente','Validado','Rechazado'].includes(estado))return res.status(400).json({ok:false,message:'Estado de validación no válido.'});
+  const conn=await db.getConnection();
+  try {await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
+    const previous=String(row.vobo_estado||'Pendiente'); const reverting=previous!=='Pendiente'&&estado==='Pendiente';
+    if(reverting&&!ticketCanRevert(req)){await conn.rollback();return res.status(403).json({ok:false,message:'Solo Programador puede revertir una validación.'});}
+    const names=(await ticketResponsibleNames(row,conn)).map(v=>v.toLowerCase()); const identity=[req.user?.nombre,req.user?.iniciales,req.user?.correo].filter(Boolean).map(v=>String(v).toLowerCase());
+    const elevated=ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'));
+    if(!reverting&&(!ticketCanValidateRole(req)||(!elevated&&!identity.some(v=>names.includes(v))))){await conn.rollback();return res.status(403).json({ok:false,message:'Solo el Supervisor o Superintendente responsable puede validar este ticket.'});}
+    await conn.query(`UPDATE tickets SET vobo_estado=?,vobo_comentario=?,vobo_por_id=?,vobo_por_nombre=?,vobo_en=CURRENT_TIMESTAMP WHERE id=?`,[estado,comentario,user.id,req.user?.nombre||user.iniciales||user.correo,row.id]);
+    await conn.query(`INSERT INTO ticket_validaciones (id_ticket,id_usuario,estado_anterior,estado_nuevo,comentario,ip_origen) VALUES (?,?,?,?,?,?)`,[row.id,user.id,previous,estado,comentario,req.ip||null]);
+    const kind=estado==='Pendiente'?'TICKET_VALIDACION_PENDIENTE':'TICKET_VALIDACION';
+    await createTicketNotifications(conn,row,user,kind,`${user.iniciales||user.correo||'Usuario'} cambió la validación del ticket ${row.ticket}: ${previous} → ${estado}.`);
+    await conn.commit(); return res.json({ok:true,message:'Validación guardada.',data:{ticket:row.ticket,vobo_estado:estado,vobo_comentario:comentario}});
+  }catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error guardando validación.',error:error.message});}finally{conn.release();}
 }
 
 async function getTickets(req, res) {
@@ -2128,6 +2476,10 @@ async function getProyectos(req, res) {
         SUM(CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 1 ELSE 0 END) AS parados,
         SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
         SUM(COALESCE(blt.blt_365d, 0)) AS fallas_blt_365d,
+        SUM(COALESCE(resp_anio.llamadas_blt_anio, 0)) AS llamadas_blt_anio,
+        MAX(resp_anio.ultima_llamada_blt) AS ultima_llamada_blt,
+        SUM(COALESCE(resp_anio.llamadas_cliente_anio, 0)) AS llamadas_cliente_anio,
+        MAX(resp_anio.ultima_llamada_cliente) AS ultima_llamada_cliente,
         CASE
           WHEN COUNT(*) > 0 THEN ROUND(AVG(
             CASE
@@ -2157,6 +2509,20 @@ async function getProyectos(req, res) {
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
       ) blt ON blt.codigo_equipo = p.numero_equipo
+      LEFT JOIN (
+        SELECT
+          codigo_equipo,
+          SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
+          MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT' THEN fecha_reporte END) AS ultima_llamada_blt,
+          SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
+          MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
+        FROM tickets
+        WHERE fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+          AND fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+          AND codigo_equipo IS NOT NULL
+          AND TRIM(codigo_equipo) <> ''
+        GROUP BY codigo_equipo
+      ) resp_anio ON resp_anio.codigo_equipo = p.numero_equipo
       WHERE ${filters.where}
       GROUP BY p.proyecto
       ORDER BY parados DESC, tickets_35d DESC, p.proyecto ASC
@@ -2314,6 +2680,8 @@ async function getProyectoDetalle(req, res) {
     const equivalencia = await resolveProyectoEquivalencia(proyectoSolicitado);
     const proyecto = equivalencia.proyecto_busqueda;
     const nombrePublico = equivalencia.nombre_publico;
+    const anioTicketsRaw = Number.parseInt(req.query.anio_tickets, 10);
+    const anioTickets = Number.isInteger(anioTicketsRaw) && anioTicketsRaw >= 2000 && anioTicketsRaw <= 2100 ? anioTicketsRaw : null;
     const filtroVisible = soloPortafolio
       ? 'p.estado_registro = 1'
       : "p.estado_registro = 1 AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))";
@@ -2327,8 +2695,21 @@ async function getProyectoDetalle(req, res) {
         MAX(p.proyecto_cc_x_port) AS proyecto_cc_x_port,
         MAX(p.ciudad) AS ciudad,
         MAX(p.estado) AS estado,
+        GROUP_CONCAT(DISTINCT NULLIF(TRIM(p.estatus_servicio), '') ORDER BY p.estatus_servicio SEPARATOR ' / ') AS estatus_servicio,
         MAX(p.zona_operativa) AS zona,
+        MAX(p.zona_operativa) AS zona_operativa,
+        MAX(p.direccion) AS direccion,
+        MIN(p.fecha_instalacion) AS fecha_instalacion,
+        MIN(p.fecha_entrega) AS fecha_entrega,
+        MAX(p.termino_garantia) AS termino_garantia,
+        MIN(p.fecha_recepcion_mantenimiento) AS fecha_recepcion_mantenimiento,
+        MAX(p.mes_inicio_gratuitos) AS mes_inicio_gratuitos,
+        MAX(p.mes_termino_gratuitos) AS mes_termino_gratuitos,
+        MAX(p.mes_objetivo_inicio_cobranza) AS mes_objetivo_inicio_cobranza,
+        MIN(p.fecha_ingreso_portafolio) AS fecha_ingreso_portafolio,
+        MAX(p.superintendente) AS superintendente,
         MAX(p.supervisor_zona) AS supervisor,
+        MAX(p.supervisor_zona) AS supervisor_zona,
         COUNT(*) AS equipos,
         SUM(CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 1 ELSE 0 END) AS parados,
         SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
@@ -2379,7 +2760,13 @@ async function getProyectoDetalle(req, res) {
     }
 
     const [equipos] = await db.query(`
-      SELECT ${portafolioBaseSelect}
+      SELECT ${portafolioBaseSelect},
+        (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
+        (SELECT MAX(tay.fecha_reporte) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS ultimo_blt,
+        (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tcli.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
+        (SELECT MAX(tcli.fecha_reporte) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS ultimo_cliente,
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1 ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN 365 ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets t365 WHERE t365.codigo_equipo = p.numero_equipo AND t365.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) AND t365.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
       FROM portafolio p
       ${latestTicketJoin}
       WHERE ${filtroVisible}
@@ -2387,20 +2774,47 @@ async function getProyectoDetalle(req, res) {
       ORDER BY p.numero_equipo ASC
     `, [proyecto]);
 
+    const ticketParams = [proyecto, proyecto, proyecto];
+    const ticketYearSql = anioTickets ? ' AND YEAR(t.fecha_reporte) = ?' : '';
+    if (anioTickets) ticketParams.push(anioTickets);
     const [tickets] = await db.query(`
       SELECT
-        t.ticket, t.codigo_equipo, t.equipo, t.folio, t.estado_ticket, t.estado, t.fecha_reporte, t.fecha_cierre,
-        t.responsabilidad, t.causa_falla, t.causa, t.tiempo_llegada, t.tiempo_solucion, t.estatus_equipo_final
+        t.ticket, t.codigo_equipo, t.equipo, t.folio, t.estado_ticket, t.estado,
+        t.descripcion, t.fecha_reporte, t.h_reporte, t.estatus_equipo_ir,
+        t.fecha_llegada, t.h_llegada, t.tiempo_llegada,
+        t.fecha_cierre, t.h_solucion, t.tiempo_solucion,
+        t.estatus_equipo_final, t.causa, t.causa_falla, t.accion_en_cierre, t.responsabilidad,
+        eq.identificacion_sitio
       FROM tickets t
-      WHERE UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?))
+      LEFT JOIN (
+        SELECT
+          numero_equipo,
+          MAX(NULLIF(TRIM(identificacion_sitio), '')) AS identificacion_sitio
+        FROM portafolio
+        WHERE ${filtroVisibleSubquery}
+          AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        GROUP BY numero_equipo
+      ) eq ON eq.numero_equipo = t.codigo_equipo
+      WHERE (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?))
          OR t.codigo_equipo IN (
           SELECT numero_equipo
           FROM portafolio
           WHERE ${filtroVisibleSubquery}
             AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
-        )
-      ORDER BY t.fecha_reporte DESC, t.id DESC
-      LIMIT 300
+        ))
+        ${ticketYearSql}
+      ORDER BY t.codigo_equipo ASC, t.fecha_reporte DESC, t.id DESC
+      LIMIT 3000
+    `, ticketParams);
+
+    const [ticketYears] = await db.query(`
+      SELECT DISTINCT YEAR(t.fecha_reporte) AS anio
+      FROM tickets t
+      WHERE t.fecha_reporte IS NOT NULL
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        ))
+      ORDER BY anio DESC
     `, [proyecto, proyecto]);
 
     const [monthlyCurrent] = await db.query(`
@@ -2436,6 +2850,95 @@ async function getProyectoDetalle(req, res) {
       ORDER BY total DESC
     `, [proyecto, proyecto]);
 
+    const projectMetrics = {
+      equipos_activos: equipos.length,
+      equipos_detenidos: equipos.filter(row => {
+        const value = String(row.estado_operativo || row.estatus_equipo_final || '').trim().toUpperCase();
+        return value.includes('NO FUNC') || value.includes('PARAD');
+      }).length,
+      equipos_criticos_anio: 0,
+      llamadas_total_anio: 0,
+      llamadas_blt_anio: 0,
+      llamadas_cliente_anio: 0,
+      llamadas_sin_responsable_anio: 0
+    };
+
+    const [callMetricsRows] = await db.query(`
+      SELECT
+        COUNT(*) AS llamadas_total_anio,
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
+        SUM(CASE WHEN TRIM(COALESCE(t.responsabilidad,'')) = '' OR UPPER(TRIM(t.responsabilidad)) NOT IN ('BLT','CLIENTE') THEN 1 ELSE 0 END) AS llamadas_sin_responsable_anio
+      FROM tickets t
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        ))
+    `, [proyecto, proyecto]);
+    Object.assign(projectMetrics, callMetricsRows[0] || {});
+
+    const [criticalRows] = await db.query(`
+      SELECT COUNT(*) AS equipos_criticos_anio
+      FROM (
+        SELECT t.codigo_equipo
+        FROM tickets t
+        WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+          AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+          AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT'
+          AND t.codigo_equipo IN (
+            SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+          )
+        GROUP BY t.codigo_equipo
+        HAVING COUNT(*) >= 3
+      ) critical
+    `, [proyecto]);
+    projectMetrics.equipos_criticos_anio = Number(criticalRows[0]?.equipos_criticos_anio || 0);
+
+    const [responsibilityDistribution] = await db.query(`
+      SELECT
+        CASE
+          WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT' THEN 'Resp. BLT'
+          WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'CLIENTE' THEN 'Resp. Cliente'
+          ELSE 'Sin Responsable'
+        END AS label,
+        COUNT(*) AS total
+      FROM tickets t
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        ))
+      GROUP BY label
+      ORDER BY total DESC
+    `, [proyecto, proyecto]);
+
+    const [equipmentResponsibilityDistribution] = await db.query(`
+      SELECT
+        COALESCE(NULLIF(TRIM(eq.identificacion_sitio), ''), t.codigo_equipo) AS label,
+        t.codigo_equipo,
+        UPPER(TRIM(t.responsabilidad)) AS responsabilidad,
+        COUNT(*) AS total
+      FROM tickets t
+      LEFT JOIN (
+        SELECT
+          numero_equipo,
+          MAX(NULLIF(TRIM(identificacion_sitio), '')) AS identificacion_sitio
+        FROM portafolio
+        WHERE ${filtroVisibleSubquery}
+          AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        GROUP BY numero_equipo
+      ) eq ON eq.numero_equipo = t.codigo_equipo
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) IN ('BLT','CLIENTE')
+        AND t.codigo_equipo IN (
+          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
+        )
+      GROUP BY t.codigo_equipo, eq.identificacion_sitio, UPPER(TRIM(t.responsabilidad))
+      ORDER BY total DESC, label ASC
+    `, [proyecto, proyecto]);
+
     const proyectoDecorado = decorateProyectoRow({
       ...proyectos[0],
       nombre_publico: nombrePublico,
@@ -2463,9 +2966,17 @@ async function getProyectoDetalle(req, res) {
       proyecto: proyectoDecorado,
       equipos: equiposDecorados,
       tickets,
+      ticket_years: ticketYears.map(row => Number(row.anio)).filter(Boolean),
+      ticket_year_selected: anioTickets,
       monthly_current: monthlyCurrent,
       monthly_previous: monthlyPrevious,
-      responsabilidad
+      responsabilidad,
+      project_metrics: projectMetrics,
+      project_distributions: {
+        total_responsabilidad: responsibilityDistribution,
+        blt_por_equipo: equipmentResponsibilityDistribution.filter(row => row.responsabilidad === 'BLT'),
+        cliente_por_equipo: equipmentResponsibilityDistribution.filter(row => row.responsabilidad === 'CLIENTE')
+      }
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando detalle de proyecto.', error: error.message });
@@ -2849,16 +3360,22 @@ module.exports = {
   getTickets,
   getTicketDetalle,
   saveTicketVobo,
+  getTicketInteracciones,
+  createTicketComentario,
+  saveTicketValidacion,
   getPortafolio,
   getProyectosFiltros,
   getProyectoDetalle,
   getPortafolioProyectoDetalle,
   getPortafolioFiltros,
   getPortafolioMovimientos,
+  getPortafolioSemanasDisponibles,
+  getPortafolioMovimientosSemanales,
   getPortafolioMovimientoDetalle,
   getPortafolioDashboard,
   getPortafolioEquipos,
   getPortafolioEquipoDetalle,
+  getPortafolioEquipoTicketsLote,
   getEquipos,
   getPendientesCatalogos,
   getPendientes,
