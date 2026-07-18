@@ -513,11 +513,12 @@
   }
 
   async function openEquipo(codigo){
-    const c=state.eq.lastCriteria || eqCriteria();
-    if(window.ManttoDetails && window.ManttoDetails.openEquipoCritico){
-      return window.ManttoDetails.openEquipoCritico(codigo, { dias:c.dias, min_fallas:c.min_fallas });
+    const normalized=String(codigo || '').trim();
+    if(!normalized) return;
+    if(window.ManttoDetails && typeof window.ManttoDetails.openEquipo==='function'){
+      return window.ManttoDetails.openEquipo(normalized);
     }
-    await openDetail('Equipo '+codigo, `${c.min_fallas} fallas BLT en ${c.dias} días`, '/api/equipos-criticos/'+encodeURIComponent(codigo)+'/tickets?'+qs({dias:c.dias,responsabilidad:'BLT'}));
+    console.error('[Equipos Criticos] ManttoDetails.openEquipo no esta disponible.');
   }
   async function openProyecto(proyectoEncoded){
     const proyecto=decodeURIComponent(proyectoEncoded||'');
