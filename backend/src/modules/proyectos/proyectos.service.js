@@ -17,6 +17,58 @@ const latestTicketJoin = `
   ) lt ON lt.codigo_equipo = p.numero_equipo
 `;
 
+const portafolioBaseSelect = `
+  p.id_portafolio,
+  p.proyecto,
+  p.proyecto AS proyecto_codigo,
+  COALESCE(NULLIF(TRIM(p.proyecto_cc_x_port), ''), p.proyecto) AS proyecto_nombre,
+  p.ciudad,
+  p.estado,
+  p.numero_equipo,
+  p.id_equipo_ns,
+  p.identificacion_sitio,
+  p.inactivo,
+  p.estatus_servicio,
+  p.causa_no_servicio,
+  p.detalle_no_servicio,
+  p.zona_operativa AS zona,
+  p.direccion,
+  p.motivo_inactivo,
+  p.suspension_temporal,
+  p.causa_suspension_temporal,
+  p.fecha_instalacion,
+  p.fecha_entrega,
+  p.termino_garantia,
+  p.fecha_recepcion_mantenimiento,
+  p.mes_inicio_gratuitos,
+  p.mes_termino_gratuitos,
+  p.mes_objetivo_inicio_cobranza,
+  p.fecha_ingreso_portafolio,
+  p.superintendente,
+  p.supervisor_zona AS supervisor,
+  p.proyecto_cc_x_port,
+  COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo') AS tipo_equipo,
+  lt.ticket AS ultimo_ticket,
+  lt.fecha_reporte AS ultimo_fecha_reporte,
+  lt.fecha_reporte AS fecha_inicio_paro,
+  lt.estado_ticket AS ultimo_estado_ticket,
+  lt.estatus_equipo_final AS ultimo_estatus_equipo_final,
+  lt.responsabilidad AS ultima_responsabilidad,
+  CASE
+    WHEN UPPER(COALESCE(p.estatus_servicio,'')) LIKE '%NO EN SERVICIO%' THEN 'No en Servicio'
+    WHEN (p.mes_termino_gratuitos IS NOT NULL AND TRIM(p.mes_termino_gratuitos) <> '') OR (p.termino_garantia IS NOT NULL AND TRIM(p.termino_garantia) <> '') THEN 'Gratuito/Garantía'
+    ELSE 'En Cobranza'
+  END AS contrato,
+  CASE
+    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 'Parado'
+    ELSE 'Funcionando'
+  END AS estado_operativo,
+  CASE
+    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte))
+    ELSE NULL
+  END AS dias_parado
+`;
+
 function likeParam(value) {
   const s = String(value || '').trim();
   return s ? '%' + s + '%' : null;
