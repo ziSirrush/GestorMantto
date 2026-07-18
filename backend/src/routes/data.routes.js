@@ -7,20 +7,14 @@ const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
 
 router.get('/estados-visuales', dataController.getEstadosVisuales);
 router.get('/tickets', dataController.getTickets);
-router.get('/tickets/:ticket/interacciones', optionalAuth, dataController.getTicketInteracciones);
-router.post('/tickets/:ticket/comentarios', requireAuth, dataController.createTicketComentario);
-router.post('/tickets/:ticket/validacion', requireAuth, dataController.saveTicketValidacion);
-router.get('/tickets/:ticket', optionalAuth, dataController.getTicketDetalle);
+router.get('/tickets/:ticket', dataController.getTicketDetalle);
 router.post('/tickets/:ticket/vobo', requireAuth, dataController.saveTicketVobo);
 router.post('/tickets/sync', dataController.syncTickets);
 
 router.get('/portafolio/filtros', dataController.getPortafolioFiltros);
 router.get('/portafolio/dashboard', dataController.getPortafolioDashboard);
 router.get('/portafolio/movimientos', dataController.getPortafolioMovimientos);
-router.get('/portafolio/movimientos-semanales/catalogo', dataController.getPortafolioSemanasDisponibles);
-router.get('/portafolio/movimientos-semanales', dataController.getPortafolioMovimientosSemanales);
 router.get('/portafolio/movimientos/:codigo/detalle', dataController.getPortafolioMovimientoDetalle);
-router.post('/portafolio/equipos/tickets-lote', dataController.getPortafolioEquipoTicketsLote);
 router.get('/portafolio/equipos/:codigo', dataController.getPortafolioEquipoDetalle);
 router.get('/portafolio/equipos', dataController.getPortafolioEquipos);
 router.get('/portafolio/proyectos/detalle/:proyecto', dataController.getPortafolioProyectoDetalle);
@@ -33,15 +27,15 @@ router.get('/proyectos/detalle/:proyecto', dataController.getProyectoDetalle);
 router.get('/proyectos/:proyecto', dataController.getProyectoDetalle);
 router.get('/proyectos', dataController.getProyectos);
 
+router.get('/servicios-preventivos/resumen-supervisor', requireAuth, dataController.getPreventivosSupervisor);
+
 router.get('/indicadores/mtbc/equipos', criticosController.getMtbcEquipos);
 router.get('/indicadores/mtbc/proyectos', criticosController.getMtbcProyectos);
-router.get('/callcenter/u365/proyectos', optionalAuth, criticosController.getCallCenterU365Proyectos);
-router.get('/callcenter/u365/equipos', optionalAuth, criticosController.getCallCenterU365Equipos);
-router.get('/criticidad-corporativa', optionalAuth, criticosController.getCriticidadCorporativa);
-router.get('/equipos-criticos', optionalAuth, criticosController.getEquiposCriticos);
-router.get('/equipos-criticos/:codigo/tickets', optionalAuth, criticosController.getEquipoCriticoTickets);
-router.get('/proyectos-criticos', optionalAuth, criticosController.getProyectosCriticos);
-router.get('/proyectos-criticos/:proyecto/tickets', optionalAuth, criticosController.getProyectoCriticoTickets);
+router.get('/criticidad-corporativa', criticosController.getCriticidadCorporativa);
+router.get('/equipos-criticos', criticosController.getEquiposCriticos);
+router.get('/equipos-criticos/:codigo/tickets', criticosController.getEquipoCriticoTickets);
+router.get('/proyectos-criticos', criticosController.getProyectosCriticos);
+router.get('/proyectos-criticos/:proyecto/tickets', criticosController.getProyectoCriticoTickets);
 
 router.get('/home/bootstrap', requireAuth, dataController.getHomeBootstrap);
 router.get('/pendientes/catalogos', requireAuth, dataController.getPendientesCatalogos);
