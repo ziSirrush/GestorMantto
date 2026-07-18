@@ -405,6 +405,7 @@
         await fetch(API_BASE + '/api/notificaciones/' + encodeURIComponent(id) + '/abrir', { method:'PATCH', headers }).catch(()=>null);
         if(window.ManttoHome && window.ManttoHome.refreshHeaderNotifications) window.ManttoHome.refreshHeaderNotifications();
         if(ruta.startsWith('home:tarea:') || el.dataset.action === 'ABRIR_TAREA') window.ManttoRouter.go('tareas', { module:'tareas', id: ref || ruta.split(':').pop() });
+        else if(ruta.startsWith('detalle:ticket:') || el.dataset.action === 'ABRIR_TICKET') window.ManttoRouter.go('detalle', { type:'ticket', id:ruta.split(':').slice(2).join(':') || ref });
         else window.ManttoRouter.go('home');
       }));
     }catch(error){

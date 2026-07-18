@@ -49,6 +49,16 @@
     if(!r.ok || data.ok === false) throw new Error(data.message || data.error || 'No fue posible actualizar la foto principal');
     return data;
   }
+  async function postJson(path, body){
+    const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
+    const r = await fetch(API() + path, { method:'POST', headers, body:JSON.stringify(body || {}), cache:'no-store' });
+    const text = await r.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : {}; }
+    catch(e){ throw new Error('Respuesta inválida del backend.'); }
+    if(!r.ok || data.ok === false) throw new Error(data.message || data.error || 'No fue posible guardar la información');
+    return data;
+  }
   function isProgramador(){
     const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
     const roles=[u&&u.rol].concat((u&&u.roles)||[]).concat(((u&&u.roles_detalle)||[]).map(r=>r&&r.rol)).filter(Boolean).map(v=>String(v).trim().toLowerCase());
@@ -100,8 +110,11 @@
         .mg-project-overview{display:grid;grid-template-columns:minmax(250px,36%) 1fr;gap:14px;margin-bottom:14px}.mg-project-overview.no-photo{grid-template-columns:1fr}.mg-project-cover{display:block;width:100%;height:260px;border:0;border-radius:12px;overflow:hidden;padding:0;background:#E2E8F0;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.08)}.mg-project-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}.mg-project-overview .mg-detail-section{margin-bottom:0}
         .mg-stage-bars{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;padding:14px;margin-bottom:14px}.mg-stage-row{margin:11px 0}.mg-stage-row:first-child{margin-top:0}.mg-stage-row:last-child{margin-bottom:0}.mg-stage-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;font-size:11px;font-weight:800;color:#334155}.mg-stage-track{height:9px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-stage-fill{height:100%;border-radius:inherit}.mg-stage-fill.general{background:#1B4FD8}.mg-stage-fill.oc{background:#C83B3B}.mg-stage-fill.mo{background:#D7A514}.mg-stage-fill.aj{background:#238B45}
         .mg-photo-lightbox{position:fixed;inset:0;z-index:10050;background:rgba(2,6,23,.92);display:grid;place-items:center;padding:28px}.mg-photo-lightbox[hidden]{display:none}.mg-photo-lightbox figure{margin:0;max-width:min(1120px,88vw);text-align:center}.mg-photo-lightbox img{display:block;max-width:100%;max-height:76vh;margin:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}.mg-photo-lightbox figcaption{color:#fff;margin-top:10px;font-size:12px}.mg-photo-close,.mg-photo-nav{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.mg-photo-close{top:18px;right:22px;width:44px;height:44px;border-radius:50%;font-size:30px}.mg-photo-nav{top:50%;transform:translateY(-50%);width:50px;height:70px;border-radius:12px;font-size:46px}.mg-photo-nav.prev{left:18px}.mg-photo-nav.next{right:18px}.mg-photo-principal{margin-top:14px;border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0D2E6E;color:#fff;padding:10px 15px;font-weight:800;cursor:pointer}.mg-photo-principal:disabled{background:#475569;cursor:default;opacity:.9}
+        .mg-ticket-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;height:calc(100vh - 205px);min-height:560px}.mg-ticket-main{min-width:0;overflow-y:auto;padding-right:3px}.mg-ticket-side{min-width:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:12px;overflow:hidden}.mg-ticket-chat,.mg-ticket-validation{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:14px;overflow:hidden}.mg-ticket-panel-title{margin:0;padding:10px 13px;background:#EFF6FF;color:#0D2E6E;font-size:12px;font-weight:900}.mg-ticket-chat{display:flex;flex-direction:column;min-height:0}.mg-ticket-chat-list{flex:1;min-height:0;overflow-y:auto;padding:10px;background:#F8FAFC}.mg-ticket-message{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:9px 10px;margin-bottom:8px;box-shadow:0 2px 7px rgba(15,23,42,.04)}.mg-ticket-message.mine{border-color:#93C5FD;background:#EFF6FF}.mg-ticket-message-meta{display:flex;justify-content:space-between;gap:8px;color:#64748B;font-size:9px;font-weight:800;margin-bottom:4px}.mg-ticket-message-text{white-space:pre-wrap;color:#1E293B;font-size:12px;line-height:1.42}.mg-ticket-chat-form{display:flex;gap:7px;padding:9px;border-top:1px solid #E2E8F0;background:#fff}.mg-ticket-chat-form textarea{flex:1;min-width:0;min-height:44px;max-height:100px;resize:vertical;border:1px solid #CBD5E1;border-radius:10px;padding:9px;font:inherit;font-size:12px}.mg-ticket-chat-form button,.mg-ticket-validation button{border:0;border-radius:10px;background:#1B4FD8;color:#fff;font-weight:900;cursor:pointer;padding:0 13px}.mg-ticket-chat-form button:disabled,.mg-ticket-validation button:disabled{opacity:.55;cursor:wait}.mg-ticket-validation-body{padding:11px}.mg-ticket-validation-status{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #E2E8F0;border-radius:10px;padding:9px 10px;margin-bottom:9px}.mg-ticket-validation-status strong{font-size:12px;color:#0D2E6E}.mg-ticket-validation-status span{font-size:10px;font-weight:900;border-radius:999px;padding:4px 8px;background:#F1F5F9;color:#475569}.mg-ticket-validation label{display:block;font-size:9px;text-transform:uppercase;font-weight:900;color:#64748B;margin:8px 0 4px}.mg-ticket-validation select,.mg-ticket-validation textarea{width:100%;border:1px solid #CBD5E1;border-radius:10px;padding:8px 9px;font:inherit;font-size:11px;background:#fff}.mg-ticket-validation textarea{min-height:64px;resize:vertical}.mg-ticket-validation-actions{display:flex;justify-content:flex-end;margin-top:9px}.mg-ticket-validation-actions button{height:36px}.mg-ticket-validation-meta{margin-top:8px;color:#64748B;font-size:9px;line-height:1.45}.mg-ticket-empty{padding:16px;text-align:center;color:#64748B;font-size:11px}
+        @media(max-width:1100px){.mg-ticket-layout{grid-template-columns:minmax(0,1fr) 290px}}
+        @media(max-width:900px){.mg-ticket-layout{grid-template-columns:1fr;height:auto}.mg-ticket-main{overflow:visible}.mg-ticket-side{grid-template-rows:360px auto;overflow:visible}}
         @media(max-width:900px){.mg-project-overview{grid-template-columns:1fr}.mg-project-cover{height:210px}.mg-chart-grid{grid-template-columns:1fr}.mg-project-kpis.cols-3,.mg-project-kpis.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-project-rings{grid-template-columns:1fr}.mg-equipment-kpis.cols-5,.mg-equipment-kpis.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-equipment-kpis.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-equipment-charts{grid-template-columns:1fr}.mg-service-months{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:760px){.mg-detail-view{padding:0}.mg-detail-head{border-radius:0;padding:12px;align-items:flex-start}.mg-detail-head h2{font-size:16px}.mg-detail-body{padding:10px}.mg-detail-grid{grid-template-columns:1fr}.mg-table{min-width:680px}.mg-equipment-kpis.cols-5,.mg-equipment-kpis.cols-4,.mg-equipment-kpis.cols-2{grid-template-columns:1fr}.mg-service-months{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:760px){.mg-ticket-side{grid-template-rows:330px auto}.mg-ticket-layout{min-height:0}.mg-detail-view{padding:0}.mg-detail-head{border-radius:0;padding:12px;align-items:flex-start}.mg-detail-head h2{font-size:16px}.mg-detail-body{padding:10px}.mg-detail-grid{grid-template-columns:1fr}.mg-table{min-width:680px}.mg-equipment-kpis.cols-5,.mg-equipment-kpis.cols-4,.mg-equipment-kpis.cols-2{grid-template-columns:1fr}.mg-service-months{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `;
       document.head.appendChild(css);
     }
@@ -780,49 +793,68 @@
     const key = ticketKey(ticketId);
     return ticketCache.get(key) || (rows || []).find(t => ticketKey(t.ticket || t.n || t.folio) === key) || null;
   }
-  function ticketDetailHtml(t, ticketId){
+  function ticketMainHtml(t, ticketId){
     const equipo = t.codigo_equipo || t.cod || t.equipo || '';
     const proyecto = t.proyecto || t.pro || '';
     return '<section class="mg-detail-section"><h3>Datos generales</h3>'+grid([
-      ['Ticket', t.ticket || t.n || ticketId],
-      ['Folio', t.folio],
-      ['Estado ticket', t.estado_ticket || t.estado || t.et],
+      ['Ticket', t.ticket || t.n || ticketId], ['Folio', t.folio], ['Estado ticket', t.estado_ticket || t.estado || t.et],
       ['Proyecto', proyecto ? '<button class="mg-link" data-proyecto="'+esc(proyecto)+'">'+esc(proyecto)+'</button>' : '—'],
       ['Equipo', equipo ? '<button class="mg-link" data-equipo="'+esc(equipo)+'">'+esc(equipo)+'</button>' : '—'],
-      ['Zona', t.zona || t.zon],
-      ['Ciudad', t.ciudad],
-      ['Prioridad', t.prioridad || t.pri]
-    ])+'</section>'+
-    '<section class="mg-detail-section"><h3>Reporte y atención</h3>'+grid([
-      ['Fecha reporte', fmtDate(t.fecha_reporte || t.fr)],
-      ['Hora reporte', t.h_reporte || t.hr],
-      ['Fecha llegada', fmtDate(t.fecha_llegada || t.fl)],
-      ['Hora llegada', t.h_llegada || t.hl],
-      ['Fecha cierre', fmtDate(t.fecha_cierre || t.fs)],
-      ['Hora solución', t.h_solucion || t.hs],
-      ['Técnico', t.tecnico || t.tec],
-      ['Supervisor', t.supervisor || t.sup],
-      ['Persona que atiende', t.persona_que_atiende || t.persona_atiende],
+      ['Zona', t.zona || t.zon], ['Ciudad', t.ciudad], ['Prioridad', t.prioridad || t.pri]
+    ])+'</section>'+ '<section class="mg-detail-section"><h3>Reporte y atención</h3>'+grid([
+      ['Fecha reporte', fmtDate(t.fecha_reporte || t.fr)], ['Hora reporte', t.h_reporte || t.hr], ['Fecha llegada', fmtDate(t.fecha_llegada || t.fl)],
+      ['Hora llegada', t.h_llegada || t.hl], ['Fecha cierre', fmtDate(t.fecha_cierre || t.fs)], ['Hora solución', t.h_solucion || t.hs],
+      ['Técnico', t.tecnico || t.tec], ['Supervisor', t.supervisor || t.sup], ['Persona que atiende', t.persona_que_atiende || t.persona_atiende],
       ['Ejecutivo Call Center', t.ejecutivo_call]
-    ])+'</section>'+
-    '<section class="mg-detail-section"><h3>Diagnóstico</h3>'+grid([
-      ['Estatus inicial', t.estatus_equipo_ir || t.eqi],
-      ['Estatus final', t.estatus_equipo_final || t.eqf],
-      ['Responsabilidad', t.responsabilidad || t.res],
-      ['Causa falla', t.causa_falla || t.caf],
-      ['Tiempo llegada', t.tiempo_llegada ?? t.tll],
-      ['Tiempo solución', t.tiempo_solucion ?? t.tso],
-      ['Tipo equipo', t.tipo_equipo || t.prd],
-      ['SLA / excede', t.ticket_excede || t.xat]
-    ])+'</section>'+
-    '<section class="mg-detail-section"><h3>Descripción y cierre</h3>'+grid([
-      ['Referencia zona operativa', t.referencia_en_zona_operativa || t.ref],
-      ['Descripción', t.descripcion || t.asu],
-      ['Causa', t.causa || t.cau],
-      ['Acción en cierre', t.accion_en_cierre || t.acc],
-      ['Vo.Bo. estado', t.vobo_estado],
-      ['Vo.Bo. comentario', t.vobo_comentario]
+    ])+'</section>'+ '<section class="mg-detail-section"><h3>Diagnóstico</h3>'+grid([
+      ['Estatus inicial', t.estatus_equipo_ir || t.eqi], ['Estatus final', t.estatus_equipo_final || t.eqf], ['Responsabilidad', t.responsabilidad || t.res],
+      ['Causa falla', t.causa_falla || t.caf], ['Tiempo llegada', t.tiempo_llegada ?? t.tll], ['Tiempo solución', t.tiempo_solucion ?? t.tso],
+      ['Tipo equipo', t.tipo_equipo || t.prd], ['SLA / excede', t.ticket_excede || t.xat]
+    ])+'</section>'+ '<section class="mg-detail-section"><h3>Descripción y cierre</h3>'+grid([
+      ['Referencia zona operativa', t.referencia_en_zona_operativa || t.ref], ['Descripción', t.descripcion || t.asu], ['Causa', t.causa || t.cau],
+      ['Acción en cierre', t.accion_en_cierre || t.acc]
     ])+'</section>';
+  }
+  function ticketChatHtml(interactions){
+    const comments=(interactions&&interactions.comentarios)||[];
+    const user=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
+    const uid=String(user&& (user.id_SB||user.id) || '');
+    return '<section class="mg-ticket-chat"><h3 class="mg-ticket-panel-title">Chat / comentarios</h3><div class="mg-ticket-chat-list" id="mg-ticket-chat-list">'+
+      (comments.length?comments.map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(c.fecha_formateada||c.fecha_creacion||'')+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>')+
+      '</div><form class="mg-ticket-chat-form" id="mg-ticket-chat-form"><textarea id="mg-ticket-chat-input" maxlength="2000" placeholder="Escribe un comentario..." required></textarea><button type="submit" title="Enviar comentario">➤</button></form></section>';
+  }
+  function ticketValidationHtml(t, interactions){
+    const p=(interactions&&interactions.permisos)||{};
+    const estado=t.vobo_estado||'Pendiente';
+    const canValidate=Boolean(p.puede_validar);
+    const canRevert=Boolean(p.puede_revertir);
+    const editing=canValidate||canRevert;
+    const options=['Pendiente','Validado','Rechazado'];
+    return '<section class="mg-ticket-validation"><h3 class="mg-ticket-panel-title">Validación / acciones</h3><div class="mg-ticket-validation-body"><div class="mg-ticket-validation-status"><strong>Vo.Bo.</strong><span>'+esc(estado)+'</span></div>'+
+      (editing?'<label>Resultado</label><select id="mg-ticket-vobo-state">'+options.map(o=>'<option value="'+o+'" '+(o===estado?'selected':'')+'>'+o+'</option>').join('')+'</select><label>Comentario</label><textarea id="mg-ticket-vobo-comment" maxlength="2000" placeholder="Observaciones de validación...">'+esc(t.vobo_comentario||'')+'</textarea><div class="mg-ticket-validation-actions"><button type="button" id="mg-ticket-vobo-save">Guardar validación</button></div>':'<div class="mg-ticket-empty">Solo el Supervisor o Superintendente responsable puede validar. El Programador puede revertir.</div>')+
+      '<div class="mg-ticket-validation-meta">'+(t.vobo_por_nombre?'Última acción: '+esc(t.vobo_por_nombre)+'<br>':'')+(t.vobo_en?'Fecha: '+esc(t.vobo_en):'')+'</div></div></section>';
+  }
+  function ticketDetailHtml(t, ticketId, interactions){
+    return '<div class="mg-ticket-layout"><main class="mg-ticket-main">'+ticketMainHtml(t,ticketId)+'</main><aside class="mg-ticket-side">'+ticketChatHtml(interactions)+ticketValidationHtml(t,interactions)+'</aside></div>';
+  }
+  function scrollTicketChat(){ const el=document.getElementById('mg-ticket-chat-list'); if(el) el.scrollTop=el.scrollHeight; }
+  function bindTicketInteractions(t, ticketId){
+    scrollTicketChat();
+    const chat=document.getElementById('mg-ticket-chat-form');
+    if(chat) chat.addEventListener('submit',async ev=>{
+      ev.preventDefault(); const input=document.getElementById('mg-ticket-chat-input'); const button=chat.querySelector('button');
+      const comentario=String(input&&input.value||'').trim(); if(!comentario)return;
+      button.disabled=true;
+      try{ await postJson('/api/tickets/'+encodeURIComponent(ticketId)+'/comentarios',{comentario}); await openTicket(ticketId,t); }
+      catch(e){ alert(e.message||'No fue posible enviar el comentario.'); button.disabled=false; }
+    });
+    const save=document.getElementById('mg-ticket-vobo-save');
+    if(save) save.addEventListener('click',async()=>{
+      const state=document.getElementById('mg-ticket-vobo-state'); const comment=document.getElementById('mg-ticket-vobo-comment');
+      save.disabled=true;
+      try{ await postJson('/api/tickets/'+encodeURIComponent(ticketId)+'/validacion',{vobo_estado:state.value,vobo_comentario:String(comment.value||'').trim()}); await openTicket(ticketId,t); }
+      catch(e){ alert(e.message||'No fue posible guardar la validación.'); save.disabled=false; }
+    });
   }
   async function openTicket(ticketId, knownTicket){
     ticketId = ticketKey(ticketId); if(!ticketId || ticketId === '—') return;
@@ -851,10 +883,12 @@
       }
 
       if(!t) t = { ticket: ticketId };
-      show('Ticket · ' + (t.ticket || t.n || ticketId), [t.proyecto || t.pro, t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId));
+      let interactions={ comentarios:[], validaciones:[], permisos:{} };
+      try{ const ix=await fetchJson('/api/tickets/'+encodeURIComponent(ticketId)+'/interacciones'); interactions=ix.data||ix||interactions; }catch(interactionError){ interactions.error=interactionError.message; }
+      show('Ticket · ' + (t.ticket || t.n || ticketId), [t.proyecto || t.pro, t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId, interactions));
       const body=document.getElementById('mg-detail-body');
       body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
-      bindLinks(body);
+      bindLinks(body); bindTicketInteractions(t,ticketId);
     }catch(e){ show('Ticket', ticketId, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
   async function openEquipoCritico(codigo, opts){
