@@ -1025,46 +1025,51 @@ async function getPortafolioEquipoTicketsLote(req, res) {
   }
 }
 
-async function saveTicketVobo(req, res) {
+async function saveTicketVobo(req, res) { return saveTicketValidacion(req, res); }
+
+async function getTicketInteracciones(req, res) {
   const ticket = String(req.params.ticket || '').trim();
-  const voboEstado = String(req.body?.vobo_estado || '').trim() || 'Pendiente';
-  const voboComentario = String(req.body?.vobo_comentario || '').trim();
-
-  if (!ticket) {
-    return res.status(400).json({ ok: false, message: 'No se recibio ticket.' });
-  }
-
   try {
-    const [result] = await db.query(
-      `UPDATE tickets
-       SET vobo_estado = ?,
-           vobo_comentario = ?,
-           actualizado_en = CURRENT_TIMESTAMP
-       WHERE ticket = ? OR folio = ?
-       LIMIT 1`,
-      [voboEstado, voboComentario, ticket, ticket]
-    );
-
-    if (!result.affectedRows) {
-      return res.status(404).json({ ok: false, message: 'Ticket no encontrado.' });
-    }
-
-    return res.json({
-      ok: true,
-      message: 'Vo.Bo. guardado correctamente.',
-      data: {
-        ticket,
-        vobo_estado: voboEstado,
-        vobo_comentario: voboComentario
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      message: 'Error guardando Vo.Bo.',
-      error: error.message
-    });
-  }
+    const row = await findTicketRow(ticket);
+    if (!row) return res.status(404).json({ ok:false, message:'Ticket no encontrado.' });
+    const [comentarios] = await db.query(`SELECT c.id_comentario,c.id_usuario,c.comentario,c.fecha_creacion,u.nombre AS autor_nombre,u.iniciales AS autor_iniciales,
+      DATE_FORMAT(c.fecha_creacion,'%d/%m/%Y %H:%i') AS fecha_formateada FROM ticket_comentarios c LEFT JOIN usuarios u ON u.id_SB=c.id_usuario
+      WHERE c.id_ticket=? AND c.activo=1 ORDER BY c.fecha_creacion ASC,c.id_comentario ASC`, [row.id]);
+    const [validaciones] = await db.query(`SELECT v.*,u.nombre AS autor_nombre,u.iniciales AS autor_iniciales FROM ticket_validaciones v LEFT JOIN usuarios u ON u.id_SB=v.id_usuario
+      WHERE v.id_ticket=? ORDER BY v.fecha_creacion DESC,v.id_validacion DESC`, [row.id]);
+    const names=(await ticketResponsibleNames(row)).map(v=>v.toLowerCase());
+    const user=req.user||{}; const identity=[user.nombre,user.iniciales,user.correo].filter(Boolean).map(v=>String(v).toLowerCase());
+    const responsible=identity.some(v=>names.includes(v));
+    const canRevert=ticketCanRevert(req);
+    return res.json({ok:true,data:{comentarios,validaciones,permisos:{puede_comentar:Boolean(user.id_SB||user.id),puede_validar:ticketCanValidateRole(req)&&(responsible||ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'))),puede_revertir:canRevert}}});
+  } catch(error) { return res.status(500).json({ok:false,message:'Error consultando interacciones del ticket.',error:error.message}); }
+}
+async function createTicketComentario(req, res) {
+  const ticket=String(req.params.ticket||'').trim(); const comentario=String(req.body?.comentario||'').trim().slice(0,2000); const user=currentUserRef(req);
+  if(!comentario)return res.status(400).json({ok:false,message:'El comentario es obligatorio.'});
+  const conn=await db.getConnection();
+  try { await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
+    const [result]=await conn.query('INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario) VALUES (?,?,?)',[row.id,user.id,comentario]);
+    await createTicketNotifications(conn,row,user,'TICKET_COMENTARIO',`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
+    await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId}});
+  } catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error agregando comentario.',error:error.message});} finally{conn.release();}
+}
+async function saveTicketValidacion(req,res){
+  const ticket=String(req.params.ticket||'').trim(); const estado=String(req.body?.vobo_estado||'Pendiente').trim(); const comentario=String(req.body?.vobo_comentario||'').trim().slice(0,2000); const user=currentUserRef(req);
+  if(!['Pendiente','Validado','Rechazado'].includes(estado))return res.status(400).json({ok:false,message:'Estado de validación no válido.'});
+  const conn=await db.getConnection();
+  try {await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
+    const previous=String(row.vobo_estado||'Pendiente'); const reverting=previous!=='Pendiente'&&estado==='Pendiente';
+    if(reverting&&!ticketCanRevert(req)){await conn.rollback();return res.status(403).json({ok:false,message:'Solo Programador puede revertir una validación.'});}
+    const names=(await ticketResponsibleNames(row,conn)).map(v=>v.toLowerCase()); const identity=[req.user?.nombre,req.user?.iniciales,req.user?.correo].filter(Boolean).map(v=>String(v).toLowerCase());
+    const elevated=ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'));
+    if(!reverting&&(!ticketCanValidateRole(req)||(!elevated&&!identity.some(v=>names.includes(v))))){await conn.rollback();return res.status(403).json({ok:false,message:'Solo el Supervisor o Superintendente responsable puede validar este ticket.'});}
+    await conn.query(`UPDATE tickets SET vobo_estado=?,vobo_comentario=?,vobo_por_id=?,vobo_por_nombre=?,vobo_en=CURRENT_TIMESTAMP WHERE id=?`,[estado,comentario,user.id,req.user?.nombre||user.iniciales||user.correo,row.id]);
+    await conn.query(`INSERT INTO ticket_validaciones (id_ticket,id_usuario,estado_anterior,estado_nuevo,comentario,ip_origen) VALUES (?,?,?,?,?,?)`,[row.id,user.id,previous,estado,comentario,req.ip||null]);
+    const kind=estado==='Pendiente'?'TICKET_VALIDACION_PENDIENTE':'TICKET_VALIDACION';
+    await createTicketNotifications(conn,row,user,kind,`${user.iniciales||user.correo||'Usuario'} cambió la validación del ticket ${row.ticket}: ${previous} → ${estado}.`);
+    await conn.commit(); return res.json({ok:true,message:'Validación guardada.',data:{ticket:row.ticket,vobo_estado:estado,vobo_comentario:comentario}});
+  }catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error guardando validación.',error:error.message});}finally{conn.release();}
 }
 
 async function getTickets(req, res) {
@@ -3267,6 +3272,9 @@ module.exports = {
   getTickets,
   getTicketDetalle,
   saveTicketVobo,
+  getTicketInteracciones,
+  createTicketComentario,
+  saveTicketValidacion,
   getPortafolio,
   getProyectosFiltros,
   getProyectoDetalle,

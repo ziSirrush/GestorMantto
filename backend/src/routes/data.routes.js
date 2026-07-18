@@ -7,7 +7,10 @@ const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
 
 router.get('/estados-visuales', dataController.getEstadosVisuales);
 router.get('/tickets', dataController.getTickets);
-router.get('/tickets/:ticket', dataController.getTicketDetalle);
+router.get('/tickets/:ticket/interacciones', optionalAuth, dataController.getTicketInteracciones);
+router.post('/tickets/:ticket/comentarios', requireAuth, dataController.createTicketComentario);
+router.post('/tickets/:ticket/validacion', requireAuth, dataController.saveTicketValidacion);
+router.get('/tickets/:ticket', optionalAuth, dataController.getTicketDetalle);
 router.post('/tickets/:ticket/vobo', requireAuth, dataController.saveTicketVobo);
 router.post('/tickets/sync', dataController.syncTickets);
 
