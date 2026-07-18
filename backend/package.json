@@ -1,11 +1,13 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "",
+  "name": "mantto-gestor-backend",
+  "version": "2.0.0-dev",
+  "private": true,
+  "description": "Backend modular de Mantto Gestor",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "check": "node scripts/validate-structure.js"
   },
   "keywords": [],
   "author": "",

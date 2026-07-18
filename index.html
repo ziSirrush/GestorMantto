@@ -254,6 +254,28 @@
             </div>
           </section>
 
+          <section class="side-group" data-group="almacen">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-almacen">
+              <span class="side-group-icon">📦</span><b>Almacén</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-almacen">
+              <button class="side-item" data-route="almacen-dashboard" data-permission="almacen_dashboard" type="button"><span>📊</span><b>Dashboard Almacén</b></button>
+              <button class="side-item" data-route="almacen-inventarios" data-permission="almacen_inventarios" type="button"><span>📋</span><b>Inventarios</b></button>
+              <button class="side-item" data-route="almacen-movimientos" data-permission="almacen_movimientos" type="button"><span>⇄</span><b>Movimientos Almacén</b></button>
+            </div>
+          </section>
+
+          <section class="side-group" data-group="customer-experience">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-customer-experience">
+              <span class="side-group-icon">💬</span><b>Customer Experience</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-customer-experience">
+              <button class="side-item" data-route="cx-dashboard" data-permission="cx_dashboard" type="button"><span>📊</span><b>Dashboard CX</b></button>
+              <button class="side-item" data-route="cx-encuestas" data-permission="cx_encuestas" type="button"><span>📝</span><b>Encuestas</b></button>
+              <button class="side-item" data-route="cx-visitas" data-permission="cx_visitas" type="button"><span>🤝</span><b>Visitas</b></button>
+            </div>
+          </section>
+
           <div class="side-divider" aria-hidden="true"></div>
 
           <button class="side-item side-standalone" data-route="usuarios" data-permission="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
@@ -468,7 +490,7 @@
   <script src="./core/daily-phrases.js?v=20260705-v114"></script>
   <script src="./core/config.js?v=20260705-v114"></script>
   <script src="./core/auth.js?v=20260711-neutral-auth-v001"></script>
-  <script src="./core/router.js?v=20260717-portafolio-kpi-views-v001"></script>
+  <script src="./core/router.js?v=20260718-sidebar-almacen-cx-v001"></script>
   <script src="./core/estados-visuales.js?v=20260715-v001"></script>
   <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
   <script src="./modules/home/home.js?v=20260705-v114"></script>
@@ -486,6 +508,6 @@
   <script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
   <script src="./modules/support/support.js?v=20260705-v114"></script>
   <script src="./core/details.js?v=20260717-pdf-archivo-equipo-v001"></script>
-  <script src="./core/app.js?v=20260710-sidebar-v015"></script>
+  <script src="./core/app.js?v=20260718-sidebar-almacen-cx-v001"></script>
 </body>
 </html>

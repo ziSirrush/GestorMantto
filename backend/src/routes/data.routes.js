@@ -1,72 +1,14 @@
 const express = require('express');
 const router = express.Router();
 
-const dataController = require('../controllers/data.controller');
-const criticosController = require('../controllers/criticos.controller');
-const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
-
-router.get('/estados-visuales', dataController.getEstadosVisuales);
-router.get('/tickets', dataController.getTickets);
-router.get('/tickets/:ticket/interacciones', optionalAuth, dataController.getTicketInteracciones);
-router.post('/tickets/:ticket/comentarios', requireAuth, dataController.createTicketComentario);
-router.post('/tickets/:ticket/validacion', requireAuth, dataController.saveTicketValidacion);
-router.get('/tickets/:ticket', optionalAuth, dataController.getTicketDetalle);
-router.post('/tickets/:ticket/vobo', requireAuth, dataController.saveTicketVobo);
-router.post('/tickets/sync', dataController.syncTickets);
-
-router.get('/portafolio/filtros', dataController.getPortafolioFiltros);
-router.get('/portafolio/dashboard', dataController.getPortafolioDashboard);
-router.get('/portafolio/movimientos', dataController.getPortafolioMovimientos);
-router.get('/portafolio/movimientos-semanales/catalogo', dataController.getPortafolioSemanasDisponibles);
-router.get('/portafolio/movimientos-semanales', dataController.getPortafolioMovimientosSemanales);
-router.get('/portafolio/movimientos/:codigo/detalle', dataController.getPortafolioMovimientoDetalle);
-router.post('/portafolio/equipos/tickets-lote', dataController.getPortafolioEquipoTicketsLote);
-router.get('/portafolio/equipos/:codigo', dataController.getPortafolioEquipoDetalle);
-router.get('/portafolio/equipos', dataController.getPortafolioEquipos);
-router.get('/portafolio/proyectos/detalle/:proyecto', dataController.getPortafolioProyectoDetalle);
-router.get('/portafolio', dataController.getPortafolio);
-router.post('/portafolio/sync', dataController.syncPortafolio);
-router.get('/equipos', dataController.getEquipos);
-router.get('/proyectos/filtros', dataController.getProyectosFiltros);
-router.get('/proyectos/detalle', dataController.getProyectoDetalle);
-router.get('/proyectos/detalle/:proyecto', dataController.getProyectoDetalle);
-router.get('/proyectos/:proyecto', dataController.getProyectoDetalle);
-router.get('/proyectos', dataController.getProyectos);
-
-router.get('/servicios-preventivos/resumen-supervisor', requireAuth, dataController.getPreventivosSupervisor);
-
-router.get('/indicadores/mtbc/equipos', criticosController.getMtbcEquipos);
-router.get('/indicadores/mtbc/proyectos', criticosController.getMtbcProyectos);
-router.get('/callcenter/u365/proyectos', optionalAuth, criticosController.getCallCenterU365Proyectos);
-router.get('/callcenter/u365/equipos', optionalAuth, criticosController.getCallCenterU365Equipos);
-router.get('/criticidad-corporativa', optionalAuth, criticosController.getCriticidadCorporativa);
-router.get('/equipos-criticos', optionalAuth, criticosController.getEquiposCriticos);
-router.get('/equipos-criticos/:codigo/tickets', optionalAuth, criticosController.getEquipoCriticoTickets);
-router.get('/proyectos-criticos', optionalAuth, criticosController.getProyectosCriticos);
-router.get('/proyectos-criticos/:proyecto/tickets', optionalAuth, criticosController.getProyectoCriticoTickets);
-
-router.get('/home/bootstrap', requireAuth, dataController.getHomeBootstrap);
-router.get('/pendientes/catalogos', requireAuth, dataController.getPendientesCatalogos);
-router.get('/pendientes', optionalAuth, dataController.getPendientes);
-router.get('/pendientes/:id', requireAuth, dataController.getPendienteDetalle);
-router.post('/pendientes', requireAuth, dataController.createPendiente);
-router.put('/pendientes/:id', requireAuth, dataController.updatePendiente);
-router.delete('/pendientes/:id', requireAuth, dataController.deletePendiente);
-router.patch('/pendientes/:id/estatus', requireAuth, dataController.updatePendienteEstatus);
-router.patch('/pendientes/:id/prioridad', requireAuth, dataController.updatePendientePrioridad);
-router.post('/pendientes/:id/comentarios', requireAuth, dataController.createPendienteComentario);
-router.patch('/pendientes/:id/subtareas/:idSubtarea', requireAuth, dataController.updatePendienteSubtarea);
-router.get('/notificaciones', optionalAuth, dataController.getNotificaciones);
-router.patch('/notificaciones/:id/abrir', requireAuth, dataController.abrirNotificacion);
-router.patch('/notificaciones/:id/nuevo', requireAuth, dataController.marcarNotificacionNueva);
-router.get('/actividad-reciente', optionalAuth, dataController.getActividadReciente);
-
-router.get('/usuarios', dataController.getUsuarios);
-router.get('/users', dataController.getUsuarios);
-
-router.get('/permisos', dataController.getPermisos);
-router.get('/roles', dataController.getRoles);
-router.get('/zonas', dataController.getZonas);
-router.get('/usuario-zop', dataController.getUsuarioZop);
+router.use(require('./data/catalogos.routes'));
+router.use(require('./data/tickets.routes'));
+router.use(require('./data/portafolio.routes'));
+router.use(require('./data/proyectos.routes'));
+router.use(require('./data/dashboard-operativo.routes'));
+router.use(require('./data/criticos.routes'));
+router.use(require('./data/home.routes'));
+router.use(require('./data/pendientes.routes'));
+router.use(require('./data/notificaciones.routes'));
 
 module.exports = router;

@@ -31,6 +31,8 @@
     ventas_dashboard:true, ventas_vendidos:true, ventas_proyeccion:true, ventas_perdidos:true,
     ventas_fotos_mapa:true, ventas_clientes:true, ventas_cotizaciones:true, ventas_prospeccion:true,
     ventas_mapa_prospeccion:true, ventas_asignacion_redes:true,
+    almacen_dashboard:true, almacen_inventarios:true, almacen_movimientos:true,
+    cx_dashboard:true, cx_encuestas:true, cx_visitas:true,
     usuarios:true, panel_control:true
   });
 
