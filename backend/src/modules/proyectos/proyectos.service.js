@@ -664,25 +664,28 @@ async function getProyectoDetalle(req, res) {
     projectMetrics.equipos_criticos_anio = Number(criticalRows[0]?.equipos_criticos_anio || 0);
 
     const [criticalPeriodRows] = await db.query(`
-      SELECT COUNT(*) AS equipos_criticos_periodo
-      FROM (
-        SELECT t.codigo_equipo
-        FROM tickets t
-        INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
-        WHERE p.estado_registro = 1
-          AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE'))
-          AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'
-          AND UPPER(TRIM(p.proyecto)) = UPPER(TRIM(?))
-          AND t.fecha_reporte IS NOT NULL
-          AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-          AND t.codigo_equipo IS NOT NULL
-          AND TRIM(t.codigo_equipo) <> ''
-          AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'
-        GROUP BY t.codigo_equipo
-        HAVING COUNT(*) >= ?
-      ) critical_period
+      SELECT t.codigo_equipo
+      FROM tickets t
+      INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+      WHERE p.estado_registro = 1
+        AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE'))
+        AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'
+        AND UPPER(TRIM(p.proyecto)) = UPPER(TRIM(?))
+        AND t.fecha_reporte IS NOT NULL
+        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+        AND t.codigo_equipo IS NOT NULL
+        AND TRIM(t.codigo_equipo) <> ''
+        AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'
+      GROUP BY t.codigo_equipo
+      HAVING COUNT(*) >= ?
     `, [proyecto, criticosPeriodoDias, criticosMinFallas]);
-    projectMetrics.equipos_criticos_periodo = Number(criticalPeriodRows[0]?.equipos_criticos_periodo || 0);
+    const criticalPeriodCodes = new Set(
+      criticalPeriodRows.map(row => String(row.codigo_equipo || '').trim()).filter(Boolean)
+    );
+    projectMetrics.equipos_criticos_periodo = criticalPeriodCodes.size;
+    equipos.forEach(row => {
+      row.es_critico_periodo = criticalPeriodCodes.has(String(row.numero_equipo || '').trim()) ? 1 : 0;
+    });
 
     const [responsibilityDistribution] = await db.query(`
       SELECT
