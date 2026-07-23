@@ -1,5 +1,41 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const db = require('../config/db');
 const supportSolicitudesService = require('../services/support-solicitudes.service');
+
+
+const supportUploadRoot = path.join(__dirname, '..', '..', 'uploads', 'support');
+
+function hasExactSupportRole(user) {
+  const roles = [user && user.rol, ...((user && Array.isArray(user.roles)) ? user.roles : [])].filter(Boolean);
+  return roles.includes('Soporte');
+}
+
+function saveSupportUpload(file) {
+  if (!file || typeof file !== 'object') return null;
+  const originalName = String(file.name || file.nombre_original || 'archivo').trim().slice(0, 255) || 'archivo';
+  const mimeType = String(file.type || file.mime_type || 'application/octet-stream').trim().slice(0, 100);
+  const dataUrl = String(file.data || file.base64 || '').trim();
+  if (!dataUrl) throw new Error('El archivo no contiene datos.');
+  const parts = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const base64 = parts ? parts[2] : dataUrl;
+  const buffer = Buffer.from(base64, 'base64');
+  if (!buffer.length) throw new Error('El archivo está vacío.');
+  if (buffer.length > 8 * 1024 * 1024) throw new Error('El archivo excede 8 MB.');
+  const ext = (path.extname(originalName).toLowerCase() || '').replace(/[^a-z0-9.]/g, '').slice(0, 12);
+  const serverName = `support_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
+  fs.mkdirSync(supportUploadRoot, { recursive: true });
+  fs.writeFileSync(path.join(supportUploadRoot, serverName), buffer);
+  return {
+    originalName,
+    serverName,
+    route: `/uploads/support/${serverName}`,
+    extension: ext.replace('.', '') || 'bin',
+    mimeType,
+    size: buffer.length
+  };
+}
 
 /* ==========================================
    Helpers
@@ -253,6 +289,21 @@ async function getTicketById(req, res) {
       });
     }
 
+    if (hasExactSupportRole(req.user || {}) && !ticket.id_soporte) {
+      const assigned = await supportSolicitudesService.autoAssignIfEmpty(ticket.id_ticket, req.user.id_SB);
+      if (assigned) {
+        await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'asignacion_automatica', {
+          mensaje: `Solicitud asignada automáticamente a ${req.user.nombre || req.user.correo || 'Soporte'}`
+        }));
+        return res.json({
+          ok: true,
+          source: 'support_ticket_detail',
+          auto_asignada: true,
+          data: await supportSolicitudesService.getSolicitudById(ticket.id_ticket)
+        });
+      }
+    }
+
     return res.json({
       ok: true,
       source: 'support_ticket_detail',
@@ -292,7 +343,9 @@ async function updateTicket(req, res) {
 
     add(['estado_ticket', 'estado', 'status'], pickValue(req.body, ['estado_ticket', 'estado', 'status']));
     add(['prioridad_ticket', 'prioridad', 'priority'], pickValue(req.body, ['prioridad_ticket', 'prioridad', 'priority']));
-    add(['id_soporte', 'soporte_id', 'asignado_a', 'id_asignado'], pickValue(req.body, ['id_soporte', 'asignado_a', 'id_asignado']));
+    const assignedValue = pickValue(req.body, ['id_soporte', 'asignado_a', 'id_asignado'], undefined);
+    const assignedColumn = pickColumn(columns, ['id_soporte', 'soporte_id', 'asignado_a', 'id_asignado']);
+    if (assignedColumn && assignedValue !== undefined) updates[assignedColumn] = assignedValue === '' ? null : assignedValue;
     add(['updated_at', 'fecha_actualizacion'], new Date());
 
     const updateColumns = Object.keys(updates);
@@ -374,6 +427,68 @@ async function createTicket(req, res) {
   }
 }
 
+
+async function getTicketCatalogs(req, res) {
+  try {
+    if (!canAdministrateSupport(req)) {
+      return res.status(403).json({ ok: false, message: 'No tienes permisos para administrar solicitudes.' });
+    }
+    return res.json({ ok: true, data: { usuarios_soporte: await supportSolicitudesService.listSupportUsers() } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando catálogos de soporte.', error: error.message });
+  }
+}
+
+async function addTicketComment(req, res) {
+  try {
+    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
+    if (!ticket) return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    const ownerId = Number(ticket.id_usuario || 0);
+    if (!canAdministrateSupport(req) && ownerId !== Number(req.user.id_SB)) {
+      return res.status(403).json({ ok: false, message: 'No tienes permiso para comentar esta solicitud.' });
+    }
+    const comentario = String(req.body.comentario || req.body.mensaje || '').trim().slice(0, 2000);
+    if (!comentario) return res.status(400).json({ ok: false, message: 'El comentario es obligatorio.' });
+    await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'comentario', { mensaje: comentario }));
+    await db.query(
+      `UPDATE sup_tickets
+          SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW(), ultima_respuesta_por = ?
+        WHERE id_ticket = ?`,
+      [hasExactSupportRole(req.user || {}) ? 'Soporte' : 'Usuario', ticket.id_ticket]
+    );
+    return res.status(201).json({ ok: true, message: 'Comentario agregado correctamente.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error agregando comentario.', error: error.message });
+  }
+}
+
+async function addTicketAttachment(req, res) {
+  try {
+    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
+    if (!ticket) return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    const ownerId = Number(ticket.id_usuario || 0);
+    if (!canAdministrateSupport(req) && ownerId !== Number(req.user.id_SB)) {
+      return res.status(403).json({ ok: false, message: 'No tienes permiso para adjuntar archivos a esta solicitud.' });
+    }
+    const saved = saveSupportUpload(req.body.archivo || req.body.file);
+    await db.query(
+      `INSERT INTO sup_adjuntos
+       (id_ticket, tipo_adjunto, origen_adjunto, subido_por, nombre_original, nombre_servidor,
+        ruta_archivo, extension_archivo, mime_type, peso_archivo, activo, fecha_creacion, fecha_actualizacion)
+       VALUES (?, 'solicitud', ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+      [ticket.id_ticket, hasExactSupportRole(req.user || {}) ? 'Soporte' : 'Usuario', req.user.id_SB,
+       saved.originalName, saved.serverName, saved.route, saved.extension, saved.mimeType, saved.size]
+    );
+    await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'archivo_adjuntado', {
+      mensaje: `Archivo adjuntado: ${saved.originalName}`
+    }));
+    await db.query(`UPDATE sup_tickets SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW() WHERE id_ticket = ?`, [ticket.id_ticket]);
+    return res.status(201).json({ ok: true, message: 'Archivo adjuntado correctamente.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error adjuntando archivo.', error: error.message });
+  }
+}
+
 async function getNotificaciones(req, res) {
   try {
     const [rows] = await db.query(
@@ -400,5 +515,8 @@ module.exports = {
   getTickets,
   getTicketById,
   updateTicket,
+  getTicketCatalogs,
+  addTicketComment,
+  addTicketAttachment,
   getNotificaciones
 };

@@ -18,9 +18,12 @@ router.get('/avisos', optionalAuth, supportController.getAvisos);
 =========================== */
 
 router.get('/tickets', requireAuth, supportController.getTickets);
+router.get('/tickets/catalogos', requireAuth, supportController.getTicketCatalogs);
 router.get('/tickets/:id', requireAuth, supportController.getTicketById);
 router.post('/tickets', requireAuth, supportController.createTicket);
 router.patch('/tickets/:id', requireAuth, supportController.updateTicket);
+router.post('/tickets/:id/comentarios', requireAuth, supportController.addTicketComment);
+router.post('/tickets/:id/adjuntos', requireAuth, supportController.addTicketAttachment);
 
 /* ===========================
    NOTIFICACIONES

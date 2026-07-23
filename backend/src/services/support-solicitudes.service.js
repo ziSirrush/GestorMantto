@@ -135,6 +135,7 @@ async function getSolicitudById(id) {
        t.*,
        u.nombre AS usuario_nombre,
        u.correo AS usuario_correo,
+       u.empresa AS usuario_empresa,
        s.nombre AS soporte_nombre,
        s.correo AS soporte_correo,
        c.nombre_categoria
@@ -147,7 +148,43 @@ async function getSolicitudById(id) {
     [id]
   );
 
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  const ticket = rows[0];
+  try { ticket.historial = ticket.historial ? JSON.parse(ticket.historial) : []; } catch (error) { ticket.historial = []; }
+  const [adjuntos] = await db.query(
+    `SELECT a.*, u.nombre AS subido_por_nombre
+       FROM sup_adjuntos a
+       LEFT JOIN usuarios u ON u.id_SB = a.subido_por
+      WHERE a.id_ticket = ? AND COALESCE(a.activo, 1) = 1
+      ORDER BY a.fecha_creacion ASC, a.id_adjunto ASC`,
+    [ticket[idColumn]]
+  );
+  ticket.adjuntos = adjuntos;
+  return ticket;
+}
+
+async function listSupportUsers() {
+  const [rows] = await db.query(
+    `SELECT DISTINCT u.id_SB AS id_usuario, u.nombre, u.correo
+       FROM usuarios u
+       INNER JOIN usuario_roles ur ON ur.id_usuario = u.id_SB AND ur.activo = 1
+       INNER JOIN roles r ON r.id_rol = ur.id_rol AND r.estado = 1
+      WHERE u.estado = 1 AND r.rol = 'Soporte'
+      ORDER BY u.nombre ASC`
+  );
+  return rows;
+}
+
+async function autoAssignIfEmpty(ticketId, userId) {
+  if (!ticketId || !userId) return false;
+  const [result] = await db.query(
+    `UPDATE sup_tickets
+        SET id_soporte = ?, estado_ticket = CASE WHEN estado_ticket = 'Abierto' THEN 'Asignado' ELSE estado_ticket END,
+            fecha_actualizacion = NOW()
+      WHERE id_ticket = ? AND id_soporte IS NULL`,
+    [userId, ticketId]
+  );
+  return Number(result.affectedRows || 0) > 0;
 }
 
 async function notifySupportUsers({ ticketId, folio, asunto }) {
@@ -190,5 +227,7 @@ module.exports = {
   canAdministrateSupport,
   listSolicitudes,
   getSolicitudById,
-  notifySupportUsers
+  notifySupportUsers,
+  listSupportUsers,
+  autoAssignIfEmpty
 };
