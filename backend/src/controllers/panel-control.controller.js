@@ -295,6 +295,7 @@ async function getBootstrap(req, res, next) {
   try {
     if (denyUnlessManager(req, res)) return;
     await ensureVisualCatalogPermissions(db);
+    await ensurePanelControlProgrammerPermissions(db);
     const scope = actorScope(req);
     const roleFilter = companySql('r.empresa', scope);
     const userFilter = userCompanySql('u.empresa', scope);
@@ -398,9 +399,57 @@ async function getBootstrap(req, res, next) {
 }
 
 
+async function ensurePanelControlProgrammerPermissions(conn) {
+  /*
+   * Garantiza que el acceso visual del Panel de Control sea un permiso real
+   * heredado por cualquier rol Programador activo. No depende de que el rol
+   * sea principal y respeta las excepciones personales evaluadas después.
+   */
+  await conn.query(`
+    INSERT INTO rol_permisos
+      (id_rol, id_subelemento_accion, permitido, created_by, updated_by)
+    SELECT
+      r.id_rol,
+      psa.id_subelemento_accion,
+      1,
+      NULL,
+      NULL
+    FROM roles r
+    INNER JOIN perm_modulos pm
+      ON pm.codigo = 'GENERAL_PANEL_DE_CONTROL'
+     AND pm.activo = 1
+    INNER JOIN perm_elementos pe
+      ON pe.id_modulo = pm.id_modulo
+     AND pe.activo = 1
+    INNER JOIN perm_subelementos ps
+      ON ps.id_elemento = pe.id_elemento
+     AND ps.activo = 1
+    INNER JOIN perm_subelemento_acciones psa
+      ON psa.id_subelemento = ps.id_subelemento
+     AND psa.activo = 1
+    INNER JOIN perm_acciones pac
+      ON pac.id_accion = psa.id_accion
+     AND pac.activo = 1
+    WHERE r.estado = 1
+      AND LOWER(TRIM(r.rol)) IN (
+        'programador',
+        'programador united',
+        'programador corellian'
+      )
+      AND (
+        pac.codigo = 'ACCESO_VISUAL'
+        OR psa.codigo_permiso = 'GENERAL_PANEL_DE_CONTROL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'
+      )
+    ON DUPLICATE KEY UPDATE
+      permitido = 1,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+}
+
 async function getSessionPermissions(req, res, next) {
   try {
     await ensureVisualCatalogPermissions(db);
+    await ensurePanelControlProgrammerPermissions(db);
     const contextUser = req.contextUser || req.user;
     const userId = Number(contextUser?.id_SB);
     if (!Number.isInteger(userId) || userId <= 0) {
