@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const supportController = require('../controllers/support.controller');
-const { optionalAuth, requireAuth, requireRole } = require('../middleware/auth.middleware');
+const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
 
 /* ===========================
    CENTRO DE AYUDA / NORI
@@ -20,7 +20,7 @@ router.get('/avisos', optionalAuth, supportController.getAvisos);
 router.get('/tickets', requireAuth, supportController.getTickets);
 router.get('/tickets/:id', requireAuth, supportController.getTicketById);
 router.post('/tickets', requireAuth, supportController.createTicket);
-router.patch('/tickets/:id', requireAuth, requireRole('Programador'), supportController.updateTicket);
+router.patch('/tickets/:id', requireAuth, supportController.updateTicket);
 
 /* ===========================
    NOTIFICACIONES

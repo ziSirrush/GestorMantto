@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const supportSolicitudesService = require('../services/support-solicitudes.service');
 
 /* ==========================================
    Helpers
@@ -66,9 +67,8 @@ async function appendTicketHistory(tableName, ticketIdColumn, ticketId, event) {
   );
 }
 
-function isProgramador(req) {
-  const roles = (req.user && req.user.roles) || [];
-  return roles.includes('Programador') || (req.user && req.user.rol === 'Programador');
+function canAdministrateSupport(req) {
+  return supportSolicitudesService.canAdministrateSupport(req.user || {});
 }
 
 /* ==========================================
@@ -209,140 +209,48 @@ async function getAvisos(req, res) {
    SOLICITUDES / TICKETS DE SOPORTE
 ========================================== */
 
-async function createTicket(req, res) {
-  try {
-    const tableName = 'sup_tickets';
-    const columns = await getTableColumns(tableName);
-
-    if (!columns.length) {
-      return res.status(500).json({ ok: false, message: 'La tabla sup_tickets no existe o no tiene columnas.' });
-    }
-
-    const payload = {};
-    const add = (columnCandidates, value) => {
-      const column = pickColumn(columns, columnCandidates);
-      if (column && value !== undefined && value !== null && value !== '') payload[column] = value;
-    };
-
-    const event = supportEvent(req, 'ticket_creado', {
-      asunto: pickValue(req.body, ['asunto', 'titulo', 'subject']),
-      modulo: pickValue(req.body, ['modulo', 'modulo_afectado', 'categoria'])
-    });
-
-    add(['id_usuario', 'usuario_id', 'created_by', 'creado_por'], req.user.id_SB);
-    add(['modulo', 'modulo_afectado', 'categoria', 'categoria_ticket'], pickValue(req.body, ['modulo', 'modulo_afectado', 'categoria']));
-    add(['asunto', 'titulo', 'subject'], pickValue(req.body, ['asunto', 'titulo', 'subject']));
-    add(['descripcion', 'detalle', 'description'], pickValue(req.body, ['descripcion', 'detalle', 'description']));
-    add(['estado_ticket', 'estado', 'status'], pickValue(req.body, ['estado_ticket', 'estado'], 'Abierto'));
-    add(['prioridad_ticket', 'prioridad', 'priority'], pickValue(req.body, ['prioridad_ticket', 'prioridad'], 'Media'));
-    add(['historial', 'history', 'bitacora'], JSON.stringify([event]));
-    add(['created_at', 'fecha_creacion'], new Date());
-    add(['updated_at', 'fecha_actualizacion'], new Date());
-
-    const insertColumns = Object.keys(payload);
-    if (!insertColumns.length) {
-      return res.status(400).json({ ok: false, message: 'No hay campos compatibles para crear la solicitud.' });
-    }
-
-    const sql = `
-      INSERT INTO \`${tableName}\` (${insertColumns.map(col => `\`${col}\``).join(', ')})
-      VALUES (${insertColumns.map(() => '?').join(', ')})
-    `;
-
-    const [result] = await db.query(sql, insertColumns.map(col => payload[col]));
-
-    return res.status(201).json({
-      ok: true,
-      message: 'Solicitud creada correctamente.',
-      id: result.insertId
-    });
-  } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error creando solicitud.', error: error.message });
-  }
-}
-
 async function getTickets(req, res) {
   try {
-    const tableName = 'sup_tickets';
-    const columns = await getTableColumns(tableName);
-    const idColumn = pickColumn(columns, ['id_ticket', 'id_sup_ticket', 'id']);
-    const userColumn = pickColumn(columns, ['id_usuario', 'usuario_id', 'created_by', 'creado_por']);
-
-    let sql = `SELECT * FROM \`${tableName}\``;
-    const params = [];
-
-    if (!isProgramador(req) && userColumn) {
-      sql += ` WHERE \`${userColumn}\` = ?`;
-      params.push(req.user.id_SB);
-    }
-
-    sql += ` ORDER BY COALESCE(updated_at, created_at, NOW()) DESC`;
-    if (idColumn) sql += `, \`${idColumn}\` DESC`;
-    sql += ' LIMIT 500';
-
-    const [rows] = await db.query(sql, params);
+    const admin = canAdministrateSupport(req);
+    const rows = await supportSolicitudesService.listSolicitudes({
+      q: req.query.q,
+      estado: req.query.estado,
+      modulo: req.query.modulo,
+      limit: req.query.limit,
+      userId: admin ? null : req.user.id_SB
+    });
 
     return res.json({
       ok: true,
       source: 'support_tickets',
-      scope: isProgramador(req) ? 'all' : 'mine',
+      scope: admin ? 'all' : 'mine',
       data: rows
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando solicitudes.', error: error.message });
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: 'Error consultando solicitudes.',
+      error: error.message
+    });
   }
 }
 
 async function getTicketById(req, res) {
   try {
-    const tableName = 'sup_tickets';
-    const columns = await getTableColumns(tableName);
-    const idColumn = pickColumn(columns, ['id_ticket', 'id_sup_ticket', 'id']);
-    const userColumn = pickColumn(columns, ['id_usuario', 'usuario_id', 'created_by', 'creado_por']);
-    const assignedColumn = pickColumn(columns, ['id_soporte', 'soporte_id', 'asignado_a', 'id_asignado']);
+    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
 
-    if (!idColumn) {
-      return res.status(500).json({ ok: false, message: 'No se encontró columna ID para sup_tickets.' });
-    }
-
-    const [rows] = await db.query(
-      `SELECT * FROM \`${tableName}\` WHERE \`${idColumn}\` = ? LIMIT 1`,
-      [req.params.id]
-    );
-
-    if (!rows.length) {
+    if (!ticket) {
       return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
     }
 
-    const ticket = rows[0];
+    const ownerId = Number(ticket.id_usuario || ticket.usuario_id || ticket.created_by || ticket.creado_por || 0);
+    const isOwner = ownerId > 0 && ownerId === Number(req.user.id_SB);
 
-    if (userColumn && ticket[userColumn]) {
-      const [users] = await db.query(
-        `SELECT id_SB, nombre, correo, empresa
-         FROM usuarios
-         WHERE id_SB = ?
-         LIMIT 1`,
-        [ticket[userColumn]]
-      );
-      if (users.length) {
-        ticket.usuario_nombre = users[0].nombre || null;
-        ticket.usuario_correo = users[0].correo || null;
-        ticket.usuario_empresa = users[0].empresa || null;
-      }
-    }
-
-    if (assignedColumn && ticket[assignedColumn]) {
-      const [assignedUsers] = await db.query(
-        `SELECT id_SB, nombre, correo
-         FROM usuarios
-         WHERE id_SB = ?
-         LIMIT 1`,
-        [ticket[assignedColumn]]
-      );
-      if (assignedUsers.length) {
-        ticket.asignado_a_nombre = assignedUsers[0].nombre || null;
-        ticket.asignado_a_correo = assignedUsers[0].correo || null;
-      }
+    if (!canAdministrateSupport(req) && !isOwner) {
+      return res.status(403).json({
+        ok: false,
+        message: 'No tienes permiso para consultar esta solicitud.'
+      });
     }
 
     return res.json({
@@ -351,12 +259,23 @@ async function getTicketById(req, res) {
       data: ticket
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando el detalle de la solicitud.', error: error.message });
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: 'Error consultando el detalle de la solicitud.',
+      error: error.message
+    });
   }
 }
 
 async function updateTicket(req, res) {
   try {
+    if (!canAdministrateSupport(req)) {
+      return res.status(403).json({
+        ok: false,
+        message: 'No tienes permisos para actualizar solicitudes de soporte.'
+      });
+    }
+
     const tableName = 'sup_tickets';
     const columns = await getTableColumns(tableName);
     const idColumn = pickColumn(columns, ['id_ticket', 'id_sup_ticket', 'id']);
@@ -395,8 +314,7 @@ async function updateTicket(req, res) {
   }
 }
 
-
-async function createTicketV1(req, res) {
+async function createTicket(req, res) {
   try {
     const [cats] = await db.query(`
       SELECT id_ticket_categoria
@@ -408,8 +326,9 @@ async function createTicketV1(req, res) {
 
     const categoriaId = req.body.id_ticket_categoria || (cats[0] && cats[0].id_ticket_categoria) || 1;
     const folio = 'SUP-' + Date.now();
+    const asunto = req.body.asunto || req.body.titulo || req.body.subject || 'Solicitud de soporte';
     const historial = [supportEvent(req, 'ticket_creado', {
-      asunto: req.body.asunto || req.body.titulo || req.body.subject,
+      asunto,
       modulo: req.body.modulo || req.body.modulo_ticket || req.body.categoria
     })];
 
@@ -426,17 +345,29 @@ async function createTicketV1(req, res) {
         req.body.prioridad_ticket || req.body.prioridad || 'Media',
         req.body.origen_ticket || 'Portal',
         req.body.modulo || req.body.modulo_ticket || null,
-        req.body.asunto || req.body.titulo || req.body.subject || 'Solicitud de soporte',
+        asunto,
         req.body.descripcion || req.body.detalle || req.body.description || 'Sin descripción',
         JSON.stringify(historial)
       ]
     );
 
+    let notificacionesSoporte = 0;
+    try {
+      notificacionesSoporte = await supportSolicitudesService.notifySupportUsers({
+        ticketId: result.insertId,
+        folio,
+        asunto
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Solicitud creada, pero falló la notificación al rol Soporte:', notificationError.message);
+    }
+
     return res.status(201).json({
       ok: true,
       message: 'Solicitud creada correctamente.',
       id: result.insertId,
-      folio
+      folio,
+      notificaciones_soporte: notificacionesSoporte
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error creando solicitud.', error: error.message });
@@ -465,7 +396,7 @@ module.exports = {
   getNode,
   getFaq,
   getAvisos,
-  createTicket: createTicketV1,
+  createTicket,
   getTickets,
   getTicketById,
   updateTicket,

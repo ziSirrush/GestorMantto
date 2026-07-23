@@ -84,6 +84,11 @@ async function listSolicitudes(filters = {}) {
     params.push(String(filters.modulo).trim());
   }
 
+  if (filters.userId) {
+    where.push(`${usuarioSql} = ?`);
+    params.push(Number(filters.userId));
+  }
+
   const limit = normalizeLimit(filters.limit);
 
   const [rows] = await db.query(
