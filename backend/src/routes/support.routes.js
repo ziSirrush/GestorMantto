@@ -17,6 +17,9 @@ router.get('/avisos', optionalAuth, supportController.getAvisos);
    SOLICITUDES
 =========================== */
 
+router.get('/solicitudes', requireAuth, supportController.getSolicitudesAdministracion);
+router.get('/solicitudes/:id', requireAuth, supportController.getSolicitudAdministracion);
+
 router.get('/tickets', requireAuth, supportController.getTickets);
 router.post('/tickets', requireAuth, supportController.createTicket);
 router.patch('/tickets/:id', requireAuth, requireRole('Programador'), supportController.updateTicket);
