@@ -17,6 +17,10 @@ router.get('/avisos', optionalAuth, supportController.getAvisos);
    SOLICITUDES
 =========================== */
 
+router.get('/tickets/mias', requireAuth, supportController.getMyTickets);
+router.get('/tickets/mias/:id', requireAuth, supportController.getMyTicketById);
+router.post('/tickets/mias', requireAuth, supportController.createMyTicket);
+router.patch('/tickets/mias/:id', requireAuth, supportController.updateMyTicket);
 router.get('/tickets', requireAuth, supportController.getTickets);
 router.get('/tickets/catalogos', requireAuth, supportController.getTicketCatalogs);
 router.get('/tickets/:id', requireAuth, supportController.getTicketById);

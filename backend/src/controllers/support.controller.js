@@ -245,6 +245,217 @@ async function getAvisos(req, res) {
    SOLICITUDES / TICKETS DE SOPORTE
 ========================================== */
 
+
+async function getMyTickets(req, res) {
+  try {
+    const rows = await supportSolicitudesService.listSolicitudes({
+      q: req.query.q,
+      estado: req.query.estado,
+      modulo: req.query.modulo,
+      limit: req.query.limit,
+      userId: req.user.id_SB
+    });
+
+    return res.json({
+      ok: true,
+      source: 'support_my_tickets',
+      scope: 'mine',
+      data: rows
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: 'Error consultando tus solicitudes.',
+      error: error.message
+    });
+  }
+}
+
+async function getMyTicketById(req, res) {
+  try {
+    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    }
+
+    if (Number(ticket.id_usuario || 0) !== Number(req.user.id_SB)) {
+      return res.status(403).json({
+        ok: false,
+        message: 'No tienes permiso para consultar esta solicitud.'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      source: 'support_my_ticket_detail',
+      mode: 'requester',
+      permissions: {
+        edit_support_fields: false,
+        comment: true,
+        attach: true
+      },
+      data: ticket
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: 'Error consultando el detalle de tu solicitud.',
+      error: error.message
+    });
+  }
+}
+
+async function createMyTicket(req, res) {
+  try {
+    const [cats] = await db.query(`
+      SELECT id_ticket_categoria
+      FROM sup_ticket_categorias
+      WHERE COALESCE(activo, 1) = 1
+      ORDER BY orden_visualizacion ASC, id_ticket_categoria ASC
+      LIMIT 1
+    `);
+
+    const categoriaId = req.body.id_ticket_categoria || (cats[0] && cats[0].id_ticket_categoria) || 1;
+    const folio = 'SUP-' + Date.now();
+    const asunto = String(req.body.asunto || req.body.titulo || req.body.subject || '').trim().slice(0, 255);
+    const descripcion = String(req.body.descripcion || req.body.detalle || req.body.description || '').trim();
+    const modulo = String(req.body.modulo || req.body.modulo_ticket || '').trim().slice(0, 150) || null;
+
+    if (!asunto) {
+      return res.status(400).json({ ok: false, message: 'El asunto es obligatorio.' });
+    }
+    if (!descripcion) {
+      return res.status(400).json({ ok: false, message: 'La descripción es obligatoria.' });
+    }
+
+    const historial = [supportEvent(req, 'ticket_creado', {
+      asunto,
+      modulo,
+      mensaje: 'Solicitud creada desde Centro de Ayuda.'
+    })];
+
+    const [result] = await db.query(
+      `INSERT INTO sup_tickets
+       (folio, id_usuario, id_ticket_categoria, tipo_ticket, estado_ticket, prioridad_ticket,
+        origen_ticket, modulo_ticket, asunto_ticket, descripcion_ticket, historial,
+        fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, 'Soporte', 'Abierto', 'Media', 'Centro de Ayuda', ?, ?, ?, ?, NOW(), NOW())`,
+      [folio, req.user.id_SB, categoriaId, modulo, asunto, descripcion, JSON.stringify(historial)]
+    );
+
+    let notificacionesSoporte = 0;
+    try {
+      notificacionesSoporte = await supportSolicitudesService.notifySupportUsers({
+        ticketId: result.insertId,
+        folio,
+        asunto
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Solicitud creada, pero falló la notificación al rol Soporte:', notificationError.message);
+    }
+
+    return res.status(201).json({
+      ok: true,
+      message: 'Solicitud creada correctamente.',
+      id: result.insertId,
+      folio,
+      estado: 'Abierto',
+      prioridad_asignada_por_sistema: 'Media',
+      notificaciones_soporte: notificacionesSoporte
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error creando tu solicitud.', error: error.message });
+  }
+}
+
+async function updateMyTicket(req, res) {
+  try {
+    const beforeTicket = await supportSolicitudesService.getSolicitudById(req.params.id);
+    if (!beforeTicket) {
+      return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    }
+
+    if (Number(beforeTicket.id_usuario || 0) !== Number(req.user.id_SB)) {
+      return res.status(403).json({
+        ok: false,
+        message: 'No tienes permiso para editar esta solicitud.'
+      });
+    }
+
+    const allowed = {
+      id_ticket_categoria: req.body.id_ticket_categoria,
+      modulo_ticket: req.body.modulo !== undefined ? req.body.modulo : req.body.modulo_ticket,
+      asunto_ticket: req.body.asunto !== undefined ? req.body.asunto : req.body.asunto_ticket,
+      descripcion_ticket: req.body.descripcion !== undefined ? req.body.descripcion : req.body.descripcion_ticket
+    };
+
+    const changes = {};
+    const changedFields = [];
+    const compare = (column, label, oldValue, nextValue, maxLength = null) => {
+      if (nextValue === undefined) return;
+      let normalized = typeof nextValue === 'string' ? nextValue.trim() : nextValue;
+      if (maxLength && typeof normalized === 'string') normalized = normalized.slice(0, maxLength);
+      if (column === 'id_ticket_categoria' && normalized !== '' && normalized !== null) normalized = Number(normalized);
+      if (column !== 'id_ticket_categoria' && !normalized) {
+        const error = new Error(`${label} es obligatorio.`);
+        error.status = 400;
+        throw error;
+      }
+      if (String(oldValue ?? '') !== String(normalized ?? '')) {
+        changes[column] = normalized;
+        changedFields.push(label);
+      }
+    };
+
+    compare('id_ticket_categoria', 'Categoría', beforeTicket.id_ticket_categoria, allowed.id_ticket_categoria);
+    compare('modulo_ticket', 'Módulo', beforeTicket.modulo_ticket, allowed.modulo_ticket, 150);
+    compare('asunto_ticket', 'Asunto', beforeTicket.asunto_ticket, allowed.asunto_ticket, 255);
+    compare('descripcion_ticket', 'Descripción', beforeTicket.descripcion_ticket, allowed.descripcion_ticket);
+
+    if (!changedFields.length) {
+      return res.json({ ok: true, message: 'No se detectaron cambios.', cambios: [] });
+    }
+
+    const setSql = Object.keys(changes).map(column => `\`${column}\` = ?`);
+    setSql.push('fecha_actualizacion = NOW()');
+    await db.query(
+      `UPDATE sup_tickets SET ${setSql.join(', ')} WHERE id_ticket = ? AND id_usuario = ?`,
+      [...Object.values(changes), beforeTicket.id_ticket, req.user.id_SB]
+    );
+
+    await appendTicketHistory('sup_tickets', 'id_ticket', beforeTicket.id_ticket, supportEvent(req, 'solicitud_actualizada', {
+      mensaje: 'El solicitante actualizó la información de la solicitud.',
+      campos_actualizados: changedFields
+    }));
+
+    const afterTicket = await supportSolicitudesService.getSolicitudById(beforeTicket.id_ticket);
+    let notificaciones = 0;
+    try {
+      notificaciones = await supportSolicitudesService.notifyRequesterUpdate({
+        ticket: afterTicket,
+        actor: req.user || {},
+        changedFields
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Solicitud actualizada, pero falló la notificación:', notificationError.message);
+    }
+
+    return res.json({
+      ok: true,
+      message: 'Solicitud actualizada correctamente.',
+      cambios: changedFields,
+      notificaciones,
+      data: afterTicket
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: error.status === 400 ? error.message : 'Error actualizando tu solicitud.',
+      error: error.message
+    });
+  }
+}
+
 async function getTickets(req, res) {
   try {
     const admin = canAdministrateSupport(req);
@@ -549,6 +760,10 @@ module.exports = {
   getFaq,
   getAvisos,
   createTicket,
+  getMyTickets,
+  getMyTicketById,
+  createMyTicket,
+  updateMyTicket,
   getTickets,
   getTicketById,
   updateTicket,

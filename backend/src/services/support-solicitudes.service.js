@@ -333,6 +333,30 @@ async function notifyTicketChanges({ before, after, actor }) {
   return inserted;
 }
 
+
+async function notifyRequesterUpdate({ ticket, actor, changedFields }) {
+  if (!ticket) return 0;
+  const actorId = Number(actor && actor.id_SB || 0);
+  const assignedId = Number(ticket.id_soporte || 0);
+  const recipientIds = assignedId ? [assignedId] : await listSupportUserIds();
+  const folio = ticket.folio || `SUP-${ticket.id_ticket}`;
+  const actorName = (actor && (actor.nombre || actor.correo)) || 'El solicitante';
+  const fieldList = Array.isArray(changedFields) && changedFields.length
+    ? ` Campos: ${changedFields.join(', ')}.`
+    : '';
+
+  return createTicketNotifications({
+    recipientIds,
+    actorId,
+    ticketId: ticket.id_ticket,
+    folio,
+    type: 'SOPORTE_SOLICITUD_ACTUALIZADA',
+    title: 'Solicitud actualizada por el solicitante',
+    message: `${actorName} actualizó la solicitud ${folio}.${fieldList}`,
+    icon: '✏️'
+  });
+}
+
 async function notifySupportUsers({ ticketId, folio, asunto }) {
   if (!ticketId) return 0;
 
@@ -377,5 +401,6 @@ module.exports = {
   listSupportUsers,
   autoAssignIfEmpty,
   notifyTicketInteraction,
-  notifyTicketChanges
+  notifyTicketChanges,
+  notifyRequesterUpdate
 };
