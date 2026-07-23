@@ -1144,7 +1144,7 @@ async function getEquipos(req, res) {
 
 
 function currentUserRef(req) {
-  const user = req.user || {};
+  const user = req.contextUser || req.user || {};
   return {
     id: user.id_SB || user.id || null,
     correo: user.correo || user.email || null,

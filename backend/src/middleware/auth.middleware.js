@@ -70,6 +70,38 @@ async function hydrateAuthUser(decoded) {
   };
 }
 
+
+async function hydrateViewContext(req, actor) {
+  const raw = req.get('X-View-User-ID');
+  if (!raw) return null;
+  const viewUserId = Number(raw);
+  if (!Number.isInteger(viewUserId) || viewUserId <= 0 || viewUserId === Number(actor.id_SB)) return null;
+
+  const roles = new Set([actor.rol, ...(actor.roles || [])].filter(Boolean));
+  const canView = roles.has('Programador') || roles.has('Programador United') || roles.has('Programador Corellian');
+  if (!canView) {
+    const error = new Error('Tu sesión no está autorizada para usar el modo visor.');
+    error.status = 403;
+    throw error;
+  }
+
+  const viewed = await hydrateAuthUser({ id_SB: viewUserId, id: viewUserId, user_id: viewUserId });
+  if (!viewed) {
+    const error = new Error('El usuario visualizado no existe o está inactivo.');
+    error.status = 404;
+    throw error;
+  }
+
+  const company = String(viewed.empresa || '').toUpperCase();
+  if (roles.has('Programador United') && !roles.has('Programador') && !company.includes('UNITED')) {
+    const error = new Error('El usuario visualizado no pertenece al alcance United.'); error.status = 403; throw error;
+  }
+  if (roles.has('Programador Corellian') && !roles.has('Programador') && !company.includes('CORELLIAN')) {
+    const error = new Error('El usuario visualizado no pertenece al alcance Corellian.'); error.status = 403; throw error;
+  }
+  return viewed;
+}
+
 async function optionalAuth(req, res, next) {
   try {
     const token = parseAuthHeader(req);
@@ -100,9 +132,12 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = user;
+    req.actorUser = user;
+    req.contextUser = await hydrateViewContext(req, user) || user;
     return next();
   } catch (error) {
-    return res.status(401).json({ ok: false, message: 'Sesión inválida.', error: error.message });
+    const status = error.status || 401;
+    return res.status(status).json({ ok: false, message: error.message || 'Sesión inválida.' });
   }
 }
 
