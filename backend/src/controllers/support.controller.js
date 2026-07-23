@@ -320,6 +320,8 @@ async function createMyTicket(req, res) {
     const asunto = String(req.body.asunto || req.body.titulo || req.body.subject || '').trim().slice(0, 255);
     const descripcion = String(req.body.descripcion || req.body.detalle || req.body.description || '').trim();
     const modulo = String(req.body.modulo || req.body.modulo_ticket || '').trim().slice(0, 150) || null;
+    const fechaIncidente = req.body.fecha_incidente ? new Date(req.body.fecha_incidente) : null;
+    const fechaIncidenteSql = fechaIncidente && !Number.isNaN(fechaIncidente.getTime()) ? fechaIncidente : null;
 
     if (!asunto) {
       return res.status(400).json({ ok: false, message: 'El asunto es obligatorio.' });
@@ -337,10 +339,10 @@ async function createMyTicket(req, res) {
     const [result] = await db.query(
       `INSERT INTO sup_tickets
        (folio, id_usuario, id_ticket_categoria, tipo_ticket, estado_ticket, prioridad_ticket,
-        origen_ticket, modulo_ticket, asunto_ticket, descripcion_ticket, historial,
+        origen_ticket, modulo_ticket, asunto_ticket, descripcion_ticket, fecha_incidente, historial,
         fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, 'Soporte', 'Abierto', 'Media', 'Centro de Ayuda', ?, ?, ?, ?, NOW(), NOW())`,
-      [folio, req.user.id_SB, categoriaId, modulo, asunto, descripcion, JSON.stringify(historial)]
+       VALUES (?, ?, ?, 'Soporte', 'Abierto', 'Media', 'Centro de Ayuda', ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [folio, req.user.id_SB, categoriaId, modulo, asunto, descripcion, fechaIncidenteSql, JSON.stringify(historial)]
     );
 
     let notificacionesSoporte = 0;
@@ -386,7 +388,8 @@ async function updateMyTicket(req, res) {
       id_ticket_categoria: req.body.id_ticket_categoria,
       modulo_ticket: req.body.modulo !== undefined ? req.body.modulo : req.body.modulo_ticket,
       asunto_ticket: req.body.asunto !== undefined ? req.body.asunto : req.body.asunto_ticket,
-      descripcion_ticket: req.body.descripcion !== undefined ? req.body.descripcion : req.body.descripcion_ticket
+      descripcion_ticket: req.body.descripcion !== undefined ? req.body.descripcion : req.body.descripcion_ticket,
+      fecha_incidente: req.body.fecha_incidente
     };
 
     const changes = {};
@@ -411,6 +414,21 @@ async function updateMyTicket(req, res) {
     compare('modulo_ticket', 'Módulo', beforeTicket.modulo_ticket, allowed.modulo_ticket, 150);
     compare('asunto_ticket', 'Asunto', beforeTicket.asunto_ticket, allowed.asunto_ticket, 255);
     compare('descripcion_ticket', 'Descripción', beforeTicket.descripcion_ticket, allowed.descripcion_ticket);
+    if (allowed.fecha_incidente !== undefined) {
+      const parsedIncident = allowed.fecha_incidente ? new Date(allowed.fecha_incidente) : null;
+      if (allowed.fecha_incidente && Number.isNaN(parsedIncident.getTime())) {
+        const error = new Error('La fecha del incidente no es válida.');
+        error.status = 400;
+        throw error;
+      }
+      const normalizedIncident = parsedIncident || null;
+      const oldIncident = beforeTicket.fecha_incidente ? new Date(beforeTicket.fecha_incidente).getTime() : null;
+      const newIncident = normalizedIncident ? normalizedIncident.getTime() : null;
+      if (oldIncident !== newIncident) {
+        changes.fecha_incidente = normalizedIncident;
+        changedFields.push('Fecha del incidente');
+      }
+    }
 
     if (!changedFields.length) {
       return res.json({ ok: true, message: 'No se detectaron cambios.', cambios: [] });
