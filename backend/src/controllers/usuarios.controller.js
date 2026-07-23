@@ -17,6 +17,10 @@ const PUBLIC_USER_SELECT = `
   jefe.nombre AS reporta_a_nombre,
   u.estado,
   u.ultimo_acceso,
+  u.failed_login_attempts,
+  u.locked_until,
+  u.must_change_password,
+  u.last_login_ip,
   u.created_at,
   u.updated_at
 `;
@@ -545,6 +549,64 @@ async function supervisoresMantenimiento(req, res) {
   }
 }
 
+
+function generateTemporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let body = '';
+  for (let index = 0; index < 12; index += 1) {
+    body += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `Mg!${body}9`;
+}
+
+async function resetCredentials(req, res) {
+  if (!(await canManageUsers(req, 'editar_usuario'))) {
+    return res.status(403).json({ ok: false, message: 'No tienes permisos para resetear credenciales.' });
+  }
+
+  const userId = Number(req.params.id);
+  if (!Number.isFinite(userId)) return res.status(400).json({ ok: false, message: 'ID inválido.' });
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT id_SB, nombre, correo FROM usuarios WHERE id_SB = ? LIMIT 1 FOR UPDATE', [userId]);
+    if (!rows.length) {
+      await conn.rollback();
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const hash = await bcrypt.hash(temporaryPassword, 10);
+    await conn.query(
+      `UPDATE usuarios
+       SET pass = ?, must_change_password = 1, failed_login_attempts = 0, locked_until = NULL,
+           respuesta_recuperacion = NULL, password_changed_at = NULL, first_login_completed_at = NULL,
+           updated_by = ?
+       WHERE id_SB = ?`,
+      [hash, req.user.correo || String(req.user.id_SB), userId]
+    );
+
+    await audit(conn, req.user.id_SB, 'ADMIN_USER_CREDENTIALS_RESET', {
+      target_user_id: userId,
+      target_email: rows[0].correo,
+      preserved_operational_data: true
+    }, req.ip);
+    await conn.commit();
+
+    return res.json({
+      ok: true,
+      message: 'Credenciales reseteadas correctamente.',
+      data: { temporary_password: temporaryPassword, must_change_password: true }
+    });
+  } catch (error) {
+    await conn.rollback();
+    return res.status(500).json({ ok: false, message: 'Error reseteando credenciales.', error: error.message });
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   listUsuarios,
   directorio,
@@ -555,5 +617,6 @@ module.exports = {
   updateUsuario,
   getCriticosPreferencias,
   updateCriticosPreferencias,
-  supervisoresMantenimiento
+  supervisoresMantenimiento,
+  resetCredentials
 };

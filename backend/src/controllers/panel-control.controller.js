@@ -804,6 +804,96 @@ async function saveUserRoles(req, res, next) {
   }
 }
 
+
+async function getAdminRole(req, res, next) {
+  try {
+    if (denyUnlessManager(req, res)) return;
+    const roleId = Number(req.params.id);
+    if (!Number.isFinite(roleId)) return res.status(400).json({ ok: false, message: 'ID de rol inválido.' });
+    const scope = actorScope(req);
+    await assertRoleInScope(db, roleId, scope);
+    const [roles] = await db.query(
+      `SELECT r.id_rol, r.rol, r.codigo, r.descripcion, r.nivel, r.es_sistema, r.empresa, r.estado, r.created_at, r.updated_at,
+              COUNT(DISTINCT CASE WHEN ur.activo = 1 THEN ur.id_usuario END) AS usuarios_asignados
+       FROM roles r
+       LEFT JOIN usuario_roles ur ON ur.id_rol = r.id_rol
+       WHERE r.id_rol = ?
+       GROUP BY r.id_rol, r.rol, r.codigo, r.descripcion, r.nivel, r.es_sistema, r.empresa, r.estado, r.created_at, r.updated_at`,
+      [roleId]
+    );
+    if (!roles.length) return res.status(404).json({ ok: false, message: 'Rol no encontrado.' });
+    const [users] = await db.query(
+      `SELECT u.id_SB, u.nombre, u.correo, u.estado, ur.principal
+       FROM usuario_roles ur
+       INNER JOIN usuarios u ON u.id_SB = ur.id_usuario
+       WHERE ur.id_rol = ? AND ur.activo = 1
+       ORDER BY ur.principal DESC, u.nombre`,
+      [roleId]
+    );
+    return res.json({ ok: true, data: { ...roles[0], usuarios_asignados: Number(roles[0].usuarios_asignados || 0), usuarios: users } });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
+    next(error);
+  }
+}
+
+function normalizeRolePayload(body) {
+  const role = String(body?.rol || '').trim();
+  const code = String(body?.codigo || role).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return {
+    role, code,
+    description: body?.descripcion == null ? null : String(body.descripcion).trim(),
+    company: String(body?.empresa || 'GENERAL').trim().toUpperCase(),
+    level: Number.isFinite(Number(body?.nivel)) ? Number(body.nivel) : 0,
+    state: Number(body?.estado) ? 1 : 0
+  };
+}
+
+async function createAdminRole(req, res, next) {
+  if (denyUnlessManager(req, res)) return;
+  const payload = normalizeRolePayload(req.body);
+  if (!payload.role || !payload.code) return res.status(400).json({ ok: false, message: 'Nombre y código del rol son obligatorios.' });
+  const scope = actorScope(req);
+  if (!scope.all && !scope.companies.includes(payload.company)) return res.status(403).json({ ok: false, message: 'La empresa del rol está fuera de tu alcance.' });
+  try {
+    const [result] = await db.query(
+      `INSERT INTO roles (rol, codigo, descripcion, nivel, empresa, estado, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [payload.role, payload.code, payload.description, payload.level, payload.company, payload.state, req.user.correo || req.user.id_SB, req.user.correo || req.user.id_SB]
+    );
+    return res.status(201).json({ ok: true, message: 'Rol creado correctamente.', data: { id_rol: result.insertId } });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ ok: false, message: 'Ya existe un rol con ese nombre o código.' });
+    next(error);
+  }
+}
+
+async function updateAdminRole(req, res, next) {
+  if (denyUnlessManager(req, res)) return;
+  const roleId = Number(req.params.id);
+  if (!Number.isFinite(roleId)) return res.status(400).json({ ok: false, message: 'ID de rol inválido.' });
+  const payload = normalizeRolePayload(req.body);
+  if (!payload.role || !payload.code) return res.status(400).json({ ok: false, message: 'Nombre y código del rol son obligatorios.' });
+  try {
+    const scope = actorScope(req);
+    await assertRoleInScope(db, roleId, scope);
+    if (!scope.all && !scope.companies.includes(payload.company)) return res.status(403).json({ ok: false, message: 'La empresa del rol está fuera de tu alcance.' });
+    if (!payload.state) {
+      const [[usage]] = await db.query('SELECT COUNT(*) AS total FROM usuario_roles WHERE id_rol = ? AND activo = 1', [roleId]);
+      if (Number(usage.total) > 0) return res.status(409).json({ ok: false, message: 'No puedes desactivar un rol que todavía tiene usuarios activos asignados.' });
+    }
+    await db.query(
+      `UPDATE roles SET rol = ?, codigo = ?, descripcion = ?, nivel = ?, empresa = ?, estado = ?, updated_by = ? WHERE id_rol = ?`,
+      [payload.role, payload.code, payload.description, payload.level, payload.company, payload.state, req.user.correo || req.user.id_SB, roleId]
+    );
+    return res.json({ ok: true, message: 'Rol actualizado correctamente.', data: { id_rol: roleId } });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ ok: false, message: 'Ya existe un rol con ese nombre o código.' });
+    next(error);
+  }
+}
+
 module.exports = {
   getBootstrap,
   getSessionPermissions,
@@ -811,5 +901,8 @@ module.exports = {
   saveRolePermissions,
   getUserPermissions,
   saveUserPermissions,
-  saveUserRoles
+  saveUserRoles,
+  getAdminRole,
+  createAdminRole,
+  updateAdminRole
 };

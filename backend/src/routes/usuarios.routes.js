@@ -14,5 +14,6 @@ router.get('/:id/zonas', requireAuth, usuariosController.zonasUsuario);
 router.get('/:id', requireAuth, usuariosController.detalle);
 router.post('/', requireAuth, usuariosController.createUsuario);
 router.put('/:id', requireAuth, usuariosController.updateUsuario);
+router.post('/:id/reset-credentials', requireAuth, usuariosController.resetCredentials);
 
 module.exports = router;
