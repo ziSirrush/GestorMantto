@@ -187,6 +187,152 @@ async function autoAssignIfEmpty(ticketId, userId) {
   return Number(result.affectedRows || 0) > 0;
 }
 
+
+
+function uniqueRecipientIds(values, excludeId) {
+  const excluded = Number(excludeId || 0);
+  return Array.from(new Set((values || [])
+    .map(value => Number(value || 0))
+    .filter(value => value > 0 && value !== excluded)));
+}
+
+async function listSupportUserIds() {
+  const users = await listSupportUsers();
+  return users.map(user => Number(user.id_usuario || 0)).filter(Boolean);
+}
+
+async function createTicketNotifications({
+  recipientIds,
+  actorId,
+  ticketId,
+  folio,
+  type,
+  title,
+  message,
+  icon = '🔔'
+}) {
+  const recipients = uniqueRecipientIds(recipientIds, actorId);
+  if (!ticketId || !recipients.length) return 0;
+
+  let inserted = 0;
+  for (const recipientId of recipients) {
+    const [result] = await db.query(
+      `INSERT INTO sup_notificaciones
+       (id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
+        icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
+        leido, activo, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, ?, ?, 'ABRIR_SOLICITUD', ?, ?, 0, 1, NOW(), NOW())`,
+      [
+        recipientId,
+        type,
+        title,
+        message,
+        icon,
+        ticketId,
+        'soporte-solicitudes'
+      ]
+    );
+    inserted += Number(result.affectedRows || 0);
+  }
+  return inserted;
+}
+
+async function notifyTicketInteraction({ ticket, actor, kind, fileName }) {
+  if (!ticket) return 0;
+  const actorId = Number(actor && actor.id_SB || 0);
+  const ownerId = Number(ticket.id_usuario || 0);
+  const assignedId = Number(ticket.id_soporte || 0);
+  const actorIsOwner = actorId > 0 && actorId === ownerId;
+  const actorIsSupport = canAdministrateSupport(actor || {});
+  let recipientIds = [];
+
+  if (actorIsOwner) {
+    recipientIds = assignedId ? [assignedId] : await listSupportUserIds();
+  } else if (actorIsSupport) {
+    recipientIds = [ownerId];
+    if (assignedId && assignedId !== actorId) recipientIds.push(assignedId);
+  } else {
+    recipientIds = assignedId ? [assignedId] : await listSupportUserIds();
+  }
+
+  const folio = ticket.folio || `SUP-${ticket.id_ticket}`;
+  const actorName = (actor && (actor.nombre || actor.correo)) || 'Usuario';
+  const isFile = kind === 'archivo';
+  return createTicketNotifications({
+    recipientIds,
+    actorId,
+    ticketId: ticket.id_ticket,
+    folio,
+    type: isFile ? 'SOPORTE_ARCHIVO' : 'SOPORTE_COMENTARIO',
+    title: isFile ? 'Nuevo archivo en solicitud' : 'Nuevo comentario en solicitud',
+    message: isFile
+      ? `${actorName} adjuntó ${fileName || 'un archivo'} en ${folio}`
+      : `${actorName} comentó en ${folio}`,
+    icon: isFile ? '📎' : '💬'
+  });
+}
+
+async function notifyTicketChanges({ before, after, actor }) {
+  if (!before || !after) return 0;
+  const actorId = Number(actor && actor.id_SB || 0);
+  const ownerId = Number(after.id_usuario || before.id_usuario || 0);
+  const oldAssignedId = Number(before.id_soporte || 0);
+  const newAssignedId = Number(after.id_soporte || 0);
+  const folio = after.folio || before.folio || `SUP-${after.id_ticket || before.id_ticket}`;
+  let inserted = 0;
+
+  if (String(before.estado_ticket || '') !== String(after.estado_ticket || '')) {
+    inserted += await createTicketNotifications({
+      recipientIds: [ownerId],
+      actorId,
+      ticketId: after.id_ticket,
+      type: 'SOPORTE_ESTADO',
+      title: 'Estado de solicitud actualizado',
+      message: `${folio} cambió a: ${after.estado_ticket || 'Sin estado'}`,
+      icon: '🔄'
+    });
+  }
+
+  if (String(before.prioridad_ticket || '') !== String(after.prioridad_ticket || '')) {
+    inserted += await createTicketNotifications({
+      recipientIds: [newAssignedId],
+      actorId,
+      ticketId: after.id_ticket,
+      type: 'SOPORTE_PRIORIDAD',
+      title: 'Prioridad de solicitud actualizada',
+      message: `${folio}: ${before.prioridad_ticket || 'Sin prioridad'} → ${after.prioridad_ticket || 'Sin prioridad'}`,
+      icon: '⚠️'
+    });
+  }
+
+  if (oldAssignedId !== newAssignedId) {
+    if (newAssignedId) {
+      inserted += await createTicketNotifications({
+        recipientIds: [newAssignedId],
+        actorId,
+        ticketId: after.id_ticket,
+        type: 'SOPORTE_ASIGNACION',
+        title: 'Solicitud asignada',
+        message: `Se te asignó la solicitud ${folio}`,
+        icon: '👤'
+      });
+    }
+    if (oldAssignedId) {
+      inserted += await createTicketNotifications({
+        recipientIds: [oldAssignedId],
+        actorId,
+        ticketId: after.id_ticket,
+        type: 'SOPORTE_REASIGNACION',
+        title: 'Solicitud reasignada',
+        message: `${folio} fue reasignada a otro responsable`,
+        icon: '↪️'
+      });
+    }
+  }
+
+  return inserted;
+}
+
 async function notifySupportUsers({ ticketId, folio, asunto }) {
   if (!ticketId) return 0;
 
@@ -229,5 +375,7 @@ module.exports = {
   getSolicitudById,
   notifySupportUsers,
   listSupportUsers,
-  autoAssignIfEmpty
+  autoAssignIfEmpty,
+  notifyTicketInteraction,
+  notifyTicketChanges
 };

@@ -328,6 +328,10 @@ async function updateTicket(req, res) {
     }
 
     const tableName = 'sup_tickets';
+    const beforeTicket = await supportSolicitudesService.getSolicitudById(req.params.id);
+    if (!beforeTicket) {
+      return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    }
     const columns = await getTableColumns(tableName);
     const idColumn = pickColumn(columns, ['id_ticket', 'id_sup_ticket', 'id']);
 
@@ -361,7 +365,19 @@ async function updateTicket(req, res) {
 
     await appendTicketHistory(tableName, idColumn, req.params.id, supportEvent(req, 'ticket_actualizado', { cambios: req.body }));
 
-    return res.json({ ok: true, message: 'Solicitud actualizada correctamente.' });
+    let notificaciones = 0;
+    try {
+      const afterTicket = await supportSolicitudesService.getSolicitudById(req.params.id);
+      notificaciones = await supportSolicitudesService.notifyTicketChanges({
+        before: beforeTicket,
+        after: afterTicket,
+        actor: req.user || {}
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Solicitud actualizada, pero falló la notificación de cambios:', notificationError.message);
+    }
+
+    return res.json({ ok: true, message: 'Solicitud actualizada correctamente.', notificaciones });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error actualizando solicitud.', error: error.message });
   }
@@ -456,7 +472,17 @@ async function addTicketComment(req, res) {
         WHERE id_ticket = ?`,
       [hasExactSupportRole(req.user || {}) ? 'Soporte' : 'Usuario', ticket.id_ticket]
     );
-    return res.status(201).json({ ok: true, message: 'Comentario agregado correctamente.' });
+    let notificaciones = 0;
+    try {
+      notificaciones = await supportSolicitudesService.notifyTicketInteraction({
+        ticket,
+        actor: req.user || {},
+        kind: 'comentario'
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Comentario guardado, pero falló la notificación:', notificationError.message);
+    }
+    return res.status(201).json({ ok: true, message: 'Comentario agregado correctamente.', notificaciones });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error agregando comentario.', error: error.message });
   }
@@ -483,7 +509,18 @@ async function addTicketAttachment(req, res) {
       mensaje: `Archivo adjuntado: ${saved.originalName}`
     }));
     await db.query(`UPDATE sup_tickets SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW() WHERE id_ticket = ?`, [ticket.id_ticket]);
-    return res.status(201).json({ ok: true, message: 'Archivo adjuntado correctamente.' });
+    let notificaciones = 0;
+    try {
+      notificaciones = await supportSolicitudesService.notifyTicketInteraction({
+        ticket,
+        actor: req.user || {},
+        kind: 'archivo',
+        fileName: saved.originalName
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Archivo guardado, pero falló la notificación:', notificationError.message);
+    }
+    return res.status(201).json({ ok: true, message: 'Archivo adjuntado correctamente.', notificaciones });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error adjuntando archivo.', error: error.message });
   }
