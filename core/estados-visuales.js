@@ -1,6 +1,9 @@
 (function(){
   const FALLBACKS = {
     CRITICO:{codigo:'CRITICO',nombre:'Equipo crítico',emoji:'💥',icono:'ti ti-alert-triangle',prioridad:1},
+    CRITICO_PERIODO:{codigo:'CRITICO_PERIODO',nombre:'Equipo crítico período',emoji:'‼️',icono:'ti ti-alert-circle',prioridad:1.1},
+    CRITICO_ANIO:{codigo:'CRITICO_ANIO',nombre:'Equipo crítico año actual',emoji:'💥',icono:'ti ti-alert-triangle',prioridad:1.2},
+    NO_FUNCIONANDO_PROYECTO:{codigo:'NO_FUNCIONANDO_PROYECTO',nombre:'No funcionando',emoji:'🛑',icono:'ti ti-octagon',prioridad:1.3},
     ATRAPADO:{codigo:'ATRAPADO',nombre:'Persona atrapada',emoji:'🚨',icono:'ti ti-alarm',prioridad:2},
     NO_FUNCIONANDO:{codigo:'NO_FUNCIONANDO',nombre:'Equipo no funcionando',emoji:'🚧',icono:'ti ti-barrier-block',prioridad:3},
     FUERA_SLA:{codigo:'FUERA_SLA',nombre:'Fuera de SLA',emoji:'⌛',icono:'ti ti-hourglass',prioridad:4},
