@@ -1,5 +1,4 @@
 const db = require('../config/db');
-const soporteSolicitudesService = require('../services/support-solicitudes.service');
 
 /* ==========================================
    Helpers
@@ -294,6 +293,68 @@ async function getTickets(req, res) {
   }
 }
 
+async function getTicketById(req, res) {
+  try {
+    const tableName = 'sup_tickets';
+    const columns = await getTableColumns(tableName);
+    const idColumn = pickColumn(columns, ['id_ticket', 'id_sup_ticket', 'id']);
+    const userColumn = pickColumn(columns, ['id_usuario', 'usuario_id', 'created_by', 'creado_por']);
+    const assignedColumn = pickColumn(columns, ['id_soporte', 'soporte_id', 'asignado_a', 'id_asignado']);
+
+    if (!idColumn) {
+      return res.status(500).json({ ok: false, message: 'No se encontró columna ID para sup_tickets.' });
+    }
+
+    const [rows] = await db.query(
+      `SELECT * FROM \`${tableName}\` WHERE \`${idColumn}\` = ? LIMIT 1`,
+      [req.params.id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    }
+
+    const ticket = rows[0];
+
+    if (userColumn && ticket[userColumn]) {
+      const [users] = await db.query(
+        `SELECT id_SB, nombre, correo, empresa
+         FROM usuarios
+         WHERE id_SB = ?
+         LIMIT 1`,
+        [ticket[userColumn]]
+      );
+      if (users.length) {
+        ticket.usuario_nombre = users[0].nombre || null;
+        ticket.usuario_correo = users[0].correo || null;
+        ticket.usuario_empresa = users[0].empresa || null;
+      }
+    }
+
+    if (assignedColumn && ticket[assignedColumn]) {
+      const [assignedUsers] = await db.query(
+        `SELECT id_SB, nombre, correo
+         FROM usuarios
+         WHERE id_SB = ?
+         LIMIT 1`,
+        [ticket[assignedColumn]]
+      );
+      if (assignedUsers.length) {
+        ticket.asignado_a_nombre = assignedUsers[0].nombre || null;
+        ticket.asignado_a_correo = assignedUsers[0].correo || null;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      source: 'support_ticket_detail',
+      data: ticket
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Error consultando el detalle de la solicitud.', error: error.message });
+  }
+}
+
 async function updateTicket(req, res) {
   try {
     const tableName = 'sup_tickets';
@@ -371,81 +432,14 @@ async function createTicketV1(req, res) {
       ]
     );
 
-    const notificacionesSoporte = await soporteSolicitudesService.notifySupportUsers({
-      ticketId: result.insertId,
-      folio,
-      asunto: req.body.asunto || req.body.titulo || req.body.subject || 'Solicitud de soporte'
-    });
-
     return res.status(201).json({
       ok: true,
       message: 'Solicitud creada correctamente.',
       id: result.insertId,
-      folio,
-      notificaciones_soporte: notificacionesSoporte
+      folio
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error creando solicitud.', error: error.message });
-  }
-}
-
-async function getSolicitudesAdministracion(req, res) {
-  try {
-    if (!soporteSolicitudesService.canAdministrateSupport(req.user)) {
-      return res.status(403).json({
-        ok: false,
-        message: 'El módulo Solicitudes requiere el rol Soporte o Programador.'
-      });
-    }
-
-    const rows = await soporteSolicitudesService.listSolicitudes({
-      q: req.query.q,
-      estado: req.query.estado,
-      modulo: req.query.modulo,
-      limit: req.query.limit
-    });
-
-    return res.json({
-      ok: true,
-      source: 'support_solicitudes_admin',
-      scope: 'all',
-      total: rows.length,
-      data: rows
-    });
-  } catch (error) {
-    return res.status(error.status || 500).json({
-      ok: false,
-      message: 'Error consultando las solicitudes de soporte.',
-      error: error.message
-    });
-  }
-}
-
-async function getSolicitudAdministracion(req, res) {
-  try {
-    if (!soporteSolicitudesService.canAdministrateSupport(req.user)) {
-      return res.status(403).json({
-        ok: false,
-        message: 'El detalle de solicitudes requiere el rol Soporte o Programador.'
-      });
-    }
-
-    const row = await soporteSolicitudesService.getSolicitudById(req.params.id);
-    if (!row) {
-      return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
-    }
-
-    return res.json({
-      ok: true,
-      source: 'support_solicitud_detail',
-      data: row
-    });
-  } catch (error) {
-    return res.status(error.status || 500).json({
-      ok: false,
-      message: 'Error consultando el detalle de la solicitud.',
-      error: error.message
-    });
   }
 }
 
@@ -473,8 +467,7 @@ module.exports = {
   getAvisos,
   createTicket: createTicketV1,
   getTickets,
+  getTicketById,
   updateTicket,
-  getNotificaciones,
-  getSolicitudesAdministracion,
-  getSolicitudAdministracion
+  getNotificaciones
 };
