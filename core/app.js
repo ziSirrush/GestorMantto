@@ -21,19 +21,7 @@
   }
 
   const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({
-    home:true,
-    operacion_resumen:true, operacion_criticos:true, operacion_callcenter:true, operacion_operativo:true,
-    portafolio_dashboard:true, portafolio_movimientos:true, portafolio_proyectos:true,
-    cobranza_dashboard:true, cobranza_estados_cuenta:true, cobranza_aditivas:true,
-    logistica_dashboard:true, logistica_reporte:true, logistica_pvo:true, logistica_produccion:true, logistica_documentos:true,
-    instalaciones_dashboard:true, instalaciones_proyectos:true, instalaciones_concentrado_cliente:true,
-    instalaciones_reporte:true, instalaciones_pmm:true, instalaciones_documentacion:true, instalaciones_cerrados:true,
-    ventas_dashboard:true, ventas_vendidos:true, ventas_proyeccion:true, ventas_perdidos:true,
-    ventas_fotos_mapa:true, ventas_clientes:true, ventas_cotizaciones:true, ventas_prospeccion:true,
-    ventas_mapa_prospeccion:true, ventas_asignacion_redes:true,
-    almacen_dashboard:true, almacen_inventarios:true, almacen_movimientos:true,
-    cx_dashboard:true, cx_encuestas:true, cx_visitas:true,
-    usuarios:true, panel_control:true
+    home:true
   });
 
   function applyTemporarySidebarPermissions(){

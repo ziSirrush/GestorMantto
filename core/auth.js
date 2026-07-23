@@ -3,7 +3,8 @@
   const TOKEN_KEY = 'mantto_token';
   const USER_KEY = 'mantto_user';
   const SESSION_KEY = 'mantto_session';
-  const state = { token: null, user: null, pendingUser: null };
+  const VIEW_USER_KEY = 'mantto_view_user';
+  const state = { token: null, user: null, viewUser: null, pendingUser: null };
 
   function $(id){ return document.getElementById(id); }
   function msg(id, text, type){ const el=$(id); if(!el) return; el.textContent=text||''; el.className='auth-msg ' + (type||''); }
@@ -12,13 +13,21 @@
     ['login-form','first-login-form','recovery-form'].forEach(id=>show($(id), id===name));
   }
   function getToken(){ return state.token || localStorage.getItem(TOKEN_KEY) || ''; }
-  function getUser(){ return state.user || safeJson(localStorage.getItem(USER_KEY)); }
+  function getActorUser(){ return state.user || safeJson(localStorage.getItem(USER_KEY)); }
+  function getViewUser(){ return state.viewUser || safeJson(localStorage.getItem(VIEW_USER_KEY)); }
+  function getUser(){ return getViewUser() || getActorUser(); }
+  function isViewingAs(){
+    const actor=getActorUser(); const viewed=getViewUser();
+    return Boolean(actor && viewed && Number(actor.id_SB)!==Number(viewed.id_SB));
+  }
   function safeJson(raw){ try{return raw?JSON.parse(raw):null;}catch(e){return null;} }
   async function api(path, options){
     const opts = options || {};
     const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, opts.headers || {});
     const token = getToken();
     if(token) headers.Authorization = 'Bearer ' + token;
+    const viewed=getViewUser();
+    if(viewed && viewed.id_SB) headers['X-View-User-ID']=String(viewed.id_SB);
     const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
     const json = await res.json().catch(()=>({ ok:false, message:'Respuesta no JSON' }));
     if(!res.ok || json.ok === false) throw new Error(json.message || ('HTTP ' + res.status));
@@ -29,24 +38,29 @@
   function saveSession(payload){
     state.token = payload.token;
     state.user = payload.user;
+    state.viewUser = null;
     localStorage.setItem(TOKEN_KEY, payload.token || '');
     localStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
+    localStorage.removeItem(VIEW_USER_KEY);
     localStorage.setItem(SESSION_KEY, JSON.stringify({ token: payload.token, user: payload.user, created_at: new Date().toISOString() }));
   }
   function clearSession(){
-    state.token = null; state.user = null; state.pendingUser = null;
-    localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); localStorage.removeItem(SESSION_KEY);
+    state.token = null; state.user = null; state.viewUser = null; state.pendingUser = null;
+    localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); localStorage.removeItem(VIEW_USER_KEY); localStorage.removeItem(SESSION_KEY);
   }
   function applyUserToHeader(){
     const user = getUser() || {};
+    const actor = getActorUser() || user;
     const initials = user.iniciales || String(user.nombre || user.correo || '--').split(/\s+/).map(p=>p[0]).join('').slice(0,2).toUpperCase();
     if($('hdr-user-initials')) $('hdr-user-initials').textContent = initials || '--';
     if($('hdr-user-name')) $('hdr-user-name').textContent = user.nombre || user.correo || 'Usuario';
     if($('hdr-user-company')) $('hdr-user-company').textContent = user.empresa || 'BLT';
     if($('hdr-user-role')) $('hdr-user-role').textContent = user.rol || (user.roles && user.roles[0]) || 'Sin rol';
     document.querySelectorAll('.programmer').forEach(el=>{
-      const isProg = !!(user.is_programador || user.rol === 'Programador' || (user.roles||[]).includes('Programador'));
-      el.style.display = isProg ? '' : 'none';
+      const roles = new Set([actor.rol, ...(actor.roles||[])].filter(Boolean));
+      const canManagePanel = roles.has('Programador') || roles.has('Programador United') ||
+        roles.has('Programador Corellian') || roles.has('Director General');
+      el.style.display = canManagePanel ? '' : 'none';
     });
   }
   function hideBootstrap(){ const el=$('auth-bootstrap-screen'); if(el) el.classList.add('hidden'); }
@@ -130,6 +144,7 @@
 
     state.token=savedToken;
     state.user=savedUser;
+    state.viewUser=safeJson(localStorage.getItem(VIEW_USER_KEY));
     try{
       const validation=await apiGet('/api/auth/me');
       const validatedUser=validation?.user || validation?.data || savedUser;
@@ -143,6 +158,14 @@
       msg('login-msg','Tu sesión expiró. Inicia sesión nuevamente.','info');
     }
   }
+  function setViewUser(user){
+    state.viewUser=user||null;
+    if(state.viewUser) localStorage.setItem(VIEW_USER_KEY,JSON.stringify(state.viewUser));
+    else localStorage.removeItem(VIEW_USER_KEY);
+    applyUserToHeader();
+    document.dispatchEvent(new CustomEvent('mantto:view-user-changed',{detail:{actor:getActorUser(),user:getUser(),active:isViewingAs()}}));
+  }
+  function clearViewUser(){ setViewUser(null); }
   function logout(){ clearSession(); showLogin(); }
-  window.ManttoAuth = { init, logout, getToken, getUser, api, apiGet, apiPost, authHeaders(){ const t=getToken(); return t?{Authorization:'Bearer '+t}:{}; } };
+  window.ManttoAuth = { init, logout, getToken, getUser, getActorUser, getViewUser, setViewUser, clearViewUser, isViewingAs, applyUserToHeader, api, apiGet, apiPost, authHeaders(){ const t=getToken(); const h=t?{Authorization:'Bearer '+t}:{}; const v=getViewUser(); if(v&&v.id_SB) h['X-View-User-ID']=String(v.id_SB); return h; } };
 })();

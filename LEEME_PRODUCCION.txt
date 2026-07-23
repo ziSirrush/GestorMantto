@@ -1,0 +1,36 @@
+MANTTO GESTOR - ENTREGA PRODUCCION: SESION POR PERMISOS EFECTIVOS
+Fecha: 2026-07-22
+
+OBJETIVO
+- La sesion normal ya no muestra todos los modulos.
+- Inicio permanece visible.
+- Cada modulo/agrupacion se muestra solo si el permiso efectivo del usuario esta habilitado.
+- Se respetan permisos heredados por rol y excepciones personales vigentes.
+- El Visor utiliza la misma regla de permisos del usuario visualizado.
+- Si una ruta guardada apunta a un modulo sin permiso, la aplicacion regresa a Inicio.
+
+ORDEN DE PUBLICACION
+1. Respaldar base de datos y version publicada.
+2. Ejecutar SQL en este orden:
+   a) backend/sql/V008_permisos_jerarquicos.sql
+   b) backend/sql/20260722_V018_permisos_visuales_agrupacion_modulo.sql
+   c) backend/sql/20260722_V022_permisos_visuales_modulos_vacios.sql
+   d) backend/sql/20260722_V023_permisos_visuales_contenedores_vacios.sql
+3. Publicar los archivos de backend conservando sus rutas.
+4. Reiniciar/desplegar backend.
+5. Validar /api/health.
+6. Publicar los archivos de frontend conservando sus rutas.
+7. No reemplazar core/config.js ni variables de entorno de produccion.
+
+VALIDACIONES REALIZADAS
+- Sintaxis Node/JavaScript: OK.
+- Estructura base del backend: OK.
+- Registro de nueva ruta /api/panel-control/session-permissions: OK.
+
+PRUEBAS MINIMAS DESPUES DE PUBLICAR
+- Usuario con pocos permisos: solo ve Inicio y modulos permitidos.
+- Usuario con permiso personal DENY: no ve el modulo aunque el rol lo permita.
+- Usuario con permiso personal ALLOW: ve el modulo aunque el rol no lo permita.
+- Recargar sesion: conserva el filtro por permisos.
+- Visor: cambia al catalogo efectivo del usuario visualizado.
+- Salir del visor: restaura la sesion real y sus permisos.

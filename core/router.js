@@ -15,7 +15,8 @@
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-cotizaciones':'Cotizaciones',
     'ventas-prospeccion':'Prospección', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
-    'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas'
+    'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
+    'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos'
   };
 
   let currentRoute = 'home';
@@ -451,6 +452,7 @@
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
     if(route==='usuarios' && showUsuarios()) return;
+    if(route==='panel-control' && showPanelControl()) return;
     if(route==='help' && showView('help','Centro de Ayuda · flujos y FAQ desde Aiven')) return;
     if(route==='notifications'){ showNotifications(payload); return; }
     if(route==='support-request' && showView('support-request','Crear solicitud de soporte en Aiven')) return;
@@ -477,6 +479,16 @@
     </div></div>`;
     setActiveSide(route);
     updateContext(route, payload ? 'Destino en desarrollo generado desde un elemento clickeable' : 'Módulo en construcción');
+  }
+
+
+  function showPanelControl(){
+    const view = activateViewById('view-panel-control');
+    if(!view) return false;
+    setActiveSide('panel-control');
+    updateContext('panel-control', 'Administración de permisos por rol, excepciones por usuario y auditoría');
+    if(window.ManttoPanelControl && window.ManttoPanelControl.init) window.ManttoPanelControl.init();
+    return true;
   }
 
   function showHome(){

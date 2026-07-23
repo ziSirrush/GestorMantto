@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="./styles/base.css?v=20260710-sidebar-v015" />
   <link rel="stylesheet" href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" />
   <link rel="stylesheet" href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" />
+  <link rel="stylesheet" href="./modules/panel-control/panel-control.css?v=20260720-v001" />
   <link rel="stylesheet" href="./styles/home.css?v=20260705-v115" />
   <link rel="stylesheet" href="./modules/resumen-dia/resumen-dia.css?v=20260716-v117" />
   <link rel="stylesheet" href="./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5" />
@@ -135,6 +136,20 @@
         </button>
         <div class="hdr-notif-popover" id="hdr-notif-popover" hidden></div>
 
+        <div class="user-viewer-wrap" id="user-viewer-wrap" hidden>
+          <span class="user-viewer-label">👁 Ver como</span>
+          <button class="user-viewer-trigger" id="user-viewer-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span id="user-viewer-trigger-text">Seleccionar usuario</span>
+            <span aria-hidden="true">▾</span>
+          </button>
+          <div class="user-viewer-menu" id="user-viewer-menu" hidden>
+            <div class="user-viewer-search-wrap">
+              <input id="user-viewer-search" type="search" placeholder="Buscar por nombre, correo, rol o empresa..." autocomplete="off" aria-label="Buscar usuario" />
+            </div>
+            <div class="user-viewer-list" id="user-viewer-list" role="listbox" aria-label="Usuarios disponibles"></div>
+          </div>
+        </div>
+
         <div class="hdr-user-actions" aria-label="Usuario y sesión">
           <button class="hdr-user" data-route="usuarios" type="button" title="Abrir usuario / perfil">
             <span class="hdr-av" id="hdr-user-initials">--</span>
@@ -147,6 +162,11 @@
         </div>
       </div>
     </header>
+
+    <div class="user-viewer-banner" id="user-viewer-banner" hidden>
+      <div><strong>MODO VISOR</strong><span>Sesión real: <b id="user-viewer-actor">—</b></span><span>Visualizando: <b id="user-viewer-current">—</b></span></div>
+      <button id="user-viewer-exit" type="button">Salir del visor</button>
+    </div>
 
     <div id="app-context-nav" aria-live="polite">
       <div class="app-context-inner">
@@ -276,6 +296,17 @@
             </div>
           </section>
 
+          <section class="side-group" data-group="legal">
+            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-legal">
+              <span class="side-group-icon">⚖️</span><b>Legal</b><i>⌄</i>
+            </button>
+            <div class="side-group-items" id="side-group-legal">
+              <button class="side-item" data-route="legal-dashboard" data-permission="legal_dashboard" type="button"><span>📊</span><b>Dashboard Legal</b></button>
+              <button class="side-item" data-route="legal-contratos" data-permission="legal_contratos" type="button"><span>📑</span><b>Contratos</b></button>
+              <button class="side-item" data-route="legal-suspendidos" data-permission="legal_suspendidos" type="button"><span>⏸️</span><b>Suspendidos</b></button>
+            </div>
+          </section>
+
           <div class="side-divider" aria-hidden="true"></div>
 
           <button class="side-item side-standalone" data-route="usuarios" data-permission="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
@@ -287,6 +318,7 @@
         <section id="view-home" class="view active" data-view="home"></section>
         <section id="view-portafolio" class="view pf-view" data-view="portafolio" aria-label="Portafolio"></section>
         <section id="view-usuarios" class="view usr-view" data-view="usuarios" aria-label="Usuarios"></section>
+        <section id="view-panel-control" class="view pc-view" data-view="panel-control" aria-label="Panel de Control"></section>
         <section id="view-proyectos" class="view proy-view" data-view="proyectos" aria-label="Proyectos"></section>
         <section id="view-instalaciones-proyectos" class="view insproy-view" data-view="instalaciones-proyectos" aria-label="Proyectos de Instalación"></section>
         <section id="view-instalaciones-concentrado-cliente" class="view icc-view" data-view="instalaciones-concentrado-cliente" aria-label="Concentrado Cliente"></section>
@@ -506,8 +538,10 @@
   <script src="./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003"></script>
   <script src="./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004"></script>
   <script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
+  <script src="./modules/panel-control/panel-control.js?v=20260722-v023"></script>
   <script src="./modules/support/support.js?v=20260705-v114"></script>
   <script src="./core/details.js?v=20260717-pdf-archivo-equipo-v001"></script>
-  <script src="./core/app.js?v=20260718-sidebar-almacen-cx-v001"></script>
+  <script src="./core/user-viewer.js?v=20260722-session-permissions-v025"></script>
+  <script src="./core/app.js?v=20260722-session-permissions-v017"></script>
 </body>
 </html>
