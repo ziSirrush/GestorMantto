@@ -81,7 +81,7 @@
   function permissionKeysForItem(item){
     const raw=[item.dataset.permission,item.dataset.route].filter(Boolean).map(norm);
     const aliases={
-      home:['inicio','home'],usuarios:['usuarios','usuario'],panelcontrol:['panelcontrol'],
+      home:['inicio','home'],usuarios:['usuarios','usuario'],panelcontrol:['panelcontrol','paneldecontrol','generalpaneldecontrol'],
       operacionresumen:['resumendeldia','resumendia','resumen'],operacioncriticos:['equiposcriticos','criticos'],
       operacioncallcenter:['dashboardcallcenter','callcenter'],operacionoperativo:['dashboardoperativo','operativo'],
       portafoliodashboard:['dashboardportafolio','portafolio'],portafoliomovimientos:['movimientosportafolio','movimientos'],

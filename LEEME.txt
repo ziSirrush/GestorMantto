@@ -1,0 +1,16 @@
+FIX PANEL DE CONTROL - SEGUNDO ROL PROGRAMADOR
+
+Archivos a reemplazar:
+- index.html
+- core/user-viewer.js
+
+No requiere cambios de backend ni SQL.
+
+Causa corregida:
+El permiso HTML panel_control se normalizaba como panelcontrol, mientras el catalogo real usa GENERAL_PANEL_DE_CONTROL. La coincidencia no encontraba el modulo y lo ocultaba aunque el rol Programador estuviera activo como rol secundario.
+
+Prueba:
+1. Recargar sin cache o cerrar y abrir la aplicacion.
+2. Iniciar sesion con Joseph Vera.
+3. Confirmar que aparezca Panel de Control en el sidebar.
+4. Abrirlo y validar que cargue el bootstrap.
