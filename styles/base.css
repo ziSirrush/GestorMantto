@@ -209,3 +209,23 @@ button{cursor:pointer}
 .user-viewer-banner{min-height:42px;background:#fff7d6;border-bottom:1px solid #f4c84a;color:#6b4e00;display:flex;align-items:center;justify-content:center;gap:20px;padding:6px 18px;z-index:36}.user-viewer-banner[hidden]{display:none!important}.user-viewer-banner>div{display:flex;align-items:center;gap:16px;font-size:12px}.user-viewer-banner strong{letter-spacing:.08em}.user-viewer-banner button{border:1px solid #d6a700;background:#fff;color:#6b4e00;border-radius:9px;padding:6px 11px;font-size:11px;font-weight:900;cursor:pointer}
 @media(max-width:1180px){.user-viewer-wrap{min-width:190px}.user-viewer-label{display:none}.user-viewer-trigger{max-width:180px}}
 @media(max-width:920px){.user-viewer-wrap{position:fixed;left:10px;right:10px;bottom:10px;z-index:90;box-shadow:0 8px 24px rgba(13,46,110,.2)}.user-viewer-trigger{max-width:none;width:100%}.user-viewer-menu{left:0;right:0;top:auto;bottom:calc(100% + 8px);width:100%}.user-viewer-banner{padding:6px 10px}.user-viewer-banner>div{gap:7px;flex-wrap:wrap}.user-viewer-banner span{font-size:10px}}
+
+/* V030.2 · Centro de Ayuda / Solicitudes */
+.help-request-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.help-request-action{min-height:170px;border:1px solid var(--line);border-radius:16px;background:#fff;color:var(--navy);padding:18px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;text-align:left;cursor:pointer}
+.help-request-action:hover{background:#eef4ff;border-color:#bfd2ff;transform:translateY(-1px)}
+.help-request-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#e8f0ff;color:#1d4ed8;font-size:24px;font-weight:900}
+.help-request-action b{font-size:16px}.help-request-action small{color:var(--muted);font-size:12px;line-height:1.4}
+.help-my-requests{grid-column:1/-1;min-height:0}
+.help-panel-subtitle{margin-top:4px;color:var(--muted);font-size:12px}
+.help-request-filters{display:grid;grid-template-columns:minmax(220px,1fr) minmax(160px,.3fr) minmax(170px,.35fr) auto;gap:10px;margin:14px 0}
+.help-request-filters input,.help-request-filters select{height:38px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:0 12px;color:var(--text)}
+.help-my-table-wrap{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+.help-my-table{width:100%;min-width:720px;border-collapse:collapse}
+.help-my-table th,.help-my-table td{padding:12px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+.help-my-table th{background:#f8fafc;color:var(--navy);font-weight:900}.help-my-table tr:last-child td{border-bottom:0}
+.help-table-action{width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}.help-table-action:hover{background:#eef4ff;border-color:#bfd2ff}
+.help-status-chip{display:inline-flex;padding:5px 9px;border-radius:999px;background:#e2e8f0;color:#334155;font-weight:900;white-space:nowrap}
+.help-status-chip[data-state="abierto"],.help-status-chip[data-state="asignado"]{background:#dbeafe;color:#1e3a8a}.help-status-chip[data-state="en proceso"]{background:#fef3c7;color:#92400e}.help-status-chip[data-state="resuelto"],.help-status-chip[data-state="cerrado"]{background:#dcfce7;color:#166534}
+.support-form small{color:var(--muted);font-size:11px;text-transform:none;letter-spacing:normal;font-weight:500}
+@media(max-width:760px){.help-request-actions{grid-template-columns:1fr}.help-request-action{min-height:120px}.help-request-filters{grid-template-columns:1fr}}

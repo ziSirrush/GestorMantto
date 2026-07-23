@@ -37,9 +37,86 @@
   }
   async function loadQuestions(){ const sel=$('usr-new-question'); if(!sel) return; if(state.questions.length){ renderQuestions(); return; } sel.innerHTML='<option>Cargando...</option>'; const json=await API().apiGet('/api/auth/security-questions'); state.questions=json.data||[]; renderQuestions(); }
   function renderQuestions(){ const sel=$('usr-new-question'); if(sel) sel.innerHTML='<option value="">Selecciona una pregunta</option>'+state.questions.map(q=>`<option value="${esc(q.id_pregunta)}">${esc(q.pregunta)}</option>`).join(''); }
-  function renderDirectory(){ const list=$('usr-list'); if(!list) return; const q=String($('usr-search')?.value||'').toLowerCase().trim(); const rows=state.usuarios.filter(u=>!q || [u.nombre,u.correo,u.area,u.puesto,u.empresa,u.rol].some(v=>String(v||'').toLowerCase().includes(q))); if(!rows.length){ list.innerHTML='<div class="usr-empty">No se encontraron usuarios.</div>'; return; } list.innerHTML=rows.map(u=>`<button class="usr-contact ${state.selected && state.selected.id_SB===u.id_SB?'active':''}" type="button" data-id="${esc(u.id_SB)}">${avatarHtml(u)}<span class="usr-contact-main"><span class="usr-contact-name">${esc(u.nombre)}</span><span class="usr-contact-meta">${esc(u.area || 'Sin área')} · ${esc(u.correo || 'Sin correo')}</span></span></button>`).join(''); list.querySelectorAll('[data-id]').forEach(btn=>btn.addEventListener('click',()=>selectUser(btn.dataset.id))); }
-  function selectUser(id){ state.selected=state.usuarios.find(u=>String(u.id_SB)===String(id)) || null; renderDirectory(); renderDetail(); }
-  function renderDetail(){ const box=$('usr-detail'); if(!box) return; const u=state.selected; if(!u){ box.hidden=true; box.innerHTML=''; return; } const roles=rolesText(u); box.hidden=false; box.innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><h3>${esc(u.nombre)}</h3><p class="usr-contact-meta">${esc(u.puesto || 'Sin puesto')} · ${esc(u.area || 'Sin área')}</p></div><button class="usr-close-detail" id="usr-close-detail" type="button">Cerrar</button></div><div class="usr-info-grid"><div class="usr-info"><small>Correo</small><b>${esc(u.correo || '—')}</b></div><div class="usr-info"><small>Empresa</small><b>${esc(u.empresa || '—')}</b></div><div class="usr-info"><small>Rol principal</small><b>${esc(u.rol || '—')}</b></div><div class="usr-info"><small>Roles asociados</small><b>${esc(roles.join(', ') || '—')}</b></div><div class="usr-info"><small>Reporta a</small><b>${esc(u.reporta_a_nombre || '—')}</b></div><div class="usr-info"><small>Estado</small><b>${Number(u.estado)===1?'Activo':'Inactivo'}</b></div></div>`; $('usr-close-detail')?.addEventListener('click',()=>{ state.selected=null; renderDirectory(); renderDetail(); }); }
+  function directoryDetailHtml(u){
+    const roles=rolesText(u);
+    return `
+      <div class="usr-contact-detail" data-detail-id="${esc(u.id_SB)}">
+        <div class="usr-detail-head">
+          <div class="usr-profile-top usr-directory-profile">
+            ${avatarHtml(u)}
+            <div>
+              <h3 class="usr-name">${esc(u.nombre)}</h3>
+              <p class="usr-role">${esc(u.puesto || 'Sin puesto')}</p>
+              <div class="usr-chip-row">${roles.length ? roles.map(r=>`<span class="usr-chip">${esc(r)}</span>`).join('') : '<span class="usr-chip">Sin roles asociados</span>'}</div>
+            </div>
+          </div>
+          <button class="usr-close-detail" data-close-user="${esc(u.id_SB)}" type="button">Cerrar</button>
+        </div>
+        <div class="usr-info-grid">
+          <div class="usr-info"><small>Correo</small><b>${esc(u.correo || '—')}</b></div>
+          <div class="usr-info"><small>Área</small><b>${esc(u.area || '—')}</b></div>
+          <div class="usr-info"><small>Puesto</small><b>${esc(u.puesto || '—')}</b></div>
+          <div class="usr-info"><small>Empresa</small><b>${esc(u.empresa || '—')}</b></div>
+          <div class="usr-info"><small>Reporta a</small><b>${esc(u.reporta_a_nombre || '—')}</b></div>
+          <div class="usr-info"><small>Zonas operativas</small><b>${esc(zonesText(u))}</b></div>
+        </div>
+        <div class="usr-task-actions">
+          <button class="usr-btn" data-user-task="ASSIGNED_BY" data-user-id="${esc(u.id_SB)}" type="button">Tareas que me asignó</button>
+          <button class="usr-btn secondary" data-user-task="SHARED_RESPONSIBILITY" data-user-id="${esc(u.id_SB)}" type="button">Tareas en las que compartimos responsabilidad</button>
+        </div>
+      </div>`;
+  }
+  function renderDirectory(){
+    const list=$('usr-list');
+    if(!list) return;
+    const q=String($('usr-search')?.value||'').toLowerCase().trim();
+    const rows=state.usuarios.filter(u=>!q || [u.nombre,u.correo,u.area,u.puesto,u.empresa,u.rol].some(v=>String(v||'').toLowerCase().includes(q)));
+    if(!rows.length){ list.innerHTML='<div class="usr-empty">No se encontraron usuarios.</div>'; return; }
+    list.innerHTML=rows.map(u=>{
+      const selected=state.selected && String(state.selected.id_SB)===String(u.id_SB);
+      return `<article class="usr-contact-card ${selected?'active':''}">
+        <button class="usr-contact" type="button" data-id="${esc(u.id_SB)}" aria-expanded="${selected?'true':'false'}">
+          ${avatarHtml(u)}
+          <span class="usr-contact-main"><span class="usr-contact-name">${esc(u.nombre)}</span><span class="usr-contact-meta">${esc(u.area || 'Sin área')} · ${esc(u.correo || 'Sin correo')}</span></span>
+          <span class="usr-contact-chevron" aria-hidden="true">⌄</span>
+        </button>
+        ${selected ? directoryDetailHtml(u) : ''}
+      </article>`;
+    }).join('');
+    list.querySelectorAll('.usr-contact[data-id]').forEach(btn=>btn.addEventListener('click',()=>selectUser(btn.dataset.id)));
+    list.querySelectorAll('[data-close-user]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); state.selected=null; renderDirectory(); }));
+    list.querySelectorAll('[data-user-task]').forEach(btn=>btn.addEventListener('click',ev=>{
+      ev.stopPropagation();
+      const user=state.usuarios.find(u=>String(u.id_SB)===String(btn.dataset.userId));
+      openUserTasks(btn.dataset.userTask,user);
+    }));
+  }
+  function selectUser(id){
+    const next=state.usuarios.find(u=>String(u.id_SB)===String(id)) || null;
+    state.selected=state.selected && next && String(state.selected.id_SB)===String(next.id_SB) ? null : next;
+    renderDirectory();
+    if(state.selected){
+      requestAnimationFrame(()=>document.querySelector(`[data-detail-id="${CSS.escape(String(state.selected.id_SB))}"]`)?.scrollIntoView({block:'nearest',behavior:'smooth'}));
+    }
+  }
+  function openUserTasks(mode, user){
+    if(!user || !window.ManttoRouter) return;
+    window.ManttoRouter.openTarget({
+      module:'tareas',
+      taskContext:{
+        mode,
+        userId:user.id_SB,
+        name:user.nombre || 'Usuario',
+        initials:user.iniciales || '',
+        email:user.correo || ''
+      },
+      source:'directorio-usuarios'
+    });
+  }
+  function renderDetail(){
+    const box=$('usr-detail');
+    if(box){ box.hidden=true; box.innerHTML=''; }
+  }
   async function loadMe(){ const json=await API().apiGet('/api/auth/me'); state.me=json.data||json.user||{}; }
   async function loadUsers(){ const json=await API().apiGet('/api/usuarios'); state.usuarios=json.data||[]; }
   function setTab(tab){ state.tab=tab; document.querySelectorAll('.usr-tab').forEach(b=>b.classList.toggle('active', b.dataset.usrTab===tab)); document.querySelectorAll('.usr-panel').forEach(p=>p.classList.toggle('active', p.dataset.usrPanel===tab)); }

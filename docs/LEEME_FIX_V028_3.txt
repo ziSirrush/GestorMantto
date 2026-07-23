@@ -1,0 +1,31 @@
+FIX V028.3 - Soporte / Solicitudes - Backend
+Fecha: 23/07/2026
+
+REQUISITOS
+- Aplicar primero FIX V028.1 y FIX V028.2.
+- No requiere cambios SQL todavía; el ajuste de estructura queda para V028.4.
+
+ARCHIVOS MODIFICADOS / NUEVOS
+- backend/src/controllers/support.controller.js
+- backend/src/routes/support.routes.js
+- backend/src/services/support-solicitudes.service.js
+
+ENDPOINTS NUEVOS
+- GET /api/support/solicitudes
+- GET /api/support/solicitudes/:id
+
+REGLAS
+- Solo usuarios con rol activo Soporte o alguno de los roles Programador pueden consultar la bandeja administrativa.
+- La creación de solicitudes continúa disponible para cualquier usuario autenticado mediante POST /api/support/tickets.
+- Al crear una solicitud se genera una notificación para cada usuario activo con rol Soporte activo.
+- La respuesta de listado queda normalizada para el frontend V028.1:
+  id_solicitud, numero_solicitud, asunto, modulo, estado,
+  fecha_incidente y fecha_ultimo_mensaje.
+- Mientras V028.4 no agregue columnas específicas, fecha_incidente usa fecha_creacion y
+  fecha_ultimo_mensaje usa el mejor campo existente entre fecha_ultima_respuesta,
+  fecha_actualizacion y fecha_creacion.
+
+VALIDACIONES REALIZADAS
+- Sintaxis Node.js de los tres archivos.
+- Registro de rutas existente conservado en /api/support.
+- No se modificaron módulos en Nevera.

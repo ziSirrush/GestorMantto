@@ -1,0 +1,15 @@
+FIX V028.7 - Apertura del detalle de Solicitudes
+
+Archivos modificados:
+- index.html
+- modules/soporte-solicitudes/soporte-solicitudes.js
+
+Correcciones:
+1. Integra dentro de index.html la vista completa de detalle creada en V028.5.
+2. Actualiza las versiones de CSS y JS a v028-7 para evitar que el navegador use archivos en caché.
+3. Los botones Ver y Editar abren el detalle de la solicitud.
+4. No modifica backend, SQL ni módulos congelados.
+
+Dependencias:
+- Requiere que los archivos CSS/JS de V028.5 estén aplicados.
+- Compatible con el backend corregido en V028.6.

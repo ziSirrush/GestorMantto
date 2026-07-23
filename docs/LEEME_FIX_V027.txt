@@ -1,0 +1,29 @@
+MANTTO GESTOR - FIX V027
+AGRUPACION SOPORTE EN PANEL LATERAL
+
+ARCHIVOS MODIFICADOS / NUEVOS
+- index.html
+- core/router.js
+- core/user-viewer.js
+- backend/sql/20260723_V027_rol_y_agrupacion_soporte.sql
+
+ORDEN DE APLICACION
+1. Ejecutar backend/sql/20260723_V027_rol_y_agrupacion_soporte.sql en Aiven/MySQL Workbench.
+2. Sustituir index.html.
+3. Sustituir core/router.js.
+4. Sustituir core/user-viewer.js.
+5. Publicar frontend y volver a iniciar sesion para refrescar permisos efectivos.
+
+RESULTADO
+- Crea o activa el rol Soporte.
+- Crea la agrupacion Soporte.
+- Crea Dashboard, Solicitudes y Chats.
+- Asigna permiso visual inicial permitido=1 al rol Soporte.
+- Agrega los tres accesos al panel lateral.
+- Mientras no se desarrollen, cada acceso abre la vista estandar "En construccion / En desarrollo".
+- Los modulos quedan administrables desde Roles y permisos.
+
+PRUEBAS
+- Usuario con rol Soporte: debe ver la agrupacion y los tres modulos.
+- Usuario sin permisos efectivos: no debe verlos.
+- Cada boton debe navegar a su ruta propia sin redirigir a otro modulo.

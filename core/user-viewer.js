@@ -92,7 +92,10 @@
       cxdashboard:['dashboardcx','customerexperiencedashboard'],
       cxencuestas:['customerexperienceencuestas'],
       cxvisitas:['customerexperiencevisitas'],
-      legaldashboard:['dashboardlegal']
+      legaldashboard:['dashboardlegal'],
+      soportedashboard:['dashboardsoporte','soportedashboard'],
+      soportesolicitudes:['solicitudessoporte','soportesolicitudes'],
+      soportechats:['chatssoporte','soportechats']
     };
     const key=norm(item.dataset.permission); return [...new Set([...raw,...(aliases[key]||[])])];
   }
@@ -102,7 +105,7 @@
     const aliases={
       operacion:['operacion'],portafolio:['portafolio'],ventas:['ventas'],logistica:['logistica'],
       instalaciones:['instalaciones'],cobranza:['cobranza'],almacen:['almacen'],
-      customerexperience:['customerexperience','costumerexperience','cx'],legal:['legal']
+      customerexperience:['customerexperience','costumerexperience','cx'],legal:['legal'],soporte:['soporte']
     };
     return [...new Set([key,...(aliases[key]||[])].filter(Boolean))];
   }

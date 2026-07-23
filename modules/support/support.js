@@ -1,85 +1,47 @@
 (function(){
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const $ = id => document.getElementById(id);
-  function apiGet(path){ return window.ManttoAuth ? window.ManttoAuth.apiGet(path) : fetch((window.MANTTO_API_BASE||'http://localhost:3001')+path).then(r=>r.json()); }
-  function apiPost(path, body){ return window.ManttoAuth ? window.ManttoAuth.apiPost(path, body) : fetch((window.MANTTO_API_BASE||'http://localhost:3001')+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()); }
-  function msg(id,text,type){ const el=$(id); if(!el) return; el.textContent=text||''; el.className='auth-msg '+(type||''); }
-  async function loadHelp(){
-    await Promise.allSettled([loadMenu(), loadFaq(), loadAvisos()]);
+  'use strict';
+  const STATE={ rows:[], filtered:[], initialized:false, editingId:null };
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const $=id=>document.getElementById(id);
+  const apiBase=()=>String(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
+  const headers=json=>Object.assign({Accept:'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{},json?{'Content-Type':'application/json'}:{});
+  async function request(path,options){
+    const cfg=Object.assign({},options||{}); cfg.headers=Object.assign({},headers(Boolean(cfg.body)),cfg.headers||{});
+    const res=await fetch(apiBase()+path,cfg); const type=res.headers.get('content-type')||''; const data=type.includes('application/json')?await res.json():null;
+    if(!res.ok) throw new Error(data&&data.message?data.message:'Respuesta inválida del servidor.'); return data;
   }
-  function optionButton(op){
-    const action = op.accion_opcion || op.accion || '';
-    const destino = op.id_destino || op.id_nodo_destino || '';
-    return `<button class="help-item" data-action="${esc(action)}" data-destino="${esc(destino)}"><b>${esc(op.texto_opcion || op.nombre || 'Opción')}</b><span>${esc(action || 'Abrir')}</span></button>`;
-  }
-  async function loadMenu(idNodo){
-    const box=$('help-menu'); if(box) box.innerHTML='<div class="empty-state">Cargando menú desde Aiven...</div>';
-    try{
-      const json = idNodo ? await apiGet('/api/support/node/'+encodeURIComponent(idNodo)) : await apiGet('/api/support/menu');
-      const data = json.data || {}; const nodo=data.nodo||{}; const opciones=data.opciones||[];
-      if(box){ box.innerHTML = `<div class="help-node"><h3>${esc(nodo.titulo_nodo || nodo.titulo || 'Centro de Ayuda')}</h3><p>${esc(nodo.descripcion_nodo || nodo.descripcion || '')}</p></div>` + (opciones.length ? opciones.map(optionButton).join('') : '<div class="empty-state">Sin opciones registradas.</div>'); }
-      bindHelpOptions();
-      return data;
-    }catch(e){ if(box) box.innerHTML='<div class="empty-state">No se pudo cargar el menú de ayuda.</div>'; }
-  }
-  async function loadFaq(q){
-    const box=$('help-faq'); if(box) box.innerHTML='<div class="empty-state">Cargando FAQ desde Aiven...</div>';
-    try{
-      const json = await apiGet('/api/support/faq' + (q ? ('?q='+encodeURIComponent(q)) : ''));
-      const rows = json.data || [];
-      if(box) box.innerHTML = rows.length ? rows.map(f=>`<article class="faq-item"><h3>${esc(f.pregunta_faq || f.pregunta)}</h3><p>${esc(f.respuesta_faq || f.respuesta)}</p></article>`).join('') : '<div class="empty-state">Sin preguntas frecuentes.</div>';
-    }catch(e){ if(box) box.innerHTML='<div class="empty-state">No se pudo cargar FAQ.</div>'; }
-  }
-  async function loadAvisos(){
-    const box=$('help-avisos'); if(box) box.innerHTML='<div class="empty-state">Cargando avisos desde Aiven...</div>';
-    try{
-      const json = await apiGet('/api/support/avisos'); const rows=json.data||[];
-      if(box) box.innerHTML = rows.length ? rows.map(a=>`<article class="aviso-item"><h3>${esc(a.nombre_aviso || a.titulo || 'Aviso')}</h3><p>${esc(a.descripcion_aviso || a.descripcion || '')}</p></article>`).join('') : '<div class="empty-state">Sin avisos activos.</div>';
-    }catch(e){ if(box) box.innerHTML='<div class="empty-state">No se pudo cargar avisos.</div>'; }
-  }
-  function bindHelpOptions(){
-    document.querySelectorAll('.help-item').forEach(btn=>{
-      if(btn.dataset.bound==='1') return; btn.dataset.bound='1';
-      btn.addEventListener('click',()=>{
-        const action=(btn.dataset.action||'').toLowerCase(); const dest=btn.dataset.destino;
-        if(action.includes('destino') || action.includes('nodo') || dest) loadMenu(dest);
-        else if(action.includes('solicitud') || action.includes('ticket')) window.ManttoRouter?.go('support-request');
-      });
-    });
-  }
-  async function loadNoriMenu(){
-    const body=$('pandaMessages'); if(!body) return;
-    try{
-      const data = await loadNoriNode(); renderNoriNode(data);
-    }catch(e){ body.innerHTML='<div class="nori-msg bot">No pude cargar mis flujos desde Aiven.</div>'; }
-  }
-  async function loadNoriNode(id){
-    const json = id ? await apiGet('/api/support/node/'+encodeURIComponent(id)) : await apiGet('/api/support/menu');
-    return json.data || {};
-  }
-  function renderNoriNode(data){
-    const body=$('pandaMessages'); if(!body) return;
-    const nodo=data.nodo||{}; const opciones=data.opciones||[];
-    body.innerHTML=`<div class="nori-msg bot"><strong>${esc(nodo.titulo_nodo || 'Nori')}</strong><br>${esc(nodo.descripcion_nodo || 'Selecciona una opción.')}</div><div class="nori-options">${opciones.map(op=>`<button class="nori-option" data-destino="${esc(op.id_destino||'')}" data-action="${esc(op.accion_opcion||'')}">${esc(op.texto_opcion||'Opción')}</button>`).join('')}<button class="nori-option" data-route="help">Abrir Centro de Ayuda</button><button class="nori-option" data-route="support-request">Crear solicitud de soporte</button></div>`;
-    body.querySelectorAll('.nori-option').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        const route=btn.dataset.route; if(route){ window.ManttoRouter?.go(route); return; }
-        const action=(btn.dataset.action||'').toLowerCase(); const dest=btn.dataset.destino;
-        if(dest){ const next=await loadNoriNode(dest); renderNoriNode(next); return; }
-        if(action.includes('solicitud') || action.includes('ticket')) window.ManttoRouter?.go('support-request');
-      });
-    });
-  }
-  function bind(){
-    $('help-refresh')?.addEventListener('click', loadHelp);
-    $('help-search')?.addEventListener('input', ev=>loadFaq(ev.target.value.trim()));
-    $('support-form')?.addEventListener('submit', async ev=>{
-      ev.preventDefault(); msg('support-msg','Creando solicitud en Aiven...','info');
-      try{
-        await apiPost('/api/support/tickets', { modulo:$('support-module').value, asunto:$('support-subject').value, descripcion:$('support-description').value, prioridad:$('support-priority').value });
-        msg('support-msg','Solicitud creada correctamente.','ok'); ev.target.reset();
-      }catch(e){ msg('support-msg',e.message||'No se pudo crear la solicitud.','error'); }
-    });
-  }
-  window.ManttoSupport = { init(){ bind(); loadHelp(); loadNoriMenu(); }, loadHelp, loadNoriMenu };
+  const apiGet=path=>request(path);
+  const apiPost=(path,body)=>request(path,{method:'POST',body:JSON.stringify(body)});
+  const apiPatch=(path,body)=>request(path,{method:'PATCH',body:JSON.stringify(body)});
+  function msg(id,text,type){ const el=$(id); if(!el)return; el.textContent=text||''; el.className='auth-msg '+(type||''); }
+  function normalize(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
+  function first(o,keys,fallback){for(const k of keys)if(o&&o[k]!==undefined&&o[k]!==null&&o[k]!=='')return o[k];return fallback;}
+  function formatDate(value){if(!value)return '—';const d=new Date(value);if(Number.isNaN(d.getTime()))return '—';return new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d)+' hrs';}
+  function toLocalInput(value){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';const pad=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+  function unique(values){return Array.from(new Set(values.filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));}
+  function fillSelect(id,values,label){const el=$(id);if(!el)return;const current=el.value;el.innerHTML=`<option value="">${esc(label)}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');el.value=values.includes(current)?current:'';}
+  function readFile(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('No se pudo leer el archivo.'));reader.readAsDataURL(file);});}
+  async function uploadFiles(ticketId,files){for(const file of Array.from(files||[])){if(file.size>8*1024*1024)throw new Error(`${file.name} excede el límite de 8 MB.`);const data=await readFile(file);await apiPost(`/api/support/tickets/${encodeURIComponent(ticketId)}/adjuntos`,{archivo:{name:file.name,type:file.type,size:file.size,data}});}}
+
+  async function loadHelp(){await Promise.allSettled([loadFaq(),loadAvisos()]);}
+  async function loadFaq(q){const box=$('help-faq');if(box)box.innerHTML='<div class="empty-state">Cargando FAQ desde Aiven...</div>';try{const json=await apiGet('/api/support/faq'+(q?'?q='+encodeURIComponent(q):''));const rows=json.data||[];if(box)box.innerHTML=rows.length?rows.map(f=>`<article class="faq-item"><h3>${esc(f.pregunta_faq||f.pregunta)}</h3><p>${esc(f.respuesta_faq||f.respuesta)}</p></article>`).join(''):'<div class="empty-state">Sin preguntas frecuentes.</div>';}catch(e){if(box)box.innerHTML='<div class="empty-state">No se pudo cargar FAQ.</div>';}}
+  async function loadAvisos(){const box=$('help-avisos');if(box)box.innerHTML='<div class="empty-state">Cargando avisos desde Aiven...</div>';try{const json=await apiGet('/api/support/avisos');const rows=json.data||[];if(box)box.innerHTML=rows.length?rows.map(a=>`<article class="aviso-item"><h3>${esc(a.nombre_aviso||a.titulo||'Aviso')}</h3><p>${esc(a.descripcion_aviso||a.descripcion||'')}</p></article>`).join(''):'<div class="empty-state">Sin avisos activos.</div>';}catch(e){if(box)box.innerHTML='<div class="empty-state">No se pudo cargar avisos.</div>';}}
+
+  function normalizeRow(row){return Object.assign({},row,{id:first(row,['id_solicitud','id_ticket','id']),folio:first(row,['numero_solicitud','folio'],'—'),asunto:first(row,['asunto','asunto_ticket'],'—'),modulo:first(row,['modulo','modulo_ticket'],'—'),estado:first(row,['estado','estado_ticket'],'—'),fecha:first(row,['fecha_creacion','created_at','fecha_incidente'])});}
+  function renderMyFilters(){fillSelect('help-my-status',unique(STATE.rows.map(r=>r.estado)),'Todos los estatus');fillSelect('help-my-module',unique(STATE.rows.map(r=>r.modulo)),'Todos los módulos');}
+  function applyMyFilters(){const q=normalize($('help-my-search')?.value);const st=$('help-my-status')?.value||'';const mod=$('help-my-module')?.value||'';STATE.filtered=STATE.rows.filter(r=>(!q||normalize([r.folio,r.asunto,r.modulo,r.estado].join(' ')).includes(q))&&(!st||r.estado===st)&&(!mod||r.modulo===mod));renderMyTable();}
+  function renderMyTable(){const body=$('help-my-body');if(!body)return;if(!STATE.filtered.length){body.innerHTML='<tr><td colspan="5" class="empty-state">No hay solicitudes para los filtros seleccionados.</td></tr>';return;}body.innerHTML=STATE.filtered.map(r=>`<tr><td><button class="help-table-action" data-help-edit="${esc(r.id)}" title="Editar">✏️</button></td><td><button class="help-table-action" data-help-view="${esc(r.id)}" title="Ver">👁️</button></td><td>${esc(r.asunto)}</td><td>${esc(formatDate(r.fecha))}</td><td><span class="help-status-chip" data-state="${esc(normalize(r.estado))}">${esc(r.estado)}</span></td></tr>`).join('');}
+  async function loadMyRequests(){const panel=$('help-my-requests');if(panel)panel.hidden=false;const body=$('help-my-body');if(body)body.innerHTML='<tr><td colspan="5" class="empty-state">Cargando solicitudes...</td></tr>';try{const json=await apiGet('/api/support/tickets/mias');STATE.rows=(json.data||[]).map(normalizeRow);STATE.filtered=STATE.rows.slice();renderMyFilters();applyMyFilters();panel?.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){if(body)body.innerHTML=`<tr><td colspan="5" class="empty-state">${esc(e.message||'No se pudieron cargar tus solicitudes.')}</td></tr>`;}}
+
+  function resetForm(){STATE.editingId=null;$('support-form')?.reset();if($('support-ticket-id'))$('support-ticket-id').value='';if($('support-submit'))$('support-submit').textContent='Crear solicitud';const title=document.querySelector('#view-support-request .help-head h1');const text=document.querySelector('#view-support-request .help-head p');if(title)title.textContent='Solicitud de soporte';if(text)text.textContent='Describe el problema para registrarlo en Aiven.';msg('support-msg','','');}
+  async function openRequestForm(payload){resetForm();const id=payload&&(payload.id||payload.id_ticket||payload.id_solicitud);if(!id)return;if($('support-submit'))$('support-submit').textContent='Guardar actualización';const title=document.querySelector('#view-support-request .help-head h1');const text=document.querySelector('#view-support-request .help-head p');if(title)title.textContent='Editar solicitud';if(text)text.textContent='Puedes actualizar los datos reportados. Prioridad, estatus y asignación son administrados por Soporte.';msg('support-msg','Cargando solicitud...','info');try{const json=await apiGet('/api/support/tickets/mias/'+encodeURIComponent(id));const t=json.data||json;STATE.editingId=id;$('support-ticket-id').value=id;$('support-module').value=first(t,['modulo_ticket','modulo'],'');$('support-subject').value=first(t,['asunto_ticket','asunto'],'');$('support-description').value=first(t,['descripcion_ticket','descripcion'],'');$('support-incident-date').value=toLocalInput(first(t,['fecha_incidente','incident_at'],''));msg('support-msg','','');}catch(e){msg('support-msg',e.message||'No se pudo cargar la solicitud.','error');}}
+  async function submitRequest(ev){ev.preventDefault();const id=STATE.editingId||$('support-ticket-id')?.value;const payload={modulo:$('support-module').value.trim(),asunto:$('support-subject').value.trim(),descripcion:$('support-description').value.trim(),fecha_incidente:$('support-incident-date').value||null};msg('support-msg',id?'Actualizando solicitud...':'Creando solicitud...','info');try{const json=id?await apiPatch('/api/support/tickets/mias/'+encodeURIComponent(id),payload):await apiPost('/api/support/tickets/mias',payload);const ticketId=id||json.id;const files=$('support-files')?.files||[];if(files.length)await uploadFiles(ticketId,files);if(!id){STATE.editingId=null;$('support-form')?.reset();if($('support-ticket-id'))$('support-ticket-id').value='';}msg('support-msg',id?'Solicitud actualizada correctamente.':'Solicitud creada correctamente.','ok');setTimeout(()=>window.ManttoRouter?.go('help',{section:'my-requests'}),500);}catch(e){msg('support-msg',e.message||'No se pudo guardar la solicitud.','error');}}
+  function openRequesterDetail(id){window.ManttoRouter?.go('soporte-solicitudes',{id,mode:'requester',backRoute:'help'});}
+
+  async function loadNoriNode(id){const json=await apiGet(id?'/api/support/node/'+encodeURIComponent(id):'/api/support/menu');return json.data||{};}
+  function renderNoriNode(data){const body=$('pandaMessages');if(!body)return;const nodo=data.nodo||{};const opciones=data.opciones||[];body.innerHTML=`<div class="nori-msg bot"><strong>${esc(nodo.titulo_nodo||'Nori')}</strong><br>${esc(nodo.descripcion_nodo||'Selecciona una opción.')}</div><div class="nori-options">${opciones.map(op=>`<button class="nori-option" data-destino="${esc(op.id_destino||op.id_nodo_destino||'')}" data-action="${esc(op.accion_opcion||op.accion||'')}">${esc(op.texto_opcion||op.nombre||'Opción')}</button>`).join('')}<button class="nori-option" data-route="help">Abrir Centro de Ayuda</button><button class="nori-option" data-route="support-request">Crear solicitud de soporte</button></div>`;body.querySelectorAll('.nori-option').forEach(btn=>btn.addEventListener('click',async()=>{const route=btn.dataset.route;if(route){window.ManttoRouter?.go(route);return;}const dest=btn.dataset.destino;const action=normalize(btn.dataset.action);if(dest){try{renderNoriNode(await loadNoriNode(dest));}catch(e){body.innerHTML='<div class="nori-msg bot">No pude cargar la siguiente opción.</div>';}return;}if(action.includes('solicitud')||action.includes('ticket'))window.ManttoRouter?.go('support-request');}));}
+  async function loadNoriMenu(){const body=$('pandaMessages');if(!body)return;try{renderNoriNode(await loadNoriNode());}catch(e){body.innerHTML='<div class="nori-msg bot">No pude cargar mis flujos desde Aiven.</div>';}}
+  function bind(){if(STATE.initialized)return;STATE.initialized=true;$('help-refresh')?.addEventListener('click',loadHelp);$('help-search')?.addEventListener('input',ev=>loadFaq(ev.target.value.trim()));$('help-request-create')?.addEventListener('click',()=>window.ManttoRouter?.go('support-request'));$('help-request-list')?.addEventListener('click',loadMyRequests);$('help-my-refresh')?.addEventListener('click',loadMyRequests);$('help-my-search')?.addEventListener('input',applyMyFilters);$('help-my-status')?.addEventListener('change',applyMyFilters);$('help-my-module')?.addEventListener('change',applyMyFilters);$('help-my-clear')?.addEventListener('click',()=>{if($('help-my-search'))$('help-my-search').value='';if($('help-my-status'))$('help-my-status').value='';if($('help-my-module'))$('help-my-module').value='';applyMyFilters();});$('help-my-body')?.addEventListener('click',ev=>{const edit=ev.target.closest('[data-help-edit]');const view=ev.target.closest('[data-help-view]');if(edit)window.ManttoRouter?.go('support-request',{id:edit.dataset.helpEdit});if(view)openRequesterDetail(view.dataset.helpView);});$('support-form')?.addEventListener('submit',submitRequest);}
+  function openHelp(payload){loadHelp();if(payload&&payload.section==='my-requests')loadMyRequests();}
+  window.ManttoSupport={init(){bind();loadHelp();loadNoriMenu();},loadHelp,loadNoriMenu,loadMyRequests,openRequestForm,openHelp};
 })();

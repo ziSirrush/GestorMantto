@@ -1,0 +1,142 @@
+<div class="ss-page" data-ss-root="">
+<section class="ss-list-view" id="ss-list-view">
+<section class="ss-card ss-head">
+<div>
+<p class="ss-eyebrow">Soporte</p>
+<h1>Solicitudes</h1>
+<p>Consulta y seguimiento de las solicitudes de soporte registradas en el sistema.</p>
+</div>
+<div class="ss-head-actions">
+<span aria-live="polite" class="ss-status is-ready" id="ss-status" role="status">
+<span class="ss-status-dot"></span>
+<span>Vista preparada</span>
+</span>
+<button class="ss-btn ss-btn-primary" id="ss-refresh" type="button">↻ Actualizar</button>
+</div>
+</section>
+<section aria-label="Filtros de solicitudes" class="ss-card ss-filters">
+<label class="ss-field ss-search-field" for="ss-search">
+<span>Buscar</span>
+<input autocomplete="off" id="ss-search" placeholder="Número, asunto o módulo..." type="search"/>
+</label>
+<label class="ss-field" for="ss-filter-status">
+<span>Estado</span>
+<select id="ss-filter-status"><option value="">Todos</option></select>
+</label>
+<label class="ss-field" for="ss-filter-module">
+<span>Módulo</span>
+<select id="ss-filter-module"><option value="">Todos</option></select>
+</label>
+<button class="ss-btn" id="ss-clear" type="button">Limpiar</button>
+</section>
+<section aria-labelledby="ss-table-title" class="ss-card ss-table-section">
+<div class="ss-section-head">
+<div>
+<h2 id="ss-table-title">Listado de solicitudes</h2>
+<p id="ss-count">0 solicitudes</p>
+</div>
+</div>
+<div class="ss-table-wrap">
+<table class="ss-table">
+<thead>
+<tr>
+<th class="ss-col-action" scope="col">Editar</th>
+<th class="ss-col-action" scope="col">Ver</th>
+<th scope="col">Número de solicitud</th>
+<th scope="col">Asunto</th>
+<th scope="col">Módulo</th>
+<th scope="col">Estado</th>
+<th scope="col">Fecha del incidente</th>
+<th scope="col">Fecha del último mensaje</th>
+</tr>
+</thead>
+<tbody id="ss-table-body">
+<tr><td class="ss-empty" colspan="8">No hay solicitudes de soporte registradas.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section aria-live="polite" class="ss-detail-view" hidden="" id="ss-detail-view">
+<section class="ss-card ss-detail-head">
+<div>
+<h1 id="ss-detail-title">Asunto de la solicitud</h1>
+<p id="ss-detail-subtitle">Número de solicitud</p>
+</div>
+<span class="ss-state" id="ss-detail-state">—</span>
+</section>
+<section class="ss-detail-stack">
+<article class="ss-card ss-accordion is-open" data-ss-accordion="">
+<button aria-expanded="true" class="ss-accordion-head" type="button">
+<span class="ss-accordion-chevron">›</span>
+<span>Información principal</span>
+</button>
+<div class="ss-accordion-body">
+<div class="ss-info-grid ss-info-grid-3">
+<div><span>Número de solicitud</span><strong id="ss-d-number">—</strong></div>
+<div><span>Prioridad</span><strong id="ss-d-priority">—</strong></div>
+<div><span>Módulo afectado</span><strong id="ss-d-module">—</strong></div>
+<div class="ss-span-2"><span>Asunto</span><strong id="ss-d-subject">—</strong></div>
+<div><span>Estado</span><strong id="ss-d-status">—</strong></div>
+<div class="ss-span-3"><span>Asignado a</span><strong id="ss-d-assigned">—</strong></div>
+
+<div aria-label="Edición de solicitud" class="ss-span-3 ss-ticket-editor">
+<label><span>Prioridad</span><select id="ss-edit-priority"><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select></label>
+<label><span>Estado</span><select id="ss-edit-status"><option>Abierto</option><option>Asignado</option><option>En proceso</option><option>Esperando información</option><option>Resuelto</option><option>Cerrado</option><option>Cancelado</option></select></label>
+<label><span>Asignado a</span><select id="ss-edit-assigned"><option value="">Sin asignar</option></select></label>
+</div>
+</div>
+</div>
+</article>
+<article class="ss-card ss-accordion" data-ss-accordion="">
+<button aria-expanded="false" class="ss-accordion-head" type="button">
+<span class="ss-accordion-chevron">›</span>
+<span>Información del contacto</span>
+</button>
+<div class="ss-accordion-body">
+<div class="ss-info-grid ss-info-grid-2">
+<div><span>Usuario</span><strong id="ss-d-user">—</strong></div>
+<div><span>Correo</span><strong id="ss-d-email">—</strong></div>
+<div class="ss-span-2"><span>Empresa</span><strong id="ss-d-company">—</strong></div>
+</div>
+</div>
+</article>
+<article class="ss-card ss-accordion" data-ss-accordion="">
+<button aria-expanded="false" class="ss-accordion-head" type="button">
+<span class="ss-accordion-chevron">›</span>
+<span>Seguimiento de fechas</span>
+</button>
+<div class="ss-accordion-body">
+<div class="ss-info-grid ss-info-grid-2">
+<div><span>Fecha de creación</span><strong id="ss-d-created">—</strong></div>
+<div><span>Fecha estimada de solución</span><strong id="ss-d-estimated">—</strong></div>
+<div><span>Fecha de cierre técnico</span><strong id="ss-d-technical-close">—</strong></div>
+<div><span>Fecha del incidente</span><strong id="ss-d-incident">—</strong></div>
+</div>
+</div>
+</article>
+<article class="ss-card ss-interactions-card">
+<div class="ss-section-head"><div><h2>Interacciones</h2><p>Comentarios y archivos registrados en la solicitud.</p></div></div>
+<div class="ss-interactions-layout">
+<section aria-labelledby="ss-chat-title" class="ss-chat-panel">
+<div class="ss-subpanel-head"><div><h3 id="ss-chat-title">Chat</h3><p>Historial de comentarios de la solicitud.</p></div></div>
+<div class="ss-chat-history" id="ss-chat-history"><div class="ss-empty">No hay comentarios registrados.</div></div>
+<form class="ss-chat-form" id="ss-comment-form">
+<textarea id="ss-comment-text" maxlength="2000" placeholder="Escribe un comentario..." required="" rows="3"></textarea>
+<button class="ss-btn ss-btn-primary" type="submit">Enviar comentario</button>
+</form>
+</section>
+<aside aria-labelledby="ss-files-title" class="ss-files-panel">
+<div class="ss-subpanel-head"><div><h3 id="ss-files-title">Gestor de archivos</h3><p>Archivos adjuntos de la solicitud.</p></div></div>
+<div class="ss-files-list" id="ss-files-list"><div class="ss-empty">No hay archivos adjuntos.</div></div>
+<div class="ss-file-upload-box">
+<input aria-label="Seleccionar archivo" id="ss-file-input" type="file"/>
+<button class="ss-btn" id="ss-file-upload" type="button">Subir archivo</button>
+<small>Máximo 8 MB por archivo.</small>
+</div>
+</aside>
+</div>
+</article>
+</section>
+</section>
+</div>

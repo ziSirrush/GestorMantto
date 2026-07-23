@@ -26,7 +26,19 @@
     principalRoleId:null,
     savingRoles:false,
     dirty:new Map(),
-    expanded:new Set()
+    expanded:new Set(),
+    adminUserId:null,
+    adminRoleId:null,
+    adminUserDetail:null,
+    adminRoleDetail:null,
+    zones:[],
+    securityQuestions:[],
+    adminLoading:false,
+    adminUserQuery:'',
+    adminUserCompany:'',
+    adminRoleQuery:'',
+    adminRoleCompany:'',
+    adminRoleStatus:''
   };
 
   const esc=(v)=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -188,6 +200,7 @@
       state.bootLoading=false;
       render();
       if(state.tab==='roles'&&state.selectedRoleId) await loadRolePermissions(state.selectedRoleId);
+      if(state.tab==='admin-users') await loadAdminCatalogs();
     }catch(error){
       state.bootLoading=false;
       state.error=error.message||'No se pudo cargar el Panel de Control.';
@@ -254,7 +267,7 @@
         <article><b>${esc(state.totals.permisos_disponibles||0)}</b><span>Permisos disponibles</span></article>
         <article><b>${esc(state.totals.personalizaciones_activas||0)}</b><span>Personalizaciones activas</span></article>
       </section>
-      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
+      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
       <div id="pc-content"></div><div class="pc-toast" id="pc-toast"></div>
     </div>`;
   }
@@ -274,6 +287,7 @@
       state.permissionQuery='';
       render();
       if(state.tab==='roles'&&state.selectedRoleId) await loadRolePermissions(state.selectedRoleId);
+      if(state.tab==='admin-users'){ await loadAdminCatalogs(); renderAdminUsers(); }
     }));
     renderMain();
   }
@@ -283,6 +297,8 @@
     if(!box)return;
     if(state.bootLoading){box.innerHTML='<section class="pc-permissions"><div class="pc-empty large">Cargando información real desde Aiven...</div></section>';return;}
     if(state.error){box.innerHTML=`<section class="pc-permissions"><div class="pc-empty large"><b>No se pudo cargar el Panel de Control.</b><br>${esc(state.error)}</div></section>`;return;}
+    if(state.tab==='admin-users'){ renderAdminUsers(); return; }
+    if(state.tab==='admin-roles'){ renderAdminRoles(); return; }
     if(state.tab==='audit'){
       box.innerHTML='<section class="pc-audit"><div class="pc-audit-head"><div><span class="pc-eyebrow">TRAZABILIDAD</span><h2>Auditoría</h2><p>La auditoría histórica completa se integrará en una tabla dedicada. Los campos created_by, updated_by, created_at y updated_at ya se actualizan al guardar.</p></div></div></section>';
       updateSaveButton();
@@ -833,6 +849,242 @@
       }
       renderSelectorList();
     }catch(e){/* La operación principal ya se guardó. */}
+  }
+
+
+  async function loadAdminCatalogs(){
+    if(state.zones.length&&state.securityQuestions.length)return;
+    try{
+      const [z,p]=await Promise.all([request('/api/catalogos/zonas'),request('/api/catalogos/preguntas-seguridad')]);
+      state.zones=z.data||[]; state.securityQuestions=p.data||[];
+    }catch(e){toast(e.message||'No se pudieron cargar los catálogos.');}
+  }
+
+  function distinctUserValues(field){
+    const values=new Map();
+    state.users.forEach(user=>{
+      const raw=String(user?.[field]||'').trim();
+      if(!raw)return;
+      const key=normalizeText(raw);
+      if(!values.has(key))values.set(key,raw);
+    });
+    return [...values.values()].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  }
+
+  function selectOptions(values,current,placeholder){
+    const currentValue=String(current||'').trim();
+    const merged=[...values];
+    if(currentValue&&!merged.some(value=>normalizeText(value)===normalizeText(currentValue)))merged.push(currentValue);
+    return `<option value="">${esc(placeholder)}</option>${merged.map(value=>`<option value="${esc(value)}" ${normalizeText(value)===normalizeText(currentValue)?'selected':''}>${esc(value)}</option>`).join('')}`;
+  }
+
+  function adminUserForm(user){
+    if(!user&&state.adminUserDetail===null){
+      return `<div class="pc-admin-empty"><span class="pc-avatar big">U</span><h2>Selecciona un usuario</h2><p>Elige un usuario de la lista para consultar o editar su información.</p><button type="button" class="pc-btn primary" id="pc-new-user">+ Nuevo usuario</button></div>`;
+    }
+    const d=state.adminUserDetail||user||{};
+    const selectedRoles=new Set((d.roles_detalle||d.roles||[]).map(r=>Number(r.id_rol)));
+    const principal=Number(d.rol_id||0);
+    const selectedZones=new Set((d.zonas_detalle||[]).map(z=>Number(z.id_zona)));
+    const roleOptions=state.roles.filter(r=>Number(r.estado)!==0).map(r=>`<label class="pc-admin-check"><input type="checkbox" name="roles" value="${r.id_rol}" ${selectedRoles.has(Number(r.id_rol))?'checked':''}><span>${esc(r.rol)}</span></label>`).join('');
+    const principalOptions=state.roles.filter(r=>selectedRoles.has(Number(r.id_rol))||Number(r.id_rol)===principal).map(r=>`<option value="${r.id_rol}" ${Number(r.id_rol)===principal?'selected':''}>${esc(r.rol)}</option>`).join('');
+    const superiorOptions=state.users.filter(u=>Number(u.id_SB)!==Number(d.id_SB)&&Number(u.estado)!==0).map(u=>`<option value="${u.id_SB}" ${Number(u.id_SB)===Number(d.reporta_a)?'selected':''}>${esc(u.nombre)}</option>`).join('');
+    const zoneOptions=state.zones.map(z=>`<label class="pc-admin-check"><input type="checkbox" name="zones" value="${z.id_zona}" ${selectedZones.has(Number(z.id_zona))?'checked':''}><span>${esc(z.zona)} · ${esc(z.nombre||'')}</span></label>`).join('');
+    const areaOptions=selectOptions(distinctUserValues('area'),d.area,'Selecciona un área');
+    const companyOptions=selectOptions(distinctUserValues('empresa'),d.empresa,'Selecciona una empresa');
+    return `<form id="pc-admin-user-form" class="pc-admin-form">
+      <div class="pc-admin-head"><div><span class="pc-eyebrow">ADMINISTRACIÓN</span><h2>${d.id_SB?'Editar usuario':'Crear usuario'}</h2><p>Las operaciones conservan todos los datos históricos y relaciones operativas.</p></div><button type="button" class="pc-btn primary" id="pc-new-user">+ Nuevo usuario</button></div>
+      <div class="pc-admin-grid">
+        <label>Nombre<input name="nombre" required value="${esc(d.nombre||'')}"></label>
+        <label>Iniciales<input name="iniciales" required maxlength="10" value="${esc(d.iniciales||'')}"></label>
+        <label>Correo<input name="correo" type="email" required value="${esc(d.correo||'')}"></label>
+        <label>Puesto<input name="puesto" required value="${esc(d.puesto||'')}"></label>
+        <label>Área<select name="area" required>${areaOptions}</select></label>
+        <label>Empresa<select name="empresa" required>${companyOptions}</select></label>
+        <label>Reporta a<select name="reporta_a"><option value="">Sin superior</option>${superiorOptions}</select></label>
+        <label>Estado<select name="estado"><option value="1" ${Number(d.estado)!==0?'selected':''}>Activo</option><option value="0" ${Number(d.estado)===0?'selected':''}>Inactivo</option></select></label>
+      </div>
+      <section class="pc-admin-section"><h3>Roles asociados</h3><div class="pc-admin-check-grid" id="pc-admin-roles">${roleOptions}</div><label class="pc-admin-principal">Rol principal<select name="rol_id" required><option value="">Selecciona</option>${principalOptions}</select></label></section>
+      <section class="pc-admin-section"><h3>Zonas operativas</h3><div class="pc-admin-check-grid">${zoneOptions||'<span class="pc-empty">Sin zonas disponibles.</span>'}</div></section>
+      ${d.id_SB?`<section class="pc-admin-section security"><h3>Seguridad de acceso</h3><div class="pc-security-status"><span>Último acceso: <b>${esc(d.ultimo_acceso||'Sin registro')}</b></span><span>Intentos fallidos: <b>${esc(d.failed_login_attempts||0)}</b></span><span>Bloqueo: <b>${d.locked_until?esc(d.locked_until):'No'}</b></span></div><button type="button" class="pc-btn danger" id="pc-reset-credentials">Resetear credenciales</button></section>`:''}
+      <div class="pc-admin-actions"><button type="button" class="pc-btn ghost" id="pc-cancel-user">Cancelar</button><button class="pc-btn primary" ${state.adminLoading?'disabled':''}>${state.adminLoading?'Guardando...':'Guardar usuario'}</button></div>
+    </form>`;
+  }
+
+  function filteredAdminUsers(){
+    const q=state.adminUserQuery.trim().toLowerCase();
+    return state.users.filter(user=>{
+      const text=[user.nombre,user.correo,user.puesto,user.area,user.empresa,...(user.roles||[]).map(role=>role.rol)].join(' ').toLowerCase();
+      const company=String(user.empresa||'').trim();
+      return (!q||text.includes(q))&&(!state.adminUserCompany||normalizeText(company)===normalizeText(state.adminUserCompany));
+    });
+  }
+
+  function adminUserItem(user){
+    const active=Number(user.id_SB)===Number(state.adminUserId);
+    const role=principalRole(user);
+    return `<button type="button" class="pc-list-item ${active?'active':''}" data-admin-user="${user.id_SB}"><span class="pc-avatar">${esc(initials(user))}</span><span><b>${esc(user.nombre)}</b><small>${esc(role?.rol||user.puesto||'Sin rol principal')}</small></span><em>${esc(userHierarchyLevel(user))}</em></button>`;
+  }
+
+  function renderAdminUserList(){
+    const list=document.getElementById('pc-admin-user-items');
+    if(!list)return;
+    const scrollTop=list.scrollTop;
+    const users=filteredAdminUsers();
+    list.innerHTML=users.length?groupedUsers(users).map(group=>`<section class="pc-area-group"><div class="pc-area-heading"><span>${esc(group.label)}</span><em>${group.users.length}</em></div><div class="pc-area-users">${group.users.map(adminUserItem).join('')}</div></section>`).join(''):'<div class="pc-empty">Sin resultados.</div>';
+    list.querySelectorAll('[data-admin-user]').forEach(button=>button.onclick=()=>selectAdminUser(button.dataset.adminUser));
+    list.scrollTop=scrollTop;
+  }
+
+  function renderAdminUsers(){
+    const box=document.getElementById('pc-content'); if(!box)return;
+    const selected=state.adminUserId?state.users.find(u=>Number(u.id_SB)===Number(state.adminUserId)):(state.adminUserDetail!==null?{}:null);
+    const companies=distinctUserValues('empresa');
+    box.innerHTML=`<div class="pc-admin-layout"><aside class="pc-admin-list pc-admin-user-selector"><div class="pc-selector-head"><h2>Usuarios</h2><p>Agrupados por área y ordenados por nivel jerárquico.</p></div><div class="pc-filters"><input id="pc-admin-user-search" value="${esc(state.adminUserQuery)}" placeholder="Buscar..."><select id="pc-admin-user-company"><option value="">Todas las empresas</option>${companies.map(company=>`<option value="${esc(company)}" ${normalizeText(company)===normalizeText(state.adminUserCompany)?'selected':''}>${esc(company)}</option>`).join('')}</select></div><div class="pc-list" id="pc-admin-user-items"></div></aside><section class="pc-admin-editor">${adminUserForm(selected)}</section></div>`;
+    renderAdminUserList();
+    bindAdminUserEvents();
+  }
+
+  async function selectAdminUser(id){
+    state.adminUserId=Number(id); state.adminLoading=true; renderAdminUsers();
+    try{ const r=await request(`/api/usuarios/${id}/detalle`); state.adminUserDetail=r.data||null; }
+    catch(e){toast(e.message||'No se pudo cargar el usuario.');}
+    finally{state.adminLoading=false;renderAdminUsers();}
+  }
+
+  function bindAdminUserEvents(){
+    document.getElementById('pc-admin-user-search')?.addEventListener('input',event=>{state.adminUserQuery=event.target.value;renderAdminUserList();});
+    document.getElementById('pc-admin-user-company')?.addEventListener('change',event=>{state.adminUserCompany=event.target.value;renderAdminUserList();});
+    document.getElementById('pc-new-user')?.addEventListener('click',()=>{state.adminUserId=null;state.adminUserDetail={};renderAdminUsers();});
+    document.getElementById('pc-cancel-user')?.addEventListener('click',()=>{state.adminUserDetail=null;state.adminUserId=null;renderAdminUsers();});
+    const rolesBox=document.getElementById('pc-admin-roles');
+    rolesBox?.addEventListener('change',()=>{
+      const sel=document.querySelector('#pc-admin-user-form select[name="rol_id"]'); const current=sel.value;
+      const checked=[...rolesBox.querySelectorAll('input:checked')].map(i=>Number(i.value));
+      sel.innerHTML='<option value="">Selecciona</option>'+state.roles.filter(r=>checked.includes(Number(r.id_rol))).map(r=>`<option value="${r.id_rol}" ${String(r.id_rol)===current?'selected':''}>${esc(r.rol)}</option>`).join('');
+    });
+    document.getElementById('pc-admin-user-form')?.addEventListener('submit',saveAdminUser);
+    document.getElementById('pc-reset-credentials')?.addEventListener('click',resetCredentials);
+  }
+
+  async function saveAdminUser(ev){
+    ev.preventDefault(); const form=ev.currentTarget; const fd=new FormData(form);
+    const roles=[...form.querySelectorAll('input[name="roles"]:checked')].map(i=>Number(i.value));
+    const zones=[...form.querySelectorAll('input[name="zones"]:checked')].map(i=>Number(i.value));
+    const rolId=Number(fd.get('rol_id')); if(!roles.includes(rolId))roles.unshift(rolId);
+    const payload={nombre:fd.get('nombre'),iniciales:fd.get('iniciales'),correo:fd.get('correo'),puesto:fd.get('puesto'),area:fd.get('area'),empresa:fd.get('empresa'),reporta_a:fd.get('reporta_a')||null,estado:Number(fd.get('estado')),rol_id:rolId,roles_asociados:roles,zonas:zones};
+    state.adminLoading=true;renderAdminUsers();
+    try{const path=state.adminUserId?`/api/usuarios/${state.adminUserId}`:'/api/usuarios';const method=state.adminUserId?'PUT':'POST';const r=await request(path,{method,body:JSON.stringify(payload)});toast(r.message||'Usuario guardado correctamente.');state.adminUserId=Number(r.data?.id_SB||state.adminUserId);state.adminUserDetail=null;await loadBootstrap();state.tab='admin-users';await selectAdminUser(state.adminUserId);}
+    catch(e){toast(e.message||'No se pudo guardar el usuario.');state.adminLoading=false;renderAdminUsers();}
+  }
+
+  async function resetCredentials(){
+    const user=state.adminUserDetail;if(!user||!confirm(`¿Resetear únicamente las credenciales de ${user.nombre}?`))return;
+    try{const r=await request(`/api/usuarios/${user.id_SB}/reset-credentials`,{method:'POST',body:'{}'});alert(`Contraseña temporal: ${r.data?.temporary_password||'Generada'}
+Se mostrará una sola vez.`);await selectAdminUser(user.id_SB);}
+    catch(e){toast(e.message||'No se pudieron resetear las credenciales.');}
+  }
+
+  function roleCompanyLabel(value){
+    const raw=String(value||'').trim();
+    return raw||'General';
+  }
+
+  function groupedRoles(roles){
+    const groups=new Map();
+    roles.forEach(role=>{
+      const label=roleCompanyLabel(role.empresa);
+      const key=normalizeText(label)||'GENERAL';
+      if(!groups.has(key)) groups.set(key,{key,label,roles:[]});
+      groups.get(key).roles.push(role);
+    });
+    return [...groups.values()]
+      .map(group=>({...group,roles:group.roles.sort((a,b)=>Number(b.nivel||0)-Number(a.nivel||0)||String(a.rol||'').localeCompare(String(b.rol||''),'es',{sensitivity:'base'}))}))
+      .sort((a,b)=>a.label.localeCompare(b.label,'es',{sensitivity:'base'}));
+  }
+
+  function filteredAdminRoles(){
+    const query=state.adminRoleQuery.trim().toLowerCase();
+    return state.roles.filter(role=>{
+      const text=[role.rol,role.codigo,role.descripcion,role.empresa,role.nivel].join(' ').toLowerCase();
+      const sameCompany=!state.adminRoleCompany||normalizeText(roleCompanyLabel(role.empresa))===normalizeText(state.adminRoleCompany);
+      const active=Number(role.estado)!==0;
+      const sameStatus=!state.adminRoleStatus||(state.adminRoleStatus==='active'?active:!active);
+      return (!query||text.includes(query))&&sameCompany&&sameStatus;
+    });
+  }
+
+  function adminRoleItem(role){
+    const active=Number(role.id_rol)===Number(state.adminRoleId);
+    const enabled=Number(role.estado)!==0;
+    return `<button type="button" class="pc-list-item pc-admin-role-item ${active?'active':''}" data-admin-role="${role.id_rol}"><span class="pc-avatar">R</span><span><b>${esc(role.rol)}</b><small>${esc(role.codigo||'Sin código')} · ${enabled?'Activo':'Inactivo'}</small></span><em>${esc(role.nivel||0)}</em></button>`;
+  }
+
+  function renderAdminRoleList(){
+    const list=document.getElementById('pc-admin-role-items');
+    if(!list)return;
+    const scrollTop=list.scrollTop;
+    const roles=filteredAdminRoles();
+    list.innerHTML=roles.length?groupedRoles(roles).map(group=>`<section class="pc-area-group pc-role-company-group"><div class="pc-area-heading"><span>${esc(group.label)}</span><em>${group.roles.length}</em></div><div class="pc-area-users">${group.roles.map(adminRoleItem).join('')}</div></section>`).join(''):'<div class="pc-empty">Sin resultados.</div>';
+    list.querySelectorAll('[data-admin-role]').forEach(button=>button.onclick=()=>selectAdminRole(button.dataset.adminRole));
+    list.scrollTop=scrollTop;
+  }
+
+  function roleForm(role){
+    if(!role&&state.adminRoleDetail===null){
+      return `<div class="pc-admin-empty"><span class="pc-admin-empty-icon">◆</span><h2>Selecciona un rol</h2><p>Consulta o modifica un rol existente, o crea uno nuevo.</p><button type="button" class="pc-btn primary" id="pc-new-role">+ Nuevo rol</button></div>`;
+    }
+    const d=state.adminRoleDetail||role||{};
+    const companies=[...new Set(state.roles.map(item=>String(item.empresa||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+    const companyOptions=companies.map(company=>`<option value="${esc(company)}" ${normalizeText(company)===normalizeText(d.empresa)?'selected':''}>${esc(company)}</option>`).join('');
+    return `<form id="pc-admin-role-form" class="pc-admin-form"><div class="pc-admin-head"><div><span class="pc-eyebrow">CATÁLOGO</span><h2>${d.id_rol?'Editar rol':'Crear rol'}</h2><p>Los roles no se eliminan físicamente; pueden desactivarse.</p></div><button type="button" class="pc-btn primary" id="pc-new-role">+ Nuevo rol</button></div><div class="pc-admin-grid"><label>Nombre<input name="rol" required value="${esc(d.rol||'')}"></label><label>Código<input name="codigo" value="${esc(d.codigo||'')}"></label><label>Empresa<select name="empresa" required><option value="">Selecciona...</option>${companyOptions}</select></label><label>Nivel<input name="nivel" type="number" min="0" value="${d.nivel!==undefined&&d.nivel!==null?esc(d.nivel):''}" placeholder="Nivel jerárquico"></label><label class="wide">Descripción<textarea name="descripcion" rows="4">${esc(d.descripcion||'')}</textarea></label><label>Estado<select name="estado"><option value="1" ${Number(d.estado)!==0?'selected':''}>Activo</option><option value="0" ${Number(d.estado)===0?'selected':''}>Inactivo</option></select></label></div>${d.id_rol?`<section class="pc-admin-section"><h3>Usuarios asignados (${esc(d.usuarios_asignados||0)})</h3><div class="pc-role-users">${(d.usuarios||[]).map(u=>`<span>${esc(u.nombre)}${u.principal?' · Principal':''}</span>`).join('')||'Sin usuarios asignados.'}</div><button type="button" class="pc-btn ghost" id="pc-go-role-permissions">Ir a permisos</button></section>`:''}<div class="pc-admin-actions"><button type="button" class="pc-btn ghost" id="pc-cancel-role">Cancelar</button><button class="pc-btn primary" ${state.adminLoading?'disabled':''}>${state.adminLoading?'Guardando...':'Guardar rol'}</button></div></form>`;
+  }
+
+  function renderAdminRoles(){
+    const box=document.getElementById('pc-content');if(!box)return;
+    const selected=state.adminRoleId?state.roles.find(role=>Number(role.id_rol)===Number(state.adminRoleId)):(state.adminRoleDetail!==null?{}:null);
+    const companies=[...new Set(state.roles.map(role=>roleCompanyLabel(role.empresa)))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+    box.innerHTML=`<div class="pc-admin-layout"><aside class="pc-admin-list pc-admin-role-selector"><div class="pc-selector-head"><h2>Roles</h2><p>Agrupados por empresa y ordenados por nivel jerárquico.</p></div><div class="pc-role-filters"><input id="pc-admin-role-search" value="${esc(state.adminRoleQuery)}" placeholder="Buscar..."><select id="pc-admin-role-company"><option value="">Todas las empresas</option>${companies.map(company=>`<option value="${esc(company)}" ${normalizeText(company)===normalizeText(state.adminRoleCompany)?'selected':''}>${esc(company)}</option>`).join('')}</select><select id="pc-admin-role-status"><option value="">Todos</option><option value="active" ${state.adminRoleStatus==='active'?'selected':''}>Activos</option><option value="inactive" ${state.adminRoleStatus==='inactive'?'selected':''}>Inactivos</option></select></div><div class="pc-list" id="pc-admin-role-items"></div></aside><section class="pc-admin-editor">${roleForm(selected)}</section></div>`;
+    renderAdminRoleList();
+    bindAdminRoleEvents();
+  }
+
+  async function selectAdminRole(id){
+    state.adminRoleId=Number(id);state.adminLoading=true;renderAdminRoles();
+    try{const response=await request(`/api/panel-control/admin/roles/${id}`);state.adminRoleDetail=response.data||null;}
+    catch(error){toast(error.message||'No se pudo cargar el rol.');}
+    finally{state.adminLoading=false;renderAdminRoles();}
+  }
+
+  function bindAdminRoleEvents(){
+    document.getElementById('pc-admin-role-search')?.addEventListener('input',event=>{state.adminRoleQuery=event.target.value;renderAdminRoleList();});
+    document.getElementById('pc-admin-role-company')?.addEventListener('change',event=>{state.adminRoleCompany=event.target.value;renderAdminRoleList();});
+    document.getElementById('pc-admin-role-status')?.addEventListener('change',event=>{state.adminRoleStatus=event.target.value;renderAdminRoleList();});
+    document.getElementById('pc-new-role')?.addEventListener('click',()=>{state.adminRoleId=null;state.adminRoleDetail={};renderAdminRoles();});
+    document.getElementById('pc-cancel-role')?.addEventListener('click',()=>{state.adminRoleId=null;state.adminRoleDetail=null;renderAdminRoles();});
+    document.getElementById('pc-admin-role-form')?.addEventListener('submit',saveAdminRole);
+    document.getElementById('pc-go-role-permissions')?.addEventListener('click',async()=>{state.selectedRoleId=state.adminRoleId;state.tab='roles';render();await loadRolePermissions(state.selectedRoleId);});
+  }
+
+  async function saveAdminRole(ev){
+    ev.preventDefault();
+    const fd=new FormData(ev.currentTarget);
+    const payload={rol:fd.get('rol'),codigo:fd.get('codigo'),empresa:fd.get('empresa'),nivel:Number(fd.get('nivel')||0),descripcion:fd.get('descripcion'),estado:Number(fd.get('estado'))};
+    state.adminLoading=true;renderAdminRoles();
+    try{
+      const path=state.adminRoleId?`/api/panel-control/admin/roles/${state.adminRoleId}`:'/api/panel-control/admin/roles';
+      const method=state.adminRoleId?'PUT':'POST';
+      const response=await request(path,{method,body:JSON.stringify(payload)});
+      toast(response.message||'Rol guardado correctamente.');
+      state.adminRoleId=Number(response.data?.id_rol||state.adminRoleId);
+      state.adminRoleDetail=null;
+      await loadBootstrap();
+      state.tab='admin-roles';
+      await selectAdminRole(state.adminRoleId);
+    }catch(error){
+      toast(error.message||'No se pudo guardar el rol.');
+      state.adminLoading=false;renderAdminRoles();
+    }
   }
 
   function toast(message){

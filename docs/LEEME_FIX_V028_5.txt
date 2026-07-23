@@ -1,0 +1,40 @@
+FIX V028.5 - Soporte / Solicitudes - Detalle de solicitud
+Fecha: 23/07/2026
+
+ARCHIVOS MODIFICADOS
+- modules/soporte-solicitudes/soporte-solicitudes.html
+- modules/soporte-solicitudes/soporte-solicitudes.css
+- modules/soporte-solicitudes/soporte-solicitudes.js
+- backend/src/controllers/support.controller.js
+- backend/src/routes/support.routes.js
+
+IMPLEMENTACION
+- Boton Ver abre el detalle dentro del modulo, sin salir de Solicitudes.
+- Informacion principal en acordeon.
+- Informacion del contacto en acordeon.
+- Seguimiento de fechas en acordeon.
+- Interacciones muestra historial, mensajes y archivos disponibles.
+- Nuevo endpoint GET /api/support/tickets/:id.
+- El detalle consulta usuario creador y usuario asignado desde usuarios.
+- Fechas visuales: DD/MM/AAAA - HH:mm:ss hrs.
+- Sin datos ficticios: los campos no disponibles muestran un guion.
+
+DEPENDENCIAS
+- Requiere V028.1 a V028.4 aplicados.
+- No incluye edicion de solicitudes; el boton Editar conserva el evento preparado.
+
+OBSERVACIONES DE DATOS
+La interfaz ya contempla estos campos, pero deben existir en sup_tickets para mostrar datos reales:
+- fecha_estimada_solucion
+- fecha_cierre_tecnico
+- fecha_incidente (agregado en V028.4)
+- id_soporte o columna equivalente para la asignacion
+- historial/interacciones con mensajes y adjuntos
+
+VALIDACION RECOMENDADA ANTES DE DEPLOY
+1. Ejecutar node --check en los JS modificados.
+2. Confirmar arranque del backend.
+3. Probar /api/health.
+4. Probar GET /api/support/tickets.
+5. Probar GET /api/support/tickets/:id.
+6. Confirmar que la ruta /api/support siga registrada en server/app.

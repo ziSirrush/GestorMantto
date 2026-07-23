@@ -1,35 +1,36 @@
 <!DOCTYPE html>
+
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light only" />
-  <meta name="theme-color" content="#0D2E6E" />
-  <meta name="application-name" content="Mantto Gestor" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Mantto Gestor" />
-  <title>Mantto Gestor | Pruebas</title>
-  <link rel="manifest" href="./manifest.json" />
-  <link rel="icon" href="./assets/img/icons/favicon.ico" sizes="any" />
-  <link rel="apple-touch-icon" href="./assets/img/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./styles/base.css?v=20260710-sidebar-v015" />
-  <link rel="stylesheet" href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" />
-  <link rel="stylesheet" href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" />
-  <link rel="stylesheet" href="./modules/panel-control/panel-control.css?v=20260720-v001" />
-  <link rel="stylesheet" href="./styles/home.css?v=20260705-v115" />
-  <link rel="stylesheet" href="./modules/resumen-dia/resumen-dia.css?v=20260716-v117" />
-  <link rel="stylesheet" href="./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5" />
-  <link rel="stylesheet" href="./modules/portafolio/portafolio.css?v=20260717-kpi-views-v002" />
-  <link rel="stylesheet" href="./modules/proyectos/proyectos.css?v=20260706-v001" />
-  <link rel="stylesheet" href="./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260713-desarrollo-aiven" />
-  <link rel="stylesheet" href="./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.css?v=20260713-v001" />
-  <link rel="stylesheet" href="./modules/callcenter/callcenter.css?v=cc-v005" />
-  <link rel="stylesheet" href="./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001" />
-  <link rel="stylesheet" href="./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003" />
-  <link rel="stylesheet" href="./modules/usuarios/usuarios.css?v=20260707-v001" />
-
-  <style id="mantto-critical-visibility">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="light only" name="color-scheme"/>
+<meta content="#0D2E6E" name="theme-color"/>
+<meta content="Mantto Gestor" name="application-name"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="Mantto Gestor" name="apple-mobile-web-app-title"/>
+<title>Mantto Gestor | Pruebas</title>
+<link href="./manifest.json" rel="manifest"/>
+<link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
+<link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+<link href="./styles/base.css?v=20260723-v030-2" rel="stylesheet"/>
+<link href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" rel="stylesheet"/>
+<link href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" rel="stylesheet"/>
+<link href="./modules/panel-control/panel-control.css?v=20260722-v026" rel="stylesheet"/>
+<link href="./styles/home.css?v=20260705-v115" rel="stylesheet"/>
+<link href="./modules/resumen-dia/resumen-dia.css?v=20260716-v117" rel="stylesheet"/>
+<link href="./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5" rel="stylesheet"/>
+<link href="./modules/portafolio/portafolio.css?v=20260717-kpi-views-v002" rel="stylesheet"/>
+<link href="./modules/proyectos/proyectos.css?v=20260706-v001" rel="stylesheet"/>
+<link href="./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260713-desarrollo-aiven" rel="stylesheet"/>
+<link href="./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.css?v=20260713-v001" rel="stylesheet"/>
+<link href="./modules/callcenter/callcenter.css?v=cc-v005" rel="stylesheet"/>
+<link href="./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001" rel="stylesheet"/>
+<link href="./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003" rel="stylesheet"/>
+<link href="./modules/usuarios/usuarios.css?v=20260707-v001" rel="stylesheet"/>
+<link href="./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260723-v030-2" rel="stylesheet"/>
+<style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
     [hidden]{display:none!important}
     .auth-bootstrap-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#f4f7fc;color:#0d2e6e;font-family:Arial,sans-serif}
@@ -39,509 +40,630 @@
   </style>
 </head>
 <body>
-  <section id="auth-bootstrap-screen" class="auth-bootstrap-screen" aria-live="polite" aria-label="Validando sesión">
-    <div class="auth-bootstrap-card"><span class="auth-bootstrap-spinner" aria-hidden="true"></span><span>Validando sesión...</span></div>
-  </section>
-  <section id="auth-screen" class="auth-screen hidden" aria-label="Inicio de sesión Mantto Gestor">
-    <div class="auth-card">
-      <div class="auth-brand">
-        <img alt="BLT Brilliant" src="assets/logo.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />
-        <span class="auth-logo-fallback">BLT</span>
-        <div>
-          <h1>GESTOR DE OPERACIONES</h1>
-          <p>ACCESO SEGURO · PRUEBAS AIVEN</p>
-        </div>
-      </div>
-
-      <form id="login-form" class="auth-form">
-        <h2>Inicio de sesión</h2>
-        <p class="auth-help">Acceso seguro con tu usuario registrado en Aiven.</p>
-        <label>Correo
-          <input id="login-correo" type="email" autocomplete="username" required placeholder="correo@empresa.com" />
-        </label>
-        <label>Contraseña
-          <input id="login-pass" type="password" autocomplete="current-password" required placeholder="Contraseña" />
-        </label>
-        <button type="submit" class="auth-primary">Iniciar sesión</button>
-        <div class="auth-links-row"><button type="button" id="btn-open-recovery" class="auth-link">Recuperar contraseña</button><button type="button" class="auth-link" data-route="help">Ayuda para iniciar sesión</button></div>
-        <div id="login-msg" class="auth-msg"></div>
-      </form>
-
-      <form id="first-login-form" class="auth-form hidden">
-        <h2>Primer acceso</h2>
-        <p class="auth-help">Cambia tu contraseña y configura tu pregunta de seguridad.</p>
-        <label>Nueva contraseña
-          <input id="first-new-pass" type="password" autocomplete="new-password" required placeholder="Mínimo 10 caracteres" />
-        </label>
-        <label>Pregunta de seguridad
-          <select id="first-question" required></select>
-        </label>
-        <label>Respuesta
-          <input id="first-answer" type="text" required placeholder="Respuesta de recuperación" />
-        </label>
-        <button type="submit" class="auth-primary">Guardar y continuar</button>
-        <button type="button" id="btn-cancel-first" class="auth-link">Cerrar sesión</button>
-        <div id="first-msg" class="auth-msg"></div>
-      </form>
-
-      <form id="recovery-form" class="auth-form hidden">
-        <h2>Recuperar contraseña</h2>
-        <p class="auth-help">Usa la pregunta de seguridad registrada.</p>
-        <label>Correo
-          <input id="recovery-correo" type="email" autocomplete="username" required placeholder="correo@empresa.com" />
-        </label>
-        <button type="button" id="btn-recovery-start" class="auth-secondary">Buscar pregunta</button>
-        <div id="recovery-question-box" class="hidden">
-          <label>Pregunta
-            <input id="recovery-question" type="text" readonly />
-          </label>
-          <label>Respuesta
-            <input id="recovery-answer" type="text" />
-          </label>
-          <label>Nueva contraseña
-            <input id="recovery-new-pass" type="password" autocomplete="new-password" placeholder="Mínimo 10 caracteres" />
-          </label>
-          <button type="submit" class="auth-primary">Actualizar contraseña</button>
-        </div>
-        <button type="button" id="btn-back-login" class="auth-link">Volver a inicio de sesión</button>
-        <div id="recovery-msg" class="auth-msg"></div>
-      </form>
-    </div>
-  </section>
-
-  <div id="app" class="app-shell auth-hidden">
-    <header class="hdr app-topbar">
-      <button class="sidebar-toggle" id="btnToggleSidebar" title="Contraer panel lateral" aria-label="Contraer panel lateral">☰</button>
-
-      <button class="hdr-logo-btn" data-route="home" title="Inicio" type="button">
-        <img alt="BLT Brilliant" class="hdr-logo-img" src="assets/logo.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />
-        <span class="hdr-logo-fallback">BLT</span>
-      </button>
-
-      <div class="hdr-title-main">SISTEMA DE GESTIÓN DE OPERACIONES</div>
-
-      <div class="hdr-right app-topbar-actions">
-        <button class="hdr-api-status programmer" data-route="services" title="Estado de servicios" type="button" aria-label="API conectada">
-          <span class="status-dot ok"></span>
-          <span class="api-main">API</span>
-        </button>
-
-        <button class="hdr-support-btn" data-route="help" title="Centro de Ayuda" type="button" aria-label="Centro de Ayuda">
+<section aria-label="Validando sesión" aria-live="polite" class="auth-bootstrap-screen" id="auth-bootstrap-screen">
+<div class="auth-bootstrap-card"><span aria-hidden="true" class="auth-bootstrap-spinner"></span><span>Validando sesión...</span></div>
+</section>
+<section aria-label="Inicio de sesión Mantto Gestor" class="auth-screen hidden" id="auth-screen">
+<div class="auth-card">
+<div class="auth-brand">
+<img alt="BLT Brilliant" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" src="assets/logo.png"/>
+<span class="auth-logo-fallback">BLT</span>
+<div>
+<h1>GESTOR DE OPERACIONES</h1>
+<p>ACCESO SEGURO · PRUEBAS AIVEN</p>
+</div>
+</div>
+<form class="auth-form" id="login-form">
+<h2>Inicio de sesión</h2>
+<p class="auth-help">Acceso seguro con tu usuario registrado en Aiven.</p>
+<label>Correo
+          <input autocomplete="username" id="login-correo" placeholder="correo@empresa.com" required="" type="email"/>
+</label>
+<label>Contraseña
+          <input autocomplete="current-password" id="login-pass" placeholder="Contraseña" required="" type="password"/>
+</label>
+<button class="auth-primary" type="submit">Iniciar sesión</button>
+<div class="auth-links-row"><button class="auth-link" id="btn-open-recovery" type="button">Recuperar contraseña</button><button class="auth-link" data-route="help" type="button">Ayuda para iniciar sesión</button></div>
+<div class="auth-msg" id="login-msg"></div>
+</form>
+<form class="auth-form hidden" id="first-login-form">
+<h2>Primer acceso</h2>
+<p class="auth-help">Cambia tu contraseña y configura tu pregunta de seguridad.</p>
+<label>Nueva contraseña
+          <input autocomplete="new-password" id="first-new-pass" placeholder="Mínimo 10 caracteres" required="" type="password"/>
+</label>
+<label>Pregunta de seguridad
+          <select id="first-question" required=""></select>
+</label>
+<label>Respuesta
+          <input id="first-answer" placeholder="Respuesta de recuperación" required="" type="text"/>
+</label>
+<button class="auth-primary" type="submit">Guardar y continuar</button>
+<button class="auth-link" id="btn-cancel-first" type="button">Cerrar sesión</button>
+<div class="auth-msg" id="first-msg"></div>
+</form>
+<form class="auth-form hidden" id="recovery-form">
+<h2>Recuperar contraseña</h2>
+<p class="auth-help">Usa la pregunta de seguridad registrada.</p>
+<label>Correo
+          <input autocomplete="username" id="recovery-correo" placeholder="correo@empresa.com" required="" type="email"/>
+</label>
+<button class="auth-secondary" id="btn-recovery-start" type="button">Buscar pregunta</button>
+<div class="hidden" id="recovery-question-box">
+<label>Pregunta
+            <input id="recovery-question" readonly="" type="text"/>
+</label>
+<label>Respuesta
+            <input id="recovery-answer" type="text"/>
+</label>
+<label>Nueva contraseña
+            <input autocomplete="new-password" id="recovery-new-pass" placeholder="Mínimo 10 caracteres" type="password"/>
+</label>
+<button class="auth-primary" type="submit">Actualizar contraseña</button>
+</div>
+<button class="auth-link" id="btn-back-login" type="button">Volver a inicio de sesión</button>
+<div class="auth-msg" id="recovery-msg"></div>
+</form>
+</div>
+</section>
+<div class="app-shell auth-hidden" id="app">
+<header class="hdr app-topbar">
+<button aria-label="Contraer panel lateral" class="sidebar-toggle" id="btnToggleSidebar" title="Contraer panel lateral">☰</button>
+<button class="hdr-logo-btn" data-route="home" title="Inicio" type="button">
+<img alt="BLT Brilliant" class="hdr-logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" src="assets/logo.png"/>
+<span class="hdr-logo-fallback">BLT</span>
+</button>
+<div class="hdr-title-main">SISTEMA DE GESTIÓN DE OPERACIONES</div>
+<div class="hdr-right app-topbar-actions">
+<button aria-label="API conectada" class="hdr-api-status programmer" data-route="services" title="Estado de servicios" type="button">
+<span class="status-dot ok"></span>
+<span class="api-main">API</span>
+</button>
+<button aria-label="Centro de Ayuda" class="hdr-support-btn" data-route="help" title="Centro de Ayuda" type="button">
           ?
         </button>
-
-        <button class="hdr-icon-btn" id="hdr-notif-btn" title="Notificaciones" type="button" aria-haspopup="true" aria-expanded="false">
+<button aria-expanded="false" aria-haspopup="true" class="hdr-icon-btn" id="hdr-notif-btn" title="Notificaciones" type="button">
           🔔
           <span class="hdr-badge" id="hdr-notif-count">0</span>
-        </button>
-        <div class="hdr-notif-popover" id="hdr-notif-popover" hidden></div>
-
-        <div class="user-viewer-wrap" id="user-viewer-wrap" hidden>
-          <span class="user-viewer-label">👁 Ver como</span>
-          <button class="user-viewer-trigger" id="user-viewer-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
-            <span id="user-viewer-trigger-text">Seleccionar usuario</span>
-            <span aria-hidden="true">▾</span>
-          </button>
-          <div class="user-viewer-menu" id="user-viewer-menu" hidden>
-            <div class="user-viewer-search-wrap">
-              <input id="user-viewer-search" type="search" placeholder="Buscar por nombre, correo, rol o empresa..." autocomplete="off" aria-label="Buscar usuario" />
-            </div>
-            <div class="user-viewer-list" id="user-viewer-list" role="listbox" aria-label="Usuarios disponibles"></div>
-          </div>
-        </div>
-
-        <div class="hdr-user-actions" aria-label="Usuario y sesión">
-          <button class="hdr-user" data-route="usuarios" type="button" title="Abrir usuario / perfil">
-            <span class="hdr-av" id="hdr-user-initials">--</span>
-            <span class="hdr-user-box">
-              <span class="hdr-user-name" id="hdr-user-name">Usuario</span>
-              <span class="hdr-user-meta"><span id="hdr-user-company">BLT</span><span id="hdr-user-role">Rol</span></span>
-            </span>
-          </button>
-          <button class="hdr-logout-btn" id="hdr-logout-btn" type="button" title="Cerrar sesión">Cerrar sesión</button>
-        </div>
-      </div>
-    </header>
-
-    <div class="user-viewer-banner" id="user-viewer-banner" hidden>
-      <div><strong>MODO VISOR</strong><span>Sesión real: <b id="user-viewer-actor">—</b></span><span>Visualizando: <b id="user-viewer-current">—</b></span></div>
-      <button id="user-viewer-exit" type="button">Salir del visor</button>
-    </div>
-
-    <div id="app-context-nav" aria-live="polite">
-      <div class="app-context-inner">
-        <button id="app-back-btn" type="button" disabled>
+</button>
+<div class="hdr-notif-popover" hidden="" id="hdr-notif-popover"></div>
+<div class="user-viewer-wrap" hidden="" id="user-viewer-wrap">
+<span class="user-viewer-label">👁 Ver como</span>
+<button aria-expanded="false" aria-haspopup="listbox" class="user-viewer-trigger" id="user-viewer-trigger" type="button">
+<span id="user-viewer-trigger-text">Seleccionar usuario</span>
+<span aria-hidden="true">▾</span>
+</button>
+<div class="user-viewer-menu" hidden="" id="user-viewer-menu">
+<div class="user-viewer-search-wrap">
+<input aria-label="Buscar usuario" autocomplete="off" id="user-viewer-search" placeholder="Buscar por nombre, correo, rol o empresa..." type="search"/>
+</div>
+<div aria-label="Usuarios disponibles" class="user-viewer-list" id="user-viewer-list" role="listbox"></div>
+</div>
+</div>
+<div aria-label="Usuario y sesión" class="hdr-user-actions">
+<button class="hdr-user" data-route="usuarios" title="Abrir usuario / perfil" type="button">
+<span class="hdr-av" id="hdr-user-initials">--</span>
+<span class="hdr-user-box">
+<span class="hdr-user-name" id="hdr-user-name">Usuario</span>
+<span class="hdr-user-meta"><span id="hdr-user-company">BLT</span><span id="hdr-user-role">Rol</span></span>
+</span>
+</button>
+<button class="hdr-logout-btn" id="hdr-logout-btn" title="Cerrar sesión" type="button">Cerrar sesión</button>
+</div>
+</div>
+</header>
+<div class="user-viewer-banner" hidden="" id="user-viewer-banner">
+<div><strong>MODO VISOR</strong><span>Sesión real: <b id="user-viewer-actor">—</b></span><span>Visualizando: <b id="user-viewer-current">—</b></span></div>
+<button id="user-viewer-exit" type="button">Salir del visor</button>
+</div>
+<div aria-live="polite" id="app-context-nav">
+<div class="app-context-inner">
+<button disabled="" id="app-back-btn" type="button">
           ← <span id="app-back-label">Inicio</span>
-        </button>
-        <div class="app-context-title-wrap">
-          <div id="app-context-title">Inicio</div>
-          <div id="app-context-subtitle">Home operativo · tareas, notificaciones e interacciones recientes</div>
-        </div>
-        <div class="daily-phrase" title="Frase del día">
-          <span id="context-date">—</span>
-          <span class="context-separator">|</span>
-          <span id="context-time">—</span>
-          <span class="context-separator">|</span>
-          <span id="daily-phrase-text">—</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="app-body">
-      <aside class="sidebar" id="sidebar">
-        <nav class="side-nav" aria-label="Módulos">
-          <button class="side-item side-standalone" data-route="home" data-permission="home" type="button"><span>🏠</span><b>Inicio</b></button>
-
-          <div class="side-divider" aria-hidden="true"></div>
-
-          <section class="side-group" data-group="operacion">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-operacion">
-              <span class="side-group-icon">🛠️</span><b>Operación</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-operacion">
-              <button class="side-item" data-route="resumen" data-permission="operacion_resumen" type="button"><span>📅</span><b>Resumen del Día</b></button>
-              <button class="side-item" data-route="criticos" data-permission="operacion_criticos" type="button"><span>⚠️</span><b>Equipos Críticos</b></button>
-              <button class="side-item" data-route="callcenter" data-permission="operacion_callcenter" type="button"><span>☎️</span><b>Dashboard Call Center</b></button>
-              <button class="side-item" data-route="operativo" data-permission="operacion_operativo" type="button"><span>📊</span><b>Dashboard Operativo</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="portafolio">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-portafolio">
-              <span class="side-group-icon">🏢</span><b>Portafolio</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-portafolio">
-              <button class="side-item" data-route="portafolio" data-permission="portafolio_dashboard" type="button"><span>📈</span><b>Dashboard Portafolio</b></button>
-              <button class="side-item" data-route="movimientos" data-permission="portafolio_movimientos" type="button"><span>⇄</span><b>Movimientos Portafolio</b></button>
-              <button class="side-item" data-route="proyectos" data-permission="portafolio_proyectos" type="button"><span>🏗️</span><b>Proyectos de Mantenimiento</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="ventas">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-ventas">
-              <span class="side-group-icon">🤝</span><b>Ventas</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-ventas">
-              <button class="side-item" data-route="ventas-dashboard" data-permission="ventas_dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
-              <button class="side-item" data-route="ventas-vendidos" data-permission="ventas_vendidos" type="button"><span>🤝</span><b>Vendidos</b></button>
-              <button class="side-item" data-route="ventas-proyeccion" data-permission="ventas_proyeccion" type="button"><span>📈</span><b>Proyección</b></button>
-              <button class="side-item" data-route="ventas-perdidos" data-permission="ventas_perdidos" type="button"><span>📉</span><b>Perdidos</b></button>
-              <button class="side-item" data-route="ventas-fotos-mapa" data-permission="ventas_fotos_mapa" type="button"><span>🗺️</span><b>Fotos Mapa</b></button>
-              <button class="side-item" data-route="ventas-clientes" data-permission="ventas_clientes" type="button"><span>👤</span><b>Clientes</b></button>
-              <button class="side-item" data-route="ventas-cotizaciones" data-permission="ventas_cotizaciones" type="button"><span>💬</span><b>Cotizaciones</b></button>
-              <button class="side-item" data-route="ventas-prospeccion" data-permission="ventas_prospeccion" type="button"><span>🔎</span><b>Prospección</b></button>
-              <button class="side-item" data-route="ventas-mapa-prospeccion" data-permission="ventas_mapa_prospeccion" type="button"><span>📍</span><b>Mapa Prospección</b></button>
-              <button class="side-item" data-route="ventas-asignacion-redes" data-permission="ventas_asignacion_redes" type="button"><span>🌐</span><b>Asignación Redes</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="logistica">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-logistica">
-              <span class="side-group-icon">🚚</span><b>Logística</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-logistica">
-              <button class="side-item" data-route="logistica-dashboard" data-permission="logistica_dashboard" type="button"><span>📊</span><b>Dashboard Logística</b></button>
-              <button class="side-item" data-route="logistica-reporte" data-permission="logistica_reporte" type="button"><span>📋</span><b>Reporte de Logística</b></button>
-              <button class="side-item" data-route="logistica-pvo" data-permission="logistica_pvo" type="button"><span>🧭</span><b>PVO</b></button>
-              <button class="side-item" data-route="logistica-produccion" data-permission="logistica_produccion" type="button"><span>🏭</span><b>Producción</b></button>
-              <button class="side-item" data-route="logistica-documentos" data-permission="logistica_documentos" type="button"><span>📁</span><b>Documentos de Producción</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="instalaciones">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-instalaciones">
-              <span class="side-group-icon">🏗️</span><b>Instalaciones</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-instalaciones">
-              <button class="side-item" data-route="instalaciones-dashboard" data-permission="instalaciones_dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
-              <button class="side-item" data-route="instalaciones-proyectos" data-permission="instalaciones_proyectos" type="button"><span>🏢</span><b>Proyectos</b></button>
-              <button class="side-item" data-route="instalaciones-concentrado-cliente" data-permission="instalaciones_concentrado_cliente" type="button"><span>👥</span><b>Concentrado Cliente</b></button>
-              <button class="side-item" data-route="instalaciones-reporte" data-permission="instalaciones_reporte" type="button"><span>📈</span><b>Reporte de Instalaciones</b></button>
-              <button class="side-item" data-route="instalaciones-pmm" data-permission="instalaciones_pmm" type="button"><span>🧩</span><b>PM&amp;M</b></button>
-              <button class="side-item" data-route="instalaciones-documentacion" data-permission="instalaciones_documentacion" type="button"><span>📄</span><b>Documentación Pendiente</b></button>
-              <button class="side-item" data-route="instalaciones-cerrados" data-permission="instalaciones_cerrados" type="button"><span>✅</span><b>Proyectos Cerrados</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="cobranza">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-cobranza">
-              <span class="side-group-icon">💰</span><b>Cobranza</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-cobranza">
-              <button class="side-item" data-route="cobranza-dashboard" data-permission="cobranza_dashboard" type="button"><span>📊</span><b>Dashboard Cobranza</b></button>
-              <button class="side-item" data-route="cobranza-estados-cuenta" data-permission="cobranza_estados_cuenta" type="button"><span>🧾</span><b>Estados de Cuenta</b></button>
-              <button class="side-item" data-route="cobranza-aditivas" data-permission="cobranza_aditivas" type="button"><span>➕</span><b>Aditivas</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="almacen">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-almacen">
-              <span class="side-group-icon">📦</span><b>Almacén</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-almacen">
-              <button class="side-item" data-route="almacen-dashboard" data-permission="almacen_dashboard" type="button"><span>📊</span><b>Dashboard Almacén</b></button>
-              <button class="side-item" data-route="almacen-inventarios" data-permission="almacen_inventarios" type="button"><span>📋</span><b>Inventarios</b></button>
-              <button class="side-item" data-route="almacen-movimientos" data-permission="almacen_movimientos" type="button"><span>⇄</span><b>Movimientos Almacén</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="customer-experience">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-customer-experience">
-              <span class="side-group-icon">💬</span><b>Customer Experience</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-customer-experience">
-              <button class="side-item" data-route="cx-dashboard" data-permission="cx_dashboard" type="button"><span>📊</span><b>Dashboard CX</b></button>
-              <button class="side-item" data-route="cx-encuestas" data-permission="cx_encuestas" type="button"><span>📝</span><b>Encuestas</b></button>
-              <button class="side-item" data-route="cx-visitas" data-permission="cx_visitas" type="button"><span>🤝</span><b>Visitas</b></button>
-            </div>
-          </section>
-
-          <section class="side-group" data-group="legal">
-            <button class="side-group-toggle" type="button" aria-expanded="false" aria-controls="side-group-legal">
-              <span class="side-group-icon">⚖️</span><b>Legal</b><i>⌄</i>
-            </button>
-            <div class="side-group-items" id="side-group-legal">
-              <button class="side-item" data-route="legal-dashboard" data-permission="legal_dashboard" type="button"><span>📊</span><b>Dashboard Legal</b></button>
-              <button class="side-item" data-route="legal-contratos" data-permission="legal_contratos" type="button"><span>📑</span><b>Contratos</b></button>
-              <button class="side-item" data-route="legal-suspendidos" data-permission="legal_suspendidos" type="button"><span>⏸️</span><b>Suspendidos</b></button>
-            </div>
-          </section>
-
-          <div class="side-divider" aria-hidden="true"></div>
-
-          <button class="side-item side-standalone" data-route="usuarios" data-permission="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
-          <button class="side-item side-standalone programmer" data-route="panel-control" data-permission="panel_control" type="button"><span>⚙️</span><b>Panel de Control</b></button>
-        </nav>
-      </aside>
-
-      <main class="main-content">
-        <section id="view-home" class="view active" data-view="home"></section>
-        <section id="view-portafolio" class="view pf-view" data-view="portafolio" aria-label="Portafolio"></section>
-        <section id="view-usuarios" class="view usr-view" data-view="usuarios" aria-label="Usuarios"></section>
-        <section id="view-panel-control" class="view pc-view" data-view="panel-control" aria-label="Panel de Control"></section>
-        <section id="view-proyectos" class="view proy-view" data-view="proyectos" aria-label="Proyectos"></section>
-        <section id="view-instalaciones-proyectos" class="view insproy-view" data-view="instalaciones-proyectos" aria-label="Proyectos de Instalación"></section>
-        <section id="view-instalaciones-concentrado-cliente" class="view icc-view" data-view="instalaciones-concentrado-cliente" aria-label="Concentrado Cliente"></section>
-        <section id="view-resumen" class="view resumen-page" data-view="resumen" aria-label="Resumen del día">
-          <div class="rd-card rd-header">
-            <div class="rd-title">
-              <h1>Resumen del día</h1>
-              <p>Vista ejecutiva diaria con tickets, responsabilidades, alertas, tiempos, gráficas y tabla detallada.</p>
-            </div>
-            <div class="rd-actions">
-              <button class="rd-btn" id="rd-prev-day" type="button">← Día anterior</button>
-              <div class="rd-date-box">
-                <div class="rd-date-label" id="rd-day-label">—</div>
-                <div class="rd-date-sub" id="rd-day-sub">Sin datos cargados</div>
-              </div>
-              <button class="rd-btn" id="rd-next-day" type="button">Día siguiente →</button>
-              <button class="rd-btn primary" id="rd-refresh" type="button">↻ Actualizar</button>
-              <div class="rd-status loading" id="rd-api-status"><span class="dot"></span><span>Cargando Aiven...</span></div>
-            </div>
-          </div>
-        
-          <div class="rd-grid kpi-6">
-            <article class="rd-kpi g-blue"><div class="ico" data-estado-visual="TICKET">🎫</div><div class="val" id="rd-total">—</div><div class="lbl">Tickets</div><div class="sub">Reportados en el día</div></article>
-            <article class="rd-kpi g-green clickable" data-rd-detail="cerrados"><div class="ico" data-estado-visual="CERRADO">✓</div><div class="val" id="rd-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="rd-cerrados-pct">—</div></article>
-            <article class="rd-kpi g-amber clickable" data-rd-detail="encurso"><div class="ico" data-estado-visual="EN_CURSO">⏳</div><div class="val" id="rd-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="rd-encurso-pct">—</div></article>
-            <article class="rd-kpi g-orange clickable" data-rd-detail="abiertos"><div class="ico" data-estado-visual="ABIERTO">🔴</div><div class="val" id="rd-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="rd-abiertos-pct">—</div></article>
-            <article class="rd-kpi g-blue clickable" data-rd-detail="blt"><div class="ico" data-estado-visual="RESPONSABILIDAD_BLT">🛠</div><div class="val" id="rd-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="rd-blt-pct">—</div></article>
-            <article class="rd-kpi g-cyan clickable" data-rd-detail="cliente"><div class="ico" data-estado-visual="RESPONSABILIDAD_CLIENTE">👤</div><div class="val" id="rd-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="rd-cli-pct">—</div></article>
-          </div>
-        
-          <div class="rd-grid kpi-5">
-            <article class="rd-kpi g-red clickable" data-rd-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="rd-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
-            <article class="rd-kpi g-cyan clickable" data-rd-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="rd-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
-            <article class="rd-kpi g-purple clickable" data-rd-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="rd-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
-            <article class="rd-kpi g-critical clickable" data-rd-detail="criticos"><div class="ico" aria-label="Críticos">💥</div><div class="val" id="rd-criticos-dia">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
-            <article class="rd-kpi g-dark clickable" data-rd-detail="nofunc"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="rd-nofunc">—</div><div class="lbl">No funcionando</div><div class="sub">Ver detalle</div></article>
-          </div>
-        
-          <div id="rd-detail" class="rd-detail rd-card"></div>
-        
-          <div class="rd-grid kpi-3">
-            <article class="rd-kpi g-teal"><div class="ico">⏱</div><div class="val" id="rd-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">minutos</div></article>
-            <article class="rd-kpi g-blue"><div class="ico">🕐</div><div class="val" id="rd-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">equipos resueltos</div></article>
-            <article class="rd-kpi g-slate clickable" data-rd-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="rd-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="rd-sla-pct">—</div></article>
-          </div>
-        
-          <div class="rd-grid two">
-            <div class="rd-card rd-section"><div class="rd-section-head"><h2>Estado tickets</h2><small>clic en leyenda</small></div><div class="rd-donut"><svg id="rd-svg-estado" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-estado"></div></div></div>
-            <div class="rd-card rd-section"><div class="rd-section-head"><h2>Responsabilidad</h2><small>cerrados</small></div><div class="rd-donut"><svg id="rd-svg-resp" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-resp"></div></div></div>
-            <div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — BLT</h2><small>clic para detalle</small></div><div class="rd-donut"><svg id="rd-svg-caf-blt" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-caf-blt"></div></div></div>
-            <div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — Cliente</h2><small>clic para detalle</small></div><div class="rd-donut"><svg id="rd-svg-caf-cli" width="150" height="150" viewBox="0 0 130 130"></svg><div class="rd-legend" id="rd-leg-caf-cli"></div></div></div>
-          </div>
-        
-          <div class="rd-grid two">
-            <div class="rd-card rd-section"><div class="rd-section-head"><h2>Tickets por zona operativa</h2></div><div class="rd-bars" id="rd-bar-zona"></div></div>
-            <div class="rd-card rd-section"><div class="rd-section-head"><h2>Por tipo de equipo</h2></div><div class="rd-bars" id="rd-bar-tipo"></div></div>
-          </div>
-        
-          <div class="rd-card rd-section"><div class="rd-section-head"><h2>Fallas por estado de la República</h2></div><div class="rd-bars" id="rd-bar-edo"></div></div>
-        
-        
-        
-          <div class="rd-card rd-section">
-            <div class="rd-section-head">
-              <h2>Tickets del periodo <small id="rd-count"></small></h2>
-              <div class="rd-filters"><input id="rd-search" type="search" placeholder="Buscar ticket, proyecto, zona..." /><select id="rd-filter-et"><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select></div>
-            </div>
-            <div id="rd-ticket-emoji-note" class="rd-ticket-emoji-note" role="note" aria-label="Leyenda de emojis de tickets">
-              <strong>Leyenda:</strong>
-              <span>🚨 Atrapado</span>
-              <span>💧 Filtración</span>
-              <span>⚡ Voltaje</span>
-              <span>🚧 No funcionando</span>
-              <span>⌛ Fuera de SLA</span>
-              <span>💥 Equipo crítico</span>
-            </div>
-            <div class="rd-table-wrap"><table class="rd-table rd-tickets-contextual-uni"><thead id="rd-thead"></thead><tbody id="rd-tbody"></tbody></table></div>
-            <div class="rd-pagination"><button id="rd-page-prev" type="button">← Anterior</button><span id="rd-page-info">—</span><button id="rd-page-next" type="button">Siguiente →</button></div>
-          </div>
-        
-        
-        </section>
-
-        <section id="view-help" class="view" data-view="help" aria-label="Centro de Ayuda">
-          <div class="help-page">
-            <section class="card help-head">
-              <div>
-                <h1>Centro de Ayuda</h1>
-                <p>Flujos, avisos y preguntas frecuentes cargadas desde Aiven.</p>
-              </div>
-              <button class="help-refresh" id="help-refresh" type="button">↻ Actualizar</button>
-            </section>
-            <section class="help-grid">
-              <div class="card help-panel">
-                <h2>Guías rápidas</h2>
-                <div id="help-menu" class="help-list"><div class="empty-state">Cargando menú...</div></div>
-              </div>
-              <div class="card help-panel">
-                <h2>Avisos</h2>
-                <div id="help-avisos" class="help-list"><div class="empty-state">Cargando avisos...</div></div>
-              </div>
-              <div class="card help-panel help-faq-panel">
-                <div class="help-faq-head"><h2>Preguntas frecuentes</h2><input id="help-search" type="search" placeholder="Buscar FAQ..." /></div>
-                <div id="help-faq" class="help-list"><div class="empty-state">Cargando FAQ...</div></div>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section id="view-support-request" class="view" data-view="support-request" aria-label="Crear solicitud de soporte">
-          <div class="help-page">
-            <section class="card help-head"><div><h1>Solicitud de soporte</h1><p>Se guardará en Aiven dentro de las tablas de soporte.</p></div></section>
-            <form id="support-form" class="card support-form">
-              <label>Módulo afectado <input id="support-module" type="text" placeholder="Ej. Resumen del día" /></label>
-              <label>Asunto <input id="support-subject" type="text" required placeholder="Describe brevemente el problema" /></label>
-              <label>Descripción <textarea id="support-description" required rows="5" placeholder="Detalle del caso"></textarea></label>
-              <label>Prioridad <select id="support-priority"><option>Media</option><option>Alta</option><option>Crítica</option><option>Baja</option></select></label>
-              <button class="auth-primary" type="submit">Crear solicitud</button>
-              <div id="support-msg" class="auth-msg"></div>
-            </form>
-          </div>
-        </section>
-
-
-        <section id="view-callcenter" class="view cc-view" data-view="callcenter" aria-label="Dashboard Call Center"></section>
-        <section id="view-operativo" class="view op-view" data-view="operativo" aria-label="Dashboard Operativo"></section>
-        <section id="view-logistica-dashboard" class="view dl-view" data-view="logistica-dashboard" aria-label="Dashboard Logística"></section>
-        <section id="view-logistica-reporte" class="view rl-view" data-view="logistica-reporte" aria-label="Reporte de Logística"></section>
-        <section id="view-movimientos" class="view mov-view" data-view="movimientos" aria-label="Movimientos de Portafolio"></section>
-
-        <section id="view-criticos" class="view" data-view="criticos" aria-label="Equipos críticos"></section>
-
-        <section id="view-placeholder" class="view" data-view="placeholder"></section>
-      </main>
-    </div>
-  </div>
-
-
-  <!-- DETALLE DE TICKET - RESUMEN DEL DIA -->
-  <section id="rd-ticket-detail" class="rd-ticket-detail" aria-label="Detalle de ticket" hidden>
-    <div class="rd-ticket-panel">
-      <div class="rd-ticket-head">
-        <button id="rd-ticket-close" class="rd-ticket-back rd-ticket-close-x" type="button" aria-label="Cerrar detalle" title="Cerrar">×</button>
-        <div class="rd-ticket-title-wrap">
-          <h2 id="rd-ticket-title">Ticket</h2>
-          <p id="rd-ticket-subtitle">Detalle desde Resumen del día</p>
-        </div>
-        <div id="rd-ticket-badges" class="rd-ticket-badges"></div>
-      </div>
-      <div class="rd-ticket-body">
-        <div class="rd-ticket-main" id="rd-ticket-main"></div>
-        <aside class="rd-ticket-side">
-          <div class="rd-ticket-chat">
-            <div class="rd-ticket-chat-head">💬 Chat / histórico <span id="rd-ticket-chat-label">#—</span></div>
-            <div class="rd-ticket-chat-msgs" id="rd-ticket-chat-msgs">
-              <div class="rd-ticket-chat-empty">Sin mensajes aún</div>
-            </div>
-            <form class="rd-ticket-chat-form" id="rd-ticket-chat-form">
-              <input id="rd-ticket-chat-input" type="text" placeholder="Escribe un comentario..." />
-              <button type="submit">➤</button>
-            </form>
-          </div>
-          <div class="rd-ticket-side-card">
-            <h3>Acciones relacionadas</h3>
-            <button id="rd-ticket-go-ticket" type="button">Abrir módulo Tickets</button>
-            <button id="rd-ticket-go-equipo" type="button">Abrir equipo</button>
-            <button id="rd-ticket-go-proyecto" type="button">Abrir proyecto</button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  </section>
-
-  <!-- NORI DE PRUEBAS -->
-  <button class="panda-float" id="noriFloat" title="Nori soporte" type="button">
-    <img alt="Nori soporte" src="assets/img/panda-support.png" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" />
-    <span class="panda-fallback-icon">🐼</span>
-    <span class="panda-notif"></span>
-  </button>
-
-  <section class="panda-chat" id="pandaChat" aria-label="Nori soporte de pruebas">
-    <div class="panda-chat-head">
-      <div class="panda-chat-title">
-        <span class="panda-face">🐼</span>
-        <div><strong>Nori</strong><small>Soporte Mantto · Aiven</small></div>
-      </div>
-      <button class="panda-close" id="noriClose" type="button">×</button>
-    </div>
-    <div class="panda-chat-body" id="pandaMessages">
-      <div class="nori-msg bot">Hola, soy Nori. Cargando flujos de ayuda desde Aiven...</div>
-      <div class="nori-options">
-        <button class="nori-option" data-route="help">Abrir Centro de Ayuda</button>
-        <button class="nori-option" data-route="support-request">Crear solicitud de soporte</button>
-        <button class="nori-option" data-route="notifications">Ver notificaciones</button>
-      </div>
-    </div>
-  </section>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-  <script src="./core/daily-phrases.js?v=20260705-v114"></script>
-  <script src="./core/config.js?v=20260705-v114"></script>
-  <script src="./core/auth.js?v=20260711-neutral-auth-v001"></script>
-  <script src="./core/router.js?v=20260718-sidebar-almacen-cx-v001"></script>
-  <script src="./core/estados-visuales.js?v=20260715-v001"></script>
-  <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
-  <script src="./modules/home/home.js?v=20260705-v114"></script>
-  <script src="./modules/resumen-dia/resumen-dia.js?v=20260716-tickets-contextual-v002"></script>
-  <script src="./modules/equipos-criticos/equipos-criticos.js?v=20260717-fix5"></script>
-  <script src="./modules/portafolio/portafolio.js?v=20260717-kpi-views-v002"></script>
-  <script src="./modules/proyectos/proyectos.js?v=20260717-proyectos-responsabilidad-v001"></script>
-  <script src="./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260713-desarrollo-aiven"></script>
-  <script src="./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.js?v=20260713-v001"></script>
-  <script src="./modules/callcenter/callcenter.js?v=cc-v006"></script>
-  <script src="./modules/dashboard-operativo/dashboard-operativo.js?v=20260718-v004"></script>
-  <script src="./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260707-v004"></script>
-  <script src="./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003"></script>
-  <script src="./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004"></script>
-  <script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
-  <script src="./modules/panel-control/panel-control.js?v=20260722-v023"></script>
-  <script src="./modules/support/support.js?v=20260705-v114"></script>
-  <script src="./core/details.js?v=20260717-pdf-archivo-equipo-v001"></script>
-  <script src="./core/user-viewer.js?v=20260722-v024"></script>
-  <script src="./core/app.js?v=20260722-session-permissions-v017"></script>
+</button>
+<div class="app-context-title-wrap">
+<div id="app-context-title">Inicio</div>
+<div id="app-context-subtitle">Home operativo · tareas, notificaciones e interacciones recientes</div>
+</div>
+<div class="daily-phrase" title="Frase del día">
+<span id="context-date">—</span>
+<span class="context-separator">|</span>
+<span id="context-time">—</span>
+<span class="context-separator">|</span>
+<span id="daily-phrase-text">—</span>
+</div>
+</div>
+</div>
+<div class="app-body">
+<aside class="sidebar" id="sidebar">
+<nav aria-label="Módulos" class="side-nav">
+<button class="side-item side-standalone" data-permission="home" data-route="home" type="button"><span>🏠</span><b>Inicio</b></button>
+<div aria-hidden="true" class="side-divider"></div>
+<section class="side-group" data-group="operacion">
+<button aria-controls="side-group-operacion" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🛠️</span><b>Operación</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-operacion">
+<button class="side-item" data-permission="operacion_resumen" data-route="resumen" type="button"><span>📅</span><b>Resumen del Día</b></button>
+<button class="side-item" data-permission="operacion_criticos" data-route="criticos" type="button"><span>⚠️</span><b>Equipos Críticos</b></button>
+<button class="side-item" data-permission="operacion_callcenter" data-route="callcenter" type="button"><span>☎️</span><b>Dashboard Call Center</b></button>
+<button class="side-item" data-permission="operacion_operativo" data-route="operativo" type="button"><span>📊</span><b>Dashboard Operativo</b></button>
+</div>
+</section>
+<section class="side-group" data-group="portafolio">
+<button aria-controls="side-group-portafolio" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🏢</span><b>Portafolio</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-portafolio">
+<button class="side-item" data-permission="portafolio_dashboard" data-route="portafolio" type="button"><span>📈</span><b>Dashboard Portafolio</b></button>
+<button class="side-item" data-permission="portafolio_movimientos" data-route="movimientos" type="button"><span>⇄</span><b>Movimientos Portafolio</b></button>
+<button class="side-item" data-permission="portafolio_proyectos" data-route="proyectos" type="button"><span>🏗️</span><b>Proyectos de Mantenimiento</b></button>
+</div>
+</section>
+<section class="side-group" data-group="ventas">
+<button aria-controls="side-group-ventas" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🤝</span><b>Ventas</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-ventas">
+<button class="side-item" data-permission="ventas_dashboard" data-route="ventas-dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
+<button class="side-item" data-permission="ventas_vendidos" data-route="ventas-vendidos" type="button"><span>🤝</span><b>Vendidos</b></button>
+<button class="side-item" data-permission="ventas_proyeccion" data-route="ventas-proyeccion" type="button"><span>📈</span><b>Proyección</b></button>
+<button class="side-item" data-permission="ventas_perdidos" data-route="ventas-perdidos" type="button"><span>📉</span><b>Perdidos</b></button>
+<button class="side-item" data-permission="ventas_fotos_mapa" data-route="ventas-fotos-mapa" type="button"><span>🗺️</span><b>Fotos Mapa</b></button>
+<button class="side-item" data-permission="ventas_clientes" data-route="ventas-clientes" type="button"><span>👤</span><b>Clientes</b></button>
+<button class="side-item" data-permission="ventas_cotizaciones" data-route="ventas-cotizaciones" type="button"><span>💬</span><b>Cotizaciones</b></button>
+<button class="side-item" data-permission="ventas_prospeccion" data-route="ventas-prospeccion" type="button"><span>🔎</span><b>Prospección</b></button>
+<button class="side-item" data-permission="ventas_mapa_prospeccion" data-route="ventas-mapa-prospeccion" type="button"><span>📍</span><b>Mapa Prospección</b></button>
+<button class="side-item" data-permission="ventas_asignacion_redes" data-route="ventas-asignacion-redes" type="button"><span>🌐</span><b>Asignación Redes</b></button>
+</div>
+</section>
+<section class="side-group" data-group="logistica">
+<button aria-controls="side-group-logistica" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🚚</span><b>Logística</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-logistica">
+<button class="side-item" data-permission="logistica_dashboard" data-route="logistica-dashboard" type="button"><span>📊</span><b>Dashboard Logística</b></button>
+<button class="side-item" data-permission="logistica_reporte" data-route="logistica-reporte" type="button"><span>📋</span><b>Reporte de Logística</b></button>
+<button class="side-item" data-permission="logistica_pvo" data-route="logistica-pvo" type="button"><span>🧭</span><b>PVO</b></button>
+<button class="side-item" data-permission="logistica_produccion" data-route="logistica-produccion" type="button"><span>🏭</span><b>Producción</b></button>
+<button class="side-item" data-permission="logistica_documentos" data-route="logistica-documentos" type="button"><span>📁</span><b>Documentos de Producción</b></button>
+</div>
+</section>
+<section class="side-group" data-group="instalaciones">
+<button aria-controls="side-group-instalaciones" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🏗️</span><b>Instalaciones</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-instalaciones">
+<button class="side-item" data-permission="instalaciones_dashboard" data-route="instalaciones-dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
+<button class="side-item" data-permission="instalaciones_proyectos" data-route="instalaciones-proyectos" type="button"><span>🏢</span><b>Proyectos</b></button>
+<button class="side-item" data-permission="instalaciones_concentrado_cliente" data-route="instalaciones-concentrado-cliente" type="button"><span>👥</span><b>Concentrado Cliente</b></button>
+<button class="side-item" data-permission="instalaciones_reporte" data-route="instalaciones-reporte" type="button"><span>📈</span><b>Reporte de Instalaciones</b></button>
+<button class="side-item" data-permission="instalaciones_pmm" data-route="instalaciones-pmm" type="button"><span>🧩</span><b>PM&amp;M</b></button>
+<button class="side-item" data-permission="instalaciones_documentacion" data-route="instalaciones-documentacion" type="button"><span>📄</span><b>Documentación Pendiente</b></button>
+<button class="side-item" data-permission="instalaciones_cerrados" data-route="instalaciones-cerrados" type="button"><span>✅</span><b>Proyectos Cerrados</b></button>
+</div>
+</section>
+<section class="side-group" data-group="cobranza">
+<button aria-controls="side-group-cobranza" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">💰</span><b>Cobranza</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-cobranza">
+<button class="side-item" data-permission="cobranza_dashboard" data-route="cobranza-dashboard" type="button"><span>📊</span><b>Dashboard Cobranza</b></button>
+<button class="side-item" data-permission="cobranza_estados_cuenta" data-route="cobranza-estados-cuenta" type="button"><span>🧾</span><b>Estados de Cuenta</b></button>
+<button class="side-item" data-permission="cobranza_aditivas" data-route="cobranza-aditivas" type="button"><span>➕</span><b>Aditivas</b></button>
+</div>
+</section>
+<section class="side-group" data-group="almacen">
+<button aria-controls="side-group-almacen" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">📦</span><b>Almacén</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-almacen">
+<button class="side-item" data-permission="almacen_dashboard" data-route="almacen-dashboard" type="button"><span>📊</span><b>Dashboard Almacén</b></button>
+<button class="side-item" data-permission="almacen_inventarios" data-route="almacen-inventarios" type="button"><span>📋</span><b>Inventarios</b></button>
+<button class="side-item" data-permission="almacen_movimientos" data-route="almacen-movimientos" type="button"><span>⇄</span><b>Movimientos Almacén</b></button>
+</div>
+</section>
+<section class="side-group" data-group="customer-experience">
+<button aria-controls="side-group-customer-experience" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">💬</span><b>Customer Experience</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-customer-experience">
+<button class="side-item" data-permission="cx_dashboard" data-route="cx-dashboard" type="button"><span>📊</span><b>Dashboard CX</b></button>
+<button class="side-item" data-permission="cx_encuestas" data-route="cx-encuestas" type="button"><span>📝</span><b>Encuestas</b></button>
+<button class="side-item" data-permission="cx_visitas" data-route="cx-visitas" type="button"><span>🤝</span><b>Visitas</b></button>
+</div>
+</section>
+<section class="side-group" data-group="legal">
+<button aria-controls="side-group-legal" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">⚖️</span><b>Legal</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-legal">
+<button class="side-item" data-permission="legal_dashboard" data-route="legal-dashboard" type="button"><span>📊</span><b>Dashboard Legal</b></button>
+<button class="side-item" data-permission="legal_contratos" data-route="legal-contratos" type="button"><span>📑</span><b>Contratos</b></button>
+<button class="side-item" data-permission="legal_suspendidos" data-route="legal-suspendidos" type="button"><span>⏸️</span><b>Suspendidos</b></button>
+</div>
+</section>
+<section class="side-group" data-group="soporte">
+<button aria-controls="side-group-soporte" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🎧</span><b>Soporte</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-soporte">
+<button class="side-item" data-permission="soporte_dashboard" data-route="soporte-dashboard" type="button"><span>📊</span><b>Dashboard</b></button>
+<button class="side-item" data-permission="soporte_solicitudes" data-route="soporte-solicitudes" type="button"><span>🎫</span><b>Solicitudes</b></button>
+<button class="side-item" data-permission="soporte_chats" data-route="soporte-chats" type="button"><span>💬</span><b>Chats</b></button>
+</div>
+</section>
+<div aria-hidden="true" class="side-divider"></div>
+<button class="side-item side-standalone" data-permission="usuarios" data-route="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
+<button class="side-item side-standalone programmer" data-permission="panel_control" data-route="panel-control" type="button"><span>⚙️</span><b>Panel de Control</b></button>
+</nav>
+</aside>
+<main class="main-content">
+<section class="view active" data-view="home" id="view-home"></section>
+<section aria-label="Portafolio" class="view pf-view" data-view="portafolio" id="view-portafolio"></section>
+<section aria-label="Usuarios" class="view usr-view" data-view="usuarios" id="view-usuarios"></section>
+<section aria-label="Panel de Control" class="view pc-view" data-view="panel-control" id="view-panel-control"></section>
+<section aria-label="Proyectos" class="view proy-view" data-view="proyectos" id="view-proyectos"></section>
+<section aria-label="Proyectos de Instalación" class="view insproy-view" data-view="instalaciones-proyectos" id="view-instalaciones-proyectos"></section>
+<section aria-label="Concentrado Cliente" class="view icc-view" data-view="instalaciones-concentrado-cliente" id="view-instalaciones-concentrado-cliente"></section>
+<section aria-label="Resumen del día" class="view resumen-page" data-view="resumen" id="view-resumen">
+<div class="rd-card rd-header">
+<div class="rd-title">
+<h1>Resumen del día</h1>
+<p>Vista ejecutiva diaria con tickets, responsabilidades, alertas, tiempos, gráficas y tabla detallada.</p>
+</div>
+<div class="rd-actions">
+<button class="rd-btn" id="rd-prev-day" type="button">← Día anterior</button>
+<div class="rd-date-box">
+<div class="rd-date-label" id="rd-day-label">—</div>
+<div class="rd-date-sub" id="rd-day-sub">Sin datos cargados</div>
+</div>
+<button class="rd-btn" id="rd-next-day" type="button">Día siguiente →</button>
+<button class="rd-btn primary" id="rd-refresh" type="button">↻ Actualizar</button>
+<div class="rd-status loading" id="rd-api-status"><span class="dot"></span><span>Cargando Aiven...</span></div>
+</div>
+</div>
+<div class="rd-grid kpi-6">
+<article class="rd-kpi g-blue"><div class="ico" data-estado-visual="TICKET">🎫</div><div class="val" id="rd-total">—</div><div class="lbl">Tickets</div><div class="sub">Reportados en el día</div></article>
+<article class="rd-kpi g-green clickable" data-rd-detail="cerrados"><div class="ico" data-estado-visual="CERRADO">✓</div><div class="val" id="rd-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="rd-cerrados-pct">—</div></article>
+<article class="rd-kpi g-amber clickable" data-rd-detail="encurso"><div class="ico" data-estado-visual="EN_CURSO">⏳</div><div class="val" id="rd-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="rd-encurso-pct">—</div></article>
+<article class="rd-kpi g-orange clickable" data-rd-detail="abiertos"><div class="ico" data-estado-visual="ABIERTO">🔴</div><div class="val" id="rd-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="rd-abiertos-pct">—</div></article>
+<article class="rd-kpi g-blue clickable" data-rd-detail="blt"><div class="ico" data-estado-visual="RESPONSABILIDAD_BLT">🛠</div><div class="val" id="rd-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="rd-blt-pct">—</div></article>
+<article class="rd-kpi g-cyan clickable" data-rd-detail="cliente"><div class="ico" data-estado-visual="RESPONSABILIDAD_CLIENTE">👤</div><div class="val" id="rd-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="rd-cli-pct">—</div></article>
+</div>
+<div class="rd-grid kpi-5">
+<article class="rd-kpi g-red clickable" data-rd-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="rd-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
+<article class="rd-kpi g-cyan clickable" data-rd-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="rd-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
+<article class="rd-kpi g-purple clickable" data-rd-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="rd-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
+<article class="rd-kpi g-critical clickable" data-rd-detail="criticos"><div aria-label="Críticos" class="ico">💥</div><div class="val" id="rd-criticos-dia">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
+<article class="rd-kpi g-dark clickable" data-rd-detail="nofunc"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="rd-nofunc">—</div><div class="lbl">No funcionando</div><div class="sub">Ver detalle</div></article>
+</div>
+<div class="rd-detail rd-card" id="rd-detail"></div>
+<div class="rd-grid kpi-3">
+<article class="rd-kpi g-teal"><div class="ico">⏱</div><div class="val" id="rd-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">minutos</div></article>
+<article class="rd-kpi g-blue"><div class="ico">🕐</div><div class="val" id="rd-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">equipos resueltos</div></article>
+<article class="rd-kpi g-slate clickable" data-rd-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="rd-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="rd-sla-pct">—</div></article>
+</div>
+<div class="rd-grid two">
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Estado tickets</h2><small>clic en leyenda</small></div><div class="rd-donut"><svg height="150" id="rd-svg-estado" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-estado"></div></div></div>
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Responsabilidad</h2><small>cerrados</small></div><div class="rd-donut"><svg height="150" id="rd-svg-resp" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-resp"></div></div></div>
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — BLT</h2><small>clic para detalle</small></div><div class="rd-donut"><svg height="150" id="rd-svg-caf-blt" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-caf-blt"></div></div></div>
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — Cliente</h2><small>clic para detalle</small></div><div class="rd-donut"><svg height="150" id="rd-svg-caf-cli" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-caf-cli"></div></div></div>
+</div>
+<div class="rd-grid two">
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Tickets por zona operativa</h2></div><div class="rd-bars" id="rd-bar-zona"></div></div>
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Por tipo de equipo</h2></div><div class="rd-bars" id="rd-bar-tipo"></div></div>
+</div>
+<div class="rd-card rd-section"><div class="rd-section-head"><h2>Fallas por estado de la República</h2></div><div class="rd-bars" id="rd-bar-edo"></div></div>
+<div class="rd-card rd-section">
+<div class="rd-section-head">
+<h2>Tickets del periodo <small id="rd-count"></small></h2>
+<div class="rd-filters"><input id="rd-search" placeholder="Buscar ticket, proyecto, zona..." type="search"/><select id="rd-filter-et"><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select></div>
+</div>
+<div aria-label="Leyenda de emojis de tickets" class="rd-ticket-emoji-note" id="rd-ticket-emoji-note" role="note">
+<strong>Leyenda:</strong>
+<span>🚨 Atrapado</span>
+<span>💧 Filtración</span>
+<span>⚡ Voltaje</span>
+<span>🚧 No funcionando</span>
+<span>⌛ Fuera de SLA</span>
+<span>💥 Equipo crítico</span>
+</div>
+<div class="rd-table-wrap"><table class="rd-table rd-tickets-contextual-uni"><thead id="rd-thead"></thead><tbody id="rd-tbody"></tbody></table></div>
+<div class="rd-pagination"><button id="rd-page-prev" type="button">← Anterior</button><span id="rd-page-info">—</span><button id="rd-page-next" type="button">Siguiente →</button></div>
+</div>
+</section>
+<section aria-label="Centro de Ayuda" class="view" data-view="help" id="view-help">
+<div class="help-page">
+<section class="card help-head">
+<div>
+<h1>Centro de Ayuda</h1>
+<p>Flujos, avisos y preguntas frecuentes cargadas desde Aiven.</p>
+</div>
+<button class="help-refresh" id="help-refresh" type="button">↻ Actualizar</button>
+</section>
+<section class="help-grid">
+<div class="card help-panel help-requests-panel">
+<h2>Solicitudes</h2>
+<div class="help-request-actions">
+<button class="help-request-action" id="help-request-create" type="button"><span class="help-request-icon">＋</span><b>Crear</b><small>Registrar una nueva solicitud de soporte.</small></button>
+<button class="help-request-action" id="help-request-list" type="button"><span class="help-request-icon">☰</span><b>Mis solicitudes</b><small>Consultar, editar y dar seguimiento.</small></button>
+</div>
+</div>
+<div class="card help-panel">
+<h2>Avisos</h2>
+<div class="help-list" id="help-avisos"><div class="empty-state">Cargando avisos...</div></div>
+</div>
+<div class="card help-panel help-my-requests" hidden id="help-my-requests">
+<div class="help-faq-head"><div><h2>Mis solicitudes</h2><p class="help-panel-subtitle">Solo se muestran las solicitudes creadas por tu usuario.</p></div><button class="help-refresh" id="help-my-refresh" type="button">↻ Actualizar</button></div>
+<div class="help-request-filters">
+<input id="help-my-search" placeholder="Buscar por asunto, folio o módulo..." type="search"/>
+<select id="help-my-status"><option value="">Todos los estatus</option></select>
+<select id="help-my-module"><option value="">Todos los módulos</option></select>
+<button class="help-refresh" id="help-my-clear" type="button">Limpiar</button>
+</div>
+<div class="help-my-table-wrap">
+<table class="help-my-table"><thead><tr><th>Editar</th><th>Ver</th><th>Asunto</th><th>Fecha creación</th><th>Estatus</th></tr></thead><tbody id="help-my-body"><tr><td colspan="5" class="empty-state">Selecciona Mis solicitudes para consultar tus registros.</td></tr></tbody></table>
+</div>
+</div>
+<div class="card help-panel help-faq-panel">
+<div class="help-faq-head"><h2>Preguntas frecuentes</h2><input id="help-search" placeholder="Buscar FAQ..." type="search"/></div>
+<div class="help-list" id="help-faq"><div class="empty-state">Cargando FAQ...</div></div>
+</div>
+</section>
+</div>
+</section>
+<section aria-label="Crear solicitud de soporte" class="view" data-view="support-request" id="view-support-request">
+<div class="help-page">
+<section class="card help-head"><div><h1>Solicitud de soporte</h1><p>Se guardará en Aiven dentro de las tablas de soporte.</p></div></section>
+<form class="card support-form" id="support-form">
+<input id="support-ticket-id" type="hidden"/>
+<label>Módulo afectado <input id="support-module" placeholder="Ej. Resumen del día" required type="text"/></label>
+<label>Asunto <input id="support-subject" placeholder="Describe brevemente el problema" required type="text"/></label>
+<label>Descripción <textarea id="support-description" placeholder="Detalle del caso" required rows="5"></textarea></label>
+<label>Fecha del incidente <input id="support-incident-date" type="datetime-local"/></label>
+<label>Archivos adjuntos <input id="support-files" multiple type="file"/><small>Podrás agregar más archivos después desde el detalle. Máximo 8 MB por archivo.</small></label>
+<button class="auth-primary" id="support-submit" type="submit">Crear solicitud</button>
+<div class="auth-msg" id="support-msg"></div>
+</form>
+</div>
+</section>
+<section aria-label="Solicitudes de Soporte" class="view ss-view" data-view="soporte-solicitudes" id="view-soporte-solicitudes">
+<div class="ss-page" data-ss-root="">
+<section class="ss-list-view" id="ss-list-view">
+<section class="ss-card ss-head">
+<div>
+<p class="ss-eyebrow">Soporte</p>
+<h1>Solicitudes</h1>
+<p>Consulta y seguimiento de las solicitudes de soporte registradas en el sistema.</p>
+</div>
+<div class="ss-head-actions">
+<span aria-live="polite" class="ss-status is-ready" id="ss-status" role="status">
+<span class="ss-status-dot"></span>
+<span>Vista preparada</span>
+</span>
+<button class="ss-btn ss-btn-primary" id="ss-refresh" type="button">↻ Actualizar</button>
+</div>
+</section>
+<section aria-label="Filtros de solicitudes" class="ss-card ss-filters">
+<label class="ss-field ss-search-field" for="ss-search">
+<span>Buscar</span>
+<input autocomplete="off" id="ss-search" placeholder="Número, asunto o módulo..." type="search"/>
+</label>
+<label class="ss-field" for="ss-filter-status">
+<span>Estado</span>
+<select id="ss-filter-status"><option value="">Todos</option></select>
+</label>
+<label class="ss-field" for="ss-filter-module">
+<span>Módulo</span>
+<select id="ss-filter-module"><option value="">Todos</option></select>
+</label>
+<button class="ss-btn" id="ss-clear" type="button">Limpiar</button>
+</section>
+<section aria-labelledby="ss-table-title" class="ss-card ss-table-section">
+<div class="ss-section-head">
+<div>
+<h2 id="ss-table-title">Listado de solicitudes</h2>
+<p id="ss-count">0 solicitudes</p>
+</div>
+</div>
+<div class="ss-table-wrap">
+<table class="ss-table">
+<thead>
+<tr>
+<th class="ss-col-action" scope="col">Editar</th>
+<th class="ss-col-action" scope="col">Ver</th>
+<th scope="col">Número de solicitud</th>
+<th scope="col">Asunto</th>
+<th scope="col">Módulo</th>
+<th scope="col">Estado</th>
+<th scope="col">Fecha del incidente</th>
+<th scope="col">Fecha del último mensaje</th>
+</tr>
+</thead>
+<tbody id="ss-table-body">
+<tr><td class="ss-empty" colspan="8">No hay solicitudes de soporte registradas.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section aria-live="polite" class="ss-detail-view" hidden="" id="ss-detail-view">
+<section class="ss-card ss-detail-head">
+<div>
+<h1 id="ss-detail-title">Asunto de la solicitud</h1>
+<p id="ss-detail-subtitle">Número de solicitud</p>
+</div>
+<span class="ss-state" id="ss-detail-state">—</span>
+</section>
+<section class="ss-detail-stack">
+<article class="ss-card ss-accordion is-open" data-ss-accordion="">
+<button aria-expanded="true" class="ss-accordion-head" type="button">
+<span class="ss-accordion-chevron">›</span>
+<span>Información principal</span>
+</button>
+<div class="ss-accordion-body">
+<div class="ss-info-grid ss-info-grid-3">
+<div><span>Número de solicitud</span><strong id="ss-d-number">—</strong></div>
+<div><span>Prioridad</span><strong id="ss-d-priority">—</strong></div>
+<div><span>Módulo afectado</span><strong id="ss-d-module">—</strong></div>
+<div class="ss-span-2"><span>Asunto</span><strong id="ss-d-subject">—</strong></div>
+<div><span>Estado</span><strong id="ss-d-status">—</strong></div>
+<div class="ss-span-3"><span>Asignado a</span><strong id="ss-d-assigned">—</strong></div>
+<div aria-label="Edición de solicitud" class="ss-span-3 ss-ticket-editor">
+<label><span>Prioridad</span><select id="ss-edit-priority"><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select></label>
+<label><span>Estado</span><select id="ss-edit-status"><option>Abierto</option><option>Asignado</option><option>En proceso</option><option>Esperando información</option><option>Resuelto</option><option>Cerrado</option><option>Cancelado</option></select></label>
+<label><span>Asignado a</span><select id="ss-edit-assigned"><option value="">Sin asignar</option></select></label>
+</div>
+</div>
+</div>
+</article>
+<article class="ss-card ss-accordion" data-ss-accordion="">
+<button aria-expanded="false" class="ss-accordion-head" type="button">
+<span class="ss-accordion-chevron">›</span>
+<span>Información del contacto</span>
+</button>
+<div class="ss-accordion-body">
+<div class="ss-info-grid ss-info-grid-2">
+<div><span>Usuario</span><strong id="ss-d-user">—</strong></div>
+<div><span>Correo</span><strong id="ss-d-email">—</strong></div>
+<div class="ss-span-2"><span>Empresa</span><strong id="ss-d-company">—</strong></div>
+</div>
+</div>
+</article>
+<article class="ss-card ss-accordion" data-ss-accordion="">
+<button aria-expanded="false" class="ss-accordion-head" type="button">
+<span class="ss-accordion-chevron">›</span>
+<span>Seguimiento de fechas</span>
+</button>
+<div class="ss-accordion-body">
+<div class="ss-info-grid ss-info-grid-2">
+<div><span>Fecha de creación</span><strong id="ss-d-created">—</strong></div>
+<div><span>Fecha estimada de solución</span><strong id="ss-d-estimated">—</strong></div>
+<div><span>Fecha de cierre técnico</span><strong id="ss-d-technical-close">—</strong></div>
+<div><span>Fecha del incidente</span><strong id="ss-d-incident">—</strong></div>
+</div>
+</div>
+</article>
+<article class="ss-card ss-interactions-card">
+<div class="ss-section-head"><div><h2>Interacciones</h2><p>Comentarios y archivos registrados en la solicitud.</p></div></div>
+<div class="ss-interactions-layout">
+<section aria-labelledby="ss-chat-title" class="ss-chat-panel">
+<div class="ss-subpanel-head"><div><h3 id="ss-chat-title">Chat</h3><p>Historial de comentarios de la solicitud.</p></div></div>
+<div class="ss-chat-history" id="ss-chat-history"><div class="ss-empty">No hay comentarios registrados.</div></div>
+<form class="ss-chat-form" id="ss-comment-form">
+<textarea id="ss-comment-text" maxlength="2000" placeholder="Escribe un comentario..." required="" rows="3"></textarea>
+<button class="ss-btn ss-btn-primary" type="submit">Enviar comentario</button>
+</form>
+</section>
+<aside aria-labelledby="ss-files-title" class="ss-files-panel">
+<div class="ss-subpanel-head"><div><h3 id="ss-files-title">Gestor de archivos</h3><p>Archivos adjuntos de la solicitud.</p></div></div>
+<div class="ss-files-list" id="ss-files-list"><div class="ss-empty">No hay archivos adjuntos.</div></div>
+<div class="ss-file-upload-box">
+<input aria-label="Seleccionar archivo" id="ss-file-input" type="file"/>
+<button class="ss-btn" id="ss-file-upload" type="button">Subir archivo</button>
+<small>Máximo 8 MB por archivo.</small>
+</div>
+</aside>
+</div>
+</article>
+</section>
+</section>
+</div>
+</section>
+<section aria-label="Dashboard Call Center" class="view cc-view" data-view="callcenter" id="view-callcenter"></section>
+<section aria-label="Dashboard Operativo" class="view op-view" data-view="operativo" id="view-operativo"></section>
+<section aria-label="Dashboard Logística" class="view dl-view" data-view="logistica-dashboard" id="view-logistica-dashboard"></section>
+<section aria-label="Reporte de Logística" class="view rl-view" data-view="logistica-reporte" id="view-logistica-reporte"></section>
+<section aria-label="Movimientos de Portafolio" class="view mov-view" data-view="movimientos" id="view-movimientos"></section>
+<section aria-label="Equipos críticos" class="view" data-view="criticos" id="view-criticos"></section>
+<section class="view" data-view="placeholder" id="view-placeholder"></section>
+</main>
+</div>
+</div>
+<!-- DETALLE DE TICKET - RESUMEN DEL DIA -->
+<section aria-label="Detalle de ticket" class="rd-ticket-detail" hidden="" id="rd-ticket-detail">
+<div class="rd-ticket-panel">
+<div class="rd-ticket-head">
+<button aria-label="Cerrar detalle" class="rd-ticket-back rd-ticket-close-x" id="rd-ticket-close" title="Cerrar" type="button">×</button>
+<div class="rd-ticket-title-wrap">
+<h2 id="rd-ticket-title">Ticket</h2>
+<p id="rd-ticket-subtitle">Detalle desde Resumen del día</p>
+</div>
+<div class="rd-ticket-badges" id="rd-ticket-badges"></div>
+</div>
+<div class="rd-ticket-body">
+<div class="rd-ticket-main" id="rd-ticket-main"></div>
+<aside class="rd-ticket-side">
+<div class="rd-ticket-chat">
+<div class="rd-ticket-chat-head">💬 Chat / histórico <span id="rd-ticket-chat-label">#—</span></div>
+<div class="rd-ticket-chat-msgs" id="rd-ticket-chat-msgs">
+<div class="rd-ticket-chat-empty">Sin mensajes aún</div>
+</div>
+<form class="rd-ticket-chat-form" id="rd-ticket-chat-form">
+<input id="rd-ticket-chat-input" placeholder="Escribe un comentario..." type="text">
+<button type="submit">➤</button>
+</input></form>
+</div>
+<div class="rd-ticket-side-card">
+<h3>Acciones relacionadas</h3>
+<button id="rd-ticket-go-ticket" type="button">Abrir módulo Tickets</button>
+<button id="rd-ticket-go-equipo" type="button">Abrir equipo</button>
+<button id="rd-ticket-go-proyecto" type="button">Abrir proyecto</button>
+</div>
+</aside>
+</div>
+</div>
+</section>
+<!-- NORI DE PRUEBAS -->
+<button class="panda-float" id="noriFloat" title="Nori soporte" type="button">
+<img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png"/>
+<span class="panda-fallback-icon">🐼</span>
+<span class="panda-notif"></span>
+</button>
+<section aria-label="Nori soporte de pruebas" class="panda-chat" id="pandaChat">
+<div class="panda-chat-head">
+<div class="panda-chat-title">
+<span class="panda-face">🐼</span>
+<div><strong>Nori</strong><small>Soporte Mantto · Aiven</small></div>
+</div>
+<button class="panda-close" id="noriClose" type="button">×</button>
+</div>
+<div class="panda-chat-body" id="pandaMessages">
+<div class="nori-msg bot">Hola, soy Nori. Cargando flujos de ayuda desde Aiven...</div>
+<div class="nori-options">
+<button class="nori-option" data-route="help">Abrir Centro de Ayuda</button>
+<button class="nori-option" data-route="support-request">Crear solicitud de soporte</button>
+<button class="nori-option" data-route="notifications">Ver notificaciones</button>
+</div>
+</div>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="./core/daily-phrases.js?v=20260705-v114"></script>
+<script src="./core/config.js?v=20260705-v114"></script>
+<script src="./core/auth.js?v=20260711-neutral-auth-v001"></script>
+<script src="./core/router.js?v=20260723-v028-8"></script>
+<script src="./core/estados-visuales.js?v=20260715-v001"></script>
+<script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
+<script src="./modules/home/home.js?v=20260705-v114"></script>
+<script src="./modules/resumen-dia/resumen-dia.js?v=20260716-tickets-contextual-v002"></script>
+<script src="./modules/equipos-criticos/equipos-criticos.js?v=20260717-fix5"></script>
+<script src="./modules/portafolio/portafolio.js?v=20260717-kpi-views-v002"></script>
+<script src="./modules/proyectos/proyectos.js?v=20260717-proyectos-responsabilidad-v001"></script>
+<script src="./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260713-desarrollo-aiven"></script>
+<script src="./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.js?v=20260713-v001"></script>
+<script src="./modules/callcenter/callcenter.js?v=cc-v006"></script>
+<script src="./modules/dashboard-operativo/dashboard-operativo.js?v=20260718-v004"></script>
+<script src="./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260707-v004"></script>
+<script src="./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003"></script>
+<script src="./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004"></script>
+<script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
+<script src="./modules/panel-control/panel-control.js?v=20260722-v026"></script>
+<script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260723-v030-2"></script>
+<script src="./modules/support/support.js?v=20260723-v030-2"></script>
+<script src="./core/details.js?v=20260717-pdf-archivo-equipo-v001"></script>
+<script src="./core/user-viewer.js?v=20260722-v024"></script>
+<script src="./core/app.js?v=20260722-session-permissions-v017"></script>
 </body>
 </html>

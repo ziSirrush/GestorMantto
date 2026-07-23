@@ -13,7 +13,8 @@
     catalogs: { areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [] },
     selectedTask: null,
     selectedDetail: null,
-    formMode: 'create'
+    formMode: 'create',
+    taskContext: null
   };
 
   function safeText(value, fallback){
@@ -336,6 +337,24 @@
     const pri = document.getElementById('home-task-priority')?.value || '';
     const est = document.getElementById('home-task-status')?.value || '';
     let tasks = state.tasks.filter(t=>t.tipo===state.activeTaskType);
+    if(state.taskContext && state.activeTaskType === 'COLABORATIVA'){
+      const ctx=state.taskContext;
+      const selectedInitials=String(ctx.initials||'').trim().toUpperCase();
+      const selectedEmail=String(ctx.email||'').trim().toLowerCase();
+      const meInitials=currentUserInitials();
+      tasks=tasks.filter(t=>{
+        const raw=t.raw||{};
+        const creatorInitials=String(raw.creado_por_iniciales||'').trim().toUpperCase();
+        const creatorEmail=String(raw.creado_por_email||raw.created_by_email||'').trim().toLowerCase();
+        const responsables=String(raw.responsables||'').split(',').map(v=>v.trim().toUpperCase()).filter(Boolean);
+        if(ctx.mode==='ASSIGNED_BY'){
+          const createdBySelected=(selectedInitials && creatorInitials===selectedInitials) || (selectedEmail && creatorEmail===selectedEmail);
+          return createdBySelected && Boolean(meInitials && responsables.includes(meInitials));
+        }
+        if(ctx.mode==='SHARED_RESPONSIBILITY') return Boolean(meInitials && selectedInitials && responsables.includes(meInitials) && responsables.includes(selectedInitials));
+        return true;
+      });
+    }
     if(q) tasks = tasks.filter(t => [t.titulo,t.descripcion,t.proyecto,t.equipo,t.area].join(' ').toLowerCase().includes(q));
     if(pri === '__SIN__') tasks = tasks.filter(t => !t.prioridad);
     else if(pri) tasks = tasks.filter(t => t.prioridad === pri);
@@ -367,7 +386,7 @@
     const root=document.getElementById('view-home');
     if(!root) return;
     const nombre = state.user?.nombre || state.user?.name || 'Usuario';
-    root.innerHTML=`<div class="home"><div class="home-main"><section class="card welcome"><div><h1>Bienvenido, ${safeText(nombre)}</h1><p>Centro de operaciones · Home conectado a tareas reales desde Aiven.</p></div><div class="quick-kpis"><button class="kpi-pill"><strong id="home-kpi-critical">0</strong><span>Criticas abiertas</span></button><button class="kpi-pill clickable" data-target='${toTargetAttr({module:'notifications'})}'><strong id="home-kpi-unread">0</strong><span>No leidas</span></button><button class="kpi-pill clickable" data-target='${toTargetAttr({module:'resumen'})}'><strong>Hoy</strong><span>Resumen</span></button></div></section><section class="card task-workspace"><div class="workspace-head"><div class="tabs"><button class="tab-btn active" data-task-tab="PERSONAL">Tareas personales</button><button class="tab-btn" data-task-tab="COLABORATIVA">Tareas colaborativas</button></div><div class="workspace-tools"><input id="home-task-search" placeholder="Buscar tarea..."><select id="home-task-priority"><option value="">Prioridad</option><option value="__SIN__">⚪ Sin prioridad</option><option value="CRITICA">⚠️ Crítica</option><option value="ALTA">🔴 Alta</option><option value="MEDIA">🟡 Media</option><option value="BAJA">🟢 Baja</option></select><select id="home-task-status"><option value="">Estado</option><option>Pendiente</option><option>En proceso</option><option>Cerrado</option></select><button class="new-task" id="home-new-task">+ Nueva tarea</button></div></div><div class="task-list" id="home-task-list"></div></section></div><aside class="home-rail"><section class="card rail-card"><div class="rail-head"><h2>Notificaciones abiertas</h2><button data-target='${toTargetAttr({module:'notifications'})}'>Ver todo</button></div><div class="rail-list" id="home-notifications-list"></div></section><section class="card rail-card"><div class="rail-head"><h2>Ultimas 5 interacciones</h2><button data-target='${toTargetAttr({module:'activity'})}'>Ver todo</button></div><div class="rail-list" id="home-activity-list"></div></section></aside></div><div id="home-task-modal-root"></div>`;
+    root.innerHTML=`<div class="home"><div class="home-main"><section class="card welcome"><div><h1>Bienvenido, ${safeText(nombre)}</h1><p>Centro de operaciones · Home conectado a tareas reales desde Aiven.</p></div><div class="quick-kpis"><button class="kpi-pill"><strong id="home-kpi-critical">0</strong><span>Criticas abiertas</span></button><button class="kpi-pill clickable" data-target='${toTargetAttr({module:'notifications'})}'><strong id="home-kpi-unread">0</strong><span>No leidas</span></button><button class="kpi-pill clickable" data-target='${toTargetAttr({module:'resumen'})}'><strong>Hoy</strong><span>Resumen</span></button></div></section><section class="card task-workspace"><div class="workspace-head"><div class="tabs"><button class="tab-btn active" data-task-tab="PERSONAL">Tareas personales</button><button class="tab-btn" data-task-tab="COLABORATIVA">Tareas colaborativas</button></div><div class="workspace-tools"><input id="home-task-search" placeholder="Buscar tarea..."><select id="home-task-priority"><option value="">Prioridad</option><option value="__SIN__">⚪ Sin prioridad</option><option value="CRITICA">⚠️ Crítica</option><option value="ALTA">🔴 Alta</option><option value="MEDIA">🟡 Media</option><option value="BAJA">🟢 Baja</option></select><select id="home-task-status"><option value="">Estado</option><option>Pendiente</option><option>En proceso</option><option>Cerrado</option></select><button class="new-task" id="home-new-task">+ Nueva tarea</button></div></div><div id="home-task-context"></div><div class="task-list" id="home-task-list"></div></section></div><aside class="home-rail"><section class="card rail-card"><div class="rail-head"><h2>Notificaciones abiertas</h2><button data-target='${toTargetAttr({module:'notifications'})}'>Ver todo</button></div><div class="rail-list" id="home-notifications-list"></div></section><section class="card rail-card"><div class="rail-head"><h2>Ultimas 5 interacciones</h2><button data-target='${toTargetAttr({module:'activity'})}'>Ver todo</button></div><div class="rail-list" id="home-activity-list"></div></section></aside></div><div id="home-task-modal-root"></div>`;
     root.querySelectorAll('[data-task-tab]').forEach(btn=>btn.addEventListener('click',()=>{
       root.querySelectorAll('[data-task-tab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
@@ -376,7 +395,26 @@
     }));
     ['home-task-search','home-task-priority','home-task-status'].forEach(id=>document.getElementById(id)?.addEventListener('input', renderTasks));
     document.getElementById('home-new-task')?.addEventListener('click',()=>openTaskForm('create'));
-    renderCounters(); renderTasks(); renderRails(); bindClicks();
+    renderTaskContext(); renderCounters(); renderTasks(); renderRails(); bindClicks();
+  }
+
+  function renderTaskContext(){
+    const box=document.getElementById('home-task-context');
+    if(!box) return;
+    const ctx=state.taskContext;
+    if(!ctx){ box.innerHTML=''; return; }
+    const label=ctx.mode==='ASSIGNED_BY' ? `Tareas asignadas por ${safeText(ctx.name)}` : `Responsabilidad compartida con ${safeText(ctx.name)}`;
+    box.innerHTML=`<div class="task-context-banner"><span><b>Filtro activo:</b> ${label}</span><button type="button" id="home-clear-task-context">Quitar filtro</button></div>`;
+    document.getElementById('home-clear-task-context')?.addEventListener('click',()=>{ state.taskContext=null; renderTaskContext(); renderTasks(); });
+  }
+
+  function openTaskContext(context){
+    state.taskContext=context||null;
+    state.activeTaskType='COLABORATIVA';
+    renderShell();
+    document.querySelectorAll('[data-task-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.taskTab==='COLABORATIVA'));
+    renderTaskContext();
+    renderTasks();
   }
 
   async function loadCatalogs(filters){
@@ -789,5 +827,5 @@
 
   function init(){ bindHeaderNotifications(); loadHomeData(); }
 
-  window.ManttoHome={init, reload:loadHomeData, refreshHeaderNotifications, openTaskForm, openTaskDetail};
+  window.ManttoHome={init, reload:loadHomeData, refreshHeaderNotifications, openTaskForm, openTaskDetail, openTaskContext};
 })();

@@ -1,0 +1,39 @@
+FIX V026.1 - Pestaña Usuarios del Panel de Control
+Fecha: 22/07/2026
+
+BASE REQUERIDA
+- Aplicar después de IMPLEMENTACION_V026_USUARIOS_ROLES_PANEL_20260722.
+
+ARCHIVOS MODIFICADOS
+- modules/panel-control/panel-control.js
+- modules/panel-control/panel-control.css
+
+CAMBIOS
+1. La lista administrativa de Usuarios reutiliza el patrón ya aprobado:
+   - usuarios agrupados por área;
+   - orden jerárquico dentro de cada área;
+   - contador por agrupación;
+   - buscador;
+   - filtro por empresa.
+2. Al abrir la pestaña Usuarios no se selecciona ni se inicializa ningún registro.
+   El editor permanece neutro hasta seleccionar un usuario o pulsar "+ Nuevo usuario".
+3. Área ahora es un selector formado con los valores distintos existentes en usuarios.area.
+4. Empresa ahora es un selector formado con los valores distintos existentes en usuarios.empresa.
+5. Al crear un usuario, Área y Empresa quedan en "Selecciona..." y no toman automáticamente el primer valor.
+6. El guardado continúa siendo manual mediante "Guardar usuario". No se agregó autoguardado.
+
+INSTALACION
+Sustituir únicamente los dos archivos indicados conservando sus rutas.
+
+VALIDACION REALIZADA
+- Sintaxis JavaScript validada con node --check.
+- El fix no modifica backend, base de datos, rutas, controladores ni index.html.
+
+PRUEBAS MINIMAS
+1. Abrir Panel de Control > Usuarios.
+2. Confirmar que ningún usuario aparezca seleccionado al entrar.
+3. Confirmar agrupación por área y orden jerárquico.
+4. Probar búsqueda y filtro por empresa.
+5. Seleccionar un usuario y comprobar Área/Empresa precargadas.
+6. Pulsar "+ Nuevo usuario" y confirmar que Área/Empresa no tengan valor inicial.
+7. Guardar una edición y un usuario de prueba.

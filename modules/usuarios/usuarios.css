@@ -7,3 +7,96 @@
 .usr-tabs{display:none;background:#fff;border:1px solid rgba(20,31,44,.15);border-radius:16px;overflow:hidden;margin-bottom:14px}.usr-tab{flex:1;border:0;background:#fff;padding:13px 10px;font-weight:800;color:#334155}.usr-tab.active{background:#17202a;color:#fff}
 .usr-profile-top{display:flex;gap:16px;align-items:center;margin-bottom:16px}.usr-avatar{width:74px;height:74px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#17202a;color:#fff;font-weight:900;font-size:1.55rem;overflow:hidden;flex:0 0 auto}.usr-avatar img{width:100%;height:100%;object-fit:cover}.usr-name{font-size:1.25rem;font-weight:900;margin:0}.usr-role{color:#475569;margin:4px 0 0;font-weight:700}.usr-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}.usr-chip{background:#eef2ff;color:#27346a;border-radius:999px;padding:5px 9px;font-size:.78rem;font-weight:800}.usr-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.usr-info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:10px}.usr-info small{display:block;color:#64748b;font-size:.72rem;text-transform:uppercase;font-weight:800}.usr-info b{display:block;margin-top:3px;font-size:.9rem;word-break:break-word}.usr-actions{display:grid;gap:10px;margin-top:16px}.usr-btn{border:0;border-radius:14px;background:#17202a;color:#fff;font-weight:900;padding:11px 13px;cursor:pointer}.usr-btn.secondary{background:#e2e8f0;color:#17202a}.usr-btn:disabled{opacity:.55;cursor:not-allowed}.usr-form{display:none;margin-top:14px;border-top:1px solid #e2e8f0;padding-top:14px}.usr-form.open{display:grid;gap:10px}.usr-form label{font-weight:800;color:#334155;font-size:.85rem}.usr-form input,.usr-form select,.usr-search{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:10px 11px;font:inherit}.usr-msg{min-height:20px;font-size:.86rem;font-weight:800}.usr-msg.ok{color:#15803d}.usr-msg.error{color:#b91c1c}.usr-msg.info{color:#0369a1}.usr-directory-tools{display:flex;gap:10px;align-items:center}.usr-list{max-height:68vh;overflow:auto;padding:8px}.usr-contact{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:0;background:#fff;border-bottom:1px solid #edf2f7;padding:12px;border-radius:14px;cursor:pointer}.usr-contact:hover,.usr-contact.active{background:#f1f5f9}.usr-contact .usr-avatar{width:46px;height:46px;font-size:.96rem}.usr-contact-main{min-width:0;flex:1}.usr-contact-name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.usr-contact-meta{color:#64748b;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.usr-detail{border-top:1px solid #e2e8f0;padding:16px 20px;background:#fbfdff}.usr-detail[hidden]{display:none!important}.usr-detail h3{margin:0 0 8px}.usr-empty{padding:24px;text-align:center;color:#64748b;font-weight:700}.usr-close-detail{border:0;background:#e2e8f0;color:#17202a;border-radius:12px;padding:8px 10px;font-weight:900;cursor:pointer}.usr-loading{padding:30px;text-align:center;color:#64748b}
 @media (max-width: 900px){.usr-page{padding:12px}.usr-tabs{display:flex}.usr-shell{display:block}.usr-panel{display:none}.usr-panel.active{display:block}.usr-card{border-radius:18px}.usr-info-grid{grid-template-columns:1fr}.usr-list{max-height:none}.usr-detail{padding:14px}.usr-card-head{padding:14px}.usr-body{padding:14px}}
+
+.usr-detail-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.usr-directory-profile{margin-bottom:4px}.usr-directory-profile .usr-avatar{width:62px;height:62px;font-size:1.2rem}.usr-task-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}.usr-task-actions .usr-btn{min-height:44px}
+@media (max-width: 700px){.usr-task-actions{grid-template-columns:1fr}.usr-detail-head{align-items:flex-start}.usr-directory-profile{min-width:0}.usr-directory-profile .usr-avatar{width:52px;height:52px}}
+
+/* FIX V2: detalle contextual dentro de cada usuario del directorio */
+.usr-contact-card{border-bottom:1px solid #edf2f7;border-radius:14px;overflow:hidden;background:#fff}
+.usr-contact-card.active{margin:6px 0 10px;border:1px solid #cbd5e1;background:#fbfdff;box-shadow:0 8px 22px rgba(15,23,42,.07)}
+.usr-contact-card .usr-contact{border-bottom:0;border-radius:0}
+.usr-contact-card.active .usr-contact{background:#f1f5f9}
+.usr-contact-chevron{flex:0 0 auto;color:#64748b;font-size:20px;font-weight:900;line-height:1;transition:transform .2s ease}
+.usr-contact[aria-expanded="true"] .usr-contact-chevron{transform:rotate(180deg)}
+.usr-contact-detail{padding:16px 18px 18px;border-top:1px solid #e2e8f0;background:#fbfdff;animation:usrExpand .18s ease-out}
+@keyframes usrExpand{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.usr-contact-detail .usr-profile-top{margin-bottom:4px}
+.usr-contact-detail .usr-info-grid{margin-top:12px}
+@media (max-width:700px){.usr-contact-detail{padding:14px 12px 16px}.usr-contact-card.active{margin-left:0;margin-right:0}}
+
+/* FIX V3: mejora visual del resumen de cada usuario en el directorio */
+.usr-contact{
+  min-height:72px;
+  padding:12px 14px;
+  gap:14px;
+}
+.usr-contact-main{
+  display:grid;
+  grid-template-columns:minmax(150px,.85fr) minmax(240px,1.45fr);
+  align-items:center;
+  gap:8px 18px;
+  min-width:0;
+}
+.usr-contact-name{
+  display:block;
+  min-width:0;
+  line-height:1.25;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+}
+.usr-contact-meta{
+  display:block;
+  min-width:0;
+  line-height:1.35;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  overflow-wrap:anywhere;
+}
+.usr-contact-chevron{
+  width:28px;
+  height:28px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:#f1f5f9;
+  font-size:18px;
+}
+.usr-contact:hover .usr-contact-chevron,
+.usr-contact[aria-expanded="true"] .usr-contact-chevron{
+  background:#e2e8f0;
+  color:#17202a;
+}
+@media (max-width:1100px){
+  .usr-contact-main{
+    grid-template-columns:1fr;
+    gap:3px;
+  }
+}
+@media (max-width:700px){
+  .usr-contact{
+    align-items:flex-start;
+    padding:11px 10px;
+    gap:10px;
+  }
+  .usr-contact .usr-avatar{
+    width:42px;
+    height:42px;
+  }
+  .usr-contact-main{
+    grid-template-columns:1fr;
+    gap:4px;
+  }
+  .usr-contact-name{
+    font-size:.94rem;
+  }
+  .usr-contact-meta{
+    font-size:.78rem;
+  }
+  .usr-contact-chevron{
+    width:26px;
+    height:26px;
+  }
+}

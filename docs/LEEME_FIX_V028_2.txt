@@ -1,0 +1,24 @@
+FIX V028.2 - Soporte / Solicitudes - Integracion al router
+Fecha: 23/07/2026
+
+Archivos modificados:
+- index.html
+- core/router.js
+
+Requisito previo:
+- Aplicar primero FIX V028.1, que agrega:
+  modules/soporte-solicitudes/soporte-solicitudes.html
+  modules/soporte-solicitudes/soporte-solicitudes.css
+  modules/soporte-solicitudes/soporte-solicitudes.js
+
+Cambios:
+- Carga el CSS y JavaScript del modulo Solicitudes.
+- Agrega la vista view-soporte-solicitudes al contenedor principal.
+- Registra la funcion showSoporteSolicitudes en el router.
+- La ruta soporte-solicitudes deja de abrir En construccion y muestra la tabla V028.1.
+- Conserva la validacion de visibilidad existente del sidebar por permisos efectivos.
+
+No incluye:
+- Backend ni consulta a Aiven.
+- Edicion o detalle de solicitud.
+- Datos simulados.

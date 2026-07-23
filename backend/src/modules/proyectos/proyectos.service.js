@@ -69,6 +69,31 @@ const portafolioBaseSelect = `
   END AS dias_parado
 `;
 
+
+function positiveInt(value, fallback, min, max) {
+  const n = Number.parseInt(value, 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function getCriticidadCriteria(req) {
+  const userFallas = Number(req.user && req.user.criticos_fallas) || 3;
+  const userPeriodo = Number(req.user && req.user.criticos_periodo) || 35;
+  const dias = positiveInt(
+    req.query.dias || req.query.periodo || req.query.criticos_periodo,
+    userPeriodo,
+    1,
+    3650
+  );
+  const minFallas = positiveInt(
+    req.query.min_fallas || req.query.minFallas || req.query.fallas || req.query.criticos_fallas,
+    userFallas,
+    1,
+    9999
+  );
+  return { dias, minFallas };
+}
+
 function likeParam(value) {
   const s = String(value || '').trim();
   return s ? '%' + s + '%' : null;
@@ -419,6 +444,7 @@ async function getProyectoDetalle(req, res) {
     const equivalencia = await resolveProyectoEquivalencia(proyectoSolicitado);
     const proyecto = equivalencia.proyecto_busqueda;
     const nombrePublico = equivalencia.nombre_publico;
+    const { dias: criticosPeriodoDias, minFallas: criticosMinFallas } = getCriticidadCriteria(req);
     const anioTicketsRaw = Number.parseInt(req.query.anio_tickets, 10);
     const anioTickets = Number.isInteger(anioTicketsRaw) && anioTicketsRaw >= 2000 && anioTicketsRaw <= 2100 ? anioTicketsRaw : null;
     const filtroVisible = soloPortafolio
@@ -596,6 +622,9 @@ async function getProyectoDetalle(req, res) {
         return value.includes('NO FUNC') || value.includes('PARAD');
       }).length,
       equipos_criticos_anio: 0,
+      equipos_criticos_periodo: 0,
+      criticos_periodo_dias: criticosPeriodoDias,
+      criticos_min_fallas: criticosMinFallas,
       llamadas_total_anio: 0,
       llamadas_blt_anio: 0,
       llamadas_cliente_anio: 0,
@@ -633,6 +662,27 @@ async function getProyectoDetalle(req, res) {
       ) critical
     `, [proyecto]);
     projectMetrics.equipos_criticos_anio = Number(criticalRows[0]?.equipos_criticos_anio || 0);
+
+    const [criticalPeriodRows] = await db.query(`
+      SELECT COUNT(*) AS equipos_criticos_periodo
+      FROM (
+        SELECT t.codigo_equipo
+        FROM tickets t
+        INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
+        WHERE p.estado_registro = 1
+          AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE'))
+          AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'
+          AND UPPER(TRIM(p.proyecto)) = UPPER(TRIM(?))
+          AND t.fecha_reporte IS NOT NULL
+          AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+          AND t.codigo_equipo IS NOT NULL
+          AND TRIM(t.codigo_equipo) <> ''
+          AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'
+        GROUP BY t.codigo_equipo
+        HAVING COUNT(*) >= ?
+      ) critical_period
+    `, [proyecto, criticosPeriodoDias, criticosMinFallas]);
+    projectMetrics.equipos_criticos_periodo = Number(criticalPeriodRows[0]?.equipos_criticos_periodo || 0);
 
     const [responsibilityDistribution] = await db.query(`
       SELECT

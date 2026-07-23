@@ -234,3 +234,32 @@
 @media(max-width:900px){.pc-role-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:620px){.pc-role-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-height:330px}}
 @media(max-width:420px){.pc-role-grid{grid-template-columns:1fr}}
+
+
+/* V026 - Administración de usuarios y roles */
+.pc-admin-layout{display:grid;grid-template-columns:minmax(260px,330px) 1fr;gap:16px;padding:16px}.pc-admin-list,.pc-admin-editor{min-width:0;border:1px solid #dbe4ec;border-radius:16px;background:#fff;overflow:hidden}.pc-admin-list{max-height:72vh;overflow:auto}.pc-admin-list .pc-search{width:calc(100% - 24px);margin:0 12px 12px}.pc-admin-editor{padding:18px}.pc-admin-form{display:grid;gap:16px}.pc-admin-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #e5ebf1;padding-bottom:14px}.pc-admin-head h2{margin:3px 0 5px}.pc-admin-head p{margin:0;color:#64748b;font-size:.8rem}.pc-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.pc-admin-grid label,.pc-admin-principal{display:grid;gap:6px;color:#334155;font-size:.72rem;font-weight:900}.pc-admin-grid label.wide{grid-column:1/-1}.pc-admin-grid input,.pc-admin-grid select,.pc-admin-grid textarea,.pc-admin-principal select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:9px 10px;background:#fff;color:#0f172a}.pc-admin-section{border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#f8fafc}.pc-admin-section h3{margin:0 0 10px;font-size:.82rem}.pc-admin-check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.pc-admin-check{display:flex;align-items:flex-start;gap:7px;border:1px solid #dbe4ec;border-radius:9px;background:#fff;padding:8px;font-size:.68rem;font-weight:800}.pc-admin-check input{margin:2px 0 0;accent-color:#1e88e5}.pc-admin-principal{margin-top:12px;max-width:360px}.pc-admin-actions{display:flex;justify-content:flex-end;gap:9px}.pc-btn.danger{background:#fee2e2;border-color:#fecaca;color:#991b1b}.pc-security-status{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}.pc-security-status span,.pc-role-users span{display:inline-flex;padding:6px 9px;border-radius:999px;background:#fff;border:1px solid #e2e8f0;font-size:.67rem;color:#475569}.pc-role-users{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}.pc-admin-list .pc-user-item{width:100%}.pc-admin-list .pc-user-item.active{background:#eaf4ff;border-left:3px solid #1e88e5}.pc-admin-list .pc-user-item small{display:block}.pc-admin-grid textarea{resize:vertical}.pc-tabs{overflow-x:auto;white-space:nowrap}
+@media(max-width:900px){.pc-admin-layout{grid-template-columns:1fr}.pc-admin-list{max-height:300px}.pc-admin-check-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.pc-admin-layout{padding:10px}.pc-admin-editor{padding:12px}.pc-admin-grid,.pc-admin-check-grid{grid-template-columns:1fr}.pc-admin-head{flex-direction:column}.pc-admin-actions{position:sticky;bottom:0;background:#fff;padding-top:10px}}
+
+/* FIX V026.1: selector administrativo de usuarios reutiliza el listado jerárquico */
+.pc-admin-user-selector{display:flex;flex-direction:column;max-height:72vh;overflow:hidden}
+.pc-admin-user-selector .pc-selector-head,.pc-admin-user-selector .pc-filters{flex:0 0 auto}
+.pc-admin-user-selector .pc-list{flex:1 1 auto;min-height:0;overflow-y:auto}
+.pc-admin-empty{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;color:#64748b}
+.pc-admin-empty h2{margin:14px 0 6px;color:#17202a}
+.pc-admin-empty p{margin:0 0 18px;max-width:420px}
+@media(max-width:900px){.pc-admin-user-selector{max-height:320px}}
+
+/* FIX V026.2: selector administrativo de roles reutiliza el patrón visual jerárquico */
+.pc-admin-role-selector{display:flex;flex-direction:column;max-height:72vh;overflow:hidden}
+.pc-admin-role-selector .pc-selector-head,.pc-admin-role-selector .pc-role-filters{flex:0 0 auto}
+.pc-admin-role-selector .pc-list{flex:1 1 auto;min-height:0;overflow-y:auto}
+.pc-role-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,.8fr);gap:8px;padding:0 12px 8px}
+.pc-role-filters input,.pc-role-filters select{min-width:0;width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:9px 10px;background:#fff;color:#0f172a;font-size:.72rem}
+.pc-role-filters #pc-admin-role-status{grid-column:1/-1}
+.pc-admin-role-item .pc-avatar{background:#17202a;color:#fff}
+.pc-admin-role-item>em{min-width:25px;text-align:center;color:#1e88e5;font-size:.66rem;font-style:normal;font-weight:900}
+.pc-role-company-group .pc-area-heading{position:sticky;top:0;z-index:1;background:#fff}
+.pc-admin-empty-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:#eef5fb;color:#1e88e5;font-size:1.1rem}
+@media(max-width:900px){.pc-admin-role-selector{max-height:320px}}
+@media(max-width:480px){.pc-role-filters{grid-template-columns:1fr}.pc-role-filters #pc-admin-role-status{grid-column:auto}}

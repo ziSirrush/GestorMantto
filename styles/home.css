@@ -43,3 +43,5 @@
 .task-confirm-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.52);z-index:160;display:flex;align-items:center;justify-content:center;padding:18px}
 .task-confirm-box{width:min(520px,94vw);background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.24);padding:18px;display:flex;flex-direction:column;gap:12px}
 .task-confirm-box h3{color:var(--navy);font-size:18px}.task-confirm-box p{color:var(--text);line-height:1.45}.task-confirm-box .form-actions{padding:0;margin-top:4px}
+
+.task-context-banner{margin:10px 14px 0;padding:10px 12px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:var(--navy);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.task-context-banner button{border:1px solid #93c5fd;border-radius:9px;background:#fff;color:var(--blue);font-weight:850;padding:6px 10px;cursor:pointer}@media(max-width:700px){.task-context-banner{align-items:flex-start;flex-direction:column}.task-context-banner button{width:100%}}

@@ -16,7 +16,8 @@
     'ventas-prospeccion':'Prospección', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
-    'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos'
+    'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
+    'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte'
   };
 
   let currentRoute = 'home';
@@ -372,6 +373,26 @@
     return true;
   }
 
+  function showSoporteSolicitudes(){
+    const view = document.getElementById('view-soporte-solicitudes');
+    if(!view) return false;
+    activateViewById('view-soporte-solicitudes');
+    setActiveSide('soporte-solicitudes');
+    updateContext('soporte-solicitudes','Solicitudes de soporte · consulta y seguimiento');
+    if(window.ManttoSoporteSolicitudes && window.ManttoSoporteSolicitudes.init){
+      const requesterMode = currentPayload && currentPayload.mode === 'requester';
+      window.ManttoSoporteSolicitudes.init(view.querySelector('[data-ss-root]') || view, {
+        mode: requesterMode ? 'requester' : 'support',
+        backRoute: currentPayload && currentPayload.backRoute ? currentPayload.backRoute : (requesterMode ? 'help' : 'soporte-solicitudes')
+      });
+      const solicitudId = currentPayload && (currentPayload.id || currentPayload.id_solicitud || currentPayload.id_ticket);
+      if(solicitudId && window.ManttoSoporteSolicitudes.openDetail){
+        window.setTimeout(() => window.ManttoSoporteSolicitudes.openDetail(solicitudId), 0);
+      }
+    }
+    return true;
+  }
+
   function showUsuarios(){
     const view=document.getElementById('view-usuarios');
     if(!view) return false;
@@ -409,6 +430,7 @@
         if(window.ManttoHome && window.ManttoHome.refreshHeaderNotifications) window.ManttoHome.refreshHeaderNotifications();
         if(ruta.startsWith('home:tarea:') || el.dataset.action === 'ABRIR_TAREA') window.ManttoRouter.go('tareas', { module:'tareas', id: ref || ruta.split(':').pop() });
         else if(ruta.startsWith('detalle:ticket:') || el.dataset.action === 'ABRIR_TICKET') window.ManttoRouter.go('detalle', { type:'ticket', id:ruta.split(':').slice(2).join(':') || ref });
+        else if(ruta === 'soporte-solicitudes' || el.dataset.action === 'ABRIR_SOLICITUD') window.ManttoRouter.go('soporte-solicitudes', { id: ref });
         else window.ManttoRouter.go('home');
       }));
     }catch(error){
@@ -423,7 +445,10 @@
     activateViewById('view-' + route);
     setActiveSide(route);
     updateContext(route, subtitle || 'Datos reales desde Aiven');
-    if(route==='help' && window.ManttoSupport) window.ManttoSupport.loadHelp();
+    if(route==='help' && window.ManttoSupport){
+      if(window.ManttoSupport.openHelp) window.ManttoSupport.openHelp(currentPayload || {});
+      else window.ManttoSupport.loadHelp();
+    }
     return true;
   }
 
@@ -451,11 +476,15 @@
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
+    if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
     if(route==='panel-control' && showPanelControl()) return;
     if(route==='help' && showView('help','Centro de Ayuda · flujos y FAQ desde Aiven')) return;
     if(route==='notifications'){ showNotifications(payload); return; }
-    if(route==='support-request' && showView('support-request','Crear solicitud de soporte en Aiven')) return;
+    if(route==='support-request' && showView('support-request', currentPayload && currentPayload.id ? 'Editar mi solicitud de soporte' : 'Crear solicitud de soporte en Aiven')){
+      if(window.ManttoSupport && window.ManttoSupport.openRequestForm) window.ManttoSupport.openRequestForm(currentPayload || {});
+      return;
+    }
     if(route==='tareas'){
       showHome();
       window.setTimeout(function(){
