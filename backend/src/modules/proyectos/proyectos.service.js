@@ -621,7 +621,6 @@ async function getProyectoDetalle(req, res) {
         const value = String(row.estado_operativo || row.estatus_equipo_final || '').trim().toUpperCase();
         return value.includes('NO FUNC') || value.includes('PARAD');
       }).length,
-      equipos_criticos_anio: 0,
       equipos_criticos_periodo: 0,
       criticos_periodo_dias: criticosPeriodoDias,
       criticos_min_fallas: criticosMinFallas,
@@ -646,23 +645,6 @@ async function getProyectoDetalle(req, res) {
     `, [proyecto, proyecto]);
     Object.assign(projectMetrics, callMetricsRows[0] || {});
 
-    const [criticalYearRows] = await db.query(`
-      SELECT t.codigo_equipo
-      FROM tickets t
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
-        AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT'
-        AND t.codigo_equipo IN (
-          SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
-        )
-      GROUP BY t.codigo_equipo
-      HAVING COUNT(*) >= 3
-    `, [proyecto]);
-    const criticalYearCodes = new Set(
-      criticalYearRows.map(row => String(row.codigo_equipo || '').trim()).filter(Boolean)
-    );
-    projectMetrics.equipos_criticos_anio = criticalYearCodes.size;
-
     const [criticalPeriodRows] = await db.query(`
       SELECT t.codigo_equipo
       FROM tickets t
@@ -686,7 +668,6 @@ async function getProyectoDetalle(req, res) {
     equipos.forEach(row => {
       const equipmentCode = String(row.numero_equipo || '').trim();
       row.es_critico_periodo = criticalPeriodCodes.has(equipmentCode) ? 1 : 0;
-      row.es_critico_anio = criticalYearCodes.has(equipmentCode) ? 1 : 0;
     });
 
     const [responsibilityDistribution] = await db.query(`
