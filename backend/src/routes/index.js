@@ -11,6 +11,7 @@ const logisticaRoutes = require('./logistica.routes');
 const usuariosRelAdminRoutes = require('./usuarios-rel-admin.routes');
 const insFlRoutes = require('./ins-fl.routes');
 const panelControlRoutes = require('./panel-control.routes');
+const googleRoutes = require('./google.routes');
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.use('/logistica', logisticaRoutes);
 router.use('/ins-fl', insFlRoutes);
 router.use('/usuarios-rel-admin', usuariosRelAdminRoutes);
 router.use('/panel-control', panelControlRoutes);
+router.use('/google', googleRoutes);
 router.use(dataRoutes);
 
 module.exports = router;
