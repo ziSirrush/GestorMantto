@@ -13,6 +13,7 @@ const insFlRoutes = require('./ins-fl.routes');
 const panelControlRoutes = require('./panel-control.routes');
 const googleRoutes = require('./google.routes');
 const googleDriveRoutes = require('./google-drive.routes');
+const instalacionesDriveRoutes = require('../modules/instalaciones-drive/instalaciones-drive.routes');
 
 const router = express.Router();
 
@@ -28,6 +29,7 @@ router.use('/usuarios-rel-admin', usuariosRelAdminRoutes);
 router.use('/panel-control', panelControlRoutes);
 router.use('/google', googleRoutes);
 router.use('/google/drive', googleDriveRoutes);
+router.use('/instalaciones', instalacionesDriveRoutes);
 router.use(dataRoutes);
 
 module.exports = router;
