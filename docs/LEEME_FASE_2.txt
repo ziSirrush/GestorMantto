@@ -1,0 +1,60 @@
+FASE 2 - GESTOR DE CARPETA
+==========================
+
+Base utilizada:
+- ultima ver 2317hrs - 2507.zip
+- FIX Fase 1 acumulado
+
+ARCHIVOS MODIFICADOS
+--------------------
+Frontend:
+- core/details.js
+
+Backend:
+- backend/src/modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.repository.js
+- backend/src/modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.service.js
+- backend/src/modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.controller.js
+- backend/src/modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.routes.js
+- backend/.env.example
+
+FUNCIONALIDAD
+-------------
+1. Consulta la carpeta asignada al proyecto mediante:
+   GET /api/instalaciones/proyecto-drive/:idProyecto
+
+2. Muestra un explorador tipo arbol.
+3. Carga las carpetas de manera diferida al expandirlas.
+4. Permite abrir carpetas y archivos en Google Drive.
+5. Si el proyecto no tiene relacion, muestra exactamente:
+   SIN CARPETA ASIGNADA
+6. Incluye dos vistas:
+   - Carpeta del proyecto
+   - Carpeta raiz
+
+CONFIGURACION DE CARPETA RAIZ
+-----------------------------
+Agregar en las variables del backend/Azure:
+
+INSTALACIONES_DRIVE_ROOT_FOLDER_ID=ID_ALFANUMERICO_DE_LA_CARPETA
+INSTALACIONES_DRIVE_ROOT_FOLDER_NAME=Instalaciones
+
+Mientras no se configure INSTALACIONES_DRIVE_ROOT_FOLDER_ID, la pestana
+Carpeta raiz permanecera deshabilitada. La carpeta del proyecto funciona
+independientemente porque su ID proviene de MySQL.
+
+REQUISITO GOOGLE
+----------------
+El explorador utiliza las rutas existentes de Google Drive:
+GET /api/google/drive/files
+
+El usuario debe tener una conexion OAuth de Google vigente y acceso a la
+carpeta consultada. Si no tiene conexion o Google revoco el permiso, el
+componente mostrara el mensaje devuelto por el backend.
+
+ORDEN DE PUBLICACION
+--------------------
+1. Publicar los cinco archivos del backend.
+2. Configurar las variables de carpeta raiz cuando se tenga el ID.
+3. Reiniciar/publicar el backend.
+4. Publicar core/details.js en el frontend.
+5. Abrir un proyecto de Instalaciones y probar ambas pestanas.

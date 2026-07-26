@@ -447,18 +447,12 @@ function pyRenderKPIs(){
   const totalEquipos = PY_EQUIPOS.length;
   const conFoto = PY_PROYECTOS.filter(pyTieneFoto).length;
 
-  document.getElementById('py-kpis-activos').innerHTML = `
+  const activosKpis = document.getElementById('py-kpis-activos');
+  if(!activosKpis) return;
+  activosKpis.innerHTML = `
     <div class="py-card"><div class="label">Proyectos activos</div><div class="value" style="color:var(--accent)">${activos}</div></div>
     <div class="py-card"><div class="label">Proyectos cerrados</div><div class="value" style="color:var(--ok)">${cerrados}</div></div>
     <div class="py-card"><div class="label">Equipos totales</div><div class="value">${totalEquipos}</div></div>
-  `;
-  document.getElementById('py-kpis-cerrados').innerHTML = `
-    <div class="py-card"><div class="label">Proyectos cerrados</div><div class="value" style="color:var(--ok)">${cerrados}</div></div>
-    <div class="py-card"><div class="label">% del total</div><div class="value">${total ? (cerrados/total*100).toFixed(0) : 0}%</div></div>
-  `;
-  document.getElementById('py-kpis-fotografias').innerHTML = `
-    <div class="py-card"><div class="label">Proyectos con fotografia</div><div class="value" style="color:var(--accent)">${conFoto}</div></div>
-    <div class="py-card"><div class="label">% del total</div><div class="value">${total ? (conFoto/total*100).toFixed(0) : 0}%</div></div>
   `;
 }
 
@@ -501,14 +495,34 @@ function pyPopulateFiltrosBasicos(){
   const estadosFoto=[...new Set(PY_PROYECTOS.filter(pyTieneFoto).map(r=>r.Estado).filter(Boolean))].sort();
   setOptions('py-f-estado-fotos','Selecciona un estado...',estadosFoto);
 }
+function pyIrAModulo(route){
+  if(window.ManttoRouter && typeof window.ManttoRouter.go==='function'){
+    window.ManttoRouter.go(route);
+    return true;
+  }
+  const side=document.querySelector('.side-item[data-route="'+route+'"]');
+  if(side){ side.click(); return true; }
+  console.error('No se encontró la ruta de destino:', route);
+  return false;
+}
 function pyBindTabs(){
   document.querySelectorAll('#py-page .py-tab').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    btn.addEventListener('click',(event)=>{
       const name=btn.dataset.tab;
+      if(name==='cerrados'){
+        event.preventDefault();
+        event.stopPropagation();
+        pyIrAModulo('instalaciones-cerrados');
+        return;
+      }
+      if(name==='fotografias'){
+        event.preventDefault();
+        event.stopPropagation();
+        pyIrAModulo('ventas-fotos-mapa');
+        return;
+      }
       pyShowTab(name);
-      if(name==='activos')pyRenderProyectos();
-      else if(name==='cerrados')pyRenderCerrados();
-      else if(name==='fotografias')pyRenderFotografias();
+      pyRenderProyectos();
     });
   });
 }
@@ -1669,10 +1683,8 @@ async function pyInit(){
   try{ await pyCargarDesdeAiven(); const status=document.getElementById('py-aiven-status'); if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>'; }catch(error){ console.error(error); const page=document.getElementById('py-page'); if(page) page.insertAdjacentHTML('afterbegin',`<div class="py-note">No se pudieron cargar los datos desde Aiven: ${pyEsc(error.message||error)}</div>`); }
   pyRenderKPIs();
   pyPopulateFiltrosBasicos();
-  pyRenderProyectos();
-  pyRenderCerrados();
-  pyRenderFotografias();
   pyBindTabs();
+  pyRenderProyectos();
   document.addEventListener('keydown', (e)=>{
     if(!document.getElementById('py-lightbox').classList.contains('open')) return;
     if(e.key === 'ArrowLeft') pyLightboxNav(-1);
@@ -1685,7 +1697,7 @@ async function pyMount(forceReload){
  if(!view)return false;
  if(forceReload) view.dataset.pyReady='0';
  if(view.dataset.pyReady!=='1'){
-   const r=await fetch('./modules/instalaciones-proyectos/instalaciones-proyectos.html?v=20260713-visual-fix',{cache:'no-store'});
+   const r=await fetch('./modules/instalaciones-proyectos/instalaciones-proyectos.html?v=20260726-fix-tabs-activos-v003',{cache:'no-store'});
    if(!r.ok)throw new Error('No se pudo cargar Proyectos de Instalación.');
    view.innerHTML=await r.text();
    view.dataset.pyReady='1';
@@ -1694,7 +1706,7 @@ async function pyMount(forceReload){
  return true;
 }
 Object.assign(window,{
-  pyShowTab,pyRenderProyectos,pyRenderCerrados,pyRenderFotografias,
+  pyShowTab,pyRenderProyectos,
   pyAbrirProyecto,pyAbrirEquipo,pyAbrirProyectoMantto,pyAbrirEquipoMantto,pyAbrirLightboxUna,pyAbrirLightboxProyecto,
   pyLightboxNav,pyCerrarLightbox,pyRenderSlotsFoto
 });
@@ -1705,7 +1717,7 @@ window.ManttoInstalacionesProyectos={
      const status=document.getElementById('py-aiven-status');
      if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Actualizando Aiven...</span>';
      await pyCargarDesdeAiven();
-     pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();pyRenderCerrados();pyRenderFotografias();
+     pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();
      if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>';
    }catch(error){
      const status=document.getElementById('py-aiven-status');

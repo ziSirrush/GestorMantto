@@ -1,0 +1,33 @@
+<div class="py-page" id="ic-page">
+  <section class="py-card-shell py-module-head">
+    <div>
+      <p class="py-eyebrow">Aiven · Instalaciones</p>
+      <h1 class="py-title">Proyectos Cerrados</h1>
+      <p class="py-subtitle">Proyectos cuyos equipos se encuentran completamente en estatus 08-T.</p>
+    </div>
+    <div class="py-head-actions">
+      <span id="ic-aiven-status" class="py-connection-status"><span class="py-connection-dot"></span><span>Datos desde Aiven</span></span>
+      <button class="py-refresh-btn" type="button" onclick="window.ManttoInstalacionesCerrados && window.ManttoInstalacionesCerrados.reload()">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <div class="py-source-note-wrap">
+    <div class="py-note">Un proyecto se considera <b>Cerrado</b> cuando el 100% de sus equipos está en estatus <b>08-T</b>.</div>
+  </div>
+
+  <section class="py-section active">
+    <div class="py-grid" id="ic-kpis"></div>
+    <div class="py-filters">
+      <input type="text" id="ic-buscar" placeholder="Buscar proyecto, ID o cliente...">
+      <select id="ic-estado"><option value="">Todos los estados</option></select>
+      <select id="ic-asesor"><option value="">Todo asesor</option></select>
+      <select id="ic-supervisor"><option value="">Todo supervisor</option></select>
+    </div>
+    <div class="py-table-wrap">
+      <table class="py-table">
+        <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th><th>Cliente</th></tr></thead>
+        <tbody id="ic-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>

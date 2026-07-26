@@ -1,0 +1,26 @@
+MANTTO GESTOR - FASE 3A
+Centralizacion de navegacion desde Instalaciones > Proyectos
+
+Archivo modificado:
+- modules/instalaciones-proyectos/instalaciones-proyectos.js
+
+Comportamiento:
+1. El tab "Proyectos Cerrados" navega a la ruta:
+   instalaciones-cerrados
+
+2. El tab "Fotografias" navega a la ruta:
+   ventas-fotos-mapa
+
+3. El tab "Proyectos Activos" conserva su funcionamiento actual.
+
+4. No se elimina todavia la logica interna antigua de Cerrados ni Fotografias.
+   Esa limpieza corresponde a la Fase 3B, despues de validar la navegacion.
+
+5. No se modifica la plantilla general:
+   - barra superior
+   - barra contextual
+   - panel lateral
+   - Nori
+
+Validacion tecnica:
+- Sintaxis JavaScript verificada con node --check.

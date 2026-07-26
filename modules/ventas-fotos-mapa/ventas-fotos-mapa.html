@@ -1,0 +1,21 @@
+<div class="py-page" id="vfm-page">
+  <section class="py-card-shell py-module-head">
+    <div>
+      <p class="py-eyebrow">Aiven · Ventas</p>
+      <h1 class="py-title">Fotos Mapa</h1>
+      <p class="py-subtitle">Consulta visual de proyectos con evidencia fotográfica por estado.</p>
+    </div>
+    <div class="py-head-actions">
+      <span id="vfm-aiven-status" class="py-connection-status"><span class="py-connection-dot"></span><span>Datos desde Aiven</span></span>
+      <button class="py-refresh-btn" type="button" onclick="window.ManttoVentasFotosMapa && window.ManttoVentasFotosMapa.reload()">↻ Actualizar</button>
+    </div>
+  </section>
+  <section class="py-section active">
+    <div class="py-grid" id="vfm-kpis"></div>
+    <div class="py-filters">
+      <input type="text" id="vfm-buscar" placeholder="Buscar proyecto, ID o cliente...">
+      <label class="py-filter-field" for="vfm-estado"><span>Estado</span><select id="vfm-estado"><option value="">Todos los estados</option></select></label>
+    </div>
+    <div id="vfm-galeria"></div>
+  </section>
+</div>

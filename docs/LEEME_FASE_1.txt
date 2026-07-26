@@ -1,0 +1,27 @@
+MANTTO GESTOR - FASE 1 DETALLE PROYECTO INSTALACIONES
+Base: ultima ver 2317hrs - 2507.zip
+
+ARCHIVOS MODIFICADOS
+- core/details.js
+- core/router.js
+
+CAMBIOS
+1. Se conserva el encabezado principal con nombre e ID del proyecto.
+2. Se oculta la barra contextual superior solo en el Detalle Proyecto de Instalaciones.
+3. Se elimina el encabezado repetido CORELLIAN - Instalaciones.
+4. Se eliminan los cuatro KPIs que se renderizaban como bloques blancos.
+5. Nuevo orden:
+   - Foto + Informacion general
+   - Pipeline de avance
+   - Gestor de la carpeta (placeholder Fase 1)
+   - Equipos del proyecto
+   - Avance individual por equipo
+   - UNITED - Operacion y Mantenimiento existente
+6. El gestor muestra SIN CARPETA ASIGNADA hasta la integracion de la Fase 2.
+7. No se modifica la logica ni el contenido del bloque United existente.
+
+INSTALACION
+Reemplazar los dos archivos respetando las rutas indicadas.
+
+VALIDACION
+Ambos archivos fueron validados con node --check.

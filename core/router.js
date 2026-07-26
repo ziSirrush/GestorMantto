@@ -333,6 +333,26 @@
     return true;
   }
 
+  function showInstalacionesCerrados(){
+    const view=document.getElementById('view-instalaciones-cerrados');
+    if(!view) return false;
+    activateViewById('view-instalaciones-cerrados');
+    setActiveSide('instalaciones-cerrados');
+    updateContext('instalaciones-cerrados','Proyectos Cerrados · datos reales desde Aiven');
+    if(window.ManttoInstalacionesCerrados) window.ManttoInstalacionesCerrados.init();
+    return true;
+  }
+
+  function showVentasFotosMapa(){
+    const view=document.getElementById('view-ventas-fotos-mapa');
+    if(!view) return false;
+    activateViewById('view-ventas-fotos-mapa');
+    setActiveSide('ventas-fotos-mapa');
+    updateContext('ventas-fotos-mapa','Fotos Mapa · evidencia fotográfica por estado desde Aiven');
+    if(window.ManttoVentasFotosMapa) window.ManttoVentasFotosMapa.init();
+    return true;
+  }
+
   function showInstalacionesConcentradoCliente(){
     const view=document.getElementById('view-instalaciones-concentrado-cliente');
     if(!view) return false;
@@ -473,6 +493,8 @@
     if(route==='operativo' && showOperativo()) return;
     if(route==='movimientos' && showMovimientos()) return;
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
+    if(route==='instalaciones-cerrados' && showInstalacionesCerrados()) return;
+    if(route==='ventas-fotos-mapa' && showVentasFotosMapa()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
@@ -527,6 +549,8 @@
   }
 
   function render(route, payload){
+    const isInstallationProjectDetail = route === 'detalle' && payload && payload.type === 'proyecto' && (payload.template === 'cliente-unificado' || payload.source === 'instalaciones-concentrado-cliente' || payload.source === 'instalaciones-proyectos');
+    document.body.classList.toggle('mg-installation-project-detail', Boolean(isInstallationProjectDetail));
     if(route==='home') return showHome();
     return showPlaceholder(route, payload);
   }

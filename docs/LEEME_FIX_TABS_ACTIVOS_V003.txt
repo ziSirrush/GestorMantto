@@ -1,0 +1,19 @@
+FIX TABS Y PROYECTOS ACTIVOS V003
+
+Base: ultima ver 0005hrs - 2607.zip
+
+Conflicto localizado:
+- La Fase 3B retiro del HTML las secciones internas de Proyectos Cerrados y Fotografias.
+- El JavaScript del modulo Proyectos seguia intentando escribir en esos elementos eliminados.
+- pyRenderKPIs lanzaba error al buscar py-kpis-cerrados y py-kpis-fotografias.
+- El error detenia pyInit antes de renderizar Proyectos Activos y antes de enlazar los tabs.
+
+Correccion:
+- Proyectos solo renderiza sus KPIs y tabla de Activos.
+- Ya no ejecuta renderizadores locales de Cerrados ni Fotografias durante init/reload.
+- Los tabs se enlazan antes de renderizar la tabla activa.
+- Cerrados redirige a instalaciones-cerrados.
+- Fotografias redirige a ventas-fotos-mapa.
+- Se actualizo la version de cache en index.html y en el fetch del HTML.
+
+No se modifico Fotos Mapa ni Proyectos Cerrados.

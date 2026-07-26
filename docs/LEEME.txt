@@ -1,16 +1,16 @@
-FIX PANEL DE CONTROL - SEGUNDO ROL PROGRAMADOR
+FIX VISUAL - SCROLL INTERNO DEL GESTOR DE CARPETA
 
-Archivos a reemplazar:
-- index.html
-- core/user-viewer.js
+Base acumulativa:
+- Fase 2 Gestor de Carpeta.
+- Correctivo que conserva la barra contextual y la plantilla general.
 
-No requiere cambios de backend ni SQL.
+Archivo modificado:
+- core/details.js
 
-Causa corregida:
-El permiso HTML panel_control se normalizaba como panelcontrol, mientras el catalogo real usa GENERAL_PANEL_DE_CONTROL. La coincidencia no encontraba el modulo y lo ocultaba aunque el rol Programador estuviera activo como rol secundario.
-
-Prueba:
-1. Recargar sin cache o cerrar y abrir la aplicacion.
-2. Iniciar sesion con Joseph Vera.
-3. Confirmar que aparezca Panel de Control en el sidebar.
-4. Abrirlo y validar que cargue el bootstrap.
+Cambio:
+- El contenido del árbol tiene scroll vertical interno.
+- Altura máxima escritorio: 420 px.
+- Altura máxima móvil (<=720 px): 300 px.
+- Encabezado y pestañas permanecen fuera del área desplazable.
+- Se evita que el módulo expanda excesivamente el Detalle Proyecto.
+- Se conserva toda la funcionalidad de Drive y la plantilla general.

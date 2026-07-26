@@ -22,8 +22,8 @@
   <div class="py-source-note-wrap">
     <div class="py-note">
       La información operativa se consulta desde <b>Aiven</b>. Un proyecto se considera
-      <b>Cerrado</b> cuando el 100% de sus equipos está en estatus <b>08-T</b>; si tiene al menos un
-      equipo en otro estatus, o no tiene equipos vinculados, permanece en <b>Activos</b>.
+      <b>Cerrado</b> cuando el 100% de sus equipos está en estatus <b>08-T</b>; su consulta completa
+      vive en el módulo <b>Proyectos Cerrados</b>. Los demás proyectos permanecen en <b>Activos</b>.
     </div>
   </div>
 
@@ -52,44 +52,6 @@
     </div>
   </section>
 
-  <!-- ===================== PROYECTOS CERRADOS ===================== -->
-  <section id="py-tab-cerrados" class="py-section">
-    <div class="py-grid" id="py-kpis-cerrados"></div>
-
-    <div class="py-filters">
-      <input type="text" id="py-f-buscar-cerrados" placeholder="Buscar proyecto, ID o cliente..." oninput="pyRenderCerrados()">
-      <select id="py-f-estado-cerrados" onchange="pyRenderCerrados()"><option value="">Todos los estados</option></select>
-      <select id="py-f-asesor-cerrados" onchange="pyRenderCerrados()"><option value="">Todo asesor</option></select>
-      <select id="py-f-supervisor-cerrados" onchange="pyRenderCerrados()"><option value="">Todo supervisor</option></select>
-    </div>
-
-    <div class="py-table-wrap">
-      <table class="py-table">
-        <thead>
-          <tr>
-            <th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th>
-            <th>Asesor</th><th>Supervisor</th><th>Cliente</th>
-          </tr>
-        </thead>
-        <tbody id="py-cerrados-tbody"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- ===================== FOTOGRAFIAS ===================== -->
-  <section id="py-tab-fotografias" class="py-section">
-    <div class="py-grid" id="py-kpis-fotografias"></div>
-
-    <div class="py-filters">
-      <input type="text" id="py-f-buscar-fotos" placeholder="Buscar proyecto, ID o cliente..." oninput="pyRenderFotografias()">
-      <label class="py-filter-field" for="py-f-estado-fotos">
-        <span>Estado a consultar</span>
-        <select id="py-f-estado-fotos" onchange="pyRenderFotografias()"><option value="">Selecciona un estado...</option></select>
-      </label>
-    </div>
-
-    <div id="py-fotografias-galeria"></div>
-  </section>
 
 </div>
 

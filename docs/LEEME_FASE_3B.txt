@@ -1,0 +1,24 @@
+MANTTO GESTOR - FASE 3B
+Centralizacion y limpieza de tabs de Instalaciones > Proyectos
+
+BASE ACUMULATIVA
+- ultima ver 2348hrs - 2507.zip
+- FIX_FASE_3A_REDIRECCION_TABS.zip
+
+ARCHIVOS MODIFICADOS
+1. modules/instalaciones-proyectos/instalaciones-proyectos.js
+2. modules/instalaciones-proyectos/instalaciones-proyectos.html
+
+CAMBIOS
+- Se conserva el tab Proyectos Cerrados como acceso directo al modulo instalaciones-cerrados.
+- Se conserva el tab Fotografias como acceso directo al modulo ventas-fotos-mapa.
+- Se retiro del HTML la tabla/filtros/KPIs duplicados de Proyectos Cerrados.
+- Se retiro del HTML la galeria/filtros/KPIs duplicados de Fotografias.
+- Se retiraron del JS los renderizadores y eventos de esas vistas internas.
+- Se retiraron inicializaciones, recargas y exportaciones globales que ya no se usan.
+- Se conserva la logica de fotografias utilizada en el detalle individual del proyecto.
+- No se modificaron los modulos destino, router general, barra superior, barra contextual, panel lateral ni Nori.
+
+VALIDACION
+- Sintaxis JavaScript validada con node --check.
+- Rutas destino verificadas en el frontend.

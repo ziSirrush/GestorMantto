@@ -94,11 +94,20 @@
         .mg-detail-head{background:#0D2E6E;color:#fff;padding:16px 20px;display:flex;align-items:center;gap:14px;border-radius:14px 14px 0 0}
         .mg-detail-head-copy{min-width:0}.mg-detail-head h2{font-size:18px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-detail-head p{margin:3px 0 0;color:rgba(255,255,255,.76);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .mg-detail-body{padding:16px;overflow:visible;background:#F8FAFC}
+        body.mg-installation-project-detail .mg-detail-body{padding-top:14px}
         .mg-detail-section{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;overflow:hidden}.mg-detail-section h3{margin:0;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px}.mg-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0}.mg-field{padding:10px 12px;border-right:1px solid #EEF2FF;border-bottom:1px solid #EEF2FF}.mg-field label{display:block;font-size:10px;color:#64748B;text-transform:uppercase;font-weight:700;margin-bottom:3px}.mg-field span{font-size:12px;color:#1E293B}.mg-table-wrap{overflow:auto}.mg-table{width:100%;border-collapse:collapse;min-width:760px}.mg-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:11px;padding:8px}.mg-table td{font-size:12px;padding:8px;border-bottom:1px solid #E2E8F0;color:#334155}.mg-link{border:0;background:transparent;color:#1B4FD8;text-decoration:underline;cursor:pointer;font:inherit;padding:0}.mg-empty{padding:18px;text-align:center;color:#64748B}
 
         .mg-company-block{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:14px;margin-bottom:16px;overflow:hidden;box-shadow:0 6px 18px rgba(15,23,42,.05)}
         .mg-company-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;color:#fff}.mg-company-head h3{margin:0;font-size:14px}.mg-company-head p{margin:3px 0 0;font-size:11px;color:rgba(255,255,255,.78)}
         .mg-company-block.corellian .mg-company-head{background:#0D2E6E}.mg-company-block.united .mg-company-head{background:#0D2E6E}.mg-company-content{padding:14px}.mg-company-content .mg-detail-section:last-child{margin-bottom:0}
+        .mg-corellian-content{display:grid;gap:14px}.mg-corellian-content>.mg-detail-section,.mg-corellian-content>.mg-stage-bars,.mg-corellian-content>.mg-folder-manager,.mg-corellian-content>.mg-chart-grid{margin-bottom:0}
+        .mg-folder-manager{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;overflow:hidden}
+        .mg-folder-manager-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px;font-weight:900}
+        .mg-folder-manager-open{border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-manager-open[hidden]{display:none}
+        .mg-folder-manager-tabs{display:flex;gap:8px;padding:10px 12px 0}.mg-folder-manager-tab{border:1px solid rgba(13,46,110,.2);background:#fff;color:#0D2E6E;border-radius:9px;padding:7px 12px;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-manager-tab.active{background:#0D2E6E;color:#fff}.mg-folder-manager-tab:disabled{opacity:.5;cursor:not-allowed}
+        .mg-folder-manager-body{min-height:150px;max-height:420px;overflow-y:auto;overscroll-behavior:contain;padding:12px 14px;scrollbar-gutter:stable}.mg-folder-empty,.mg-folder-status{font-size:12px;font-weight:900;text-align:center;border-radius:10px;padding:12px 14px;margin:12px auto;max-width:420px}.mg-folder-empty{color:#9F1239;background:#FFF1F2;border:1px solid #FECDD3}.mg-folder-status{color:#0D2E6E;background:#EFF6FF;border:1px solid #BFDBFE}.mg-folder-status.error{color:#9F1239;background:#FFF1F2;border-color:#FECDD3}
+        .mg-folder-tree{list-style:none;margin:0;padding:0}.mg-folder-tree ul{list-style:none;margin:3px 0 3px 22px;padding:0;border-left:1px dashed #CBD5E1}.mg-folder-node{margin:2px 0}.mg-folder-row{display:flex;align-items:center;gap:7px;min-height:32px;padding:4px 7px;border-radius:7px}.mg-folder-row:hover{background:#F8FAFC}.mg-folder-toggle{width:22px;height:22px;border:0;background:transparent;color:#334155;cursor:pointer;font-size:12px}.mg-folder-toggle.placeholder{visibility:hidden}.mg-folder-icon{width:20px;text-align:center}.mg-folder-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:750;color:#1E293B}.mg-folder-item-open{border:0;background:transparent;color:#0D2E6E;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-children[hidden]{display:none}.mg-folder-muted{font-size:11px;color:#64748B}
+        @media(max-width:720px){.mg-folder-manager-body{max-height:300px;padding:10px 11px}.mg-folder-manager-tabs{overflow-x:auto;white-space:nowrap;padding-bottom:2px}.mg-folder-manager-tab{flex:0 0 auto}.mg-folder-row{min-height:36px}.mg-folder-item-open{padding:5px 3px}}
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
         .mg-project-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-project-kpis.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-project-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-project-kpi{min-height:104px;border:0;border-radius:15px;padding:13px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;color:#fff;box-shadow:0 9px 20px rgba(13,46,110,.14)}.mg-project-kpi-icon{font-size:22px;line-height:1}.mg-project-kpi span:not(.mg-project-kpi-icon){display:block;font-size:9px;text-transform:uppercase;font-weight:900;letter-spacing:.04em;color:rgba(255,255,255,.94)}.mg-project-kpi strong{display:block;color:#fff;font-size:28px;line-height:1}.mg-project-kpi small{font-size:9px;color:rgba(255,255,255,.76)}.mg-project-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.mg-project-kpi-red{background:linear-gradient(135deg,#DC2626,#991B1B)}.mg-project-kpi-amber{background:linear-gradient(135deg,#D97706,#B45309)}.mg-project-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.mg-project-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.mg-project-kpi-cyan{background:linear-gradient(135deg,#0284C7,#0369A1)}.mg-project-kpi-slate{background:linear-gradient(135deg,#64748B,#475569)}.mg-project-dashboard{padding:14px}.mg-project-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.mg-project-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-project-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-project-ring-layout{display:flex;align-items:center;gap:14px}.mg-project-ring{width:132px;height:132px;border-radius:50%;position:relative;flex:0 0 132px;background:#E2E8F0}.mg-project-ring:after{content:'';position:absolute;inset:25px;border-radius:50%;background:#fff}.mg-project-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-size:18px;font-weight:900;color:#0D2E6E}.mg-project-ring-legend{display:grid;gap:6px;min-width:0}.mg-project-ring-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#475569}.mg-project-ring-dot{width:10px;height:10px;border-radius:50%}.mg-project-ring-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-project-ring-value{font-weight:800;color:#0D2E6E}.mg-project-equipment-empty{display:none}
@@ -305,6 +314,103 @@
       renderProjectPhotoLightbox();
     }catch(error){window.alert(error.message||'No fue posible actualizar la foto principal.');}
   }
+  function driveItemIcon(item){
+    if(item&&item.is_folder)return '📁';
+    const mime=String(item&&item.mime_type||'').toLowerCase();
+    if(mime.includes('pdf'))return '📕';
+    if(mime.includes('spreadsheet')||mime.includes('excel'))return '📊';
+    if(mime.includes('document')||mime.includes('word'))return '📘';
+    if(mime.startsWith('image/'))return '🖼️';
+    return '📄';
+  }
+  function folderStatus(manager,message,isError){
+    const body=manager&&manager.querySelector('.mg-folder-manager-body');
+    if(body)body.innerHTML='<div class="mg-folder-status'+(isError?' error':'')+'">'+esc(message)+'</div>';
+  }
+  function renderDriveTreeItems(items){
+    if(!items||!items.length)return '<div class="mg-folder-muted">La carpeta está vacía.</div>';
+    return '<ul class="mg-folder-tree">'+items.map(item=>{
+      const id=String(item.id||'');
+      const folder=Boolean(item.is_folder);
+      const link=item.web_view_link||('https://drive.google.com/open?id='+encodeURIComponent(id));
+      return '<li class="mg-folder-node" data-drive-id="'+esc(id)+'" data-drive-folder="'+(folder?'1':'0')+'"><div class="mg-folder-row">'+
+        '<button type="button" class="mg-folder-toggle '+(folder?'':'placeholder')+'" aria-label="Expandir carpeta">'+(folder?'▶':'')+'</button>'+
+        '<span class="mg-folder-icon">'+driveItemIcon(item)+'</span><span class="mg-folder-name" title="'+esc(item.name)+'">'+esc(item.name)+'</span>'+
+        '<button type="button" class="mg-folder-item-open" data-drive-link="'+esc(link)+'">Abrir</button></div>'+
+        (folder?'<div class="mg-folder-children" hidden></div>':'')+'</li>';
+    }).join('')+'</ul>';
+  }
+  async function loadDriveChildren(manager,folderId,target){
+    target.innerHTML='<div class="mg-folder-muted">Cargando contenido...</div>';
+    try{
+      const response=await fetchJson('/api/google/drive/files?folder_id='+encodeURIComponent(folderId)+'&page_size=1000');
+      target.innerHTML=renderDriveTreeItems(response.files||[]);
+      bindFolderTree(manager,target);
+    }catch(error){
+      target.innerHTML='<div class="mg-folder-status error">'+esc(error.message||'No fue posible consultar Google Drive.')+'</div>';
+    }
+  }
+  function bindFolderTree(manager,scope){
+    scope.querySelectorAll('.mg-folder-toggle:not([data-bound])').forEach(button=>{
+      button.dataset.bound='1';
+      button.addEventListener('click',async()=>{
+        const node=button.closest('.mg-folder-node');
+        const children=node&&node.querySelector(':scope > .mg-folder-children');
+        if(!node||!children)return;
+        const opening=children.hidden;
+        children.hidden=!opening;
+        button.textContent=opening?'▼':'▶';
+        if(opening&&!children.dataset.loaded){children.dataset.loaded='1';await loadDriveChildren(manager,node.dataset.driveId,children);}
+      });
+    });
+    scope.querySelectorAll('[data-drive-link]:not([data-bound])').forEach(button=>{
+      button.dataset.bound='1';button.addEventListener('click',()=>window.open(button.dataset.driveLink,'_blank','noopener,noreferrer'));
+    });
+  }
+  async function showFolderRoot(manager,folder){
+    const body=manager.querySelector('.mg-folder-manager-body');
+    const openButton=manager.querySelector('.mg-folder-manager-open');
+    if(!folder||!folder.carpeta_id){
+      openButton.hidden=true;
+      body.innerHTML='<div class="mg-folder-empty">SIN CARPETA ASIGNADA</div>';
+      return;
+    }
+    openButton.hidden=false;
+    openButton.dataset.driveLink=folder.enlace||('https://drive.google.com/drive/folders/'+encodeURIComponent(folder.carpeta_id));
+    body.innerHTML='<ul class="mg-folder-tree"><li class="mg-folder-node" data-drive-id="'+esc(folder.carpeta_id)+'" data-drive-folder="1"><div class="mg-folder-row"><button type="button" class="mg-folder-toggle" aria-label="Expandir carpeta">▼</button><span class="mg-folder-icon">📁</span><span class="mg-folder-name">'+esc(folder.nombre_carpeta||'Carpeta')+'</span><button type="button" class="mg-folder-item-open" data-drive-link="'+esc(openButton.dataset.driveLink)+'">Abrir</button></div><div class="mg-folder-children"></div></li></ul>';
+    const children=body.querySelector('.mg-folder-children');
+    children.dataset.loaded='1';
+    bindFolderTree(manager,body);
+    await loadDriveChildren(manager,folder.carpeta_id,children);
+  }
+  async function initProjectFolderManager(projectId){
+    const manager=document.querySelector('.mg-folder-manager[data-project-id="'+CSS.escape(String(projectId))+'"]');
+    if(!manager)return;
+    folderStatus(manager,'Consultando carpeta del proyecto...');
+    let data;
+    try{data=await fetchJson('/api/instalaciones/proyecto-drive/'+encodeURIComponent(projectId));}
+    catch(error){folderStatus(manager,error.message||'No fue posible cargar la carpeta.',true);return;}
+    manager._folderData=data;
+    const tabs=[...manager.querySelectorAll('.mg-folder-manager-tab')];
+    tabs.forEach(tab=>{
+      const key=tab.dataset.folderTab;
+      const available=key==='proyecto'?Boolean(data.carpeta_proyecto):Boolean(data.carpeta_raiz);
+      tab.disabled=!available;
+      tab.addEventListener('click',async()=>{
+        if(tab.disabled)return;
+        tabs.forEach(item=>item.classList.toggle('active',item===tab));
+        await showFolderRoot(manager,key==='proyecto'?data.carpeta_proyecto:data.carpeta_raiz);
+      });
+    });
+    const openButton=manager.querySelector('.mg-folder-manager-open');
+    openButton.addEventListener('click',()=>{if(openButton.dataset.driveLink)window.open(openButton.dataset.driveLink,'_blank','noopener,noreferrer');});
+    if(data.carpeta_proyecto){await showFolderRoot(manager,data.carpeta_proyecto);}
+    else{
+      tabs.forEach(tab=>tab.classList.toggle('active',tab.dataset.folderTab==='proyecto'));
+      await showFolderRoot(manager,null);
+    }
+  }
+
   async function openUnifiedClientProject(proyecto, options){
     show('Proyecto',options.projectName||proyecto,'<div class="mg-empty">Preparando expediente unificado del cliente...</div>');
     const projectName=String(options.projectName||'').trim();
@@ -330,7 +436,8 @@
     const generalPct=Math.round((toPct(phaseBars[0].value)*.4)+(toPct(phaseBars[1].value)*.4)+(toPct(phaseBars[2].value)*.2));
     const overview='<div class="mg-project-overview '+(principalUrl?'':'no-photo')+'">'+(principalUrl?'<button type="button" class="mg-project-cover" data-project-photo-open aria-label="Abrir fotografías del proyecto"><img id="mg-project-cover-image" src="'+esc(principalUrl)+'" alt="Foto principal del proyecto"></button>':'')+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
-    const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-head"><div><h3>CORELLIAN · Instalaciones</h3><p>Información y avances del proyecto de instalación.</p></div></div><div class="mg-company-content">'+overview+'<div class="mg-project-kpis"><article class="mg-project-kpi"><span>Equipos</span><strong>'+coreRows.length+'</strong></article><article class="mg-project-kpi"><span>Terminados</span><strong>'+closed+'</strong></article><article class="mg-project-kpi"><span>En proceso</span><strong>'+inProcess+'</strong></article><article class="mg-project-kpi"><span>Avance promedio</span><strong>'+overall+'%</strong></article></div>'+stageBars+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
+    const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
+    const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
     const unitedRoot=unitedResponse&&(unitedResponse.data||unitedResponse);
     const unitedSource=String(unitedResponse&&(unitedResponse.origen||unitedResponse.source)||'').trim().toUpperCase();
     const isUnitedPortafolio=unitedSource==='PORTAFOLIO'||unitedSource==='AIVEN-PORTAFOLIO';
@@ -345,6 +452,7 @@
     bindLinks(detailRoot);
     const photoButton=detailRoot&&detailRoot.querySelector('[data-project-photo-open]');
     if(photoButton)photoButton.addEventListener('click',()=>openProjectPhotoLightbox(proyecto,resolvedName,photos,principalUrl));
+    initProjectFolderManager(proyecto);
   }
 
   async function openProyecto(proyecto, options){
