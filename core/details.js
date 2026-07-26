@@ -103,11 +103,13 @@
         .mg-corellian-content{display:grid;gap:14px}.mg-corellian-content>.mg-detail-section,.mg-corellian-content>.mg-stage-bars,.mg-corellian-content>.mg-folder-manager,.mg-corellian-content>.mg-chart-grid{margin-bottom:0}
         .mg-folder-manager{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;overflow:hidden}
         .mg-folder-manager-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px;font-weight:900}
-        .mg-folder-manager-open{border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-manager-open[hidden]{display:none}
+        .mg-folder-manager-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+        .mg-folder-manager-open,.mg-folder-oauth-btn{border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-manager-open[hidden],.mg-folder-oauth-btn[hidden]{display:none}.mg-folder-oauth-btn.disconnect{background:#fff;color:#9F1239;border:1px solid #FECDD3}.mg-folder-oauth-btn:disabled{opacity:.65;cursor:wait}
+        .mg-folder-auth-box{display:flex;flex-direction:column;align-items:center;gap:10px}.mg-folder-auth-box .mg-folder-status{margin-bottom:0}.mg-folder-auth-email{font-size:11px;color:#64748B;font-weight:750;text-align:center}
         .mg-folder-manager-tabs{display:flex;gap:8px;padding:10px 12px 0}.mg-folder-manager-tab{border:1px solid rgba(13,46,110,.2);background:#fff;color:#0D2E6E;border-radius:9px;padding:7px 12px;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-manager-tab.active{background:#0D2E6E;color:#fff}.mg-folder-manager-tab:disabled{opacity:.5;cursor:not-allowed}
         .mg-folder-manager-body{min-height:150px;max-height:420px;overflow-y:auto;overscroll-behavior:contain;padding:12px 14px;scrollbar-gutter:stable}.mg-folder-empty,.mg-folder-status{font-size:12px;font-weight:900;text-align:center;border-radius:10px;padding:12px 14px;margin:12px auto;max-width:420px}.mg-folder-empty{color:#9F1239;background:#FFF1F2;border:1px solid #FECDD3}.mg-folder-status{color:#0D2E6E;background:#EFF6FF;border:1px solid #BFDBFE}.mg-folder-status.error{color:#9F1239;background:#FFF1F2;border-color:#FECDD3}
         .mg-folder-tree{list-style:none;margin:0;padding:0}.mg-folder-tree ul{list-style:none;margin:3px 0 3px 22px;padding:0;border-left:1px dashed #CBD5E1}.mg-folder-node{margin:2px 0}.mg-folder-row{display:flex;align-items:center;gap:7px;min-height:32px;padding:4px 7px;border-radius:7px}.mg-folder-row:hover{background:#F8FAFC}.mg-folder-toggle{width:22px;height:22px;border:0;background:transparent;color:#334155;cursor:pointer;font-size:12px}.mg-folder-toggle.placeholder{visibility:hidden}.mg-folder-icon{width:20px;text-align:center}.mg-folder-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:750;color:#1E293B}.mg-folder-item-open{border:0;background:transparent;color:#0D2E6E;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-children[hidden]{display:none}.mg-folder-muted{font-size:11px;color:#64748B}
-        @media(max-width:720px){.mg-folder-manager-body{max-height:300px;padding:10px 11px}.mg-folder-manager-tabs{overflow-x:auto;white-space:nowrap;padding-bottom:2px}.mg-folder-manager-tab{flex:0 0 auto}.mg-folder-row{min-height:36px}.mg-folder-item-open{padding:5px 3px}}
+        @media(max-width:720px){.mg-folder-manager-body{max-height:300px;padding:10px 11px}.mg-folder-manager-tabs{overflow-x:auto;white-space:nowrap;padding-bottom:2px}.mg-folder-manager-tab{flex:0 0 auto}.mg-folder-row{min-height:36px}.mg-folder-item-open{padding:5px 3px}.mg-folder-manager-head{align-items:flex-start}.mg-folder-manager-actions{max-width:62%}.mg-folder-manager-open,.mg-folder-oauth-btn{padding:7px 9px}}
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
         .mg-project-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-project-kpis.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-project-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-project-kpi{min-height:104px;border:0;border-radius:15px;padding:13px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;color:#fff;box-shadow:0 9px 20px rgba(13,46,110,.14)}.mg-project-kpi-icon{font-size:22px;line-height:1}.mg-project-kpi span:not(.mg-project-kpi-icon){display:block;font-size:9px;text-transform:uppercase;font-weight:900;letter-spacing:.04em;color:rgba(255,255,255,.94)}.mg-project-kpi strong{display:block;color:#fff;font-size:28px;line-height:1}.mg-project-kpi small{font-size:9px;color:rgba(255,255,255,.76)}.mg-project-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.mg-project-kpi-red{background:linear-gradient(135deg,#DC2626,#991B1B)}.mg-project-kpi-amber{background:linear-gradient(135deg,#D97706,#B45309)}.mg-project-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.mg-project-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.mg-project-kpi-cyan{background:linear-gradient(135deg,#0284C7,#0369A1)}.mg-project-kpi-slate{background:linear-gradient(135deg,#64748B,#475569)}.mg-project-dashboard{padding:14px}.mg-project-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.mg-project-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-project-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-project-ring-layout{display:flex;align-items:center;gap:14px}.mg-project-ring{width:132px;height:132px;border-radius:50%;position:relative;flex:0 0 132px;background:#E2E8F0}.mg-project-ring:after{content:'';position:absolute;inset:25px;border-radius:50%;background:#fff}.mg-project-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-size:18px;font-weight:900;color:#0D2E6E}.mg-project-ring-legend{display:grid;gap:6px;min-width:0}.mg-project-ring-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#475569}.mg-project-ring-dot{width:10px;height:10px;border-radius:50%}.mg-project-ring-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-project-ring-value{font-weight:800;color:#0D2E6E}.mg-project-equipment-empty{display:none}
@@ -383,27 +385,115 @@
     bindFolderTree(manager,body);
     await loadDriveChildren(manager,folder.carpeta_id,children);
   }
+  function setFolderOauthButtons(manager,connected){
+    const connectButton=manager.querySelector('.mg-folder-oauth-connect');
+    const disconnectButton=manager.querySelector('.mg-folder-oauth-disconnect');
+    if(connectButton)connectButton.hidden=Boolean(connected);
+    if(disconnectButton)disconnectButton.hidden=!connected;
+  }
+  function renderFolderOauthRequired(manager,message){
+    const body=manager.querySelector('.mg-folder-manager-body');
+    const tabs=[...manager.querySelectorAll('.mg-folder-manager-tab')];
+    const openButton=manager.querySelector('.mg-folder-manager-open');
+    tabs.forEach(tab=>tab.disabled=true);
+    if(openButton)openButton.hidden=true;
+    setFolderOauthButtons(manager,false);
+    body.innerHTML='<div class="mg-folder-auth-box"><div class="mg-folder-status error">'+esc(message||'Debes conectar tu cuenta de Google antes de consultar Drive.')+'</div><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect-inline">Conectar con Google</button></div>';
+    const inlineButton=body.querySelector('.mg-folder-oauth-connect-inline');
+    if(inlineButton)inlineButton.addEventListener('click',()=>connectFolderGoogle(manager));
+  }
+  async function getFolderGoogleStatus(){
+    return fetchJson('/api/google/status');
+  }
+  async function connectFolderGoogle(manager){
+    const buttons=[...manager.querySelectorAll('.mg-folder-oauth-connect,.mg-folder-oauth-connect-inline')];
+    buttons.forEach(button=>button.disabled=true);
+    try{
+      const response=await fetchJson('/api/google/login');
+      if(!response.authorization_url)throw new Error('El backend no devolvió la URL de autorización de Google.');
+      const popup=window.open(response.authorization_url,'mantto-google-oauth','width=560,height=760,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
+      if(!popup){
+        window.location.assign(response.authorization_url);
+        return;
+      }
+      folderStatus(manager,'Completa el inicio de sesión de Google en la ventana abierta.');
+      let completed=false;
+      const verify=async()=>{
+        if(completed)return;
+        try{
+          const status=await getFolderGoogleStatus();
+          if(status.connected){
+            completed=true;
+            window.removeEventListener('focus',verify);
+            window.removeEventListener('message',handleOauthMessage);
+            await initProjectFolderManager(manager.dataset.projectId);
+          }
+        }catch(error){}
+      };
+      const handleOauthMessage=event=>{
+        const payload=event&&event.data;
+        if(!payload||payload.source!=='mantto-gestor-google-oauth')return;
+        if(payload.ok)verify();
+        else renderFolderOauthRequired(manager,payload.message||'Google no autorizó la conexión.');
+      };
+      window.addEventListener('message',handleOauthMessage);
+      window.addEventListener('focus',verify,{once:true});
+    }catch(error){
+      renderFolderOauthRequired(manager,error.message||'No fue posible iniciar la conexión con Google.');
+    }finally{
+      buttons.forEach(button=>button.disabled=false);
+    }
+  }
+  async function disconnectFolderGoogle(manager){
+    const button=manager.querySelector('.mg-folder-oauth-disconnect');
+    if(button)button.disabled=true;
+    try{
+      await postJson('/api/google/disconnect',{});
+      renderFolderOauthRequired(manager,'La cuenta de Google fue desconectada. Conéctala nuevamente para consultar Drive.');
+    }catch(error){
+      folderStatus(manager,error.message||'No fue posible desconectar la cuenta de Google.',true);
+    }finally{
+      if(button)button.disabled=false;
+    }
+  }
   async function initProjectFolderManager(projectId){
     const manager=document.querySelector('.mg-folder-manager[data-project-id="'+CSS.escape(String(projectId))+'"]');
     if(!manager)return;
+    const connectButton=manager.querySelector('.mg-folder-oauth-connect');
+    const disconnectButton=manager.querySelector('.mg-folder-oauth-disconnect');
+    if(connectButton&&!connectButton.dataset.bound){connectButton.dataset.bound='1';connectButton.addEventListener('click',()=>connectFolderGoogle(manager));}
+    if(disconnectButton&&!disconnectButton.dataset.bound){disconnectButton.dataset.bound='1';disconnectButton.addEventListener('click',()=>disconnectFolderGoogle(manager));}
+    const openButton=manager.querySelector('.mg-folder-manager-open');
+    if(openButton&&!openButton.dataset.bound){openButton.dataset.bound='1';openButton.addEventListener('click',()=>{if(openButton.dataset.driveLink)window.open(openButton.dataset.driveLink,'_blank','noopener,noreferrer');});}
+    folderStatus(manager,'Verificando conexión con Google...');
+    let googleStatus;
+    try{googleStatus=await getFolderGoogleStatus();}
+    catch(error){folderStatus(manager,error.message||'No fue posible verificar la conexión con Google.',true);return;}
+    if(!googleStatus.connected){renderFolderOauthRequired(manager,'Debes conectar tu cuenta de Google antes de consultar Drive.');return;}
+    setFolderOauthButtons(manager,true);
     folderStatus(manager,'Consultando carpeta del proyecto...');
     let data;
     try{data=await fetchJson('/api/instalaciones/proyecto-drive/'+encodeURIComponent(projectId));}
-    catch(error){folderStatus(manager,error.message||'No fue posible cargar la carpeta.',true);return;}
+    catch(error){
+      if(/conectar.*google|google.*conect/i.test(String(error.message||''))){renderFolderOauthRequired(manager,error.message);return;}
+      folderStatus(manager,error.message||'No fue posible cargar la carpeta.',true);return;
+    }
     manager._folderData=data;
     const tabs=[...manager.querySelectorAll('.mg-folder-manager-tab')];
     tabs.forEach(tab=>{
       const key=tab.dataset.folderTab;
       const available=key==='proyecto'?Boolean(data.carpeta_proyecto):Boolean(data.carpeta_raiz);
       tab.disabled=!available;
-      tab.addEventListener('click',async()=>{
-        if(tab.disabled)return;
-        tabs.forEach(item=>item.classList.toggle('active',item===tab));
-        await showFolderRoot(manager,key==='proyecto'?data.carpeta_proyecto:data.carpeta_raiz);
-      });
+      if(!tab.dataset.bound){
+        tab.dataset.bound='1';
+        tab.addEventListener('click',async()=>{
+          if(tab.disabled)return;
+          tabs.forEach(item=>item.classList.toggle('active',item===tab));
+          const current=manager._folderData||{};
+          await showFolderRoot(manager,key==='proyecto'?current.carpeta_proyecto:current.carpeta_raiz);
+        });
+      }
     });
-    const openButton=manager.querySelector('.mg-folder-manager-open');
-    openButton.addEventListener('click',()=>{if(openButton.dataset.driveLink)window.open(openButton.dataset.driveLink,'_blank','noopener,noreferrer');});
     if(data.carpeta_proyecto){await showFolderRoot(manager,data.carpeta_proyecto);}
     else{
       tabs.forEach(tab=>tab.classList.toggle('active',tab.dataset.folderTab==='proyecto'));
@@ -436,7 +526,7 @@
     const generalPct=Math.round((toPct(phaseBars[0].value)*.4)+(toPct(phaseBars[1].value)*.4)+(toPct(phaseBars[2].value)*.2));
     const overview='<div class="mg-project-overview '+(principalUrl?'':'no-photo')+'">'+(principalUrl?'<button type="button" class="mg-project-cover" data-project-photo-open aria-label="Abrir fotografías del proyecto"><img id="mg-project-cover-image" src="'+esc(principalUrl)+'" alt="Foto principal del proyecto"></button>':'')+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
-    const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
+    const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
     const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
     const unitedRoot=unitedResponse&&(unitedResponse.data||unitedResponse);
     const unitedSource=String(unitedResponse&&(unitedResponse.origen||unitedResponse.source)||'').trim().toUpperCase();
