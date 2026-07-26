@@ -205,7 +205,7 @@ async function validateBatchReferences(connection, records) {
   const [projects, folders, users, projectRelations] = await Promise.all([
     repository.findProjectsByIds(connection, projectIds),
     repository.findFoldersByDriveIds(connection, driveFolderIds),
-    repository.findActiveUsersByInitials(connection, initials),
+    repository.findUsersByInitials(connection, initials),
     repository.findProjectDriveRelationsByProjectIds(connection, projectIds)
   ]);
 
@@ -270,7 +270,7 @@ async function validateBatchReferences(connection, records) {
             id_proyecto: record.id_proyecto,
             tipo: type,
             iniciales: userInitials,
-            message: 'Las iniciales no corresponden a un usuario activo.'
+            message: 'Las iniciales no corresponden a un usuario registrado.'
           });
         }
       }

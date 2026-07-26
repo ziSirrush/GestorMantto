@@ -52,7 +52,7 @@ async function findFoldersByDriveIds(connection, driveFolderIds) {
   return rows;
 }
 
-async function findActiveUsersByInitials(connection, initials) {
+async function findUsersByInitials(connection, initials) {
   const normalizedInitials = uniqueValues(
     initials.map((value) => String(value).trim().toUpperCase()).filter(Boolean)
   );
@@ -66,8 +66,7 @@ async function findActiveUsersByInitials(connection, initials) {
        nombre,
        estado
      FROM usuarios
-     WHERE UPPER(TRIM(iniciales)) IN (${buildPlaceholders(normalizedInitials)})
-       AND estado = 1`,
+     WHERE UPPER(TRIM(iniciales)) IN (${buildPlaceholders(normalizedInitials)})`,
     normalizedInitials
   );
 
@@ -191,7 +190,7 @@ module.exports = {
   getConnection,
   findProjectsByIds,
   findFoldersByDriveIds,
-  findActiveUsersByInitials,
+  findUsersByInitials,
   findProjectDriveRelationsByProjectIds,
   findProjectDriveRelationsByFolderIds,
   upsertProjectDrive,
