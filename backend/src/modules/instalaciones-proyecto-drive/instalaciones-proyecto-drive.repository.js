@@ -15,9 +15,7 @@ async function getConnection() {
 async function findProjectsByIds(connection, projectIds) {
   const ids = uniqueValues(projectIds.map((value) => String(value).trim()).filter(Boolean));
 
-  if (!ids.length) {
-    return [];
-  }
+  if (!ids.length) return [];
 
   const [rows] = await connection.query(
     `SELECT
@@ -32,12 +30,12 @@ async function findProjectsByIds(connection, projectIds) {
   return rows;
 }
 
-async function findFoldersByIds(connection, folderIds) {
-  const ids = uniqueValues(folderIds.map((value) => Number(value)).filter(Number.isInteger));
+async function findFoldersByDriveIds(connection, driveFolderIds) {
+  const ids = uniqueValues(
+    driveFolderIds.map((value) => String(value).trim()).filter(Boolean)
+  );
 
-  if (!ids.length) {
-    return [];
-  }
+  if (!ids.length) return [];
 
   const [rows] = await connection.query(
     `SELECT
@@ -47,7 +45,7 @@ async function findFoldersByIds(connection, folderIds) {
        enlace,
        activo
      FROM instalaciones_drive_carpetas
-     WHERE id_carpeta IN (${buildPlaceholders(ids)})`,
+     WHERE carpeta_id IN (${buildPlaceholders(ids)})`,
     ids
   );
 
@@ -56,14 +54,10 @@ async function findFoldersByIds(connection, folderIds) {
 
 async function findActiveUsersByInitials(connection, initials) {
   const normalizedInitials = uniqueValues(
-    initials
-      .map((value) => String(value).trim().toUpperCase())
-      .filter(Boolean)
+    initials.map((value) => String(value).trim().toUpperCase()).filter(Boolean)
   );
 
-  if (!normalizedInitials.length) {
-    return [];
-  }
+  if (!normalizedInitials.length) return [];
 
   const [rows] = await connection.query(
     `SELECT
@@ -83,9 +77,7 @@ async function findActiveUsersByInitials(connection, initials) {
 async function findProjectDriveRelationsByProjectIds(connection, projectIds) {
   const ids = uniqueValues(projectIds.map((value) => String(value).trim()).filter(Boolean));
 
-  if (!ids.length) {
-    return [];
-  }
+  if (!ids.length) return [];
 
   const [rows] = await connection.query(
     `SELECT
@@ -107,9 +99,7 @@ async function findProjectDriveRelationsByProjectIds(connection, projectIds) {
 async function findProjectDriveRelationsByFolderIds(connection, folderIds) {
   const ids = uniqueValues(folderIds.map((value) => Number(value)).filter(Number.isInteger));
 
-  if (!ids.length) {
-    return [];
-  }
+  if (!ids.length) return [];
 
   const [rows] = await connection.query(
     `SELECT
@@ -173,9 +163,7 @@ async function deleteProjectUsers(connection, projectDriveId) {
 }
 
 async function insertProjectUsers(connection, relationships) {
-  if (!relationships.length) {
-    return 0;
-  }
+  if (!relationships.length) return 0;
 
   const placeholders = relationships.map(() => '(?, ?, ?, ?)').join(', ');
   const params = [];
@@ -202,7 +190,7 @@ async function insertProjectUsers(connection, relationships) {
 module.exports = {
   getConnection,
   findProjectsByIds,
-  findFoldersByIds,
+  findFoldersByDriveIds,
   findActiveUsersByInitials,
   findProjectDriveRelationsByProjectIds,
   findProjectDriveRelationsByFolderIds,

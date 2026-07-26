@@ -80,12 +80,12 @@ function normalizeInitials(value) {
 function normalizeRecord(row, index) {
   const idProyecto = cleanText(row?.id_proyecto);
   const nombreProyecto = cleanText(row?.proyecto || row?.nombre_proyecto);
-  const idCarpeta = Number(row?.carpeta_id ?? row?.id_carpeta);
+  const carpetaId = cleanText(row?.carpeta_id);
 
   const missing = [];
   if (!idProyecto) missing.push('id_proyecto');
   if (!nombreProyecto) missing.push('proyecto');
-  if (!Number.isInteger(idCarpeta) || idCarpeta <= 0) missing.push('carpeta_id');
+  if (!carpetaId) missing.push('carpeta_id');
 
   if (missing.length) {
     return {
@@ -93,7 +93,7 @@ function normalizeRecord(row, index) {
       error: {
         index,
         id_proyecto: idProyecto || null,
-        carpeta_id: Number.isInteger(idCarpeta) && idCarpeta > 0 ? idCarpeta : null,
+        carpeta_id: carpetaId || null,
         message: `Faltan o son inválidos los campos obligatorios: ${missing.join(', ')}.`
       }
     };
@@ -105,7 +105,8 @@ function normalizeRecord(row, index) {
       index,
       id_proyecto: idProyecto,
       nombre_proyecto: nombreProyecto,
-      id_carpeta: idCarpeta,
+      carpeta_id: carpetaId,
+      id_carpeta: null,
       activo: normalizeActive(row?.activo),
       created_by: normalizeOptionalUserId(row?.created_by),
       updated_by: normalizeOptionalUserId(row?.updated_by),
@@ -161,11 +162,11 @@ function validateRequestRecords(records) {
       seenProjects.set(record.id_proyecto, record.index);
     }
 
-    const folderKey = String(record.id_carpeta);
+    const folderKey = record.carpeta_id;
     if (seenFolders.has(folderKey)) {
       errors.push({
         index: record.index,
-        carpeta_id: record.id_carpeta,
+        carpeta_id: record.carpeta_id,
         message: `carpeta_id duplicado en la petición. Primera aparición: índice ${seenFolders.get(folderKey)}.`
       });
     } else {
@@ -198,19 +199,24 @@ function buildRelationships(projectDriveId, record, usersByInitials) {
 
 async function validateBatchReferences(connection, records) {
   const projectIds = records.map((record) => record.id_proyecto);
-  const folderIds = records.map((record) => record.id_carpeta);
+  const driveFolderIds = records.map((record) => record.carpeta_id);
   const initials = collectInitials(records);
 
-  const [projects, folders, users, projectRelations, folderRelations] = await Promise.all([
+  const [projects, folders, users, projectRelations] = await Promise.all([
     repository.findProjectsByIds(connection, projectIds),
-    repository.findFoldersByIds(connection, folderIds),
+    repository.findFoldersByDriveIds(connection, driveFolderIds),
     repository.findActiveUsersByInitials(connection, initials),
-    repository.findProjectDriveRelationsByProjectIds(connection, projectIds),
-    repository.findProjectDriveRelationsByFolderIds(connection, folderIds)
+    repository.findProjectDriveRelationsByProjectIds(connection, projectIds)
   ]);
 
+  const internalFolderIds = folders.map((folder) => folder.id_carpeta);
+  const folderRelations = await repository.findProjectDriveRelationsByFolderIds(
+    connection,
+    internalFolderIds
+  );
+
   const projectsById = mapBy(projects, 'id_proyecto');
-  const foldersById = mapBy(folders, 'id_carpeta');
+  const foldersByDriveId = mapBy(folders, 'carpeta_id');
   const usersByInitials = mapBy(users, 'iniciales');
   const existingByProject = mapBy(projectRelations, 'id_proyecto');
   const existingByFolder = mapBy(folderRelations, 'id_carpeta');
@@ -218,8 +224,10 @@ async function validateBatchReferences(connection, records) {
 
   for (const record of records) {
     const project = projectsById.get(record.id_proyecto);
-    const folder = foldersById.get(String(record.id_carpeta));
-    const folderRelation = existingByFolder.get(String(record.id_carpeta));
+    const folder = foldersByDriveId.get(record.carpeta_id);
+    const folderRelation = folder
+      ? existingByFolder.get(String(folder.id_carpeta))
+      : null;
 
     if (!project) {
       errors.push({
@@ -232,22 +240,24 @@ async function validateBatchReferences(connection, records) {
     if (!folder) {
       errors.push({
         index: record.index,
-        carpeta_id: record.id_carpeta,
+        carpeta_id: record.carpeta_id,
         message: 'La carpeta no existe en instalaciones_drive_carpetas.'
       });
     } else if (Number(folder.activo) !== 1) {
       errors.push({
         index: record.index,
-        carpeta_id: record.id_carpeta,
+        carpeta_id: record.carpeta_id,
         message: 'La carpeta existe, pero está inactiva.'
       });
+    } else {
+      record.id_carpeta = Number(folder.id_carpeta);
     }
 
     if (folderRelation && String(folderRelation.id_proyecto) !== record.id_proyecto) {
       errors.push({
         index: record.index,
         id_proyecto: record.id_proyecto,
-        carpeta_id: record.id_carpeta,
+        carpeta_id: record.carpeta_id,
         message: `La carpeta ya está asignada al proyecto ${folderRelation.id_proyecto}.`
       });
     }
