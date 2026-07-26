@@ -3,6 +3,7 @@ const logger = require('../../shared/logger');
 
 const DEFAULT_BATCH_SIZE = 300;
 const MAX_BATCH_SIZE = 300;
+const GENERIC_USER_INITIALS = 'OT';
 
 const USER_TYPES = Object.freeze({
   supervisor: 'SUPERVISOR',
@@ -131,7 +132,7 @@ function splitIntoBatches(records, batchSize) {
 }
 
 function collectInitials(records) {
-  const values = new Set();
+  const values = new Set([GENERIC_USER_INITIALS]);
 
   for (const record of records) {
     for (const initials of Object.values(record.usuarios)) {
@@ -179,11 +180,17 @@ function validateRequestRecords(records) {
 
 function buildRelationships(projectDriveId, record, usersByInitials) {
   const relationships = [];
+  const seen = new Set();
+  const genericUser = usersByInitials.get(GENERIC_USER_INITIALS);
 
   for (const [type, initialsList] of Object.entries(record.usuarios)) {
     for (const initials of initialsList) {
-      const user = usersByInitials.get(initials);
+      const user = usersByInitials.get(initials) || genericUser;
       if (!user) continue;
+
+      const relationshipKey = `${projectDriveId}:${user.id_usuario}:${type}`;
+      if (seen.has(relationshipKey)) continue;
+      seen.add(relationshipKey);
 
       relationships.push({
         id_proyecto_drive: projectDriveId,
@@ -221,6 +228,14 @@ async function validateBatchReferences(connection, records) {
   const existingByProject = mapBy(projectRelations, 'id_proyecto');
   const existingByFolder = mapBy(folderRelations, 'id_carpeta');
   const errors = [];
+  const genericUser = usersByInitials.get(GENERIC_USER_INITIALS);
+
+  if (!genericUser) {
+    errors.push({
+      iniciales: GENERIC_USER_INITIALS,
+      message: 'No existe el usuario genérico OT en la tabla usuarios.'
+    });
+  }
 
   for (const record of records) {
     const project = projectsById.get(record.id_proyecto);
@@ -265,12 +280,13 @@ async function validateBatchReferences(connection, records) {
     for (const [type, initialsList] of Object.entries(record.usuarios)) {
       for (const userInitials of initialsList) {
         if (!usersByInitials.has(userInitials)) {
-          errors.push({
+          logger.info('Usuario no registrado sustituido por OT.', {
             index: record.index,
             id_proyecto: record.id_proyecto,
             tipo: type,
-            iniciales: userInitials,
-            message: 'Las iniciales no corresponden a un usuario registrado.'
+            iniciales_originales: userInitials,
+            iniciales_asignadas: GENERIC_USER_INITIALS,
+            id_usuario_asignado: genericUser?.id_usuario || null
           });
         }
       }
