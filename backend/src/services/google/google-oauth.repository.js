@@ -80,6 +80,45 @@ async function saveConnection({
   return findByUserId(userId);
 }
 
+
+async function updateRefreshedTokens({
+  userId,
+  accessToken,
+  refreshToken,
+  tokenType,
+  scope,
+  expiryDate
+}) {
+  await db.query(
+    `UPDATE usuario_google_oauth
+     SET access_token = COALESCE(?, access_token),
+         refresh_token = COALESCE(?, refresh_token),
+         token_type = COALESCE(?, token_type),
+         scope = COALESCE(?, scope),
+         expiry_date = COALESCE(?, expiry_date),
+         estado = 1,
+         last_refresh_at = NOW(),
+         disconnected_at = NULL
+     WHERE usuario_id = ?`,
+    [accessToken, refreshToken, tokenType, scope, expiryDate, userId]
+  );
+
+  return findByUserId(userId);
+}
+
+async function markReconnectRequired(userId) {
+  const [result] = await db.query(
+    `UPDATE usuario_google_oauth
+     SET access_token = '',
+         estado = 0,
+         disconnected_at = NOW()
+     WHERE usuario_id = ?`,
+    [userId]
+  );
+
+  return result.affectedRows > 0;
+}
+
 async function disconnectByUserId(userId) {
   const [result] = await db.query(
     `UPDATE usuario_google_oauth
@@ -97,5 +136,7 @@ async function disconnectByUserId(userId) {
 module.exports = {
   findByUserId,
   saveConnection,
+  updateRefreshedTokens,
+  markReconnectRequired,
   disconnectByUserId
 };
