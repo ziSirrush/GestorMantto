@@ -481,10 +481,47 @@ async function sync(body) {
   return response;
 }
 
+async function getProjectFolder(projectId) {
+  const normalizedProjectId = cleanText(projectId);
+  if (!normalizedProjectId) {
+    throw createValidationError('El ID del proyecto es obligatorio.');
+  }
+
+  const connection = await repository.getConnection();
+  try {
+    const row = await repository.findProjectFolderDetail(connection, normalizedProjectId);
+    const rootFolderId = cleanText(process.env.INSTALACIONES_DRIVE_ROOT_FOLDER_ID);
+    const rootFolderName = cleanText(process.env.INSTALACIONES_DRIVE_ROOT_FOLDER_NAME) || 'Carpeta raíz';
+
+    return {
+      ok: true,
+      proyecto: {
+        id_proyecto: normalizedProjectId,
+        nombre_proyecto: row ? row.nombre_proyecto : null
+      },
+      carpeta_proyecto: row && row.carpeta_id ? {
+        id_carpeta: Number(row.id_carpeta),
+        carpeta_id: row.carpeta_id,
+        nombre_carpeta: row.nombre_carpeta || row.nombre_proyecto || normalizedProjectId,
+        enlace: row.enlace || `https://drive.google.com/drive/folders/${encodeURIComponent(row.carpeta_id)}`,
+        activa: Number(row.carpeta_activa) === 1 && Number(row.activo) === 1
+      } : null,
+      carpeta_raiz: rootFolderId ? {
+        carpeta_id: rootFolderId,
+        nombre_carpeta: rootFolderName,
+        enlace: `https://drive.google.com/drive/folders/${encodeURIComponent(rootFolderId)}`
+      } : null
+    };
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   sync,
   processBatch,
   saveProject,
   saveUsers,
-  buildFinalResponse
+  buildFinalResponse,
+  getProjectFolder
 };

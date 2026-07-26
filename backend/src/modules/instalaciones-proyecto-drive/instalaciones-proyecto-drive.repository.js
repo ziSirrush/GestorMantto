@@ -186,6 +186,32 @@ async function insertProjectUsers(connection, relationships) {
   return result.affectedRows;
 }
 
+async function findProjectFolderDetail(connection, projectId) {
+  const normalizedProjectId = String(projectId || '').trim();
+  if (!normalizedProjectId) return null;
+
+  const [rows] = await connection.query(
+    `SELECT
+       ipd.id_proyecto_drive,
+       ipd.id_proyecto,
+       ipd.nombre_proyecto,
+       ipd.id_carpeta,
+       ipd.activo,
+       idc.carpeta_id,
+       idc.nombre_carpeta,
+       idc.enlace,
+       idc.activo AS carpeta_activa
+     FROM instalaciones_proyecto_drive ipd
+     LEFT JOIN instalaciones_drive_carpetas idc
+       ON idc.id_carpeta = ipd.id_carpeta
+     WHERE ipd.id_proyecto = ?
+     LIMIT 1`,
+    [normalizedProjectId]
+  );
+
+  return rows[0] || null;
+}
+
 module.exports = {
   getConnection,
   findProjectsByIds,
@@ -195,5 +221,6 @@ module.exports = {
   findProjectDriveRelationsByFolderIds,
   upsertProjectDrive,
   deleteProjectUsers,
-  insertProjectUsers
+  insertProjectUsers,
+  findProjectFolderDetail
 };
