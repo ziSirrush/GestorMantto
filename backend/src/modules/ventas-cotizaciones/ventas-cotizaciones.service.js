@@ -1,13 +1,88 @@
 const repository = require('./ventas-cotizaciones.repository');
+const ventasVisibility = require('../ventas/ventas-visibility.service');
 
 const BATCH_SIZE = 300;
 const MAX_RECORDS = 5000;
 
-function badRequest(message, detalles) {
+const EMBUDO_STATUSES = Object.freeze([
+  'Contacto',
+  'En Cotizacion',
+  'Sin Respuesta',
+  'Seguimiento con Probabilidad',
+  'En Espera de Definicion',
+  'Pre Asignado',
+  'Asignado',
+  'En Contrato'
+]);
+
+const VENDIDOS_STATUSES = Object.freeze(['Vendido']);
+const PERDIDOS_STATUSES = Object.freeze(['Perdido']);
+
+const ESTATUS_CATALOGO = Object.freeze([
+  'Contacto',
+  'En Cotizacion',
+  'Sin Respuesta',
+  'Seguimiento con Probabilidad',
+  'En Espera de Definicion',
+  'Pre Asignado',
+  'Asignado',
+  'En Contrato',
+  'Vendido',
+  'Perdido',
+  'Siguiente Año',
+  'Borrar'
+]);
+
+const PROJECTION_GROUPS = Object.freeze({
+  alta: Object.freeze(['Pre Asignado', 'Asignado', 'En Contrato']),
+  media: Object.freeze(['Seguimiento con Probabilidad', 'En Espera de Definicion']),
+  temprana: Object.freeze(['Contacto', 'En Cotizacion', 'Sin Respuesta'])
+});
+
+
+const EDITABLE_FIELDS = [
+  'id_cot_origen',
+  'nombre_proyecto',
+  'cliente',
+  'contacto',
+  'telefono',
+  'correo',
+  'ciudad',
+  'estado',
+  'tipo_proyecto',
+  'numero_equipos',
+  'tipo_equipos',
+  'informacion_envia',
+  'asesor',
+  'id_asesor',
+  'visualiza',
+  'anio_mes_cotizacion',
+  'mx',
+  'fecha_cotizacion',
+  'fecha_solicitud',
+  'zona',
+  'estatus_proyecto',
+  'razon_perdido',
+  'admin',
+  'id_admin',
+  'fecha_cambio_estatus',
+  'fecha_cierre',
+  'comentario',
+  'empresa_vs_perdido',
+  'id_equipo_vendido',
+  'anio_actual',
+  'activo'
+];
+
+function httpError(statusCode, message, detalles) {
   const error = new Error(message);
-  error.statusCode = 400;
+  error.statusCode = statusCode;
   error.detalles = detalles;
   return error;
+}
+
+function badRequest(message, detalles) {
+  return httpError(400, message, detalles);
 }
 
 function cleanText(value, maxLength = null) {
@@ -40,8 +115,149 @@ function activeValue(value) {
   return ['0', 'false', 'no', 'inactivo'].includes(text) ? 0 : 1;
 }
 
+function normalizeEmail(value) {
+  const email = cleanText(value, 150);
+  if (!email) return null;
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!valid) throw badRequest('El correo no tiene un formato válido.');
+  return email;
+}
+
+
+
+
+async function assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive = false } = {}) {
+  const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+  const cotizacion = await repository.findById(connection, idCotizacion, { includeInactive, scope });
+  if (!cotizacion) throw httpError(404, 'Cotización no encontrada o fuera de tu alcance.');
+  return { cotizacion, scope };
+}
+
+function getActorId(actionContext) {
+  const actorId = positiveInteger(actionContext?.user?.id_SB);
+  if (!actorId) throw httpError(401, 'Sesión requerida.');
+  return actorId;
+}
+
+function normalizeCrudPayload(payload, { partial = false } = {}) {
+  const source = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const normalized = {};
+
+  for (const field of EDITABLE_FIELDS) {
+    if (partial && !Object.prototype.hasOwnProperty.call(source, field)) continue;
+
+    switch (field) {
+      case 'id_cot_origen': {
+        const value = positiveInteger(source[field]);
+        if (source[field] !== undefined && source[field] !== null && source[field] !== '' && !value) {
+          throw badRequest('id_cot_origen debe ser un entero positivo.');
+        }
+        normalized[field] = value;
+        break;
+      }
+      case 'nombre_proyecto':
+        normalized[field] = requiredText(source[field], 200);
+        break;
+      case 'cliente':
+        normalized[field] = requiredText(source[field], 200);
+        break;
+      case 'contacto':
+        normalized[field] = cleanText(source[field], 150);
+        break;
+      case 'telefono':
+        normalized[field] = cleanText(source[field], 50);
+        break;
+      case 'correo':
+        normalized[field] = normalizeEmail(source[field]);
+        break;
+      case 'ciudad':
+      case 'estado':
+      case 'tipo_proyecto':
+      case 'tipo_equipos':
+      case 'mx':
+      case 'zona':
+      case 'id_equipo_vendido':
+        normalized[field] = cleanText(source[field], 100);
+        break;
+      case 'estatus_proyecto': {
+        const estatus = cleanText(source[field], 100);
+        if (estatus && !ESTATUS_CATALOGO.includes(estatus)) {
+          throw badRequest('El estatus_proyecto no pertenece al catálogo autorizado.', { permitidos: ESTATUS_CATALOGO });
+        }
+        normalized[field] = estatus;
+        break;
+      }
+      case 'numero_equipos': {
+        const number = nonNegativeInteger(source[field], partial ? null : 0);
+        if (source[field] !== undefined && source[field] !== null && source[field] !== '' && number === null) {
+          throw badRequest('numero_equipos debe ser un entero mayor o igual a cero.');
+        }
+        normalized[field] = number;
+        break;
+      }
+      case 'informacion_envia':
+      case 'visualiza':
+      case 'razon_perdido':
+        normalized[field] = cleanText(source[field], 255);
+        break;
+      case 'asesor':
+      case 'admin':
+      case 'anio_mes_cotizacion':
+      case 'anio_actual':
+        normalized[field] = cleanText(source[field], 20);
+        break;
+      case 'id_asesor':
+      case 'id_admin': {
+        const value = positiveInteger(source[field]);
+        if (source[field] !== undefined && source[field] !== null && source[field] !== '' && !value) {
+          throw badRequest(`${field} debe ser un entero positivo.`);
+        }
+        normalized[field] = value;
+        break;
+      }
+      case 'fecha_cotizacion':
+      case 'fecha_solicitud':
+      case 'fecha_cambio_estatus':
+      case 'fecha_cierre':
+        normalized[field] = cleanText(source[field], 50);
+        break;
+      case 'comentario':
+        normalized[field] = cleanText(source[field]);
+        break;
+      case 'empresa_vs_perdido':
+        normalized[field] = cleanText(source[field], 200);
+        break;
+      case 'activo':
+        normalized[field] = activeValue(source[field]);
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (!partial || Object.prototype.hasOwnProperty.call(source, 'nombre_proyecto')) {
+    if (!normalized.nombre_proyecto) throw badRequest('nombre_proyecto es obligatorio.');
+  }
+  if (!partial || Object.prototype.hasOwnProperty.call(source, 'cliente')) {
+    if (!normalized.cliente) throw badRequest('cliente es obligatorio.');
+  }
+
+  return normalized;
+}
+
+async function validateRelatedUsers(connection, record) {
+  const requested = [...new Set([record.id_asesor, record.id_admin].filter(Boolean))];
+  if (!requested.length) return;
+
+  const existing = await repository.findExistingUserIds(connection, requested);
+  const missing = requested.filter((id) => !existing.has(id));
+  if (missing.length) {
+    throw badRequest(`Usuarios inexistentes o inactivos: ${missing.join(', ')}.`);
+  }
+}
+
 function normalizeRecord(row, index) {
-  const sourceId = positiveInteger(row?.id_cot ?? row?.id_cotizacion);
+  const sourceId = positiveInteger(row?.id_cot ?? row?.id_cot_origen ?? row?.id_cotizacion);
   if (!sourceId) {
     return {
       ok: false,
@@ -68,7 +284,7 @@ function normalizeRecord(row, index) {
   return {
     ok: true,
     value: {
-      id_cotizacion: sourceId,
+      id_cot_origen: sourceId,
       nombre_proyecto: nombreProyecto,
       cliente: requiredText(row?.cliente, 200),
       contacto: cleanText(row?.contacto, 150),
@@ -120,6 +336,717 @@ function splitBatches(records) {
   return batches;
 }
 
+
+const LIST_FILTER_FIELDS = [
+  'estatus_proyecto',
+  'asesor',
+  'id_asesor',
+  'admin',
+  'id_admin',
+  'zona',
+  'estado',
+  'ciudad',
+  'tipo_proyecto',
+  'tipo_equipos',
+  'anio_mes_cotizacion',
+  'anio_actual',
+  'mx',
+  'activo'
+];
+
+const SORT_FIELDS = new Set([
+  'id_cotizacion',
+  'nombre_proyecto',
+  'cliente',
+  'fecha_cotizacion',
+  'fecha_solicitud',
+  'fecha_cambio_estatus',
+  'fecha_cierre',
+  'estatus_proyecto',
+  'asesor',
+  'admin',
+  'zona',
+  'numero_equipos',
+  'created_at',
+  'updated_at'
+]);
+
+function boundedInteger(value, fallback, min, max, fieldName) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw badRequest(`${fieldName} debe ser un entero entre ${min} y ${max}.`);
+  }
+  return number;
+}
+
+function normalizeListQuery(query) {
+  const page = boundedInteger(query.page ?? query.pagina, 1, 1, 1000000, 'page');
+  const pageSize = boundedInteger(
+    query.pageSize ?? query.page_size ?? query.limite,
+    25,
+    1,
+    100,
+    'pageSize'
+  );
+
+  const sortBy = cleanText(query.sortBy ?? query.ordenar_por, 50) || 'updated_at';
+  if (!SORT_FIELDS.has(sortBy)) {
+    throw badRequest(`sortBy no permitido. Valores válidos: ${[...SORT_FIELDS].join(', ')}.`);
+  }
+
+  const sortDirection = String(query.sortDirection ?? query.direccion ?? 'desc').trim().toLowerCase();
+  if (!['asc', 'desc'].includes(sortDirection)) {
+    throw badRequest('sortDirection debe ser asc o desc.');
+  }
+
+  const filters = {};
+  for (const field of LIST_FILTER_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(query, field)) continue;
+
+    if (field === 'id_asesor' || field === 'id_admin') {
+      const value = positiveInteger(query[field]);
+      if (!value) throw badRequest(`${field} debe ser un entero positivo.`);
+      filters[field] = value;
+      continue;
+    }
+
+    if (field === 'activo') {
+      const raw = String(query[field]).trim().toLowerCase();
+      if (!['0', '1', 'true', 'false', 'activo', 'inactivo', 'todos'].includes(raw)) {
+        throw badRequest('activo debe ser 1, 0, true, false, activo, inactivo o todos.');
+      }
+      if (raw !== 'todos') filters.activo = ['1', 'true', 'activo'].includes(raw) ? 1 : 0;
+      continue;
+    }
+
+    const value = cleanText(query[field], 150);
+    if (value) filters[field] = value;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(filters, 'activo')) filters.activo = 1;
+
+  const currentYear = new Date().getFullYear();
+  const rawYear = query.anio ?? query.year;
+  let year = currentYear;
+  if (rawYear !== undefined && rawYear !== null && String(rawYear).trim() !== '') {
+    const normalizedYear = String(rawYear).trim().toLowerCase();
+    if (['todos', 'all'].includes(normalizedYear)) {
+      year = null;
+    } else {
+      year = boundedInteger(rawYear, currentYear, 1900, 2200, 'anio');
+    }
+  }
+
+  return {
+    page,
+    pageSize,
+    offset: (page - 1) * pageSize,
+    search: cleanText(query.buscar ?? query.search ?? query.q, 200),
+    filters,
+    year,
+    sortBy,
+    sortDirection
+  };
+}
+
+
+function normalizeKpiQuery(query) {
+  const normalized = normalizeListQuery({
+    ...query,
+    page: 1,
+    pageSize: 1,
+    sortBy: 'updated_at',
+    sortDirection: 'desc'
+  });
+
+  return {
+    search: normalized.search,
+    filters: normalized.filters,
+    year: normalized.year
+  };
+}
+
+
+function buildPaginationResult(options, rows, total) {
+  const totalPages = total === 0 ? 0 : Math.ceil(total / options.pageSize);
+  return {
+    cotizaciones: rows,
+    paginacion: {
+      pagina: options.page,
+      tamano_pagina: options.pageSize,
+      total_registros: total,
+      total_paginas: totalPages,
+      tiene_anterior: options.page > 1,
+      tiene_siguiente: options.page < totalPages
+    },
+    orden: { campo: options.sortBy, direccion: options.sortDirection },
+    filtros: { buscar: options.search, anio: options.year ?? 'todos', ...options.filters }
+  };
+}
+
+async function listSpecialized(query, statuses, tipo, actionContext) {
+  const options = normalizeListQuery(query);
+  const connection = await repository.getConnection();
+
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const { rows, total } = await repository.listByStatuses(connection, options, statuses, scope);
+    return {
+      ok: true,
+      source: 'aiven',
+      tipo,
+      estatus_incluidos: statuses,
+      ...buildPaginationResult(options, rows, total)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getEmbudo(query, actionContext) {
+  const options = normalizeListQuery(query);
+  const connection = await repository.getConnection();
+
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const [{ rows, total }, summary] = await Promise.all([
+      repository.listByStatuses(connection, options, EMBUDO_STATUSES, scope),
+      repository.summarizeByStatuses(connection, options, EMBUDO_STATUSES, scope)
+    ]);
+    const summaryTotal = Number(summary.resumen.total_cotizaciones || 0);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      tipo: 'EMBUDO_ACTIVO',
+      estatus_incluidos: EMBUDO_STATUSES,
+      resumen: {
+        total_cotizaciones: summaryTotal,
+        total_equipos: Number(summary.resumen.total_equipos || 0),
+        promedio_equipos: Number(Number(summary.resumen.promedio_equipos || 0).toFixed(2))
+      },
+      por_estatus: summary.por_estatus.map((item) => ({
+        estatus: item.estatus,
+        total_cotizaciones: Number(item.total_cotizaciones || 0),
+        total_equipos: Number(item.total_equipos || 0),
+        porcentaje: summaryTotal
+          ? Number(((Number(item.total_cotizaciones || 0) / summaryTotal) * 100).toFixed(2))
+          : 0
+      })),
+      ...buildPaginationResult(options, rows, total)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getVendidos(query, actionContext) {
+  const options = normalizeListQuery(query);
+  const connection = await repository.getConnection();
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const result = await repository.listVendidos(connection, options, scope);
+    return {
+      ok: true,
+      source: 'aiven',
+      tipo: 'VENDIDOS',
+      estatus_incluidos: VENDIDOS_STATUSES,
+      resumen: {
+        total_cotizaciones: Number(result.resumen.total_cotizaciones || 0),
+        total_equipos: Number(result.resumen.total_equipos || 0),
+        con_fecha_cierre: Number(result.resumen.con_fecha_cierre || 0),
+        sin_fecha_cierre: Number(result.resumen.sin_fecha_cierre || 0)
+      },
+      ...buildPaginationResult(options, result.rows, result.total)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getPerdidos(query, actionContext) {
+  return listSpecialized(query, PERDIDOS_STATUSES, 'PERDIDOS', actionContext);
+}
+
+async function getProyeccion(query, actionContext) {
+  const options = normalizeKpiQuery(query);
+  const connection = await repository.getConnection();
+
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const data = await repository.getProjection(connection, options, PROJECTION_GROUPS, scope);
+    const levels = ['ALTA', 'MEDIA', 'TEMPRANA'];
+    const byLevel = new Map(data.por_nivel.map((item) => [item.nivel, item]));
+    const normalizedLevels = levels.map((nivel) => {
+      const item = byLevel.get(nivel) || {};
+      return {
+        nivel,
+        total_cotizaciones: Number(item.total_cotizaciones || 0),
+        total_equipos: Number(item.total_equipos || 0)
+      };
+    });
+    const totalCotizaciones = normalizedLevels.reduce((sum, item) => sum + item.total_cotizaciones, 0);
+    const totalEquipos = normalizedLevels.reduce((sum, item) => sum + item.total_equipos, 0);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      criterio: 'CANTIDAD_DE_COTIZACIONES_Y_EQUIPOS_POR_NIVEL_COMERCIAL',
+      niveles: {
+        ALTA: PROJECTION_GROUPS.alta,
+        MEDIA: PROJECTION_GROUPS.media,
+        TEMPRANA: PROJECTION_GROUPS.temprana
+      },
+      resumen: {
+        total_cotizaciones: totalCotizaciones,
+        total_equipos: totalEquipos
+      },
+      por_nivel: normalizedLevels.map((item) => ({
+        ...item,
+        porcentaje_cotizaciones: totalCotizaciones
+          ? Number(((item.total_cotizaciones / totalCotizaciones) * 100).toFixed(2))
+          : 0
+      })),
+      detalle_estatus: data.detalle_estatus.map((item) => ({
+        nivel: item.nivel,
+        estatus: item.estatus,
+        total_cotizaciones: Number(item.total_cotizaciones || 0),
+        total_equipos: Number(item.total_equipos || 0)
+      })),
+      filtros: { buscar: options.search, anio: options.year ?? 'todos', ...options.filters }
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getCatalogos(actionContext) {
+  const connection = await repository.getConnection();
+
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const catalogos = await repository.getCatalogos(connection);
+    return {
+      ok: true,
+      source: 'aiven',
+      catalogos,
+      visibilidad: ventasVisibility.toClientVisibility(scope)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getKpis(query, actionContext) {
+  const options = normalizeKpiQuery(query);
+  const connection = await repository.getConnection();
+
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const data = await repository.getKpis(connection, options, scope);
+    const summary = data.resumen || {};
+    const total = Number(summary.total_cotizaciones || 0);
+
+    const totalsByStatus = new Map(
+      data.por_estatus.map((item) => [
+        cleanText(item.estatus, 100) || 'SIN ESTATUS',
+        Number(item.total || 0)
+      ])
+    );
+
+    const sumStatuses = (statuses) => statuses.reduce(
+      (accumulator, status) => accumulator + Number(totalsByStatus.get(status) || 0),
+      0
+    );
+
+    const embudoActivo = sumStatuses(EMBUDO_STATUSES);
+    // Las métricas cerradas usan sus fechas oficiales de evento.
+    const vendidas = Number(data.vendidas_periodo || 0);
+    const perdidas = Number(data.perdidas_periodo || 0);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      kpis: {
+        total_cotizaciones: total,
+        embudo_activo: embudoActivo,
+        total_embudo: embudoActivo,
+        vendidas,
+        total_vendidas: vendidas,
+        perdidas,
+        total_perdidas: perdidas,
+        activas: Number(summary.activas || 0),
+        inactivas: Number(summary.inactivas || 0),
+        total_equipos: Number(summary.total_equipos || 0),
+        promedio_equipos: Number(Number(summary.promedio_equipos || 0).toFixed(2)),
+        con_asesor: Number(summary.con_asesor || 0),
+        sin_asesor: Number(summary.sin_asesor || 0),
+        con_administrativo: Number(summary.con_administrativo || 0),
+        sin_administrativo: Number(summary.sin_administrativo || 0),
+        con_estatus: Number(summary.con_estatus || 0),
+        sin_estatus: Number(summary.sin_estatus || 0)
+      },
+      distribuciones: {
+        por_estatus: data.por_estatus.map((item) => ({
+          estatus: item.estatus,
+          total: Number(item.total || 0),
+          equipos: Number(item.equipos || 0),
+          porcentaje: total ? Number(((Number(item.total || 0) / total) * 100).toFixed(2)) : 0
+        })),
+        por_asesor: data.por_asesor.map((item) => ({
+          id_asesor: item.id_asesor === null ? null : Number(item.id_asesor),
+          asesor: item.asesor,
+          total: Number(item.total || 0),
+          equipos: Number(item.equipos || 0),
+          porcentaje: total ? Number(((Number(item.total || 0) / total) * 100).toFixed(2)) : 0
+        }))
+      },
+      filtros: {
+        buscar: options.search,
+        ...options.filters
+      }
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function list(query, actionContext) {
+  const options = normalizeListQuery(query);
+  const connection = await repository.getConnection();
+
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const { rows, total } = await repository.list(connection, options, scope);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / options.pageSize);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      cotizaciones: rows,
+      paginacion: {
+        pagina: options.page,
+        tamano_pagina: options.pageSize,
+        total_registros: total,
+        total_paginas: totalPages,
+        tiene_anterior: options.page > 1,
+        tiene_siguiente: options.page < totalPages
+      },
+      orden: {
+        campo: options.sortBy,
+        direccion: options.sortDirection
+      },
+      filtros: {
+        buscar: options.search,
+        ...options.filters
+      }
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getById(rawId, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+
+  const connection = await repository.getConnection();
+  try {
+    const { cotizacion } = await assertVisibleCotizacion(connection, idCotizacion, actionContext);
+
+    return { ok: true, source: 'aiven', cotizacion };
+  } finally {
+    connection.release();
+  }
+}
+
+async function create(payload, actionContext) {
+  const actorId = getActorId(actionContext);
+
+  const record = normalizeCrudPayload(payload);
+  record.created_by = actorId;
+  record.updated_by = actorId;
+
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+    await validateRelatedUsers(connection, record);
+
+    if (record.id_cot_origen) {
+      const duplicate = await repository.findByOriginId(connection, record.id_cot_origen);
+      if (duplicate) throw httpError(409, 'Ya existe una cotización con ese id_cot_origen.');
+    }
+
+    const result = await repository.create(connection, record);
+    const created = await repository.findById(connection, result.insertId, { includeInactive: true });
+    await connection.commit();
+
+    return {
+      ok: true,
+      source: 'aiven',
+      message: 'Cotización creada correctamente.',
+      cotizacion: created
+    };
+  } catch (error) {
+    await connection.rollback();
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      throw httpError(409, 'La cotización entra en conflicto con un registro existente.');
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function update(rawId, payload, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+
+  const actorId = getActorId(actionContext);
+
+  const changes = normalizeCrudPayload(payload, { partial: true });
+  if (!Object.keys(changes).length) throw badRequest('No se recibieron campos editables.');
+  changes.updated_by = actorId;
+
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { cotizacion: existing } = await assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive: true });
+
+    await validateRelatedUsers(connection, changes);
+
+    if (changes.id_cot_origen) {
+      const duplicate = await repository.findByOriginId(
+        connection,
+        changes.id_cot_origen,
+        idCotizacion
+      );
+      if (duplicate) throw httpError(409, 'Ya existe otra cotización con ese id_cot_origen.');
+    }
+
+    await repository.update(connection, idCotizacion, changes);
+    const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    const cambios = changedFields(existing, changes);
+    await connection.commit();
+
+    return {
+      ok: true,
+      source: 'aiven',
+      message: 'Cotización actualizada correctamente.',
+      cotizacion: updated
+    };
+  } catch (error) {
+    await connection.rollback();
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      throw httpError(409, 'La cotización entra en conflicto con un registro existente.');
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function remove(rawId, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+
+  const actorId = getActorId(actionContext);
+
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { cotizacion: existing } = await assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive: true });
+    if (Number(existing.activo) !== 1) throw httpError(409, 'La cotización ya está inactiva.');
+
+    await repository.softDelete(connection, idCotizacion, actorId);
+    await connection.commit();
+
+    return {
+      ok: true,
+      source: 'aiven',
+      message: 'Cotización desactivada correctamente.',
+      id_cotizacion: idCotizacion
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+
+async function updateEstatus(rawId, payload, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+  const actorId = getActorId(actionContext);
+  const estatus = cleanText(payload?.estatus_proyecto, 100);
+  if (!estatus) throw badRequest('estatus_proyecto es obligatorio.');
+  if (!ESTATUS_CATALOGO.includes(estatus)) {
+    throw badRequest('El estatus_proyecto no pertenece al catálogo autorizado.', { permitidos: ESTATUS_CATALOGO });
+  }
+
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { cotizacion: existing } = await assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive: true });
+    if (Number(existing.activo) !== 1) throw httpError(409, 'No se puede modificar una cotización inactiva.');
+    if (existing.estatus_proyecto === estatus) throw httpError(409, 'La cotización ya tiene ese estatus.');
+
+    const changes = {
+      estatus_proyecto: estatus,
+      fecha_cambio_estatus: new Date(),
+      updated_by: actorId
+    };
+    for (const field of ['razon_perdido', 'empresa_vs_perdido', 'fecha_cierre', 'id_equipo_vendido']) {
+      if (Object.prototype.hasOwnProperty.call(payload, field)) {
+        changes[field] = normalizeCrudPayload({ [field]: payload[field] }, { partial: true })[field];
+      }
+    }
+
+    await repository.update(connection, idCotizacion, changes);
+    const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    await connection.commit();
+    return { ok: true, source: 'aiven', message: 'Estatus actualizado correctamente.', cotizacion: updated };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function updateAsignacion(rawId, payload, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+  const actorId = getActorId(actionContext);
+  const hasAsesor = Object.prototype.hasOwnProperty.call(payload || {}, 'id_asesor');
+  const hasAdmin = Object.prototype.hasOwnProperty.call(payload || {}, 'id_admin');
+  if (!hasAsesor && !hasAdmin) throw badRequest('Debe enviarse id_asesor o id_admin.');
+
+  const requested = {};
+  if (hasAsesor) {
+    requested.id_asesor = positiveInteger(payload.id_asesor);
+    if (!requested.id_asesor) throw badRequest('id_asesor debe ser un entero positivo.');
+  }
+  if (hasAdmin) {
+    requested.id_admin = positiveInteger(payload.id_admin);
+    if (!requested.id_admin) throw badRequest('id_admin debe ser un entero positivo.');
+  }
+
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { cotizacion: existing } = await assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive: true });
+    if (Number(existing.activo) !== 1) throw httpError(409, 'No se puede modificar una cotización inactiva.');
+
+    const users = await repository.findUsersByIds(connection, Object.values(requested));
+    const missing = Object.values(requested).filter((id) => !users.has(id));
+    if (missing.length) throw badRequest(`Usuarios inexistentes o inactivos: ${missing.join(', ')}.`);
+
+    const changes = { updated_by: actorId };
+    if (hasAsesor) {
+      const user = users.get(requested.id_asesor);
+      changes.id_asesor = requested.id_asesor;
+      changes.asesor = cleanText(payload.asesor, 20) || user.iniciales || null;
+    }
+    if (hasAdmin) {
+      const user = users.get(requested.id_admin);
+      changes.id_admin = requested.id_admin;
+      changes.admin = cleanText(payload.admin, 20) || user.iniciales || null;
+    }
+
+    const cambios = changedFields(existing, changes);
+    if (!Object.keys(cambios).length) throw httpError(409, 'La asignación recibida no genera cambios.');
+    await repository.update(connection, idCotizacion, changes);
+    const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    await connection.commit();
+    return { ok: true, source: 'aiven', message: 'Asignación actualizada correctamente.', cotizacion: updated };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function assertCotizacion(connection, idCotizacion, actionContext) {
+  const { cotizacion } = await assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive: true });
+  if (Number(cotizacion.activo) !== 1) throw httpError(409, 'La cotización está inactiva.');
+  return cotizacion;
+}
+
+async function listComentarios(rawId, query, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+  const page = boundedInteger(query?.page, 1, 1, 100000, 'page');
+  const pageSize = boundedInteger(query?.page_size, 50, 1, 200, 'page_size');
+  const connection = await repository.getConnection();
+  try {
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    const result = await repository.listComentarios(connection, idCotizacion, { page, pageSize });
+    return { ok: true, source: 'aiven', id_cotizacion: idCotizacion, comentarios: result.rows,
+      paginacion: { pagina: page, tamano_pagina: pageSize, total_registros: result.total, total_paginas: Math.ceil(result.total / pageSize) } };
+  } finally { connection.release(); }
+}
+
+async function createComentario(rawId, payload, actionContext) {
+  const idCotizacion = positiveInteger(rawId); const actorId = getActorId(actionContext);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+  const comentario = cleanText(payload?.comentario);
+  if (!comentario) throw badRequest('comentario es obligatorio.');
+  const padre = positiveInteger(payload?.id_comentario_padre);
+  const connection = await repository.getConnection();
+  try { await connection.beginTransaction(); await assertCotizacion(connection, idCotizacion, actionContext);
+    if (padre && !(await repository.findComentario(connection, idCotizacion, padre))) throw badRequest('El comentario padre no pertenece a la cotización.');
+    const result = await repository.createComentario(connection, { id_cotizacion:idCotizacion, id_usuario:actorId, comentario, id_comentario_padre:padre });
+    const created = await repository.findComentario(connection, idCotizacion, result.insertId); await connection.commit();
+    return { ok:true, source:'aiven', message:'Comentario registrado correctamente.', comentario:created };
+  } catch(e){ await connection.rollback(); throw e; } finally { connection.release(); }
+}
+
+async function updateComentario(rawId, rawComentario, payload, actionContext) {
+  const idCotizacion=positiveInteger(rawId), idComentario=positiveInteger(rawComentario), actorId=getActorId(actionContext);
+  if(!idCotizacion||!idComentario) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const comentario=cleanText(payload?.comentario); if(!comentario) throw badRequest('comentario es obligatorio.');
+  const connection=await repository.getConnection();
+  try { await connection.beginTransaction(); await assertCotizacion(connection,idCotizacion,actionContext);
+    const existing=await repository.findComentario(connection,idCotizacion,idComentario); if(!existing) throw httpError(404,'Comentario no encontrado.');
+    if(Number(existing.id_usuario)!==actorId) throw httpError(403,'Solo el autor puede editar el comentario.');
+    await repository.updateComentario(connection,idCotizacion,idComentario,comentario); const updated=await repository.findComentario(connection,idCotizacion,idComentario);
+    await connection.commit(); return {ok:true,source:'aiven',message:'Comentario actualizado correctamente.',comentario:updated};
+  } catch(e){await connection.rollback();throw e;} finally{connection.release();}
+}
+
+async function deleteComentario(rawId, rawComentario, actionContext) {
+  const idCotizacion=positiveInteger(rawId), idComentario=positiveInteger(rawComentario), actorId=getActorId(actionContext);
+  if(!idCotizacion||!idComentario) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const connection=await repository.getConnection();
+  try { await connection.beginTransaction(); await assertCotizacion(connection,idCotizacion,actionContext);
+    const existing=await repository.findComentario(connection,idCotizacion,idComentario); if(!existing) throw httpError(404,'Comentario no encontrado.');
+    if(Number(existing.id_usuario)!==actorId) throw httpError(403,'Solo el autor puede eliminar el comentario.');
+    await repository.softDeleteComentario(connection,idCotizacion,idComentario); await connection.commit();
+    return {ok:true,source:'aiven',message:'Comentario eliminado correctamente.',id_comentario:idComentario};
+  } catch(e){await connection.rollback();throw e;} finally{connection.release();}
+}
+
+function normalizeArchivoPayload(payload,{partial=false}={}) {
+  const fields=['id_comentario','nombre_archivo','nombre_original','extension','mime_type','tamanio_bytes','drive_file_id','drive_folder_id','drive_url','tipo_archivo','descripcion','version_numero','id_archivo_anterior'];
+  const out={}; for(const f of fields){ if(partial&&!Object.prototype.hasOwnProperty.call(payload||{},f))continue;
+    if(['id_comentario','id_archivo_anterior','version_numero','tamanio_bytes'].includes(f)) out[f]=positiveInteger(payload?.[f]);
+    else out[f]=cleanText(payload?.[f], f==='descripcion'?500:(f==='drive_url'?2000:255)); }
+  if(!partial){ if(!out.nombre_archivo)throw badRequest('nombre_archivo es obligatorio.'); if(!out.drive_file_id)throw badRequest('drive_file_id es obligatorio.'); }
+  return out;
+}
+async function listArchivos(rawId,query,actionContext){const id=positiveInteger(rawId);if(!id)throw badRequest('El id de cotización debe ser un entero positivo.');const page=boundedInteger(query?.page,1,1,100000,'page'),pageSize=boundedInteger(query?.page_size,50,1,200,'page_size');const c=await repository.getConnection();try{await assertCotizacion(c,id,actionContext);const r=await repository.listArchivos(c,id,{page,pageSize});return{ok:true,source:'aiven',id_cotizacion:id,archivos:r.rows,paginacion:{pagina:page,tamano_pagina:pageSize,total_registros:r.total,total_paginas:Math.ceil(r.total/pageSize)}};}finally{c.release();}}
+async function createArchivo(rawId,payload,ctx){const id=positiveInteger(rawId),actor=getActorId(ctx);if(!id)throw badRequest('El id de cotización debe ser un entero positivo.');const rec=normalizeArchivoPayload(payload);rec.id_cotizacion=id;rec.id_usuario=actor;rec.version_numero=rec.version_numero||1;const c=await repository.getConnection();try{await c.beginTransaction();await assertCotizacion(c,id,ctx);if(rec.id_comentario&&!(await repository.findComentario(c,id,rec.id_comentario)))throw badRequest('El comentario no pertenece a la cotización.');const r=await repository.createArchivo(c,rec);const created=await repository.findArchivo(c,id,r.insertId);await c.commit();return{ok:true,source:'aiven',message:'Archivo registrado correctamente.',archivo:created};}catch(e){await c.rollback();if(e?.code==='ER_DUP_ENTRY')throw httpError(409,'drive_file_id ya está registrado.');throw e;}finally{c.release();}}
+async function getArchivo(rawId,rawArchivo,actionContext){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const c=await repository.getConnection();try{await assertCotizacion(c,id,actionContext);const a=await repository.findArchivo(c,id,aid);if(!a)throw httpError(404,'Archivo no encontrado.');return{ok:true,source:'aiven',archivo:a};}finally{c.release();}}
+async function updateArchivo(rawId,rawArchivo,payload,ctx){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);getActorId(ctx);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const changes=normalizeArchivoPayload(payload,{partial:true});if(!Object.keys(changes).length)throw badRequest('No se recibieron campos editables.');const c=await repository.getConnection();try{await c.beginTransaction();await assertCotizacion(c,id,ctx);if(!(await repository.findArchivo(c,id,aid)))throw httpError(404,'Archivo no encontrado.');if(changes.id_comentario&&!(await repository.findComentario(c,id,changes.id_comentario)))throw badRequest('El comentario no pertenece a la cotización.');await repository.updateArchivo(c,id,aid,changes);const updated=await repository.findArchivo(c,id,aid);await c.commit();return{ok:true,source:'aiven',message:'Archivo actualizado correctamente.',archivo:updated};}catch(e){await c.rollback();throw e;}finally{c.release();}}
+async function deleteArchivo(rawId,rawArchivo,ctx){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);getActorId(ctx);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const c=await repository.getConnection();try{await c.beginTransaction();await assertCotizacion(c,id,ctx);if(!(await repository.findArchivo(c,id,aid)))throw httpError(404,'Archivo no encontrado.');await repository.softDeleteArchivo(c,id,aid);await c.commit();return{ok:true,source:'aiven',message:'Archivo eliminado correctamente.',id_archivo:aid};}catch(e){await c.rollback();throw e;}finally{c.release();}}
+
 async function sync(payload) {
   const input = extractRecords(payload);
 
@@ -142,16 +1069,16 @@ async function sync(payload) {
       return;
     }
 
-    if (seen.has(result.value.id_cotizacion)) {
+    if (seen.has(result.value.id_cot_origen)) {
       rejected.push({
         fila: index + 2,
-        id_cot: result.value.id_cotizacion,
+        id_cot: result.value.id_cot_origen,
         motivo: 'id_cot duplicado dentro de la misma petición.'
       });
       return;
     }
 
-    seen.add(result.value.id_cotizacion);
+    seen.add(result.value.id_cot_origen);
     normalized.push(result.value);
   });
 
@@ -161,8 +1088,8 @@ async function sync(payload) {
   let processedBatches = 0;
 
   try {
-    const cotizacionIds = normalized.map((row) => row.id_cotizacion);
-    const existingIds = await repository.findExistingCotizacionIds(connection, cotizacionIds);
+    const originIds = normalized.map((row) => row.id_cot_origen);
+    const existingIds = await repository.findExistingCotizacionOriginIds(connection, originIds);
 
     const requestedUserIds = [...new Set(
       normalized
@@ -182,7 +1109,7 @@ async function sync(payload) {
 
       if (missingUsers.length) {
         rejected.push({
-          id_cot: row.id_cotizacion,
+          id_cot: row.id_cot_origen,
           motivo: `IDs de usuario inexistentes: ${missingUsers
             .map(([field, id]) => `${field}=${id}`)
             .join(', ')}.`
@@ -201,7 +1128,7 @@ async function sync(payload) {
         processedBatches += 1;
 
         for (const row of batch) {
-          if (existingIds.has(row.id_cotizacion)) updated += 1;
+          if (existingIds.has(row.id_cot_origen)) updated += 1;
           else inserted += 1;
         }
       } catch (error) {
@@ -228,4 +1155,7 @@ async function sync(payload) {
   };
 }
 
-module.exports = { sync };
+module.exports = { sync, list, getKpis, getEmbudo, getVendidos, getPerdidos, getProyeccion,
+  getCatalogos, getById, create, update, remove, updateEstatus, updateAsignacion,
+  listComentarios, createComentario, updateComentario, deleteComentario,
+  listArchivos, createArchivo, getArchivo, updateArchivo, deleteArchivo };
