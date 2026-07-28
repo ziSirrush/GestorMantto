@@ -4,18 +4,18 @@ async function getConnection() {
   return db.getConnection();
 }
 
-async function findExistingSourceIds(connection, sourceIds) {
-  if (!sourceIds.length) return new Set();
+async function findExistingCotizacionIds(connection, cotizacionIds) {
+  if (!cotizacionIds.length) return new Set();
 
-  const placeholders = sourceIds.map(() => '?').join(', ');
+  const placeholders = cotizacionIds.map(() => '?').join(', ');
   const [rows] = await connection.query(
-    `SELECT id_cot_origen
+    `SELECT id_cotizacion
        FROM ventas_cotizaciones_cor
-      WHERE id_cot_origen IN (${placeholders})`,
-    sourceIds
+      WHERE id_cotizacion IN (${placeholders})`,
+    cotizacionIds
   );
 
-  return new Set(rows.map((row) => Number(row.id_cot_origen)));
+  return new Set(rows.map((row) => Number(row.id_cotizacion)));
 }
 
 async function findExistingUserIds(connection, userIds) {
@@ -36,7 +36,7 @@ async function upsertMany(connection, records) {
   if (!records.length) return { affectedRows: 0 };
 
   const columns = [
-    'id_cot_origen',
+    'id_cotizacion',
     'nombre_proyecto',
     'cliente',
     'contacto',
@@ -81,7 +81,7 @@ async function upsertMany(connection, records) {
   }
 
   const updateColumns = columns.filter(
-    (column) => !['id_cot_origen', 'created_by'].includes(column)
+    (column) => !['id_cotizacion', 'created_by'].includes(column)
   );
 
   const updateSql = updateColumns
@@ -102,7 +102,7 @@ async function upsertMany(connection, records) {
 
 module.exports = {
   getConnection,
-  findExistingSourceIds,
+  findExistingCotizacionIds,
   findExistingUserIds,
   upsertMany
 };

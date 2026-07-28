@@ -41,7 +41,7 @@ function activeValue(value) {
 }
 
 function normalizeRecord(row, index) {
-  const sourceId = positiveInteger(row?.id_cot ?? row?.id_cot_origen);
+  const sourceId = positiveInteger(row?.id_cot ?? row?.id_cotizacion);
   if (!sourceId) {
     return {
       ok: false,
@@ -68,7 +68,7 @@ function normalizeRecord(row, index) {
   return {
     ok: true,
     value: {
-      id_cot_origen: sourceId,
+      id_cotizacion: sourceId,
       nombre_proyecto: nombreProyecto,
       cliente: requiredText(row?.cliente, 200),
       contacto: cleanText(row?.contacto, 150),
@@ -142,16 +142,16 @@ async function sync(payload) {
       return;
     }
 
-    if (seen.has(result.value.id_cot_origen)) {
+    if (seen.has(result.value.id_cotizacion)) {
       rejected.push({
         fila: index + 2,
-        id_cot: result.value.id_cot_origen,
+        id_cot: result.value.id_cotizacion,
         motivo: 'id_cot duplicado dentro de la misma petición.'
       });
       return;
     }
 
-    seen.add(result.value.id_cot_origen);
+    seen.add(result.value.id_cotizacion);
     normalized.push(result.value);
   });
 
@@ -161,8 +161,8 @@ async function sync(payload) {
   let processedBatches = 0;
 
   try {
-    const sourceIds = normalized.map((row) => row.id_cot_origen);
-    const existingIds = await repository.findExistingSourceIds(connection, sourceIds);
+    const cotizacionIds = normalized.map((row) => row.id_cotizacion);
+    const existingIds = await repository.findExistingCotizacionIds(connection, cotizacionIds);
 
     const requestedUserIds = [...new Set(
       normalized
@@ -182,7 +182,7 @@ async function sync(payload) {
 
       if (missingUsers.length) {
         rejected.push({
-          id_cot: row.id_cot_origen,
+          id_cot: row.id_cotizacion,
           motivo: `IDs de usuario inexistentes: ${missingUsers
             .map(([field, id]) => `${field}=${id}`)
             .join(', ')}.`
@@ -201,7 +201,7 @@ async function sync(payload) {
         processedBatches += 1;
 
         for (const row of batch) {
-          if (existingIds.has(row.id_cot_origen)) updated += 1;
+          if (existingIds.has(row.id_cotizacion)) updated += 1;
           else inserted += 1;
         }
       } catch (error) {
