@@ -4,10 +4,11 @@
 
 `POST /api/ventas/cotizaciones/sync`
 
-Encabezados requeridos:
+Encabezado requerido:
 
 - `Content-Type: application/json`
-- `x-sync-key: <VENTAS_SYNC_KEY>`
+
+No requiere `VENTAS_SYNC_KEY` ni el encabezado `x-sync-key`.
 
 Cuerpo:
 
@@ -30,10 +31,11 @@ El backend procesa internamente bloques de 300 registros usando transacciones y 
 
 ## Instalación
 
-1. Ejecutar `sql/20260727_VENTAS_COTIZACIONES_SYNC.sql`.
+1. Ejecutar `sql/20260727_VENTAS_COTIZACIONES_SYNC.sql` si la migración todavía no se ha aplicado.
 2. Copiar los archivos conservando sus rutas.
-3. Agregar en Railway la variable `VENTAS_SYNC_KEY` con una clave larga y privada.
-4. Publicar el backend.
+3. Publicar nuevamente el backend.
+
+No es necesario crear ninguna variable `VENTAS_SYNC_KEY` en Railway.
 
 ## Respuesta
 
