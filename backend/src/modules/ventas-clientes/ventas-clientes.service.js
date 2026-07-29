@@ -301,18 +301,14 @@ async function sync(payload) {
       await connection.beginTransaction();
       for (const item of batch) {
         const { _fila, ...record } = item;
-        const existing = await repository.findByIdentity(connection, record);
 
-        if (existing) {
-          await repository.update(connection, existing.id_cliente, {
-            ...record,
-            activo: 1
-          });
-          updated += 1;
-        } else {
-          await repository.insert(connection, record);
-          inserted += 1;
-        }
+        /*
+         * Importación inicial de respaldo:
+         * cada fila válida representa un registro independiente.
+         * No se buscan coincidencias y no se actualizan clientes existentes.
+         */
+        await repository.insert(connection, record);
+        inserted += 1;
       }
       await connection.commit();
       processedBatches += 1;
