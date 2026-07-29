@@ -16,6 +16,7 @@ const googleDriveRoutes = require('./google-drive.routes');
 const instalacionesDriveRoutes = require('../modules/instalaciones-drive/instalaciones-drive.routes');
 const instalacionesProyectoDriveRoutes = require('../modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.routes');
 const ventasCotizacionesRoutes = require('../modules/ventas-cotizaciones/ventas-cotizaciones.routes');
+const ventasClientesRoutes = require('../modules/ventas-clientes/ventas-clientes.routes');
 
 const router = express.Router();
 
@@ -34,6 +35,7 @@ router.use('/google/drive', googleDriveRoutes);
 router.use('/instalaciones', instalacionesDriveRoutes);
 router.use('/instalaciones', instalacionesProyectoDriveRoutes);
 router.use('/ventas', ventasCotizacionesRoutes);
+router.use('/ventas', ventasClientesRoutes);
 router.use(dataRoutes);
 
 module.exports = router;
