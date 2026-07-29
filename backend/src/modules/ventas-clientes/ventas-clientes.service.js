@@ -87,9 +87,6 @@ function normalizePayload(source, { partial = false } = {}) {
     if (!normalized.nombre_empresa) throw httpError(400, 'nombre_empresa es obligatorio.');
   }
 
-  if (normalized.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.email)) {
-    throw httpError(400, 'El email no tiene un formato válido.');
-  }
 
   return normalized;
 }
