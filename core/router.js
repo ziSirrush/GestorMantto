@@ -353,6 +353,16 @@
     return true;
   }
 
+  function showVentasCotizaciones(){
+    const view=document.getElementById('view-ventas-cotizaciones');
+    if(!view) return false;
+    activateViewById('view-ventas-cotizaciones');
+    setActiveSide('ventas-cotizaciones');
+    updateContext('ventas-cotizaciones','Cotizaciones · gestión comercial, comentarios y archivos desde Aiven');
+    if(window.ManttoVentasCotizaciones) window.ManttoVentasCotizaciones.init();
+    return true;
+  }
+
   function showInstalacionesConcentradoCliente(){
     const view=document.getElementById('view-instalaciones-concentrado-cliente');
     if(!view) return false;
@@ -495,6 +505,7 @@
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
     if(route==='instalaciones-cerrados' && showInstalacionesCerrados()) return;
     if(route==='ventas-fotos-mapa' && showVentasFotosMapa()) return;
+    if(route==='ventas-cotizaciones' && showVentasCotizaciones()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;

@@ -1,0 +1,90 @@
+<div class="vc-page" id="vc-page">
+  <section class="vc-head vc-card">
+    <div>
+      <p class="vc-eyebrow">Aiven · Ventas</p>
+      <h1>Cotizaciones</h1>
+      <p>Gestión comercial desde el primer contacto hasta el cierre, con comentarios y archivos por cotización.</p>
+    </div>
+    <div class="vc-head-actions">
+      <span class="vc-status" id="vc-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vc-btn vc-btn-ghost" id="vc-refresh" type="button">↻ Actualizar</button>
+      <button class="vc-btn vc-btn-primary" id="vc-new" type="button">＋ Nueva cotización</button>
+    </div>
+  </section>
+
+  <section class="vc-kpis" id="vc-kpis" aria-label="Indicadores de cotizaciones"></section>
+
+  <section class="vc-workspace vc-card">
+    <div class="vc-tabs" role="tablist" aria-label="Vistas de cotizaciones">
+      <button class="vc-tab active" data-tab="listado" type="button">Listado</button>
+      <button class="vc-tab" data-tab="embudo" type="button">Embudo</button>
+      <button class="vc-tab" data-tab="vendidos" type="button">Vendidos</button>
+      <button class="vc-tab" data-tab="perdidos" type="button">Perdidos</button>
+      <button class="vc-tab" data-tab="proyeccion" type="button">Proyección</button>
+    </div>
+
+    <div class="vc-toolbar" id="vc-toolbar">
+      <label class="vc-search"><span>⌕</span><input id="vc-search" type="search" placeholder="Buscar proyecto, cliente, contacto o ID..."></label>
+      <label><span>Estatus</span><select id="vc-filter-status"><option value="">Todos</option></select></label>
+      <label><span>Asesor</span><select id="vc-filter-advisor"><option value="">Todos</option></select></label>
+      <label><span>Administrativo</span><select id="vc-filter-admin"><option value="">Todos</option></select></label>
+      <label><span>Zona</span><select id="vc-filter-zone"><option value="">Todas</option></select></label>
+      <button class="vc-icon-btn" id="vc-clear" type="button" title="Limpiar filtros">⌫</button>
+    </div>
+
+    <div class="vc-panel active" data-panel="listado">
+      <div class="vc-table-wrap">
+        <table class="vc-table">
+          <thead><tr><th>ID</th><th>Proyecto</th><th>Cliente</th><th>Contacto</th><th>Estatus</th><th>Asesor</th><th>Equipos</th><th>Fecha</th><th>Acciones</th></tr></thead>
+          <tbody id="vc-list-body"></tbody>
+        </table>
+      </div>
+      <div class="vc-pagination" id="vc-pagination"></div>
+    </div>
+
+    <div class="vc-panel" data-panel="embudo"><div id="vc-funnel"></div></div>
+    <div class="vc-panel" data-panel="vendidos"><div id="vc-sold"></div></div>
+    <div class="vc-panel" data-panel="perdidos"><div id="vc-lost"></div></div>
+    <div class="vc-panel" data-panel="proyeccion"><div id="vc-projection"></div></div>
+  </section>
+
+  <div class="vc-overlay" id="vc-overlay" hidden></div>
+  <aside class="vc-drawer" id="vc-drawer" aria-hidden="true">
+    <header class="vc-drawer-head"><div><p id="vc-detail-id">Cotización</p><h2 id="vc-detail-title">Detalle</h2></div><button class="vc-close" id="vc-close-detail" type="button">×</button></header>
+    <div class="vc-detail-tabs">
+      <button class="active" data-detail-tab="general" type="button">Información</button>
+      <button data-detail-tab="comments" type="button">Comentarios</button>
+      <button data-detail-tab="files" type="button">Archivos</button>
+    </div>
+    <div class="vc-detail-panel active" data-detail-panel="general" id="vc-detail-general"></div>
+    <div class="vc-detail-panel" data-detail-panel="comments" id="vc-detail-comments"></div>
+    <div class="vc-detail-panel" data-detail-panel="files" id="vc-detail-files"></div>
+  </aside>
+
+  <dialog class="vc-dialog" id="vc-form-dialog">
+    <form method="dialog" id="vc-form">
+      <header><div><p class="vc-eyebrow">Ventas</p><h2 id="vc-form-title">Nueva cotización</h2></div><button class="vc-close" value="cancel" type="submit">×</button></header>
+      <div class="vc-form-grid">
+        <label class="wide"><span>Nombre del proyecto *</span><input name="nombre_proyecto" required maxlength="200"></label>
+        <label><span>Cliente *</span><input name="cliente" required maxlength="200"></label>
+        <label><span>Contacto</span><input name="contacto" maxlength="150"></label>
+        <label><span>Teléfono</span><input name="telefono" maxlength="50"></label>
+        <label><span>Correo</span><input name="correo" type="email" maxlength="150"></label>
+        <label><span>Ciudad</span><input name="ciudad" maxlength="100"></label>
+        <label><span>Estado</span><input name="estado" maxlength="100"></label>
+        <label><span>Zona</span><input name="zona" maxlength="100"></label>
+        <label><span>Tipo de proyecto</span><input name="tipo_proyecto" maxlength="100"></label>
+        <label><span>Número de equipos</span><input name="numero_equipos" type="number" min="0" value="0"></label>
+        <label><span>Tipo de equipos</span><input name="tipo_equipos" maxlength="100"></label>
+        <label><span>Estatus</span><select name="estatus_proyecto" id="vc-form-status"></select></label>
+        <label><span>Asesor</span><select name="id_asesor" id="vc-form-advisor"><option value="">Sin asignar</option></select></label>
+        <label><span>Administrativo</span><select name="id_admin" id="vc-form-admin"><option value="">Sin asignar</option></select></label>
+        <label><span>Fecha de solicitud</span><input name="fecha_solicitud" type="date"></label>
+        <label><span>Fecha de cotización</span><input name="fecha_cotizacion" type="date"></label>
+        <label class="wide"><span>Comentario inicial</span><textarea name="comentario" rows="3"></textarea></label>
+      </div>
+      <footer><button class="vc-btn vc-btn-ghost" value="cancel" type="submit">Cancelar</button><button class="vc-btn vc-btn-primary" id="vc-save" value="default" type="button">Guardar cotización</button></footer>
+    </form>
+  </dialog>
+  <div class="vc-toast" id="vc-toast" aria-live="polite"></div>
+</div>
