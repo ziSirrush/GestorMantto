@@ -159,10 +159,32 @@ async function findById(connection, idCliente, { includeInactive = false, scope 
   return rows[0] || null;
 }
 
-async function findBySyncKey(connection, claveSync) {
+async function findByIdentity(connection, data, excludeId = null) {
+  const clauses = [
+    'UPPER(TRIM(nombre_empresa)) = UPPER(TRIM(?))',
+    "COALESCE(UPPER(TRIM(nombre_contacto)), '') = COALESCE(UPPER(TRIM(?)), '')",
+    "COALESCE(LOWER(TRIM(email)), '') = COALESCE(LOWER(TRIM(?)), '')",
+    "COALESCE(TRIM(telefono), '') = COALESCE(TRIM(?), '')"
+  ];
+  const params = [
+    data.nombre_empresa,
+    data.nombre_contacto,
+    data.email,
+    data.telefono
+  ];
+
+  if (Number.isInteger(excludeId)) {
+    clauses.push('id_cliente <> ?');
+    params.push(excludeId);
+  }
+
   const [rows] = await connection.query(
-    `SELECT id_cliente FROM ${TABLE} WHERE clave_sync = ? LIMIT 1`,
-    [claveSync]
+    `SELECT id_cliente, activo
+       FROM ${TABLE}
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY activo DESC, id_cliente ASC
+      LIMIT 1`,
+    params
   );
   return rows[0] || null;
 }
@@ -198,57 +220,14 @@ async function softDelete(connection, idCliente, actorId) {
   return result.affectedRows;
 }
 
-async function upsertBatch(connection, records) {
-  if (!records.length) return { affectedRows: 0 };
-
-  const fields = [
-    'clave_sync', 'id_cliente_origen', 'nombre_empresa', 'razon_social', 'ciudad',
-    'estado', 'ubicacion', 'nombre_contacto', 'email', 'telefono', 'tipo_cliente',
-    'estatus_cliente', 'proyecto_vendido', 'iniciales', 'visualiza', 'comentarios',
-    'activo', 'created_by', 'updated_by'
-  ];
-
-  const placeholders = records
-    .map(() => `(${fields.map(() => '?').join(', ')})`)
-    .join(', ');
-  const params = records.flatMap((record) => fields.map((field) => record[field]));
-
-  const [result] = await connection.query(
-    `INSERT INTO ${TABLE} (${fields.join(', ')})
-     VALUES ${placeholders}
-     ON DUPLICATE KEY UPDATE
-       id_cliente_origen = VALUES(id_cliente_origen),
-       nombre_empresa = VALUES(nombre_empresa),
-       razon_social = VALUES(razon_social),
-       ciudad = VALUES(ciudad),
-       estado = VALUES(estado),
-       ubicacion = VALUES(ubicacion),
-       nombre_contacto = VALUES(nombre_contacto),
-       email = VALUES(email),
-       telefono = VALUES(telefono),
-       tipo_cliente = VALUES(tipo_cliente),
-       estatus_cliente = VALUES(estatus_cliente),
-       proyecto_vendido = VALUES(proyecto_vendido),
-       iniciales = VALUES(iniciales),
-       visualiza = VALUES(visualiza),
-       comentarios = VALUES(comentarios),
-       activo = VALUES(activo),
-       updated_by = VALUES(updated_by)`,
-    params
-  );
-
-  return result;
-}
-
 module.exports = {
   getConnection,
   list,
   getKpis,
   getCatalogos,
   findById,
-  findBySyncKey,
+  findByIdentity,
   insert,
   update,
-  softDelete,
-  upsertBatch
+  softDelete
 };

@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const repository = require('./ventas-clientes.repository');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
 
@@ -31,28 +30,8 @@ function positiveInteger(value) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
-function normalizeForKey(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, ' ');
-}
-
-function makeSyncKey(record) {
-  const source = [
-    normalizeForKey(record.nombre_empresa),
-    normalizeForKey(record.nombre_contacto),
-    normalizeForKey(record.email),
-    normalizeForKey(record.telefono)
-  ].join('|');
-  return crypto.createHash('sha256').update(source).digest('hex');
-}
-
 function normalizePayload(source, { partial = false } = {}) {
   const aliases = {
-    id_cliente_origen: ['id_cliente_origen', 'row_id', 'Row ID', '🔒 Row ID'],
     nombre_empresa: ['nombre_empresa', 'Nombre de la Empresa'],
     razon_social: ['razon_social', 'Razon Social', 'Razón Social'],
     ciudad: ['ciudad', 'Ciudad'],
@@ -79,7 +58,6 @@ function normalizePayload(source, { partial = false } = {}) {
 
   const normalized = {};
   const textFields = {
-    id_cliente_origen: 100,
     nombre_empresa: 200,
     razon_social: 250,
     ciudad: 120,
@@ -113,7 +91,6 @@ function normalizePayload(source, { partial = false } = {}) {
     throw httpError(400, 'El email no tiene un formato válido.');
   }
 
-  if (!partial) normalized.clave_sync = makeSyncKey(normalized);
   return normalized;
 }
 
@@ -235,7 +212,7 @@ async function create(payload, actionContext) {
 
   const connection = await repository.getConnection();
   try {
-    const existing = await repository.findBySyncKey(connection, data.clave_sync);
+    const existing = await repository.findByIdentity(connection, data);
     if (existing) throw httpError(409, 'Ya existe un cliente con la misma empresa y contacto.', { id_cliente: existing.id_cliente });
     const idCliente = await repository.insert(connection, data);
     return { ok: true, source: 'aiven', id_cliente: idCliente };
@@ -261,7 +238,12 @@ async function update(id, payload, actionContext) {
 
     const changes = normalizePayload(payload || {}, { partial: true });
     const merged = { ...current, ...changes };
-    changes.clave_sync = makeSyncKey(merged);
+    const duplicate = await repository.findByIdentity(connection, merged, idCliente);
+    if (duplicate) {
+      throw httpError(409, 'Ya existe otro cliente con la misma empresa y contacto.', {
+        id_cliente: duplicate.id_cliente
+      });
+    }
     changes.updated_by = actor;
     await repository.update(connection, idCliente, changes);
     return { ok: true, source: 'aiven', id_cliente: idCliente };
@@ -322,11 +304,19 @@ async function sync(payload) {
       await connection.beginTransaction();
       for (const item of batch) {
         const { _fila, ...record } = item;
-        const existing = await repository.findBySyncKey(connection, record.clave_sync);
-        if (existing) updated += 1;
-        else inserted += 1;
+        const existing = await repository.findByIdentity(connection, record);
+
+        if (existing) {
+          await repository.update(connection, existing.id_cliente, {
+            ...record,
+            activo: 1
+          });
+          updated += 1;
+        } else {
+          await repository.insert(connection, record);
+          inserted += 1;
+        }
       }
-      await repository.upsertBatch(connection, batch.map(({ _fila, ...record }) => record));
       await connection.commit();
       processedBatches += 1;
     } catch (error) {
