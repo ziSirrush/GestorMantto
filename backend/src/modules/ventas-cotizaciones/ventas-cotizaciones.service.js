@@ -1338,10 +1338,7 @@ async function syncComentariosHistoricos(payload) {
             const commentResult = await repository.createComentario(connection, {
               id_cotizacion: row.idCotizacion,
               id_usuario: row.idUsuario,
-              id_origen: row.idOrigen,
               comentario: row.comentario,
-              zona_horaria_origen: row.zona,
-              zona_origen_confirmada: row.zona ? 1 : 0,
               id_comentario_padre: null,
               editado: 0,
               activo: 1,
