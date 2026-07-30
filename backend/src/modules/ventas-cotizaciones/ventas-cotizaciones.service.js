@@ -42,6 +42,11 @@ const PROJECTION_GROUPS = Object.freeze({
 
 const EDITABLE_FIELDS = [
   'id_cot_origen',
+<<<<<<< HEAD
+=======
+  'id_cliente',
+  'id_contacto',
+>>>>>>> b39f76e (Ventas .4)
   'nombre_proyecto',
   'cliente',
   'contacto',
@@ -155,6 +160,18 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
         normalized[field] = value;
         break;
       }
+<<<<<<< HEAD
+=======
+      case 'id_cliente':
+      case 'id_contacto': {
+        const value = positiveInteger(source[field]);
+        if (source[field] !== undefined && source[field] !== null && source[field] !== '' && !value) {
+          throw badRequest(`${field} debe ser un entero positivo.`);
+        }
+        normalized[field] = value;
+        break;
+      }
+>>>>>>> b39f76e (Ventas .4)
       case 'nombre_proyecto':
         normalized[field] = requiredText(source[field], 200);
         break;
@@ -168,7 +185,11 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
         normalized[field] = cleanText(source[field], 50);
         break;
       case 'correo':
+<<<<<<< HEAD
         normalized[field] = normalizeEmail(source[field]);
+=======
+        normalized[field] = cleanText(source[field], 150);
+>>>>>>> b39f76e (Ventas .4)
         break;
       case 'ciudad':
       case 'estado':
@@ -245,6 +266,57 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
   return normalized;
 }
 
+<<<<<<< HEAD
+=======
+async function validateClientAndContact(connection, record, actionContext) {
+  if (!record.id_cliente) throw badRequest('id_cliente es obligatorio.');
+  if (!record.id_contacto) throw badRequest('id_contacto es obligatorio.');
+
+  const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+  const actorId = getActorId(actionContext);
+  const advisorIds = scope.mode === 'ALL' ? [] : scope.advisorIds;
+  const params = [record.id_cliente];
+  let visibilitySql = '';
+  if (advisorIds.length) {
+    visibilitySql = ` AND EXISTS (
+      SELECT 1 FROM usuarios vu
+       WHERE vu.estado = 1
+         AND vu.id_SB IN (${advisorIds.map(() => '?').join(', ')})
+         AND UPPER(TRIM(vu.iniciales)) = UPPER(TRIM(vc.iniciales))
+    )`;
+    params.push(...advisorIds);
+  }
+  const [clients] = await connection.query(
+    `SELECT vc.*, (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor_rel
+       FROM ventas_clientes vc
+      WHERE vc.id_cliente = ? AND vc.activo = 1 ${visibilitySql}
+      LIMIT 1`,
+    params
+  );
+  const client = clients[0];
+  if (!client) throw httpError(404, 'Cliente no encontrado o fuera de tu alcance.');
+
+  const [contacts] = await connection.query(
+    `SELECT * FROM ventas_clientes_contactos
+      WHERE id_contacto = ? AND id_cliente = ? AND activo = 1 LIMIT 1`,
+    [record.id_contacto, record.id_cliente]
+  );
+  const contact = contacts[0];
+  if (!contact) throw badRequest('El contacto no pertenece al cliente seleccionado.');
+
+  record.cliente = client.nombre_empresa;
+  record.contacto = contact.nombre_contacto;
+  record.telefono = record.telefono || contact.telefono || null;
+  record.correo = record.correo || contact.email || null;
+  record.ciudad = record.ciudad || client.ciudad || null;
+  record.estado = record.estado || client.estado || null;
+  if (!record.id_asesor && client.id_asesor_rel) record.id_asesor = Number(client.id_asesor_rel);
+  if (!record.asesor && client.iniciales) record.asesor = client.iniciales;
+  if (!record.fecha_solicitud) record.fecha_solicitud = new Date().toISOString();
+  if (!record.created_by) record.created_by = actorId;
+}
+
+>>>>>>> b39f76e (Ventas .4)
 async function validateRelatedUsers(connection, record) {
   const requested = [...new Set([record.id_asesor, record.id_admin].filter(Boolean))];
   if (!requested.length) return;
@@ -338,6 +410,11 @@ function splitBatches(records) {
 
 
 const LIST_FILTER_FIELDS = [
+<<<<<<< HEAD
+=======
+  'id_cliente',
+  'cliente',
+>>>>>>> b39f76e (Ventas .4)
   'estatus_proyecto',
   'asesor',
   'id_asesor',
@@ -351,6 +428,10 @@ const LIST_FILTER_FIELDS = [
   'anio_mes_cotizacion',
   'anio_actual',
   'mx',
+<<<<<<< HEAD
+=======
+  'razon_perdido',
+>>>>>>> b39f76e (Ventas .4)
   'activo'
 ];
 
@@ -404,7 +485,11 @@ function normalizeListQuery(query) {
   for (const field of LIST_FILTER_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(query, field)) continue;
 
+<<<<<<< HEAD
     if (field === 'id_asesor' || field === 'id_admin') {
+=======
+    if (field === 'id_cliente' || field === 'id_asesor' || field === 'id_admin') {
+>>>>>>> b39f76e (Ventas .4)
       const value = positiveInteger(query[field]);
       if (!value) throw badRequest(`${field} debe ser un entero positivo.`);
       filters[field] = value;
@@ -566,7 +651,31 @@ async function getVendidos(query, actionContext) {
 }
 
 async function getPerdidos(query, actionContext) {
+<<<<<<< HEAD
   return listSpecialized(query, PERDIDOS_STATUSES, 'PERDIDOS', actionContext);
+=======
+  const options = normalizeListQuery(query);
+  const connection = await repository.getConnection();
+  try {
+    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
+    const result = await repository.listPerdidos(connection, options, scope);
+    return {
+      ok: true,
+      source: 'aiven',
+      tipo: 'PERDIDOS',
+      estatus_incluidos: PERDIDOS_STATUSES,
+      resumen: {
+        total_cotizaciones: Number(result.resumen.total_cotizaciones || 0),
+        total_equipos: Number(result.resumen.total_equipos || 0),
+        con_razon: Number(result.resumen.con_razon || 0),
+        sin_razon: Number(result.resumen.sin_razon || 0)
+      },
+      ...buildPaginationResult(options, result.rows, result.total)
+    };
+  } finally {
+    connection.release();
+  }
+>>>>>>> b39f76e (Ventas .4)
 }
 
 async function getProyeccion(query, actionContext) {
@@ -663,6 +772,10 @@ async function getKpis(query, actionContext) {
     const embudoActivo = sumStatuses(EMBUDO_STATUSES);
     // Las métricas cerradas usan sus fechas oficiales de evento.
     const vendidas = Number(data.vendidas_periodo || 0);
+<<<<<<< HEAD
+=======
+    const equiposVendidos = Number(data.equipos_vendidos_periodo || 0);
+>>>>>>> b39f76e (Ventas .4)
     const perdidas = Number(data.perdidas_periodo || 0);
 
     return {
@@ -679,6 +792,11 @@ async function getKpis(query, actionContext) {
         activas: Number(summary.activas || 0),
         inactivas: Number(summary.inactivas || 0),
         total_equipos: Number(summary.total_equipos || 0),
+<<<<<<< HEAD
+=======
+        equipos_vendidos: equiposVendidos,
+        total_equipos_vendidos: equiposVendidos,
+>>>>>>> b39f76e (Ventas .4)
         promedio_equipos: Number(Number(summary.promedio_equipos || 0).toFixed(2)),
         con_asesor: Number(summary.con_asesor || 0),
         sin_asesor: Number(summary.sin_asesor || 0),
@@ -771,6 +889,10 @@ async function create(payload, actionContext) {
   const connection = await repository.getConnection();
   try {
     await connection.beginTransaction();
+<<<<<<< HEAD
+=======
+    await validateClientAndContact(connection, record, actionContext);
+>>>>>>> b39f76e (Ventas .4)
     await validateRelatedUsers(connection, record);
 
     if (record.id_cot_origen) {

@@ -80,6 +80,13 @@ function normalizePayload(source, { partial = false } = {}) {
     normalized[field] = cleanText(value, maxLength);
   }
 
+<<<<<<< HEAD
+=======
+  if (Object.prototype.hasOwnProperty.call(normalized, 'estatus_cliente') && normalized.estatus_cliente) {
+    normalized.estatus_cliente = normalized.estatus_cliente.toUpperCase();
+  }
+
+>>>>>>> b39f76e (Ventas .4)
   const active = read('activo');
   if (!partial || active !== undefined) normalized.activo = activeValue(active);
 
@@ -100,7 +107,17 @@ function extractRecords(payload) {
 
 function parseListOptions(query = {}) {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+<<<<<<< HEAD
   const pageSize = Math.min(200, Math.max(1, Number.parseInt(query.page_size || query.pageSize, 10) || 50));
+=======
+  const pageSize = Math.min(
+    5000,
+    Math.max(
+      1,
+      Number.parseInt(query.page_size || query.pageSize, 10) || 50
+    )
+  );
+>>>>>>> b39f76e (Ventas .4)
   return {
     page,
     pageSize,
@@ -128,6 +145,94 @@ async function resolveScope(connection, actionContext) {
   return ventasVisibility.resolveVisibilityScope(connection, actionContext);
 }
 
+<<<<<<< HEAD
+=======
+function advisorDto(row) {
+  const initials = String(row?.iniciales || '').trim().toUpperCase();
+  const name = String(row?.nombre || '').trim();
+  return {
+    id_usuario: Number(row?.id_SB),
+    nombre: name,
+    iniciales: initials,
+    puesto: row?.puesto || null,
+    etiqueta: name ? `${initials} · ${name}` : initials
+  };
+}
+
+async function resolveAssignmentOptions(connection, actionContext) {
+  const actor = actorId(actionContext);
+
+  // La relación administrativa tiene prioridad sobre cualquier permiso amplio.
+  // Un admin solo puede asignar clientes a los asesores vinculados en
+  // usuarios_rel_admin, aunque su usuario también tenga alcance ALL.
+  const isAdmin = await repository.isAdminInRelations(connection, actor);
+  if (isAdmin) {
+    const rows = await repository.listAdminAdvisors(connection, actor);
+    return { mode: 'ADMIN_REL', rows };
+  }
+
+  const scope = await resolveScope(connection, actionContext);
+  if (scope.mode === 'ALL') {
+    const rows = await repository.listAssignableCommercialUsers(connection);
+    return { mode: 'ALL', rows };
+  }
+
+  const current = await repository.findActiveUserById(connection, actor);
+  return { mode: 'SELF', rows: current && current.iniciales ? [current] : [] };
+}
+
+async function validateAssignedInitials(connection, initials, actionContext) {
+  const requested = cleanText(initials, 30);
+  if (!requested) throw httpError(400, 'iniciales es obligatorio.');
+
+  const actor = actorId(actionContext);
+  const selected = await repository.findActiveUserByInitials(connection, requested);
+  if (!selected) throw httpError(400, 'Las iniciales seleccionadas no corresponden a un usuario activo.');
+
+  // La relación administrativa se valida antes que el alcance ALL.
+  const isAdmin = await repository.isAdminInRelations(connection, actor);
+  if (isAdmin) {
+    const allowed = await repository.isAdvisorLinkedToAdmin(connection, actor, Number(selected.id_SB));
+    if (!allowed) {
+      throw httpError(403, 'El asesor seleccionado no está relacionado contigo en usuarios_rel_admin.');
+    }
+    return String(selected.iniciales).trim().toUpperCase();
+  }
+
+  const scope = await resolveScope(connection, actionContext);
+  if (scope.mode === 'ALL') {
+    const allowed = await repository.isAssignableCommercialUser(connection, Number(selected.id_SB));
+    if (!allowed) {
+      throw httpError(403, 'Acceso total solo puede asignar clientes a Asesores Comerciales, Gerentes Comerciales o Director Ventas.');
+    }
+    return String(selected.iniciales).trim().toUpperCase();
+  }
+
+  const current = await repository.findActiveUserById(connection, actor);
+  const ownInitials = String(current?.iniciales || '').trim().toUpperCase();
+  if (!ownInitials) throw httpError(400, 'Tu usuario no tiene iniciales configuradas.');
+  if (ownInitials !== String(selected.iniciales || '').trim().toUpperCase()) {
+    throw httpError(403, 'Solo puedes asignar el cliente a tus propias iniciales.');
+  }
+  return ownInitials;
+}
+
+async function getAssignableAdvisors(actionContext) {
+  const connection = await repository.getConnection();
+  try {
+    const result = await resolveAssignmentOptions(connection, actionContext);
+    return {
+      ok: true,
+      source: 'aiven',
+      mode: result.mode,
+      data: result.rows.map(advisorDto)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+>>>>>>> b39f76e (Ventas .4)
 async function list(query, actionContext) {
   const connection = await repository.getConnection();
   try {
@@ -209,8 +314,15 @@ async function create(payload, actionContext) {
 
   const connection = await repository.getConnection();
   try {
+<<<<<<< HEAD
     const existing = await repository.findByIdentity(connection, data);
     if (existing) throw httpError(409, 'Ya existe un cliente con la misma empresa y contacto.', { id_cliente: existing.id_cliente });
+=======
+    data.iniciales = await validateAssignedInitials(connection, data.iniciales, actionContext);
+    // La relación de proyecto vendido se obtiene desde la cotización vendida mediante id_equipo_vendido.
+    data.proyecto_vendido = null;
+    data.visualiza = null;
+>>>>>>> b39f76e (Ventas .4)
     const idCliente = await repository.insert(connection, data);
     return { ok: true, source: 'aiven', id_cliente: idCliente };
   } finally {
@@ -234,6 +346,7 @@ async function update(id, payload, actionContext) {
     if (!current) throw httpError(404, 'Cliente no encontrado o fuera de tu alcance.');
 
     const changes = normalizePayload(payload || {}, { partial: true });
+<<<<<<< HEAD
     const merged = { ...current, ...changes };
     const duplicate = await repository.findByIdentity(connection, merged, idCliente);
     if (duplicate) {
@@ -241,6 +354,8 @@ async function update(id, payload, actionContext) {
         id_cliente: duplicate.id_cliente
       });
     }
+=======
+>>>>>>> b39f76e (Ventas .4)
     changes.updated_by = actor;
     await repository.update(connection, idCliente, changes);
     return { ok: true, source: 'aiven', id_cliente: idCliente };
@@ -338,6 +453,10 @@ module.exports = {
   list,
   getKpis,
   getCatalogos,
+<<<<<<< HEAD
+=======
+  getAssignableAdvisors,
+>>>>>>> b39f76e (Ventas .4)
   getById,
   create,
   update,

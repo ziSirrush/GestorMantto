@@ -1,0 +1,63 @@
+<div class="vcln-page" id="vcln-page">
+  <section class="vcln-head vcln-card">
+    <div>
+      <p class="vcln-eyebrow">Aiven · Ventas · Clientes</p>
+      <h1>Nuevo cliente</h1>
+      <p>Registra la empresa, su contacto principal y la asignación comercial.</p>
+    </div>
+    <span class="vcln-status" id="vcln-status"><i></i><span>Formulario listo</span></span>
+  </section>
+
+  <form class="vcln-form" id="vcln-form" novalidate>
+    <section class="vcln-card vcln-section">
+      <div class="vcln-section-title">
+        <div><span>1</span><div><h2>Información de la empresa</h2><p>Datos generales y ubicación comercial.</p></div></div>
+      </div>
+      <div class="vcln-grid">
+        <label class="vcln-field vcln-span-2"><span>Nombre de la empresa *</span><input id="vcln-nombre" name="nombre_empresa" maxlength="200" required autocomplete="organization"></label>
+        <label class="vcln-field vcln-span-2"><span>Razón social</span><input name="razon_social" maxlength="250"></label>
+        <label class="vcln-field"><span>Ciudad</span><input name="ciudad" maxlength="120" autocomplete="address-level2"></label>
+        <label class="vcln-field"><span>Estado</span><select id="vcln-estado" name="estado"><option value="">Selecciona...</option></select></label>
+        <label class="vcln-field vcln-span-2"><span>Ubicación</span><div class="vcln-location-row"><input id="vcln-ubicacion" name="ubicacion" maxlength="500" placeholder="Dirección, referencia o coordenadas"><button class="vcln-location-btn" id="vcln-gps" type="button">📍 Usar ubicación actual</button><a class="vcln-map-link" id="vcln-map" href="#" target="_blank" rel="noopener" hidden>Abrir en mapa</a></div><small id="vcln-gps-help">Opcional. El navegador solicitará permiso para usar la ubicación del dispositivo.</small></label>
+        <label class="vcln-field"><span>Tipo de cliente</span><select id="vcln-tipo" name="tipo_cliente"><option value="">Selecciona...</option></select></label>
+        <label class="vcln-field"><span>Estatus con cliente</span><select id="vcln-estatus" name="estatus_cliente"><option value="">Selecciona...</option></select></label>
+      </div>
+    </section>
+
+    <section class="vcln-card vcln-section">
+      <div class="vcln-section-title">
+        <div><span>2</span><div><h2>Contacto principal</h2><p>Se creará también en el directorio de contactos del cliente.</p></div></div>
+      </div>
+      <div class="vcln-grid">
+        <label class="vcln-field vcln-span-2"><span>Nombre del contacto *</span><input name="nombre_contacto" maxlength="200" required autocomplete="name"></label>
+        <label class="vcln-field"><span>Correo</span><input name="email" type="email" maxlength="200" autocomplete="email"></label>
+        <label class="vcln-field"><span>Teléfono</span><input name="telefono" maxlength="80" autocomplete="tel"></label>
+      </div>
+    </section>
+
+    <section class="vcln-card vcln-section" id="vcln-commercial-section">
+      <div class="vcln-section-title">
+        <div><span>3</span><div><h2>Gestión comercial</h2><p>El listado se limita al alcance comercial del usuario autenticado.</p></div></div>
+      </div>
+      <div class="vcln-grid">
+        <label class="vcln-field"><span>Asesor / Iniciales *</span><select id="vcln-iniciales" name="iniciales" required><option value="">Selecciona...</option></select></label>
+      </div>
+    </section>
+
+    <section class="vcln-card vcln-section">
+      <div class="vcln-section-title">
+        <div><span>4</span><div><h2>Comentarios</h2><p>Notas comerciales relevantes del cliente.</p></div></div>
+      </div>
+      <div class="vcln-grid">
+        <label class="vcln-field vcln-span-4"><span>Comentarios</span><textarea name="comentarios" rows="5" placeholder="Notas comerciales relevantes"></textarea></label>
+      </div>
+    </section>
+
+    <section class="vcln-actions vcln-card">
+      <button class="vcln-btn vcln-btn-ghost" id="vcln-cancel" type="button">Cancelar</button>
+      <button class="vcln-btn vcln-btn-primary" id="vcln-save" type="submit">Guardar cliente</button>
+    </section>
+  </form>
+
+  <div class="vcln-toast" id="vcln-toast" aria-live="polite"></div>
+</div>

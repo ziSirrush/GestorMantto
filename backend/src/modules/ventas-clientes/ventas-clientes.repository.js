@@ -24,10 +24,17 @@ function buildVisibilityClause(scope, actorId, alias = 'vc') {
   if (advisorIds.length) {
     clauses.push(`EXISTS (
       SELECT 1
+<<<<<<< HEAD
         FROM ventas_cotizaciones_cor vcc
        WHERE vcc.activo = 1
          AND UPPER(TRIM(vcc.cliente)) = UPPER(TRIM(${alias}.nombre_empresa))
          AND vcc.id_asesor IN (${advisorIds.map(() => '?').join(', ')})
+=======
+        FROM usuarios vu
+       WHERE vu.estado = 1
+         AND vu.id_SB IN (${advisorIds.map(() => '?').join(', ')})
+         AND UPPER(TRIM(vu.iniciales)) = UPPER(TRIM(${alias}.iniciales))
+>>>>>>> b39f76e (Ventas .4)
     )`);
     params.push(...advisorIds);
   }
@@ -94,7 +101,12 @@ async function list(connection, options, scope, actorId) {
   );
 
   const [rows] = await connection.query(
+<<<<<<< HEAD
     `SELECT vc.*
+=======
+    `SELECT vc.*,
+            (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor
+>>>>>>> b39f76e (Ventas .4)
        FROM ${TABLE} vc
        ${where.sql}
       ORDER BY vc.${sortBy} ${direction}, vc.id_cliente ASC
@@ -153,7 +165,13 @@ async function findById(connection, idCliente, { includeInactive = false, scope 
   }
 
   const [rows] = await connection.query(
+<<<<<<< HEAD
     `SELECT vc.* FROM ${TABLE} vc WHERE ${clauses.join(' AND ')} LIMIT 1`,
+=======
+    `SELECT vc.*,
+            (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor
+       FROM ${TABLE} vc WHERE ${clauses.join(' AND ')} LIMIT 1`,
+>>>>>>> b39f76e (Ventas .4)
     params
   );
   return rows[0] || null;
@@ -220,6 +238,136 @@ async function softDelete(connection, idCliente, actorId) {
   return result.affectedRows;
 }
 
+<<<<<<< HEAD
+=======
+function commercialRolePredicate(userAlias = 'u') {
+  return `EXISTS (
+    SELECT 1
+      FROM roles r
+     WHERE r.estado = 1
+       AND r.id_rol = ${userAlias}.rol_id
+       AND (
+         r.rol = 'Asesor Comercial'
+         OR r.rol = 'Director Ventas'
+         OR r.rol = 'Gerente de Cuentas Corporativas'
+         OR r.rol LIKE 'Gerente Comercial%'
+       )
+  ) OR EXISTS (
+    SELECT 1
+      FROM usuario_roles ur
+      INNER JOIN roles r
+        ON r.id_rol = ur.id_rol
+       AND r.estado = 1
+     WHERE ur.id_usuario = ${userAlias}.id_SB
+       AND ur.activo = 1
+       AND (
+         r.rol = 'Asesor Comercial'
+         OR r.rol = 'Director Ventas'
+         OR r.rol = 'Gerente de Cuentas Corporativas'
+         OR r.rol LIKE 'Gerente Comercial%'
+       )
+  )`;
+}
+
+async function listAssignableCommercialUsers(connection) {
+  const [rows] = await connection.query(
+    `SELECT u.id_SB, u.nombre, u.iniciales, u.puesto
+       FROM usuarios u
+      WHERE u.estado = 1
+        AND NULLIF(TRIM(u.iniciales), '') IS NOT NULL
+        AND (${commercialRolePredicate('u')})
+      ORDER BY
+        CASE
+          WHEN u.puesto = 'Director Ventas' THEN 1
+          WHEN u.puesto LIKE 'Gerente%' THEN 2
+          WHEN u.puesto = 'Asesor Comercial' THEN 3
+          ELSE 4
+        END,
+        u.nombre ASC,
+        u.id_SB ASC`
+  );
+  return rows;
+}
+
+async function isAssignableCommercialUser(connection, userId) {
+  const [rows] = await connection.query(
+    `SELECT 1 AS found
+       FROM usuarios u
+      WHERE u.id_SB = ?
+        AND u.estado = 1
+        AND NULLIF(TRIM(u.iniciales), '') IS NOT NULL
+        AND (${commercialRolePredicate('u')})
+      LIMIT 1`,
+    [userId]
+  );
+  return Boolean(rows[0]);
+}
+
+async function listAdminAdvisors(connection, adminId) {
+  const [rows] = await connection.query(
+    `SELECT DISTINCT
+            asesor.id_SB,
+            asesor.nombre,
+            asesor.iniciales,
+            asesor.puesto
+       FROM usuarios_rel_admin ura
+       INNER JOIN usuarios asesor
+         ON asesor.id_SB = ura.id_asesor
+        AND asesor.estado = 1
+      WHERE ura.id_admin = ?
+        AND NULLIF(TRIM(asesor.iniciales), '') IS NOT NULL
+      ORDER BY asesor.nombre ASC, asesor.id_SB ASC`,
+    [adminId]
+  );
+  return rows;
+}
+
+async function isAdminInRelations(connection, adminId) {
+  const [rows] = await connection.query(
+    'SELECT 1 AS found FROM usuarios_rel_admin WHERE id_admin = ? LIMIT 1',
+    [adminId]
+  );
+  return Boolean(rows[0]);
+}
+
+async function findActiveUserById(connection, userId) {
+  const [rows] = await connection.query(
+    `SELECT id_SB, nombre, iniciales, puesto
+       FROM usuarios
+      WHERE id_SB = ?
+        AND estado = 1
+      LIMIT 1`,
+    [userId]
+  );
+  return rows[0] || null;
+}
+
+async function findActiveUserByInitials(connection, initials) {
+  const [rows] = await connection.query(
+    `SELECT id_SB, nombre, iniciales, puesto
+       FROM usuarios
+      WHERE estado = 1
+        AND UPPER(TRIM(iniciales)) = UPPER(TRIM(?))
+      ORDER BY id_SB ASC
+      LIMIT 1`,
+    [initials]
+  );
+  return rows[0] || null;
+}
+
+async function isAdvisorLinkedToAdmin(connection, adminId, advisorId) {
+  const [rows] = await connection.query(
+    `SELECT 1 AS found
+       FROM usuarios_rel_admin
+      WHERE id_admin = ?
+        AND id_asesor = ?
+      LIMIT 1`,
+    [adminId, advisorId]
+  );
+  return Boolean(rows[0]);
+}
+
+>>>>>>> b39f76e (Ventas .4)
 module.exports = {
   getConnection,
   list,
@@ -229,5 +377,16 @@ module.exports = {
   findByIdentity,
   insert,
   update,
+<<<<<<< HEAD
   softDelete
+=======
+  softDelete,
+  listAssignableCommercialUsers,
+  isAssignableCommercialUser,
+  listAdminAdvisors,
+  isAdminInRelations,
+  findActiveUserById,
+  findActiveUserByInitials,
+  isAdvisorLinkedToAdmin
+>>>>>>> b39f76e (Ventas .4)
 };

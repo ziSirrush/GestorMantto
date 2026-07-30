@@ -1,0 +1,26 @@
+<div class="vcd-page">
+  <section class="vcd-head vcd-card">
+    <div class="vcd-title-row">
+      <div><p class="vcd-eyebrow">Aiven · Ventas</p><h1 id="vcd-title">Detalle del cliente</h1><p id="vcd-subtitle">Cargando información comercial...</p></div>
+    </div>
+    <div class="vcd-actions"><button class="vcd-btn ghost" id="vcd-refresh" type="button">↻ Actualizar</button><button class="vcd-btn primary" id="vcd-edit-client" type="button">Editar cliente</button><button class="vcd-btn success" id="vcd-new-contact" type="button">＋ Nuevo contacto</button></div>
+  </section>
+
+  <section class="vcd-summary vcd-card" id="vcd-summary"></section>
+
+  <section class="vcd-card vcd-section">
+    <div class="vcd-section-head"><div><h2>Contactos</h2><p>Todos los contactos activos vinculados a este cliente.</p></div></div>
+    <div id="vcd-contact-editor"></div>
+    <div class="vcd-contact-grid" id="vcd-contacts"></div>
+  </section>
+
+  <section class="vcd-card vcd-section">
+    <div class="vcd-section-head"><div><h2>Actividad comercial</h2><p>Cotizaciones relacionadas por nombre del cliente y asesor comercial.</p></div><label class="vcd-year-filter">Año<select id="vcd-year"><option value="todos">Todos</option></select></label></div>
+    <div class="vcd-kpis" id="vcd-kpis"></div>
+    <div class="vcd-table-wrap"><table class="vcd-table"><thead><tr><th>Proyecto</th><th>Estatus</th><th>Equipos</th><th>Fecha solicitud</th><th>Fecha cierre</th><th>Asesor</th></tr></thead><tbody id="vcd-quotes"></tbody></table></div>
+    <div class="vcd-pagination" id="vcd-pagination"></div>
+  </section>
+
+  <div class="vcd-modal" id="vcd-modal" hidden><div class="vcd-modal-card"><div class="vcd-modal-head"><h2 id="vcd-modal-title">Editar</h2><button id="vcd-modal-close" type="button">×</button></div><form id="vcd-form"><div id="vcd-form-body"></div><div class="vcd-form-actions"><button class="vcd-btn ghost" id="vcd-cancel" type="button">Cancelar</button><button class="vcd-btn primary" type="submit">Guardar</button></div></form></div></div>
+  <div class="vcd-toast" id="vcd-toast" aria-live="polite"></div>
+</div>

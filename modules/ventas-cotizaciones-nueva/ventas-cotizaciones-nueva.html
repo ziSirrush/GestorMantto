@@ -1,0 +1,60 @@
+<div class="vcn-page" id="vcn-page">
+  <section class="vcn-head vcn-card">
+    <div>
+      <p class="vcn-eyebrow">Ventas · Cotizaciones</p>
+      <h1>Nueva cotización</h1>
+      <p>Registra la solicitud, el cliente, el contacto y la información técnica inicial.</p>
+    </div>
+    <button class="vcn-btn vcn-btn-ghost" id="vcn-back" type="button">← Regresar</button>
+  </section>
+
+  <form class="vcn-form" id="vcn-form" novalidate>
+    <section class="vcn-card vcn-section">
+      <div class="vcn-section-title"><span>1</span><div><h2>Proyecto</h2><p>Los campos marcados con * son obligatorios.</p></div></div>
+      <div class="vcn-grid">
+        <label class="vcn-wide"><span>Nombre del proyecto *</span><input name="nombre_proyecto" maxlength="200" required type="text"></label>
+        <label><span>Tipo de proyecto</span><select name="tipo_proyecto" id="vcn-tipo-proyecto"><option value="">Selecciona...</option></select></label>
+        <label><span>Estatus proyecto cotización *</span><select name="estatus_proyecto" id="vcn-estatus" required><option value="">Selecciona...</option></select></label>
+        <label><span>Número de equipos</span><input name="numero_equipos" min="0" step="1" inputmode="numeric" type="number" value="0"></label>
+        <label><span>Tipo de equipos</span><select name="tipo_equipos" id="vcn-tipo-equipo"><option value="">Selecciona...</option></select></label>
+        <label class="vcn-wide"><span>Información que se envía</span><input name="informacion_envia" maxlength="255" type="text"></label>
+      </div>
+    </section>
+
+    <section class="vcn-card vcn-section">
+      <div class="vcn-section-title"><span>2</span><div><h2>Cliente y contacto</h2><p>Solo se muestran clientes dentro de tu alcance comercial.</p></div></div>
+      <div class="vcn-grid">
+        <div class="vcn-field vcn-wide">
+          <div class="vcn-label-row"><label for="vcn-client-search">Cliente *</label><button class="vcn-link" id="vcn-add-client" type="button">＋ Añadir cliente</button></div>
+          <div class="vcn-combobox">
+            <input autocomplete="off" id="vcn-client-search" placeholder="Buscar por empresa, ciudad o asesor..." required type="search">
+            <input id="vcn-id-cliente" name="id_cliente" type="hidden">
+            <div class="vcn-options" id="vcn-client-options" hidden></div>
+          </div>
+          <small id="vcn-client-help">Selecciona un cliente de la lista.</small>
+        </div>
+        <div class="vcn-field vcn-wide">
+          <div class="vcn-label-row"><label for="vcn-contacto">Contacto *</label><button class="vcn-link" id="vcn-add-contact" type="button" disabled>＋ Crear contacto</button></div>
+          <select id="vcn-contacto" name="id_contacto" required disabled><option value="">Primero selecciona un cliente</option></select>
+        </div>
+        <label><span>Teléfono</span><input id="vcn-telefono" name="telefono" maxlength="50" type="text"></label>
+        <label><span>Correo *</span><input id="vcn-correo" name="correo" maxlength="150" required type="text"></label>
+        <label><span>Ciudad</span><input id="vcn-ciudad" name="ciudad" maxlength="100" type="text"></label>
+        <label><span>Estado</span><select id="vcn-estado" name="estado"><option value="">Selecciona...</option></select></label>
+      </div>
+    </section>
+
+    <section class="vcn-card vcn-section">
+      <div class="vcn-section-title"><span>3</span><div><h2>Seguimiento</h2><p>El comentario se conserva como antecedente inicial.</p></div></div>
+      <label class="vcn-textarea"><span>Comentario</span><textarea name="comentario" rows="6"></textarea></label>
+    </section>
+
+    <section class="vcn-actions">
+      <button class="vcn-btn vcn-btn-ghost" id="vcn-cancel" type="button">Cancelar</button>
+      <button class="vcn-btn vcn-btn-primary" id="vcn-save" type="submit">Guardar cotización</button>
+    </section>
+  </form>
+
+  <div id="vcn-contact-editor"></div>
+  <div class="vcn-toast" id="vcn-toast" aria-live="polite"></div>
+</div>

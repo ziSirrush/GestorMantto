@@ -8,6 +8,10 @@ const router = express.Router();
 router.post('/clientes/sync', controller.syncClientes);
 
 router.get('/clientes/catalogos', requireAuth, controller.getCatalogos);
+<<<<<<< HEAD
+=======
+router.get('/clientes/asesores-asignables', requireAuth, controller.getAssignableAdvisors);
+>>>>>>> b39f76e (Ventas .4)
 router.get('/clientes/kpis', requireAuth, controller.getKpis);
 router.get('/clientes', requireAuth, controller.listClientes);
 router.get('/clientes/:id', requireAuth, controller.getCliente);

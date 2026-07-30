@@ -1,0 +1,49 @@
+<div class="vcl-page" id="vcl-page">
+  <section class="vcl-head vcl-card">
+    <div>
+      <p class="vcl-eyebrow">Aiven · Ventas</p>
+      <h1>Clientes</h1>
+      <p>Directorio comercial de clientes, contactos principales y asignación de asesores.</p>
+    </div>
+    <div class="vcl-head-actions">
+      <span class="vcl-status" id="vcl-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vcl-btn vcl-btn-ghost" id="vcl-refresh" type="button">↻ Actualizar</button>
+      <button class="vcl-btn vcl-btn-primary" id="vcl-new" type="button">＋ Nuevo cliente</button>
+    </div>
+  </section>
+
+  <section class="vcl-kpis" id="vcl-kpis" aria-label="Indicadores de clientes"></section>
+
+  <section class="vcl-workspace vcl-card">
+    <div class="vcl-toolbar">
+      <label class="vcl-search">
+        <span>Buscar</span>
+        <span class="vcl-search-box"><span class="vcl-search-icon" aria-hidden="true">⌕</span><input id="vcl-search" type="search" placeholder="Empresa, contacto, ciudad, correo o teléfono..."></span>
+      </label>
+      <label><span>Tipo de cliente</span><select id="vcl-filter-type"><option value="">Todos</option></select></label>
+      <label><span>Estatus</span><select id="vcl-filter-status"><option value="">Todos</option></select></label>
+      <label><span>Estado</span><select id="vcl-filter-state"><option value="">Todos</option></select></label>
+      <label id="vcl-filter-advisor-wrap"><span>Asesor</span><select id="vcl-filter-advisor"><option value="">Todos</option></select></label>
+      <button class="vcl-clear-btn" id="vcl-clear" type="button" title="Restablecer filtros"><span aria-hidden="true">↺</span><strong>Limpiar</strong></button>
+    </div>
+
+    <div class="vcl-table-wrap">
+      <table class="vcl-table">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Ciudad / Estado</th>
+            <th>Contacto principal</th>
+            <th>Tipo</th>
+            <th>Estatus</th>
+            <th>Asesor</th>
+          </tr>
+        </thead>
+        <tbody id="vcl-list-body"></tbody>
+      </table>
+    </div>
+    <div class="vcl-pagination" id="vcl-pagination"></div>
+  </section>
+
+  <div class="vcl-toast" id="vcl-toast" aria-live="polite"></div>
+</div>

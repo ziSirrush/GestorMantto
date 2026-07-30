@@ -12,7 +12,7 @@
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
     'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
-    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-cotizaciones':'Cotizaciones',
+    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
@@ -353,6 +353,39 @@
     return true;
   }
 
+<<<<<<< HEAD
+=======
+  function showVentasClientes(){
+    const view=document.getElementById('view-ventas-clientes');
+    if(!view) return false;
+    activateViewById('view-ventas-clientes');
+    setActiveSide('ventas-clientes');
+    updateContext('ventas-clientes','Clientes · directorio comercial y contactos desde Aiven');
+    if(window.ManttoVentasClientes) window.ManttoVentasClientes.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasClientesNuevo(){
+    const view=document.getElementById('view-ventas-clientes-nuevo');
+    if(!view) return false;
+    activateViewById('view-ventas-clientes-nuevo');
+    setActiveSide('ventas-clientes');
+    updateContext('ventas-clientes-nuevo','Nuevo cliente · alta comercial y contacto principal en Aiven');
+    if(window.ManttoVentasClientesNuevo) window.ManttoVentasClientesNuevo.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasClientesDetalle(){
+    const view=document.getElementById('view-ventas-clientes-detalle');
+    if(!view) return false;
+    activateViewById('view-ventas-clientes-detalle');
+    setActiveSide('ventas-clientes');
+    updateContext('ventas-clientes-detalle','Detalle de cliente · contactos y actividad comercial desde Aiven');
+    if(window.ManttoVentasClientesDetalle) window.ManttoVentasClientesDetalle.init(currentPayload || null);
+    return true;
+  }
+
+>>>>>>> b39f76e (Ventas .4)
   function showVentasCotizaciones(){
     const view=document.getElementById('view-ventas-cotizaciones');
     if(!view) return false;
@@ -363,6 +396,51 @@
     return true;
   }
 
+<<<<<<< HEAD
+=======
+
+  function showVentasCotizacionesNueva(){
+    const view=document.getElementById('view-ventas-cotizaciones-nueva');
+    if(!view) return false;
+    activateViewById('view-ventas-cotizaciones-nueva');
+    setActiveSide('ventas-cotizaciones');
+    updateContext('ventas-cotizaciones-nueva','Nueva cotización · alta comercial desde Aiven');
+    if(window.ManttoVentasCotizacionesNueva) window.ManttoVentasCotizacionesNueva.init(currentPayload || null);
+    return true;
+  }
+
+
+  function showVentasCotizacionesDetalle(){
+    const view=document.getElementById('view-ventas-cotizaciones-detalle');
+    if(!view) return false;
+    activateViewById('view-ventas-cotizaciones-detalle');
+    setActiveSide('ventas-cotizaciones');
+    updateContext('ventas-cotizaciones-detalle','Detalle de cotización · información comercial desde Aiven');
+    if(window.ManttoVentasCotizacionesDetalle) window.ManttoVentasCotizacionesDetalle.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasVendidos(){
+    const view=document.getElementById('view-ventas-vendidos');
+    if(!view) return false;
+    activateViewById('view-ventas-vendidos');
+    setActiveSide('ventas-vendidos');
+    updateContext('ventas-vendidos','Vendidos · cierres comerciales confirmados desde Aiven');
+    if(window.ManttoVentasVendidos) window.ManttoVentasVendidos.init();
+    return true;
+  }
+
+  function showVentasPerdidos(){
+    const view=document.getElementById('view-ventas-perdidos');
+    if(!view) return false;
+    activateViewById('view-ventas-perdidos');
+    setActiveSide('ventas-perdidos');
+    updateContext('ventas-perdidos','Perdidos · cotizaciones perdidas por fecha de cambio de estatus');
+    if(window.ManttoVentasPerdidos) window.ManttoVentasPerdidos.init();
+    return true;
+  }
+
+>>>>>>> b39f76e (Ventas .4)
   function showInstalacionesConcentradoCliente(){
     const view=document.getElementById('view-instalaciones-concentrado-cliente');
     if(!view) return false;
@@ -505,7 +583,18 @@
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
     if(route==='instalaciones-cerrados' && showInstalacionesCerrados()) return;
     if(route==='ventas-fotos-mapa' && showVentasFotosMapa()) return;
+<<<<<<< HEAD
     if(route==='ventas-cotizaciones' && showVentasCotizaciones()) return;
+=======
+    if(route==='ventas-clientes' && showVentasClientes()) return;
+    if(route==='ventas-clientes-nuevo' && showVentasClientesNuevo()) return;
+    if(route==='ventas-clientes-detalle' && showVentasClientesDetalle()) return;
+    if(route==='ventas-cotizaciones' && showVentasCotizaciones()) return;
+    if(route==='ventas-cotizaciones-nueva' && showVentasCotizacionesNueva()) return;
+    if(route==='ventas-cotizaciones-detalle' && showVentasCotizacionesDetalle()) return;
+    if(route==='ventas-vendidos' && showVentasVendidos()) return;
+    if(route==='ventas-perdidos' && showVentasPerdidos()) return;
+>>>>>>> b39f76e (Ventas .4)
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;

@@ -1,0 +1,41 @@
+<div class="vv-page" id="vv-page">
+  <section class="vv-head vv-card">
+    <div>
+      <p class="vv-eyebrow">Aiven · Ventas</p>
+      <h1>Vendidos</h1>
+      <p>Cierres comerciales confirmados, clasificados por fecha de cierre y alcance del usuario.</p>
+    </div>
+    <div class="vv-head-actions">
+      <span class="vv-status" id="vv-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vv-btn vv-btn-ghost" id="vv-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="vv-kpis" id="vv-kpis" aria-label="Indicadores de vendidos"></section>
+
+  <section class="vv-workspace vv-card">
+    <div class="vv-toolbar">
+      <label class="vv-search"><span>Buscar</span><span class="vv-search-box"><span aria-hidden="true">⌕</span><input id="vv-search" type="search" placeholder="Proyecto, cliente o ID..."></span></label>
+      <label><span>Año de cierre</span><select id="vv-filter-year"><option value="">Cargando...</option></select></label>
+      <label id="vv-filter-advisor-wrap"><span>Asesor</span><select id="vv-filter-advisor"><option value="">Todos</option></select></label>
+      <label id="vv-filter-admin-wrap"><span>Administrativo</span><select id="vv-filter-admin"><option value="">Todos</option></select></label>
+      <label><span>Zona</span><select id="vv-filter-zone"><option value="">Todas</option></select></label>
+      <button class="vv-clear" id="vv-clear" type="button"><span aria-hidden="true">↺</span><strong>Limpiar</strong></button>
+    </div>
+
+    <div class="vv-table-wrap">
+      <table class="vv-table">
+        <thead><tr><th>ID</th><th>Proyecto</th><th>Cliente</th><th>Asesor</th><th>Administrativo</th><th>Zona</th><th>Equipos</th><th>Fecha cierre</th><th>Acciones</th></tr></thead>
+        <tbody id="vv-body"></tbody>
+      </table>
+    </div>
+    <div class="vv-pagination" id="vv-pagination"></div>
+  </section>
+
+  <div class="vv-overlay" id="vv-overlay" hidden></div>
+  <aside class="vv-drawer" id="vv-drawer" aria-hidden="true">
+    <header><div><p id="vv-detail-id">Venta</p><h2 id="vv-detail-title">Detalle</h2></div><button id="vv-close" type="button" aria-label="Cerrar">×</button></header>
+    <div class="vv-detail" id="vv-detail"></div>
+  </aside>
+  <div class="vv-toast" id="vv-toast" aria-live="polite"></div>
+</div>

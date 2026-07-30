@@ -1,0 +1,35 @@
+<div class="vp-page" id="vp-page">
+  <section class="vp-head vp-card">
+    <div>
+      <p class="vp-eyebrow">Aiven · Ventas</p>
+      <h1>Perdidos</h1>
+      <p>Cotizaciones marcadas como perdidas, clasificadas por fecha de cambio de estatus.</p>
+    </div>
+    <div class="vp-head-actions">
+      <span class="vp-status" id="vp-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vp-btn vp-btn-ghost" id="vp-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="vp-kpis" id="vp-kpis" aria-label="Indicadores de cotizaciones perdidas"></section>
+
+  <section class="vp-workspace vp-card">
+    <div class="vp-toolbar">
+      <label class="vp-search"><span>Buscar</span><span class="vp-search-box"><span aria-hidden="true">⌕</span><input id="vp-search" type="search" placeholder="Proyecto, cliente o contacto..."></span></label>
+      <label><span>Año de pérdida</span><select id="vp-filter-year"><option value="">Cargando...</option></select></label>
+      <label id="vp-filter-advisor-wrap"><span>Asesor</span><select id="vp-filter-advisor"><option value="">Todos</option></select></label>
+      <label><span>Razón de pérdida</span><select id="vp-filter-reason"><option value="">Todas</option></select></label>
+      <button class="vp-clear" id="vp-clear" type="button"><span aria-hidden="true">↺</span><strong>Limpiar</strong></button>
+    </div>
+
+    <div class="vp-table-wrap">
+      <table class="vp-table">
+        <thead><tr><th>ID</th><th>Proyecto</th><th>Cliente</th><th>Asesor</th><th>Equipos</th><th>Razón de pérdida</th><th>Empresa asignada</th><th>Fecha pérdida</th><th>Acciones</th></tr></thead>
+        <tbody id="vp-body"></tbody>
+      </table>
+    </div>
+    <div class="vp-pagination" id="vp-pagination"></div>
+  </section>
+
+  <div class="vp-toast" id="vp-toast" aria-live="polite"></div>
+</div>
