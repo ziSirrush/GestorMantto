@@ -353,8 +353,6 @@
     return true;
   }
 
-<<<<<<< HEAD
-=======
   function showVentasClientes(){
     const view=document.getElementById('view-ventas-clientes');
     if(!view) return false;
@@ -385,7 +383,6 @@
     return true;
   }
 
->>>>>>> b39f76e (Ventas .4)
   function showVentasCotizaciones(){
     const view=document.getElementById('view-ventas-cotizaciones');
     if(!view) return false;
@@ -396,8 +393,6 @@
     return true;
   }
 
-<<<<<<< HEAD
-=======
 
   function showVentasCotizacionesNueva(){
     const view=document.getElementById('view-ventas-cotizaciones-nueva');
@@ -440,7 +435,6 @@
     return true;
   }
 
->>>>>>> b39f76e (Ventas .4)
   function showInstalacionesConcentradoCliente(){
     const view=document.getElementById('view-instalaciones-concentrado-cliente');
     if(!view) return false;
@@ -583,9 +577,6 @@
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
     if(route==='instalaciones-cerrados' && showInstalacionesCerrados()) return;
     if(route==='ventas-fotos-mapa' && showVentasFotosMapa()) return;
-<<<<<<< HEAD
-    if(route==='ventas-cotizaciones' && showVentasCotizaciones()) return;
-=======
     if(route==='ventas-clientes' && showVentasClientes()) return;
     if(route==='ventas-clientes-nuevo' && showVentasClientesNuevo()) return;
     if(route==='ventas-clientes-detalle' && showVentasClientesDetalle()) return;
@@ -594,7 +585,6 @@
     if(route==='ventas-cotizaciones-detalle' && showVentasCotizacionesDetalle()) return;
     if(route==='ventas-vendidos' && showVentasVendidos()) return;
     if(route==='ventas-perdidos' && showVentasPerdidos()) return;
->>>>>>> b39f76e (Ventas .4)
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
