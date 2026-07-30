@@ -24,17 +24,10 @@ function buildVisibilityClause(scope, actorId, alias = 'vc') {
   if (advisorIds.length) {
     clauses.push(`EXISTS (
       SELECT 1
-<<<<<<< HEAD
-        FROM ventas_cotizaciones_cor vcc
-       WHERE vcc.activo = 1
-         AND UPPER(TRIM(vcc.cliente)) = UPPER(TRIM(${alias}.nombre_empresa))
-         AND vcc.id_asesor IN (${advisorIds.map(() => '?').join(', ')})
-=======
         FROM usuarios vu
        WHERE vu.estado = 1
          AND vu.id_SB IN (${advisorIds.map(() => '?').join(', ')})
          AND UPPER(TRIM(vu.iniciales)) = UPPER(TRIM(${alias}.iniciales))
->>>>>>> b39f76e (Ventas .4)
     )`);
     params.push(...advisorIds);
   }
@@ -101,12 +94,8 @@ async function list(connection, options, scope, actorId) {
   );
 
   const [rows] = await connection.query(
-<<<<<<< HEAD
-    `SELECT vc.*
-=======
     `SELECT vc.*,
             (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor
->>>>>>> b39f76e (Ventas .4)
        FROM ${TABLE} vc
        ${where.sql}
       ORDER BY vc.${sortBy} ${direction}, vc.id_cliente ASC
@@ -165,13 +154,9 @@ async function findById(connection, idCliente, { includeInactive = false, scope 
   }
 
   const [rows] = await connection.query(
-<<<<<<< HEAD
-    `SELECT vc.* FROM ${TABLE} vc WHERE ${clauses.join(' AND ')} LIMIT 1`,
-=======
     `SELECT vc.*,
             (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor
        FROM ${TABLE} vc WHERE ${clauses.join(' AND ')} LIMIT 1`,
->>>>>>> b39f76e (Ventas .4)
     params
   );
   return rows[0] || null;
@@ -238,8 +223,6 @@ async function softDelete(connection, idCliente, actorId) {
   return result.affectedRows;
 }
 
-<<<<<<< HEAD
-=======
 function commercialRolePredicate(userAlias = 'u') {
   return `EXISTS (
     SELECT 1
@@ -367,7 +350,6 @@ async function isAdvisorLinkedToAdmin(connection, adminId, advisorId) {
   return Boolean(rows[0]);
 }
 
->>>>>>> b39f76e (Ventas .4)
 module.exports = {
   getConnection,
   list,
@@ -377,9 +359,6 @@ module.exports = {
   findByIdentity,
   insert,
   update,
-<<<<<<< HEAD
-  softDelete
-=======
   softDelete,
   listAssignableCommercialUsers,
   isAssignableCommercialUser,
@@ -388,5 +367,4 @@ module.exports = {
   findActiveUserById,
   findActiveUserByInitials,
   isAdvisorLinkedToAdmin
->>>>>>> b39f76e (Ventas .4)
 };

@@ -42,11 +42,8 @@ const PROJECTION_GROUPS = Object.freeze({
 
 const EDITABLE_FIELDS = [
   'id_cot_origen',
-<<<<<<< HEAD
-=======
   'id_cliente',
   'id_contacto',
->>>>>>> b39f76e (Ventas .4)
   'nombre_proyecto',
   'cliente',
   'contacto',
@@ -160,8 +157,6 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
         normalized[field] = value;
         break;
       }
-<<<<<<< HEAD
-=======
       case 'id_cliente':
       case 'id_contacto': {
         const value = positiveInteger(source[field]);
@@ -171,7 +166,6 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
         normalized[field] = value;
         break;
       }
->>>>>>> b39f76e (Ventas .4)
       case 'nombre_proyecto':
         normalized[field] = requiredText(source[field], 200);
         break;
@@ -185,11 +179,7 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
         normalized[field] = cleanText(source[field], 50);
         break;
       case 'correo':
-<<<<<<< HEAD
-        normalized[field] = normalizeEmail(source[field]);
-=======
         normalized[field] = cleanText(source[field], 150);
->>>>>>> b39f76e (Ventas .4)
         break;
       case 'ciudad':
       case 'estado':
@@ -266,8 +256,6 @@ function normalizeCrudPayload(payload, { partial = false } = {}) {
   return normalized;
 }
 
-<<<<<<< HEAD
-=======
 async function validateClientAndContact(connection, record, actionContext) {
   if (!record.id_cliente) throw badRequest('id_cliente es obligatorio.');
   if (!record.id_contacto) throw badRequest('id_contacto es obligatorio.');
@@ -316,7 +304,6 @@ async function validateClientAndContact(connection, record, actionContext) {
   if (!record.created_by) record.created_by = actorId;
 }
 
->>>>>>> b39f76e (Ventas .4)
 async function validateRelatedUsers(connection, record) {
   const requested = [...new Set([record.id_asesor, record.id_admin].filter(Boolean))];
   if (!requested.length) return;
@@ -410,11 +397,8 @@ function splitBatches(records) {
 
 
 const LIST_FILTER_FIELDS = [
-<<<<<<< HEAD
-=======
   'id_cliente',
   'cliente',
->>>>>>> b39f76e (Ventas .4)
   'estatus_proyecto',
   'asesor',
   'id_asesor',
@@ -428,10 +412,7 @@ const LIST_FILTER_FIELDS = [
   'anio_mes_cotizacion',
   'anio_actual',
   'mx',
-<<<<<<< HEAD
-=======
   'razon_perdido',
->>>>>>> b39f76e (Ventas .4)
   'activo'
 ];
 
@@ -485,11 +466,7 @@ function normalizeListQuery(query) {
   for (const field of LIST_FILTER_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(query, field)) continue;
 
-<<<<<<< HEAD
-    if (field === 'id_asesor' || field === 'id_admin') {
-=======
     if (field === 'id_cliente' || field === 'id_asesor' || field === 'id_admin') {
->>>>>>> b39f76e (Ventas .4)
       const value = positiveInteger(query[field]);
       if (!value) throw badRequest(`${field} debe ser un entero positivo.`);
       filters[field] = value;
@@ -651,9 +628,6 @@ async function getVendidos(query, actionContext) {
 }
 
 async function getPerdidos(query, actionContext) {
-<<<<<<< HEAD
-  return listSpecialized(query, PERDIDOS_STATUSES, 'PERDIDOS', actionContext);
-=======
   const options = normalizeListQuery(query);
   const connection = await repository.getConnection();
   try {
@@ -675,7 +649,6 @@ async function getPerdidos(query, actionContext) {
   } finally {
     connection.release();
   }
->>>>>>> b39f76e (Ventas .4)
 }
 
 async function getProyeccion(query, actionContext) {
@@ -772,10 +745,7 @@ async function getKpis(query, actionContext) {
     const embudoActivo = sumStatuses(EMBUDO_STATUSES);
     // Las métricas cerradas usan sus fechas oficiales de evento.
     const vendidas = Number(data.vendidas_periodo || 0);
-<<<<<<< HEAD
-=======
     const equiposVendidos = Number(data.equipos_vendidos_periodo || 0);
->>>>>>> b39f76e (Ventas .4)
     const perdidas = Number(data.perdidas_periodo || 0);
 
     return {
@@ -792,11 +762,8 @@ async function getKpis(query, actionContext) {
         activas: Number(summary.activas || 0),
         inactivas: Number(summary.inactivas || 0),
         total_equipos: Number(summary.total_equipos || 0),
-<<<<<<< HEAD
-=======
         equipos_vendidos: equiposVendidos,
         total_equipos_vendidos: equiposVendidos,
->>>>>>> b39f76e (Ventas .4)
         promedio_equipos: Number(Number(summary.promedio_equipos || 0).toFixed(2)),
         con_asesor: Number(summary.con_asesor || 0),
         sin_asesor: Number(summary.sin_asesor || 0),
@@ -889,10 +856,7 @@ async function create(payload, actionContext) {
   const connection = await repository.getConnection();
   try {
     await connection.beginTransaction();
-<<<<<<< HEAD
-=======
     await validateClientAndContact(connection, record, actionContext);
->>>>>>> b39f76e (Ventas .4)
     await validateRelatedUsers(connection, record);
 
     if (record.id_cot_origen) {

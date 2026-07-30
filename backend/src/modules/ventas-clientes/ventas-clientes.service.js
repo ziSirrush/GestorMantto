@@ -80,13 +80,10 @@ function normalizePayload(source, { partial = false } = {}) {
     normalized[field] = cleanText(value, maxLength);
   }
 
-<<<<<<< HEAD
-=======
   if (Object.prototype.hasOwnProperty.call(normalized, 'estatus_cliente') && normalized.estatus_cliente) {
     normalized.estatus_cliente = normalized.estatus_cliente.toUpperCase();
   }
 
->>>>>>> b39f76e (Ventas .4)
   const active = read('activo');
   if (!partial || active !== undefined) normalized.activo = activeValue(active);
 
@@ -107,9 +104,6 @@ function extractRecords(payload) {
 
 function parseListOptions(query = {}) {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
-<<<<<<< HEAD
-  const pageSize = Math.min(200, Math.max(1, Number.parseInt(query.page_size || query.pageSize, 10) || 50));
-=======
   const pageSize = Math.min(
     5000,
     Math.max(
@@ -117,7 +111,6 @@ function parseListOptions(query = {}) {
       Number.parseInt(query.page_size || query.pageSize, 10) || 50
     )
   );
->>>>>>> b39f76e (Ventas .4)
   return {
     page,
     pageSize,
@@ -145,8 +138,6 @@ async function resolveScope(connection, actionContext) {
   return ventasVisibility.resolveVisibilityScope(connection, actionContext);
 }
 
-<<<<<<< HEAD
-=======
 function advisorDto(row) {
   const initials = String(row?.iniciales || '').trim().toUpperCase();
   const name = String(row?.nombre || '').trim();
@@ -232,7 +223,6 @@ async function getAssignableAdvisors(actionContext) {
   }
 }
 
->>>>>>> b39f76e (Ventas .4)
 async function list(query, actionContext) {
   const connection = await repository.getConnection();
   try {
@@ -314,15 +304,10 @@ async function create(payload, actionContext) {
 
   const connection = await repository.getConnection();
   try {
-<<<<<<< HEAD
-    const existing = await repository.findByIdentity(connection, data);
-    if (existing) throw httpError(409, 'Ya existe un cliente con la misma empresa y contacto.', { id_cliente: existing.id_cliente });
-=======
     data.iniciales = await validateAssignedInitials(connection, data.iniciales, actionContext);
     // La relación de proyecto vendido se obtiene desde la cotización vendida mediante id_equipo_vendido.
     data.proyecto_vendido = null;
     data.visualiza = null;
->>>>>>> b39f76e (Ventas .4)
     const idCliente = await repository.insert(connection, data);
     return { ok: true, source: 'aiven', id_cliente: idCliente };
   } finally {
@@ -346,16 +331,6 @@ async function update(id, payload, actionContext) {
     if (!current) throw httpError(404, 'Cliente no encontrado o fuera de tu alcance.');
 
     const changes = normalizePayload(payload || {}, { partial: true });
-<<<<<<< HEAD
-    const merged = { ...current, ...changes };
-    const duplicate = await repository.findByIdentity(connection, merged, idCliente);
-    if (duplicate) {
-      throw httpError(409, 'Ya existe otro cliente con la misma empresa y contacto.', {
-        id_cliente: duplicate.id_cliente
-      });
-    }
-=======
->>>>>>> b39f76e (Ventas .4)
     changes.updated_by = actor;
     await repository.update(connection, idCliente, changes);
     return { ok: true, source: 'aiven', id_cliente: idCliente };
@@ -453,10 +428,7 @@ module.exports = {
   list,
   getKpis,
   getCatalogos,
-<<<<<<< HEAD
-=======
   getAssignableAdvisors,
->>>>>>> b39f76e (Ventas .4)
   getById,
   create,
   update,

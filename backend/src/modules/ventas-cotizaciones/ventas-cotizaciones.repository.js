@@ -67,10 +67,7 @@ const SEARCH_COLUMNS = [
 function buildListWhere(search, filters, scope = null, options = {}) {
   const clauses = [];
   const params = [];
-<<<<<<< HEAD
-=======
   const normalizedFilters = { ...(filters || {}) };
->>>>>>> b39f76e (Ventas .4)
 
   if (search) {
     const like = `%${search}%`;
@@ -81,9 +78,6 @@ function buildListWhere(search, filters, scope = null, options = {}) {
     params.push(...Array(searchClauses.length).fill(like));
   }
 
-<<<<<<< HEAD
-  for (const [field, value] of Object.entries(filters || {})) {
-=======
   // Relación comercial del detalle de cliente:
   // 1) vínculo físico por id_cliente cuando exista;
   // 2) respaldo histórico por nombre de cliente + asesor.
@@ -123,18 +117,11 @@ function buildListWhere(search, filters, scope = null, options = {}) {
   }
 
   for (const [field, value] of Object.entries(normalizedFilters)) {
->>>>>>> b39f76e (Ventas .4)
     clauses.push(`${field} = ?`);
     params.push(value);
   }
 
   const scopeClause = buildScopeClause(scope);
-<<<<<<< HEAD
-  if (scopeClause.sql) { clauses.push(scopeClause.sql); params.push(...scopeClause.params); }
-
-  if (Number.isInteger(options.year)) {
-    clauses.push(`LEFT(COALESCE(NULLIF(TRIM(fecha_cotizacion), ''), NULLIF(TRIM(fecha_solicitud), '')), 4) = ?`);
-=======
   if (scopeClause.sql) {
     clauses.push(scopeClause.sql);
     params.push(...scopeClause.params);
@@ -142,7 +129,6 @@ function buildListWhere(search, filters, scope = null, options = {}) {
 
   if (Number.isInteger(options.year)) {
     clauses.push(`LEFT(COALESCE(NULLIF(TRIM(fecha_solicitud), ''), NULLIF(TRIM(fecha_cotizacion), '')), 4) = ?`);
->>>>>>> b39f76e (Ventas .4)
     params.push(String(options.year));
   }
 
@@ -198,11 +184,7 @@ function buildSpecializedWhere(search, filters, statuses, scope = null, options 
       ? `NULLIF(TRIM(fecha_cierre), '')`
       : options.yearField === 'fecha_cambio_estatus'
         ? `NULLIF(TRIM(fecha_cambio_estatus), '')`
-<<<<<<< HEAD
-        : `COALESCE(NULLIF(TRIM(fecha_cotizacion), ''), NULLIF(TRIM(fecha_solicitud), ''))`;
-=======
         : `COALESCE(NULLIF(TRIM(fecha_solicitud), ''), NULLIF(TRIM(fecha_cotizacion), ''))`;
->>>>>>> b39f76e (Ventas .4)
     clauses.push(`LEFT(${yearField}, 4) = ?`);
     params.push(String(options.year));
   }
@@ -286,8 +268,6 @@ async function listVendidos(connection, options, scope = null) {
   };
 }
 
-<<<<<<< HEAD
-=======
 async function listPerdidos(connection, options, scope = null) {
   // Una pérdida pertenece al año de fecha_cambio_estatus.
   const where = buildSpecializedWhere(options.search, options.filters, ['Perdido'], scope, {
@@ -324,7 +304,6 @@ async function listPerdidos(connection, options, scope = null) {
   };
 }
 
->>>>>>> b39f76e (Ventas .4)
 async function summarizeByStatuses(connection, options, statuses, scope = null) {
   const where = buildSpecializedWhere(options.search, options.filters, statuses, scope);
 
@@ -453,13 +432,9 @@ async function getKpis(connection, options, scope = null) {
 
   const [[vendidosRows], [perdidosRows]] = await Promise.all([
     connection.query(
-<<<<<<< HEAD
-      `SELECT COUNT(*) AS total
-=======
       `SELECT
          COUNT(*) AS total,
          COALESCE(SUM(numero_equipos), 0) AS equipos_vendidos
->>>>>>> b39f76e (Ventas .4)
          FROM ${TABLE}
          ${vendidosWhere.sql}
          AND NULLIF(TRIM(fecha_cierre), '') IS NOT NULL`,
@@ -479,10 +454,7 @@ async function getKpis(connection, options, scope = null) {
     por_estatus: statusRows,
     por_asesor: advisorRows,
     vendidas_periodo: Number(vendidosRows[0]?.total || 0),
-<<<<<<< HEAD
-=======
     equipos_vendidos_periodo: Number(vendidosRows[0]?.equipos_vendidos || 0),
->>>>>>> b39f76e (Ventas .4)
     perdidas_periodo: Number(perdidosRows[0]?.total || 0)
   };
 }
@@ -499,25 +471,14 @@ async function getCatalogos(connection) {
         GROUP_CONCAT(DISTINCT NULLIF(TRIM(tipo_equipos), '') ORDER BY tipo_equipos SEPARATOR '||') AS tipos_equipos,
         GROUP_CONCAT(DISTINCT NULLIF(TRIM(mx), '') ORDER BY mx SEPARATOR '||') AS monedas,
         GROUP_CONCAT(
-<<<<<<< HEAD
-          DISTINCT LEFT(COALESCE(NULLIF(TRIM(fecha_cotizacion), ''), NULLIF(TRIM(fecha_solicitud), '')), 4)
-          ORDER BY LEFT(COALESCE(NULLIF(TRIM(fecha_cotizacion), ''), NULLIF(TRIM(fecha_solicitud), '')), 4) DESC
-=======
           DISTINCT LEFT(COALESCE(NULLIF(TRIM(fecha_solicitud), ''), NULLIF(TRIM(fecha_cotizacion), '')), 4)
           ORDER BY LEFT(COALESCE(NULLIF(TRIM(fecha_solicitud), ''), NULLIF(TRIM(fecha_cotizacion), '')), 4) DESC
->>>>>>> b39f76e (Ventas .4)
           SEPARATOR '||'
         ) AS anios,
         GROUP_CONCAT(
           DISTINCT LEFT(NULLIF(TRIM(fecha_cierre), ''), 4)
           ORDER BY LEFT(NULLIF(TRIM(fecha_cierre), ''), 4) DESC
           SEPARATOR '||'
-<<<<<<< HEAD
-        ) AS anios_cierre
-      FROM ${TABLE}
-      WHERE activo = 1
-        AND COALESCE(NULLIF(TRIM(fecha_cotizacion), ''), NULLIF(TRIM(fecha_solicitud), '')) IS NOT NULL
-=======
         ) AS anios_cierre,
         GROUP_CONCAT(
           DISTINCT LEFT(NULLIF(TRIM(fecha_cambio_estatus), ''), 4)
@@ -532,7 +493,6 @@ async function getCatalogos(connection) {
       FROM ${TABLE}
       WHERE activo = 1
         AND COALESCE(NULLIF(TRIM(fecha_solicitud), ''), NULLIF(TRIM(fecha_cotizacion), '')) IS NOT NULL
->>>>>>> b39f76e (Ventas .4)
     `),
     connection.query(`
       SELECT DISTINCT
@@ -597,13 +557,9 @@ async function getCatalogos(connection) {
     tipos_equipos: split(row.tipos_equipos),
     monedas: split(row.monedas),
     anios: split(row.anios).map(Number).filter(Number.isInteger),
-<<<<<<< HEAD
-    anios_cierre: split(row.anios_cierre).map(Number).filter(Number.isInteger)
-=======
     anios_cierre: split(row.anios_cierre).map(Number).filter(Number.isInteger),
     anios_perdidos: split(row.anios_perdidos).map(Number).filter(Number.isInteger),
     razones_perdido: split(row.razones_perdido)
->>>>>>> b39f76e (Ventas .4)
   };
 }
 
@@ -786,11 +742,7 @@ async function createArchivo(connection,record){const cols=Object.keys(record),v
 async function updateArchivo(connection,idCotizacion,idArchivo,changes){const cols=Object.keys(changes),vals=cols.map(k=>changes[k]);vals.push(idCotizacion,idArchivo);const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET ${cols.map(k=>`${k}=?`).join(',')},updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,vals);return r;}
 async function softDeleteArchivo(connection,idCotizacion,idArchivo){const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET activo=0,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,[idCotizacion,idArchivo]);return r;}
 
-<<<<<<< HEAD
-module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUsersByIds, list, listByStatuses, listVendidos,
-=======
 module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUsersByIds, list, listByStatuses, listVendidos, listPerdidos,
->>>>>>> b39f76e (Ventas .4)
   summarizeByStatuses, getProjection, getKpis, getCatalogos, findById, findByOriginId, create, update, softDelete,
   upsertMany, listComentarios, findComentario, createComentario, updateComentario, softDeleteComentario,
   listArchivos, findArchivo, createArchivo, updateArchivo, softDeleteArchivo };

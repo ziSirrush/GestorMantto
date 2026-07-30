@@ -33,11 +33,7 @@ async function syncCotizaciones(req, res, next) {
 
 async function listCotizaciones(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.list(req.query || {});
-=======
     const result = await service.list(req.query || {}, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -47,11 +43,7 @@ async function listCotizaciones(req, res, next) {
 
 async function getKpis(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getKpis(req.query || {});
-=======
     const result = await service.getKpis(req.query || {}, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -61,11 +53,7 @@ async function getKpis(req, res, next) {
 
 async function getEmbudo(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getEmbudo(req.query || {});
-=======
     const result = await service.getEmbudo(req.query || {}, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -74,11 +62,7 @@ async function getEmbudo(req, res, next) {
 
 async function getVendidos(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getVendidos(req.query || {});
-=======
     const result = await service.getVendidos(req.query || {}, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -87,11 +71,7 @@ async function getVendidos(req, res, next) {
 
 async function getPerdidos(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getPerdidos(req.query || {});
-=======
     const result = await service.getPerdidos(req.query || {}, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -100,11 +80,7 @@ async function getPerdidos(req, res, next) {
 
 async function getProyeccion(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getProyeccion(req.query || {});
-=======
     const result = await service.getProyeccion(req.query || {}, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -113,11 +89,7 @@ async function getProyeccion(req, res, next) {
 
 async function getCatalogos(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getCatalogos();
-=======
     const result = await service.getCatalogos(buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -126,11 +98,7 @@ async function getCatalogos(req, res, next) {
 
 async function getCotizacion(req, res, next) {
   try {
-<<<<<<< HEAD
-    const result = await service.getById(req.params.id);
-=======
     const result = await service.getById(req.params.id, buildActionContext(req));
->>>>>>> b39f76e (Ventas .4)
     return res.status(200).json(result);
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -184,11 +152,7 @@ async function updateAsignacion(req, res, next) {
 }
 
 async function listComentarios(req, res, next) {
-<<<<<<< HEAD
-  try { return res.status(200).json(await service.listComentarios(req.params.id, req.query || {})); }
-=======
   try { return res.status(200).json(await service.listComentarios(req.params.id, req.query || {}, buildActionContext(req))); }
->>>>>>> b39f76e (Ventas .4)
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function createComentario(req, res, next) {
@@ -204,11 +168,7 @@ async function deleteComentario(req, res, next) {
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function listArchivos(req, res, next) {
-<<<<<<< HEAD
-  try { return res.status(200).json(await service.listArchivos(req.params.id, req.query || {})); }
-=======
   try { return res.status(200).json(await service.listArchivos(req.params.id, req.query || {}, buildActionContext(req))); }
->>>>>>> b39f76e (Ventas .4)
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function createArchivo(req, res, next) {
@@ -216,11 +176,7 @@ async function createArchivo(req, res, next) {
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function getArchivo(req, res, next) {
-<<<<<<< HEAD
-  try { return res.status(200).json(await service.getArchivo(req.params.id, req.params.idArchivo)); }
-=======
   try { return res.status(200).json(await service.getArchivo(req.params.id, req.params.idArchivo, buildActionContext(req))); }
->>>>>>> b39f76e (Ventas .4)
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function updateArchivo(req, res, next) {

@@ -36,13 +36,10 @@ async function getCatalogos(req, res, next) {
   try { return res.status(200).json(await service.getCatalogos(buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
 }
-<<<<<<< HEAD
-=======
 async function getAssignableAdvisors(req, res, next) {
   try { return res.status(200).json(await service.getAssignableAdvisors(buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
 }
->>>>>>> b39f76e (Ventas .4)
 async function getCliente(req, res, next) {
   try { return res.status(200).json(await service.getById(req.params.id, buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
@@ -65,10 +62,7 @@ module.exports = {
   listClientes,
   getKpis,
   getCatalogos,
-<<<<<<< HEAD
-=======
   getAssignableAdvisors,
->>>>>>> b39f76e (Ventas .4)
   getCliente,
   createCliente,
   updateCliente,
