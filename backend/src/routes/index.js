@@ -17,6 +17,7 @@ const instalacionesDriveRoutes = require('../modules/instalaciones-drive/instala
 const instalacionesProyectoDriveRoutes = require('../modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.routes');
 const instalacionesComentariosJuntaRoutes = require('../modules/instalaciones-comentarios-junta/instalaciones-comentarios-junta.routes');
 const ventasCotizacionesRoutes = require('../modules/ventas-cotizaciones/ventas-cotizaciones.routes');
+const ventasCotizacionesHistorialRoutes = require('../modules/ventas-cotizaciones-historial/ventas-cotizaciones-historial.routes');
 const ventasClientesRoutes = require('../modules/ventas-clientes/ventas-clientes.routes');
 const ventasClientesContactosRoutes = require('../modules/ventas-clientes-contactos/ventas-clientes-contactos.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
@@ -38,6 +39,7 @@ router.use('/google/drive', googleDriveRoutes);
 router.use('/instalaciones', instalacionesDriveRoutes);
 router.use('/instalaciones', instalacionesProyectoDriveRoutes);
 router.use('/instalaciones', instalacionesComentariosJuntaRoutes);
+router.use('/ventas', ventasCotizacionesHistorialRoutes);
 router.use('/ventas', ventasCotizacionesRoutes);
 router.use('/ventas', ventasClientesRoutes);
 router.use('/ventas', ventasClientesContactosRoutes);
