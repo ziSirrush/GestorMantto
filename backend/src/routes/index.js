@@ -17,11 +17,8 @@ const instalacionesDriveRoutes = require('../modules/instalaciones-drive/instala
 const instalacionesProyectoDriveRoutes = require('../modules/instalaciones-proyecto-drive/instalaciones-proyecto-drive.routes');
 const ventasCotizacionesRoutes = require('../modules/ventas-cotizaciones/ventas-cotizaciones.routes');
 const ventasClientesRoutes = require('../modules/ventas-clientes/ventas-clientes.routes');
-<<<<<<< HEAD
-=======
 const ventasClientesContactosRoutes = require('../modules/ventas-clientes-contactos/ventas-clientes-contactos.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
->>>>>>> b39f76e (Ventas .4)
 
 const router = express.Router();
 
@@ -41,11 +38,8 @@ router.use('/instalaciones', instalacionesDriveRoutes);
 router.use('/instalaciones', instalacionesProyectoDriveRoutes);
 router.use('/ventas', ventasCotizacionesRoutes);
 router.use('/ventas', ventasClientesRoutes);
-<<<<<<< HEAD
-=======
 router.use('/ventas', ventasClientesContactosRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);
->>>>>>> b39f76e (Ventas .4)
 router.use(dataRoutes);
 
 module.exports = router;
