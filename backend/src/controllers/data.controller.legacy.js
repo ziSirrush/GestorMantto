@@ -1025,6 +1025,183 @@ async function getPortafolioEquipoTicketsLote(req, res) {
   }
 }
 
+
+function ticketRoleNames(req) {
+  const user = req?.contextUser || req?.user || {};
+  const values = [];
+
+  if (Array.isArray(user.roles)) values.push(...user.roles);
+  values.push(user.rol, user.role, user.puesto);
+
+  return Array.from(new Set(
+    values
+      .map(value => String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+  ));
+}
+
+function ticketCanRevert(req) {
+  const user = req?.contextUser || req?.user || {};
+  return Boolean(
+    user.is_programador ||
+    ticketRoleNames(req).some(role => role.includes('programador'))
+  );
+}
+
+function ticketCanValidateRole(req) {
+  return ticketRoleNames(req).some(role =>
+    role.includes('supervisor') ||
+    role.includes('superintendente') ||
+    role.includes('director general') ||
+    role.includes('programador')
+  );
+}
+
+async function findTicketRow(ticketRef, executor = db) {
+  const ref = String(ticketRef || '').trim();
+  if (!ref) return null;
+
+  const [rows] = await executor.query(`
+    SELECT *
+    FROM tickets
+    WHERE TRIM(COALESCE(ticket, '')) = ?
+       OR CAST(id AS CHAR) = ?
+       OR TRIM(COALESCE(folio, '')) = ?
+       OR TRIM(COALESCE(id_interno, '')) = ?
+    ORDER BY
+      CASE
+        WHEN TRIM(COALESCE(ticket, '')) = ? THEN 0
+        WHEN CAST(id AS CHAR) = ? THEN 1
+        WHEN TRIM(COALESCE(folio, '')) = ? THEN 2
+        ELSE 3
+      END,
+      id DESC
+    LIMIT 1
+  `, [ref, ref, ref, ref, ref, ref, ref]);
+
+  return rows[0] || null;
+}
+
+function splitTicketResponsibleValue(value) {
+  return String(value || '')
+    .split(/[;,|/]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+async function ticketResponsibleNames(ticketRow, executor = db) {
+  if (!ticketRow) return [];
+
+  const names = [
+    ...splitTicketResponsibleValue(ticketRow.supervisor),
+    ...splitTicketResponsibleValue(ticketRow.tecnico),
+    ...splitTicketResponsibleValue(ticketRow.persona_que_atiende),
+    ...splitTicketResponsibleValue(ticketRow.blt_empleado)
+  ];
+
+  const codigoEquipo = String(ticketRow.codigo_equipo || ticketRow.equipo || '').trim();
+  const proyecto = String(ticketRow.proyecto || ticketRow.proyecto_padre || '').trim();
+
+  if (codigoEquipo || proyecto) {
+    const clauses = [];
+    const params = [];
+
+    if (codigoEquipo) {
+      clauses.push("TRIM(COALESCE(numero_equipo, '')) = ?");
+      params.push(codigoEquipo);
+    }
+    if (proyecto) {
+      clauses.push("TRIM(COALESCE(proyecto, '')) = ?");
+      params.push(proyecto);
+    }
+
+    try {
+      const [rows] = await executor.query(`
+        SELECT supervisor_zona, superintendente
+        FROM portafolio
+        WHERE ${clauses.join(' OR ')}
+        ORDER BY id_portafolio DESC
+        LIMIT 20
+      `, params);
+
+      for (const row of rows) {
+        names.push(...splitTicketResponsibleValue(row.supervisor_zona));
+        names.push(...splitTicketResponsibleValue(row.superintendente));
+      }
+    } catch (error) {
+      // La lectura del portafolio complementa responsables, pero no debe
+      // impedir consultar o comentar un ticket si esa fuente no esta disponible.
+      console.warn('[tickets] No se pudieron complementar responsables desde portafolio:', error.message);
+    }
+  }
+
+  return Array.from(new Set(names.map(value => value.trim()).filter(Boolean)));
+}
+
+function normalizeTicketIdentity(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+async function createTicketNotifications(executor, ticketRow, actor, type, message) {
+  const responsibleNames = await ticketResponsibleNames(ticketRow, executor);
+  if (!responsibleNames.length) return { inserted: 0, recipients: [] };
+
+  const normalizedResponsibles = new Set(
+    responsibleNames.map(normalizeTicketIdentity).filter(Boolean)
+  );
+  const actorId = Number(actor?.id || 0) || null;
+
+  const [users] = await executor.query(`
+    SELECT id_SB, nombre, iniciales, correo
+    FROM usuarios
+    WHERE estado = 1
+  `);
+
+  const recipients = users.filter(user => {
+    if (!user.id_SB || (actorId && Number(user.id_SB) === actorId)) return false;
+    return [user.nombre, user.iniciales, user.correo]
+      .map(normalizeTicketIdentity)
+      .some(identity => identity && normalizedResponsibles.has(identity));
+  });
+
+  let inserted = 0;
+  for (const recipient of recipients) {
+    await executor.query(`
+      INSERT INTO sup_notificaciones (
+        id_usuario,
+        tipo_notificacion,
+        titulo_notificacion,
+        mensaje_notificacion,
+        icono_notificacion,
+        accion_notificacion,
+        id_referencia,
+        ruta_destino,
+        leido,
+        activo
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+    `, [
+      recipient.id_SB,
+      type,
+      type === 'TICKET_COMENTARIO' ? 'Nuevo comentario en ticket' : 'Cambio de validacion de ticket',
+      String(message || '').slice(0, 2000),
+      type === 'TICKET_COMENTARIO' ? '💬' : '✅',
+      'ABRIR_TICKET',
+      ticketRow.id,
+      `detalle:ticket:${ticketRow.ticket}`
+    ]);
+    inserted += 1;
+  }
+
+  return {
+    inserted,
+    recipients: recipients.map(user => user.iniciales || user.nombre || user.correo)
+  };
+}
+
 async function saveTicketVobo(req, res) { return saveTicketValidacion(req, res); }
 
 async function getTicketInteracciones(req, res) {
