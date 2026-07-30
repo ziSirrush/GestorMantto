@@ -346,7 +346,10 @@ async function summarizeByStatuses(connection, options, statuses, scope = null) 
 
 async function getProjection(connection, options, groups, scope = null) {
   const allStatuses = [...groups.alta, ...groups.media, ...groups.temprana];
-  const where = buildSpecializedWhere(options.search, options.filters, allStatuses, scope);
+  const where = buildSpecializedWhere(options.search, options.filters, allStatuses, scope, {
+    year: options.year,
+    yearField: 'fecha_cotizacion'
+  });
 
   const caseSql = `CASE
     WHEN TRIM(estatus_proyecto) IN (${groups.alta.map(() => '?').join(', ')}) THEN 'ALTA'
@@ -383,7 +386,50 @@ async function getProjection(connection, options, groups, scope = null) {
     [...groupParams, ...where.params]
   );
 
-  return { por_nivel: rows, detalle_estatus: statusRows };
+  const [detailRows] = await connection.query(
+    `SELECT *
+       FROM ${TABLE}
+       ${where.sql}
+      ORDER BY FIELD(TRIM(estatus_proyecto), ${allStatuses.map(() => '?').join(', ')}),
+               nombre_proyecto ASC,
+               id_cotizacion DESC`,
+    [...where.params, ...allStatuses]
+  );
+
+  return { por_nivel: rows, detalle_estatus: statusRows, cotizaciones: detailRows };
+}
+
+
+async function getProjectionStagePage(connection, options, status, scope = null, page = 1, pageSize = 10) {
+  const where = buildSpecializedWhere(options.search, options.filters, [status], scope, {
+    year: options.year,
+    yearField: 'fecha_cotizacion'
+  });
+  const offset = (page - 1) * pageSize;
+
+  const [[summary]] = await connection.query(
+    `SELECT
+       COUNT(*) AS total_cotizaciones,
+       COALESCE(SUM(numero_equipos), 0) AS total_equipos
+     FROM ${TABLE}
+     ${where.sql}`,
+    where.params
+  );
+
+  const [rows] = await connection.query(
+    `SELECT *
+       FROM ${TABLE}
+       ${where.sql}
+      ORDER BY nombre_proyecto ASC, id_cotizacion DESC
+      LIMIT ? OFFSET ?`,
+    [...where.params, pageSize, offset]
+  );
+
+  return {
+    rows,
+    total: Number(summary?.total_cotizaciones || 0),
+    totalEquipos: Number(summary?.total_equipos || 0)
+  };
 }
 
 async function getKpis(connection, options, scope = null) {
@@ -803,6 +849,6 @@ async function updateArchivo(connection,idCotizacion,idArchivo,changes){const co
 async function softDeleteArchivo(connection,idCotizacion,idArchivo){const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET activo=0,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,[idCotizacion,idArchivo]);return r;}
 
 module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUserIdsIncludingInactive, findUsersByIds, list, listByStatuses, listVendidos, listPerdidos,
-  summarizeByStatuses, getProjection, getKpis, getCatalogos, findById, findByOriginId, create, update, softDelete,
+  summarizeByStatuses, getProjection, getProjectionStagePage, getKpis, getCatalogos, findById, findByOriginId, create, update, softDelete,
   upsertMany, findExistingCotizacionIds, listComentarios, listArchivosByComentarioIds, findComentario, createComentario, updateComentario, softDeleteComentario,
   listArchivos, findArchivo, createArchivo, updateArchivo, softDeleteArchivo };

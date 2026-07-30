@@ -425,6 +425,16 @@
     return true;
   }
 
+  function showVentasProyeccion(){
+    const view=document.getElementById('view-ventas-proyeccion');
+    if(!view) return false;
+    activateViewById('view-ventas-proyeccion');
+    setActiveSide('ventas-proyeccion');
+    updateContext('ventas-proyeccion','Proyección · cotizaciones activas por etapa comercial desde Aiven');
+    if(window.ManttoVentasProyeccion) window.ManttoVentasProyeccion.init();
+    return true;
+  }
+
   function showVentasPerdidos(){
     const view=document.getElementById('view-ventas-perdidos');
     if(!view) return false;
@@ -584,6 +594,7 @@
     if(route==='ventas-cotizaciones-nueva' && showVentasCotizacionesNueva()) return;
     if(route==='ventas-cotizaciones-detalle' && showVentasCotizacionesDetalle()) return;
     if(route==='ventas-vendidos' && showVentasVendidos()) return;
+    if(route==='ventas-proyeccion' && showVentasProyeccion()) return;
     if(route==='ventas-perdidos' && showVentasPerdidos()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;

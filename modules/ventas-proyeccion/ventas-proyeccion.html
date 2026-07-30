@@ -1,0 +1,65 @@
+<div class="vpr-page" id="vpr-page">
+  <section class="vpr-head vpr-card">
+    <div>
+      <p class="vpr-eyebrow">Aiven · Ventas</p>
+      <h1>Proyección</h1>
+      <p>Cotizaciones activas clasificadas por etapa comercial, directamente desde la tabla de cotizaciones.</p>
+    </div>
+    <div class="vpr-head-actions">
+      <span class="vpr-status" id="vpr-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vpr-btn vpr-btn-ghost" id="vpr-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="vpr-summary" id="vpr-summary" aria-label="Resumen general de proyección"></section>
+
+  <section class="vpr-kpis" id="vpr-kpis" aria-label="Indicadores por etapa"></section>
+
+  <section class="vpr-workspace vpr-card">
+    <div class="vpr-toolbar">
+      <label class="vpr-search"><span>Buscar</span><span class="vpr-search-box"><span aria-hidden="true">⌕</span><input id="vpr-search" type="search" placeholder="Proyecto, cliente o ID..."></span></label>
+      <label><span>Año de cotización</span><select id="vpr-filter-year"><option value="todos">Todos</option></select></label>
+      <label id="vpr-filter-advisor-wrap"><span>Asesor</span><select id="vpr-filter-advisor"><option value="">Todos</option></select></label>
+      <label id="vpr-filter-admin-wrap"><span>Administrativo</span><select id="vpr-filter-admin"><option value="">Todos</option></select></label>
+      <label><span>Zona</span><select id="vpr-filter-zone"><option value="">Todas</option></select></label>
+      <label><span>Etapa</span><select id="vpr-filter-stage"><option value="">Todas</option></select></label>
+      <button class="vpr-clear" id="vpr-clear" type="button"><span aria-hidden="true">↺</span><strong>Limpiar</strong></button>
+    </div>
+
+    <div class="vpr-stage-tools" aria-label="Controles de secciones">
+      <span id="vpr-results-caption">Resultados de Proyección</span>
+      <div>
+        <button type="button" id="vpr-expand-all">Expandir todas</button>
+        <button type="button" id="vpr-collapse-all">Contraer todas</button>
+      </div>
+    </div>
+
+    <div class="vpr-stages" id="vpr-stages"></div>
+  </section>
+
+
+  <div class="vpr-history-modal" id="vpr-history-modal" hidden aria-hidden="true">
+    <div class="vpr-history-backdrop" data-history-close></div>
+    <section class="vpr-history-dialog" role="dialog" aria-modal="true" aria-labelledby="vpr-history-title">
+      <header class="vpr-history-head">
+        <div>
+          <p class="vpr-eyebrow">Auditoría comercial</p>
+          <h2 id="vpr-history-title">Historial de cotización</h2>
+          <p id="vpr-history-subtitle">Consultando movimientos registrados.</p>
+        </div>
+        <button class="vpr-history-close" type="button" data-history-close aria-label="Cerrar historial">×</button>
+      </header>
+      <div class="vpr-history-toolbar">
+        <label><span>Tipo de movimiento</span><select id="vpr-history-action"><option value="">Todos</option><option value="CAMBIO_ESTATUS">Cambio de estatus</option><option value="CIERRE_VENDIDO">Cierre vendido</option><option value="CIERRE_PERDIDO">Cierre perdido</option><option value="REACTIVACION">Reactivación</option><option value="CREACION">Creación</option><option value="EDICION">Edición</option></select></label>
+        <button class="vpr-btn vpr-btn-ghost" id="vpr-history-refresh" type="button">↻ Actualizar</button>
+      </div>
+      <div class="vpr-history-content" id="vpr-history-content"><div class="vpr-loader">Cargando historial...</div></div>
+      <footer class="vpr-history-footer">
+        <button class="vpr-btn vpr-btn-ghost" type="button" data-history-close>Cerrar</button>
+        <button class="vpr-btn vpr-btn-primary" id="vpr-history-open-detail" type="button">Abrir detalle</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="vpr-toast" id="vpr-toast" aria-live="polite"></div>
+</div>
