@@ -34,6 +34,12 @@ async function pyFetchJson(path){
   if(!response.ok||json.ok===false)throw new Error(json.message||json.error||('Error HTTP '+response.status));
   return json;
 }
+async function pyPostJson(path,body){
+  const response=await fetch(PY_API_BASE+path,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},pyAuthHeaders()),body:JSON.stringify(body||{}),cache:'no-store'});
+  const raw=await response.text();let json;try{json=raw?JSON.parse(raw):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}
+  if(!response.ok||json.ok===false)throw new Error(json.message||json.error||('Error HTTP '+response.status));
+  return json;
+}
 async function pyPatchJson(path,body){
   const response=await fetch(PY_API_BASE+path,{method:'PATCH',headers:Object.assign({'Content-Type':'application/json'},pyAuthHeaders()),body:JSON.stringify(body||{}),cache:'no-store'});
   const raw=await response.text();let json;try{json=raw?JSON.parse(raw):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}
@@ -77,7 +83,7 @@ async function pyCargarDesdeAiven(){
   const fotosPorProyecto=new Map((Array.isArray(fotosJson.data)?fotosJson.data:[]).map(f=>[String(f['ID Proyecto']||'').trim(),f]));
   PY_PROYECTOS.forEach(p=>{const f=fotosPorProyecto.get(String(p['ID Proyecto']||'').trim());if(f)Object.assign(p,f);});
   PY_CLIENTES=[...new Set(PY_PROYECTOS.map(p=>p.Cliente).filter(Boolean))].map(n=>({'Nombre de la Empresa':n,'Razon Social':n}));PY_COBRANZA_POR_ID={};
-  PY_PROYECTOS.forEach((r,i)=>r._id=i);PY_EQUIPOS.forEach((r,i)=>r._id=i);Object.keys(PY_EQUIPOS_POR_PROYECTO).forEach(k=>delete PY_EQUIPOS_POR_PROYECTO[k]);PY_EQUIPOS.forEach(e=>{const id=e['ID PROYECTO'];if(!id)return;(PY_EQUIPOS_POR_PROYECTO[id]||(PY_EQUIPOS_POR_PROYECTO[id]=[])).push(e);});
+  PY_PROYECTOS.forEach((r,i)=>r._id=i);PY_EQUIPOS.forEach((r,i)=>r._id=i);await pyCargarComentariosJunta();Object.keys(PY_EQUIPOS_POR_PROYECTO).forEach(k=>delete PY_EQUIPOS_POR_PROYECTO[k]);PY_EQUIPOS.forEach(e=>{const id=e['ID PROYECTO'];if(!id)return;(PY_EQUIPOS_POR_PROYECTO[id]||(PY_EQUIPOS_POR_PROYECTO[id]=[])).push(e);});
 }
 
 /* =========================================================
@@ -1152,8 +1158,12 @@ function pyAbrirEquipoDesdeProyecto(idEquipo){
    texto libre por ahora, en vez de un listado. Cuando exista, cambiar
    el <input> por un <select> poblado desde esa hoja.
    ========================================================= */
-const PY_USUARIO_ACTUAL = 'usuario_prueba';
 let PY_PENDIENTES_JUNTA = [];
+
+function pyUsuarioActualId(){
+  const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
+  return Number(u&&(u.id_SB||u.id)||0);
+}
 
 function pySemanaISO(fecha){
   const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
@@ -1161,45 +1171,75 @@ function pySemanaISO(fecha){
   d.setUTCDate(d.getUTCDate() + 4 - diaSemana);
   const inicioAnio = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const numSemana = Math.ceil((((d - inicioAnio) / 86400000) + 1) / 7);
-  // d.getUTCFullYear() ya es el "ano ISO" correcto (una semana de fin de diciembre
-  // puede pertenecer a la semana 1 del ano siguiente, y viceversa) -- si el ano
-  // tiene 53 semanas ISO, numSemana llega a 53 sin problema (no se fuerza a 52).
   return { texto: 'S' + String(numSemana).padStart(2, '0'), anio: d.getUTCFullYear(), orden: d.getUTCFullYear()*100 + numSemana };
 }
 
-function pyEnviarComentarioJunta(idEquipo){
-  const texto = document.getElementById('py-cj-texto').value.trim();
+function pyMapComentarioJunta(row){
+  const equipo=PY_EQUIPOS.find(x=>String(x['REFERENCIA EN SITIO']||'').trim()===String(row.referencia_sitio||'').trim());
+  return {
+    idComentario:Number(row.id_comentario||0),
+    idEquipo:equipo?equipo._id:null,
+    referenciaSitio:String(row.referencia_sitio||''),
+    usuario:Number(row.id_usuario||0),
+    texto:String(row.comentario||''),
+    responsables:String(row.responsables||'').split(',').map(v=>v.trim()).filter(Boolean),
+    semana:String(row.semana_iso||''),
+    semanaOrden:Number(row.semana_orden||0),
+    fecha:row.fecha_creacion||row.updated_at||new Date().toISOString(),
+    proyecto:row.proyecto||''
+  };
+}
+
+async function pyCargarComentariosJunta(){
+  try{
+    const json=await pyFetchJson('/api/instalaciones/comentarios-junta');
+    PY_PENDIENTES_JUNTA=(Array.isArray(json.data)?json.data:[]).map(pyMapComentarioJunta);
+    pyRenderComentariosJunta();
+  }catch(error){
+    console.error('[INSTALACIONES] No fue posible cargar comentarios de junta:',error);
+    PY_PENDIENTES_JUNTA=[];
+  }
+}
+
+async function pyEnviarComentarioJunta(idEquipo){
+  const textoEl=document.getElementById('py-cj-texto');
+  const responsableEl=document.getElementById('py-cj-responsable');
+  const texto = textoEl.value.trim();
   if(!texto) return;
-  const responsables = document.getElementById('py-cj-responsable').value
-    .split(',').map(s=>s.trim()).filter(Boolean);
-  const ahora = new Date();
-  const sem = pySemanaISO(ahora);
-
-  PY_PENDIENTES_JUNTA.push({
-    idEquipo, usuario: PY_USUARIO_ACTUAL, texto, responsables,
-    semana: sem.texto, semanaOrden: sem.orden, fecha: ahora.toISOString(),
-  });
-
-  document.getElementById('py-cj-texto').value = '';
-  document.getElementById('py-cj-responsable').value = '';
-  pyRenderPendientesJunta(idEquipo);
-  pyRenderComentariosJunta();
+  const equipo=PY_EQUIPOS.find(x=>x._id===idEquipo);
+  if(!equipo){alert('No se encontró el equipo.');return;}
+  const responsables = responsableEl.value.split(',').map(s=>s.trim()).filter(Boolean);
+  const boton=document.querySelector('.py-cj-btn');if(boton)boton.disabled=true;
+  try{
+    const json=await pyPostJson('/api/instalaciones/comentarios-junta',{
+      id_proyecto:equipo['ID PROYECTO']||null,
+      proyecto:equipo['PROYECTO']||null,
+      referencia_sitio:equipo['REFERENCIA EN SITIO']||null,
+      comentario:texto,
+      responsables
+    });
+    if(json.data)PY_PENDIENTES_JUNTA.unshift(pyMapComentarioJunta(json.data));
+    else await pyCargarComentariosJunta();
+    textoEl.value='';responsableEl.value='';
+    pyRenderPendientesJunta(idEquipo);pyRenderComentariosJunta();
+  }catch(error){alert(error.message||'No fue posible guardar el comentario de junta.');}
+  finally{if(boton)boton.disabled=false;}
 }
 
 function pyRenderPendientesJunta(idEquipo){
   const cont = document.getElementById('py-cj-lista');
   if(!cont) return;
+  const equipo=PY_EQUIPOS.find(x=>x._id===idEquipo);
+  const referencia=String(equipo&&equipo['REFERENCIA EN SITIO']||'').trim();
   const propios = PY_PENDIENTES_JUNTA
-    .filter(p => p.idEquipo === idEquipo && p.usuario === PY_USUARIO_ACTUAL)
+    .filter(p => String(p.referenciaSitio||'').trim() === referencia)
     .sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
-
   if(!propios.length){ cont.innerHTML = ''; return; }
-
   cont.innerHTML = propios.map(p => `
     <div class="py-cj-item">
       <div class="py-cj-item-top">
-        <span><span class="py-cj-item-semana">${p.semana}</span> ${p.fecha.slice(0,10)}</span>
-        <span>${p.responsables && p.responsables.length ? 'Responsable(s): ' + p.responsables.map(pyEsc).join(', ') : ''}</span>
+        <span><span class="py-cj-item-semana">${pyEsc(p.semana)}</span> ${pyEsc(String(p.fecha).slice(0,10))}</span>
+        <span>${p.responsables&&p.responsables.length?'Responsable(s): '+p.responsables.map(pyEsc).join(', '):''}</span>
       </div>
       <div class="py-cj-item-texto">${pyEsc(p.texto)}</div>
     </div>`).join('');
@@ -1582,7 +1622,7 @@ function pyRenderComentariosJunta(){
   const cont = document.getElementById('py-comentarios-junta-lista');
   if(!cont) return;
 
-  const propios = PY_PENDIENTES_JUNTA.filter(p => p.usuario === PY_USUARIO_ACTUAL);
+  const propios = PY_PENDIENTES_JUNTA.slice();
   if(!propios.length){
     cont.innerHTML = '<div class="py-empty">Aun no tienes pendientes de junta. Se agregan desde el detalle de cada equipo.</div>';
     return;
@@ -1598,7 +1638,7 @@ function pyRenderComentariosJunta(){
   cont.innerHTML = ordenesDesc.map(orden => {
     const grupo = grupos[orden];
     const filas = grupo.items
-      .map(p => ({ ...p, _proyecto: (PY_EQUIPOS.find(x => x._id === p.idEquipo)||{})['PROYECTO'] || '' }))
+      .map(p => ({ ...p, _proyecto: p.proyecto || (PY_EQUIPOS.find(x => x._id === p.idEquipo)||{})['PROYECTO'] || '' }))
       .sort((a,b) => a._proyecto.localeCompare(b._proyecto, 'es', {sensitivity:'base'}))
       .map(p => {
         return `
@@ -1649,7 +1689,7 @@ async function pyAbrirEquipo(idEquipo){
         <input type="text" id="py-cj-responsable" class="py-cj-input" placeholder="Responsable(s), separados por coma">
         <button class="py-cj-btn" onclick="pyEnviarComentarioJunta(${idEquipo})">Enviar</button>
       </div>
-      <div class="py-cj-nota">Solo tu ves tus propios pendientes. Guardado de prueba en este navegador (se pierde al recargar) -- listo para conectar a la base de datos definitiva, donde cada pendiente se ligara a la cuenta real del usuario.</div>
+      <div class="py-cj-nota">Solo tú ves tus pendientes de junta. Se guardan en Aiven ligados a tu cuenta.</div>
     </div>
     <div id="py-cj-lista"></div>
 

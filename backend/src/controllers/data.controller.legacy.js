@@ -1585,8 +1585,10 @@ async function getPendienteDetalle(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   if (!id) return res.status(400).json({ ok: false, message: 'No se recibio id de pendiente.' });
   try {
-    const [rows] = await db.query('SELECT * FROM pendientes WHERE id_pendiente = ? LIMIT 1', [id]);
-    if (!rows.length) return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
+    const access = await getPendienteAccessContext(db, id, currentUserRef(req));
+    if (!access.exists) return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
+    if (!access.allowed) return res.status(403).json({ ok: false, message: 'No tienes acceso a esta tarea.' });
+    const rows = [access.row];
 
     const [subtareas] = await db.query(`
       SELECT * FROM pendientes_subtareas
@@ -1910,6 +1912,76 @@ async function updatePendienteEstatus(req, res) {
   }
 }
 
+
+async function getPendienteAccessContext(executor, idPendiente, user) {
+  const correo = String(user?.correo || '').trim().toLowerCase();
+  const iniciales = String(user?.iniciales || '').trim().toUpperCase();
+  const [rows] = await executor.query(`
+    SELECT
+      p.id_pendiente,
+      p.tipo_pendiente,
+      p.pendiente,
+      p.creado_por_email,
+      EXISTS (
+        SELECT 1
+        FROM pendientes_usuarios pu
+        WHERE pu.id_pendiente = p.id_pendiente
+          AND UPPER(TRIM(pu.iniciales_usuario)) = ?
+      ) AS relacionado
+    FROM pendientes p
+    WHERE p.id_pendiente = ?
+    LIMIT 1
+  `, [iniciales, idPendiente]);
+  if (!rows.length) return { exists: false, allowed: false, row: null };
+  const row = rows[0];
+  const creator = String(row.creado_por_email || '').trim().toLowerCase() === correo;
+  const related = Boolean(Number(row.relacionado || 0));
+  const allowed = row.tipo_pendiente === 'PERSONAL' ? creator : (creator || related);
+  return { exists: true, allowed, creator, related, row };
+}
+
+async function createPendienteCommentNotifications(executor, access, actor, comentario) {
+  const actorId = Number(actor?.id || 0);
+  const actorInitials = String(actor?.iniciales || actor?.correo || 'Usuario').trim();
+  const recipientIds = new Set();
+
+  const creatorEmail = String(access?.row?.creado_por_email || '').trim();
+  if (creatorEmail) {
+    const [creatorRows] = await executor.query(
+      'SELECT id_SB FROM usuarios WHERE LOWER(TRIM(correo)) = LOWER(TRIM(?)) AND estado = 1 LIMIT 1',
+      [creatorEmail]
+    );
+    if (creatorRows[0]?.id_SB) recipientIds.add(Number(creatorRows[0].id_SB));
+  }
+
+  const [relatedRows] = await executor.query(`
+    SELECT DISTINCT u.id_SB
+    FROM pendientes_usuarios pu
+    INNER JOIN usuarios u ON UPPER(TRIM(u.iniciales)) = UPPER(TRIM(pu.iniciales_usuario))
+    WHERE pu.id_pendiente = ?
+      AND u.estado = 1
+  `, [access.row.id_pendiente]);
+  relatedRows.forEach(row => { if (row.id_SB) recipientIds.add(Number(row.id_SB)); });
+  if (actorId) recipientIds.delete(actorId);
+
+  const preview = String(comentario || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  for (const idUsuario of recipientIds) {
+    await executor.query(`
+      INSERT INTO sup_notificaciones (
+        id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
+        icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
+        leido, activo
+      ) VALUES (?, 'TAREA_COMENTARIO', 'Nuevo comentario en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1)
+    `, [
+      idUsuario,
+      `${actorInitials} comentó: ${preview || 'Nuevo comentario'}`,
+      access.row.id_pendiente,
+      `home:tarea:${access.row.id_pendiente}`
+    ]);
+  }
+  return recipientIds.size;
+}
+
 async function createPendienteComentario(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
@@ -1921,6 +1993,15 @@ async function createPendienteComentario(req, res) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    const access = await getPendienteAccessContext(conn, id, user);
+    if (!access.exists) {
+      await conn.rollback();
+      return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
+    }
+    if (!access.allowed) {
+      await conn.rollback();
+      return res.status(403).json({ ok: false, message: 'No tienes permiso para comentar esta tarea.' });
+    }
     const [result] = await conn.query(
       'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario) VALUES (?, ?, ?)',
       [id, user.id, comentario]
@@ -1938,8 +2019,15 @@ async function createPendienteComentario(req, res) {
         [result.insertId, nombre, url, sanitizeText(adj.tipo_archivo || adj.tipo, 100) || null]
       );
     }
+    const notificaciones = await createPendienteCommentNotifications(conn, access, user, comentario);
     await conn.commit();
-    return res.status(201).json({ ok: true, source: 'aiven', message: 'Comentario agregado correctamente.', id_comentario: result.insertId });
+    return res.status(201).json({
+      ok: true,
+      source: 'aiven',
+      message: 'Comentario agregado correctamente.',
+      id_comentario: result.insertId,
+      notificaciones
+    });
   } catch (error) {
     await conn.rollback();
     return res.status(500).json({ ok: false, message: 'Error agregando comentario.', error: error.message });
