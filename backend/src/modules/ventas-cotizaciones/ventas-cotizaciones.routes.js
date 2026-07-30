@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Endpoint histórico de carga inicial. No forma parte de la operación cotidiana.
 router.post('/cotizaciones/sync', controller.syncCotizaciones);
+router.post('/cotizaciones/comentarios/sync', controller.syncComentariosHistoricos);
 
 router.get('/cotizaciones/catalogos', requireAuth, controller.getCatalogos);
 router.get('/cotizaciones/kpis', requireAuth, controller.getKpis);

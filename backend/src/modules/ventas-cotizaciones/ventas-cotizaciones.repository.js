@@ -44,6 +44,18 @@ async function findExistingUserIds(connection, userIds) {
   return new Set(rows.map((row) => Number(row.id_SB)));
 }
 
+async function findUserIdsIncludingInactive(connection, userIds) {
+  if (!userIds.length) return new Set();
+  const placeholders = userIds.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT id_SB
+       FROM usuarios
+      WHERE id_SB IN (${placeholders})`,
+    userIds
+  );
+  return new Set(rows.map((row) => Number(row.id_SB)));
+}
+
 
 const SEARCH_COLUMNS = [
   'nombre_proyecto',
@@ -731,7 +743,55 @@ async function findUsersByIds(connection, userIds) {
   return new Map(rows.map((row) => [Number(row.id_SB), row]));
 }
 
-async function listComentarios(connection,idCotizacion,{page=1,pageSize=50}={}){const offset=(page-1)*pageSize;const [rows]=await connection.query(`SELECT c.*,u.nombre AS usuario_nombre,u.iniciales AS usuario_iniciales FROM ventas_cotizaciones_comentarios c LEFT JOIN usuarios u ON u.id_SB=c.id_usuario WHERE c.id_cotizacion=? AND c.activo=1 ORDER BY c.created_at ASC,c.id_comentario ASC LIMIT ? OFFSET ?`,[idCotizacion,pageSize,offset]);const [[count]]=await connection.query(`SELECT COUNT(*) total FROM ventas_cotizaciones_comentarios WHERE id_cotizacion=? AND activo=1`,[idCotizacion]);return{rows,total:Number(count.total||0)};}
+async function listComentarios(connection, idCotizacion, { page = 1, pageSize = 50 } = {}) {
+  const offset = (page - 1) * pageSize;
+  const [rows] = await connection.query(
+    `SELECT c.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales
+       FROM ventas_cotizaciones_comentarios c
+       LEFT JOIN usuarios u ON u.id_SB = c.id_usuario
+      WHERE c.id_cotizacion = ?
+        AND c.activo = 1
+      ORDER BY c.created_at ASC, c.id_comentario ASC
+      LIMIT ? OFFSET ?`,
+    [idCotizacion, pageSize, offset]
+  );
+  const [[count]] = await connection.query(
+    `SELECT COUNT(*) total
+       FROM ventas_cotizaciones_comentarios
+      WHERE id_cotizacion = ?
+        AND activo = 1`,
+    [idCotizacion]
+  );
+  return { rows, total: Number(count.total || 0) };
+}
+
+async function listArchivosByComentarioIds(connection, comentarioIds) {
+  if (!comentarioIds.length) return [];
+  const placeholders = comentarioIds.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT a.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales
+       FROM ventas_cotizaciones_archivos a
+       LEFT JOIN usuarios u ON u.id_SB = a.id_usuario
+      WHERE a.id_comentario IN (${placeholders})
+        AND a.activo = 1
+      ORDER BY a.created_at ASC, a.id_archivo ASC`,
+    comentarioIds
+  );
+  return rows;
+}
+
+async function findExistingCotizacionIds(connection, ids) {
+  if (!ids.length) return new Set();
+  const placeholders = ids.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT id_cotizacion
+       FROM ventas_cotizaciones_cor
+      WHERE id_cotizacion IN (${placeholders})`,
+    ids
+  );
+  return new Set(rows.map((row) => Number(row.id_cotizacion)));
+}
+
 async function findComentario(connection,idCotizacion,idComentario){const [rows]=await connection.query(`SELECT c.*,u.nombre AS usuario_nombre,u.iniciales AS usuario_iniciales FROM ventas_cotizaciones_comentarios c LEFT JOIN usuarios u ON u.id_SB=c.id_usuario WHERE c.id_cotizacion=? AND c.id_comentario=? AND c.activo=1 LIMIT 1`,[idCotizacion,idComentario]);return rows[0]||null;}
 async function createComentario(connection,record){const cols=Object.keys(record),vals=cols.map(k=>record[k]);const [r]=await connection.query(`INSERT INTO ventas_cotizaciones_comentarios (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`,vals);return r;}
 async function updateComentario(connection,idCotizacion,idComentario,comentario){const [r]=await connection.query(`UPDATE ventas_cotizaciones_comentarios SET comentario=?,editado=1,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_comentario=? AND activo=1`,[comentario,idCotizacion,idComentario]);return r;}
@@ -742,7 +802,7 @@ async function createArchivo(connection,record){const cols=Object.keys(record),v
 async function updateArchivo(connection,idCotizacion,idArchivo,changes){const cols=Object.keys(changes),vals=cols.map(k=>changes[k]);vals.push(idCotizacion,idArchivo);const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET ${cols.map(k=>`${k}=?`).join(',')},updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,vals);return r;}
 async function softDeleteArchivo(connection,idCotizacion,idArchivo){const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET activo=0,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,[idCotizacion,idArchivo]);return r;}
 
-module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUsersByIds, list, listByStatuses, listVendidos, listPerdidos,
+module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUserIdsIncludingInactive, findUsersByIds, list, listByStatuses, listVendidos, listPerdidos,
   summarizeByStatuses, getProjection, getKpis, getCatalogos, findById, findByOriginId, create, update, softDelete,
-  upsertMany, listComentarios, findComentario, createComentario, updateComentario, softDeleteComentario,
+  upsertMany, findExistingCotizacionIds, listComentarios, listArchivosByComentarioIds, findComentario, createComentario, updateComentario, softDeleteComentario,
   listArchivos, findArchivo, createArchivo, updateArchivo, softDeleteArchivo };

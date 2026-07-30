@@ -1,5 +1,40 @@
 const repository = require('./ventas-cotizaciones.repository');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
+const historialService = require('../ventas-cotizaciones-historial/ventas-cotizaciones-historial.service');
+const path = require('path');
+const mime = require('mime-types');
+
+
+function changedFields(existing, changes) {
+  const result = {};
+  for (const [field, nextValue] of Object.entries(changes || {})) {
+    if (field === 'updated_by') continue;
+    const previousValue = existing?.[field] ?? null;
+    const normalizedPrevious = previousValue instanceof Date ? previousValue.toISOString() : previousValue;
+    const normalizedNext = nextValue instanceof Date ? nextValue.toISOString() : nextValue;
+    if (String(normalizedPrevious ?? '') !== String(normalizedNext ?? '')) {
+      result[field] = { anterior: normalizedPrevious, nuevo: normalizedNext };
+    }
+  }
+  return result;
+}
+
+function historySnapshots(cambios) {
+  const anterior = {};
+  const nuevo = {};
+  for (const [field, values] of Object.entries(cambios || {})) {
+    anterior[field] = values.anterior;
+    nuevo[field] = values.nuevo;
+  }
+  return { anterior, nuevo };
+}
+
+function statusAction(previousStatus, nextStatus) {
+  if (nextStatus === 'Perdido') return 'CIERRE_PERDIDO';
+  if (nextStatus === 'Vendido') return 'CIERRE_VENDIDO';
+  if (previousStatus === 'Perdido' && nextStatus !== 'Perdido') return 'REACTIVACION';
+  return 'CAMBIO_ESTATUS';
+}
 
 const BATCH_SIZE = 300;
 const MAX_RECORDS = 5000;
@@ -866,6 +901,13 @@ async function create(payload, actionContext) {
 
     const result = await repository.create(connection, record);
     const created = await repository.findById(connection, result.insertId, { includeInactive: true });
+    await historialService.registrarMovimiento(connection, {
+      idCotizacion: result.insertId,
+      accion: 'CREACION',
+      motivo: 'Alta de cotización',
+      anterior: null,
+      nuevo: { estatus_proyecto: created?.estatus_proyecto || null, activo: created?.activo ?? 1 }
+    }, actionContext);
     await connection.commit();
 
     return {
@@ -915,6 +957,16 @@ async function update(rawId, payload, actionContext) {
     await repository.update(connection, idCotizacion, changes);
     const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
     const cambios = changedFields(existing, changes);
+    if (Object.keys(cambios).length) {
+      const snapshots = historySnapshots(cambios);
+      const accion = cambios.estatus_proyecto
+        ? statusAction(cambios.estatus_proyecto.anterior, cambios.estatus_proyecto.nuevo)
+        : 'EDICION';
+      await historialService.registrarMovimiento(connection, {
+        idCotizacion, accion, motivo: payload?.motivo || null, comentario: payload?.comentario_historial || null,
+        anterior: snapshots.anterior, nuevo: snapshots.nuevo
+      }, actionContext);
+    }
     await connection.commit();
 
     return {
@@ -948,6 +1000,10 @@ async function remove(rawId, actionContext) {
     if (Number(existing.activo) !== 1) throw httpError(409, 'La cotización ya está inactiva.');
 
     await repository.softDelete(connection, idCotizacion, actorId);
+    await historialService.registrarMovimiento(connection, {
+      idCotizacion, accion: 'DESACTIVACION', motivo: 'Baja lógica de cotización',
+      anterior: { activo: existing.activo }, nuevo: { activo: 0 }
+    }, actionContext);
     await connection.commit();
 
     return {
@@ -995,6 +1051,17 @@ async function updateEstatus(rawId, payload, actionContext) {
 
     await repository.update(connection, idCotizacion, changes);
     const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    const cambios = changedFields(existing, changes);
+    const snapshots = historySnapshots(cambios);
+    await historialService.registrarMovimiento(connection, {
+      idCotizacion,
+      accion: statusAction(existing.estatus_proyecto, estatus),
+      motivo: payload?.motivo || payload?.razon_perdido || null,
+      comentario: payload?.comentario_historial || payload?.comentario || null,
+      anterior: snapshots.anterior,
+      nuevo: snapshots.nuevo,
+      proximaFecha: payload?.proxima_fecha || null
+    }, actionContext);
     await connection.commit();
     return { ok: true, source: 'aiven', message: 'Estatus actualizado correctamente.', cotizacion: updated };
   } catch (error) {
@@ -1049,6 +1116,11 @@ async function updateAsignacion(rawId, payload, actionContext) {
     if (!Object.keys(cambios).length) throw httpError(409, 'La asignación recibida no genera cambios.');
     await repository.update(connection, idCotizacion, changes);
     const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    const snapshots = historySnapshots(cambios);
+    await historialService.registrarMovimiento(connection, {
+      idCotizacion, accion: 'CAMBIO_ASIGNACION', motivo: payload?.motivo || null,
+      anterior: snapshots.anterior, nuevo: snapshots.nuevo
+    }, actionContext);
     await connection.commit();
     return { ok: true, source: 'aiven', message: 'Asignación actualizada correctamente.', cotizacion: updated };
   } catch (error) {
@@ -1074,9 +1146,40 @@ async function listComentarios(rawId, query, actionContext) {
   try {
     await assertCotizacion(connection, idCotizacion, actionContext);
     const result = await repository.listComentarios(connection, idCotizacion, { page, pageSize });
-    return { ok: true, source: 'aiven', id_cotizacion: idCotizacion, comentarios: result.rows,
-      paginacion: { pagina: page, tamano_pagina: pageSize, total_registros: result.total, total_paginas: Math.ceil(result.total / pageSize) } };
-  } finally { connection.release(); }
+    const comentarioIds = result.rows.map((row) => Number(row.id_comentario));
+    const archivos = await repository.listArchivosByComentarioIds(connection, comentarioIds);
+    const archivosPorComentario = new Map();
+
+    for (const archivo of archivos) {
+      const key = Number(archivo.id_comentario);
+      if (!archivosPorComentario.has(key)) archivosPorComentario.set(key, []);
+      archivosPorComentario.get(key).push({
+        ...archivo,
+        archivo_url: archivo.storage_url || archivo.drive_url || null
+      });
+    }
+
+    const comentarios = result.rows.map((row) => ({
+      ...row,
+      zona_origen_confirmada: Boolean(row.zona_origen_confirmada),
+      archivos: archivosPorComentario.get(Number(row.id_comentario)) || []
+    }));
+
+    return {
+      ok: true,
+      source: 'aiven',
+      id_cotizacion: idCotizacion,
+      comentarios,
+      paginacion: {
+        pagina: page,
+        tamano_pagina: pageSize,
+        total_registros: result.total,
+        total_paginas: Math.ceil(result.total / pageSize)
+      }
+    };
+  } finally {
+    connection.release();
+  }
 }
 
 async function createComentario(rawId, payload, actionContext) {
@@ -1120,11 +1223,11 @@ async function deleteComentario(rawId, rawComentario, actionContext) {
 }
 
 function normalizeArchivoPayload(payload,{partial=false}={}) {
-  const fields=['id_comentario','nombre_archivo','nombre_original','extension','mime_type','tamanio_bytes','drive_file_id','drive_folder_id','drive_url','tipo_archivo','descripcion','version_numero','id_archivo_anterior'];
+  const fields=['id_comentario','nombre_archivo','nombre_original','extension','mime_type','tamanio_bytes','drive_file_id','drive_folder_id','drive_url','storage_provider','storage_url','storage_container','storage_blob_name','thumbnail_url','tipo_archivo','descripcion','version_numero','id_archivo_anterior'];
   const out={}; for(const f of fields){ if(partial&&!Object.prototype.hasOwnProperty.call(payload||{},f))continue;
     if(['id_comentario','id_archivo_anterior','version_numero','tamanio_bytes'].includes(f)) out[f]=positiveInteger(payload?.[f]);
     else out[f]=cleanText(payload?.[f], f==='descripcion'?500:(f==='drive_url'?2000:255)); }
-  if(!partial){ if(!out.nombre_archivo)throw badRequest('nombre_archivo es obligatorio.'); if(!out.drive_file_id)throw badRequest('drive_file_id es obligatorio.'); }
+  if(!partial){ if(!out.nombre_archivo)throw badRequest('nombre_archivo es obligatorio.'); if(!out.drive_file_id && !out.storage_url && !out.storage_blob_name)throw badRequest('Se requiere una referencia de almacenamiento.'); }
   return out;
 }
 async function listArchivos(rawId,query,actionContext){const id=positiveInteger(rawId);if(!id)throw badRequest('El id de cotización debe ser un entero positivo.');const page=boundedInteger(query?.page,1,1,100000,'page'),pageSize=boundedInteger(query?.page_size,50,1,200,'page_size');const c=await repository.getConnection();try{await assertCotizacion(c,id,actionContext);const r=await repository.listArchivos(c,id,{page,pageSize});return{ok:true,source:'aiven',id_cotizacion:id,archivos:r.rows,paginacion:{pagina:page,tamano_pagina:pageSize,total_registros:r.total,total_paginas:Math.ceil(r.total/pageSize)}};}finally{c.release();}}
@@ -1132,6 +1235,181 @@ async function createArchivo(rawId,payload,ctx){const id=positiveInteger(rawId),
 async function getArchivo(rawId,rawArchivo,actionContext){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const c=await repository.getConnection();try{await assertCotizacion(c,id,actionContext);const a=await repository.findArchivo(c,id,aid);if(!a)throw httpError(404,'Archivo no encontrado.');return{ok:true,source:'aiven',archivo:a};}finally{c.release();}}
 async function updateArchivo(rawId,rawArchivo,payload,ctx){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);getActorId(ctx);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const changes=normalizeArchivoPayload(payload,{partial:true});if(!Object.keys(changes).length)throw badRequest('No se recibieron campos editables.');const c=await repository.getConnection();try{await c.beginTransaction();await assertCotizacion(c,id,ctx);if(!(await repository.findArchivo(c,id,aid)))throw httpError(404,'Archivo no encontrado.');if(changes.id_comentario&&!(await repository.findComentario(c,id,changes.id_comentario)))throw badRequest('El comentario no pertenece a la cotización.');await repository.updateArchivo(c,id,aid,changes);const updated=await repository.findArchivo(c,id,aid);await c.commit();return{ok:true,source:'aiven',message:'Archivo actualizado correctamente.',archivo:updated};}catch(e){await c.rollback();throw e;}finally{c.release();}}
 async function deleteArchivo(rawId,rawArchivo,ctx){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);getActorId(ctx);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const c=await repository.getConnection();try{await c.beginTransaction();await assertCotizacion(c,id,ctx);if(!(await repository.findArchivo(c,id,aid)))throw httpError(404,'Archivo no encontrado.');await repository.softDeleteArchivo(c,id,aid);await c.commit();return{ok:true,source:'aiven',message:'Archivo eliminado correctamente.',id_archivo:aid};}catch(e){await c.rollback();throw e;}finally{c.release();}}
+
+
+function normalizeUtcTimestamp(value) {
+  const text = cleanText(value, 40);
+  if (!text || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(text)) return null;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = (number, size = 2) => String(number).padStart(size, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${pad(date.getUTCMilliseconds(), 3)}`;
+}
+
+function archivoMetadataFromUrl(rawUrl) {
+  const storageUrl = cleanText(rawUrl, 4000);
+  if (!storageUrl) return null;
+  let parsed;
+  try { parsed = new URL(storageUrl); } catch (_) { return null; }
+  if (parsed.protocol !== 'https:') return null;
+
+  const rawName = parsed.pathname.split('/').filter(Boolean).pop() || 'archivo';
+  let originalName;
+  try { originalName = decodeURIComponent(rawName); } catch (_) { originalName = rawName; }
+  originalName = originalName.slice(0, 255) || 'archivo';
+  const extension = path.extname(originalName).replace(/^\./, '').toLowerCase().slice(0, 20) || null;
+  const mimeType = (mime.lookup(originalName) || 'application/octet-stream').slice(0, 150);
+  let tipoArchivo = 'OTRO';
+  if (mimeType.startsWith('image/')) tipoArchivo = 'IMAGEN';
+  else if (mimeType === 'application/pdf') tipoArchivo = 'PDF';
+  else if (/spreadsheet|excel|csv/i.test(mimeType) || ['xls','xlsx','csv'].includes(extension)) tipoArchivo = 'HOJA_CALCULO';
+  else if (/word|document|text/i.test(mimeType) || ['doc','docx','txt','rtf'].includes(extension)) tipoArchivo = 'DOCUMENTO';
+  else if (/zip|compressed|archive/i.test(mimeType) || ['zip','rar','7z'].includes(extension)) tipoArchivo = 'COMPRIMIDO';
+
+  return { storageUrl, originalName, extension, mimeType, tipoArchivo };
+}
+
+function normalizeComentarioHistorico(row, index) {
+  const idCotizacion = positiveInteger(row?.id_cotizacion);
+  const idUsuario = positiveInteger(row?.id_usuario);
+  const comentario = cleanText(row?.comentario);
+  const fechaUtc = normalizeUtcTimestamp(row?.fecha_hora_utc);
+  const idOrigen = cleanText(row?.id_origen, 150);
+  const zona = cleanText(row?.zona_horaria_origen, 100);
+  const archivo = archivoMetadataFromUrl(row?.archivo_adjunto);
+  const errores = [];
+
+  if (!idCotizacion) errores.push('id_cotizacion inválido.');
+  if (!idUsuario) errores.push('id_usuario inválido.');
+  if (!comentario) errores.push('comentario vacío.');
+  if (!fechaUtc) errores.push('fecha_hora_utc inválida; se requiere ISO UTC terminado en Z.');
+  if (row?.archivo_adjunto && !archivo) errores.push('archivo_adjunto no contiene una URL HTTPS válida.');
+
+  if (errores.length) {
+    return { ok: false, error: { fila: Number(row?.fila_origen) || index + 2, id_origen: idOrigen, motivo: errores.join(' ') } };
+  }
+
+  return { ok: true, value: { idCotizacion, idUsuario, comentario, fechaUtc, idOrigen, zona, archivo, fila: Number(row?.fila_origen) || index + 2 } };
+}
+
+async function syncComentariosHistoricos(payload) {
+  const input = extractRecords(payload);
+  if (!input) throw badRequest('El cuerpo debe contener registros: [...].');
+  if (!input.length) throw badRequest('No se recibieron comentarios para importar.');
+  if (input.length > MAX_RECORDS) throw badRequest(`La petición excede el máximo de ${MAX_RECORDS} registros.`);
+
+  const normalized = [];
+  const rejected = [];
+  input.forEach((row, index) => {
+    const result = normalizeComentarioHistorico(row, index);
+    if (result.ok) normalized.push(result.value);
+    else rejected.push(result.error);
+  });
+
+  const connection = await repository.getConnection();
+  let comentariosInsertados = 0;
+  let archivosInsertados = 0;
+  let bloquesProcesados = 0;
+
+  try {
+    await connection.query("SET time_zone = '+00:00'");
+    const cotizacionIds = [...new Set(normalized.map((row) => row.idCotizacion))];
+    const usuarioIds = [...new Set(normalized.map((row) => row.idUsuario))];
+    const cotizacionesExistentes = await repository.findExistingCotizacionIds(connection, cotizacionIds);
+    const usuariosExistentes = await repository.findUserIdsIncludingInactive(connection, usuarioIds);
+    const valid = [];
+
+    for (const row of normalized) {
+      const errores = [];
+      if (!cotizacionesExistentes.has(row.idCotizacion)) errores.push(`id_cotizacion=${row.idCotizacion} no existe.`);
+      if (!usuariosExistentes.has(row.idUsuario)) errores.push(`id_usuario=${row.idUsuario} no existe.`);
+      if (errores.length) rejected.push({ fila: row.fila, id_origen: row.idOrigen, motivo: errores.join(' ') });
+      else valid.push(row);
+    }
+
+    for (const batch of splitBatches(valid)) {
+      await connection.beginTransaction();
+      try {
+        for (let index = 0; index < batch.length; index += 1) {
+          const row = batch[index];
+          const savepoint = `comentario_${index}`;
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          try {
+            const commentResult = await repository.createComentario(connection, {
+              id_cotizacion: row.idCotizacion,
+              id_usuario: row.idUsuario,
+              id_origen: row.idOrigen,
+              comentario: row.comentario,
+              zona_horaria_origen: row.zona,
+              zona_origen_confirmada: row.zona ? 1 : 0,
+              id_comentario_padre: null,
+              editado: 0,
+              activo: 1,
+              created_at: row.fechaUtc,
+              updated_at: row.fechaUtc
+            });
+            comentariosInsertados += 1;
+
+            if (row.archivo) {
+              await repository.createArchivo(connection, {
+                id_cotizacion: row.idCotizacion,
+                id_comentario: commentResult.insertId,
+                id_usuario: row.idUsuario,
+                nombre_archivo: row.archivo.originalName,
+                nombre_original: row.archivo.originalName,
+                extension: row.archivo.extension,
+                mime_type: row.archivo.mimeType,
+                tamanio_bytes: null,
+                drive_file_id: null,
+                drive_folder_id: null,
+                drive_url: null,
+                storage_provider: 'GLIDE_STORAGE',
+                storage_url: row.archivo.storageUrl,
+                storage_container: null,
+                storage_blob_name: null,
+                thumbnail_url: null,
+                tipo_archivo: row.archivo.tipoArchivo,
+                descripcion: 'Importado desde respaldo histórico de Glide',
+                version_numero: 1,
+                activo: 1,
+                created_at: row.fechaUtc,
+                updated_at: row.fechaUtc
+              });
+              archivosInsertados += 1;
+            }
+            await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+          } catch (error) {
+            await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            rejected.push({ fila: row.fila, id_origen: row.idOrigen, motivo: error.message });
+          }
+        }
+        await connection.commit();
+        bloquesProcesados += 1;
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      }
+    }
+  } finally {
+    connection.release();
+  }
+
+  return {
+    ok: true,
+    source: 'aiven',
+    origen: cleanText(payload?.origen, 100) || 'GLIDE_BACKUP_SHEETS',
+    carga_unica: true,
+    conservar_duplicados: true,
+    total_recibidos: input.length,
+    total_validos: comentariosInsertados,
+    comentarios_insertados: comentariosInsertados,
+    archivos_insertados: archivosInsertados,
+    rechazados: rejected.length,
+    bloques_procesados: bloquesProcesados,
+    tamano_bloque: BATCH_SIZE,
+    errores: rejected
+  };
+}
 
 async function sync(payload) {
   const input = extractRecords(payload);
@@ -1241,7 +1519,7 @@ async function sync(payload) {
   };
 }
 
-module.exports = { sync, list, getKpis, getEmbudo, getVendidos, getPerdidos, getProyeccion,
+module.exports = { sync, syncComentariosHistoricos, list, getKpis, getEmbudo, getVendidos, getPerdidos, getProyeccion,
   getCatalogos, getById, create, update, remove, updateEstatus, updateAsignacion,
   listComentarios, createComentario, updateComentario, deleteComentario,
   listArchivos, createArchivo, getArchivo, updateArchivo, deleteArchivo };

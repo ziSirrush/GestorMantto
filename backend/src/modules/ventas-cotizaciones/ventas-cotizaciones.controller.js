@@ -31,6 +31,16 @@ async function syncCotizaciones(req, res, next) {
 }
 
 
+
+async function syncComentariosHistoricos(req, res, next) {
+  try {
+    const result = await service.syncComentariosHistoricos(req.body || {});
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function listCotizaciones(req, res, next) {
   try {
     const result = await service.list(req.query || {}, buildActionContext(req));
@@ -189,7 +199,7 @@ async function deleteArchivo(req, res, next) {
 }
 
 module.exports = {
-  syncCotizaciones, listCotizaciones, getKpis, getEmbudo, getVendidos, getPerdidos,
+  syncCotizaciones, syncComentariosHistoricos, listCotizaciones, getKpis, getEmbudo, getVendidos, getPerdidos,
   getProyeccion, getCatalogos, getCotizacion, updateEstatus, updateAsignacion,
   listComentarios, createComentario, updateComentario, deleteComentario,
   listArchivos, createArchivo, getArchivo, updateArchivo, deleteArchivo,
