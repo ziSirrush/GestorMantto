@@ -6,7 +6,8 @@ const DEFAULT_SCOPES = Object.freeze([
   'openid',
   'email',
   'profile',
-  'https://www.googleapis.com/auth/drive.readonly'
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/drive.file'
 ]);
 
 function getRequiredEnv(name) {

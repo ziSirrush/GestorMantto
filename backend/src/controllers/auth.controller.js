@@ -213,7 +213,7 @@ async function login(req, res) {
       process.env.JWT_SECRET,
       {
         expiresIn:
-          process.env.JWT_EXPIRES_IN || '8h'
+          process.env.JWT_EXPIRES_IN || '180d'
       }
     );
 

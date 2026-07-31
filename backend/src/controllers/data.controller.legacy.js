@@ -1147,26 +1147,107 @@ function normalizeTicketIdentity(value) {
 }
 
 async function createTicketNotifications(executor, ticketRow, actor, type, message) {
+  const mandatoryRoles = new Set([
+    'director general',
+    'director mantenimiento',
+    'auxiliar direccion',
+    'jefa de atencion a cliente'
+  ]);
   const responsibleNames = await ticketResponsibleNames(ticketRow, executor);
-  if (!responsibleNames.length) return { inserted: 0, recipients: [] };
-
   const normalizedResponsibles = new Set(
     responsibleNames.map(normalizeTicketIdentity).filter(Boolean)
   );
   const actorId = Number(actor?.id || 0) || null;
 
-  const [users] = await executor.query(`
-    SELECT id_SB, nombre, iniciales, correo
-    FROM usuarios
-    WHERE estado = 1
+  const [userRoleRows] = await executor.query(`
+    SELECT
+      u.id_SB,
+      u.nombre,
+      u.iniciales,
+      u.correo,
+      rp.rol AS rol_principal,
+      r.rol AS rol_asociado
+    FROM usuarios u
+    LEFT JOIN roles rp
+      ON rp.id_rol = u.rol_id
+     AND rp.estado = 1
+    LEFT JOIN usuario_roles ur
+      ON ur.id_usuario = u.id_SB
+     AND ur.activo = 1
+    LEFT JOIN roles r
+      ON r.id_rol = ur.id_rol
+     AND r.estado = 1
+    WHERE u.estado = 1
   `);
 
-  const recipients = users.filter(user => {
-    if (!user.id_SB || (actorId && Number(user.id_SB) === actorId)) return false;
-    return [user.nombre, user.iniciales, user.correo]
+  const usersById = new Map();
+  for (const row of userRoleRows) {
+    const userId = Number(row.id_SB || 0);
+    if (!userId) continue;
+
+    if (!usersById.has(userId)) {
+      usersById.set(userId, {
+        id_SB: userId,
+        nombre: row.nombre,
+        iniciales: row.iniciales,
+        correo: row.correo,
+        roles: new Set()
+      });
+    }
+
+    const user = usersById.get(userId);
+    [row.rol_principal, row.rol_asociado]
       .map(normalizeTicketIdentity)
-      .some(identity => identity && normalizedResponsibles.has(identity));
-  });
+      .filter(Boolean)
+      .forEach(role => user.roles.add(role));
+  }
+
+  const relatedUserIds = new Set();
+  const mandatoryUserIds = new Set();
+
+  for (const user of usersById.values()) {
+    const identities = [user.nombre, user.iniciales, user.correo]
+      .map(normalizeTicketIdentity)
+      .filter(Boolean);
+
+    if (identities.some(identity => normalizedResponsibles.has(identity))) {
+      relatedUserIds.add(user.id_SB);
+    }
+
+    if (Array.from(user.roles).some(role => mandatoryRoles.has(role))) {
+      mandatoryUserIds.add(user.id_SB);
+    }
+  }
+
+  const relatedAdminIds = new Set();
+  if (relatedUserIds.size) {
+    const placeholders = Array.from(relatedUserIds).map(() => '?').join(',');
+    const [adminRows] = await executor.query(`
+      SELECT DISTINCT ura.id_admin
+      FROM usuarios_rel_admin ura
+      INNER JOIN usuarios admin
+        ON admin.id_SB = ura.id_admin
+       AND admin.estado = 1
+      WHERE ura.id_asesor IN (${placeholders})
+    `, Array.from(relatedUserIds));
+
+    for (const row of adminRows) {
+      const adminId = Number(row.id_admin || 0);
+      if (adminId) relatedAdminIds.add(adminId);
+    }
+  }
+
+  const recipientIds = new Set([
+    ...mandatoryUserIds,
+    ...relatedUserIds,
+    ...relatedAdminIds
+  ]);
+
+  if (actorId) recipientIds.delete(actorId);
+
+  const recipients = Array.from(recipientIds)
+    .map(id => usersById.get(id))
+    .filter(Boolean);
 
   let inserted = 0;
   for (const recipient of recipients) {
@@ -1198,7 +1279,17 @@ async function createTicketNotifications(executor, ticketRow, actor, type, messa
 
   return {
     inserted,
-    recipients: recipients.map(user => user.iniciales || user.nombre || user.correo)
+    recipients: recipients.map(user => user.iniciales || user.nombre || user.correo),
+    breakdown: {
+      mandatory: mandatoryUserIds.size,
+      related: relatedUserIds.size,
+      related_admins: relatedAdminIds.size,
+      actor_excluded: Boolean(actorId && (
+        mandatoryUserIds.has(actorId) ||
+        relatedUserIds.has(actorId) ||
+        relatedAdminIds.has(actorId)
+      ))
+    }
   };
 }
 
@@ -1227,8 +1318,8 @@ async function createTicketComentario(req, res) {
   const conn=await db.getConnection();
   try { await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
     const [result]=await conn.query('INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario) VALUES (?,?,?)',[row.id,user.id,comentario]);
-    await createTicketNotifications(conn,row,user,'TICKET_COMENTARIO',`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
-    await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId}});
+    const notificationResult = await createTicketNotifications(conn,row,user,'TICKET_COMENTARIO',`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
+    await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId,notificaciones_creadas:notificationResult.inserted,destinatarios_notificacion:notificationResult.recipients}});
   } catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error agregando comentario.',error:error.message});} finally{conn.release();}
 }
 async function saveTicketValidacion(req,res){
@@ -1244,8 +1335,8 @@ async function saveTicketValidacion(req,res){
     await conn.query(`UPDATE tickets SET vobo_estado=?,vobo_comentario=?,vobo_por_id=?,vobo_por_nombre=?,vobo_en=CURRENT_TIMESTAMP WHERE id=?`,[estado,comentario,user.id,req.user?.nombre||user.iniciales||user.correo,row.id]);
     await conn.query(`INSERT INTO ticket_validaciones (id_ticket,id_usuario,estado_anterior,estado_nuevo,comentario,ip_origen) VALUES (?,?,?,?,?,?)`,[row.id,user.id,previous,estado,comentario,req.ip||null]);
     const kind=estado==='Pendiente'?'TICKET_VALIDACION_PENDIENTE':'TICKET_VALIDACION';
-    await createTicketNotifications(conn,row,user,kind,`${user.iniciales||user.correo||'Usuario'} cambió la validación del ticket ${row.ticket}: ${previous} → ${estado}.`);
-    await conn.commit(); return res.json({ok:true,message:'Validación guardada.',data:{ticket:row.ticket,vobo_estado:estado,vobo_comentario:comentario}});
+    const notificationResult = await createTicketNotifications(conn,row,user,kind,`${user.iniciales||user.correo||'Usuario'} cambió la validación del ticket ${row.ticket}: ${previous} → ${estado}.`);
+    await conn.commit(); return res.json({ok:true,message:'Validación guardada.',data:{ticket:row.ticket,vobo_estado:estado,vobo_comentario:comentario,notificaciones_creadas:notificationResult.inserted,destinatarios_notificacion:notificationResult.recipients}});
   }catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error guardando validación.',error:error.message});}finally{conn.release();}
 }
 

@@ -547,7 +547,7 @@
     const comentario = t.vobo_comentario || '';
     const validadoPor = t.vobo_por || t.vobo_guardado_por || '—';
     const validadoEn = t.vobo_en || t.vobo_guardado_en || t.actualizado_en || '—';
-    const opts = ['Pendiente','Validado','Rechazado con observaciones','Requiere información adicional','Escalado a superior'];
+    const opts = ['Pendiente','Validado','Rechazado'];
     if(!canEditVobo()){
       return `<section class="rd-ticket-section"><h3>Validación / Vo.Bo.</h3><div class="rd-ticket-vobo-readonly">
         ${ticketField('Estado validación', estado)}

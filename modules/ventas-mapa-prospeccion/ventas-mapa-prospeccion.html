@@ -1,0 +1,25 @@
+<div class="vmp-page">
+  <section class="vmp-card vmp-head">
+    <div>
+      <p class="vmp-eyebrow">Aiven · Ventas</p>
+      <h1>Mapa Prospección</h1>
+      <p>Ubicación geográfica de visitas comerciales consultadas desde Aiven.</p>
+    </div>
+    <div class="vmp-head-actions">
+      <span class="vmp-status" id="vmp-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vmp-btn vmp-btn-ghost" id="vmp-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="vmp-card vmp-workspace">
+    <div class="vmp-toolbar">
+      <label><span>Año visita</span><select id="vmp-filter-year"><option value="">Todos</option></select></label>
+      <label><span>Estatus</span><select id="vmp-filter-status"><option value="">Todos</option></select></label>
+      <label><span>Asesor</span><select id="vmp-filter-user"><option value="">Todos</option></select></label>
+      <label><span>Estado</span><select id="vmp-filter-state"><option value="">Todos</option></select></label>
+      <button class="vmp-clear" id="vmp-clear" type="button">↺ <strong>Limpiar</strong></button>
+      <span class="vmp-counter" id="vmp-counter">0 visitas con coordenadas</span>
+    </div>
+    <div class="vmp-map" id="vmp-map" role="region" aria-label="Mapa de prospección"></div>
+  </section>
+</div>

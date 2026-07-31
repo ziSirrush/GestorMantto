@@ -99,7 +99,6 @@
     };
     const key=norm(item.dataset.permission); return [...new Set([...raw,...(aliases[key]||[])])];
   }
-  function catalogText(row){return norm([row.agrupacion_codigo,row.agrupacion_nombre,row.modulo_codigo,row.modulo_nombre,row.elemento_codigo,row.elemento_nombre,row.subelemento_codigo,row.subelemento_nombre].join(' '));}
   function groupKeys(group){
     const key=norm(group?.dataset?.group);
     const aliases={
@@ -109,9 +108,33 @@
     };
     return [...new Set([key,...(aliases[key]||[])].filter(Boolean))];
   }
+  function rowBelongsToGroup(row,group){
+    const keys=groupKeys(group);
+    if(!keys.length)return true;
+    const rowKeys=[norm(row?.agrupacion_codigo),norm(row?.agrupacion_nombre)].filter(Boolean);
+    return keys.some(key=>rowKeys.includes(key));
+  }
+  function normalizedFrontendRoute(value){
+    return norm(String(value||'').replace(/^#?\/?/,'').split(/[?#]/)[0]);
+  }
+  function moduleIdentityKeys(row){
+    return [
+      norm(row?.modulo_codigo),
+      norm(row?.modulo_nombre),
+      normalizedFrontendRoute(row?.modulo_ruta_frontend)
+    ].filter(Boolean);
+  }
   function rowsForModule(item){
     const keys=permissionKeysForItem(item);
-    return state.catalog.filter(row=>keys.some(k=>k&&catalogText(row).includes(k)));
+    const routeKey=norm(item?.dataset?.route);
+    const group=item?.closest?.('.side-group')||null;
+    return state.catalog.filter(row=>{
+      if(Number(row?.modulo_interno_visual)===1)return false;
+      if(!rowBelongsToGroup(row,group))return false;
+      const identities=moduleIdentityKeys(row);
+      if(routeKey&&identities.includes(routeKey))return true;
+      return keys.some(key=>key&&identities.includes(key));
+    });
   }
   function isActiveCatalogRow(row){
     return Number(row?.agrupacion_activo)!==0 && Number(row?.modulo_activo)!==0;

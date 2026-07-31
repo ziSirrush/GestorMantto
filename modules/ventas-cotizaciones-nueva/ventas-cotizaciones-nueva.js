@@ -62,7 +62,7 @@ async function loadContacts(idCliente){
         : [];
 
     select.innerHTML='<option value="">Selecciona...</option>'+state.contacts
-      .map(c=>`<option value="${c.id_contacto}">${esc(c.nombre_contacto)}${Number(c.contacto_principal)===1?' · Principal':''}</option>`)
+      .map(c=>`<option value="${c.id_contacto}">${esc(c.nombre_contacto)}${c.puesto_contacto?' · '+esc(c.puesto_contacto):''}${Number(c.contacto_principal)===1?' · Principal':''}</option>`)
       .join('');
     select.disabled=false;
 
@@ -80,7 +80,7 @@ async function loadContacts(idCliente){
     toast(e.message||'No se pudieron cargar los contactos del cliente.',true);
   }
 }
-function applyContact(id){const c=state.contacts.find(x=>Number(x.id_contacto)===Number(id));$('#vcn-telefono').value=c?.telefono||'';$('#vcn-correo').value=c?.email||'';}
+function applyContact(id){const c=state.contacts.find(x=>Number(x.id_contacto)===Number(id));$('#vcn-puesto-contacto').value=c?.puesto_contacto||'';$('#vcn-telefono').value=c?.telefono||'';$('#vcn-correo').value=c?.email||'';}
 function fillSelect(id,rows){const el=$(id);el.innerHTML='<option value="">Selecciona...</option>'+rows.map(r=>`<option value="${esc(r.articulo??r)}">${esc(r.articulo??r)}</option>`).join('');}
 async function loadCatalogs(){const [general,cots]=await Promise.all([request('/api/catalogo-general?area=Ventas'),request('/api/ventas/cotizaciones/catalogos')]);const rows=Array.isArray(general.articulos)?general.articulos:[];state.catalogs=rows.reduce((acc,row)=>{const key=String(row.elemento||'');(acc[key]||(acc[key]=[])).push(row);return acc;},{});fillSelect('#vcn-tipo-proyecto',state.catalogs['Tipo de Proyecto']||[]);fillSelect('#vcn-tipo-equipo',state.catalogs['Tipo de Equipo']||[]);const estados=(await request('/api/catalogo-general?elemento=Estado')).articulos||[];fillSelect('#vcn-estado',estados);state.statuses=cots.catalogos?.estatus_proyecto||[];fillSelect('#vcn-estatus',state.statuses);$('#vcn-estatus').value='Contacto';}
 function openContact(){if(!state.selectedClient)return toast('Selecciona primero un cliente.',true);window.ManttoVentasContactoForm?.open({container:'#vcn-contact-editor',clientId:state.selectedClient.id_cliente,onSaved:async(saved)=>{await loadContacts(state.selectedClient.id_cliente);const id=Number(saved?.id_contacto||0);if(id){$('#vcn-contacto').value=String(id);applyContact(id);}toast('Contacto creado y seleccionado.');}});}

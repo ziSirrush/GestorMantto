@@ -1,6 +1,7 @@
 'use strict';
 
 const { google } = require('googleapis');
+const { Readable } = require('stream');
 
 const oauthService = require('./oauth.service');
 const cryptoService = require('./crypto.service');
@@ -290,6 +291,32 @@ async function getDownload(userId, fileId, requestedExportMimeType = null) {
   };
 }
 
+
+async function uploadBuffer(userId, file, options = {}) {
+  if (!file || !Buffer.isBuffer(file.buffer)) {
+    throw createHttpError('No se recibió un archivo válido.', 400, 'GOOGLE_DRIVE_UPLOAD_FILE_REQUIRED');
+  }
+  const folderId = String(options.folderId || process.env.VENTAS_PROSPECCION_DRIVE_FOLDER_ID || 'root').trim() || 'root';
+  const name = String(options.name || file.originalname || 'archivo').replace(/[\\/:*?"<>|]/g, '_').slice(0, 255);
+  const mimeType = String(file.mimetype || 'application/octet-stream');
+  const { drive } = await createAuthorizedClient(userId);
+  const response = await drive.files.create({
+    requestBody: { name, mimeType, parents: [folderId] },
+    media: { mimeType, body: Readable.from(file.buffer) },
+    supportsAllDrives: true,
+    fields: 'id,name,mimeType,size,parents,webViewLink,webContentLink,thumbnailLink,createdTime'
+  });
+  return mapDriveFile(response.data || {});
+}
+
+async function deleteFile(userId, fileId) {
+  const normalizedFileId = String(fileId || '').trim();
+  if (!normalizedFileId) return false;
+  const { drive } = await createAuthorizedClient(userId);
+  await drive.files.delete({ fileId: normalizedFileId, supportsAllDrives: true });
+  return true;
+}
+
 module.exports = {
   GOOGLE_FOLDER_MIME,
   EXPORT_MIME_TYPES,
@@ -297,5 +324,7 @@ module.exports = {
   getAbout,
   listFiles,
   getFile,
-  getDownload
+  getDownload,
+  uploadBuffer,
+  deleteFile
 };

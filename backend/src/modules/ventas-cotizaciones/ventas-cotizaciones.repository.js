@@ -624,10 +624,11 @@ async function getCatalogos(connection) {
 async function findById(connection, idCotizacion, { includeInactive = false, scope = null } = {}) {
   const scopeClause = buildScopeClause(scope);
   const [rows] = await connection.query(
-    `SELECT *
-       FROM ${TABLE}
-      WHERE id_cotizacion = ?
-        ${includeInactive ? '' : 'AND activo = 1'}
+    `SELECT vc.*, vcc.puesto_contacto
+       FROM ${TABLE} vc
+       LEFT JOIN ventas_clientes_contactos vcc ON vcc.id_contacto = vc.id_contacto
+      WHERE vc.id_cotizacion = ?
+        ${includeInactive ? '' : 'AND vc.activo = 1'}
         ${scopeClause.sql ? `AND ${scopeClause.sql}` : ''}
       LIMIT 1`,
     [idCotizacion, ...scopeClause.params]

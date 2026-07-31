@@ -170,6 +170,7 @@ function payloadFromForm(){
     estado:text('estado'),
     ubicacion:text('ubicacion'),
     nombre_contacto:text('nombre_contacto'),
+    puesto_contacto:text('puesto_contacto'),
     email:text('email'),
     telefono:text('telefono'),
     tipo_cliente:text('tipo_cliente'),
@@ -206,6 +207,7 @@ async function save(event){
         method:'POST',
         body:JSON.stringify({
           nombre_contacto:payload.nombre_contacto,
+          puesto_contacto:payload.puesto_contacto,
           email:payload.email,
           telefono:payload.telefono,
           contacto_principal:1

@@ -1,0 +1,35 @@
+<div class="vpr-page">
+  <section class="vpr-card vpr-head">
+    <div>
+      <p class="vpr-eyebrow">Aiven · Ventas</p>
+      <h1>Prospección</h1>
+      <p>Visitas comerciales consultadas desde Aiven, con filtros, indicadores y alcance comercial.</p>
+    </div>
+    <div class="vpr-head-actions">
+      <span class="vpr-status" id="vpr-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="vpr-btn vpr-btn-ghost" id="vpr-refresh" type="button">↻ Actualizar</button>
+      <button class="vpr-btn" id="vpr-new" type="button">＋ Nueva visita</button>
+    </div>
+  </section>
+
+  <section class="vpr-kpis" id="vpr-kpis" aria-label="Indicadores de prospección"></section>
+
+  <section class="vpr-card vpr-workspace">
+    <div class="vpr-toolbar">
+      <label class="vpr-search"><span>Buscar</span><span class="vpr-search-box"><span aria-hidden="true">⌕</span><input id="vpr-search" type="search" placeholder="Empresa, proyecto, contacto o ciudad..."></span></label>
+      <label><span>Año visita</span><select id="vpr-filter-year"><option value="">Todos</option></select></label>
+      <label><span>Estatus</span><select id="vpr-filter-status"><option value="">Todos</option></select></label>
+      <label><span>Asesor</span><select id="vpr-filter-user"><option value="">Todos</option></select></label>
+      <label><span>Estado</span><select id="vpr-filter-state"><option value="">Todos</option></select></label>
+      <button class="vpr-clear" id="vpr-clear" type="button">↺ <strong>Limpiar</strong></button>
+    </div>
+
+    <div class="vpr-table-wrap">
+      <table class="vpr-table">
+        <thead><tr><th>Empresa</th><th>Proyecto</th><th>Estatus</th><th>Asesor</th><th>Ciudad</th><th>Estado</th><th>Fecha visita</th></tr></thead>
+        <tbody id="vpr-body"><tr><td colspan="7" class="vpr-empty">Consultando Aiven...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="vpr-pagination" id="vpr-pagination"></div>
+  </section>
+</div>

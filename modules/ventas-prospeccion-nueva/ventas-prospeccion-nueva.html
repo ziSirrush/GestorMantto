@@ -1,0 +1,69 @@
+<div class="vpn-page">
+  <section class="vpn-card vpn-head">
+    <div>
+      <p class="vpn-eyebrow">Aiven · Ventas</p>
+      <h1>Nueva visita</h1>
+      <p>Registra una visita de prospección y conserva su relación comercial.</p>
+    </div>
+    <div class="vpn-head-actions">
+      <button class="vpn-btn vpn-btn-ghost" id="vpn-back" type="button">← Regresar</button>
+    </div>
+  </section>
+
+  <form id="vpn-form" class="vpn-card vpn-form" novalidate>
+    <fieldset class="vpn-classification">
+      <legend>Origen de la visita</legend>
+      <label><input type="radio" name="clasificacion" value="NUEVO" checked><span><strong>Nuevo</strong></span></label>
+      <label><input type="radio" name="clasificacion" value="INSTALACION"><span><strong>En instalación</strong><small>Relacionar proyecto activo</small></span></label>
+      <label><input type="radio" name="clasificacion" value="COTIZADO"><span><strong>Cotizado</strong><small>Relacionar cotización</small></span></label>
+    </fieldset>
+
+    <section class="vpn-source" id="vpn-source" hidden>
+      <label><span id="vpn-source-label">Buscar fuente</span><input id="vpn-source-search" type="search" autocomplete="off" placeholder="Escribe el proyecto..."></label>
+      <div id="vpn-source-results" class="vpn-source-results"></div>
+    </section>
+
+    <input type="hidden" name="id_proyecto_instalacion" id="vpn-id-installation">
+    <input type="hidden" name="id_cotizacion" id="vpn-id-quotation">
+    <input type="hidden" name="id_cliente" id="vpn-id-client">
+    <input type="hidden" name="id_contacto" id="vpn-id-contact">
+    <input type="hidden" name="contact_mode" id="vpn-contact-mode" value="MANUAL">
+
+    <div class="vpn-form-grid">
+      <label>Empresa *<input name="empresa" id="vpn-company" required maxlength="255"></label>
+      <label>Proyecto *<input name="proyecto" id="vpn-project" required maxlength="255"></label>
+      <label>Tipo de proyecto<select name="tipo_proyecto" id="vpn-type"><option value="">Seleccionar...</option></select></label>
+      <label>Ciudad<input name="ciudad" id="vpn-city" maxlength="150"></label>
+      <label>Estado<select name="estado" id="vpn-state"><option value="">Seleccionar...</option></select></label>
+    </div>
+
+    <div class="vpn-location-row"><button class="vpn-btn vpn-btn-ghost" id="vpn-location" type="button">⌖ Obtener ubicación</button><span id="vpn-location-text">Sin ubicación capturada</span></div>
+    <input type="hidden" name="latitud" id="vpn-lat"><input type="hidden" name="longitud" id="vpn-lng"><input type="hidden" name="ubicacion" id="vpn-location-value">
+
+    <section class="vpn-contact-picker" id="vpn-contact-picker" hidden>
+      <label>Contacto *
+        <select id="vpn-contact-select">
+          <option value="">Seleccionar contacto</option>
+          <option value="__NEW__">Nuevo contacto</option>
+        </select>
+      </label>
+      <small>Selecciona un contacto relacionado o crea uno nuevo.</small>
+    </section>
+
+    <p class="vpn-source-note" id="vpn-source-note" hidden role="note"></p>
+
+    <div class="vpn-form-grid" id="vpn-contact-fields">
+      <label>Contacto *<input name="contacto" id="vpn-contact" required maxlength="255"></label>
+      <label>Puesto del contacto<input name="puesto_contacto" id="vpn-contact-position" maxlength="150" placeholder="Ej. Dueño, Residente de obra"></label>
+      <label>Correo<input name="correo" id="vpn-email" type="email" maxlength="255"></label>
+      <label>Teléfono<input name="telefono" id="vpn-phone" maxlength="100"></label>
+    </div>
+
+    <label class="vpn-full">Comentario *<textarea name="comentario" id="vpn-comment" required rows="4"></textarea></label>
+
+    <section class="vpn-photos"><div><strong>Fotografías</strong><small>Máximo 4 imágenes, desde cámara o galería.</small></div><input id="vpn-photos" name="fotos" type="file" accept="image/*" multiple><div id="vpn-photo-preview" class="vpn-photo-preview"></div></section>
+
+    <p class="vpn-form-message" id="vpn-form-message" role="status"></p>
+    <footer><button type="button" class="vpn-btn vpn-btn-ghost" id="vpn-cancel">Cancelar</button><button type="submit" class="vpn-btn" id="vpn-save">Guardar visita</button></footer>
+  </form>
+</div>

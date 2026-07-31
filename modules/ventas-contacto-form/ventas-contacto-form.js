@@ -15,6 +15,7 @@ function open(options={}){
     '<div class="vtcf-head"><div><h3>'+(editing?'Editar contacto':'Nuevo contacto')+'</h3><p>Los datos quedarán vinculados al cliente seleccionado.</p></div><button type="button" class="vtcf-close" aria-label="Cerrar">×</button></div>'+
     '<form class="vtcf-form"><div class="vtcf-grid">'+
     '<label><span>Nombre del contacto *</span><input name="nombre_contacto" maxlength="200" required value="'+esc(contact?.nombre_contacto||'')+'"></label>'+
+    '<label><span>Puesto</span><input name="puesto_contacto" maxlength="150" value="'+esc(contact?.puesto_contacto||'')+'"></label>'+
     '<label><span>Correo</span><input name="email" maxlength="200" value="'+esc(contact?.email||'')+'"></label>'+
     '<label><span>Teléfono</span><input name="telefono" maxlength="80" value="'+esc(contact?.telefono||'')+'"></label>'+
     '<label class="vtcf-check"><input name="contacto_principal" type="checkbox" value="1" '+(Number(contact?.contacto_principal)===1?'checked':'')+'><span>Marcar como contacto principal</span></label>'+
@@ -29,7 +30,7 @@ function open(options={}){
     ev.preventDefault();
     if(!form.reportValidity())return;
     const fd=new FormData(form);
-    const payload={nombre_contacto:String(fd.get('nombre_contacto')||'').trim(),email:String(fd.get('email')||'').trim()||null,telefono:String(fd.get('telefono')||'').trim()||null,contacto_principal:fd.get('contacto_principal')?1:0};
+    const payload={nombre_contacto:String(fd.get('nombre_contacto')||'').trim(),puesto_contacto:String(fd.get('puesto_contacto')||'').trim()||null,email:String(fd.get('email')||'').trim()||null,telefono:String(fd.get('telefono')||'').trim()||null,contacto_principal:fd.get('contacto_principal')?1:0};
     const save=container.querySelector('.vtcf-save');save.disabled=true;message.textContent='Guardando contacto…';message.classList.remove('error');
     try{
       const id=Number(contact?.id_contacto||0);

@@ -13,7 +13,7 @@
     'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
-    'ventas-prospeccion':'Prospección', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes',
+    'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
@@ -445,6 +445,46 @@
     return true;
   }
 
+  function showVentasProspeccion(){
+    const view=document.getElementById('view-ventas-prospeccion');
+    if(!view) return false;
+    activateViewById('view-ventas-prospeccion');
+    setActiveSide('ventas-prospeccion');
+    updateContext('ventas-prospeccion','Prospección · estructura visual de visitas comerciales');
+    if(window.ManttoVentasProspeccion) window.ManttoVentasProspeccion.init();
+    return true;
+  }
+
+  function showVentasProspeccionNueva(){
+    const view=document.getElementById('view-ventas-prospeccion-nueva');
+    if(!view) return false;
+    activateViewById('view-ventas-prospeccion-nueva');
+    setActiveSide('ventas-prospeccion');
+    updateContext('ventas-prospeccion-nueva','Nueva visita · alta de prospección en Aiven');
+    if(window.ManttoVentasProspeccionNueva) window.ManttoVentasProspeccionNueva.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasProspeccionDetalle(){
+    const view=document.getElementById('view-ventas-prospeccion-detalle');
+    if(!view) return false;
+    activateViewById('view-ventas-prospeccion-detalle');
+    setActiveSide('ventas-prospeccion');
+    updateContext('ventas-prospeccion-detalle','Detalle de visita · información comercial desde Aiven');
+    if(window.ManttoVentasProspeccionDetalle) window.ManttoVentasProspeccionDetalle.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasMapaProspeccion(){
+    const view=document.getElementById('view-ventas-mapa-prospeccion');
+    if(!view) return false;
+    activateViewById('view-ventas-mapa-prospeccion');
+    setActiveSide('ventas-mapa-prospeccion');
+    updateContext('ventas-mapa-prospeccion','Mapa Prospección · visualización geográfica de visitas');
+    if(window.ManttoVentasMapaProspeccion) window.ManttoVentasMapaProspeccion.init(currentPayload || null);
+    return true;
+  }
+
   function showInstalacionesConcentradoCliente(){
     const view=document.getElementById('view-instalaciones-concentrado-cliente');
     if(!view) return false;
@@ -596,6 +636,10 @@
     if(route==='ventas-vendidos' && showVentasVendidos()) return;
     if(route==='ventas-proyeccion' && showVentasProyeccion()) return;
     if(route==='ventas-perdidos' && showVentasPerdidos()) return;
+    if(route==='ventas-prospeccion' && showVentasProspeccion()) return;
+    if(route==='ventas-prospeccion-nueva' && showVentasProspeccionNueva()) return;
+    if(route==='ventas-prospeccion-detalle' && showVentasProspeccionDetalle()) return;
+    if(route==='ventas-mapa-prospeccion' && showVentasMapaProspeccion()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
