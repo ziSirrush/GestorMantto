@@ -1,6 +1,8 @@
 (function(){
   const DEVICE_TOKEN_KEY = 'mantto_device_token';
   const REQUIRED = ['gps', 'camara', 'microfono', 'push'];
+  const REMINDER_KEY_PREFIX = 'mantto_device_permissions_reminder_at_';
+  const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
   let activePromise = null;
 
   function randomToken(){
@@ -16,6 +18,19 @@
       localStorage.setItem(DEVICE_TOKEN_KEY, token);
     }
     return token.toLowerCase();
+  }
+
+  function reminderKey(){
+    return `${REMINDER_KEY_PREFIX}${getDeviceToken()}`;
+  }
+
+  function reminderDue(){
+    const value = Number(localStorage.getItem(reminderKey()) || 0);
+    return !Number.isFinite(value) || value <= 0 || (Date.now() - value) >= REMINDER_INTERVAL_MS;
+  }
+
+  function rememberPrompt(){
+    localStorage.setItem(reminderKey(), String(Date.now()));
   }
 
   function deviceName(){
@@ -132,11 +147,11 @@
       <div class="device-permissions-card" role="dialog" aria-modal="true" aria-labelledby="device-permissions-title">
         <div class="device-permissions-eyebrow">Configuración del dispositivo</div>
         <h2 id="device-permissions-title">Permisos obligatorios</h2>
-        <p>Para usar Mantto Gestor en este dispositivo debes autorizar ubicación, cámara, micrófono y notificaciones.</p>
+        <p>Activa cada permiso de forma independiente. Puedes continuar ahora aunque alguno quede pendiente; el sistema volverá a recordártelo después.</p>
         <div class="device-permissions-list" id="device-permissions-list"></div>
         <div class="device-permissions-message" id="device-permissions-message" aria-live="polite"></div>
         <div class="device-permissions-actions">
-          <button type="button" class="device-permissions-primary" id="device-permissions-authorize">Autorizar y continuar</button>
+          <button type="button" class="device-permissions-primary" id="device-permissions-continue">Continuar</button>
           <button type="button" class="device-permissions-secondary" id="device-permissions-retry">Volver a validar</button>
           <button type="button" class="device-permissions-link" id="device-permissions-logout">Cerrar sesión</button>
         </div>
@@ -157,29 +172,44 @@
       PERMITIDO:'Permitido',
       DENEGADO:'Bloqueado',
       NO_DISPONIBLE:'No disponible',
-      PENDIENTE:'Pendiente'
+      PENDIENTE:'Pendiente',
+      VALIDANDO:'Validando...'
     }[state] || 'Pendiente';
   }
 
-  function render(permisos){
+  function actionText(state){
+    if(state === 'PERMITIDO') return 'Activo';
+    if(state === 'VALIDANDO') return 'Validando...';
+    if(state === 'DENEGADO') return 'Reintentar';
+    if(state === 'NO_DISPONIBLE') return 'Revisar';
+    return 'Activar';
+  }
+
+  function render(permisos, pendingKeys){
     const list = document.getElementById('device-permissions-list');
     if(!list) return;
+    const pending = pendingKeys || new Set();
     list.innerHTML = REQUIRED.map(key => {
-      const state = permisos[key] || 'PENDIENTE';
-      return `<div class="device-permission-row" data-state="${state}">
+      const state = pending.has(key) ? 'VALIDANDO' : (permisos[key] || 'PENDIENTE');
+      const disabled = state === 'PERMITIDO' || state === 'VALIDANDO';
+      return `<div class="device-permission-row" data-state="${state}" data-permission="${key}">
         <span class="device-permission-icon">${labels[key][0]}</span>
         <span class="device-permission-label">${labels[key][1]}</span>
         <strong>${stateText(state)}</strong>
+        <button type="button" class="device-permission-action" data-permission-action="${key}" ${disabled ? 'disabled' : ''}>${actionText(state)}</button>
       </div>`;
     }).join('');
+
+    const continueButton = document.getElementById('device-permissions-continue');
+    if(continueButton) continueButton.disabled = false;
   }
 
   function allAllowed(permisos){
     return REQUIRED.every(key => permisos[key] === 'PERMITIDO');
   }
 
-  function setBusy(value){
-    ['device-permissions-authorize','device-permissions-retry','device-permissions-logout'].forEach(id => {
+  function setGlobalBusy(value){
+    ['device-permissions-retry','device-permissions-logout'].forEach(id => {
       const button = document.getElementById(id);
       if(button) button.disabled = Boolean(value);
     });
@@ -192,18 +222,50 @@
     element.classList.toggle('is-error', Boolean(error));
   }
 
+  async function requestOne(key){
+    if(key === 'gps') return requestGps();
+    if(key === 'camara') return requestMedia('video');
+    if(key === 'microfono') return requestMedia('audio');
+    if(key === 'push') return requestPush();
+    return 'NO_DISPONIBLE';
+  }
+
   async function requireForSession(){
     if(activePromise) return activePromise;
     activePromise = new Promise(async resolve => {
       const modal = ensureModal();
-      modal.hidden = false;
       let permisos = await inspectAll();
-      render(permisos);
       await sync(permisos).catch(() => null);
+
+      if(allAllowed(permisos)){
+        modal.hidden = true;
+        activePromise = null;
+        resolve(true);
+        return;
+      }
+
+      if(!reminderDue()){
+        modal.hidden = true;
+        activePromise = null;
+        resolve(true);
+        return;
+      }
+
+      modal.hidden = false;
+      const pendingKeys = new Set();
+      render(permisos, pendingKeys);
+
+      const refreshMessage = () => {
+        if(allAllowed(permisos)){
+          message('Todos los permisos están activos. Ya puedes continuar.');
+        }else{
+          message('Puedes activar los permisos pendientes de forma individual o continuar y hacerlo después.');
+        }
+      };
 
       const finishIfAllowed = async () => {
         permisos = await inspectAll();
-        render(permisos);
+        render(permisos, pendingKeys);
         const result = await sync(permisos);
         if(allAllowed(permisos) && result.acceso_general !== false){
           modal.hidden = true;
@@ -212,32 +274,72 @@
           resolve(true);
           return true;
         }
-        message('Debes habilitar los cuatro permisos para ingresar en este dispositivo.', true);
+        refreshMessage();
         return false;
       };
 
-      document.getElementById('device-permissions-authorize').onclick = async () => {
-        setBusy(true);
-        message('Solicitando permisos del dispositivo...');
+      document.getElementById('device-permissions-list').onclick = async event => {
+        const button = event.target.closest('[data-permission-action]');
+        if(!button) return;
+        const key = button.dataset.permissionAction;
+        if(!REQUIRED.includes(key) || pendingKeys.has(key) || permisos[key] === 'PERMITIDO') return;
+
+        pendingKeys.add(key);
+        render(permisos, pendingKeys);
+        message(`Validando ${labels[key][1]}...`);
+
         try{
-          permisos.gps = await requestGps(); render(permisos); await sync(permisos);
-          permisos.camara = await requestMedia('video'); render(permisos); await sync(permisos);
-          permisos.microfono = await requestMedia('audio'); render(permisos); await sync(permisos);
-          permisos.push = await requestPush(); render(permisos); await sync(permisos);
-          await finishIfAllowed();
+          permisos[key] = await requestOne(key);
+          await sync(permisos);
+          if(permisos[key] === 'PERMITIDO'){
+            message(`${labels[key][1]} quedó autorizado.`);
+          }else if(permisos[key] === 'DENEGADO'){
+            message(`${labels[key][1]} está bloqueado. Revisa los permisos del navegador o del sistema.`, true);
+          }else if(permisos[key] === 'NO_DISPONIBLE'){
+            message(`${labels[key][1]} no está disponible en este dispositivo o navegador.`, true);
+          }else{
+            message(`${labels[key][1]} continúa pendiente. Puedes activar los demás permisos.`, true);
+          }
         }catch(error){
-          message(error.message || 'No fue posible validar los permisos.', true);
+          message(error.message || `No fue posible validar ${labels[key][1]}.`, true);
         }finally{
-          setBusy(false);
+          pendingKeys.delete(key);
+          render(permisos, pendingKeys);
+          if(allAllowed(permisos)) refreshMessage();
+        }
+      };
+
+      document.getElementById('device-permissions-continue').onclick = async () => {
+        setGlobalBusy(true);
+        try{
+          permisos = await inspectAll();
+          render(permisos, pendingKeys);
+          await sync(permisos).catch(() => null);
+          rememberPrompt();
+          modal.hidden = true;
+          message('');
+          activePromise = null;
+          resolve(true);
+        }catch(error){
+          message(error.message || 'No fue posible guardar el estado de los permisos.', true);
+        }finally{
+          setGlobalBusy(false);
         }
       };
 
       document.getElementById('device-permissions-retry').onclick = async () => {
-        setBusy(true);
-        message('Validando permisos actuales...');
-        try{ await finishIfAllowed(); }
-        catch(error){ message(error.message || 'No fue posible validar los permisos.', true); }
-        finally{ setBusy(false); }
+        setGlobalBusy(true);
+        message('Revisando el estado actual de los permisos...');
+        try{
+          permisos = await inspectAll();
+          await sync(permisos);
+          render(permisos, pendingKeys);
+          refreshMessage();
+        }catch(error){
+          message(error.message || 'No fue posible validar los permisos.', true);
+        }finally{
+          setGlobalBusy(false);
+        }
       };
 
       document.getElementById('device-permissions-logout').onclick = () => {
@@ -247,46 +349,17 @@
         window.ManttoAuth && window.ManttoAuth.logout && window.ManttoAuth.logout();
       };
 
-      if(allAllowed(permisos)) await finishIfAllowed();
-      else message('Autoriza los permisos pendientes para completar el inicio de sesión.');
+      if(allAllowed(permisos)) refreshMessage();
+      else refreshMessage();
     });
     return activePromise;
-  }
-
-  async function revalidateFromProfile(){
-    const modal = ensureModal();
-    modal.hidden = false;
-    let permisos = await inspectAll();
-    render(permisos);
-    message('Validando permisos actuales del dispositivo...');
-    setBusy(true);
-    try{
-      permisos.gps = await requestGps(); render(permisos); await sync(permisos);
-      permisos.camara = await requestMedia('video'); render(permisos); await sync(permisos);
-      permisos.microfono = await requestMedia('audio'); render(permisos); await sync(permisos);
-      permisos.push = await requestPush(); render(permisos);
-      const result = await sync(permisos);
-      if(allAllowed(permisos) && result.acceso_general !== false){
-        message('Los cuatro permisos están activos en este dispositivo.');
-      }else{
-        message('Uno o más permisos siguen bloqueados. Revísalos en la configuración del navegador.', true);
-      }
-      document.dispatchEvent(new CustomEvent('mantto:device-permissions-updated',{detail:{permisos}}));
-      return permisos;
-    }finally{
-      setBusy(false);
-      const logout = document.getElementById('device-permissions-logout');
-      if(logout){
-        logout.textContent = 'Cerrar';
-        logout.onclick = () => { modal.hidden = true; };
-      }
-    }
   }
 
   window.ManttoDevicePermissions = {
     getDeviceToken,
     inspectAll,
     requireForSession,
-    revalidateFromProfile
+    reminderDue,
+    reminderIntervalMs: REMINDER_INTERVAL_MS
   };
 })();
