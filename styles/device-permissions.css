@@ -1,4 +1,4 @@
-.device-permissions-gate{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(7,24,54,.72);backdrop-filter:blur(8px)}
+.device-permissions-gate{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:rgba(7,24,54,.72);backdrop-filter:blur(8px)}
 .device-permissions-gate[hidden]{display:none}
 .device-permissions-card{width:min(560px,100%);background:#fff;border:1px solid #d9e4f3;border-radius:22px;padding:24px;box-shadow:0 24px 70px rgba(7,24,54,.32)}
 .device-permissions-eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#2b65b1}

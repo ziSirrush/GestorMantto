@@ -76,6 +76,12 @@
     if(!window.ManttoDevicePermissions || !window.ManttoDevicePermissions.requireForSession){
       throw new Error('El validador de permisos del dispositivo no esta disponible.');
     }
+
+    // La pantalla bootstrap tiene un z-index superior al modal de permisos.
+    // Debe ocultarse antes de iniciar la validacion para no dejar al usuario
+    // atrapado visualmente en "Validando sesion".
+    hideBootstrap();
+
     const allowed = await window.ManttoDevicePermissions.requireForSession();
     if(allowed) showApp();
     return allowed;
