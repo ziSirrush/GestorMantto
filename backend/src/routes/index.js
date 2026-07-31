@@ -20,6 +20,7 @@ const ventasCotizacionesRoutes = require('../modules/ventas-cotizaciones/ventas-
 const ventasCotizacionesHistorialRoutes = require('../modules/ventas-cotizaciones-historial/ventas-cotizaciones-historial.routes');
 const ventasClientesRoutes = require('../modules/ventas-clientes/ventas-clientes.routes');
 const ventasClientesContactosRoutes = require('../modules/ventas-clientes-contactos/ventas-clientes-contactos.routes');
+const ventasProspeccionRoutes = require('../modules/ventas-prospeccion/ventas-prospeccion.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
 
 const router = express.Router();
@@ -43,6 +44,7 @@ router.use('/ventas', ventasCotizacionesHistorialRoutes);
 router.use('/ventas', ventasCotizacionesRoutes);
 router.use('/ventas', ventasClientesRoutes);
 router.use('/ventas', ventasClientesContactosRoutes);
+router.use('/ventas', ventasProspeccionRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);
 router.use(dataRoutes);
 
