@@ -68,39 +68,17 @@
     }, 3200);
   }
 
-  function ensureButton(){
-    let button = document.getElementById('hdr-push-btn');
-    if(button) return button;
-    const notificationButton = document.getElementById('hdr-notif-btn');
-    if(!notificationButton || !notificationButton.parentElement) return null;
-    button = document.createElement('button');
-    button.type = 'button';
-    button.id = 'hdr-push-btn';
-    button.className = 'hdr-icon-btn';
-    button.setAttribute('aria-label', 'Activar notificaciones push');
-    button.title = 'Activar notificaciones push';
-    button.textContent = '📳';
-    notificationButton.insertAdjacentElement('afterend', button);
-    button.addEventListener('click', togglePush);
-    return button;
-  }
+  let currentState = 'off';
 
   function setButtonState(state){
-    const button = ensureButton();
-    if(!button) return;
-    const states = {
-      active: ['🔔', 'Notificaciones push activas'],
-      off: ['📳', 'Activar notificaciones push'],
-      denied: ['🔕', 'Notificaciones bloqueadas en el navegador'],
-      unavailable: ['—', 'Notificaciones push no disponibles'],
-      busy: ['…', 'Actualizando notificaciones push']
-    };
-    const value = states[state] || states.off;
-    button.textContent = value[0];
-    button.title = value[1];
-    button.setAttribute('aria-label', value[1]);
-    button.disabled = state === 'busy' || state === 'unavailable';
-    button.dataset.pushState = state;
+    currentState = state || 'off';
+    document.dispatchEvent(new CustomEvent('mantto:push-state', {
+      detail:{ state:currentState, permission:('Notification' in window ? Notification.permission : 'unsupported') }
+    }));
+  }
+
+  function getState(){
+    return { state:currentState, permission:('Notification' in window ? Notification.permission : 'unsupported') };
   }
 
   async function ensureInfrastructure(){
@@ -200,9 +178,8 @@
   async function init(){
     if(initialized) return;
     initialized = true;
-    const button = ensureButton();
     if(!supported()){
-      if(button) setButtonState('unavailable');
+      setButtonState('unavailable');
       return;
     }
     try{
@@ -242,6 +219,15 @@
     init,
     enable:enablePush,
     ensureEnabled:enablePush,
-    disable:disablePush
+    disable:disablePush,
+    getState,
+    revalidate:async function(options){
+      initialized = false;
+      config = null;
+      registration = null;
+      await init();
+      if(options && options.request === true && currentState !== 'active') return enablePush(options);
+      return getState();
+    }
   };
 })();

@@ -253,9 +253,40 @@
     return activePromise;
   }
 
+  async function revalidateFromProfile(){
+    const modal = ensureModal();
+    modal.hidden = false;
+    let permisos = await inspectAll();
+    render(permisos);
+    message('Validando permisos actuales del dispositivo...');
+    setBusy(true);
+    try{
+      permisos.gps = await requestGps(); render(permisos); await sync(permisos);
+      permisos.camara = await requestMedia('video'); render(permisos); await sync(permisos);
+      permisos.microfono = await requestMedia('audio'); render(permisos); await sync(permisos);
+      permisos.push = await requestPush(); render(permisos);
+      const result = await sync(permisos);
+      if(allAllowed(permisos) && result.acceso_general !== false){
+        message('Los cuatro permisos están activos en este dispositivo.');
+      }else{
+        message('Uno o más permisos siguen bloqueados. Revísalos en la configuración del navegador.', true);
+      }
+      document.dispatchEvent(new CustomEvent('mantto:device-permissions-updated',{detail:{permisos}}));
+      return permisos;
+    }finally{
+      setBusy(false);
+      const logout = document.getElementById('device-permissions-logout');
+      if(logout){
+        logout.textContent = 'Cerrar';
+        logout.onclick = () => { modal.hidden = true; };
+      }
+    }
+  }
+
   window.ManttoDevicePermissions = {
     getDeviceToken,
     inspectAll,
-    requireForSession
+    requireForSession,
+    revalidateFromProfile
   };
 })();

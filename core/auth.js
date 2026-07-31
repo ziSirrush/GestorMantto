@@ -146,6 +146,7 @@
     $('btn-cancel-first')?.addEventListener('click', ()=>{ clearSession(); showLogin(); });
     $('btn-recovery-start')?.addEventListener('click', handleRecoveryStart);
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
+    $('sidebar-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     const savedToken = localStorage.getItem(TOKEN_KEY);
     const savedUser = safeJson(localStorage.getItem(USER_KEY));
     if(!savedToken){ showLogin(); return; }

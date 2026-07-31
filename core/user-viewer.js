@@ -9,12 +9,6 @@
   function allowed(){return [...actorRoles()].some(r=>PROGRAMMER_ROLES.has(r));}
   function elements(){
     return {
-      wrap:document.getElementById('user-viewer-wrap'),
-      trigger:document.getElementById('user-viewer-trigger'),
-      triggerText:document.getElementById('user-viewer-trigger-text'),
-      menu:document.getElementById('user-viewer-menu'),
-      search:document.getElementById('user-viewer-search'),
-      list:document.getElementById('user-viewer-list'),
       banner:document.getElementById('user-viewer-banner'),
       actor:document.getElementById('user-viewer-actor'),
       view:document.getElementById('user-viewer-current'),
@@ -38,37 +32,36 @@
   function userSearchText(user){
     return norm([user.nombre,user.correo,user.empresa,user.puesto,user.area,principalRole(user),...userRoles(user)].join(' '));
   }
-  function renderList(filter=''){
-    const {list}=elements(); if(!list)return;
+  function panelHtml(){
+    const current=window.ManttoAuth?.getUser?.()||actor();
+    return `<section class="user-viewer-panel"><div class="user-viewer-panel-head"><div><span>VISOR DE USUARIOS</span><h2>Ver el sistema como otro usuario</h2><p>La auditoría conserva al usuario real que inició sesión.</p></div></div><div class="user-viewer-panel-search"><input id="user-viewer-panel-search" type="search" autocomplete="off" placeholder="Buscar por nombre, correo, rol o empresa..."></div><div class="user-viewer-panel-list" id="user-viewer-panel-list"></div><div class="user-viewer-panel-current">Vista actual: <b>${esc(current.nombre||current.correo||'Usuario')}</b></div></section>`;
+  }
+  function renderPanelList(filter=''){
+    const list=document.getElementById('user-viewer-panel-list'); if(!list)return;
     const current=window.ManttoAuth?.getUser?.()||actor();
     const query=norm(filter);
     const users=state.users.filter(user=>!query||userSearchText(user).includes(query));
-    if(!users.length){
-      list.innerHTML='<div class="user-viewer-empty">No se encontraron usuarios.</div>';
-      return;
-    }
-    list.innerHTML=users.map(user=>{
+    list.innerHTML=users.length?users.map(user=>{
       const real=Number(user.id_SB)===Number(actor().id_SB);
       const selected=Number(user.id_SB)===Number(current.id_SB);
       const meta=[principalRole(user),user.empresa||'BLT'].filter(Boolean).join(' · ');
-      return `<button class="user-viewer-option${selected?' is-selected':''}" type="button" role="option" aria-selected="${selected?'true':'false'}" data-user-id="${esc(user.id_SB)}"><span><b>${esc(user.nombre||user.correo||'Usuario')}</b><small>${esc(meta)}${real?' · Sesión real':''}</small></span>${selected?'<span class="user-viewer-check" aria-hidden="true">✓</span>':''}</button>`;
-    }).join('');
+      return `<button class="user-viewer-option${selected?' is-selected':''}" type="button" data-viewer-user-id="${esc(user.id_SB)}"><span><b>${esc(user.nombre||user.correo||'Usuario')}</b><small>${esc(meta)}${real?' · Sesión real':''}</small></span>${selected?'<span class="user-viewer-check">✓</span>':''}</button>`;
+    }).join(''):'<div class="user-viewer-empty">No se encontraron usuarios.</div>';
+    list.querySelectorAll('[data-viewer-user-id]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await change(button.dataset.viewerUserId);}catch(error){alert(error.message||'No fue posible cambiar la vista.');button.disabled=false;}}));
   }
-  function updateTrigger(){
-    const {triggerText}=elements(); if(!triggerText)return;
-    const current=window.ManttoAuth?.getUser?.()||actor();
-    triggerText.textContent=current.nombre||current.correo||'Seleccionar usuario';
+  async function renderPanel(container){
+    if(!container)return;
+    if(!allowed()){container.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No tienes autorización para usar el visor.</div></section>';return;}
+    if(!state.bootstrap){
+      const json=await window.ManttoAuth.apiGet('/api/panel-control/bootstrap');
+      state.bootstrap=json.data||{};
+      state.users=availableUsers();
+    }
+    container.innerHTML=panelHtml();
+    const search=document.getElementById('user-viewer-panel-search');
+    search?.addEventListener('input',()=>renderPanelList(search.value));
+    renderPanelList('');
   }
-  function openMenu(){
-    const {menu,trigger,search}=elements(); if(!menu||!trigger)return;
-    menu.hidden=false; trigger.setAttribute('aria-expanded','true');
-    if(search){search.value='';renderList('');setTimeout(()=>search.focus(),0);}
-  }
-  function closeMenu(){
-    const {menu,trigger}=elements(); if(!menu||!trigger)return;
-    menu.hidden=true; trigger.setAttribute('aria-expanded','false');
-  }
-  function toggleMenu(){const {menu}=elements();if(!menu)return;menu.hidden?openMenu():closeMenu();}
   function renderBanner(){
     const {banner,actor:actorEl,view}=elements(); if(!banner)return;
     const real=actor(), current=window.ManttoAuth?.getUser?.()||real, active=window.ManttoAuth?.isViewingAs?.();
@@ -76,7 +69,6 @@
     if(actorEl) actorEl.textContent=real.nombre||real.correo||'Usuario real';
     if(view) view.textContent=current.nombre||current.correo||'Usuario';
     document.body.classList.toggle('viewer-active',Boolean(active));
-    updateTrigger();
   }
   function permissionKeysForItem(item){
     const raw=[item.dataset.permission,item.dataset.route].filter(Boolean).map(norm);
@@ -99,6 +91,7 @@
     };
     const key=norm(item.dataset.permission); return [...new Set([...raw,...(aliases[key]||[])])];
   }
+  function catalogText(row){return norm([row.agrupacion_codigo,row.agrupacion_nombre,row.modulo_codigo,row.modulo_nombre,row.elemento_codigo,row.elemento_nombre,row.subelemento_codigo,row.subelemento_nombre].join(' '));}
   function groupKeys(group){
     const key=norm(group?.dataset?.group);
     const aliases={
@@ -108,33 +101,9 @@
     };
     return [...new Set([key,...(aliases[key]||[])].filter(Boolean))];
   }
-  function rowBelongsToGroup(row,group){
-    const keys=groupKeys(group);
-    if(!keys.length)return true;
-    const rowKeys=[norm(row?.agrupacion_codigo),norm(row?.agrupacion_nombre)].filter(Boolean);
-    return keys.some(key=>rowKeys.includes(key));
-  }
-  function normalizedFrontendRoute(value){
-    return norm(String(value||'').replace(/^#?\/?/,'').split(/[?#]/)[0]);
-  }
-  function moduleIdentityKeys(row){
-    return [
-      norm(row?.modulo_codigo),
-      norm(row?.modulo_nombre),
-      normalizedFrontendRoute(row?.modulo_ruta_frontend)
-    ].filter(Boolean);
-  }
   function rowsForModule(item){
     const keys=permissionKeysForItem(item);
-    const routeKey=norm(item?.dataset?.route);
-    const group=item?.closest?.('.side-group')||null;
-    return state.catalog.filter(row=>{
-      if(Number(row?.modulo_interno_visual)===1)return false;
-      if(!rowBelongsToGroup(row,group))return false;
-      const identities=moduleIdentityKeys(row);
-      if(routeKey&&identities.includes(routeKey))return true;
-      return keys.some(key=>key&&identities.includes(key));
-    });
+    return state.catalog.filter(row=>keys.some(k=>k&&catalogText(row).includes(k)));
   }
   function isActiveCatalogRow(row){
     return Number(row?.agrupacion_activo)!==0 && Number(row?.modulo_activo)!==0;
@@ -218,7 +187,6 @@
   }
   async function change(userId){
     const real=actor();
-    closeMenu();
     if(Number(userId)===Number(real.id_SB)){
       const destination=consumeReturnLocation();
       window.ManttoAuth.clearViewUser();
@@ -233,48 +201,32 @@
     reloadApplicationContext();
   }
   function bindEvents(){
-    const {wrap,trigger,search,list,exit}=elements();
-    trigger?.addEventListener('click',event=>{event.stopPropagation();toggleMenu();});
-    search?.addEventListener('input',()=>renderList(search.value));
-    search?.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeMenu();trigger?.focus();}});
-    list?.addEventListener('click',async event=>{
-      const option=event.target.closest('[data-user-id]'); if(!option)return;
-      option.disabled=true;
-      try{await change(option.dataset.userId);}catch(error){alert(error.message||'No fue posible cambiar la vista.');option.disabled=false;}
-    });
+    const {exit}=elements();
     exit?.addEventListener('click',()=>change(actor().id_SB));
-    document.addEventListener('click',event=>{if(wrap&&!wrap.contains(event.target))closeMenu();});
   }
   async function init(){
     if(state.ready)return; state.ready=true;
-    const {wrap}=elements();
     try{
       await loadSessionPermissions();
       applySidebar();
-
       if(allowed()){
         const json=await window.ManttoAuth.apiGet('/api/panel-control/bootstrap');
         state.bootstrap=json.data||{};
         state.users=availableUsers();
-        renderList('');
-        if(wrap)wrap.hidden=false;
-        renderBanner();
-        bindEvents();
-      }else if(wrap){
-        wrap.hidden=true;
       }
+      renderBanner();
+      bindEvents();
     }catch(error){
       console.error('[Permisos de sesión]',error);
       state.catalog=[];
       state.permissions.clear();
       applySidebar();
-      if(wrap)wrap.hidden=true;
     }
   }
   document.addEventListener('mantto:auth-ready',init);
   document.addEventListener('mantto:view-user-changed',async()=>{
     try{await loadSessionPermissions();}catch(error){console.error('[Permisos de sesión]',error);state.permissions.clear();}
-    renderBanner();applySidebar();renderList('');
+    renderBanner();applySidebar();
   });
-  window.ManttoUserViewer={init,applySidebar};
+  window.ManttoUserViewer={init,applySidebar,allowed,renderPanel};
 })();

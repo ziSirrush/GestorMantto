@@ -9,6 +9,23 @@
   function zonesText(user){ const zs=parseJsonArray(user && user.zonas_detalle).map(z=>z.zona || z.nombre).filter(Boolean); return zs.length ? zs.join(', ') : 'Sin zonas asociadas'; }
   function message(id,text,type){ const el=$(id); if(!el) return; el.textContent=text||''; el.className='usr-msg '+(type||''); }
   function avatarHtml(user, cls){ return `<span class="usr-avatar ${cls||''}">${esc(initials(user))}</span>`; }
+  const permissionLabels={gps:'GPS',camara:'Cámara',microfono:'Micrófono',push:'Notificaciones push'};
+  const permissionStateText={PERMITIDO:'Permitido',DENEGADO:'Bloqueado',NO_DISPONIBLE:'No disponible',PENDIENTE:'Pendiente'};
+  async function renderDevicePermissions(){
+    const box=$('usr-device-permissions'); if(!box) return;
+    if(!window.ManttoDevicePermissions){ box.innerHTML='<span class="usr-device-summary unavailable">No disponible</span>'; return; }
+    try{
+      const permisos=await window.ManttoDevicePermissions.inspectAll();
+      const all=Object.values(permisos).every(v=>v==='PERMITIDO');
+      box.innerHTML=`<button class="usr-device-card" id="usr-device-revalidate" type="button"><span class="usr-device-icon">${all?'✅':'⚠️'}</span><span><b>Permisos del dispositivo</b><small>${all?'GPS, cámara, micrófono y Push activos':'Toca para validar o solicitar permisos pendientes'}</small></span><span class="usr-device-arrow">›</span></button><div class="usr-device-states">${Object.entries(permissionLabels).map(([key,label])=>`<span data-state="${esc(permisos[key]||'PENDIENTE')}">${esc(label)}: ${esc(permissionStateText[permisos[key]]||'Pendiente')}</span>`).join('')}</div>`;
+      $('usr-device-revalidate')?.addEventListener('click',async()=>{
+        const button=$('usr-device-revalidate'); if(button) button.disabled=true;
+        try{ await window.ManttoDevicePermissions.revalidateFromProfile(); }
+        catch(error){ alert(error.message||'No fue posible validar los permisos.'); }
+        finally{ if(button) button.disabled=false; await renderDevicePermissions(); }
+      });
+    }catch(error){ box.innerHTML='<button class="usr-device-card" id="usr-device-revalidate" type="button"><span class="usr-device-icon">⚠️</span><span><b>Permisos del dispositivo</b><small>No fue posible consultar el estado. Toca para volver a validar.</small></span><span class="usr-device-arrow">›</span></button>'; $('usr-device-revalidate')?.addEventListener('click',()=>window.ManttoDevicePermissions?.revalidateFromProfile?.()); }
+  }
   function renderProfile(){
     const box=$('usr-profile-body'); if(!box) return; const me=state.me || {};
     const roles=rolesText(me); const chips=roles.length ? roles.map(r=>`<span class="usr-chip">${esc(r)}</span>`).join('') : '<span class="usr-chip">Sin roles asociados</span>';
@@ -24,10 +41,13 @@
         <div class="usr-info"><small>Último acceso</small><b>${esc(me.ultimo_acceso || '—')}</b></div>
         <div class="usr-info"><small>Pregunta de seguridad</small><b>${esc(me.pregunta_seguridad || 'No configurada')}</b></div>
       </div>
-      <div class="usr-actions"><button class="usr-btn" id="usr-open-pass" type="button">Cambiar contraseña</button><button class="usr-btn secondary" id="usr-open-secret" type="button">Cambiar pregunta/respuesta secreta</button></div>
+      <div class="usr-device-section"><div class="usr-section-title"><b>Permisos y notificaciones</b><small>Configuración del navegador y dispositivo actual.</small></div><div id="usr-device-permissions"><div class="usr-loading">Validando permisos...</div></div></div>
+      <div class="usr-actions"><button class="usr-btn" id="usr-open-pass" type="button">Cambiar contraseña</button><button class="usr-btn secondary" id="usr-open-secret" type="button">Cambiar pregunta/respuesta secreta</button><button class="usr-btn danger" id="usr-profile-logout" type="button">Cerrar sesión</button></div>
       <form class="usr-form" id="usr-pass-form"><label>Contraseña actual<input id="usr-current-pass" type="password" autocomplete="current-password" required></label><label>Contraseña nueva<input id="usr-new-pass" type="password" autocomplete="new-password" required placeholder="Mínimo 10 caracteres"></label><label>Confirmar contraseña nueva<input id="usr-new-pass-confirm" type="password" autocomplete="new-password" required></label><button class="usr-btn" type="submit">Guardar contraseña</button><div id="usr-pass-msg" class="usr-msg"></div></form>
       <form class="usr-form" id="usr-secret-form"><label>Contraseña actual<input id="usr-secret-current-pass" type="password" autocomplete="current-password" required></label><label>Respuesta actual<input id="usr-current-answer" type="text" required></label><label>Nueva pregunta<select id="usr-new-question" required></select></label><label>Nueva respuesta<input id="usr-new-answer" type="text" required></label><button class="usr-btn" type="submit">Guardar pregunta</button><div id="usr-secret-msg" class="usr-msg"></div></form>`;
     bindProfileForms();
+    $('usr-profile-logout')?.addEventListener('click',()=>window.ManttoAuth?.logout?.());
+    renderDevicePermissions();
   }
   function bindProfileForms(){
     $('usr-open-pass')?.addEventListener('click',()=>{$('usr-pass-form')?.classList.toggle('open'); $('usr-secret-form')?.classList.remove('open');});
@@ -122,5 +142,7 @@
   function setTab(tab){ state.tab=tab; document.querySelectorAll('.usr-tab').forEach(b=>b.classList.toggle('active', b.dataset.usrTab===tab)); document.querySelectorAll('.usr-panel').forEach(p=>p.classList.toggle('active', p.dataset.usrPanel===tab)); }
   function renderShell(){ const view=$('view-usuarios'); if(!view) return; view.innerHTML=`<div class="usr-page"><div class="usr-tabs"><button class="usr-tab active" data-usr-tab="perfil" type="button">MI PERFIL</button><button class="usr-tab" data-usr-tab="directorio" type="button">DIRECTORIO</button></div><div class="usr-shell"><section class="usr-card usr-panel active" data-usr-panel="perfil"><div class="usr-card-head"><div><h2>Mi perfil</h2><p>Información de tu cuenta y seguridad.</p></div></div><div class="usr-body" id="usr-profile-body"><div class="usr-loading">Cargando perfil...</div></div></section><section class="usr-card usr-panel" data-usr-panel="directorio"><div class="usr-card-head"><div><h2>Directorio de usuarios</h2><p>Consulta interna tipo contactos.</p></div></div><div class="usr-body"><input class="usr-search" id="usr-search" type="search" placeholder="Buscar por nombre, área, correo o rol"></div><div class="usr-list" id="usr-list"><div class="usr-loading">Cargando usuarios...</div></div><div class="usr-detail" id="usr-detail" hidden></div></section></div></div>`; document.querySelectorAll('.usr-tab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.usrTab))); $('usr-search')?.addEventListener('input', renderDirectory); }
   async function init(){ const view=$('view-usuarios'); if(!view) return; renderShell(); setTab(state.tab); try{ await Promise.all([loadMe(), loadUsers()]); renderProfile(); renderDirectory(); }catch(err){ view.innerHTML=`<div class="usr-page"><div class="usr-card"><div class="usr-empty">No se pudo cargar Usuarios. ${esc(err.message||'')}</div></div></div>`; } }
+  document.addEventListener('mantto:device-permissions-updated',()=>{ if(state.tab==='perfil') renderDevicePermissions(); });
+  document.addEventListener('mantto:push-state',()=>{ if(state.tab==='perfil') renderDevicePermissions(); });
   window.ManttoUsuarios={ init };
 })();
