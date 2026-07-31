@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const db = require('../src/config/db');
 
-const ID_USUARIO = 39;
+const ID_USUARIO = 81;
 
 function generarPassword() {
   return crypto.randomBytes(9).toString('base64')

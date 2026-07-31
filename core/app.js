@@ -199,11 +199,56 @@
       noriClose.addEventListener('click',()=>noriChat.classList.remove('open'));
     }
   }
+  const NOTIFICACIONES_REFRESH_MS = 10000;
+  let notificacionesTimer = null;
+  let notificacionesActualizando = false;
+
+  async function refrescarNotificacionesHeader(){
+    if(document.hidden || notificacionesActualizando) return;
+    if(!window.ManttoHome || typeof window.ManttoHome.refreshHeaderNotifications !== 'function') return;
+
+    notificacionesActualizando = true;
+    try{
+      await window.ManttoHome.refreshHeaderNotifications();
+    }finally{
+      notificacionesActualizando = false;
+    }
+  }
+
+  function detenerTimerNotificaciones(){
+    if(notificacionesTimer !== null){
+      window.clearInterval(notificacionesTimer);
+      notificacionesTimer = null;
+    }
+  }
+
+  function iniciarTimerNotificaciones(){
+    detenerTimerNotificaciones();
+    if(document.hidden) return;
+
+    refrescarNotificacionesHeader();
+    notificacionesTimer = window.setInterval(refrescarNotificacionesHeader, NOTIFICACIONES_REFRESH_MS);
+  }
+
+  function bindNotificationRefreshVisibility(){
+    if(window.__MANTTO_NOTIFICATIONS_VISIBILITY_BOUND__) return;
+    window.__MANTTO_NOTIFICATIONS_VISIBILITY_BOUND__ = true;
+
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden){
+        detenerTimerNotificaciones();
+        return;
+      }
+      iniciarTimerNotificaciones();
+    });
+  }
+
   function initAfterAuth(){
     if(window.__MANTTO_APP_READY__) return;
     window.__MANTTO_APP_READY__ = true;
     if(window.ManttoHome) window.ManttoHome.init();
-    window.setInterval(()=>{ if(window.ManttoHome && window.ManttoHome.refreshHeaderNotifications) window.ManttoHome.refreshHeaderNotifications(); }, 60000);
+    bindNotificationRefreshVisibility();
+    iniciarTimerNotificaciones();
     if(window.ManttoSupport) window.ManttoSupport.init();
     initDailyPhrase();
     bindGlobalNavigation();
