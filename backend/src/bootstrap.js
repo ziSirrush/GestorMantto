@@ -6,6 +6,7 @@ const { validateEnvironment } = require('./config/env.config');
 const logger = require('./shared/logger');
 const { startPortafolioCierreMensualJob } = require('./jobs/portafolioCierreMensual.job');
 const { startPortafolioCierreSemanalJob } = require('./jobs/portafolioCierreSemanal.job');
+const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/pushNotifications.job');
 
 let server = null;
 
@@ -25,6 +26,7 @@ function startScheduledJobs() {
     startPortafolioCierreMensualJob();
     startPortafolioCierreSemanalJob();
     logger.info('Jobs de Portafolio inicializados.');
+    startPushNotificationsJob();
   } catch (error) {
     logger.error('La API inicio, pero uno o mas jobs no pudieron inicializarse.', error);
   }
@@ -67,6 +69,7 @@ function registerShutdownHandlers() {
         });
       }
 
+      stopPushNotificationsJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);
