@@ -36,6 +36,13 @@
     return String(platform || 'Navegador').slice(0, 150);
   }
 
+  function deviceToken(explicitToken){
+    if(explicitToken) return explicitToken;
+    return window.ManttoDevicePermissions && window.ManttoDevicePermissions.getDeviceToken
+      ? window.ManttoDevicePermissions.getDeviceToken()
+      : String(localStorage.getItem('mantto_device_token') || '');
+  }
+
   function toast(message, error){
     let element = document.getElementById('mantto-push-toast');
     if(!element){
@@ -96,28 +103,44 @@
     button.dataset.pushState = state;
   }
 
+  async function ensureInfrastructure(){
+    if(!supported()) throw new Error('Las notificaciones push no estan disponibles en este dispositivo.');
+    if(!config){
+      config = await request('/api/push/config', { method:'GET' });
+      if(!config.enabled || !config.public_key) throw new Error(config.reason || 'Las notificaciones push no estan configuradas.');
+    }
+    if(!registration) registration = await navigator.serviceWorker.register(SW_PATH, { scope:'./' });
+    return registration;
+  }
+
   async function getSubscription(){
     if(!registration) return null;
     return registration.pushManager.getSubscription();
   }
 
-  async function syncSubscription(subscription){
+  async function syncSubscription(subscription, explicitDeviceToken){
     await request('/api/push/subscriptions', {
       method:'POST',
-      body: JSON.stringify({ subscription: subscription.toJSON(), device_name: deviceName() })
+      body: JSON.stringify({
+        subscription: subscription.toJSON(),
+        device_name: deviceName(),
+        device_token: deviceToken(explicitDeviceToken)
+      })
     });
   }
 
-  async function enablePush(){
-    if(busy) return;
+  async function enablePush(options){
+    const opts = options || {};
+    if(busy) return { active:false, permission:Notification.permission, busy:true };
     busy = true;
-    setButtonState('busy');
+    if(!opts.silent) setButtonState('busy');
     try{
+      await ensureInfrastructure();
       const permission = await Notification.requestPermission();
       if(permission !== 'granted'){
         setButtonState(permission === 'denied' ? 'denied' : 'off');
-        toast('No se activaron las notificaciones push.', true);
-        return;
+        if(!opts.silent) toast('No se activaron las notificaciones push.', true);
+        return { active:false, permission };
       }
       let subscription = await getSubscription();
       if(!subscription){
@@ -126,12 +149,14 @@
           applicationServerKey:urlBase64ToUint8Array(config.public_key)
         });
       }
-      await syncSubscription(subscription);
+      await syncSubscription(subscription, opts.deviceToken);
       setButtonState('active');
-      toast('Notificaciones push activadas.');
+      if(!opts.silent) toast('Notificaciones push activadas.');
+      return { active:true, permission:'granted', subscription };
     }catch(error){
-      setButtonState('off');
-      toast(error.message || 'No fue posible activar las notificaciones push.', true);
+      setButtonState(Notification.permission === 'denied' ? 'denied' : 'off');
+      if(!opts.silent) toast(error.message || 'No fue posible activar las notificaciones push.', true);
+      throw error;
     }finally{
       busy = false;
     }
@@ -142,6 +167,7 @@
     busy = true;
     setButtonState('busy');
     try{
+      await ensureInfrastructure();
       const subscription = await getSubscription();
       if(subscription){
         await request('/api/push/subscriptions', {
@@ -161,6 +187,7 @@
   }
 
   async function togglePush(){
+    await ensureInfrastructure().catch(() => null);
     const subscription = await getSubscription().catch(() => null);
     if(subscription) await disablePush();
     else await enablePush();
@@ -179,12 +206,7 @@
       return;
     }
     try{
-      config = await request('/api/push/config', { method:'GET' });
-      if(!config.enabled || !config.public_key){
-        setButtonState('unavailable');
-        return;
-      }
-      registration = await navigator.serviceWorker.register(SW_PATH, { scope:'./' });
+      await ensureInfrastructure();
       const subscription = await getSubscription();
       if(subscription && Notification.permission === 'granted'){
         await syncSubscription(subscription);
@@ -216,5 +238,10 @@
     }
   });
 
-  window.ManttoPushNotifications = { init, enable:enablePush, disable:disablePush };
+  window.ManttoPushNotifications = {
+    init,
+    enable:enablePush,
+    ensureEnabled:enablePush,
+    disable:disablePush
+  };
 })();

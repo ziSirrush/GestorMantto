@@ -1,0 +1,21 @@
+.device-permissions-gate{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(7,24,54,.72);backdrop-filter:blur(8px)}
+.device-permissions-gate[hidden]{display:none}
+.device-permissions-card{width:min(560px,100%);background:#fff;border:1px solid #d9e4f3;border-radius:22px;padding:24px;box-shadow:0 24px 70px rgba(7,24,54,.32)}
+.device-permissions-eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#2b65b1}
+.device-permissions-card h2{margin:7px 0 8px;color:#173567;font-size:26px}
+.device-permissions-card p{margin:0 0 18px;color:#66758c;line-height:1.5}
+.device-permissions-list{display:grid;gap:9px}
+.device-permission-row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:12px 14px;border:1px solid #e1e9f5;border-radius:13px;background:#f8fbff}
+.device-permission-row strong{font-size:12px;color:#8a5b00}
+.device-permission-row[data-state="PERMITIDO"] strong{color:#18774b}
+.device-permission-row[data-state="DENEGADO"] strong,.device-permission-row[data-state="NO_DISPONIBLE"] strong{color:#a52f3b}
+.device-permission-icon{font-size:19px}.device-permission-label{font-weight:800;color:#223a5f}
+.device-permissions-message{min-height:20px;margin:14px 0 4px;color:#2b65b1;font-size:13px;font-weight:700}
+.device-permissions-message.is-error{color:#a52f3b}
+.device-permissions-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.device-permissions-actions button{border-radius:11px;padding:10px 14px;font-weight:800;cursor:pointer}
+.device-permissions-actions button:disabled{opacity:.55;cursor:wait}
+.device-permissions-primary{border:1px solid #245ca8;background:#245ca8;color:#fff}
+.device-permissions-secondary{border:1px solid #cbd9ec;background:#fff;color:#245ca8}
+.device-permissions-link{border:0;background:transparent;color:#7d8796;margin-left:auto}
+@media(max-width:640px){.device-permissions-card{padding:19px;border-radius:17px}.device-permissions-card h2{font-size:22px}.device-permissions-actions{display:grid}.device-permissions-link{margin-left:0}}

@@ -72,6 +72,14 @@
     applyUserToHeader();
     document.dispatchEvent(new CustomEvent('mantto:auth-ready', { detail:{ user:getUser(), token:getToken() } }));
   }
+  async function completeAuthenticatedAccess(){
+    if(!window.ManttoDevicePermissions || !window.ManttoDevicePermissions.requireForSession){
+      throw new Error('El validador de permisos del dispositivo no esta disponible.');
+    }
+    const allowed = await window.ManttoDevicePermissions.requireForSession();
+    if(allowed) showApp();
+    return allowed;
+  }
   function showLogin(){
     hideBootstrap();
     const auth=$('auth-screen'), app=$('app');
@@ -97,8 +105,8 @@
         setForm('first-login-form');
         msg('first-msg','Configura tu primer acceso para continuar.','info');
       } else {
-        msg('login-msg','Login correcto.','ok');
-        showApp();
+        msg('login-msg','Login correcto. Validando permisos del dispositivo...','info');
+        await completeAuthenticatedAccess();
       }
     }catch(err){ msg('login-msg', err.message || 'No fue posible iniciar sesión.','error'); }
   }
@@ -108,8 +116,8 @@
     try{
       await apiPost('/api/auth/first-login/password', { user_id:user.id_SB, new_password:$('first-new-pass').value });
       await apiPost('/api/auth/first-login/security-question', { user_id:user.id_SB, id_pregunta:$('first-question').value, respuesta:$('first-answer').value });
-      msg('first-msg','Primer acceso completado.','ok');
-      showApp();
+      msg('first-msg','Primer acceso completado. Validando permisos del dispositivo...','info');
+      await completeAuthenticatedAccess();
     }catch(err){ msg('first-msg', err.message || 'No fue posible completar el primer acceso.','error'); }
   }
   async function handleRecoveryStart(){
@@ -151,7 +159,7 @@
       if(!validatedUser) throw new Error('Sesión sin usuario válido.');
       state.user=validatedUser;
       localStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
-      showApp();
+      await completeAuthenticatedAccess();
     }catch(error){
       clearSession();
       showLogin();
@@ -167,5 +175,5 @@
   }
   function clearViewUser(){ setViewUser(null); }
   function logout(){ clearSession(); showLogin(); }
-  window.ManttoAuth = { init, logout, getToken, getUser, getActorUser, getViewUser, setViewUser, clearViewUser, isViewingAs, applyUserToHeader, api, apiGet, apiPost, authHeaders(){ const t=getToken(); const h=t?{Authorization:'Bearer '+t}:{}; const v=getViewUser(); if(v&&v.id_SB) h['X-View-User-ID']=String(v.id_SB); return h; } };
+  window.ManttoAuth = { init, logout, getToken, getUser, getActorUser, getViewUser, setViewUser, clearViewUser, isViewingAs, applyUserToHeader, api, apiGet, apiPost, authHeaders(){ const t=getToken(); const h=t?{Authorization:'Bearer '+t}:{}; const d=window.ManttoDevicePermissions&&window.ManttoDevicePermissions.getDeviceToken?window.ManttoDevicePermissions.getDeviceToken():localStorage.getItem('mantto_device_token'); if(d) h['X-Device-Token']=String(d); const v=getViewUser(); if(v&&v.id_SB) h['X-View-User-ID']=String(v.id_SB); return h; } };
 })();

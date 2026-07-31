@@ -1,6 +1,6 @@
 const db = require('../../config/db');
 
-async function upsertSubscription({ userId, endpoint, p256dh, auth, userAgent, deviceName }) {
+async function upsertSubscription({ userId, endpoint, p256dh, auth, userAgent, deviceName, deviceToken }) {
   const [result] = await db.query(`
     INSERT INTO notificaciones_push_suscripciones (
       id_usuario,
@@ -9,19 +9,26 @@ async function upsertSubscription({ userId, endpoint, p256dh, auth, userAgent, d
       auth,
       user_agent,
       dispositivo_nombre,
+      id_dispositivo,
       activo,
       ultimo_uso_at
-    ) VALUES (?, ?, ?, ?, ?, ?, 1, NOW())
+    ) VALUES (?, ?, ?, ?, ?, ?, (
+      SELECT id_dispositivo
+      FROM usuarios_dispositivos
+      WHERE id_usuario = ? AND device_token = ? AND activo = 1
+      LIMIT 1
+    ), 1, NOW())
     ON DUPLICATE KEY UPDATE
       id_usuario = VALUES(id_usuario),
       p256dh = VALUES(p256dh),
       auth = VALUES(auth),
       user_agent = VALUES(user_agent),
       dispositivo_nombre = VALUES(dispositivo_nombre),
+      id_dispositivo = VALUES(id_dispositivo),
       activo = 1,
       ultimo_uso_at = NOW(),
       updated_at = NOW()
-  `, [userId, endpoint, p256dh, auth, userAgent || null, deviceName || null]);
+  `, [userId, endpoint, p256dh, auth, userAgent || null, deviceName || null, userId, deviceToken]);
 
   return result;
 }

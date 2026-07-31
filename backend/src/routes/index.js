@@ -22,6 +22,7 @@ const ventasClientesRoutes = require('../modules/ventas-clientes/ventas-clientes
 const ventasClientesContactosRoutes = require('../modules/ventas-clientes-contactos/ventas-clientes-contactos.routes');
 const ventasProspeccionRoutes = require('../modules/ventas-prospeccion/ventas-prospeccion.routes');
 const pushNotificationsRoutes = require('../modules/push-notifications/push-notifications.routes');
+const devicePermissionsRoutes = require('../modules/device-permissions/device-permissions.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
 
 const router = express.Router();
@@ -47,6 +48,7 @@ router.use('/ventas', ventasClientesRoutes);
 router.use('/ventas', ventasClientesContactosRoutes);
 router.use('/ventas', ventasProspeccionRoutes);
 router.use('/push', pushNotificationsRoutes);
+router.use('/device-permissions', devicePermissionsRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);
 router.use(dataRoutes);
 
