@@ -1,4 +1,8 @@
 (function(){
+  const TICKET_CHAT_REFRESH_MS = 10000;
+  let ticketChatRefreshTimer = null;
+  let ticketChatRefreshId = null;
+  let ticketChatRefreshBusy = false;
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
   const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'' };
@@ -156,15 +160,23 @@
     if(subEl) subEl.textContent=sub||'Mantto Gestor';
     if(body) body.innerHTML=html||'';
   }
+  function stopTicketChatRefresh(){
+    if(ticketChatRefreshTimer) window.clearInterval(ticketChatRefreshTimer);
+    ticketChatRefreshTimer = null;
+    ticketChatRefreshId = null;
+    ticketChatRefreshBusy = false;
+  }
   function close(){
+    stopTicketChatRefresh();
     if(window.ManttoRouter && window.ManttoRouter.back) window.ManttoRouter.back();
   }
   function render(payload){
     const type = payload && payload.type;
     const id = payload && payload.id;
+    if(type !== 'ticket') stopTicketChatRefresh();
     if(type === 'proyecto') return openProyecto(id, payload || {});
     if(type === 'equipo') return openEquipo_gnral(id);
-    if(type === 'ticket') return openTicket(id, payload && payload.knownTicket);
+    if(type === 'ticket') return openTicket(id, payload && payload.knownTicket, payload || {});
     if(type === 'equipo-critico') return openEquipoCritico(id, payload && payload.options);
     show('Detalle', 'Mantto Gestor', '<div class="mg-empty">No se indicó un detalle válido.</div>');
   }
@@ -1030,6 +1042,46 @@
     return '<div class="mg-ticket-layout"><main class="mg-ticket-main">'+ticketMainHtml(t,ticketId)+'</main><aside class="mg-ticket-side">'+ticketChatHtml(interactions)+ticketValidationHtml(t,interactions)+'</aside></div>';
   }
   function scrollTicketChat(){ const el=document.getElementById('mg-ticket-chat-list'); if(el) el.scrollTop=el.scrollHeight; }
+  function focusTicketChat(){
+    const chat=document.querySelector('.mg-ticket-chat');
+    if(!chat) return;
+    chat.scrollIntoView({ behavior:'smooth', block:'center' });
+    window.setTimeout(function(){
+      const input=document.getElementById('mg-ticket-chat-input');
+      if(input) input.focus({ preventScroll:true });
+    }, 350);
+  }
+  function renderTicketComments(comments){
+    const list=document.getElementById('mg-ticket-chat-list');
+    if(!list) return;
+    const user=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
+    const uid=String(user&& (user.id_SB||user.id) || '');
+    const nearBottom=(list.scrollHeight-list.scrollTop-list.clientHeight)<40;
+    list.innerHTML=(comments||[]).length?(comments||[]).map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(c.fecha_formateada||c.fecha_creacion||'')+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>';
+    if(nearBottom) list.scrollTop=list.scrollHeight;
+  }
+  async function refreshTicketChat(ticketId){
+    if(ticketChatRefreshBusy || ticketChatRefreshId!==String(ticketId)) return;
+    if(!currentDetailMatches('ticket', ticketId) || document.hidden){ return; }
+    ticketChatRefreshBusy=true;
+    try{
+      const ix=await fetchJson('/api/tickets/'+encodeURIComponent(ticketId)+'/interacciones');
+      const interactions=ix.data||ix||{};
+      const comments=interactions.comentarios||[];
+      renderTicketComments(comments);
+      if(!comments.length) stopTicketChatRefresh();
+    }catch(e){
+      console.warn('[ManttoDetails] No se pudo actualizar el chat del ticket.', e);
+    }finally{
+      ticketChatRefreshBusy=false;
+    }
+  }
+  function startTicketChatRefresh(ticketId, comments){
+    stopTicketChatRefresh();
+    if(!Array.isArray(comments) || comments.length===0) return;
+    ticketChatRefreshId=String(ticketId);
+    ticketChatRefreshTimer=window.setInterval(function(){ refreshTicketChat(ticketId); }, TICKET_CHAT_REFRESH_MS);
+  }
   function bindTicketInteractions(t, ticketId){
     scrollTicketChat();
     const chat=document.getElementById('mg-ticket-chat-form');
@@ -1048,8 +1100,10 @@
       catch(e){ alert(e.message||'No fue posible guardar la validación.'); save.disabled=false; }
     });
   }
-  async function openTicket(ticketId, knownTicket){
+  async function openTicket(ticketId, knownTicket, options){
     ticketId = ticketKey(ticketId); if(!ticketId || ticketId === '—') return;
+    const openOptions=options||{};
+    stopTicketChatRefresh();
     if(!currentDetailMatches('ticket', ticketId) && navigate('ticket', ticketId, knownTicket ? { knownTicket } : null)) return;
     if(knownTicket) registerTickets([knownTicket]);
     show('Ticket', ticketId, '<div class="mg-empty">Cargando detalle del ticket...</div>');
@@ -1081,7 +1135,9 @@
       const body=document.getElementById('mg-detail-body');
       body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
       bindLinks(body); bindTicketInteractions(t,ticketId);
-    }catch(e){ show('Ticket', ticketId, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
+      startTicketChatRefresh(ticketId, interactions.comentarios||[]);
+      if(openOptions.focus==='chat') window.setTimeout(focusTicketChat, 80);
+    }catch(e){ stopTicketChatRefresh(); show('Ticket', ticketId, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
   async function openEquipoCritico(codigo, opts){
     codigo = String(codigo || '').trim(); if(!codigo) return;
@@ -1105,5 +1161,13 @@
       const body=document.getElementById('mg-detail-body'); body.innerHTML=body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); bindLinks(body);
     }catch(e){ show('Equipo crítico', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
+  document.addEventListener('mantto:navigation', function(event){
+    const detail=event&&event.detail;
+    if(!detail || detail.route!=='detalle' || !detail.payload || detail.payload.type!=='ticket') stopTicketChatRefresh();
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden && ticketChatRefreshId) refreshTicketChat(ticketChatRefreshId);
+  });
+
   window.ManttoDetails = { show, close, render, openProyecto, openEquipo:openEquipo_gnral, openEquipo_uni, openEquipo_cor, openEquipo_gnral, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
 })();

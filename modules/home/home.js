@@ -207,10 +207,21 @@
     };
   }
 
+  function isCommentNotification(row){
+    const source = [
+      row && row.accion_notificacion,
+      row && row.tipo_notificacion,
+      row && row.titulo_notificacion,
+      row && row.mensaje_notificacion
+    ].map(value => String(value || '').toUpperCase()).join(' ');
+    return source.includes('COMENT');
+  }
+
   function notificationRoute(row, id){
     const ruta = String(row.ruta_destino || '').trim();
     const accion = String(row.accion_notificacion || '').trim().toUpperCase();
     const ref = row.id_referencia || id;
+    const focusChat = isCommentNotification(row);
 
     if(ruta.startsWith('home:tarea:')){
       return { module:'tareas', id:ruta.split(':').pop(), notificationId:id };
@@ -225,12 +236,13 @@
         module:'detalle',
         type:String(detalle[1]).toLowerCase(),
         id:detalle[2],
-        notificationId:id
+        notificationId:id,
+        focus:focusChat ? 'chat' : null
       };
     }
 
     if(accion === 'ABRIR_TICKET'){
-      return { module:'detalle', type:'ticket', id:ref, notificationId:id };
+      return { module:'detalle', type:'ticket', id:ref, notificationId:id, focus:focusChat ? 'chat' : null };
     }
     if(ruta === 'soporte-solicitudes' || accion === 'ABRIR_SOLICITUD'){
       return { module:'soporte-solicitudes', id:ref, notificationId:id };

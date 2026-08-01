@@ -573,7 +573,7 @@
       }
       view.innerHTML = `<div class="placeholder"><div class="card placeholder-card construction-card"><div class="construction-icon">🔔</div><h1>Notificaciones nuevas</h1><p>Solo aparecen notificaciones que todavía no han sido abiertas.</p><div id="notif-new-list" class="rail-list" style="max-height:60vh;overflow:auto;margin-top:14px"></div></div></div>`;
       const list = document.getElementById('notif-new-list');
-      list.innerHTML = rows.map(n => `<article class="notif-item unread clickable" data-id="${safeText(n.id_notificacion || '')}" data-ref="${safeText(n.id_referencia || '')}" data-action="${safeText(n.accion_notificacion || '')}" data-ruta="${safeText(n.ruta_destino || '')}"><div class="notif-icon">${safeText(n.icono_notificacion || '🔔')}</div><div><div class="notif-title">${safeText(n.titulo_notificacion || 'Notificación')}</div><div class="notif-text">${safeText(n.mensaje_notificacion || '')}</div><div class="notif-time">${new Date(n.fecha_creacion).toLocaleString('es-MX')}</div></div></article>`).join('');
+      list.innerHTML = rows.map(n => `<article class="notif-item unread clickable" data-id="${safeText(n.id_notificacion || '')}" data-ref="${safeText(n.id_referencia || '')}" data-action="${safeText(n.accion_notificacion || '')}" data-tipo="${safeText(n.tipo_notificacion || '')}" data-title="${safeText(n.titulo_notificacion || '')}" data-message="${safeText(n.mensaje_notificacion || '')}" data-ruta="${safeText(n.ruta_destino || '')}"><div class="notif-icon">${safeText(n.icono_notificacion || '🔔')}</div><div><div class="notif-title">${safeText(n.titulo_notificacion || 'Notificación')}</div><div class="notif-text">${safeText(n.mensaje_notificacion || '')}</div><div class="notif-time">${new Date(n.fecha_creacion).toLocaleString('es-MX')}</div></div></article>`).join('');
       list.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', async () => {
         const id = el.dataset.id;
         const ref = el.dataset.ref;
@@ -581,7 +581,15 @@
         await fetch(API_BASE + '/api/notificaciones/' + encodeURIComponent(id) + '/abrir', { method:'PATCH', headers }).catch(()=>null);
         if(window.ManttoHome && window.ManttoHome.refreshHeaderNotifications) window.ManttoHome.refreshHeaderNotifications();
         if(ruta.startsWith('home:tarea:') || el.dataset.action === 'ABRIR_TAREA') window.ManttoRouter.go('tareas', { module:'tareas', id: ref || ruta.split(':').pop() });
-        else if(ruta.startsWith('detalle:ticket:') || el.dataset.action === 'ABRIR_TICKET') window.ManttoRouter.go('detalle', { type:'ticket', id:ruta.split(':').slice(2).join(':') || ref });
+        else if(ruta.startsWith('detalle:ticket:') || el.dataset.action === 'ABRIR_TICKET'){
+          const focusChat = isCommentNotification({
+            action:el.dataset.action,
+            tipo_notificacion:el.dataset.tipo,
+            titulo_notificacion:el.dataset.title,
+            mensaje_notificacion:el.dataset.message
+          });
+          window.ManttoRouter.go('detalle', { type:'ticket', id:ruta.split(':').slice(2).join(':') || ref, focus:focusChat ? 'chat' : null });
+        }
         else if(ruta === 'soporte-solicitudes' || el.dataset.action === 'ABRIR_SOLICITUD') window.ManttoRouter.go('soporte-solicitudes', { id: ref });
         else window.ManttoRouter.go('home');
       }));
@@ -769,6 +777,19 @@
     }
   });
 
+  function isCommentNotification(target){
+    const source = [
+      target && target.action,
+      target && target.accion_notificacion,
+      target && target.tipo_notificacion,
+      target && target.title,
+      target && target.titulo_notificacion,
+      target && target.text,
+      target && target.mensaje_notificacion
+    ].map(function(value){ return String(value || '').toUpperCase(); }).join(' ');
+    return source.includes('COMENT');
+  }
+
   function normalizeOpenTarget(target){
     if(!target) return { route:'home', payload:null };
 
@@ -776,6 +797,7 @@
     const action = String(target.action || target.accion_notificacion || '').trim().toUpperCase();
     const reference = target.id_referencia || target.referenceId || target.id || null;
     const notificationId = target.notificationId || target.id_notificacion || null;
+    const focusChat = isCommentNotification(target) || target.focus === 'chat';
 
     const detailMatch = rawRoute.match(/^detalle:(ticket|proyecto|equipo):(.+)$/i);
     if(detailMatch){
@@ -784,13 +806,14 @@
         payload:{
           type:String(detailMatch[1]).toLowerCase(),
           id:detailMatch[2],
-          notificationId
+          notificationId,
+          focus:focusChat ? 'chat' : null
         }
       };
     }
 
     if(action === 'ABRIR_TICKET'){
-      return { route:'detalle', payload:{ type:'ticket', id:reference, notificationId } };
+      return { route:'detalle', payload:{ type:'ticket', id:reference, notificationId, focus:focusChat ? 'chat' : null } };
     }
 
     if(action === 'ABRIR_TAREA'){
