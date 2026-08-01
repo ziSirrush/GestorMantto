@@ -229,3 +229,31 @@ button{cursor:pointer}
 .help-status-chip[data-state="abierto"],.help-status-chip[data-state="asignado"]{background:#dbeafe;color:#1e3a8a}.help-status-chip[data-state="en proceso"]{background:#fef3c7;color:#92400e}.help-status-chip[data-state="resuelto"],.help-status-chip[data-state="cerrado"]{background:#dcfce7;color:#166534}
 .support-form small{color:var(--muted);font-size:11px;text-transform:none;letter-spacing:normal;font-weight:500}
 @media(max-width:760px){.help-request-actions{grid-template-columns:1fr}.help-request-action{min-height:120px}.help-request-filters{grid-template-columns:1fr}}
+
+/* FIX URGENTE RESPONSIVE V001 · Evita autozoom de iOS al abrir/focalizar formularios */
+@media (max-width: 920px) {
+  input,
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+    max-width: 100%;
+  }
+
+  input,
+  select,
+  textarea {
+    box-sizing: border-box;
+  }
+}
+
+
+/* FIX URGENTE RESPONSIVE V002 · Mantiene la escala fija y conserva scroll horizontal/vertical */
+@media (max-width: 920px) {
+  html,
+  body {
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}
