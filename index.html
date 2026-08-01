@@ -55,8 +55,7 @@
 <link rel="stylesheet" href="./modules/ventas-prospeccion-nueva/ventas-prospeccion-nueva.css?v=20260731-v002">
 <link rel="stylesheet" href="./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.css?v=20260731-fase4a-v001">
 <link rel="stylesheet" href="./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.css?v=20260731-fase1-v001">
-<link rel="stylesheet" href="./styles/device-permissions.css?v=20260731-v002"/>
-<link rel="stylesheet" href="./styles/session-controls.css?v=20260731-v001"/>
+<link rel="stylesheet" href="./styles/device-permissions.css?v=20260731-mobile-v005"/>
 </head>
 <body>
 <section aria-label="Validando sesión" aria-live="polite" class="auth-bootstrap-screen" id="auth-bootstrap-screen">
@@ -146,6 +145,19 @@
           <span class="hdr-badge" id="hdr-notif-count">0</span>
 </button>
 <div class="hdr-notif-popover" hidden="" id="hdr-notif-popover"></div>
+<div class="user-viewer-wrap" hidden="" id="user-viewer-wrap">
+<span class="user-viewer-label">👁 Ver como</span>
+<button aria-expanded="false" aria-haspopup="listbox" class="user-viewer-trigger" id="user-viewer-trigger" type="button">
+<span id="user-viewer-trigger-text">Seleccionar usuario</span>
+<span aria-hidden="true">▾</span>
+</button>
+<div class="user-viewer-menu" hidden="" id="user-viewer-menu">
+<div class="user-viewer-search-wrap">
+<input aria-label="Buscar usuario" autocomplete="off" id="user-viewer-search" placeholder="Buscar por nombre, correo, rol o empresa..." type="search"/>
+</div>
+<div aria-label="Usuarios disponibles" class="user-viewer-list" id="user-viewer-list" role="listbox"></div>
+</div>
+</div>
 <div aria-label="Usuario y sesión" class="hdr-user-actions">
 <button class="hdr-user" data-route="usuarios" title="Abrir usuario / perfil" type="button">
 <span class="hdr-av" id="hdr-user-initials">--</span>
@@ -302,8 +314,6 @@
 <div aria-hidden="true" class="side-divider"></div>
 <button class="side-item side-standalone" data-permission="usuarios" data-route="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
 <button class="side-item side-standalone programmer" data-permission="panel_control" data-route="panel-control" type="button"><span>⚙️</span><b>Panel de Control</b></button>
-<div aria-hidden="true" class="side-divider sidebar-session-divider"></div>
-<button class="side-item side-standalone sidebar-logout-btn" id="sidebar-logout-btn" type="button"><span>⎋</span><b>Cerrar sesión</b></button>
 </nav>
 </aside>
 <main class="main-content">
@@ -665,9 +675,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="./core/daily-phrases.js?v=20260705-v114"></script>
 <script src="./core/config.js?v=20260705-v114"></script>
-<script src="./core/push-notifications.js?v=20260731-profile-v003"></script>
-<script src="./core/device-permissions.js?v=20260731-profile-v003"></script>
-<script src="./core/auth.js?v=20260731-profile-v003"></script>
+<script src="./core/push-notifications.js?v=20260731-mobile-v005"></script>
+<script src="./core/device-permissions.js?v=20260731-mobile-v005"></script>
+<script src="./core/auth.js?v=20260731-device-permissions-v002"></script>
 <script src="./core/router.js?v=20260726-fix-tabs-activos-v003"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
@@ -704,7 +714,7 @@
 <script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260723-v030-2"></script>
 <script src="./modules/support/support.js?v=20260723-v030-2"></script>
 <script src="./core/details.js?v=v032_1_v031_3_1"></script>
-<script src="./core/user-viewer.js?v=20260731-panel-v025"></script>
+<script src="./core/user-viewer.js?v=20260722-v024"></script>
 <script src="./core/app.js?v=20260722-session-permissions-v017"></script>
 </body>
 </html>

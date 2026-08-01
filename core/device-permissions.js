@@ -64,11 +64,16 @@
     return mapState(await queryPermission(name || kind));
   }
 
+  function notificationApi(){
+    return typeof window !== 'undefined' && 'Notification' in window ? window.Notification : null;
+  }
+
   async function inspectPush(){
-    if(!window.isSecureContext || !('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){
+    const notifications = notificationApi();
+    if(!window.isSecureContext || !notifications || !('serviceWorker' in navigator) || !('PushManager' in window)){
       return 'NO_DISPONIBLE';
     }
-    if(Notification.permission === 'granted'){
+    if(notifications.permission === 'granted'){
       try{
         const registration = await navigator.serviceWorker.getRegistration('./');
         const subscription = registration && await registration.pushManager.getSubscription();
@@ -77,7 +82,7 @@
         return 'PENDIENTE';
       }
     }
-    return mapState(Notification.permission);
+    return mapState(notifications.permission);
   }
 
   async function inspectAll(){
@@ -115,15 +120,31 @@
   }
 
   async function requestPush(){
-    if(!window.ManttoPushNotifications || !window.ManttoPushNotifications.ensureEnabled) return 'NO_DISPONIBLE';
+    const notifications = notificationApi();
+    if(!window.isSecureContext || !notifications || !('serviceWorker' in navigator) || !('PushManager' in window)){
+      return 'NO_DISPONIBLE';
+    }
+
     try{
+      // Safari/iOS exige que requestPermission ocurra directamente dentro del clic.
+      let permission = notifications.permission;
+      if(permission === 'default') permission = await notifications.requestPermission();
+      if(permission === 'denied') return 'DENEGADO';
+      if(permission !== 'granted') return 'PENDIENTE';
+
+      if(!window.ManttoPushNotifications || !window.ManttoPushNotifications.ensureEnabled){
+        return 'PENDIENTE';
+      }
+
       const result = await window.ManttoPushNotifications.ensureEnabled({
         silent:true,
-        deviceToken:getDeviceToken()
+        deviceToken:getDeviceToken(),
+        permissionAlreadyGranted:true
       });
-      return result && result.active ? 'PERMITIDO' : (result && result.permission === 'denied' ? 'DENEGADO' : 'PENDIENTE');
+      return result && result.active ? 'PERMITIDO' : 'PENDIENTE';
     }catch(error){
-      return Notification.permission === 'denied' ? 'DENEGADO' : 'PENDIENTE';
+      const current = notificationApi();
+      return current && current.permission === 'denied' ? 'DENEGADO' : 'PENDIENTE';
     }
   }
 

@@ -1,3 +1,13 @@
+const SERVICE_WORKER_VERSION = '20260731-permissions-mobile-v005';
+
+self.addEventListener('install', event => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(self.clients.claim());
+});
+
 const NOTIFICATION_TITLE = 'Mantto Gestor';
 const NOTIFICATION_BODY = 'Tienes una nueva notificación pendiente.';
 const APP_URL = './index.html?push_open=notifications';

@@ -27,8 +27,12 @@
     return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
   }
 
+  function notificationApi(){
+    return typeof window !== 'undefined' && 'Notification' in window ? window.Notification : null;
+  }
+
   function supported(){
-    return window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    return Boolean(window.isSecureContext && notificationApi() && 'serviceWorker' in navigator && 'PushManager' in window);
   }
 
   function deviceName(){
@@ -68,17 +72,39 @@
     }, 3200);
   }
 
-  let currentState = 'off';
-
-  function setButtonState(state){
-    currentState = state || 'off';
-    document.dispatchEvent(new CustomEvent('mantto:push-state', {
-      detail:{ state:currentState, permission:('Notification' in window ? Notification.permission : 'unsupported') }
-    }));
+  function ensureButton(){
+    let button = document.getElementById('hdr-push-btn');
+    if(button) return button;
+    const notificationButton = document.getElementById('hdr-notif-btn');
+    if(!notificationButton || !notificationButton.parentElement) return null;
+    button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'hdr-push-btn';
+    button.className = 'hdr-icon-btn';
+    button.setAttribute('aria-label', 'Activar notificaciones push');
+    button.title = 'Activar notificaciones push';
+    button.textContent = '📳';
+    notificationButton.insertAdjacentElement('afterend', button);
+    button.addEventListener('click', togglePush);
+    return button;
   }
 
-  function getState(){
-    return { state:currentState, permission:('Notification' in window ? Notification.permission : 'unsupported') };
+  function setButtonState(state){
+    const button = ensureButton();
+    if(!button) return;
+    const states = {
+      active: ['🔔', 'Notificaciones push activas'],
+      off: ['📳', 'Activar notificaciones push'],
+      denied: ['🔕', 'Notificaciones bloqueadas en el navegador'],
+      unavailable: ['—', 'Notificaciones push no disponibles'],
+      busy: ['…', 'Actualizando notificaciones push']
+    };
+    const value = states[state] || states.off;
+    button.textContent = value[0];
+    button.title = value[1];
+    button.setAttribute('aria-label', value[1]);
+    button.disabled = state === 'busy' || state === 'unavailable';
+    button.dataset.pushState = state;
   }
 
   async function ensureInfrastructure(){
@@ -109,17 +135,23 @@
 
   async function enablePush(options){
     const opts = options || {};
-    if(busy) return { active:false, permission:Notification.permission, busy:true };
+    const notifications = notificationApi();
+    if(!notifications) return { active:false, permission:'unsupported' };
+    if(busy) return { active:false, permission:notifications.permission, busy:true };
     busy = true;
     if(!opts.silent) setButtonState('busy');
     try{
-      await ensureInfrastructure();
-      const permission = await Notification.requestPermission();
+      // Solicitar primero el permiso para conservar el gesto del usuario en Safari/iOS.
+      let permission = notifications.permission;
+      if(permission === 'default' && !opts.permissionAlreadyGranted){
+        permission = await notifications.requestPermission();
+      }
       if(permission !== 'granted'){
         setButtonState(permission === 'denied' ? 'denied' : 'off');
         if(!opts.silent) toast('No se activaron las notificaciones push.', true);
         return { active:false, permission };
       }
+      await ensureInfrastructure();
       let subscription = await getSubscription();
       if(!subscription){
         subscription = await registration.pushManager.subscribe({
@@ -132,7 +164,8 @@
       if(!opts.silent) toast('Notificaciones push activadas.');
       return { active:true, permission:'granted', subscription };
     }catch(error){
-      setButtonState(Notification.permission === 'denied' ? 'denied' : 'off');
+      const current = notificationApi();
+      setButtonState(current && current.permission === 'denied' ? 'denied' : 'off');
       if(!opts.silent) toast(error.message || 'No fue posible activar las notificaciones push.', true);
       throw error;
     }finally{
@@ -178,17 +211,19 @@
   async function init(){
     if(initialized) return;
     initialized = true;
+    const button = ensureButton();
     if(!supported()){
-      setButtonState('unavailable');
+      if(button) setButtonState('unavailable');
       return;
     }
     try{
       await ensureInfrastructure();
       const subscription = await getSubscription();
-      if(subscription && Notification.permission === 'granted'){
+      const notifications = notificationApi();
+      if(subscription && notifications && notifications.permission === 'granted'){
         await syncSubscription(subscription);
         setButtonState('active');
-      }else if(Notification.permission === 'denied') setButtonState('denied');
+      }else if(notifications && notifications.permission === 'denied') setButtonState('denied');
       else setButtonState('off');
     }catch(error){
       console.warn('[Push] No fue posible inicializar notificaciones push:', error);
@@ -219,15 +254,6 @@
     init,
     enable:enablePush,
     ensureEnabled:enablePush,
-    disable:disablePush,
-    getState,
-    revalidate:async function(options){
-      initialized = false;
-      config = null;
-      registration = null;
-      await init();
-      if(options && options.request === true && currentState !== 'active') return enablePush(options);
-      return getState();
-    }
+    disable:disablePush
   };
 })();
