@@ -72,39 +72,18 @@
     }, 3200);
   }
 
-  function ensureButton(){
-    let button = document.getElementById('hdr-push-btn');
-    if(button) return button;
-    const notificationButton = document.getElementById('hdr-notif-btn');
-    if(!notificationButton || !notificationButton.parentElement) return null;
-    button = document.createElement('button');
-    button.type = 'button';
-    button.id = 'hdr-push-btn';
-    button.className = 'hdr-icon-btn';
-    button.setAttribute('aria-label', 'Activar notificaciones push');
-    button.title = 'Activar notificaciones push';
-    button.textContent = '📳';
-    notificationButton.insertAdjacentElement('afterend', button);
-    button.addEventListener('click', togglePush);
-    return button;
+  function removeLegacyButton(){
+    const button = document.getElementById('hdr-push-btn');
+    if(button) button.remove();
   }
 
-  function setButtonState(state){
-    const button = ensureButton();
-    if(!button) return;
-    const states = {
-      active: ['🔔', 'Notificaciones push activas'],
-      off: ['📳', 'Activar notificaciones push'],
-      denied: ['🔕', 'Notificaciones bloqueadas en el navegador'],
-      unavailable: ['—', 'Notificaciones push no disponibles'],
-      busy: ['…', 'Actualizando notificaciones push']
-    };
-    const value = states[state] || states.off;
-    button.textContent = value[0];
-    button.title = value[1];
-    button.setAttribute('aria-label', value[1]);
-    button.disabled = state === 'busy' || state === 'unavailable';
-    button.dataset.pushState = state;
+  function ensureButton(){
+    removeLegacyButton();
+    return null;
+  }
+
+  function setButtonState(){
+    removeLegacyButton();
   }
 
   async function ensureInfrastructure(){
@@ -254,6 +233,7 @@
     init,
     enable:enablePush,
     ensureEnabled:enablePush,
-    disable:disablePush
+    disable:disablePush,
+    supported
   };
 })();

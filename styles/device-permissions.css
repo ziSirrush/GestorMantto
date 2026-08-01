@@ -47,3 +47,8 @@
   .device-permissions-actions{grid-template-columns:1fr}
   .device-permissions-actions button{width:100%;min-height:44px}
 }
+
+/* FIX V006: informacion Push por modo de navegador y sincronizacion no bloqueante */
+.device-permission-label small{display:block;margin-top:4px;color:#6f7f96;font-size:11px;font-weight:650;line-height:1.35}
+.device-permission-row[data-state="NO_DISPONIBLE"]{background:#f8fafc}
+.device-permission-row[data-state="NO_DISPONIBLE"] .device-permission-action{color:#52657d;background:#fff}

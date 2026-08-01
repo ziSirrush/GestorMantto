@@ -20,8 +20,11 @@
       box.innerHTML=`<button class="usr-device-card" id="usr-device-revalidate" type="button"><span class="usr-device-icon">${all?'✅':'⚠️'}</span><span><b>Permisos del dispositivo</b><small>${all?'GPS, cámara, micrófono y Push activos':'Toca para validar o solicitar permisos pendientes'}</small></span><span class="usr-device-arrow">›</span></button><div class="usr-device-states">${Object.entries(permissionLabels).map(([key,label])=>`<span data-state="${esc(permisos[key]||'PENDIENTE')}">${esc(label)}: ${esc(permissionStateText[permisos[key]]||'Pendiente')}</span>`).join('')}</div>`;
       $('usr-device-revalidate')?.addEventListener('click',async()=>{
         const button=$('usr-device-revalidate'); if(button) button.disabled=true;
-        try{ await window.ManttoDevicePermissions.revalidateFromProfile(); }
-        catch(error){ alert(error.message||'No fue posible validar los permisos.'); }
+        try{
+          if(typeof window.ManttoDevicePermissions.revalidateFromProfile !== 'function') throw new Error('La validación de permisos no está disponible. Recarga la aplicación.');
+          await window.ManttoDevicePermissions.revalidateFromProfile();
+        }
+        catch(error){ console.error('[Usuarios] No fue posible abrir permisos:', error); }
         finally{ if(button) button.disabled=false; await renderDevicePermissions(); }
       });
     }catch(error){ box.innerHTML='<button class="usr-device-card" id="usr-device-revalidate" type="button"><span class="usr-device-icon">⚠️</span><span><b>Permisos del dispositivo</b><small>No fue posible consultar el estado. Toca para volver a validar.</small></span><span class="usr-device-arrow">›</span></button>'; $('usr-device-revalidate')?.addEventListener('click',()=>window.ManttoDevicePermissions?.revalidateFromProfile?.()); }
