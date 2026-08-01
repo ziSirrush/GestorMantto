@@ -211,9 +211,33 @@
     const ruta = String(row.ruta_destino || '').trim();
     const accion = String(row.accion_notificacion || '').trim().toUpperCase();
     const ref = row.id_referencia || id;
-    if(ruta.startsWith('home:tarea:')) return { module:'tareas', id: ruta.split(':').pop(), notificationId:id };
-    if(ruta === 'home:tareas' || accion === 'ABRIR_TAREA') return { module:'tareas', id: ref, notificationId:id };
-    if(ruta) return { module:ruta, id:ref, notificationId:id };
+
+    if(ruta.startsWith('home:tarea:')){
+      return { module:'tareas', id:ruta.split(':').pop(), notificationId:id };
+    }
+    if(ruta === 'home:tareas' || accion === 'ABRIR_TAREA'){
+      return { module:'tareas', id:ref, notificationId:id };
+    }
+
+    const detalle = ruta.match(/^detalle:(ticket|proyecto|equipo):(.+)$/i);
+    if(detalle){
+      return {
+        module:'detalle',
+        type:String(detalle[1]).toLowerCase(),
+        id:detalle[2],
+        notificationId:id
+      };
+    }
+
+    if(accion === 'ABRIR_TICKET'){
+      return { module:'detalle', type:'ticket', id:ref, notificationId:id };
+    }
+    if(ruta === 'soporte-solicitudes' || accion === 'ABRIR_SOLICITUD'){
+      return { module:'soporte-solicitudes', id:ref, notificationId:id };
+    }
+    if(ruta){
+      return { module:ruta, id:ref, notificationId:id };
+    }
     return { module:'notifications', id:ref, notificationId:id };
   }
 

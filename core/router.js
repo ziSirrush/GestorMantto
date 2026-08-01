@@ -769,13 +769,52 @@
     }
   });
 
+  function normalizeOpenTarget(target){
+    if(!target) return { route:'home', payload:null };
+
+    const rawRoute = String(target.module || target.route || '').trim();
+    const action = String(target.action || target.accion_notificacion || '').trim().toUpperCase();
+    const reference = target.id_referencia || target.referenceId || target.id || null;
+    const notificationId = target.notificationId || target.id_notificacion || null;
+
+    const detailMatch = rawRoute.match(/^detalle:(ticket|proyecto|equipo):(.+)$/i);
+    if(detailMatch){
+      return {
+        route:'detalle',
+        payload:{
+          type:String(detailMatch[1]).toLowerCase(),
+          id:detailMatch[2],
+          notificationId
+        }
+      };
+    }
+
+    if(action === 'ABRIR_TICKET'){
+      return { route:'detalle', payload:{ type:'ticket', id:reference, notificationId } };
+    }
+
+    if(action === 'ABRIR_TAREA'){
+      return { route:'tareas', payload:{ module:'tareas', id:reference, notificationId } };
+    }
+
+    if(action === 'ABRIR_SOLICITUD'){
+      return { route:'soporte-solicitudes', payload:{ id:reference, notificationId } };
+    }
+
+    if(rawRoute === 'detalle' && target.type){
+      return { route:'detalle', payload:target };
+    }
+
+    return { route:rawRoute || 'home', payload:target };
+  }
+
   window.ManttoRouter = {
     go(route, payload, opts){ internalGo(route, payload, opts); },
     open(route, payload){ internalGo(route, payload, { navigationType:'open' }); },
     back(){ internalBack(); },
     openTarget(target){
-      if(!target) return;
-      this.go(target.module || target.route || 'home', target);
+      const destination = normalizeOpenTarget(target);
+      this.go(destination.route, destination.payload);
     },
     getHistory(){ return historyStack.slice(); },
     getCurrent(){ return { route: currentRoute, payload: currentPayload }; },
