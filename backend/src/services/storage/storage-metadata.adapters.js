@@ -1,6 +1,7 @@
 const TABLES = Object.freeze({
   SOPORTE_ADJUNTOS: 'sup_adjuntos',
   PENDIENTES_COMENTARIOS: 'pendientes_comentarios_adjuntos',
+  PENDIENTES_DIRECTOS: 'pendientes_archivos',
   VENTAS_COTIZACIONES: 'ventas_cotizaciones_archivos',
   VENTAS_PROSPECCION: 'ventas_prospeccion_archivos'
 });
@@ -28,6 +29,21 @@ function forSupAdjuntos_gnral(storage) {
     storage_provider: storage.storage_provider,
     storage_container: storage.storage_container,
     storage_blob_name: storage.storage_blob_name
+  };
+}
+
+function forPendientesDirectos_gnral(storage, userId, tipoArchivo) {
+  return {
+    tipo_archivo: String(tipoArchivo || '').trim().toUpperCase() === 'FOTO' ? 'FOTO' : 'ADJUNTO',
+    nombre_original: storage.nombre_original,
+    mime_type: storage.mime_type,
+    tamano_bytes: storage.tamano_bytes,
+    storage_provider: storage.storage_provider,
+    storage_container: storage.storage_container,
+    storage_blob_name: storage.storage_blob_name,
+    storage_url: storage.storage_url,
+    subido_por: userId,
+    activo: 1
   };
 }
 
@@ -78,6 +94,7 @@ module.exports = {
   TABLES,
   common_gnral,
   forSupAdjuntos_gnral,
+  forPendientesDirectos_gnral,
   forPendientesComentarios_gnral,
   forVentasCotizaciones_gnral,
   forVentasProspeccion_gnral

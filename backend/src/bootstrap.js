@@ -7,6 +7,7 @@ const logger = require('./shared/logger');
 const { startPortafolioCierreMensualJob } = require('./jobs/portafolioCierreMensual.job');
 const { startPortafolioCierreSemanalJob } = require('./jobs/portafolioCierreSemanal.job');
 const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/pushNotifications.job');
+const { startStorageOperationsJob, stopStorageOperationsJob } = require('./jobs/storageOperations.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -42,14 +43,26 @@ async function verifyDatabase() {
   }
 }
 
-function startScheduledJobs() {
+function startScheduledJobs(databaseReady) {
   try {
     startPortafolioCierreMensualJob();
     startPortafolioCierreSemanalJob();
     logger.info('Jobs de Portafolio inicializados.');
+  } catch (error) {
+    logger.error('La API inicio, pero los jobs de Portafolio no pudieron inicializarse.', error);
+  }
+
+  try {
     startPushNotificationsJob();
   } catch (error) {
-    logger.error('La API inicio, pero uno o mas jobs no pudieron inicializarse.', error);
+    logger.error('La API inicio, pero el job de notificaciones push no pudo inicializarse.', error);
+  }
+
+  try {
+    if (databaseReady) startStorageOperationsJob();
+    else logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
+  } catch (error) {
+    logger.error('La API inicio, pero el job de operaciones pendientes de Storage no pudo inicializarse.', error);
   }
 }
 
@@ -74,7 +87,7 @@ async function startServer() {
   });
 
   logger.info(`Mantto Gestor API escuchando en http://localhost:${port}`);
-  startScheduledJobs();
+  startScheduledJobs(databaseReady);
   registerShutdownHandlers();
 
   return server;
@@ -92,6 +105,7 @@ function registerShutdownHandlers() {
       }
 
       stopPushNotificationsJob();
+      stopStorageOperationsJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);

@@ -1,6 +1,29 @@
 const db = require('../../config/db');
 
 const REQUIRED_COLUMNS = Object.freeze({
+  pendientes: Object.freeze([
+    'empresa'
+  ]),
+  pendientes_archivos: Object.freeze([
+    'id_archivo',
+    'id_pendiente',
+    'tipo_archivo',
+    'nombre_original',
+    'mime_type',
+    'tamano_bytes',
+    'storage_provider',
+    'storage_container',
+    'storage_blob_name',
+    'storage_url',
+    'subido_por',
+    'origen_archivo',
+    'activo',
+    'eliminado_por',
+    'eliminado_at',
+    'motivo_baja',
+    'created_at',
+    'updated_at'
+  ]),
   sup_adjuntos: Object.freeze([
     'storage_provider',
     'storage_container',
@@ -81,7 +104,7 @@ async function assertStorageSchema_gnral(tableNames) {
 
   if (missing.length) {
     const detail = missing.map(item => `${item.table}: ${item.missing.join(', ')}`).join(' | ');
-    const error = new Error(`La base de datos no está alineada para cargar archivos. Ejecuta CFFAA-00. ${detail}`);
+    const error = new Error(`La base de datos no esta alineada para cargar archivos. Ejecuta la fase CFFAA correspondiente. ${detail}`);
     error.status = 503;
     error.code = 'CFFAA_STORAGE_SCHEMA_NOT_READY';
     error.details = missing;

@@ -17,6 +17,7 @@ async function getPendientes(userTaskWhere, userTaskParams) {
       COALESCE(st.total_subtareas, 0) AS total_subtareas,
       COALESCE(st.subtareas_cerradas, 0) AS subtareas_cerradas,
       COALESCE(cm.total_comentarios, 0) AS total_comentarios,
+      COALESCE(pa.total_archivos_directos, 0) AS total_archivos_directos,
       COALESCE(rel.responsables, '') AS responsables,
       COALESCE(rel.seguimiento, '') AS seguimiento
     FROM pendientes p
@@ -32,6 +33,12 @@ async function getPendientes(userTaskWhere, userTaskParams) {
       FROM pendientes_comentarios
       GROUP BY id_pendiente
     ) cm ON cm.id_pendiente = p.id_pendiente
+    LEFT JOIN (
+      SELECT id_pendiente, COUNT(*) AS total_archivos_directos
+      FROM pendientes_archivos
+      WHERE activo = 1
+      GROUP BY id_pendiente
+    ) pa ON pa.id_pendiente = p.id_pendiente
     LEFT JOIN (
       SELECT id_pendiente,
              GROUP_CONCAT(CASE WHEN tipo_relacion = 'RESPONSABLE' THEN iniciales_usuario END ORDER BY iniciales_usuario SEPARATOR ', ') AS responsables,

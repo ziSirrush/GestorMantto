@@ -1,4 +1,5 @@
 const homeRepository = require('./home.repository');
+const pendientesFiles = require('../pendientes/pendientes-files.service');
 
 function currentUserRef(req) {
   const user = req.contextUser || req.user || {};
@@ -54,7 +55,6 @@ function buildUserTaskScope(user) {
             SELECT 1
             FROM pendientes_usuarios pu_auth
             WHERE pu_auth.id_pendiente = p.id_pendiente
-              AND pu_auth.tipo_relacion = 'RESPONSABLE'
               AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
           )
         )
@@ -106,7 +106,13 @@ async function getHomeBootstrap(req) {
   const allowedEmpresas = await resolveAllowedEmpresas(user);
   const empresa = allowedEmpresas.length === 1 ? allowedEmpresas[0] : (user.empresa || null);
 
-  const pendientes = await homeRepository.getPendientes(scope.where, scope.params);
+  const pendientesRows = await homeRepository.getPendientes(scope.where, scope.params);
+  const pendientes = pendientesRows.map(row => ({
+    ...pendientesFiles.sanitizePendienteForClient_gnral(row, {
+      directCount: Number(row.total_archivos_directos || 0)
+    }),
+    evidencias_legacy: pendientesFiles.legacyFilesFromTask_gnral(row)
+  }));
 
   const notifParams = [];
   let notifWhere = 'WHERE n.activo = 1';

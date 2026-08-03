@@ -55,7 +55,6 @@ function buildNotificationQuery(req) {
                   SELECT 1
                   FROM pendientes_usuarios pu_auth
                   WHERE pu_auth.id_pendiente = p.id_pendiente
-                    AND pu_auth.tipo_relacion = 'RESPONSABLE'
                     AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
                 )
               )

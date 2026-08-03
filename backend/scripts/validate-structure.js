@@ -11,7 +11,28 @@ const requiredFiles = [
   'src/routes/index.js',
   'src/modules/health/health.routes.js',
   'src/modules/health/health.controller.js',
-  'src/middleware/error.middleware.js'
+  'src/middleware/error.middleware.js',
+  'src/middleware/storage-upload.middleware.js',
+  'src/services/storage/storage-file-policy.service.js',
+  'src/services/storage/storage-contract.service.js',
+  'src/services/storage/storage-operations.service.js',
+  'src/services/storage/storage-reference.service.js',
+  'src/services/storage/storage-access.service.js',
+  'src/services/storage/storage-access-handler.service.js',
+  'src/services/storage/storage-diagnostics.service.js',
+  'src/jobs/storageOperations.job.js',
+  'src/modules/pendientes/pendientes-access.service.js',
+  'src/modules/pendientes/pendientes-files.repository.js',
+  'src/modules/pendientes/pendientes-files.service.js',
+  'src/modules/pendientes/pendientes-files.controller.js',
+  'src/modules/pendientes/pendientes.routes.js',
+  'src/modules/home/home.repository.js',
+  'src/modules/home/home.service.js',
+  'src/modules/home/home.routes.js',
+  'src/modules/notificaciones/notificaciones.service.js',
+  'src/modules/notificaciones/notificaciones.routes.js',
+  'scripts/validate-cffaa-01ef.js',
+  'scripts/validate-cffaa-02.js'
 ];
 
 let failed = false;

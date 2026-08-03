@@ -45,3 +45,23 @@
 .task-confirm-box h3{color:var(--navy);font-size:18px}.task-confirm-box p{color:var(--text);line-height:1.45}.task-confirm-box .form-actions{padding:0;margin-top:4px}
 
 .task-context-banner{margin:10px 14px 0;padding:10px 12px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:var(--navy);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.task-context-banner button{border:1px solid #93c5fd;border-radius:9px;background:#fff;color:var(--blue);font-weight:850;padding:6px 10px;cursor:pointer}@media(max-width:700px){.task-context-banner{align-items:flex-start;flex-direction:column}.task-context-banner button{width:100%}}
+
+/* CFFAA-02 — archivos privados de Home/Pendientes */
+.home-file-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 12px}
+.home-file-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;background:#F8FAFC;padding:9px 10px}
+.home-file-icon{width:32px;height:32px;border-radius:10px;background:#EEF4FF;display:flex;align-items:center;justify-content:center;font-size:17px}
+.home-file-info{min-width:0;display:flex;flex-direction:column;gap:2px}
+.home-file-info strong{color:var(--navy);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-file-info span{color:var(--muted);font-size:10px}
+.home-file-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.danger-action.compact{padding:6px 9px}
+.empty-state.compact{padding:12px}
+.comment-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.comment-meta span{margin-top:0}
+.comment-item .home-file-list{margin-bottom:0}
+.task-form button:disabled,.comment-form button:disabled{opacity:.6;cursor:wait}
+@media(max-width:640px){
+  .home-file-row{grid-template-columns:auto minmax(0,1fr)}
+  .home-file-actions{grid-column:1 / -1;justify-content:flex-start}
+  .home-file-actions button{flex:1}
+}

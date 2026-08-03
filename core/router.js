@@ -580,7 +580,19 @@
         const ruta = el.dataset.ruta || '';
         await fetch(API_BASE + '/api/notificaciones/' + encodeURIComponent(id) + '/abrir', { method:'PATCH', headers }).catch(()=>null);
         if(window.ManttoHome && window.ManttoHome.refreshHeaderNotifications) window.ManttoHome.refreshHeaderNotifications();
-        if(ruta.startsWith('home:tarea:') || el.dataset.action === 'ABRIR_TAREA') window.ManttoRouter.go('tareas', { module:'tareas', id: ref || ruta.split(':').pop() });
+        if(ruta.startsWith('home:tarea:') || el.dataset.action === 'ABRIR_TAREA'){
+          const focusChat = isCommentNotification({
+            action:el.dataset.action,
+            tipo_notificacion:el.dataset.tipo,
+            titulo_notificacion:el.dataset.title,
+            mensaje_notificacion:el.dataset.message
+          });
+          window.ManttoRouter.go('tareas', {
+            module:'tareas',
+            id: ref || ruta.split(':').pop(),
+            focus:focusChat ? 'chat' : null
+          });
+        }
         else if(ruta.startsWith('detalle:ticket:') || el.dataset.action === 'ABRIR_TICKET'){
           const focusChat = isCommentNotification({
             action:el.dataset.action,
@@ -665,7 +677,7 @@
       window.setTimeout(function(){
         if(window.ManttoHome){
           if(payload && payload.action === 'new') window.ManttoHome.openTaskForm('create');
-          else if(payload && payload.id) window.ManttoHome.openTaskDetail(payload.id);
+          else if(payload && payload.id) window.ManttoHome.openTaskDetail(payload.id, { focus: payload.focus || null });
         }
       }, 0);
       return;
@@ -817,7 +829,7 @@
     }
 
     if(action === 'ABRIR_TAREA'){
-      return { route:'tareas', payload:{ module:'tareas', id:reference, notificationId } };
+      return { route:'tareas', payload:{ module:'tareas', id:reference, notificationId, focus:focusChat ? 'chat' : null } };
     }
 
     if(action === 'ABRIR_SOLICITUD'){

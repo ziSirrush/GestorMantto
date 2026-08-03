@@ -1,7 +1,19 @@
 const crypto = require('crypto');
 const path = require('path');
-const mime = require('mime-types');
+const filePolicy = require('./storage-file-policy.service');
+const {
+  STORAGE_CODES,
+  createStorageError_gnral
+} = require('./storage-errors.service');
+
 let azureSdkCache = null;
+let clientsCache = null;
+let delegationKeyCache = null;
+
+const PROVIDER = 'AZURE_BLOB';
+const DEFAULT_SAS_MINUTES = 15;
+const DEFAULT_MAX_FILE_MB = 25;
+const DEFAULT_DELEGATION_KEY_MINUTES = 60;
 
 function getAzureSdk_gnral() {
   if (azureSdkCache) return azureSdkCache;
@@ -24,47 +36,69 @@ function getAzureSdk_gnral() {
     };
     return azureSdkCache;
   } catch (cause) {
-    const error = new Error(
-      'Azure Storage no está disponible porque faltan las dependencias @azure/identity y/o @azure/storage-blob. ' +
-      'Ejecuta npm install dentro de backend antes de usar las rutas /api/azure-storage.'
+    throw createStorageError_gnral(
+      'Azure Storage no está disponible porque faltan las dependencias @azure/identity y/o @azure/storage-blob. Ejecuta npm install dentro de backend.',
+      {
+        status: 503,
+        code: 'AZURE_STORAGE_DEPENDENCIES_MISSING',
+        cause
+      }
     );
-    error.code = 'AZURE_STORAGE_DEPENDENCIES_MISSING';
-    error.status = 503;
-    error.cause = cause;
-    throw error;
   }
 }
 
-const PROVIDER = 'AZURE_BLOB';
-const DEFAULT_SAS_MINUTES = 15;
-const DEFAULT_MAX_FILE_MB = 25;
-
-let clientsCache = null;
+function readNumber(value, fallback, minimum, maximum, variableName) {
+  const parsed = Number(value === undefined || value === null || value === '' ? fallback : value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    throw createStorageError_gnral(`${variableName} debe estar entre ${minimum} y ${maximum}.`, {
+      status: 503,
+      code: STORAGE_CODES.STORAGE_UNAVAILABLE
+    });
+  }
+  return parsed;
+}
 
 function getConfig_gnral() {
   const accountName = String(process.env.AZURE_STORAGE_ACCOUNT_NAME || '').trim();
   const containerName = String(process.env.AZURE_STORAGE_BLOB_CONTAINER_NAME || '').trim();
-  const sasMinutes = Number(process.env.AZURE_STORAGE_SAS_MINUTES || DEFAULT_SAS_MINUTES);
-  const maxFileMb = Number(process.env.AZURE_STORAGE_MAX_FILE_MB || DEFAULT_MAX_FILE_MB);
-
   const missing = [];
   if (!accountName) missing.push('AZURE_STORAGE_ACCOUNT_NAME');
   if (!containerName) missing.push('AZURE_STORAGE_BLOB_CONTAINER_NAME');
+
   if (missing.length) {
-    const error = new Error(`Faltan variables de Azure Storage: ${missing.join(', ')}`);
-    error.status = 503;
-    throw error;
+    throw createStorageError_gnral(`Faltan variables de Azure Storage: ${missing.join(', ')}`, {
+      status: 503,
+      code: STORAGE_CODES.STORAGE_UNAVAILABLE
+    });
   }
 
-  if (!Number.isFinite(sasMinutes) || sasMinutes < 1 || sasMinutes > 1440) {
-    const error = new Error('AZURE_STORAGE_SAS_MINUTES debe estar entre 1 y 1440.');
-    error.status = 503;
-    throw error;
-  }
-  if (!Number.isFinite(maxFileMb) || maxFileMb < 1 || maxFileMb > 1024) {
-    const error = new Error('AZURE_STORAGE_MAX_FILE_MB debe estar entre 1 y 1024.');
-    error.status = 503;
-    throw error;
+  const sasMinutes = readNumber(
+    process.env.AZURE_STORAGE_SAS_MINUTES,
+    DEFAULT_SAS_MINUTES,
+    1,
+    1440,
+    'AZURE_STORAGE_SAS_MINUTES'
+  );
+  const maxFileMb = readNumber(
+    process.env.AZURE_STORAGE_MAX_FILE_MB,
+    DEFAULT_MAX_FILE_MB,
+    1,
+    1024,
+    'AZURE_STORAGE_MAX_FILE_MB'
+  );
+  const delegationKeyMinutes = readNumber(
+    process.env.AZURE_STORAGE_DELEGATION_KEY_MINUTES,
+    DEFAULT_DELEGATION_KEY_MINUTES,
+    Math.min(15, sasMinutes),
+    10080,
+    'AZURE_STORAGE_DELEGATION_KEY_MINUTES'
+  );
+
+  if (delegationKeyMinutes < sasMinutes + 5) {
+    throw createStorageError_gnral('AZURE_STORAGE_DELEGATION_KEY_MINUTES debe ser al menos 5 minutos mayor que AZURE_STORAGE_SAS_MINUTES.', {
+      status: 503,
+      code: STORAGE_CODES.STORAGE_UNAVAILABLE
+    });
   }
 
   return {
@@ -73,6 +107,7 @@ function getConfig_gnral() {
     sasMinutes,
     maxFileMb,
     maxFileBytes: Math.floor(maxFileMb * 1024 * 1024),
+    delegationKeyMinutes,
     serviceUrl: `https://${accountName}.blob.core.windows.net`
   };
 }
@@ -95,8 +130,20 @@ function getClients_gnral() {
     blobServiceClient,
     containerClient
   };
+  delegationKeyCache = null;
 
   return { ...clientsCache, config };
+}
+
+function assertConfiguredContainer_gnral(containerName, config) {
+  const requested = String(containerName || config.containerName).trim();
+  if (requested !== config.containerName) {
+    throw createStorageError_gnral('El contenedor solicitado no coincide con el contenedor privado configurado.', {
+      status: 400,
+      code: 'CFFAA_STORAGE_CONTAINER_NOT_ALLOWED'
+    });
+  }
+  return requested;
 }
 
 function cleanSegment_gnral(value, fallback = 'sin-clasificar') {
@@ -118,8 +165,9 @@ function normalizeCompany_gnral(value) {
 }
 
 function buildBlobName_gnral({ empresa, modulo, entidadTipo, entidadId, subruta, originalName }) {
-  const extension = path.extname(String(originalName || '')).toLowerCase().replace(/[^.a-z0-9]/g, '').slice(0, 20);
-  const safeBaseName = cleanSegment_gnral(path.basename(String(originalName || 'archivo'), path.extname(String(originalName || ''))), 'archivo');
+  const normalizedName = filePolicy.sanitizeOriginalName_gnral(originalName || 'archivo');
+  const extension = path.extname(normalizedName).toLowerCase().replace(/[^.a-z0-9]/g, '').slice(0, 20);
+  const safeBaseName = cleanSegment_gnral(path.basename(normalizedName, path.extname(normalizedName)), 'archivo');
   const unique = `${Date.now()}-${crypto.randomUUID()}`;
   const segments = [
     normalizeCompany_gnral(empresa),
@@ -133,57 +181,49 @@ function buildBlobName_gnral({ empresa, modulo, entidadTipo, entidadId, subruta,
   return segments.join('/');
 }
 
-function validateFile_gnral(file) {
-  const { maxFileBytes, maxFileMb } = getConfig_gnral();
-  if (!file || !Buffer.isBuffer(file.buffer)) {
-    const error = new Error('No se recibió un archivo válido.');
-    error.status = 400;
-    throw error;
-  }
-  if (!file.size || file.size <= 0) {
-    const error = new Error('El archivo está vacío.');
-    error.status = 400;
-    throw error;
-  }
-  if (file.size > maxFileBytes) {
-    const error = new Error(`El archivo excede el límite de ${maxFileMb} MB.`);
-    error.status = 413;
-    throw error;
-  }
-
-  const extension = path.extname(file.originalname || '').toLowerCase();
-  const detectedMime = mime.lookup(extension) || null;
-  const receivedMime = String(file.mimetype || '').toLowerCase();
-  const blocked = new Set([
-    '.exe', '.msi', '.bat', '.cmd', '.com', '.scr', '.ps1', '.sh', '.apk', '.ipa', '.jar'
-  ]);
-  if (blocked.has(extension)) {
-    const error = new Error(`La extensión ${extension} no está permitida.`);
-    error.status = 415;
-    throw error;
-  }
-
-  return {
-    extension: extension.replace('.', '').slice(0, 20),
-    mimeType: receivedMime || detectedMime || 'application/octet-stream'
-  };
+function validateFile_gnral(file, options = {}) {
+  return filePolicy.validateFile_gnral(file, options);
 }
 
 async function ensureContainer_gnral() {
   const { containerClient, config } = getClients_gnral();
   const exists = await containerClient.exists();
   if (!exists) {
-    const error = new Error(`El contenedor privado ${config.containerName} no existe o no es accesible.`);
-    error.status = 503;
-    throw error;
+    throw createStorageError_gnral(`El contenedor privado ${config.containerName} no existe o no es accesible.`, {
+      status: 503,
+      code: STORAGE_CODES.STORAGE_UNAVAILABLE
+    });
   }
   return true;
 }
 
-async function uploadPrivate_gnral({ file, empresa, modulo, entidadTipo, entidadId, subruta, metadata = {} }) {
-  const checked = validateFile_gnral(file);
+async function uploadPrivate_gnral({
+  file,
+  empresa,
+  modulo,
+  entidadTipo,
+  entidadId,
+  subruta,
+  metadata = {},
+  policyName = 'GENERAL',
+  forceDownload = false
+}) {
+  const checked = validateFile_gnral(file, { policyName });
   const { containerClient, config } = getClients_gnral();
-  const blobName = buildBlobName_gnral({ empresa, modulo, entidadTipo, entidadId, subruta, originalName: file.originalname });
+  const normalizedFile = {
+    ...file,
+    originalname: checked.originalName,
+    size: checked.size,
+    mimetype: checked.mimeType
+  };
+  const blobName = buildBlobName_gnral({
+    empresa,
+    modulo,
+    entidadTipo,
+    entidadId,
+    subruta,
+    originalName: normalizedFile.originalname
+  });
   const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
   const blobMetadata = {};
@@ -192,10 +232,14 @@ async function uploadPrivate_gnral({ file, empresa, modulo, entidadTipo, entidad
     blobMetadata[cleanSegment_gnral(key, 'meta').replace(/-/g, '_')] = String(value).slice(0, 500);
   }
 
-  await blockBlobClient.uploadData(file.buffer, {
+  await blockBlobClient.uploadData(normalizedFile.buffer, {
     blobHTTPHeaders: {
       blobContentType: checked.mimeType,
-      blobContentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(file.originalname || 'archivo')}`
+      blobContentDisposition: filePolicy.contentDisposition_gnral(
+        normalizedFile.originalname,
+        checked.mimeType,
+        forceDownload
+      )
     },
     metadata: blobMetadata,
     conditions: { ifNoneMatch: '*' }
@@ -206,36 +250,69 @@ async function uploadPrivate_gnral({ file, empresa, modulo, entidadTipo, entidad
     storage_container: config.containerName,
     storage_blob_name: blobName,
     storage_url: blockBlobClient.url,
-    nombre_original: file.originalname,
+    nombre_original: normalizedFile.originalname,
     nombre_archivo: path.basename(blobName),
-    extension: checked.extension,
+    extension: checked.extensionWithoutDot,
     mime_type: checked.mimeType,
-    tamano_bytes: Number(file.size)
+    tamano_bytes: checked.size,
+    signature: checked.signature,
+    policy: checked.policy
   };
 }
 
-async function createReadSas_gnral(blobName, options = {}) {
-  const { blobServiceClient, containerClient, credential, config } = getClients_gnral();
-  const cleanBlobName = String(blobName || '').replace(/^\/+/, '');
-  if (!cleanBlobName || cleanBlobName.includes('..')) {
-    const error = new Error('Nombre de blob inválido.');
-    error.status = 400;
-    throw error;
-  }
-
-  const blobClient = containerClient.getBlobClient(cleanBlobName);
-  if (!(await blobClient.exists())) {
-    const error = new Error('El archivo no existe en Azure Storage.');
-    error.status = 404;
-    throw error;
+async function getDelegationKey_gnral(requiredExpiresOn) {
+  const { blobServiceClient, config } = getClients_gnral();
+  const safetyMs = 60 * 1000;
+  if (
+    delegationKeyCache &&
+    delegationKeyCache.accountName === config.accountName &&
+    delegationKeyCache.expiresOn.getTime() > requiredExpiresOn.getTime() + safetyMs
+  ) {
+    return delegationKeyCache.key;
   }
 
   const now = new Date();
   const startsOn = new Date(now.getTime() - 5 * 60 * 1000);
-  const minutes = Math.min(Number(options.minutes || config.sasMinutes), config.sasMinutes);
+  const keyExpiresOn = new Date(now.getTime() + config.delegationKeyMinutes * 60 * 1000);
+  const key = await blobServiceClient.getUserDelegationKey(startsOn, keyExpiresOn);
+  delegationKeyCache = {
+    accountName: config.accountName,
+    key,
+    startsOn,
+    expiresOn: keyExpiresOn
+  };
+  return key;
+}
+
+async function createReadSas_gnral(blobName, options = {}) {
+  const { containerClient, config } = getClients_gnral();
+  assertConfiguredContainer_gnral(options.containerName, config);
+  const cleanBlobName = String(blobName || '').replace(/^\/+/, '');
+  if (!cleanBlobName || cleanBlobName.includes('..')) {
+    throw createStorageError_gnral('Nombre de blob inválido.', {
+      status: 400,
+      code: 'CFFAA_INVALID_BLOB_NAME'
+    });
+  }
+
+  const blobClient = containerClient.getBlobClient(cleanBlobName);
+  if (options.verifyExists === true && !(await blobClient.exists())) {
+    throw createStorageError_gnral('El archivo no existe en Azure Storage.', {
+      status: 404,
+      code: 'CFFAA_BLOB_NOT_FOUND'
+    });
+  }
+
+  const requestedMinutes = Number(options.minutes || config.sasMinutes);
+  const minutes = Math.max(1, Math.min(
+    Number.isFinite(requestedMinutes) ? requestedMinutes : config.sasMinutes,
+    config.sasMinutes
+  ));
+  const now = new Date();
+  const startsOn = new Date(now.getTime() - 5 * 60 * 1000);
   const expiresOn = new Date(now.getTime() + minutes * 60 * 1000);
+  const delegationKey = await getDelegationKey_gnral(expiresOn);
   const { BlobSASPermissions, SASProtocol, generateBlobSASQueryParameters } = getAzureSdk_gnral();
-  const delegationKey = await blobServiceClient.getUserDelegationKey(startsOn, expiresOn);
   const sas = generateBlobSASQueryParameters({
     containerName: config.containerName,
     blobName: cleanBlobName,
@@ -244,7 +321,7 @@ async function createReadSas_gnral(blobName, options = {}) {
     startsOn,
     expiresOn,
     contentDisposition: options.download === true
-      ? `attachment; filename*=UTF-8''${encodeURIComponent(options.fileName || path.basename(cleanBlobName))}`
+      ? filePolicy.contentDisposition_gnral(options.fileName || path.basename(cleanBlobName), null, true)
       : undefined
   }, delegationKey, config.accountName).toString();
 
@@ -255,18 +332,60 @@ async function createReadSas_gnral(blobName, options = {}) {
   };
 }
 
+async function enqueueFailedDelete_gnral(blobName, options, originalError) {
+  if (options.queueOnFailure === false) return null;
+
+  try {
+    const operations = require('./storage-operations.service');
+    const context = options.queueContext || {};
+    return await operations.enqueueDeleteBlob_gnral({
+      storage_provider: PROVIDER,
+      storage_container: options.containerName || process.env.AZURE_STORAGE_BLOB_CONTAINER_NAME,
+      storage_blob_name: blobName,
+      modulo: context.modulo,
+      entidad_tipo: context.entidadTipo || context.entidad_tipo,
+      entidad_id: context.entidadId ?? context.entidad_id,
+      motivo: context.motivo || 'Azure no pudo eliminar el blob en la operación original.',
+      solicitado_por: context.solicitadoPor || context.solicitado_por,
+      ultimo_error: originalError.message
+    });
+  } catch (queueError) {
+    originalError.queue_error = queueError.message;
+    return null;
+  }
+}
+
 async function deleteBlob_gnral(blobName, options = {}) {
-  const { containerClient } = getClients_gnral();
+  const { containerClient, config } = getClients_gnral();
+  assertConfiguredContainer_gnral(options.containerName, config);
   const cleanBlobName = String(blobName || '').replace(/^\/+/, '');
   if (!cleanBlobName || cleanBlobName.includes('..')) {
-    const error = new Error('Nombre de blob inválido.');
-    error.status = 400;
+    throw createStorageError_gnral('Nombre de blob inválido.', {
+      status: 400,
+      code: 'CFFAA_INVALID_BLOB_NAME'
+    });
+  }
+
+  try {
+    const result = await containerClient.getBlockBlobClient(cleanBlobName).deleteIfExists({
+      deleteSnapshots: options.deleteSnapshots || 'include'
+    });
+    return { deleted: Boolean(result.succeeded), queued: false };
+  } catch (error) {
+    const queued = await enqueueFailedDelete_gnral(cleanBlobName, options, error);
+    if (queued) error.queue_operation_id = queued.id_operacion;
     throw error;
   }
-  const result = await containerClient.getBlockBlobClient(cleanBlobName).deleteIfExists({
-    deleteSnapshots: options.deleteSnapshots || 'include'
-  });
-  return { deleted: Boolean(result.succeeded) };
+}
+
+function getCacheStatus_gnral() {
+  return {
+    clients_cached: Boolean(clientsCache),
+    delegation_key_cached: Boolean(delegationKeyCache),
+    delegation_key_expires_at: delegationKeyCache && delegationKeyCache.expiresOn
+      ? delegationKeyCache.expiresOn.toISOString()
+      : null
+  };
 }
 
 async function getStatus_gnral() {
@@ -278,10 +397,19 @@ async function getStatus_gnral() {
     account_name: config.accountName,
     container_name: config.containerName,
     max_file_mb: config.maxFileMb,
+    max_request_mb: filePolicy.getLimits_gnral().maxRequestMb,
     sas_minutes: config.sasMinutes,
-    authentication: 'MANAGED_IDENTITY',
-    container_access: 'PRIVATE'
+    delegation_key_minutes: config.delegationKeyMinutes,
+    signature_validation: String(process.env.CFFAA_FILE_SIGNATURE_VALIDATION || 'true').toLowerCase() !== 'false',
+    authentication: 'MANAGED_IDENTITY_OR_DEFAULT_AZURE_CREDENTIAL',
+    container_access: 'PRIVATE',
+    cache: getCacheStatus_gnral()
   };
+}
+
+function resetCaches_gnral() {
+  clientsCache = null;
+  delegationKeyCache = null;
 }
 
 module.exports = {
@@ -294,5 +422,7 @@ module.exports = {
   uploadPrivate_gnral,
   createReadSas_gnral,
   deleteBlob_gnral,
-  getStatus_gnral
+  getStatus_gnral,
+  getCacheStatus_gnral,
+  resetCaches_gnral
 };

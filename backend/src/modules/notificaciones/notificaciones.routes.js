@@ -1,11 +1,11 @@
 const express = require('express');
 const notificacionesController = require('./notificaciones.controller');
 const legacyDataController = require('../../controllers/data.controller');
-const { optionalAuth, requireAuth } = require('../../middleware/auth.middleware');
+const { requireAuth } = require('../../middleware/auth.middleware');
 
 const router = express.Router();
 
-router.get('/notificaciones', optionalAuth, notificacionesController.getNotificaciones);
+router.get('/notificaciones', requireAuth, notificacionesController.getNotificaciones);
 router.patch('/notificaciones/:id/abrir', requireAuth, notificacionesController.abrirNotificacion);
 router.patch('/notificaciones/:id/nuevo', requireAuth, notificacionesController.marcarNotificacionNueva);
 

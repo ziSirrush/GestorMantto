@@ -2,8 +2,8 @@ const db = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const azureStorage = require('../services/storage/azure-storage.service');
-const storageAdapters = require('../services/storage/storage-metadata.adapters');
+const pendientesAccess = require('../modules/pendientes/pendientes-access.service');
+const pendientesFiles = require('../modules/pendientes/pendientes-files.service');
 
 
 function positiveInt(value, fallback, min, max) {
@@ -1487,38 +1487,73 @@ function normalizeEmpresa(value) {
   return sanitizeText(value, 150) || null;
 }
 
-function pendienteFileFromPayload(file) {
-  if (!file || typeof file !== 'object') return null;
-  const originalname = sanitizeText(file.name || file.nombre_archivo || 'adjunto', 255) || 'adjunto';
-  const mimetype = sanitizeText(file.type || file.tipo_archivo || '', 100) || 'application/octet-stream';
-  const dataUrl = String(file.data || file.base64 || '').trim();
-  if (!dataUrl) return null;
-  const parts = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  const base64 = parts ? parts[2] : dataUrl;
-  const buffer = Buffer.from(base64, 'base64');
-  if (!buffer.length) return null;
-  return { originalname, mimetype, size: buffer.length, buffer };
+async function resolveTaskEmpresa_gnral(user, requestedEmpresa, existingEmpresa = null) {
+  const allowedEmpresas = await resolveAllowedEmpresas(user);
+  let empresa = normalizeEmpresa(requestedEmpresa)
+    || normalizeEmpresa(existingEmpresa)
+    || normalizeEmpresa(user && user.empresa);
+
+  if (!empresa && allowedEmpresas.length === 1) empresa = allowedEmpresas[0];
+  if (!empresa) {
+    const error = new Error('Selecciona la empresa o razón social de la tarea.');
+    error.status = 400;
+    error.code = 'PENDIENTE_EMPRESA_REQUIRED';
+    error.expose = true;
+    throw error;
+  }
+
+  const allowedMatch = allowedEmpresas.find(value => (
+    String(value || '').trim().toLowerCase() === String(empresa).trim().toLowerCase()
+  ));
+  if (allowedEmpresas.length && !allowedMatch) {
+    const error = new Error('No tienes autorización para usar la empresa seleccionada.');
+    error.status = 403;
+    error.code = 'PENDIENTE_EMPRESA_FORBIDDEN';
+    error.expose = true;
+    throw error;
+  }
+  return allowedMatch || empresa;
 }
 
-function azureRef_gnral(blobName) { return blobName ? `azureblob:${blobName}` : null; }
-function azureBlobFromRef_gnral(value) {
-  const text = String(value || '');
-  return text.startsWith('azureblob:') ? text.slice('azureblob:'.length) : null;
+async function resolveStoredTaskEmpresa_gnral(executor, taskRow) {
+  const stored = normalizeEmpresa(taskRow && taskRow.empresa);
+  if (stored) return stored;
+
+  const creatorEmail = sanitizeText(taskRow && taskRow.creado_por_email, 255);
+  if (creatorEmail) {
+    const [rows] = await executor.query(`
+      SELECT empresa
+      FROM usuarios
+      WHERE LOWER(TRIM(correo)) = LOWER(TRIM(?))
+        AND empresa IS NOT NULL
+        AND TRIM(empresa) <> ''
+      ORDER BY estado DESC, id_SB ASC
+      LIMIT 1
+    `, [creatorEmail]);
+    const resolved = normalizeEmpresa(rows[0] && rows[0].empresa);
+    if (resolved) return resolved;
+  }
+
+  const error = new Error('La tarea no tiene una empresa definida. Edítala antes de adjuntar archivos.');
+  error.status = 409;
+  error.code = 'PENDIENTE_EMPRESA_NOT_DEFINED';
+  error.expose = true;
+  throw error;
 }
-async function resolveAzureRef_gnral(value, fileName) {
-  const blob = azureBlobFromRef_gnral(value);
-  if (!blob) return value;
-  try { return (await azureStorage.createReadSas_gnral(blob, { fileName })).url; }
-  catch (_error) { return null; }
+
+function respondPendienteError_gnral(res, fallbackMessage, error) {
+  const status = Number(error && error.status) || 500;
+  const payload = {
+    ok: false,
+    message: status < 500 && error && error.expose !== false
+      ? error.message
+      : fallbackMessage
+  };
+  if (status >= 500) payload.error = error && error.message;
+  if (error && error.code) payload.code = error.code;
+  return res.status(status).json(payload);
 }
-async function uploadPendienteFile_gnral(filePayload, { empresa, idPendiente, kind, userId }) {
-  const file = pendienteFileFromPayload(filePayload);
-  if (!file) return null;
-  return azureStorage.uploadPrivate_gnral({
-    file, empresa, modulo: 'home', entidadTipo: 'pendiente', entidadId: idPendiente,
-    subruta: kind || 'adjuntos', metadata: { uploaded_by: userId, task_id: idPendiente, kind: kind || 'adjunto' }
-  });
-}
+
 
 async function getPendientesCatalogos(req, res) {
   try {
@@ -1694,28 +1729,43 @@ async function getPendientes(req, res) {
       LIMIT ?
     `, [...params, limit]);
 
-    const data = await Promise.all(rows.map(async (row) => ({
-      ...row,
-      photo_url: await resolveAzureRef_gnral(row.photo_url, 'foto'),
-      adjunto_url: await resolveAzureRef_gnral(row.adjunto_url, 'adjunto')
-    })));
+    const directRows = await pendientesFiles.repository.getActiveDirectFilesForTasks_gnral(
+      db,
+      rows.map(row => row.id_pendiente)
+    );
+    const grouped = pendientesFiles.groupDirectFilesByTask_gnral(directRows);
+    const data = rows.map(row => {
+      const archivosDirectos = grouped.get(String(row.id_pendiente)) || [];
+      return {
+        ...pendientesFiles.sanitizePendienteForClient_gnral(row, {
+          directCount: archivosDirectos.length
+        }),
+        archivos_directos: archivosDirectos,
+        evidencias_legacy: pendientesFiles.legacyFilesFromTask_gnral(row)
+      };
+    });
+
     return res.json({ ok: true, source: 'aiven', data });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando pendientes.', error: error.message });
+    return respondPendienteError_gnral(res, 'Error consultando pendientes.', error);
   }
 }
 
 async function getPendienteDetalle(req, res) {
   const id = Number.parseInt(req.params.id, 10);
-  if (!id) return res.status(400).json({ ok: false, message: 'No se recibio id de pendiente.' });
+  if (!id) return res.status(400).json({ ok: false, message: 'No se recibió id de pendiente.' });
+
   try {
-    const access = await getPendienteAccessContext(db, id, currentUserRef(req));
-    if (!access.exists) return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
-    if (!access.allowed) return res.status(403).json({ ok: false, message: 'No tienes acceso a esta tarea.' });
-    const rows = [access.row];
+    const access = await pendientesAccess.getPendienteAccessContext_gnral(
+      db,
+      id,
+      currentUserRef(req)
+    );
+    pendientesAccess.assertAccess_gnral(access);
 
     const [subtareas] = await db.query(`
-      SELECT * FROM pendientes_subtareas
+      SELECT *
+      FROM pendientes_subtareas
       WHERE id_pendiente = ?
       ORDER BY orden ASC, id_subtarea ASC
     `, [id]);
@@ -1733,42 +1783,40 @@ async function getPendienteDetalle(req, res) {
       WHERE pc.id_pendiente = ?
       ORDER BY pc.fecha ASC, pc.id_comentario ASC
     `, [id]);
-    const comentarioIds = comentarios.map(c => c.id_comentario);
-    let adjuntos = [];
-    if (comentarioIds.length) {
-      const placeholders = comentarioIds.map(() => '?').join(',');
-      const [adjRows] = await db.query(`
-        SELECT * FROM pendientes_comentarios_adjuntos
-        WHERE id_comentario IN (${placeholders})
-        ORDER BY fecha ASC, id_adjunto ASC
-      `, comentarioIds);
-      adjuntos = adjRows;
-    }
-    const adjuntosPorComentario = adjuntos.reduce((acc, row) => {
-      const key = String(row.id_comentario);
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(row);
-      return acc;
-    }, {});
 
-    const pendienteConAcceso = {
-      ...rows[0],
-      photo_url: await resolveAzureRef_gnral(rows[0].photo_url, 'foto'),
-      adjunto_url: await resolveAzureRef_gnral(rows[0].adjunto_url, 'adjunto')
-    };
-    const comentariosConAcceso = await Promise.all(comentarios.map(async (c) => ({
-      ...c,
-      adjuntos: await Promise.all((adjuntosPorComentario[String(c.id_comentario)] || []).map(async (a) => {
-        if (String(a.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && a.storage_blob_name) {
-          const access = await azureStorage.createReadSas_gnral(a.storage_blob_name, { fileName: a.nombre_archivo });
-          return { ...a, archivo_url: access.url };
+    const commentAttachments = await pendientesFiles.repository.listCommentAttachments_gnral(
+      db,
+      comentarios.map(comment => comment.id_comentario)
+    );
+    const commentsWithFiles = pendientesFiles.attachCommentFiles_gnral(
+      comentarios,
+      commentAttachments,
+      id
+    );
+    const directRows = await pendientesFiles.repository.listDirectFiles_gnral(db, id);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      data: {
+        pendiente: pendientesFiles.sanitizePendienteForClient_gnral(access.row, {
+          directCount: directRows.length
+        }),
+        subtareas,
+        usuarios,
+        comentarios: commentsWithFiles,
+        archivos_directos: directRows.map(pendientesFiles.toDirectClientFile_gnral),
+        evidencias_legacy: pendientesFiles.legacyFilesFromTask_gnral(access.row),
+        permisos_contextuales: {
+          puede_editar: access.creator,
+          puede_eliminar: access.creator,
+          puede_comentar: access.allowed,
+          relacionado: access.related
         }
-        return a;
-      }))
-    })));
-    return res.json({ ok: true, source: 'aiven', data: { pendiente: pendienteConAcceso, subtareas, usuarios, comentarios: comentariosConAcceso } });
+      }
+    });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error consultando detalle de pendiente.', error: error.message });
+    return respondPendienteError_gnral(res, 'Error consultando detalle de pendiente.', error);
   }
 }
 
@@ -1883,51 +1931,97 @@ function notificationStateFilter(value) {
 
 async function createPendiente(req, res) {
   const user = currentUserRef(req);
-  const body = req.body || {};
+  const body = pendientesFiles.normalizeTaskBody_gnral(req.body || {});
   const pendiente = sanitizeText(body.pendiente, 255);
   const dueDate = normalizeOptionalDate(body.due_date);
+  const evidence = req.cffaaTaskEvidence || pendientesFiles.extractTaskEvidence_gnral(req);
+
   if (!pendiente) return res.status(400).json({ ok: false, message: 'El pendiente es obligatorio.' });
-  if (!user.correo || !user.iniciales) return res.status(401).json({ ok: false, message: 'Sesion sin usuario valido.' });
+  if (!user.correo || !user.iniciales || !user.id) {
+    return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
+  }
+
+  let empresa;
+  try {
+    empresa = await resolveTaskEmpresa_gnral(user, body.empresa);
+  } catch (error) {
+    return respondPendienteError_gnral(res, 'No fue posible validar la empresa de la tarea.', error);
+  }
 
   const conn = await db.getConnection();
+  let uploadedEvidence = null;
   try {
     await conn.beginTransaction();
     const tipo = normalizeTaskType(body.tipo_pendiente);
     const [result] = await conn.query(`
       INSERT INTO pendientes (
-        pendiente, tipo_pendiente, estatus, area, descripcion,
+        pendiente, tipo_pendiente, estatus, area, empresa, descripcion,
         creado_por_email, creado_por_iniciales, due_date,
         proyecto, equipo, photo_url, adjunto_url, con_subtareas, prioridad
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
     `, [
       pendiente,
       tipo,
       normalizeTaskStatus(body.estatus),
       sanitizeText(body.area, 100) || null,
+      empresa,
       sanitizeText(body.descripcion) || null,
       user.correo,
       user.iniciales,
       dueDate,
       sanitizeText(body.proyecto, 255) || null,
       sanitizeText(body.equipo, 100) || null,
-      null,
-      null,
       body.con_subtareas ? 1 : 0,
-      tipo === 'COLABORATIVA' ? normalizePriority(body.prioridad, null) : normalizePriority(body.prioridad, 'MEDIA')
+      tipo === 'COLABORATIVA'
+        ? normalizePriority(body.prioridad, null)
+        : normalizePriority(body.prioridad, 'MEDIA')
     ]);
+
     const id = result.insertId;
-    const uploadedPhoto = await uploadPendienteFile_gnral(body.photo_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'foto', userId: user.id });
-    const uploadedAttachment = await uploadPendienteFile_gnral(body.adjunto_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'adjunto', userId: user.id });
-    const photoUrl = uploadedPhoto ? azureRef_gnral(uploadedPhoto.storage_blob_name) : (sanitizeText(body.photo_url) || null);
-    const attachmentUrl = uploadedAttachment ? azureRef_gnral(uploadedAttachment.storage_blob_name) : (sanitizeText(body.adjunto_url) || null);
-    await conn.query('UPDATE pendientes SET photo_url = ?, adjunto_url = ? WHERE id_pendiente = ?', [photoUrl, attachmentUrl, id]);
-    const childrenResult = await syncPendienteChildren(conn, id, { ...body, tipo_pendiente: tipo }, user);
-    const notificationResult = await createTaskAssignmentNotifications(conn, id, { ...body, tipo_pendiente: tipo, pendiente }, user);
+    const childrenResult = await syncPendienteChildren(
+      conn,
+      id,
+      { ...body, tipo_pendiente: tipo },
+      user
+    );
+    const notificationResult = await createTaskAssignmentNotifications(
+      conn,
+      id,
+      { ...body, tipo_pendiente: tipo, pendiente },
+      user
+    );
+
+    if (evidence) {
+      uploadedEvidence = await pendientesFiles.uploadDirectEvidence_gnral({
+        connection: conn,
+        idPendiente: id,
+        empresa,
+        userId: user.id,
+        evidence
+      });
+    }
+
     await conn.commit();
-    return res.status(201).json({ ok: true, source: 'aiven', message: 'Pendiente creado correctamente.', id_pendiente: id, notificaciones_creadas: notificationResult.inserted, notificaciones_destinatarios: notificationResult.recipients, autoasignacion_bloqueada: childrenResult.blockedSelfAssignment });
+    return res.status(201).json({
+      ok: true,
+      source: 'aiven',
+      message: 'Pendiente creado correctamente.',
+      id_pendiente: id,
+      id_archivo: uploadedEvidence?.persisted?.id_archivo || null,
+      notificaciones_creadas: notificationResult.inserted,
+      notificaciones_destinatarios: notificationResult.recipients,
+      autoasignacion_bloqueada: childrenResult.blockedSelfAssignment
+    });
   } catch (error) {
-    await conn.rollback();
-    return res.status(500).json({ ok: false, message: 'Error creando pendiente.', error: error.message });
+    try { await conn.rollback(); } catch (_rollbackError) {}
+    if (uploadedEvidence && uploadedEvidence.uploaded) {
+      await pendientesFiles.cleanupUploaded_gnral(uploadedEvidence.uploaded, {
+        entidad_tipo: 'pendiente_evidencia',
+        solicitado_por: user.id,
+        motivo: 'Rollback al crear una tarea.'
+      });
+    }
+    return respondPendienteError_gnral(res, 'Error creando pendiente.', error);
   } finally {
     conn.release();
   }
@@ -1936,65 +2030,127 @@ async function createPendiente(req, res) {
 async function updatePendiente(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
-  if (!id) return res.status(400).json({ ok: false, message: 'No se recibio id de pendiente.' });
-  const body = req.body || {};
+  const body = pendientesFiles.normalizeTaskBody_gnral(req.body || {});
   const pendiente = sanitizeText(body.pendiente, 255);
   const dueDate = normalizeOptionalDate(body.due_date);
+  const evidence = req.cffaaTaskEvidence || pendientesFiles.extractTaskEvidence_gnral(req);
+
+  if (!id) return res.status(400).json({ ok: false, message: 'No se recibió id de pendiente.' });
   if (!pendiente) return res.status(400).json({ ok: false, message: 'El pendiente es obligatorio.' });
+  if (!user.correo || !user.id) {
+    return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
+  }
 
   const conn = await db.getConnection();
+  let uploadedEvidence = null;
+  let referencesToDelete = [];
   try {
     await conn.beginTransaction();
-    const [exists] = await conn.query('SELECT creado_por_email, tipo_pendiente, photo_url, adjunto_url FROM pendientes WHERE id_pendiente = ? LIMIT 1', [id]);
-    if (!exists.length) {
-      await conn.rollback();
-      return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
-    }
-    if (exists[0].creado_por_email !== user.correo) {
-      await conn.rollback();
-      return res.status(403).json({ ok: false, message: 'Solo el creador puede editar la configuracion general de la tarea.' });
-    }
+    const access = await pendientesAccess.getPendienteAccessContext_gnral(
+      conn,
+      id,
+      user,
+      { forUpdate: true }
+    );
+    pendientesAccess.assertCreator_gnral(access, {
+      creatorMessage: 'Solo el creador puede editar la configuración general de la tarea.'
+    });
 
+    const empresa = await resolveTaskEmpresa_gnral(user, body.empresa, access.row.empresa);
     const [oldRelRows] = await conn.query(`
       SELECT iniciales_usuario
       FROM pendientes_usuarios
-      WHERE id_pendiente = ? AND tipo_relacion = 'RESPONSABLE'
+      WHERE id_pendiente = ?
+        AND tipo_relacion = 'RESPONSABLE'
     `, [id]);
-    const oldResponsables = oldRelRows.map(r => r.iniciales_usuario).filter(Boolean);
-
+    const oldResponsables = oldRelRows.map(row => row.iniciales_usuario).filter(Boolean);
     const tipo = normalizeTaskType(body.tipo_pendiente);
-    const updatedPhoto = await uploadPendienteFile_gnral(body.photo_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'foto', userId: user.id });
-    const updatedAttachment = await uploadPendienteFile_gnral(body.adjunto_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'adjunto', userId: user.id });
-    const rawPhotoUrl = sanitizeText(body.photo_url);
-    const rawAttachmentUrl = sanitizeText(body.adjunto_url);
-    const nextPhotoUrl = updatedPhoto ? azureRef_gnral(updatedPhoto.storage_blob_name) : (/\?sv=/.test(rawPhotoUrl) ? exists[0].photo_url : (rawPhotoUrl || exists[0].photo_url || null));
-    const nextAttachmentUrl = updatedAttachment ? azureRef_gnral(updatedAttachment.storage_blob_name) : (/\?sv=/.test(rawAttachmentUrl) ? exists[0].adjunto_url : (rawAttachmentUrl || exists[0].adjunto_url || null));
+
     await conn.query(`
       UPDATE pendientes SET
-        pendiente = ?, tipo_pendiente = ?, area = ?, descripcion = ?, due_date = ?,
-        proyecto = ?, equipo = ?, photo_url = ?, adjunto_url = ?, con_subtareas = ?, prioridad = ?
+        pendiente = ?, tipo_pendiente = ?, area = ?, empresa = ?, descripcion = ?,
+        due_date = ?, proyecto = ?, equipo = ?, con_subtareas = ?, prioridad = ?
       WHERE id_pendiente = ?
     `, [
       pendiente,
       tipo,
       sanitizeText(body.area, 100) || null,
+      empresa,
       sanitizeText(body.descripcion) || null,
       dueDate,
       sanitizeText(body.proyecto, 255) || null,
       sanitizeText(body.equipo, 100) || null,
-      nextPhotoUrl,
-      nextAttachmentUrl,
       body.con_subtareas ? 1 : 0,
-      tipo === 'COLABORATIVA' ? normalizePriority(body.prioridad, null) : normalizePriority(body.prioridad, 'MEDIA'),
+      tipo === 'COLABORATIVA'
+        ? normalizePriority(body.prioridad, null)
+        : normalizePriority(body.prioridad, 'MEDIA'),
       id
     ]);
-    const childrenResult = await syncPendienteChildren(conn, id, { ...body, tipo_pendiente: tipo }, user);
-    const notificationResult = await createTaskAssignmentNotifications(conn, id, { ...body, tipo_pendiente: tipo, pendiente }, user, oldResponsables);
+
+    const childrenResult = await syncPendienteChildren(
+      conn,
+      id,
+      { ...body, tipo_pendiente: tipo },
+      user
+    );
+    const notificationResult = await createTaskAssignmentNotifications(
+      conn,
+      id,
+      { ...body, tipo_pendiente: tipo, pendiente },
+      user,
+      oldResponsables
+    );
+
+    if (evidence) {
+      uploadedEvidence = await pendientesFiles.uploadDirectEvidence_gnral({
+        connection: conn,
+        idPendiente: id,
+        empresa,
+        userId: user.id,
+        evidence
+      });
+      referencesToDelete = [
+        ...(uploadedEvidence?.persisted?.previous || []),
+        ...pendientesFiles.legacyAzureReferences_gnral(access.row)
+      ];
+      await conn.query(
+        'UPDATE pendientes SET photo_url = NULL, adjunto_url = NULL WHERE id_pendiente = ?',
+        [id]
+      );
+    }
+
     await conn.commit();
-    return res.json({ ok: true, source: 'aiven', message: 'Pendiente actualizado correctamente.', notificaciones_creadas: notificationResult.inserted, notificaciones_destinatarios: notificationResult.recipients, autoasignacion_bloqueada: childrenResult.blockedSelfAssignment });
+
+    const cleanup = referencesToDelete.length
+      ? await pendientesFiles.deleteReferencesAfterCommit_gnral(referencesToDelete, {
+          entidad_tipo: 'pendiente_evidencia',
+          entidad_id: id,
+          solicitado_por: user.id,
+          motivo: 'Sustitución de evidencia directa de una tarea.'
+        })
+      : null;
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      message: 'Pendiente actualizado correctamente.',
+      id_archivo: uploadedEvidence?.persisted?.id_archivo || null,
+      limpieza_archivos: cleanup,
+      notificaciones_creadas: notificationResult.inserted,
+      notificaciones_destinatarios: notificationResult.recipients,
+      autoasignacion_bloqueada: childrenResult.blockedSelfAssignment
+    });
   } catch (error) {
-    await conn.rollback();
-    return res.status(500).json({ ok: false, message: 'Error actualizando pendiente.', error: error.message });
+    try { await conn.rollback(); } catch (_rollbackError) {}
+    if (uploadedEvidence && uploadedEvidence.uploaded) {
+      await pendientesFiles.cleanupUploaded_gnral(uploadedEvidence.uploaded, {
+        entidad_tipo: 'pendiente_evidencia',
+        entidad_id: id,
+        solicitado_por: user.id,
+        motivo: 'Rollback al actualizar una tarea.'
+      });
+    }
+    return respondPendienteError_gnral(res, 'Error actualizando pendiente.', error);
   } finally {
     conn.release();
   }
@@ -2054,34 +2210,16 @@ async function updatePendienteEstatus(req, res) {
 }
 
 
-async function getPendienteAccessContext(executor, idPendiente, user) {
-  const correo = String(user?.correo || '').trim().toLowerCase();
-  const iniciales = String(user?.iniciales || '').trim().toUpperCase();
-  const [rows] = await executor.query(`
-    SELECT
-      p.id_pendiente,
-      p.tipo_pendiente,
-      p.pendiente,
-      p.creado_por_email,
-      EXISTS (
-        SELECT 1
-        FROM pendientes_usuarios pu
-        WHERE pu.id_pendiente = p.id_pendiente
-          AND UPPER(TRIM(pu.iniciales_usuario)) = ?
-      ) AS relacionado
-    FROM pendientes p
-    WHERE p.id_pendiente = ?
-    LIMIT 1
-  `, [iniciales, idPendiente]);
-  if (!rows.length) return { exists: false, allowed: false, row: null };
-  const row = rows[0];
-  const creator = String(row.creado_por_email || '').trim().toLowerCase() === correo;
-  const related = Boolean(Number(row.relacionado || 0));
-  const allowed = row.tipo_pendiente === 'PERSONAL' ? creator : (creator || related);
-  return { exists: true, allowed, creator, related, row };
+async function getPendienteAccessContext(executor, idPendiente, user, options = {}) {
+  return pendientesAccess.getPendienteAccessContext_gnral(
+    executor,
+    idPendiente,
+    user,
+    options
+  );
 }
 
-async function createPendienteCommentNotifications(executor, access, actor, comentario) {
+async function createPendienteCommentNotifications(executor, access, actor, interaction) {
   const actorId = Number(actor?.id || 0);
   const actorInitials = String(actor?.iniciales || actor?.correo || 'Usuario').trim();
   const recipientIds = new Set();
@@ -2098,24 +2236,35 @@ async function createPendienteCommentNotifications(executor, access, actor, come
   const [relatedRows] = await executor.query(`
     SELECT DISTINCT u.id_SB
     FROM pendientes_usuarios pu
-    INNER JOIN usuarios u ON UPPER(TRIM(u.iniciales)) = UPPER(TRIM(pu.iniciales_usuario))
+    INNER JOIN usuarios u
+      ON UPPER(TRIM(u.iniciales)) = UPPER(TRIM(pu.iniciales_usuario))
     WHERE pu.id_pendiente = ?
       AND u.estado = 1
   `, [access.row.id_pendiente]);
-  relatedRows.forEach(row => { if (row.id_SB) recipientIds.add(Number(row.id_SB)); });
+  relatedRows.forEach(row => {
+    if (row.id_SB) recipientIds.add(Number(row.id_SB));
+  });
   if (actorId) recipientIds.delete(actorId);
 
-  const preview = String(comentario || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  const data = interaction && typeof interaction === 'object'
+    ? interaction
+    : { comentario: interaction };
+  const preview = String(data.comentario || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  const fileName = sanitizeText(data.nombre_archivo, 120);
+  const actionText = preview
+    ? `${actorInitials} comentó: ${preview}`
+    : `${actorInitials} adjuntó${fileName ? `: ${fileName}` : ' un archivo'}`;
+
   for (const idUsuario of recipientIds) {
     await executor.query(`
       INSERT INTO sup_notificaciones (
         id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
         icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
         leido, activo
-      ) VALUES (?, 'TAREA_COMENTARIO', 'Nuevo comentario en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1)
+      ) VALUES (?, 'TAREA_COMENTARIO', 'Nueva interacción en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1)
     `, [
       idUsuario,
-      `${actorInitials} comentó: ${preview || 'Nuevo comentario'}`,
+      actionText,
       access.row.id_pendiente,
       `home:tarea:${access.row.id_pendiente}`
     ]);
@@ -2127,48 +2276,67 @@ async function createPendienteComentario(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
   const comentario = sanitizeText(req.body?.comentario);
-  if (!id) return res.status(400).json({ ok: false, message: 'No se recibio id de pendiente.' });
-  if (!comentario) return res.status(400).json({ ok: false, message: 'El comentario es obligatorio.' });
-  if (!user.id) return res.status(401).json({ ok: false, message: 'Sesion sin usuario valido.' });
+  const commentFile = pendientesFiles.extractCommentFile_gnral(req);
+
+  if (!id) return res.status(400).json({ ok: false, message: 'No se recibió id de pendiente.' });
+  if (!comentario && !commentFile) {
+    return res.status(400).json({ ok: false, message: 'Escribe un comentario o selecciona un archivo.' });
+  }
+  if (!user.id) return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
 
   const conn = await db.getConnection();
+  let uploadedAttachment = null;
   try {
     await conn.beginTransaction();
     const access = await getPendienteAccessContext(conn, id, user);
-    if (!access.exists) {
-      await conn.rollback();
-      return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
-    }
-    if (!access.allowed) {
-      await conn.rollback();
-      return res.status(403).json({ ok: false, message: 'No tienes permiso para comentar esta tarea.' });
-    }
+    pendientesAccess.assertAccess_gnral(access, {
+      forbiddenMessage: 'No tienes permiso para comentar esta tarea.'
+    });
+
+    const taskEmpresa = commentFile
+      ? await resolveStoredTaskEmpresa_gnral(conn, access.row)
+      : null;
     const [result] = await conn.query(
       'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario) VALUES (?, ?, ?)',
-      [id, user.id, comentario]
+      [id, user.id, comentario || '']
     );
-    const uploadedCommentFile = await uploadPendienteFile_gnral(req.body?.adjunto_file, { empresa: access.row.empresa || user.empresa || 'general', idPendiente: id, kind: `comentarios/${result.insertId}`, userId: user.id });
-    if (uploadedCommentFile) {
-      const meta = storageAdapters.forPendientesComentarios_gnral(uploadedCommentFile, user.id);
-      await conn.query(
-        `INSERT INTO pendientes_comentarios_adjuntos
-         (id_comentario, nombre_archivo, archivo_url, tipo_archivo, storage_provider, storage_container, storage_blob_name, tamano_bytes, subido_por, activo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-        [result.insertId, meta.nombre_archivo, meta.archivo_url, meta.tipo_archivo, meta.storage_provider, meta.storage_container, meta.storage_blob_name, meta.tamano_bytes, meta.subido_por]
-      );
+
+    if (commentFile) {
+      uploadedAttachment = await pendientesFiles.uploadCommentAttachment_gnral({
+        connection: conn,
+        idPendiente: id,
+        idComentario: result.insertId,
+        empresa: taskEmpresa,
+        userId: user.id,
+        file: commentFile
+      });
     }
-    const notificaciones = await createPendienteCommentNotifications(conn, access, user, comentario);
+
+    const notificaciones = await createPendienteCommentNotifications(conn, access, user, {
+      comentario,
+      nombre_archivo: commentFile && commentFile.originalname
+    });
     await conn.commit();
+
     return res.status(201).json({
       ok: true,
       source: 'aiven',
-      message: 'Comentario agregado correctamente.',
+      message: commentFile ? 'Interacción agregada correctamente.' : 'Comentario agregado correctamente.',
       id_comentario: result.insertId,
+      id_adjunto: uploadedAttachment?.persisted?.id_adjunto || null,
       notificaciones
     });
   } catch (error) {
-    await conn.rollback();
-    return res.status(500).json({ ok: false, message: 'Error agregando comentario.', error: error.message });
+    try { await conn.rollback(); } catch (_rollbackError) {}
+    if (uploadedAttachment && uploadedAttachment.uploaded) {
+      await pendientesFiles.cleanupUploaded_gnral(uploadedAttachment.uploaded, {
+        entidad_tipo: 'pendiente_comentario',
+        entidad_id: id,
+        solicitado_por: user.id,
+        motivo: 'Rollback al crear una interacción de tarea.'
+      });
+    }
+    return respondPendienteError_gnral(res, 'Error agregando interacción.', error);
   } finally {
     conn.release();
   }
@@ -2177,56 +2345,79 @@ async function createPendienteComentario(req, res) {
 async function updatePendienteSubtarea(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   const idSubtarea = Number.parseInt(req.params.idSubtarea, 10);
-  if (!id || !idSubtarea) return res.status(400).json({ ok: false, message: 'No se recibio id de subtarea.' });
-  const estatus = String(req.body?.estatus || '').trim() === 'Cerrado' ? 'Cerrado' : 'Pendiente';
+  const user = currentUserRef(req);
+  if (!id || !idSubtarea) {
+    return res.status(400).json({ ok: false, message: 'No se recibió id de subtarea.' });
+  }
   try {
+    const access = await pendientesAccess.getPendienteAccessContext_gnral(db, id, user);
+    pendientesAccess.assertAccess_gnral(access, {
+      forbiddenMessage: 'No tienes permiso para actualizar esta subtarea.'
+    });
+    const estatus = String(req.body?.estatus || '').trim() === 'Cerrado' ? 'Cerrado' : 'Pendiente';
     const [result] = await db.query(
       'UPDATE pendientes_subtareas SET estatus = ? WHERE id_pendiente = ? AND id_subtarea = ?',
       [estatus, id, idSubtarea]
     );
-    if (!result.affectedRows) return res.status(404).json({ ok: false, message: 'Subtarea no encontrada.' });
+    if (!result.affectedRows) {
+      return res.status(404).json({ ok: false, message: 'Subtarea no encontrada.' });
+    }
     return res.json({ ok: true, source: 'aiven', message: 'Subtarea actualizada correctamente.' });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error actualizando subtarea.', error: error.message });
+    return respondPendienteError_gnral(res, 'Error actualizando subtarea.', error);
   }
 }
 
 async function deletePendiente(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
-  if (!id) return res.status(400).json({ ok: false, message: 'No se recibio id de pendiente.' });
-  if (!user.correo) return res.status(401).json({ ok: false, message: 'Sesion sin usuario valido.' });
+  if (!id) return res.status(400).json({ ok: false, message: 'No se recibió id de pendiente.' });
+  if (!user.correo || !user.id) {
+    return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
+  }
 
   const conn = await db.getConnection();
+  let references = [];
   try {
     await conn.beginTransaction();
-    const [rows] = await conn.query('SELECT creado_por_email FROM pendientes WHERE id_pendiente = ? LIMIT 1', [id]);
-    if (!rows.length) {
-      await conn.rollback();
-      return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
-    }
-    if (rows[0].creado_por_email !== user.correo) {
-      await conn.rollback();
-      return res.status(403).json({ ok: false, message: 'Solo el creador puede eliminar la tarea.' });
-    }
+    const access = await pendientesAccess.getPendienteAccessContext_gnral(
+      conn,
+      id,
+      user,
+      { forUpdate: true }
+    );
+    pendientesAccess.assertCreator_gnral(access, {
+      creatorMessage: 'Solo el creador puede eliminar la tarea.'
+    });
 
-    const [commentRows] = await conn.query('SELECT id_comentario FROM pendientes_comentarios WHERE id_pendiente = ?', [id]);
-    const commentIds = commentRows.map(row => row.id_comentario).filter(Boolean);
-    if (commentIds.length) {
-      const placeholders = commentIds.map(() => '?').join(',');
-      await conn.query(`DELETE FROM pendientes_comentarios_adjuntos WHERE id_comentario IN (${placeholders})`, commentIds);
-    }
-    await conn.query('DELETE FROM pendientes_comentarios WHERE id_pendiente = ?', [id]);
-    await conn.query('DELETE FROM pendientes_subtareas WHERE id_pendiente = ?', [id]);
-    await conn.query('DELETE FROM pendientes_usuarios WHERE id_pendiente = ?', [id]);
-    await conn.query('DELETE FROM sup_notificaciones WHERE id_referencia = ? AND accion_notificacion = ?', [id, 'ABRIR_TAREA']);
+    references = [
+      ...(await pendientesFiles.repository.listTaskAzureReferences_gnral(conn, id)),
+      ...pendientesFiles.legacyAzureReferences_gnral(access.row)
+    ];
+
+    await conn.query(
+      'DELETE FROM sup_notificaciones WHERE id_referencia = ? AND accion_notificacion = ?',
+      [id, 'ABRIR_TAREA']
+    );
     await conn.query('DELETE FROM pendientes WHERE id_pendiente = ?', [id]);
-
     await conn.commit();
-    return res.json({ ok: true, source: 'aiven', message: 'Tarea eliminada correctamente.' });
+
+    const cleanup = await pendientesFiles.deleteReferencesAfterCommit_gnral(references, {
+      entidad_tipo: 'pendiente',
+      entidad_id: id,
+      solicitado_por: user.id,
+      motivo: 'Eliminación completa de una tarea y sus archivos.'
+    });
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      message: 'Tarea eliminada correctamente.',
+      limpieza_storage: cleanup
+    });
   } catch (error) {
-    await conn.rollback();
-    return res.status(500).json({ ok: false, message: 'Error eliminando tarea.', error: error.message });
+    try { await conn.rollback(); } catch (_rollbackError) {}
+    return respondPendienteError_gnral(res, 'Error eliminando tarea.', error);
   } finally {
     conn.release();
   }
@@ -2264,7 +2455,6 @@ async function getNotificaciones(req, res) {
                     SELECT 1
                     FROM pendientes_usuarios pu_auth
                     WHERE pu_auth.id_pendiente = p.id_pendiente
-                      AND pu_auth.tipo_relacion = 'RESPONSABLE'
                       AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
                   )
                 )
@@ -2369,7 +2559,6 @@ async function getHomeBootstrap(req, res) {
               SELECT 1
               FROM pendientes_usuarios pu_auth
               WHERE pu_auth.id_pendiente = p.id_pendiente
-                AND pu_auth.tipo_relacion = 'RESPONSABLE'
                 AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
             )
           )
@@ -2415,6 +2604,11 @@ async function getHomeBootstrap(req, res) {
         p.updated_at DESC
       LIMIT 200
     `, userTaskParams);
+
+    const pendientesData = pendientes.map(row => ({
+      ...pendientesFiles.sanitizePendienteForClient_gnral(row),
+      evidencias_legacy: pendientesFiles.legacyFilesFromTask_gnral(row)
+    }));
 
     const notifParams = [];
     let notifWhere = 'WHERE n.activo = 1';
@@ -2507,7 +2701,7 @@ async function getHomeBootstrap(req, res) {
       ok: true,
       source: 'aiven',
       data: {
-        pendientes,
+        pendientes: pendientesData,
         notificaciones_nuevas: notificacionesNuevas,
         notificaciones_abiertas: notificacionesAbiertas,
         actividad_reciente: actividades,
@@ -2547,7 +2741,6 @@ async function getActividadReciente(req, res) {
               SELECT 1
               FROM pendientes_usuarios pu_auth
               WHERE pu_auth.id_pendiente = p.id_pendiente
-                AND pu_auth.tipo_relacion = 'RESPONSABLE'
                 AND UPPER(TRIM(pu_auth.iniciales_usuario)) = ?
             )
           )

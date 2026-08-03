@@ -73,7 +73,12 @@
   async function apiRequest(path, options){
     const opts = options || {};
     const headers = Object.assign({ Accept: 'application/json' }, authHeaders(), opts.headers || {});
-    if(opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    const isFormData = typeof FormData !== 'undefined' && opts.body instanceof FormData;
+    if(opts.body && !isFormData && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    if(isFormData){
+      delete headers['Content-Type'];
+      delete headers['content-type'];
+    }
 
     const response = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
     const json = await response.json().catch(() => ({}));
@@ -126,8 +131,8 @@
     const userEmail = currentUserEmail().toLowerCase();
     const userInitials = currentUserInitials();
     const creatorEmail = String(task.creado_por_email || task.created_by_email || '').trim().toLowerCase();
-    const responsables = String(task.responsables || '')
-      .split(',')
+    const relatedInitials = [task.responsables, task.seguimiento]
+      .flatMap(value => String(value || '').split(','))
       .map(v => String(v || '').trim().toUpperCase())
       .filter(Boolean);
 
@@ -135,7 +140,7 @@
     if(tipo === 'COLABORATIVA'){
       return Boolean(
         (userEmail && creatorEmail && creatorEmail === userEmail) ||
-        (userInitials && responsables.includes(userInitials))
+        (userInitials && relatedInitials.includes(userInitials))
       );
     }
     return false;
@@ -147,16 +152,6 @@
     const d = new Date(value);
     if(Number.isNaN(d.getTime())) return '';
     return d.toISOString().slice(0,10);
-  }
-
-  function fileToPayload(file){
-    return new Promise((resolve, reject)=>{
-      if(!file) return resolve(null);
-      const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, type: file.type || 'application/octet-stream', size: file.size, data: reader.result });
-      reader.onerror = () => reject(new Error('No se pudo leer el archivo seleccionado.'));
-      reader.readAsDataURL(file);
-    });
   }
 
   function formatDate(value){
@@ -171,6 +166,94 @@
     const d = new Date(value);
     if(Number.isNaN(d.getTime())) return safeText(value);
     return d.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  const HOME_MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+  function formatFileSize(value){
+    const bytes = Number(value || 0);
+    if(!bytes) return '';
+    if(bytes < 1024) return bytes + ' B';
+    if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function validateSelectedFile(file){
+    if(!file) return true;
+    if(file.size <= 0) throw new Error('El archivo seleccionado está vacío.');
+    if(file.size > HOME_MAX_FILE_BYTES){
+      throw new Error('El archivo excede el límite de 25 MB.');
+    }
+    return true;
+  }
+
+  function absoluteFileUrl(value){
+    const url = String(value || '').trim();
+    if(!url) return '';
+    if(/^https?:\/\//i.test(url) || /^blob:/i.test(url) || /^data:/i.test(url)) return url;
+    return API_BASE + (url.startsWith('/') ? url : '/' + url);
+  }
+
+  async function openStoredFile(file, download){
+    const endpoint = String(file?.access_endpoint || '').trim();
+    let target = null;
+    try{
+      target = window.open('about:blank', '_blank');
+      if(target) target.opener = null;
+      let url = String(file?.access_url || file?.archivo_url || '').trim();
+      if(endpoint){
+        const separator = endpoint.includes('?') ? '&' : '?';
+        const json = await apiRequest(endpoint + (download ? separator + 'download=true' : ''));
+        url = String(json?.data?.access_url || '').trim();
+      }
+      if(!url) throw new Error('No fue posible obtener el enlace del archivo.');
+      const finalUrl = absoluteFileUrl(url);
+      if(target) target.location.replace(finalUrl);
+      else window.open(finalUrl, '_blank', 'noopener');
+    }catch(error){
+      try{ if(target) target.close(); }catch(_closeError){}
+      alert(error.message || 'No fue posible abrir el archivo.');
+    }
+  }
+
+  function fileIcon(file){
+    const type = String(file?.mime_type || file?.tipo_archivo || '').toLowerCase();
+    const kind = String(file?.tipo_archivo || '').toUpperCase();
+    if(type.startsWith('image/') || kind === 'FOTO') return '🖼️';
+    if(type.includes('pdf')) return '📕';
+    if(type.includes('zip')) return '🗜️';
+    return '📎';
+  }
+
+  function renderStoredFiles(files, options){
+    const values = Array.isArray(files) ? files.filter(Boolean) : [];
+    const canDelete = Boolean(options?.canDelete);
+    if(!values.length) return '<div class="empty-state compact">Sin evidencia.</div>';
+    return `<div class="home-file-list">${values.map(file => {
+      const name = file.nombre_original || file.nombre_archivo || (file.tipo_archivo === 'FOTO' ? 'Foto' : 'Archivo');
+      const size = formatFileSize(file.tamano_bytes);
+      const legacy = String(file.origen_archivo || '').toUpperCase() === 'LEGACY';
+      return `<div class="home-file-row">
+        <span class="home-file-icon" aria-hidden="true">${fileIcon(file)}</span>
+        <div class="home-file-info"><strong>${safeText(name)}</strong><span>${safeText(size || (legacy ? 'Archivo histórico' : 'Archivo Azure'))}</span></div>
+        <div class="home-file-actions">
+          <button type="button" class="mini-action" data-open-file="1" data-file-endpoint="${safeText(file.access_endpoint || '')}">Abrir</button>
+          ${canDelete && file.id_archivo && !legacy ? `<button type="button" class="danger-action compact" data-delete-direct-file="${safeText(file.id_archivo)}">Eliminar</button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  function bindFileOpenActions(scope, files){
+    const values = Array.isArray(files) ? files : [];
+    const byEndpoint = new Map(values.map(file => [String(file.access_endpoint || ''), file]));
+    (scope || document).querySelectorAll('[data-open-file]').forEach(button => {
+      button.addEventListener('click', () => {
+        const endpoint = String(button.dataset.fileEndpoint || '');
+        const file = byEndpoint.get(endpoint) || { access_endpoint: endpoint };
+        openStoredFile(file, false);
+      });
+    });
   }
 
   function priorityIcon(priority){
@@ -224,10 +307,10 @@
     const focusChat = isCommentNotification(row);
 
     if(ruta.startsWith('home:tarea:')){
-      return { module:'tareas', id:ruta.split(':').pop(), notificationId:id };
+      return { module:'tareas', id:ruta.split(':').pop(), notificationId:id, focus:focusChat ? 'chat' : null };
     }
     if(ruta === 'home:tareas' || accion === 'ABRIR_TAREA'){
-      return { module:'tareas', id:ref, notificationId:id };
+      return { module:'tareas', id:ref, notificationId:id, focus:focusChat ? 'chat' : null };
     }
 
     const detalle = ruta.match(/^detalle:(ticket|proyecto|equipo):(.+)$/i);
@@ -597,10 +680,45 @@
     const tipo = row.tipo_pendiente || state.activeTaskType || 'PERSONAL';
     const relationLabel = tipo === 'COLABORATIVA' ? 'Responsables' : 'Seguimiento';
     const subtareas = detail?.subtareas || [];
+    const currentFiles = [
+      ...(detail?.archivos_directos || row.archivos_directos || []),
+      ...(detail?.evidencias_legacy || row.evidencias_legacy || [])
+    ];
     const root = document.getElementById('home-task-modal-root');
     if(!root) return;
-    const existingEvidence = row.photo_url || row.adjunto_url;
-    root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal card"><div class="task-modal-head"><div><p>${mode === 'edit' ? 'Editar tarea' : 'Nueva tarea'}</p><h2>${tipo === 'COLABORATIVA' ? 'Tarea colaborativa' : 'Tarea personal'}</h2></div><button class="modal-close" id="task-modal-close">×</button></div><form id="home-task-form" class="task-form" novalidate><input type="hidden" name="tipo_pendiente" value="${safeText(tipo)}"><input type="hidden" name="photo_url" value="${safeText(row.photo_url || '')}"><input type="hidden" name="adjunto_url" value="${safeText(row.adjunto_url || '')}"><div class="form-grid"><label>Pendiente *<input name="pendiente" required maxlength="255" value="${safeText(row.pendiente || '')}"></label>${tipo === 'PERSONAL' ? `<label>Prioridad *<select name="prioridad" required><option value="CRITICA" ${row.prioridad==='CRITICA'?'selected':''}>⚠️ Crítica</option><option value="ALTA" ${row.prioridad==='ALTA'?'selected':''}>🔴 Alta</option><option value="MEDIA" ${!row.prioridad || row.prioridad==='MEDIA'?'selected':''}>🟡 Media</option><option value="BAJA" ${row.prioridad==='BAJA'?'selected':''}>🟢 Baja</option></select></label>` : `<input type="hidden" name="prioridad" value="${safeText(row.prioridad || '')}"><div class="readonly-field"><strong>Prioridad</strong><span>La definirá el responsable</span></div>`}<label>Fecha compromiso <small>(opcional)</small><input type="date" name="due_date" value="${safeText(formatDateInput(row.due_date))}"></label><label>Área<select name="area" id="task-area">${areaOptions(row.area || '')}</select></label><label>Empresa / razón social<select name="empresa" id="task-company">${empresaOptions(initialEmpresa)}</select></label><label>Proyecto<select name="proyecto" id="task-project"><option value="">Sin proyecto</option>${projectOptionList(state.catalogs.proyectos || [], row.proyecto)}</select></label><label>Equipo<select name="equipo" id="task-equipment"><option value="">Sin equipo</option>${(state.catalogs.equipos || []).map(e => `<option value="${safeText(e.numero_equipo)}" ${String(e.numero_equipo)===String(row.equipo||'')?'selected':''}>${safeText(e.identificacion_sitio || e.numero_equipo)} · ${safeText(e.numero_equipo)}</option>`).join('')}</select></label></div><label>Descripción<textarea name="descripcion" rows="4">${safeText(row.descripcion || '')}</textarea></label><section class="form-block"><div class="block-title"><strong>Evidencia inicial</strong><span>Máximo 1 imagen o 1 archivo directo en la tarea. Los adjuntos de seguimiento van en comentarios.</span></div>${existingEvidence ? `<p class="muted-note">Evidencia actual: <a href="${safeText(existingEvidence)}" target="_blank" rel="noopener">Abrir archivo</a></p>` : ''}<div class="form-grid"><label>Imagen<input type="file" id="task-photo-file" accept="image/*"></label><label>Archivo<input type="file" id="task-attachment-file"></label></div><p class="muted-note">Selecciona solo una opción. Se guardará en <code>photo_url</code> o <code>adjunto_url</code> después de subir el archivo.</p></section><section class="form-block"><div class="block-title"><strong>${safeText(relationLabel)}</strong><span>${tipo === 'COLABORATIVA' ? 'Responsables directos' : 'Usuarios que dan seguimiento'} filtrados por empresa seleccionada</span></div><div id="task-users-picker">${renderUserPicker(selectedInitials(detail))}</div></section><section class="form-block"><label class="inline-check"><input type="checkbox" name="con_subtareas" id="task-has-subtasks" ${row.con_subtareas || subtareas.length ? 'checked' : ''}> Tiene subtareas</label><div id="task-subtasks" class="subtask-editor">${(subtareas.length ? subtareas : [{subtarea:''}]).map(st => `<div class="subtask-edit-row"><input name="subtarea" value="${safeText(st.subtarea || '')}" placeholder="Subtarea"><button type="button" class="remove-subtask">Quitar</button></div>`).join('')}</div><button type="button" class="mini-action" id="add-subtask">+ Agregar subtarea</button></section><div class="form-actions"><button type="button" class="secondary" id="task-cancel">Cancelar</button><button type="submit" class="new-task">Guardar</button></div></form></section></div>`;
+
+    root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal card">
+      <div class="task-modal-head"><div><p>${mode === 'edit' ? 'Editar tarea' : 'Nueva tarea'}</p><h2>${tipo === 'COLABORATIVA' ? 'Tarea colaborativa' : 'Tarea personal'}</h2></div><button class="modal-close" id="task-modal-close">×</button></div>
+      <form id="home-task-form" class="task-form" novalidate>
+        <input type="hidden" name="tipo_pendiente" value="${safeText(tipo)}">
+        <div class="form-grid">
+          <label>Pendiente *<input name="pendiente" required maxlength="255" value="${safeText(row.pendiente || '')}"></label>
+          ${tipo === 'PERSONAL'
+            ? `<label>Prioridad *<select name="prioridad" required><option value="CRITICA" ${row.prioridad==='CRITICA'?'selected':''}>⚠️ Crítica</option><option value="ALTA" ${row.prioridad==='ALTA'?'selected':''}>🔴 Alta</option><option value="MEDIA" ${!row.prioridad || row.prioridad==='MEDIA'?'selected':''}>🟡 Media</option><option value="BAJA" ${row.prioridad==='BAJA'?'selected':''}>🟢 Baja</option></select></label>`
+            : `<input type="hidden" name="prioridad" value="${safeText(row.prioridad || '')}"><div class="readonly-field"><strong>Prioridad</strong><span>La definirá el responsable</span></div>`}
+          <label>Fecha compromiso <small>(opcional)</small><input type="date" name="due_date" value="${safeText(formatDateInput(row.due_date))}"></label>
+          <label>Área<select name="area" id="task-area">${areaOptions(row.area || '')}</select></label>
+          <label>Empresa / razón social<select name="empresa" id="task-company">${empresaOptions(initialEmpresa)}</select></label>
+          <label>Proyecto<select name="proyecto" id="task-project"><option value="">Sin proyecto</option>${projectOptionList(state.catalogs.proyectos || [], row.proyecto)}</select></label>
+          <label>Equipo<select name="equipo" id="task-equipment"><option value="">Sin equipo</option>${(state.catalogs.equipos || []).map(e => `<option value="${safeText(e.numero_equipo)}" ${String(e.numero_equipo)===String(row.equipo||'')?'selected':''}>${safeText(e.identificacion_sitio || e.numero_equipo)} · ${safeText(e.numero_equipo)}</option>`).join('')}</select></label>
+        </div>
+        <label>Descripción<textarea name="descripcion" rows="4">${safeText(row.descripcion || '')}</textarea></label>
+        <section class="form-block">
+          <div class="block-title"><strong>Evidencia directa</strong><span>Máximo un archivo de 25 MB. Al seleccionar uno nuevo se sustituirá la evidencia activa.</span></div>
+          ${renderStoredFiles(currentFiles)}
+          <div class="form-grid">
+            <label>Imagen<input type="file" id="task-photo-file" accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif"></label>
+            <label>Documento<input type="file" id="task-attachment-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.zip"></label>
+          </div>
+          <p class="muted-note">Selecciona solo una opción. Los archivos nuevos se guardan en Azure; los enlaces históricos se conservan.</p>
+        </section>
+        <section class="form-block"><div class="block-title"><strong>${safeText(relationLabel)}</strong><span>${tipo === 'COLABORATIVA' ? 'Responsables directos' : 'Usuarios que dan seguimiento'} filtrados por empresa seleccionada</span></div><div id="task-users-picker">${renderUserPicker(selectedInitials(detail))}</div></section>
+        <section class="form-block"><label class="inline-check"><input type="checkbox" name="con_subtareas" id="task-has-subtasks" ${row.con_subtareas || subtareas.length ? 'checked' : ''}> Tiene subtareas</label><div id="task-subtasks" class="subtask-editor">${(subtareas.length ? subtareas : [{subtarea:''}]).map(st => `<div class="subtask-edit-row"><input name="subtarea" value="${safeText(st.subtarea || '')}" placeholder="Subtarea"><button type="button" class="remove-subtask">Quitar</button></div>`).join('')}</div><button type="button" class="mini-action" id="add-subtask">+ Agregar subtarea</button></section>
+        <div class="form-actions"><button type="button" class="secondary" id="task-cancel">Cancelar</button><button type="submit" class="new-task">Guardar</button></div>
+      </form>
+    </section></div>`;
+
+    bindFileOpenActions(root, currentFiles);
     document.getElementById('task-modal-close')?.addEventListener('click', closeTaskModal);
     document.getElementById('task-cancel')?.addEventListener('click', closeTaskModal);
     document.getElementById('add-subtask')?.addEventListener('click',()=>{
@@ -612,8 +730,16 @@
 
     const photoInput = document.getElementById('task-photo-file');
     const attachmentInput = document.getElementById('task-attachment-file');
-    photoInput?.addEventListener('change', () => { if(photoInput.files.length && attachmentInput) attachmentInput.value = ''; });
-    attachmentInput?.addEventListener('change', () => { if(attachmentInput.files.length && photoInput) photoInput.value = ''; });
+    photoInput?.addEventListener('change', () => {
+      try{ validateSelectedFile(photoInput.files?.[0]); }
+      catch(error){ photoInput.value = ''; alert(error.message); return; }
+      if(photoInput.files.length && attachmentInput) attachmentInput.value = '';
+    });
+    attachmentInput?.addEventListener('change', () => {
+      try{ validateSelectedFile(attachmentInput.files?.[0]); }
+      catch(error){ attachmentInput.value = ''; alert(error.message); return; }
+      if(attachmentInput.files.length && photoInput) photoInput.value = '';
+    });
 
     document.getElementById('task-company')?.addEventListener('change', async ev=>{
       await loadCatalogs({ empresa: ev.target.value });
@@ -645,50 +771,61 @@
   async function saveTaskForm(ev){
     ev.preventDefault();
     const form = ev.target;
-    const fd = new FormData(form);
+    const raw = new FormData(form);
     const photo = document.getElementById('task-photo-file')?.files?.[0] || null;
     const attachment = document.getElementById('task-attachment-file')?.files?.[0] || null;
-    if(photo && attachment){ alert('Selecciona solo 1 imagen o 1 archivo.'); return; }
-    let photoPayload = null;
-    let attachmentPayload = null;
-    try{
-      photoPayload = await fileToPayload(photo);
-      attachmentPayload = await fileToPayload(attachment);
-    }catch(error){ alert(error.message); return; }
-    const pendienteValue = String(fd.get('pendiente') || '').trim();
-    const tipoValue = String(fd.get('tipo_pendiente') || 'PERSONAL').trim().toUpperCase();
-    const prioridadValue = fd.get('prioridad') || '';
+    if(photo && attachment){ alert('Selecciona solo una imagen o un documento.'); return; }
+    try{ validateSelectedFile(photo || attachment); }
+    catch(error){ alert(error.message); return; }
+
+    const pendienteValue = String(raw.get('pendiente') || '').trim();
+    const tipoValue = String(raw.get('tipo_pendiente') || 'PERSONAL').trim().toUpperCase();
+    const prioridadValue = raw.get('prioridad') || '';
     if(!pendienteValue){ alert('El pendiente es obligatorio.'); return; }
     if(tipoValue === 'PERSONAL' && !prioridadValue){ alert('La prioridad es obligatoria para tareas personales.'); return; }
-    const body = {
-      pendiente: pendienteValue,
-      tipo_pendiente: tipoValue,
-      prioridad: prioridadValue,
-      due_date: fd.get('due_date') || null,
-      area: fd.get('area'),
-      empresa: fd.get('empresa'),
-      proyecto: fd.get('proyecto'),
-      equipo: fd.get('equipo'),
-      descripcion: fd.get('descripcion'),
-      photo_url: fd.get('photo_url'),
-      adjunto_url: fd.get('adjunto_url'),
-      photo_file: photoPayload,
-      adjunto_file: attachmentPayload,
-      con_subtareas: fd.get('con_subtareas') === 'on',
-      usuarios: fd.getAll('usuarios').map(v=>String(v||'').trim().toUpperCase()).filter(v=>v && v !== currentUserInitials()),
-      subtareas: fd.getAll('subtarea').map(v=>String(v||'').trim()).filter(Boolean).map(subtarea=>({ subtarea }))
-    };
+
+    const usuarios = raw.getAll('usuarios')
+      .map(v=>String(v||'').trim().toUpperCase())
+      .filter(v=>v && v !== currentUserInitials());
+    const subtareas = raw.getAll('subtarea')
+      .map(v=>String(v||'').trim())
+      .filter(Boolean)
+      .map(subtarea=>({ subtarea }));
+
+    const payload = new FormData();
+    payload.append('pendiente', pendienteValue);
+    payload.append('tipo_pendiente', tipoValue);
+    payload.append('prioridad', String(prioridadValue || ''));
+    payload.append('due_date', String(raw.get('due_date') || ''));
+    payload.append('area', String(raw.get('area') || ''));
+    payload.append('empresa', String(raw.get('empresa') || ''));
+    payload.append('proyecto', String(raw.get('proyecto') || ''));
+    payload.append('equipo', String(raw.get('equipo') || ''));
+    payload.append('descripcion', String(raw.get('descripcion') || ''));
+    payload.append('con_subtareas', raw.get('con_subtareas') === 'on' ? '1' : '0');
+    payload.append('rewrite_subtareas', '1');
+    payload.append('usuarios_json', JSON.stringify(usuarios));
+    payload.append('subtareas_json', JSON.stringify(subtareas));
+    if(photo) payload.append('photo_file', photo, photo.name);
+    if(attachment) payload.append('adjunto_file', attachment, attachment.name);
+
     const id = state.selectedDetail?.pendiente?.id_pendiente || state.selectedTask?.id;
     const path = state.formMode === 'edit' && id ? '/api/pendientes/' + encodeURIComponent(id) : '/api/pendientes';
     const method = state.formMode === 'edit' && id ? 'PUT' : 'POST';
+    const submit = form.querySelector('button[type="submit"]');
+    if(submit) submit.disabled = true;
     try{
-      await apiRequest(path, { method, body: JSON.stringify(body) });
+      await apiRequest(path, { method, body: payload });
       closeTaskModal();
       await loadHomeData();
-    }catch(error){ alert(error.message); }
+    }catch(error){
+      alert(error.message);
+    }finally{
+      if(submit) submit.disabled = false;
+    }
   }
 
-  async function openTaskDetail(id){
+  async function openTaskDetail(id, options){
     if(!id) return;
     const local = state.tasks.find(t => String(t.id) === String(id));
     state.selectedTask = local || null;
@@ -698,6 +835,13 @@
       const json = await apiRequest('/api/pendientes/' + encodeURIComponent(id));
       state.selectedDetail = json.data;
       renderTaskDetail(json.data);
+      if(options && options.focus === 'chat'){
+        window.setTimeout(() => {
+          const form = document.getElementById('comment-form');
+          form?.scrollIntoView({ behavior:'smooth', block:'center' });
+          form?.querySelector('textarea')?.focus({ preventScroll:true });
+        }, 80);
+      }
     }catch(error){
       if(root) root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal card"><div class="task-modal-head"><h2>Error</h2><button class="modal-close" id="task-modal-close">×</button></div><div class="empty-state">${safeText(error.message)}</div></section></div>`;
       document.getElementById('task-modal-close')?.addEventListener('click', closeTaskModal);
@@ -705,20 +849,45 @@
   }
 
   function renderTaskDetail(detail){
-    const p = detail.pendiente;
+    const p = detail.pendiente || {};
     const tipo = p.tipo_pendiente || 'PERSONAL';
     const relationLabel = tipo === 'COLABORATIVA' ? 'Responsables' : 'Seguimiento';
-    const users = (detail.usuarios || []).map(u => `${u.iniciales_usuario}${u.nombre ? ' · ' + u.nombre : ''}`).join('<br>') || 'Sin asignar';
+    const users = (detail.usuarios || []).map(u => `${safeText(u.iniciales_usuario)}${u.nombre ? ' · ' + safeText(u.nombre) : ''}`).join('<br>') || 'Sin asignar';
     const currentInitials = state.user?.iniciales || '';
-    const canEdit = state.user && p.creado_por_email && (state.user.correo === p.creado_por_email || state.user.email === p.creado_por_email);
+    const contextual = detail.permisos_contextuales || {};
+    const canEdit = contextual.puede_editar === true || Boolean(state.user && p.creado_por_email && (state.user.correo === p.creado_por_email || state.user.email === p.creado_por_email));
     const canChangeStatus = canEdit;
     const canSetPriority = tipo === 'COLABORATIVA' && (detail.usuarios || []).some(u => u.tipo_relacion === 'RESPONSABLE' && u.iniciales_usuario === currentInitials);
+    const directFiles = detail.archivos_directos || [];
+    const legacyFiles = detail.evidencias_legacy || [];
+    const allEvidence = [...directFiles, ...legacyFiles];
+    const commentFiles = (detail.comentarios || []).flatMap(comment => comment.adjuntos || []);
     const statusControl = canChangeStatus
       ? `<select id="detail-status"><option ${p.estatus==='Pendiente'?'selected':''}>Pendiente</option><option ${p.estatus==='En proceso'?'selected':''}>En proceso</option><option ${p.estatus==='Cerrado'?'selected':''}>Cerrado</option></select>`
       : `<p class="muted-note">${safeText(p.estatus)} · Solo el creador puede cambiar el estatus.</p>`;
-    const creatorActions = canEdit ? '<button class="mini-action" id="detail-edit">Editar tarea</button><button class="danger-action" id="detail-delete">Eliminar tarea</button>' : '<p class="muted-note">Solo el creador puede editar o eliminar la tarea.</p>';
+    const creatorActions = canEdit
+      ? '<button class="mini-action" id="detail-edit">Editar tarea</button><button class="danger-action" id="detail-delete">Eliminar tarea</button>'
+      : '<p class="muted-note">Solo el creador puede editar o eliminar la tarea.</p>';
+    const commentsHtml = (detail.comentarios || []).length
+      ? detail.comentarios.map(c => {
+          const commentText = String(c.comentario || '').trim();
+          return `<article class="comment-item"><div class="comment-meta"><strong>${safeText(c.iniciales || c.nombre || 'Usuario')}</strong><span>${safeText(formatRelativeDate(c.fecha))}</span></div>${commentText ? `<p>${safeText(commentText)}</p>` : ''}${renderStoredFiles(c.adjuntos || [])}</article>`;
+        }).join('')
+      : '<div class="empty-state">Sin comentarios.</div>';
+
     const root = document.getElementById('home-task-modal-root');
-    root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal task-detail card"><div class="task-modal-head"><div><p>Detalle de tarea</p><h2>${safeText(p.pendiente)}</h2></div><button class="modal-close" id="task-modal-close">×</button></div><div class="detail-grid"><section class="detail-card"><h3>Información</h3><p>${safeText(p.descripcion || 'Sin descripción')}</p><div class="detail-tags"><span class="badge ${safeText(String(p.prioridad || 'sin-prioridad').toLowerCase())}">${priorityIcon(p.prioridad)} ${safeText(p.prioridad || 'Sin prioridad')}</span><span class="badge estado">${safeText(p.estatus)}</span><span>${safeText(tipo)}</span><span>Fecha compromiso: ${safeText(formatDate(p.due_date))}</span></div><dl><dt>Área</dt><dd>${safeText(p.area || 'Sin área')}</dd><dt>Proyecto</dt><dd>${safeText(p.proyecto || 'Sin proyecto')}</dd><dt>Equipo</dt><dd>${safeText(p.equipo || 'Sin equipo')}</dd><dt>Evidencia directa</dt><dd>${p.photo_url || p.adjunto_url ? `<a href="${safeText(p.photo_url || p.adjunto_url)}" target="_blank" rel="noopener">Abrir evidencia</a>` : 'Sin evidencia'}</dd><dt>Creador</dt><dd>${safeText(p.creado_por_iniciales)} · ${safeText(p.creado_por_email)}</dd></dl></section><section class="detail-card"><h3>${safeText(relationLabel)}</h3><p>${users}</p><h3>Estado</h3>${statusControl}${canSetPriority ? `<h3>Prioridad del responsable</h3><select id="detail-priority"><option value="">Sin prioridad</option><option value="CRITICA" ${p.prioridad==='CRITICA'?'selected':''}>⚠️ Crítica</option><option value="ALTA" ${p.prioridad==='ALTA'?'selected':''}>🔴 Alta</option><option value="MEDIA" ${p.prioridad==='MEDIA'?'selected':''}>🟡 Media</option><option value="BAJA" ${p.prioridad==='BAJA'?'selected':''}>🟢 Baja</option></select>` : ''}${creatorActions}</section></div><section class="detail-card"><h3>Subtareas</h3><div class="subtask-list">${(detail.subtareas || []).length ? detail.subtareas.map(st => `<label class="subtask-row"><input type="checkbox" data-subtask-id="${safeText(st.id_subtarea)}" ${st.estatus==='Cerrado'?'checked':''}><span>${safeText(st.subtarea)}</span></label>`).join('') : '<div class="empty-state">Sin subtareas.</div>'}</div></section><section class="detail-card"><h3>Comentarios</h3><div class="comments-list">${(detail.comentarios || []).length ? detail.comentarios.map(c => `<article class="comment-item"><strong>${safeText(c.iniciales || c.nombre || 'Usuario')}</strong><span>${safeText(formatRelativeDate(c.fecha))}</span><p>${safeText(c.comentario)}</p>${(c.adjuntos||[]).map(a => `<a href="${safeText(a.archivo_url)}" target="_blank" rel="noopener">${safeText(a.nombre_archivo)}</a>`).join('')}</article>`).join('') : '<div class="empty-state">Sin comentarios.</div>'}</div><form id="comment-form" class="comment-form"><textarea name="comentario" rows="2" placeholder="Agregar comentario..."></textarea><input type="file" id="comment-file"><button class="new-task" type="submit">Comentar</button></form></section><div class="form-actions"><button class="secondary" id="task-detail-close">Cerrar</button></div></section></div>`;
+    root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal task-detail card">
+      <div class="task-modal-head"><div><p>Detalle de tarea</p><h2>${safeText(p.pendiente)}</h2></div><button class="modal-close" id="task-modal-close">×</button></div>
+      <div class="detail-grid">
+        <section class="detail-card"><h3>Información</h3><p>${safeText(p.descripcion || 'Sin descripción')}</p><div class="detail-tags"><span class="badge ${safeText(String(p.prioridad || 'sin-prioridad').toLowerCase())}">${priorityIcon(p.prioridad)} ${safeText(p.prioridad || 'Sin prioridad')}</span><span class="badge estado">${safeText(p.estatus)}</span><span>${safeText(tipo)}</span><span>Fecha compromiso: ${safeText(formatDate(p.due_date))}</span></div><dl><dt>Área</dt><dd>${safeText(p.area || 'Sin área')}</dd><dt>Empresa</dt><dd>${safeText(p.empresa || 'Sin empresa')}</dd><dt>Proyecto</dt><dd>${safeText(p.proyecto || 'Sin proyecto')}</dd><dt>Equipo</dt><dd>${safeText(p.equipo || 'Sin equipo')}</dd><dt>Creador</dt><dd>${safeText(p.creado_por_iniciales)} · ${safeText(p.creado_por_email)}</dd></dl><h3>Evidencia directa</h3>${renderStoredFiles(allEvidence, { canDelete: canEdit })}</section>
+        <section class="detail-card"><h3>${safeText(relationLabel)}</h3><p>${users}</p><h3>Estado</h3>${statusControl}${canSetPriority ? `<h3>Prioridad del responsable</h3><select id="detail-priority"><option value="">Sin prioridad</option><option value="CRITICA" ${p.prioridad==='CRITICA'?'selected':''}>⚠️ Crítica</option><option value="ALTA" ${p.prioridad==='ALTA'?'selected':''}>🔴 Alta</option><option value="MEDIA" ${p.prioridad==='MEDIA'?'selected':''}>🟡 Media</option><option value="BAJA" ${p.prioridad==='BAJA'?'selected':''}>🟢 Baja</option></select>` : ''}${creatorActions}</section>
+      </div>
+      <section class="detail-card"><h3>Subtareas</h3><div class="subtask-list">${(detail.subtareas || []).length ? detail.subtareas.map(st => `<label class="subtask-row"><input type="checkbox" data-subtask-id="${safeText(st.id_subtarea)}" ${st.estatus==='Cerrado'?'checked':''}><span>${safeText(st.subtarea)}</span></label>`).join('') : '<div class="empty-state">Sin subtareas.</div>'}</div></section>
+      <section class="detail-card"><h3>Comentarios</h3><div class="comments-list">${commentsHtml}</div><form id="comment-form" class="comment-form"><textarea name="comentario" rows="2" placeholder="Agregar comentario..."></textarea><input type="file" id="comment-file" accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.zip"><button class="new-task" type="submit">Enviar</button></form><p class="muted-note">Puedes enviar texto, un archivo o ambos. Límite: 25 MB.</p></section>
+      <div class="form-actions"><button class="secondary" id="task-detail-close">Cerrar</button></div>
+    </section></div>`;
+
+    bindFileOpenActions(root, [...allEvidence, ...commentFiles]);
     document.getElementById('task-modal-close')?.addEventListener('click', closeTaskModal);
     document.getElementById('task-detail-close')?.addEventListener('click', closeTaskModal);
     document.getElementById('detail-edit')?.addEventListener('click',()=>openTaskForm('edit', detail));
@@ -732,6 +901,15 @@
         await refreshHeaderNotifications();
       }catch(error){ alert(error.message); }
     });
+    root.querySelectorAll('[data-delete-direct-file]').forEach(button => button.addEventListener('click', async () => {
+      const idArchivo = button.dataset.deleteDirectFile;
+      if(!confirm('¿Eliminar esta evidencia de la tarea?')) return;
+      try{
+        await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/archivos/' + encodeURIComponent(idArchivo), { method:'DELETE' });
+        await openTaskDetail(p.id_pendiente);
+        await loadHomeData();
+      }catch(error){ alert(error.message); }
+    }));
     document.getElementById('detail-status')?.addEventListener('change', async ev=>{
       try{ await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/estatus', { method:'PATCH', body: JSON.stringify({ estatus: ev.target.value }) }); await loadHomeData(); }
       catch(error){ alert(error.message); }
@@ -744,15 +922,33 @@
       try{ await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/subtareas/' + encodeURIComponent(ev.target.dataset.subtaskId), { method:'PATCH', body: JSON.stringify({ estatus: ev.target.checked ? 'Cerrado' : 'Pendiente' }) }); await loadHomeData(); }
       catch(error){ alert(error.message); }
     }));
+    const commentInput = document.getElementById('comment-file');
+    commentInput?.addEventListener('change', () => {
+      try{ validateSelectedFile(commentInput.files?.[0]); }
+      catch(error){ commentInput.value = ''; alert(error.message); }
+    });
     document.getElementById('comment-form')?.addEventListener('submit', async ev=>{
       ev.preventDefault();
-      const comentario = new FormData(ev.currentTarget).get('comentario');
-      const file = document.getElementById('comment-file')?.files?.[0] || null;
-      if(!String(comentario||'').trim()) return;
-      let adjunto_file = null;
-      try{ adjunto_file = await fileToPayload(file); }catch(error){ alert(error.message); return; }
-      try{ await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/comentarios', { method:'POST', body: JSON.stringify({ comentario, adjunto_file }) }); await openTaskDetail(p.id_pendiente); await loadHomeData(); }
-      catch(error){ alert(error.message); }
+      const form = ev.currentTarget;
+      const comentario = String(new FormData(form).get('comentario') || '').trim();
+      const file = commentInput?.files?.[0] || null;
+      if(!comentario && !file){ alert('Escribe un comentario o selecciona un archivo.'); return; }
+      try{ validateSelectedFile(file); }catch(error){ alert(error.message); return; }
+      const payload = new FormData();
+      payload.append('comentario', comentario);
+      if(file) payload.append('archivo', file, file.name);
+      const submit = form.querySelector('button[type="submit"]');
+      if(submit) submit.disabled = true;
+      try{
+        await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/comentarios', { method:'POST', body: payload });
+        await openTaskDetail(p.id_pendiente);
+        await loadHomeData();
+        await refreshHeaderNotifications();
+      }catch(error){
+        alert(error.message);
+      }finally{
+        if(submit) submit.disabled = false;
+      }
     });
   }
 
