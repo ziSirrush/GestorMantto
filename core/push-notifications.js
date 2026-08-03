@@ -92,7 +92,18 @@
       config = await request('/api/push/config', { method:'GET' });
       if(!config.enabled || !config.public_key) throw new Error(config.reason || 'Las notificaciones push no estan configuradas.');
     }
-    if(!registration) registration = await navigator.serviceWorker.register(SW_PATH, { scope:'./' });
+    if(!registration){
+      await navigator.serviceWorker.register(SW_PATH, { scope:'./' });
+    }
+
+    // register() solo instala el Service Worker; ready espera hasta que exista
+    // un registro activo y evita PushManager.subscribe() sobre un worker inactivo.
+    registration = await navigator.serviceWorker.ready;
+
+    if(!registration || !registration.active){
+      throw new Error('El Service Worker todavia no esta activo. Cierra y abre nuevamente la aplicacion.');
+    }
+
     return registration;
   }
 

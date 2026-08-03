@@ -1,3 +1,5 @@
+'use strict';
+
 const db = require('../../config/db');
 
 const TABLE = 'ventas_cotizaciones_historial';
@@ -14,25 +16,88 @@ function buildScopeClause(scope, alias = 'c') {
 }
 
 async function create(connection, record) {
-  const columns = Object.keys(record);
-  const values = columns.map((column) => record[column]);
   const [result] = await connection.query(
-    `INSERT INTO ${TABLE} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
-    values
+    `INSERT INTO ${TABLE} (
+       id_cotizacion,
+       estatus_anterior,
+       estatus_nuevo,
+       motivo,
+       comentario,
+       campo_origen,
+       valor_anterior,
+       valor_nuevo,
+       id_usuario,
+       iniciales_usuario,
+       origen_movimiento,
+       empresa,
+       activo
+     )
+     SELECT
+       c.id_cotizacion,
+       ?,
+       COALESCE(?, c.estatus_proyecto, 'Sin estatus'),
+       ?,
+       ?,
+       ?,
+       ?,
+       ?,
+       ?,
+       u.iniciales,
+       ?,
+       NULL,
+       1
+     FROM ventas_cotizaciones_cor c
+     LEFT JOIN usuarios u ON u.id_SB = ?
+     WHERE c.id_cotizacion = ?
+     LIMIT 1`,
+    [
+      record.estatus_anterior,
+      record.estatus_nuevo,
+      record.motivo,
+      record.comentario,
+      record.campo_origen,
+      record.valor_anterior,
+      record.valor_nuevo,
+      record.id_usuario,
+      record.origen_movimiento,
+      record.id_usuario,
+      record.id_cotizacion
+    ]
   );
+
+  if (!result.affectedRows) {
+    const error = new Error('No fue posible registrar el historial porque la cotización no existe.');
+    error.statusCode = 404;
+    throw error;
+  }
+
   return result;
+}
+
+function historyProjection() {
+  return `h.*,
+          h.origen_movimiento AS accion,
+          h.valor_anterior AS detalle_anterior,
+          h.valor_nuevo AS detalle_nuevo,
+          NULL AS proxima_fecha,
+          u.nombre AS usuario_nombre,
+          COALESCE(h.iniciales_usuario, u.iniciales) AS usuario_iniciales,
+          c.nombre_proyecto,
+          c.cliente,
+          c.asesor,
+          c.estatus_proyecto AS estatus_actual`;
 }
 
 async function listByCotizacion(connection, idCotizacion, options, scope) {
   const scopeClause = buildScopeClause(scope, 'c');
-  const clauses = ['h.id_cotizacion = ?'];
+  const clauses = ['h.id_cotizacion = ?', 'h.activo = 1'];
   const params = [idCotizacion];
   if (scopeClause.sql) {
     clauses.push(scopeClause.sql);
     params.push(...scopeClause.params);
   }
   if (options.accion) {
-    clauses.push('h.accion = ?');
+    clauses.push('h.origen_movimiento = ?');
     params.push(options.accion);
   }
 
@@ -45,13 +110,12 @@ async function listByCotizacion(connection, idCotizacion, options, scope) {
     params
   );
   const [rows] = await connection.query(
-    `SELECT h.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales,
-            c.nombre_proyecto, c.cliente, c.asesor, c.estatus_proyecto AS estatus_actual
+    `SELECT ${historyProjection()}
        FROM ${TABLE} h
        INNER JOIN ventas_cotizaciones_cor c ON c.id_cotizacion = h.id_cotizacion
        LEFT JOIN usuarios u ON u.id_SB = h.id_usuario
        ${where}
-      ORDER BY h.created_at DESC, h.id_historial DESC
+      ORDER BY h.fecha_movimiento DESC, h.id_historial DESC
       LIMIT ? OFFSET ?`,
     [...params, options.pageSize, options.offset]
   );
@@ -59,7 +123,7 @@ async function listByCotizacion(connection, idCotizacion, options, scope) {
 }
 
 async function listGlobal(connection, options, scope) {
-  const clauses = [];
+  const clauses = ['h.activo = 1'];
   const params = [];
   const scopeClause = buildScopeClause(scope, 'c');
   if (scopeClause.sql) {
@@ -67,7 +131,7 @@ async function listGlobal(connection, options, scope) {
     params.push(...scopeClause.params);
   }
   if (options.accion) {
-    clauses.push('h.accion = ?');
+    clauses.push('h.origen_movimiento = ?');
     params.push(options.accion);
   }
   if (options.idCotizacion) {
@@ -75,23 +139,23 @@ async function listGlobal(connection, options, scope) {
     params.push(options.idCotizacion);
   }
   if (options.desde) {
-    clauses.push('h.created_at >= ?');
+    clauses.push('h.fecha_movimiento >= ?');
     params.push(options.desde);
   }
   if (options.hasta) {
-    clauses.push('h.created_at < DATE_ADD(?, INTERVAL 1 DAY)');
+    clauses.push('h.fecha_movimiento < DATE_ADD(?, INTERVAL 1 DAY)');
     params.push(options.hasta);
   }
   if (options.search) {
     const like = `%${options.search}%`;
     clauses.push(`(
       c.nombre_proyecto LIKE ? OR c.cliente LIKE ? OR c.asesor LIKE ? OR
-      h.accion LIKE ? OR h.motivo LIKE ? OR h.comentario LIKE ? OR
+      h.origen_movimiento LIKE ? OR h.motivo LIKE ? OR h.comentario LIKE ? OR
       CAST(h.id_cotizacion AS CHAR) LIKE ?
     )`);
     params.push(...Array(7).fill(like));
   }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const where = `WHERE ${clauses.join(' AND ')}`;
   const [countRows] = await connection.query(
     `SELECT COUNT(*) AS total
        FROM ${TABLE} h
@@ -100,13 +164,12 @@ async function listGlobal(connection, options, scope) {
     params
   );
   const [rows] = await connection.query(
-    `SELECT h.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales,
-            c.nombre_proyecto, c.cliente, c.asesor, c.estatus_proyecto AS estatus_actual
+    `SELECT ${historyProjection()}
        FROM ${TABLE} h
        INNER JOIN ventas_cotizaciones_cor c ON c.id_cotizacion = h.id_cotizacion
        LEFT JOIN usuarios u ON u.id_SB = h.id_usuario
        ${where}
-      ORDER BY h.created_at DESC, h.id_historial DESC
+      ORDER BY h.fecha_movimiento DESC, h.id_historial DESC
       LIMIT ? OFFSET ?`,
     [...params, options.pageSize, options.offset]
   );

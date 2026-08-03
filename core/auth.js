@@ -4,7 +4,7 @@
   const USER_KEY = 'mantto_user';
   const SESSION_KEY = 'mantto_session';
   const VIEW_USER_KEY = 'mantto_view_user';
-  const state = { token: null, user: null, viewUser: null, pendingUser: null };
+  const state = { token: null, user: null, viewUser: null, pendingUser: null, expiringSession: false };
 
   function $(id){ return document.getElementById(id); }
   function msg(id, text, type){ const el=$(id); if(!el) return; el.textContent=text||''; el.className='auth-msg ' + (type||''); }
@@ -21,16 +21,55 @@
     return Boolean(actor && viewed && Number(actor.id_SB)!==Number(viewed.id_SB));
   }
   function safeJson(raw){ try{return raw?JSON.parse(raw):null;}catch(e){return null;} }
+  function isPublicAuthPath(path){
+    const cleanPath=String(path||'').split('?')[0];
+    return cleanPath==='/api/auth/login' ||
+      cleanPath==='/api/auth/security-questions' ||
+      cleanPath==='/api/auth/recovery/start' ||
+      cleanPath==='/api/auth/recovery/reset';
+  }
+  function buildApiError(res, json){
+    const error=new Error(json?.message || ('HTTP ' + res.status));
+    error.name='ManttoApiError';
+    error.status=res.status;
+    error.code=json?.code || null;
+    error.payload=json || null;
+    return error;
+  }
+  function expireSession(message){
+    if(state.expiringSession) return;
+    state.expiringSession=true;
+    clearSession();
+    showLogin();
+    msg('login-msg', message || 'Tu sesión expiró. Inicia sesión nuevamente.','info');
+    document.dispatchEvent(new CustomEvent('mantto:session-expired', {
+      detail:{ message:message || 'Tu sesión expiró. Inicia sesión nuevamente.' }
+    }));
+    window.setTimeout(()=>{ state.expiringSession=false; },0);
+  }
   async function api(path, options){
     const opts = options || {};
     const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, opts.headers || {});
     const token = getToken();
     if(token) headers.Authorization = 'Bearer ' + token;
+    const deviceToken=window.ManttoDevicePermissions&&window.ManttoDevicePermissions.getDeviceToken
+      ? window.ManttoDevicePermissions.getDeviceToken()
+      : localStorage.getItem('mantto_device_token');
+    if(deviceToken) headers['X-Device-Token']=String(deviceToken);
     const viewed=getViewUser();
     if(viewed && viewed.id_SB) headers['X-View-User-ID']=String(viewed.id_SB);
     const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
     const json = await res.json().catch(()=>({ ok:false, message:'Respuesta no JSON' }));
-    if(!res.ok || json.ok === false) throw new Error(json.message || ('HTTP ' + res.status));
+    if(!res.ok || json.ok === false){
+      const error=buildApiError(res,json);
+      if(res.status===401 && !isPublicAuthPath(path)){
+        const sessionMessage=json?.message==='Sesión inválida o usuario inactivo.'
+          ? 'La sesión ya no es válida o el usuario fue desactivado. Inicia sesión nuevamente.'
+          : 'Tu sesión expiró. Inicia sesión nuevamente.';
+        expireSession(sessionMessage);
+      }
+      throw error;
+    }
     return json;
   }
   async function apiGet(path){ return api(path, { method:'GET' }); }

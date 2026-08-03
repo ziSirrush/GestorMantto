@@ -1,5 +1,18 @@
+'use strict';
+
 const repository = require('./ventas-cotizaciones-historial.repository');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
+
+const ORIGENES_VALIDOS = new Set([
+  'CREACION',
+  'EDICION',
+  'CAMBIO_ESTATUS',
+  'CIERRE_VENDIDO',
+  'CIERRE_PERDIDO',
+  'REACTIVACION',
+  'SINCRONIZACION',
+  'SISTEMA'
+]);
 
 function httpError(statusCode, message, detalles) {
   const error = new Error(message);
@@ -45,23 +58,46 @@ function safeJson(value) {
   return JSON.stringify(value);
 }
 
+function getStatus(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  return text(snapshot.estatus_proyecto, 100);
+}
+
+function getChangedFields(anterior, nuevo) {
+  const keys = new Set([
+    ...Object.keys(anterior && typeof anterior === 'object' ? anterior : {}),
+    ...Object.keys(nuevo && typeof nuevo === 'object' ? nuevo : {})
+  ]);
+  return [...keys].filter(Boolean).join(', ').slice(0, 100) || null;
+}
+
+function normalizeOrigin(accion) {
+  const normalized = text(accion, 40)?.toUpperCase() || 'SISTEMA';
+  if (ORIGENES_VALIDOS.has(normalized)) return normalized;
+  if (normalized === 'CAMBIO_ASIGNACION' || normalized === 'DESACTIVACION') return 'EDICION';
+  return 'SISTEMA';
+}
+
 async function registrarMovimiento(connection, data, actionContext) {
   const idCotizacion = positiveInteger(data?.idCotizacion);
   if (!idCotizacion) throw httpError(400, 'idCotizacion es obligatorio para registrar historial.');
   const accion = text(data?.accion, 40);
   if (!accion) throw httpError(400, 'accion es obligatoria para registrar historial.');
 
+  const anterior = data?.anterior && typeof data.anterior === 'object' ? data.anterior : null;
+  const nuevo = data?.nuevo && typeof data.nuevo === 'object' ? data.nuevo : null;
+
   return repository.create(connection, {
     id_cotizacion: idCotizacion,
-    accion,
-    comentario: text(data?.comentario, 5000),
-    motivo: text(data?.motivo, 5000),
-    detalle_anterior: safeJson(data?.anterior),
-    detalle_nuevo: safeJson(data?.nuevo),
-    proxima_fecha: data?.proximaFecha || null,
+    estatus_anterior: getStatus(anterior),
+    estatus_nuevo: getStatus(nuevo),
+    motivo: text(data?.motivo, 255),
+    comentario: text(data?.comentario, 65535),
+    campo_origen: getChangedFields(anterior, nuevo),
+    valor_anterior: safeJson(anterior),
+    valor_nuevo: safeJson(nuevo),
     id_usuario: actorId(actionContext),
-    ip: text(actionContext?.ip, 45),
-    user_agent: text(actionContext?.userAgent, 255)
+    origen_movimiento: normalizeOrigin(accion)
   });
 }
 
