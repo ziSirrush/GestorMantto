@@ -153,7 +153,8 @@
 
   async function ssFetchJson(url, options) {
     const config = Object.assign({}, options || {});
-    config.headers = Object.assign({}, ssAuthHeaders(Boolean(config.body)), config.headers || {});
+    const isFormData = typeof FormData !== 'undefined' && config.body instanceof FormData;
+    config.headers = Object.assign({}, ssAuthHeaders(Boolean(config.body) && !isFormData), config.headers || {});
     const response = await fetch(url, config);
     const contentType = response.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await response.json() : null;
@@ -240,9 +241,18 @@
       const size = Number(ssFirst(file, ['peso_archivo', 'size'], 0));
       const sizeText = size > 0 ? (size / 1024 / 1024).toFixed(2) + ' MB' : '';
       const url = ssFileUrl(file);
-      return '<article class="ss-file-item"><div class="ss-file-icon">📎</div><div><strong>' + ssEscape(name) + '</strong><span>' + ssEscape([type, sizeText].filter(Boolean).join(' · ')) + '</span></div>' +
-        (url ? '<a href="' + ssEscape(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '') + '</article>';
+      const idAdjunto = ssFirst(file, ['id_adjunto', 'id']);
+      const azure = String(ssFirst(file, ['storage_provider'], '')).toUpperCase() === 'AZURE_BLOB' && idAdjunto;
+      const open = azure
+        ? '<button type="button" class="ss-file-open" data-ss-file-id="' + ssEscape(idAdjunto) + '">Abrir</button>'
+        : (url ? '<a href="' + ssEscape(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '');
+      return '<article class="ss-file-item"><div class="ss-file-icon">📎</div><div><strong>' + ssEscape(name) + '</strong><span>' + ssEscape([type, sizeText].filter(Boolean).join(' · ')) + '</span></div>' + open + '</article>';
     }).join('');
+    container.onclick = function(event) {
+      const button = event.target.closest('[data-ss-file-id]');
+      if (!button) return;
+      ssOpenAzureFile(button.dataset.ssFileId).catch(function(error) { alert(error.message || 'No se pudo abrir el archivo.'); });
+    };
   }
 
   function ssFillSupportUsers(selectedId) {
@@ -411,13 +421,13 @@
     }
   }
 
-  function ssReadFile(file) {
-    return new Promise(function (resolve, reject) {
-      const reader = new FileReader();
-      reader.onload = function () { resolve(reader.result); };
-      reader.onerror = function () { reject(new Error('No se pudo leer el archivo.')); };
-      reader.readAsDataURL(file);
-    });
+  async function ssOpenAzureFile(idAdjunto) {
+    if (!SS_STATE.currentTicket || !idAdjunto) return;
+    const id = ssFirst(SS_STATE.currentTicket, ['id_ticket', 'id_solicitud', 'id']);
+    const json = await ssFetchJson(ssApiBase() + '/api/support/tickets/' + encodeURIComponent(id) + '/adjuntos/' + encodeURIComponent(idAdjunto) + '/acceso');
+    const url = json?.data?.url;
+    if (!url) throw new Error('El backend no devolvió un enlace de acceso.');
+    window.open(/^https?:\/\//i.test(url) ? url : ssApiBase() + (url.charAt(0) === '/' ? url : '/' + url), '_blank', 'noopener');
   }
 
   async function ssUploadFile() {
@@ -425,25 +435,18 @@
     const input = ssById('ss-file-input');
     const file = input && input.files ? input.files[0] : null;
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      alert('El archivo excede el límite de 8 MB.');
-      return;
-    }
+    if (file.size > 25 * 1024 * 1024) { alert('El archivo excede el límite de 25 MB.'); return; }
     const id = ssFirst(SS_STATE.currentTicket, ['id_ticket', 'id_solicitud', 'id']);
     try {
-      const data = await ssReadFile(file);
-      await ssFetchJson(ssApiBase() + '/api/support/tickets/' + encodeURIComponent(id) + '/adjuntos', {
-        method: 'POST',
-        body: JSON.stringify({ archivo: { name: file.name, type: file.type, size: file.size, data: data } })
-      });
+      const form = new FormData();
+      form.append('archivo', file);
+      await ssFetchJson(ssApiBase() + '/api/support/tickets/' + encodeURIComponent(id) + '/adjuntos', { method: 'POST', body: form });
       input.value = '';
       const detailEndpoint = SS_STATE.mode === 'requester' ? '/api/support/tickets/mias/' : '/api/support/tickets/';
       const refreshed = await ssFetchJson(ssApiBase() + detailEndpoint + encodeURIComponent(id));
       ssRenderDetail(refreshed.data || refreshed);
       await ssLoad();
-    } catch (error) {
-      alert(error.message || 'No se pudo subir el archivo.');
-    }
+    } catch (error) { alert(error.message || 'No se pudo subir el archivo.'); }
   }
 
   function ssHandleTableClick(event) {

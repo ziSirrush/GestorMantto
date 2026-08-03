@@ -1,40 +1,12 @@
-const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const db = require('../config/db');
 const supportSolicitudesService = require('../services/support-solicitudes.service');
-
-
-const supportUploadRoot = path.join(__dirname, '..', '..', 'uploads', 'support');
+const azureStorage = require('../services/storage/azure-storage.service');
+const storageAdapters = require('../services/storage/storage-metadata.adapters');
 
 function hasExactSupportRole(user) {
   const roles = [user && user.rol, ...((user && Array.isArray(user.roles)) ? user.roles : [])].filter(Boolean);
   return roles.includes('Soporte');
-}
-
-function saveSupportUpload(file) {
-  if (!file || typeof file !== 'object') return null;
-  const originalName = String(file.name || file.nombre_original || 'archivo').trim().slice(0, 255) || 'archivo';
-  const mimeType = String(file.type || file.mime_type || 'application/octet-stream').trim().slice(0, 100);
-  const dataUrl = String(file.data || file.base64 || '').trim();
-  if (!dataUrl) throw new Error('El archivo no contiene datos.');
-  const parts = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  const base64 = parts ? parts[2] : dataUrl;
-  const buffer = Buffer.from(base64, 'base64');
-  if (!buffer.length) throw new Error('El archivo está vacío.');
-  if (buffer.length > 8 * 1024 * 1024) throw new Error('El archivo excede 8 MB.');
-  const ext = (path.extname(originalName).toLowerCase() || '').replace(/[^a-z0-9.]/g, '').slice(0, 12);
-  const serverName = `support_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
-  fs.mkdirSync(supportUploadRoot, { recursive: true });
-  fs.writeFileSync(path.join(supportUploadRoot, serverName), buffer);
-  return {
-    originalName,
-    serverName,
-    route: `/uploads/support/${serverName}`,
-    extension: ext.replace('.', '') || 'bin',
-    mimeType,
-    size: buffer.length
-  };
 }
 
 /* ==========================================
@@ -718,6 +690,7 @@ async function addTicketComment(req, res) {
 }
 
 async function addTicketAttachment(req, res) {
+  let uploadedBlob = null;
   try {
     const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
     if (!ticket) return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
@@ -725,33 +698,58 @@ async function addTicketAttachment(req, res) {
     if (!canAdministrateSupport(req) && ownerId !== Number(req.user.id_SB)) {
       return res.status(403).json({ ok: false, message: 'No tienes permiso para adjuntar archivos a esta solicitud.' });
     }
-    const saved = saveSupportUpload(req.body.archivo || req.body.file);
-    await db.query(
+    if (!req.file) return res.status(400).json({ ok: false, message: 'Selecciona un archivo.' });
+    const storage = await azureStorage.uploadPrivate_gnral({
+      file: req.file,
+      empresa: req.user.empresa || ticket.empresa || 'general',
+      modulo: 'soporte',
+      entidadTipo: 'solicitud',
+      entidadId: ticket.id_ticket,
+      subruta: 'adjuntos',
+      metadata: { uploaded_by: req.user.id_SB, ticket_id: ticket.id_ticket }
+    });
+    uploadedBlob = storage.storage_blob_name;
+    const saved = storageAdapters.forSupAdjuntos_gnral(storage);
+    const [result] = await db.query(
       `INSERT INTO sup_adjuntos
        (id_ticket, tipo_adjunto, origen_adjunto, subido_por, nombre_original, nombre_servidor,
-        ruta_archivo, extension_archivo, mime_type, peso_archivo, activo, fecha_creacion, fecha_actualizacion)
-       VALUES (?, 'solicitud', ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        ruta_archivo, extension_archivo, mime_type, peso_archivo,
+        storage_provider, storage_container, storage_blob_name,
+        activo, fecha_creacion, fecha_actualizacion)
+       VALUES (?, 'solicitud', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
       [ticket.id_ticket, hasExactSupportRole(req.user || {}) ? 'Soporte' : 'Usuario', req.user.id_SB,
-       saved.originalName, saved.serverName, saved.route, saved.extension, saved.mimeType, saved.size]
+       saved.nombre_original, saved.nombre_servidor, saved.ruta_archivo, saved.extension_archivo,
+       saved.mime_type, saved.peso_archivo, saved.storage_provider, saved.storage_container, saved.storage_blob_name]
     );
-    await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'archivo_adjuntado', {
-      mensaje: `Archivo adjuntado: ${saved.originalName}`
-    }));
+    await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'archivo_adjuntado', { mensaje: `Archivo adjuntado: ${saved.nombre_original}` }));
     await db.query(`UPDATE sup_tickets SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW() WHERE id_ticket = ?`, [ticket.id_ticket]);
     let notificaciones = 0;
-    try {
-      notificaciones = await supportSolicitudesService.notifyTicketInteraction({
-        ticket,
-        actor: req.user || {},
-        kind: 'archivo',
-        fileName: saved.originalName
-      });
-    } catch (notificationError) {
-      console.error('[SOPORTE] Archivo guardado, pero falló la notificación:', notificationError.message);
-    }
-    return res.status(201).json({ ok: true, message: 'Archivo adjuntado correctamente.', notificaciones });
+    try { notificaciones = await supportSolicitudesService.notifyTicketInteraction({ ticket, actor: req.user || {}, kind: 'archivo', fileName: saved.nombre_original }); }
+    catch (notificationError) { console.error('[SOPORTE] Archivo guardado, pero falló la notificación:', notificationError.message); }
+    return res.status(201).json({ ok: true, message: 'Archivo adjuntado correctamente.', id_adjunto: result.insertId, notificaciones });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error adjuntando archivo.', error: error.message });
+    if (uploadedBlob) { try { await azureStorage.deleteBlob_gnral(uploadedBlob); } catch (_error) {} }
+    return res.status(error.status || 500).json({ ok: false, message: error.message || 'Error adjuntando archivo.' });
+  }
+}
+
+async function getTicketAttachmentAccess(req, res) {
+  try {
+    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
+    if (!ticket) return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
+    const ownerId = Number(ticket.id_usuario || 0);
+    if (!canAdministrateSupport(req) && ownerId !== Number(req.user.id_SB)) return res.status(403).json({ ok: false, message: 'No tienes permiso para abrir este archivo.' });
+    const [rows] = await db.query(`SELECT * FROM sup_adjuntos WHERE id_ticket = ? AND id_adjunto = ? AND activo = 1 LIMIT 1`, [ticket.id_ticket, req.params.idAdjunto]);
+    const file = rows[0];
+    if (!file) return res.status(404).json({ ok: false, message: 'Archivo no encontrado.' });
+    if (String(file.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && file.storage_blob_name) {
+      const access = await azureStorage.createReadSas_gnral(file.storage_blob_name, { fileName: file.nombre_original });
+      return res.json({ ok: true, data: access });
+    }
+    const legacy = file.ruta_archivo || null;
+    return res.json({ ok: true, data: { url: legacy, legacy: true } });
+  } catch (error) {
+    return res.status(error.status || 500).json({ ok: false, message: error.message || 'No fue posible abrir el archivo.' });
   }
 }
 
@@ -788,5 +786,6 @@ module.exports = {
   getTicketCatalogs,
   addTicketComment,
   addTicketAttachment,
+  getTicketAttachmentAccess,
   getNotificaciones
 };

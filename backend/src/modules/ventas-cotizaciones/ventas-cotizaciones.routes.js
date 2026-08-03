@@ -5,7 +5,9 @@ const controller = require('./ventas-cotizaciones.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireVentasPermission } = require('../../middleware/ventas-cotizaciones-permissions.middleware');
 
+const multer = require('multer');
 const router = express.Router();
+const uploadAzure = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: Number(process.env.AZURE_STORAGE_MAX_FILE_MB || 25) * 1024 * 1024 } });
 const canView = requireVentasPermission('ver');
 const canCreate = requireVentasPermission('crear');
 const canEdit = requireVentasPermission('editar');
@@ -28,7 +30,7 @@ router.post('/cotizaciones/:id/comentarios', requireAuth, canEdit, controller.cr
 router.patch('/cotizaciones/:id/comentarios/:idComentario', requireAuth, canEdit, controller.updateComentario);
 router.delete('/cotizaciones/:id/comentarios/:idComentario', requireAuth, canEdit, controller.deleteComentario);
 router.get('/cotizaciones/:id/archivos', requireAuth, canView, controller.listArchivos);
-router.post('/cotizaciones/:id/archivos', requireAuth, canEdit, controller.createArchivo);
+router.post('/cotizaciones/:id/archivos', requireAuth, canEdit, uploadAzure.single('archivo'), controller.createArchivo);
 router.get('/cotizaciones/:id/archivos/:idArchivo', requireAuth, canView, controller.getArchivo);
 router.patch('/cotizaciones/:id/archivos/:idArchivo', requireAuth, canEdit, controller.updateArchivo);
 router.delete('/cotizaciones/:id/archivos/:idArchivo', requireAuth, canEdit, controller.deleteArchivo);

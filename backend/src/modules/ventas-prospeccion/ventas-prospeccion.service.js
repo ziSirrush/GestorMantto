@@ -2,7 +2,8 @@ const path = require('path');
 const mime = require('mime-types');
 const repository = require('./ventas-prospeccion.repository');
 const visibilityService = require('../ventas/ventas-visibility.service');
-const driveService = require('../../services/google/drive.service');
+const azureStorage = require('../../services/storage/azure-storage.service');
+const storageAdapters = require('../../services/storage/storage-metadata.adapters');
 
 const BATCH_SIZE = 300;
 
@@ -403,7 +404,16 @@ async function getProspection(id, actionContext) {
       repository.listCommentsByProspection(connection, idPros),
       repository.listFilesByProspection(connection, idPros)
     ]);
-    return { ok: true, source: 'aiven', prospeccion, comentarios, archivos };
+    const archivosConAcceso = await Promise.all(archivos.map(async (archivo) => {
+      if (String(archivo.storage_provider || '').toUpperCase() !== azureStorage.PROVIDER || !archivo.storage_blob_name) return archivo;
+      try {
+        const access = await azureStorage.createReadSas_gnral(archivo.storage_blob_name, { fileName: archivo.nombre_original || archivo.nombre_archivo });
+        return { ...archivo, storage_url: access.url, access_expires_at: access.expires_at };
+      } catch (_error) {
+        return { ...archivo, storage_url: null, storage_access_error: true };
+      }
+    }));
+    return { ok: true, source: 'aiven', prospeccion, comentarios, archivos: archivosConAcceso };
   });
 }
 
@@ -457,7 +467,7 @@ async function createVisit(payload, files, actionContext) {
   const idUsuario = actorId(actionContext);
   const classification = normalizeClassification(payload.clasificacion);
   const connection = await repository.getConnection();
-  const uploaded = [];
+  const uploadedBlobs = [];
   try {
     const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
     let source = null;
@@ -478,15 +488,9 @@ async function createVisit(payload, files, actionContext) {
       if (!source) throw httpError(404, 'La cotización no existe o está inactiva.');
     }
 
-    const idCliente = payload.id_cliente
-      ? requiredPositiveInteger(payload.id_cliente, 'id_cliente')
-      : (source?.id_cliente ? Number(source.id_cliente) : null);
-
+    const idCliente = payload.id_cliente ? requiredPositiveInteger(payload.id_cliente, 'id_cliente') : (source?.id_cliente ? Number(source.id_cliente) : null);
     const contactMode = String(payload.contact_mode || '').trim().toUpperCase();
-    const requestedContactId = payload.id_contacto
-      ? requiredPositiveInteger(payload.id_contacto, 'id_contacto')
-      : null;
-
+    const requestedContactId = payload.id_contacto ? requiredPositiveInteger(payload.id_contacto, 'id_contacto') : null;
     let idContacto = requestedContactId;
     let selectedContact = null;
     let newContact = null;
@@ -500,7 +504,6 @@ async function createVisit(payload, files, actionContext) {
     const empresa = cleanText(payload.empresa, 255) || cleanText(source?.empresa, 255);
     const proyecto = cleanText(payload.proyecto, 255) || cleanText(source?.proyecto, 255);
     const comentario = cleanText(payload.comentario);
-
     if (!empresa) throw httpError(400, 'Empresa es obligatoria.');
     if (!proyecto) throw httpError(400, 'Proyecto es obligatorio.');
     if (!comentario) throw httpError(400, 'Comentario es obligatorio.');
@@ -511,157 +514,67 @@ async function createVisit(payload, files, actionContext) {
     const manualContactPhone = cleanText(payload.telefono, 100);
 
     if (classification !== 'NUEVO' && contactMode === 'NEW') {
-      if (!idCliente) {
-        throw httpError(400, 'La fuente seleccionada no tiene un cliente relacionado para guardar el nuevo contacto.');
-      }
+      if (!idCliente) throw httpError(400, 'La fuente seleccionada no tiene un cliente relacionado para guardar el nuevo contacto.');
       if (!manualContactName) throw httpError(400, 'Contacto es obligatorio.');
-      newContact = {
-        id_cliente: idCliente,
-        nombre_contacto: manualContactName,
-        puesto_contacto: manualContactPosition,
-        email: manualContactEmail,
-        telefono: manualContactPhone,
-        id_usuario: idUsuario
-      };
+      newContact = { id_cliente: idCliente, nombre_contacto: manualContactName, puesto_contacto: manualContactPosition, email: manualContactEmail, telefono: manualContactPhone, id_usuario: idUsuario };
       selectedContact = null;
       idContacto = null;
     }
 
-    const contacto = manualContactName
-      || cleanText(selectedContact?.contacto, 255)
-      || cleanText(source?.contacto, 255);
-
+    const contacto = manualContactName || cleanText(selectedContact?.contacto, 255) || cleanText(source?.contacto, 255);
     if (!contacto) throw httpError(400, 'Contacto es obligatorio.');
-
-    const puestoContacto = manualContactPosition
-      || cleanText(selectedContact?.puesto_contacto, 150)
-      || cleanText(source?.puesto_contacto, 150);
-
-    const correo = manualContactEmail
-      || cleanText(selectedContact?.correo, 255)
-      || cleanText(source?.correo, 255);
-    const telefono = manualContactPhone
-      || cleanText(selectedContact?.telefono, 100)
-      || cleanText(source?.telefono, 100);
-
+    const puestoContacto = manualContactPosition || cleanText(selectedContact?.puesto_contacto, 150) || cleanText(source?.puesto_contacto, 150);
+    const correo = manualContactEmail || cleanText(selectedContact?.correo, 255) || cleanText(source?.correo, 255);
+    const telefono = manualContactPhone || cleanText(selectedContact?.telefono, 100) || cleanText(source?.telefono, 100);
     const latitud = parseCoordinate(payload.latitud, -90, 90, 'latitud');
     const longitud = parseCoordinate(payload.longitud, -180, 180, 'longitud');
-    if ((latitud === null) !== (longitud === null)) {
-      throw httpError(400, 'Latitud y longitud deben enviarse juntas.');
-    }
-    const ubicacion = latitud === null
-      ? cleanText(payload.ubicacion, 150)
-      : `${latitud}, ${longitud}`;
-
-    const photoFiles = Array.isArray(files) ? files.slice(0, 4) : [];
-    for (let index = 0; index < photoFiles.length; index += 1) {
-      const file = photoFiles[index];
-      const driveFile = await driveService.uploadBuffer(idUsuario, file, {
-        name: `prospeccion_${Date.now()}_${index + 1}_${file.originalname}`
-      });
-      uploaded.push(driveFile.id);
-      photoFiles[index] = {
-        nombre_archivo: driveFile.name || file.originalname,
-        nombre_original: file.originalname,
-        mime_type: file.mimetype,
-        extension: path.extname(file.originalname).replace('.', '').toLowerCase() || null,
-        tamano_bytes: Number(file.size || 0),
-        storage_url: driveFile.web_view_link || driveFile.web_content_link,
-        storage_blob_name: driveFile.id,
-        thumbnail_url: driveFile.thumbnail_link || null,
-        orden: index + 1
-      };
-    }
+    if ((latitud === null) !== (longitud === null)) throw httpError(400, 'Latitud y longitud deben enviarse juntas.');
+    const ubicacion = latitud === null ? cleanText(payload.ubicacion, 150) : `${latitud}, ${longitud}`;
 
     await connection.beginTransaction();
-
     if (newContact) {
       idContacto = await repository.createClientContact(connection, newContact);
-      selectedContact = {
-        id_contacto: idContacto,
-        contacto: newContact.nombre_contacto,
-        puesto_contacto: newContact.puesto_contacto,
-        correo: newContact.email,
-        telefono: newContact.telefono
-      };
-
-      if (idCotizacion) {
-        await repository.updateQuotationContact(connection, idCotizacion, {
-          id_contacto: idContacto,
-          contacto: newContact.nombre_contacto,
-          correo: newContact.email,
-          telefono: newContact.telefono,
-          id_usuario: idUsuario
-        });
-      }
+      selectedContact = { id_contacto: idContacto, contacto: newContact.nombre_contacto, puesto_contacto: newContact.puesto_contacto, correo: newContact.email, telefono: newContact.telefono };
+      if (idCotizacion) await repository.updateQuotationContact(connection, idCotizacion, { id_contacto: idContacto, contacto: newContact.nombre_contacto, correo: newContact.email, telefono: newContact.telefono, id_usuario: idUsuario });
     }
 
     const record = {
-      empresa,
-      proyecto,
-      ubicacion,
-      latitud,
-      longitud,
+      empresa, proyecto, ubicacion, latitud, longitud,
       contacto: selectedContact?.contacto || contacto,
       puesto_contacto: selectedContact?.puesto_contacto || puestoContacto,
       correo: selectedContact?.correo || correo,
       telefono: selectedContact?.telefono || telefono,
-      comentario,
-      id_usuario: idUsuario,
+      comentario, id_usuario: idUsuario,
       ciudad: cleanText(payload.ciudad, 150) || cleanText(source?.ciudad, 150),
       estado: cleanText(payload.estado, 150) || cleanText(source?.estado, 150),
       tipo_proyecto: cleanText(payload.tipo_proyecto, 150) || cleanText(source?.tipo_proyecto, 150),
-      fecha_visita: new Date(),
-      id_estatus: null,
-      estatus: null,
-      fecha_cam_estatus: null,
+      fecha_visita: new Date(), id_estatus: null, estatus: null, fecha_cam_estatus: null,
       nuevo: classification === 'NUEVO' ? 1 : 0,
       proyecto_activo: classification === 'INSTALACION' ? 1 : 0,
       proyecto_cotizado: classification === 'COTIZADO' ? 1 : 0,
-      id_proyecto_instalacion: idProyectoInstalacion,
-      id_cotizacion: idCotizacion,
-      id_cliente: idCliente,
-      id_contacto: idContacto
+      id_proyecto_instalacion: idProyectoInstalacion, id_cotizacion: idCotizacion, id_cliente: idCliente, id_contacto: idContacto
     };
 
     const idPros = await repository.createProspection(connection, record);
-    await repository.insertVisitFiles(connection, idPros, photoFiles);
-    await repository.insertHistory(connection, {
-      id_pros: idPros,
-      id_usuario: idUsuario,
-      comentario,
-      ip: actionContext?.ip,
-      valor_nuevo: {
-        clasificacion: classification,
-        empresa,
-        proyecto,
-        id_proyecto_instalacion: idProyectoInstalacion,
-        id_cotizacion: idCotizacion,
-        id_cliente: idCliente,
-        id_contacto: idContacto,
-        puesto_contacto: selectedContact?.puesto_contacto || puestoContacto || null,
-        contacto_nuevo: Boolean(newContact)
-      }
-    });
-
+    const normalizedFiles = [];
+    const photoFiles = Array.isArray(files) ? files.slice(0, 4) : [];
+    for (let index = 0; index < photoFiles.length; index += 1) {
+      const storage = await azureStorage.uploadPrivate_gnral({
+        file: photoFiles[index], empresa, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: 'visita',
+        metadata: { uploaded_by: idUsuario, relation: 'VISITA' }
+      });
+      uploadedBlobs.push(storage.storage_blob_name);
+      normalizedFiles.push({ ...storageAdapters.forVentasProspeccion_gnral(storage), thumbnail_url: null, orden: index + 1 });
+    }
+    await repository.insertVisitFiles(connection, idPros, normalizedFiles);
+    await repository.insertHistory(connection, { id_pros: idPros, id_usuario: idUsuario, comentario, ip: actionContext?.ip, valor_nuevo: { clasificacion: classification, empresa, proyecto, id_proyecto_instalacion: idProyectoInstalacion, id_cotizacion: idCotizacion, id_cliente: idCliente, id_contacto: idContacto, puesto_contacto: selectedContact?.puesto_contacto || puestoContacto || null, contacto_nuevo: Boolean(newContact) } });
     await connection.commit();
-    return {
-      ok: true,
-      source: 'aiven',
-      message: 'Visita creada correctamente.',
-      id_pros: idPros,
-      id_contacto: idContacto,
-      contacto_creado: Boolean(newContact)
-    };
+    return { ok: true, source: 'aiven', message: 'Visita creada correctamente.', id_pros: idPros, id_contacto: idContacto, contacto_creado: Boolean(newContact) };
   } catch (error) {
     try { await connection.rollback(); } catch (_error) {}
-    for (const fileId of uploaded) {
-      try { await driveService.deleteFile(idUsuario, fileId); } catch (_error) {}
-    }
+    for (const blobName of uploadedBlobs) { try { await azureStorage.deleteBlob_gnral(blobName); } catch (_error) {} }
     throw error;
-  } finally {
-    connection.release();
-  }
+  } finally { connection.release(); }
 }
 
 async function getDetailCatalogs(actionContext) {
@@ -707,43 +620,29 @@ async function createComment(id, payload, files, actionContext) {
   const incoming = Array.isArray(files) ? files.slice(0, 4) : [];
   if (!comentario && !incoming.length) throw httpError(400, 'Escribe un comentario o adjunta al menos un archivo.');
   const connection = await repository.getConnection();
-  const uploaded = [];
+  const uploadedBlobs = [];
   try {
     const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
     const current = await repository.getProspectionById(connection, idPros, scope);
     if (!current) throw httpError(404, 'Prospección no encontrada o fuera de tu alcance comercial.');
+    await connection.beginTransaction();
+    const idComment = await repository.createProspectionComment(connection, { id_pros: idPros, id_usuario: idUsuario, comentario });
     const normalizedFiles = [];
     for (let index = 0; index < incoming.length; index += 1) {
-      const file = incoming[index];
-      const driveFile = await driveService.uploadBuffer(idUsuario, file, {
-        name: `prospeccion_${idPros}_comentario_${Date.now()}_${index + 1}_${file.originalname}`
+      const storage = await azureStorage.uploadPrivate_gnral({
+        file: incoming[index], empresa: current.empresa || actionContext?.user?.empresa, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: `comentarios/${idComment}`,
+        metadata: { uploaded_by: idUsuario, relation: 'COMENTARIO', comment_id: idComment }
       });
-      uploaded.push(driveFile.id);
-      normalizedFiles.push({
-        nombre_archivo: driveFile.name || file.originalname, nombre_original: file.originalname,
-        mime_type: file.mimetype || 'application/octet-stream',
-        extension: path.extname(file.originalname || '').replace('.', '').toLowerCase() || null,
-        tamano_bytes: Number(file.size || 0),
-        storage_url: driveFile.web_view_link || driveFile.web_content_link,
-        storage_blob_name: driveFile.id, thumbnail_url: driveFile.thumbnail_link || null,
-        es_imagen: String(file.mimetype || '').startsWith('image/')
-      });
+      uploadedBlobs.push(storage.storage_blob_name);
+      normalizedFiles.push({ ...storageAdapters.forVentasProspeccion_gnral(storage), thumbnail_url: null, es_imagen: String(storage.mime_type || '').startsWith('image/') });
     }
-    await connection.beginTransaction();
-    let idComment;
-    try {
-      idComment = await repository.createProspectionComment(connection, { id_pros: idPros, id_usuario: idUsuario, comentario });
-      await repository.insertCommentFiles(connection, idPros, idComment, normalizedFiles);
-      await repository.insertProspectionHistory(connection, {
-        id_pros: idPros, id_usuario: idUsuario, tipo_evento: 'COMENTARIO', campo: null,
-        valor_nuevo: { id_com_pors: idComment, archivos: normalizedFiles.length },
-        comentario: comentario || (normalizedFiles.length ? 'Archivo adjunto' : null), ip: actionContext?.ip
-      });
-      await connection.commit();
-    } catch (error) { await connection.rollback(); throw error; }
+    await repository.insertCommentFiles(connection, idPros, idComment, normalizedFiles);
+    await repository.insertProspectionHistory(connection, { id_pros: idPros, id_usuario: idUsuario, tipo_evento: 'COMENTARIO', campo: null, valor_nuevo: { id_com_pors: idComment, archivos: normalizedFiles.length }, comentario: comentario || (normalizedFiles.length ? 'Archivo adjunto' : null), ip: actionContext?.ip });
+    await connection.commit();
     return { ok: true, source: 'aiven', message: 'Seguimiento registrado correctamente.', id_com_pors: idComment };
   } catch (error) {
-    for (const fileId of uploaded) { try { await driveService.deleteFile(idUsuario, fileId); } catch (_error) {} }
+    try { await connection.rollback(); } catch (_error) {}
+    for (const blobName of uploadedBlobs) { try { await azureStorage.deleteBlob_gnral(blobName); } catch (_error) {} }
     throw error;
   } finally { connection.release(); }
 }

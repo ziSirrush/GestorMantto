@@ -1,5 +1,7 @@
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
+const supportUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: Number(process.env.AZURE_STORAGE_MAX_FILE_MB || 25) * 1024 * 1024 } });
 
 const supportController = require('../controllers/support.controller');
 const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
@@ -27,7 +29,8 @@ router.get('/tickets/:id', requireAuth, supportController.getTicketById);
 router.post('/tickets', requireAuth, supportController.createTicket);
 router.patch('/tickets/:id', requireAuth, supportController.updateTicket);
 router.post('/tickets/:id/comentarios', requireAuth, supportController.addTicketComment);
-router.post('/tickets/:id/adjuntos', requireAuth, supportController.addTicketAttachment);
+router.post('/tickets/:id/adjuntos', requireAuth, supportUpload.single('archivo'), supportController.addTicketAttachment);
+router.get('/tickets/:id/adjuntos/:idAdjunto/acceso', requireAuth, supportController.getTicketAttachmentAccess);
 
 /* ===========================
    NOTIFICACIONES

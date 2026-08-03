@@ -182,7 +182,7 @@ async function listArchivos(req, res, next) {
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function createArchivo(req, res, next) {
-  try { return res.status(201).json(await service.createArchivo(req.params.id, req.body || {}, buildActionContext(req))); }
+  try { return res.status(201).json(await service.createArchivo(req.params.id, req.body || {}, req.file, buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function getArchivo(req, res, next) {

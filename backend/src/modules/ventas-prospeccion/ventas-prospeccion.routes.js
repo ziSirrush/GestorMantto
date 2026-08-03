@@ -2,9 +2,9 @@ const express = require('express');
 const controller = require('./ventas-prospeccion.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const multer = require('multer');
-const upload = multer({storage:multer.memoryStorage(),limits:{files:4,fileSize:8*1024*1024},fileFilter(_req,file,cb){if(!String(file.mimetype||'').startsWith('image/'))return cb(new Error('Solo se permiten imágenes.'));return cb(null,true);}});
+const upload = multer({storage:multer.memoryStorage(),limits:{files:4,fileSize:Number(process.env.AZURE_STORAGE_MAX_FILE_MB||25)*1024*1024},fileFilter(_req,file,cb){if(!String(file.mimetype||'').startsWith('image/'))return cb(new Error('Solo se permiten imágenes.'));return cb(null,true);}});
 const COMMENT_MIME_TYPES = new Set(['application/pdf','text/plain','text/csv','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
-const uploadComment = multer({storage:multer.memoryStorage(),limits:{files:4,fileSize:12*1024*1024},fileFilter(_req,file,cb){const type=String(file.mimetype||'').toLowerCase();if(type.startsWith('image/')||COMMENT_MIME_TYPES.has(type))return cb(null,true);return cb(new Error('Tipo de archivo no permitido.'));}});
+const uploadComment = multer({storage:multer.memoryStorage(),limits:{files:4,fileSize:Number(process.env.AZURE_STORAGE_MAX_FILE_MB||25)*1024*1024},fileFilter(_req,file,cb){const type=String(file.mimetype||'').toLowerCase();if(type.startsWith('image/')||COMMENT_MIME_TYPES.has(type))return cb(null,true);return cb(new Error('Tipo de archivo no permitido.'));}});
 
 const router = express.Router();
 

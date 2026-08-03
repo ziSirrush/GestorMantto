@@ -2,8 +2,8 @@ const db = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-
-const uploadRoot = path.join(__dirname, '..', '..', 'uploads', 'pendientes');
+const azureStorage = require('../services/storage/azure-storage.service');
+const storageAdapters = require('../services/storage/storage-metadata.adapters');
 
 
 function positiveInt(value, fallback, min, max) {
@@ -1487,29 +1487,37 @@ function normalizeEmpresa(value) {
   return sanitizeText(value, 150) || null;
 }
 
-function savePendienteUpload(file, kind) {
+function pendienteFileFromPayload(file) {
   if (!file || typeof file !== 'object') return null;
-  const name = sanitizeText(file.name || file.nombre_archivo || 'adjunto', 255) || 'adjunto';
-  const mime = sanitizeText(file.type || file.tipo_archivo || '', 100) || 'application/octet-stream';
+  const originalname = sanitizeText(file.name || file.nombre_archivo || 'adjunto', 255) || 'adjunto';
+  const mimetype = sanitizeText(file.type || file.tipo_archivo || '', 100) || 'application/octet-stream';
   const dataUrl = String(file.data || file.base64 || '').trim();
   if (!dataUrl) return null;
   const parts = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   const base64 = parts ? parts[2] : dataUrl;
-  let buffer;
-  try { buffer = Buffer.from(base64, 'base64'); } catch (e) { return null; }
+  const buffer = Buffer.from(base64, 'base64');
   if (!buffer.length) return null;
-  const maxBytes = 8 * 1024 * 1024;
-  if (buffer.length > maxBytes) throw new Error('El archivo excede 8 MB.');
+  return { originalname, mimetype, size: buffer.length, buffer };
+}
 
-  const safeExt = (path.extname(name).toLowerCase() || '').replace(/[^a-z0-9.]/g, '').slice(0, 12);
-  const finalName = `${kind || 'adjunto'}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${safeExt}`;
-  fs.mkdirSync(uploadRoot, { recursive: true });
-  fs.writeFileSync(path.join(uploadRoot, finalName), buffer);
-  return {
-    nombre_archivo: name,
-    archivo_url: `/uploads/pendientes/${finalName}`,
-    tipo_archivo: mime
-  };
+function azureRef_gnral(blobName) { return blobName ? `azureblob:${blobName}` : null; }
+function azureBlobFromRef_gnral(value) {
+  const text = String(value || '');
+  return text.startsWith('azureblob:') ? text.slice('azureblob:'.length) : null;
+}
+async function resolveAzureRef_gnral(value, fileName) {
+  const blob = azureBlobFromRef_gnral(value);
+  if (!blob) return value;
+  try { return (await azureStorage.createReadSas_gnral(blob, { fileName })).url; }
+  catch (_error) { return null; }
+}
+async function uploadPendienteFile_gnral(filePayload, { empresa, idPendiente, kind, userId }) {
+  const file = pendienteFileFromPayload(filePayload);
+  if (!file) return null;
+  return azureStorage.uploadPrivate_gnral({
+    file, empresa, modulo: 'home', entidadTipo: 'pendiente', entidadId: idPendiente,
+    subruta: kind || 'adjuntos', metadata: { uploaded_by: userId, task_id: idPendiente, kind: kind || 'adjunto' }
+  });
 }
 
 async function getPendientesCatalogos(req, res) {
@@ -1666,7 +1674,12 @@ async function getPendientes(req, res) {
       LIMIT ?
     `, [...params, limit]);
 
-    return res.json({ ok: true, source: 'aiven', data: rows });
+    const data = await Promise.all(rows.map(async (row) => ({
+      ...row,
+      photo_url: await resolveAzureRef_gnral(row.photo_url, 'foto'),
+      adjunto_url: await resolveAzureRef_gnral(row.adjunto_url, 'adjunto')
+    })));
+    return res.json({ ok: true, source: 'aiven', data });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando pendientes.', error: error.message });
   }
@@ -1718,16 +1731,22 @@ async function getPendienteDetalle(req, res) {
       return acc;
     }, {});
 
-    return res.json({
-      ok: true,
-      source: 'aiven',
-      data: {
-        pendiente: rows[0],
-        subtareas,
-        usuarios,
-        comentarios: comentarios.map(c => ({ ...c, adjuntos: adjuntosPorComentario[String(c.id_comentario)] || [] }))
-      }
-    });
+    const pendienteConAcceso = {
+      ...rows[0],
+      photo_url: await resolveAzureRef_gnral(rows[0].photo_url, 'foto'),
+      adjunto_url: await resolveAzureRef_gnral(rows[0].adjunto_url, 'adjunto')
+    };
+    const comentariosConAcceso = await Promise.all(comentarios.map(async (c) => ({
+      ...c,
+      adjuntos: await Promise.all((adjuntosPorComentario[String(c.id_comentario)] || []).map(async (a) => {
+        if (String(a.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && a.storage_blob_name) {
+          const access = await azureStorage.createReadSas_gnral(a.storage_blob_name, { fileName: a.nombre_archivo });
+          return { ...a, archivo_url: access.url };
+        }
+        return a;
+      }))
+    })));
+    return res.json({ ok: true, source: 'aiven', data: { pendiente: pendienteConAcceso, subtareas, usuarios, comentarios: comentariosConAcceso } });
   } catch (error) {
     return res.status(500).json({ ok: false, message: 'Error consultando detalle de pendiente.', error: error.message });
   }
@@ -1871,12 +1890,17 @@ async function createPendiente(req, res) {
       dueDate,
       sanitizeText(body.proyecto, 255) || null,
       sanitizeText(body.equipo, 100) || null,
-      savePendienteUpload(body.photo_file, 'foto')?.archivo_url || sanitizeText(body.photo_url) || null,
-      savePendienteUpload(body.adjunto_file, 'adjunto')?.archivo_url || sanitizeText(body.adjunto_url) || null,
+      null,
+      null,
       body.con_subtareas ? 1 : 0,
       tipo === 'COLABORATIVA' ? normalizePriority(body.prioridad, null) : normalizePriority(body.prioridad, 'MEDIA')
     ]);
     const id = result.insertId;
+    const uploadedPhoto = await uploadPendienteFile_gnral(body.photo_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'foto', userId: user.id });
+    const uploadedAttachment = await uploadPendienteFile_gnral(body.adjunto_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'adjunto', userId: user.id });
+    const photoUrl = uploadedPhoto ? azureRef_gnral(uploadedPhoto.storage_blob_name) : (sanitizeText(body.photo_url) || null);
+    const attachmentUrl = uploadedAttachment ? azureRef_gnral(uploadedAttachment.storage_blob_name) : (sanitizeText(body.adjunto_url) || null);
+    await conn.query('UPDATE pendientes SET photo_url = ?, adjunto_url = ? WHERE id_pendiente = ?', [photoUrl, attachmentUrl, id]);
     const childrenResult = await syncPendienteChildren(conn, id, { ...body, tipo_pendiente: tipo }, user);
     const notificationResult = await createTaskAssignmentNotifications(conn, id, { ...body, tipo_pendiente: tipo, pendiente }, user);
     await conn.commit();
@@ -1901,7 +1925,7 @@ async function updatePendiente(req, res) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [exists] = await conn.query('SELECT creado_por_email, tipo_pendiente FROM pendientes WHERE id_pendiente = ? LIMIT 1', [id]);
+    const [exists] = await conn.query('SELECT creado_por_email, tipo_pendiente, photo_url, adjunto_url FROM pendientes WHERE id_pendiente = ? LIMIT 1', [id]);
     if (!exists.length) {
       await conn.rollback();
       return res.status(404).json({ ok: false, message: 'Pendiente no encontrado.' });
@@ -1919,6 +1943,12 @@ async function updatePendiente(req, res) {
     const oldResponsables = oldRelRows.map(r => r.iniciales_usuario).filter(Boolean);
 
     const tipo = normalizeTaskType(body.tipo_pendiente);
+    const updatedPhoto = await uploadPendienteFile_gnral(body.photo_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'foto', userId: user.id });
+    const updatedAttachment = await uploadPendienteFile_gnral(body.adjunto_file, { empresa: body.empresa || user.empresa || 'general', idPendiente: id, kind: 'adjunto', userId: user.id });
+    const rawPhotoUrl = sanitizeText(body.photo_url);
+    const rawAttachmentUrl = sanitizeText(body.adjunto_url);
+    const nextPhotoUrl = updatedPhoto ? azureRef_gnral(updatedPhoto.storage_blob_name) : (/\?sv=/.test(rawPhotoUrl) ? exists[0].photo_url : (rawPhotoUrl || exists[0].photo_url || null));
+    const nextAttachmentUrl = updatedAttachment ? azureRef_gnral(updatedAttachment.storage_blob_name) : (/\?sv=/.test(rawAttachmentUrl) ? exists[0].adjunto_url : (rawAttachmentUrl || exists[0].adjunto_url || null));
     await conn.query(`
       UPDATE pendientes SET
         pendiente = ?, tipo_pendiente = ?, area = ?, descripcion = ?, due_date = ?,
@@ -1932,8 +1962,8 @@ async function updatePendiente(req, res) {
       dueDate,
       sanitizeText(body.proyecto, 255) || null,
       sanitizeText(body.equipo, 100) || null,
-      savePendienteUpload(body.photo_file, 'foto')?.archivo_url || sanitizeText(body.photo_url) || null,
-      savePendienteUpload(body.adjunto_file, 'adjunto')?.archivo_url || sanitizeText(body.adjunto_url) || null,
+      nextPhotoUrl,
+      nextAttachmentUrl,
       body.con_subtareas ? 1 : 0,
       tipo === 'COLABORATIVA' ? normalizePriority(body.prioridad, null) : normalizePriority(body.prioridad, 'MEDIA'),
       id
@@ -2097,17 +2127,14 @@ async function createPendienteComentario(req, res) {
       'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario) VALUES (?, ?, ?)',
       [id, user.id, comentario]
     );
-    const adjuntos = [];
-    const uploadedCommentFile = savePendienteUpload(req.body?.adjunto_file, 'comentario');
-    if (uploadedCommentFile) adjuntos.push(uploadedCommentFile);
-    if (Array.isArray(req.body?.adjuntos)) adjuntos.push(...req.body.adjuntos.slice(0, 1));
-    for (const adj of adjuntos.slice(0, 1)) {
-      const nombre = sanitizeText(adj.nombre_archivo || adj.nombre || 'Adjunto', 255);
-      const url = sanitizeText(adj.archivo_url || adj.url, 500);
-      if (!url) continue;
+    const uploadedCommentFile = await uploadPendienteFile_gnral(req.body?.adjunto_file, { empresa: access.row.empresa || user.empresa || 'general', idPendiente: id, kind: `comentarios/${result.insertId}`, userId: user.id });
+    if (uploadedCommentFile) {
+      const meta = storageAdapters.forPendientesComentarios_gnral(uploadedCommentFile, user.id);
       await conn.query(
-        'INSERT INTO pendientes_comentarios_adjuntos (id_comentario, nombre_archivo, archivo_url, tipo_archivo) VALUES (?, ?, ?, ?)',
-        [result.insertId, nombre, url, sanitizeText(adj.tipo_archivo || adj.tipo, 100) || null]
+        `INSERT INTO pendientes_comentarios_adjuntos
+         (id_comentario, nombre_archivo, archivo_url, tipo_archivo, storage_provider, storage_container, storage_blob_name, tamano_bytes, subido_por, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [result.insertId, meta.nombre_archivo, meta.archivo_url, meta.tipo_archivo, meta.storage_provider, meta.storage_container, meta.storage_blob_name, meta.tamano_bytes, meta.subido_por]
       );
     }
     const notificaciones = await createPendienteCommentNotifications(conn, access, user, comentario);
