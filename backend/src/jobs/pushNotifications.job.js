@@ -1,5 +1,5 @@
 const repository = require('../modules/push-notifications/push-notifications.repository');
-const { getVapidConfig, validateVapidConfig, sendEmptyPush } = require('../modules/push-notifications/push-notifications.sender');
+const { getVapidConfig, validateVapidConfig, sendPush } = require('../modules/push-notifications/push-notifications.sender');
 const logger = require('../shared/logger');
 
 let timer = null;
@@ -16,33 +16,48 @@ function cursorFor(subscription) {
   return Number.isNaN(date.getTime()) ? mysqlDate(new Date()) : mysqlDate(date);
 }
 
+function payloadFor(notification) {
+  return {
+    title: notification.titulo_notificacion || 'Mantto Gestor',
+    body: notification.mensaje_notificacion || 'Tienes una nueva notificacion.',
+    icon: './assets/img/icons/icon-192.png',
+    badge: './assets/img/icons/icon-192.png',
+    tag: `mantto-notification-${notification.id_notificacion}`,
+    notificationId: notification.id_notificacion,
+    type: notification.tipo_notificacion || null,
+    action: notification.accion_notificacion || null,
+    referenceId: notification.id_referencia || null,
+    route: notification.ruta_destino || 'notifications',
+    focus: String(notification.tipo_notificacion || '').toUpperCase().includes('COMENTARIO') ? 'chat' : null
+  };
+}
+
 async function processSubscription(subscription, cycleCutoff) {
-  const pending = await repository.countPendingNotifications({
+  const rows = await repository.listPendingNotifications({
     userId: subscription.id_usuario,
     cursor: cursorFor(subscription),
-    cycleCutoff
+    cycleCutoff,
+    limit: Number(process.env.WEB_PUSH_NOTIFICATIONS_PER_CYCLE || 20)
   });
 
-  if (pending <= 0) {
-    await repository.advanceSubscriptionCursor({
-      subscriptionId: subscription.id_suscripcion,
-      cycleCutoff
-    });
-    return { sent: false, pending: 0 };
+  if (!rows.length) {
+    await repository.advanceSubscriptionCursor({ subscriptionId: subscription.id_suscripcion, cycleCutoff });
+    return { sent: 0 };
   }
 
+  let sent = 0;
   try {
-    await sendEmptyPush(subscription.endpoint, { ttl: 120, urgency: 'high' });
-    await repository.advanceSubscriptionCursor({
-      subscriptionId: subscription.id_suscripcion,
-      cycleCutoff
-    });
-    return { sent: true, pending };
+    for (const notification of rows) {
+      await sendPush(subscription, payloadFor(notification), { ttl: 300, urgency: 'high' });
+      sent += 1;
+    }
+    await repository.advanceSubscriptionCursor({ subscriptionId: subscription.id_suscripcion, cycleCutoff });
+    return { sent };
   } catch (error) {
     if ([404, 410].includes(Number(error.statusCode))) {
       await repository.deactivateById(subscription.id_suscripcion);
       logger.info(`Suscripcion push ${subscription.id_suscripcion} desactivada por respuesta ${error.statusCode}.`);
-      return { sent: false, expired: true, pending };
+      return { sent, expired: true };
     }
     throw error;
   }
@@ -52,22 +67,15 @@ async function runCycle() {
   if (running) return;
   running = true;
   try {
-    const config = getVapidConfig();
-    const validation = validateVapidConfig(config);
+    const validation = validateVapidConfig(getVapidConfig());
     if (!validation.ok) {
-      if (!warnedConfiguration) {
-        logger.warn(`Push global inactivo: ${validation.reason}`);
-        warnedConfiguration = true;
-      }
+      if (!warnedConfiguration) logger.warn(`Push global inactivo: ${validation.reason}`);
+      warnedConfiguration = true;
       return;
     }
-
     warnedConfiguration = false;
     const cycleCutoff = mysqlDate(new Date());
-    const subscriptions = await repository.listActiveSubscriptions(
-      Number(process.env.WEB_PUSH_BATCH_SIZE || 300)
-    );
-
+    const subscriptions = await repository.listActiveSubscriptions(Number(process.env.WEB_PUSH_BATCH_SIZE || 300));
     for (const subscription of subscriptions) {
       try {
         await processSubscription(subscription, cycleCutoff);
@@ -91,9 +99,7 @@ function startPushNotificationsJob() {
   }
   const intervalMs = Math.max(5000, Number(process.env.WEB_PUSH_DISPATCH_INTERVAL_MS || 5000));
   runCycle().catch(error => logger.error('No fue posible iniciar el primer ciclo push.', error));
-  timer = setInterval(() => {
-    runCycle().catch(error => logger.error('No fue posible ejecutar el ciclo push.', error));
-  }, intervalMs);
+  timer = setInterval(() => runCycle().catch(error => logger.error('No fue posible ejecutar el ciclo push.', error)), intervalMs);
   timer.unref?.();
   logger.info(`Job global de notificaciones push activo cada ${intervalMs} ms.`);
   return timer;

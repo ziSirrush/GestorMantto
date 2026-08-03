@@ -187,6 +187,30 @@
     if(window.ManttoRouter && window.ManttoRouter.go) window.ManttoRouter.go('notifications');
   }
 
+  function openPushTarget(target){
+    if(!target){ openNotifications(); return; }
+    const execute = function(){
+      if(window.ManttoRouter && typeof window.ManttoRouter.openTarget === 'function'){
+        window.ManttoRouter.openTarget(target);
+        return true;
+      }
+      return false;
+    };
+    if(!execute()) window.setTimeout(execute, 800);
+  }
+
+  function targetFromSearch(params){
+    if(params.get('push_open') !== 'target') return null;
+    return {
+      route: params.get('push_route') || 'notifications',
+      action: params.get('push_action') || '',
+      referenceId: params.get('push_reference') || null,
+      notificationId: params.get('push_notification_id') || null,
+      type: params.get('push_type') || '',
+      focus: params.get('push_focus') || null
+    };
+  }
+
   async function init(){
     if(initialized) return;
     initialized = true;
@@ -211,7 +235,9 @@
   }
 
   navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', event => {
-    if(event.data && event.data.type === 'MANTTO_OPEN_NOTIFICATIONS') openNotifications();
+    if(!event.data) return;
+    if(event.data.type === 'MANTTO_OPEN_NOTIFICATIONS') openNotifications();
+    if(event.data.type === 'MANTTO_OPEN_PUSH_TARGET') openPushTarget(event.data.target);
   });
 
   document.addEventListener('mantto:auth-ready', init);
@@ -221,9 +247,12 @@
   });
   document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
-    if(params.get('push_open') === 'notifications'){
-      window.setTimeout(openNotifications, 800);
-      params.delete('push_open');
+    const target = targetFromSearch(params);
+    if(target) window.setTimeout(() => openPushTarget(target), 800);
+    else if(params.get('push_open') === 'notifications') window.setTimeout(openNotifications, 800);
+
+    if(params.has('push_open')){
+      ['push_open','push_route','push_action','push_reference','push_notification_id','push_type','push_focus'].forEach(key => params.delete(key));
       const clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
       window.history.replaceState({}, document.title, clean);
     }

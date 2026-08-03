@@ -17,11 +17,6 @@ function normalizeSubscription(body) {
 }
 
 function assertSubscription(subscription) {
-  if (!/^[a-f0-9]{64}$/i.test(subscription.deviceToken || '')) {
-    const error = new Error('El token del dispositivo no es valido.');
-    error.status = 400;
-    throw error;
-  }
   if (!subscription.endpoint || !subscription.p256dh || !subscription.auth) {
     const error = new Error('La suscripcion push esta incompleta.');
     error.status = 400;
@@ -65,8 +60,7 @@ async function subscribe(req) {
     p256dh: subscription.p256dh,
     auth: subscription.auth,
     userAgent: String(req.get('user-agent') || '').slice(0, 500) || null,
-    deviceName: subscription.deviceName,
-    deviceToken: subscription.deviceToken
+    deviceName: subscription.deviceName
   });
 
   return { active: true };

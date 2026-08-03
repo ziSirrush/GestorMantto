@@ -1,4 +1,5 @@
-const SERVICE_WORKER_VERSION = '20260731-permissions-mobile-v005';
+const SERVICE_WORKER_VERSION = '20260803-vapid-real-payload-v001';
+const DEFAULT_URL = './index.html?push_open=notifications';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
@@ -8,33 +9,54 @@ self.addEventListener('activate', event => {
   event.waitUntil(self.clients.claim());
 });
 
-const NOTIFICATION_TITLE = 'Mantto Gestor';
-const NOTIFICATION_BODY = 'Tienes una nueva notificación pendiente.';
-const APP_URL = './index.html?push_open=notifications';
+function normalizePayload(event) {
+  if (!event.data) return {};
+  try { return event.data.json(); } catch (error) {
+    try { return JSON.parse(event.data.text()); } catch (nestedError) { return {}; }
+  }
+}
+
+function buildUrl(payload) {
+  const params = new URLSearchParams();
+  params.set('push_open', 'target');
+  if (payload.route) params.set('push_route', payload.route);
+  if (payload.action) params.set('push_action', payload.action);
+  if (payload.referenceId != null) params.set('push_reference', String(payload.referenceId));
+  if (payload.notificationId != null) params.set('push_notification_id', String(payload.notificationId));
+  if (payload.type) params.set('push_type', payload.type);
+  if (payload.focus) params.set('push_focus', payload.focus);
+  return `./index.html?${params.toString()}`;
+}
 
 self.addEventListener('push', event => {
-  event.waitUntil(self.registration.showNotification(NOTIFICATION_TITLE, {
-    body: NOTIFICATION_BODY,
-    icon: './assets/img/icons/icon-192.png',
-    badge: './assets/img/icons/icon-192.png',
-    tag: 'mantto-global-notifications',
+  const payload = normalizePayload(event);
+  const title = payload.title || 'Mantto Gestor';
+  const url = buildUrl(payload);
+  event.waitUntil(self.registration.showNotification(title, {
+    body: payload.body || 'Tienes una nueva notificacion pendiente.',
+    icon: payload.icon || './assets/img/icons/icon-192.png',
+    badge: payload.badge || './assets/img/icons/icon-192.png',
+    tag: payload.tag || `mantto-${payload.notificationId || Date.now()}`,
     renotify: true,
     requireInteraction: false,
-    data: { url: APP_URL }
+    data: { url, target: payload }
   }));
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const data = event.notification.data || {};
+  const target = data.target || null;
+  const url = data.url || DEFAULT_URL;
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {
       if ('focus' in client) {
         await client.focus();
-        client.postMessage({ type: 'MANTTO_OPEN_NOTIFICATIONS' });
+        client.postMessage({ type: 'MANTTO_OPEN_PUSH_TARGET', target });
         return;
       }
     }
-    if (clients.openWindow) await clients.openWindow(event.notification.data && event.notification.data.url || APP_URL);
+    if (clients.openWindow) await clients.openWindow(url);
   })());
 });
