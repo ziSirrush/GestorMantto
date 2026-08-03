@@ -1,3 +1,12 @@
+/*
+  OBSOLETO DESDE CFFAA-00.
+
+  No ejecutar este archivo. Fue reemplazado por:
+  backend/sql/20260803_CFFAA_00_ALINEACION_STORAGE.sql
+
+  El script nuevo es aditivo e idempotente y conserva registros y FK.
+*/
+
 -- Mantto Gestor - Fase 3 Azure Blob Storage
 -- Migracion aditiva. No elimina ni renombra columnas existentes.
 -- Ejecutar una sola vez en Aiven MySQL despues de respaldar y validar.

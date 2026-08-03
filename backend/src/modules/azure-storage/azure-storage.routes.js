@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const controller = require('./azure-storage.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
+const { requireAzureDiagnosticsEnabled } = require('../../middleware/historical-sync.middleware');
 const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -9,8 +10,8 @@ const upload = multer({
 });
 
 router.get('/status', requireAuth, controller.getStatus);
-router.post('/diagnostico/subir', requireAuth, upload.single('archivo'), controller.testUpload);
-router.get('/diagnostico/acceso', requireAuth, controller.testAccess);
-router.delete('/diagnostico/blob', requireAuth, express.json(), controller.testDelete);
+router.post('/diagnostico/subir', requireAuth, requireAzureDiagnosticsEnabled, upload.single('archivo'), controller.testUpload);
+router.get('/diagnostico/acceso', requireAuth, requireAzureDiagnosticsEnabled, controller.testAccess);
+router.delete('/diagnostico/blob', requireAuth, requireAzureDiagnosticsEnabled, express.json(), controller.testDelete);
 
 module.exports = router;

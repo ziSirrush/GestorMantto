@@ -7,8 +7,29 @@ const logger = require('./shared/logger');
 const { startPortafolioCierreMensualJob } = require('./jobs/portafolioCierreMensual.job');
 const { startPortafolioCierreSemanalJob } = require('./jobs/portafolioCierreSemanal.job');
 const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/pushNotifications.job');
+const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
+
+async function verifyStorageSchema() {
+  try {
+    const status = await storageSchema.readSchemaStatus_gnral(true);
+    if (status.ready) {
+      logger.info('CFFAA-00: esquema de metadatos Azure Storage alineado.');
+      return true;
+    }
+
+    const missing = Object.entries(status.tables)
+      .filter(([, value]) => !value.ready)
+      .map(([table, value]) => `${table}: ${value.missing.join(', ')}`)
+      .join(' | ');
+    logger.warn(`CFFAA-00: cargas de archivos bloqueadas hasta alinear la base. ${missing}`);
+    return false;
+  } catch (error) {
+    logger.warn(`CFFAA-00: no fue posible validar el esquema de Storage: ${error.message}`);
+    return false;
+  }
+}
 
 async function verifyDatabase() {
   try {
@@ -39,7 +60,8 @@ async function startServer() {
   const port = Number(process.env.PORT || 3001);
   const host = process.env.HOST || '0.0.0.0';
 
-  await verifyDatabase();
+  const databaseReady = await verifyDatabase();
+  if (databaseReady) await verifyStorageSchema();
 
   server = http.createServer(app);
 

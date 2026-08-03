@@ -4,6 +4,7 @@ const express = require('express');
 const controller = require('./ventas-cotizaciones.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireVentasPermission } = require('../../middleware/ventas-cotizaciones-permissions.middleware');
+const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
 
 const multer = require('multer');
 const router = express.Router();
@@ -13,10 +14,10 @@ const canCreate = requireVentasPermission('crear');
 const canEdit = requireVentasPermission('editar');
 const canDelete = requireVentasPermission('eliminar');
 
-// Endpoints históricos de carga inicial. Se conservan sin cambios para no
-// alterar el proceso de importación existente dentro de este FIX operativo.
-router.post('/cotizaciones/sync', controller.syncCotizaciones);
-router.post('/cotizaciones/comentarios/sync', controller.syncComentariosHistoricos);
+// CFFAA-00: imports históricos cerrados por defecto. Solo se habilitan
+// temporalmente mediante variable de entorno y con sesión de Programador.
+router.post('/cotizaciones/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncCotizaciones);
+router.post('/cotizaciones/comentarios/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncComentariosHistoricos);
 
 router.get('/cotizaciones/catalogos', requireAuth, canView, controller.getCatalogos);
 router.get('/cotizaciones/kpis', requireAuth, canView, controller.getKpis);

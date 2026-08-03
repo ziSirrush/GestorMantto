@@ -5,6 +5,7 @@ const supportUpload = multer({ storage: multer.memoryStorage(), limits: { files:
 
 const supportController = require('../controllers/support.controller');
 const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
+const { requireStorageSchema } = require('../middleware/storage-schema.middleware');
 
 /* ===========================
    CENTRO DE AYUDA / NORI
@@ -29,7 +30,7 @@ router.get('/tickets/:id', requireAuth, supportController.getTicketById);
 router.post('/tickets', requireAuth, supportController.createTicket);
 router.patch('/tickets/:id', requireAuth, supportController.updateTicket);
 router.post('/tickets/:id/comentarios', requireAuth, supportController.addTicketComment);
-router.post('/tickets/:id/adjuntos', requireAuth, supportUpload.single('archivo'), supportController.addTicketAttachment);
+router.post('/tickets/:id/adjuntos', requireAuth, requireStorageSchema('sup_adjuntos'), supportUpload.single('archivo'), supportController.addTicketAttachment);
 router.get('/tickets/:id/adjuntos/:idAdjunto/acceso', requireAuth, supportController.getTicketAttachmentAccess);
 
 /* ===========================

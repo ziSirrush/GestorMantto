@@ -1,6 +1,7 @@
 const express = require('express');
 const controller = require('./ventas-prospeccion.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
+const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
 const multer = require('multer');
 const upload = multer({storage:multer.memoryStorage(),limits:{files:4,fileSize:Number(process.env.AZURE_STORAGE_MAX_FILE_MB||25)*1024*1024},fileFilter(_req,file,cb){if(!String(file.mimetype||'').startsWith('image/'))return cb(new Error('Solo se permiten imágenes.'));return cb(null,true);}});
 const COMMENT_MIME_TYPES = new Set(['application/pdf','text/plain','text/csv','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
@@ -8,10 +9,10 @@ const uploadComment = multer({storage:multer.memoryStorage(),limits:{files:4,fil
 
 const router = express.Router();
 
-// Endpoints temporales de carga histórica desde respaldos de Google Sheets.
-// Se mantienen sin sesión para conservar el patrón de los imports históricos existentes.
-router.post('/prospeccion/sync', controller.syncProspections);
-router.post('/prospeccion/comentarios/sync', controller.syncComments);
+// CFFAA-00: imports históricos cerrados por defecto. Solo se habilitan
+// temporalmente mediante variable de entorno y con sesión de Programador.
+router.post('/prospeccion/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncProspections);
+router.post('/prospeccion/comentarios/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncComments);
 
 router.get('/prospeccion/catalogos-captura', requireAuth, controller.getCaptureCatalogs);
 router.get('/prospeccion/fuentes', requireAuth, controller.searchSources);

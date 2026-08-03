@@ -1617,6 +1617,26 @@ async function getPendientes(req, res) {
   const limit = positiveInt(req.query.limit, 80, 1, 200);
   const clauses = [];
   const params = [];
+  const user = currentUserRef(req);
+
+  if (!user.correo) {
+    return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
+  }
+
+  clauses.push(`(
+    (p.tipo_pendiente = 'PERSONAL' AND LOWER(TRIM(p.creado_por_email)) = LOWER(TRIM(?)))
+    OR
+    (p.tipo_pendiente = 'COLABORATIVA' AND (
+      LOWER(TRIM(p.creado_por_email)) = LOWER(TRIM(?))
+      OR EXISTS (
+        SELECT 1
+        FROM pendientes_usuarios pu_scope
+        WHERE pu_scope.id_pendiente = p.id_pendiente
+          AND UPPER(TRIM(pu_scope.iniciales_usuario)) = UPPER(TRIM(?))
+      )
+    ))
+  )`);
+  params.push(user.correo, user.correo, user.iniciales || '');
 
   if (type === 'PERSONAL' || type === 'COLABORATIVA') {
     clauses.push('p.tipo_pendiente = ?');
