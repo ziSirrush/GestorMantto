@@ -1,13 +1,39 @@
 const crypto = require('crypto');
 const path = require('path');
 const mime = require('mime-types');
-const { DefaultAzureCredential } = require('@azure/identity');
-const {
-  BlobServiceClient,
-  BlobSASPermissions,
-  SASProtocol,
-  generateBlobSASQueryParameters
-} = require('@azure/storage-blob');
+let azureSdkCache = null;
+
+function getAzureSdk_gnral() {
+  if (azureSdkCache) return azureSdkCache;
+
+  try {
+    const { DefaultAzureCredential } = require('@azure/identity');
+    const {
+      BlobServiceClient,
+      BlobSASPermissions,
+      SASProtocol,
+      generateBlobSASQueryParameters
+    } = require('@azure/storage-blob');
+
+    azureSdkCache = {
+      DefaultAzureCredential,
+      BlobServiceClient,
+      BlobSASPermissions,
+      SASProtocol,
+      generateBlobSASQueryParameters
+    };
+    return azureSdkCache;
+  } catch (cause) {
+    const error = new Error(
+      'Azure Storage no está disponible porque faltan las dependencias @azure/identity y/o @azure/storage-blob. ' +
+      'Ejecuta npm install dentro de backend antes de usar las rutas /api/azure-storage.'
+    );
+    error.code = 'AZURE_STORAGE_DEPENDENCIES_MISSING';
+    error.status = 503;
+    error.cause = cause;
+    throw error;
+  }
+}
 
 const PROVIDER = 'AZURE_BLOB';
 const DEFAULT_SAS_MINUTES = 15;
@@ -57,6 +83,7 @@ function getClients_gnral() {
     return { ...clientsCache, config };
   }
 
+  const { DefaultAzureCredential, BlobServiceClient } = getAzureSdk_gnral();
   const credential = new DefaultAzureCredential();
   const blobServiceClient = new BlobServiceClient(config.serviceUrl, credential);
   const containerClient = blobServiceClient.getContainerClient(config.containerName);
@@ -207,6 +234,7 @@ async function createReadSas_gnral(blobName, options = {}) {
   const startsOn = new Date(now.getTime() - 5 * 60 * 1000);
   const minutes = Math.min(Number(options.minutes || config.sasMinutes), config.sasMinutes);
   const expiresOn = new Date(now.getTime() + minutes * 60 * 1000);
+  const { BlobSASPermissions, SASProtocol, generateBlobSASQueryParameters } = getAzureSdk_gnral();
   const delegationKey = await blobServiceClient.getUserDelegationKey(startsOn, expiresOn);
   const sas = generateBlobSASQueryParameters({
     containerName: config.containerName,
@@ -258,6 +286,7 @@ async function getStatus_gnral() {
 
 module.exports = {
   PROVIDER,
+  getAzureSdk_gnral,
   getConfig_gnral,
   buildBlobName_gnral,
   validateFile_gnral,
