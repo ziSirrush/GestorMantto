@@ -24,6 +24,7 @@ const ventasProspeccionRoutes = require('../modules/ventas-prospeccion/ventas-pr
 const pushNotificationsRoutes = require('../modules/push-notifications/push-notifications.routes');
 const devicePermissionsRoutes = require('../modules/device-permissions/device-permissions.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
+const azureStorageRoutes = require('../modules/azure-storage/azure-storage.routes');
 
 const router = express.Router();
 
@@ -50,6 +51,7 @@ router.use('/ventas', ventasProspeccionRoutes);
 router.use('/push', pushNotificationsRoutes);
 router.use('/device-permissions', devicePermissionsRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);
+router.use('/azure-storage', azureStorageRoutes);
 router.use(dataRoutes);
 
 module.exports = router;
