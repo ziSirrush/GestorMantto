@@ -1,6 +1,7 @@
 'use strict';
 
 const service = require('./ventas-redes.service');
+const syncService = require('./ventas-redes-sync.service');
 
 function sendKnownError(error, res, next) {
   const status = Number(error.statusCode || error.status || 0);
@@ -30,6 +31,28 @@ function evidenceFiles(req) {
     ...(files.imagen_1 || []).map((file) => ({ order: 1, file })),
     ...(files.imagen_2 || []).map((file) => ({ order: 2, file }))
   ];
+}
+
+async function syncRecords(req, res, next) {
+  try {
+    return res.status(200).json(await syncService.syncRecords(
+      req.body || {},
+      buildActionContext(req)
+    ));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function syncComments(req, res, next) {
+  try {
+    return res.status(200).json(await syncService.syncComments(
+      req.body || {},
+      buildActionContext(req)
+    ));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
 }
 
 async function list(req, res, next) {
@@ -227,6 +250,8 @@ async function deleteAttachment(req, res, next) {
 }
 
 module.exports = {
+  syncRecords,
+  syncComments,
   list,
   getById,
   getCatalogs,

@@ -43,6 +43,8 @@ const requiredFiles = [
   'src/modules/ventas-prospeccion/ventas-prospeccion.routes.js',
   'src/modules/ventas-redes/ventas-redes.repository.js',
   'src/modules/ventas-redes/ventas-redes.service.js',
+  'src/modules/ventas-redes/ventas-redes-sync.repository.js',
+  'src/modules/ventas-redes/ventas-redes-sync.service.js',
   'src/modules/ventas-redes/ventas-redes.controller.js',
   'src/modules/ventas-redes/ventas-redes.routes.js',
   'scripts/validate-cffaa-04.js',

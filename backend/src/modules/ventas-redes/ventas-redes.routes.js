@@ -29,6 +29,11 @@ const uploadCommentAttachments = createUploadMiddleware_gnral({
   maxRequestMb: Number(process.env.CFFAA_STORAGE_MAX_REQUEST_MB || 50)
 });
 
+// One-time historical backup import from the controlled Google Sheets backup.
+// These two routes are temporary and must be removed after the confirmed import.
+router.post('/redes/importar-backup', controller.syncRecords);
+router.post('/redes/comentarios/importar-backup', controller.syncComments);
+
 router.get('/redes/catalogos', requireAuth, controller.getCatalogs);
 router.get('/redes/usuarios-asignables', requireAuth, controller.getAssignableUsers);
 router.get('/redes/cotizaciones-activas', requireAuth, controller.getActiveQuotations);
