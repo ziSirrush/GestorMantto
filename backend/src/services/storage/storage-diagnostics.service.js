@@ -22,7 +22,7 @@ function getStaticSnapshot_gnral() {
   }
 
   return {
-    contract_version: 'CFFAA-01E/F-V001',
+    contract_version: 'CFFAA-01E/F+CFFAA-06-V001',
     generated_at: new Date().toISOString(),
     upload: {
       max_file_mb: limits.maxFileMb,
@@ -44,7 +44,16 @@ function getStaticSnapshot_gnral() {
     },
     diagnostics: {
       enabled: enabled_gnral(process.env.AZURE_STORAGE_DIAGNOSTICS_ENABLED, false),
+      production_override: enabled_gnral(process.env.CFFAA_PRODUCTION_DIAGNOSTICS_OVERRIDE, false),
       programmer_only: true
+    },
+    reconciliation: {
+      enabled: enabled_gnral(process.env.CFFAA_STORAGE_RECONCILIATION_ENABLED, false),
+      metrics_enabled: enabled_gnral(process.env.CFFAA_STORAGE_METRICS_ENABLED, false),
+      orphan_delete_enabled: enabled_gnral(process.env.CFFAA_STORAGE_ORPHAN_DELETE_ENABLED, false),
+      orphan_min_age_hours: Number(process.env.CFFAA_STORAGE_ORPHAN_MIN_AGE_HOURS || 24),
+      legacy_uploads_enabled: enabled_gnral(process.env.CFFAA_LEGACY_UPLOADS_ENABLED, true),
+      historical_migration_automatic: false
     }
   };
 }

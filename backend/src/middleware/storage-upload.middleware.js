@@ -1,6 +1,24 @@
 const multer = require('multer');
 const filePolicy = require('../services/storage/storage-file-policy.service');
 const { normalizeUploadError_gnral } = require('../services/storage/storage-errors.service');
+const metrics = require('../services/storage/storage-metrics.service');
+
+
+function recordRejection_gnral(req, error) {
+  const normalized = normalizeUploadError_gnral(error);
+  void metrics.recordEventSafe_gnral({
+    tipo_evento: 'REJECTED',
+    storage_provider: 'AZURE_BLOB',
+    modulo: 'http-upload',
+    entidad_tipo: 'request',
+    usuario_id: req && req.user && (req.user.id_SB || req.user.id),
+    codigo: normalized.code || 'CFFAA_UPLOAD_REJECTED',
+    http_method: req && req.method,
+    request_path: req && (req.originalUrl || req.path),
+    detalle_json: { message: normalized.message }
+  });
+  return normalized;
+}
 
 function uploadedFiles_gnral(req) {
   if (req.file) return [req.file];
@@ -62,7 +80,7 @@ function createUploadMiddleware_gnral(options = {}) {
 
   return function cffaaUploadMiddleware(req, res, next) {
     parser(req, res, (parseError) => {
-      if (parseError) return next(normalizeUploadError_gnral(parseError));
+      if (parseError) return next(recordRejection_gnral(req, parseError));
 
       try {
         const files = uploadedFiles_gnral(req);
@@ -83,7 +101,7 @@ function createUploadMiddleware_gnral(options = {}) {
         req.cffaaFiles = files;
         return next();
       } catch (error) {
-        return next(normalizeUploadError_gnral(error));
+        return next(recordRejection_gnral(req, error));
       }
     });
   };

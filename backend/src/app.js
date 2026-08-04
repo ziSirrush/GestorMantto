@@ -6,6 +6,11 @@ const apiRouter = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/error.middleware');
 const { getCorsOptions } = require('./config/http.config');
 
+function enabled(value, fallback = true) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 function createApp() {
   const app = express();
 
@@ -13,7 +18,9 @@ function createApp() {
   app.use(cors(getCorsOptions()));
   app.use(express.json({ limit: process.env.JSON_LIMIT || '12mb' }));
   app.use(express.urlencoded({ extended: true, limit: process.env.JSON_LIMIT || '12mb' }));
-  app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+  if (enabled(process.env.CFFAA_LEGACY_UPLOADS_ENABLED, true)) {
+    app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+  }
 
   app.use('/api', apiRouter);
 

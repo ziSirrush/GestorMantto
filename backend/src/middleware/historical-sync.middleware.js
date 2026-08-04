@@ -28,7 +28,9 @@ function requireHistoricalSyncEnabled(req, res, next) {
 }
 
 function requireAzureDiagnosticsEnabled(req, res, next) {
-  if (!isEnabled(process.env.AZURE_STORAGE_DIAGNOSTICS_ENABLED)) {
+  const productionBlocked = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
+    && !isEnabled(process.env.CFFAA_PRODUCTION_DIAGNOSTICS_OVERRIDE);
+  if (productionBlocked || !isEnabled(process.env.AZURE_STORAGE_DIAGNOSTICS_ENABLED)) {
     return res.status(404).json({ ok: false, message: 'Ruta no encontrada.' });
   }
 

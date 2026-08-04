@@ -49,6 +49,16 @@ const requiredFiles = [
   'src/modules/ventas-cotizaciones/ventas-cotizaciones.routes.js',
   'scripts/validate-cffaa-05.js',
   '../modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js',
+  'src/services/storage/storage-metrics.repository.js',
+  'src/services/storage/storage-metrics.service.js',
+  'src/middleware/storage-reconciliation.middleware.js',
+  'src/modules/storage-reconciliation/storage-reconciliation.repository.js',
+  'src/modules/storage-reconciliation/storage-reconciliation.service.js',
+  'src/modules/storage-reconciliation/storage-reconciliation.controller.js',
+  'src/modules/storage-reconciliation/storage-reconciliation.routes.js',
+  'sql/20260803_CFFAA_06_STORAGE_EVENTOS.sql',
+  'sql/20260803_CFFAA_06_POSTFLIGHT.sql',
+  'scripts/validate-cffaa-06.js',
   '../core/router.js'
 ];
 
@@ -60,6 +70,11 @@ for (const relativeFile of requiredFiles) {
   if (!fs.existsSync(absoluteFile)) {
     console.error(`[FALTA] ${relativeFile}`);
     failed = true;
+    continue;
+  }
+
+  if (path.extname(absoluteFile).toLowerCase() !== '.js') {
+    console.log(`[OK] ${relativeFile}`);
     continue;
   }
 

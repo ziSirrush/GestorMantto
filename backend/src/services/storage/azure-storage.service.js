@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const path = require('path');
 const filePolicy = require('./storage-file-policy.service');
+const metrics = require('./storage-metrics.service');
 const {
   STORAGE_CODES,
   createStorageError_gnral
@@ -232,20 +233,37 @@ async function uploadPrivate_gnral({
     blobMetadata[cleanSegment_gnral(key, 'meta').replace(/-/g, '_')] = String(value).slice(0, 500);
   }
 
-  await blockBlobClient.uploadData(normalizedFile.buffer, {
-    blobHTTPHeaders: {
-      blobContentType: checked.mimeType,
-      blobContentDisposition: filePolicy.contentDisposition_gnral(
-        normalizedFile.originalname,
-        checked.mimeType,
-        forceDownload
-      )
-    },
-    metadata: blobMetadata,
-    conditions: { ifNoneMatch: '*' }
-  });
+  try {
+    await blockBlobClient.uploadData(normalizedFile.buffer, {
+      blobHTTPHeaders: {
+        blobContentType: checked.mimeType,
+        blobContentDisposition: filePolicy.contentDisposition_gnral(
+          normalizedFile.originalname,
+          checked.mimeType,
+          forceDownload
+        )
+      },
+      metadata: blobMetadata,
+      conditions: { ifNoneMatch: '*' }
+    });
+  } catch (error) {
+    void metrics.recordEventSafe_gnral({
+      tipo_evento: 'UPLOAD_ERROR',
+      storage_provider: PROVIDER,
+      storage_container: config.containerName,
+      storage_blob_name: blobName,
+      modulo,
+      entidad_tipo: entidadTipo,
+      entidad_id: entidadId,
+      usuario_id: metadata && (metadata.uploaded_by || metadata.subido_por),
+      codigo: error.code || 'AZURE_UPLOAD_ERROR',
+      tamano_bytes: checked.size,
+      detalle_json: { message: error.message, policy: checked.policy }
+    });
+    throw error;
+  }
 
-  return {
+  const result = {
     storage_provider: PROVIDER,
     storage_container: config.containerName,
     storage_blob_name: blobName,
@@ -258,6 +276,21 @@ async function uploadPrivate_gnral({
     signature: checked.signature,
     policy: checked.policy
   };
+
+  void metrics.recordEventSafe_gnral({
+    tipo_evento: 'UPLOAD_OK',
+    storage_provider: PROVIDER,
+    storage_container: config.containerName,
+    storage_blob_name: blobName,
+    modulo,
+    entidad_tipo: entidadTipo,
+    entidad_id: entidadId,
+    usuario_id: metadata && (metadata.uploaded_by || metadata.subido_por),
+    tamano_bytes: checked.size,
+    detalle_json: { policy: checked.policy, mime_type: checked.mimeType }
+  });
+
+  return result;
 }
 
 async function getDelegationKey_gnral(requiredExpiresOn) {
@@ -366,16 +399,149 @@ async function deleteBlob_gnral(blobName, options = {}) {
     });
   }
 
+  const context = options.queueContext || {};
   try {
     const result = await containerClient.getBlockBlobClient(cleanBlobName).deleteIfExists({
       deleteSnapshots: options.deleteSnapshots || 'include'
+    });
+    void metrics.recordEventSafe_gnral({
+      tipo_evento: 'DELETE_OK',
+      storage_provider: PROVIDER,
+      storage_container: config.containerName,
+      storage_blob_name: cleanBlobName,
+      modulo: context.modulo,
+      entidad_tipo: context.entidadTipo || context.entidad_tipo,
+      entidad_id: context.entidadId ?? context.entidad_id,
+      usuario_id: context.solicitadoPor || context.solicitado_por,
+      codigo: result.succeeded ? 'DELETED' : 'NOT_FOUND'
     });
     return { deleted: Boolean(result.succeeded), queued: false };
   } catch (error) {
     const queued = await enqueueFailedDelete_gnral(cleanBlobName, options, error);
     if (queued) error.queue_operation_id = queued.id_operacion;
+    void metrics.recordEventSafe_gnral({
+      tipo_evento: 'DELETE_ERROR',
+      storage_provider: PROVIDER,
+      storage_container: config.containerName,
+      storage_blob_name: cleanBlobName,
+      modulo: context.modulo,
+      entidad_tipo: context.entidadTipo || context.entidad_tipo,
+      entidad_id: context.entidadId ?? context.entidad_id,
+      usuario_id: context.solicitadoPor || context.solicitado_por,
+      codigo: error.code || 'AZURE_DELETE_ERROR',
+      detalle_json: {
+        message: error.message,
+        queued_operation_id: error.queue_operation_id || null
+      }
+    });
     throw error;
   }
+}
+
+async function blobExists_gnral(blobName, options = {}) {
+  const { containerClient, config } = getClients_gnral();
+  assertConfiguredContainer_gnral(options.containerName, config);
+  const cleanBlobName = String(blobName || '').replace(/^\/+/, '');
+  if (!cleanBlobName || cleanBlobName.includes('..')) {
+    throw createStorageError_gnral('Nombre de blob inválido.', {
+      status: 400,
+      code: 'CFFAA_INVALID_BLOB_NAME'
+    });
+  }
+  return containerClient.getBlobClient(cleanBlobName).exists();
+}
+
+async function getBlobProperties_gnral(blobName, options = {}) {
+  const { containerClient, config } = getClients_gnral();
+  assertConfiguredContainer_gnral(options.containerName, config);
+  const cleanBlobName = String(blobName || '').replace(/^\/+/, '');
+  if (!cleanBlobName || cleanBlobName.includes('..')) {
+    throw createStorageError_gnral('Nombre de blob inválido.', {
+      status: 400,
+      code: 'CFFAA_INVALID_BLOB_NAME'
+    });
+  }
+
+  const client = containerClient.getBlobClient(cleanBlobName);
+  try {
+    const properties = await client.getProperties();
+    return {
+      exists: true,
+      storage_container: config.containerName,
+      storage_blob_name: cleanBlobName,
+      content_length: Number(properties.contentLength || 0),
+      content_type: properties.contentType || null,
+      created_on: properties.createdOn ? properties.createdOn.toISOString() : null,
+      last_modified: properties.lastModified ? properties.lastModified.toISOString() : null
+    };
+  } catch (error) {
+    if (Number(error.statusCode) === 404 || error.code === 'BlobNotFound') {
+      return {
+        exists: false,
+        storage_container: config.containerName,
+        storage_blob_name: cleanBlobName
+      };
+    }
+    throw error;
+  }
+}
+
+async function listBlobs_gnral(options = {}) {
+  const { containerClient, config } = getClients_gnral();
+  assertConfiguredContainer_gnral(options.containerName, config);
+  const requested = Number(options.maxBlobs || process.env.CFFAA_STORAGE_RECONCILIATION_MAX_BLOBS || 5000);
+  const maxBlobs = Math.max(1, Math.min(50000, Number.isFinite(requested) ? Math.floor(requested) : 5000));
+  const prefix = String(options.prefix || '').replace(/^\/+/, '');
+  if (prefix.includes('..')) {
+    throw createStorageError_gnral('Prefijo de blob inválido.', {
+      status: 400,
+      code: 'CFFAA_INVALID_BLOB_PREFIX'
+    });
+  }
+
+  const blobs = [];
+  let continuationToken;
+  let complete = true;
+  do {
+    const iterator = containerClient
+      .listBlobsFlat({ prefix, includeMetadata: options.includeMetadata === true })
+      .byPage({ continuationToken, maxPageSize: Math.min(500, maxBlobs - blobs.length) });
+    const page = await iterator.next();
+    if (page.done || !page.value) break;
+
+    for (const item of page.value.segment.blobItems || []) {
+      blobs.push({
+        storage_container: config.containerName,
+        storage_blob_name: item.name,
+        content_length: Number(item.properties && item.properties.contentLength || 0),
+        content_type: item.properties && item.properties.contentType || null,
+        created_on: item.properties && item.properties.createdOn
+          ? item.properties.createdOn.toISOString()
+          : null,
+        last_modified: item.properties && item.properties.lastModified
+          ? item.properties.lastModified.toISOString()
+          : null,
+        metadata: options.includeMetadata === true ? (item.metadata || null) : undefined
+      });
+      if (blobs.length >= maxBlobs) break;
+    }
+
+    continuationToken = page.value.continuationToken;
+    if (blobs.length >= maxBlobs && continuationToken) {
+      complete = false;
+      break;
+    }
+  } while (continuationToken);
+
+  return {
+    storage_container: config.containerName,
+    prefix: prefix || null,
+    max_blobs: maxBlobs,
+    scanned: blobs.length,
+    complete,
+    continuation_pending: !complete,
+    blobs
+  };
 }
 
 function getCacheStatus_gnral() {
@@ -422,6 +588,9 @@ module.exports = {
   uploadPrivate_gnral,
   createReadSas_gnral,
   deleteBlob_gnral,
+  blobExists_gnral,
+  getBlobProperties_gnral,
+  listBlobs_gnral,
   getStatus_gnral,
   getCacheStatus_gnral,
   resetCaches_gnral
