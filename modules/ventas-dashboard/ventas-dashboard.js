@@ -8,13 +8,12 @@
   let users=[];
   let kpiRequestId=0;
 
-  function apiBase(){
-    const host=String(window.location?.hostname||'').toLowerCase();
-    const isLocal=host==='localhost'||host==='127.0.0.1'||host==='::1';
-    if(isLocal) return 'http://localhost:3001';
-    return String(window.MANTTO_API_BASE||'').replace(/\/$/,'');
+  function ensureAuthApi(){
+    if(!window.ManttoAuth || typeof window.ManttoAuth.apiGet!=='function'){
+      throw new Error('El servicio central de sesión todavía no está disponible.');
+    }
+    return window.ManttoAuth;
   }
-  function authHeaders(){ return window.ManttoAuth?.authHeaders?.() || {}; }
   function esc(value){
     return String(value ?? '').replace(/[&<>"']/g,function(char){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[char];});
   }
@@ -33,32 +32,15 @@
     node.className='vd-message'+(type?' is-'+type:'');
   }
   async function request(path){
-    const controller=new AbortController();
-    const timeout=setTimeout(function(){controller.abort();},15000);
+    const auth=ensureAuthApi();
     try{
-      const response=await fetch(apiBase()+path,{
-        headers:Object.assign({'Accept':'application/json'},authHeaders()),
-        credentials:'include',
-        signal:controller.signal
-      });
-      const contentType=String(response.headers.get('content-type')||'');
-      let data=null;
-      if(contentType.includes('application/json')){
-        try{data=await response.json();}catch(error){data=null;}
-      }else{
-        const text=await response.text();
-        throw new Error(text?('El backend respondió contenido no JSON: '+text.slice(0,120)):'El backend respondió contenido no JSON.');
-      }
-      if(!response.ok) throw new Error(data?.message||data?.error||('Error HTTP '+response.status));
-      return data||{};
+      return await auth.apiGet(path);
     }catch(error){
-      if(error?.name==='AbortError') throw new Error('La consulta al backend excedió 15 segundos.');
       if(error instanceof TypeError && /fetch/i.test(String(error.message||''))){
-        throw new Error('No fue posible conectar con el backend local en http://localhost:3001.');
+        const base=String(window.MANTTO_API_BASE||'').replace(/\/$/,'');
+        throw new Error('No fue posible conectar con la API configurada'+(base?' en '+base:'')+'.');
       }
       throw error;
-    }finally{
-      clearTimeout(timeout);
     }
   }
   async function ensureTemplate(){

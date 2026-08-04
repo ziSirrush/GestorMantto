@@ -2,7 +2,7 @@
 const state={page:1,pageSize:30,total:0,totalPages:1,rows:[],accessTotal:false};
 const $=(s,r=document)=>r.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function req(path){const res=await fetch((window.MANTTO_API_BASE||'')+path,{headers:window.ManttoAuth?.authHeaders?.()||{},cache:'no-store'});const j=await res.json().catch(()=>({}));if(!res.ok||j.ok===false)throw new Error(j.message||('HTTP '+res.status));return j;}
+async function req(path){if(!window.ManttoAuth||typeof window.ManttoAuth.apiGet!=='function')throw new Error('El servicio central de sesión todavía no está disponible.');return window.ManttoAuth.apiGet(path);}
 function status(t,c=''){const e=$('#var-status');if(!e)return;e.className='var-status '+c;e.querySelector('span').textContent=t;}
 function v(id){return $(id)?.value||'';}
 function qs(){const q=new URLSearchParams({page:state.page,page_size:state.pageSize});if(v('#var-search'))q.set('search',v('#var-search'));if(v('#var-filter-contacto'))q.set('id_contacto_via',v('#var-filter-contacto'));if(v('#var-filter-estatus'))q.set('id_estatus',v('#var-filter-estatus'));if(v('#var-filter-asignacion')==='asignados')q.set('con_asignacion','true');if(v('#var-filter-asignacion')==='sin-asignar')q.set('sin_asignar','true');if(v('#var-filter-cotizacion')==='con')q.set('con_cotizacion','true');if(v('#var-filter-cotizacion')==='sin')q.set('sin_cotizacion','true');return q;}
