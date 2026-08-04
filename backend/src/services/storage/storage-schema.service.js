@@ -83,6 +83,45 @@ const REQUIRED_COLUMNS = Object.freeze({
     'activo',
     'created_at',
     'updated_at'
+  ]),
+  ventas_redes_archivos: Object.freeze([
+    'id_archivo',
+    'id_redes',
+    'orden_archivo',
+    'nombre_archivo',
+    'nombre_original',
+    'extension',
+    'mime_type',
+    'tamanio_bytes',
+    'storage_provider',
+    'storage_url',
+    'storage_container',
+    'storage_blob_name',
+    'tipo_archivo',
+    'descripcion',
+    'id_usuario',
+    'activo',
+    'created_at',
+    'updated_at'
+  ]),
+  ventas_redes_comentarios_adjuntos: Object.freeze([
+    'id_adjunto',
+    'id_comentario',
+    'nombre_archivo',
+    'nombre_original',
+    'extension',
+    'mime_type',
+    'tamanio_bytes',
+    'storage_provider',
+    'storage_url',
+    'storage_container',
+    'storage_blob_name',
+    'tipo_archivo',
+    'descripcion',
+    'id_usuario',
+    'activo',
+    'created_at',
+    'updated_at'
   ])
 });
 

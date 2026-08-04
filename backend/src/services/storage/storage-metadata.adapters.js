@@ -3,7 +3,9 @@ const TABLES = Object.freeze({
   PENDIENTES_COMENTARIOS: 'pendientes_comentarios_adjuntos',
   PENDIENTES_DIRECTOS: 'pendientes_archivos',
   VENTAS_COTIZACIONES: 'ventas_cotizaciones_archivos',
-  VENTAS_PROSPECCION: 'ventas_prospeccion_archivos'
+  VENTAS_PROSPECCION: 'ventas_prospeccion_archivos',
+  VENTAS_REDES: 'ventas_redes_archivos',
+  VENTAS_REDES_COMENTARIOS: 'ventas_redes_comentarios_adjuntos'
 });
 
 function common_gnral(storage) {
@@ -90,6 +92,20 @@ function forVentasProspeccion_gnral(storage) {
   };
 }
 
+function forVentasRedes_gnral(storage) {
+  return {
+    nombre_archivo: storage.nombre_archivo,
+    nombre_original: storage.nombre_original,
+    extension: storage.extension,
+    mime_type: storage.mime_type,
+    tamanio_bytes: storage.tamano_bytes,
+    storage_provider: storage.storage_provider,
+    storage_url: storage.storage_url,
+    storage_container: storage.storage_container,
+    storage_blob_name: storage.storage_blob_name
+  };
+}
+
 module.exports = {
   TABLES,
   common_gnral,
@@ -97,5 +113,6 @@ module.exports = {
   forPendientesDirectos_gnral,
   forPendientesComentarios_gnral,
   forVentasCotizaciones_gnral,
-  forVentasProspeccion_gnral
+  forVentasProspeccion_gnral,
+  forVentasRedes_gnral
 };
