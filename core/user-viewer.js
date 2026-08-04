@@ -101,8 +101,10 @@
     };
     return [...new Set([key,...(aliases[key]||[])].filter(Boolean))];
   }
-  function catalogGroupText(row){
-    return norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' '));
+  function catalogGroupKeys(row){
+    return [row.agrupacion_codigo,row.agrupacion_nombre]
+      .map(norm)
+      .filter(Boolean);
   }
   function catalogModuleKeys(row){
     return [row.modulo_codigo,row.modulo_nombre,row.modulo_ruta_frontend].map(norm).filter(Boolean);
@@ -118,8 +120,8 @@
       if(Number(row.modulo_interno_visual)===1)return false;
 
       if(group){
-        const groupText=catalogGroupText(row);
-        const sameGroup=acceptedGroups.some(key=>key&&groupText===key);
+        const catalogGroups=catalogGroupKeys(row);
+        const sameGroup=acceptedGroups.some(key=>key&&catalogGroups.includes(key));
         if(!sameGroup)return false;
       }
 
