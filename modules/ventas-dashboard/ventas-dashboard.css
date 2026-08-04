@@ -1,0 +1,93 @@
+.vd-page{display:grid;gap:16px;padding:18px;max-width:1600px;margin:0 auto;color:#102a56}
+.vd-card{background:#fff;border:1px solid #dce5f2;border-radius:18px;box-shadow:0 8px 24px rgba(15,58,120,.06)}
+.vd-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;background:linear-gradient(135deg,#fff 0%,#f4f8ff 100%)}
+.vd-eyebrow{margin:0 0 5px;font-size:10px;font-weight:900;letter-spacing:.13em;color:#2459b8}
+.vd-head h1{margin:0;color:#0d2e6e;font-size:clamp(24px,3vw,36px)}
+.vd-head p:last-child{margin:7px 0 0;color:#64748b;font-size:13px}
+.vd-controls{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:22px;padding:20px 22px}
+.vd-user-field{display:grid;align-content:start;gap:7px}
+.vd-user-field label,.vd-module-filter legend{font-size:11px;font-weight:900;letter-spacing:.05em;color:#0d2e6e}
+.vd-user-field select{width:100%;height:44px;border:1px solid #cbd8ea;border-radius:12px;background:#fff;color:#102a56;padding:0 12px;font-size:13px;font-weight:700;outline:none}
+.vd-user-field select:focus{border-color:#2f67c7;box-shadow:0 0 0 3px rgba(47,103,199,.12)}
+.vd-user-field small{color:#64748b;font-size:11px;line-height:1.45}
+.vd-module-filter{border:0;padding:0;margin:0;min-width:0}
+.vd-module-filter legend{margin-bottom:9px}
+.vd-check-grid{display:flex;flex-wrap:wrap;gap:8px}
+.vd-check{position:relative;display:inline-flex;align-items:center;cursor:pointer}
+.vd-check input{position:absolute;opacity:0;pointer-events:none}
+.vd-check span{display:inline-flex;align-items:center;min-height:36px;padding:0 13px;border:1px solid #d6e0ee;border-radius:999px;background:#f8fafc;color:#334155;font-size:12px;font-weight:800;transition:.18s ease}
+.vd-check input:checked+span{background:#e8f0ff;border-color:#8eb1ef;color:#12479f;box-shadow:inset 0 0 0 1px rgba(36,89,184,.08)}
+.vd-check-all span{background:#eef4ff}
+.vd-summary{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px}
+.vd-summary-label{margin:0 0 3px;color:#64748b;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.vd-summary h2{margin:0;color:#0d2e6e;font-size:20px}
+.vd-summary p:last-child{margin:5px 0 0;color:#64748b;font-size:12px}
+.vd-selected-modules{max-width:45%;padding:9px 12px;border-radius:12px;background:#f1f5f9;color:#475569;font-size:11px;font-weight:800;text-align:right}
+.vd-stage{min-height:300px;border:1px dashed #c9d6e8;border-radius:18px;background:rgba(255,255,255,.65);display:grid;place-items:center;padding:26px}
+.vd-empty{text-align:center;max-width:560px;color:#64748b}
+.vd-empty span{display:block;font-size:42px;margin-bottom:8px}
+.vd-empty h2{margin:0;color:#0d2e6e;font-size:22px}
+.vd-empty p{margin:8px 0 0;font-size:13px;line-height:1.55}
+.vd-message{min-height:18px;padding:0 4px;font-size:12px;font-weight:700;color:#64748b}
+.vd-message.is-error{color:#b42318}.vd-message.is-ok{color:#166534}
+@media(max-width:900px){.vd-page{padding:12px}.vd-controls{grid-template-columns:1fr}.vd-summary{align-items:flex-start;flex-direction:column}.vd-selected-modules{max-width:none;width:100%;text-align:left}}
+@media(max-width:560px){.vd-head,.vd-controls,.vd-summary{padding:16px}.vd-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.vd-check span{width:100%;justify-content:center}.vd-stage{min-height:240px;padding:18px}}
+
+/* Fase A2: indicadores comerciales */
+.vd-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.vd-kpi {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-color, #dfe5ec);
+  border-radius: 16px;
+  padding: 20px;
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+}
+
+.vd-kpi[hidden] { display: none; }
+
+.vd-kpi-title {
+  margin: 0 0 12px;
+  font-size: .86rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.vd-kpi > strong {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1;
+  color: #0f172a;
+}
+
+.vd-kpi > span {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: .9rem;
+}
+
+.vd-kpi-secondary {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.vd-kpi-secondary b {
+  color: #0f172a;
+  font-size: 1.15rem;
+}
+
+@media (max-width: 900px) {
+  .vd-kpis { grid-template-columns: 1fr; }
+  .vd-kpi { min-height: 142px; }
+}

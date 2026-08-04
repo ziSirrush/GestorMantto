@@ -594,6 +594,9 @@ async function create(payload, files, actionContext) {
   try {
     await connection.beginTransaction();
     const scope = await resolveScope(connection, actionContext);
+    if (!scope.accessTotal) {
+      throw httpError(403, 'Solo los usuarios con acceso total pueden crear registros de Redes.');
+    }
     const assignmentChanged = record.id_usuario_asignado !== null;
     await validateRecordRelations(connection, record, scope, { assignmentChanged });
 
@@ -678,6 +681,19 @@ async function update(rawId, payload, actionContext) {
   } finally {
     connection.release();
   }
+}
+
+async function updateGeneral(rawId, payload, actionContext) {
+  const connection = await repository.getConnection();
+  try {
+    const scope = await resolveScope(connection, actionContext);
+    if (!scope.accessTotal) {
+      throw httpError(403, 'Solo los usuarios con acceso total pueden editar registros de Redes.');
+    }
+  } finally {
+    connection.release();
+  }
+  return update(rawId, payload, actionContext);
 }
 
 async function updateStatus(rawId, payload, actionContext) {
@@ -1248,6 +1264,7 @@ module.exports = {
   getActiveQuotations,
   create,
   update,
+  updateGeneral,
   updateStatus,
   updateAssignment,
   updateQuotation,

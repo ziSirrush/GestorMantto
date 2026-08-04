@@ -1,0 +1,49 @@
+<div class="varf-page">
+  <section class="varf-card varf-head">
+    <div>
+      <p class="varf-eyebrow">Aiven · Ventas · Asignación a Redes</p>
+      <h1 id="varf-title">Crear nueva asignación</h1>
+      <p id="varf-subtitle">Registra un contacto recibido por redes o medios digitales.</p>
+    </div>
+    <div class="varf-head-actions">
+      <span class="varf-status" id="varf-status"><i></i><span>Cargando</span></span>
+      <button class="varf-btn" id="varf-cancel" type="button">Cancelar</button>
+    </div>
+  </section>
+
+  <form class="varf-card varf-form" id="varf-form">
+    <div class="varf-section-head">
+      <div><h2>Datos de la asignación</h2><p>Los campos marcados con * son obligatorios. Las listas se cargan desde catálogos y usuarios activos de Aiven.</p></div>
+    </div>
+
+    <div class="varf-grid">
+      <label><span>Estatus</span><select id="varf-id-estatus" name="id_estatus"><option value="">Seleccionar estatus</option></select></label>
+      <label><span>Nombre del contacto <b class="varf-required">*</b></span><input id="varf-nombre-contacto" name="nombre_contacto" type="text" maxlength="180" required></label>
+      <label><span>Teléfono</span><input id="varf-telefono" name="telefono" type="tel" maxlength="30"></label>
+      <label><span>Email</span><input id="varf-email" name="email" type="email" maxlength="190"></label>
+      <label><span>Solicitud <b class="varf-required">*</b></span><select id="varf-id-solicitud" name="id_solicitud" required><option value="">Seleccionar solicitud</option></select></label>
+      <label><span>Contacto vía <b class="varf-required">*</b></span><select id="varf-id-contacto-via" name="id_contacto_via" required><option value="">Seleccionar contacto vía</option></select></label>
+      <label><span>Nombre de la empresa</span><input id="varf-nombre-empresa" name="nombre_empresa" type="text" maxlength="200"></label>
+      <label><span>Nombre del proyecto</span><input id="varf-nombre-proyecto" name="nombre_proyecto" type="text" maxlength="220"></label>
+      <label><span>Ciudad</span><input id="varf-ciudad" name="ciudad" type="text" maxlength="150"></label>
+      <label><span>Estado</span><select id="varf-id-estado" name="id_estado"><option value="">Seleccionar estado</option></select></label>
+      <label><span>Asignado a <b class="varf-required">*</b></span><select id="varf-id-usuario-asignado" name="id_usuario_asignado" required><option value="">Seleccionar usuario</option></select></label>
+      <label class="varf-wide"><span>Información que envía</span><textarea id="varf-informacion-enviada" name="informacion_enviada" rows="5"></textarea></label>
+    </div>
+
+    <div class="varf-section-head varf-images-head">
+      <div><h2>Imágenes</h2><p>Imagen 1 e Imagen 2 se almacenan mediante el flujo de Azure Blob.</p></div>
+    </div>
+    <div class="varf-images">
+      <label class="varf-image-picker"><span>Imagen 1</span><input id="varf-imagen-1" name="imagen_1" type="file" accept="image/*"><strong id="varf-imagen-1-name">Seleccionar archivo</strong><img id="varf-imagen-1-preview" alt="Vista previa de Imagen 1" hidden></label>
+      <label class="varf-image-picker"><span>Imagen 2</span><input id="varf-imagen-2" name="imagen_2" type="file" accept="image/*"><strong id="varf-imagen-2-name">Seleccionar archivo</strong><img id="varf-imagen-2-preview" alt="Vista previa de Imagen 2" hidden></label>
+    </div>
+
+    <div class="varf-actions">
+      <button class="varf-btn" id="varf-cancel-bottom" type="button">Cancelar</button>
+      <button class="varf-btn varf-btn-primary" id="varf-save" type="submit">Guardar</button>
+    </div>
+  </form>
+
+  <div class="varf-toast" id="varf-toast" aria-live="polite"></div>
+</div>

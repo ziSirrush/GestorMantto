@@ -93,7 +93,7 @@ async function create(req, res, next) {
 }
 
 async function update(req, res, next) {
-  try { return res.status(200).json(await service.update(req.params.id, req.body || {}, buildActionContext(req))); }
+  try { return res.status(200).json(await service.updateGeneral(req.params.id, req.body || {}, buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
 }
 

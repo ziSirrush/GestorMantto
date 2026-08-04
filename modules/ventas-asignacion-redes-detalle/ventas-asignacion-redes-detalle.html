@@ -1,0 +1,49 @@
+<div class="vard-page">
+  <section class="vard-card vard-head">
+    <div>
+      <p class="vard-eyebrow">Aiven · Ventas · Asignación a Redes</p>
+      <h1 id="vard-title">Detalle de Asignación a Redes</h1>
+      <p class="vard-emphasis" id="vard-emphasis">Asignado a — · Ciudad — · Estado —</p>
+      <p class="vard-subtitle" id="vard-subtitle">Solicitud: —</p>
+    </div>
+    <div class="vard-head-actions">
+      <button class="vard-btn vard-btn-primary" id="vard-edit" type="button" hidden>✎ Editar</button>
+      <span class="vard-status" id="vard-status"><i></i><span>Cargando</span></span>
+      <button class="vard-btn" id="vard-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="vard-card vard-status-editor">
+    <div><span class="vard-label">Estatus</span><p>El asesor puede actualizar el estatus sin abrir un formulario de edición.</p></div>
+    <div class="vard-status-actions"><select id="vard-status-select" aria-label="Estatus"></select><button class="vard-btn vard-btn-primary" id="vard-status-save" type="button">Guardar</button></div>
+  </section>
+
+  <section class="vard-card vard-section">
+    <div class="vard-section-head"><div><h2>Información del contacto</h2><p>Datos generales registrados para esta asignación.</p></div></div>
+    <div class="vard-fields" id="vard-fields"></div>
+  </section>
+
+  <section class="vard-card vard-section">
+    <div class="vard-section-head"><div><h2>Evidencias</h2><p>Vista previa de Imagen 1 e Imagen 2.</p></div></div>
+    <div class="vard-images" id="vard-images"></div>
+  </section>
+
+  <section class="vard-card vard-section vard-interactions">
+    <div class="vard-section-head"><div><h2>Interacciones</h2><p>Comentarios y archivos adjuntos, con el mismo flujo de Cotizaciones.</p></div></div>
+    <div class="vard-chat-history" id="vard-comments"><div class="vard-empty">Cargando comentarios…</div></div>
+    <form class="vard-chat-form" id="vard-comment-form">
+      <label>Nuevo comentario<textarea id="vard-comment-text" maxlength="10000" placeholder="Escribe un comentario..."></textarea></label>
+      <div class="vard-comment-tools"><label class="vard-file-picker">Adjuntar archivos<input id="vard-file-input" type="file" multiple></label><small>Máximo 4 archivos, 25 MB por archivo. Se almacenan en Azure Blob.</small></div>
+      <div class="vard-selected-files" id="vard-selected-files"></div>
+      <div class="vard-form-actions"><button class="vard-btn vard-btn-primary" type="submit">Enviar comentario</button></div>
+    </form>
+  </section>
+
+  <section class="vard-card vard-section">
+    <div class="vard-section-head"><div><h2>Cotización relacionada</h2><p>Relaciona una cotización activa para medir las oportunidades originadas en redes sociales.</p></div></div>
+    <div class="vard-quotation-row"><select id="vard-quotation-select" aria-label="Cotización relacionada"><option value="">Sin cotización</option></select><button class="vard-btn vard-btn-primary" id="vard-quotation-save" type="button">Guardar cotización</button></div>
+    <div class="vard-linked-quotation" id="vard-linked-quotation"></div>
+  </section>
+
+  <div class="vard-toast" id="vard-toast" aria-live="polite"></div>
+</div>

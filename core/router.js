@@ -13,7 +13,7 @@
     'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
-    'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes',
+    'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
@@ -343,6 +343,16 @@
     return true;
   }
 
+  function showVentasDashboard(){
+    const view=document.getElementById('view-ventas-dashboard');
+    if(!view) return false;
+    activateViewById('view-ventas-dashboard');
+    setActiveSide('ventas-dashboard');
+    updateContext('ventas-dashboard','Dashboard Ventas · selector maestro y filtros comerciales');
+    if(window.ManttoVentasDashboard) window.ManttoVentasDashboard.init(currentPayload || null);
+    return true;
+  }
+
   function showVentasFotosMapa(){
     const view=document.getElementById('view-ventas-fotos-mapa');
     if(!view) return false;
@@ -492,6 +502,26 @@
     setActiveSide('ventas-asignacion-redes');
     updateContext('ventas-asignacion-redes','Asignación a Redes · contactos, responsables y seguimiento desde Aiven');
     if(window.ManttoVentasAsignacionRedes) window.ManttoVentasAsignacionRedes.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasAsignacionRedesDetalle(){
+    const view=document.getElementById('view-ventas-asignacion-redes-detalle');
+    if(!view) return false;
+    activateViewById('view-ventas-asignacion-redes-detalle');
+    setActiveSide('ventas-asignacion-redes');
+    updateContext('ventas-asignacion-redes-detalle','Detalle de Asignación a Redes · contacto, evidencias, interacciones y cotización');
+    if(window.ManttoVentasAsignacionRedesDetalle) window.ManttoVentasAsignacionRedesDetalle.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasAsignacionRedesFormulario(){
+    const view=document.getElementById('view-ventas-asignacion-redes-formulario');
+    if(!view) return false;
+    activateViewById('view-ventas-asignacion-redes-formulario');
+    setActiveSide('ventas-asignacion-redes');
+    updateContext('ventas-asignacion-redes-formulario', currentPayload && currentPayload.mode === 'edit' ? 'Editar Asignación a Redes' : 'Crear nueva Asignación a Redes');
+    if(window.ManttoVentasAsignacionRedesFormulario) window.ManttoVentasAsignacionRedesFormulario.init(currentPayload || null);
     return true;
   }
 
@@ -656,6 +686,7 @@
     if(route==='movimientos' && showMovimientos()) return;
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
     if(route==='instalaciones-cerrados' && showInstalacionesCerrados()) return;
+    if(route==='ventas-dashboard' && showVentasDashboard()) return;
     if(route==='ventas-fotos-mapa' && showVentasFotosMapa()) return;
     if(route==='ventas-clientes' && showVentasClientes()) return;
     if(route==='ventas-clientes-nuevo' && showVentasClientesNuevo()) return;
@@ -671,6 +702,8 @@
     if(route==='ventas-prospeccion-detalle' && showVentasProspeccionDetalle()) return;
     if(route==='ventas-mapa-prospeccion' && showVentasMapaProspeccion()) return;
     if(route==='ventas-asignacion-redes' && showVentasAsignacionRedes()) return;
+    if(route==='ventas-asignacion-redes-detalle' && showVentasAsignacionRedesDetalle()) return;
+    if(route==='ventas-asignacion-redes-formulario' && showVentasAsignacionRedesFormulario()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;

@@ -6,12 +6,11 @@
       <p>Consulta y seguimiento de los contactos recibidos por redes y medios digitales.</p>
     </div>
     <div class="var-head-actions">
+      <button class="var-btn var-btn-primary" id="var-create" type="button" hidden>＋ Crear nueva</button>
       <span class="var-status" id="var-status"><i></i><span>Conectando con Aiven</span></span>
       <button class="var-btn var-btn-ghost" id="var-refresh" type="button">↻ Actualizar</button>
     </div>
   </section>
-
-  <section class="var-summary" id="var-summary" aria-label="Resumen de registros visibles"></section>
 
   <section class="var-card var-workspace">
     <div class="var-toolbar">
@@ -25,17 +24,10 @@
 
     <div class="var-table-wrap">
       <table class="var-table">
-        <thead><tr><th>ID</th><th>Contacto</th><th>Contacto vía</th><th>Empresa / Proyecto</th><th>Solicitud</th><th>Asignado a</th><th>Estatus</th><th>Cotización</th><th>Actualización</th></tr></thead>
-        <tbody id="var-body"><tr><td colspan="9" class="var-empty">Consultando Aiven...</td></tr></tbody>
+        <thead><tr><th>Contacto</th><th>Contacto vía</th><th>Empresa / Proyecto</th><th>Solicitud</th><th>Asignado a</th><th>Estatus</th><th>Cotización</th></tr></thead>
+        <tbody id="var-body"><tr><td colspan="7" class="var-empty">Consultando Aiven...</td></tr></tbody>
       </table>
     </div>
     <div class="var-pagination" id="var-pagination"></div>
   </section>
-
-  <dialog class="var-dialog" id="var-detail-dialog">
-    <div class="var-dialog-shell">
-      <header class="var-dialog-head"><div><p class="var-eyebrow">Detalle de contacto</p><h2 id="var-detail-title">Registro de Redes</h2></div><button class="var-dialog-close" id="var-detail-close" type="button" aria-label="Cerrar">×</button></header>
-      <div class="var-dialog-body" id="var-detail-body"></div>
-    </div>
-  </dialog>
 </div>
