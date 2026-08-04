@@ -1,0 +1,41 @@
+<div class="var-page">
+  <section class="var-card var-head">
+    <div>
+      <p class="var-eyebrow">Aiven · Ventas</p>
+      <h1>Asignación a Redes</h1>
+      <p>Consulta y seguimiento de los contactos recibidos por redes y medios digitales.</p>
+    </div>
+    <div class="var-head-actions">
+      <span class="var-status" id="var-status"><i></i><span>Conectando con Aiven</span></span>
+      <button class="var-btn var-btn-ghost" id="var-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="var-summary" id="var-summary" aria-label="Resumen de registros visibles"></section>
+
+  <section class="var-card var-workspace">
+    <div class="var-toolbar">
+      <label class="var-search"><span>Buscar</span><span class="var-search-box"><span aria-hidden="true">⌕</span><input id="var-search" type="search" placeholder="Contacto, empresa, proyecto, correo o teléfono..."></span></label>
+      <label><span>Contacto vía</span><select id="var-filter-contacto"><option value="">Todos</option></select></label>
+      <label><span>Estatus</span><select id="var-filter-estatus"><option value="">Todos</option></select></label>
+      <label><span>Asignación</span><select id="var-filter-asignacion"><option value="">Todos</option><option value="asignados">Asignados</option><option value="sin-asignar">Sin asignar</option></select></label>
+      <label><span>Cotización</span><select id="var-filter-cotizacion"><option value="">Todas</option><option value="con">Con cotización</option><option value="sin">Sin cotización</option></select></label>
+      <button class="var-clear" id="var-clear" type="button">↺ <strong>Limpiar</strong></button>
+    </div>
+
+    <div class="var-table-wrap">
+      <table class="var-table">
+        <thead><tr><th>ID</th><th>Contacto</th><th>Contacto vía</th><th>Empresa / Proyecto</th><th>Solicitud</th><th>Asignado a</th><th>Estatus</th><th>Cotización</th><th>Actualización</th></tr></thead>
+        <tbody id="var-body"><tr><td colspan="9" class="var-empty">Consultando Aiven...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="var-pagination" id="var-pagination"></div>
+  </section>
+
+  <dialog class="var-dialog" id="var-detail-dialog">
+    <div class="var-dialog-shell">
+      <header class="var-dialog-head"><div><p class="var-eyebrow">Detalle de contacto</p><h2 id="var-detail-title">Registro de Redes</h2></div><button class="var-dialog-close" id="var-detail-close" type="button" aria-label="Cerrar">×</button></header>
+      <div class="var-dialog-body" id="var-detail-body"></div>
+    </div>
+  </dialog>
+</div>

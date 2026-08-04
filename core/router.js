@@ -485,6 +485,16 @@
     return true;
   }
 
+  function showVentasAsignacionRedes(){
+    const view=document.getElementById('view-ventas-asignacion-redes');
+    if(!view) return false;
+    activateViewById('view-ventas-asignacion-redes');
+    setActiveSide('ventas-asignacion-redes');
+    updateContext('ventas-asignacion-redes','Asignación a Redes · contactos, responsables y seguimiento desde Aiven');
+    if(window.ManttoVentasAsignacionRedes) window.ManttoVentasAsignacionRedes.init(currentPayload || null);
+    return true;
+  }
+
   function showInstalacionesConcentradoCliente(){
     const view=document.getElementById('view-instalaciones-concentrado-cliente');
     if(!view) return false;
@@ -660,6 +670,7 @@
     if(route==='ventas-prospeccion-nueva' && showVentasProspeccionNueva()) return;
     if(route==='ventas-prospeccion-detalle' && showVentasProspeccionDetalle()) return;
     if(route==='ventas-mapa-prospeccion' && showVentasMapaProspeccion()) return;
+    if(route==='ventas-asignacion-redes' && showVentasAsignacionRedes()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
