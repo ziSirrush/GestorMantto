@@ -59,20 +59,20 @@ async function findCatalogsForImport(connection) {
   return rows;
 }
 
-async function findActiveQuotationIds(connection, values) {
-  const ids = positiveIds(values);
-  if (!ids.length) return new Set();
-
-  const placeholders = ids.map(() => '?').join(', ');
+async function findActiveQuotationReferences(connection) {
   const [rows] = await connection.query(
-    `SELECT id_cotizacion
-       FROM ventas_cotizaciones_cor
-      WHERE id_cotizacion IN (${placeholders})
-        AND activo = 1`,
-    ids
+    `SELECT
+       id_cotizacion,
+       id_cot_origen,
+       nombre_proyecto,
+       cliente,
+       visualiza,
+       activo
+     FROM ventas_cotizaciones_cor
+     WHERE activo = 1`
   );
 
-  return new Set(rows.map((row) => Number(row.id_cotizacion)));
+  return rows;
 }
 
 async function findExistingRedIds(connection, values) {
@@ -111,53 +111,43 @@ async function upsertRed(connection, record) {
        id_redes,
        nombre_contacto,
        id_contacto_via,
-       contacto_via_origen,
        email,
        telefono,
        id_estado,
-       estado_origen,
        nombre_empresa,
        ciudad,
        nombre_proyecto,
        informacion_enviada,
        id_solicitud,
-       solicitud_origen,
        id_usuario_asignado,
        created_by,
        id_estatus,
-       estatus_origen,
        fecha_cambio_estatus,
        id_cotizacion,
-       cotizacion_origen,
        activo,
        created_at,
        updated_at,
        updated_by
      ) VALUES (
-       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
        1, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), ?
      )
      ON DUPLICATE KEY UPDATE
        nombre_contacto = VALUES(nombre_contacto),
        id_contacto_via = VALUES(id_contacto_via),
-       contacto_via_origen = VALUES(contacto_via_origen),
        email = VALUES(email),
        telefono = VALUES(telefono),
        id_estado = VALUES(id_estado),
-       estado_origen = VALUES(estado_origen),
        nombre_empresa = VALUES(nombre_empresa),
        ciudad = VALUES(ciudad),
        nombre_proyecto = VALUES(nombre_proyecto),
        informacion_enviada = VALUES(informacion_enviada),
        id_solicitud = VALUES(id_solicitud),
-       solicitud_origen = VALUES(solicitud_origen),
        id_usuario_asignado = VALUES(id_usuario_asignado),
        created_by = VALUES(created_by),
        id_estatus = VALUES(id_estatus),
-       estatus_origen = VALUES(estatus_origen),
        fecha_cambio_estatus = VALUES(fecha_cambio_estatus),
        id_cotizacion = VALUES(id_cotizacion),
-       cotizacion_origen = VALUES(cotizacion_origen),
        activo = 1,
        updated_at = CURRENT_TIMESTAMP(3),
        updated_by = VALUES(updated_by)`,
@@ -165,24 +155,19 @@ async function upsertRed(connection, record) {
       record.id_redes,
       record.nombre_contacto,
       record.id_contacto_via,
-      record.contacto_via_origen,
       record.email,
       record.telefono,
       record.id_estado,
-      record.estado_origen,
       record.nombre_empresa,
       record.ciudad,
       record.nombre_proyecto,
       record.informacion_enviada,
       record.id_solicitud,
-      record.solicitud_origen,
       record.id_usuario_asignado,
       record.created_by,
       record.id_estatus,
-      record.estatus_origen,
       record.fecha_cambio_estatus,
       record.id_cotizacion,
-      record.cotizacion_origen,
       record.updated_by
     ]
   );
@@ -385,7 +370,7 @@ module.exports = {
   findUsersByIds,
   findCatalogsByIds,
   findCatalogsForImport,
-  findActiveQuotationIds,
+  findActiveQuotationReferences,
   findExistingRedIds,
   findExistingCommentIds,
   upsertRed,

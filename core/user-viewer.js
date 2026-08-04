@@ -101,9 +101,31 @@
     };
     return [...new Set([key,...(aliases[key]||[])].filter(Boolean))];
   }
+  function catalogGroupText(row){
+    return norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' '));
+  }
+  function catalogModuleKeys(row){
+    return [row.modulo_codigo,row.modulo_nombre,row.modulo_ruta_frontend].map(norm).filter(Boolean);
+  }
   function rowsForModule(item){
     const keys=permissionKeysForItem(item);
-    return state.catalog.filter(row=>keys.some(k=>k&&catalogText(row).includes(k)));
+    if(!keys.length)return [];
+
+    const group=item.closest('.side-group');
+    const acceptedGroups=groupKeys(group);
+
+    return state.catalog.filter(row=>{
+      if(Number(row.modulo_interno_visual)===1)return false;
+
+      if(group){
+        const groupText=catalogGroupText(row);
+        const sameGroup=acceptedGroups.some(key=>key&&groupText===key);
+        if(!sameGroup)return false;
+      }
+
+      const moduleKeys=catalogModuleKeys(row);
+      return keys.some(key=>key&&moduleKeys.includes(key));
+    });
   }
   function isActiveCatalogRow(row){
     return Number(row?.agrupacion_activo)!==0 && Number(row?.modulo_activo)!==0;

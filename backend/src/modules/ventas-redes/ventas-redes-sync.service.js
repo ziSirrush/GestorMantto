@@ -155,24 +155,19 @@ function normalizeRed(source) {
     id_redes: idRedes,
     nombre_contacto: cleanText(source.nombre_contacto, 180, 'nombre_contacto'),
     id_contacto_via: optionalCatalogReference(source.id_contacto_via, 'id_contacto_via'),
-    contacto_via_origen: cleanText(source.id_contacto_via, 255, 'id_contacto_via'),
     email: normalizeEmail(source.email),
     telefono: cleanText(source.telefono, 30, 'telefono'),
     id_estado: optionalCatalogReference(source.id_estado, 'id_estado'),
-    estado_origen: cleanText(source.id_estado, 255, 'id_estado'),
     nombre_empresa: cleanText(source.nombre_empresa, 200, 'nombre_empresa'),
     ciudad: cleanText(source.ciudad, 150, 'ciudad'),
     nombre_proyecto: cleanText(source.nombre_proyecto, 220, 'nombre_proyecto'),
     informacion_enviada: cleanText(source.informacion_enviada, null, 'informacion_enviada'),
     id_solicitud: optionalCatalogReference(source.id_solicitud, 'id_solicitud'),
-    solicitud_origen: cleanText(source.id_solicitud, 255, 'id_solicitud'),
     id_usuario_asignado: assignedTo,
     created_by: createdBy,
     id_estatus: optionalCatalogReference(source.id_estatus, 'id_estatus'),
-    estatus_origen: cleanText(source.id_estatus, 255, 'id_estatus'),
     fecha_cambio_estatus: parseIsoDate(source.fecha_cambio_estatus, 'fecha_cambio_estatus'),
     id_cotizacion: optionalHistoricalReference(source.id_cotizacion, 'id_cotizacion'),
-    cotizacion_origen: cleanText(source.id_cotizacion, 255, 'id_cotizacion'),
     evidence: [
       {
         order: 1,
@@ -305,6 +300,67 @@ function resolveCatalogReference(record, field, references, result, row) {
   record[field] = null;
 }
 
+function buildQuotationReferences(rows) {
+  const byId = new Map();
+  const byOriginId = new Map();
+  const byText = new Map();
+
+  function addText(value, row) {
+    const key = normalizeLookupText(value);
+    if (!key) return;
+    if (!byText.has(key)) byText.set(key, []);
+    byText.get(key).push(row);
+  }
+
+  for (const row of rows || []) {
+    const id = Number(row.id_cotizacion);
+    if (Number.isInteger(id) && id > 0) byId.set(id, row);
+
+    const originId = Number(row.id_cot_origen);
+    if (Number.isInteger(originId) && originId > 0) byOriginId.set(originId, row);
+
+    addText(row.nombre_proyecto, row);
+    addText(row.visualiza, row);
+    addText(row.cliente, row);
+  }
+
+  return { byId, byOriginId, byText };
+}
+
+function resolveQuotationReference(record, references, result, row) {
+  const value = record.id_cotizacion;
+  if (value === null) return;
+
+  if (Number.isInteger(value)) {
+    const direct = references.byId.get(value);
+    if (direct) {
+      record.id_cotizacion = Number(direct.id_cotizacion);
+      return;
+    }
+
+    const byOrigin = references.byOriginId.get(value);
+    if (byOrigin) {
+      record.id_cotizacion = Number(byOrigin.id_cotizacion);
+      return;
+    }
+  } else {
+    const matches = references.byText.get(normalizeLookupText(value)) || [];
+    if (matches.length === 1) {
+      record.id_cotizacion = Number(matches[0].id_cotizacion);
+      return;
+    }
+  }
+
+  pushWarning(
+    result,
+    row,
+    'id_cotizacion',
+    value,
+    'La referencia historica de cotizacion no pudo resolverse de forma unica; se guardara NULL.'
+  );
+  record.id_cotizacion = null;
+}
+
 function normalizeRedRelations(record, references, result, row) {
   for (const field of Object.keys(CATALOG_PATHS)) {
     resolveCatalogReference(record, field, references.catalogs, result, row);
@@ -324,23 +380,7 @@ function normalizeRedRelations(record, references, result, row) {
     }
   }
 
-  if (record.id_cotizacion === null) return;
-
-  if (
-    Number.isInteger(record.id_cotizacion) &&
-    references.activeQuotations.has(record.id_cotizacion)
-  ) {
-    return;
-  }
-
-  pushWarning(
-    result,
-    row,
-    'id_cotizacion',
-    record.id_cotizacion,
-    'La cotizacion historica no pudo relacionarse con una cotizacion activa; se guardara NULL y se conservara el valor original.'
-  );
-  record.id_cotizacion = null;
+  resolveQuotationReference(record, references.quotations, result, row);
 }
 
 function baseResult(rawRecords, payload, actionContext) {
@@ -430,12 +470,12 @@ async function syncRecords(payload, actionContext = {}) {
 
       const records = normalized.map((item) => item.record);
       const userIds = records.flatMap((record) => [record.id_usuario_asignado, record.created_by]);
-      const quotationIds = records.map((record) => record.id_cotizacion);
-
       const references = {
         catalogs: buildCatalogReferences(await repository.findCatalogsForImport(connection)),
         users: await repository.findUsersByIds(connection, userIds),
-        activeQuotations: await repository.findActiveQuotationIds(connection, quotationIds)
+        quotations: buildQuotationReferences(
+          await repository.findActiveQuotationReferences(connection)
+        )
       };
 
       const knownRedIds = await repository.findExistingRedIds(
@@ -469,7 +509,7 @@ async function syncRecords(payload, actionContext = {}) {
   result.ok = result.rejected === 0;
   result.message = result.ok
     ? (result.warnings_count > 0
-      ? 'Registros de Redes cargados; algunas relaciones historicas quedaron sin normalizar y fueron conservadas en columnas de origen.'
+      ? 'Registros de Redes cargados; algunas relaciones historicas no pudieron resolverse y se guardaron como NULL.'
       : 'Registros de Redes cargados correctamente.')
     : 'La carga de Redes termino con registros rechazados.';
   return result;
