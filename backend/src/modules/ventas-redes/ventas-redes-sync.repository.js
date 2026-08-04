@@ -42,6 +42,23 @@ async function findCatalogsByIds(connection, values) {
   return new Map(rows.map((row) => [Number(row.id_catalogo), row]));
 }
 
+
+async function findCatalogsForImport(connection) {
+  const [rows] = await connection.query(
+    `SELECT id_catalogo, area, elemento, articulo, activo
+       FROM catalogo_general
+      WHERE activo = 1
+        AND (
+          (area = 'Ventas' AND elemento = 'Tipo Contacto')
+          OR (area = 'General' AND elemento = 'Estado')
+          OR (area = 'Ventas' AND elemento = 'Soli Red')
+          OR (area = 'Ventas' AND elemento = 'Estatus Pros')
+        )`
+  );
+
+  return rows;
+}
+
 async function findActiveQuotationIds(connection, values) {
   const ids = positiveIds(values);
   if (!ids.length) return new Set();
@@ -352,6 +369,7 @@ module.exports = {
   getConnection,
   findUsersByIds,
   findCatalogsByIds,
+  findCatalogsForImport,
   findActiveQuotationIds,
   findExistingRedIds,
   findExistingCommentIds,
