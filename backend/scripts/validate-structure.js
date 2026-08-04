@@ -37,6 +37,18 @@ const requiredFiles = [
   '../modules/support/support.js',
   '../modules/soporte-solicitudes/soporte-solicitudes.js',
   '../modules/home/home.js',
+  'src/modules/ventas-prospeccion/ventas-prospeccion.repository.js',
+  'src/modules/ventas-prospeccion/ventas-prospeccion.service.js',
+  'src/modules/ventas-prospeccion/ventas-prospeccion.controller.js',
+  'src/modules/ventas-prospeccion/ventas-prospeccion.routes.js',
+  'scripts/validate-cffaa-04.js',
+  '../modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.js',
+  'src/modules/ventas-cotizaciones/ventas-cotizaciones.repository.js',
+  'src/modules/ventas-cotizaciones/ventas-cotizaciones.service.js',
+  'src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js',
+  'src/modules/ventas-cotizaciones/ventas-cotizaciones.routes.js',
+  'scripts/validate-cffaa-05.js',
+  '../modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js',
   '../core/router.js'
 ];
 

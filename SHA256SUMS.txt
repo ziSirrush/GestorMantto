@@ -1,0 +1,8 @@
+b36d05912e629c5550c47cf3a7826630374dfee59aab97e49e823081d27f3cb9  ./CAMBIOS_CFFAA_05_FIX_PROSPECCION_04_COMPLETO_V002.md
+bbc103fdb41ea7918e20715d2681dd819c630d1128df38ebb1b09cb445f3fc44  ./backend/scripts/validate-cffaa-04.js
+b1e41a6af506aaed440b3b11fc66243cfa5698a11e10f1ebadef4a5d79baf427  ./backend/src/modules/ventas-prospeccion/ventas-prospeccion.controller.js
+1afff9a71fc7c6e1f2746c1557cdfc7e15bbafee5d2b8c79289dac1505fd11f2  ./backend/src/modules/ventas-prospeccion/ventas-prospeccion.repository.js
+77d1cbd8c024275a4b666ecfe1d26511e29bc223fec182eda1f61c897b7d7f69  ./backend/src/modules/ventas-prospeccion/ventas-prospeccion.routes.js
+01294c1e060b43b94a2e26c18e5d50d561461f28a8b9d67ea4915a90cf2943d4  ./backend/src/modules/ventas-prospeccion/ventas-prospeccion.service.js
+9143a0d762a1049a6e8e794067fa44cd366ff82052c32ad2c4bc6eee107d68a6  ./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.css
+cfa0827935acf47454541222f9ce043897a3fd0f802d495e8fc4b6e7b5decdeb  ./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.js

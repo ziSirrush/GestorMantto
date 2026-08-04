@@ -1,11 +1,13 @@
 const service = require('./ventas-prospeccion.service');
 
 function sendKnownError(error, res, next) {
-  if (error.statusCode) {
-    return res.status(error.statusCode).json({
+  const statusCode = Number(error.statusCode || error.status || 0);
+  if (statusCode) {
+    return res.status(statusCode).json({
       ok: false,
+      code: error.code || undefined,
       message: error.message,
-      detalles: error.detalles || undefined
+      detalles: error.detalles || error.details || undefined
     });
   }
   return next(error);
@@ -42,6 +44,9 @@ async function getProspection(req, res, next) {
   catch (error) { return sendKnownError(error, res, next); }
 }
 
+async function getFileAccess(req,res,next){try{return res.status(200).json(await service.getFileAccess(req.params.id,req.params.idArchivo,req.query||{},buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
+async function deleteFile(req,res,next){try{return res.status(200).json(await service.deleteFile(req.params.id,req.params.idArchivo,buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
+
 async function syncProspections(req, res, next) {
   try {
     return res.status(200).json(await service.syncProspections(req.body || {}));
@@ -75,6 +80,8 @@ module.exports = {
   getCatalogs,
   getMap,
   getProspection,
+  getFileAccess,
+  deleteFile,
   searchSources,
   getCaptureCatalogs,
   getClientContacts,

@@ -101,7 +101,8 @@ async function replaceVisitFiles(connection, idPros, files) {
   await connection.query(
     `DELETE FROM ventas_prospeccion_archivos
       WHERE id_pros = ?
-        AND tipo_relacion = 'VISITA'`,
+        AND tipo_relacion = 'VISITA'
+        AND UPPER(COALESCE(storage_provider, 'GLIDE')) = 'GLIDE'`,
     [idPros]
   );
 
@@ -157,7 +158,8 @@ async function replaceCommentFile(connection, record) {
   await connection.query(
     `DELETE FROM ventas_prospeccion_archivos
       WHERE id_com_pors = ?
-        AND tipo_relacion = 'COMENTARIO'`,
+        AND tipo_relacion = 'COMENTARIO'
+        AND UPPER(COALESCE(storage_provider, 'GLIDE')) = 'GLIDE'`,
     [record.id_com_pors]
   );
 
@@ -305,8 +307,19 @@ async function listCommentsByProspection(connection,idPros){
   return rows;
 }
 async function listFilesByProspection(connection,idPros){
-  const [rows]=await connection.query(`SELECT id_archivo,id_pros,id_com_pors,tipo_relacion,nombre_archivo,nombre_original,mime_type,extension,storage_provider,storage_url,thumbnail_url,orden,es_imagen,created_at FROM ventas_prospeccion_archivos WHERE id_pros=? AND activo=1 ORDER BY tipo_relacion,COALESCE(id_com_pors,0),orden,id_archivo`,[idPros]);
+  const [rows]=await connection.query(`SELECT id_archivo,id_pros,id_com_pors,tipo_relacion,nombre_archivo,nombre_original,mime_type,extension,tamano_bytes,storage_provider,storage_url,storage_container,storage_blob_name,thumbnail_url,orden,es_imagen,activo,created_at,updated_at FROM ventas_prospeccion_archivos WHERE id_pros=? AND activo=1 ORDER BY tipo_relacion,COALESCE(id_com_pors,0),orden,id_archivo`,[idPros]);
   return rows;
+}
+
+async function findFileById(connection,idPros,idArchivo,options={}){
+  const lock=options.forUpdate===true?' FOR UPDATE':'';
+  const [rows]=await connection.query(`SELECT id_archivo,id_pros,id_com_pors,tipo_relacion,nombre_archivo,nombre_original,mime_type,extension,tamano_bytes,storage_provider,storage_url,storage_container,storage_blob_name,thumbnail_url,orden,es_imagen,activo,created_at,updated_at FROM ventas_prospeccion_archivos WHERE id_pros=? AND id_archivo=? AND activo=1 LIMIT 1${lock}`,[idPros,idArchivo]);
+  return rows[0]||null;
+}
+
+async function deactivateFile(connection,idPros,idArchivo){
+  const [result]=await connection.query(`UPDATE ventas_prospeccion_archivos SET activo=0,updated_at=CURRENT_TIMESTAMP(3) WHERE id_pros=? AND id_archivo=? AND activo=1`,[idPros,idArchivo]);
+  return Number(result.affectedRows||0);
 }
 
 function buildSourceScope(scope, alias, params) {
@@ -566,10 +579,10 @@ async function insertVisitFiles(connection, idPros, files) {
     await connection.query(
       `INSERT INTO ventas_prospeccion_archivos (
          id_pros, id_com_pors, tipo_relacion, nombre_archivo, nombre_original, mime_type, extension,
-         tamano_bytes, storage_provider, storage_url, storage_blob_name, thumbnail_url, orden, es_imagen, activo
-       ) VALUES (?, NULL, 'VISITA', ?, ?, ?, ?, ?, 'GOOGLE_DRIVE', ?, ?, ?, ?, 1, 1)`,
+         tamano_bytes, storage_provider, storage_url, storage_container, storage_blob_name, thumbnail_url, orden, es_imagen, activo
+       ) VALUES (?, NULL, 'VISITA', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`,
       [idPros, file.nombre_archivo, file.nombre_original, file.mime_type, file.extension, file.tamano_bytes,
-       file.storage_url, file.storage_blob_name, file.thumbnail_url, file.orden]
+       file.storage_provider, file.storage_url, file.storage_container, file.storage_blob_name, file.thumbnail_url, file.orden]
     );
   }
 }
@@ -643,10 +656,10 @@ async function insertCommentFiles(connection, idPros, idComment, files) {
     await connection.query(
       `INSERT INTO ventas_prospeccion_archivos (
          id_pros, id_com_pors, tipo_relacion, nombre_archivo, nombre_original, mime_type, extension,
-         tamano_bytes, storage_provider, storage_url, storage_blob_name, thumbnail_url, orden, es_imagen, activo
-       ) VALUES (?, ?, 'COMENTARIO', ?, ?, ?, ?, ?, 'GOOGLE_DRIVE', ?, ?, ?, ?, ?, 1)`,
+         tamano_bytes, storage_provider, storage_url, storage_container, storage_blob_name, thumbnail_url, orden, es_imagen, activo
+       ) VALUES (?, ?, 'COMENTARIO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [idPros, idComment, file.nombre_archivo, file.nombre_original, file.mime_type, file.extension,
-       file.tamano_bytes, file.storage_url, file.storage_blob_name, file.thumbnail_url, index + 1, file.es_imagen ? 1 : 0]
+       file.tamano_bytes, file.storage_provider, file.storage_url, file.storage_container, file.storage_blob_name, file.thumbnail_url, index + 1, file.es_imagen ? 1 : 0]
     );
   }
 }
@@ -679,6 +692,8 @@ module.exports = {
   getProspectionById,
   listCommentsByProspection,
   listFilesByProspection,
+  findFileById,
+  deactivateFile,
   searchInstallationProjects,
   findInstallationProject,
   searchQuotations,

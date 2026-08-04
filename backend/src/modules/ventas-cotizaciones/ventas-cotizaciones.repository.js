@@ -839,17 +839,145 @@ async function findExistingCotizacionIds(connection, ids) {
   return new Set(rows.map((row) => Number(row.id_cotizacion)));
 }
 
-async function findComentario(connection,idCotizacion,idComentario){const [rows]=await connection.query(`SELECT c.*,u.nombre AS usuario_nombre,u.iniciales AS usuario_iniciales FROM ventas_cotizaciones_comentarios c LEFT JOIN usuarios u ON u.id_SB=c.id_usuario WHERE c.id_cotizacion=? AND c.id_comentario=? AND c.activo=1 LIMIT 1`,[idCotizacion,idComentario]);return rows[0]||null;}
-async function createComentario(connection,record){const cols=Object.keys(record),vals=cols.map(k=>record[k]);const [r]=await connection.query(`INSERT INTO ventas_cotizaciones_comentarios (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`,vals);return r;}
-async function updateComentario(connection,idCotizacion,idComentario,comentario){const [r]=await connection.query(`UPDATE ventas_cotizaciones_comentarios SET comentario=?,editado=1,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_comentario=? AND activo=1`,[comentario,idCotizacion,idComentario]);return r;}
-async function softDeleteComentario(connection,idCotizacion,idComentario){const [r]=await connection.query(`UPDATE ventas_cotizaciones_comentarios SET activo=0,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_comentario=? AND activo=1`,[idCotizacion,idComentario]);return r;}
-async function listArchivos(connection,idCotizacion,{page=1,pageSize=50}={}){const offset=(page-1)*pageSize;const [rows]=await connection.query(`SELECT a.*,u.nombre AS usuario_nombre,u.iniciales AS usuario_iniciales FROM ventas_cotizaciones_archivos a LEFT JOIN usuarios u ON u.id_SB=a.id_usuario WHERE a.id_cotizacion=? AND a.activo=1 ORDER BY a.created_at DESC,a.id_archivo DESC LIMIT ? OFFSET ?`,[idCotizacion,pageSize,offset]);const [[count]]=await connection.query(`SELECT COUNT(*) total FROM ventas_cotizaciones_archivos WHERE id_cotizacion=? AND activo=1`,[idCotizacion]);return{rows,total:Number(count.total||0)};}
-async function findArchivo(connection,idCotizacion,idArchivo){const [rows]=await connection.query(`SELECT a.*,u.nombre AS usuario_nombre,u.iniciales AS usuario_iniciales FROM ventas_cotizaciones_archivos a LEFT JOIN usuarios u ON u.id_SB=a.id_usuario WHERE a.id_cotizacion=? AND a.id_archivo=? AND a.activo=1 LIMIT 1`,[idCotizacion,idArchivo]);return rows[0]||null;}
-async function createArchivo(connection,record){const cols=Object.keys(record),vals=cols.map(k=>record[k]);const [r]=await connection.query(`INSERT INTO ventas_cotizaciones_archivos (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`,vals);return r;}
-async function updateArchivo(connection,idCotizacion,idArchivo,changes){const cols=Object.keys(changes),vals=cols.map(k=>changes[k]);vals.push(idCotizacion,idArchivo);const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET ${cols.map(k=>`${k}=?`).join(',')},updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,vals);return r;}
-async function softDeleteArchivo(connection,idCotizacion,idArchivo){const [r]=await connection.query(`UPDATE ventas_cotizaciones_archivos SET activo=0,updated_at=CURRENT_TIMESTAMP WHERE id_cotizacion=? AND id_archivo=? AND activo=1`,[idCotizacion,idArchivo]);return r;}
+async function findComentario(connection, idCotizacion, idComentario) {
+  const [rows] = await connection.query(
+    `SELECT c.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales
+       FROM ventas_cotizaciones_comentarios c
+       LEFT JOIN usuarios u ON u.id_SB = c.id_usuario
+      WHERE c.id_cotizacion = ?
+        AND c.id_comentario = ?
+        AND c.activo = 1
+      LIMIT 1`,
+    [idCotizacion, idComentario]
+  );
+  return rows[0] || null;
+}
+
+async function createComentario(connection, record) {
+  const columns = Object.keys(record);
+  const values = columns.map((key) => record[key]);
+  const [result] = await connection.query(
+    `INSERT INTO ventas_cotizaciones_comentarios (${columns.join(',')})
+     VALUES (${columns.map(() => '?').join(',')})`,
+    values
+  );
+  return result;
+}
+
+async function updateComentario(connection, idCotizacion, idComentario, comentario) {
+  const [result] = await connection.query(
+    `UPDATE ventas_cotizaciones_comentarios
+        SET comentario = ?, editado = 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id_cotizacion = ? AND id_comentario = ? AND activo = 1`,
+    [comentario, idCotizacion, idComentario]
+  );
+  return result;
+}
+
+async function softDeleteComentario(connection, idCotizacion, idComentario) {
+  const [result] = await connection.query(
+    `UPDATE ventas_cotizaciones_comentarios
+        SET activo = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id_cotizacion = ? AND id_comentario = ? AND activo = 1`,
+    [idCotizacion, idComentario]
+  );
+  return result;
+}
+
+async function listArchivosByComentario(connection, idCotizacion, idComentario, { forUpdate = false } = {}) {
+  const lock = forUpdate ? ' FOR UPDATE' : '';
+  const [rows] = await connection.query(
+    `SELECT a.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales
+       FROM ventas_cotizaciones_archivos a
+       LEFT JOIN usuarios u ON u.id_SB = a.id_usuario
+      WHERE a.id_cotizacion = ?
+        AND a.id_comentario = ?
+        AND a.activo = 1
+      ORDER BY a.created_at ASC, a.id_archivo ASC${lock}`,
+    [idCotizacion, idComentario]
+  );
+  return rows;
+}
+
+async function softDeleteArchivosByComentario(connection, idCotizacion, idComentario) {
+  const [result] = await connection.query(
+    `UPDATE ventas_cotizaciones_archivos
+        SET activo = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id_cotizacion = ? AND id_comentario = ? AND activo = 1`,
+    [idCotizacion, idComentario]
+  );
+  return result;
+}
+
+async function listArchivos(connection, idCotizacion, { page = 1, pageSize = 50 } = {}) {
+  const offset = (page - 1) * pageSize;
+  const [rows] = await connection.query(
+    `SELECT a.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales
+       FROM ventas_cotizaciones_archivos a
+       LEFT JOIN usuarios u ON u.id_SB = a.id_usuario
+      WHERE a.id_cotizacion = ? AND a.activo = 1
+      ORDER BY a.created_at DESC, a.id_archivo DESC
+      LIMIT ? OFFSET ?`,
+    [idCotizacion, pageSize, offset]
+  );
+  const [[count]] = await connection.query(
+    `SELECT COUNT(*) total
+       FROM ventas_cotizaciones_archivos
+      WHERE id_cotizacion = ? AND activo = 1`,
+    [idCotizacion]
+  );
+  return { rows, total: Number(count.total || 0) };
+}
+
+async function findArchivo(connection, idCotizacion, idArchivo, { forUpdate = false } = {}) {
+  const lock = forUpdate ? ' FOR UPDATE' : '';
+  const [rows] = await connection.query(
+    `SELECT a.*, u.nombre AS usuario_nombre, u.iniciales AS usuario_iniciales
+       FROM ventas_cotizaciones_archivos a
+       LEFT JOIN usuarios u ON u.id_SB = a.id_usuario
+      WHERE a.id_cotizacion = ? AND a.id_archivo = ? AND a.activo = 1
+      LIMIT 1${lock}`,
+    [idCotizacion, idArchivo]
+  );
+  return rows[0] || null;
+}
+
+async function createArchivo(connection, record) {
+  const columns = Object.keys(record);
+  const values = columns.map((key) => record[key]);
+  const [result] = await connection.query(
+    `INSERT INTO ventas_cotizaciones_archivos (${columns.join(',')})
+     VALUES (${columns.map(() => '?').join(',')})`,
+    values
+  );
+  return result;
+}
+
+async function updateArchivo(connection, idCotizacion, idArchivo, changes) {
+  const columns = Object.keys(changes);
+  const values = columns.map((key) => changes[key]);
+  values.push(idCotizacion, idArchivo);
+  const [result] = await connection.query(
+    `UPDATE ventas_cotizaciones_archivos
+        SET ${columns.map((key) => `${key} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id_cotizacion = ? AND id_archivo = ? AND activo = 1`,
+    values
+  );
+  return result;
+}
+
+async function softDeleteArchivo(connection, idCotizacion, idArchivo) {
+  const [result] = await connection.query(
+    `UPDATE ventas_cotizaciones_archivos
+        SET activo = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id_cotizacion = ? AND id_archivo = ? AND activo = 1`,
+    [idCotizacion, idArchivo]
+  );
+  return result;
+}
 
 module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUserIdsIncludingInactive, findUsersByIds, list, listByStatuses, listVendidos, listPerdidos,
   summarizeByStatuses, getProjection, getProjectionStagePage, getKpis, getCatalogos, findById, findByOriginId, create, update, softDelete,
   upsertMany, findExistingCotizacionIds, listComentarios, listArchivosByComentarioIds, findComentario, createComentario, updateComentario, softDeleteComentario,
-  listArchivos, findArchivo, createArchivo, updateArchivo, softDeleteArchivo };
+  listArchivos, findArchivo, createArchivo, updateArchivo, softDeleteArchivo,
+  listArchivosByComentario, softDeleteArchivosByComentario };

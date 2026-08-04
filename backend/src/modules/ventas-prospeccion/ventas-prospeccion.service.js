@@ -3,6 +3,7 @@ const mime = require('mime-types');
 const repository = require('./ventas-prospeccion.repository');
 const visibilityService = require('../ventas/ventas-visibility.service');
 const azureStorage = require('../../services/storage/azure-storage.service');
+const storageAccess = require('../../services/storage/storage-access.service');
 const storageAdapters = require('../../services/storage/storage-metadata.adapters');
 
 const BATCH_SIZE = 300;
@@ -395,6 +396,52 @@ async function getMap(query, actionContext) {
   }));
 }
 
+function normalizeLegacyFileUrl(value) {
+  const url = String(value || '').trim();
+  return /^https:\/\//i.test(url) ? url : null;
+}
+
+function presentProspectionFile(archivo, idPros) {
+  const provider = String(archivo?.storage_provider || 'GLIDE').trim().toUpperCase();
+  const azure = provider === azureStorage.PROVIDER && Boolean(String(archivo?.storage_blob_name || '').trim());
+  const base = {
+    id_archivo: Number(archivo.id_archivo),
+    id_pros: Number(archivo.id_pros || idPros),
+    id_com_pors: archivo.id_com_pors == null ? null : Number(archivo.id_com_pors),
+    tipo_relacion: archivo.tipo_relacion,
+    nombre_archivo: archivo.nombre_archivo,
+    nombre_original: archivo.nombre_original,
+    mime_type: archivo.mime_type,
+    extension: archivo.extension,
+    tamano_bytes: archivo.tamano_bytes == null ? null : Number(archivo.tamano_bytes),
+    storage_provider: provider,
+    orden: Number(archivo.orden || 1),
+    es_imagen: Number(archivo.es_imagen || 0),
+    created_at: archivo.created_at,
+    updated_at: archivo.updated_at
+  };
+
+  if (azure) {
+    return {
+      ...base,
+      legacy: false,
+      storage_url: null,
+      thumbnail_url: null,
+      access_endpoint: `/api/ventas/prospeccion/${encodeURIComponent(idPros)}/archivos/${encodeURIComponent(archivo.id_archivo)}/acceso`
+    };
+  }
+
+  const legacyUrl = normalizeLegacyFileUrl(archivo.storage_url);
+  return {
+    ...base,
+    legacy: true,
+    storage_url: legacyUrl,
+    thumbnail_url: normalizeLegacyFileUrl(archivo.thumbnail_url),
+    access_endpoint: null,
+    disponible: Boolean(legacyUrl)
+  };
+}
+
 async function getProspection(id, actionContext) {
   const idPros = requiredPositiveInteger(id, 'id_pros');
   return withScope(actionContext, async (connection, scope) => {
@@ -404,16 +451,13 @@ async function getProspection(id, actionContext) {
       repository.listCommentsByProspection(connection, idPros),
       repository.listFilesByProspection(connection, idPros)
     ]);
-    const archivosConAcceso = await Promise.all(archivos.map(async (archivo) => {
-      if (String(archivo.storage_provider || '').toUpperCase() !== azureStorage.PROVIDER || !archivo.storage_blob_name) return archivo;
-      try {
-        const access = await azureStorage.createReadSas_gnral(archivo.storage_blob_name, { fileName: archivo.nombre_original || archivo.nombre_archivo });
-        return { ...archivo, storage_url: access.url, access_expires_at: access.expires_at };
-      } catch (_error) {
-        return { ...archivo, storage_url: null, storage_access_error: true };
-      }
-    }));
-    return { ok: true, source: 'aiven', prospeccion, comentarios, archivos: archivosConAcceso };
+    return {
+      ok: true,
+      source: 'aiven',
+      prospeccion,
+      comentarios,
+      archivos: archivos.map((archivo) => presentProspectionFile(archivo, idPros))
+    };
   });
 }
 
@@ -422,6 +466,130 @@ function actorId(actionContext) {
   const value = Number(actionContext?.contextUser?.id_SB || actionContext?.user?.id_SB || actionContext?.contextUser?.id || actionContext?.user?.id);
   if (!Number.isInteger(value) || value <= 0) throw httpError(401, 'No fue posible identificar al usuario autenticado.');
   return value;
+}
+
+function internalStorageCompany(actionContext) {
+  const company = cleanText(actionContext?.contextUser?.empresa || actionContext?.user?.empresa, 150);
+  if (!company) throw httpError(409, 'El usuario no tiene una empresa interna definida para clasificar el archivo.');
+  return company;
+}
+
+function parseBoolean(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+}
+
+async function cleanupUploadedFiles(uploadedFiles, context = {}) {
+  for (const storage of uploadedFiles || []) {
+    if (!storage?.storage_blob_name) continue;
+    try {
+      await azureStorage.deleteBlob_gnral(storage.storage_blob_name, {
+        containerName: storage.storage_container,
+        queueOnFailure: true,
+        queueContext: context
+      });
+    } catch (_error) {
+      // Azure Storage registra la eliminación fallida en CFFAA-01D.
+    }
+  }
+}
+
+async function getFileAccess(id, idFile, query, actionContext) {
+  const idPros = requiredPositiveInteger(id, 'id_pros');
+  const idArchivo = requiredPositiveInteger(idFile, 'id_archivo');
+  return withScope(actionContext, async (connection, scope) => {
+    const prospeccion = await repository.getProspectionById(connection, idPros, scope);
+    if (!prospeccion) throw httpError(404, 'Prospección no encontrada o fuera de tu alcance comercial.');
+    const archivo = await repository.findFileById(connection, idPros, idArchivo);
+    if (!archivo) throw httpError(404, 'Archivo no encontrado o ya no disponible.');
+
+    if (String(archivo.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && archivo.storage_blob_name) {
+      const data = await storageAccess.createReadAccess_gnral({
+        actorUser: actionContext?.user,
+        contextUser: actionContext?.contextUser || actionContext?.user,
+        reference: archivo,
+        context: {
+          modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, archivoId: idArchivo
+        },
+        authorize: async () => ({ allowed: true, metadata: { visibility_mode: scope.mode } }),
+        download: parseBoolean(query?.download)
+      });
+      return { ok: true, source: 'azure', data: { ...data, url: data.access_url, legacy: false } };
+    }
+
+    const legacyUrl = normalizeLegacyFileUrl(archivo.storage_url);
+    if (!legacyUrl) throw httpError(404, 'El archivo histórico no tiene una referencia HTTPS disponible.');
+    return {
+      ok: true,
+      source: 'legacy',
+      data: {
+        url: legacyUrl,
+        access_url: legacyUrl,
+        legacy: true,
+        nombre_original: archivo.nombre_original || archivo.nombre_archivo,
+        mime_type: archivo.mime_type || null,
+        tamano_bytes: archivo.tamano_bytes == null ? null : Number(archivo.tamano_bytes)
+      }
+    };
+  });
+}
+
+async function deleteFile(id, idFile, actionContext) {
+  const idPros = requiredPositiveInteger(id, 'id_pros');
+  const idArchivo = requiredPositiveInteger(idFile, 'id_archivo');
+  const idUsuario = actorId(actionContext);
+  const connection = await repository.getConnection();
+  let archivo = null;
+  try {
+    const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
+    const prospeccion = await repository.getProspectionById(connection, idPros, scope);
+    if (!prospeccion) throw httpError(404, 'Prospección no encontrada o fuera de tu alcance comercial.');
+    if (scope.mode !== 'ALL' && Number(prospeccion.id_usuario) !== idUsuario) {
+      throw httpError(403, 'Solo el asesor propietario o un usuario con acceso total puede eliminar archivos.');
+    }
+
+    await connection.beginTransaction();
+    archivo = await repository.findFileById(connection, idPros, idArchivo, { forUpdate: true });
+    if (!archivo) throw httpError(404, 'Archivo no encontrado o ya eliminado.');
+    const changed = await repository.deactivateFile(connection, idPros, idArchivo);
+    if (!changed) throw httpError(404, 'Archivo no encontrado o ya eliminado.');
+    await repository.insertProspectionHistory(connection, {
+      id_pros: idPros,
+      id_usuario: idUsuario,
+      tipo_evento: 'ARCHIVO_ELIMINADO',
+      campo: 'archivo',
+      valor_anterior: { id_archivo: idArchivo, nombre: archivo.nombre_original || archivo.nombre_archivo },
+      valor_nuevo: null,
+      comentario: 'Archivo retirado de la prospección.',
+      ip: actionContext?.ip
+    });
+    await connection.commit();
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  let cleanup = { attempted: false, completed: false, queued_operation_id: null };
+  if (String(archivo.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && archivo.storage_blob_name) {
+    cleanup.attempted = true;
+    try {
+      await azureStorage.deleteBlob_gnral(archivo.storage_blob_name, {
+        containerName: archivo.storage_container,
+        queueOnFailure: true,
+        queueContext: {
+          modulo: 'ventas', entidad_tipo: 'prospeccion', entidad_id: idPros,
+          solicitado_por: idUsuario, motivo: 'Eliminación individual de archivo de prospección.'
+        }
+      });
+      cleanup.completed = true;
+    } catch (error) {
+      cleanup.queued_operation_id = error.queue_operation_id || null;
+      cleanup.error = error.message;
+    }
+  }
+
+  return { ok: true, source: 'aiven', message: 'Archivo eliminado correctamente.', id_archivo: idArchivo, cleanup };
 }
 
 function parseCoordinate(value, min, max, field) {
@@ -467,9 +635,10 @@ async function createVisit(payload, files, actionContext) {
   const idUsuario = actorId(actionContext);
   const classification = normalizeClassification(payload.clasificacion);
   const connection = await repository.getConnection();
-  const uploadedBlobs = [];
+  const uploadedFiles = [];
   try {
     const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
+    const storageCompany = internalStorageCompany(actionContext);
     let source = null;
     let idProyectoInstalacion = null;
     let idCotizacion = null;
@@ -560,10 +729,10 @@ async function createVisit(payload, files, actionContext) {
     const photoFiles = Array.isArray(files) ? files.slice(0, 4) : [];
     for (let index = 0; index < photoFiles.length; index += 1) {
       const storage = await azureStorage.uploadPrivate_gnral({
-        file: photoFiles[index], empresa, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: 'visita',
+        file: photoFiles[index], empresa: storageCompany, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: 'visita',
         metadata: { uploaded_by: idUsuario, relation: 'VISITA' }
       });
-      uploadedBlobs.push(storage.storage_blob_name);
+      uploadedFiles.push(storage);
       normalizedFiles.push({ ...storageAdapters.forVentasProspeccion_gnral(storage), thumbnail_url: null, orden: index + 1 });
     }
     await repository.insertVisitFiles(connection, idPros, normalizedFiles);
@@ -572,7 +741,10 @@ async function createVisit(payload, files, actionContext) {
     return { ok: true, source: 'aiven', message: 'Visita creada correctamente.', id_pros: idPros, id_contacto: idContacto, contacto_creado: Boolean(newContact) };
   } catch (error) {
     try { await connection.rollback(); } catch (_error) {}
-    for (const blobName of uploadedBlobs) { try { await azureStorage.deleteBlob_gnral(blobName); } catch (_error) {} }
+    await cleanupUploadedFiles(uploadedFiles, {
+      modulo: 'ventas', entidad_tipo: 'prospeccion',
+      solicitado_por: idUsuario, motivo: 'Rollback de creación de prospección.'
+    });
     throw error;
   } finally { connection.release(); }
 }
@@ -620,9 +792,10 @@ async function createComment(id, payload, files, actionContext) {
   const incoming = Array.isArray(files) ? files.slice(0, 4) : [];
   if (!comentario && !incoming.length) throw httpError(400, 'Escribe un comentario o adjunta al menos un archivo.');
   const connection = await repository.getConnection();
-  const uploadedBlobs = [];
+  const uploadedFiles = [];
   try {
     const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
+    const storageCompany = internalStorageCompany(actionContext);
     const current = await repository.getProspectionById(connection, idPros, scope);
     if (!current) throw httpError(404, 'Prospección no encontrada o fuera de tu alcance comercial.');
     await connection.beginTransaction();
@@ -630,10 +803,10 @@ async function createComment(id, payload, files, actionContext) {
     const normalizedFiles = [];
     for (let index = 0; index < incoming.length; index += 1) {
       const storage = await azureStorage.uploadPrivate_gnral({
-        file: incoming[index], empresa: current.empresa || actionContext?.user?.empresa, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: `comentarios/${idComment}`,
+        file: incoming[index], empresa: storageCompany, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: `comentarios/${idComment}`,
         metadata: { uploaded_by: idUsuario, relation: 'COMENTARIO', comment_id: idComment }
       });
-      uploadedBlobs.push(storage.storage_blob_name);
+      uploadedFiles.push(storage);
       normalizedFiles.push({ ...storageAdapters.forVentasProspeccion_gnral(storage), thumbnail_url: null, es_imagen: String(storage.mime_type || '').startsWith('image/') });
     }
     await repository.insertCommentFiles(connection, idPros, idComment, normalizedFiles);
@@ -642,7 +815,10 @@ async function createComment(id, payload, files, actionContext) {
     return { ok: true, source: 'aiven', message: 'Seguimiento registrado correctamente.', id_com_pors: idComment };
   } catch (error) {
     try { await connection.rollback(); } catch (_error) {}
-    for (const blobName of uploadedBlobs) { try { await azureStorage.deleteBlob_gnral(blobName); } catch (_error) {} }
+    await cleanupUploadedFiles(uploadedFiles, {
+      modulo: 'ventas', entidad_tipo: 'prospeccion', entidad_id: idPros,
+      solicitado_por: idUsuario, motivo: 'Rollback de comentario de prospección.'
+    });
     throw error;
   } finally { connection.release(); }
 }
@@ -655,6 +831,9 @@ module.exports = {
   getCatalogs,
   getMap,
   getProspection,
+  getFileAccess,
+  deleteFile,
+  presentProspectionFile,
   searchSources,
   getCaptureCatalogs,
   getClientContacts,

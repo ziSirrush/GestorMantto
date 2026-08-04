@@ -1,5 +1,6 @@
 const repository = require('./ventas-cotizaciones.repository');
 const azureStorage = require('../../services/storage/azure-storage.service');
+const storageAccess = require('../../services/storage/storage-access.service');
 const storageAdapters = require('../../services/storage/storage-metadata.adapters');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
 const historialService = require('../ventas-cotizaciones-historial/ventas-cotizaciones-historial.service');
@@ -1182,76 +1183,563 @@ async function listComentarios(rawId, query, actionContext) {
     const ids = result.rows.map((row) => Number(row.id_comentario)).filter(Boolean);
     const files = await repository.listArchivosByComentarioIds(connection, ids);
     const byComment = new Map();
+
     for (const file of files) {
-      const normalized = await withArchivoAccess_gnral(file);
       const key = Number(file.id_comentario);
       if (!byComment.has(key)) byComment.set(key, []);
-      byComment.get(key).push(normalized);
+      byComment.get(key).push(presentCotizacionArchivo_gnral(file, idCotizacion));
     }
-    const comentarios = result.rows.map((row) => ({ ...row, archivos: byComment.get(Number(row.id_comentario)) || [] }));
-    return { ok: true, source: 'aiven', id_cotizacion: idCotizacion, comentarios,
-      paginacion: { pagina: page, tamano_pagina: pageSize, total_registros: result.total, total_paginas: Math.ceil(result.total / pageSize) } };
-  } finally { connection.release(); }
+
+    const comentarios = result.rows.map((row) => ({
+      ...row,
+      archivos: byComment.get(Number(row.id_comentario)) || []
+    }));
+
+    return {
+      ok: true,
+      source: 'aiven',
+      id_cotizacion: idCotizacion,
+      comentarios,
+      paginacion: {
+        pagina: page,
+        tamano_pagina: pageSize,
+        total_registros: result.total,
+        total_paginas: Math.ceil(result.total / pageSize)
+      }
+    };
+  } finally {
+    connection.release();
+  }
 }
 
-async function createComentario(rawId, payload, actionContext) {
-  const idCotizacion = positiveInteger(rawId); const actorId = getActorId(actionContext);
+function parseBoolean_gnral(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+}
+
+function normalizeLegacyFileUrl_gnral(value) {
+  const url = String(value || '').trim();
+  return /^https:\/\//i.test(url) ? url : null;
+}
+
+function presentCotizacionArchivo_gnral(archivo, idCotizacion) {
+  if (!archivo) return null;
+  const provider = String(archivo.storage_provider || (archivo.drive_url ? 'GOOGLE_DRIVE' : 'LEGACY'))
+    .trim()
+    .toUpperCase();
+  const azure = provider === azureStorage.PROVIDER && Boolean(String(archivo.storage_blob_name || '').trim());
+  const base = {
+    id_archivo: Number(archivo.id_archivo),
+    id_cotizacion: Number(archivo.id_cotizacion || idCotizacion),
+    id_comentario: archivo.id_comentario == null ? null : Number(archivo.id_comentario),
+    id_usuario: archivo.id_usuario == null ? null : Number(archivo.id_usuario),
+    nombre_archivo: archivo.nombre_archivo || null,
+    nombre_original: archivo.nombre_original || archivo.nombre_archivo || 'Archivo',
+    extension: archivo.extension || null,
+    mime_type: archivo.mime_type || null,
+    tamanio_bytes: archivo.tamanio_bytes == null ? null : Number(archivo.tamanio_bytes),
+    storage_provider: provider,
+    tipo_archivo: archivo.tipo_archivo || null,
+    descripcion: archivo.descripcion || null,
+    version_numero: Number(archivo.version_numero || 1),
+    id_archivo_anterior: archivo.id_archivo_anterior == null ? null : Number(archivo.id_archivo_anterior),
+    usuario_nombre: archivo.usuario_nombre || null,
+    usuario_iniciales: archivo.usuario_iniciales || null,
+    created_at: archivo.created_at || null,
+    updated_at: archivo.updated_at || null,
+    activo: Number(archivo.activo ?? 1)
+  };
+
+  if (azure) {
+    return {
+      ...base,
+      legacy: false,
+      disponible: true,
+      legacy_url: null,
+      access_endpoint: `/api/ventas/cotizaciones/${encodeURIComponent(idCotizacion)}/archivos/${encodeURIComponent(archivo.id_archivo)}/acceso`
+    };
+  }
+
+  const legacyUrl = normalizeLegacyFileUrl_gnral(archivo.drive_url)
+    || normalizeLegacyFileUrl_gnral(archivo.storage_url);
+  return {
+    ...base,
+    legacy: true,
+    disponible: Boolean(legacyUrl),
+    legacy_url: legacyUrl,
+    access_endpoint: null
+  };
+}
+
+function internalStorageCompany_gnral(actionContext) {
+  const company = cleanText(actionContext?.contextUser?.empresa || actionContext?.user?.empresa, 150);
+  if (!company) {
+    throw httpError(409, 'El usuario no tiene una empresa interna definida para clasificar el archivo.');
+  }
+  return company;
+}
+
+async function cleanupAzureFiles_gnral(files, context = {}) {
+  const cleanup = [];
+  for (const file of files || []) {
+    if (String(file?.storage_provider || '').toUpperCase() !== azureStorage.PROVIDER || !file?.storage_blob_name) {
+      continue;
+    }
+    const item = {
+      id_archivo: Number(file.id_archivo || 0) || null,
+      attempted: true,
+      completed: false,
+      queued_operation_id: null
+    };
+    try {
+      const result = await azureStorage.deleteBlob_gnral(file.storage_blob_name, {
+        containerName: file.storage_container,
+        queueOnFailure: true,
+        queueContext: context
+      });
+      item.completed = result.queued !== true;
+      item.queued_operation_id = result.id_operacion || null;
+    } catch (error) {
+      item.error = error.message;
+      item.queued_operation_id = error.queue_operation_id || null;
+    }
+    cleanup.push(item);
+  }
+  return cleanup;
+}
+
+async function validateVersionReference_gnral(connection, idCotizacion, payload, currentFileId = null) {
+  const previousId = positiveInteger(payload?.id_archivo_anterior);
+  if (!previousId) return { previous: null, version: positiveInteger(payload?.version_numero) || 1 };
+  if (currentFileId && previousId === currentFileId) {
+    throw badRequest('Un archivo no puede declararse como versión anterior de sí mismo.');
+  }
+  const previous = await repository.findArchivo(connection, idCotizacion, previousId);
+  if (!previous) throw badRequest('El archivo anterior no pertenece a la cotización o ya no está disponible.');
+  const requestedVersion = positiveInteger(payload?.version_numero);
+  const minimumVersion = Number(previous.version_numero || 1) + 1;
+  return {
+    previous,
+    version: requestedVersion && requestedVersion >= minimumVersion ? requestedVersion : minimumVersion
+  };
+}
+
+async function createComentario(rawId, payload, file, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  const actorId = getActorId(actionContext);
   if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
-  const comentario = cleanText(payload?.comentario);
-  if (!comentario) throw badRequest('comentario es obligatorio.');
+
+  const comentario = cleanText(payload?.comentario, 4000);
+  if (!comentario && !file) {
+    throw badRequest('Escribe un comentario o adjunta un archivo.');
+  }
+
   const padre = positiveInteger(payload?.id_comentario_padre);
   const connection = await repository.getConnection();
-  try { await connection.beginTransaction(); await assertCotizacion(connection, idCotizacion, actionContext);
-    if (padre && !(await repository.findComentario(connection, idCotizacion, padre))) throw badRequest('El comentario padre no pertenece a la cotización.');
-    const result = await repository.createComentario(connection, { id_cotizacion:idCotizacion, id_usuario:actorId, comentario, id_comentario_padre:padre });
-    const created = await repository.findComentario(connection, idCotizacion, result.insertId); await connection.commit();
-    return { ok:true, source:'aiven', message:'Comentario registrado correctamente.', comentario:created };
-  } catch(e){ await connection.rollback(); throw e; } finally { connection.release(); }
+  let uploaded = null;
+
+  try {
+    await connection.beginTransaction();
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    if (padre && !(await repository.findComentario(connection, idCotizacion, padre))) {
+      throw badRequest('El comentario padre no pertenece a la cotización.');
+    }
+
+    const result = await repository.createComentario(connection, {
+      id_cotizacion: idCotizacion,
+      id_usuario: actorId,
+      comentario: comentario || '',
+      id_comentario_padre: padre
+    });
+    const idComentario = Number(result.insertId);
+    let createdFile = null;
+
+    if (file) {
+      const version = await validateVersionReference_gnral(connection, idCotizacion, payload);
+      uploaded = await azureStorage.uploadPrivate_gnral({
+        file,
+        empresa: internalStorageCompany_gnral(actionContext),
+        modulo: 'ventas',
+        entidadTipo: 'cotizacion',
+        entidadId: idCotizacion,
+        subruta: `comentarios-${idComentario}`,
+        policyName: 'GENERAL',
+        metadata: {
+          uploaded_by: actorId,
+          quotation_id: idCotizacion,
+          comment_id: idComentario
+        }
+      });
+
+      const record = {
+        ...storageAdapters.forVentasCotizaciones_gnral(uploaded),
+        id_cotizacion: idCotizacion,
+        id_usuario: actorId,
+        id_comentario: idComentario,
+        tipo_archivo: cleanText(payload?.tipo_archivo, 100) || uploaded.mime_type,
+        descripcion: cleanText(payload?.descripcion, 500),
+        version_numero: version.version,
+        id_archivo_anterior: version.previous?.id_archivo || null,
+        drive_file_id: null,
+        drive_folder_id: null,
+        drive_url: null,
+        activo: 1
+      };
+      const fileResult = await repository.createArchivo(connection, record);
+      createdFile = await repository.findArchivo(connection, idCotizacion, fileResult.insertId);
+    }
+
+    const createdComment = await repository.findComentario(connection, idCotizacion, idComentario);
+    await connection.commit();
+
+    return {
+      ok: true,
+      source: 'aiven',
+      message: file ? 'Interacción registrada con archivo.' : 'Comentario registrado correctamente.',
+      comentario: {
+        ...createdComment,
+        archivos: createdFile ? [presentCotizacionArchivo_gnral(createdFile, idCotizacion)] : []
+      },
+      interaccion: {
+        id_comentario: idComentario,
+        id_archivo: createdFile ? Number(createdFile.id_archivo) : null,
+        tipo: file && comentario ? 'COMENTARIO_Y_ARCHIVO' : (file ? 'ARCHIVO' : 'COMENTARIO')
+      }
+    };
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    if (uploaded?.storage_blob_name) {
+      await cleanupAzureFiles_gnral([uploaded], {
+        modulo: 'ventas',
+        entidad_tipo: 'cotizacion',
+        entidad_id: idCotizacion,
+        solicitado_por: actorId,
+        motivo: 'Compensación por fallo al registrar interacción de cotización.'
+      });
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function updateComentario(rawId, rawComentario, payload, actionContext) {
-  const idCotizacion=positiveInteger(rawId), idComentario=positiveInteger(rawComentario), actorId=getActorId(actionContext);
-  if(!idCotizacion||!idComentario) throw badRequest('Los identificadores deben ser enteros positivos.');
-  const comentario=cleanText(payload?.comentario); if(!comentario) throw badRequest('comentario es obligatorio.');
-  const connection=await repository.getConnection();
-  try { await connection.beginTransaction(); await assertCotizacion(connection,idCotizacion,actionContext);
-    const existing=await repository.findComentario(connection,idCotizacion,idComentario); if(!existing) throw httpError(404,'Comentario no encontrado.');
-    if(Number(existing.id_usuario)!==actorId) throw httpError(403,'Solo el autor puede editar el comentario.');
-    await repository.updateComentario(connection,idCotizacion,idComentario,comentario); const updated=await repository.findComentario(connection,idCotizacion,idComentario);
-    await connection.commit(); return {ok:true,source:'aiven',message:'Comentario actualizado correctamente.',comentario:updated};
-  } catch(e){await connection.rollback();throw e;} finally{connection.release();}
+  const idCotizacion = positiveInteger(rawId);
+  const idComentario = positiveInteger(rawComentario);
+  const actorId = getActorId(actionContext);
+  if (!idCotizacion || !idComentario) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const comentario = cleanText(payload?.comentario, 4000);
+  if (!comentario) throw badRequest('comentario es obligatorio.');
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    const existing = await repository.findComentario(connection, idCotizacion, idComentario);
+    if (!existing) throw httpError(404, 'Comentario no encontrado.');
+    if (Number(existing.id_usuario) !== actorId) throw httpError(403, 'Solo el autor puede editar el comentario.');
+    await repository.updateComentario(connection, idCotizacion, idComentario, comentario);
+    const updated = await repository.findComentario(connection, idCotizacion, idComentario);
+    await connection.commit();
+    return { ok: true, source: 'aiven', message: 'Comentario actualizado correctamente.', comentario: updated };
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function deleteComentario(rawId, rawComentario, actionContext) {
-  const idCotizacion=positiveInteger(rawId), idComentario=positiveInteger(rawComentario), actorId=getActorId(actionContext);
-  if(!idCotizacion||!idComentario) throw badRequest('Los identificadores deben ser enteros positivos.');
-  const connection=await repository.getConnection();
-  try { await connection.beginTransaction(); await assertCotizacion(connection,idCotizacion,actionContext);
-    const existing=await repository.findComentario(connection,idCotizacion,idComentario); if(!existing) throw httpError(404,'Comentario no encontrado.');
-    if(Number(existing.id_usuario)!==actorId) throw httpError(403,'Solo el autor puede eliminar el comentario.');
-    await repository.softDeleteComentario(connection,idCotizacion,idComentario); await connection.commit();
-    return {ok:true,source:'aiven',message:'Comentario eliminado correctamente.',id_comentario:idComentario};
-  } catch(e){await connection.rollback();throw e;} finally{connection.release();}
+  const idCotizacion = positiveInteger(rawId);
+  const idComentario = positiveInteger(rawComentario);
+  const actorId = getActorId(actionContext);
+  if (!idCotizacion || !idComentario) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const connection = await repository.getConnection();
+  let files = [];
+
+  try {
+    await connection.beginTransaction();
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    const existing = await repository.findComentario(connection, idCotizacion, idComentario);
+    if (!existing) throw httpError(404, 'Comentario no encontrado.');
+    if (Number(existing.id_usuario) !== actorId) throw httpError(403, 'Solo el autor puede eliminar el comentario.');
+
+    files = await repository.listArchivosByComentario(connection, idCotizacion, idComentario, { forUpdate: true });
+    if (files.length) await repository.softDeleteArchivosByComentario(connection, idCotizacion, idComentario);
+    await repository.softDeleteComentario(connection, idCotizacion, idComentario);
+    await connection.commit();
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  const cleanup = await cleanupAzureFiles_gnral(files, {
+    modulo: 'ventas',
+    entidad_tipo: 'cotizacion_comentario',
+    entidad_id: idComentario,
+    solicitado_por: actorId,
+    motivo: 'Baja coordinada de comentario y archivos de cotización.'
+  });
+
+  return {
+    ok: true,
+    source: 'aiven',
+    message: 'Comentario y archivos relacionados eliminados correctamente.',
+    id_comentario: idComentario,
+    archivos_desactivados: files.length,
+    cleanup
+  };
 }
 
-function normalizeArchivoPayload(payload,{partial=false}={}) {
-  const fields=['id_comentario','nombre_archivo','nombre_original','extension','mime_type','tamanio_bytes','drive_file_id','drive_folder_id','drive_url','tipo_archivo','descripcion','version_numero','id_archivo_anterior'];
-  const out={}; for(const f of fields){ if(partial&&!Object.prototype.hasOwnProperty.call(payload||{},f))continue;
-    if(['id_comentario','id_archivo_anterior','version_numero','tamanio_bytes'].includes(f)) out[f]=positiveInteger(payload?.[f]);
-    else out[f]=cleanText(payload?.[f], f==='descripcion'?500:(f==='drive_url'?2000:255)); }
-  if(!partial){ if(!out.nombre_archivo)throw badRequest('nombre_archivo es obligatorio.'); if(!out.drive_file_id)throw badRequest('drive_file_id es obligatorio.'); }
+function normalizeArchivoPayload(payload, { partial = false } = {}) {
+  const fields = ['id_comentario', 'tipo_archivo', 'descripcion', 'version_numero', 'id_archivo_anterior'];
+  const out = {};
+  for (const field of fields) {
+    if (partial && !Object.prototype.hasOwnProperty.call(payload || {}, field)) continue;
+    if (['id_comentario', 'version_numero', 'id_archivo_anterior'].includes(field)) {
+      out[field] = positiveInteger(payload?.[field]);
+    } else {
+      out[field] = cleanText(payload?.[field], field === 'descripcion' ? 500 : 100);
+    }
+  }
   return out;
 }
-async function withArchivoAccess_gnral(archivo){
-  if(!archivo||String(archivo.storage_provider||'').toUpperCase()!==azureStorage.PROVIDER||!archivo.storage_blob_name)return archivo;
-  try{const access=await azureStorage.createReadSas_gnral(archivo.storage_blob_name,{fileName:archivo.nombre_original||archivo.nombre_archivo});return{...archivo,storage_url:access.url,access_expires_at:access.expires_at};}
-  catch(_error){return{...archivo,storage_url:null,storage_access_error:true};}
+
+async function listArchivos(rawId, query, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+  const page = boundedInteger(query?.page, 1, 1, 100000, 'page');
+  const pageSize = boundedInteger(query?.page_size, 50, 1, 200, 'page_size');
+  const connection = await repository.getConnection();
+  try {
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    const result = await repository.listArchivos(connection, idCotizacion, { page, pageSize });
+    return {
+      ok: true,
+      source: 'aiven',
+      id_cotizacion: idCotizacion,
+      archivos: result.rows.map((row) => presentCotizacionArchivo_gnral(row, idCotizacion)),
+      paginacion: {
+        pagina: page,
+        tamano_pagina: pageSize,
+        total_registros: result.total,
+        total_paginas: Math.ceil(result.total / pageSize)
+      }
+    };
+  } finally {
+    connection.release();
+  }
 }
-async function listArchivos(rawId,query,actionContext){const id=positiveInteger(rawId);if(!id)throw badRequest('El id de cotización debe ser un entero positivo.');const page=boundedInteger(query?.page,1,1,100000,'page'),pageSize=boundedInteger(query?.page_size,50,1,200,'page_size');const c=await repository.getConnection();try{await assertCotizacion(c,id,actionContext);const r=await repository.listArchivos(c,id,{page,pageSize});const archivos=await Promise.all(r.rows.map(withArchivoAccess_gnral));return{ok:true,source:'aiven',id_cotizacion:id,archivos,paginacion:{pagina:page,tamano_pagina:pageSize,total_registros:r.total,total_paginas:Math.ceil(r.total/pageSize)}};}finally{c.release();}}
-async function createArchivo(rawId,payload,file,ctx){const id=positiveInteger(rawId),actor=getActorId(ctx);if(!id)throw badRequest('El id de cotización debe ser un entero positivo.');if(!file)throw badRequest('Selecciona un archivo.');const c=await repository.getConnection();let uploaded=null;try{await c.beginTransaction();const cot=await assertCotizacion(c,id,ctx);const idComentario=positiveInteger(payload?.id_comentario);if(idComentario&&!(await repository.findComentario(c,id,idComentario)))throw badRequest('El comentario no pertenece a la cotización.');uploaded=await azureStorage.uploadPrivate_gnral({file,empresa:cot?.empresa||ctx?.user?.empresa||'corellian',modulo:'ventas',entidadTipo:'cotizacion',entidadId:id,subruta:idComentario?`comentarios/${idComentario}`:'archivos',metadata:{uploaded_by:actor,quotation_id:id,comment_id:idComentario||''}});const rec={...storageAdapters.forVentasCotizaciones_gnral(uploaded),id_cotizacion:id,id_usuario:actor,id_comentario:idComentario||null,tipo_archivo:cleanText(payload?.tipo_archivo,100)||uploaded.mime_type,descripcion:cleanText(payload?.descripcion,500),version_numero:positiveInteger(payload?.version_numero)||1,id_archivo_anterior:positiveInteger(payload?.id_archivo_anterior),drive_file_id:null,drive_folder_id:null,drive_url:null};const r=await repository.createArchivo(c,rec);const created=await repository.findArchivo(c,id,r.insertId);await c.commit();return{ok:true,source:'aiven',message:'Archivo cargado correctamente en Azure.',archivo:await withArchivoAccess_gnral(created)};}catch(e){try{await c.rollback();}catch(_error){}if(uploaded?.storage_blob_name){try{await azureStorage.deleteBlob_gnral(uploaded.storage_blob_name);}catch(_error){}}throw e;}finally{c.release();}}
-async function getArchivo(rawId,rawArchivo,actionContext){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const c=await repository.getConnection();try{await assertCotizacion(c,id,actionContext);const a=await repository.findArchivo(c,id,aid);if(!a)throw httpError(404,'Archivo no encontrado.');return{ok:true,source:'aiven',archivo:await withArchivoAccess_gnral(a)};}finally{c.release();}}
-async function updateArchivo(rawId,rawArchivo,payload,ctx){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);getActorId(ctx);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const changes=normalizeArchivoPayload(payload,{partial:true});if(!Object.keys(changes).length)throw badRequest('No se recibieron campos editables.');const c=await repository.getConnection();try{await c.beginTransaction();await assertCotizacion(c,id,ctx);if(!(await repository.findArchivo(c,id,aid)))throw httpError(404,'Archivo no encontrado.');if(changes.id_comentario&&!(await repository.findComentario(c,id,changes.id_comentario)))throw badRequest('El comentario no pertenece a la cotización.');await repository.updateArchivo(c,id,aid,changes);const updated=await repository.findArchivo(c,id,aid);await c.commit();return{ok:true,source:'aiven',message:'Archivo actualizado correctamente.',archivo:updated};}catch(e){await c.rollback();throw e;}finally{c.release();}}
-async function deleteArchivo(rawId,rawArchivo,ctx){const id=positiveInteger(rawId),aid=positiveInteger(rawArchivo);getActorId(ctx);if(!id||!aid)throw badRequest('Los identificadores deben ser enteros positivos.');const c=await repository.getConnection();let existing=null;try{await c.beginTransaction();await assertCotizacion(c,id,ctx);existing=await repository.findArchivo(c,id,aid);if(!existing)throw httpError(404,'Archivo no encontrado.');await repository.softDeleteArchivo(c,id,aid);await c.commit();if(String(existing.storage_provider||'').toUpperCase()===azureStorage.PROVIDER&&existing.storage_blob_name){try{await azureStorage.deleteBlob_gnral(existing.storage_blob_name);}catch(error){console.error('[VentasCotizaciones] Baja lógica aplicada; no se pudo eliminar blob:',error.message);}}return{ok:true,source:'aiven',message:'Archivo eliminado correctamente.',id_archivo:aid};}catch(e){try{await c.rollback();}catch(_error){}throw e;}finally{c.release();}}
+
+async function createArchivo(rawId, payload, file, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  const actorId = getActorId(actionContext);
+  if (!idCotizacion) throw badRequest('El id de cotización debe ser un entero positivo.');
+  if (!file) throw badRequest('Selecciona un archivo.');
+  if (positiveInteger(payload?.id_comentario)) {
+    throw badRequest('Para adjuntar un archivo a un comentario usa la interacción multipart de comentarios.');
+  }
+
+  const connection = await repository.getConnection();
+  let uploaded = null;
+  try {
+    await connection.beginTransaction();
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    const version = await validateVersionReference_gnral(connection, idCotizacion, payload);
+    uploaded = await azureStorage.uploadPrivate_gnral({
+      file,
+      empresa: internalStorageCompany_gnral(actionContext),
+      modulo: 'ventas',
+      entidadTipo: 'cotizacion',
+      entidadId: idCotizacion,
+      subruta: 'archivos',
+      policyName: 'GENERAL',
+      metadata: { uploaded_by: actorId, quotation_id: idCotizacion }
+    });
+
+    const record = {
+      ...storageAdapters.forVentasCotizaciones_gnral(uploaded),
+      id_cotizacion: idCotizacion,
+      id_usuario: actorId,
+      id_comentario: null,
+      tipo_archivo: cleanText(payload?.tipo_archivo, 100) || uploaded.mime_type,
+      descripcion: cleanText(payload?.descripcion, 500),
+      version_numero: version.version,
+      id_archivo_anterior: version.previous?.id_archivo || null,
+      drive_file_id: null,
+      drive_folder_id: null,
+      drive_url: null,
+      activo: 1
+    };
+    const result = await repository.createArchivo(connection, record);
+    const created = await repository.findArchivo(connection, idCotizacion, result.insertId);
+    await connection.commit();
+    return {
+      ok: true,
+      source: 'aiven',
+      message: 'Archivo cargado correctamente en Azure.',
+      archivo: presentCotizacionArchivo_gnral(created, idCotizacion)
+    };
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    if (uploaded?.storage_blob_name) {
+      await cleanupAzureFiles_gnral([uploaded], {
+        modulo: 'ventas',
+        entidad_tipo: 'cotizacion',
+        entidad_id: idCotizacion,
+        solicitado_por: actorId,
+        motivo: 'Compensación por fallo al registrar archivo de cotización.'
+      });
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function getArchivo(rawId, rawArchivo, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  const idArchivo = positiveInteger(rawArchivo);
+  if (!idCotizacion || !idArchivo) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const connection = await repository.getConnection();
+  try {
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    const archivo = await repository.findArchivo(connection, idCotizacion, idArchivo);
+    if (!archivo) throw httpError(404, 'Archivo no encontrado.');
+    return { ok: true, source: 'aiven', archivo: presentCotizacionArchivo_gnral(archivo, idCotizacion) };
+  } finally {
+    connection.release();
+  }
+}
+
+async function getArchivoAccess(rawId, rawArchivo, query, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  const idArchivo = positiveInteger(rawArchivo);
+  if (!idCotizacion || !idArchivo) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const connection = await repository.getConnection();
+  try {
+    const cotizacion = await assertCotizacion(connection, idCotizacion, actionContext);
+    const archivo = await repository.findArchivo(connection, idCotizacion, idArchivo);
+    if (!archivo) throw httpError(404, 'Archivo no encontrado o ya no disponible.');
+
+    if (String(archivo.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && archivo.storage_blob_name) {
+      const data = await storageAccess.createReadAccess_gnral({
+        actorUser: actionContext?.user,
+        contextUser: actionContext?.contextUser || actionContext?.user,
+        reference: archivo,
+        context: {
+          modulo: 'ventas',
+          entidadTipo: 'cotizacion',
+          entidadId: idCotizacion,
+          archivoId: idArchivo
+        },
+        authorize: async () => ({
+          allowed: true,
+          metadata: {
+            id_asesor: cotizacion.id_asesor || null,
+            id_admin: cotizacion.id_admin || null
+          }
+        }),
+        download: parseBoolean_gnral(query?.download)
+      });
+      return { ok: true, source: 'azure', data: { ...data, url: data.access_url, legacy: false } };
+    }
+
+    const legacyUrl = normalizeLegacyFileUrl_gnral(archivo.drive_url)
+      || normalizeLegacyFileUrl_gnral(archivo.storage_url);
+    if (!legacyUrl) throw httpError(404, 'El archivo histórico no tiene una referencia HTTPS disponible.');
+    return {
+      ok: true,
+      source: 'legacy',
+      data: {
+        url: legacyUrl,
+        access_url: legacyUrl,
+        legacy: true,
+        nombre_original: archivo.nombre_original || archivo.nombre_archivo,
+        mime_type: archivo.mime_type || null,
+        tamano_bytes: archivo.tamanio_bytes == null ? null : Number(archivo.tamanio_bytes)
+      }
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function updateArchivo(rawId, rawArchivo, payload, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  const idArchivo = positiveInteger(rawArchivo);
+  getActorId(actionContext);
+  if (!idCotizacion || !idArchivo) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const changes = normalizeArchivoPayload(payload, { partial: true });
+  if (!Object.keys(changes).length) throw badRequest('No se recibieron campos editables.');
+  const connection = await repository.getConnection();
+  try {
+    await connection.beginTransaction();
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    if (!(await repository.findArchivo(connection, idCotizacion, idArchivo))) throw httpError(404, 'Archivo no encontrado.');
+    if (changes.id_comentario && !(await repository.findComentario(connection, idCotizacion, changes.id_comentario))) {
+      throw badRequest('El comentario no pertenece a la cotización.');
+    }
+    if (changes.id_archivo_anterior) {
+      const version = await validateVersionReference_gnral(connection, idCotizacion, changes, idArchivo);
+      changes.id_archivo_anterior = version.previous.id_archivo;
+      if (!changes.version_numero || changes.version_numero < version.version) changes.version_numero = version.version;
+    }
+    await repository.updateArchivo(connection, idCotizacion, idArchivo, changes);
+    const updated = await repository.findArchivo(connection, idCotizacion, idArchivo);
+    await connection.commit();
+    return {
+      ok: true,
+      source: 'aiven',
+      message: 'Archivo actualizado correctamente.',
+      archivo: presentCotizacionArchivo_gnral(updated, idCotizacion)
+    };
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function deleteArchivo(rawId, rawArchivo, actionContext) {
+  const idCotizacion = positiveInteger(rawId);
+  const idArchivo = positiveInteger(rawArchivo);
+  const actorId = getActorId(actionContext);
+  if (!idCotizacion || !idArchivo) throw badRequest('Los identificadores deben ser enteros positivos.');
+  const connection = await repository.getConnection();
+  let existing = null;
+  try {
+    await connection.beginTransaction();
+    await assertCotizacion(connection, idCotizacion, actionContext);
+    existing = await repository.findArchivo(connection, idCotizacion, idArchivo, { forUpdate: true });
+    if (!existing) throw httpError(404, 'Archivo no encontrado.');
+    await repository.softDeleteArchivo(connection, idCotizacion, idArchivo);
+    await connection.commit();
+  } catch (error) {
+    try { await connection.rollback(); } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  const cleanup = await cleanupAzureFiles_gnral([existing], {
+    modulo: 'ventas',
+    entidad_tipo: 'cotizacion_archivo',
+    entidad_id: idArchivo,
+    solicitado_por: actorId,
+    motivo: 'Baja individual de archivo de cotización.'
+  });
+
+  return {
+    ok: true,
+    source: 'aiven',
+    message: 'Archivo eliminado correctamente.',
+    id_archivo: idArchivo,
+    cleanup
+  };
+}
 
 async function sync(payload) {
   const input = extractRecords(payload);
@@ -1364,4 +1852,5 @@ async function sync(payload) {
 module.exports = { sync, list, getKpis, getEmbudo, getVendidos, getPerdidos, getProyeccion,
   getCatalogos, getById, create, update, remove, updateEstatus, updateAsignacion,
   listComentarios, createComentario, updateComentario, deleteComentario,
-  listArchivos, createArchivo, getArchivo, updateArchivo, deleteArchivo };
+  listArchivos, createArchivo, getArchivo, getArchivoAccess, updateArchivo, deleteArchivo,
+  presentCotizacionArchivo_gnral, normalizeLegacyFileUrl_gnral };

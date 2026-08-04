@@ -1,11 +1,13 @@
 const service = require('./ventas-cotizaciones.service');
 
 function sendKnownError(error, res, next) {
-  if (error.statusCode) {
-    return res.status(error.statusCode).json({
+  const status = Number(error.statusCode || error.status);
+  if (status) {
+    return res.status(status).json({
       ok: false,
+      code: error.code || undefined,
       message: error.message,
-      detalles: error.detalles || undefined
+      detalles: error.detalles || error.details || undefined
     });
   }
   return next(error);
@@ -166,9 +168,18 @@ async function listComentarios(req, res, next) {
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function createComentario(req, res, next) {
-  try { return res.status(201).json(await service.createComentario(req.params.id, req.body || {}, buildActionContext(req))); }
-  catch (error) { return sendKnownError(error, res, next); }
+  try {
+    return res.status(201).json(await service.createComentario(
+      req.params.id,
+      req.body || {},
+      req.file || null,
+      buildActionContext(req)
+    ));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
 }
+
 async function updateComentario(req, res, next) {
   try { return res.status(200).json(await service.updateComentario(req.params.id, req.params.idComentario, req.body || {}, buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
@@ -189,6 +200,18 @@ async function getArchivo(req, res, next) {
   try { return res.status(200).json(await service.getArchivo(req.params.id, req.params.idArchivo, buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
 }
+async function getArchivoAccess(req, res, next) {
+  try {
+    return res.status(200).json(await service.getArchivoAccess(
+      req.params.id,
+      req.params.idArchivo,
+      req.query || {},
+      buildActionContext(req)
+    ));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
 async function updateArchivo(req, res, next) {
   try { return res.status(200).json(await service.updateArchivo(req.params.id, req.params.idArchivo, req.body || {}, buildActionContext(req))); }
   catch (error) { return sendKnownError(error, res, next); }
@@ -202,6 +225,6 @@ module.exports = {
   syncCotizaciones, syncComentariosHistoricos, listCotizaciones, getKpis, getEmbudo, getVendidos, getPerdidos,
   getProyeccion, getCatalogos, getCotizacion, updateEstatus, updateAsignacion,
   listComentarios, createComentario, updateComentario, deleteComentario,
-  listArchivos, createArchivo, getArchivo, updateArchivo, deleteArchivo,
+  listArchivos, createArchivo, getArchivo, getArchivoAccess, updateArchivo, deleteArchivo,
   createCotizacion, updateCotizacion, deleteCotizacion
 };
