@@ -72,6 +72,15 @@ function optionalCatalogReference(value, field) {
   return text;
 }
 
+function optionalHistoricalReference(value, field) {
+  const text = cleanText(value, 255, field);
+  if (!text) return null;
+
+  const number = Number(text);
+  if (Number.isInteger(number) && number > 0) return number;
+  return text;
+}
+
 function parseIsoDate(value, field) {
   const text = cleanText(value, null, field);
   if (!text) return null;
@@ -146,19 +155,24 @@ function normalizeRed(source) {
     id_redes: idRedes,
     nombre_contacto: cleanText(source.nombre_contacto, 180, 'nombre_contacto'),
     id_contacto_via: optionalCatalogReference(source.id_contacto_via, 'id_contacto_via'),
+    contacto_via_origen: cleanText(source.id_contacto_via, 255, 'id_contacto_via'),
     email: normalizeEmail(source.email),
     telefono: cleanText(source.telefono, 30, 'telefono'),
     id_estado: optionalCatalogReference(source.id_estado, 'id_estado'),
+    estado_origen: cleanText(source.id_estado, 255, 'id_estado'),
     nombre_empresa: cleanText(source.nombre_empresa, 200, 'nombre_empresa'),
     ciudad: cleanText(source.ciudad, 150, 'ciudad'),
     nombre_proyecto: cleanText(source.nombre_proyecto, 220, 'nombre_proyecto'),
     informacion_enviada: cleanText(source.informacion_enviada, null, 'informacion_enviada'),
     id_solicitud: optionalCatalogReference(source.id_solicitud, 'id_solicitud'),
+    solicitud_origen: cleanText(source.id_solicitud, 255, 'id_solicitud'),
     id_usuario_asignado: assignedTo,
     created_by: createdBy,
     id_estatus: optionalCatalogReference(source.id_estatus, 'id_estatus'),
+    estatus_origen: cleanText(source.id_estatus, 255, 'id_estatus'),
     fecha_cambio_estatus: parseIsoDate(source.fecha_cambio_estatus, 'fecha_cambio_estatus'),
-    id_cotizacion: optionalPositiveInteger(source.id_cotizacion, 'id_cotizacion'),
+    id_cotizacion: optionalHistoricalReference(source.id_cotizacion, 'id_cotizacion'),
+    cotizacion_origen: cleanText(source.id_cotizacion, 255, 'id_cotizacion'),
     evidence: [
       {
         order: 1,
@@ -234,18 +248,37 @@ function buildCatalogReferences(rows) {
   return { byId, byPathAndArticle };
 }
 
-function resolveCatalogReference(record, field, references) {
+function pushWarning(result, row, field, value, message) {
+  result.warnings_count += 1;
+  if (result.warnings.length < MAX_ERRORS) {
+    result.warnings.push({ row, field, value, message });
+  }
+}
+
+function resolveCatalogReference(record, field, references, result, row) {
   const value = record[field];
-  if (value === null) return null;
+  if (value === null) return;
 
   const expected = CATALOG_PATHS[field];
   if (Number.isInteger(value)) {
-    const row = references.byId.get(value);
-    if (!row) return `${field}=${value} no existe en catalogo_general.`;
-    if (String(row.area || '') !== expected.area || String(row.elemento || '') !== expected.elemento) {
-      return `${field}=${value} no pertenece a catalogo_general\\${expected.area}\\${expected.elemento}\\.`;
+    const catalogRow = references.byId.get(value);
+    if (
+      catalogRow &&
+      String(catalogRow.area || '') === expected.area &&
+      String(catalogRow.elemento || '') === expected.elemento
+    ) {
+      return;
     }
-    return null;
+
+    pushWarning(
+      result,
+      row,
+      field,
+      value,
+      `${field} no pudo normalizarse en catalogo_general\\${expected.area}\\${expected.elemento}\\; se guardara NULL y se conservara el valor original.`
+    );
+    record[field] = null;
+    return;
   }
 
   const key = [
@@ -255,37 +288,59 @@ function resolveCatalogReference(record, field, references) {
   ].join('|');
   const matches = references.byPathAndArticle.get(key) || [];
 
-  if (matches.length === 0) {
-    return `${field}="${value}" no existe en catalogo_general\\${expected.area}\\${expected.elemento}\\.`;
-  }
-  if (matches.length > 1) {
-    return `${field}="${value}" tiene ${matches.length} coincidencias activas en el catalogo.`;
+  if (matches.length === 1) {
+    record[field] = Number(matches[0].id_catalogo);
+    return;
   }
 
-  record[field] = Number(matches[0].id_catalogo);
-  return null;
+  pushWarning(
+    result,
+    row,
+    field,
+    value,
+    matches.length > 1
+      ? `${field} tiene multiples coincidencias; se guardara NULL y se conservara el valor original.`
+      : `${field} no existe en catalogo_general\\${expected.area}\\${expected.elemento}\\; se guardara NULL y se conservara el valor original.`
+  );
+  record[field] = null;
 }
 
-function validateRedRelations(record, references) {
-  const errors = [];
-
+function normalizeRedRelations(record, references, result, row) {
   for (const field of Object.keys(CATALOG_PATHS)) {
-    const message = resolveCatalogReference(record, field, references.catalogs);
-    if (message) errors.push(message);
+    resolveCatalogReference(record, field, references.catalogs, result, row);
   }
 
   for (const field of ['id_usuario_asignado', 'created_by']) {
     const id = record[field];
     if (id !== null && !references.users.has(id)) {
-      errors.push(`${field}=${id} no existe en usuarios.id_SB.`);
+      pushWarning(
+        result,
+        row,
+        field,
+        id,
+        `${field} no existe en usuarios.id_SB; se guardara NULL.`
+      );
+      record[field] = null;
     }
   }
 
-  if (record.id_cotizacion !== null && !references.activeQuotations.has(record.id_cotizacion)) {
-    errors.push(`id_cotizacion=${record.id_cotizacion} no existe o no esta activa.`);
+  if (record.id_cotizacion === null) return;
+
+  if (
+    Number.isInteger(record.id_cotizacion) &&
+    references.activeQuotations.has(record.id_cotizacion)
+  ) {
+    return;
   }
 
-  return errors;
+  pushWarning(
+    result,
+    row,
+    'id_cotizacion',
+    record.id_cotizacion,
+    'La cotizacion historica no pudo relacionarse con una cotizacion activa; se guardara NULL y se conservara el valor original.'
+  );
+  record.id_cotizacion = null;
 }
 
 function baseResult(rawRecords, payload, actionContext) {
@@ -302,7 +357,9 @@ function baseResult(rawRecords, payload, actionContext) {
     inserted: 0,
     updated: 0,
     batch_size: BATCH_SIZE,
-    errors: []
+    errors: [],
+    warnings_count: 0,
+    warnings: []
   };
 }
 
@@ -387,11 +444,7 @@ async function syncRecords(payload, actionContext = {}) {
       );
 
       for (const item of normalized) {
-        const relationErrors = validateRedRelations(item.record, references);
-        if (relationErrors.length) {
-          pushError(result, item.row, 'El registro contiene relaciones invalidas.', relationErrors);
-          continue;
-        }
+        normalizeRedRelations(item.record, references, result, item.row);
 
         const existed = knownRedIds.has(item.record.id_redes);
         item.record.updated_by = result.executed_by;
@@ -415,7 +468,9 @@ async function syncRecords(payload, actionContext = {}) {
 
   result.ok = result.rejected === 0;
   result.message = result.ok
-    ? 'Registros de Redes cargados correctamente.'
+    ? (result.warnings_count > 0
+      ? 'Registros de Redes cargados; algunas relaciones historicas quedaron sin normalizar y fueron conservadas en columnas de origen.'
+      : 'Registros de Redes cargados correctamente.')
     : 'La carga de Redes termino con registros rechazados.';
   return result;
 }
