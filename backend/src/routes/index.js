@@ -22,6 +22,7 @@ const ventasCotizacionesHistorialRoutes = require('../modules/ventas-cotizacione
 const ventasClientesRoutes = require('../modules/ventas-clientes/ventas-clientes.routes');
 const ventasClientesContactosRoutes = require('../modules/ventas-clientes-contactos/ventas-clientes-contactos.routes');
 const ventasProspeccionRoutes = require('../modules/ventas-prospeccion/ventas-prospeccion.routes');
+const ventasRedesRoutes = require('../modules/ventas-redes/ventas-redes.routes');
 const pushNotificationsRoutes = require('../modules/push-notifications/push-notifications.routes');
 const devicePermissionsRoutes = require('../modules/device-permissions/device-permissions.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
@@ -50,6 +51,7 @@ router.use('/ventas', ventasCotizacionesRoutes);
 router.use('/ventas', ventasClientesRoutes);
 router.use('/ventas', ventasClientesContactosRoutes);
 router.use('/ventas', ventasProspeccionRoutes);
+router.use('/ventas', ventasRedesRoutes);
 router.use('/push', pushNotificationsRoutes);
 router.use('/device-permissions', devicePermissionsRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);

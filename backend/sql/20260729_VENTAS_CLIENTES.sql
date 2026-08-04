@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS ventas_clientes (
+    id_cliente BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    nombre_empresa VARCHAR(200) NOT NULL,
+    razon_social VARCHAR(250) DEFAULT NULL,
+    ciudad VARCHAR(120) DEFAULT NULL,
+    estado VARCHAR(120) DEFAULT NULL,
+    ubicacion VARCHAR(500) DEFAULT NULL,
+    nombre_contacto VARCHAR(200) DEFAULT NULL,
+    email VARCHAR(200) DEFAULT NULL,
+    telefono VARCHAR(80) DEFAULT NULL,
+    tipo_cliente VARCHAR(100) DEFAULT NULL,
+    estatus_cliente VARCHAR(100) DEFAULT NULL,
+    proyecto_vendido VARCHAR(500) DEFAULT NULL,
+    iniciales VARCHAR(30) DEFAULT NULL,
+    visualiza VARCHAR(255) DEFAULT NULL,
+    comentarios TEXT DEFAULT NULL,
+    activo TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT DEFAULT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_by BIGINT DEFAULT NULL,
+    PRIMARY KEY (id_cliente),
+    KEY idx_ventas_clientes_nombre_empresa (nombre_empresa),
+    KEY idx_ventas_clientes_razon_social (razon_social),
+    KEY idx_ventas_clientes_nombre_contacto (nombre_contacto),
+    KEY idx_ventas_clientes_email (email),
+    KEY idx_ventas_clientes_tipo_cliente (tipo_cliente),
+    KEY idx_ventas_clientes_estatus_cliente (estatus_cliente),
+    KEY idx_ventas_clientes_iniciales (iniciales),
+    KEY idx_ventas_clientes_ciudad_estado (ciudad, estado),
+    KEY idx_ventas_clientes_activo (activo),
+    KEY idx_ventas_clientes_created_by (created_by),
+    KEY idx_ventas_clientes_updated_by (updated_by),
+    CONSTRAINT fk_ventas_clientes_created_by
+      FOREIGN KEY (created_by) REFERENCES usuarios (id_SB)
+      ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_ventas_clientes_updated_by
+      FOREIGN KEY (updated_by) REFERENCES usuarios (id_SB)
+      ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
