@@ -21,18 +21,23 @@ const requiredFiles = [
   'src/services/storage/storage-access-handler.service.js',
   'src/services/storage/storage-diagnostics.service.js',
   'src/jobs/storageOperations.job.js',
+  'scripts/validate-cffaa-01ef.js',
   'src/modules/pendientes/pendientes-access.service.js',
-  'src/modules/pendientes/pendientes-files.repository.js',
   'src/modules/pendientes/pendientes-files.service.js',
-  'src/modules/pendientes/pendientes-files.controller.js',
   'src/modules/pendientes/pendientes.routes.js',
   'src/modules/home/home.repository.js',
   'src/modules/home/home.service.js',
-  'src/modules/home/home.routes.js',
-  'src/modules/notificaciones/notificaciones.service.js',
-  'src/modules/notificaciones/notificaciones.routes.js',
-  'scripts/validate-cffaa-01ef.js',
-  'scripts/validate-cffaa-02.js'
+  'src/controllers/data.controller.legacy.js',
+  'scripts/validate-cffaa-02.js',
+  'src/modules/support/support-files.repository.js',
+  'src/modules/support/support-files.service.js',
+  'src/controllers/support.controller.js',
+  'src/routes/support.routes.js',
+  'scripts/validate-cffaa-03.js',
+  '../modules/support/support.js',
+  '../modules/soporte-solicitudes/soporte-solicitudes.js',
+  '../modules/home/home.js',
+  '../core/router.js'
 ];
 
 let failed = false;

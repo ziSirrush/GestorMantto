@@ -1,6 +1,9 @@
 const db = require('../../config/db');
 
 const REQUIRED_COLUMNS = Object.freeze({
+  sup_tickets: Object.freeze([
+    'empresa'
+  ]),
   pendientes: Object.freeze([
     'empresa'
   ]),
@@ -18,9 +21,6 @@ const REQUIRED_COLUMNS = Object.freeze({
     'subido_por',
     'origen_archivo',
     'activo',
-    'eliminado_por',
-    'eliminado_at',
-    'motivo_baja',
     'created_at',
     'updated_at'
   ]),

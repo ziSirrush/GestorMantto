@@ -19,7 +19,7 @@
 <link href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" rel="stylesheet"/>
 <link href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" rel="stylesheet"/>
 <link href="./modules/panel-control/panel-control.css?v=20260722-v026" rel="stylesheet"/>
-<link href="./styles/home.css?v=20260803-cffaa02-v001" rel="stylesheet"/>
+<link href="./styles/home.css?v=20260705-v115" rel="stylesheet"/>
 <link href="./modules/resumen-dia/resumen-dia.css?v=20260716-v117" rel="stylesheet"/>
 <link href="./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5" rel="stylesheet"/>
 <link href="./modules/portafolio/portafolio.css?v=20260717-kpi-views-v002" rel="stylesheet"/>
@@ -42,7 +42,7 @@
 <link href="./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001" rel="stylesheet"/>
 <link href="./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003" rel="stylesheet"/>
 <link href="./modules/usuarios/usuarios.css?v=20260707-v001" rel="stylesheet"/>
-<link href="./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260723-v030-2" rel="stylesheet"/>
+<link href="./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001" rel="stylesheet"/>
 <style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
     [hidden]{display:none!important}
@@ -456,7 +456,7 @@
 <label>Asunto <input id="support-subject" placeholder="Describe brevemente el problema" required type="text"/></label>
 <label>Descripción <textarea id="support-description" placeholder="Detalle del caso" required rows="5"></textarea></label>
 <label>Fecha del incidente <input id="support-incident-date" type="datetime-local"/></label>
-<label>Archivos adjuntos <input id="support-files" multiple type="file"/><small>Podrás agregar más archivos después desde el detalle. Máximo 8 MB por archivo.</small></label>
+<label>Archivos adjuntos <input id="support-files" multiple type="file"/><small>Podrás agregar más archivos después desde el detalle. Máximo 25 MB por archivo, 50 MB en total y hasta 5 archivos.</small></label>
 <button class="auth-primary" id="support-submit" type="submit">Crear solicitud</button>
 <div class="auth-msg" id="support-msg"></div>
 </form>
@@ -596,7 +596,7 @@
 <div class="ss-file-upload-box">
 <input aria-label="Seleccionar archivo" id="ss-file-input" type="file"/>
 <button class="ss-btn" id="ss-file-upload" type="button">Subir archivo</button>
-<small>Máximo 8 MB por archivo.</small>
+<small>Máximo 25 MB por archivo.</small>
 </div>
 </aside>
 </div>
@@ -712,8 +712,8 @@
 <script src="./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004"></script>
 <script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
 <script src="./modules/panel-control/panel-control.js?v=20260722-v026"></script>
-<script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260803-azure-files-v001"></script>
-<script src="./modules/support/support.js?v=20260723-v030-2"></script>
+<script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260803-cffaa03-v001"></script>
+<script src="./modules/support/support.js?v=20260803-cffaa03-v001"></script>
 <script src="./core/details.js?v=v032_1_v031_3_1"></script>
 <script src="./core/user-viewer.js?v=20260722-v024"></script>
 <script src="./core/app.js?v=20260722-session-permissions-v017"></script>

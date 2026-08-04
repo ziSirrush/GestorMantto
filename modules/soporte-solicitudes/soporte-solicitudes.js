@@ -11,7 +11,8 @@
     supportUsers: [],
     saving: false,
     mode: 'support',
-    backRoute: 'soporte-solicitudes'
+    backRoute: 'soporte-solicitudes',
+    permissions: {}
   };
 
   function ssById(id) {
@@ -235,23 +236,30 @@
       container.innerHTML = '<div class="ss-empty">No hay archivos adjuntos.</div>';
       return;
     }
+    const canDelete = Boolean(SS_STATE.permissions && SS_STATE.permissions.delete_attachment);
     container.innerHTML = files.map(function (file) {
       const name = ssFirst(file, ['nombre_original', 'nombre', 'name', 'filename', 'archivo'], 'Archivo');
       const type = ssFirst(file, ['mime_type', 'tipo_archivo', 'type'], 'Archivo');
-      const size = Number(ssFirst(file, ['peso_archivo', 'size'], 0));
+      const size = Number(ssFirst(file, ['peso_archivo', 'tamano_bytes', 'size'], 0));
       const sizeText = size > 0 ? (size / 1024 / 1024).toFixed(2) + ' MB' : '';
-      const url = ssFileUrl(file);
       const idAdjunto = ssFirst(file, ['id_adjunto', 'id']);
-      const azure = String(ssFirst(file, ['storage_provider'], '')).toUpperCase() === 'AZURE_BLOB' && idAdjunto;
-      const open = azure
-        ? '<button type="button" class="ss-file-open" data-ss-file-id="' + ssEscape(idAdjunto) + '">Abrir</button>'
-        : (url ? '<a href="' + ssEscape(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '');
-      return '<article class="ss-file-item"><div class="ss-file-icon">📎</div><div><strong>' + ssEscape(name) + '</strong><span>' + ssEscape([type, sizeText].filter(Boolean).join(' · ')) + '</span></div>' + open + '</article>';
+      const open = idAdjunto
+        ? '<button type="button" class="ss-file-open" data-ss-file-open="' + ssEscape(idAdjunto) + '">Abrir</button>'
+        : '';
+      const remove = idAdjunto && canDelete
+        ? '<button type="button" class="ss-file-delete" data-ss-file-delete="' + ssEscape(idAdjunto) + '" data-ss-file-name="' + ssEscape(name) + '">Eliminar</button>'
+        : '';
+      return '<article class="ss-file-item"><div class="ss-file-icon">📎</div><div><strong>' + ssEscape(name) + '</strong><span>' + ssEscape([type, sizeText].filter(Boolean).join(' · ')) + '</span></div><div class="ss-file-actions">' + open + remove + '</div></article>';
     }).join('');
     container.onclick = function(event) {
-      const button = event.target.closest('[data-ss-file-id]');
-      if (!button) return;
-      ssOpenAzureFile(button.dataset.ssFileId).catch(function(error) { alert(error.message || 'No se pudo abrir el archivo.'); });
+      const openButton = event.target.closest('[data-ss-file-open]');
+      if (openButton) {
+        ssOpenAzureFile(openButton.dataset.ssFileOpen).catch(function(error) { alert(error.message || 'No se pudo abrir el archivo.'); });
+        return;
+      }
+      const deleteButton = event.target.closest('[data-ss-file-delete]');
+      if (!deleteButton) return;
+      ssDeleteFile(deleteButton.dataset.ssFileDelete, deleteButton.dataset.ssFileName);
     };
   }
 
@@ -357,6 +365,7 @@
     if (list) list.hidden = false;
     ssSetContextDetail(false);
     SS_STATE.currentTicket = null;
+    SS_STATE.permissions = {};
   }
 
   async function ssOpenDetail(id) {
@@ -367,6 +376,7 @@
       if (SS_STATE.mode !== 'requester') await ssLoadCatalogs();
       const endpoint = SS_STATE.mode === 'requester' ? '/api/support/tickets/mias/' : '/api/support/tickets/';
       const json = await ssFetchJson(ssApiBase() + endpoint + encodeURIComponent(id));
+      SS_STATE.permissions = json.permissions || {};
       ssRenderDetail(json.data || json);
       await ssLoad();
     } catch (error) {
@@ -430,11 +440,28 @@
     window.open(/^https?:\/\//i.test(url) ? url : ssApiBase() + (url.charAt(0) === '/' ? url : '/' + url), '_blank', 'noopener');
   }
 
+  async function ssDeleteFile(idAdjunto, fileName) {
+    if (!SS_STATE.currentTicket || !idAdjunto) return;
+    if (!window.confirm('¿Eliminar el archivo "' + (fileName || 'seleccionado') + '" de esta solicitud?')) return;
+    const id = ssFirst(SS_STATE.currentTicket, ['id_ticket', 'id_solicitud', 'id']);
+    try {
+      await ssFetchJson(ssApiBase() + '/api/support/tickets/' + encodeURIComponent(id) + '/adjuntos/' + encodeURIComponent(idAdjunto), { method: 'DELETE' });
+      const detailEndpoint = SS_STATE.mode === 'requester' ? '/api/support/tickets/mias/' : '/api/support/tickets/';
+      const refreshed = await ssFetchJson(ssApiBase() + detailEndpoint + encodeURIComponent(id));
+      SS_STATE.permissions = refreshed.permissions || SS_STATE.permissions || {};
+      ssRenderDetail(refreshed.data || refreshed);
+      await ssLoad();
+    } catch (error) {
+      alert(error.message || 'No se pudo eliminar el archivo.');
+    }
+  }
+
   async function ssUploadFile() {
     if (!SS_STATE.currentTicket) return;
     const input = ssById('ss-file-input');
     const file = input && input.files ? input.files[0] : null;
     if (!file) return;
+    if (!(SS_STATE.permissions && SS_STATE.permissions.attach)) { alert('No tienes permiso para adjuntar archivos.'); return; }
     if (file.size > 25 * 1024 * 1024) { alert('El archivo excede el límite de 25 MB.'); return; }
     const id = ssFirst(SS_STATE.currentTicket, ['id_ticket', 'id_solicitud', 'id']);
     try {

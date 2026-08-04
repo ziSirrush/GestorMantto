@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const supportFilesService = require('../modules/support/support-files.service');
 
 const SUPPORT_ROLE_NAMES = new Set([
   'Soporte',
@@ -150,6 +151,7 @@ async function getSolicitudById(id) {
 
   if (!rows[0]) return null;
   const ticket = rows[0];
+  ticket.empresa = ticket.empresa || ticket.usuario_empresa || null;
   try { ticket.historial = ticket.historial ? JSON.parse(ticket.historial) : []; } catch (error) { ticket.historial = []; }
   const [adjuntos] = await db.query(
     `SELECT a.*, u.nombre AS subido_por_nombre
@@ -159,7 +161,7 @@ async function getSolicitudById(id) {
       ORDER BY a.fecha_creacion ASC, a.id_adjunto ASC`,
     [ticket[idColumn]]
   );
-  ticket.adjuntos = adjuntos;
+  ticket.adjuntos = adjuntos.map(file => supportFilesService.presentAttachment_gnral(file, ticket[idColumn]));
   return ticket;
 }
 

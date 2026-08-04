@@ -1,8 +1,6 @@
-const path = require('path');
 const db = require('../config/db');
 const supportSolicitudesService = require('../services/support-solicitudes.service');
-const azureStorage = require('../services/storage/azure-storage.service');
-const storageAdapters = require('../services/storage/storage-metadata.adapters');
+const supportFilesService = require('../modules/support/support-files.service');
 
 function hasExactSupportRole(user) {
   const roles = [user && user.rol, ...((user && Array.isArray(user.roles)) ? user.roles : [])].filter(Boolean);
@@ -264,7 +262,8 @@ async function getMyTicketById(req, res) {
       permissions: {
         edit_support_fields: false,
         comment: true,
-        attach: true
+        attach: true,
+        delete_attachment: true
       },
       data: ticket
     });
@@ -295,11 +294,10 @@ async function createMyTicket(req, res) {
     const fechaIncidente = req.body.fecha_incidente ? new Date(req.body.fecha_incidente) : null;
     const fechaIncidenteSql = fechaIncidente && !Number.isNaN(fechaIncidente.getTime()) ? fechaIncidente : null;
 
-    if (!asunto) {
-      return res.status(400).json({ ok: false, message: 'El asunto es obligatorio.' });
-    }
-    if (!descripcion) {
-      return res.status(400).json({ ok: false, message: 'La descripción es obligatoria.' });
+    if (!asunto) return res.status(400).json({ ok: false, message: 'El asunto es obligatorio.' });
+    if (!descripcion) return res.status(400).json({ ok: false, message: 'La descripción es obligatoria.' });
+    if (req.body.fecha_incidente && !fechaIncidenteSql) {
+      return res.status(400).json({ ok: false, message: 'La fecha del incidente no es válida.' });
     }
 
     const historial = [supportEvent(req, 'ticket_creado', {
@@ -308,19 +306,30 @@ async function createMyTicket(req, res) {
       mensaje: 'Solicitud creada desde Centro de Ayuda.'
     })];
 
-    const [result] = await db.query(
-      `INSERT INTO sup_tickets
-       (folio, id_usuario, id_ticket_categoria, tipo_ticket, estado_ticket, prioridad_ticket,
-        origen_ticket, modulo_ticket, asunto_ticket, descripcion_ticket, fecha_incidente, historial,
-        fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, 'Soporte', 'Abierto', 'Media', 'Centro de Ayuda', ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [folio, req.user.id_SB, categoriaId, modulo, asunto, descripcion, fechaIncidenteSql, JSON.stringify(historial)]
-    );
+    const created = await supportFilesService.createTicketWithAttachments_gnral({
+      actor: req.user,
+      canAdministrate: false,
+      files: req.files,
+      ticket: {
+        folio,
+        empresa: req.user.empresa || null,
+        id_ticket_categoria: Number(categoriaId),
+        tipo_ticket: 'Soporte',
+        estado_ticket: 'Abierto',
+        prioridad_ticket: 'Media',
+        origen_ticket: 'Centro de Ayuda',
+        modulo_ticket: modulo,
+        asunto_ticket: asunto,
+        descripcion_ticket: descripcion,
+        fecha_incidente: fechaIncidenteSql,
+        historial
+      }
+    });
 
     let notificacionesSoporte = 0;
     try {
       notificacionesSoporte = await supportSolicitudesService.notifySupportUsers({
-        ticketId: result.insertId,
+        ticketId: created.ticketId,
         folio,
         asunto
       });
@@ -331,14 +340,20 @@ async function createMyTicket(req, res) {
     return res.status(201).json({
       ok: true,
       message: 'Solicitud creada correctamente.',
-      id: result.insertId,
+      id: created.ticketId,
       folio,
       estado: 'Abierto',
       prioridad_asignada_por_sistema: 'Media',
+      archivos_adjuntos: created.uploadedCount,
+      ids_adjuntos: created.attachmentIds,
       notificaciones_soporte: notificacionesSoporte
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error creando tu solicitud.', error: error.message });
+    return res.status(error.status || 500).json({
+      ok: false,
+      code: error.code || undefined,
+      message: error.expose || error.status < 500 ? error.message : 'Error creando tu solicitud.'
+    });
   }
 }
 
@@ -500,6 +515,7 @@ async function getTicketById(req, res) {
           ok: true,
           source: 'support_ticket_detail',
           auto_asignada: true,
+          permissions: { edit_support_fields: true, comment: true, attach: true, delete_attachment: true },
           data: await supportSolicitudesService.getSolicitudById(ticket.id_ticket)
         });
       }
@@ -508,6 +524,12 @@ async function getTicketById(req, res) {
     return res.json({
       ok: true,
       source: 'support_ticket_detail',
+      permissions: {
+        edit_support_fields: canAdministrateSupport(req),
+        comment: true,
+        attach: true,
+        delete_attachment: true
+      },
       data: ticket
     });
   } catch (error) {
@@ -596,35 +618,39 @@ async function createTicket(req, res) {
 
     const categoriaId = req.body.id_ticket_categoria || (cats[0] && cats[0].id_ticket_categoria) || 1;
     const folio = 'SUP-' + Date.now();
-    const asunto = req.body.asunto || req.body.titulo || req.body.subject || 'Solicitud de soporte';
-    const historial = [supportEvent(req, 'ticket_creado', {
-      asunto,
-      modulo: req.body.modulo || req.body.modulo_ticket || req.body.categoria
-    })];
+    const asunto = String(req.body.asunto || req.body.titulo || req.body.subject || 'Solicitud de soporte').trim().slice(0, 255);
+    const descripcion = String(req.body.descripcion || req.body.detalle || req.body.description || 'Sin descripción').trim();
+    const modulo = String(req.body.modulo || req.body.modulo_ticket || '').trim().slice(0, 150) || null;
+    const fechaIncidente = req.body.fecha_incidente ? new Date(req.body.fecha_incidente) : null;
+    if (req.body.fecha_incidente && Number.isNaN(fechaIncidente.getTime())) {
+      return res.status(400).json({ ok: false, message: 'La fecha del incidente no es válida.' });
+    }
+    const historial = [supportEvent(req, 'ticket_creado', { asunto, modulo })];
 
-    const [result] = await db.query(
-      `INSERT INTO sup_tickets
-       (folio, id_usuario, id_ticket_categoria, tipo_ticket, estado_ticket, prioridad_ticket, origen_ticket, modulo_ticket, asunto_ticket, descripcion_ticket, historial, fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [
+    const created = await supportFilesService.createTicketWithAttachments_gnral({
+      actor: req.user,
+      canAdministrate: canAdministrateSupport(req),
+      files: req.files,
+      ticket: {
         folio,
-        req.user.id_SB,
-        categoriaId,
-        req.body.tipo_ticket || 'Soporte',
-        req.body.estado_ticket || 'Abierto',
-        req.body.prioridad_ticket || req.body.prioridad || 'Media',
-        req.body.origen_ticket || 'Portal',
-        req.body.modulo || req.body.modulo_ticket || null,
-        asunto,
-        req.body.descripcion || req.body.detalle || req.body.description || 'Sin descripción',
-        JSON.stringify(historial)
-      ]
-    );
+        empresa: req.user.empresa || null,
+        id_ticket_categoria: Number(categoriaId),
+        tipo_ticket: req.body.tipo_ticket || 'Soporte',
+        estado_ticket: req.body.estado_ticket || 'Abierto',
+        prioridad_ticket: req.body.prioridad_ticket || req.body.prioridad || 'Media',
+        origen_ticket: req.body.origen_ticket || 'Portal',
+        modulo_ticket: modulo,
+        asunto_ticket: asunto,
+        descripcion_ticket: descripcion,
+        fecha_incidente: fechaIncidente || null,
+        historial
+      }
+    });
 
     let notificacionesSoporte = 0;
     try {
       notificacionesSoporte = await supportSolicitudesService.notifySupportUsers({
-        ticketId: result.insertId,
+        ticketId: created.ticketId,
         folio,
         asunto
       });
@@ -635,12 +661,18 @@ async function createTicket(req, res) {
     return res.status(201).json({
       ok: true,
       message: 'Solicitud creada correctamente.',
-      id: result.insertId,
+      id: created.ticketId,
       folio,
+      archivos_adjuntos: created.uploadedCount,
+      ids_adjuntos: created.attachmentIds,
       notificaciones_soporte: notificacionesSoporte
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Error creando solicitud.', error: error.message });
+    return res.status(error.status || 500).json({
+      ok: false,
+      code: error.code || undefined,
+      message: error.expose || error.status < 500 ? error.message : 'Error creando solicitud.'
+    });
   }
 }
 
@@ -690,66 +722,81 @@ async function addTicketComment(req, res) {
 }
 
 async function addTicketAttachment(req, res) {
-  let uploadedBlob = null;
   try {
-    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
-    if (!ticket) return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
-    const ownerId = Number(ticket.id_usuario || 0);
-    if (!canAdministrateSupport(req) && ownerId !== Number(req.user.id_SB)) {
-      return res.status(403).json({ ok: false, message: 'No tienes permiso para adjuntar archivos a esta solicitud.' });
-    }
-    if (!req.file) return res.status(400).json({ ok: false, message: 'Selecciona un archivo.' });
-    const storage = await azureStorage.uploadPrivate_gnral({
+    const result = await supportFilesService.addAttachment_gnral({
+      ticketId: req.params.id,
+      actor: req.user,
       file: req.file,
-      empresa: req.user.empresa || ticket.empresa || 'general',
-      modulo: 'soporte',
-      entidadTipo: 'solicitud',
-      entidadId: ticket.id_ticket,
-      subruta: 'adjuntos',
-      metadata: { uploaded_by: req.user.id_SB, ticket_id: ticket.id_ticket }
+      canAdministrate: canAdministrateSupport(req)
     });
-    uploadedBlob = storage.storage_blob_name;
-    const saved = storageAdapters.forSupAdjuntos_gnral(storage);
-    const [result] = await db.query(
-      `INSERT INTO sup_adjuntos
-       (id_ticket, tipo_adjunto, origen_adjunto, subido_por, nombre_original, nombre_servidor,
-        ruta_archivo, extension_archivo, mime_type, peso_archivo,
-        storage_provider, storage_container, storage_blob_name,
-        activo, fecha_creacion, fecha_actualizacion)
-       VALUES (?, 'solicitud', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
-      [ticket.id_ticket, hasExactSupportRole(req.user || {}) ? 'Soporte' : 'Usuario', req.user.id_SB,
-       saved.nombre_original, saved.nombre_servidor, saved.ruta_archivo, saved.extension_archivo,
-       saved.mime_type, saved.peso_archivo, saved.storage_provider, saved.storage_container, saved.storage_blob_name]
-    );
-    await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'archivo_adjuntado', { mensaje: `Archivo adjuntado: ${saved.nombre_original}` }));
-    await db.query(`UPDATE sup_tickets SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW() WHERE id_ticket = ?`, [ticket.id_ticket]);
+
     let notificaciones = 0;
-    try { notificaciones = await supportSolicitudesService.notifyTicketInteraction({ ticket, actor: req.user || {}, kind: 'archivo', fileName: saved.nombre_original }); }
-    catch (notificationError) { console.error('[SOPORTE] Archivo guardado, pero falló la notificación:', notificationError.message); }
-    return res.status(201).json({ ok: true, message: 'Archivo adjuntado correctamente.', id_adjunto: result.insertId, notificaciones });
+    try {
+      notificaciones = await supportSolicitudesService.notifyTicketInteraction({
+        ticket: result.ticket,
+        actor: req.user || {},
+        kind: 'archivo',
+        fileName: result.nombre_original
+      });
+    } catch (notificationError) {
+      console.error('[SOPORTE] Archivo guardado, pero falló la notificación:', notificationError.message);
+    }
+
+    return res.status(201).json({
+      ok: true,
+      message: 'Archivo adjuntado correctamente.',
+      id_adjunto: result.id_adjunto,
+      notificaciones
+    });
   } catch (error) {
-    if (uploadedBlob) { try { await azureStorage.deleteBlob_gnral(uploadedBlob); } catch (_error) {} }
-    return res.status(error.status || 500).json({ ok: false, message: error.message || 'Error adjuntando archivo.' });
+    return res.status(error.status || 500).json({
+      ok: false,
+      code: error.code || undefined,
+      message: error.expose || error.status < 500 ? error.message : 'Error adjuntando archivo.'
+    });
   }
 }
 
 async function getTicketAttachmentAccess(req, res) {
   try {
-    const ticket = await supportSolicitudesService.getSolicitudById(req.params.id);
-    if (!ticket) return res.status(404).json({ ok: false, message: 'Solicitud no encontrada.' });
-    const ownerId = Number(ticket.id_usuario || 0);
-    if (!canAdministrateSupport(req) && ownerId !== Number(req.user.id_SB)) return res.status(403).json({ ok: false, message: 'No tienes permiso para abrir este archivo.' });
-    const [rows] = await db.query(`SELECT * FROM sup_adjuntos WHERE id_ticket = ? AND id_adjunto = ? AND activo = 1 LIMIT 1`, [ticket.id_ticket, req.params.idAdjunto]);
-    const file = rows[0];
-    if (!file) return res.status(404).json({ ok: false, message: 'Archivo no encontrado.' });
-    if (String(file.storage_provider || '').toUpperCase() === azureStorage.PROVIDER && file.storage_blob_name) {
-      const access = await azureStorage.createReadSas_gnral(file.storage_blob_name, { fileName: file.nombre_original });
-      return res.json({ ok: true, data: access });
-    }
-    const legacy = file.ruta_archivo || null;
-    return res.json({ ok: true, data: { url: legacy, legacy: true } });
+    const data = await supportFilesService.createAttachmentAccess_gnral({
+      ticketId: req.params.id,
+      attachmentId: req.params.idAdjunto,
+      actor: req.user,
+      canAdministrate: canAdministrateSupport(req),
+      download: ['1', 'true', 'yes'].includes(String(req.query.download || '').toLowerCase())
+    });
+    return res.json({ ok: true, message: 'Acceso temporal generado.', data });
   } catch (error) {
-    return res.status(error.status || 500).json({ ok: false, message: error.message || 'No fue posible abrir el archivo.' });
+    return res.status(error.status || 500).json({
+      ok: false,
+      code: error.code || undefined,
+      message: error.expose || error.status < 500 ? error.message : 'No fue posible abrir el archivo.'
+    });
+  }
+}
+
+async function deleteTicketAttachment(req, res) {
+  try {
+    const result = await supportFilesService.deleteAttachment_gnral({
+      ticketId: req.params.id,
+      attachmentId: req.params.idAdjunto,
+      actor: req.user,
+      canAdministrate: canAdministrateSupport(req)
+    });
+    return res.json({
+      ok: true,
+      message: result.cleanup.attempted && !result.cleanup.completed
+        ? 'Archivo retirado. La eliminación física quedó programada para reintento.'
+        : 'Archivo eliminado correctamente.',
+      data: result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      code: error.code || undefined,
+      message: error.expose || error.status < 500 ? error.message : 'No fue posible eliminar el archivo.'
+    });
   }
 }
 
@@ -787,5 +834,6 @@ module.exports = {
   addTicketComment,
   addTicketAttachment,
   getTicketAttachmentAccess,
+  deleteTicketAttachment,
   getNotificaciones
 };
