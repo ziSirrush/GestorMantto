@@ -95,8 +95,22 @@ async function list(connection, options, scope, actorId) {
 
   const quoteRelationSql = `
     q.activo = 1
-    AND UPPER(TRIM(COALESCE(q.cliente, ''))) = UPPER(TRIM(COALESCE(vc.nombre_empresa, '')))
-    AND UPPER(TRIM(COALESCE(q.asesor, ''))) = UPPER(TRIM(COALESCE(vc.iniciales, '')))`;
+    AND (
+      (q.id_cliente IS NOT NULL AND q.id_cliente = vc.id_cliente)
+      OR UPPER(TRIM(COALESCE(q.cliente, ''))) = UPPER(TRIM(COALESCE(vc.nombre_empresa, '')))
+    )
+    AND (
+      (
+        q.id_asesor IS NOT NULL
+        AND q.id_asesor = (
+          SELECT MIN(uq.id_SB)
+            FROM usuarios uq
+           WHERE uq.estado = 1
+             AND UPPER(TRIM(uq.iniciales)) = UPPER(TRIM(vc.iniciales))
+        )
+      )
+      OR UPPER(TRIM(COALESCE(q.asesor, ''))) = UPPER(TRIM(COALESCE(vc.iniciales, '')))
+    )`;
 
   const [rows] = await connection.query(
     `SELECT vc.*,
