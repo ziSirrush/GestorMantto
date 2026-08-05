@@ -262,7 +262,8 @@
       loadData(true).catch((error) => msg(error.message, 'error'));
     });
     document.addEventListener('mantto:data-mutated', (event) => {
-      const url = String(event.detail?.url || '');
+      if (window.ManttoDataSync?.supportsBackgroundSync?.('ventas-dashboard')) return;
+      const url = String(event.detail?.path || event.detail?.url || '');
       if (url.includes('/api/ventas/') || url.includes('/api/ins-fl') || url.includes('/api/logistica') || url.includes('/api/pendientes')) loadData(true).catch(() => {});
     });
   }
@@ -290,5 +291,5 @@
     return loadingPromise;
   }
 
-  window.ManttoVentasDashboard = { init, refresh: () => loadData(true), refreshKpis: () => loadData(true), getFilters: currentState };
+  window.ManttoVentasDashboard = { init, refresh: () => loadData(true), backgroundSync: () => loadData(true), refreshKpis: () => loadData(true), getFilters: currentState };
 })();

@@ -181,12 +181,6 @@ function activeUserRolesSql() {
      WHERE u.id_SB = ?
        AND u.estado = 1
        AND u.rol_id IS NOT NULL
-       AND NOT EXISTS (
-         SELECT 1
-           FROM usuario_roles ur_active
-          WHERE ur_active.id_usuario = u.id_SB
-            AND ur_active.activo = 1
-       )
   )`;
 }
 

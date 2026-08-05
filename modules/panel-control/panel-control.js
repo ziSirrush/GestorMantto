@@ -822,6 +822,18 @@
       :`Guardar cambios <span id="pc-dirty-count">${state.dirty.size}</span>`;
   }
 
+  function rolePermissionSnapshot(){
+    const seen=new Set();
+    return state.catalog.flatMap(allActions).filter(action=>{
+      if(seen.has(action.id))return false;
+      seen.add(action.id);
+      return true;
+    }).map(action=>({
+      id_subelemento_accion:Number(action.id),
+      permitido:Boolean(roleValue(action.id))
+    }));
+  }
+
   async function saveChanges(){
     if(state.savingPermissions||!state.dirty.size)return;
     const isUsers=state.tab==='users';
@@ -831,7 +843,8 @@
     const totalChanges=state.dirty.size;
     if(!confirm(`¿Guardar ${totalChanges} cambio(s) para ${target||'el registro seleccionado'}?`))return;
 
-    const changes=[...state.dirty.entries()].map(([id,value])=>({id_subelemento_accion:Number(id),...value}));
+    const dirtySnapshot=[...state.dirty.entries()].map(([id,value])=>({id_subelemento_accion:Number(id),...value}));
+    const changes=isUsers?dirtySnapshot:rolePermissionSnapshot();
     const path=isUsers
       ?`/api/panel-control/usuarios/${state.selectedUserId}/permisos`
       :`/api/panel-control/roles/${state.selectedRoleId}/permisos`;
@@ -841,7 +854,7 @@
     try{
       const response=await request(path,{
         method:'PUT',
-        body:JSON.stringify({changes})
+        body:JSON.stringify({changes,replace_all:!isUsers})
       });
       const updated=Number(response.data?.updated||0);
       const confirmed=Number(response.data?.confirmed||0);

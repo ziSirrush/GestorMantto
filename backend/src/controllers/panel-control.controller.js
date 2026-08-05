@@ -95,12 +95,6 @@ function activeUserRolesTableSql() {
       FROM usuarios u
       WHERE u.estado = 1
         AND u.rol_id IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1
-          FROM usuario_roles ur_active
-          WHERE ur_active.id_usuario = u.id_SB
-            AND ur_active.activo = 1
-        )
     ) role_source
     GROUP BY role_source.id_usuario, role_source.id_rol
   )`;
@@ -671,6 +665,7 @@ async function saveRolePermissions(req, res, next) {
   try {
     if (denyUnlessManager(req, res)) return;
     const roleId = Number(req.params.id);
+    const replaceAll = req.body?.replace_all === true;
     const changes = normalizePermissionChanges(Array.isArray(req.body?.changes) ? req.body.changes : [], 'permitido');
     const hierarchyChanges = Array.isArray(req.body?.hierarchy_changes) ? req.body.hierarchy_changes : [];
     if (!Number.isInteger(roleId) || roleId <= 0) return res.status(400).json({ ok: false, message: 'Rol inválido.' });
@@ -683,7 +678,7 @@ async function saveRolePermissions(req, res, next) {
     if (!changes.length) return res.json({ ok: true, data: { updated: 0, confirmed: 0, mismatches: [] } });
 
     const scopedPermissionIds = await getScopedPermissionIds(conn, scope);
-    assertChangesInsideScope(changes, scopedPermissionIds, false);
+    assertChangesInsideScope(changes, scopedPermissionIds, replaceAll);
 
     await conn.beginTransaction();
     for (const change of changes) {
@@ -729,6 +724,7 @@ async function saveRolePermissions(req, res, next) {
       data: {
         updated: changes.length,
         confirmed: changes.length,
+        replace_all: replaceAll,
         mismatches: []
       }
     });
