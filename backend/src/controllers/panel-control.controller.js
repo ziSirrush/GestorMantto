@@ -79,99 +79,6 @@ async function assertPermissionInScope(conn, permissionId, scope) {
 }
 
 
-function activeUserRolesTableSql() {
-  return `(
-    SELECT role_source.id_usuario,
-           role_source.id_rol,
-           MAX(role_source.principal) AS principal
-    FROM (
-      SELECT ur.id_usuario, ur.id_rol, ur.principal
-      FROM usuario_roles ur
-      WHERE ur.activo = 1
-
-      UNION ALL
-
-      SELECT u.id_SB AS id_usuario, u.rol_id AS id_rol, 1 AS principal
-      FROM usuarios u
-      WHERE u.estado = 1
-        AND u.rol_id IS NOT NULL
-    ) role_source
-    GROUP BY role_source.id_usuario, role_source.id_rol
-  )`;
-}
-
-async function getScopedPermissionIds(conn, scope) {
-  const catalogFilter = companySql('pa.empresa', scope);
-  const [rows] = await conn.query(`
-    SELECT psa.id_subelemento_accion
-    FROM perm_subelemento_acciones psa
-    INNER JOIN perm_subelementos ps ON ps.id_subelemento = psa.id_subelemento
-    INNER JOIN perm_elementos pe ON pe.id_elemento = ps.id_elemento
-    INNER JOIN perm_modulos pm ON pm.id_modulo = pe.id_modulo
-    INNER JOIN perm_agrupaciones pa ON pa.id_agrupacion = pm.id_agrupacion
-    WHERE psa.activo = 1
-      AND ${catalogFilter.clause}
-    ORDER BY psa.id_subelemento_accion
-  `, catalogFilter.params);
-  return rows.map((row) => Number(row.id_subelemento_accion));
-}
-
-function normalizePermissionChanges(changes, modeField) {
-  const normalized = new Map();
-  for (const raw of changes) {
-    const permissionId = Number(raw?.id_subelemento_accion);
-    if (!Number.isInteger(permissionId) || permissionId <= 0) {
-      const error = new Error('Se recibió un permiso inválido.');
-      error.status = 400;
-      throw error;
-    }
-
-    if (modeField === 'mode') {
-      const mode = String(raw?.mode || '').toLowerCase();
-      if (!['inherit', 'allow', 'deny'].includes(mode)) {
-        const error = new Error('Se recibió un modo de permiso inválido.');
-        error.status = 400;
-        throw error;
-      }
-      normalized.set(permissionId, {
-        id_subelemento_accion: permissionId,
-        mode,
-        motivo: raw?.motivo ? String(raw.motivo).trim().slice(0, 255) : null,
-        fecha_inicio: raw?.fecha_inicio || null,
-        fecha_fin: raw?.fecha_fin || null
-      });
-    } else {
-      normalized.set(permissionId, {
-        id_subelemento_accion: permissionId,
-        permitido: raw?.permitido === true || Number(raw?.permitido) === 1
-      });
-    }
-  }
-  return [...normalized.values()];
-}
-
-function assertChangesInsideScope(changes, scopedPermissionIds, replaceAll = false) {
-  const scopedSet = new Set(scopedPermissionIds);
-  const invalid = changes.filter((change) => !scopedSet.has(change.id_subelemento_accion));
-  if (invalid.length) {
-    const error = new Error('Uno o más permisos no pertenecen a tu alcance de administración.');
-    error.status = 403;
-    throw error;
-  }
-
-  if (replaceAll) {
-    const received = new Set(changes.map((change) => change.id_subelemento_accion));
-    const missing = scopedPermissionIds.filter((id) => !received.has(id));
-    if (missing.length) {
-      const error = new Error(`La matriz completa está incompleta. Faltan ${missing.length} permiso(s) por confirmar.`);
-      error.status = 409;
-      error.details = { missing_permission_ids: missing.slice(0, 50) };
-      throw error;
-    }
-  }
-}
-
-
 async function assertHierarchyInScope(conn, level, id, scope) {
   const catalogFilter = companySql('pa.empresa', scope);
   const normalizedLevel = String(level || '').toLowerCase();
@@ -414,7 +321,7 @@ async function getBootstrap(req, res, next) {
                GROUP_CONCAT(DISTINCT CONCAT(r.id_rol, '|', r.rol, '|', COALESCE(r.codigo,''), '|', ur.principal, '|', COALESCE(r.nivel,0))
                             ORDER BY ur.principal DESC, r.nivel DESC, r.rol SEPARATOR ';;') AS roles_compactos
         FROM usuarios u
-        LEFT JOIN ${activeUserRolesTableSql()} ur ON ur.id_usuario = u.id_SB
+        LEFT JOIN usuario_roles ur ON ur.id_usuario = u.id_SB AND ur.activo = 1
         LEFT JOIN roles r ON r.id_rol = ur.id_rol AND r.estado = 1 AND ${roleFilter.clause}
         LEFT JOIN usuario_permisos up ON up.id_usuario = u.id_SB
         WHERE ${userFilter.clause}
@@ -422,7 +329,7 @@ async function getBootstrap(req, res, next) {
         ORDER BY u.estado DESC, u.nombre
       `, [...roleFilter.params, ...userFilter.params]),
       db.query(`
-        SELECT psa.id_subelemento_accion, psa.codigo_permiso,
+        SELECT psa.id_subelemento_accion,
                pa.id_agrupacion, pa.codigo AS agrupacion_codigo, pa.nombre AS agrupacion_nombre,
                pa.empresa AS agrupacion_empresa, pa.orden AS agrupacion_orden, pa.activo AS agrupacion_activo,
                pm.id_modulo, pm.codigo AS modulo_codigo, pm.nombre AS modulo_nombre, pm.ruta_frontend AS modulo_ruta_frontend, pm.orden AS modulo_orden, pm.activo AS modulo_activo,
@@ -551,7 +458,7 @@ async function getSessionPermissions(req, res, next) {
 
     const [catalogRows, permissionRows] = await Promise.all([
       db.query(`
-        SELECT psa.id_subelemento_accion, psa.codigo_permiso,
+        SELECT psa.id_subelemento_accion,
                pa.id_agrupacion, pa.codigo AS agrupacion_codigo, pa.nombre AS agrupacion_nombre,
                pa.empresa AS agrupacion_empresa, pa.orden AS agrupacion_orden, pa.activo AS agrupacion_activo,
                pm.id_modulo, pm.codigo AS modulo_codigo, pm.nombre AS modulo_nombre, pm.ruta_frontend AS modulo_ruta_frontend, pm.orden AS modulo_orden, pm.activo AS modulo_activo,
@@ -574,13 +481,12 @@ async function getSessionPermissions(req, res, next) {
       db.query(`
         SELECT psa.id_subelemento_accion,
                COALESCE(MAX(CASE WHEN rp.permitido = 1 THEN 1 ELSE 0 END), 0) AS heredado,
-               COALESCE(MAX(CASE WHEN rp.id_rol_permiso IS NOT NULL THEN 1 ELSE 0 END), 0) AS configurado_rol,
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.permitido ELSE NULL END) AS personalizado
         FROM perm_subelemento_acciones psa
-        LEFT JOIN ${activeUserRolesTableSql()} aur
-          ON aur.id_usuario = ?
+        LEFT JOIN usuario_roles ur
+          ON ur.id_usuario = ? AND ur.activo = 1
         LEFT JOIN roles r
-          ON r.id_rol = aur.id_rol AND r.estado = 1
+          ON r.id_rol = ur.id_rol AND r.estado = 1
         LEFT JOIN rol_permisos rp
           ON rp.id_rol = r.id_rol
          AND rp.id_subelemento_accion = psa.id_subelemento_accion
@@ -599,12 +505,8 @@ async function getSessionPermissions(req, res, next) {
     const permisos = permissionRows[0].map((row) => {
       const personalizado = row.personalizado === null ? null : Number(row.personalizado) === 1;
       const heredado = Number(row.heredado) === 1;
-      const configurado = personalizado !== null || Number(row.configurado_rol) === 1;
       return {
         id_subelemento_accion: row.id_subelemento_accion,
-        heredado,
-        personalizado,
-        configurado,
         efectivo: personalizado === null ? heredado : personalizado
       };
     });
@@ -665,23 +567,20 @@ async function saveRolePermissions(req, res, next) {
   try {
     if (denyUnlessManager(req, res)) return;
     const roleId = Number(req.params.id);
-    const replaceAll = req.body?.replace_all === true;
-    const changes = normalizePermissionChanges(Array.isArray(req.body?.changes) ? req.body.changes : [], 'permitido');
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
     const hierarchyChanges = Array.isArray(req.body?.hierarchy_changes) ? req.body.hierarchy_changes : [];
     if (!Number.isInteger(roleId) || roleId <= 0) return res.status(400).json({ ok: false, message: 'Rol inválido.' });
-
-    const scope = actorScope(req);
-    await assertRoleInScope(conn, roleId, scope);
+    await assertRoleInScope(conn, roleId, actorScope(req));
     if (hierarchyChanges.length) {
-      return res.status(400).json({ ok: false, message: 'Los contenedores visuales deben guardarse mediante permisos reales del catálogo.' });
+      return res.status(400).json({ ok: false, message: 'Los contenedores visuales deben guardarse mediante permisos reales del catálogo. Actualiza el frontend al FIX V022.' });
     }
-    if (!changes.length) return res.json({ ok: true, data: { updated: 0, confirmed: 0, mismatches: [] } });
-
-    const scopedPermissionIds = await getScopedPermissionIds(conn, scope);
-    assertChangesInsideScope(changes, scopedPermissionIds, replaceAll);
+    if (!changes.length) return res.json({ ok: true, data: { updated: 0 } });
 
     await conn.beginTransaction();
     for (const change of changes) {
+      const permissionId = Number(change.id_subelemento_accion);
+      if (!Number.isInteger(permissionId) || permissionId <= 0) throw new Error('Se recibió un permiso inválido.');
+      await assertPermissionInScope(conn, permissionId, actorScope(req));
       await conn.query(`
         INSERT INTO rol_permisos
           (id_rol, id_subelemento_accion, permitido, created_by, updated_by)
@@ -690,47 +589,13 @@ async function saveRolePermissions(req, res, next) {
           permitido = VALUES(permitido),
           updated_by = VALUES(updated_by),
           updated_at = CURRENT_TIMESTAMP
-      `, [roleId, change.id_subelemento_accion, change.permitido ? 1 : 0, req.user.id_SB, req.user.id_SB]);
+      `, [roleId, permissionId, change.permitido ? 1 : 0, req.user.id_SB, req.user.id_SB]);
     }
-
-    const ids = changes.map((change) => change.id_subelemento_accion);
-    const placeholders = ids.map(() => '?').join(',');
-    const [savedRows] = await conn.query(
-      `SELECT id_subelemento_accion, permitido
-       FROM rol_permisos
-       WHERE id_rol = ?
-         AND id_subelemento_accion IN (${placeholders})`,
-      [roleId, ...ids]
-    );
-    const savedMap = new Map(savedRows.map((row) => [Number(row.id_subelemento_accion), Number(row.permitido) === 1]));
-    const mismatches = changes
-      .filter((change) => savedMap.get(change.id_subelemento_accion) !== change.permitido)
-      .map((change) => ({
-        id_subelemento_accion: change.id_subelemento_accion,
-        esperado: change.permitido,
-        guardado: savedMap.has(change.id_subelemento_accion) ? savedMap.get(change.id_subelemento_accion) : null
-      }));
-
-    if (mismatches.length) {
-      const error = new Error(`No se confirmaron ${mismatches.length} permiso(s) del rol.`);
-      error.status = 409;
-      error.details = { mismatches: mismatches.slice(0, 50) };
-      throw error;
-    }
-
     await conn.commit();
-    return res.json({
-      ok: true,
-      data: {
-        updated: changes.length,
-        confirmed: changes.length,
-        replace_all: replaceAll,
-        mismatches: []
-      }
-    });
+    res.json({ ok: true, data: { updated: changes.length } });
   } catch (error) {
-    try { await conn.rollback(); } catch (_rollbackError) { /* No ocultar el error original. */ }
-    if (error.status) return res.status(error.status).json({ ok: false, message: error.message, details: error.details || null });
+    await conn.rollback();
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
     next(error);
   } finally {
     conn.release();
@@ -749,27 +614,24 @@ async function getUserPermissions(req, res, next) {
 
     const [roles, permissions, groupPermissions, modulePermissions] = await Promise.all([
       db.query(`
-        SELECT r.id_rol, r.rol, r.codigo, aur.principal
-        FROM ${activeUserRolesTableSql()} aur
-        INNER JOIN roles r ON r.id_rol = aur.id_rol
-        WHERE aur.id_usuario = ? AND r.estado = 1 AND ${roleFilter.clause}
-        ORDER BY aur.principal DESC, r.rol
+        SELECT r.id_rol, r.rol, r.codigo, ur.principal
+        FROM usuario_roles ur
+        INNER JOIN roles r ON r.id_rol = ur.id_rol
+        WHERE ur.id_usuario = ? AND ur.activo = 1 AND r.estado = 1 AND ${roleFilter.clause}
+        ORDER BY ur.principal DESC, r.rol
       `, [userId, ...roleFilter.params]),
       db.query(`
         SELECT psa.id_subelemento_accion,
                COALESCE(MAX(CASE WHEN rp.permitido = 1 THEN 1 ELSE 0 END), 0) AS heredado,
-               COALESCE(MAX(CASE WHEN rp.id_rol_permiso IS NOT NULL THEN 1 ELSE 0 END), 0) AS configurado_rol,
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.permitido ELSE NULL END) AS personalizado,
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.motivo ELSE NULL END) AS motivo,
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.fecha_inicio ELSE NULL END) AS fecha_inicio,
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.fecha_fin ELSE NULL END) AS fecha_fin
         FROM perm_subelemento_acciones psa
-        LEFT JOIN ${activeUserRolesTableSql()} aur
-          ON aur.id_usuario = ?
-        LEFT JOIN roles r
-          ON r.id_rol = aur.id_rol AND r.estado = 1
+        LEFT JOIN usuario_roles ur
+          ON ur.id_usuario = ? AND ur.activo = 1
         LEFT JOIN rol_permisos rp
-          ON rp.id_rol = r.id_rol
+          ON rp.id_rol = ur.id_rol
          AND rp.id_subelemento_accion = psa.id_subelemento_accion
         LEFT JOIN usuario_permisos up
           ON up.id_usuario = ?
@@ -792,12 +654,10 @@ async function getUserPermissions(req, res, next) {
         permisos: permissions[0].map((r) => {
           const personalizado = r.personalizado === null ? null : Number(r.personalizado) === 1;
           const heredado = Number(r.heredado) === 1;
-          const configurado = personalizado !== null || Number(r.configurado_rol) === 1;
           return {
             id_subelemento_accion: r.id_subelemento_accion,
             heredado,
             personalizado,
-            configurado,
             efectivo: personalizado === null ? heredado : personalizado,
             motivo: r.motivo,
             fecha_inicio: r.fecha_inicio,
@@ -827,26 +687,27 @@ async function saveUserPermissions(req, res, next) {
   try {
     if (denyUnlessManager(req, res)) return;
     const userId = Number(req.params.id);
-    const changes = normalizePermissionChanges(Array.isArray(req.body?.changes) ? req.body.changes : [], 'mode');
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
     const hierarchyChanges = Array.isArray(req.body?.hierarchy_changes) ? req.body.hierarchy_changes : [];
     if (!Number.isInteger(userId) || userId <= 0) return res.status(400).json({ ok: false, message: 'Usuario inválido.' });
-
-    const scope = actorScope(req);
-    await assertUserInScope(conn, userId, scope);
+    await assertUserInScope(conn, userId, actorScope(req));
     if (hierarchyChanges.length) {
-      return res.status(400).json({ ok: false, message: 'Los contenedores visuales deben guardarse mediante permisos reales del catálogo.' });
+      return res.status(400).json({ ok: false, message: 'Los contenedores visuales deben guardarse mediante permisos reales del catálogo. Actualiza el frontend al FIX V022.' });
     }
-    if (!changes.length) return res.json({ ok: true, data: { updated: 0, confirmed: 0, mismatches: [] } });
-
-    const scopedPermissionIds = await getScopedPermissionIds(conn, scope);
-    assertChangesInsideScope(changes, scopedPermissionIds, false);
+    if (!changes.length) return res.json({ ok: true, data: { updated: 0 } });
 
     await conn.beginTransaction();
     for (const change of changes) {
-      if (change.mode === 'inherit') {
+      const permissionId = Number(change.id_subelemento_accion);
+      const mode = String(change.mode || '').toLowerCase();
+      if (!Number.isInteger(permissionId) || permissionId <= 0) throw new Error('Se recibió un permiso inválido.');
+      await assertPermissionInScope(conn, permissionId, actorScope(req));
+      if (!['inherit', 'allow', 'deny'].includes(mode)) throw new Error('Se recibió un modo de permiso inválido.');
+
+      if (mode === 'inherit') {
         await conn.query(
           'DELETE FROM usuario_permisos WHERE id_usuario = ? AND id_subelemento_accion = ?',
-          [userId, change.id_subelemento_accion]
+          [userId, permissionId]
         );
       } else {
         await conn.query(`
@@ -859,52 +720,21 @@ async function saveUserPermissions(req, res, next) {
             activo = 1, updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP
         `, [
           userId,
-          change.id_subelemento_accion,
-          change.mode === 'allow' ? 1 : 0,
-          change.motivo,
-          change.fecha_inicio,
-          change.fecha_fin,
+          permissionId,
+          mode === 'allow' ? 1 : 0,
+          change.motivo ? String(change.motivo).trim().slice(0, 255) : null,
+          change.fecha_inicio || null,
+          change.fecha_fin || null,
           req.user.id_SB,
           req.user.id_SB
         ]);
       }
     }
-
-    const ids = changes.map((change) => change.id_subelemento_accion);
-    const placeholders = ids.map(() => '?').join(',');
-    const [savedRows] = await conn.query(
-      `SELECT id_subelemento_accion, permitido, activo
-       FROM usuario_permisos
-       WHERE id_usuario = ?
-         AND id_subelemento_accion IN (${placeholders})`,
-      [userId, ...ids]
-    );
-    const savedMap = new Map(savedRows.map((row) => [Number(row.id_subelemento_accion), {
-      permitido: Number(row.permitido) === 1,
-      activo: Number(row.activo) === 1
-    }]));
-    const mismatches = changes.filter((change) => {
-      const saved = savedMap.get(change.id_subelemento_accion);
-      if (change.mode === 'inherit') return Boolean(saved);
-      return !saved || !saved.activo || saved.permitido !== (change.mode === 'allow');
-    }).map((change) => ({
-      id_subelemento_accion: change.id_subelemento_accion,
-      esperado: change.mode,
-      guardado: savedMap.get(change.id_subelemento_accion) || null
-    }));
-
-    if (mismatches.length) {
-      const error = new Error(`No se confirmaron ${mismatches.length} permiso(s) personalizados.`);
-      error.status = 409;
-      error.details = { mismatches: mismatches.slice(0, 50) };
-      throw error;
-    }
-
     await conn.commit();
-    return res.json({ ok: true, data: { updated: changes.length, confirmed: changes.length, mismatches: [] } });
+    res.json({ ok: true, data: { updated: changes.length } });
   } catch (error) {
-    try { await conn.rollback(); } catch (_rollbackError) { /* No ocultar el error original. */ }
-    if (error.status) return res.status(error.status).json({ ok: false, message: error.message, details: error.details || null });
+    await conn.rollback();
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
     next(error);
   } finally {
     conn.release();
