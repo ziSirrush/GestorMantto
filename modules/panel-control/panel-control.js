@@ -25,6 +25,7 @@
     roleDraft:new Set(),
     principalRoleId:null,
     savingRoles:false,
+    savingPermissions:false,
     dirty:new Map(),
     expanded:new Set(),
     adminUserId:null,
@@ -43,6 +44,13 @@
 
   const esc=(v)=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const api=()=>window.ManttoAuth;
+
+  function consumeSaveMessage(){
+    const message=sessionStorage.getItem('mantto:panel-control:save-message');
+    if(!message)return;
+    sessionStorage.removeItem('mantto:panel-control:save-message');
+    window.setTimeout(()=>toast(message),250);
+  }
 
   async function request(path,options){
     if(!api()) throw new Error('No se encontró el servicio de autenticación.');
@@ -806,15 +814,16 @@
 
   function updateSaveButton(){
     const btn=document.getElementById('pc-save');
-    const count=document.getElementById('pc-dirty-count');
-    if(!btn||!count)return;
-    count.textContent=state.dirty.size;
+    if(!btn)return;
     const targetMissing=state.tab==='users'?!state.selectedUserId:state.tab==='roles'?!state.selectedRoleId:false;
-    btn.disabled=state.dirty.size===0||state.tab==='audit'||targetMissing||state.panelLoading;
+    btn.disabled=state.savingPermissions||state.dirty.size===0||state.tab==='audit'||targetMissing||state.panelLoading;
+    btn.innerHTML=state.savingPermissions
+      ?'Guardando y verificando...'
+      :`Guardar cambios <span id="pc-dirty-count">${state.dirty.size}</span>`;
   }
 
   async function saveChanges(){
-    if(!state.dirty.size)return;
+    if(state.savingPermissions||!state.dirty.size)return;
     const isUsers=state.tab==='users';
     const target=isUsers
       ?state.users.find(u=>Number(u.id_SB)===Number(state.selectedUserId))?.nombre
@@ -822,19 +831,35 @@
     const totalChanges=state.dirty.size;
     if(!confirm(`¿Guardar ${totalChanges} cambio(s) para ${target||'el registro seleccionado'}?`))return;
 
+    const changes=[...state.dirty.entries()].map(([id,value])=>({id_subelemento_accion:Number(id),...value}));
+    const path=isUsers
+      ?`/api/panel-control/usuarios/${state.selectedUserId}/permisos`
+      :`/api/panel-control/roles/${state.selectedRoleId}/permisos`;
+
+    state.savingPermissions=true;
+    updateSaveButton();
     try{
-      const changes=[...state.dirty.entries()].map(([id,value])=>({id_subelemento_accion:id,...value}));
-      const path=isUsers
-        ?`/api/panel-control/usuarios/${state.selectedUserId}/permisos`
-        :`/api/panel-control/roles/${state.selectedRoleId}/permisos`;
-      await request(path,{method:'PUT',body:JSON.stringify({changes})});
-      toast('Cambios guardados correctamente en Aiven.');
+      const response=await request(path,{
+        method:'PUT',
+        body:JSON.stringify({changes})
+      });
+      const updated=Number(response.data?.updated||0);
+      const confirmed=Number(response.data?.confirmed||0);
+      const mismatches=Array.isArray(response.data?.mismatches)?response.data.mismatches:[];
+      if(updated!==changes.length||confirmed!==changes.length||mismatches.length){
+        throw new Error(`Aiven confirmó ${confirmed} de ${changes.length} permisos. Los cambios pendientes se conservaron.`);
+      }
+
       state.dirty.clear();
       state.hierarchyDirty.clear();
-      if(isUsers)await loadUserPermissions(state.selectedUserId);
-      else await loadRolePermissions(state.selectedRoleId);
-      await refreshTotalsOnly();
-    }catch(e){toast(e.message||'No fue posible guardar los cambios.');}
+      sessionStorage.setItem('mantto:panel-control:save-message','Permisos guardados y verificados correctamente.');
+      toast('Permisos guardados y verificados. Recargando la aplicación...');
+      window.setTimeout(()=>window.location.reload(),450);
+    }catch(e){
+      toast(e.message||'No fue posible guardar y verificar los cambios.');
+      state.savingPermissions=false;
+      updateSaveButton();
+    }
   }
 
   async function refreshTotalsOnly(){
@@ -1098,4 +1123,5 @@ Se mostrará una sola vez.`);await selectAdminUser(user.id_SB);}
 
   function init(){loadBootstrap();}
   window.ManttoPanelControl={init};
+  consumeSaveMessage();
 })();
