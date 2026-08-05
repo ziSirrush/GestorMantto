@@ -15,8 +15,13 @@
         <label class="vcn-wide"><span>Nombre del proyecto *</span><input name="nombre_proyecto" maxlength="200" required type="text"></label>
         <label><span>Tipo de proyecto</span><select name="tipo_proyecto" id="vcn-tipo-proyecto"><option value="">Selecciona...</option></select></label>
         <label><span>Estatus proyecto cotización *</span><select name="estatus_proyecto" id="vcn-estatus" required><option value="">Selecciona...</option></select></label>
-        <label><span>Número de equipos</span><input name="numero_equipos" min="0" step="1" inputmode="numeric" type="number" value="0"></label>
-        <label><span>Tipo de equipos</span><select name="tipo_equipos" id="vcn-tipo-equipo"><option value="">Selecciona...</option></select></label>
+        <div class="vcn-equipment-block vcn-wide">
+          <div class="vcn-equipment-list" id="vcn-equipment-list"></div>
+          <div class="vcn-equipment-footer">
+            <button class="vcn-link vcn-add-equipment" id="vcn-add-equipment" type="button">＋ Agregar tipo de equipo</button>
+            <small id="vcn-equipment-total">Total de equipos: 0</small>
+          </div>
+        </div>
         <label class="vcn-wide"><span>Información que se envía</span><input name="informacion_envia" maxlength="255" type="text"></label>
       </div>
     </section>

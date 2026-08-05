@@ -120,6 +120,82 @@ const EDITABLE_FIELDS = [
   'activo'
 ];
 
+
+const EQUIPMENT_TYPES = Object.freeze([
+  'Elevador',
+  'Montacargas',
+  'Escalera',
+  'Rampa',
+  'Plataformas/Otros'
+]);
+
+function normalizeEquipmentType(value) {
+  const text = cleanText(value, 100);
+  if (!text) return null;
+  const normalized = EQUIPMENT_TYPES.find((item) => item.toLowerCase() === text.toLowerCase());
+  return normalized || null;
+}
+
+function normalizeEquipmentRows(payload, { required = false } = {}) {
+  if (!Object.prototype.hasOwnProperty.call(payload || {}, 'equipos')) {
+    if (required) throw badRequest('equipos es obligatorio.');
+    return null;
+  }
+
+  if (!Array.isArray(payload.equipos)) {
+    throw badRequest('equipos debe ser un arreglo.');
+  }
+  if (payload.equipos.length > EQUIPMENT_TYPES.length) {
+    throw badRequest(`Solo se permiten hasta ${EQUIPMENT_TYPES.length} tipos de equipo.`);
+  }
+
+  const seen = new Set();
+  const rows = payload.equipos.map((item, index) => {
+    const tipoEquipo = normalizeEquipmentType(item?.tipo_equipo);
+    if (!tipoEquipo) {
+      throw badRequest('El tipo de equipo no pertenece al catálogo autorizado.', {
+        indice: index,
+        permitidos: EQUIPMENT_TYPES
+      });
+    }
+    if (seen.has(tipoEquipo)) {
+      throw badRequest('No se puede repetir un tipo de equipo dentro de la misma cotización.', {
+        tipo_equipo: tipoEquipo
+      });
+    }
+    seen.add(tipoEquipo);
+
+    const cantidad = positiveInteger(item?.cantidad);
+    if (!cantidad) {
+      throw badRequest('La cantidad de cada tipo de equipo debe ser un entero mayor a cero.', {
+        indice: index,
+        tipo_equipo: tipoEquipo
+      });
+    }
+
+    return {
+      tipo_equipo: tipoEquipo,
+      cantidad,
+      orden: index + 1
+    };
+  });
+
+  return rows;
+}
+
+function applyEquipmentSummary(record, equipmentRows) {
+  if (!equipmentRows) return record;
+  record.numero_equipos = equipmentRows.reduce((sum, item) => sum + item.cantidad, 0);
+  record.tipo_equipos = equipmentRows.map((item) => item.tipo_equipo).join(', ') || null;
+  return record;
+}
+
+async function attachEquipmentRows(connection, cotizacion) {
+  if (!cotizacion) return cotizacion;
+  const equipos = await repository.listEquipmentRows(connection, cotizacion.id_cotizacion);
+  return { ...cotizacion, equipos };
+}
+
 function httpError(statusCode, message, detalles) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -908,8 +984,9 @@ async function getById(rawId, actionContext) {
   const connection = await repository.getConnection();
   try {
     const { cotizacion } = await assertVisibleCotizacion(connection, idCotizacion, actionContext);
+    const detailed = await attachEquipmentRows(connection, cotizacion);
 
-    return { ok: true, source: 'aiven', cotizacion };
+    return { ok: true, source: 'aiven', cotizacion: detailed };
   } finally {
     connection.release();
   }
@@ -918,7 +995,8 @@ async function getById(rawId, actionContext) {
 async function create(payload, actionContext) {
   const actorId = getActorId(actionContext);
 
-  const record = normalizeCrudPayload(payload);
+  const equipmentRows = normalizeEquipmentRows(payload);
+  const record = applyEquipmentSummary(normalizeCrudPayload(payload), equipmentRows);
   record.created_by = actorId;
   record.updated_by = actorId;
 
@@ -934,7 +1012,11 @@ async function create(payload, actionContext) {
     }
 
     const result = await repository.create(connection, record);
-    const created = await repository.findById(connection, result.insertId, { includeInactive: true });
+    if (equipmentRows) {
+      await repository.replaceEquipmentRows(connection, result.insertId, equipmentRows);
+    }
+    const createdBase = await repository.findById(connection, result.insertId, { includeInactive: true });
+    const created = await attachEquipmentRows(connection, createdBase);
     await historialService.registrarMovimiento(connection, {
       idCotizacion: result.insertId,
       accion: 'CREACION',
@@ -967,8 +1049,9 @@ async function update(rawId, payload, actionContext) {
 
   const actorId = getActorId(actionContext);
 
-  const changes = normalizeCrudPayload(payload, { partial: true });
-  if (!Object.keys(changes).length) throw badRequest('No se recibieron campos editables.');
+  const equipmentRows = normalizeEquipmentRows(payload);
+  const changes = applyEquipmentSummary(normalizeCrudPayload(payload, { partial: true }), equipmentRows);
+  if (!Object.keys(changes).length && equipmentRows === null) throw badRequest('No se recibieron campos editables.');
   changes.updated_by = actorId;
 
   const connection = await repository.getConnection();
@@ -989,7 +1072,11 @@ async function update(rawId, payload, actionContext) {
     }
 
     await repository.update(connection, idCotizacion, changes);
-    const updated = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    if (equipmentRows !== null) {
+      await repository.replaceEquipmentRows(connection, idCotizacion, equipmentRows);
+    }
+    const updatedBase = await repository.findById(connection, idCotizacion, { includeInactive: true });
+    const updated = await attachEquipmentRows(connection, updatedBase);
     const cambios = changedFields(existing, changes);
     if (Object.keys(cambios).length) {
       const snapshots = historySnapshots(cambios);

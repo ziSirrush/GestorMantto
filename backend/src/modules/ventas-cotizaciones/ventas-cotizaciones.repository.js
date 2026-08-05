@@ -621,6 +621,52 @@ async function getCatalogos(connection) {
   };
 }
 
+
+async function listEquipmentRows(connection, idCotizacion) {
+  const [rows] = await connection.query(
+    `SELECT id_cotizacion_equipo, id_cotizacion, tipo_equipo, cantidad, orden, activo, created_at, updated_at
+       FROM ventas_cotizaciones_equipos_cor
+      WHERE id_cotizacion = ?
+        AND activo = 1
+      ORDER BY orden ASC, id_cotizacion_equipo ASC`,
+    [idCotizacion]
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    id_cotizacion_equipo: Number(row.id_cotizacion_equipo),
+    id_cotizacion: Number(row.id_cotizacion),
+    cantidad: Number(row.cantidad),
+    orden: Number(row.orden),
+    activo: Number(row.activo)
+  }));
+}
+
+async function replaceEquipmentRows(connection, idCotizacion, rows) {
+  await connection.query(
+    'DELETE FROM ventas_cotizaciones_equipos_cor WHERE id_cotizacion = ?',
+    [idCotizacion]
+  );
+
+  if (!rows.length) return { affectedRows: 0 };
+
+  const values = rows.map((row) => [
+    idCotizacion,
+    row.tipo_equipo,
+    row.cantidad,
+    row.orden,
+    1
+  ]);
+
+  const [result] = await connection.query(
+    `INSERT INTO ventas_cotizaciones_equipos_cor
+      (id_cotizacion, tipo_equipo, cantidad, orden, activo)
+     VALUES ?`,
+    [values]
+  );
+  return result;
+}
+
 async function findById(connection, idCotizacion, { includeInactive = false, scope = null } = {}) {
   const scopeClause = buildScopeClause(scope);
   const [rows] = await connection.query(
@@ -977,7 +1023,7 @@ async function softDeleteArchivo(connection, idCotizacion, idArchivo) {
 }
 
 module.exports = { getConnection, findExistingCotizacionOriginIds, findExistingUserIds, findUserIdsIncludingInactive, findUsersByIds, list, listByStatuses, listVendidos, listPerdidos,
-  summarizeByStatuses, getProjection, getProjectionStagePage, getKpis, getCatalogos, findById, findByOriginId, create, update, softDelete,
+  summarizeByStatuses, getProjection, getProjectionStagePage, getKpis, getCatalogos, listEquipmentRows, replaceEquipmentRows, findById, findByOriginId, create, update, softDelete,
   upsertMany, findExistingCotizacionIds, listComentarios, listArchivosByComentarioIds, findComentario, createComentario, updateComentario, softDeleteComentario,
   listArchivos, findArchivo, createArchivo, updateArchivo, softDeleteArchivo,
   listArchivosByComentario, softDeleteArchivosByComentario };
