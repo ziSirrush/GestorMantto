@@ -91,3 +91,4 @@
   .vd-kpis { grid-template-columns: 1fr; }
   .vd-kpi { min-height: 142px; }
 }
+.vd-table-section{margin:0 0 18px;background:#fff;border:1px solid #dbe4ee;border-radius:16px;overflow:hidden}.vd-table-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px 18px;border-bottom:1px solid #e7edf4}.vd-table-head h2{margin:0;font-size:1.05rem}.vd-table-count{font-size:.82rem;color:#64748b}.vd-table-wrap{overflow:auto}.vd-table{width:100%;border-collapse:collapse;min-width:760px}.vd-table th,.vd-table td{padding:11px 14px;text-align:left;border-bottom:1px solid #eef2f7;font-size:.86rem;vertical-align:top}.vd-table th{background:#f8fafc;color:#475569;font-weight:700;white-space:nowrap}.vd-table tbody tr:hover{background:#f8fbff}.vd-table-empty{padding:24px;text-align:center;color:#64748b}.vd-stage{display:block}.vd-section-hidden{display:none!important}

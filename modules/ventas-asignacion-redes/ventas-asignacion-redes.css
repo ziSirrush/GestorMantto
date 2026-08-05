@@ -1,1 +1,41 @@
 .var-page{padding:20px;display:grid;gap:16px;color:#172033}.var-card{background:#fff;border:1px solid #dfe5ee;border-radius:18px;box-shadow:0 8px 24px rgba(15,23,42,.05)}.var-head{padding:22px;display:flex;align-items:center;justify-content:space-between;gap:20px}.var-eyebrow{margin:0 0 5px;color:#2563eb;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.var-head h1{margin:0;font-size:28px}.var-head p{margin:7px 0 0;color:#64748b}.var-head-actions{display:flex;align-items:center;gap:10px}.var-btn,.var-clear{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}.var-btn-primary{background:#2563eb;color:#fff;border:1px solid #2563eb}.var-btn-ghost{background:#fff;color:#334155;border:1px solid #cbd5e1}.var-status{display:inline-flex;align-items:center;gap:8px;padding:8px 11px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:12px;font-weight:800;white-space:nowrap}.var-status i{width:7px;height:7px;border-radius:50%;background:#94a3b8}.var-status.ok{background:#ecfdf5;color:#15803d}.var-status.ok i{background:#22c55e}.var-status.error{background:#fef2f2;color:#b91c1c}.var-status.error i{background:#ef4444}.var-workspace{padding:16px}.var-toolbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:14px}.var-toolbar label{display:grid;gap:5px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase}.var-toolbar input,.var-toolbar select{height:40px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;padding:0 11px;color:#172033}.var-search{min-width:290px;flex:1}.var-search-box{display:flex;align-items:center;border:1px solid #cbd5e1;border-radius:10px;padding-left:10px;background:#fff}.var-search-box input{border:0;outline:0;width:100%}.var-clear{height:40px;background:#f1f5f9;color:#334155}.var-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:14px}.var-table{width:100%;border-collapse:collapse;min-width:980px}.var-table th{background:#f8fafc;color:#64748b;font-size:11px;text-transform:uppercase;text-align:left;padding:11px;white-space:nowrap}.var-table td{padding:12px 11px;border-top:1px solid #edf2f7;font-size:13px;vertical-align:top}.var-table tr[data-id]{cursor:pointer}.var-table tr[data-id]:hover td,.var-table tr[data-id]:focus td{background:#f8fbff}.var-primary{font-weight:800}.var-secondary{display:block;color:#64748b;font-size:12px;margin-top:3px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.var-chip{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:800}.var-chip.muted{background:#f1f5f9;color:#64748b}.var-empty{text-align:center;color:#64748b;padding:34px!important}.var-pagination{display:flex;justify-content:space-between;align-items:center;padding-top:12px;color:#64748b;font-size:12px}.var-pages{display:flex;gap:6px}.var-pages button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}.var-pages button.active{background:#2563eb;color:#fff;border-color:#2563eb}.var-pages button:disabled{opacity:.45}@media(max-width:900px){.var-page{padding:12px}.var-head{align-items:flex-start;flex-direction:column}.var-head-actions{width:100%;justify-content:space-between}}@media(max-width:560px){.var-search{min-width:100%}.var-toolbar label{width:100%}.var-toolbar select{width:100%}.var-head-actions{flex-direction:column;align-items:stretch}}
+
+
+/* FIX V007 - responsive integral del modulo principal */
+.var-page,.var-card,.var-head>div,.var-workspace,.var-toolbar,.var-table-wrap{min-width:0;max-width:100%}
+.var-head p{overflow-wrap:anywhere}
+.var-search-box{min-width:0;width:100%}
+.var-search-box input{min-width:0}
+
+@media(max-width:700px){
+  .var-page{padding:10px;gap:12px;overflow-x:hidden}
+  .var-head,.var-workspace{padding:16px}
+  .var-head h1{font-size:24px;line-height:1.15}
+  .var-head p{font-size:13px;line-height:1.45}
+  .var-head-actions{width:100%;display:grid;grid-template-columns:1fr;gap:8px}
+  .var-head-actions .var-btn,.var-head-actions .var-status{width:100%;justify-content:center}
+  .var-toolbar{display:grid;grid-template-columns:1fr;align-items:stretch;gap:12px}
+  .var-toolbar label,.var-search,.var-toolbar input,.var-toolbar select,.var-clear{width:100%;min-width:0}
+  .var-table-wrap{overflow:visible;border:0;border-radius:0}
+  .var-table{display:block;min-width:0;width:100%}
+  .var-table thead{display:none}
+  .var-table tbody{display:grid;gap:12px}
+  .var-table tr{display:grid;width:100%;border:1px solid #e2e8f0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.04)}
+  .var-table tr[data-id]:hover td,.var-table tr[data-id]:focus td{background:transparent}
+  .var-table td{display:grid;grid-template-columns:minmax(104px,38%) minmax(0,1fr);gap:10px;align-items:start;width:100%;padding:10px 12px;border-top:1px solid #edf2f7;overflow-wrap:anywhere}
+  .var-table td:first-child{border-top:0}
+  .var-table td::before{content:attr(data-label);font-size:10px;line-height:1.3;text-transform:uppercase;letter-spacing:.04em;color:#64748b;font-weight:900}
+  .var-table td.var-empty{display:block;text-align:center;border:1px solid #e2e8f0}
+  .var-table td.var-empty::before{display:none}
+  .var-secondary{max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+  .var-pagination{align-items:stretch;gap:10px;flex-direction:column}
+  .var-pages{justify-content:space-between}
+  .var-pages button{min-width:42px;min-height:38px}
+}
+
+@media(max-width:420px){
+  .var-page{padding:8px}
+  .var-head,.var-workspace{padding:14px}
+  .var-head h1{font-size:22px}
+  .var-table td{grid-template-columns:1fr;gap:4px}
+}

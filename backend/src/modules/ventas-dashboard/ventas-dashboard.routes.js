@@ -27,5 +27,7 @@ async function requireDashboardAccess(req, res, next) {
 
 router.get('/dashboard/usuarios', requireAuth, requireDashboardAccess, controller.listCommercialUsers);
 router.get('/dashboard/kpis', requireAuth, requireDashboardAccess, controller.getCommercialKpis);
+router.get('/dashboard/tablas', requireAuth, requireDashboardAccess, controller.getCommercialTables);
+router.get('/dashboard/operacion', requireAuth, requireDashboardAccess, controller.getOperationalTables);
 
 module.exports = router;

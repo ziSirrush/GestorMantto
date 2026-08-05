@@ -1,76 +1,25 @@
 <div class="vd-page">
-  <section class="vd-card vd-head">
-    <div>
-      <p class="vd-eyebrow">VENTAS · DASHBOARD</p>
-      <h1>Dashboard Ventas</h1>
-      <p>Selecciona al responsable comercial y las secciones que formarán la consulta del dashboard.</p>
-    </div>
+  <section class="vd-card vd-head"><div><p class="vd-eyebrow">VENTAS · DASHBOARD</p><h1>Dashboard Ventas</h1><p>Consulta comercial por responsable.</p></div></section>
+  <section class="vd-card vd-controls" aria-label="Filtros principales">
+    <div class="vd-user-field"><label for="vd-user-select">Responsable comercial</label><select id="vd-user-select"><option value="">Cargando usuarios...</option></select><small>Director de Ventas, gerentes y asesores activos.</small></div>
+    <fieldset class="vd-module-filter"><legend>Información visible</legend><div class="vd-check-grid" id="vd-check-grid">
+      <label class="vd-check vd-check-all"><input type="checkbox" value="todos" checked><span>Todos</span></label>
+      <label class="vd-check"><input type="checkbox" value="clientes" checked><span>Clientes</span></label>
+      <label class="vd-check"><input type="checkbox" value="cotizaciones" checked><span>Cotizaciones</span></label>
+      <label class="vd-check"><input type="checkbox" value="prospeccion" checked><span>Prospección</span></label>
+      <label class="vd-check"><input type="checkbox" value="redes" checked><span>Redes</span></label>
+      <label class="vd-check"><input type="checkbox" value="ventas" checked><span>Ventas</span></label>
+      <label class="vd-check"><input type="checkbox" value="perdido" checked><span>Perdido</span></label>
+      <label class="vd-check"><input type="checkbox" value="logistica" checked><span>Logística</span></label>
+      <label class="vd-check"><input type="checkbox" value="tareas" checked><span>Tareas</span></label>
+    </div></fieldset>
   </section>
-
-  <section class="vd-card vd-controls" aria-label="Filtros principales del Dashboard Ventas">
-    <div class="vd-user-field">
-      <label for="vd-user-select">Responsable comercial</label>
-      <select id="vd-user-select" aria-describedby="vd-user-help">
-        <option value="">Cargando usuarios...</option>
-      </select>
-      <small id="vd-user-help">Solo se muestran Director de Ventas, gerentes y asesores activos.</small>
-    </div>
-
-    <fieldset class="vd-module-filter">
-      <legend>Información visible</legend>
-      <div class="vd-check-grid" id="vd-check-grid">
-        <label class="vd-check vd-check-all"><input type="checkbox" value="todos" checked><span>Todos</span></label>
-        <label class="vd-check"><input type="checkbox" value="clientes" checked><span>Clientes</span></label>
-        <label class="vd-check"><input type="checkbox" value="cotizaciones" checked><span>Cotizaciones</span></label>
-        <label class="vd-check"><input type="checkbox" value="prospeccion" checked><span>Prospección</span></label>
-        <label class="vd-check"><input type="checkbox" value="redes" checked><span>Redes</span></label>
-        <label class="vd-check"><input type="checkbox" value="ventas" checked><span>Ventas</span></label>
-        <label class="vd-check"><input type="checkbox" value="perdido" checked><span>Perdido</span></label>
-        <label class="vd-check"><input type="checkbox" value="logistica" checked><span>Logística</span></label>
-        <label class="vd-check"><input type="checkbox" value="tareas" checked><span>Tareas</span></label>
-      </div>
-    </fieldset>
+  <section class="vd-card vd-summary"><div><p class="vd-summary-label">Consulta preparada para</p><h2 id="vd-selected-user">Selecciona un responsable comercial</h2><p id="vd-selected-meta">Los datos se actualizarán al seleccionar un responsable.</p></div><div class="vd-selected-modules" id="vd-selected-modules">Todos los módulos seleccionados</div></section>
+  <section class="vd-kpis" id="vd-kpis" aria-label="Indicadores comerciales">
+    <article class="vd-kpi" data-dashboard-section="cotizaciones"><p class="vd-kpi-title">Proyectos cotizados</p><strong id="vd-kpi-cotizados-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-cotizados-equipos">—</b> equipos</div></article>
+    <article class="vd-kpi" data-dashboard-section="ventas"><p class="vd-kpi-title">Proyectos vendidos</p><strong id="vd-kpi-vendidos-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-vendidos-equipos">—</b> equipos</div></article>
+    <article class="vd-kpi" data-dashboard-section="perdido"><p class="vd-kpi-title">Proyectos perdidos</p><strong id="vd-kpi-perdidos-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-perdidos-equipos">—</b> equipos</div></article>
   </section>
-
-  <section class="vd-card vd-summary" aria-live="polite">
-    <div>
-      <p class="vd-summary-label">Consulta preparada para</p>
-      <h2 id="vd-selected-user">Selecciona un responsable comercial</h2>
-      <p id="vd-selected-meta">Los indicadores se actualizarán al seleccionar un responsable.</p>
-    </div>
-    <div class="vd-selected-modules" id="vd-selected-modules">Todos los módulos seleccionados</div>
-  </section>
-
-  <section class="vd-kpis" id="vd-kpis" aria-label="Indicadores comerciales" aria-live="polite">
-    <article class="vd-kpi" data-dashboard-section="cotizaciones">
-      <p class="vd-kpi-title">Proyectos cotizados</p>
-      <strong id="vd-kpi-cotizados-cotizaciones">—</strong>
-      <span>Cotizaciones</span>
-      <div class="vd-kpi-secondary"><b id="vd-kpi-cotizados-equipos">—</b> equipos</div>
-    </article>
-
-    <article class="vd-kpi" data-dashboard-section="ventas">
-      <p class="vd-kpi-title">Proyectos vendidos</p>
-      <strong id="vd-kpi-vendidos-cotizaciones">—</strong>
-      <span>Cotizaciones</span>
-      <div class="vd-kpi-secondary"><b id="vd-kpi-vendidos-equipos">—</b> equipos</div>
-    </article>
-
-    <article class="vd-kpi" data-dashboard-section="perdido">
-      <p class="vd-kpi-title">Proyectos perdidos</p>
-      <strong id="vd-kpi-perdidos-cotizaciones">—</strong>
-      <span>Cotizaciones</span>
-      <div class="vd-kpi-secondary"><b id="vd-kpi-perdidos-equipos">—</b> equipos</div>
-    </article>
-  </section>
-
-  <section class="vd-stage" id="vd-stage">
-    <div class="vd-empty">
-      <span aria-hidden="true">📊</span>
-      <h2>Fase A2 preparada</h2>
-      <p>El selector maestro y los indicadores comerciales ya están conectados. Las tablas se integrarán en A3 y A4.</p>
-    </div>
-  </section>
-
+  <section class="vd-stage" id="vd-stage"><div class="vd-empty"><span>📊</span><h2>Selecciona un responsable</h2><p>Las tablas comerciales aparecerán aquí.</p></div></section>
   <div class="vd-message" id="vd-message" role="status" aria-live="polite"></div>
 </div>

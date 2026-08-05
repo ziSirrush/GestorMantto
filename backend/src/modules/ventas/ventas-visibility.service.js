@@ -1,6 +1,6 @@
 'use strict';
 
-const FULL_ACCESS_ROLE_IDS = new Set([1, 4, 34, 39]);
+const FULL_ACCESS_ROLE_IDS = new Set([1, 5, 7, 47]);
 const MANAGER_ROLE_IDS = new Set([48, 50, 54]);
 
 const FULL_ACCESS_NAMES = new Set([

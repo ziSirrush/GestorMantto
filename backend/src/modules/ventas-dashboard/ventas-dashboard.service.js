@@ -48,4 +48,28 @@ async function getCommercialKpis(query = {}) {
   };
 }
 
-module.exports = { listCommercialUsers, getCommercialKpis };
+async function getCommercialTables(query = {}) {
+  const userId = positiveInteger(query.usuario_id, 'usuario_id');
+  const allowed = await repository.isCommercialUser(db, userId);
+  if (!allowed) {
+    const error = new Error('El responsable comercial seleccionado no está activo o no tiene un rol permitido para Dashboard Ventas.');
+    error.status = 404;
+    throw error;
+  }
+  return { ok: true, usuario_id: userId, tablas: await repository.getCommercialTables(db, userId) };
+}
+
+
+
+async function getOperationalTables(query = {}) {
+  const userId = positiveInteger(query.usuario_id, 'usuario_id');
+  const allowed = await repository.isCommercialUser(db, userId);
+  if (!allowed) {
+    const error = new Error('El responsable comercial seleccionado no está activo o no tiene un rol permitido para Dashboard Ventas.');
+    error.status = 404;
+    throw error;
+  }
+  return { ok: true, usuario_id: userId, tablas: await repository.getOperationalTables(db, userId) };
+}
+
+module.exports = { listCommercialUsers, getCommercialKpis, getCommercialTables, getOperationalTables };

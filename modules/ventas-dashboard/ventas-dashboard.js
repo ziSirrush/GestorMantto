@@ -1,207 +1,36 @@
-(function(){
-  'use strict';
-
-  const TEMPLATE_URL='./modules/ventas-dashboard/ventas-dashboard.html?v=20260804-a2-v003';
-  const STORAGE_KEY='mantto:ventas-dashboard:a1';
-  let initialized=false;
-  let loadingPromise=null;
-  let users=[];
-  let kpiRequestId=0;
-
-  function ensureAuthApi(){
-    if(!window.ManttoAuth || typeof window.ManttoAuth.apiGet!=='function'){
-      throw new Error('El servicio central de sesión todavía no está disponible.');
-    }
-    return window.ManttoAuth;
-  }
-  function esc(value){
-    return String(value ?? '').replace(/[&<>"']/g,function(char){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[char];});
-  }
-  function readState(){
-    try{return JSON.parse(sessionStorage.getItem(STORAGE_KEY)||'{}')||{};}catch(error){return {};}
-  }
-  function saveState(){
-    const select=document.getElementById('vd-user-select');
-    const modules=[...document.querySelectorAll('#vd-check-grid input:not([value="todos"]):checked')].map(function(input){return input.value;});
-    sessionStorage.setItem(STORAGE_KEY,JSON.stringify({usuario_id:select?.value||'',modulos:modules}));
-  }
-  function message(text,type){
-    const node=document.getElementById('vd-message');
-    if(!node)return;
-    node.textContent=text||'';
-    node.className='vd-message'+(type?' is-'+type:'');
-  }
-  async function request(path){
-    const auth=ensureAuthApi();
-    try{
-      return await auth.apiGet(path);
-    }catch(error){
-      if(error instanceof TypeError && /fetch/i.test(String(error.message||''))){
-        const base=String(window.MANTTO_API_BASE||'').replace(/\/$/,'');
-        throw new Error('No fue posible conectar con la API configurada'+(base?' en '+base:'')+'.');
-      }
-      throw error;
-    }
-  }
-  async function ensureTemplate(){
-    const view=document.getElementById('view-ventas-dashboard');
-    if(!view) throw new Error('No existe la vista Dashboard Ventas.');
-    if(view.querySelector('.vd-page')) return view;
-    const response=await fetch(TEMPLATE_URL,{cache:'no-store'});
-    if(!response.ok) throw new Error('No fue posible cargar la vista Dashboard Ventas.');
-    view.innerHTML=await response.text();
-    return view;
-  }
-  function renderUsers(){
-    const select=document.getElementById('vd-user-select');
-    if(!select)return;
-    const stored=readState();
-    select.innerHTML='<option value="">Seleccionar responsable comercial</option>'+users.map(function(user){
-      const meta=[user.puesto,user.tipo_perfil].filter(Boolean).join(' · ');
-      return '<option value="'+esc(user.id_usuario)+'" data-meta="'+esc(meta)+'">'+esc(user.nombre)+'</option>';
-    }).join('');
-    const preferred=String(stored.usuario_id||'');
-    if(preferred && users.some(function(user){return String(user.id_usuario)===preferred;})) select.value=preferred;
-    else if(users.length===1) select.value=String(users[0].id_usuario);
-  }
-  function applyStoredModules(){
-    const stored=readState();
-    if(!Array.isArray(stored.modulos)||!stored.modulos.length)return;
-    document.querySelectorAll('#vd-check-grid input:not([value="todos"])').forEach(function(input){input.checked=stored.modulos.includes(input.value);});
-    syncAllCheckbox();
-  }
-  function syncAllCheckbox(){
-    const all=document.querySelector('#vd-check-grid input[value="todos"]');
-    const items=[...document.querySelectorAll('#vd-check-grid input:not([value="todos"])')];
-    if(all) all.checked=items.length>0 && items.every(function(input){return input.checked;});
-  }
-  function selectedModules(){
-    return [...document.querySelectorAll('#vd-check-grid input:not([value="todos"]):checked')].map(function(input){return input.value;});
-  }
-  function updateKpiVisibility(){
-    const modules=selectedModules();
-    document.querySelectorAll('[data-dashboard-section]').forEach(function(node){
-      node.hidden=!modules.includes(node.dataset.dashboardSection);
-    });
-  }
-  function setKpiValues(kpis){
-    const values={
-      'vd-kpi-cotizados-cotizaciones':kpis?.cotizados?.cotizaciones,
-      'vd-kpi-cotizados-equipos':kpis?.cotizados?.equipos,
-      'vd-kpi-vendidos-cotizaciones':kpis?.vendidos?.cotizaciones,
-      'vd-kpi-vendidos-equipos':kpis?.vendidos?.equipos,
-      'vd-kpi-perdidos-cotizaciones':kpis?.perdidos?.cotizaciones,
-      'vd-kpi-perdidos-equipos':kpis?.perdidos?.equipos
-    };
-    Object.entries(values).forEach(function(entry){
-      const node=document.getElementById(entry[0]);
-      if(node) node.textContent=entry[1] == null ? '—' : Number(entry[1]).toLocaleString('es-MX');
-    });
-  }
-  async function loadKpis(silent){
-    const select=document.getElementById('vd-user-select');
-    const userId=Number(select?.value);
-    const requestId=++kpiRequestId;
-    if(!Number.isInteger(userId)||userId<=0){
-      setKpiValues(null);
-      if(!silent) message('Selecciona un responsable comercial para consultar los indicadores.');
-      return;
-    }
-    if(!silent) message('Consultando indicadores comerciales...');
-    const data=await request('/api/ventas/dashboard/kpis?usuario_id='+encodeURIComponent(userId));
-    if(requestId!==kpiRequestId)return;
-    setKpiValues(data.kpis||{});
-    if(!silent) message('');
-  }
-  function updateSummary(options){
-    const settings=options||{};
-    const select=document.getElementById('vd-user-select');
-    const option=select?.selectedOptions?.[0];
-    const title=document.getElementById('vd-selected-user');
-    const meta=document.getElementById('vd-selected-meta');
-    const modulesNode=document.getElementById('vd-selected-modules');
-    const checked=[...document.querySelectorAll('#vd-check-grid input:not([value="todos"]):checked')];
-    if(title) title.textContent=select?.value ? option.textContent : 'Selecciona un responsable comercial';
-    if(meta) meta.textContent=select?.value ? (option.dataset.meta||'Perfil comercial activo') : 'Los indicadores se actualizarán al seleccionar un responsable.';
-    if(modulesNode){
-      if(checked.length===8) modulesNode.textContent='Todos los módulos seleccionados';
-      else if(!checked.length) modulesNode.textContent='Sin módulos seleccionados';
-      else modulesNode.textContent=checked.map(function(input){return input.nextElementSibling?.textContent||input.value;}).join(' · ');
-    }
-    updateKpiVisibility();
-    saveState();
-    document.dispatchEvent(new CustomEvent('mantto:ventas-dashboard-filters',{detail:{usuario_id:select?.value?Number(select.value):null,modulos:checked.map(function(input){return input.value;})}}));
-    if(settings.refreshKpis!==false) loadKpis(Boolean(settings.silent)).catch(function(error){message(error.message||'No fue posible cargar los indicadores.','error');});
-  }
-  function bind(){
-    if(initialized)return;
-    initialized=true;
-    const select=document.getElementById('vd-user-select');
-    select?.addEventListener('change',function(){updateSummary({refreshKpis:true,silent:false});});
-    document.getElementById('vd-check-grid')?.addEventListener('change',function(event){
-      const input=event.target;
-      if(!(input instanceof HTMLInputElement))return;
-      if(input.value==='todos') document.querySelectorAll('#vd-check-grid input:not([value="todos"])').forEach(function(item){item.checked=input.checked;});
-      else syncAllCheckbox();
-      updateSummary({refreshKpis:false});
-    });
-    document.addEventListener('mantto:data-mutated',function(event){
-      const url=String(event.detail?.url||'');
-      if(url.includes('/api/ventas/cotizaciones')||url.includes('/ventas/cotizaciones')) loadKpis(true).catch(function(){});
-    });
-  }
-  async function loadUsers(silent){
-    const select=document.getElementById('vd-user-select');
-    if(select){
-      select.disabled=true;
-      select.innerHTML='<option value="">Cargando usuarios...</option>';
-    }
-    if(!silent)message('Consultando responsables comerciales...');
-    try{
-      const data=await request('/api/ventas/dashboard/usuarios');
-      users=Array.isArray(data.usuarios)?data.usuarios:[];
-      renderUsers();
-      applyStoredModules();
-      updateSummary({refreshKpis:false});
-      if(!users.length){
-        setKpiValues(null);
-        if(select){
-          select.innerHTML='<option value="">Sin responsables comerciales disponibles</option>';
-          select.disabled=true;
-        }
-        message('No se encontraron responsables comerciales activos.','error');
-        return;
-      }
-      if(select) select.disabled=false;
-      await loadKpis(Boolean(silent));
-    }catch(error){
-      users=[];
-      setKpiValues(null);
-      if(select){
-        select.innerHTML='<option value="">No fue posible cargar usuarios</option>';
-        select.disabled=true;
-      }
-      throw error;
-    }
-  }
-  async function init(){
-    if(loadingPromise)return loadingPromise;
-    loadingPromise=(async function(){
-      try{
-        await ensureTemplate();
-        bind();
-        await loadUsers(false);
-      }catch(error){
-        message(error.message||'No fue posible iniciar Dashboard Ventas.','error');
-      }finally{loadingPromise=null;}
-    })();
-    return loadingPromise;
-  }
-
-  window.ManttoVentasDashboard={
-    init:init,
-    refresh:function(){return Promise.all([loadUsers(true),loadKpis(true)]);},
-    refreshKpis:function(){return loadKpis(true);},
-    getFilters:function(){return readState();}
-  };
+(function(){'use strict';
+const TEMPLATE_URL='./modules/ventas-dashboard/ventas-dashboard.html?v=20260804-a4-v001',STORAGE_KEY='mantto:ventas-dashboard:a1';let initialized=false,loadingPromise=null,users=[],requestId=0;
+function auth(){if(!window.ManttoAuth||typeof window.ManttoAuth.apiGet!=='function')throw new Error('El servicio central de sesión todavía no está disponible.');return window.ManttoAuth}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function state(){try{return JSON.parse(sessionStorage.getItem(STORAGE_KEY)||'{}')||{}}catch{return {}}}
+function selected(){return [...document.querySelectorAll('#vd-check-grid input:not([value="todos"]):checked')].map(x=>x.value)}
+function save(){sessionStorage.setItem(STORAGE_KEY,JSON.stringify({usuario_id:document.getElementById('vd-user-select')?.value||'',modulos:selected()}))}
+function msg(t,type){const n=document.getElementById('vd-message');if(n){n.textContent=t||'';n.className='vd-message'+(type?' is-'+type:'')}}
+async function req(path){return auth().apiGet(path)}
+async function template(){const v=document.getElementById('view-ventas-dashboard');if(!v)throw new Error('No existe la vista Dashboard Ventas.');if(!v.querySelector('.vd-page')){const r=await fetch(TEMPLATE_URL,{cache:'no-store'});if(!r.ok)throw new Error('No fue posible cargar la vista Dashboard Ventas.');v.innerHTML=await r.text()}return v}
+function renderUsers(){const s=document.getElementById('vd-user-select'),st=state();s.innerHTML='<option value="">Seleccionar responsable comercial</option>'+users.map(u=>`<option value="${esc(u.id_usuario)}" data-meta="${esc([u.puesto,u.tipo_perfil].filter(Boolean).join(' · '))}">${esc(u.nombre)}</option>`).join('');if(st.usuario_id&&users.some(u=>String(u.id_usuario)===String(st.usuario_id)))s.value=String(st.usuario_id)}
+function syncAll(){const all=document.querySelector('#vd-check-grid input[value="todos"]'),items=[...document.querySelectorAll('#vd-check-grid input:not([value="todos"])')];if(all)all.checked=items.length>0&&items.every(x=>x.checked)}
+function applyModules(){const m=state().modulos;if(Array.isArray(m)&&m.length){document.querySelectorAll('#vd-check-grid input:not([value="todos"])').forEach(x=>x.checked=m.includes(x.value));syncAll()}}
+function kpis(k){const x={'vd-kpi-cotizados-cotizaciones':k?.cotizados?.cotizaciones,'vd-kpi-cotizados-equipos':k?.cotizados?.equipos,'vd-kpi-vendidos-cotizaciones':k?.vendidos?.cotizaciones,'vd-kpi-vendidos-equipos':k?.vendidos?.equipos,'vd-kpi-perdidos-cotizaciones':k?.perdidos?.cotizaciones,'vd-kpi-perdidos-equipos':k?.perdidos?.equipos};Object.entries(x).forEach(([id,v])=>{const n=document.getElementById(id);if(n)n.textContent=v==null?'—':Number(v).toLocaleString('es-MX')})}
+const defs={
+ cotizaciones:{filter:'cotizaciones',title:'Cotizaciones abiertas',cols:[['nombre_proyecto','Proyecto'],['cliente','Cliente'],['tipo_proyecto','Tipo'],['numero_equipos','Equipos'],['estatus_proyecto','Estatus'],['fecha_cotizacion','Fecha']]},
+ ventas:{filter:'ventas',title:'Cotizaciones vendidas',cols:[['nombre_proyecto','Proyecto'],['cliente','Cliente'],['tipo_proyecto','Tipo'],['numero_equipos','Equipos'],['fecha_cierre','Fecha de cierre']]},
+ perdido:{filter:'perdido',title:'Cotizaciones perdidas',cols:[['nombre_proyecto','Proyecto'],['cliente','Cliente'],['numero_equipos','Equipos'],['razon_perdido','Razón'],['fecha_cambio_estatus','Cambio de estatus']]},
+ clientes:{filter:'clientes',title:'Clientes',cols:[['nombre_empresa','Empresa'],['nombre_contacto','Contacto'],['telefono','Teléfono'],['email','Email'],['ciudad','Ciudad'],['estado','Estado'],['estatus_cliente','Estatus']]},
+ redes:{filter:'redes',title:'Asignación a Redes',cols:[['nombre_contacto','Contacto'],['nombre_empresa','Empresa'],['nombre_proyecto','Proyecto'],['solicitud','Solicitud'],['asignado_a','Asignado a'],['estatus','Estatus']]},
+ prospeccion:{filter:'prospeccion',title:'Prospección',cols:[['empresa','Empresa'],['proyecto','Proyecto'],['contacto','Contacto'],['ciudad','Ciudad'],['estado','Estado'],['estatus','Estatus'],['fecha_visita','Fecha de visita']]},
+ instalaciones:{filter:'ventas',title:'Proyectos activos en Instalaciones',cols:[['proyecto','Proyecto'],['cliente','Cliente'],['ciudad','Ciudad'],['estado','Estado'],['total_equipos','Equipos'],['equipos_terminados','Terminados'],['estatus','Estatus']]},
+ logistica:{filter:'logistica',title:'Proyectos en Logística no entregados',cols:[['proyecto','Proyecto'],['estatus','Estatus'],['cantidad','Cantidad'],['proveedor','Proveedor'],['puerto_destino','Puerto destino'],['lugar_entrega','Lugar de entrega'],['fecha_entrega_programada','Entrega programada']]},
+ tareas_asignadas:{filter:'tareas',title:'Pendientes asignados al responsable',cols:[['pendiente','Pendiente'],['prioridad','Prioridad'],['estatus','Estatus'],['proyecto','Proyecto'],['area','Área'],['due_date','Fecha límite'],['responsables','Responsables']]},
+ tareas_creadas:{filter:'tareas',title:'Pendientes creados por el responsable',cols:[['pendiente','Pendiente'],['prioridad','Prioridad'],['estatus','Estatus'],['proyecto','Proyecto'],['area','Área'],['due_date','Fecha límite'],['responsables','Responsables']]}
+};
+function val(v){if(v==null||v==='')return '—';const s=String(v);return /^\d{4}-\d{2}-\d{2}/.test(s)?new Date(s).toLocaleDateString('es-MX'):s}
+function renderTables(data){const stage=document.getElementById('vd-stage'),mods=selected();if(!stage)return;stage.innerHTML=Object.entries(defs).filter(([key,d])=>mods.includes(d.filter||key)).map(([key,d])=>{const rows=Array.isArray(data?.[key])?data[key]:[];return `<section class="vd-table-section" data-dashboard-section="${esc(d.filter||key)}"><div class="vd-table-head"><h2>${esc(d.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros</span></div>${rows.length?`<div class="vd-table-wrap"><table class="vd-table"><thead><tr>${d.cols.map(c=>`<th>${esc(c[1])}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${d.cols.map(c=>`<td>${esc(val(r[c[0]]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:'<div class="vd-table-empty">Sin registros para el responsable seleccionado.</div>'}</section>`}).join('')||'<div class="vd-empty"><h2>Sin secciones seleccionadas</h2></div>'}
+function visibility(){const m=selected();document.querySelectorAll('#vd-kpis [data-dashboard-section]').forEach(n=>n.hidden=!m.includes(n.dataset.dashboardSection))}
+function summary(){const s=document.getElementById('vd-user-select'),o=s?.selectedOptions?.[0],m=selected();document.getElementById('vd-selected-user').textContent=s?.value?o.textContent:'Selecciona un responsable comercial';document.getElementById('vd-selected-meta').textContent=s?.value?(o.dataset.meta||'Perfil comercial activo'):'Los datos se actualizarán al seleccionar un responsable.';document.getElementById('vd-selected-modules').textContent=m.length===8?'Todos los módulos seleccionados':m.length?m.join(' · '):'Sin módulos seleccionados';visibility();save()}
+async function loadData(silent){const id=Number(document.getElementById('vd-user-select')?.value),rid=++requestId;if(!Number.isInteger(id)||id<=0){kpis(null);renderTables({});return}if(!silent)msg('Consultando información comercial...');const [a,b,c]=await Promise.all([req('/api/ventas/dashboard/kpis?usuario_id='+id),req('/api/ventas/dashboard/tablas?usuario_id='+id),req('/api/ventas/dashboard/operacion?usuario_id='+id)]);if(rid!==requestId)return;kpis(a.kpis||{});renderTables(Object.assign({},b.tablas||{},c.tablas||{}));if(!silent)msg('')}
+function bind(){if(initialized)return;initialized=true;document.getElementById('vd-user-select')?.addEventListener('change',()=>{summary();loadData(false).catch(e=>msg(e.message,'error'))});document.getElementById('vd-check-grid')?.addEventListener('change',e=>{const i=e.target;if(!(i instanceof HTMLInputElement))return;if(i.value==='todos')document.querySelectorAll('#vd-check-grid input:not([value="todos"])').forEach(x=>x.checked=i.checked);else syncAll();summary();loadData(true).catch(e=>msg(e.message,'error'))});document.addEventListener('mantto:data-mutated',e=>{const u=String(e.detail?.url||'');if(u.includes('/api/ventas/')||u.includes('/api/ins-fl')||u.includes('/api/logistica')||u.includes('/api/pendientes'))loadData(true).catch(()=>{})})}
+async function loadUsers(){const s=document.getElementById('vd-user-select');s.disabled=true;const d=await req('/api/ventas/dashboard/usuarios');users=Array.isArray(d.usuarios)?d.usuarios:[];renderUsers();applyModules();summary();s.disabled=!users.length;if(users.length)await loadData(true);else msg('No se encontraron responsables comerciales activos.','error')}
+async function init(){if(loadingPromise)return loadingPromise;loadingPromise=(async()=>{try{await template();bind();await loadUsers()}catch(e){msg(e.message||'No fue posible iniciar Dashboard Ventas.','error')}finally{loadingPromise=null}})();return loadingPromise}
+window.ManttoVentasDashboard={init,refresh:()=>loadData(true),refreshKpis:()=>loadData(true),getFilters:state};
 })();

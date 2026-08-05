@@ -257,3 +257,14 @@ button{cursor:pointer}
     text-size-adjust: 100%;
   }
 }
+
+
+/* FIX V007 - barra contextual estable en movil */
+@media(max-width:700px){
+  #app-context-nav{height:auto;min-height:58px;padding:8px 10px}
+  .app-context-inner{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px}
+  .app-context-inner button{height:auto;min-height:38px;max-width:132px;padding:6px 10px;line-height:1.15;white-space:normal}
+  .app-context-title-wrap{min-width:0;overflow:hidden}
+  .app-context-title-wrap #app-context-title,.app-context-title-wrap #app-context-subtitle{white-space:normal;overflow-wrap:anywhere}
+  .daily-phrase{display:none}
+}
