@@ -72,7 +72,6 @@
     });
   }
 
-
   const technicalContainerSelector = [
     '[id*="status"]',
     '[class*="status"]',
@@ -149,21 +148,63 @@
     applyTechnicalVisibility(root);
   }
 
-  function resolveHandler(route){
-    if(state.handlers.has(route)) return state.handlers.get(route);
-    const objectName=routeObjects[route];
-    const target=objectName ? window[objectName] : null;
-    if(!target) return null;
-    if(typeof target.refresh==='function') return ()=>target.refresh(state.payload);
-    if(typeof target.reload==='function') return ()=>target.reload(state.payload);
-    if(typeof target.load==='function') return ()=>target.load(state.payload);
-    if(typeof target.init==='function') return ()=>target.init(state.payload, { revalidate:true });
+  function normalizeRegisteredHandler(entry, context){
+    if(typeof entry==='function') return ()=>entry(context);
+    if(entry && typeof entry.backgroundSync==='function') return ()=>entry.backgroundSync(context);
+    if(entry && typeof entry.sync==='function') return ()=>entry.sync(context);
     return null;
   }
 
+  function resolveHandler(route, context){
+    if(state.handlers.has(route)){
+      const registered=normalizeRegisteredHandler(state.handlers.get(route),context);
+      if(registered) return registered;
+    }
+    const objectName=routeObjects[route];
+    const target=objectName ? window[objectName] : null;
+    if(!target) return null;
+    if(typeof target.backgroundSync==='function') return ()=>target.backgroundSync(context);
+    if(typeof target.syncInBackground==='function') return ()=>target.syncInBackground(context);
+    if(typeof target.refreshSilent==='function') return ()=>target.refreshSilent(context);
+    return null;
+  }
+
+  function supportsBackgroundSync(route){
+    const targetRoute=String(route||state.route||'');
+    return Boolean(resolveHandler(targetRoute,{
+      route:targetRoute,
+      reason:'capability-check',
+      payload:state.payload,
+      silent:true,
+      preserveUi:true,
+      background:true
+    }));
+  }
+
   function markSynced(route){
-    state.lastSync.set(route || state.route, Date.now());
-    document.dispatchEvent(new CustomEvent('mantto:data-synced',{detail:{route:route||state.route,at:Date.now()}}));
+    const targetRoute=route || state.route;
+    const at=Date.now();
+    state.lastSync.set(targetRoute,at);
+    document.dispatchEvent(new CustomEvent('mantto:data-synced',{detail:{route:targetRoute,at}}));
+  }
+
+  function markAttempted(route){
+    state.lastSync.set(route || state.route,Date.now());
+  }
+
+  function dispatchBackgroundRequest(route, reason){
+    const detail={
+      route,
+      reason:reason||'sin motivo',
+      payload:state.payload,
+      silent:true,
+      preserveUi:true,
+      background:true,
+      handled:false,
+      at:Date.now()
+    };
+    document.dispatchEvent(new CustomEvent('mantto:background-sync-request',{detail}));
+    return detail.handled===true;
   }
 
   async function refresh(route, reason, options){
@@ -173,13 +214,34 @@
     const last=state.lastSync.get(targetRoute)||0;
     if(!opts.force && Date.now()-last<MIN_REFRESH_GAP_MS) return false;
     if(state.running.has(targetRoute)) return state.running.get(targetRoute);
-    const handler=resolveHandler(targetRoute);
-    if(!handler) return false;
-    const task=Promise.resolve().then(()=>handler()).then(()=>{
+
+    const context={
+      route:targetRoute,
+      reason:reason||'sin motivo',
+      payload:targetRoute===state.route?state.payload:null,
+      silent:true,
+      preserveUi:true,
+      background:true,
+      force:Boolean(opts.force)
+    };
+    const handler=resolveHandler(targetRoute,context);
+
+    if(!handler){
+      const handledByEvent=dispatchBackgroundRequest(targetRoute,reason);
+      markAttempted(targetRoute);
+      return handledByEvent;
+    }
+
+    const task=Promise.resolve().then(()=>handler()).then(result=>{
+      if(result===false){
+        markAttempted(targetRoute);
+        return false;
+      }
       markSynced(targetRoute);
       return true;
     }).catch(error=>{
-      console.warn('[DataSync] No se pudo revalidar '+targetRoute+' ('+(reason||'sin motivo')+').', error);
+      console.warn('[DataSync] No se pudo sincronizar en segundo plano '+targetRoute+' ('+(reason||'sin motivo')+').', error);
+      markAttempted(targetRoute);
       return false;
     }).finally(()=>state.running.delete(targetRoute));
     state.running.set(targetRoute,task);
@@ -187,11 +249,22 @@
   }
 
   function register(route, handler){
-    if(route && typeof handler==='function') state.handlers.set(String(route),handler);
+    if(!route) return false;
+    const valid=typeof handler==='function'
+      || Boolean(handler && (typeof handler.backgroundSync==='function' || typeof handler.sync==='function'));
+    if(!valid) return false;
+    state.handlers.set(String(route),handler);
+    return true;
+  }
+
+  function unregister(route){
+    return state.handlers.delete(String(route||''));
   }
 
   function routeFromApiPath(path){
     const value=String(path||'').toLowerCase();
+    if(value.includes('/ventas/dashboard')) return 'ventas-dashboard';
+    if(value.includes('/ventas/cotizaciones/vendidos')) return 'ventas-vendidos';
     if(value.includes('/ventas/cotizaciones')) return 'ventas-cotizaciones';
     if(value.includes('/ventas/prospeccion')) return 'ventas-prospeccion';
     if(value.includes('/ventas/redes')) return 'ventas-asignacion-redes';
@@ -205,9 +278,8 @@
   }
 
   function notifyMutation(detail){
-    const targetRoute=detail?.route || routeFromApiPath(detail?.path);
+    const targetRoute=detail?.route || routeFromApiPath(detail?.path || detail?.url);
     window.setTimeout(()=>refresh(targetRoute,'mutacion',{force:true}),80);
-    if(targetRoute!==state.route) window.setTimeout(()=>refresh(state.route,'mutacion-relacionada'),180);
     try{ state.channel?.postMessage({type:'mutation',route:targetRoute,at:Date.now()}); }catch(e){}
   }
 
@@ -252,7 +324,18 @@
     startPolling();
   }
 
-  window.ManttoDataSync={register,refresh,notifyMutation,isProgrammer,applyRefreshVisibility,applyTechnicalVisibility,applyRoleVisibility,markSynced};
+  window.ManttoDataSync={
+    register,
+    unregister,
+    refresh,
+    notifyMutation,
+    supportsBackgroundSync,
+    isProgrammer,
+    applyRefreshVisibility,
+    applyTechnicalVisibility,
+    applyRoleVisibility,
+    markSynced
+  };
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bind,{once:true});
   else bind();
 })();
