@@ -2,6 +2,7 @@
   const DEVICE_TOKEN_KEY = 'mantto_device_token';
   const REQUIRED = ['gps', 'camara', 'microfono', 'push'];
   const REMINDER_KEY_PREFIX = 'mantto_device_permissions_reminder_at_';
+  const LOCAL_STATE_KEY_PREFIX = 'mantto_native_permissions_state_';
   const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
   let activePromise = null;
   let forceNextOpen = false;
@@ -28,9 +29,28 @@
   }
   function rememberPrompt(){ localStorage.setItem(reminderKey(), String(Date.now())); }
 
-  function deviceName(){
-    const platform = navigator.userAgentData && navigator.userAgentData.platform || navigator.platform || 'Navegador';
-    return String(platform).slice(0, 150);
+  function localStateKey(){ return `${LOCAL_STATE_KEY_PREFIX}${getDeviceToken()}`; }
+  function readLocalStates(){
+    try{
+      const value = JSON.parse(localStorage.getItem(localStateKey()) || '{}');
+      return value && typeof value === 'object' ? value : {};
+    }catch(error){ return {}; }
+  }
+  function saveLocalState(key, state){
+    if(!REQUIRED.includes(key) || !['PERMITIDO','DENEGADO'].includes(state)) return;
+    const current = readLocalStates();
+    current[key] = state;
+    current.updated_at = new Date().toISOString();
+    localStorage.setItem(localStateKey(), JSON.stringify(current));
+  }
+  function mergeWithLocal(key, nativeState){
+    if(['PERMITIDO','DENEGADO'].includes(nativeState)){
+      saveLocalState(key, nativeState);
+      return nativeState;
+    }
+    if(nativeState === 'NO_DISPONIBLE') return nativeState;
+    const localState = readLocalStates()[key];
+    return ['PERMITIDO','DENEGADO'].includes(localState) ? localState : nativeState;
   }
 
   function isIos(){ return /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
@@ -87,10 +107,15 @@
   }
 
   async function inspectAll(){
-    const [gps, camara, microfono, push] = await Promise.all([
+    const [gpsNative, camaraNative, microfonoNative, pushNative] = await Promise.all([
       inspectGps(), inspectMedia('camera'), inspectMedia('microphone'), inspectPush()
     ]);
-    return { gps, camara, microfono, push };
+    return {
+      gps:mergeWithLocal('gps', gpsNative),
+      camara:mergeWithLocal('camara', camaraNative),
+      microfono:mergeWithLocal('microfono', microfonoNative),
+      push:mergeWithLocal('push', pushNative)
+    };
   }
 
   function requestGps(){
@@ -143,36 +168,6 @@
         state: current && current.permission === 'denied' ? 'DENEGADO' : 'PENDIENTE',
         detail: error && error.message ? error.message : 'No fue posible registrar Push en este dispositivo.'
       };
-    }
-  }
-
-  function permissionsFromServer(data, fallback){
-    const source = data && data.permisos || {};
-    return {
-      gps:source.GPS || fallback.gps || 'PENDIENTE',
-      camara:source.CAMARA || fallback.camara || 'PENDIENTE',
-      microfono:source.MICROFONO || fallback.microfono || 'PENDIENTE',
-      push:source.PUSH || fallback.push || 'PENDIENTE'
-    };
-  }
-
-  async function sync(permisos, options){
-    const opts = options || {};
-    const response = await window.ManttoAuth.apiPost('/api/device-permissions/sync', {
-      device_token:getDeviceToken(),
-      device_name:deviceName(),
-      permisos,
-      origen:opts.origin || 'AUTO_LOGIN',
-      permiso_cambiado:opts.changedPermission || null
-    });
-    return response.data || response;
-  }
-
-  async function syncSafe(permisos, options){
-    try{ return { ok:true, data:await sync(permisos, options) }; }
-    catch(error){
-      console.warn('[Permisos] No fue posible sincronizar el estado del dispositivo:', error);
-      return { ok:false, error };
     }
   }
 
@@ -262,8 +257,6 @@
     activePromise = new Promise(async resolve => {
       const modal = ensureModal();
       let permisos = await inspectAll();
-      const initialSync = await syncSafe(permisos, { origin:opts.source === 'profile' ? 'AUTO_REVALIDACION' : 'AUTO_LOGIN' });
-      if(initialSync.ok) permisos = permissionsFromServer(initialSync.data, permisos);
       if(allAllowed(permisos) && !opts.force){ modal.hidden = true; activePromise = null; resolve(true); return; }
       if(!opts.force && !forceNextOpen && !reminderDue()){ modal.hidden = true; activePromise = null; resolve(true); return; }
       forceNextOpen = false;
@@ -285,10 +278,9 @@
         try{
           const result = await requestOne(key);
           permisos[key] = result.state;
-          const syncResult = await syncSafe({ [key]:result.state }, { origin:'ACCION_USUARIO', changedPermission:key });
-          if(syncResult.ok) permisos = permissionsFromServer(syncResult.data, permisos);
+          saveLocalState(key, result.state);
           if(result.state === 'PERMITIDO'){
-            message(syncResult.ok ? `${labels[key][1]} quedó autorizado.` : `${labels[key][1]} quedó autorizado. El registro con el servidor se reintentará después.`, false);
+            message(`${labels[key][1]} quedó autorizado en este dispositivo.`, false);
           }else if(result.state === 'DENEGADO'){
             message(result.detail || `${labels[key][1]} está bloqueado. Revisa los permisos del navegador o del sistema.`, true);
           }else if(result.state === 'NO_DISPONIBLE'){
@@ -304,18 +296,14 @@
         setGlobalBusy(true);
         permisos = await inspectAll().catch(() => permisos);
         render(permisos, pendingKeys);
-        const syncResult = await syncSafe(permisos, { origin:'AUTO_REVALIDACION' });
-        if(syncResult.ok) permisos = permissionsFromServer(syncResult.data, permisos);
         rememberPrompt(); modal.hidden = true; message(''); activePromise = null; resolve(true); setGlobalBusy(false);
       };
 
       document.getElementById('device-permissions-retry').onclick = async () => {
         setGlobalBusy(true); message('Revisando el estado actual de los permisos...');
         permisos = await inspectAll();
-        const syncResult = await syncSafe(permisos, { origin:'AUTO_REVALIDACION' });
-        if(syncResult.ok) permisos = permissionsFromServer(syncResult.data, permisos);
         render(permisos, pendingKeys);
-        message(syncResult.ok ? 'Estados actualizados.' : 'Estados revisados. No fue posible sincronizarlos con el servidor; puedes continuar.', false);
+        message('Estados revisados directamente en este dispositivo.', false);
         setGlobalBusy(false);
       };
 
