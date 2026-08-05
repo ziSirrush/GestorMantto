@@ -263,3 +263,24 @@
 .pc-admin-empty-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:#eef5fb;color:#1e88e5;font-size:1.1rem}
 @media(max-width:900px){.pc-admin-role-selector{max-height:320px}}
 @media(max-width:480px){.pc-role-filters{grid-template-columns:1fr}.pc-role-filters #pc-admin-role-status{grid-column:auto}}
+
+
+/* FIX V006: guardado selectivo y barra de estado del Panel de Control */
+.pc-hero-actions{align-items:flex-start}
+.pc-save-stack{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:250px}
+.pc-save-stack>.pc-btn{width:100%}
+.pc-save-status{box-sizing:border-box;width:100%;padding:7px 9px;border:1px solid rgba(255,255,255,.24);border-radius:11px;background:rgba(255,255,255,.12);backdrop-filter:blur(4px)}
+.pc-save-status[hidden]{display:none}
+.pc-save-status-line{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#f8fafc;font-size:.67rem;font-weight:850;line-height:1.2}
+.pc-save-status-line span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-save-status-line strong{flex:0 0 auto;font-size:.7rem;font-variant-numeric:tabular-nums}
+.pc-save-progress{height:6px;margin-top:6px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.22)}
+.pc-save-progress>span{display:block;width:0;height:100%;border-radius:inherit;background:#8fd3ff;transition:width .28s ease}
+.pc-save-status[data-tone="success"]{border-color:rgba(134,239,172,.48);background:rgba(22,101,52,.3)}
+.pc-save-status[data-tone="success"] .pc-save-progress>span{background:#86efac}
+.pc-save-status[data-tone="error"]{border-color:rgba(254,202,202,.5);background:rgba(127,29,29,.36)}
+.pc-save-status[data-tone="error"] .pc-save-progress>span{background:#fca5a5}
+@media(max-width:760px){
+  .pc-hero-actions{width:100%;display:grid;grid-template-columns:1fr;justify-content:stretch}
+  .pc-hero-actions>.pc-btn,.pc-save-stack{width:100%;min-width:0}
+}

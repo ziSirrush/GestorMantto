@@ -26,6 +26,7 @@
     principalRoleId:null,
     savingRoles:false,
     savingPermissions:false,
+    saveProgress:{visible:false,percent:0,label:'',tone:'working'},
     dirty:new Map(),
     expanded:new Set(),
     adminUserId:null,
@@ -44,6 +45,7 @@
 
   const esc=(v)=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const api=()=>window.ManttoAuth;
+  let saveStatusTimer=null;
 
   function consumeSaveMessage(){
     const message=sessionStorage.getItem('mantto:panel-control:save-message');
@@ -268,7 +270,7 @@
 
   function shell(){
     return `<div class="pc-page">
-      <header class="pc-hero"><div><span class="pc-eyebrow">SEGURIDAD Y ACCESOS</span><h1>Panel de Control</h1><p>Configura permisos base por rol y personaliza el acceso efectivo de cada usuario.</p></div><div class="pc-hero-actions"><button class="pc-btn ghost" id="pc-reload">Recargar datos</button><button class="pc-btn primary" id="pc-save" disabled>Guardar cambios <span id="pc-dirty-count">0</span></button></div></header>
+      <header class="pc-hero"><div><span class="pc-eyebrow">SEGURIDAD Y ACCESOS</span><h1>Panel de Control</h1><p>Configura permisos base por rol y personaliza el acceso efectivo de cada usuario.</p></div><div class="pc-hero-actions"><button class="pc-btn ghost" id="pc-reload">Recargar datos</button><div class="pc-save-stack"><button class="pc-btn primary" id="pc-save" disabled>Guardar cambios <span id="pc-dirty-count">0</span></button><div class="pc-save-status" id="pc-save-status" hidden aria-live="polite"><div class="pc-save-status-line"><span id="pc-save-status-text">Preparando...</span><strong id="pc-save-status-percent">0%</strong></div><div class="pc-save-progress" id="pc-save-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="pc-save-progress-fill"></span></div></div></div></div></header>
       <section class="pc-summary">
         <article><b>${esc(state.totals.roles_activos||0)}</b><span>Roles activos</span></article>
         <article><b>${esc(state.totals.usuarios_activos||0)}</b><span>Usuarios activos</span></article>
@@ -286,7 +288,9 @@
     view.innerHTML=shell();
     document.getElementById('pc-reload')?.addEventListener('click',loadBootstrap);
     document.getElementById('pc-save')?.addEventListener('click',saveChanges);
+    renderSaveStatus();
     view.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',async()=>{
+      if(state.savingPermissions){toast('Espera a que termine el guardado actual.');return;}
       const nextTab=btn.dataset.tab;
       if(nextTab===state.tab)return;
       if(state.dirty.size&&!confirm('Hay cambios sin guardar. ¿Deseas descartarlos y cambiar de pestaña?'))return;
@@ -383,6 +387,7 @@
 
   function bindSelectorItems(){
     document.querySelectorAll('[data-user-id]').forEach(btn=>btn.addEventListener('click',async()=>{
+      if(state.savingPermissions){toast('Espera a que termine el guardado actual.');return;}
       const id=Number(btn.dataset.userId);
       if(id===Number(state.selectedUserId))return;
       if(state.dirty.size&&!confirm('Hay cambios sin guardar. ¿Deseas descartarlos y seleccionar otro usuario?'))return;
@@ -398,6 +403,7 @@
       await loadUserPermissions(id);
     }));
     document.querySelectorAll('[data-role-id]').forEach(btn=>btn.addEventListener('click',async()=>{
+      if(state.savingPermissions){toast('Espera a que termine el guardado actual.');return;}
       const id=Number(btn.dataset.roleId);
       if(id===Number(state.selectedRoleId))return;
       if(state.dirty.size&&!confirm('Hay cambios sin guardar. ¿Deseas descartarlos y seleccionar otro rol?'))return;
@@ -822,6 +828,40 @@
       :`Guardar cambios <span id="pc-dirty-count">${state.dirty.size}</span>`;
   }
 
+  function renderSaveStatus(){
+    const box=document.getElementById('pc-save-status');
+    const text=document.getElementById('pc-save-status-text');
+    const percent=document.getElementById('pc-save-status-percent');
+    const progress=document.getElementById('pc-save-progress');
+    const fill=document.getElementById('pc-save-progress-fill');
+    if(!box||!text||!percent||!progress||!fill)return;
+
+    const value=Math.max(0,Math.min(100,Number(state.saveProgress.percent||0)));
+    box.hidden=!state.saveProgress.visible;
+    box.dataset.tone=state.saveProgress.tone||'working';
+    text.textContent=state.saveProgress.label||'';
+    percent.textContent=`${value}%`;
+    progress.setAttribute('aria-valuenow',String(value));
+    progress.setAttribute('aria-label',state.saveProgress.label||'Estado del guardado');
+    fill.style.width=`${value}%`;
+  }
+
+  function setSaveStatus(percent,label,tone='working',autoHideMs=0){
+    if(saveStatusTimer){
+      window.clearTimeout(saveStatusTimer);
+      saveStatusTimer=null;
+    }
+    state.saveProgress={visible:true,percent,label,tone};
+    renderSaveStatus();
+    if(autoHideMs>0){
+      saveStatusTimer=window.setTimeout(()=>{
+        state.saveProgress={visible:false,percent:0,label:'',tone:'working'};
+        renderSaveStatus();
+        saveStatusTimer=null;
+      },autoHideMs);
+    }
+  }
+
   function normalizeNullableBoolean(value){
     if(value===null||value===undefined)return null;
     if(value===true||value===1||value==='1')return true;
@@ -829,11 +869,13 @@
     return Boolean(value);
   }
 
+  function permissionRowsFromReadback(readback){
+    if(Array.isArray(readback?.data))return readback.data;
+    return Array.isArray(readback?.data?.permisos)?readback.data.permisos:[];
+  }
+
   function countConfirmedChanges(isUsers,changes,readback){
-    const permissions=Array.isArray(readback?.data)
-      ?readback.data
-      :(readback?.data?.permisos||[]);
-    const byId=new Map(permissions.map(row=>[
+    const byId=new Map(permissionRowsFromReadback(readback).map(row=>[
       Number(row.id_subelemento_accion),
       row
     ]));
@@ -856,12 +898,106 @@
     },0);
   }
 
+  function capturePermissionViewContext(){
+    const active=document.activeElement;
+    const canRestoreSelection=active&&typeof active.selectionStart==='number';
+    return {
+      windowX:Number(window.scrollX||0),
+      windowY:Number(window.scrollY||0),
+      selectorScrollTop:Number(document.getElementById('pc-selector-list')?.scrollTop||0),
+      panelScrollTop:Number(document.getElementById('pc-permission-panel')?.scrollTop||0),
+      treeScrollTop:Number(document.getElementById('pc-tree')?.scrollTop||0),
+      treeScrollLeft:Number(document.getElementById('pc-tree')?.scrollLeft||0),
+      activeId:active?.id||'',
+      selectionStart:canRestoreSelection?active.selectionStart:null,
+      selectionEnd:canRestoreSelection?active.selectionEnd:null
+    };
+  }
+
+  function restorePermissionViewContext(context){
+    window.requestAnimationFrame(()=>{
+      const selector=document.getElementById('pc-selector-list');
+      const panel=document.getElementById('pc-permission-panel');
+      const tree=document.getElementById('pc-tree');
+      if(selector)selector.scrollTop=context.selectorScrollTop;
+      if(panel)panel.scrollTop=context.panelScrollTop;
+      if(tree){
+        tree.scrollTop=context.treeScrollTop;
+        tree.scrollLeft=context.treeScrollLeft;
+      }
+      window.scrollTo(context.windowX,context.windowY);
+      const active=context.activeId?document.getElementById(context.activeId):null;
+      if(active){
+        active.focus({preventScroll:true});
+        if(typeof active.setSelectionRange==='function'&&context.selectionStart!==null){
+          active.setSelectionRange(context.selectionStart,context.selectionEnd);
+        }
+      }
+    });
+  }
+
+  function renderSummaryCounters(){
+    const summary=document.querySelector('.pc-summary');
+    if(!summary)return;
+    summary.innerHTML=`<article><b>${esc(state.totals.roles_activos||0)}</b><span>Roles activos</span></article><article><b>${esc(state.totals.usuarios_activos||0)}</b><span>Usuarios activos</span></article><article><b>${esc(state.totals.permisos_disponibles||0)}</b><span>Permisos disponibles</span></article><article><b>${esc(state.totals.personalizaciones_activas||0)}</b><span>Personalizaciones activas</span></article>`;
+  }
+
+  function applyPermissionReadback(isUsers,readback){
+    const data=readback?.data||{};
+    const permissions=permissionRowsFromReadback(readback);
+
+    if(isUsers){
+      state.userRoles=data.roles||state.userRoles;
+      state.roleDraft=new Set(state.userRoles.map(role=>Number(role.id_rol)));
+      state.principalRoleId=Number(state.userRoles.find(role=>role.principal)?.id_rol||state.userRoles[0]?.id_rol||0)||null;
+      state.userPermissions=new Map(permissions.map(row=>[
+        Number(row.id_subelemento_accion),
+        row
+      ]));
+      state.userHierarchy={
+        group:new Map((data.jerarquia?.agrupaciones||[]).map(row=>[Number(row.id_agrupacion),row])),
+        module:new Map((data.jerarquia?.modulos||[]).map(row=>[Number(row.id_modulo),row]))
+      };
+
+      const selected=state.users.find(user=>Number(user.id_SB)===Number(state.selectedUserId));
+      if(selected){
+        const previous=Number(selected.personalizaciones||0);
+        const current=permissions.reduce((total,row)=>
+          total+(normalizeNullableBoolean(row.personalizado)===null?0:1),0
+        );
+        selected.personalizaciones=current;
+        state.totals.personalizaciones_activas=Math.max(
+          0,
+          Number(state.totals.personalizaciones_activas||0)-previous+current
+        );
+      }
+      return;
+    }
+
+    state.rolePermissions=new Map(permissions.map(row=>[
+      Number(row.id_subelemento_accion),
+      Boolean(row.permitido)
+    ]));
+    state.roleHierarchy={
+      group:new Map((data.jerarquia?.agrupaciones||[]).map(row=>[Number(row.id_agrupacion),Boolean(row.permitido)])),
+      module:new Map((data.jerarquia?.modulos||[]).map(row=>[Number(row.id_modulo),Boolean(row.permitido)]))
+    };
+
+    const selected=state.roles.find(role=>Number(role.id_rol)===Number(state.selectedRoleId));
+    if(selected){
+      selected.permisos_permitidos=permissions.reduce((total,row)=>
+        total+(Boolean(row.permitido)?1:0),0
+      );
+    }
+  }
+
   async function saveChanges(){
     if(state.savingPermissions||!state.dirty.size)return;
     const isUsers=state.tab==='users';
+    const selectedId=isUsers?Number(state.selectedUserId):Number(state.selectedRoleId);
     const target=isUsers
-      ?state.users.find(u=>Number(u.id_SB)===Number(state.selectedUserId))?.nombre
-      :state.roles.find(r=>Number(r.id_rol)===Number(state.selectedRoleId))?.rol;
+      ?state.users.find(user=>Number(user.id_SB)===selectedId)?.nombre
+      :state.roles.find(role=>Number(role.id_rol)===selectedId)?.rol;
     const totalChanges=state.dirty.size;
     if(!confirm(`¿Guardar ${totalChanges} cambio(s) para ${target||'el registro seleccionado'}?`))return;
 
@@ -870,12 +1006,15 @@
       ...value
     }));
     const path=isUsers
-      ?`/api/panel-control/usuarios/${state.selectedUserId}/permisos`
-      :`/api/panel-control/roles/${state.selectedRoleId}/permisos`;
+      ?`/api/panel-control/usuarios/${selectedId}/permisos`
+      :`/api/panel-control/roles/${selectedId}/permisos`;
+    const viewContext=capturePermissionViewContext();
 
     state.savingPermissions=true;
     updateSaveButton();
+    setSaveStatus(10,`Preparando ${changes.length} cambio(s)...`);
     try{
+      setSaveStatus(35,'Enviando cambios a Aiven...');
       const response=await request(path,{
         method:'PUT',
         body:JSON.stringify({changes})
@@ -885,21 +1024,43 @@
         throw new Error(`Aiven procesó ${updated} de ${changes.length} permisos. Los cambios pendientes se conservaron.`);
       }
 
+      setSaveStatus(70,`Aiven procesó ${updated} de ${changes.length}. Verificando...`);
       const readback=await request(path);
       const confirmed=countConfirmedChanges(isUsers,changes,readback);
       if(confirmed!==changes.length){
         throw new Error(`Aiven confirmó ${confirmed} de ${changes.length} permisos. Los cambios pendientes se conservaron.`);
       }
 
+      const sameTarget=isUsers
+        ?state.tab==='users'&&Number(state.selectedUserId)===selectedId
+        :state.tab==='roles'&&Number(state.selectedRoleId)===selectedId;
+      if(!sameTarget){
+        throw new Error('El registro seleccionado cambió durante el guardado. Vuelve a abrirlo para confirmar su estado.');
+      }
+
+      setSaveStatus(90,`Confirmados ${confirmed} de ${changes.length}. Actualizando la vista...`);
+      applyPermissionReadback(isUsers,readback);
       state.dirty.clear();
       state.hierarchyDirty.clear();
-      sessionStorage.setItem('mantto:panel-control:save-message','Permisos guardados y verificados correctamente.');
-      toast('Permisos guardados y verificados. Recargando la aplicación...');
-      window.setTimeout(()=>window.location.reload(),450);
-    }catch(e){
-      toast(e.message||'No fue posible guardar y verificar los cambios.');
+      state.savingPermissions=false;
+      renderPermissionPanel();
+      renderSelectorList();
+      renderSummaryCounters();
+      updateSaveButton();
+      restorePermissionViewContext(viewContext);
+      setSaveStatus(100,'Permisos guardados y verificados.','success',2600);
+      toast('Permisos guardados y usuario o rol actualizado.');
+    }catch(error){
       state.savingPermissions=false;
       updateSaveButton();
+      restorePermissionViewContext(viewContext);
+      setSaveStatus(
+        Number(state.saveProgress.percent||0),
+        error.message||'No fue posible guardar y verificar los cambios.',
+        'error',
+        5200
+      );
+      toast(error.message||'No fue posible guardar y verificar los cambios.');
     }
   }
 
