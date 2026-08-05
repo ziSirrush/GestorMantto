@@ -6,3 +6,22 @@
 .vv-overlay{position:fixed;inset:0;background:rgba(15,27,47,.42);z-index:1450;backdrop-filter:blur(2px)}.vv-drawer{position:fixed;right:0;top:0;bottom:0;width:min(680px,94vw);background:#f5f8fc;z-index:1500;transform:translateX(105%);transition:.24s ease;box-shadow:-20px 0 45px rgba(10,31,65,.2);display:flex;flex-direction:column}.vv-drawer.open{transform:none}.vv-drawer header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:#0d2e6e;color:#fff}.vv-drawer header p{margin:0;font-size:11px;opacity:.75}.vv-drawer header h2{margin:3px 0 0}.vv-drawer header button{border:0;background:transparent;color:#fff;font-size:29px;cursor:pointer}.vv-detail{padding:16px;overflow:auto}.vv-detail-card{background:#fff;border:1px solid #dbe4ef;border-radius:13px;padding:15px;margin-bottom:13px}.vv-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.vv-field span{display:block;color:#758397;font-size:10px;text-transform:uppercase;font-weight:900}.vv-field strong{display:block;margin-top:4px;color:#263650;font-size:13px;word-break:break-word}.vv-toast{position:fixed;right:22px;bottom:22px;z-index:1800;background:#173567;color:#fff;border-radius:11px;padding:12px 15px;opacity:0;transform:translateY(15px);pointer-events:none;transition:.2s}.vv-toast.show{opacity:1;transform:none}.vv-toast.error{background:#a82e38}
 @media(max-width:1100px){.vv-kpis{grid-template-columns:repeat(2,1fr)}.vv-toolbar{grid-template-columns:repeat(3,1fr)}.vv-search{grid-column:span 2}}@media(max-width:700px){#view-ventas-vendidos{padding:10px}.vv-head{flex-direction:column;align-items:flex-start}.vv-kpis{grid-template-columns:1fr 1fr}.vv-toolbar{grid-template-columns:1fr}.vv-search{grid-column:auto}.vv-drawer{width:100vw}.vv-detail-grid{grid-template-columns:1fr}}
 .vv-project-link{appearance:none;border:0;background:transparent;padding:0;text-align:left;cursor:pointer}.vv-project-link:hover,.vv-project-link:focus{color:#0f4ccf;text-decoration:underline}.vv-project-link:focus-visible{outline:2px solid #7aa3ef;outline-offset:3px;border-radius:3px}
+
+/* FIX FASE 2 PAGINADO CENTRADO - 2026-08-04 */
+.vv-pagination{
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+  text-align:center;
+}
+.vv-pagination .pages{
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.vv-pagination button{
+  min-width:30px;
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}

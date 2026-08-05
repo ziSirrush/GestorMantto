@@ -39,3 +39,22 @@
   .var-head h1{font-size:22px}
   .var-table td{grid-template-columns:1fr;gap:4px}
 }
+
+/* FIX FASE 2 PAGINADO CENTRADO - 2026-08-04 */
+.var-pagination{
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+  text-align:center;
+}
+.var-pages{
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.var-pages button{
+  min-width:30px;
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}

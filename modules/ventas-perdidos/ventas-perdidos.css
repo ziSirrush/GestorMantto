@@ -7,3 +7,22 @@
 @media(max-width:1100px){.vp-kpis{grid-template-columns:repeat(2,1fr)}.vp-toolbar{grid-template-columns:repeat(3,1fr)}.vp-search{grid-column:span 2}}@media(max-width:700px){#view-ventas-perdidos{padding:10px}.vp-head{flex-direction:column;align-items:flex-start}.vp-kpis{grid-template-columns:1fr 1fr}.vp-toolbar{grid-template-columns:1fr}.vp-search{grid-column:auto}.vp-drawer{width:100vw}.vp-detail-grid{grid-template-columns:1fr}}
 
 .vp-table tbody tr{cursor:pointer}.vp-table tbody tr:hover{background:#f8fafc}.vp-reason{display:inline-flex;max-width:290px;padding:4px 9px;border-radius:999px;background:#fff7ed;color:#9a3412;font-weight:700;font-size:11px;white-space:normal}.vp-table td:nth-child(6){min-width:220px}.vp-table td:nth-child(7){min-width:150px}
+
+/* FIX FASE 2 PAGINADO CENTRADO - 2026-08-04 */
+.vp-pagination{
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+  text-align:center;
+}
+.vp-pagination .pages{
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.vp-pagination button{
+  min-width:30px;
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}

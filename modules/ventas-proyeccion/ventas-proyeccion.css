@@ -14,3 +14,28 @@
 /* Fase 5: historial y auditoría dentro de Proyección */
 .vpr-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}.vpr-history-action{border:1px solid #cbd8e8;background:#f8fbff;color:#24476f;border-radius:8px;padding:6px 9px;font-weight:800;cursor:pointer}.vpr-history-action:hover{background:#edf5ff}.vpr-btn-primary{background:#1455d9;color:#fff}.vpr-history-modal{position:fixed;inset:0;z-index:2200;display:grid;place-items:center;padding:18px}.vpr-history-modal[hidden]{display:none!important}.vpr-history-backdrop{position:absolute;inset:0;background:rgba(15,29,50,.58);backdrop-filter:blur(2px)}.vpr-history-dialog{position:relative;width:min(900px,96vw);max-height:min(820px,92vh);display:flex;flex-direction:column;background:#fff;border:1px solid #d7e1ee;border-radius:18px;box-shadow:0 24px 70px rgba(12,31,63,.30);overflow:hidden}.vpr-history-head{display:flex;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid #e4ebf4}.vpr-history-head h2{margin:2px 0 4px;color:#11356f;font-size:21px}.vpr-history-head p{margin:0;color:#6d7b8f}.vpr-history-close{width:36px;height:36px;border:1px solid #cfdae8;border-radius:10px;background:#fff;color:#53657d;font-size:24px;line-height:1;cursor:pointer}.vpr-history-toolbar{display:flex;align-items:end;gap:10px;padding:12px 20px;background:#f8fafd;border-bottom:1px solid #e6edf5}.vpr-history-toolbar label{display:flex;flex-direction:column;gap:5px;color:#6a788c;font-size:10px;font-weight:900;text-transform:uppercase}.vpr-history-toolbar select{min-width:230px;height:38px;border:1px solid #cfdbea;border-radius:9px;background:#fff;padding:7px 10px}.vpr-history-content{padding:14px 20px;overflow:auto;min-height:220px}.vpr-history-list{display:grid;gap:10px}.vpr-history-item{border:1px solid #dfe7f1;border-radius:12px;padding:12px 14px;background:#fff}.vpr-history-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.vpr-history-item-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.vpr-history-badge{display:inline-flex;padding:4px 8px;border-radius:999px;background:#eaf1ff;color:#174b9e;font-size:10px;font-weight:900}.vpr-history-user{font-size:12px;font-weight:850;color:#334966}.vpr-history-date{font-size:11px;color:#78869a;white-space:nowrap}.vpr-history-note{margin:8px 0 0;color:#4a5c73;font-size:12px;white-space:pre-wrap}.vpr-history-changes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.vpr-history-snapshot{border-radius:9px;padding:9px 10px;background:#f7f9fc;border:1px solid #e5ebf3}.vpr-history-snapshot strong{display:block;margin-bottom:5px;color:#607089;font-size:10px;text-transform:uppercase}.vpr-history-snapshot dl{margin:0;display:grid;gap:4px}.vpr-history-snapshot div{display:grid;grid-template-columns:minmax(100px,.7fr) 1fr;gap:8px;font-size:11px}.vpr-history-snapshot dt{font-weight:850;color:#566981}.vpr-history-snapshot dd{margin:0;color:#243750;word-break:break-word}.vpr-history-empty{padding:32px;text-align:center;color:#728197}.vpr-history-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid #e4ebf4;background:#fbfcfe}
 @media(max-width:760px){.vpr-history-modal{padding:0}.vpr-history-dialog{width:100vw;height:100vh;max-height:none;border-radius:0}.vpr-history-toolbar{align-items:stretch;flex-direction:column}.vpr-history-toolbar select{width:100%;min-width:0}.vpr-history-changes{grid-template-columns:1fr}.vpr-history-item-head{flex-direction:column}.vpr-history-date{white-space:normal}.vpr-history-footer{position:sticky;bottom:0}.vpr-actions{flex-wrap:wrap}}
+
+/* FIX FASE 2 PAGINADO CENTRADO - 2026-08-04 */
+.vpr-stage-pagination{
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+  text-align:center;
+}
+.vpr-stage-pagination .pages{
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.vpr-stage-pagination button{
+  min-width:30px;
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+@media(max-width:760px){
+  .vpr-stage-pagination{
+    align-items:center;
+    text-align:center;
+  }
+}
