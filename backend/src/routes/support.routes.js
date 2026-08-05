@@ -3,7 +3,7 @@ const router = express.Router();
 
 const supportController = require('../controllers/support.controller');
 const { optionalAuth, requireAuth } = require('../middleware/auth.middleware');
-const { requireStorageSchema } = require('../middleware/storage-schema.middleware');
+const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../middleware/storage-upload.middleware');
 
 const supportInitialUpload = createUploadMiddleware_gnral({
@@ -42,8 +42,9 @@ router.get('/tickets/mias/:id', requireAuth, supportController.getMyTicketById);
 router.post(
   '/tickets/mias',
   requireAuth,
-  requireStorageSchema('sup_tickets', 'sup_adjuntos'),
+  requireStorageSchema('sup_tickets'),
   supportInitialUpload,
+  requireStorageSchemaWhenFiles('sup_adjuntos'),
   supportController.createMyTicket
 );
 router.patch('/tickets/mias/:id', requireAuth, supportController.updateMyTicket);
