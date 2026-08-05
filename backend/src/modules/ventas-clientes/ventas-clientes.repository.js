@@ -95,7 +95,11 @@ async function list(connection, options, scope, actorId) {
 
   const [rows] = await connection.query(
     `SELECT vc.*,
-            (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor
+            (SELECT MIN(u.id_SB) FROM usuarios u WHERE u.estado=1 AND UPPER(TRIM(u.iniciales))=UPPER(TRIM(vc.iniciales))) AS id_asesor,
+            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE q.activo=1 AND q.id_cliente=vc.id_cliente) AS cotizaciones,
+            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE q.activo=1 AND q.id_cliente=vc.id_cliente AND UPPER(TRIM(COALESCE(q.estatus_proyecto,''))) NOT IN ('VENDIDO','PERDIDO')) AS en_proceso,
+            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE q.activo=1 AND q.id_cliente=vc.id_cliente AND UPPER(TRIM(COALESCE(q.estatus_proyecto,'')))='VENDIDO') AS vendidas,
+            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE q.activo=1 AND q.id_cliente=vc.id_cliente AND UPPER(TRIM(COALESCE(q.estatus_proyecto,'')))='PERDIDO') AS perdidas
        FROM ${TABLE} vc
        ${where.sql}
       ORDER BY vc.${sortBy} ${direction}, vc.id_cliente ASC

@@ -54,10 +54,42 @@ function fillCatalogs(){
 
 async function loadKpis(){try{const j=await request('/api/ventas/cotizaciones/kpis?'+query());state.kpis=j.kpis||{};}catch(e){state.kpis=null;setStatus('Error de conexión con la API: '+e.message,'error');}renderKpis();}
 function renderKpis(){const k=state.kpis||{};const value=(...keys)=>{for(const key of keys){if(k[key]!==undefined&&k[key]!==null)return Number(k[key]);}return '—';};$('#vc-kpis').innerHTML=[['Total',value('total_cotizaciones','total'),'Cotizaciones del año en curso','blue'],['En proceso',value('embudo_activo','total_embudo','activas_embudo'),'Oportunidades activas del año','amber'],['Vendidas',value('vendidas','total_vendidas'),'Cierres comerciales','green'],['Perdidas',value('perdidas','total_perdidas'),'Oportunidades perdidas del año','red'],['Equipos cotizados',value('total_equipos','equipos'),'Equipos cotizados en el año','purple'],['Equipos vendidos',value('equipos_vendidos','total_equipos_vendidos'),'Equipos de ventas cerradas','teal']].map(x=>'<article class="vc-kpi '+x[3]+'"><div class="label">'+x[0]+'</div><div class="value">'+x[1]+'</div><div class="meta">'+x[2]+'</div></article>').join('');}
-function rowHtml(r){return '<tr><td><strong>MX'+esc(String(r.id_cotizacion||'').padStart(6,'0'))+'</strong></td><td><span class="vc-project">'+esc(r.nombre_proyecto||'Sin nombre')+'</span><span class="vc-sub">'+esc([r.ciudad,r.estado].filter(Boolean).join(', '))+'</span></td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.contacto||'—')+'</td><td><span class="vc-pill '+slug(r.estatus_proyecto)+'">'+esc(r.estatus_proyecto||'Sin estatus')+'</span></td><td>'+esc(r.asesor||'Sin asignar')+'<span class="vc-sub">'+esc(r.admin||'')+'</span></td><td>'+Number(r.numero_equipos||0)+'</td><td>'+fmtDate(r.fecha_cotizacion||r.fecha_solicitud)+'</td><td><div class="vc-row-actions"><button data-open="'+esc(r.id_cotizacion)+'" title="Ver detalle">👁</button><button data-edit="'+esc(r.id_cotizacion)+'" title="Editar">✎</button></div></td></tr>';}
-async function loadList(){const body=$('#vc-list-body');body.innerHTML='<tr><td colspan="9" class="vc-loader">Cargando cotizaciones desde Aiven...</td></tr>';try{const j=await request('/api/ventas/cotizaciones?'+query());state.rows=Array.isArray(j.cotizaciones)?j.cotizaciones:[];state.totalPages=Number(j.paginacion?.total_paginas||1);state.page=Number(j.paginacion?.pagina||1);setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros??state.rows.length)+' registros');body.innerHTML=state.rows.length?state.rows.map(rowHtml).join(''):'<tr><td colspan="9" class="vc-empty">No hay cotizaciones reales para los criterios seleccionados.</td></tr>';}catch(e){state.rows=[];state.totalPages=1;setStatus('Error de conexión con la API: '+e.message,'error');body.innerHTML='<tr><td colspan="9" class="vc-empty">No fue posible consultar las cotizaciones. '+esc(e.message)+'</td></tr>';}bindRows();renderPagination();}
+
+function recordIndicators(row){
+  const source=row||{};
+  const codes=[];
+  const visual=Array.isArray(source.estados_visuales)?source.estados_visuales:[];
+  const visualCodes=visual.map(item=>String(typeof item==='string'?item:(item&&item.codigo)||'').toUpperCase());
+  const isNew=source.es_nuevo===true||Number(source.es_nuevo||source.nuevo||source.no_visto||0)>0||visualCodes.includes('NUEVO');
+  const hasNewComment=source.comentario_nuevo===true||Number(source.comentarios_nuevos||source.comentario_nuevo||source.tiene_comentario_nuevo||0)>0||visualCodes.includes('COMENTARIO_NUEVO');
+  if(isNew)codes.push('NUEVO');
+  if(hasNewComment)codes.push('COMENTARIO_NUEVO');
+  if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.renderMany==='function')return window.EstadosVisuales_gnral.renderMany(codes,{empty:''});
+  return (isNew?'🆕 ':'')+(hasNewComment?'💬':'');
+}
+function rowHtml(r){
+  const indicators=recordIndicators(r);
+  return '<tr data-open="'+esc(r.id_cotizacion)+'">'
+    +'<td><span class="vc-project">'+(indicators?indicators+' ':'')+esc(r.nombre_proyecto||'Sin nombre')+'</span></td>'
+    +'<td>'+esc(r.cliente||'—')+'</td>'
+    +'<td>'+esc(r.asesor||'Sin asignar')+'</td>'
+    +'<td><span class="vc-pill '+slug(r.estatus_proyecto)+'">'+esc(r.estatus_proyecto||'Sin estatus')+'</span></td>'
+    +'<td>'+Number(r.numero_equipos||0)+'</td>'
+    +'<td>'+fmtDate(r.fecha_cotizacion||r.fecha_solicitud)+'</td>'
+    +'<td>'+esc(r.ciudad||'—')+'</td>'
+    +'<td>'+esc(r.estado||'—')+'</td>'
+    +'</tr>';
+}
+async function loadList(){const body=$('#vc-list-body');body.innerHTML='<tr><td colspan="8" class="vc-loader">Cargando cotizaciones desde Aiven...</td></tr>';try{const j=await request('/api/ventas/cotizaciones?'+query());state.rows=Array.isArray(j.cotizaciones)?j.cotizaciones:[];state.totalPages=Number(j.paginacion?.total_paginas||1);state.page=Number(j.paginacion?.pagina||1);setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros??state.rows.length)+' registros');body.innerHTML=state.rows.length?state.rows.map(rowHtml).join(''):'<tr><td colspan="8" class="vc-empty">No hay cotizaciones reales para los criterios seleccionados.</td></tr>';}catch(e){state.rows=[];state.totalPages=1;setStatus('Error de conexión con la API: '+e.message,'error');body.innerHTML='<tr><td colspan="8" class="vc-empty">No fue posible consultar las cotizaciones. '+esc(e.message)+'</td></tr>';}bindRows();renderPagination();}
 function goToDetail(id){const quoteId=Number(id);if(!quoteId)return toast('La cotización no tiene un identificador válido.',true);window.ManttoRouter?.go?.('ventas-cotizaciones-detalle',{id:quoteId});}
-function bindRows(){$$('[data-open]').forEach(b=>b.onclick=event=>{event.stopPropagation();goToDetail(b.dataset.open);});$$('[data-edit]').forEach(b=>b.onclick=event=>{event.stopPropagation();openForm(state.rows.find(r=>String(r.id_cotizacion)===b.dataset.edit));});$$('#vc-list-body tr').forEach(row=>{const open=row.querySelector('[data-open]');if(!open)return;row.classList.add('vc-clickable-row');row.tabIndex=0;row.onclick=()=>goToDetail(open.dataset.open);row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();goToDetail(open.dataset.open);}};});}
+function bindRows(){
+  $$('#vc-list-body tr[data-open]').forEach(row=>{
+    row.classList.add('vc-clickable-row');
+    row.tabIndex=0;
+    row.onclick=()=>goToDetail(row.dataset.open);
+    row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();goToDetail(row.dataset.open);}};
+  });
+}
 function renderPagination(){const el=$('#vc-pagination');el.innerHTML='<span>Página '+state.page+' de '+Math.max(1,state.totalPages)+'</span><div class="pages"><button id="vc-prev" '+(state.page<=1?'disabled':'')+'>←</button><button class="active">'+state.page+'</button><button id="vc-next" '+(state.page>=state.totalPages?'disabled':'')+'>→</button></div>';$('#vc-prev').onclick=()=>{if(state.page>1){state.page--;loadAll();}};$('#vc-next').onclick=()=>{if(state.page<state.totalPages){state.page++;loadAll();}};}
 async function loadAll(){await Promise.all([loadKpis(),loadList()]);}
 async function getRecord(id){try{return (await request('/api/ventas/cotizaciones/'+id)).cotizacion;}catch(e){const row=state.rows.find(r=>Number(r.id_cotizacion)===Number(id));if(row)return row;throw e;}}

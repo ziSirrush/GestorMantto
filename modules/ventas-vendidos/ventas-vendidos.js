@@ -13,10 +13,41 @@ function fillCatalogs(){const now=new Date().getFullYear();const years=[...new S
 function query(){const q=new URLSearchParams({page:String(state.page),page_size:String(state.pageSize)});const search=$('#vv-search').value.trim();const year=$('#vv-filter-year').value;const advisor=state.visibility.acceso_total?$('#vv-filter-advisor').value:'';const admin=state.visibility.acceso_total?$('#vv-filter-admin').value:'';const zone=$('#vv-filter-zone').value;if(search)q.set('search',search);if(year)q.set('anio',year);if(advisor)q.set('id_asesor',advisor);if(admin)q.set('id_admin',admin);if(zone)q.set('zona',zone);return q.toString();}
 function renderKpis(summary={}){const data=[['Ventas cerradas',summary.total_cotizaciones||0,'Registros con estatus Vendido','green'],['Equipos vendidos',summary.total_equipos||0,'Equipos incluidos en ventas','blue'],['Con fecha de cierre',summary.con_fecha_cierre||0,'Vendidos con fecha en el periodo','purple'],['Sin fecha de cierre',summary.sin_fecha_cierre||0,'Vendidos sin fecha · control global','amber']];$('#vv-kpis').innerHTML=data.map(([l,v,m,c])=>'<article class="vv-kpi '+c+'"><div class="label">'+esc(l)+'</div><div class="value">'+Number(v).toLocaleString('es-MX')+'</div><div class="meta">'+esc(m)+'</div></article>').join('');}
 function resolveQuoteId(row){const candidates=[row?.id_cotizacion,row?.idCotizacion,row?.cotizacion_id,row?.id_cotizacion_cor,row?.id];for(const value of candidates){const id=Number(value);if(Number.isInteger(id)&&id>0)return id;}return null;}
-function renderRows(){const body=$('#vv-body');if(!state.rows.length){body.innerHTML='<tr><td colspan="9" class="vv-empty">No hay ventas para los filtros seleccionados.</td></tr>';return;}body.innerHTML=state.rows.map((r,index)=>{const quoteId=resolveQuoteId(r);const viewAttr=quoteId?' data-view="'+esc(quoteId)+'"':'';const mx=r.mx||(quoteId?('MX'+String(quoteId).padStart(6,'0')):'—');return '<tr data-row-index="'+index+'"'+viewAttr+'><td><strong>'+esc(mx)+'</strong></td><td><button class="vv-project vv-project-link"'+viewAttr+' data-row-index="'+index+'" type="button">'+esc(r.nombre_proyecto||'Sin proyecto')+'</button><span class="vv-sub">'+esc([r.ciudad,r.estado].filter(Boolean).join(', ')||'—')+'</span></td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.asesor||'—')+'</td><td>'+esc(r.admin||'—')+'</td><td>'+esc(r.zona||'—')+'</td><td>'+Number(r.numero_equipos||0).toLocaleString('es-MX')+'</td><td>'+fmtDate(r.fecha_cierre)+'</td><td>'+(quoteId?'<button class="vv-action" data-view="'+esc(quoteId)+'" data-row-index="'+index+'" type="button">◉ Ver</button>':'<span class="vv-no-id">Sin ID interno</span>')+'</td></tr>';}).join('');}
+
+function recordIndicators(row){
+  const source=row||{};
+  const codes=[];
+  const visual=Array.isArray(source.estados_visuales)?source.estados_visuales:[];
+  const visualCodes=visual.map(item=>String(typeof item==='string'?item:(item&&item.codigo)||'').toUpperCase());
+  const isNew=source.es_nuevo===true||Number(source.es_nuevo||source.nuevo||source.no_visto||0)>0||visualCodes.includes('NUEVO');
+  const hasNewComment=source.comentario_nuevo===true||Number(source.comentarios_nuevos||source.comentario_nuevo||source.tiene_comentario_nuevo||0)>0||visualCodes.includes('COMENTARIO_NUEVO');
+  if(isNew)codes.push('NUEVO');
+  if(hasNewComment)codes.push('COMENTARIO_NUEVO');
+  if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.renderMany==='function')return window.EstadosVisuales_gnral.renderMany(codes,{empty:''});
+  return (isNew?'🆕 ':'')+(hasNewComment?'💬':'');
+}
+function renderRows(){
+  const body=$('#vv-body');
+  if(!state.rows.length){body.innerHTML='<tr><td colspan="8" class="vv-empty">No hay ventas para los filtros seleccionados.</td></tr>';return;}
+  body.innerHTML=state.rows.map((r,index)=>{
+    const quoteId=resolveQuoteId(r);
+    const viewAttr=quoteId?' data-view="'+esc(quoteId)+'"':'';
+    const indicators=recordIndicators(r);
+    return '<tr data-row-index="'+index+'"'+viewAttr+'>'
+      +'<td><button class="vv-project vv-project-link"'+viewAttr+' data-row-index="'+index+'" type="button">'+(indicators?indicators+' ':'')+esc(r.nombre_proyecto||'Sin proyecto')+'</button></td>'
+      +'<td>'+esc(r.cliente||'—')+'</td>'
+      +'<td>'+esc(r.asesor||'—')+'</td>'
+      +'<td>'+fmtDate(r.fecha_cierre)+'</td>'
+      +'<td>'+Number(r.numero_equipos||0).toLocaleString('es-MX')+'</td>'
+      +'<td>'+fmtDate(r.fecha_cotizacion||r.fecha_solicitud)+'</td>'
+      +'<td>'+esc(r.ciudad||'—')+'</td>'
+      +'<td>'+esc(r.estado||'—')+'</td>'
+      +'</tr>';
+  }).join('');
+}
 function renderPagination(p={}){state.totalPages=Number(p.total_paginas||0);const el=$('#vv-pagination');const total=Number(p.total_registros||0);if(!total){el.innerHTML='';return;}const pages=[];for(let i=Math.max(1,state.page-2);i<=Math.min(state.totalPages,state.page+2);i++)pages.push('<button class="'+(i===state.page?'active':'')+'" data-page="'+i+'">'+i+'</button>');el.innerHTML='<span>'+total.toLocaleString('es-MX')+' ventas</span><div class="pages"><button data-page="'+Math.max(1,state.page-1)+'">‹</button>'+pages.join('')+'<button data-page="'+Math.min(state.totalPages,state.page+1)+'">›</button></div>';}
 async function loadCatalogs(){const j=await request('/api/ventas/cotizaciones/catalogos');state.catalogs=Object.assign({},j.catalogos||{}, {anios_cierre:j.catalogos?.anios_cierre||[]});state.visibility=Object.assign({acceso_total:false},j.visibilidad||{});fillCatalogs();}
-async function load(){setStatus('Consultando Aiven');$('#vv-body').innerHTML='<tr><td colspan="9" class="vv-loader">Cargando ventas...</td></tr>';try{const j=await request('/api/ventas/cotizaciones/vendidos?'+query());state.rows=j.cotizaciones||[];renderKpis(j.resumen||{});renderRows();renderPagination(j.paginacion||{});setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros||0).toLocaleString('es-MX')+' ventas');}catch(e){state.rows=[];renderRows();renderKpis({});setStatus('Error de conexión: '+e.message,true);toast(e.message,true);}}
+async function load(){setStatus('Consultando Aiven');$('#vv-body').innerHTML='<tr><td colspan="8" class="vv-loader">Cargando ventas...</td></tr>';try{const j=await request('/api/ventas/cotizaciones/vendidos?'+query());state.rows=j.cotizaciones||[];renderKpis(j.resumen||{});renderRows();renderPagination(j.paginacion||{});setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros||0).toLocaleString('es-MX')+' ventas');}catch(e){state.rows=[];renderRows();renderKpis({});setStatus('Error de conexión: '+e.message,true);toast(e.message,true);}}
 function openDetail(id,rowIndex){let quoteId=Number(id);if(!Number.isInteger(quoteId)||quoteId<=0){const row=state.rows[Number(rowIndex)];quoteId=resolveQuoteId(row);}if(!Number.isInteger(quoteId)||quoteId<=0){console.error('[Ventas Vendidos] Registro sin id_cotizacion válido:',state.rows[Number(rowIndex)]||null);toast('La venta no incluye el ID interno de la cotización.',true);return;}if(!window.ManttoRouter?.go){toast('No se pudo abrir el detalle de cotización.',true);return;}window.ManttoRouter.go('ventas-cotizaciones-detalle',{id:quoteId,id_cotizacion:quoteId,origen:'ventas-vendidos'});}
 function bind(){let timer;$('#vv-search').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>{state.page=1;load();},350);});['vv-filter-year','vv-filter-advisor','vv-filter-admin','vv-filter-zone'].forEach(id=>$('#'+id)?.addEventListener('change',()=>{state.page=1;load();}));$('#vv-clear').addEventListener('click',()=>{$('#vv-search').value='';$('#vv-filter-year').value=String(new Date().getFullYear());$('#vv-filter-advisor').value='';$('#vv-filter-admin').value='';$('#vv-filter-zone').value='';state.page=1;load();});$('#vv-refresh').addEventListener('click',load);$('#vv-body').addEventListener('click',e=>{const target=e.target.closest('[data-view], tr[data-row-index]');if(!target)return;const rowIndex=target.dataset.rowIndex??target.closest('tr')?.dataset.rowIndex;openDetail(target.dataset.view,rowIndex);});$('#vv-pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(!b)return;state.page=Number(b.dataset.page)||1;load();});}
 async function init(){const view=$('#view-ventas-vendidos');if(!view)return;if(!view.dataset.loaded){const r=await fetch('./modules/ventas-vendidos/ventas-vendidos.html',{cache:'no-store'});if(!r.ok)throw new Error('No se pudo cargar la vista Vendidos.');view.innerHTML=await r.text();view.dataset.loaded='1';bind();await loadCatalogs();}await load();state.initialized=true;}

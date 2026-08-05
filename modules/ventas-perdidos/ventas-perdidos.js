@@ -13,7 +13,37 @@ function personOption(p){const id=p.id_SB??p.id_usuario??p.id;const label=(p.ini
 function fillCatalogs(){const now=new Date().getFullYear();const years=[...new Set((state.catalogs.anios_perdidos||[]).map(Number).filter(Boolean))].sort((a,b)=>b-a);if(!years.includes(now))years.unshift(now);$('#vp-filter-year').innerHTML='<option value="todos">Todos</option>'+years.map(y=>'<option value="'+y+'">'+y+'</option>').join('');$('#vp-filter-year').value=String(now);$('#vp-filter-advisor').innerHTML='<option value="">Todos</option>'+(state.catalogs.asesores||[]).map(personOption).join('');$('#vp-filter-reason').innerHTML='<option value="">Todas</option>'+(state.catalogs.razones_perdido||[]).map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');$('#vp-filter-advisor-wrap').hidden=!Boolean(state.visibility.acceso_total);}
 function query(){const q=new URLSearchParams({page:String(state.page),page_size:String(state.pageSize)});const search=$('#vp-search').value.trim();const year=$('#vp-filter-year').value;const advisor=state.visibility.acceso_total?$('#vp-filter-advisor').value:'';const reason=$('#vp-filter-reason').value;if(search)q.set('search',search);if(year)q.set('anio',year);if(advisor)q.set('id_asesor',advisor);if(reason)q.set('razon_perdido',reason);return q.toString();}
 function renderKpis(summary={}){const total=Number(summary.total_cotizaciones||0), equipos=Number(summary.total_equipos||0), con=Number(summary.con_razon||0), sin=Number(summary.sin_razon||0);const data=[['Cotizaciones perdidas',total,'Registros con estatus Perdido','red'],['Equipos perdidos',equipos,'Equipos incluidos en pérdidas','amber'],['Con razón registrada',con,'Pérdidas documentadas','purple'],['Sin razón registrada',sin,'Pendientes de documentar','blue']];$('#vp-kpis').innerHTML=data.map(([l,v,m,c])=>'<article class="vp-kpi '+c+'"><div class="label">'+esc(l)+'</div><div class="value">'+v.toLocaleString('es-MX')+'</div><div class="meta">'+esc(m)+'</div></article>').join('');}
-function renderRows(){const body=$('#vp-body');if(!state.rows.length){body.innerHTML='<tr><td colspan="9" class="vp-empty">No hay cotizaciones perdidas para los filtros seleccionados.</td></tr>';return;}body.innerHTML=state.rows.map(r=>'<tr data-view="'+esc(r.id_cotizacion)+'"><td><strong>'+esc(r.mx||('MX'+String(r.id_cotizacion).padStart(6,'0')))+'</strong></td><td><span class="vp-project">'+esc(r.nombre_proyecto||'Sin proyecto')+'</span><span class="vp-sub">'+esc([r.ciudad,r.estado].filter(Boolean).join(', ')||'—')+'</span></td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.asesor||'—')+'</td><td>'+Number(r.numero_equipos||0).toLocaleString('es-MX')+'</td><td><span class="vp-reason">'+esc(r.razon_perdido||'Sin razón registrada')+'</span></td><td>'+esc(r.empresa_vs_perdido||'—')+'</td><td>'+fmtDate(r.fecha_cambio_estatus)+'</td><td><button class="vp-action" data-view="'+esc(r.id_cotizacion)+'" type="button">◉ Ver</button></td></tr>').join('');}
+
+function recordIndicators(row){
+  const source=row||{};
+  const codes=[];
+  const visual=Array.isArray(source.estados_visuales)?source.estados_visuales:[];
+  const visualCodes=visual.map(item=>String(typeof item==='string'?item:(item&&item.codigo)||'').toUpperCase());
+  const isNew=source.es_nuevo===true||Number(source.es_nuevo||source.nuevo||source.no_visto||0)>0||visualCodes.includes('NUEVO');
+  const hasNewComment=source.comentario_nuevo===true||Number(source.comentarios_nuevos||source.comentario_nuevo||source.tiene_comentario_nuevo||0)>0||visualCodes.includes('COMENTARIO_NUEVO');
+  if(isNew)codes.push('NUEVO');
+  if(hasNewComment)codes.push('COMENTARIO_NUEVO');
+  if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.renderMany==='function')return window.EstadosVisuales_gnral.renderMany(codes,{empty:''});
+  return (isNew?'🆕 ':'')+(hasNewComment?'💬':'');
+}
+function renderRows(){
+  const body=$('#vp-body');
+  if(!state.rows.length){body.innerHTML='<tr><td colspan="9" class="vp-empty">No hay cotizaciones perdidas para los filtros seleccionados.</td></tr>';return;}
+  body.innerHTML=state.rows.map(r=>{
+    const indicators=recordIndicators(r);
+    return '<tr data-view="'+esc(r.id_cotizacion)+'">'
+      +'<td><span class="vp-project">'+(indicators?indicators+' ':'')+esc(r.nombre_proyecto||'Sin proyecto')+'</span></td>'
+      +'<td>'+esc(r.cliente||'—')+'</td>'
+      +'<td>'+esc(r.asesor||'—')+'</td>'
+      +'<td><span class="vp-reason">'+esc(r.razon_perdido||'Sin razón registrada')+'</span></td>'
+      +'<td>'+esc(r.empresa_vs_perdido||'—')+'</td>'
+      +'<td>'+Number(r.numero_equipos||0).toLocaleString('es-MX')+'</td>'
+      +'<td>'+fmtDate(r.fecha_cambio_estatus)+'</td>'
+      +'<td>'+esc(r.ciudad||'—')+'</td>'
+      +'<td>'+esc(r.estado||'—')+'</td>'
+      +'</tr>';
+  }).join('');
+}
 function renderPagination(p={}){state.totalPages=Number(p.total_paginas||0);const el=$('#vp-pagination');const total=Number(p.total_registros||0);if(!total){el.innerHTML='';return;}const pages=[];for(let i=Math.max(1,state.page-2);i<=Math.min(state.totalPages,state.page+2);i++)pages.push('<button class="'+(i===state.page?'active':'')+'" data-page="'+i+'">'+i+'</button>');el.innerHTML='<span>'+total.toLocaleString('es-MX')+' pérdidas</span><div class="pages"><button data-page="'+Math.max(1,state.page-1)+'">‹</button>'+pages.join('')+'<button data-page="'+Math.min(state.totalPages,state.page+1)+'">›</button></div>';}
 async function loadCatalogs(){const j=await request('/api/ventas/cotizaciones/catalogos');state.catalogs=Object.assign({},j.catalogos||{});state.visibility=Object.assign({acceso_total:false},j.visibilidad||{});fillCatalogs();}
 async function load(){setStatus('Consultando Aiven');$('#vp-body').innerHTML='<tr><td colspan="9" class="vp-loader">Cargando pérdidas...</td></tr>';try{const j=await request('/api/ventas/cotizaciones/perdidos?'+query());state.rows=j.cotizaciones||[];renderKpis(j.resumen||{});renderRows();renderPagination(j.paginacion||{});setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros||0).toLocaleString('es-MX')+' pérdidas');}catch(e){state.rows=[];renderRows();renderKpis({});setStatus('Error de conexión: '+e.message,true);toast(e.message,true);}}

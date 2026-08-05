@@ -261,16 +261,21 @@
   function fmtMtbc(value){ const n=Number(value); return value===null || value===undefined || value==='' || Number.isNaN(n) || n < 0 ? 'N/A' : esc(n.toFixed(2))+' d'; }
   function renderEquipoTicketRows(){
     if(state.eq.expanding){
-      return '<tr><td colspan="10" class="ec-empty">Cargando tickets que originaron la criticidad...</td></tr>';
+      return '<tr><td colspan="9" class="ec-empty">Cargando tickets que originaron la criticidad...</td></tr>';
     }
     if(!state.eq.expandedTickets.length){
-      return '<tr><td colspan="10" class="ec-empty">No se encontraron tickets BLT dentro del período.</td></tr>';
+      return '<tr><td colspan="9" class="ec-empty">No se encontraron tickets BLT dentro del período.</td></tr>';
     }
     return state.eq.expandedTickets.map(t=>`<tr>
       <td class="ec-code"><button class="ec-link" type="button" data-ticket="${esc(t.ticket)}">${esc(t.ticket)}</button></td>
-      <td>${date(t.fecha_reporte)}</td><td>${esc(t.estado_ticket||t.estado)}</td><td>${esc(t.responsabilidad)}</td>
-      <td>${esc(t.causa_falla||t.causa)}</td><td>${esc(t.parte)}</td><td>${esc(t.procedencia)}</td>
-      <td>${esc(t.tiempo_llegada)}</td><td>${esc(t.tiempo_solucion)}</td><td>${esc(t.tecnico||t.atendido_por)}</td>
+      <td>${date(t.fecha_reporte)}</td>
+      <td>${esc(t.tiempo_llegada)}</td>
+      <td>${esc(t.tiempo_solucion)}</td>
+      <td>${esc(t.responsabilidad)}</td>
+      <td>${date(t.fecha_cierre)}</td>
+      <td>${esc(t.descripcion)}</td>
+      <td>${esc(t.causa_falla||t.causa)}</td>
+      <td>${esc(t.accion_en_cierre)}</td>
     </tr>`).join('');
   }
 
@@ -279,7 +284,7 @@
     return `<tr class="ec-expanded-row" data-ec-expanded-for="${esc(codigo)}"><td colspan="15">
       <div class="ec-expanded-box">
         <div class="ec-expanded-head"><div><b>Tickets que hicieron crítico al equipo ${esc(codigo)}</b><small>Solo fallas con responsabilidad BLT dentro del período seleccionado.</small></div><button type="button" class="ec-btn" data-ec-collapse="${esc(codigo)}">Cerrar</button></div>
-        <div class="ec-table-wrap"><table class="ec-table ec-subtable"><thead><tr><th>Ticket</th><th>Fecha reporte</th><th>Estado</th><th>Responsabilidad</th><th>Causa</th><th>Parte</th><th>Procedencia</th><th>T. llegada</th><th>T. solución</th><th>Técnico</th></tr></thead><tbody>${renderEquipoTicketRows()}</tbody></table></div>
+        <div class="ec-table-wrap"><table class="ec-table ec-subtable"><thead><tr><th>Ticket</th><th>Fecha Repo</th><th>Tiempo llegada</th><th>Tiempo solución</th><th>Responsabilidad</th><th>Fecha Cierre</th><th>Descripción</th><th>Causa</th><th>Acción en cierre</th></tr></thead><tbody>${renderEquipoTicketRows()}</tbody></table></div>
       </div>
     </td></tr>`;
   }

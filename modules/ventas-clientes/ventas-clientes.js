@@ -16,8 +16,34 @@ function fillSelect(selector,values,label){const el=$(selector);if(!el)return;co
 async function loadCatalogs(){try{const json=await request('/api/ventas/clientes/catalogos');state.catalogs=json.catalogos||{};fillSelect('#vcl-filter-type',state.catalogs.tipo_cliente,'Todos');fillSelect('#vcl-filter-status',state.catalogs.estatus_cliente,'Todos');fillSelect('#vcl-filter-state',state.catalogs.estado,'Todos');fillSelect('#vcl-filter-advisor',state.catalogs.iniciales,'Todos');const wrap=$('#vcl-filter-advisor-wrap');if(wrap)wrap.hidden=!Array.isArray(state.catalogs.iniciales)||state.catalogs.iniciales.length<=1;}catch(error){setStatus('Error de conexión con la API: '+error.message,'error');toast('No se pudieron cargar los filtros reales.',true);}}
 async function loadKpis(){try{const json=await request('/api/ventas/clientes/kpis?'+query());state.kpis=json.kpis||{};}catch(error){state.kpis=null;setStatus('Error de conexión con la API: '+error.message,'error');}renderKpis();}
 function renderKpis(){const k=state.kpis||{};const cards=[['Total clientes',k.total_clientes,'Registros visibles','blue'],['Con estatus',k.con_estatus,'Seguimiento comercial definido','green'],['Proyecto vendido',k.con_proyecto_vendido,'Clientes con proyecto registrado','amber'],['Tipos de cliente',k.tipos_cliente,'Clasificaciones visibles','purple'],['Estados',k.estados,'Cobertura geográfica','teal']];const box=$('#vcl-kpis');if(box)box.innerHTML=cards.map(card=>'<article class="vcl-kpi '+card[3]+'"><div class="label">'+esc(card[0])+'</div><div class="value">'+fmt(card[1])+'</div><div class="meta">'+esc(card[2])+'</div></article>').join('');}
-function rowHtml(row){const place=[row.ciudad,row.estado].filter(Boolean).join(' · ')||'—';const contact=[row.nombre_contacto,row.email,row.telefono].filter(Boolean);return '<tr data-client="'+esc(row.id_cliente)+'"><td><span class="vcl-client">'+esc(row.nombre_empresa||'Sin nombre')+'</span><span class="vcl-sub">'+esc(row.razon_social||([row.ciudad,row.iniciales].filter(Boolean).join(' · ')))+'</span></td><td>'+esc(place)+'</td><td>'+esc(contact[0]||'—')+(contact.length>1?'<span class="vcl-sub">'+esc(contact.slice(1).join(' · '))+'</span>':'')+'</td><td><span class="vcl-pill '+slug(row.tipo_cliente)+'">'+esc(row.tipo_cliente||'Sin tipo')+'</span></td><td><span class="vcl-pill '+slug(row.estatus_cliente)+'">'+esc(row.estatus_cliente||'Sin estatus')+'</span></td><td><strong>'+esc(row.iniciales||'—')+'</strong></td></tr>';}
-async function loadList(){const body=$('#vcl-list-body');if(!body)return;body.innerHTML='<tr><td colspan="6" class="vcl-loader">Cargando clientes desde Aiven...</td></tr>';try{const json=await request('/api/ventas/clientes?'+query());state.rows=Array.isArray(json.data)?json.data:[];state.page=Number(json.pagination?.page||1);state.total=Number(json.pagination?.total||state.rows.length);state.totalPages=Number(json.pagination?.total_pages||1);setStatus('Aiven conectado · '+fmt(state.total)+' registros');body.innerHTML=state.rows.length?state.rows.map(rowHtml).join(''):'<tr><td colspan="6" class="vcl-empty">No hay clientes para los criterios seleccionados.</td></tr>';}catch(error){state.rows=[];state.total=0;state.totalPages=1;setStatus('Error de conexión con la API: '+error.message,'error');body.innerHTML='<tr><td colspan="6" class="vcl-empty">No fue posible consultar Clientes. '+esc(error.message)+'</td></tr>';}bindRows();renderPagination();}
+
+function recordIndicators(row){
+  const source=row||{};
+  const codes=[];
+  const visual=Array.isArray(source.estados_visuales)?source.estados_visuales:[];
+  const visualCodes=visual.map(item=>String(typeof item==='string'?item:(item&&item.codigo)||'').toUpperCase());
+  const isNew=source.es_nuevo===true||Number(source.es_nuevo||source.nuevo||source.no_visto||0)>0||visualCodes.includes('NUEVO');
+  const hasNewComment=source.comentario_nuevo===true||Number(source.comentarios_nuevos||source.comentario_nuevo||source.tiene_comentario_nuevo||0)>0||visualCodes.includes('COMENTARIO_NUEVO');
+  if(isNew)codes.push('NUEVO');
+  if(hasNewComment)codes.push('COMENTARIO_NUEVO');
+  if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.renderMany==='function')return window.EstadosVisuales_gnral.renderMany(codes,{empty:''});
+  return (isNew?'🆕 ':'')+(hasNewComment?'💬':'');
+}
+function rowHtml(row){
+  const place=[row.ciudad,row.estado].filter(Boolean).join(' · ')||'—';
+  const indicators=recordIndicators(row);
+  return '<tr data-client="'+esc(row.id_cliente)+'">'
+    +'<td><span class="vcl-client">'+(indicators?indicators+' ':'')+esc(row.nombre_empresa||'Sin nombre')+'</span><span class="vcl-sub">'+esc(row.razon_social||'')+'</span></td>'
+    +'<td><strong>'+esc(row.iniciales||'—')+'</strong></td>'
+    +'<td>'+esc(place)+'</td>'
+    +'<td><span class="vcl-pill '+slug(row.tipo_cliente)+'">'+esc(row.tipo_cliente||'Sin tipo')+'</span></td>'
+    +'<td class="vcl-num">'+fmt(row.cotizaciones||0)+'</td>'
+    +'<td class="vcl-num">'+fmt(row.en_proceso||0)+'</td>'
+    +'<td class="vcl-num">'+fmt(row.vendidas||0)+'</td>'
+    +'<td class="vcl-num">'+fmt(row.perdidas||0)+'</td>'
+    +'</tr>';
+}
+async function loadList(){const body=$('#vcl-list-body');if(!body)return;body.innerHTML='<tr><td colspan="8" class="vcl-loader">Cargando clientes desde Aiven...</td></tr>';try{const json=await request('/api/ventas/clientes?'+query());state.rows=Array.isArray(json.data)?json.data:[];state.page=Number(json.pagination?.page||1);state.total=Number(json.pagination?.total||state.rows.length);state.totalPages=Number(json.pagination?.total_pages||1);setStatus('Aiven conectado · '+fmt(state.total)+' registros');body.innerHTML=state.rows.length?state.rows.map(rowHtml).join(''):'<tr><td colspan="8" class="vcl-empty">No hay clientes para los criterios seleccionados.</td></tr>';}catch(error){state.rows=[];state.total=0;state.totalPages=1;setStatus('Error de conexión con la API: '+error.message,'error');body.innerHTML='<tr><td colspan="8" class="vcl-empty">No fue posible consultar Clientes. '+esc(error.message)+'</td></tr>';}bindRows();renderPagination();}
 function bindRows(){$$('[data-client]').forEach(row=>{row.onclick=()=>window.ManttoRouter?.go?.('ventas-clientes-detalle',{id:Number(row.dataset.client)});row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();row.click();}};row.tabIndex=0;});}
 function renderPagination(){const el=$('#vcl-pagination');if(!el)return;const start=state.total?((state.page-1)*state.pageSize)+1:0;const end=Math.min(state.page*state.pageSize,state.total);el.innerHTML='<span>'+fmt(start)+'–'+fmt(end)+' de '+fmt(state.total)+'</span><div class="pages"><button id="vcl-prev" '+(state.page<=1?'disabled':'')+'>←</button><button class="active">Página '+state.page+' de '+Math.max(1,state.totalPages)+'</button><button id="vcl-next" '+(state.page>=state.totalPages?'disabled':'')+'>→</button></div>';$('#vcl-prev').onclick=()=>{if(state.page>1){state.page--;loadAll();}};$('#vcl-next').onclick=()=>{if(state.page<state.totalPages){state.page++;loadAll();}};}
 async function loadAll(){await Promise.all([loadKpis(),loadList()]);}
