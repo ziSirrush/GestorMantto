@@ -15,7 +15,7 @@
 <link href="./manifest.json" rel="manifest"/>
 <link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
 <link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles/base.css?v=20260805-visor-completo-v001" rel="stylesheet"/>
+<link href="./styles/base.css?v=20260805-nori-dock-integrado-v002" rel="stylesheet"/>
 <link href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" rel="stylesheet"/>
 <link href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" rel="stylesheet"/>
 <link href="./modules/panel-control/panel-control.css?v=20260805-guardado-selectivo-v008" rel="stylesheet"/>
@@ -659,10 +659,11 @@
 </div>
 </section>
 <!-- NORI DE PRUEBAS -->
-<button class="panda-float" id="noriFloat" title="Nori soporte" type="button">
+<button aria-controls="pandaChat" aria-expanded="false" aria-label="Abrir Nori" class="panda-float" id="noriFloat" title="Abrir Nori" type="button">
+<span class="nori-dock-label" aria-hidden="true">Nori</span>
 <img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png"/>
 <span class="panda-fallback-icon">🐼</span>
-<span class="panda-notif"></span>
+<span class="panda-notif" aria-hidden="true"></span>
 </button>
 <section aria-label="Nori soporte de pruebas" class="panda-chat" id="pandaChat">
 <div class="panda-chat-head">
@@ -731,6 +732,6 @@
 <script src="./modules/support/support.js?v=20260803-cffaa03-v001"></script>
 <script src="./core/details.js?v=v032_1_v031_3_1"></script>
 <script src="./core/user-viewer.js?v=20260805-visor-completo-v001"></script>
-<script src="./core/app.js?v=20260804-data-refresh-v001"></script>
+<script src="./core/app.js?v=20260805-nori-dock-integrado-v002"></script>
 </body>
 </html>
