@@ -3,7 +3,7 @@
 const express = require('express');
 const controller = require('./ventas-redes.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
-const { requireStorageSchema } = require('../../middleware/storage-schema.middleware');
+const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
 
 const router = express.Router();
@@ -42,8 +42,8 @@ router.get('/redes', requireAuth, controller.list);
 router.post(
   '/redes',
   requireAuth,
-  requireStorageSchema('ventas_redes_archivos'),
   uploadEvidence,
+  requireStorageSchemaWhenFiles('ventas_redes_archivos'),
   controller.create
 );
 
@@ -56,8 +56,8 @@ router.get(
 router.post(
   '/redes/:id/archivos',
   requireAuth,
-  requireStorageSchema('ventas_redes_archivos'),
   uploadEvidence,
+  requireStorageSchemaWhenFiles('ventas_redes_archivos'),
   controller.uploadEvidence
 );
 router.get(
@@ -82,8 +82,8 @@ router.get(
 router.post(
   '/redes/:id/comentarios',
   requireAuth,
-  requireStorageSchema('ventas_redes_comentarios_adjuntos'),
   uploadCommentAttachments,
+  requireStorageSchemaWhenFiles('ventas_redes_comentarios_adjuntos'),
   controller.createComment
 );
 router.patch('/redes/:id/comentarios/:idComentario', requireAuth, controller.updateComment);
@@ -97,8 +97,8 @@ router.delete(
 router.post(
   '/redes/:id/comentarios/:idComentario/adjuntos',
   requireAuth,
-  requireStorageSchema('ventas_redes_comentarios_adjuntos'),
   uploadCommentAttachments,
+  requireStorageSchemaWhenFiles('ventas_redes_comentarios_adjuntos'),
   controller.addCommentAttachments
 );
 router.get(

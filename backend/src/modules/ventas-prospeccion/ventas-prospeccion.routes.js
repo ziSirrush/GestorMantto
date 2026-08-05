@@ -2,7 +2,7 @@ const express = require('express');
 const controller = require('./ventas-prospeccion.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
-const { requireStorageSchema } = require('../../middleware/storage-schema.middleware');
+const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
 
 const uploadVisitPhotos = createUploadMiddleware_gnral({
@@ -36,8 +36,8 @@ router.get('/prospeccion/contactos', requireAuth, controller.getClientContacts);
 router.post(
   '/prospeccion',
   requireAuth,
-  requireStorageSchema('ventas_prospeccion_archivos'),
   uploadVisitPhotos,
+  requireStorageSchemaWhenFiles('ventas_prospeccion_archivos'),
   controller.createVisit
 );
 router.get('/prospeccion/catalogos', requireAuth, controller.getCatalogs);
@@ -49,8 +49,8 @@ router.patch('/prospeccion/:id/estatus', requireAuth, controller.updateProspecti
 router.post(
   '/prospeccion/:id/comentarios',
   requireAuth,
-  requireStorageSchema('ventas_prospeccion_archivos'),
   uploadCommentFiles,
+  requireStorageSchemaWhenFiles('ventas_prospeccion_archivos'),
   controller.createComment
 );
 router.get(

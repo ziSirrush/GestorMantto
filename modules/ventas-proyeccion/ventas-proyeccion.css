@@ -39,3 +39,9 @@
     text-align:center;
   }
 }
+
+/* FIX Proyección: cinco KPI por etapa y tabla simplificada */
+.vpr-kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.vpr-table{min-width:720px}.vpr-table th:nth-child(1),.vpr-table td:nth-child(1){width:30%}.vpr-table th:nth-child(5),.vpr-table td:nth-child(5){width:190px}
+@media(max-width:1000px){.vpr-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.vpr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:460px){.vpr-kpis{grid-template-columns:1fr}}

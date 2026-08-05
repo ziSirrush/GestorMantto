@@ -5,7 +5,7 @@ const controller = require('./ventas-cotizaciones.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireVentasPermission } = require('../../middleware/ventas-cotizaciones-permissions.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
-const { requireStorageSchema } = require('../../middleware/storage-schema.middleware');
+const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
 
 const router = express.Router();
@@ -39,8 +39,8 @@ router.post(
   '/cotizaciones/:id/comentarios',
   requireAuth,
   canEdit,
-  requireStorageSchema('ventas_cotizaciones_archivos'),
   uploadInteractionFile,
+  requireStorageSchemaWhenFiles('ventas_cotizaciones_archivos'),
   controller.createComentario
 );
 router.patch('/cotizaciones/:id/comentarios/:idComentario', requireAuth, canEdit, controller.updateComentario);
@@ -50,8 +50,8 @@ router.post(
   '/cotizaciones/:id/archivos',
   requireAuth,
   canEdit,
-  requireStorageSchema('ventas_cotizaciones_archivos'),
   uploadInteractionFile,
+  requireStorageSchemaWhenFiles('ventas_cotizaciones_archivos'),
   controller.createArchivo
 );
 router.get(

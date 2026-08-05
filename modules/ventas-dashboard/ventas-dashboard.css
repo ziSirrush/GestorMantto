@@ -111,3 +111,6 @@
   .vd-table{min-width:max(760px,calc(var(--vd-col-count,6) * 135px))}
   .vd-table th,.vd-table td{padding:10px 12px;font-size:12px}
 }
+
+/* FIX tablas espejo de módulos fuente */
+.vd-clickable-row{cursor:pointer}.vd-clickable-row:focus{outline:2px solid #2f67c7;outline-offset:-2px}.vd-cell-sub{display:block;margin-top:3px;color:#64748b;font-size:10px}.vd-number{text-align:center!important;font-variant-numeric:tabular-nums}

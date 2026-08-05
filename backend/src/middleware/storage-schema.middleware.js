@@ -20,6 +20,28 @@ function requireStorageSchema(...tableNames) {
   };
 }
 
+function requestFiles(req) {
+  if (req.file) return [req.file];
+  if (Array.isArray(req.files)) return req.files.filter(Boolean);
+  if (req.files && typeof req.files === 'object') {
+    return Object.values(req.files).flat().filter(Boolean);
+  }
+  return [];
+}
+
+function requireStorageSchemaWhenFiles(...tableNames) {
+  return async function conditionalFileStorageSchemaGuard(req, res, next) {
+    if (!requestFiles(req).length) return next();
+
+    try {
+      await storageSchema.assertStorageSchema_gnral(tableNames);
+      return next();
+    } catch (error) {
+      return sendSchemaError(res, error);
+    }
+  };
+}
+
 function requireStorageSchemaWhenBodyHas(fieldName, ...tableNames) {
   return async function conditionalStorageSchemaGuard(req, res, next) {
     const value = req.body && req.body[fieldName];
@@ -36,5 +58,6 @@ function requireStorageSchemaWhenBodyHas(fieldName, ...tableNames) {
 
 module.exports = {
   requireStorageSchema,
+  requireStorageSchemaWhenFiles,
   requireStorageSchemaWhenBodyHas
 };

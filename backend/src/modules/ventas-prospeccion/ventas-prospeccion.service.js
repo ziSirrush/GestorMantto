@@ -638,7 +638,8 @@ async function createVisit(payload, files, actionContext) {
   const uploadedFiles = [];
   try {
     const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
-    const storageCompany = internalStorageCompany(actionContext);
+    const photoFiles = Array.isArray(files) ? files.slice(0, 4) : [];
+    const storageCompany = photoFiles.length ? internalStorageCompany(actionContext) : null;
     let source = null;
     let idProyectoInstalacion = null;
     let idCotizacion = null;
@@ -726,7 +727,6 @@ async function createVisit(payload, files, actionContext) {
 
     const idPros = await repository.createProspection(connection, record);
     const normalizedFiles = [];
-    const photoFiles = Array.isArray(files) ? files.slice(0, 4) : [];
     for (let index = 0; index < photoFiles.length; index += 1) {
       const storage = await azureStorage.uploadPrivate_gnral({
         file: photoFiles[index], empresa: storageCompany, modulo: 'ventas', entidadTipo: 'prospeccion', entidadId: idPros, subruta: 'visita',
@@ -795,7 +795,7 @@ async function createComment(id, payload, files, actionContext) {
   const uploadedFiles = [];
   try {
     const scope = await visibilityService.resolveVisibilityScope(connection, actionContext);
-    const storageCompany = internalStorageCompany(actionContext);
+    const storageCompany = incoming.length ? internalStorageCompany(actionContext) : null;
     const current = await repository.getProspectionById(connection, idPros, scope);
     if (!current) throw httpError(404, 'Prospección no encontrada o fuera de tu alcance comercial.');
     await connection.beginTransaction();
