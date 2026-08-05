@@ -15,7 +15,7 @@
 <link href="./manifest.json" rel="manifest"/>
 <link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
 <link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles/base.css?v=20260804-nori-dock-v001" rel="stylesheet"/>
+<link href="./styles/base.css?v=20260804-visor-fase3-v001" rel="stylesheet"/>
 <link href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" rel="stylesheet"/>
 <link href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" rel="stylesheet"/>
 <link href="./modules/panel-control/panel-control.css?v=20260722-v026" rel="stylesheet"/>
@@ -147,12 +147,13 @@
 </button>
 <div class="hdr-notif-popover" hidden="" id="hdr-notif-popover"></div>
 <div class="user-viewer-wrap" hidden="" id="user-viewer-wrap">
-<span class="user-viewer-label">👁 Ver como</span>
-<button aria-expanded="false" aria-haspopup="listbox" class="user-viewer-trigger" id="user-viewer-trigger" type="button">
-<span id="user-viewer-trigger-text">Seleccionar usuario</span>
+<button aria-expanded="false" aria-haspopup="listbox" class="user-viewer-trigger" id="user-viewer-trigger" title="Abrir Visor de usuarios" type="button">
+<span aria-hidden="true">👁</span>
+<span id="user-viewer-trigger-text">Visor de usuario</span>
 <span aria-hidden="true">▾</span>
 </button>
 <div class="user-viewer-menu" hidden="" id="user-viewer-menu">
+<div class="user-viewer-menu-title"><b>Visor de usuarios</b><small>Abre la vista del usuario seleccionado en una pestaña nueva.</small></div>
 <div class="user-viewer-search-wrap">
 <input aria-label="Buscar usuario" autocomplete="off" id="user-viewer-search" placeholder="Buscar por nombre, correo, rol o empresa..." type="search"/>
 </div>
@@ -172,7 +173,7 @@
 </div>
 </header>
 <div class="user-viewer-banner" hidden="" id="user-viewer-banner">
-<div><strong>MODO VISOR</strong><span>Sesión real: <b id="user-viewer-actor">—</b></span><span>Visualizando: <b id="user-viewer-current">—</b></span></div>
+<div><strong>MODO VISOR</strong><span>Sesión real: <b id="user-viewer-actor">—</b></span><span>Visualizando: <b id="user-viewer-current">—</b></span><span class="user-viewer-readonly-pill">SOLO LECTURA</span></div>
 <button id="user-viewer-exit" type="button">Salir del visor</button>
 </div>
 <div aria-live="polite" id="app-context-nav">
@@ -679,7 +680,9 @@
 <script src="./core/config.js?v=20260705-v114"></script>
 <script src="./core/push-notifications.js?v=20260803-fix4-v001"></script>
 <script src="./core/device-permissions.js?v=20260801-native-v001"></script>
-<script src="./core/auth.js?v=20260803-fix4-v001"></script>
+<script src="./core/auth.js?v=20260804-visor-fase2-v001"></script>
+<script src="./core/viewer-readonly.js?v=20260804-visor-fase3-v001"></script>
+<script src="./core/data-sync.js?v=20260804-visor-fase2-v001"></script>
 <script src="./core/router.js?v=20260726-fix-tabs-activos-v003"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
@@ -716,7 +719,7 @@
 <script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260803-azure-files-v001"></script>
 <script src="./modules/support/support.js?v=20260723-v030-2"></script>
 <script src="./core/details.js?v=v032_1_v031_3_1"></script>
-<script src="./core/user-viewer.js?v=20260722-v024"></script>
+<script src="./core/user-viewer.js?v=20260804-fase3-v001"></script>
 <script src="./core/app.js?v=20260804-nori-dock-v001"></script>
 </body>
 </html>

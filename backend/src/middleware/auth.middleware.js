@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { getViewerTarget } = require('../services/user-viewer.service');
 
 function parseAuthHeader(req) {
   const header = req.headers.authorization || req.headers.Authorization || '';
@@ -12,6 +13,9 @@ async function loadUserRoles(userId) {
     `SELECT
        r.id_rol,
        r.rol,
+       r.codigo,
+       r.nivel,
+       r.empresa,
        ur.principal,
        ur.activo
      FROM usuario_roles ur
@@ -26,6 +30,34 @@ async function loadUserRoles(userId) {
   return roles;
 }
 
+async function loadUserZones(userId) {
+  const [zones] = await db.query(
+    `SELECT
+       z.id_zona,
+       z.zona,
+       z.nombre
+     FROM usuario_zop uz
+     INNER JOIN z_op z
+       ON z.id_zona = uz.zona_id
+      AND z.estado = 1
+     WHERE uz.usuario_id = ?
+       AND uz.estado = 1
+     ORDER BY z.zona, z.nombre`,
+    [userId]
+  );
+
+  return zones;
+}
+
+function isSafeReadMethod(req) {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || 'GET').toUpperCase());
+}
+
+function keepsActorIdentity(req) {
+  const path = String(req.originalUrl || req.url || '').split('?')[0];
+  return path === '/api/auth/me' || path.startsWith('/api/device-permissions');
+}
+
 async function hydrateAuthUser(decoded) {
   const userId = decoded && (decoded.id_SB || decoded.id || decoded.user_id);
   if (!userId) return null;
@@ -37,6 +69,9 @@ async function hydrateAuthUser(decoded) {
        u.iniciales,
        u.correo,
        u.empresa,
+       u.puesto,
+       u.area,
+       u.reporta_a,
        u.rol_id,
        u.estado,
        u.criticos_fallas,
@@ -51,8 +86,12 @@ async function hydrateAuthUser(decoded) {
 
   if (!rows.length || Number(rows[0].estado) !== 1) return null;
 
-  const rolesRows = await loadUserRoles(userId);
+  const [rolesRows, zonesRows] = await Promise.all([
+    loadUserRoles(userId),
+    loadUserZones(userId)
+  ]);
   const roleNames = rolesRows.map(row => row.rol).filter(Boolean);
+  const programmerRoles = new Set(['Programador', 'Programador United', 'Programador Corellian']);
 
   return {
     id_SB: rows[0].id_SB,
@@ -60,47 +99,67 @@ async function hydrateAuthUser(decoded) {
     iniciales: rows[0].iniciales,
     correo: rows[0].correo,
     empresa: rows[0].empresa,
+    puesto: rows[0].puesto,
+    area: rows[0].area,
+    reporta_a: rows[0].reporta_a,
     rol_id: rows[0].rol_id,
     rol: rows[0].rol,
     roles: roleNames,
     roles_detalle: rolesRows,
+    zonas: zonesRows,
+    zonas_detalle: zonesRows,
     criticos_fallas: Number(rows[0].criticos_fallas || 3),
     criticos_periodo: Number(rows[0].criticos_periodo || 35),
-    is_programador: roleNames.includes('Programador') || rows[0].rol === 'Programador'
+    is_programador: roleNames.some(role => programmerRoles.has(role)) || programmerRoles.has(rows[0].rol)
   };
 }
 
 
 async function hydrateViewContext(req, actor) {
-  const raw = req.get('X-View-User-ID');
-  if (!raw) return null;
-  const viewUserId = Number(raw);
-  if (!Number.isInteger(viewUserId) || viewUserId <= 0 || viewUserId === Number(actor.id_SB)) return null;
+  const viewerToken = String(req.get('X-Viewer-Token') || '').trim();
+  let targetUserId = null;
 
-  const roles = new Set([actor.rol, ...(actor.roles || [])].filter(Boolean));
-  const canView = roles.has('Programador') || roles.has('Programador United') || roles.has('Programador Corellian');
-  if (!canView) {
-    const error = new Error('Tu sesión no está autorizada para usar el modo visor.');
-    error.status = 403;
-    throw error;
+  if (viewerToken) {
+    let payload;
+    try {
+      payload = jwt.verify(viewerToken, process.env.JWT_SECRET);
+    } catch (verifyError) {
+      const error = new Error('El contexto temporal del Visor de usuarios expiró o dejó de ser válido.');
+      error.status = 403;
+      error.code = 'VIEWER_CONTEXT_INVALID';
+      throw error;
+    }
+    if (payload?.type !== 'user_viewer' || Number(payload.actor_id) !== Number(actor.id_SB) || payload.read_only !== true) {
+      const error = new Error('El contexto temporal del Visor de usuarios no es válido.');
+      error.status = 403;
+      error.code = 'VIEWER_CONTEXT_INVALID';
+      throw error;
+    }
+    targetUserId = Number(payload.target_id);
+  } else {
+    const raw = req.get('X-View-User-ID');
+    if (!raw) return null;
+    targetUserId = Number(raw);
   }
 
-  const viewed = await hydrateAuthUser({ id_SB: viewUserId, id: viewUserId, user_id: viewUserId });
+  const target = await getViewerTarget(actor, targetUserId);
+  targetUserId = Number(target.id_SB);
+
+  const viewed = await hydrateAuthUser({
+    id_SB: targetUserId,
+    id: targetUserId,
+    user_id: targetUserId
+  });
+
   if (!viewed) {
     const error = new Error('El usuario visualizado no existe o está inactivo.');
     error.status = 404;
     throw error;
   }
 
-  const company = String(viewed.empresa || '').toUpperCase();
-  if (roles.has('Programador United') && !roles.has('Programador') && !company.includes('UNITED')) {
-    const error = new Error('El usuario visualizado no pertenece al alcance United.'); error.status = 403; throw error;
-  }
-  if (roles.has('Programador Corellian') && !roles.has('Programador') && !company.includes('CORELLIAN')) {
-    const error = new Error('El usuario visualizado no pertenece al alcance Corellian.'); error.status = 403; throw error;
-  }
   return viewed;
 }
+
 
 async function optionalAuth(req, res, next) {
   try {
@@ -109,10 +168,33 @@ async function optionalAuth(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await hydrateAuthUser(decoded);
-    if (user) req.user = user;
+    if (!user) return next();
+
+    req.user = user;
+    req.actorUser = user;
+
+    const viewedUser = await hydrateViewContext(req, user);
+    req.contextUser = viewedUser || user;
+    req.viewerContext = viewedUser ? {
+      active: true,
+      readOnly: true,
+      actorUserId: Number(user.id_SB),
+      targetUserId: Number(viewedUser.id_SB)
+    } : null;
+
+    if (viewedUser && isSafeReadMethod(req) && !keepsActorIdentity(req)) {
+      req.user = viewedUser;
+    }
 
     return next();
   } catch (error) {
+    if (String(req.get('X-Viewer-Token') || '').trim()) {
+      return res.status(error.status || 403).json({
+        ok: false,
+        code: error.code || 'VIEWER_CONTEXT_INVALID',
+        message: error.message || 'El contexto del Visor de usuarios no es válido.'
+      });
+    }
     return next();
   }
 }
@@ -133,7 +215,23 @@ async function requireAuth(req, res, next) {
 
     req.user = user;
     req.actorUser = user;
-    req.contextUser = await hydrateViewContext(req, user) || user;
+
+    const viewedUser = await hydrateViewContext(req, user);
+    req.contextUser = viewedUser || user;
+    req.viewerContext = viewedUser ? {
+      active: true,
+      readOnly: true,
+      actorUserId: Number(user.id_SB),
+      targetUserId: Number(viewedUser.id_SB)
+    } : null;
+
+    // En modo visor, las consultas de lectura deben ejecutarse exactamente con
+    // la identidad efectiva del usuario visualizado. La identidad real queda
+    // preservada en req.actorUser para permisos del visor y auditoría.
+    if (viewedUser && isSafeReadMethod(req) && !keepsActorIdentity(req)) {
+      req.user = viewedUser;
+    }
+
     return next();
   } catch (error) {
     const status = error.status || 401;
@@ -157,5 +255,7 @@ module.exports = {
   optionalAuth,
   requireAuth,
   requireRole,
-  loadUserRoles
+  loadUserRoles,
+  loadUserZones,
+  hydrateAuthUser
 };

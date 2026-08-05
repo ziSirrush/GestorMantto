@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { canUseUserViewer, listViewerUsers, createViewerContext, auditViewerEvent } = require('../services/user-viewer.service');
 
 function actorScope(req) {
   const roles = new Set([req.user?.rol, ...(req.user?.roles || [])].filter(Boolean));
@@ -399,6 +400,114 @@ async function getBootstrap(req, res, next) {
 }
 
 
+
+async function getViewerBootstrap(req, res, next) {
+  try {
+    if (!req.viewerContext?.active || !req.contextUser) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La solicitud no contiene un contexto activo del Visor de usuarios.'
+      });
+    }
+
+    const actor = req.actorUser || {};
+    const effectiveUser = req.contextUser;
+
+    return res.json({
+      ok: true,
+      data: {
+        viewer: {
+          active: true,
+          read_only: true,
+          actor_user_id: Number(actor.id_SB),
+          target_user_id: Number(effectiveUser.id_SB)
+        },
+        actor: {
+          id_SB: actor.id_SB,
+          nombre: actor.nombre,
+          correo: actor.correo,
+          empresa: actor.empresa,
+          rol: actor.rol,
+          roles: actor.roles || []
+        },
+        usuario: effectiveUser
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function postViewerContext(req, res, next) {
+  try {
+    const actor = req.actorUser || req.user;
+    const context = await createViewerContext(
+      actor,
+      req.body?.id_usuario,
+      db
+    );
+    await auditViewerEvent(
+      actor.id_SB,
+      'VIEWER_SESSION_STARTED',
+      {
+        target_user_id: context.target_user_id,
+        read_only: true,
+        expires_in_seconds: context.expires_in_seconds
+      },
+      req.ip,
+      db
+    );
+    return res.status(201).json({ ok: true, data: context });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
+    next(error);
+  }
+}
+
+
+
+async function postViewerClose(req, res, next) {
+  try {
+    if (!req.viewerContext?.active || !req.contextUser) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La solicitud no contiene un contexto activo del Visor de usuarios.'
+      });
+    }
+
+    const actor = req.actorUser || req.user;
+    await auditViewerEvent(
+      actor.id_SB,
+      'VIEWER_SESSION_CLOSED',
+      {
+        target_user_id: Number(req.contextUser.id_SB),
+        target_user_name: req.contextUser.nombre || null,
+        read_only: true
+      },
+      req.ip,
+      db
+    );
+
+    return res.json({ ok: true, message: 'Sesión del visor cerrada.' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getViewerUsers(req, res, next) {
+  try {
+    const usuarios = await listViewerUsers(req.actorUser || req.user, db);
+    return res.json({
+      ok: true,
+      data: { usuarios }
+    });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
+    next(error);
+  }
+}
+
+
 async function ensurePanelControlProgrammerPermissions(conn) {
   /*
    * Garantiza que el acceso visual del Panel de Control sea un permiso real
@@ -456,7 +565,8 @@ async function getSessionPermissions(req, res, next) {
       return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
     }
 
-    const [catalogRows, permissionRows] = await Promise.all([
+    const viewerAllowedPromise = canUseUserViewer(req.actorUser || req.user, db);
+    const [catalogRows, permissionRows, viewerAllowed] = await Promise.all([
       db.query(`
         SELECT psa.id_subelemento_accion,
                pa.id_agrupacion, pa.codigo AS agrupacion_codigo, pa.nombre AS agrupacion_nombre,
@@ -499,7 +609,8 @@ async function getSessionPermissions(req, res, next) {
         WHERE psa.activo = 1
         GROUP BY psa.id_subelemento_accion
         ORDER BY psa.id_subelemento_accion
-      `, [userId, userId])
+      `, [userId, userId]),
+      viewerAllowedPromise
     ]);
 
     const permisos = permissionRows[0].map((row) => {
@@ -516,7 +627,8 @@ async function getSessionPermissions(req, res, next) {
       data: {
         usuario_id: userId,
         catalogo: catalogRows[0],
-        permisos
+        permisos,
+        puede_usar_visor: Boolean(viewerAllowed)
       }
     });
   } catch (error) {
@@ -896,6 +1008,10 @@ async function updateAdminRole(req, res, next) {
 
 module.exports = {
   getBootstrap,
+  getViewerUsers,
+  getViewerBootstrap,
+  postViewerContext,
+  postViewerClose,
   getSessionPermissions,
   getRolePermissions,
   saveRolePermissions,

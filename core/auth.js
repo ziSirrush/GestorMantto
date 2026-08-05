@@ -4,6 +4,10 @@
   const USER_KEY = 'mantto_user';
   const SESSION_KEY = 'mantto_session';
   const VIEW_USER_KEY = 'mantto_view_user';
+  const VIEWER_TOKEN_KEY = 'mantto_viewer_token';
+  const VIEWER_LAUNCH_PREFIX = 'mantto:viewer:launch:';
+  const VIEWER_LAUNCH_PARAM = 'viewer_launch';
+  const VIEWER_LAUNCH_TTL_MS = 60000;
   const state = { token: null, user: null, viewUser: null, pendingUser: null, expiringSession: false };
 
   function $(id){ return document.getElementById(id); }
@@ -14,13 +18,71 @@
   }
   function getToken(){ return state.token || localStorage.getItem(TOKEN_KEY) || ''; }
   function getActorUser(){ return state.user || safeJson(localStorage.getItem(USER_KEY)); }
-  function getViewUser(){ return state.viewUser || safeJson(localStorage.getItem(VIEW_USER_KEY)); }
+  function getViewUser(){ return state.viewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY)); }
   function getUser(){ return getViewUser() || getActorUser(); }
+  function storeViewUser(user){
+    state.viewUser=user||null;
+    if(state.viewUser) sessionStorage.setItem(VIEW_USER_KEY,JSON.stringify(state.viewUser));
+    else {
+      sessionStorage.removeItem(VIEW_USER_KEY);
+      sessionStorage.removeItem(VIEWER_TOKEN_KEY);
+    }
+    return state.viewUser;
+  }
   function isViewingAs(){
     const actor=getActorUser(); const viewed=getViewUser();
     return Boolean(actor && viewed && Number(actor.id_SB)!==Number(viewed.id_SB));
   }
   function safeJson(raw){ try{return raw?JSON.parse(raw):null;}catch(e){return null;} }
+  function cleanupViewerLaunches(){
+    const now=Date.now();
+    for(let index=localStorage.length-1;index>=0;index-=1){
+      const key=localStorage.key(index);
+      if(!key || !key.startsWith(VIEWER_LAUNCH_PREFIX)) continue;
+      const launch=safeJson(localStorage.getItem(key));
+      if(!launch || Number(launch.expires_at||0)<now) localStorage.removeItem(key);
+    }
+  }
+  function createViewerLaunch(context){
+    const user=context?.user;
+    const viewerToken=String(context?.viewer_token||'').trim();
+    if(!user || !user.id_SB || !viewerToken) throw new Error('Contexto inválido para abrir el visor.');
+    cleanupViewerLaunches();
+    const launchId=(window.crypto&&typeof window.crypto.randomUUID==='function')
+      ? window.crypto.randomUUID()
+      : 'viewer-'+Date.now()+'-'+Math.random().toString(16).slice(2);
+    localStorage.setItem(VIEWER_LAUNCH_PREFIX+launchId,JSON.stringify({
+      user,
+      viewer_token:viewerToken,
+      read_only:true,
+      expires_at:Date.now()+VIEWER_LAUNCH_TTL_MS
+    }));
+    const url=new URL(window.location.href);
+    url.searchParams.set(VIEWER_LAUNCH_PARAM,launchId);
+    url.hash='#/home';
+    return url.toString();
+  }
+  function consumeViewerLaunch(){
+    const url=new URL(window.location.href);
+    const launchId=url.searchParams.get(VIEWER_LAUNCH_PARAM);
+    if(!launchId) return null;
+
+    const storageKey=VIEWER_LAUNCH_PREFIX+launchId;
+    const launch=safeJson(localStorage.getItem(storageKey));
+    localStorage.removeItem(storageKey);
+    url.searchParams.delete(VIEWER_LAUNCH_PARAM);
+    window.history.replaceState(window.history.state,document.title,url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
+
+    if(!launch || Number(launch.expires_at||0)<Date.now() || !launch.user?.id_SB || !launch.viewer_token){
+      sessionStorage.removeItem(VIEW_USER_KEY);
+      sessionStorage.removeItem(VIEWER_TOKEN_KEY);
+      return null;
+    }
+
+    sessionStorage.setItem(VIEW_USER_KEY,JSON.stringify(launch.user));
+    sessionStorage.setItem(VIEWER_TOKEN_KEY,String(launch.viewer_token));
+    return launch.user;
+  }
   function isPublicAuthPath(path){
     const cleanPath=String(path||'').split('?')[0];
     return cleanPath==='/api/auth/login' ||
@@ -57,8 +119,12 @@
       : localStorage.getItem('mantto_device_token');
     if(deviceToken) headers['X-Device-Token']=String(deviceToken);
     const viewed=getViewUser();
-    if(viewed && viewed.id_SB) headers['X-View-User-ID']=String(viewed.id_SB);
-    const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+    const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim();
+    if(viewerToken) headers['X-Viewer-Token']=viewerToken;
+    else if(viewed && viewed.id_SB) headers['X-View-User-ID']=String(viewed.id_SB);
+    const fetchOptions = Object.assign({}, opts, { headers });
+    delete fetchOptions.skipMutationEvent;
+    const res = await fetch(API_BASE + path, fetchOptions);
     const json = await res.json().catch(()=>({ ok:false, message:'Respuesta no JSON' }));
     if(!res.ok || json.ok === false){
       const error=buildApiError(res,json);
@@ -71,7 +137,7 @@
       throw error;
     }
     const method=String(opts.method||'GET').toUpperCase();
-    if(['POST','PUT','PATCH','DELETE'].includes(method)){
+    if(['POST','PUT','PATCH','DELETE'].includes(method)&&opts.skipMutationEvent!==true){
       document.dispatchEvent(new CustomEvent('mantto:data-mutated',{
         detail:{ path, method, response:json, at:Date.now() }
       }));
@@ -80,32 +146,46 @@
   }
   async function apiGet(path){ return api(path, { method:'GET' }); }
   async function apiPost(path, body){ return api(path, { method:'POST', body: JSON.stringify(body || {}) }); }
+  async function hydrateViewerUser(){
+    const expected=getViewUser();
+    if(!expected?.id_SB) return null;
+    const response=await apiGet('/api/panel-control/viewer-bootstrap');
+    const effective=response?.data?.usuario;
+    if(!effective?.id_SB || Number(effective.id_SB)!==Number(expected.id_SB)){
+      throw new Error('El backend no devolvió la identidad efectiva esperada para el visor.');
+    }
+    storeViewUser(effective);
+    return effective;
+  }
   function saveSession(payload){
     state.token = payload.token;
     state.user = payload.user;
     state.viewUser = null;
     localStorage.setItem(TOKEN_KEY, payload.token || '');
     localStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
+    sessionStorage.removeItem(VIEW_USER_KEY);
+    sessionStorage.removeItem(VIEWER_TOKEN_KEY);
     localStorage.removeItem(VIEW_USER_KEY);
     localStorage.setItem(SESSION_KEY, JSON.stringify({ token: payload.token, user: payload.user, created_at: new Date().toISOString() }));
   }
   function clearSession(){
     state.token = null; state.user = null; state.viewUser = null; state.pendingUser = null;
     localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); localStorage.removeItem(VIEW_USER_KEY); localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(VIEW_USER_KEY);
+    sessionStorage.removeItem(VIEWER_TOKEN_KEY);
   }
   function applyUserToHeader(){
     const user = getUser() || {};
-    const actor = getActorUser() || user;
     const initials = user.iniciales || String(user.nombre || user.correo || '--').split(/\s+/).map(p=>p[0]).join('').slice(0,2).toUpperCase();
     if($('hdr-user-initials')) $('hdr-user-initials').textContent = initials || '--';
     if($('hdr-user-name')) $('hdr-user-name').textContent = user.nombre || user.correo || 'Usuario';
     if($('hdr-user-company')) $('hdr-user-company').textContent = user.empresa || 'BLT';
     if($('hdr-user-role')) $('hdr-user-role').textContent = user.rol || (user.roles && user.roles[0]) || 'Sin rol';
     document.querySelectorAll('.programmer').forEach(el=>{
-      const roles = new Set([actor.rol, ...(actor.roles||[])].filter(Boolean));
-      const canManagePanel = roles.has('Programador') || roles.has('Programador United') ||
-        roles.has('Programador Corellian') || roles.has('Director General');
-      el.style.display = canManagePanel ? '' : 'none';
+      const roles = new Set([user.rol, ...(user.roles||[])].filter(Boolean));
+      const isProgrammer = roles.has('Programador') || roles.has('Programador United') ||
+        roles.has('Programador Corellian');
+      el.style.display = isProgrammer ? '' : 'none';
     });
   }
   function hideBootstrap(){ const el=$('auth-bootstrap-screen'); if(el) el.classList.add('hidden'); }
@@ -198,34 +278,54 @@
     $('btn-recovery-start')?.addEventListener('click', handleRecoveryStart);
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     $('sidebar-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
+    const launchedViewUser=consumeViewerLaunch();
     const savedToken = localStorage.getItem(TOKEN_KEY);
     const savedUser = safeJson(localStorage.getItem(USER_KEY));
-    if(!savedToken){ showLogin(); return; }
+    if(!savedToken){
+      if(launchedViewUser){ sessionStorage.removeItem(VIEW_USER_KEY); sessionStorage.removeItem(VIEWER_TOKEN_KEY); }
+      showLogin();
+      return;
+    }
 
     state.token=savedToken;
     state.user=savedUser;
-    state.viewUser=safeJson(localStorage.getItem(VIEW_USER_KEY));
+    state.viewUser=launchedViewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY));
     try{
       const validation=await apiGet('/api/auth/me');
       const validatedUser=validation?.user || validation?.data || savedUser;
       if(!validatedUser) throw new Error('Sesión sin usuario válido.');
       state.user=validatedUser;
       localStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
+      if(state.viewUser) await hydrateViewerUser();
       await completeAuthenticatedAccess();
     }catch(error){
+      if(state.viewUser){
+        const viewerMessage=error.message||'No fue posible iniciar el Visor de usuarios.';
+        state.viewUser=null;
+        sessionStorage.removeItem(VIEW_USER_KEY);
+        sessionStorage.removeItem(VIEWER_TOKEN_KEY);
+        window.alert(viewerMessage);
+        window.close();
+        window.setTimeout(()=>{
+          if(window.closed)return;
+          state.user=savedUser;
+          applyUserToHeader();
+          showApp();
+        },120);
+        return;
+      }
       clearSession();
       showLogin();
       msg('login-msg','Tu sesión expiró. Inicia sesión nuevamente.','info');
     }
   }
   function setViewUser(user){
-    state.viewUser=user||null;
-    if(state.viewUser) localStorage.setItem(VIEW_USER_KEY,JSON.stringify(state.viewUser));
-    else localStorage.removeItem(VIEW_USER_KEY);
+    localStorage.removeItem(VIEW_USER_KEY);
+    storeViewUser(user);
     applyUserToHeader();
     document.dispatchEvent(new CustomEvent('mantto:view-user-changed',{detail:{actor:getActorUser(),user:getUser(),active:isViewingAs()}}));
   }
   function clearViewUser(){ setViewUser(null); }
   function logout(){ clearSession(); showLogin(); }
-  window.ManttoAuth = { init, logout, getToken, getUser, getActorUser, getViewUser, setViewUser, clearViewUser, isViewingAs, applyUserToHeader, api, apiGet, apiPost, authHeaders(){ const t=getToken(); const h=t?{Authorization:'Bearer '+t}:{}; const d=window.ManttoDevicePermissions&&window.ManttoDevicePermissions.getDeviceToken?window.ManttoDevicePermissions.getDeviceToken():localStorage.getItem('mantto_device_token'); if(d) h['X-Device-Token']=String(d); const v=getViewUser(); if(v&&v.id_SB) h['X-View-User-ID']=String(v.id_SB); return h; } };
+  window.ManttoAuth = { init, logout, getToken, getUser, getActorUser, getViewUser, setViewUser, clearViewUser, isViewingAs, createViewerLaunch, hydrateViewerUser, applyUserToHeader, api, apiGet, apiPost, authHeaders(){ const t=getToken(); const h=t?{Authorization:'Bearer '+t}:{}; const d=window.ManttoDevicePermissions&&window.ManttoDevicePermissions.getDeviceToken?window.ManttoDevicePermissions.getDeviceToken():localStorage.getItem('mantto_device_token'); if(d) h['X-Device-Token']=String(d); const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim(); const v=getViewUser(); if(viewerToken) h['X-Viewer-Token']=viewerToken; else if(v&&v.id_SB) h['X-View-User-ID']=String(v.id_SB); return h; } };
 })();

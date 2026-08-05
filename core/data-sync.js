@@ -37,7 +37,7 @@
   });
 
   function currentUser(){
-    return window.ManttoAuth?.getActorUser?.() || window.ManttoAuth?.getUser?.() || {};
+    return window.ManttoAuth?.getUser?.() || window.ManttoAuth?.getActorUser?.() || {};
   }
 
   function isProgrammer(){
@@ -70,6 +70,83 @@
       if(!programmer) el.setAttribute('tabindex','-1');
       else el.removeAttribute('tabindex');
     });
+  }
+
+
+  const technicalContainerSelector = [
+    '[id*="status"]',
+    '[class*="status"]',
+    '[class*="connection"]',
+    '[class*="conexion"]',
+    '[class*="eyebrow"]',
+    '[data-technical-status]'
+  ].join(',');
+
+  function textContainsTechnicalOrigin(value){
+    return /(^|\s|[·:])(?:aiven|api)(?=$|\s|[·:])/i.test(String(value||''));
+  }
+
+  function technicalContainerFor(element){
+    if(!element || element.nodeType!==1) return null;
+    const candidate=element.matches?.(technicalContainerSelector)
+      ? element
+      : element.closest?.(technicalContainerSelector);
+    if(!candidate || !textContainsTechnicalOrigin(candidate.textContent)) return null;
+    return candidate;
+  }
+
+  function sanitizeTechnicalCopy(root, programmer){
+    const scope=root && root.querySelectorAll ? root : document;
+    const candidates=[];
+    if(root?.nodeType===1) candidates.push(root);
+    candidates.push(...scope.querySelectorAll('p,small,span,div,td'));
+    candidates.forEach(element=>{
+      if(element.childElementCount>0 || technicalContainerFor(element)) return;
+      const text=String(element.textContent||'');
+      if(!textContainsTechnicalOrigin(text) && !element.dataset.technicalOriginalText) return;
+      if(!element.dataset.technicalOriginalText) element.dataset.technicalOriginalText=text;
+      if(programmer){
+        element.textContent=element.dataset.technicalOriginalText;
+        return;
+      }
+      const generic=element.dataset.technicalOriginalText
+        .replace(/consultando\s+aiven/gi,'Cargando información')
+        .replace(/cargando(?:\s+datos)?\s+desde\s+aiven/gi,'Cargando información')
+        .replace(/cargando\s+aiven/gi,'Cargando información')
+        .replace(/no\s+fue\s+posible\s+consultar\s+aiven/gi,'No fue posible cargar la información')
+        .replace(/\s+consultad[oa]s?\s+desde\s+aiven/gi,'')
+        .replace(/\s+desde\s+aiven/gi,'')
+        .replace(/\s+en\s+aiven/gi,'')
+        .replace(/aiven\s*[·:-]\s*/gi,'')
+        .replace(/\s{2,}/g,' ')
+        .trim();
+      element.textContent=generic || 'Cargando información...';
+    });
+  }
+
+  function applyTechnicalVisibility(root){
+    const scope=root && root.querySelectorAll ? root : document;
+    const programmer=isProgrammer();
+    const containers=new Set();
+    if(root?.nodeType===1){
+      const own=technicalContainerFor(root);
+      if(own) containers.add(own);
+    }
+    scope.querySelectorAll(technicalContainerSelector).forEach(element=>{
+      if(textContainsTechnicalOrigin(element.textContent)) containers.add(element);
+    });
+    containers.forEach(element=>{
+      element.dataset.programmerTechnicalControl='true';
+      element.hidden=!programmer;
+      element.setAttribute('aria-hidden',programmer?'false':'true');
+    });
+    sanitizeTechnicalCopy(root,programmer);
+    document.body?.classList.toggle('effective-programmer',programmer);
+  }
+
+  function applyRoleVisibility(root){
+    applyRefreshVisibility(root);
+    applyTechnicalVisibility(root);
   }
 
   function resolveHandler(route){
@@ -146,16 +223,17 @@
     document.addEventListener('mantto:navigation',event=>{
       state.route=event.detail?.route || 'home';
       state.payload=event.detail?.payload || null;
-      applyRefreshVisibility(document);
+      applyRoleVisibility(document);
       if(event.detail?.type==='back') window.setTimeout(()=>refresh(state.route,'regreso',{force:true}),220);
       else markSynced(state.route);
     });
     document.addEventListener('mantto:navigation-restore',()=>window.setTimeout(()=>refresh(state.route,'restauracion',{force:true}),260));
     document.addEventListener('mantto:data-mutated',event=>notifyMutation(event.detail||{}));
-    document.addEventListener('mantto:auth-ready',()=>applyRefreshVisibility(document));
+    document.addEventListener('mantto:auth-ready',()=>applyRoleVisibility(document));
+    document.addEventListener('mantto:view-user-changed',()=>applyRoleVisibility(document));
     document.addEventListener('visibilitychange',()=>{
       if(document.hidden) return;
-      applyRefreshVisibility(document);
+      applyRoleVisibility(document);
       const last=state.lastSync.get(state.route)||0;
       if(Date.now()-last>=STALE_MS) refresh(state.route,'pestana-visible',{force:true});
     });
@@ -167,14 +245,14 @@
       };
     }
     state.observer=new MutationObserver(entries=>entries.forEach(entry=>entry.addedNodes.forEach(node=>{
-      if(node.nodeType===1) applyRefreshVisibility(node);
+      if(node.nodeType===1) applyRoleVisibility(node);
     })));
     state.observer.observe(document.documentElement,{childList:true,subtree:true});
-    applyRefreshVisibility(document);
+    applyRoleVisibility(document);
     startPolling();
   }
 
-  window.ManttoDataSync={register,refresh,notifyMutation,isProgrammer,applyRefreshVisibility,markSynced};
+  window.ManttoDataSync={register,refresh,notifyMutation,isProgrammer,applyRefreshVisibility,applyTechnicalVisibility,applyRoleVisibility,markSynced};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bind,{once:true});
   else bind();
 })();
