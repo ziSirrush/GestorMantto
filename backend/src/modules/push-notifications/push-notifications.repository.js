@@ -51,22 +51,32 @@ async function listActiveSubscriptions(limit = 300) {
 async function listPendingNotifications({ userId, cursor, cycleCutoff, limit = 20 }) {
   const [rows] = await db.query(`
     SELECT
-      id_notificacion,
-      tipo_notificacion,
-      titulo_notificacion,
-      mensaje_notificacion,
-      icono_notificacion,
-      accion_notificacion,
-      id_referencia,
-      ruta_destino,
-      fecha_creacion
-    FROM sup_notificaciones
-    WHERE id_usuario = ?
-      AND activo = 1
-      AND leido = 0
-      AND fecha_creacion > ?
-      AND fecha_creacion <= ?
-    ORDER BY fecha_creacion ASC, id_notificacion ASC
+      n.id_notificacion,
+      n.tipo_notificacion,
+      n.titulo_notificacion,
+      n.mensaje_notificacion,
+      n.icono_notificacion,
+      n.accion_notificacion,
+      n.id_referencia,
+      n.ruta_destino,
+      n.fecha_creacion
+    FROM sup_notificaciones n
+    LEFT JOIN notificacion_eventos e
+      ON e.codigo_evento = n.tipo_notificacion
+     AND e.activo = 1
+    LEFT JOIN notificacion_preferencias p
+      ON p.codigo_evento = n.tipo_notificacion
+     AND p.id_usuario = n.id_usuario
+    WHERE n.id_usuario = ?
+      AND n.activo = 1
+      AND n.leido = 0
+      AND n.fecha_creacion > ?
+      AND n.fecha_creacion <= ?
+      AND (
+        COALESCE(e.obligatoria, 0) = 1
+        OR (COALESCE(p.push, 1) = 1 AND COALESCE(p.silenciada, 0) = 0)
+      )
+    ORDER BY n.fecha_creacion ASC, n.id_notificacion ASC
     LIMIT ?
   `, [userId, cursor, cycleCutoff, Number(limit)]);
   return rows;

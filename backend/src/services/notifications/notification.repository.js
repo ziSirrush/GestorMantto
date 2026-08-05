@@ -12,8 +12,8 @@ async function listEventPreferences(idUsuario) {
       e.prioridad_default,
       e.configurable,
       e.obligatoria,
-      COALESCE(p.campana, e.campana_default) AS campana,
-      COALESCE(p.push, e.push_default) AS push,
+      COALESCE(p.campana, 1) AS campana,
+      COALESCE(p.push, 1) AS push,
       COALESCE(p.correo, e.correo_default) AS correo,
       COALESCE(p.silenciada, 0) AS silenciada
     FROM notificacion_eventos e

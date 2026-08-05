@@ -49,8 +49,8 @@ async function savePreferences(req) {
       if (!event || !Number(event.configurable) || Number(event.obligatoria)) continue;
       await repository.upsertPreference(connection, idUsuario, {
         codigo_evento: codigoEvento,
-        campana: bool(item.campana, event.campana_default),
-        push: bool(item.push, event.push_default),
+        campana: bool(item.campana, 1),
+        push: bool(item.push, 1),
         correo: bool(item.correo, event.correo_default),
         silenciada: bool(item.silenciada, 0)
       });
@@ -87,7 +87,7 @@ async function emit(eventInput) {
       const preference = await repository.findPreference(connection, idUsuario, codigoEvento);
       const obligatory = Number(event.obligatoria) === 1;
       const silenced = !obligatory && Number(preference?.silenciada || 0) === 1;
-      const bellEnabled = obligatory || Number(preference?.campana ?? event.campana_default) === 1;
+      const bellEnabled = obligatory || Number(preference?.campana ?? 1) === 1;
       if (silenced || !bellEnabled) {
         skipped += 1;
         continue;

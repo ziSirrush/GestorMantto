@@ -12,7 +12,6 @@ function bufferToBase64Url(value) {
 
 function getVapidConfig() {
   return {
-    enabled: String(process.env.WEB_PUSH_ENABLED || '').toLowerCase() === 'true',
     publicKey: String(process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '').trim(),
     privateKey: String(process.env.WEB_PUSH_VAPID_PRIVATE_KEY || '').trim(),
     subject: String(process.env.WEB_PUSH_SUBJECT || '').trim()
@@ -20,7 +19,6 @@ function getVapidConfig() {
 }
 
 function validateVapidConfig(config = getVapidConfig()) {
-  if (!config.enabled) return { ok: false, reason: 'WEB_PUSH_ENABLED no esta activo.' };
   if (!config.publicKey || !config.privateKey || !config.subject) {
     return { ok: false, reason: 'Faltan WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY o WEB_PUSH_SUBJECT.' };
   }
