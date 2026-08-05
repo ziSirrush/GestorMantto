@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { canUseUserViewer, listViewerUsers, createViewerContext } = require('../services/user-viewer.service');
 
 function actorScope(req) {
   const roles = new Set([req.user?.rol, ...(req.user?.roles || [])].filter(Boolean));
@@ -399,6 +400,35 @@ async function getBootstrap(req, res, next) {
 }
 
 
+async function postViewerContext(req, res, next) {
+  try {
+    const context = await createViewerContext(
+      req.actorUser || req.user,
+      req.body?.id_usuario,
+      db
+    );
+    return res.status(201).json({ ok: true, data: context });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
+    next(error);
+  }
+}
+
+
+async function getViewerUsers(req, res, next) {
+  try {
+    const usuarios = await listViewerUsers(req.actorUser || req.user, db);
+    return res.json({
+      ok: true,
+      data: { usuarios }
+    });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ ok: false, message: error.message });
+    next(error);
+  }
+}
+
+
 async function ensurePanelControlProgrammerPermissions(conn) {
   /*
    * Garantiza que el acceso visual del Panel de Control sea un permiso real
@@ -456,7 +486,8 @@ async function getSessionPermissions(req, res, next) {
       return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
     }
 
-    const [catalogRows, permissionRows] = await Promise.all([
+    const viewerAllowedPromise = canUseUserViewer(req.actorUser || req.user, db);
+    const [catalogRows, permissionRows, viewerAllowed] = await Promise.all([
       db.query(`
         SELECT psa.id_subelemento_accion,
                pa.id_agrupacion, pa.codigo AS agrupacion_codigo, pa.nombre AS agrupacion_nombre,
@@ -499,7 +530,8 @@ async function getSessionPermissions(req, res, next) {
         WHERE psa.activo = 1
         GROUP BY psa.id_subelemento_accion
         ORDER BY psa.id_subelemento_accion
-      `, [userId, userId])
+      `, [userId, userId]),
+      viewerAllowedPromise
     ]);
 
     const permisos = permissionRows[0].map((row) => {
@@ -516,7 +548,8 @@ async function getSessionPermissions(req, res, next) {
       data: {
         usuario_id: userId,
         catalogo: catalogRows[0],
-        permisos
+        permisos,
+        puede_usar_visor: Boolean(viewerAllowed)
       }
     });
   } catch (error) {
@@ -896,6 +929,8 @@ async function updateAdminRole(req, res, next) {
 
 module.exports = {
   getBootstrap,
+  getViewerUsers,
+  postViewerContext,
   getSessionPermissions,
   getRolePermissions,
   saveRolePermissions,

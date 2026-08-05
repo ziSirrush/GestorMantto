@@ -822,16 +822,38 @@
       :`Guardar cambios <span id="pc-dirty-count">${state.dirty.size}</span>`;
   }
 
-  function rolePermissionSnapshot(){
-    const seen=new Set();
-    return state.catalog.flatMap(allActions).filter(action=>{
-      if(seen.has(action.id))return false;
-      seen.add(action.id);
-      return true;
-    }).map(action=>({
-      id_subelemento_accion:Number(action.id),
-      permitido:Boolean(roleValue(action.id))
-    }));
+  function normalizeNullableBoolean(value){
+    if(value===null||value===undefined)return null;
+    if(value===true||value===1||value==='1')return true;
+    if(value===false||value===0||value==='0')return false;
+    return Boolean(value);
+  }
+
+  function countConfirmedChanges(isUsers,changes,readback){
+    const permissions=Array.isArray(readback?.data)
+      ?readback.data
+      :(readback?.data?.permisos||[]);
+    const byId=new Map(permissions.map(row=>[
+      Number(row.id_subelemento_accion),
+      row
+    ]));
+
+    return changes.reduce((total,change)=>{
+      const row=byId.get(Number(change.id_subelemento_accion));
+      if(!row)return total;
+
+      if(isUsers){
+        const current=normalizeNullableBoolean(row.personalizado);
+        if(change.mode==='inherit'&&current===null)return total+1;
+        if(change.mode==='allow'&&current===true)return total+1;
+        if(change.mode==='deny'&&current===false)return total+1;
+        return total;
+      }
+
+      return normalizeNullableBoolean(row.permitido)===Boolean(change.permitido)
+        ?total+1
+        :total;
+    },0);
   }
 
   async function saveChanges(){
@@ -843,8 +865,10 @@
     const totalChanges=state.dirty.size;
     if(!confirm(`¿Guardar ${totalChanges} cambio(s) para ${target||'el registro seleccionado'}?`))return;
 
-    const dirtySnapshot=[...state.dirty.entries()].map(([id,value])=>({id_subelemento_accion:Number(id),...value}));
-    const changes=isUsers?dirtySnapshot:rolePermissionSnapshot();
+    const changes=[...state.dirty.entries()].map(([id,value])=>({
+      id_subelemento_accion:Number(id),
+      ...value
+    }));
     const path=isUsers
       ?`/api/panel-control/usuarios/${state.selectedUserId}/permisos`
       :`/api/panel-control/roles/${state.selectedRoleId}/permisos`;
@@ -854,12 +878,16 @@
     try{
       const response=await request(path,{
         method:'PUT',
-        body:JSON.stringify({changes,replace_all:!isUsers})
+        body:JSON.stringify({changes})
       });
       const updated=Number(response.data?.updated||0);
-      const confirmed=Number(response.data?.confirmed||0);
-      const mismatches=Array.isArray(response.data?.mismatches)?response.data.mismatches:[];
-      if(updated!==changes.length||confirmed!==changes.length||mismatches.length){
+      if(updated!==changes.length){
+        throw new Error(`Aiven procesó ${updated} de ${changes.length} permisos. Los cambios pendientes se conservaron.`);
+      }
+
+      const readback=await request(path);
+      const confirmed=countConfirmedChanges(isUsers,changes,readback);
+      if(confirmed!==changes.length){
         throw new Error(`Aiven confirmó ${confirmed} de ${changes.length} permisos. Los cambios pendientes se conservaron.`);
       }
 

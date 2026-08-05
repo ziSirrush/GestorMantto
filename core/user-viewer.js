@@ -2,6 +2,9 @@
   const state={
     catalog:[],
     permissions:new Map(),
+    permissionStates:new Map(),
+    permissionCodes:new Map(),
+    permissionObserver:null,
     ready:false,
     users:[],
     usersLoaded:false,
@@ -275,8 +278,81 @@
   async function loadSessionPermissions(){
     const json=await window.ManttoAuth.apiGet('/api/panel-control/session-permissions');
     state.catalog=json.data?.catalogo||[];
-    state.permissions=new Map((json.data?.permisos||[]).map(permission=>[Number(permission.id_subelemento_accion),permission.efectivo===true]));
+    const permissionRows=json.data?.permisos||[];
+    state.permissions=new Map(permissionRows.map(permission=>[
+      Number(permission.id_subelemento_accion),
+      permission.efectivo===true
+    ]));
+    state.permissionStates=new Map(permissionRows.map(permission=>[
+      Number(permission.id_subelemento_accion),
+      {
+        efectivo:permission.efectivo===true,
+        configurado:permission.configurado===true,
+        heredado:permission.heredado===true,
+        personalizado:permission.personalizado===null?null:permission.personalizado===true
+      }
+    ]));
+    state.permissionCodes=new Map(
+      state.catalog
+        .filter(row=>Number(row.id_subelemento_accion)>0)
+        .map(row=>[
+          String(row.codigo_permiso||`${row.subelemento_codigo||''}.${row.accion_codigo||''}`).trim(),
+          Number(row.id_subelemento_accion)
+        ])
+    );
     state.canUseViewer=Boolean(json.data?.puede_usar_visor);
+  }
+
+  function permissionState(code){
+    const permissionId=state.permissionCodes.get(String(code||'').trim());
+    if(!permissionId)return {exists:false,configurado:false,efectivo:false};
+    const current=state.permissionStates.get(permissionId)||{
+      efectivo:false,
+      configurado:false,
+      heredado:false,
+      personalizado:null
+    };
+    return {exists:true,id:permissionId,...current};
+  }
+  function can(code,options={}){
+    const current=permissionState(code);
+    if(!current.exists)return options.defaultValue!==undefined?Boolean(options.defaultValue):true;
+    if(!current.configurado)return options.defaultValue!==undefined?Boolean(options.defaultValue):true;
+    return current.efectivo===true;
+  }
+  function canAny(codes,options={}){
+    const list=Array.isArray(codes)?codes:[codes];
+    return list.some(code=>can(code,options));
+  }
+  function applyActionPermissions(root=document){
+    root.querySelectorAll?.('[data-permission-code]').forEach(node=>{
+      const permitted=can(node.dataset.permissionCode,{defaultValue:true});
+      const behavior=String(node.dataset.permissionBehavior||'hide').toLowerCase();
+      if(behavior==='disable'){
+        node.disabled=!permitted;
+        node.setAttribute('aria-disabled',String(!permitted));
+      }else{
+        node.hidden=!permitted;
+      }
+    });
+  }
+  async function reloadPermissions(){
+    await loadSessionPermissions();
+    applySidebar();
+    applyActionPermissions(document);
+    renderLauncher();
+    document.dispatchEvent(new CustomEvent('mantto:permissions-updated'));
+  }
+  function observePermissionControls(){
+    if(state.permissionObserver||!document.body||typeof MutationObserver!=='function')return;
+    state.permissionObserver=new MutationObserver(records=>{
+      records.forEach(record=>record.addedNodes.forEach(node=>{
+        if(!(node instanceof Element))return;
+        if(node.matches?.('[data-permission-code]'))applyActionPermissions(node.parentElement||node);
+        else if(node.querySelector?.('[data-permission-code]'))applyActionPermissions(node);
+      }));
+    });
+    state.permissionObserver.observe(document.body,{childList:true,subtree:true});
   }
   function bindHeader(){
     if(state.headerBound)return;
@@ -301,6 +377,8 @@
     try{
       await loadSessionPermissions();
       applySidebar();
+      applyActionPermissions(document);
+      observePermissionControls();
       renderLauncher();
       renderBanner();
       if(allowed())await loadViewerUsers();
@@ -308,6 +386,8 @@
       console.error('[Permisos de sesión]',error);
       state.catalog=[];
       state.permissions.clear();
+      state.permissionStates.clear();
+      state.permissionCodes.clear();
       state.canUseViewer=false;
       applySidebar();
       renderLauncher();
@@ -316,10 +396,24 @@
   }
   document.addEventListener('mantto:auth-ready',init);
   document.addEventListener('mantto:view-user-changed',async()=>{
-    try{await loadSessionPermissions();}catch(error){console.error('[Permisos de sesión]',error);state.permissions.clear();state.canUseViewer=false;}
+    try{await loadSessionPermissions();}catch(error){
+      console.error('[Permisos de sesión]',error);
+      state.permissions.clear();
+      state.permissionStates.clear();
+      state.permissionCodes.clear();
+      state.canUseViewer=false;
+    }
     renderLauncher();
     renderBanner();
     applySidebar();
+    applyActionPermissions(document);
   });
+  window.ManttoPermissions={
+    can,
+    canAny,
+    state:permissionState,
+    reload:reloadPermissions,
+    apply:applyActionPermissions
+  };
   window.ManttoUserViewer={init,applySidebar,allowed,renderPanel,openViewer};
 })();
