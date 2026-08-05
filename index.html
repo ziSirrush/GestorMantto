@@ -15,7 +15,7 @@
 <link href="./manifest.json" rel="manifest"/>
 <link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
 <link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles/base.css?v=20260801-responsive-fixed-v002" rel="stylesheet"/>
+<link href="./styles/base.css?v=20260804-nori-dock-v001" rel="stylesheet"/>
 <link href="./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003" rel="stylesheet"/>
 <link href="./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004" rel="stylesheet"/>
 <link href="./modules/panel-control/panel-control.css?v=20260722-v026" rel="stylesheet"/>
@@ -33,16 +33,16 @@
 <link href="./modules/ventas-clientes-detalle/ventas-clientes-detalle.css?v=20260729-v011" rel="stylesheet"/>
 <link href="./modules/ventas-cotizaciones/ventas-cotizaciones.css?v=20260729-v008" rel="stylesheet"/>
 <link href="./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.css?v=20260729-v001" rel="stylesheet"/>
-<link href="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.css?v=20260803-cffaa05-v001" rel="stylesheet"/>
-<link href="./modules/ventas-vendidos/ventas-vendidos.css?v=20260804-paginado-f2-v001" rel="stylesheet"/>
-<link href="./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260804-columnas-v001" rel="stylesheet"/>
-<link href="./modules/ventas-perdidos/ventas-perdidos.css?v=20260804-paginado-f2-v001" rel="stylesheet"/>
+<link href="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.css?v=20260730-v001" rel="stylesheet"/>
+<link href="./modules/ventas-vendidos/ventas-vendidos.css?v=20260728-v001" rel="stylesheet"/>
+<link href="./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260730-v001" rel="stylesheet"/>
+<link href="./modules/ventas-perdidos/ventas-perdidos.css?v=20260729-v001" rel="stylesheet"/>
 <link href="./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.css?v=20260713-v001" rel="stylesheet"/>
 <link href="./modules/callcenter/callcenter.css?v=cc-v005" rel="stylesheet"/>
 <link href="./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001" rel="stylesheet"/>
 <link href="./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003" rel="stylesheet"/>
 <link href="./modules/usuarios/usuarios.css?v=20260707-v001" rel="stylesheet"/>
-<link href="./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001" rel="stylesheet"/>
+<link href="./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260723-v030-2" rel="stylesheet"/>
 <style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
     [hidden]{display:none!important}
@@ -52,14 +52,10 @@
     @keyframes manttoSpin{to{transform:rotate(360deg)}}
   </style>
 
-<link rel="stylesheet" href="./modules/ventas-prospeccion/ventas-prospeccion.css?v=20260804-paginado-f2-v001">
+<link rel="stylesheet" href="./modules/ventas-prospeccion/ventas-prospeccion.css?v=20260731-fase1-v001">
 <link rel="stylesheet" href="./modules/ventas-prospeccion-nueva/ventas-prospeccion-nueva.css?v=20260731-v002">
-<link rel="stylesheet" href="./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.css?v=20260803-cffaa04-v001">
+<link rel="stylesheet" href="./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.css?v=20260731-fase4a-v001">
 <link rel="stylesheet" href="./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.css?v=20260731-fase1-v001">
-<link rel="stylesheet" href="./modules/ventas-dashboard/ventas-dashboard.css?v=20260804-tablas-espejo-v001">
-<link rel="stylesheet" href="./modules/ventas-asignacion-redes/ventas-asignacion-redes.css?v=20260804-paginado-f2-v001">
-<link rel="stylesheet" href="./modules/ventas-asignacion-redes-detalle/ventas-asignacion-redes-detalle.css?v=20260804-v002">
-<link rel="stylesheet" href="./modules/ventas-asignacion-redes-formulario/ventas-asignacion-redes-formulario.css?v=20260804-v001">
 <link rel="stylesheet" href="./styles/device-permissions.css?v=20260731-mobile-v006"/>
 </head>
 <body>
@@ -329,7 +325,6 @@
 <section aria-label="Proyectos" class="view proy-view" data-view="proyectos" id="view-proyectos"></section>
 <section aria-label="Proyectos de Instalación" class="view insproy-view" data-view="instalaciones-proyectos" id="view-instalaciones-proyectos"></section>
 <section aria-label="Proyectos Cerrados" class="view" data-view="instalaciones-cerrados" id="view-instalaciones-cerrados"></section>
-<section aria-label="Dashboard Ventas" class="view" data-view="ventas-dashboard" id="view-ventas-dashboard"></section>
 <section aria-label="Fotos Mapa" class="view" data-view="ventas-fotos-mapa" id="view-ventas-fotos-mapa"></section>
 <section aria-label="Clientes" class="view" data-view="ventas-clientes" id="view-ventas-clientes"></section>
 <section aria-label="Nuevo cliente" class="view" data-view="ventas-clientes-nuevo" id="view-ventas-clientes-nuevo"></section>
@@ -344,9 +339,6 @@
 <section aria-label="Nueva visita de prospección" class="view" data-view="ventas-prospeccion-nueva" id="view-ventas-prospeccion-nueva"></section>
 <section aria-label="Detalle de visita de prospección" class="view" data-view="ventas-prospeccion-detalle" id="view-ventas-prospeccion-detalle"></section>
 <section aria-label="Mapa Prospección" class="view" data-view="ventas-mapa-prospeccion" id="view-ventas-mapa-prospeccion"></section>
-<section aria-label="Asignación a Redes" class="view" data-view="ventas-asignacion-redes" id="view-ventas-asignacion-redes"></section>
-<section aria-label="Detalle de Asignación a Redes" class="view" data-view="ventas-asignacion-redes-detalle" id="view-ventas-asignacion-redes-detalle"></section>
-<section aria-label="Formulario de Asignación a Redes" class="view" data-view="ventas-asignacion-redes-formulario" id="view-ventas-asignacion-redes-formulario"></section>
 <section aria-label="Concentrado Cliente" class="view icc-view" data-view="instalaciones-concentrado-cliente" id="view-instalaciones-concentrado-cliente"></section>
 <section aria-label="Resumen del día" class="view resumen-page" data-view="resumen" id="view-resumen">
 <div class="rd-card rd-header">
@@ -464,7 +456,7 @@
 <label>Asunto <input id="support-subject" placeholder="Describe brevemente el problema" required type="text"/></label>
 <label>Descripción <textarea id="support-description" placeholder="Detalle del caso" required rows="5"></textarea></label>
 <label>Fecha del incidente <input id="support-incident-date" type="datetime-local"/></label>
-<label>Archivos adjuntos <input id="support-files" multiple type="file"/><small>Podrás agregar más archivos después desde el detalle. Máximo 25 MB por archivo, 50 MB en total y hasta 5 archivos.</small></label>
+<label>Archivos adjuntos <input id="support-files" multiple type="file"/><small>Podrás agregar más archivos después desde el detalle. Máximo 8 MB por archivo.</small></label>
 <button class="auth-primary" id="support-submit" type="submit">Crear solicitud</button>
 <div class="auth-msg" id="support-msg"></div>
 </form>
@@ -604,7 +596,7 @@
 <div class="ss-file-upload-box">
 <input aria-label="Seleccionar archivo" id="ss-file-input" type="file"/>
 <button class="ss-btn" id="ss-file-upload" type="button">Subir archivo</button>
-<small>Máximo 25 MB por archivo.</small>
+<small>Máximo 8 MB por archivo.</small>
 </div>
 </aside>
 </div>
@@ -658,10 +650,11 @@
 </div>
 </section>
 <!-- NORI DE PRUEBAS -->
-<button class="panda-float" id="noriFloat" title="Nori soporte" type="button">
+<button aria-controls="pandaChat" aria-expanded="false" aria-label="Abrir Nori" class="panda-float" id="noriFloat" title="Abrir Nori" type="button">
+<span class="nori-dock-label" aria-hidden="true">Nori</span>
 <img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png"/>
 <span class="panda-fallback-icon">🐼</span>
-<span class="panda-notif"></span>
+<span class="panda-notif" aria-hidden="true"></span>
 </button>
 <section aria-label="Nori soporte de pruebas" class="panda-chat" id="pandaChat">
 <div class="panda-chat-head">
@@ -686,49 +679,44 @@
 <script src="./core/config.js?v=20260705-v114"></script>
 <script src="./core/push-notifications.js?v=20260803-fix4-v001"></script>
 <script src="./core/device-permissions.js?v=20260801-native-v001"></script>
-<script src="./core/auth.js?v=20260804-hybrid-v001"></script>
-<script src="./core/router.js?v=20260803-cffaa02-v001"></script>
-<script src="./core/data-sync.js?v=20260804-hybrid-v001"></script>
+<script src="./core/auth.js?v=20260803-fix4-v001"></script>
+<script src="./core/router.js?v=20260726-fix-tabs-activos-v003"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
-<script src="./modules/home/home.js?v=20260803-cffaa02-v001"></script>
+<script src="./modules/home/home.js?v=20260803-azure-files-v001"></script>
 <script src="./modules/resumen-dia/resumen-dia.js?v=20260716-tickets-contextual-v002"></script>
-<script src="./modules/equipos-criticos/equipos-criticos.js?v=20260804-columnas-v001"></script>
+<script src="./modules/equipos-criticos/equipos-criticos.js?v=20260717-fix5"></script>
 <script src="./modules/portafolio/portafolio.js?v=20260717-kpi-views-v002"></script>
 <script src="./modules/proyectos/proyectos.js?v=20260717-proyectos-responsabilidad-v001"></script>
 <script src="./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260726-fix-tabs-activos-v003"></script>
 <script src="./modules/instalaciones-cerrados/instalaciones-cerrados.js?v=20260726-fix-tabs-estados-v002"></script>
-<script src="./modules/ventas-dashboard/ventas-dashboard.js?v=20260804-tablas-espejo-v001"></script>
 <script src="./modules/ventas-fotos-mapa/ventas-fotos-mapa.js?v=20260726-fix-tabs-estados-v002"></script>
-<script src="./modules/ventas-clientes/ventas-clientes.js?v=20260804-columnas-v001"></script>
+<script src="./modules/ventas-clientes/ventas-clientes.js?v=20260729-fase3-v003"></script>
 <script src="./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.js?v=20260729-v009"></script>
 <script src="./modules/ventas-contacto-form/ventas-contacto-form.js?v=20260729-v011"></script>
 <script src="./modules/ventas-clientes-detalle/ventas-clientes-detalle.js?v=20260729-v011"></script>
-<script src="./modules/ventas-cotizaciones/ventas-cotizaciones.js?v=20260804-columnas-v001"></script>
+<script src="./modules/ventas-cotizaciones/ventas-cotizaciones.js?v=20260729-v011"></script>
 <script src="./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js?v=20260729-v011"></script>
-<script src="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js?v=20260803-cffaa05-v001"></script>
-<script src="./modules/ventas-vendidos/ventas-vendidos.js?v=20260804-columnas-v001"></script>
-<script src="./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260804-columnas-v001"></script>
-<script src="./modules/ventas-perdidos/ventas-perdidos.js?v=20260804-columnas-v001"></script>
+<script src="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js?v=20260803-azure-files-v001"></script>
+<script src="./modules/ventas-vendidos/ventas-vendidos.js?v=20260728-v001"></script>
+<script src="./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260730-v001"></script>
+<script src="./modules/ventas-perdidos/ventas-perdidos.js?v=20260729-v001"></script>
 <script src="./modules/ventas-prospeccion/ventas-prospeccion.js?v=20260731-fase3-v002"></script>
 <script src="./modules/ventas-prospeccion-nueva/ventas-prospeccion-nueva.js?v=20260803-azure-files-v001"></script>
-<script src="./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.js?v=20260803-cffaa04-v001"></script>
+<script src="./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.js?v=20260803-azure-files-v001"></script>
 <script src="./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.js?v=20260731-fase1-v001"></script>
-<script src="./modules/ventas-asignacion-redes/ventas-asignacion-redes.js?v=20260804-v007"></script>
-<script src="./modules/ventas-asignacion-redes-detalle/ventas-asignacion-redes-detalle.js?v=20260804-v002"></script>
-<script src="./modules/ventas-asignacion-redes-formulario/ventas-asignacion-redes-formulario.js?v=20260804-v001"></script>
 <script src="./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.js?v=20260713-v001"></script>
 <script src="./modules/callcenter/callcenter.js?v=cc-v006"></script>
 <script src="./modules/dashboard-operativo/dashboard-operativo.js?v=20260718-v004"></script>
 <script src="./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260707-v004"></script>
 <script src="./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003"></script>
 <script src="./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004"></script>
-<script src="./modules/usuarios/usuarios.js?v=20260804-notif-prefs-v001"></script>
+<script src="./modules/usuarios/usuarios.js?v=20260707-v001"></script>
 <script src="./modules/panel-control/panel-control.js?v=20260722-v026"></script>
-<script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260803-cffaa03-v001"></script>
-<script src="./modules/support/support.js?v=20260803-cffaa03-v001"></script>
+<script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260803-azure-files-v001"></script>
+<script src="./modules/support/support.js?v=20260723-v030-2"></script>
 <script src="./core/details.js?v=v032_1_v031_3_1"></script>
-<script src="./core/user-viewer.js?v=20260804-sidebar-group-v002"></script>
-<script src="./core/app.js?v=20260804-data-refresh-v001"></script>
+<script src="./core/user-viewer.js?v=20260722-v024"></script>
+<script src="./core/app.js?v=20260804-nori-dock-v001"></script>
 </body>
 </html>

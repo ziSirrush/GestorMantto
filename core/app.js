@@ -1,25 +1,5 @@
 (function(){
 
-
-  function installMutationRefreshSignal(){
-    if(window.__MANTTO_FETCH_MUTATION_SIGNAL_INSTALLED__ || typeof window.fetch !== 'function') return;
-    window.__MANTTO_FETCH_MUTATION_SIGNAL_INSTALLED__ = true;
-    const originalFetch = window.fetch.bind(window);
-    window.fetch = async function(input, init){
-      const response = await originalFetch(input, init);
-      try{
-        const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-        if(response.ok && ['POST','PUT','PATCH','DELETE'].includes(method)){
-          const url = typeof input === 'string' ? input : String(input && input.url || '');
-          window.setTimeout(function(){
-            document.dispatchEvent(new CustomEvent('mantto:data-mutated',{ detail:{ method:method, url:url } }));
-          },0);
-        }
-      }catch(error){}
-      return response;
-    };
-  }
-
   function formatDate(date){
     return date.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
   }
@@ -163,6 +143,16 @@
         noriFloat.style.bottom = defaultInlinePosition.bottom;
         noriFloat.style.transform = defaultInlinePosition.transform;
       };
+      const setNoriOpen = open => {
+        const shouldOpen = Boolean(open);
+        noriChat.classList.toggle('open', shouldOpen);
+        noriFloat.classList.toggle('is-open', shouldOpen);
+        noriFloat.setAttribute('aria-expanded', String(shouldOpen));
+        noriFloat.setAttribute('aria-label', shouldOpen ? 'Minimizar Nori' : 'Abrir Nori');
+        noriFloat.title = shouldOpen ? 'Minimizar Nori' : 'Abrir Nori';
+        document.documentElement.classList.toggle('nori-panel-open', shouldOpen && !isMobileNori());
+      };
+      const toggleNori = () => setNoriOpen(!noriChat.classList.contains('open'));
 
       noriFloat.style.touchAction = 'none';
       noriFloat.addEventListener('pointerdown', event => {
@@ -208,15 +198,31 @@
           event.stopPropagation();
           return;
         }
-        resetNoriPosition();
-        noriChat.classList.toggle('open');
+        if(isMobileNori()) resetNoriPosition();
+        toggleNori();
       });
+
+      if(noriClose){
+        noriClose.addEventListener('click', () => setNoriOpen(false));
+      }
+
+      document.addEventListener('keydown', event => {
+        if(event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'n'){
+          event.preventDefault();
+          toggleNori();
+        }
+        if(event.key === 'Escape' && noriChat.classList.contains('open')){
+          setNoriOpen(false);
+        }
+      });
+
       window.addEventListener('resize', () => {
         if(!isMobileNori()) resetNoriPosition();
+        document.documentElement.classList.toggle(
+          'nori-panel-open',
+          noriChat.classList.contains('open') && !isMobileNori()
+        );
       });
-    }
-    if(noriClose && noriChat){
-      noriClose.addEventListener('click',()=>noriChat.classList.remove('open'));
     }
   }
   const NOTIFICACIONES_REFRESH_MS = 10000;
@@ -266,7 +272,6 @@
   function initAfterAuth(){
     if(window.__MANTTO_APP_READY__) return;
     window.__MANTTO_APP_READY__ = true;
-    installMutationRefreshSignal();
     if(window.ManttoHome) window.ManttoHome.init();
     bindNotificationRefreshVisibility();
     iniciarTimerNotificaciones();
