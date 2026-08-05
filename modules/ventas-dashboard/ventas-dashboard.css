@@ -92,3 +92,22 @@
   .vd-kpi { min-height: 142px; }
 }
 .vd-table-section{margin:0 0 18px;background:#fff;border:1px solid #dbe4ee;border-radius:16px;overflow:hidden}.vd-table-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px 18px;border-bottom:1px solid #e7edf4}.vd-table-head h2{margin:0;font-size:1.05rem}.vd-table-count{font-size:.82rem;color:#64748b}.vd-table-wrap{overflow:auto}.vd-table{width:100%;border-collapse:collapse;min-width:760px}.vd-table th,.vd-table td{padding:11px 14px;text-align:left;border-bottom:1px solid #eef2f7;font-size:.86rem;vertical-align:top}.vd-table th{background:#f8fafc;color:#475569;font-weight:700;white-space:nowrap}.vd-table tbody tr:hover{background:#f8fbff}.vd-table-empty{padding:24px;text-align:center;color:#64748b}.vd-stage{display:block}.vd-section-hidden{display:none!important}
+
+/* Dashboard Ventas A3/A4: tablas de tamaño útil, responsive y paginadas a 30 registros */
+.vd-stage{width:100%;min-width:0;padding:0;background:transparent;border:0}
+.vd-table-section{width:100%;min-width:0}
+.vd-table-wrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+.vd-table{width:100%;min-width:max(100%,calc(var(--vd-col-count,6) * 145px));table-layout:auto}
+.vd-table th,.vd-table td{min-width:120px;max-width:280px;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+.vd-table th:first-child,.vd-table td:first-child{min-width:170px}
+.vd-table-pagination{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;padding:12px 16px;background:#f8fafc;border-top:1px solid #e2e8f0}
+.vd-table-pagination button{min-width:30px;min-height:30px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;color:#0d2e6e;font-size:12px;font-weight:800;padding:0 10px;cursor:pointer}
+.vd-table-pagination button:disabled{opacity:.4;cursor:default}
+.vd-table-pagination span{min-width:120px;text-align:center;font-size:12px;color:#64748b}
+@media(max-width:760px){
+  .vd-page{width:100%;max-width:100%;overflow-x:hidden}
+  .vd-table-head{align-items:flex-start;flex-direction:column}
+  .vd-table-wrap{border-top:1px solid #eef2f7}
+  .vd-table{min-width:max(760px,calc(var(--vd-col-count,6) * 135px))}
+  .vd-table th,.vd-table td{padding:10px 12px;font-size:12px}
+}

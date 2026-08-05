@@ -11,3 +11,8 @@
 .ec-table-wrap{scrollbar-gutter:stable}
 @media(max-width:920px){.ec-project-cell{min-width:190px;max-width:260px}}
 @media(max-width:640px){.ec-project-cell{min-width:180px;max-width:230px}.ec-table th,.ec-table td{padding:8px 9px}}
+
+/* FIX paginado Fase 1: centrado y controles mínimos 30 px */
+.ec-pagination{justify-content:center;flex-wrap:wrap;gap:10px}
+.ec-pagination button{min-width:30px;min-height:30px}
+.ec-pagination span{min-width:110px;text-align:center}

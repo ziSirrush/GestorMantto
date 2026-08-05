@@ -115,3 +115,8 @@
 .cc-sort-head:hover,.cc-sort-head:focus-visible{color:#1B4FD8;outline:none}
 .cc-sort-head.is-active{color:#1B4FD8}
 .cc-sort-arrow{display:inline-block;min-width:12px;font-size:10px}
+
+/* FIX paginado Fase 1: centrado y controles mínimos 30 px */
+.cc-pagination{justify-content:center;flex-wrap:wrap;gap:10px}
+.cc-pagination button{min-width:30px;min-height:30px}
+.cc-pagination span{min-width:110px;text-align:center}

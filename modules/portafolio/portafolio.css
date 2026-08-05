@@ -10,3 +10,8 @@
 .pf-sort:hover,.pf-sort:focus-visible{text-decoration:underline;outline:none}
 .pf-category-page .pf-table-section{margin-top:0}
 @media(max-width:760px){.pf-category-page .pf-head-actions{width:100%;justify-content:flex-start}.pf-category-page .pf-head-actions .pf-btn{flex:1 1 auto}}
+
+/* FIX paginado Fase 1: centrado y controles mínimos 30 px */
+.pf-pagination{justify-content:center;flex-wrap:wrap;gap:10px}
+.pf-pagination button{min-width:30px;min-height:30px;padding:0 10px}
+.pf-pagination span{min-width:110px;text-align:center}
