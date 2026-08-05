@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const TEMPLATE_URL = './modules/ventas-dashboard/ventas-dashboard.html?v=20260804-a4-v001';
+  const TEMPLATE_URL = './modules/ventas-dashboard/ventas-dashboard.html?v=20260805-b4-v001';
   const STORAGE_KEY = 'mantto:ventas-dashboard:a1';
   const TABLE_PAGE_SIZE = 30;
   let initialized = false;
@@ -9,6 +9,8 @@
   let users = [];
   let requestId = 0;
   let tableData = {};
+  let pdfCapabilities = { general: false, individual: false };
+  let pdfPreparing = false;
   const tablePages = {};
 
   const defs = {
@@ -23,6 +25,77 @@
     tareas_asignadas: { filter: 'tareas', title: 'Pendientes asignados al responsable', headers: ['Pendiente', 'Prioridad', 'Estatus', 'Proyecto', 'Área', 'Fecha límite', 'Responsables'] },
     tareas_creadas: { filter: 'tareas', title: 'Pendientes creados por el responsable', headers: ['Pendiente', 'Prioridad', 'Estatus', 'Proyecto', 'Área', 'Fecha límite', 'Responsables'] }
   };
+
+
+  function setPdfProgress(type, active) {
+    const button = document.getElementById(`vd-pdf-${type}`);
+    const progress = document.getElementById(`vd-pdf-${type}-progress`);
+    if (button) {
+      button.disabled = Boolean(active);
+      button.textContent = active
+        ? 'Generando PDF...' 
+        : (type === 'general' ? 'Generar PDF general' : 'Generar PDF del asesor');
+    }
+    if (progress) progress.hidden = !active;
+  }
+
+  function updatePdfActions() {
+    const selectedId = Number(document.getElementById('vd-user-select')?.value);
+    const hasSelectedAdvisor = Number.isInteger(selectedId) && selectedId > 0;
+    const generalWrap = document.getElementById('vd-pdf-general-wrap');
+    const individualWrap = document.getElementById('vd-pdf-individual-wrap');
+    if (generalWrap) generalWrap.hidden = hasSelectedAdvisor || pdfCapabilities.general !== true;
+    if (individualWrap) individualWrap.hidden = !hasSelectedAdvisor || pdfCapabilities.individual !== true;
+  }
+
+  async function loadPdfCapabilities() {
+    try {
+      const response = await req('/api/ventas/dashboard/pdf/capabilities');
+      pdfCapabilities = {
+        general: response?.pdf?.general === true,
+        individual: response?.pdf?.individual === true
+      };
+    } catch (_error) {
+      pdfCapabilities = { general: false, individual: false };
+    }
+    updatePdfActions();
+  }
+
+  async function preparePdf(type) {
+    if (pdfPreparing) return;
+    const selectedId = Number(document.getElementById('vd-user-select')?.value);
+    if (type === 'individual' && (!Number.isInteger(selectedId) || selectedId <= 0)) {
+      msg('Selecciona un responsable comercial antes de preparar el PDF individual.', 'error');
+      return;
+    }
+    pdfPreparing = true;
+    setPdfProgress(type, true);
+    msg(type === 'general' ? 'Preparando datos de todos los responsables comerciales...' : 'Preparando datos del asesor seleccionado...');
+    try {
+      const query = new URLSearchParams({ tipo: type });
+      if (type === 'individual') query.set('usuario_id', String(selectedId));
+      const response = await req(`/api/ventas/dashboard/pdf/data?${query.toString()}`);
+      if (type === 'individual') {
+        if (!window.VentasDashboardPdf_cor || typeof window.VentasDashboardPdf_cor.generateIndividual !== 'function') {
+          throw new Error('El generador PDF de Dashboard Ventas no está disponible.');
+        }
+        window.VentasDashboardPdf_cor.generateIndividual(response);
+        msg('PDF individual generado correctamente.', 'ok');
+      } else {
+        if (!window.VentasDashboardPdf_cor || typeof window.VentasDashboardPdf_cor.generateGeneral !== 'function') {
+          throw new Error('El generador PDF general de Dashboard Ventas no está disponible.');
+        }
+        window.VentasDashboardPdf_cor.generateGeneral(response);
+        msg(`PDF general generado correctamente con ${Number(response?.total_asesores || 0)} asesores.`, 'ok');
+      }
+    } catch (error) {
+      msg(error.message || 'No fue posible preparar los datos del PDF.', 'error');
+    } finally {
+      pdfPreparing = false;
+      setPdfProgress(type, false);
+      updatePdfActions();
+    }
+  }
 
   function auth() {
     if (!window.ManttoAuth || typeof window.ManttoAuth.apiGet !== 'function') {
@@ -204,6 +277,7 @@
     document.getElementById('vd-selected-meta').textContent = select?.value ? option.dataset.meta || 'Perfil comercial activo' : 'Los datos se actualizarán al seleccionar un responsable.';
     document.getElementById('vd-selected-modules').textContent = modules.length === 8 ? 'Todos los módulos seleccionados' : modules.length ? modules.join(' · ') : 'Sin módulos seleccionados';
     visibility();
+    updatePdfActions();
     save();
   }
 
@@ -253,6 +327,8 @@
       openRow(row);
     });
     document.getElementById('vd-user-select')?.addEventListener('change', () => { summary(); loadData(false).catch((error) => msg(error.message, 'error')); });
+    document.getElementById('vd-pdf-general')?.addEventListener('click', () => preparePdf('general'));
+    document.getElementById('vd-pdf-individual')?.addEventListener('click', () => preparePdf('individual'));
     document.getElementById('vd-check-grid')?.addEventListener('change', (event) => {
       const input = event.target;
       if (!(input instanceof HTMLInputElement)) return;
@@ -275,6 +351,7 @@
     users = Array.isArray(response.usuarios) ? response.usuarios : [];
     renderUsers();
     applyModules();
+    await loadPdfCapabilities();
     summary();
     select.disabled = !users.length;
     if (users.length) await loadData(true);

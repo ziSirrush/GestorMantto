@@ -114,3 +114,22 @@
 
 /* FIX tablas espejo de módulos fuente */
 .vd-clickable-row{cursor:pointer}.vd-clickable-row:focus{outline:2px solid #2f67c7;outline-offset:-2px}.vd-cell-sub{display:block;margin-top:3px;color:#64748b;font-size:10px}.vd-number{text-align:center!important;font-variant-numeric:tabular-nums}
+
+/* Fase B1: controles de generación PDF sujetos a permisos */
+.vd-pdf-action{display:grid;gap:7px;min-width:210px}
+.vd-pdf-action[hidden]{display:none!important}
+.vd-pdf-btn{min-height:44px;border:0;border-radius:13px;padding:0 18px;color:#fff;font-size:12px;font-weight:900;letter-spacing:.02em;cursor:pointer;box-shadow:0 8px 20px rgba(15,46,110,.18);transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease}
+.vd-pdf-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 11px 24px rgba(15,46,110,.24)}
+.vd-pdf-btn:focus-visible{outline:3px solid rgba(47,103,199,.28);outline-offset:2px}
+.vd-pdf-btn:disabled{cursor:wait;opacity:.72}
+.vd-pdf-btn-general{background:linear-gradient(135deg,#0d2e6e,#1e4f9a)}
+.vd-pdf-btn-individual{background:linear-gradient(135deg,#2f67c7,#1e4f9a)}
+.vd-pdf-action-individual{margin-top:4px;max-width:260px}
+.vd-pdf-progress{height:4px;overflow:hidden;border-radius:999px;background:#dbe7f4}
+.vd-pdf-progress[hidden]{display:none!important}
+.vd-pdf-progress span{display:block;width:42%;height:100%;border-radius:inherit;background:currentColor;animation:vd-pdf-progress 1s ease-in-out infinite}
+.vd-pdf-action-general .vd-pdf-progress{color:#2f67c7}
+.vd-pdf-action-individual .vd-pdf-progress{color:#2f67c7}
+@keyframes vd-pdf-progress{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
+@media(max-width:900px){.vd-head{align-items:flex-start;gap:16px;flex-direction:column}.vd-pdf-action-general{width:100%}.vd-pdf-action-individual{max-width:none;width:100%}.vd-pdf-btn{width:100%}}
+@media(prefers-reduced-motion:reduce){.vd-pdf-progress span{animation:none;width:100%}.vd-pdf-btn{transition:none}}

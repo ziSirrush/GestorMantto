@@ -1,7 +1,13 @@
 <div class="vd-page">
-  <section class="vd-card vd-head"><div><p class="vd-eyebrow">VENTAS · DASHBOARD</p><h1>Dashboard Ventas</h1><p>Consulta comercial por responsable.</p></div></section>
+  <section class="vd-card vd-head">
+    <div><p class="vd-eyebrow">VENTAS · DASHBOARD</p><h1>Dashboard Ventas</h1><p>Consulta comercial por responsable.</p></div>
+    <div class="vd-pdf-action vd-pdf-action-general" id="vd-pdf-general-wrap" hidden>
+      <button type="button" class="vd-pdf-btn vd-pdf-btn-general" id="vd-pdf-general">Generar PDF general</button>
+      <div class="vd-pdf-progress" id="vd-pdf-general-progress" hidden><span></span></div>
+    </div>
+  </section>
   <section class="vd-card vd-controls" aria-label="Filtros principales">
-    <div class="vd-user-field"><label for="vd-user-select">Responsable comercial</label><select id="vd-user-select"><option value="">Cargando usuarios...</option></select><small>Director de Ventas, gerentes y asesores activos.</small></div>
+    <div class="vd-user-field"><label for="vd-user-select">Responsable comercial</label><select id="vd-user-select"><option value="">Cargando usuarios...</option></select><small>Director de Ventas, gerentes y asesores activos.</small><div class="vd-pdf-action vd-pdf-action-individual" id="vd-pdf-individual-wrap" hidden><button type="button" class="vd-pdf-btn vd-pdf-btn-individual" id="vd-pdf-individual">Generar PDF del asesor</button><div class="vd-pdf-progress" id="vd-pdf-individual-progress" hidden><span></span></div></div></div>
     <fieldset class="vd-module-filter"><legend>Información visible</legend><div class="vd-check-grid" id="vd-check-grid">
       <label class="vd-check vd-check-all"><input type="checkbox" value="todos" checked><span>Todos</span></label>
       <label class="vd-check"><input type="checkbox" value="clientes" checked><span>Clientes</span></label>
