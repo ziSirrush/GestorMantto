@@ -349,9 +349,20 @@ async function createMyTicket(req, res) {
       notificaciones_soporte: notificacionesSoporte
     });
   } catch (error) {
+    const requestId = `SUP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    console.error('[SOPORTE] Error creando solicitud:', {
+      request_id: requestId,
+      user_id: req.user && req.user.id_SB,
+      code: error.code || null,
+      message: error.message,
+      sql_code: error.code && String(error.code).startsWith('ER_') ? error.code : null,
+      sql_state: error.sqlState || null,
+      sql_message: error.sqlMessage || null
+    });
     return res.status(error.status || 500).json({
       ok: false,
-      code: error.code || undefined,
+      code: error.code || 'SUPPORT_CREATE_ERROR',
+      request_id: requestId,
       message: error.expose || error.status < 500 ? error.message : 'Error creando tu solicitud.'
     });
   }
