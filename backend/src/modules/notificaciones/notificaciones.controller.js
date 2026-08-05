@@ -39,8 +39,40 @@ async function marcarNotificacionNueva(req, res) {
   }
 }
 
+
+async function getPreferencias(req, res) {
+  try {
+    const data = await notificacionesService.getPreferencias(req);
+    return res.json({ ok: true, source: 'aiven', data });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: error.message || 'Error consultando preferencias de notificaciones.'
+    });
+  }
+}
+
+async function guardarPreferencias(req, res) {
+  try {
+    const data = await notificacionesService.guardarPreferencias(req);
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      message: 'Preferencias de notificaciones actualizadas.',
+      data
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      message: error.message || 'Error guardando preferencias de notificaciones.'
+    });
+  }
+}
+
 module.exports = {
   getNotificaciones,
   abrirNotificacion,
-  marcarNotificacionNueva
+  marcarNotificacionNueva,
+  getPreferencias,
+  guardarPreferencias
 };

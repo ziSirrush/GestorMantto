@@ -100,3 +100,15 @@
     height:26px;
   }
 }
+
+/* Preferencias de notificaciones dentro de Mi Perfil */
+.usr-notification-form.open{display:grid;gap:14px}
+.usr-notification-group{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#fff}
+.usr-notification-group h4{margin:0;padding:10px 12px;background:#f8fafc;color:#17202a;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}
+.usr-notification-row{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:12px;align-items:center;padding:12px;border-top:1px solid #edf2f7}
+.usr-notification-row:first-of-type{border-top:0}
+.usr-notification-row>span:first-child b{display:block;font-size:.88rem}.usr-notification-row>span:first-child small{display:block;color:#64748b;margin-top:3px;font-weight:600}
+.usr-notification-switches{display:flex;gap:10px;flex-wrap:wrap}.usr-notification-switches label{display:flex;gap:5px;align-items:center;font-size:.78rem;font-weight:800;color:#334155}.usr-notification-switches input{width:auto}
+.usr-notification-row em{font-style:normal;font-size:.72rem;font-weight:900;color:#92400e;background:#fef3c7;border-radius:999px;padding:4px 8px}
+.usr-notification-row.locked{background:#fffbeb}.usr-notification-row.locked input{cursor:not-allowed}
+@media(max-width:700px){.usr-notification-row{grid-template-columns:1fr}.usr-notification-switches{justify-content:flex-start}}

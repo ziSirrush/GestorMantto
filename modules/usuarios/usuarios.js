@@ -1,6 +1,6 @@
 (function(){
   const API = () => window.ManttoAuth;
-  const state = { ready:false, me:null, usuarios:[], selected:null, tab:'perfil', questions:[] };
+  const state = { ready:false, me:null, usuarios:[], selected:null, tab:'perfil', questions:[], notificationPreferences:[] };
   function $(id){ return document.getElementById(id); }
   function esc(v){ return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
   function initials(user){ return (user && user.iniciales) || String((user && user.nombre) || '--').split(/\s+/).map(p=>p[0]).join('').slice(0,2).toUpperCase(); }
@@ -45,18 +45,58 @@
         <div class="usr-info"><small>Pregunta de seguridad</small><b>${esc(me.pregunta_seguridad || 'No configurada')}</b></div>
       </div>
       <div class="usr-device-section"><div class="usr-section-title"><b>Permisos y notificaciones</b><small>Configuración del navegador y dispositivo actual.</small></div><div id="usr-device-permissions"><div class="usr-loading">Validando permisos...</div></div></div>
-      <div class="usr-actions"><button class="usr-btn" id="usr-open-pass" type="button">Cambiar contraseña</button><button class="usr-btn secondary" id="usr-open-secret" type="button">Cambiar pregunta/respuesta secreta</button><button class="usr-btn danger" id="usr-profile-logout" type="button">Cerrar sesión</button></div>
-      <form class="usr-form" id="usr-pass-form"><label>Contraseña actual<input id="usr-current-pass" type="password" autocomplete="current-password" required></label><label>Contraseña nueva<input id="usr-new-pass" type="password" autocomplete="new-password" required placeholder="Mínimo 10 caracteres"></label><label>Confirmar contraseña nueva<input id="usr-new-pass-confirm" type="password" autocomplete="new-password" required></label><button class="usr-btn" type="submit">Guardar contraseña</button><div id="usr-pass-msg" class="usr-msg"></div></form>
+      <div class="usr-actions"><button class="usr-btn" id="usr-open-notifications" type="button">Personalizar notificaciones</button><button class="usr-btn" id="usr-open-pass" type="button">Cambiar contraseña</button><button class="usr-btn secondary" id="usr-open-secret" type="button">Cambiar pregunta/respuesta secreta</button><button class="usr-btn danger" id="usr-profile-logout" type="button">Cerrar sesión</button></div>
+      <form class="usr-form usr-notification-form" id="usr-notifications-form"><div class="usr-section-title"><b>Notificaciones personalizadas</b><small>Las notificaciones obligatorias permanecen activas.</small></div><div id="usr-notification-preferences"><div class="usr-loading">Cargando preferencias...</div></div><button class="usr-btn" type="submit">Guardar preferencias</button><div id="usr-notification-msg" class="usr-msg"></div></form><form class="usr-form" id="usr-pass-form"><label>Contraseña actual<input id="usr-current-pass" type="password" autocomplete="current-password" required></label><label>Contraseña nueva<input id="usr-new-pass" type="password" autocomplete="new-password" required placeholder="Mínimo 10 caracteres"></label><label>Confirmar contraseña nueva<input id="usr-new-pass-confirm" type="password" autocomplete="new-password" required></label><button class="usr-btn" type="submit">Guardar contraseña</button><div id="usr-pass-msg" class="usr-msg"></div></form>
       <form class="usr-form" id="usr-secret-form"><label>Contraseña actual<input id="usr-secret-current-pass" type="password" autocomplete="current-password" required></label><label>Respuesta actual<input id="usr-current-answer" type="text" required></label><label>Nueva pregunta<select id="usr-new-question" required></select></label><label>Nueva respuesta<input id="usr-new-answer" type="text" required></label><button class="usr-btn" type="submit">Guardar pregunta</button><div id="usr-secret-msg" class="usr-msg"></div></form>`;
     bindProfileForms();
     $('usr-profile-logout')?.addEventListener('click',()=>window.ManttoAuth?.logout?.());
     renderDevicePermissions();
   }
   function bindProfileForms(){
-    $('usr-open-pass')?.addEventListener('click',()=>{$('usr-pass-form')?.classList.toggle('open'); $('usr-secret-form')?.classList.remove('open');});
-    $('usr-open-secret')?.addEventListener('click',async()=>{ $('usr-secret-form')?.classList.toggle('open'); $('usr-pass-form')?.classList.remove('open'); await loadQuestions(); });
+    $('usr-open-notifications')?.addEventListener('click',async()=>{ $('usr-notifications-form')?.classList.toggle('open'); $('usr-pass-form')?.classList.remove('open'); $('usr-secret-form')?.classList.remove('open'); if($('usr-notifications-form')?.classList.contains('open')) await loadNotificationPreferences(); });
+    $('usr-open-pass')?.addEventListener('click',()=>{$('usr-pass-form')?.classList.toggle('open'); $('usr-secret-form')?.classList.remove('open'); $('usr-notifications-form')?.classList.remove('open');});
+    $('usr-open-secret')?.addEventListener('click',async()=>{ $('usr-secret-form')?.classList.toggle('open'); $('usr-pass-form')?.classList.remove('open'); $('usr-notifications-form')?.classList.remove('open'); await loadQuestions(); });
     $('usr-pass-form')?.addEventListener('submit',async ev=>{ ev.preventDefault(); message('usr-pass-msg','Validando datos actuales...','info'); const np=$('usr-new-pass').value, cp=$('usr-new-pass-confirm').value; if(np!==cp){ message('usr-pass-msg','La contraseña nueva y su confirmación no coinciden.','error'); return; } try{ await API().apiPost('/api/auth/me/password',{ current_password:$('usr-current-pass').value, new_password:np, confirm_password:cp }); message('usr-pass-msg','Contraseña actualizada correctamente.','ok'); ev.target.reset(); }catch(err){ message('usr-pass-msg',(err.message || 'No fue posible actualizar.') + ' Contacta a soporte si tus datos actuales no coinciden.','error'); }});
     $('usr-secret-form')?.addEventListener('submit',async ev=>{ ev.preventDefault(); message('usr-secret-msg','Validando datos actuales...','info'); try{ await API().apiPost('/api/auth/me/security-question',{ current_password:$('usr-secret-current-pass').value, current_answer:$('usr-current-answer').value, id_pregunta:$('usr-new-question').value, new_answer:$('usr-new-answer').value }); message('usr-secret-msg','Pregunta de seguridad actualizada correctamente.','ok'); ev.target.reset(); await loadMe(); renderProfile(); }catch(err){ message('usr-secret-msg',(err.message || 'No fue posible actualizar.') + ' Contacta a soporte si tus datos actuales no coinciden.','error'); }});
+    $('usr-notifications-form')?.addEventListener('submit', saveNotificationPreferences);
+  }
+  async function loadNotificationPreferences(){
+    const box=$('usr-notification-preferences'); if(!box) return;
+    box.innerHTML='<div class="usr-loading">Cargando preferencias...</div>';
+    try{
+      const json=await API().apiGet('/api/notificaciones/preferencias');
+      state.notificationPreferences=json.data||[];
+      renderNotificationPreferences();
+    }catch(error){ box.innerHTML='<div class="usr-empty">'+esc(error.message||'No fue posible cargar las preferencias.')+'</div>'; }
+  }
+  function renderNotificationPreferences(){
+    const box=$('usr-notification-preferences'); if(!box) return;
+    const groups=new Map();
+    state.notificationPreferences.forEach(item=>{
+      const key=item.agrupacion||'General';
+      if(!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(item);
+    });
+    box.innerHTML=[...groups.entries()].map(([group,items])=>`<section class="usr-notification-group"><h4>${esc(group)}</h4>${items.map(item=>{
+      const locked=Number(item.obligatoria)===1 || Number(item.configurable)!==1;
+      return `<label class="usr-notification-row ${locked?'locked':''}"><span><b>${esc(item.nombre_evento)}</b><small>${esc(item.descripcion||item.modulo||'')}</small></span><span class="usr-notification-switches"><label><input type="checkbox" data-notification-code="${esc(item.codigo_evento)}" data-channel="campana" ${Number(item.campana)?'checked':''} ${locked?'disabled':''}>Campana</label><label><input type="checkbox" data-notification-code="${esc(item.codigo_evento)}" data-channel="push" ${Number(item.push)?'checked':''} ${locked?'disabled':''}>Push</label><label><input type="checkbox" data-notification-code="${esc(item.codigo_evento)}" data-channel="silenciada" ${Number(item.silenciada)?'checked':''} ${locked?'disabled':''}>Silenciar</label></span>${locked?'<em>Obligatoria</em>':''}</label>`;
+    }).join('')}</section>`).join('') || '<div class="usr-empty">No hay tipos de notificación configurados.</div>';
+  }
+  async function saveNotificationPreferences(event){
+    event.preventDefault();
+    const editable=state.notificationPreferences.filter(item=>Number(item.configurable)===1 && Number(item.obligatoria)!==1);
+    const preferences=editable.map(item=>{
+      const code=String(item.codigo_evento);
+      const get=channel=>Boolean(document.querySelector(`[data-notification-code="${CSS.escape(code)}"][data-channel="${channel}"]`)?.checked);
+      return { codigo_evento:code, campana:get('campana'), push:get('push'), correo:false, silenciada:get('silenciada') };
+    });
+    message('usr-notification-msg','Guardando preferencias...','info');
+    try{
+      const json=await API().api('/api/notificaciones/preferencias',{method:'PUT',body:JSON.stringify({preferencias:preferences})});
+      state.notificationPreferences=json.data||state.notificationPreferences;
+      renderNotificationPreferences();
+      message('usr-notification-msg','Preferencias actualizadas correctamente.','ok');
+    }catch(error){ message('usr-notification-msg',error.message||'No fue posible guardar las preferencias.','error'); }
   }
   async function loadQuestions(){ const sel=$('usr-new-question'); if(!sel) return; if(state.questions.length){ renderQuestions(); return; } sel.innerHTML='<option>Cargando...</option>'; const json=await API().apiGet('/api/auth/security-questions'); state.questions=json.data||[]; renderQuestions(); }
   function renderQuestions(){ const sel=$('usr-new-question'); if(sel) sel.innerHTML='<option value="">Selecciona una pregunta</option>'+state.questions.map(q=>`<option value="${esc(q.id_pregunta)}">${esc(q.pregunta)}</option>`).join(''); }

@@ -1,4 +1,5 @@
 const notificacionesRepository = require('./notificaciones.repository');
+const notificationService = require('../../services/notifications/notification.service');
 
 function positiveInt(value, fallback, min, max) {
   const n = Number.parseInt(value, 10);
@@ -136,8 +137,18 @@ async function marcarNotificacionNueva(req) {
   };
 }
 
+async function getPreferencias(req) {
+  return notificationService.getPreferences(req);
+}
+
+async function guardarPreferencias(req) {
+  return notificationService.savePreferences(req);
+}
+
 module.exports = {
   getNotificaciones,
   abrirNotificacion,
-  marcarNotificacionNueva
+  marcarNotificacionNueva,
+  getPreferencias,
+  guardarPreferencias
 };

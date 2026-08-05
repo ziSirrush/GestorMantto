@@ -70,6 +70,12 @@
       }
       throw error;
     }
+    const method=String(opts.method||'GET').toUpperCase();
+    if(['POST','PUT','PATCH','DELETE'].includes(method)){
+      document.dispatchEvent(new CustomEvent('mantto:data-mutated',{
+        detail:{ path, method, response:json, at:Date.now() }
+      }));
+    }
     return json;
   }
   async function apiGet(path){ return api(path, { method:'GET' }); }
