@@ -17,8 +17,26 @@
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
-    'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte'
+    'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte',
+    'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
+    'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
+    'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
+    'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Estados de Cuenta', 'cobranza-uni-aditivas':'Aditivas'
   };
+
+  const EXPERIMENTAL_ROUTES_EXP = new Set([
+    'experimental-atencion-prioritaria',
+    'experimental-resumen-dia',
+    'experimental-entregas-recientes',
+    'experimental-equipos-criticos',
+    'experimental-dashboard-call-center',
+    'experimental-proyectos-criticos'
+  ]);
+  const COBRANZA_ROUTES_UNI = new Set([
+    'cobranza-uni-dashboard',
+    'cobranza-uni-estados-cuenta',
+    'cobranza-uni-aditivas'
+  ]);
 
   let currentRoute = 'home';
   let currentPayload = null;
@@ -664,6 +682,30 @@
     return true;
   }
 
+  function showExperimental_exp(route){
+    const view = document.getElementById('view-' + route);
+    if(!view) return false;
+    activateViewById('view-' + route);
+    setActiveSide(route);
+    updateContext(route, 'Agrupación Experimental · estructura base preparada para integración con Aiven');
+    if(window.ManttoExperimental_exp && window.ManttoExperimental_exp.init){
+      window.ManttoExperimental_exp.init(route, currentPayload || null);
+    }
+    return true;
+  }
+
+  function showCobranza_uni(route){
+    const view = document.getElementById('view-' + route);
+    if(!view) return false;
+    activateViewById('view-' + route);
+    setActiveSide(route);
+    updateContext(route, 'Cobranza United · estructura base preparada para integración');
+    if(window.ManttoCobranza_uni && window.ManttoCobranza_uni.init){
+      window.ManttoCobranza_uni.init(route, currentPayload || null);
+    }
+    return true;
+  }
+
   function showDetalle(payload){
     const view = document.getElementById('view-detalle');
     if(!view && window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Detalle','Mantto Gestor','<div class="mg-empty">Preparando detalle...</div>');
@@ -677,6 +719,8 @@
 
   function showPlaceholder(route, payload){
     if(route==='detalle' && showDetalle(payload)) return;
+    if(EXPERIMENTAL_ROUTES_EXP.has(route) && showExperimental_exp(route)) return;
+    if(COBRANZA_ROUTES_UNI.has(route) && showCobranza_uni(route)) return;
     if(route==='resumen' && showResumen()) return;
     if(route==='criticos' && showCriticos()) return;
     if(route==='portafolio' && showPortafolio()) return;

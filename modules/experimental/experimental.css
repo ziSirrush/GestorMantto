@@ -1,0 +1,18 @@
+/* Mantto Gestor - Fase 1 - Agrupación Experimental */
+.exp-view{padding:24px;background:#f4f7fc}
+.exp-shell{max-width:1080px;margin:0 auto;display:grid;gap:18px}
+.exp-shell-head,.exp-shell-card{background:#fff;border:1px solid #d8e1ef;border-radius:18px;box-shadow:0 12px 32px rgba(13,46,110,.08)}
+.exp-shell-head{padding:24px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.exp-shell-kicker{margin:0 0 6px;color:#7c3aed;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.exp-shell h1{margin:0;color:#0d2e6e;font-size:clamp(22px,3vw,32px);line-height:1.15}
+.exp-shell-description{margin:9px 0 0;color:#64748b;font-size:14px;line-height:1.55;max-width:720px}
+.exp-shell-status{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;padding:8px 12px;border-radius:999px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:800;white-space:nowrap}
+.exp-shell-status::before{content:'';width:8px;height:8px;border-radius:50%;background:#8b5cf6}
+.exp-shell-card{padding:20px}
+.exp-shell-card h2{margin:0 0 8px;color:#0d2e6e;font-size:16px}
+.exp-shell-card p{margin:0;color:#64748b;line-height:1.55}
+.exp-shell-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.exp-shell-meta div{padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}
+.exp-shell-meta small{display:block;margin-bottom:5px;color:#94a3b8;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.exp-shell-meta b{color:#334155;font-size:13px}
+@media(max-width:760px){.exp-view{padding:14px}.exp-shell-head{padding:18px;flex-direction:column}.exp-shell-status{align-self:flex-start}.exp-shell-meta{grid-template-columns:1fr}}

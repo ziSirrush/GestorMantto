@@ -43,6 +43,10 @@
 <link href="./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003" rel="stylesheet"/>
 <link href="./modules/usuarios/usuarios.css?v=20260707-v001" rel="stylesheet"/>
 <link href="./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001" rel="stylesheet"/>
+<link href="./modules/experimental/experimental.css?v=20260805-fase1-v001" rel="stylesheet"/>
+<link href="./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001" rel="stylesheet"/>
+<link href="./modules/experimental-resumen-dia/experimental-resumen-dia.css?v=20260805-fase3-v001" rel="stylesheet"/>
+<link href="./modules/cobranza-uni/cobranza-uni.css?v=20260805-fase1-v001" rel="stylesheet"/>
 <style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
     [hidden]{display:none!important}
@@ -203,6 +207,19 @@
 <nav aria-label="Módulos" class="side-nav">
 <button class="side-item side-standalone" data-permission="home" data-route="home" type="button"><span>🏠</span><b>Inicio</b></button>
 <div aria-hidden="true" class="side-divider"></div>
+<section class="side-group" data-group="experimental">
+<button aria-controls="side-group-experimental" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🧪</span><b>Experimental</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-experimental">
+<button class="side-item" data-permission="atencion_prioritaria_exp" data-route="experimental-atencion-prioritaria" type="button"><span>🚨</span><b>Atención Prioritaria</b></button>
+<button class="side-item" data-permission="resumen_dia_exp" data-route="experimental-resumen-dia" type="button"><span>📅</span><b>Resumen del Día</b></button>
+<button class="side-item" data-permission="entregas_recientes_exp" data-route="experimental-entregas-recientes" type="button"><span>📦</span><b>Entregas Recientes</b></button>
+<button class="side-item" data-permission="equipos_criticos_exp" data-route="experimental-equipos-criticos" type="button"><span>⚠️</span><b>Equipos Críticos</b></button>
+<button class="side-item" data-permission="dashboard_call_center_exp" data-route="experimental-dashboard-call-center" type="button"><span>☎️</span><b>Dashboard Call Center</b></button>
+<button class="side-item" data-permission="proyectos_criticos_exp" data-route="experimental-proyectos-criticos" type="button"><span>🏗️</span><b>Proyectos Críticos</b></button>
+</div>
+</section>
 <section class="side-group" data-group="operacion">
 <button aria-controls="side-group-operacion" aria-expanded="false" class="side-group-toggle" type="button">
 <span class="side-group-icon">🛠️</span><b>Operación</b><i>⌄</i>
@@ -222,6 +239,16 @@
 <button class="side-item" data-permission="portafolio_dashboard" data-route="portafolio" type="button"><span>📈</span><b>Dashboard Portafolio</b></button>
 <button class="side-item" data-permission="portafolio_movimientos" data-route="movimientos" type="button"><span>⇄</span><b>Movimientos Portafolio</b></button>
 <button class="side-item" data-permission="portafolio_proyectos" data-route="proyectos" type="button"><span>🏗️</span><b>Proyectos de Mantenimiento</b></button>
+</div>
+</section>
+<section class="side-group" data-company="UNITED" data-group="cobranza-uni">
+<button aria-controls="side-group-cobranza-uni" aria-expanded="false" class="side-group-toggle" title="Cobranza United" type="button">
+<span class="side-group-icon">💰</span><b>Cobranza</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-cobranza-uni">
+<button class="side-item" data-permission="cobranza_uni_dashboard" data-route="cobranza-uni-dashboard" type="button"><span>📊</span><b>Dashboard Cobranza</b></button>
+<button class="side-item" data-permission="cobranza_uni_estados_cuenta" data-route="cobranza-uni-estados-cuenta" type="button"><span>🧾</span><b>Estados de Cuenta</b></button>
+<button class="side-item" data-permission="cobranza_uni_aditivas" data-route="cobranza-uni-aditivas" type="button"><span>➕</span><b>Aditivas</b></button>
 </div>
 </section>
 <section class="side-group" data-group="ventas">
@@ -324,6 +351,15 @@
 </aside>
 <main class="main-content">
 <section class="view active" data-view="home" id="view-home"></section>
+<section aria-label="Atención Prioritaria Experimental" class="view exp-view" data-view="experimental-atencion-prioritaria" id="view-experimental-atencion-prioritaria"></section>
+<section aria-label="Resumen del Día Experimental" class="view exp-view" data-view="experimental-resumen-dia" id="view-experimental-resumen-dia"></section>
+<section aria-label="Entregas Recientes Experimental" class="view exp-view" data-view="experimental-entregas-recientes" id="view-experimental-entregas-recientes"></section>
+<section aria-label="Equipos Críticos Experimental" class="view exp-view" data-view="experimental-equipos-criticos" id="view-experimental-equipos-criticos"></section>
+<section aria-label="Dashboard Call Center Experimental" class="view exp-view" data-view="experimental-dashboard-call-center" id="view-experimental-dashboard-call-center"></section>
+<section aria-label="Proyectos Críticos Experimental" class="view exp-view" data-view="experimental-proyectos-criticos" id="view-experimental-proyectos-criticos"></section>
+<section aria-label="Dashboard Cobranza United" class="view cob-uni-view" data-view="cobranza-uni-dashboard" id="view-cobranza-uni-dashboard"></section>
+<section aria-label="Estados de Cuenta United" class="view cob-uni-view" data-view="cobranza-uni-estados-cuenta" id="view-cobranza-uni-estados-cuenta"></section>
+<section aria-label="Aditivas United" class="view cob-uni-view" data-view="cobranza-uni-aditivas" id="view-cobranza-uni-aditivas"></section>
 <section aria-label="Portafolio" class="view pf-view" data-view="portafolio" id="view-portafolio"></section>
 <section aria-label="Usuarios" class="view usr-view" data-view="usuarios" id="view-usuarios"></section>
 <section aria-label="Panel de Control" class="view pc-view" data-view="panel-control" id="view-panel-control"></section>
@@ -691,7 +727,7 @@
 <script src="./core/auth.js?v=20260805-visor-completo-v001"></script>
 <script src="./core/viewer-readonly.js?v=20260805-visor-completo-v001"></script>
 <script src="./core/data-sync.js?v=20260805-sync-silenciosa-visor-v008"></script>
-<script src="./core/router.js?v=20260803-cffaa02-v001"></script>
+<script src="./core/router.js?v=20260805-fase1-exp-cob-uni-v001"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
 <script src="./modules/home/home.js?v=20260803-cffaa02-v001"></script>
@@ -731,6 +767,10 @@
 <script src="./modules/panel-control/panel-control.js?v=20260805-guardado-selectivo-v008"></script>
 <script src="./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260803-cffaa03-v001"></script>
 <script src="./modules/support/support.js?v=20260803-cffaa03-v001"></script>
+<script src="./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260805-fase2-v001"></script>
+<script src="./modules/experimental-resumen-dia/experimental-resumen-dia.js?v=20260805-fase3-v001"></script>
+<script src="./modules/experimental/experimental.js?v=20260805-fase3-v001"></script>
+<script src="./modules/cobranza-uni/cobranza-uni.js?v=20260805-fase1-v001"></script>
 <script src="./core/details.js?v=v032_1_v031_3_1"></script>
 <script src="./core/user-viewer.js?v=20260805-visor-completo-v001"></script>
 <script src="./core/app.js?v=20260805-nori-dock-integrado-v002"></script>
