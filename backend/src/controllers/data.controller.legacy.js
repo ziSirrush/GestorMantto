@@ -3585,6 +3585,142 @@ async function getPortafolioProyectoDetalle(req, res) {
   return getProyectoDetalle(req, res);
 }
 
+const TICKETS_CDMX_TIME_ZONE = 'America/Mexico_City';
+
+function ticketsPad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function ticketsDatePartsAreValid(year, month, day, hour, minute, second) {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    !Number.isInteger(second)
+  ) {
+    return false;
+  }
+
+  if (
+    year < 1900 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return false;
+  }
+
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
+}
+
+function ticketsSqlDateFromParts(year, month, day, hour, minute, second) {
+  if (!ticketsDatePartsAreValid(year, month, day, hour, minute, second)) {
+    throw new Error(
+      `Fecha invalida recibida: ${year}-${month}-${day} ${hour}:${minute}:${second}`
+    );
+  }
+
+  return (
+    `${String(year).padStart(4, '0')}-` +
+    `${ticketsPad2(month)}-${ticketsPad2(day)} ` +
+    `${ticketsPad2(hour)}:${ticketsPad2(minute)}:${ticketsPad2(second)}`
+  );
+}
+
+function ticketsFormatDateInCdmx(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new Error('No fue posible interpretar una fecha para CDMX.');
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: TICKETS_CDMX_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+
+  const parts = {};
+
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== 'literal') parts[part.type] = part.value;
+  }
+
+  return (
+    `${parts.year}-${parts.month}-${parts.day} ` +
+    `${parts.hour}:${parts.minute}:${parts.second}`
+  );
+}
+
+/**
+ * Normaliza fechas de Tickets a America/Mexico_City.
+ * Las cadenas sin zona se consideran ya expresadas en CDMX para impedir que
+ * una fecha de calendario cambie al dia anterior por conversion automatica.
+ */
+function ticketsNormalizeDateCdmx(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return ticketsFormatDateInCdmx(value);
+  }
+
+  const raw = String(value).trim();
+
+  if (!raw) return null;
+
+  const localIso = raw.match(
+    /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\.\d{1,6})?)?$/
+  );
+
+  if (localIso) {
+    return ticketsSqlDateFromParts(
+      Number(localIso[1]),
+      Number(localIso[2]),
+      Number(localIso[3]),
+      Number(localIso[4] || 0),
+      Number(localIso[5] || 0),
+      Number(localIso[6] || 0)
+    );
+  }
+
+  const localLatam = raw.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+  );
+
+  if (localLatam) {
+    return ticketsSqlDateFromParts(
+      Number(localLatam[3]),
+      Number(localLatam[2]),
+      Number(localLatam[1]),
+      Number(localLatam[4] || 0),
+      Number(localLatam[5] || 0),
+      Number(localLatam[6] || 0)
+    );
+  }
+
+  const parsed = new Date(raw);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`No se pudo normalizar la fecha de Tickets a CDMX: ${raw}`);
+  }
+
+  return ticketsFormatDateInCdmx(parsed);
+}
+
 async function syncTickets(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
 
@@ -3875,6 +4011,134 @@ async function syncTickets(req, res) {
   }
 }
 
+/**
+ * Carga manual de fechas CDMX en una tabla auxiliar.
+ * No modifica la tabla tickets; el UPDATE se ejecuta despues mediante SQL.
+ */
+async function syncTicketDatesCdmx(req, res) {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+  if (!rows.length) {
+    return res.status(400).json({
+      ok: false,
+      message: 'No se recibieron fechas para cargar.'
+    });
+  }
+
+  let connection;
+
+  try {
+    const normalizedByTicket = new Map();
+    let skippedWithoutTicket = 0;
+    let duplicateRowsIgnored = 0;
+
+    for (const row of rows) {
+      const ticket = String(row.ticket ?? '').trim();
+
+      if (!ticket) {
+        skippedWithoutTicket++;
+        continue;
+      }
+
+      if (normalizedByTicket.has(ticket)) {
+        duplicateRowsIgnored++;
+        continue;
+      }
+
+      normalizedByTicket.set(ticket, {
+        ticket,
+        fecha_reporte: ticketsNormalizeDateCdmx(row.fecha_reporte),
+        fecha_llegada: ticketsNormalizeDateCdmx(row.fecha_llegada),
+        fecha_cierre: ticketsNormalizeDateCdmx(row.fecha_cierre)
+      });
+    }
+
+    const normalizedRows = [...normalizedByTicket.values()];
+
+    if (!normalizedRows.length) {
+      return res.status(400).json({
+        ok: false,
+        message: 'No se recibieron tickets validos para cargar.'
+      });
+    }
+
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    // La tabla representa un snapshot completo del correctivo manual actual.
+    // Si la carga falla, la transaccion conserva el snapshot anterior.
+    await connection.query('DELETE FROM tickets_fechas_cdmx_correccion');
+
+    const payload = JSON.stringify(normalizedRows);
+
+    await connection.query(
+      `
+      INSERT INTO tickets_fechas_cdmx_correccion (
+        ticket,
+        fecha_reporte,
+        fecha_llegada,
+        fecha_cierre
+      )
+      SELECT
+        datos.ticket,
+        STR_TO_DATE(NULLIF(datos.fecha_reporte, ''), '%Y-%m-%d %H:%i:%s'),
+        STR_TO_DATE(NULLIF(datos.fecha_llegada, ''), '%Y-%m-%d %H:%i:%s'),
+        STR_TO_DATE(NULLIF(datos.fecha_cierre, ''), '%Y-%m-%d %H:%i:%s')
+      FROM JSON_TABLE(
+        ?,
+        '$[*]' COLUMNS (
+          ticket VARCHAR(80) PATH '$.ticket' NULL ON EMPTY NULL ON ERROR,
+          fecha_reporte VARCHAR(19) PATH '$.fecha_reporte' NULL ON EMPTY NULL ON ERROR,
+          fecha_llegada VARCHAR(19) PATH '$.fecha_llegada' NULL ON EMPTY NULL ON ERROR,
+          fecha_cierre VARCHAR(19) PATH '$.fecha_cierre' NULL ON EMPTY NULL ON ERROR
+        )
+      ) AS datos
+      INNER JOIN tickets AS t
+        ON t.ticket = datos.ticket
+      `,
+      [payload]
+    );
+
+    const [[countRow]] = await connection.query(
+      'SELECT COUNT(*) AS total FROM tickets_fechas_cdmx_correccion'
+    );
+
+    const stored = Number(countRow?.total || 0);
+    const missingInTickets = Math.max(0, normalizedRows.length - stored);
+
+    await connection.commit();
+
+    return res.json({
+      ok: true,
+      message: 'Fechas CDMX cargadas en tabla auxiliar. No se modifico la tabla tickets.',
+      timezone: TICKETS_CDMX_TIME_ZONE,
+      received: rows.length,
+      total: normalizedRows.length,
+      stored,
+      missing_in_tickets: missingInTickets,
+      skipped_without_ticket: skippedWithoutTicket,
+      duplicate_rows_ignored: duplicateRowsIgnored,
+      target_table: 'tickets_fechas_cdmx_correccion'
+    });
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error('[tickets/sync-fechas-cdmx] Error en rollback:', rollbackError);
+      }
+    }
+
+    return res.status(500).json({
+      ok: false,
+      message: 'Error cargando fechas CDMX en la tabla auxiliar.',
+      error: error.message
+    });
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
 async function getEstadosVisuales(req, res) {
   try {
     const codigosRaw = String(req.query.codigos || req.query.codigo || '').trim();
@@ -4130,5 +4394,6 @@ module.exports = {
   getUsuarioZop,
   getProyectos,
   syncTickets,
+  syncTicketDatesCdmx,
   syncPortafolio
 };
