@@ -3879,8 +3879,8 @@ async function syncTickets(req, res) {
 }
 
 /**
- * Correctivo manual de fechas. Solo actualiza las tres columnas de fecha en
- * tickets existentes. No inserta registros y no modifica otros campos.
+ * Carga manual de fechas CDMX en una tabla auxiliar.
+ * No modifica la tabla tickets; el UPDATE se ejecuta despues mediante SQL.
  */
 async function syncTicketDatesCdmx(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
@@ -3888,14 +3888,16 @@ async function syncTicketDatesCdmx(req, res) {
   if (!rows.length) {
     return res.status(400).json({
       ok: false,
-      message: 'No se recibieron fechas para corregir.'
+      message: 'No se recibieron fechas para cargar.'
     });
   }
 
+  let connection;
+
   try {
-    let processed = 0;
-    let updated = 0;
+    const normalizedByTicket = new Map();
     let skippedWithoutTicket = 0;
+    let duplicateRowsIgnored = 0;
 
     for (const row of rows) {
       const ticket = String(row.ticket ?? '').trim();
@@ -3905,44 +3907,102 @@ async function syncTicketDatesCdmx(req, res) {
         continue;
       }
 
-      const [result] = await db.query(
-        `
-        UPDATE tickets
-        SET
-          fecha_reporte = ?,
-          fecha_llegada = ?,
-          fecha_cierre = ?
-        WHERE ticket = ?
-        `,
-        [
-          ticketsNormalizeDateCdmx(row.fecha_reporte),
-          ticketsNormalizeDateCdmx(row.fecha_llegada),
-          ticketsNormalizeDateCdmx(row.fecha_cierre),
-          ticket
-        ]
-      );
-
-      processed++;
-
-      if (result.affectedRows > 0) {
-        updated++;
+      if (normalizedByTicket.has(ticket)) {
+        duplicateRowsIgnored++;
+        continue;
       }
+
+      normalizedByTicket.set(ticket, {
+        ticket,
+        fecha_reporte: ticketsNormalizeDateCdmx(row.fecha_reporte),
+        fecha_llegada: ticketsNormalizeDateCdmx(row.fecha_llegada),
+        fecha_cierre: ticketsNormalizeDateCdmx(row.fecha_cierre)
+      });
     }
+
+    const normalizedRows = [...normalizedByTicket.values()];
+
+    if (!normalizedRows.length) {
+      return res.status(400).json({
+        ok: false,
+        message: 'No se recibieron tickets validos para cargar.'
+      });
+    }
+
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    // La tabla representa un snapshot completo del correctivo manual actual.
+    // Si la carga falla, la transaccion conserva el snapshot anterior.
+    await connection.query('DELETE FROM tickets_fechas_cdmx_correccion');
+
+    const payload = JSON.stringify(normalizedRows);
+
+    await connection.query(
+      `
+      INSERT INTO tickets_fechas_cdmx_correccion (
+        ticket,
+        fecha_reporte,
+        fecha_llegada,
+        fecha_cierre
+      )
+      SELECT
+        datos.ticket,
+        STR_TO_DATE(NULLIF(datos.fecha_reporte, ''), '%Y-%m-%d %H:%i:%s'),
+        STR_TO_DATE(NULLIF(datos.fecha_llegada, ''), '%Y-%m-%d %H:%i:%s'),
+        STR_TO_DATE(NULLIF(datos.fecha_cierre, ''), '%Y-%m-%d %H:%i:%s')
+      FROM JSON_TABLE(
+        ?,
+        '$[*]' COLUMNS (
+          ticket VARCHAR(80) PATH '$.ticket' NULL ON EMPTY NULL ON ERROR,
+          fecha_reporte VARCHAR(19) PATH '$.fecha_reporte' NULL ON EMPTY NULL ON ERROR,
+          fecha_llegada VARCHAR(19) PATH '$.fecha_llegada' NULL ON EMPTY NULL ON ERROR,
+          fecha_cierre VARCHAR(19) PATH '$.fecha_cierre' NULL ON EMPTY NULL ON ERROR
+        )
+      ) AS datos
+      INNER JOIN tickets AS t
+        ON t.ticket = datos.ticket
+      `,
+      [payload]
+    );
+
+    const [[countRow]] = await connection.query(
+      'SELECT COUNT(*) AS total FROM tickets_fechas_cdmx_correccion'
+    );
+
+    const stored = Number(countRow?.total || 0);
+    const missingInTickets = Math.max(0, normalizedRows.length - stored);
+
+    await connection.commit();
 
     return res.json({
       ok: true,
-      message: 'Fechas de Tickets actualizadas en horario CDMX.',
+      message: 'Fechas CDMX cargadas en tabla auxiliar. No se modifico la tabla tickets.',
       timezone: TICKETS_CDMX_TIME_ZONE,
-      total: processed,
-      updated,
-      skipped_without_ticket: skippedWithoutTicket
+      received: rows.length,
+      total: normalizedRows.length,
+      stored,
+      missing_in_tickets: missingInTickets,
+      skipped_without_ticket: skippedWithoutTicket,
+      duplicate_rows_ignored: duplicateRowsIgnored,
+      target_table: 'tickets_fechas_cdmx_correccion'
     });
   } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error('[tickets/sync-fechas-cdmx] Error en rollback:', rollbackError);
+      }
+    }
+
     return res.status(500).json({
       ok: false,
-      message: 'Error corrigiendo fechas de Tickets.',
+      message: 'Error cargando fechas CDMX en la tabla auxiliar.',
       error: error.message
     });
+  } finally {
+    if (connection) connection.release();
   }
 }
 
