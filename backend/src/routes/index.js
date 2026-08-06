@@ -27,6 +27,8 @@ const pushNotificationsRoutes = require('../modules/push-notifications/push-noti
 const devicePermissionsRoutes = require('../modules/device-permissions/device-permissions.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
 const azureStorageRoutes = require('../modules/azure-storage/azure-storage.routes');
+const experimentalAtencionPrioritariaRoutes = require('../modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.routes');
+const experimentalResumenDiaRoutes = require('../modules/experimental-resumen-dia/experimental-resumen-dia.routes');
 
 const router = express.Router();
 
@@ -56,6 +58,8 @@ router.use('/push', pushNotificationsRoutes);
 router.use('/device-permissions', devicePermissionsRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);
 router.use('/azure-storage', azureStorageRoutes);
+router.use('/experimental', experimentalAtencionPrioritariaRoutes);
+router.use('/experimental', experimentalResumenDiaRoutes);
 router.use(dataRoutes);
 
 module.exports = router;

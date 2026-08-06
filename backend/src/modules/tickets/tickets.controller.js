@@ -22,5 +22,6 @@ module.exports = {
   saveTicketValidacion: createAction('saveTicketValidacion'),
   getTicketDetalle: createAction('getTicketDetalle'),
   saveTicketVobo: createAction('saveTicketVobo'),
-  syncTickets: createAction('syncTickets')
+  syncTickets: createAction('syncTickets'),
+  syncTicketDatesCdmx: createAction('syncTicketDatesCdmx')
 };

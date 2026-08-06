@@ -15,7 +15,8 @@ const handlers = Object.freeze({
   saveTicketValidacion: legacyController.saveTicketValidacion,
   getTicketDetalle: legacyController.getTicketDetalle,
   saveTicketVobo: legacyController.saveTicketVobo,
-  syncTickets: legacyController.syncTickets
+  syncTickets: legacyController.syncTickets,
+  syncTicketDatesCdmx: legacyController.syncTicketDatesCdmx
 });
 
 function getHandler(name) {

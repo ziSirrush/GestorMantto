@@ -10,5 +10,6 @@ router.post('/tickets/:ticket/validacion', requireAuth, ticketsController.saveTi
 router.get('/tickets/:ticket', optionalAuth, ticketsController.getTicketDetalle);
 router.post('/tickets/:ticket/vobo', requireAuth, ticketsController.saveTicketVobo);
 router.post('/tickets/sync', ticketsController.syncTickets);
+router.post('/tickets/sync-fechas-cdmx', ticketsController.syncTicketDatesCdmx);
 
 module.exports = router;

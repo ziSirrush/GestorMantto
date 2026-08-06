@@ -17,6 +17,7 @@ const requiredHandlers = [
   'createTicketComentario',
   'saveTicketValidacion',
   'syncTickets',
+  'syncTicketDatesCdmx',
 
   // Portafolio
   'getPortafolio',

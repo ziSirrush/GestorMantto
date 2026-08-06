@@ -3585,6 +3585,143 @@ async function getPortafolioProyectoDetalle(req, res) {
   return getProyectoDetalle(req, res);
 }
 
+
+const TICKETS_CDMX_TIME_ZONE = 'America/Mexico_City';
+
+function ticketsPad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function ticketsDatePartsAreValid(year, month, day, hour, minute, second) {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    !Number.isInteger(second)
+  ) {
+    return false;
+  }
+
+  if (
+    year < 1900 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return false;
+  }
+
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
+}
+
+function ticketsSqlDateFromParts(year, month, day, hour, minute, second) {
+  if (!ticketsDatePartsAreValid(year, month, day, hour, minute, second)) {
+    throw new Error(
+      `Fecha invalida recibida: ${year}-${month}-${day} ${hour}:${minute}:${second}`
+    );
+  }
+
+  return (
+    `${String(year).padStart(4, '0')}-` +
+    `${ticketsPad2(month)}-${ticketsPad2(day)} ` +
+    `${ticketsPad2(hour)}:${ticketsPad2(minute)}:${ticketsPad2(second)}`
+  );
+}
+
+function ticketsFormatDateInCdmx(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new Error('No fue posible interpretar una fecha para CDMX.');
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: TICKETS_CDMX_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+
+  const parts = {};
+
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== 'literal') parts[part.type] = part.value;
+  }
+
+  return (
+    `${parts.year}-${parts.month}-${parts.day} ` +
+    `${parts.hour}:${parts.minute}:${parts.second}`
+  );
+}
+
+/**
+ * Normaliza fechas de Tickets a America/Mexico_City.
+ * Las cadenas sin zona se consideran ya expresadas en CDMX para impedir que
+ * una fecha de calendario cambie al dia anterior por conversion automatica.
+ */
+function ticketsNormalizeDateCdmx(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return ticketsFormatDateInCdmx(value);
+  }
+
+  const raw = String(value).trim();
+
+  if (!raw) return null;
+
+  const localIso = raw.match(
+    /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\.\d{1,6})?)?$/
+  );
+
+  if (localIso) {
+    return ticketsSqlDateFromParts(
+      Number(localIso[1]),
+      Number(localIso[2]),
+      Number(localIso[3]),
+      Number(localIso[4] || 0),
+      Number(localIso[5] || 0),
+      Number(localIso[6] || 0)
+    );
+  }
+
+  const localLatam = raw.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+  );
+
+  if (localLatam) {
+    return ticketsSqlDateFromParts(
+      Number(localLatam[3]),
+      Number(localLatam[2]),
+      Number(localLatam[1]),
+      Number(localLatam[4] || 0),
+      Number(localLatam[5] || 0),
+      Number(localLatam[6] || 0)
+    );
+  }
+
+  const parsed = new Date(raw);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`No se pudo normalizar la fecha de Tickets a CDMX: ${raw}`);
+  }
+
+  return ticketsFormatDateInCdmx(parsed);
+}
+
 async function syncTickets(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
 
@@ -3693,13 +3830,13 @@ async function syncTickets(req, res) {
           row.referencia_en_zona_operativa || null,
           row.zona || null,
           row.descripcion || null,
-          row.fecha_reporte || null,
+          ticketsNormalizeDateCdmx(row.fecha_reporte),
           row.h_reporte || null,
           row.estatus_equipo_ir || null,
-          row.fecha_llegada || null,
+          ticketsNormalizeDateCdmx(row.fecha_llegada),
           row.h_llegada || null,
           row.persona_que_atiende || null,
-          row.fecha_cierre || null,
+          ticketsNormalizeDateCdmx(row.fecha_cierre),
           row.h_solucion || null,
           row.tecnico || null,
           row.estatus_equipo_final || null,
@@ -3707,13 +3844,13 @@ async function syncTickets(req, res) {
           row.accion_en_cierre || null,
           row.responsabilidad || null,
           row.causa_falla || null,
-          row.tiempo_llegada || null,
-          row.tiempo_solucion || null,
+          row.tiempo_llegada ?? null,
+          row.tiempo_solucion ?? null,
           row.tipo_equipo || null,
           row.prioridad || null,
           row.ejecutivo_call || null,
-          row.tiempo_llegada_ii || null,
-          row.tiempo_solucion_ii || null,
+          row.tiempo_llegada_ii ?? null,
+          row.tiempo_solucion_ii ?? null,
           row.blt_empleado || null,
           row.ticket_excede || null,
           row.zona_administrativa || null,
@@ -3729,12 +3866,81 @@ async function syncTickets(req, res) {
     return res.json({
       ok: true,
       message: 'Tickets sincronizados correctamente.',
+      timezone: TICKETS_CDMX_TIME_ZONE,
       total: insertedOrUpdated
     });
   } catch (error) {
     return res.status(500).json({
       ok: false,
       message: 'Error sincronizando tickets.',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Correctivo manual de fechas. Solo actualiza las tres columnas de fecha en
+ * tickets existentes. No inserta registros y no modifica otros campos.
+ */
+async function syncTicketDatesCdmx(req, res) {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+  if (!rows.length) {
+    return res.status(400).json({
+      ok: false,
+      message: 'No se recibieron fechas para corregir.'
+    });
+  }
+
+  try {
+    let processed = 0;
+    let updated = 0;
+    let skippedWithoutTicket = 0;
+
+    for (const row of rows) {
+      const ticket = String(row.ticket ?? '').trim();
+
+      if (!ticket) {
+        skippedWithoutTicket++;
+        continue;
+      }
+
+      const [result] = await db.query(
+        `
+        UPDATE tickets
+        SET
+          fecha_reporte = ?,
+          fecha_llegada = ?,
+          fecha_cierre = ?
+        WHERE ticket = ?
+        `,
+        [
+          ticketsNormalizeDateCdmx(row.fecha_reporte),
+          ticketsNormalizeDateCdmx(row.fecha_llegada),
+          ticketsNormalizeDateCdmx(row.fecha_cierre),
+          ticket
+        ]
+      );
+
+      processed++;
+
+      if (result.affectedRows > 0) {
+        updated++;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      message: 'Fechas de Tickets actualizadas en horario CDMX.',
+      timezone: TICKETS_CDMX_TIME_ZONE,
+      total: processed,
+      updated,
+      skipped_without_ticket: skippedWithoutTicket
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error corrigiendo fechas de Tickets.',
       error: error.message
     });
   }
@@ -3995,5 +4201,6 @@ module.exports = {
   getUsuarioZop,
   getProyectos,
   syncTickets,
+  syncTicketDatesCdmx,
   syncPortafolio
 };
