@@ -414,6 +414,7 @@ async function getEntregasRecientes_exp(req) {
 
 module.exports = {
   getEntregasRecientes_exp,
+  getEntregasRecientes_uni: getEntregasRecientes_exp,
   normalizeTicketStatus_exp,
   normalizeResponsibility_exp,
   buildSummary_exp
