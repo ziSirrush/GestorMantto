@@ -29,6 +29,10 @@ const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-gene
 const azureStorageRoutes = require('../modules/azure-storage/azure-storage.routes');
 const experimentalAtencionPrioritariaRoutes = require('../modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.routes');
 const experimentalResumenDiaRoutes = require('../modules/experimental-resumen-dia/experimental-resumen-dia.routes');
+const experimentalEntregasRecientesRoutes = require('../modules/experimental-entregas-recientes/experimental-entregas-recientes.routes');
+const experimentalEquiposCriticosRoutes = require('../modules/experimental-equipos-criticos/experimental-equipos-criticos.routes');
+const experimentalDashboardCallCenterRoutes = require('../modules/experimental-dashboard-call-center/experimental-dashboard-call-center.routes');
+const experimentalProyectosCriticosRoutes = require('../modules/experimental-proyectos-criticos/experimental-proyectos-criticos.routes');
 
 const router = express.Router();
 
@@ -60,6 +64,10 @@ router.use('/catalogo-general', catalogoGeneralRoutes);
 router.use('/azure-storage', azureStorageRoutes);
 router.use('/experimental', experimentalAtencionPrioritariaRoutes);
 router.use('/experimental', experimentalResumenDiaRoutes);
+router.use('/experimental', experimentalEntregasRecientesRoutes);
+router.use('/experimental', experimentalEquiposCriticosRoutes);
+router.use('/experimental', experimentalDashboardCallCenterRoutes);
+router.use('/experimental', experimentalProyectosCriticosRoutes);
 router.use(dataRoutes);
 
 module.exports = router;
