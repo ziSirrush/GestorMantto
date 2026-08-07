@@ -3722,7 +3722,13 @@ function ticketsNormalizeDateCdmx(value) {
 }
 
 async function syncTickets(req, res) {
-  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const inserts = Array.isArray(req.body?.inserts) ? req.body.inserts : [];
+  const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+
+  const rows = [
+    ...inserts,
+    ...updates
+  ];
 
   if (!rows.length) {
     return res.status(400).json({
