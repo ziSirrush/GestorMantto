@@ -46,8 +46,8 @@
     if(route === 'experimental-resumen-dia' && window.ManttoResumenDiaExperimental_exp && typeof window.ManttoResumenDiaExperimental_exp.init === 'function'){
       return window.ManttoResumenDiaExperimental_exp.init(payload || null);
     }
-    if(route === 'experimental-entregas-recientes' && window.ManttoEntregasRecientesExperimental_exp && typeof window.ManttoEntregasRecientesExperimental_exp.init === 'function'){
-      return window.ManttoEntregasRecientesExperimental_exp.init(payload || null);
+    if(route === 'experimental-entregas-recientes' && window.ManttoEntregasRecientesExperimental_uni && typeof window.ManttoEntregasRecientesExperimental_uni.init === 'function'){
+      return window.ManttoEntregasRecientesExperimental_uni.init(payload || null);
     }
     if(route === 'experimental-equipos-criticos' && window.ManttoEquiposCriticosExperimental_uni && typeof window.ManttoEquiposCriticosExperimental_uni.init === 'function'){
       return window.ManttoEquiposCriticosExperimental_uni.init(payload || null);
