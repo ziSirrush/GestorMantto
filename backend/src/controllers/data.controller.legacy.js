@@ -3853,36 +3853,69 @@ async function syncTickets(req, res) {
     return prepared;
   }
 
-  let preparedRows;
+  // ------------------------------------------------------------------------
+  // Preparacion de filas: un problema en UNA fila (id invalido, ticket
+  // vacio, id repetido, ticket repetido con otro id dentro del mismo lote)
+  // ya NO aborta el lote completo. Se descarta esa fila, se registra en
+  // "errores" y se continua con las demas.
+  // ------------------------------------------------------------------------
 
-  try {
-    preparedRows = rows.map(prepareRow);
+  const preparedRows = [];
+  const errores = [];
 
-    const ids = new Set();
-    const tickets = new Map();
+  const idsEnLote = new Set();
+  const ticketsEnLote = new Map();
 
-    for (const row of preparedRows) {
-      if (ids.has(row.id)) {
-        const error = new Error(`El lote contiene el ID repetido ${row.id}.`);
-        error.statusCode = 400;
-        throw error;
-      }
-      ids.add(row.id);
+  rows.forEach((row, position) => {
+    let prepared;
 
-      const ticketKey = normalizeTicket(row.ticket);
-      if (tickets.has(ticketKey) && tickets.get(ticketKey) !== row.id) {
-        const error = new Error(
-          `El lote contiene el No_Ticket ${row.ticket} asociado a mas de un ID.`
-        );
-        error.statusCode = 400;
-        throw error;
-      }
-      tickets.set(ticketKey, row.id);
+    try {
+      prepared = prepareRow(row, position);
+    } catch (error) {
+      errores.push({
+        ticket: row?.ticket ?? null,
+        id: row?.id ?? null,
+        motivo: error.message
+      });
+      return;
     }
-  } catch (error) {
-    return res.status(error.statusCode || 400).json({
-      ok: false,
-      message: error.message
+
+    if (idsEnLote.has(prepared.id)) {
+      errores.push({
+        ticket: prepared.ticket,
+        id: prepared.id,
+        motivo: `El lote contiene el ID repetido ${prepared.id}.`
+      });
+      return;
+    }
+
+    const ticketKey = normalizeTicket(prepared.ticket);
+    const idPrevioMismoTicket = ticketsEnLote.get(ticketKey);
+
+    if (idPrevioMismoTicket !== undefined && idPrevioMismoTicket !== prepared.id) {
+      errores.push({
+        ticket: prepared.ticket,
+        id: prepared.id,
+        motivo: `El lote contiene el No_Ticket ${prepared.ticket} asociado a mas de un ID (${idPrevioMismoTicket} y ${prepared.id}).`
+      });
+      return;
+    }
+
+    idsEnLote.add(prepared.id);
+    ticketsEnLote.set(ticketKey, prepared.id);
+    preparedRows.push(prepared);
+  });
+
+  if (!preparedRows.length) {
+    return res.json({
+      ok: true,
+      message: 'No hubo filas validas para sincronizar.',
+      total: rows.length,
+      inserted: 0,
+      updated: 0,
+      unchanged: 0,
+      omitidos: errores.length,
+      errores
     });
   }
 
@@ -3916,27 +3949,6 @@ async function syncTickets(req, res) {
       existingByTicket.set(normalizeTicket(existing.ticket), existing);
     }
 
-    for (const row of preparedRows) {
-      const sameId = existingById.get(row.id);
-      const sameTicket = existingByTicket.get(normalizeTicket(row.ticket));
-
-      if (sameTicket && Number(sameTicket.id) !== row.id) {
-        const error = new Error(
-          `Conflicto de identidad: el No_Ticket ${row.ticket} ya pertenece al ID ${sameTicket.id}, no al ID ${row.id}.`
-        );
-        error.statusCode = 409;
-        throw error;
-      }
-
-      if (!sameId && sameTicket) {
-        const error = new Error(
-          `No se puede insertar el ID ${row.id}: el No_Ticket ${row.ticket} ya existe con otro ID.`
-        );
-        error.statusCode = 409;
-        throw error;
-      }
-    }
-
     const insertColumns = ['id', ...syncColumns];
     const insertSql = `
       INSERT INTO tickets (${insertColumns.join(', ')})
@@ -3962,25 +3974,59 @@ async function syncTickets(req, res) {
     let updated = 0;
     let unchanged = 0;
 
+    // ------------------------------------------------------------------
+    // Cada fila se procesa de forma independiente. Un conflicto de
+    // identidad (No_Ticket ya asignado a otro ID en la BD) u otro error
+    // de escritura (ej. ER_DUP_ENTRY) SOLO descarta esa fila -> se
+    // registra en "errores" y el lote sigue con las demas filas.
+    // ------------------------------------------------------------------
     for (const row of preparedRows) {
-      const values = syncColumns.map(column => row[column]);
-      const existing = existingById.get(row.id);
+      const sameId = existingById.get(row.id);
+      const sameTicket = existingByTicket.get(normalizeTicket(row.ticket));
 
-      if (!existing) {
-        await connection.query(insertSql, [row.id, ...values]);
-        inserted += 1;
+      if (sameTicket && Number(sameTicket.id) !== row.id) {
+        errores.push({
+          ticket: row.ticket,
+          id: row.id,
+          motivo: `Conflicto de identidad: el No_Ticket ${row.ticket} ya pertenece al ID ${sameTicket.id}, no al ID ${row.id}.`
+        });
         continue;
       }
 
-      const [result] = await connection.query(
-        updateSql,
-        [...values, row.id, ...values]
-      );
+      if (!sameId && sameTicket) {
+        errores.push({
+          ticket: row.ticket,
+          id: row.id,
+          motivo: `No se puede insertar el ID ${row.id}: el No_Ticket ${row.ticket} ya existe con otro ID.`
+        });
+        continue;
+      }
 
-      if (result.affectedRows > 0) {
-        updated += 1;
-      } else {
-        unchanged += 1;
+      const values = syncColumns.map(column => row[column]);
+
+      try {
+        if (!sameId) {
+          await connection.query(insertSql, [row.id, ...values]);
+          inserted += 1;
+          continue;
+        }
+
+        const [result] = await connection.query(
+          updateSql,
+          [...values, row.id, ...values]
+        );
+
+        if (result.affectedRows > 0) {
+          updated += 1;
+        } else {
+          unchanged += 1;
+        }
+      } catch (rowError) {
+        errores.push({
+          ticket: row.ticket,
+          id: row.id,
+          motivo: rowError.message
+        });
       }
     }
 
@@ -3988,13 +4034,15 @@ async function syncTickets(req, res) {
 
     return res.json({
       ok: true,
-      message: 'Tickets sincronizados estrictamente por ID.',
+      message: 'Tickets sincronizados por ID. Los registros con conflicto se omitieron.',
       total: preparedRows.length,
       inserted,
       updated,
       unchanged,
-      first_id: Math.min(...ids),
-      last_id: Math.max(...ids)
+      omitidos: errores.length,
+      errores,
+      first_id: ids.length ? Math.min(...ids) : null,
+      last_id: ids.length ? Math.max(...ids) : null
     });
   } catch (error) {
     if (connection) {
@@ -4005,11 +4053,13 @@ async function syncTickets(req, res) {
       }
     }
 
-    const statusCode = error.statusCode || (error.code === 'ER_DUP_ENTRY' ? 409 : 500);
+    // Este catch ya solo atrapa fallos estructurales (conexion, SELECT
+    // ... FOR UPDATE, etc.) — los conflictos por fila ya no llegan aqui.
+    const statusCode = error.statusCode || 500;
 
     return res.status(statusCode).json({
       ok: false,
-      message: 'Error sincronizando tickets por ID.',
+      message: 'Error sincronizando tickets.',
       error: error.message
     });
   } finally {
