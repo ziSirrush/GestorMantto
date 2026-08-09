@@ -14,6 +14,7 @@
     period:{today:null,yesterday:null},
     today:null,
     yesterday:null,
+    tickets:[],
     comparisons:{tickets:0,equipos_parados:0,no_funcionando:0},
     generatedAt:null
   };
@@ -98,7 +99,7 @@
         <div class="rdx-exp-feedback" data-rdx-exp-feedback hidden></div>
 
         <section class="rdx-exp-grid">
-          <article class="rdx-exp-card rdx-exp-card-total">
+          <article class="rdx-exp-card rdx-exp-card-total" data-rdx-exp-drill="todos" style="cursor:pointer">
             <header><span class="rdx-exp-card-icon">🎟️</span><h2>Tickets del día</h2></header>
             <strong class="rdx-exp-big" data-rdx-exp="total">0</strong>
             <p>reportados hoy</p>
@@ -108,9 +109,9 @@
           <article class="rdx-exp-card">
             <header><span class="rdx-exp-card-icon">📋</span><h2>Estado de tickets</h2></header>
             <div class="rdx-exp-status-grid">
-              <div><span class="rdx-exp-dot rdx-exp-dot-open"></span><small>Abiertos</small><strong data-rdx-exp="abiertos">0</strong></div>
-              <div><span class="rdx-exp-dot rdx-exp-dot-closed"></span><small>Cerrados</small><strong data-rdx-exp="cerrados">0</strong></div>
-              <div><span class="rdx-exp-dot rdx-exp-dot-progress"></span><small>En curso</small><strong data-rdx-exp="en_curso">0</strong></div>
+              <div data-rdx-exp-drill="Abierto" style="cursor:pointer"><span class="rdx-exp-dot rdx-exp-dot-open"></span><small>Abiertos</small><strong data-rdx-exp="abiertos">0</strong></div>
+              <div data-rdx-exp-drill="Cerrado" style="cursor:pointer"><span class="rdx-exp-dot rdx-exp-dot-closed"></span><small>Cerrados</small><strong data-rdx-exp="cerrados">0</strong></div>
+              <div data-rdx-exp-drill="En curso" style="cursor:pointer"><span class="rdx-exp-dot rdx-exp-dot-progress"></span><small>En curso</small><strong data-rdx-exp="en_curso">0</strong></div>
             </div>
             <div class="rdx-exp-progress" aria-label="Distribución de estados">
               <span class="rdx-exp-progress-open" data-rdx-exp-bar="abiertos"></span>
@@ -124,7 +125,7 @@
             </div>
           </article>
 
-          <article class="rdx-exp-card">
+          <article class="rdx-exp-card" data-rdx-exp-drill="conLlegada" style="cursor:pointer">
             <header><span class="rdx-exp-card-icon">⏱️</span><h2>Promedio tiempo de llegada</h2></header>
             <strong class="rdx-exp-big" data-rdx-exp="promedio_llegada">—</strong>
             <p>promedio del día</p>
@@ -133,8 +134,8 @@
           <article class="rdx-exp-card">
             <header><span class="rdx-exp-card-icon">✅</span><h2>Cierre del día</h2></header>
             <div class="rdx-exp-dual">
-              <div class="rdx-exp-dual-good"><small>Funcionando</small><strong data-rdx-exp="funcionando">0</strong></div>
-              <div class="rdx-exp-dual-bad"><small>No funcionando</small><strong data-rdx-exp="no_funcionando">0</strong></div>
+              <div class="rdx-exp-dual-good" data-rdx-exp-drill="Funcionando" style="cursor:pointer"><small>Funcionando</small><strong data-rdx-exp="funcionando">0</strong></div>
+              <div class="rdx-exp-dual-bad" data-rdx-exp-drill="NoFuncionando" style="cursor:pointer"><small>No funcionando</small><strong data-rdx-exp="no_funcionando">0</strong></div>
             </div>
             <div class="rdx-exp-summary-good" data-rdx-exp="porcentaje_funcionando">—</div>
           </article>
@@ -142,8 +143,8 @@
           <article class="rdx-exp-card">
             <header><span class="rdx-exp-card-icon">👥</span><h2>Responsabilidad</h2></header>
             <div class="rdx-exp-responsibility">
-              <div><small>BLT</small><strong data-rdx-exp="blt">0</strong><span data-rdx-exp-pct="blt">0%</span></div>
-              <div><small>Cliente</small><strong data-rdx-exp="cliente">0</strong><span data-rdx-exp-pct="cliente">0%</span></div>
+              <div data-rdx-exp-drill="BLT" style="cursor:pointer"><small>BLT</small><strong data-rdx-exp="blt">0</strong><span data-rdx-exp-pct="blt">0%</span></div>
+              <div data-rdx-exp-drill="CLIENTE" style="cursor:pointer"><small>Cliente</small><strong data-rdx-exp="cliente">0</strong><span data-rdx-exp-pct="cliente">0%</span></div>
             </div>
             <div class="rdx-exp-progress rdx-exp-progress-responsibility">
               <span class="rdx-exp-progress-blt" data-rdx-exp-bar="blt"></span>
@@ -151,7 +152,7 @@
             </div>
           </article>
 
-          <article class="rdx-exp-card">
+          <article class="rdx-exp-card" data-rdx-exp-drill="parados" style="cursor:pointer">
             <header><span class="rdx-exp-card-icon">📊</span><h2>Equipos parados vs. ayer</h2></header>
             <div class="rdx-exp-stopped"><strong data-rdx-exp="equipos_parados">0</strong><span>equipos parados</span></div>
             <div class="rdx-exp-compare" data-rdx-exp-compare="equipos_parados" data-tone="neutral">= igual que ayer</div>
@@ -287,11 +288,95 @@
     }
   }
 
+  function openTicket_exp(ticket){
+    const value = String(ticket || '').trim();
+    if (!value) return;
+    if (window.ManttoDetails && typeof window.ManttoDetails.openTicket === 'function') {
+      window.ManttoDetails.openTicket(value);
+      return;
+    }
+    if (window.ManttoRouter && typeof window.ManttoRouter.go === 'function') {
+      window.ManttoRouter.go('detalle', {type:'ticket', id:value});
+    }
+  }
+
+  function closeDrill_exp(){
+    const modal = document.getElementById('rdx-exp-drill-modal');
+    if (modal) modal.remove();
+  }
+
+  function drillRows_exp(type){
+    const tickets = Array.isArray(state_exp.tickets) ? state_exp.tickets : [];
+    if (type === 'todos') return tickets;
+    if (type === 'parados') return tickets.filter(t => String(t.estado_ticket || '').toLowerCase().indexOf('cerr') === -1);
+    if (type === 'Funcionando') return tickets.filter(t => String(t.estado_ticket || '').toLowerCase().indexOf('cerr') >= 0 && String(t.estatus_equipo_final || '').toLowerCase().indexOf('func') >= 0 && String(t.estatus_equipo_final || '').toLowerCase().indexOf('no func') === -1);
+    if (type === 'NoFuncionando') return tickets.filter(t => String(t.estado_ticket || '').toLowerCase().indexOf('cerr') >= 0 && String(t.estatus_equipo_final || '').toLowerCase().indexOf('no func') >= 0);
+    if (type === 'conLlegada') return tickets.filter(t => Number(t.tiempo_llegada) > 0);
+    if (type === 'BLT') return tickets.filter(t => String(t.responsabilidad || '').toUpperCase() === 'BLT');
+    if (type === 'CLIENTE') return tickets.filter(t => String(t.responsabilidad || '').toUpperCase() === 'CLIENTE');
+    return tickets.filter(t => {
+      const status = String(t.estado_ticket || '').toLowerCase();
+      if (type === 'Abierto') return status.indexOf('abier') >= 0 || status.indexOf('pend') >= 0;
+      if (type === 'En curso') return status.indexOf('curso') >= 0 || status.indexOf('proceso') >= 0;
+      if (type === 'Cerrado') return status.indexOf('cerr') >= 0;
+      return true;
+    });
+  }
+
+  function drillTitle_exp(type){
+    const titles={todos:'Tickets del día',Abierto:'Tickets Abiertos','En curso':'Tickets En curso',Cerrado:'Tickets Cerrados',Funcionando:'Cierre: Funcionando',NoFuncionando:'Cierre: No Funcionando',BLT:'Responsabilidad BLT',CLIENTE:'Responsabilidad Cliente',conLlegada:'Tickets con llegada registrada',parados:'Equipos parados'};
+    return titles[type] || 'Tickets';
+  }
+
+  function openDrill_exp(type){
+    closeDrill_exp();
+    const rows=drillRows_exp(type);
+    const overlay=document.createElement('div');
+    overlay.id='rdx-exp-drill-modal';
+    overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML='<div style="width:min(900px,100%);max-height:85vh;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.25);display:flex;flex-direction:column">'+
+      '<div style="display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid #E2E8F0"><div><strong style="display:block;color:#0D2E6E;font-size:16px">'+escapeHtml_exp(drillTitle_exp(type))+'</strong><span style="font-size:11px;color:#94A3B8">'+rows.length+' tickets</span></div><button type="button" data-rdx-exp-close style="margin-left:auto;border:0;background:#F1F5F9;border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:18px">×</button></div>'+
+      '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead style="background:#0D2E6E;color:#fff"><tr><th style="padding:9px 12px;text-align:left;font-size:11px">Ticket</th><th style="padding:9px 12px;text-align:left;font-size:11px">Estado</th><th style="padding:9px 12px;text-align:left;font-size:11px">Proyecto</th><th style="padding:9px 12px;text-align:left;font-size:11px">Zona</th><th style="padding:9px 12px;text-align:left;font-size:11px">Responsabilidad</th></tr></thead><tbody data-rdx-exp-drill-body></tbody></table></div></div>';
+    document.body.appendChild(overlay);
+    const body=overlay.querySelector('[data-rdx-exp-drill-body]');
+    body.innerHTML=rows.length ? rows.map(r=>'<tr data-rdx-exp-ticket="'+escapeHtml_exp(r.ticket)+'" style="border-bottom:1px solid #F1F5F9;cursor:pointer"><td style="padding:9px 12px;font-size:12px;font-weight:700;color:#1B4FD8">'+escapeHtml_exp(r.ticket)+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.estado_ticket || '—')+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.proyecto || '—')+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.zona || '—')+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.responsabilidad || '—')+'</td></tr>').join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:#94A3B8;font-size:12px">Sin tickets para este indicador.</td></tr>';
+  }
+
   function bind_exp(){
     const root = root_exp();
     if (!root || root.dataset.rdxExpBound === '1') return;
     root.dataset.rdxExpBound = '1';
+    document.addEventListener('click', function(event){
+      const modal = document.getElementById('rdx-exp-drill-modal');
+      if (!modal) return;
+      if (event.target === modal) closeDrill_exp();
+      const close = event.target.closest('[data-rdx-exp-close]');
+      if (close) closeDrill_exp();
+      const ticket = event.target.closest('[data-rdx-exp-ticket]');
+      if (ticket) openTicket_exp(ticket.dataset.rdxExpTicket);
+    });
     root.addEventListener('click', function(event){
+      const drill = event.target.closest('[data-rdx-exp-drill]');
+      if (drill) {
+        event.preventDefault();
+        openDrill_exp(drill.dataset.rdxExpDrill);
+        return;
+      }
+
+      const modalClose = event.target.closest('[data-rdx-exp-close]');
+      if (modalClose) {
+        event.preventDefault();
+        closeDrill_exp();
+        return;
+      }
+
+      const drillTicket = event.target.closest('[data-rdx-exp-ticket]');
+      if (drillTicket) {
+        event.preventDefault();
+        openTicket_exp(drillTicket.dataset.rdxExpTicket);
+        return;
+      }
+
       const refresh = event.target.closest('[data-rdx-exp-refresh]');
       if (refresh) {
         event.preventDefault();
@@ -348,6 +433,7 @@
       state_exp.period = payload.period || {today:null,yesterday:null};
       state_exp.today = payload.today || null;
       state_exp.yesterday = payload.yesterday || null;
+      state_exp.tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
       state_exp.comparisons = payload.comparisons || {tickets:0,equipos_parados:0,no_funcionando:0};
       state_exp.generatedAt = payload.generated_at || new Date().toISOString();
       renderFilters_exp();
@@ -358,6 +444,7 @@
       if (requestId !== state_exp.requestId) return;
       state_exp.today = null;
       state_exp.yesterday = null;
+      state_exp.tickets = [];
       state_exp.comparisons = {tickets:0,equipos_parados:0,no_funcionando:0};
       renderData_exp();
       setFeedback_exp('error', error && error.message ? error.message : 'No fue posible consultar el resumen del día.');

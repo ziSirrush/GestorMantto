@@ -26,11 +26,15 @@ function normalizeFilter_exp(value) {
 }
 
 function buildOpenTicketFilters_exp(req, alias) {
+  const periodo = normalizeFilter_exp(req.query && req.query.periodo) || 'dia';
   const tableAlias = alias || 't';
-  const clauses = [
-    `UPPER(TRIM(COALESCE(${tableAlias}.estado_ticket, ''))) NOT LIKE '%CERR%'`
-  ];
+  const clauses = ['1=1'];
   const params = [];
+  if (periodo === 'dia') {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE_EXP, year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+    clauses.push(`DATE(${tableAlias}.fecha_reporte) = ?`);
+    params.push(today);
+  }
 
   const estado = normalizeFilter_exp(req.query && req.query.estado);
   const zona = normalizeFilter_exp(req.query && req.query.zona);
@@ -47,7 +51,7 @@ function buildOpenTicketFilters_exp(req, alias) {
   return {
     where: clauses.join(' AND '),
     params,
-    selected: { estado, zona }
+    selected: { estado, zona, periodo: periodo === 'todos' ? 'todos' : 'dia' }
   };
 }
 
@@ -211,6 +215,7 @@ function buildReincidenceLabel_exp(metrics) {
 
 async function getAtencionPrioritaria_exp(req) {
   const filters = buildOpenTicketFilters_exp(req, 't');
+  const periodo = filters.selected.periodo;
   const criteria = getCriticidadCriteria_exp(req);
   const nowEpoch = operationalNowEpoch_exp();
 
@@ -314,10 +319,13 @@ async function getAtencionPrioritaria_exp(req) {
   const metricsByEquipment = new Map(
     metricsRows.map((row) => [String(row.codigo_equipo || '').trim(), row])
   );
-  const seenEquipment = new Set();
   const criticosReincidentes = [];
+  const seenEquipment = new Set();
+  const candidateTickets = periodo === 'dia'
+    ? mappedTickets
+    : mappedTickets;
 
-  for (const item of mappedTickets) {
+  for (const item of candidateTickets) {
     const equipmentCode = item.ticket.codigo_equipo;
     if (!equipmentCode || seenEquipment.has(equipmentCode)) continue;
     const metrics = metricsByEquipment.get(equipmentCode);
@@ -344,6 +352,7 @@ async function getAtencionPrioritaria_exp(req) {
   return {
     ok: true,
     source: 'aiven',
+    period: periodo,
     criteria: {
       horas_sin_llegada: DEFAULT_HORAS_SIN_LLEGADA_EXP,
       dias_criticidad: criteria.dias,

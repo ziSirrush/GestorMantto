@@ -10,6 +10,7 @@
     controller:null,
     estado:'',
     zona:'',
+    periodo:'dia',
     filters:{estados:[],zonas:[]},
     counts:{atrapados:0,sin_llegada:0,criticos_reincidentes:0},
     data:{atrapados:[],sin_llegada:[],criticos_reincidentes:[]},
@@ -100,6 +101,13 @@
         </section>
 
         <section class="atp-exp-filter-card" aria-label="Filtros de Atención Prioritaria">
+          <div class="atp-exp-filter-row">
+            <span class="atp-exp-filter-label">Período</span>
+            <div class="atp-exp-chips" data-atp-exp-periodos>
+              <button type="button" class="atp-exp-chip active" data-atp-exp-periodo="dia" aria-pressed="true">Día</button>
+              <button type="button" class="atp-exp-chip" data-atp-exp-periodo="todos" aria-pressed="false">Todos</button>
+            </div>
+          </div>
           <div class="atp-exp-filter-row">
             <span class="atp-exp-filter-label">Estado</span>
             <div class="atp-exp-chips" data-atp-exp-estados></div>
@@ -225,9 +233,20 @@
     }).join('');
   }
 
+  function renderPeriodo_exp(){
+    const root = root_exp();
+    if (!root) return;
+    root.querySelectorAll('[data-atp-exp-periodo]').forEach(function(button){
+      const active = button.dataset.atpExpPeriodo === state_exp.periodo;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  }
+
   function renderFilters_exp(){
     const root = root_exp();
     if (!root) return;
+    renderPeriodo_exp();
     renderChips_exp(root.querySelector('[data-atp-exp-estados]'), state_exp.filters.estados, state_exp.estado, 'estado');
     renderChips_exp(root.querySelector('[data-atp-exp-zonas]'), state_exp.filters.zonas, state_exp.zona, 'zona');
   }
@@ -334,6 +353,15 @@
         return;
       }
 
+      const periodo = event.target.closest('[data-atp-exp-periodo]');
+      if (periodo) {
+        event.preventDefault();
+        state_exp.periodo = periodo.dataset.atpExpPeriodo === 'todos' ? 'todos' : 'dia';
+        renderPeriodo_exp();
+        load_exp(true);
+        return;
+      }
+
       const chip = event.target.closest('[data-atp-exp-filter-kind]');
       if (chip) {
         event.preventDefault();
@@ -375,6 +403,7 @@
     const params = new URLSearchParams();
     if (state_exp.estado) params.set('estado', state_exp.estado);
     if (state_exp.zona) params.set('zona', state_exp.zona);
+    params.set('periodo', state_exp.periodo === 'todos' ? 'todos' : 'dia');
     const query = params.toString();
     const response = await fetch(apiBase_exp() + ENDPOINT_EXP + (query ? '?' + query : ''), {
       method:'GET',
@@ -406,6 +435,7 @@
     try {
       const payload = await request_exp();
       if (requestId !== state_exp.requestId) return;
+      state_exp.periodo = payload.period === 'todos' ? 'todos' : 'dia';
       state_exp.filters = payload.filters || {estados:[],zonas:[]};
       state_exp.counts = payload.counts || {atrapados:0,sin_llegada:0,criticos_reincidentes:0};
       state_exp.data = payload.data || {atrapados:[],sin_llegada:[],criticos_reincidentes:[]};

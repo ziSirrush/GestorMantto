@@ -235,6 +235,18 @@ async function getResumenDia_exp(req) {
   const yesterdayRows = rows.filter((row) => String(row.fecha_reporte_fecha || '') === yesterday);
   const todaySummary = buildSummary_exp(todayRows);
   const yesterdaySummary = buildSummary_exp(yesterdayRows);
+  const todayTickets = todayRows.map((row) => ({
+    id: row.id,
+    ticket: String(row.ticket || row.folio || row.id || '').trim(),
+    estado_ticket: String(row.estado_ticket || '').trim(),
+    estado: String(row.estado || '').trim(),
+    zona: String(row.zona || '').trim(),
+    codigo_equipo: String(row.codigo_equipo || '').trim(),
+    responsabilidad: String(row.responsabilidad || '').trim(),
+    estatus_equipo_final: String(row.estatus_equipo_final || '').trim(),
+    tiempo_llegada: row.tiempo_llegada == null ? null : Number(row.tiempo_llegada),
+    fecha_reporte: row.fecha_reporte_fecha || null
+  }));
 
   const estados = catalogRows
     .filter((row) => row.tipo === 'ESTADO')
@@ -260,6 +272,7 @@ async function getResumenDia_exp(req) {
     },
     today: todaySummary,
     yesterday: yesterdaySummary,
+    tickets: todayTickets,
     comparisons: {
       tickets: todaySummary.total - yesterdaySummary.total,
       equipos_parados: todaySummary.equipos_parados - yesterdaySummary.equipos_parados,
