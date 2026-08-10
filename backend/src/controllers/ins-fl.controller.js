@@ -287,7 +287,7 @@ async function syncInsFl(req, res) {
       const [existingRows] = await conn.query(
         `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
          FROM ins_fl
-         WHERE f.id_proyecto = ?
+         WHERE id_proyecto = ?
            AND referencia_sitio = ?
          LIMIT 1`,
         [incoming.id_proyecto, incoming.referencia_sitio]
