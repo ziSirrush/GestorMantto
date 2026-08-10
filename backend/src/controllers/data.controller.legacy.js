@@ -3842,6 +3842,11 @@ async function syncTickets(req, res) {
       ejecutivo_call: nullable(row.ejecutivo_call),
       tiempo_llegada_ii: nullable(row.tiempo_llegada_ii),
       tiempo_solucion_ii: nullable(row.tiempo_solucion_ii),
+      // Banderas internas de sincronización. No son columnas de BD.
+      // Solo aplican a UPDATE: si Apps Script no pudo interpretar un *_II
+      // con seguridad, se conserva el valor vigente en Aiven.
+      _preservar_tiempo_llegada_ii: row._preservar_tiempo_llegada_ii === true,
+      _preservar_tiempo_solucion_ii: row._preservar_tiempo_solucion_ii === true,
       blt_empleado: nullable(row.blt_empleado),
       ticket_excede: nullable(row.ticket_excede),
       zona_administrativa: nullable(row.zona_administrativa),
@@ -3932,7 +3937,7 @@ async function syncTickets(req, res) {
 
     const [existingRows] = await connection.query(
       `
-      SELECT id, ticket
+      SELECT id, ticket, tiempo_llegada_ii, tiempo_solucion_ii
       FROM tickets
       WHERE id IN (${idPlaceholders})
          OR ticket IN (${ticketPlaceholders})
@@ -4002,7 +4007,28 @@ async function syncTickets(req, res) {
         continue;
       }
 
-      const values = syncColumns.map(column => row[column]);
+      const values = syncColumns.map(column => {
+        // Para INSERT no existe sameId y se usa el valor preparado normal.
+        // Para UPDATE, una bandera de preservación sustituye únicamente el
+        // *_II ambiguo por el valor vigente leído de Aiven bajo FOR UPDATE.
+        if (sameId) {
+          if (
+            column === 'tiempo_llegada_ii' &&
+            row._preservar_tiempo_llegada_ii === true
+          ) {
+            return sameId.tiempo_llegada_ii;
+          }
+
+          if (
+            column === 'tiempo_solucion_ii' &&
+            row._preservar_tiempo_solucion_ii === true
+          ) {
+            return sameId.tiempo_solucion_ii;
+          }
+        }
+
+        return row[column];
+      });
 
       try {
         if (!sameId) {
