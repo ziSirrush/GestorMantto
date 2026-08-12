@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 'use strict';
 
 const path = require('path');
@@ -394,14 +395,24 @@ async function syncRecords(payload, actionContext = {}) {
         }
 
         const existed = knownRedIds.has(item.record.id_redes);
+        const savepoint = `ventas_redes_${item.row}`;
         item.record.updated_by = result.executed_by;
-        await repository.upsertRed(connection, item.record);
-        await syncEvidence(connection, item.record, result);
 
-        result.processed += 1;
-        if (existed) result.updated += 1;
-        else result.inserted += 1;
-        knownRedIds.add(item.record.id_redes);
+        try {
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          await repository.upsertRed(connection, item.record);
+          await syncEvidence(connection, item.record, result);
+
+          result.processed += 1;
+          if (existed) result.updated += 1;
+          else result.inserted += 1;
+          knownRedIds.add(item.record.id_redes);
+          await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+        } catch (rowError) {
+          try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+          try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+          pushError(result, item.row, rowError.message);
+        }
       }
 
       await connection.commit();
@@ -413,10 +424,11 @@ async function syncRecords(payload, actionContext = {}) {
     }
   }
 
-  result.ok = result.rejected === 0;
-  result.message = result.ok
-    ? 'Registros de Redes cargados correctamente.'
-    : 'La carga de Redes termino con registros rechazados.';
+  result.ok = true;
+  result.parcial = result.rejected > 0;
+  result.message = result.parcial
+    ? 'La carga de Redes terminó con registros rechazados; los registros válidos fueron procesados.'
+    : 'Registros de Redes cargados correctamente.';
   return result;
 }
 
@@ -510,15 +522,25 @@ async function syncComments(payload, actionContext = {}) {
         }
 
         const existed = knownCommentIds.has(record.id_comentario);
-        if (existed) await repository.updateComment(connection, record);
-        else await repository.insertComment(connection, record);
+        const savepoint = `ventas_redes_comment_${item.row}`;
 
-        await syncCommentAttachment(connection, record, result);
+        try {
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          if (existed) await repository.updateComment(connection, record);
+          else await repository.insertComment(connection, record);
 
-        result.processed += 1;
-        if (existed) result.updated += 1;
-        else result.inserted += 1;
-        knownCommentIds.add(record.id_comentario);
+          await syncCommentAttachment(connection, record, result);
+
+          result.processed += 1;
+          if (existed) result.updated += 1;
+          else result.inserted += 1;
+          knownCommentIds.add(record.id_comentario);
+          await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+        } catch (rowError) {
+          try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+          try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+          pushError(result, item.row, rowError.message);
+        }
       }
 
       await connection.commit();
@@ -530,10 +552,11 @@ async function syncComments(payload, actionContext = {}) {
     }
   }
 
-  result.ok = result.rejected === 0;
-  result.message = result.ok
-    ? 'Comentarios de Redes cargados correctamente.'
-    : 'La carga de comentarios de Redes termino con registros rechazados.';
+  result.ok = true;
+  result.parcial = result.rejected > 0;
+  result.message = result.parcial
+    ? 'La carga de comentarios de Redes terminó con registros rechazados; los comentarios válidos fueron procesados.'
+    : 'Comentarios de Redes cargados correctamente.';
   return result;
 }
 

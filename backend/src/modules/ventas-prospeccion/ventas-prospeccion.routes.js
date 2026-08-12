@@ -1,7 +1,9 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_2_BACKEND_M2M_GUARDS_V001]
 const express = require('express');
 const controller = require('./ventas-prospeccion.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
+const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
 
@@ -24,11 +26,14 @@ const uploadCommentFiles = createUploadMiddleware_gnral({
 });
 
 const router = express.Router();
+const requireVentasHistoricalIntegration = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID', {
+  whenDisabled: [requireAuth, requireHistoricalSyncEnabled]
+});
 
-// CFFAA-00/CFFAA-04: las importaciones historicas permanecen cerradas por
-// defecto y nunca eliminan relaciones AZURE_BLOB existentes.
-router.post('/prospeccion/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncProspections);
-router.post('/prospeccion/comentarios/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncComments);
+// Mientras HMAC permanezca apagado se conserva el control legado de importación.
+// Con HMAC activo, la identidad M2M de Ventas sustituye al JWT humano.
+router.post('/prospeccion/sync', requireVentasHistoricalIntegration, controller.syncProspections);
+router.post('/prospeccion/comentarios/sync', requireVentasHistoricalIntegration, controller.syncComments);
 
 router.get('/prospeccion/catalogos-captura', requireAuth, controller.getCaptureCatalogs);
 router.get('/prospeccion/fuentes', requireAuth, controller.searchSources);

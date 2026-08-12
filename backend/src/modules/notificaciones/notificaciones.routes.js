@@ -4,12 +4,13 @@ const legacyDataController = require('../../controllers/data.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 
 const router = express.Router();
+router.use(requireAuth);
 
-router.get('/notificaciones', requireAuth, notificacionesController.getNotificaciones);
-router.patch('/notificaciones/:id/abrir', requireAuth, notificacionesController.abrirNotificacion);
-router.patch('/notificaciones/:id/nuevo', requireAuth, notificacionesController.marcarNotificacionNueva);
-router.get('/notificaciones/preferencias', requireAuth, notificacionesController.getPreferencias);
-router.put('/notificaciones/preferencias', requireAuth, notificacionesController.guardarPreferencias);
+router.get('/notificaciones', notificacionesController.getNotificaciones);
+router.patch('/notificaciones/:id/abrir', notificacionesController.abrirNotificacion);
+router.patch('/notificaciones/:id/nuevo', notificacionesController.marcarNotificacionNueva);
+router.get('/notificaciones/preferencias', notificacionesController.getPreferencias);
+router.put('/notificaciones/preferencias', notificacionesController.guardarPreferencias);
 
 // Compatibilidad temporal: estas dos rutas ya estaban agrupadas en este adaptador,
 // pero pertenecen al dominio Usuarios. Se conservan sin cambios hasta migrar dicho dominio.

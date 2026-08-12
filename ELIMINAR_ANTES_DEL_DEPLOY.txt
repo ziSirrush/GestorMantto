@@ -1,0 +1,10 @@
+Eliminar del repositorio antes del deploy si todavía existen:
+backend/scripts/usuario_password_temporal.csv
+backend/scripts/usuarios_passwords_temporales.csv
+
+PowerShell desde la raíz del proyecto:
+git rm -f --ignore-unmatch backend/scripts/usuario_password_temporal.csv
+git rm -f --ignore-unmatch backend/scripts/usuarios_passwords_temporales.csv
+
+No eliminar ni reemplazar backend/.env mediante este FIX.
+INTEGRATION_AUTH_ENABLED debe permanecer en false hasta ejecutar la activación controlada de Fase 6.

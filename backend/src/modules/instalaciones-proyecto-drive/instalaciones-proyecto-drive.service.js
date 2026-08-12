@@ -1,3 +1,5 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FIX_PREPRUEBA_BACKEND_M2M_V001]
 const repository = require('./instalaciones-proyecto-drive.repository');
 const logger = require('../../shared/logger');
 
@@ -336,44 +338,80 @@ async function processBatch(records, batchNumber, totalBatches) {
     await connection.beginTransaction();
 
     const references = await validateBatchReferences(connection, records);
+    const globalErrors = references.errors.filter((error) => error.index === undefined || error.index === null);
 
-    if (references.errors.length) {
+    if (globalErrors.length) {
       throw createValidationError(
-        `El bloque ${batchNumber} contiene referencias inválidas.`,
+        `El bloque ${batchNumber} contiene un error estructural de referencias.`,
         {
           bloque: batchNumber,
           total_bloques: totalBatches,
-          errores: references.errors
+          errores: globalErrors
         }
       );
+    }
+
+    const errorsByIndex = new Map();
+    for (const error of references.errors) {
+      const key = Number(error.index);
+      if (!errorsByIndex.has(key)) errorsByIndex.set(key, []);
+      errorsByIndex.get(key).push(error);
     }
 
     const result = {
       insertados: 0,
       actualizados: 0,
-      relaciones: 0
+      relaciones: 0,
+      rechazados: 0,
+      errores: []
     };
 
-    for (const record of records) {
-      const existingRelation = references.existingByProject.get(record.id_proyecto);
-      const savedProject = await saveProject(
-        connection,
-        record,
-        references.projectsById.get(record.id_proyecto),
-        existingRelation
-      );
+    for (let position = 0; position < records.length; position += 1) {
+      const record = records[position];
+      const referenceErrors = errorsByIndex.get(Number(record.index)) || [];
 
-      const savedUsers = await saveUsers(
-        connection,
-        savedProject.id_proyecto_drive,
-        record,
-        references.usersByInitials
-      );
+      if (referenceErrors.length) {
+        result.rechazados += 1;
+        result.errores.push(...referenceErrors);
+        continue;
+      }
 
-      if (savedProject.was_inserted) result.insertados += 1;
-      else result.actualizados += 1;
+      const savepoint = `project_drive_${position}`;
 
-      result.relaciones += savedUsers.relationships;
+      try {
+        await connection.query(`SAVEPOINT ${savepoint}`);
+
+        const existingRelation = references.existingByProject.get(record.id_proyecto);
+        const savedProject = await saveProject(
+          connection,
+          record,
+          references.projectsById.get(record.id_proyecto),
+          existingRelation
+        );
+
+        const savedUsers = await saveUsers(
+          connection,
+          savedProject.id_proyecto_drive,
+          record,
+          references.usersByInitials
+        );
+
+        if (savedProject.was_inserted) result.insertados += 1;
+        else result.actualizados += 1;
+
+        result.relaciones += savedUsers.relationships;
+        await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+      } catch (rowError) {
+        try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+        try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+        result.rechazados += 1;
+        result.errores.push({
+          index: record.index,
+          id_proyecto: record.id_proyecto,
+          carpeta_id: record.carpeta_id,
+          message: rowError.message
+        });
+      }
     }
 
     await connection.commit();
@@ -403,14 +441,18 @@ async function processBatch(records, batchNumber, totalBatches) {
   }
 }
 
-function buildFinalResponse(startedAt, projects, totals) {
+function buildFinalResponse(startedAt, projects, totals, errors) {
   return {
     ok: true,
+    parcial: errors.length > 0,
     proyectos: projects,
+    procesados: totals.insertados + totals.actualizados,
     insertados: totals.insertados,
     actualizados: totals.actualizados,
     relaciones: totals.relaciones,
-    errores: 0,
+    rechazados: errors.length,
+    errores: errors.length,
+    detalles_errores: errors,
     tiempo_ms: Date.now() - startedAt
   };
 }
@@ -440,18 +482,20 @@ async function sync(body) {
 
   normalizationErrors.push(...validateRequestRecords(records));
 
-  if (normalizationErrors.length) {
-    throw createValidationError('La petición contiene registros inválidos.', {
-      errores: normalizationErrors
-    });
-  }
+  const invalidIndexes = new Set(
+    normalizationErrors
+      .map((error) => Number(error.index))
+      .filter((index) => Number.isInteger(index))
+  );
+  const validRecords = records.filter((record) => !invalidIndexes.has(Number(record.index)));
 
-  const batches = splitIntoBatches(records, batchSize);
+  const batches = splitIntoBatches(validRecords, batchSize);
   const totals = {
     insertados: 0,
     actualizados: 0,
     relaciones: 0
   };
+  const errors = [...normalizationErrors];
 
   logger.info('SYNC DRIVE PROYECTOS - Inicio.', {
     proyectos: records.length,
@@ -472,9 +516,10 @@ async function sync(body) {
     totals.insertados += result.insertados;
     totals.actualizados += result.actualizados;
     totals.relaciones += result.relaciones;
+    errors.push(...result.errores);
   }
 
-  const response = buildFinalResponse(startedAt, records.length, totals);
+  const response = buildFinalResponse(startedAt, sourceRecords.length, totals, errors);
 
   logger.info('SYNC DRIVE PROYECTOS - Fin.', response);
 

@@ -7,6 +7,18 @@ function hasProgrammerRole(user) {
   return roles.has('Programador') || roles.has('Programador United') || roles.has('Programador Corellian');
 }
 
+function requireProgrammerRole(req, res, next) {
+  if (!hasProgrammerRole(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      code: 'SYNC_FORBIDDEN',
+      message: 'Solo un perfil de Programador puede ejecutar sincronizaciones.'
+    });
+  }
+
+  return next();
+}
+
 function requireHistoricalSyncEnabled(req, res, next) {
   if (!isEnabled(process.env.CFFAA_HISTORICAL_SYNC_ENABLED)) {
     return res.status(403).json({
@@ -46,6 +58,7 @@ function requireAzureDiagnosticsEnabled(req, res, next) {
 }
 
 module.exports = {
+  requireProgrammerRole,
   requireHistoricalSyncEnabled,
   requireAzureDiagnosticsEnabled
 };

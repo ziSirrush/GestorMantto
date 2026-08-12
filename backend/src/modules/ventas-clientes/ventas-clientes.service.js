@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const repository = require('./ventas-clientes.repository');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
 
@@ -391,22 +392,29 @@ async function sync(payload) {
     const connection = await repository.getConnection();
     try {
       await connection.beginTransaction();
-      for (const item of batch) {
-        const { _fila, ...record } = item;
 
-        /*
-         * Importación inicial de respaldo:
-         * cada fila válida representa un registro independiente.
-         * No se buscan coincidencias y no se actualizan clientes existentes.
-         */
-        await repository.insert(connection, record);
-        inserted += 1;
+      for (let position = 0; position < batch.length; position += 1) {
+        const item = batch[position];
+        const { _fila, ...record } = item;
+        const savepoint = `ventas_clientes_${position}`;
+
+        try {
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          await repository.insert(connection, record);
+          inserted += 1;
+          await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+        } catch (rowError) {
+          try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+          try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+          errors.push({ fila: _fila, motivo: rowError.message });
+        }
       }
+
       await connection.commit();
       processedBatches += 1;
     } catch (error) {
       await connection.rollback();
-      throw httpError(500, `Falló el bloque ${processedBatches + 1}: ${error.message}`);
+      throw httpError(500, `Falló estructuralmente el bloque ${processedBatches + 1}: ${error.message}`);
     } finally {
       connection.release();
     }
@@ -414,9 +422,10 @@ async function sync(payload) {
 
   return {
     ok: true,
+    parcial: errors.length > 0,
     source: 'aiven',
     total_recibidos: records.length,
-    total_validos: valid.length,
+    total_validos: inserted + updated,
     insertados: inserted,
     actualizados: updated,
     rechazados: errors.length,

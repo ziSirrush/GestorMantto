@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
 const fs = require('fs');
 const path = require('path');
@@ -4292,10 +4293,15 @@ async function syncPortafolio(req, res) {
 
     const validColumns = columnsResult.map(c => c.COLUMN_NAME);
     const ignoredColumns = ['ID_SB', 'id_SB', 'created_at', 'updated_at'];
+    const summary = {
+      received: rows.length,
+      processed: 0,
+      rejected: 0,
+      errors: []
+    };
 
-    let insertedOrUpdated = 0;
-
-    for (const row of rows) {
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] || {};
       const cleanRow = {};
 
       Object.keys(row).forEach(key => {
@@ -4308,37 +4314,53 @@ async function syncPortafolio(req, res) {
         }
       });
 
-      if (!cleanRow.numero_equipo) continue;
+      if (!cleanRow.numero_equipo) {
+        summary.rejected += 1;
+        summary.errors.push({ index, message: 'numero_equipo vacío o inválido.' });
+        continue;
+      }
 
-      const columns = Object.keys(cleanRow);
-      const placeholders = columns.map(() => '?').join(', ');
-      const values = columns.map(col => cleanRow[col]);
+      try {
+        const columns = Object.keys(cleanRow);
+        const placeholders = columns.map(() => '?').join(', ');
+        const values = columns.map(col => cleanRow[col]);
 
-      const updateClause = columns
-        .filter(col => col !== 'numero_equipo')
-        .map(col => `\`${col}\` = VALUES(\`${col}\`)`)
-        .join(', ');
+        const updateClause = columns
+          .filter(col => col !== 'numero_equipo')
+          .map(col => `\`${col}\` = VALUES(\`${col}\`)`)
+          .join(', ');
 
-      const sql = `
-        INSERT INTO portafolio (${columns.map(col => `\`${col}\``).join(', ')})
-        VALUES (${placeholders})
-        ON DUPLICATE KEY UPDATE
-        ${updateClause || '`numero_equipo` = VALUES(`numero_equipo`)'}
-      `;
+        const sql = `
+          INSERT INTO portafolio (${columns.map(col => `\`${col}\``).join(', ')})
+          VALUES (${placeholders})
+          ON DUPLICATE KEY UPDATE
+          ${updateClause || '`numero_equipo` = VALUES(`numero_equipo`)'}
+        `;
 
-      await db.query(sql, values);
-      insertedOrUpdated++;
+        await db.query(sql, values);
+        summary.processed += 1;
+      } catch (rowError) {
+        summary.rejected += 1;
+        summary.errors.push({
+          index,
+          numero_equipo: cleanRow.numero_equipo,
+          message: rowError.message
+        });
+      }
     }
 
     return res.json({
       ok: true,
-      message: 'Portafolio sincronizado correctamente.',
-      total: insertedOrUpdated
+      message: summary.rejected
+        ? 'Portafolio procesado con registros rechazados.'
+        : 'Portafolio sincronizado correctamente.',
+      total: summary.processed,
+      ...summary
     });
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      message: 'Error sincronizando portafolio.',
+      message: 'Error estructural sincronizando portafolio.',
       error: error.message
     });
   }

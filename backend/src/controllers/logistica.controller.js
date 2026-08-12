@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
 
 const DB_FIELDS = [
@@ -150,6 +151,7 @@ async function syncLogOps(req, res) {
 
     for (let index = 0; index < rows.length; index += 1) {
       const incoming = normalizeIncomingRow(rows[index] || {});
+      const savepoint = `log_ops_row_${index}`;
 
       if (!Number.isInteger(incoming.id_log_ops) || incoming.id_log_ops <= 0) {
         summary.rejected += 1;
@@ -168,46 +170,62 @@ async function syncLogOps(req, res) {
         continue;
       }
 
-      const [existingRows] = await conn.query(
-        `SELECT id_log_ops, ${DB_FIELDS.join(', ')}
-         FROM log_ops
-         WHERE id_log_ops = ?
-         LIMIT 1`,
-        [incoming.id_log_ops]
-      );
+      try {
+        await conn.query(`SAVEPOINT ${savepoint}`);
 
-      if (!existingRows.length) {
-        const columns = ['id_log_ops', ...DB_FIELDS, 'fecha_sync'];
-        const placeholders = columns.map(() => '?').join(', ');
-        const values = [
-          incoming.id_log_ops,
-          ...DB_FIELDS.map(field => incoming[field]),
-          new Date()
-        ];
+        const [existingRows] = await conn.query(
+          `SELECT id_log_ops, ${DB_FIELDS.join(', ')}
+           FROM log_ops
+           WHERE id_log_ops = ?
+           LIMIT 1`,
+          [incoming.id_log_ops]
+        );
+
+        if (!existingRows.length) {
+          const columns = ['id_log_ops', ...DB_FIELDS, 'fecha_sync'];
+          const placeholders = columns.map(() => '?').join(', ');
+          const values = [
+            incoming.id_log_ops,
+            ...DB_FIELDS.map(field => incoming[field]),
+            new Date()
+          ];
+
+          await conn.query(
+            `INSERT INTO log_ops (${columns.join(', ')}) VALUES (${placeholders})`,
+            values
+          );
+          summary.inserted += 1;
+          await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+          continue;
+        }
+
+        if (!rowChanged(existingRows[0], incoming)) {
+          summary.unchanged += 1;
+          await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+          continue;
+        }
+
+        const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');
+        const values = [...DB_FIELDS.map(field => incoming[field]), incoming.id_log_ops];
 
         await conn.query(
-          `INSERT INTO log_ops (${columns.join(', ')}) VALUES (${placeholders})`,
+          `UPDATE log_ops
+           SET ${assignments}, fecha_sync = NOW()
+           WHERE id_log_ops = ?`,
           values
         );
-        summary.inserted += 1;
-        continue;
+        summary.updated += 1;
+        await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+      } catch (rowError) {
+        try { await conn.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+        try { await conn.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+        summary.rejected += 1;
+        summary.errors.push({
+          index,
+          id_log_ops: incoming.id_log_ops,
+          message: rowError.message
+        });
       }
-
-      if (!rowChanged(existingRows[0], incoming)) {
-        summary.unchanged += 1;
-        continue;
-      }
-
-      const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');
-      const values = [...DB_FIELDS.map(field => incoming[field]), incoming.id_log_ops];
-
-      await conn.query(
-        `UPDATE log_ops
-         SET ${assignments}, fecha_sync = NOW()
-         WHERE id_log_ops = ?`,
-        values
-      );
-      summary.updated += 1;
     }
 
     await conn.commit();

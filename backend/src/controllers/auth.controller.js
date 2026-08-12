@@ -2,9 +2,80 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { loadUserRoles } = require('../middleware/auth.middleware');
+const {
+  createRefreshSession,
+  rotateRefreshSession,
+  revokeCurrentSession,
+  revokeUserSessions
+} = require('../services/auth-session.service');
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
+const MAX_SESSION_SECONDS = 12 * 60 * 60;
+
+function timestampMarker(value) {
+  if (!value) return 'never';
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
+}
+
+function sessionExpirySeconds() {
+  const raw = String(process.env.JWT_EXPIRES_IN || '').trim().toLowerCase();
+  if (!raw) return MAX_SESSION_SECONDS;
+
+  const match = raw.match(/^(\d+)(s|m|h|d)?$/);
+  if (!match) return MAX_SESSION_SECONDS;
+
+  const multipliers = { s: 1, m: 60, h: 3600, d: 86400 };
+  const requested = Number(match[1]) * (multipliers[match[2] || 's']);
+  if (!Number.isSafeInteger(requested) || requested <= 0) return MAX_SESSION_SECONDS;
+  return Math.min(requested, MAX_SESSION_SECONDS);
+}
+
+function signSessionToken(user, explicitRoles) {
+  const roles = Array.isArray(explicitRoles)
+    ? explicitRoles
+    : Array.isArray(user.roles) ? user.roles : [];
+  const isProgramador = roles.includes('Programador') || user.rol === 'Programador';
+
+  return jwt.sign(
+    {
+      id_SB: user.id_SB,
+      correo: user.correo,
+      rol_id: user.rol_id,
+      rol: user.rol,
+      roles,
+      empresa: user.empresa,
+      is_programador: isProgramador,
+      session_version: timestampMarker(user.password_changed_at)
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: sessionExpirySeconds() }
+  );
+}
+
+function publicSessionUser(user) {
+  return {
+    id_SB: user.id_SB,
+    nombre: user.nombre,
+    iniciales: user.iniciales,
+    correo: user.correo,
+    empresa: user.empresa,
+    puesto: user.puesto,
+    area: user.area,
+    reporta_a: user.reporta_a,
+    rol_id: user.rol_id,
+    rol: user.rol,
+    role: user.rol,
+    roles: user.roles || [],
+    roles_detalle: user.roles_detalle || [],
+    zonas: user.zonas || [],
+    zonas_detalle: user.zonas_detalle || [],
+    is_programador: Boolean(user.is_programador),
+    criticos_fallas: Number(user.criticos_fallas || 3),
+    criticos_periodo: Number(user.criticos_periodo || 35)
+  };
+}
 
 function validatePasswordRules(password) {
   const value = String(password || '');
@@ -64,6 +135,7 @@ async function login(req, res) {
         u.must_change_password,
         u.failed_login_attempts,
         u.locked_until,
+        u.password_changed_at,
         u.criticos_fallas,
         u.criticos_periodo
       FROM usuarios u
@@ -200,27 +272,14 @@ async function login(req, res) {
       roles.includes('Programador') ||
       user.rol === 'Programador';
 
-    const token = jwt.sign(
-      {
-        id_SB: user.id_SB,
-        correo: user.correo,
-        rol_id: user.rol_id,
-        rol: user.rol,
-        roles,
-        empresa: user.empresa,
-        is_programador: isProgramador
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn:
-          process.env.JWT_EXPIRES_IN || '180d'
-      }
-    );
+    const token = signSessionToken(user, roles);
+    const refreshState = await createRefreshSession(req, res, user);
 
     return res.json({
       ok: true,
       message: 'Login correcto.',
       token,
+      session_csrf_token: refreshState.csrfToken,
       must_change_password:
         Number(user.must_change_password) === 1,
       user: {
@@ -248,18 +307,56 @@ async function login(req, res) {
   }
 }
 
+async function refreshSession(req, res) {
+  try {
+    const { user, absoluteExpiresAt, csrfToken } = await rotateRefreshSession(req, res);
+    const token = signSessionToken(user, user.roles);
+
+    return res.json({
+      ok: true,
+      token,
+      session_csrf_token: csrfToken,
+      user: publicSessionUser(user),
+      session_absolute_expires_at: new Date(absoluteExpiresAt).toISOString()
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      code: error.code || 'SESSION_REFRESH_FAILED',
+      message: error.message || 'No fue posible renovar la sesión.'
+    });
+  }
+}
+
+async function logout(req, res) {
+  try {
+    await revokeCurrentSession(req, res);
+    return res.json({ ok: true, message: 'Sesión cerrada correctamente.' });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'No fue posible cerrar la sesión.',
+      error: error.message
+    });
+  }
+}
+
 async function firstLoginPassword(req, res) {
   const {
-    user_id,
-    id_SB,
-    correo,
     new_password,
     password
   } = req.body;
 
-  const userId = user_id || id_SB;
+  const userId = Number(req.user && req.user.id_SB);
   const newPassword = new_password || password;
   const ipAddress = req.ip;
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({
+      ok: false,
+      message: 'Sesión requerida.'
+    });
+  }
 
   if (!newPassword) {
     return res.status(400).json({
@@ -280,30 +377,13 @@ async function firstLoginPassword(req, res) {
   }
 
   try {
-    let rows;
-
-    if (userId) {
-      [rows] = await db.query(
-        `SELECT id_SB, correo
-        FROM usuarios
-        WHERE id_SB = ?
-        LIMIT 1`,
-        [userId]
-      );
-    } else if (correo) {
-      [rows] = await db.query(
-        `SELECT id_SB, correo
-        FROM usuarios
-        WHERE correo = ?
-        LIMIT 1`,
-        [correo]
-      );
-    } else {
-      return res.status(400).json({
-        ok: false,
-        message: 'No se recibió usuario.'
-      });
-    }
+    const [rows] = await db.query(
+      `SELECT id_SB, correo, estado, must_change_password
+      FROM usuarios
+      WHERE id_SB = ?
+      LIMIT 1`,
+      [userId]
+    );
 
     if (!rows.length) {
       return res.status(404).json({
@@ -314,12 +394,19 @@ async function firstLoginPassword(req, res) {
 
     const user = rows[0];
 
+    if (Number(user.estado) !== 1 || Number(user.must_change_password) !== 1) {
+      return res.status(409).json({
+        ok: false,
+        message: 'El primer acceso ya fue completado o no está disponible para esta cuenta.'
+      });
+    }
+
     const hash = await bcrypt.hash(
       newPassword,
       10
     );
 
-    await db.query(
+    const [result] = await db.query(
       `UPDATE usuarios
       SET pass = ?,
           must_change_password = 0,
@@ -331,12 +418,38 @@ async function firstLoginPassword(req, res) {
             ),
           failed_login_attempts = 0,
           locked_until = NULL
-      WHERE id_SB = ?`,
+      WHERE id_SB = ?
+        AND must_change_password = 1`,
       [
         hash,
         user.id_SB
       ]
     );
+
+    if (Number(result.affectedRows) !== 1) {
+      return res.status(409).json({
+        ok: false,
+        message: 'El primer acceso ya fue completado.'
+      });
+    }
+
+    const [[sessionState]] = await db.query(
+      `SELECT password_changed_at
+      FROM usuarios
+      WHERE id_SB = ?
+      LIMIT 1`,
+      [user.id_SB]
+    );
+    const token = signSessionToken({
+      ...req.user,
+      password_changed_at: sessionState && sessionState.password_changed_at
+    });
+    const refreshedUser = {
+      ...req.user,
+      password_changed_at: sessionState && sessionState.password_changed_at
+    };
+    await revokeUserSessions(user.id_SB);
+    const refreshState = await createRefreshSession(req, res, refreshedUser);
 
     await audit(
       user.id_SB,
@@ -347,6 +460,8 @@ async function firstLoginPassword(req, res) {
 
     return res.json({
       ok: true,
+      token,
+      session_csrf_token: refreshState.csrfToken,
       message:
         'Contraseña actualizada correctamente.'
     });
@@ -387,23 +502,26 @@ async function securityQuestions(req, res) {
 
 async function firstLoginSecurityQuestion(req, res) {
   const {
-    user_id,
-    id_SB,
-    correo,
     id_pregunta,
     question_id,
     answer,
     respuesta
   } = req.body;
 
-  const userId = user_id || id_SB;
-  const preguntaId =
-    id_pregunta || question_id;
+  const userId = Number(req.user && req.user.id_SB);
+  const preguntaId = Number(id_pregunta || question_id);
   const respuestaFinal =
     answer || respuesta;
   const ipAddress = req.ip;
 
-  if (!preguntaId || !respuestaFinal) {
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({
+      ok: false,
+      message: 'Sesión requerida.'
+    });
+  }
+
+  if (!Number.isInteger(preguntaId) || preguntaId <= 0 || !String(respuestaFinal || '').trim()) {
     return res.status(400).json({
       ok: false,
       message:
@@ -412,30 +530,13 @@ async function firstLoginSecurityQuestion(req, res) {
   }
 
   try {
-    let rows;
-
-    if (userId) {
-      [rows] = await db.query(
-        `SELECT id_SB
-        FROM usuarios
-        WHERE id_SB = ?
-        LIMIT 1`,
-        [userId]
-      );
-    } else if (correo) {
-      [rows] = await db.query(
-        `SELECT id_SB
-        FROM usuarios
-        WHERE correo = ?
-        LIMIT 1`,
-        [correo]
-      );
-    } else {
-      return res.status(400).json({
-        ok: false,
-        message: 'No se recibió usuario.'
-      });
-    }
+    const [rows] = await db.query(
+      `SELECT id_SB, estado, must_change_password
+      FROM usuarios
+      WHERE id_SB = ?
+      LIMIT 1`,
+      [userId]
+    );
 
     if (!rows.length) {
       return res.status(404).json({
@@ -446,6 +547,29 @@ async function firstLoginSecurityQuestion(req, res) {
 
     const user = rows[0];
 
+    if (Number(user.estado) !== 1 || Number(user.must_change_password) !== 1) {
+      return res.status(409).json({
+        ok: false,
+        message: 'El primer acceso ya fue completado o no está disponible para esta cuenta.'
+      });
+    }
+
+    const [questions] = await db.query(
+      `SELECT id_pregunta
+      FROM preguntas_seguridad
+      WHERE id_pregunta = ?
+        AND estado = 1
+      LIMIT 1`,
+      [preguntaId]
+    );
+
+    if (!questions.length) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La pregunta de seguridad no es válida.'
+      });
+    }
+
     const respuestaHash = await bcrypt.hash(
       String(respuestaFinal)
         .trim()
@@ -453,17 +577,25 @@ async function firstLoginSecurityQuestion(req, res) {
       10
     );
 
-    await db.query(
+    const [result] = await db.query(
       `UPDATE usuarios
       SET id_pregunta = ?,
           respuesta_recuperacion = ?
-      WHERE id_SB = ?`,
+      WHERE id_SB = ?
+        AND must_change_password = 1`,
       [
         preguntaId,
         respuestaHash,
         user.id_SB
       ]
     );
+
+    if (Number(result.affectedRows) !== 1) {
+      return res.status(409).json({
+        ok: false,
+        message: 'El primer acceso ya fue completado.'
+      });
+    }
 
     await audit(
       user.id_SB,
@@ -505,6 +637,8 @@ async function recoveryStart(req, res) {
         u.correo,
         u.id_pregunta,
         u.respuesta_recuperacion,
+        u.password_changed_at,
+        u.locked_until,
         ps.pregunta
       FROM usuarios u
       LEFT JOIN preguntas_seguridad ps
@@ -525,6 +659,13 @@ async function recoveryStart(req, res) {
 
     const user = rows[0];
 
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(423).json({
+        ok: false,
+        message: 'La cuenta está bloqueada temporalmente. Intenta más tarde.'
+      });
+    }
+
     if (
       !user.id_pregunta ||
       !user.respuesta_recuperacion ||
@@ -537,10 +678,23 @@ async function recoveryStart(req, res) {
       });
     }
 
+    const recoveryToken = jwt.sign(
+      {
+        type: 'password_recovery',
+        user_id: Number(user.id_SB),
+        correo: String(user.correo).trim().toLowerCase(),
+        password_changed_at: timestampMarker(user.password_changed_at)
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m', audience: 'mantto-password-recovery' }
+    );
+
     return res.json({
       ok: true,
       id_pregunta: user.id_pregunta,
-      pregunta: user.pregunta
+      pregunta: user.pregunta,
+      recovery_token: recoveryToken,
+      expires_in_seconds: 600
     });
   } catch (error) {
     return res.status(500).json({
@@ -558,24 +712,28 @@ async function recoveryReset(req, res) {
     respuesta,
     answer,
     new_password,
-    password
+    password,
+    recovery_token,
+    recoveryToken
   } = req.body;
 
   const finalAnswer =
     respuesta || answer;
   const newPassword =
     new_password || password;
+  const challengeToken = recovery_token || recoveryToken;
   const ipAddress = req.ip;
 
   if (
     !correo ||
     !finalAnswer ||
-    !newPassword
+    !newPassword ||
+    !challengeToken
   ) {
     return res.status(400).json({
       ok: false,
       message:
-        'Correo, respuesta y nueva contraseña son obligatorios.'
+        'Correo, desafío de recuperación, respuesta y nueva contraseña son obligatorios.'
     });
   }
 
@@ -590,10 +748,36 @@ async function recoveryReset(req, res) {
   }
 
   try {
+    let challenge;
+    try {
+      challenge = jwt.verify(String(challengeToken), process.env.JWT_SECRET, {
+        audience: 'mantto-password-recovery'
+      });
+    } catch (_error) {
+      return res.status(401).json({
+        ok: false,
+        message: 'El desafío de recuperación expiró o no es válido.'
+      });
+    }
+
+    const normalizedEmail = String(correo).trim().toLowerCase();
+    if (
+      challenge?.type !== 'password_recovery' ||
+      String(challenge.correo || '').trim().toLowerCase() !== normalizedEmail
+    ) {
+      return res.status(401).json({
+        ok: false,
+        message: 'El desafío de recuperación no corresponde a esta cuenta.'
+      });
+    }
+
     const [rows] = await db.query(
       `SELECT
         id_SB,
-        respuesta_recuperacion
+        respuesta_recuperacion,
+        password_changed_at,
+        failed_login_attempts,
+        locked_until
       FROM usuarios
       WHERE correo = ?
         AND estado = 1
@@ -609,6 +793,21 @@ async function recoveryReset(req, res) {
     }
 
     const user = rows[0];
+
+    if (Number(challenge.user_id) !== Number(user.id_SB) ||
+        String(challenge.password_changed_at) !== timestampMarker(user.password_changed_at)) {
+      return res.status(401).json({
+        ok: false,
+        message: 'El desafío de recuperación ya no es válido.'
+      });
+    }
+
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(423).json({
+        ok: false,
+        message: 'La cuenta está bloqueada temporalmente. Intenta más tarde.'
+      });
+    }
 
     if (!user.respuesta_recuperacion) {
       return res.status(400).json({
@@ -626,6 +825,24 @@ async function recoveryReset(req, res) {
     );
 
     if (!validAnswer) {
+      const attempts = Number(user.failed_login_attempts || 0) + 1;
+      if (attempts >= MAX_FAILED_ATTEMPTS) {
+        await db.query(
+          `UPDATE usuarios
+          SET failed_login_attempts = ?,
+              locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE)
+          WHERE id_SB = ?`,
+          [attempts, LOCK_MINUTES, user.id_SB]
+        );
+      } else {
+        await db.query(
+          `UPDATE usuarios
+          SET failed_login_attempts = ?
+          WHERE id_SB = ?`,
+          [attempts, user.id_SB]
+        );
+      }
+
       await audit(
         user.id_SB,
         'RECOVERY_FAILED',
@@ -633,9 +850,11 @@ async function recoveryReset(req, res) {
         ipAddress
       );
 
-      return res.status(401).json({
+      return res.status(attempts >= MAX_FAILED_ATTEMPTS ? 423 : 401).json({
         ok: false,
-        message: 'Respuesta incorrecta.'
+        message: attempts >= MAX_FAILED_ATTEMPTS
+          ? 'Cuenta bloqueada temporalmente por intentos fallidos.'
+          : 'Respuesta incorrecta.'
       });
     }
 
@@ -657,6 +876,8 @@ async function recoveryReset(req, res) {
         user.id_SB
       ]
     );
+
+    await revokeUserSessions(user.id_SB);
 
     await audit(
       user.id_SB,
@@ -901,8 +1122,28 @@ async function changePassword(req, res) {
       ipAddress
     );
 
+    const [[sessionState]] = await db.query(
+      `SELECT password_changed_at
+      FROM usuarios
+      WHERE id_SB = ?
+      LIMIT 1`,
+      [req.user.id_SB]
+    );
+    const token = signSessionToken({
+      ...req.user,
+      password_changed_at: sessionState && sessionState.password_changed_at
+    });
+    const refreshedUser = {
+      ...req.user,
+      password_changed_at: sessionState && sessionState.password_changed_at
+    };
+    await revokeUserSessions(req.user.id_SB);
+    const refreshState = await createRefreshSession(req, res, refreshedUser);
+
     return res.json({
       ok: true,
+      token,
+      session_csrf_token: refreshState.csrfToken,
       message:
         'Contraseña actualizada correctamente.'
     });
@@ -1055,6 +1296,8 @@ async function changeSecurityQuestion(req, res) {
 
 module.exports = {
   login,
+  refreshSession,
+  logout,
   me,
   changePassword,
   changeSecurityQuestion,

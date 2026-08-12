@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
 
 const DB_FIELDS = [
@@ -271,6 +272,7 @@ async function syncInsFl(req, res) {
 
     for (let index = 0; index < rows.length; index += 1) {
       const incoming = normalizeIncomingRow(rows[index] || {});
+      const savepoint = `ins_fl_row_${index}`;
 
       const missing = REQUIRED_FIELDS.filter(field => !incoming[field]);
       if (missing.length) {
@@ -284,48 +286,65 @@ async function syncInsFl(req, res) {
         continue;
       }
 
-      const [existingRows] = await conn.query(
-        `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
-         FROM ins_fl
-         WHERE id_proyecto = ?
-           AND referencia_sitio = ?
-         LIMIT 1`,
-        [incoming.id_proyecto, incoming.referencia_sitio]
-      );
+      try {
+        await conn.query(`SAVEPOINT ${savepoint}`);
 
-      if (!existingRows.length) {
-        const placeholders = DB_FIELDS.map(() => '?').join(', ');
-        const values = DB_FIELDS.map(field => incoming[field]);
+        const [existingRows] = await conn.query(
+          `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
+           FROM ins_fl
+           WHERE id_proyecto = ?
+             AND referencia_sitio = ?
+           LIMIT 1`,
+          [incoming.id_proyecto, incoming.referencia_sitio]
+        );
+
+        if (!existingRows.length) {
+          const placeholders = DB_FIELDS.map(() => '?').join(', ');
+          const values = DB_FIELDS.map(field => incoming[field]);
+
+          await conn.query(
+            `INSERT INTO ins_fl (${DB_FIELDS.join(', ')})
+             VALUES (${placeholders})`,
+            values
+          );
+
+          summary.inserted += 1;
+          await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+          continue;
+        }
+
+        if (!rowChanged(existingRows[0], incoming)) {
+          summary.unchanged += 1;
+          await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+          continue;
+        }
+
+        const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');
+        const values = [
+          ...DB_FIELDS.map(field => incoming[field]),
+          existingRows[0].id_ins_fl
+        ];
 
         await conn.query(
-          `INSERT INTO ins_fl (${DB_FIELDS.join(', ')})
-           VALUES (${placeholders})`,
+          `UPDATE ins_fl
+           SET ${assignments}
+           WHERE id_ins_fl = ?`,
           values
         );
 
-        summary.inserted += 1;
-        continue;
+        summary.updated += 1;
+        await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+      } catch (rowError) {
+        try { await conn.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+        try { await conn.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+        summary.rejected += 1;
+        summary.errors.push({
+          index,
+          id_proyecto: incoming.id_proyecto,
+          referencia_sitio: incoming.referencia_sitio,
+          message: rowError.message
+        });
       }
-
-      if (!rowChanged(existingRows[0], incoming)) {
-        summary.unchanged += 1;
-        continue;
-      }
-
-      const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');
-      const values = [
-        ...DB_FIELDS.map(field => incoming[field]),
-        existingRows[0].id_ins_fl
-      ];
-
-      await conn.query(
-        `UPDATE ins_fl
-         SET ${assignments}
-         WHERE id_ins_fl = ?`,
-        values
-      );
-
-      summary.updated += 1;
     }
 
     await conn.commit();

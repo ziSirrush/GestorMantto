@@ -3,12 +3,15 @@
   const TOKEN_KEY = 'mantto_token';
   const USER_KEY = 'mantto_user';
   const SESSION_KEY = 'mantto_session';
+  const SESSION_CSRF_KEY = 'mantto_session_csrf';
   const VIEW_USER_KEY = 'mantto_view_user';
   const VIEWER_TOKEN_KEY = 'mantto_viewer_token';
   const VIEWER_LAUNCH_PREFIX = 'mantto:viewer:launch:';
   const VIEWER_LAUNCH_PARAM = 'viewer_launch';
   const VIEWER_LAUNCH_TTL_MS = 60000;
-  const state = { token: null, user: null, viewUser: null, pendingUser: null, expiringSession: false };
+  const SESSION_ACTIVITY_TOUCH_MS = 30 * 60 * 1000;
+  const state = { token: null, user: null, viewUser: null, pendingUser: null, recoveryToken: null, expiringSession: false, lastSessionRefreshAt: 0 };
+  let refreshPromise = null;
 
   function $(id){ return document.getElementById(id); }
   function msg(id, text, type){ const el=$(id); if(!el) return; el.textContent=text||''; el.className='auth-msg ' + (type||''); }
@@ -16,8 +19,8 @@
   function setForm(name){
     ['login-form','first-login-form','recovery-form'].forEach(id=>show($(id), id===name));
   }
-  function getToken(){ return state.token || localStorage.getItem(TOKEN_KEY) || ''; }
-  function getActorUser(){ return state.user || safeJson(localStorage.getItem(USER_KEY)); }
+  function getToken(){ return state.token || sessionStorage.getItem(TOKEN_KEY) || ''; }
+  function getActorUser(){ return state.user || safeJson(sessionStorage.getItem(USER_KEY)); }
   function getViewUser(){ return state.viewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY)); }
   function getUser(){ return getViewUser() || getActorUser(); }
   function storeViewUser(user){
@@ -86,6 +89,8 @@
   function isPublicAuthPath(path){
     const cleanPath=String(path||'').split('?')[0];
     return cleanPath==='/api/auth/login' ||
+      cleanPath==='/api/auth/refresh' ||
+      cleanPath==='/api/auth/logout' ||
       cleanPath==='/api/auth/security-questions' ||
       cleanPath==='/api/auth/recovery/start' ||
       cleanPath==='/api/auth/recovery/reset';
@@ -109,6 +114,44 @@
     }));
     window.setTimeout(()=>{ state.expiringSession=false; },0);
   }
+  function applyRefreshedSession(payload){
+    state.token=String(payload?.token||'');
+    state.user=payload?.user||state.user||null;
+    sessionStorage.setItem(TOKEN_KEY,state.token);
+    if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
+    if(payload?.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(payload.session_csrf_token));
+    sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:state.user,refreshed_at:new Date().toISOString()}));
+    state.lastSessionRefreshAt=Date.now();
+    return payload;
+  }
+  async function requestSessionRefresh(){
+    for(let attempt=0;attempt<2;attempt+=1){
+      const res=await fetch(API_BASE+'/api/auth/refresh',{
+        method:'POST',
+        credentials:'include',
+        headers:{'Accept':'application/json','X-Session-CSRF':String(localStorage.getItem(SESSION_CSRF_KEY)||'')}
+      });
+      const json=await res.json().catch(()=>({ok:false,message:'No fue posible renovar la sesión.'}));
+      if((!res.ok || json.ok===false) && json?.code==='SESSION_REFRESH_REPLAYED' && attempt===0) continue;
+      if(!res.ok || json.ok===false) throw buildApiError(res,json);
+      return applyRefreshedSession(json);
+    }
+    throw new Error('No fue posible renovar la sesión.');
+  }
+  async function refreshAccessToken(){
+    if(refreshPromise) return refreshPromise;
+    refreshPromise=(async()=>{
+      if(window.navigator?.locks?.request){
+        return window.navigator.locks.request('mantto-session-refresh',{mode:'exclusive'},requestSessionRefresh);
+      }
+      return requestSessionRefresh();
+    })();
+    try{return await refreshPromise;}finally{refreshPromise=null;}
+  }
+  function touchSessionFromActivity(){
+    if(!getToken() || Date.now()-state.lastSessionRefreshAt<SESSION_ACTIVITY_TOUCH_MS) return;
+    refreshAccessToken().catch(()=>{});
+  }
   async function api(path, options){
     const opts = options || {};
     const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, opts.headers || {});
@@ -122,19 +165,36 @@
     const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim();
     if(viewerToken) headers['X-Viewer-Token']=viewerToken;
     else if(viewed && viewed.id_SB) headers['X-View-User-ID']=String(viewed.id_SB);
-    const fetchOptions = Object.assign({}, opts, { headers });
+    const fetchOptions = Object.assign({ credentials:'include' }, opts, { headers });
     delete fetchOptions.skipMutationEvent;
+    delete fetchOptions.skipAuthRefresh;
     const res = await fetch(API_BASE + path, fetchOptions);
     const json = await res.json().catch(()=>({ ok:false, message:'Respuesta no JSON' }));
     if(!res.ok || json.ok === false){
       const error=buildApiError(res,json);
       if(res.status===401 && !isPublicAuthPath(path)){
+        if(!opts.skipAuthRefresh){
+          try{
+            await refreshAccessToken();
+            return api(path,Object.assign({},opts,{skipAuthRefresh:true}));
+          }catch(_refreshError){
+            // La renovación fallida continúa con el cierre local controlado.
+          }
+        }
         const sessionMessage=json?.message==='Sesión inválida o usuario inactivo.'
           ? 'La sesión ya no es válida o el usuario fue desactivado. Inicia sesión nuevamente.'
           : 'Tu sesión expiró. Inicia sesión nuevamente.';
         expireSession(sessionMessage);
       }
       throw error;
+    }
+    if(json.token){
+      state.token=String(json.token);
+      sessionStorage.setItem(TOKEN_KEY,state.token);
+      sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:getActorUser(),refreshed_at:new Date().toISOString()}));
+    }
+    if(token && !isPublicAuthPath(path) && Date.now()-state.lastSessionRefreshAt>=SESSION_ACTIVITY_TOUCH_MS){
+      touchSessionFromActivity();
     }
     const method=String(opts.method||'GET').toUpperCase();
     if(['POST','PUT','PATCH','DELETE'].includes(method)&&opts.skipMutationEvent!==true){
@@ -161,16 +221,21 @@
     state.token = payload.token;
     state.user = payload.user;
     state.viewUser = null;
-    localStorage.setItem(TOKEN_KEY, payload.token || '');
-    localStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
+    sessionStorage.setItem(TOKEN_KEY, payload.token || '');
+    sessionStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
+    if(payload.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(payload.session_csrf_token));
     sessionStorage.removeItem(VIEW_USER_KEY);
     sessionStorage.removeItem(VIEWER_TOKEN_KEY);
     localStorage.removeItem(VIEW_USER_KEY);
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ token: payload.token, user: payload.user, created_at: new Date().toISOString() }));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: payload.token, user: payload.user, created_at: new Date().toISOString() }));
+    state.lastSessionRefreshAt=Date.now();
   }
   function clearSession(){
     state.token = null; state.user = null; state.viewUser = null; state.pendingUser = null;
+    state.lastSessionRefreshAt = 0;
+    sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY); sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); localStorage.removeItem(VIEW_USER_KEY); localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_CSRF_KEY);
     sessionStorage.removeItem(VIEW_USER_KEY);
     sessionStorage.removeItem(VIEWER_TOKEN_KEY);
   }
@@ -243,10 +308,9 @@
   }
   async function handleFirstLogin(ev){
     ev.preventDefault(); msg('first-msg','Guardando primer acceso...','info');
-    const user = state.pendingUser || getUser() || {};
     try{
-      await apiPost('/api/auth/first-login/password', { user_id:user.id_SB, new_password:$('first-new-pass').value });
-      await apiPost('/api/auth/first-login/security-question', { user_id:user.id_SB, id_pregunta:$('first-question').value, respuesta:$('first-answer').value });
+      await apiPost('/api/auth/first-login/security-question', { id_pregunta:$('first-question').value, respuesta:$('first-answer').value });
+      await apiPost('/api/auth/first-login/password', { new_password:$('first-new-pass').value });
       msg('first-msg','Primer acceso completado. Validando permisos del dispositivo...','info');
       await completeAuthenticatedAccess();
     }catch(err){ msg('first-msg', err.message || 'No fue posible completar el primer acceso.','error'); }
@@ -255,6 +319,7 @@
     msg('recovery-msg','Consultando pregunta...','info');
     try{
       const json = await apiPost('/api/auth/recovery/start', { correo:$('recovery-correo').value.trim() });
+      state.recoveryToken = String(json.recovery_token || '');
       if($('recovery-question')) $('recovery-question').value = json.pregunta || '';
       show($('recovery-question-box'), true);
       msg('recovery-msg','Responde la pregunta para actualizar tu contraseña.','info');
@@ -263,28 +328,42 @@
   async function handleRecovery(ev){
     ev.preventDefault(); msg('recovery-msg','Actualizando contraseña...','info');
     try{
-      await apiPost('/api/auth/recovery/reset', { correo:$('recovery-correo').value.trim(), respuesta:$('recovery-answer').value, new_password:$('recovery-new-pass').value });
+      await apiPost('/api/auth/recovery/reset', { correo:$('recovery-correo').value.trim(), recovery_token:state.recoveryToken, respuesta:$('recovery-answer').value, new_password:$('recovery-new-pass').value });
+      state.recoveryToken = null;
       msg('login-msg','Contraseña actualizada. Inicia sesión.','ok');
       setForm('login-form');
     }catch(err){ msg('recovery-msg', err.message || 'No fue posible recuperar la contraseña.','error'); }
   }
   async function init(){
+    ['pointerdown','keydown','touchstart'].forEach(eventName=>{
+      window.addEventListener?.(eventName,touchSessionFromActivity,{passive:true});
+    });
+    document.addEventListener?.('visibilitychange',()=>{
+      if(!document.hidden) touchSessionFromActivity();
+    });
     $('login-form')?.addEventListener('submit', handleLogin);
     $('first-login-form')?.addEventListener('submit', handleFirstLogin);
     $('recovery-form')?.addEventListener('submit', handleRecovery);
-    $('btn-open-recovery')?.addEventListener('click', ()=>{ setForm('recovery-form'); msg('recovery-msg','',''); });
+    $('btn-open-recovery')?.addEventListener('click', ()=>{ state.recoveryToken=null; setForm('recovery-form'); msg('recovery-msg','',''); });
     $('btn-back-login')?.addEventListener('click', ()=>setForm('login-form'));
-    $('btn-cancel-first')?.addEventListener('click', ()=>{ clearSession(); showLogin(); });
+    $('btn-cancel-first')?.addEventListener('click', ()=>{ logout(); });
     $('btn-recovery-start')?.addEventListener('click', handleRecoveryStart);
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     $('sidebar-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     const launchedViewUser=consumeViewerLaunch();
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    const savedUser = safeJson(localStorage.getItem(USER_KEY));
+    localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); localStorage.removeItem(SESSION_KEY);
+    let savedToken = sessionStorage.getItem(TOKEN_KEY);
+    let savedUser = safeJson(sessionStorage.getItem(USER_KEY));
     if(!savedToken){
-      if(launchedViewUser){ sessionStorage.removeItem(VIEW_USER_KEY); sessionStorage.removeItem(VIEWER_TOKEN_KEY); }
-      showLogin();
-      return;
+      try{
+        const refreshed=await refreshAccessToken();
+        savedToken=refreshed.token;
+        savedUser=refreshed.user;
+      }catch(_error){
+        if(launchedViewUser){ sessionStorage.removeItem(VIEW_USER_KEY); sessionStorage.removeItem(VIEWER_TOKEN_KEY); }
+        showLogin();
+        return;
+      }
     }
 
     state.token=savedToken;
@@ -295,7 +374,7 @@
       const validatedUser=validation?.user || validation?.data || savedUser;
       if(!validatedUser) throw new Error('Sesión sin usuario válido.');
       state.user=validatedUser;
-      localStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
+      sessionStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
       if(state.viewUser) await hydrateViewerUser();
       await completeAuthenticatedAccess();
     }catch(error){
@@ -326,6 +405,16 @@
     document.dispatchEvent(new CustomEvent('mantto:view-user-changed',{detail:{actor:getActorUser(),user:getUser(),active:isViewingAs()}}));
   }
   function clearViewUser(){ setViewUser(null); }
-  function logout(){ clearSession(); showLogin(); }
+  async function logout(){
+    const csrfToken=String(localStorage.getItem(SESSION_CSRF_KEY)||'');
+    const revokeRequest=fetch(API_BASE+'/api/auth/logout',{method:'POST',credentials:'include',headers:{'Accept':'application/json','X-Session-CSRF':csrfToken}});
+    clearSession();
+    showLogin();
+    try{
+      await revokeRequest;
+    }catch(_error){
+      // El cierre local siempre se completa aunque no haya conexión.
+    }
+  }
   window.ManttoAuth = { init, logout, getToken, getUser, getActorUser, getViewUser, setViewUser, clearViewUser, isViewingAs, createViewerLaunch, hydrateViewerUser, applyUserToHeader, api, apiGet, apiPost, authHeaders(){ const t=getToken(); const h=t?{Authorization:'Bearer '+t}:{}; const d=window.ManttoDevicePermissions&&window.ManttoDevicePermissions.getDeviceToken?window.ManttoDevicePermissions.getDeviceToken():localStorage.getItem('mantto_device_token'); if(d) h['X-Device-Token']=String(d); const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim(); const v=getViewUser(); if(viewerToken) h['X-Viewer-Token']=viewerToken; else if(v&&v.id_SB) h['X-View-User-ID']=String(v.id_SB); return h; } };
 })();

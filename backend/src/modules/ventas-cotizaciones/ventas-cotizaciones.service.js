@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const repository = require('./ventas-cotizaciones.repository');
 const azureStorage = require('../../services/storage/azure-storage.service');
 const storageAccess = require('../../services/storage/storage-access.service');
@@ -1571,6 +1572,7 @@ async function deleteComentario(rawId, rawComentario, actionContext) {
 
   return {
     ok: true,
+    parcial: rejected.length > 0,
     source: 'aiven',
     message: 'Comentario y archivos relacionados eliminados correctamente.',
     id_comentario: idComentario,
@@ -1904,17 +1906,31 @@ async function sync(payload) {
     for (const batch of splitBatches(valid)) {
       await connection.beginTransaction();
       try {
-        await repository.upsertMany(connection, batch);
+        for (let position = 0; position < batch.length; position += 1) {
+          const row = batch[position];
+          const savepoint = `ventas_cot_${position}`;
+
+          try {
+            await connection.query(`SAVEPOINT ${savepoint}`);
+            await repository.upsertMany(connection, [row]);
+            if (existingIds.has(row.id_cot_origen)) updated += 1;
+            else inserted += 1;
+            await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+          } catch (rowError) {
+            try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+            try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+            rejected.push({
+              id_cot: row.id_cot_origen,
+              motivo: rowError.message
+            });
+          }
+        }
+
         await connection.commit();
         processedBatches += 1;
-
-        for (const row of batch) {
-          if (existingIds.has(row.id_cot_origen)) updated += 1;
-          else inserted += 1;
-        }
       } catch (error) {
         await connection.rollback();
-        error.message = `Falló el bloque ${processedBatches + 1}: ${error.message}`;
+        error.message = `Falló estructuralmente el bloque ${processedBatches + 1}: ${error.message}`;
         throw error;
       }
     }

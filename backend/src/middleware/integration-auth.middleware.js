@@ -1,211 +1,230 @@
-// [Aster | 2026-08-11 | ASTER-MG | PATCH: FIX_INTEGRATION_AUTH_V001]
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_2_BACKEND_M2M_GUARDS_V001]
+
 const crypto = require('crypto');
 
-function isEnabled(value, fallback = false) {
+const SUPPORTED_ALGORITHMS = new Set(['sha256', 'sha384', 'sha512']);
+
+function enabled(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
-function env(name, fallback = '') {
-  const value = process.env[name];
-  if (value === undefined || value === null || value === '') return fallback;
-  return String(value).trim();
-}
-
 function getHeaderName(envName, fallback) {
-  return env(envName, fallback);
+  return String(process.env[envName] || fallback).trim();
 }
 
-function readHeader(req, headerName) {
-  if (!headerName) return '';
-  return String(req.get(headerName) || '').trim();
+function getHeader(req, headerName) {
+  const value = req.get(headerName);
+  return value === undefined || value === null ? '' : String(value).trim();
 }
 
-function integrationMap() {
-  return [
-    {
-      key: 'tickets',
-      id: env('INTEGRATION_TICKETS_ID'),
-      secret: env('INTEGRATION_TICKETS_SECRET')
-    },
-    {
-      key: 'portafolio',
-      id: env('INTEGRATION_PORTAFOLIO_ID'),
-      secret: env('INTEGRATION_PORTAFOLIO_SECRET')
-    },
-    {
-      key: 'ins_fl',
-      id: env('INTEGRATION_INS_FL_ID'),
-      secret: env('INTEGRATION_INS_FL_SECRET')
-    },
-    {
-      key: 'logistica',
-      id: env('INTEGRATION_LOGISTICA_ID'),
-      secret: env('INTEGRATION_LOGISTICA_SECRET')
-    },
-    {
-      key: 'instalaciones_drive',
-      id: env('INTEGRATION_INSTALACIONES_DRIVE_ID'),
-      secret: env('INTEGRATION_INSTALACIONES_DRIVE_SECRET')
-    },
-    {
-      key: 'ventas',
-      id: env('INTEGRATION_VENTAS_ID'),
-      secret: env('INTEGRATION_VENTAS_SECRET')
-    }
-  ].filter(item => item.id);
+function getIntegrationSecrets() {
+  return new Map([
+    [process.env.INTEGRATION_TICKETS_ID, process.env.INTEGRATION_TICKETS_SECRET],
+    [process.env.INTEGRATION_PORTAFOLIO_ID, process.env.INTEGRATION_PORTAFOLIO_SECRET],
+    [process.env.INTEGRATION_INS_FL_ID, process.env.INTEGRATION_INS_FL_SECRET],
+    [process.env.INTEGRATION_LOGISTICA_ID, process.env.INTEGRATION_LOGISTICA_SECRET],
+    [process.env.INTEGRATION_INSTALACIONES_DRIVE_ID, process.env.INTEGRATION_INSTALACIONES_DRIVE_SECRET],
+    [process.env.INTEGRATION_VENTAS_ID, process.env.INTEGRATION_VENTAS_SECRET]
+  ].filter(([integrationId, secret]) => integrationId && secret));
 }
 
-function safeEqualHex(left, right) {
-  const a = Buffer.from(String(left || '').toLowerCase(), 'utf8');
-  const b = Buffer.from(String(right || '').toLowerCase(), 'utf8');
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
+function parseTimestamp(value) {
+  if (!/^\d{10}(?:\d{3})?$/.test(value)) return null;
 
-function normalizeTimestamp(value) {
-  const raw = String(value || '').trim();
-  if (!/^\d{10,13}$/.test(raw)) return null;
-
-  const numeric = Number(raw);
+  const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
 
-  return raw.length === 13 ? Math.floor(numeric / 1000) : numeric;
+  return value.length === 13
+    ? Math.floor(numeric / 1000)
+    : numeric;
 }
 
-function buildSignedPayload(req, timestamp) {
-  const method = String(req.method || '').toUpperCase();
-  const originalUrl = String(req.originalUrl || req.url || '');
-  const rawBody = Buffer.isBuffer(req.rawBody)
-    ? req.rawBody
-    : Buffer.from(req.rawBody || '', 'utf8');
+function safeHexEqual(receivedHex, expectedHex) {
+  if (!/^[a-fA-F0-9]+$/.test(receivedHex || '')) return false;
+  if (receivedHex.length !== expectedHex.length) return false;
 
-  const prefix = Buffer.from(`${timestamp}\n${method}\n${originalUrl}\n`, 'utf8');
-  return Buffer.concat([prefix, rawBody]);
+  const received = Buffer.from(receivedHex, 'hex');
+  const expected = Buffer.from(expectedHex, 'hex');
+
+  if (received.length !== expected.length) return false;
+  return crypto.timingSafeEqual(received, expected);
 }
 
-function calculateSignature(req, timestamp, secret) {
-  const algorithm = env('INTEGRATION_HMAC_ALGORITHM', 'sha256').toLowerCase();
-  const supported = new Set(['sha256', 'sha384', 'sha512']);
-
-  if (!supported.has(algorithm)) {
-    const error = new Error(`Algoritmo HMAC no soportado: ${algorithm}`);
-    error.code = 'INTEGRATION_HMAC_ALGORITHM_INVALID';
-    throw error;
-  }
-
-  return crypto
-    .createHmac(algorithm, secret)
-    .update(buildSignedPayload(req, timestamp))
-    .digest('hex');
-}
-
-function reject(res, status, code, message) {
-  return res.status(status).json({
+function authError(res, message, code) {
+  return res.status(401).json({
     ok: false,
-    code,
-    message
+    message,
+    code
   });
 }
 
-function requireIntegrationAuth(req, res, next) {
-  const authEnabled = isEnabled(process.env.INTEGRATION_AUTH_ENABLED, false);
+function isIntegrationAuthEnabled() {
+  return enabled(process.env.INTEGRATION_AUTH_ENABLED, false);
+}
 
-  if (!authEnabled) {
-    req.integrationAuth = {
-      enabled: false,
-      authenticated: false,
-      bypassed: true
-    };
+function runMiddlewareChain(middlewares, req, res, next, index = 0) {
+  if (!Array.isArray(middlewares) || index >= middlewares.length) {
     return next();
   }
 
-  const headerId = getHeaderName('INTEGRATION_HEADER_ID', 'X-Integration-Id');
-  const headerTimestamp = getHeaderName('INTEGRATION_HEADER_TIMESTAMP', 'X-Integration-Timestamp');
-  const headerSignature = getHeaderName('INTEGRATION_HEADER_SIGNATURE', 'X-Integration-Signature');
+  const middleware = middlewares[index];
+  if (typeof middleware !== 'function') {
+    return runMiddlewareChain(middlewares, req, res, next, index + 1);
+  }
 
-  const integrationId = readHeader(req, headerId);
-  const timestampRaw = readHeader(req, headerTimestamp);
-  const signature = readHeader(req, headerSignature);
+  return middleware(req, res, (error) => {
+    if (error) return next(error);
+    return runMiddlewareChain(middlewares, req, res, next, index + 1);
+  });
+}
+
+/**
+ * Middleware de autenticacion para integraciones maquina-a-maquina.
+ *
+ * Canonico firmado:
+ * timestamp + "\\n" + METHOD + "\\n" + originalUrl + "\\n" + rawBody
+ *
+ * FASE 1:
+ * - El middleware se incorpora al backend, pero aun NO se monta en rutas.
+ * - INTEGRATION_AUTH_ENABLED=false mantiene bypass para el despliegue inicial.
+ * - La proteccion persistente contra replay queda fuera de esta fase; por ahora
+ *   se valida la ventana temporal configurada.
+ */
+function requireIntegrationAuth(req, res, next) {
+  if (!isIntegrationAuthEnabled()) {
+    return next();
+  }
+
+  const idHeader = getHeaderName('INTEGRATION_HEADER_ID', 'X-Integration-Id');
+  const timestampHeader = getHeaderName('INTEGRATION_HEADER_TIMESTAMP', 'X-Integration-Timestamp');
+  const signatureHeader = getHeaderName('INTEGRATION_HEADER_SIGNATURE', 'X-Integration-Signature');
+
+  const integrationId = getHeader(req, idHeader);
+  const timestampRaw = getHeader(req, timestampHeader);
+  const signature = getHeader(req, signatureHeader);
 
   if (!integrationId || !timestampRaw || !signature) {
-    return reject(
-      res,
-      401,
-      'INTEGRATION_AUTH_MISSING_HEADERS',
-      'Faltan encabezados de autenticacion de integracion.'
-    );
+    return authError(res, 'Faltan encabezados de autenticacion de integracion.', 'INTEGRATION_AUTH_HEADERS_MISSING');
   }
 
-  const integration = integrationMap().find(item => item.id === integrationId);
-  if (!integration || !integration.secret) {
-    return reject(
-      res,
-      401,
-      'INTEGRATION_AUTH_INVALID_ID',
-      'Integracion no reconocida o sin secreto configurado.'
-    );
+  const secrets = getIntegrationSecrets();
+  const secret = secrets.get(integrationId);
+
+  if (!secret) {
+    return authError(res, 'Integracion no autorizada.', 'INTEGRATION_AUTH_UNKNOWN_ID');
   }
 
-  const timestamp = normalizeTimestamp(timestampRaw);
-  if (!timestamp) {
-    return reject(
-      res,
-      401,
-      'INTEGRATION_AUTH_INVALID_TIMESTAMP',
-      'Timestamp de integracion invalido.'
-    );
+  const timestampSeconds = parseTimestamp(timestampRaw);
+  if (timestampSeconds === null) {
+    return authError(res, 'Timestamp de integracion invalido.', 'INTEGRATION_AUTH_INVALID_TIMESTAMP');
   }
 
   const toleranceSeconds = Math.max(
-    0,
-    Number.parseInt(env('INTEGRATION_TIMESTAMP_TOLERANCE_SECONDS', '300'), 10) || 300
+    1,
+    Number(process.env.INTEGRATION_TIMESTAMP_TOLERANCE_SECONDS || 300) || 300
   );
   const nowSeconds = Math.floor(Date.now() / 1000);
-  if (Math.abs(nowSeconds - timestamp) > toleranceSeconds) {
-    return reject(
-      res,
-      401,
-      'INTEGRATION_AUTH_TIMESTAMP_EXPIRED',
-      'Timestamp fuera de la ventana permitida.'
-    );
+
+  if (Math.abs(nowSeconds - timestampSeconds) > toleranceSeconds) {
+    return authError(res, 'Timestamp de integracion fuera de la ventana permitida.', 'INTEGRATION_AUTH_EXPIRED_TIMESTAMP');
   }
 
-  let expectedSignature;
-  try {
-    expectedSignature = calculateSignature(req, timestampRaw, integration.secret);
-  } catch (error) {
-    return reject(
-      res,
-      500,
-      error.code || 'INTEGRATION_AUTH_CONFIGURATION_ERROR',
-      'Configuracion de autenticacion de integracion invalida.'
-    );
+  const algorithm = String(process.env.INTEGRATION_HMAC_ALGORITHM || 'sha256').trim().toLowerCase();
+  if (!SUPPORTED_ALGORITHMS.has(algorithm)) {
+    const error = new Error(`Algoritmo HMAC no soportado: ${algorithm}`);
+    error.statusCode = 500;
+    error.expose = false;
+    return next(error);
   }
 
-  if (!safeEqualHex(signature, expectedSignature)) {
-    return reject(
-      res,
-      401,
-      'INTEGRATION_AUTH_INVALID_SIGNATURE',
-      'Firma de integracion invalida.'
-    );
+  const rawBody = Buffer.isBuffer(req.rawBody)
+    ? req.rawBody
+    : Buffer.alloc(0);
+
+  const maxBodyBytes = Number(process.env.INTEGRATION_MAX_BODY_BYTES || 12582912);
+  if (Number.isFinite(maxBodyBytes) && maxBodyBytes > 0 && rawBody.length > maxBodyBytes) {
+    return res.status(413).json({
+      ok: false,
+      message: 'El cuerpo de la integracion excede el limite permitido.',
+      code: 'INTEGRATION_AUTH_BODY_TOO_LARGE'
+    });
   }
 
-  req.integrationAuth = {
-    enabled: true,
-    authenticated: true,
-    bypassed: false,
-    integrationKey: integration.key,
+  const canonicalPrefix = Buffer.from(
+    `${timestampRaw}\n${String(req.method || '').toUpperCase()}\n${req.originalUrl}\n`,
+    'utf8'
+  );
+  const canonical = Buffer.concat([canonicalPrefix, rawBody]);
+
+  const expectedSignature = crypto
+    .createHmac(algorithm, secret)
+    .update(canonical)
+    .digest('hex');
+
+  if (!safeHexEqual(signature, expectedSignature)) {
+    return authError(res, 'Firma de integracion invalida.', 'INTEGRATION_AUTH_INVALID_SIGNATURE');
+  }
+
+  req.integrationAuth = Object.freeze({
     integrationId,
-    timestamp
-  };
+    timestamp: timestampSeconds,
+    algorithm
+  });
 
   return next();
 }
 
+
+/**
+ * Protege una ruta para una identidad M2M concreta.
+ *
+ * whenDisabled permite conservar exactamente el comportamiento previo de una
+ * ruta durante el despliegue de Fase 2 con INTEGRATION_AUTH_ENABLED=false.
+ * Ejemplo: imports historicos de Ventas conservan requireAuth +
+ * requireHistoricalSyncEnabled hasta que Fase 3 active HMAC.
+ */
+function requireIntegrationAuthFor(expectedIntegrationIdEnvName, options = {}) {
+  const disabledMiddlewares = Array.isArray(options.whenDisabled)
+    ? options.whenDisabled.filter((middleware) => typeof middleware === 'function')
+    : [];
+
+  return function integrationAuthForRoute(req, res, next) {
+    if (!isIntegrationAuthEnabled()) {
+      return runMiddlewareChain(disabledMiddlewares, req, res, next);
+    }
+
+    return requireIntegrationAuth(req, res, (error) => {
+      if (error) return next(error);
+
+      const expectedIntegrationId = String(
+        process.env[expectedIntegrationIdEnvName] || ''
+      ).trim();
+
+      if (!expectedIntegrationId) {
+        const configError = new Error(
+          `Falta configurar ${expectedIntegrationIdEnvName} para la ruta M2M.`
+        );
+        configError.statusCode = 500;
+        configError.expose = false;
+        return next(configError);
+      }
+
+      if (req.integrationAuth?.integrationId !== expectedIntegrationId) {
+        return authError(
+          res,
+          'La identidad de integracion no esta autorizada para esta ruta.',
+          'INTEGRATION_AUTH_WRONG_ROUTE_ID'
+        );
+      }
+
+      return next();
+    });
+  };
+}
+
 module.exports = {
   requireIntegrationAuth,
-  calculateSignature,
-  buildSignedPayload
+  requireIntegrationAuthFor,
+  isIntegrationAuthEnabled
 };

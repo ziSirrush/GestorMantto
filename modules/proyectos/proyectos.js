@@ -39,7 +39,13 @@
   function visualDetailButton(kind,value,label,codes){value=String(value||'').trim();if(!value||value==='—')return esc(label||value||'—');const attr=kind==='equipo'?'data-equipo':kind==='ticket'?'data-ticket':'data-proyecto';const content=window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(codes||[],label||value):esc(label||value);return '<button type="button" class="mg-link" '+attr+'="'+esc(value)+'">'+content+'</button>';}
 
   async function fetchJson(path){
-    const r = await fetch(API() + path, { headers:{ 'Accept':'application/json' }, cache:'no-store' });
+    const headers = Object.assign(
+      { 'Accept':'application/json' },
+      window.ManttoAuth && typeof window.ManttoAuth.authHeaders === 'function'
+        ? window.ManttoAuth.authHeaders()
+        : {}
+    );
+    const r = await fetch(API() + path, { headers, cache:'no-store' });
     const text = await r.text();
     let data;
     try { data = text ? JSON.parse(text) : {}; }

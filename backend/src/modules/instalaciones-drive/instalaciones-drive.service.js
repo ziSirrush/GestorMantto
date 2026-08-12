@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const repository = require('./instalaciones-drive.repository');
 const logger = require('../../shared/logger');
 
@@ -62,6 +63,7 @@ function normalizeRow(row, index) {
   return {
     ok: true,
     value: {
+      _index: index,
       nombre_carpeta: nombreCarpeta,
       carpeta_id: carpetaId,
       enlace,
@@ -121,19 +123,26 @@ async function syncCarpetas(body) {
   });
 
   const resultadoDb = await repository.syncCarpetas(validos);
+  const detallesErrores = [
+    ...erroresValidacion,
+    ...(resultadoDb.detalles_errores || [])
+  ];
 
   const resultado = {
     ok: true,
-    message: 'Bloque de carpetas procesado correctamente.',
+    parcial: detallesErrores.length > 0,
+    message: detallesErrores.length
+      ? 'Bloque de carpetas procesado con registros rechazados.'
+      : 'Bloque de carpetas procesado correctamente.',
     bloque,
     total_bloques: totalBloques,
     recibidos: registros.length,
-    procesados: validos.length,
+    procesados: resultadoDb.insertados + resultadoDb.actualizados + resultadoDb.sin_cambios,
     insertados: resultadoDb.insertados,
     actualizados: resultadoDb.actualizados,
     sin_cambios: resultadoDb.sin_cambios,
-    errores: erroresValidacion.length,
-    detalles_errores: erroresValidacion
+    errores: detallesErrores.length,
+    detalles_errores: detallesErrores
   };
 
   logger.info('Fin sincronización de carpetas de Instalaciones.', resultado);

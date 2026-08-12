@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const path = require('path');
 const mime = require('mime-types');
 const repository = require('./ventas-prospeccion.repository');
@@ -214,9 +215,21 @@ async function syncProspections(payload) {
           continue;
         }
 
-        await repository.upsertProspection(connection, record);
-        await repository.replaceVisitFiles(connection, record.id_pros, record.files);
-        result.processed += 1;
+        const savepoint = `ventas_pros_${row}`;
+        try {
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          await repository.upsertProspection(connection, record);
+          await repository.replaceVisitFiles(connection, record.id_pros, record.files);
+          result.processed += 1;
+          await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+        } catch (rowError) {
+          try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+          try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+          result.rejected += 1;
+          if (result.errors.length < 100) {
+            result.errors.push({ row, message: rowError.message });
+          }
+        }
       }
 
       await connection.commit();
@@ -228,10 +241,11 @@ async function syncProspections(payload) {
     }
   }
 
-  result.ok = result.rejected === 0;
-  result.message = result.ok
-    ? 'Prospecciones cargadas correctamente.'
-    : 'La carga terminó con registros rechazados.';
+  result.ok = true;
+  result.parcial = result.rejected > 0;
+  result.message = result.parcial
+    ? 'La carga terminó con registros rechazados; los registros válidos fueron procesados.'
+    : 'Prospecciones cargadas correctamente.';
   return result;
 }
 
@@ -296,9 +310,21 @@ async function syncComments(payload) {
           continue;
         }
 
-        await repository.upsertComment(connection, record);
-        await repository.replaceCommentFile(connection, record);
-        result.processed += 1;
+        const savepoint = `ventas_pros_comment_${row}`;
+        try {
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          await repository.upsertComment(connection, record);
+          await repository.replaceCommentFile(connection, record);
+          result.processed += 1;
+          await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+        } catch (rowError) {
+          try { await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`); } catch (_rollbackError) {}
+          try { await connection.query(`RELEASE SAVEPOINT ${savepoint}`); } catch (_releaseError) {}
+          result.rejected += 1;
+          if (result.errors.length < 100) {
+            result.errors.push({ row, message: rowError.message });
+          }
+        }
       }
 
       await connection.commit();
@@ -310,10 +336,11 @@ async function syncComments(payload) {
     }
   }
 
-  result.ok = result.rejected === 0;
-  result.message = result.ok
-    ? 'Comentarios de prospección cargados correctamente.'
-    : 'La carga terminó con registros rechazados.';
+  result.ok = true;
+  result.parcial = result.rejected > 0;
+  result.message = result.parcial
+    ? 'La carga terminó con comentarios rechazados; los comentarios válidos fueron procesados.'
+    : 'Comentarios de prospección cargados correctamente.';
   return result;
 }
 

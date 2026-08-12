@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FIX_PREPRUEBA_BACKEND_M2M_V001]
 const mysql = require('mysql2/promise');
 
 const requiredDbVariables = [
@@ -16,7 +17,14 @@ function assertDatabaseEnvironment() {
   }
 }
 
+function isEnabled(value, fallback = true) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 assertDatabaseEnvironment();
+
+const useSsl = isEnabled(process.env.DB_SSL, true);
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -30,9 +38,13 @@ const pool = mysql.createPool({
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  ssl: {
-    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true'
-  }
+  ssl: useSsl
+    ? {
+        // Aiven usa TLS. El contrato historico del proyecto es DB_SSL=true.
+        // Se mantiene un unico contrato SSL mediante DB_SSL.
+        rejectUnauthorized: false
+      }
+    : undefined
 });
 
 async function testConnection() {

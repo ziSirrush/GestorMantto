@@ -58,6 +58,17 @@ function keepsActorIdentity(req) {
   return path === '/api/auth/me' || path.startsWith('/api/device-permissions');
 }
 
+function timestampMarker(value) {
+  if (!value) return 'never';
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
+}
+
+function sessionMatchesUser(decoded, user) {
+  return typeof decoded?.session_version === 'string' &&
+    decoded.session_version === timestampMarker(user?.password_changed_at);
+}
+
 async function hydrateAuthUser(decoded) {
   const userId = decoded && (decoded.id_SB || decoded.id || decoded.user_id);
   if (!userId) return null;
@@ -74,6 +85,7 @@ async function hydrateAuthUser(decoded) {
        u.reporta_a,
        u.rol_id,
        u.estado,
+       u.password_changed_at,
        u.criticos_fallas,
        u.criticos_periodo,
        r.rol AS rol
@@ -104,6 +116,7 @@ async function hydrateAuthUser(decoded) {
     reporta_a: rows[0].reporta_a,
     rol_id: rows[0].rol_id,
     rol: rows[0].rol,
+    password_changed_at: rows[0].password_changed_at,
     roles: roleNames,
     roles_detalle: rolesRows,
     zonas: zonesRows,
@@ -168,7 +181,7 @@ async function optionalAuth(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await hydrateAuthUser(decoded);
-    if (!user) return next();
+    if (!user || !sessionMatchesUser(decoded, user)) return next();
 
     req.user = user;
     req.actorUser = user;
@@ -209,7 +222,7 @@ async function requireAuth(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await hydrateAuthUser(decoded);
 
-    if (!user) {
+    if (!user || !sessionMatchesUser(decoded, user)) {
       return res.status(401).json({ ok: false, message: 'Sesión inválida o usuario inactivo.' });
     }
 

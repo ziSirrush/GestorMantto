@@ -1,12 +1,15 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_2_BACKEND_M2M_GUARDS_V001]
 'use strict';
 
 const express = require('express');
 const controller = require('./ventas-redes.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
+const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
 
 const router = express.Router();
+const requireVentasIntegration = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID');
 
 const uploadEvidence = createUploadMiddleware_gnral({
   mode: 'fields',
@@ -29,10 +32,10 @@ const uploadCommentAttachments = createUploadMiddleware_gnral({
   maxRequestMb: Number(process.env.CFFAA_STORAGE_MAX_REQUEST_MB || 50)
 });
 
-// One-time historical backup import from the controlled Google Sheets backup.
-// These two routes are temporary and must be removed after the confirmed import.
-router.post('/redes/importar-backup', controller.syncRecords);
-router.post('/redes/comentarios/importar-backup', controller.syncComments);
+// Historical backup import from the controlled Google Sheets backup.
+// With HMAC enabled, only the Ventas M2M identity can execute these routes.
+router.post('/redes/importar-backup', requireVentasIntegration, controller.syncRecords);
+router.post('/redes/comentarios/importar-backup', requireVentasIntegration, controller.syncComments);
 
 router.get('/redes/catalogos', requireAuth, controller.getCatalogs);
 router.get('/redes/usuarios-asignables', requireAuth, controller.getAssignableUsers);

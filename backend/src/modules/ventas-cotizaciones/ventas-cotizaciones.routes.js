@@ -1,3 +1,4 @@
+// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_2_BACKEND_M2M_GUARDS_V001]
 'use strict';
 
 const express = require('express');
@@ -5,6 +6,7 @@ const controller = require('./ventas-cotizaciones.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireVentasPermission } = require('../../middleware/ventas-cotizaciones-permissions.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
+const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
 
@@ -21,11 +23,15 @@ const canView = requireVentasPermission('ver');
 const canCreate = requireVentasPermission('crear');
 const canEdit = requireVentasPermission('editar');
 const canDelete = requireVentasPermission('eliminar');
+const requireVentasHistoricalIntegration = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID', {
+  whenDisabled: [requireAuth, requireHistoricalSyncEnabled]
+});
 
-// CFFAA-00: imports históricos cerrados por defecto. Solo se habilitan
-// temporalmente mediante variable de entorno y con sesión de Programador.
-router.post('/cotizaciones/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncCotizaciones);
-router.post('/cotizaciones/comentarios/sync', requireAuth, requireHistoricalSyncEnabled, controller.syncComentariosHistoricos);
+// Mientras HMAC permanezca apagado se conserva exactamente el control legado
+// (sesión + CFFAA_HISTORICAL_SYNC_ENABLED + rol Programador). Al activar HMAC,
+// estas rutas pasan a identidad M2M de Ventas sin JWT humano.
+router.post('/cotizaciones/sync', requireVentasHistoricalIntegration, controller.syncCotizaciones);
+router.post('/cotizaciones/comentarios/sync', requireVentasHistoricalIntegration, controller.syncComentariosHistoricos);
 
 router.get('/cotizaciones/catalogos', requireAuth, canView, controller.getCatalogos);
 router.get('/cotizaciones/kpis', requireAuth, canView, controller.getKpis);
