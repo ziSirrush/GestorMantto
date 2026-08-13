@@ -1,39 +1,65 @@
-# FIX_COTIZACIONES_EDICION_SYNC_FILTROS_FALLBACK_EQUIPOS_V003
+# FIX_COTIZACIONES_EDICION_SYNC_FILTROS_FALLBACK_EQUIPOS_V004
 
-## Qué se encontró
-El FIX V002 sí contiene la lógica para abrir `ventas-cotizaciones-nueva` en modo edición, consultar `GET /api/ventas/cotizaciones/:id` y precargar el formulario. Sin embargo, `index.html` seguía cargando los JavaScript con los identificadores de versión anteriores. Eso permite que navegador/PWA conserve una versión previa de `ventas-cotizaciones-nueva.js`, que no conoce el modo edición, mientras el detalle nuevo sí muestra el botón Editar.
+## Base
+Fix acumulativo sobre V003. Conserva:
+- corrección de filtros de Cotizaciones;
+- sincronización reactiva/silenciosa sin polling constante;
+- botón Editar en Detalle de Cotización;
+- fallback de equipos desde `ventas_cotizaciones_cor.tipo_equipos` / `numero_equipos` cuando no existen filas en `ventas_cotizaciones_equipos_cor`.
 
-No se puede confirmar desde el repositorio que el caché del navegador haya sido exactamente lo que ocurrió en la sesión reportada, pero el desacople de versiones en `index.html` sí estaba presente y debía corregirse.
+## Cambio V004: formulario independiente Editar Cotización
+El botón **Editar** sigue entrando desde Detalle, pero el modo `edit` ya no intenta reutilizar internamente la lógica del alta.
 
-## Cambios V003
-- Conserva íntegramente V002:
-  - edición reutilizando la plantilla de alta;
-  - sincronización reactiva sin polling periódico;
-  - corrección de `estatus_proyecto`;
-  - fallback de equipos históricos.
-- Agrega `index.html` al FIX para actualizar los cache-busters de:
-  - `core/data-sync.js`;
-  - `modules/ventas-cotizaciones/ventas-cotizaciones.js`;
-  - `modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js`;
-  - `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js`.
+Se agregó un módulo independiente:
+- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.html`
+- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.css`
+- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js`
 
-## Flujo esperado de Editar
-1. Detalle -> Editar.
-2. Router abre `ventas-cotizaciones-nueva` con `{ mode: 'edit', id }`.
-3. La plantilla consulta `GET /api/ventas/cotizaciones/:id`.
-4. Se precargan proyecto, cliente, contacto, tipo de proyecto, estatus, información enviada, comentario, ciudad, estado, teléfono, correo y equipos/fallback histórico.
-5. Guardar usa `PUT /api/ventas/cotizaciones/:id`.
+La ruta existente `ventas-cotizaciones-nueva` con payload `{ mode: 'edit', id }` delega a este módulo independiente. Esto evita modificar la arquitectura del router y separa por completo la lógica de alta y edición.
 
-## Archivos modificados
+## Precarga
+Al abrir Editar Cotización se consulta:
+`GET /api/ventas/cotizaciones/:id`
+
+y se precargan los datos existentes del formulario:
+- nombre de proyecto;
+- tipo de proyecto;
+- estatus;
+- información enviada;
+- cliente;
+- contacto;
+- puesto;
+- teléfono;
+- correo;
+- ciudad;
+- estado;
+- comentario;
+- equipos separados cuando existen.
+
+Si no hay filas separadas de equipos, se conserva el fallback histórico. No se inventa una distribución cuando el texto histórico contiene varios tipos sin cantidades individuales.
+
+## Guardado
+Editar usa exclusivamente:
+`PUT /api/ventas/cotizaciones/:id`
+
+Después de éxito:
+- emite `mantto:data-mutated` para que Cotizaciones quede actualizada de forma reactiva;
+- emite `mantto:ventas-cotizacion-actualizada`;
+- vuelve al Detalle de la cotización guardada.
+
+## Archivos modificados/nuevos
 - `index.html`
-- `core/data-sync.js`
-- `modules/ventas-cotizaciones/ventas-cotizaciones.js`
+- `core/data-sync.js` (conservado de V003)
+- `modules/ventas-cotizaciones/ventas-cotizaciones.js` (conservado de V003)
 - `modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js`
-- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js`
-- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.html`
+- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js` (conservado de V003)
+- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.html` (conservado de V003)
+- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.html` (nuevo)
+- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.css` (nuevo)
+- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js` (nuevo)
 
 ## Validación realizada
-- `node --check` sobre los JavaScript modificados.
-- Verificación de que `index.html` apunta a versiones nuevas para los cuatro scripts afectados.
-- Sin SQL.
-- Sin cambios de backend.
+`node --check` exitoso para los 5 JavaScript incluidos/modificados.
+
+No se modificó backend ni SQL.
+La validación funcional final debe realizarse después del deploy con una cotización real.
