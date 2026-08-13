@@ -1,7 +1,7 @@
 // [Aster | 2026-08-12 | ASTER-MG | FASE: COBRANZA_UNI_BACKEND_V001]
 const db = require('../config/db');
 
-const TABLE_NAME = 'cobranza_uni';
+const TABLE_NAME = 'gestion_credito';
 const KEY_FIELD = 'id_gc';
 
 const DB_FIELDS = [
@@ -131,7 +131,7 @@ async function syncCobranzaUni(req, res) {
   if (!rows.length) {
     return res.status(400).json({
       ok: false,
-      message: 'No se recibieron filas para sincronizar cobranza_uni.'
+      message: 'No se recibieron filas para sincronizar gestion_credito.'
     });
   }
 
@@ -151,7 +151,7 @@ async function syncCobranzaUni(req, res) {
 
     for (let index = 0; index < rows.length; index += 1) {
       const incoming = normalizeIncomingRow(rows[index] || {});
-      const savepoint = `cobranza_uni_row_${index}`;
+      const savepoint = `gestion_credito_row_${index}`;
 
       if (!incoming.id_gc) {
         summary.rejected += 1;
@@ -240,7 +240,7 @@ async function syncCobranzaUni(req, res) {
 
     return res.status(500).json({
       ok: false,
-      message: 'Error sincronizando cobranza_uni.',
+      message: 'Error sincronizando gestion_credito.',
       error: error.message,
       ...summary
     });

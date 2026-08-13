@@ -3,7 +3,7 @@
 Base: `JIVMBLT/updated_code` / `main`.
 
 ## Objetivo
-Crear la backend flexible de Cobranza United para recibir lotes desde Apps Script y sincronizarlos contra `cobranza_uni` en Aiven.
+Crear la backend flexible de Cobranza United para recibir lotes desde Apps Script y sincronizarlos contra `gestion_credito` en Aiven.
 
 ## Endpoint
 
@@ -63,4 +63,11 @@ Modificados:
 - Sintaxis Node.js con `node --check`.
 - Ruta registrada antes de `dataRoutes` para evitar interceptores de routers transicionales.
 - Identidad M2M dedicada a Cobranza United.
-- Los 28 campos coinciden con la tabla oficial `cobranza_uni` definida en esta implementación.
+- Los 28 campos coinciden con la tabla oficial `gestion_credito` definida en esta implementación.
+
+
+## Cambio V002
+- La tabla física usada por el controlador cambia de `cobranza_uni` a `gestion_credito`.
+- El endpoint se conserva sin cambios: `POST /api/cobranza-uni/sync`.
+- Apps Script no requiere cambios por este renombre.
+- Antes de probar, ejecutar en Aiven: `RENAME TABLE cobranza_uni TO gestion_credito;`
