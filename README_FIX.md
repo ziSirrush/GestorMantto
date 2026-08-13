@@ -1,34 +1,28 @@
-# FIX_COTIZACIONES_EDICION_CARGA_INSTANTANEA_V005
+# FIX URGENTE Ventas - Editar Cotizacion V005
 
-## Objetivo
-Corregir la demora al abrir **Editar cotización**.
+## Alcance
+Correccion puntual del flujo Editar Cotizacion.
 
-## Causa encontrada
-V004 esperaba varias consultas antes de precargar el registro:
-- listado de clientes (hasta 5000),
-- catálogo general de Ventas,
-- catálogo de Cotizaciones,
-- catálogo Estado,
-- GET de la cotización,
-- y después contactos del cliente.
+## Causa localizada
+La ruta de edicion estaba desviando el formulario a `ventas-cotizaciones-editar.js`, que implementaba una segunda logica distinta a Nueva Cotizacion. En esa logica los contactos se cargaban de forma diferida al enfocar el select; por eso el primer intento de abrir el listado podia mostrar solo el contacto precargado o no desplegar la lista completa. El guardado tambien dependia de ese estado paralelo.
 
-Esto hacía que el formulario apareciera vacío hasta terminar todas esas llamadas.
+## Correccion
+- Editar Cotizacion vuelve a utilizar directamente la misma logica funcional de `ventas-cotizaciones-nueva.js`.
+- En modo `edit`, se carga la misma plantilla, los mismos clientes, catalogos y referencias que Nueva Cotizacion.
+- Despues se ejecuta `loadEditRecord(id)`.
+- `loadEditRecord()` usa `selectClient(id_cliente, id_contacto)`, que carga inmediatamente `/api/ventas/clientes/:id/contactos`, selecciona el contacto vigente y habilita el listado completo.
+- Guardar usa la misma funcion `saveQuotation()` que Nueva Cotizacion y cambia automaticamente a `PUT /api/ventas/cotizaciones/:id` cuando existe `state.editId`.
+- Se conserva el fallback historico de equipos ya aprobado.
 
-## Cambio aplicado
-- El Detalle ya tiene la cotización cargada; ahora la envía al formulario Editar mediante el payload del Router.
-- Editar precarga inmediatamente ese objeto, sin volver a consultar la API al abrir desde Detalle.
-- Si Editar se abre directamente por URL/ruta y no existe el objeto precargado, realiza **una sola llamada** `GET /api/ventas/cotizaciones/:id`.
-- Clientes, contactos y catálogos se cargan de forma diferida únicamente cuando el usuario intenta cambiar esos campos.
-- Guardar sigue usando solamente `PUT /api/ventas/cotizaciones/:id`.
-- Se conserva el fallback de equipos históricos de V004.
+## Archivo modificado
+- `modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js`
 
-## Archivos modificados
-- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js`
-- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js`
-- `index.html`
+## No modificado
+- Backend.
+- SQL.
+- Nueva Cotizacion en modo alta.
+- Detalle de Cotizacion.
+- Otros modulos de Ventas.
 
-## Validaciones
-- Sintaxis JS validada con `node --check`.
-- No hay cambios SQL.
-- No hay cambios backend.
-- No se toca el problema pendiente de autores de comentarios.
+## Validacion tecnica
+`node --check modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js` OK.
