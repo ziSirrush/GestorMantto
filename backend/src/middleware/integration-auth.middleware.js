@@ -1,4 +1,5 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_2_BACKEND_M2M_GUARDS_V001]
+// [Aster | 2026-08-12 | ASTER-MG | FASE: COBRANZA_UNI_BACKEND_V001]
 
 const crypto = require('crypto');
 
@@ -25,7 +26,8 @@ function getIntegrationSecrets() {
     [process.env.INTEGRATION_INS_FL_ID, process.env.INTEGRATION_INS_FL_SECRET],
     [process.env.INTEGRATION_LOGISTICA_ID, process.env.INTEGRATION_LOGISTICA_SECRET],
     [process.env.INTEGRATION_INSTALACIONES_DRIVE_ID, process.env.INTEGRATION_INSTALACIONES_DRIVE_SECRET],
-    [process.env.INTEGRATION_VENTAS_ID, process.env.INTEGRATION_VENTAS_SECRET]
+    [process.env.INTEGRATION_VENTAS_ID, process.env.INTEGRATION_VENTAS_SECRET],
+    [process.env.INTEGRATION_COBRANZA_UNI_ID, process.env.INTEGRATION_COBRANZA_UNI_SECRET]
   ].filter(([integrationId, secret]) => integrationId && secret));
 }
 
@@ -174,7 +176,6 @@ function requireIntegrationAuth(req, res, next) {
 
   return next();
 }
-
 
 /**
  * Protege una ruta para una identidad M2M concreta.
