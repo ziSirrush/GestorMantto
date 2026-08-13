@@ -1,51 +1,85 @@
-# FIX URGENTE COTIZACIONES - CARGA UNICA + ANIO TODOS V007
+# FIX URGENTE COTIZACIONES / EDITAR — BOOTSTRAP LIGERO V008
 
-## Base
-Este FIX se aplica encima de `FIX_URGENTE_SEPARACION_NUEVA_EDITAR_COTIZACION_V006`.
-No revierte la separacion Nueva / Editar.
+Fecha: 13/08/2026
+Base requerida: V007 ya aplicado.
 
-## 1. Editar Cotizacion - una sola llamada API inicial
-Se agrega:
+## Problema confirmado
 
-`GET /api/ventas/cotizaciones/:id/editar-bootstrap`
+La ruta `GET /api/ventas/cotizaciones/:id/editar-bootstrap` existía y era llamada por el frontend, pero el V007 utilizaba `clientesService.list(page_size=5000)` para formar el bootstrap.
 
-La respuesta agrupa en una sola llamada HTTP inicial:
-- cotizacion y equipos;
-- clientes visibles;
+Esa función no devuelve únicamente clientes: calcula métricas comerciales por cada cliente mediante subconsultas a cotizaciones. Para abrir una sola edición era una carga innecesariamente pesada y podía terminar en error 500/timeout.
+
+Además, el bootstrap invocaba `cotizacionesService.getCatalogos()`, que construye catálogos adicionales que Editar Cotización no necesita.
+
+## Cambio aplicado
+
+Se modifica únicamente:
+
+`backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-editar-bootstrap.service.js`
+
+El nuevo bootstrap conserva una sola llamada HTTP desde el frontend y devuelve:
+
+- cotización existente + equipos;
+- lista ligera de clientes autorizados;
 - contactos del cliente actual;
-- catalogos de cotizaciones;
-- catalogo general de Ventas;
-- Estados.
+- catálogo general de Ventas requerido por el formulario;
+- estados;
+- estatus disponibles;
+- visibilidad vigente.
 
-El frontend `ventas-cotizaciones-editar.js` hidrata el formulario completo desde esa respuesta.
-Ya no ejecuta llamadas API por foco para cargar clientes/catalogos/contactos durante la apertura inicial.
+### Optimización
 
-Si el usuario CAMBIA de cliente, si se consulta la lista de contactos del nuevo cliente. Esa llamada es consecuencia directa de un cambio del usuario y no ocurre en reposo.
+La lista de clientes ahora selecciona solo:
 
-Guardar en Editar continua usando exclusivamente:
-`PUT /api/ventas/cotizaciones/:id`
+- id_cliente;
+- nombre_empresa;
+- razon_social;
+- ciudad;
+- estado;
+- iniciales;
+- id_asesor.
 
-## 2. Filtro Anio en Cotizaciones
-El filtro Anio ahora inicia en:
-`Todos`
+No calcula KPIs, cotizaciones, vendidas, perdidas ni en proceso.
 
-y el boton Limpiar tambien lo restablece a `Todos`.
+También se elimina del bootstrap la llamada pesada a `getCatalogos()` y se consulta únicamente el estatus que la pantalla consume.
 
-Se conserva el valor `todos` en la consulta para que la backend existente lo interprete como todos los anios.
+## Reglas conservadas
 
-## Archivos modificados/nuevos
-- `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js`
-- `modules/ventas-cotizaciones/ventas-cotizaciones.js`
-- `backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.routes.js`
-- `backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js`
-- `backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-editar-bootstrap.service.js` (nuevo)
+- Aiven sigue siendo la fuente oficial.
+- Se conserva la validación de visibilidad/permisos de Ventas.
+- Nueva Cotización sigue separada de Editar Cotización.
+- Editar continúa guardando mediante PUT; este fix no altera el guardado.
+- El filtro Año = Todos introducido por V007 no se modifica.
+- No se agregan timers, polling, listeners ni interceptores.
+- No se toca Notificaciones/Home/Data Sync.
 
-## Validaciones realizadas
-- `node --check` sobre todos los JS del FIX.
-- La apertura inicial de Editar contiene una sola llamada API de bootstrap.
-- Nueva Cotizacion no fue modificada.
-- El guardado de Editar conserva PUT por ID.
-- El filtro Anio inicia y limpia en Todos.
+## Relación con PENDIENTE_OPTIMIZACION_NOTIFICACIONES_Y_SINCRONIZACION_V001
 
-## Deploy
-Este FIX SI requiere deploy de backend por la nueva ruta de bootstrap.
+Este fix adopta el criterio aplicable al módulo intervenido:
+
+- no usar listas completas/pesadas cuando la vista solo necesita datos de selección;
+- evitar llamadas redundantes;
+- no hacer fetch dentro de bucles;
+- no crear timers/listeners propios;
+- conservar permisos y filtros de usuario en backend;
+- mantener Aiven como fuente oficial.
+
+No implementa los pendientes globales de Notificaciones/Home porque no corresponden a este fix.
+
+## Validación técnica realizada
+
+- `node --check ventas-cotizaciones-editar-bootstrap.service.js`: OK.
+- No se modifican rutas ni controlador: la ruta V007 existente permanece igual.
+- No se modifica esquema SQL.
+- No se modifica frontend.
+
+## Validación después del deploy
+
+1. Reiniciar backend.
+2. Confirmar `/api/health`.
+3. Abrir una cotización y pulsar Editar.
+4. Network debe mostrar una única llamada inicial `editar-bootstrap` con HTTP 200.
+5. Los campos deben llegar precargados.
+6. Abrir Contacto no debe generar una consulta extra solo por desplegarlo.
+7. Cambiar realmente de cliente sí puede solicitar los contactos del nuevo cliente.
+8. Guardar debe mantener el mismo `id_cotizacion` y ejecutar PUT, no crear una nueva cotización.
