@@ -1,75 +1,38 @@
-# FIX_COTIZACIONES_EDICION_SYNC_FILTROS_V001
+# FIX_COTIZACIONES_EDICION_SYNC_FILTROS_FALLBACK_EQUIPOS_V002
 
-Fecha: 12/08/2026
-Repositorio base revisado: ziSirrush/GestorMantto (main)
+Base acumulativa: `FIX_COTIZACIONES_EDICION_SYNC_FILTROS_V001` + fallback de equipos históricos.
 
-## Alcance
+## Alcance acumulado
 
-Este paquete atiende únicamente los puntos urgentes acordados:
+1. Cotizaciones: edición reutilizando la plantilla de Nueva cotización.
+2. Core: sincronización reactiva/silenciosa por mutaciones, sin polling periódico ni F5.
+3. Cotizaciones: corrección del filtro `estatus_proyecto`.
+4. Cotizaciones: fallback de equipos históricos cuando no existen filas en `ventas_cotizaciones_equipos_cor`.
 
-1. Cotizaciones: recuperar edición reutilizando la plantilla `ventas-cotizaciones-nueva`.
-2. Sincronización global: eliminar polling periódico y usar sincronización reactiva, silenciosa y selectiva.
-3. Cotizaciones: corregir filtros, especialmente el alias de estatus.
+## Regla del fallback de equipos
 
-El problema de autoría histórica de comentarios NO se modifica en este paquete.
+- Si la API entrega `cotizacion.equipos` con filas estructuradas, esas filas son la fuente prioritaria.
+- Si `cotizacion.equipos` está vacío, se usan como fallback `ventas_cotizaciones_cor.numero_equipos` y `ventas_cotizaciones_cor.tipo_equipos`.
+- En Detalle, el total y los tipos se muestran desde filas estructuradas cuando existen; si no existen, desde los campos históricos.
+- En Edición, si solo existe el dato histórico y el usuario no toca el desglose, el formulario conserva `numero_equipos` y `tipo_equipos` y NO envía `equipos`, por lo que no borra ni inventa un desglose.
+- Si el dato histórico corresponde exactamente a un solo tipo válido, se presenta en una fila para facilitar su edición, pero no se migra a la tabla separada hasta que el usuario modifique el desglose y guarde.
+- Si el histórico contiene varios tipos o un texto que no puede desglosarse con certeza, se muestra como "Dato histórico sin desglose" y se conserva intacto. No se reparte la cantidad entre tipos de forma automática.
 
-## Archivos modificados
+## Archivos incluidos
 
 - `core/data-sync.js`
-  - elimina polling de respaldo periódico;
-  - no refresca por simple inactividad/visibilidad;
-  - detecta mutaciones exitosas POST/PUT/PATCH/DELETE de la API;
-  - marca la vista afectada como pendiente de sincronizar;
-  - nunca consulta una vista inactiva;
-  - al volver/abrir una vista marcada como modificada, ejecuta su `refreshSilent`/background sync;
-  - conserva ocultamiento de controles técnicos/manual refresh por rol Programador.
-
 - `modules/ventas-cotizaciones/ventas-cotizaciones.js`
-  - corrige `estatus` -> `estatus_proyecto` al construir la query;
-  - conserva búsqueda, año, asesor, administrativo y zona;
-  - agrega `refreshSilent()` para actualizar listado/KPI sin loader invasivo;
-  - conserva filtros, página y scroll al refrescar silenciosamente;
-  - el botón Editar del drawer legado apunta también a la plantilla estandarizada.
-
 - `modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js`
-  - soporta modo alta y modo edición con la misma plantilla;
-  - en edición carga `GET /api/ventas/cotizaciones/:id`;
-  - precarga cliente, contacto, proyecto, estatus, equipos y datos comerciales;
-  - alta usa POST y edición usa PUT;
-  - al guardar edición vuelve al detalle anterior;
-  - la mutación deja marcado Cotizaciones para refresco inmediato al regresar.
-
-- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.html`
-  - agrega botón `Editar` en el encabezado.
-
 - `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js`
-  - botón Editar abre `ventas-cotizaciones-nueva` en modo edición;
-  - estatus/comentarios notifican la mutación global;
-  - el detalle se sigue actualizando inmediatamente con la respuesta de backend.
-
-## Flujo esperado
-
-### Estatus
-Detalle -> guardar estatus -> detalle cambia inmediatamente -> Cotizaciones queda marcada como modificada -> al regresar a Cotizaciones se consulta Aiven y se actualiza sin F5.
-
-### Edición
-Detalle -> Editar -> misma plantilla de Nueva Cotización precargada -> Guardar cambios (PUT) -> regresar al detalle -> listado queda marcado y se refresca al volver a Cotizaciones.
-
-### Sin actividad
-Si el usuario no cambia datos, filtros, búsqueda, página o vista, este FIX no genera polling periódico de datos.
+- `modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.html`
 
 ## Validaciones realizadas
 
-- `node --check` correcto en los cuatro archivos JavaScript modificados.
-- Confirmado en el repositorio base que el backend ya expone `PUT /api/ventas/cotizaciones/:id`.
-- Confirmado que backend acepta `estatus_proyecto` y no `estatus` como filtro de lista.
-- Confirmado que `core/data-sync.js` ya se carga desde `index.html`, por lo que no se agrega un archivo core nuevo.
-- No se modificaron backend, SQL, permisos, comentarios históricos ni otros módulos de Ventas.
+Se ejecutó `node --check` sobre los JavaScript incluidos. No requiere cambios SQL ni backend para este fallback.
 
-## Validación funcional recomendada después de deploy
+## Pruebas funcionales recomendadas
 
-1. Abrir Cotizaciones y filtrar por Estatus. Confirmar que cambia la lista y KPI.
-2. Abrir una cotización -> Editar. Confirmar precarga completa y guardar.
-3. Volver al detalle y luego a Cotizaciones. Confirmar que el cambio aparece sin Actualizar/F5.
-4. Cambiar estatus desde Detalle, volver a Cotizaciones y verificar actualización inmediata.
-5. Dejar la pantalla quieta y revisar Network: no debe existir polling periódico de datos provocado por `core/data-sync.js`.
+1. Abrir una cotización con filas en `ventas_cotizaciones_equipos_cor`: debe mostrar el desglose nuevo.
+2. Abrir una cotización sin filas separadas pero con `numero_equipos`/`tipo_equipos`: debe mostrar esos datos históricos.
+3. Editar una cotización histórica sin tocar equipos y guardar: debe conservar los campos históricos y no crear un desglose inventado.
+4. Editar el desglose de equipos y guardar: desde ese momento debe persistir la estructura separada real.
