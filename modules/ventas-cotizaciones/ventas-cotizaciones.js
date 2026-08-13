@@ -11,117 +11,34 @@ const headers=(json=false)=>Object.assign({'Accept':'application/json'},json?{'C
 async function request(path,options={}){const r=await fetch(API+path,Object.assign({cache:'no-store'},options,{headers:Object.assign(headers(Boolean(options.body)),options.headers||{})}));const t=await r.text();let j={};try{j=t?JSON.parse(t):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}if(!r.ok||j.ok===false)throw new Error(j.message||j.error||('Error HTTP '+r.status));return j;}
 function toast(message,error=false){const el=$('#vc-toast');if(!el)return;el.textContent=message;el.className='vc-toast show'+(error?' error':'');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.className='vc-toast',2800);}
 function setStatus(text,type='ok'){const el=$('#vc-status');if(!el)return;el.className='vc-status'+(type==='error'?' error':'');el.innerHTML='<i></i><span>'+esc(text)+'</span>';}
-function query(){const q=new URLSearchParams({page:String(state.page),page_size:String(state.pageSize)});const search=$('#vc-search')?.value.trim();const year=$('#vc-filter-year')?.value;const st=$('#vc-filter-status')?.value;const adv=state.visibility.acceso_total?$('#vc-filter-advisor')?.value:'';const adm=state.visibility.acceso_total?$('#vc-filter-admin')?.value:'';const zone=$('#vc-filter-zone')?.value;if(search)q.set('search',search);if(year)q.set('anio',year);if(st)q.set('estatus',st);if(adv)q.set('id_asesor',adv);if(adm)q.set('id_admin',adm);if(zone)q.set('zona',zone);return q.toString();}
+function query(){const q=new URLSearchParams({page:String(state.page),page_size:String(state.pageSize)});const search=$('#vc-search')?.value.trim();const year=$('#vc-filter-year')?.value;const st=$('#vc-filter-status')?.value;const adv=state.visibility.acceso_total?$('#vc-filter-advisor')?.value:'';const adm=state.visibility.acceso_total?$('#vc-filter-admin')?.value:'';const zone=$('#vc-filter-zone')?.value;if(search)q.set('search',search);if(year)q.set('anio',year);if(st)q.set('estatus_proyecto',st);if(adv)q.set('id_asesor',adv);if(adm)q.set('id_admin',adm);if(zone)q.set('zona',zone);return q.toString();}
 async function loadCatalogs(){try{const j=await request('/api/ventas/cotizaciones/catalogos');state.catalogs=j.catalogos||{};state.visibility=Object.assign({acceso_total:false,modo:'LIMITED',usuario_id:null,ids_asesores_visibles:[]},j.visibilidad||{});}catch(e){state.catalogs={asesores:[],administrativos:[],zonas:[],anios:[],relaciones_admin:[]};state.visibility={acceso_total:false,modo:'LIMITED',usuario_id:null,ids_asesores_visibles:[]};setStatus('Error de conexión con la API: '+e.message,'error');toast('No se pudieron cargar los catálogos reales.',true);}fillCatalogs();applyVisibilityUI();}
-
-function applyVisibilityUI(){
-  const accessTotal=Boolean(state.visibility?.acceso_total);
-  const advisorWrap=$('#vc-filter-advisor-wrap');
-  const adminWrap=$('#vc-filter-admin-wrap');
-  if(advisorWrap)advisorWrap.hidden=!accessTotal;
-  if(adminWrap)adminWrap.hidden=!accessTotal;
-  if(!accessTotal){
-    const advisor=$('#vc-filter-advisor');
-    const admin=$('#vc-filter-admin');
-    if(advisor)advisor.value='';
-    if(admin)admin.value='';
-  }
-}
-
-function people(arr){return Array.isArray(arr)?arr:[];}function optPerson(p){const id=p.id_SB??p.id_usuario??p.id;const name=p.nombre||p.iniciales||p.asesor||p.admin||('Usuario '+id);return '<option value="'+esc(id)+'">'+esc((p.iniciales? p.iniciales+' · ':'')+name)+'</option>';}
-function fillCatalogs(){
-  const statusOptions='<option value="">Todos</option>'+STATUS.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');
-  $('#vc-filter-status').innerHTML=statusOptions;
-  $('#vc-form-status').innerHTML=STATUS.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');
-
-  const ases=people(state.catalogs.asesores||state.catalogs.usuarios_asesores);
-  const admins=people(state.catalogs.administrativos||state.catalogs.usuarios_administrativos);
-  $('#vc-filter-advisor').innerHTML='<option value="">Todos</option>'+ases.map(optPerson).join('');
-  $('#vc-filter-admin').innerHTML='<option value="">Todos</option>'+admins.map(optPerson).join('');
-  $('#vc-form-advisor').innerHTML='<option value="">Sin asignar</option>'+ases.map(optPerson).join('');
-  $('#vc-form-admin').innerHTML='<option value="">Sin asignar</option>'+admins.map(optPerson).join('');
-
-  const zones=(state.catalogs.zonas||[]).map(z=>typeof z==='string'?z:(z.zona||z.nombre)).filter(Boolean);
-  $('#vc-filter-zone').innerHTML='<option value="">Todas</option>'+zones.map(z=>'<option value="'+esc(z)+'">'+esc(z)+'</option>').join('');
-
-  const currentYear=String(new Date().getFullYear());
-  const years=[...new Set([currentYear,...(state.catalogs.anios||[]).map(String).filter(Boolean)])]
-    .sort((a,b)=>Number(b)-Number(a));
-  const yearSelect=$('#vc-filter-year');
-  yearSelect.innerHTML='<option value="todos">Todos</option>'+years.map(y=>'<option value="'+esc(y)+'">'+esc(y)+'</option>').join('');
-  yearSelect.value=years.includes(currentYear)?currentYear:'todos';
-}
-
+function applyVisibilityUI(){const accessTotal=Boolean(state.visibility?.acceso_total);const advisorWrap=$('#vc-filter-advisor-wrap');const adminWrap=$('#vc-filter-admin-wrap');if(advisorWrap)advisorWrap.hidden=!accessTotal;if(adminWrap)adminWrap.hidden=!accessTotal;if(!accessTotal){const advisor=$('#vc-filter-advisor');const admin=$('#vc-filter-admin');if(advisor)advisor.value='';if(admin)admin.value='';}}
+function people(arr){return Array.isArray(arr)?arr:[];}
+function optPerson(p){const id=p.id_SB??p.id_usuario??p.id;const name=p.nombre||p.iniciales||p.asesor||p.admin||('Usuario '+id);return '<option value="'+esc(id)+'">'+esc((p.iniciales?p.iniciales+' · ':'')+name)+'</option>';}
+function fillCatalogs(){const statusOptions='<option value="">Todos</option>'+STATUS.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');$('#vc-filter-status').innerHTML=statusOptions;$('#vc-form-status').innerHTML=STATUS.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');const ases=people(state.catalogs.asesores||state.catalogs.usuarios_asesores);const admins=people(state.catalogs.administrativos||state.catalogs.usuarios_administrativos);$('#vc-filter-advisor').innerHTML='<option value="">Todos</option>'+ases.map(optPerson).join('');$('#vc-filter-admin').innerHTML='<option value="">Todos</option>'+admins.map(optPerson).join('');$('#vc-form-advisor').innerHTML='<option value="">Sin asignar</option>'+ases.map(optPerson).join('');$('#vc-form-admin').innerHTML='<option value="">Sin asignar</option>'+admins.map(optPerson).join('');const zones=(state.catalogs.zonas||[]).map(z=>typeof z==='string'?z:(z.zona||z.nombre)).filter(Boolean);$('#vc-filter-zone').innerHTML='<option value="">Todas</option>'+zones.map(z=>'<option value="'+esc(z)+'">'+esc(z)+'</option>').join('');const currentYear=String(new Date().getFullYear());const years=[...new Set([currentYear,...(state.catalogs.anios||[]).map(String).filter(Boolean)])].sort((a,b)=>Number(b)-Number(a));const yearSelect=$('#vc-filter-year');yearSelect.innerHTML='<option value="todos">Todos</option>'+years.map(y=>'<option value="'+esc(y)+'">'+esc(y)+'</option>').join('');yearSelect.value=years.includes(currentYear)?currentYear:'todos';}
 async function loadKpis(){try{const j=await request('/api/ventas/cotizaciones/kpis?'+query());state.kpis=j.kpis||{};}catch(e){state.kpis=null;setStatus('Error de conexión con la API: '+e.message,'error');}renderKpis();}
 function renderKpis(){const k=state.kpis||{};const value=(...keys)=>{for(const key of keys){if(k[key]!==undefined&&k[key]!==null)return Number(k[key]);}return '—';};$('#vc-kpis').innerHTML=[['Total',value('total_cotizaciones','total'),'Cotizaciones del año en curso','blue'],['En proceso',value('embudo_activo','total_embudo','activas_embudo'),'Oportunidades activas del año','amber'],['Vendidas',value('vendidas','total_vendidas'),'Cierres comerciales','green'],['Perdidas',value('perdidas','total_perdidas'),'Oportunidades perdidas del año','red'],['Equipos cotizados',value('total_equipos','equipos'),'Equipos cotizados en el año','purple'],['Equipos vendidos',value('equipos_vendidos','total_equipos_vendidos'),'Equipos de ventas cerradas','teal']].map(x=>'<article class="vc-kpi '+x[3]+'"><div class="label">'+x[0]+'</div><div class="value">'+x[1]+'</div><div class="meta">'+x[2]+'</div></article>').join('');}
-
-function recordIndicators(row){
-  const source=row||{};
-  const codes=[];
-  const visual=Array.isArray(source.estados_visuales)?source.estados_visuales:[];
-  const visualCodes=visual.map(item=>String(typeof item==='string'?item:(item&&item.codigo)||'').toUpperCase());
-  const isNew=source.es_nuevo===true||Number(source.es_nuevo||source.nuevo||source.no_visto||0)>0||visualCodes.includes('NUEVO');
-  const hasNewComment=source.comentario_nuevo===true||Number(source.comentarios_nuevos||source.comentario_nuevo||source.tiene_comentario_nuevo||0)>0||visualCodes.includes('COMENTARIO_NUEVO');
-  if(isNew)codes.push('NUEVO');
-  if(hasNewComment)codes.push('COMENTARIO_NUEVO');
-  if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.renderMany==='function')return window.EstadosVisuales_gnral.renderMany(codes,{empty:''});
-  return (isNew?'🆕 ':'')+(hasNewComment?'💬':'');
-}
-function rowHtml(r){
-  const indicators=recordIndicators(r);
-  return '<tr data-open="'+esc(r.id_cotizacion)+'">'
-    +'<td><span class="vc-project">'+(indicators?indicators+' ':'')+esc(r.nombre_proyecto||'Sin nombre')+'</span></td>'
-    +'<td>'+esc(r.cliente||'—')+'</td>'
-    +'<td>'+esc(r.asesor||'Sin asignar')+'</td>'
-    +'<td><span class="vc-pill '+slug(r.estatus_proyecto)+'">'+esc(r.estatus_proyecto||'Sin estatus')+'</span></td>'
-    +'<td>'+Number(r.numero_equipos||0)+'</td>'
-    +'<td>'+fmtDate(r.fecha_cotizacion||r.fecha_solicitud)+'</td>'
-    +'<td>'+esc(r.ciudad||'—')+'</td>'
-    +'<td>'+esc(r.estado||'—')+'</td>'
-    +'</tr>';
-}
-async function loadList(){const body=$('#vc-list-body');body.innerHTML='<tr><td colspan="8" class="vc-loader">Cargando cotizaciones desde Aiven...</td></tr>';try{const j=await request('/api/ventas/cotizaciones?'+query());state.rows=Array.isArray(j.cotizaciones)?j.cotizaciones:[];state.totalPages=Number(j.paginacion?.total_paginas||1);state.page=Number(j.paginacion?.pagina||1);setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros??state.rows.length)+' registros');body.innerHTML=state.rows.length?state.rows.map(rowHtml).join(''):'<tr><td colspan="8" class="vc-empty">No hay cotizaciones reales para los criterios seleccionados.</td></tr>';}catch(e){state.rows=[];state.totalPages=1;setStatus('Error de conexión con la API: '+e.message,'error');body.innerHTML='<tr><td colspan="8" class="vc-empty">No fue posible consultar las cotizaciones. '+esc(e.message)+'</td></tr>';}bindRows();renderPagination();}
+function recordIndicators(row){const source=row||{};const codes=[];const visual=Array.isArray(source.estados_visuales)?source.estados_visuales:[];const visualCodes=visual.map(item=>String(typeof item==='string'?item:(item&&item.codigo)||'').toUpperCase());const isNew=source.es_nuevo===true||Number(source.es_nuevo||source.nuevo||source.no_visto||0)>0||visualCodes.includes('NUEVO');const hasNewComment=source.comentario_nuevo===true||Number(source.comentarios_nuevos||source.comentario_nuevo||source.tiene_comentario_nuevo||0)>0||visualCodes.includes('COMENTARIO_NUEVO');if(isNew)codes.push('NUEVO');if(hasNewComment)codes.push('COMENTARIO_NUEVO');if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.renderMany==='function')return window.EstadosVisuales_gnral.renderMany(codes,{empty:''});return (isNew?'🆕 ':'')+(hasNewComment?'💬':'');}
+function rowHtml(r){const indicators=recordIndicators(r);return '<tr data-open="'+esc(r.id_cotizacion)+'">'+'<td><span class="vc-project">'+(indicators?indicators+' ':'')+esc(r.nombre_proyecto||'Sin nombre')+'</span></td>'+'<td>'+esc(r.cliente||'—')+'</td>'+'<td>'+esc(r.asesor||'Sin asignar')+'</td>'+'<td><span class="vc-pill '+slug(r.estatus_proyecto)+'">'+esc(r.estatus_proyecto||'Sin estatus')+'</span></td>'+'<td>'+Number(r.numero_equipos||0)+'</td>'+'<td>'+fmtDate(r.fecha_cotizacion||r.fecha_solicitud)+'</td>'+'<td>'+esc(r.ciudad||'—')+'</td>'+'<td>'+esc(r.estado||'—')+'</td>'+'</tr>';}
+async function loadList(options={}){const silent=Boolean(options.silent);const body=$('#vc-list-body');if(!silent)body.innerHTML='<tr><td colspan="8" class="vc-loader">Cargando cotizaciones desde Aiven...</td></tr>';try{const j=await request('/api/ventas/cotizaciones?'+query());state.rows=Array.isArray(j.cotizaciones)?j.cotizaciones:[];state.totalPages=Number(j.paginacion?.total_paginas||1);state.page=Number(j.paginacion?.pagina||1);setStatus('Aiven conectado · '+Number(j.paginacion?.total_registros??state.rows.length)+' registros');body.innerHTML=state.rows.length?state.rows.map(rowHtml).join(''):'<tr><td colspan="8" class="vc-empty">No hay cotizaciones reales para los criterios seleccionados.</td></tr>';}catch(e){state.rows=[];state.totalPages=1;setStatus('Error de conexión con la API: '+e.message,'error');if(!silent)body.innerHTML='<tr><td colspan="8" class="vc-empty">No fue posible consultar las cotizaciones. '+esc(e.message)+'</td></tr>';}bindRows();renderPagination();}
 function goToDetail(id){const quoteId=Number(id);if(!quoteId)return toast('La cotización no tiene un identificador válido.',true);window.ManttoRouter?.go?.('ventas-cotizaciones-detalle',{id:quoteId});}
-function bindRows(){
-  $$('#vc-list-body tr[data-open]').forEach(row=>{
-    row.classList.add('vc-clickable-row');
-    row.tabIndex=0;
-    row.onclick=()=>goToDetail(row.dataset.open);
-    row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();goToDetail(row.dataset.open);}};
-  });
-}
+function bindRows(){$$('#vc-list-body tr[data-open]').forEach(row=>{row.classList.add('vc-clickable-row');row.tabIndex=0;row.onclick=()=>goToDetail(row.dataset.open);row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();goToDetail(row.dataset.open);}};});}
 function renderPagination(){const el=$('#vc-pagination');el.innerHTML='<span>Página '+state.page+' de '+Math.max(1,state.totalPages)+'</span><div class="pages"><button id="vc-prev" '+(state.page<=1?'disabled':'')+'>←</button><button class="active">'+state.page+'</button><button id="vc-next" '+(state.page>=state.totalPages?'disabled':'')+'>→</button></div>';$('#vc-prev').onclick=()=>{if(state.page>1){state.page--;loadAll();}};$('#vc-next').onclick=()=>{if(state.page<state.totalPages){state.page++;loadAll();}};}
-async function loadAll(){await Promise.all([loadKpis(),loadList()]);}
+async function loadAll(options={}){await Promise.all([loadKpis(),loadList(options)]);return true;}
+async function refreshSilent(){const view=$('#view-ventas-cotizaciones');if(!view||!view.classList.contains('active'))return false;await loadAll({silent:true});return true;}
 async function getRecord(id){try{return (await request('/api/ventas/cotizaciones/'+id)).cotizacion;}catch(e){const row=state.rows.find(r=>Number(r.id_cotizacion)===Number(id));if(row)return row;throw e;}}
 async function openDetail(id){const r=await getRecord(id);if(!r)return toast('No se pudo abrir la cotización.',true);state.selected=r;$('#vc-detail-id').textContent='MX'+String(r.id_cotizacion).padStart(6,'0');$('#vc-detail-title').textContent=r.nombre_proyecto||'Detalle de cotización';renderGeneral(r);await Promise.all([renderComments(r.id_cotizacion),renderFiles(r.id_cotizacion)]);$('#vc-overlay').hidden=false;$('#vc-drawer').classList.add('open');$('#vc-drawer').setAttribute('aria-hidden','false');}
 function closeDetail(){$('#vc-drawer').classList.remove('open');$('#vc-drawer').setAttribute('aria-hidden','true');$('#vc-overlay').hidden=true;}
 function field(label,value){return '<div class="vc-field"><span>'+esc(label)+'</span><strong>'+esc(value||'—')+'</strong></div>';}
-function renderGeneral(r){$('#vc-detail-general').innerHTML='<section class="vc-detail-card"><div class="vc-detail-grid">'+field('Cliente',r.cliente)+field('Contacto',r.contacto)+field('Teléfono',r.telefono)+field('Correo',r.correo)+field('Ciudad / Estado',[r.ciudad,r.estado].filter(Boolean).join(', '))+field('Zona',r.zona)+field('Tipo de proyecto',r.tipo_proyecto)+field('Equipos',r.numero_equipos)+field('Tipo de equipos',r.tipo_equipos)+field('Fecha de solicitud',fmtDate(r.fecha_solicitud))+field('Fecha de cotización',fmtDate(r.fecha_cotizacion))+field('Fecha de cierre',fmtDate(r.fecha_cierre))+'</div></section><section class="vc-detail-card"><div class="vc-detail-grid">'+field('Estatus',r.estatus_proyecto)+field('Asesor',r.asesor)+field('Administrativo',r.admin)+field('Razón de pérdida',r.razon_perdido)+field('Empresa competidora',r.empresa_vs_perdido)+field('Último cambio',fmtDate(r.fecha_cambio_estatus))+'</div></section><section class="vc-detail-card">'+field('Comentario original',r.comentario)+'</section><div class="vc-detail-actions"><button class="vc-btn vc-btn-ghost" id="vc-detail-edit">Editar</button><button class="vc-btn vc-btn-primary" id="vc-detail-status">Cambiar estatus</button></div>';$('#vc-detail-edit').onclick=()=>openForm(r);$('#vc-detail-status').onclick=()=>openForm(r,true);}
+function renderGeneral(r){$('#vc-detail-general').innerHTML='<section class="vc-detail-card"><div class="vc-detail-grid">'+field('Cliente',r.cliente)+field('Contacto',r.contacto)+field('Teléfono',r.telefono)+field('Correo',r.correo)+field('Ciudad / Estado',[r.ciudad,r.estado].filter(Boolean).join(', '))+field('Zona',r.zona)+field('Tipo de proyecto',r.tipo_proyecto)+field('Equipos',r.numero_equipos)+field('Tipo de equipos',r.tipo_equipos)+field('Fecha de solicitud',fmtDate(r.fecha_solicitud))+field('Fecha de cotización',fmtDate(r.fecha_cotizacion))+field('Fecha de cierre',fmtDate(r.fecha_cierre))+'</div></section><section class="vc-detail-card"><div class="vc-detail-grid">'+field('Estatus',r.estatus_proyecto)+field('Asesor',r.asesor)+field('Administrativo',r.admin)+field('Razón de pérdida',r.razon_perdido)+field('Empresa competidora',r.empresa_vs_perdido)+field('Último cambio',fmtDate(r.fecha_cambio_estatus))+'</div></section><section class="vc-detail-card">'+field('Comentario original',r.comentario)+'</section><div class="vc-detail-actions"><button class="vc-btn vc-btn-ghost" id="vc-detail-edit">Editar</button><button class="vc-btn vc-btn-primary" id="vc-detail-status">Cambiar estatus</button></div>';$('#vc-detail-edit').onclick=()=>window.ManttoRouter?.go?.('ventas-cotizaciones-nueva',{mode:'edit',id:r.id_cotizacion});$('#vc-detail-status').onclick=()=>openForm(r,true);}
 async function renderComments(id){const box=$('#vc-detail-comments');box.innerHTML='<div class="vc-loader">Cargando conversación desde Aiven...</div>';let rows=[];try{const j=await request('/api/ventas/cotizaciones/'+id+'/comentarios?page_size=100');rows=Array.isArray(j.comentarios)?j.comentarios:[];}catch(e){box.innerHTML='<div class="vc-empty">No fue posible cargar los comentarios reales. '+esc(e.message)+'</div>';return;}box.innerHTML='<div class="vc-chat">'+(rows.length?rows.map(c=>'<article class="vc-message"><div class="vc-message-head"><strong>'+esc(c.usuario_nombre||c.nombre_usuario||c.usuario_iniciales||'Usuario')+'</strong><time>'+fmtDate(c.created_at)+'</time></div><p>'+esc(c.comentario)+'</p></article>').join(''):'<div class="vc-empty">Aún no hay comentarios.</div>')+'</div><div class="vc-chat-form"><textarea id="vc-comment-text" placeholder="Escribe un comentario para esta cotización..."></textarea><div class="vc-detail-actions"><button class="vc-btn vc-btn-primary" id="vc-send-comment">Enviar comentario</button></div></div>';$('#vc-send-comment').onclick=async()=>{const text=$('#vc-comment-text').value.trim();if(!text)return toast('Escribe un comentario.',true);try{await request('/api/ventas/cotizaciones/'+id+'/comentarios',{method:'POST',body:JSON.stringify({comentario:text})});toast('Comentario registrado.');await renderComments(id);}catch(e){toast(e.message,true);}};}
 async function renderFiles(id){const box=$('#vc-detail-files');box.innerHTML='<div class="vc-loader">Cargando archivos desde Aiven...</div>';let rows=[];try{const j=await request('/api/ventas/cotizaciones/'+id+'/archivos?page_size=100');rows=Array.isArray(j.archivos)?j.archivos:[];}catch(e){box.innerHTML='<div class="vc-empty">No fue posible cargar los archivos reales. '+esc(e.message)+'</div>';return;}box.innerHTML='<div class="vc-upload-card"><strong>Gestor documental</strong><p>El archivo físico se conserva en Google Drive; Mantto Gestor administra su relación y metadatos.</p><button class="vc-btn vc-btn-primary" id="vc-register-file">＋ Registrar archivo</button></div><div class="vc-files">'+(rows.length?rows.map(f=>'<article class="vc-file"><div class="vc-file-icon">📄</div><div><strong>'+esc(f.nombre_archivo||f.nombre_original)+'</strong><small>'+esc(f.tipo_archivo||f.mime_type||'Archivo')+' · '+fmtDate(f.created_at)+'</small></div>'+(f.drive_url?'<a href="'+esc(f.drive_url)+'" target="_blank" rel="noopener">Abrir</a>':'<span>Sin vínculo</span>')+'</article>').join(''):'<div class="vc-empty">Aún no hay archivos vinculados.</div>')+'</div>';$('#vc-register-file').onclick=()=>toast('La carga física requiere la integración autorizada con Google Drive.');}
 function openForm(record=null,statusOnly=false){const form=$('#vc-form');form.reset();form.dataset.id=record?.id_cotizacion||'';$('#vc-form-title').textContent=record?'Editar cotización':'Nueva cotización';if(record){Object.entries(record).forEach(([k,v])=>{const el=form.elements[k];if(el&&v!=null)el.value=String(v).slice(0,10);});}$('#vc-form-dialog').showModal();if(statusOnly){setTimeout(()=>form.elements.estatus_proyecto?.focus(),50);}}
 function closeForm(){const dialog=$('#vc-form-dialog');if(dialog&&dialog.open)dialog.close('cancel');}
-
 function formPayload(){const fd=new FormData($('#vc-form')),out={};for(const [k,v] of fd.entries()){if(v!=='')out[k]=v;}if(out.numero_equipos!==undefined)out.numero_equipos=Number(out.numero_equipos||0);if(out.id_asesor)out.id_asesor=Number(out.id_asesor);if(out.id_admin)out.id_admin=Number(out.id_admin);return out;}
 async function saveForm(){const form=$('#vc-form');if(!form.reportValidity())return;const id=form.dataset.id,payload=formPayload();try{await request('/api/ventas/cotizaciones'+(id?'/'+id:''),{method:id?'PUT':'POST',body:JSON.stringify(payload)});toast(id?'Cotización actualizada.':'Cotización creada.');$('#vc-form-dialog').close();await loadAll();if(id)openDetail(id);}catch(e){toast(e.message,true);}}
-function bind(){
-  $('#vc-refresh').onclick=()=>loadAll();
-  $('#vc-new').onclick=()=>window.ManttoRouter?.go?.('ventas-cotizaciones-nueva');
-  $('#vc-close-detail').onclick=closeDetail;
-  $('#vc-overlay').onclick=closeDetail;
-  $('#vc-save').onclick=saveForm;
-  $('#vc-close-form').onclick=closeForm;
-  $('#vc-cancel-form').onclick=closeForm;
-  const dialog=$('#vc-form-dialog');
-  dialog.addEventListener('cancel',event=>{event.preventDefault();closeForm();});
-  dialog.addEventListener('click',event=>{if(event.target===dialog)closeForm();});
-  $('#vc-form').addEventListener('submit',event=>event.preventDefault());
-  $$('[data-detail-tab]').forEach(b=>b.onclick=()=>{$$('[data-detail-tab]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-detail-panel]').forEach(x=>x.classList.toggle('active',x.dataset.detailPanel===b.dataset.detailTab));});
-  let timer;
-  $('#vc-search').oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>{state.page=1;loadAll();},350);};
-  ['#vc-filter-year','#vc-filter-status','#vc-filter-advisor','#vc-filter-admin','#vc-filter-zone'].forEach(sel=>$(sel).onchange=()=>{state.page=1;loadAll();});
-  $('#vc-clear').onclick=()=>{$('#vc-search').value='';['#vc-filter-status','#vc-filter-advisor','#vc-filter-admin','#vc-filter-zone'].forEach(sel=>$(sel).value='');const year=$('#vc-filter-year');if(year)year.value=String(new Date().getFullYear());state.page=1;loadAll();};
-}
+function bind(){$('#vc-refresh').onclick=()=>loadAll();$('#vc-new').onclick=()=>window.ManttoRouter?.go?.('ventas-cotizaciones-nueva');$('#vc-close-detail').onclick=closeDetail;$('#vc-overlay').onclick=closeDetail;$('#vc-save').onclick=saveForm;$('#vc-close-form').onclick=closeForm;$('#vc-cancel-form').onclick=closeForm;const dialog=$('#vc-form-dialog');dialog.addEventListener('cancel',event=>{event.preventDefault();closeForm();});dialog.addEventListener('click',event=>{if(event.target===dialog)closeForm();});$('#vc-form').addEventListener('submit',event=>event.preventDefault());$$('[data-detail-tab]').forEach(b=>b.onclick=()=>{$$('[data-detail-tab]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-detail-panel]').forEach(x=>x.classList.toggle('active',x.dataset.detailPanel===b.dataset.detailTab));});let timer;$('#vc-search').oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>{state.page=1;loadAll();},350);};['#vc-filter-year','#vc-filter-status','#vc-filter-advisor','#vc-filter-admin','#vc-filter-zone'].forEach(sel=>$(sel).onchange=()=>{state.page=1;loadAll();});$('#vc-clear').onclick=()=>{$('#vc-search').value='';['#vc-filter-status','#vc-filter-advisor','#vc-filter-admin','#vc-filter-zone'].forEach(sel=>$(sel).value='');const year=$('#vc-filter-year');if(year)year.value=String(new Date().getFullYear());state.page=1;loadAll();};}
 async function mount(force=false){const view=$('#view-ventas-cotizaciones');if(!view)return false;if(force)view.dataset.ready='0';if(view.dataset.ready!=='1'){const r=await fetch('./modules/ventas-cotizaciones/ventas-cotizaciones.html?v=20260728-cotizaciones-v012',{cache:'no-store'});if(!r.ok)throw new Error('No se pudo cargar el módulo Cotizaciones.');view.innerHTML=await r.text();view.dataset.ready='1';bind();await loadCatalogs();await loadAll();}return true;}
-window.ManttoVentasCotizaciones={init:()=>mount(false),reload:()=>loadAll(),open:id=>goToDetail(id)};
+window.ManttoVentasCotizaciones={init:()=>mount(false),reload:()=>loadAll(),refreshSilent,open:id=>goToDetail(id)};
 })();

@@ -1,6 +1,4 @@
 (function(){
-  const POLL_MS = 60000;
-  const STALE_MS = 30000;
   const MIN_REFRESH_GAP_MS = 1500;
   const state = {
     route:'home',
@@ -8,9 +6,10 @@
     lastSync:new Map(),
     running:new Map(),
     handlers:new Map(),
-    pollTimer:null,
+    dirty:new Set(),
     observer:null,
-    channel:null
+    channel:null,
+    fetchPatched:false
   };
 
   const routeObjects = Object.freeze({
@@ -181,10 +180,17 @@
     }));
   }
 
+  function markDirty(route){
+    const targetRoute=String(route||state.route||'home');
+    state.dirty.add(targetRoute);
+    document.dispatchEvent(new CustomEvent('mantto:data-dirty',{detail:{route:targetRoute,at:Date.now()}}));
+  }
+
   function markSynced(route){
     const targetRoute=route || state.route;
     const at=Date.now();
     state.lastSync.set(targetRoute,at);
+    state.dirty.delete(targetRoute);
     document.dispatchEvent(new CustomEvent('mantto:data-synced',{detail:{route:targetRoute,at}}));
   }
 
@@ -211,6 +217,14 @@
     const targetRoute=route || state.route;
     const opts=options || {};
     if(document.hidden && !opts.force) return false;
+
+    // Regla global: nunca consultar una vista inactiva. Si cambió, queda marcada
+    // y se sincroniza al abrirla/regresar a ella.
+    if(targetRoute!==state.route && !opts.allowInactive){
+      markDirty(targetRoute);
+      return false;
+    }
+
     const last=state.lastSync.get(targetRoute)||0;
     if(!opts.force && Date.now()-last<MIN_REFRESH_GAP_MS) return false;
     if(state.running.has(targetRoute)) return state.running.get(targetRoute);
@@ -228,7 +242,8 @@
 
     if(!handler){
       const handledByEvent=dispatchBackgroundRequest(targetRoute,reason);
-      markAttempted(targetRoute);
+      if(handledByEvent) markSynced(targetRoute);
+      else markAttempted(targetRoute);
       return handledByEvent;
     }
 
@@ -279,16 +294,28 @@
 
   function notifyMutation(detail){
     const targetRoute=detail?.route || routeFromApiPath(detail?.path || detail?.url);
-    window.setTimeout(()=>refresh(targetRoute,'mutacion',{force:true}),80);
+    markDirty(targetRoute);
+    if(targetRoute===state.route){
+      window.setTimeout(()=>refresh(targetRoute,'mutacion',{force:true}),80);
+    }
     try{ state.channel?.postMessage({type:'mutation',route:targetRoute,at:Date.now()}); }catch(e){}
   }
 
-  function startPolling(){
-    if(state.pollTimer) clearInterval(state.pollTimer);
-    state.pollTimer=setInterval(()=>{
-      if(document.hidden || !navigator.onLine) return;
-      refresh(state.route,'polling-respaldo');
-    },POLL_MS);
+  function bindFetchMutationObserver(){
+    if(state.fetchPatched || typeof window.fetch!=='function') return;
+    state.fetchPatched=true;
+    const nativeFetch=window.fetch.bind(window);
+    window.fetch=async function(input, init){
+      const method=String(init?.method || (input && input.method) || 'GET').toUpperCase();
+      const response=await nativeFetch(input,init);
+      if(response?.ok && ['POST','PUT','PATCH','DELETE'].includes(method)){
+        const url=typeof input==='string' ? input : (input?.url || '');
+        if(String(url).includes('/api/')){
+          notifyMutation({url,method,source:'fetch'});
+        }
+      }
+      return response;
+    };
   }
 
   function bind(){
@@ -296,24 +323,32 @@
       state.route=event.detail?.route || 'home';
       state.payload=event.detail?.payload || null;
       applyRoleVisibility(document);
-      if(event.detail?.type==='back') window.setTimeout(()=>refresh(state.route,'regreso',{force:true}),220);
-      else markSynced(state.route);
+
+      // Si la vista fue modificada mientras estaba inactiva, se actualiza al entrar.
+      if(state.dirty.has(state.route) || event.detail?.type==='back'){
+        window.setTimeout(()=>refresh(state.route,'entrada-con-cambios',{force:true}),80);
+      }else{
+        state.lastSync.set(state.route,Date.now());
+      }
     });
-    document.addEventListener('mantto:navigation-restore',()=>window.setTimeout(()=>refresh(state.route,'restauracion',{force:true}),260));
+    document.addEventListener('mantto:navigation-restore',()=>{
+      if(state.dirty.has(state.route)) window.setTimeout(()=>refresh(state.route,'restauracion-con-cambios',{force:true}),80);
+    });
     document.addEventListener('mantto:data-mutated',event=>notifyMutation(event.detail||{}));
     document.addEventListener('mantto:auth-ready',()=>applyRoleVisibility(document));
     document.addEventListener('mantto:view-user-changed',()=>applyRoleVisibility(document));
     document.addEventListener('visibilitychange',()=>{
-      if(document.hidden) return;
-      applyRoleVisibility(document);
-      const last=state.lastSync.get(state.route)||0;
-      if(Date.now()-last>=STALE_MS) refresh(state.route,'pestana-visible',{force:true});
+      if(!document.hidden) applyRoleVisibility(document);
     });
-    window.addEventListener('online',()=>refresh(state.route,'conexion-restaurada',{force:true}));
     if('BroadcastChannel' in window){
       state.channel=new BroadcastChannel('mantto-data-sync');
       state.channel.onmessage=event=>{
-        if(event.data?.type==='mutation') refresh(event.data.route||state.route,'otra-pestana',{force:true});
+        if(event.data?.type!=='mutation') return;
+        const targetRoute=event.data.route||state.route;
+        markDirty(targetRoute);
+        if(targetRoute===state.route && !document.hidden){
+          window.setTimeout(()=>refresh(targetRoute,'otra-pestana',{force:true}),80);
+        }
       };
     }
     state.observer=new MutationObserver(entries=>entries.forEach(entry=>entry.addedNodes.forEach(node=>{
@@ -321,7 +356,7 @@
     })));
     state.observer.observe(document.documentElement,{childList:true,subtree:true});
     applyRoleVisibility(document);
-    startPolling();
+    bindFetchMutationObserver();
   }
 
   window.ManttoDataSync={
@@ -329,6 +364,7 @@
     unregister,
     refresh,
     notifyMutation,
+    markDirty,
     supportsBackgroundSync,
     isProgrammer,
     applyRefreshVisibility,
