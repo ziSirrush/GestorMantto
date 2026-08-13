@@ -1,42 +1,51 @@
-# FIX URGENTE - Separacion Nueva / Editar Cotizacion V006
+# FIX URGENTE COTIZACIONES - CARGA UNICA + ANIO TODOS V007
 
-## Problemas corregidos
-1. Nueva Cotizacion podia terminar usando estado/modo de edicion.
-2. Editar Cotizacion compartia la ruta interna de Nueva Cotizacion.
-3. El listado de contactos en Editar no seguia el mismo flujo probado de Nueva Cotizacion.
-4. El flujo podia terminar ejecutando POST cuando la intencion era editar.
+## Base
+Este FIX se aplica encima de `FIX_URGENTE_SEPARACION_NUEVA_EDITAR_COTIZACION_V006`.
+No revierte la separacion Nueva / Editar.
 
-## Correccion aplicada
-- Se registra la ruta independiente `ventas-cotizaciones-editar` en `core/router.js`.
-- `ventas-cotizaciones-nueva` queda endurecido como ALTA exclusivamente:
-  - Nueva Cotizacion => `POST /api/ventas/cotizaciones`.
-  - Nunca ejecuta PUT.
-- Cuando una referencia antigua entra a Nueva con `mode: edit`, se redirige inmediatamente a `ventas-cotizaciones-editar` y se reemplaza la ruta para no contaminar el historial.
-- `ventas-cotizaciones-editar` queda como EDICION exclusivamente:
-  - exige `id_cotizacion`.
-  - carga clientes y catalogos con las mismas referencias funcionales que Nueva Cotizacion.
-  - al cargar el cliente ejecuta inmediatamente la consulta de sus contactos y deja seleccionado el contacto vigente.
-  - `Guardar cambios` ejecuta exclusivamente `PUT /api/ventas/cotizaciones/:id`.
-- Se conserva el fallback historico de equipos.
-- No se modifica backend, SQL, comentarios ni otros modulos de Ventas.
+## 1. Editar Cotizacion - una sola llamada API inicial
+Se agrega:
 
-## Archivos modificados
-- `core/router.js`
-- `modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js`
+`GET /api/ventas/cotizaciones/:id/editar-bootstrap`
+
+La respuesta agrupa en una sola llamada HTTP inicial:
+- cotizacion y equipos;
+- clientes visibles;
+- contactos del cliente actual;
+- catalogos de cotizaciones;
+- catalogo general de Ventas;
+- Estados.
+
+El frontend `ventas-cotizaciones-editar.js` hidrata el formulario completo desde esa respuesta.
+Ya no ejecuta llamadas API por foco para cargar clientes/catalogos/contactos durante la apertura inicial.
+
+Si el usuario CAMBIA de cliente, si se consulta la lista de contactos del nuevo cliente. Esa llamada es consecuencia directa de un cambio del usuario y no ocurre en reposo.
+
+Guardar en Editar continua usando exclusivamente:
+`PUT /api/ventas/cotizaciones/:id`
+
+## 2. Filtro Anio en Cotizaciones
+El filtro Anio ahora inicia en:
+`Todos`
+
+y el boton Limpiar tambien lo restablece a `Todos`.
+
+Se conserva el valor `todos` en la consulta para que la backend existente lo interprete como todos los anios.
+
+## Archivos modificados/nuevos
 - `modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js`
+- `modules/ventas-cotizaciones/ventas-cotizaciones.js`
+- `backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.routes.js`
+- `backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js`
+- `backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-editar-bootstrap.service.js` (nuevo)
 
-## Pruebas obligatorias despues del deploy
-1. Cotizaciones > Nueva Cotizacion:
-   - debe mostrar formulario vacio con titulo Nueva cotizacion.
-   - guardar debe crear un registro nuevo por POST.
-2. Detalle Cotizacion > Editar:
-   - debe terminar en ruta `ventas-cotizaciones-editar`.
-   - debe precargar el registro existente.
-   - Contacto debe desplegar todos los contactos del cliente y mantener seleccionado el vigente.
-   - Guardar cambios debe hacer PUT al mismo ID, sin crear una nueva cotizacion.
-3. Regresar a Nueva Cotizacion despues de editar:
-   - debe volver a abrir formulario de alta limpio, nunca la cotizacion anterior.
+## Validaciones realizadas
+- `node --check` sobre todos los JS del FIX.
+- La apertura inicial de Editar contiene una sola llamada API de bootstrap.
+- Nueva Cotizacion no fue modificada.
+- El guardado de Editar conserva PUT por ID.
+- El filtro Anio inicia y limpia en Todos.
 
-## Validacion tecnica
-- `node --check` aplicado a los tres JavaScript modificados.
-- Se verifico que Nueva contiene POST fijo y Editar contiene PUT fijo.
+## Deploy
+Este FIX SI requiere deploy de backend por la nueva ruta de bootstrap.

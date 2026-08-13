@@ -27,9 +27,6 @@ const requireVentasHistoricalIntegration = requireIntegrationAuthFor('INTEGRATIO
   whenDisabled: [requireAuth, requireHistoricalSyncEnabled]
 });
 
-// Mientras HMAC permanezca apagado se conserva exactamente el control legado
-// (sesión + CFFAA_HISTORICAL_SYNC_ENABLED + rol Programador). Al activar HMAC,
-// estas rutas pasan a identidad M2M de Ventas sin JWT humano.
 router.post('/cotizaciones/sync', requireVentasHistoricalIntegration, controller.syncCotizaciones);
 router.post('/cotizaciones/comentarios/sync', requireVentasHistoricalIntegration, controller.syncComentariosHistoricos);
 
@@ -72,6 +69,7 @@ router.patch('/cotizaciones/:id/archivos/:idArchivo', requireAuth, canEdit, cont
 router.delete('/cotizaciones/:id/archivos/:idArchivo', requireAuth, canEdit, requireStorageSchema('ventas_cotizaciones_archivos'), controller.deleteArchivo);
 router.patch('/cotizaciones/:id/estatus', requireAuth, canEdit, controller.updateEstatus);
 router.patch('/cotizaciones/:id/asignacion', requireAuth, canEdit, controller.updateAsignacion);
+router.get('/cotizaciones/:id/editar-bootstrap', requireAuth, canView, controller.getEditBootstrap);
 router.get('/cotizaciones/:id', requireAuth, canView, controller.getCotizacion);
 router.post('/cotizaciones', requireAuth, canCreate, controller.createCotizacion);
 router.put('/cotizaciones/:id', requireAuth, canEdit, controller.updateCotizacion);
