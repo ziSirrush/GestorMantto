@@ -112,3 +112,6 @@
 .usr-notification-row em{font-style:normal;font-size:.72rem;font-weight:900;color:#92400e;background:#fef3c7;border-radius:999px;padding:4px 8px}
 .usr-notification-row.locked{background:#fffbeb}.usr-notification-row.locked input{cursor:not-allowed}
 @media(max-width:700px){.usr-notification-row{grid-template-columns:1fr}.usr-notification-switches{justify-content:flex-start}}
+
+/* V016.2 · versión visible para soporte al final de Mi Perfil */
+.usr-app-version{margin-top:18px;padding-top:12px;border-top:1px solid #eef2f7;color:#98a2b3;font-size:.72rem;line-height:1.35;text-align:center;font-weight:600;word-break:break-word}

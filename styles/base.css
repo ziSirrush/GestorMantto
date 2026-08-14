@@ -122,18 +122,7 @@ button{cursor:pointer}
 .context-separator{color:#98A2B3;font-weight:700;flex-shrink:0}
 #context-date,#context-time{flex-shrink:0;color:var(--navy)}
 .daily-phrase-stack .daily-phrase{margin-left:0;max-width:100%}
-.app-build-version{
-  max-width:100%;
-  color:#667085;
-  font-size:9px;
-  line-height:1.15;
-  font-weight:700;
-  letter-spacing:.025em;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  text-align:right;
-}
+.app-build-version{max-width:100%;color:#667085;font-size:9px;line-height:1.15;font-weight:700;letter-spacing:.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 .app-build-version[hidden]{display:none!important}
 
 @media(max-width:1180px){
@@ -271,7 +260,7 @@ body.viewer-readonly input[type="file"].viewer-readonly-control{pointer-events:n
 #viewer-readonly-toast{position:fixed;left:50%;bottom:24px;z-index:10000;transform:translate(-50%,18px);max-width:min(520px,calc(100vw - 32px));padding:11px 16px;border-radius:11px;background:#0d2e6e;color:#fff;font-size:12px;font-weight:800;box-shadow:0 14px 36px rgba(13,46,110,.3);opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;text-align:center}
 #viewer-readonly-toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:1180px){.user-viewer-trigger span:nth-child(2){display:none}}
-@media(max-width:920px){.user-viewer-wrap{position:fixed;left:10px;right:10px;bottom:10px;z-index:90}.user-viewer-trigger{width:100%;box-shadow:0 8px 24px rgba(13,46,110,.2)}.user-viewer-trigger span:nth-child(2){display:inline}.user-viewer-menu{left:0;right:0;top:auto;bottom:calc(100% + 8px);width:100%}.user-viewer-banner{padding:6px 10px}.user-viewer-banner>div{gap:7px;flex-wrap:wrap}.user-viewer-banner span{font-size:10px}.user-viewer-readonly-pill{font-size:9px;padding:2px 6px}}
+@media(max-width:920px){.user-viewer-wrap{display:none!important}.user-viewer-banner{padding:6px 10px}.user-viewer-banner>div{gap:7px;flex-wrap:wrap}.user-viewer-banner span{font-size:10px}.user-viewer-readonly-pill{font-size:9px;padding:2px 6px}}
 
 /* V030.2 · Centro de Ayuda / Solicitudes */
 .help-request-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}

@@ -1,12 +1,13 @@
 /*
- * Archivo de build de Mantto Gestor.
- * LOCAL: este valor queda versionado con el FIX.
- * DEPLOY: Netlify lo reemplaza durante el build con commit + mensaje reales.
+ * Valor versionado para trabajo local.
+ * GitHub Pages (Actions) y Netlify reemplazan este archivo durante su build.
  */
 window.MANTTO_BUILD_INFO = Object.freeze({
   environment: 'LOCAL',
-  localVersion: 'FIX V016.1',
+  provider: 'LOCAL',
+  localVersion: 'FIX V016.2',
   message: '',
   commit: '',
-  commitShort: ''
+  commitShort: '',
+  generatedAt: ''
 });

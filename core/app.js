@@ -40,50 +40,6 @@
     window.setInterval(render, 30000);
   }
 
-
-  function isExactProgramadorForBuildInfo(){
-    const user = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function'
-      ? (window.ManttoAuth.getUser() || {})
-      : {};
-    const roles = [user.rol]
-      .concat(Array.isArray(user.roles) ? user.roles : [])
-      .concat(Array.isArray(user.roles_detalle) ? user.roles_detalle.map(function(role){ return role && (role.rol || role.nombre); }) : [])
-      .filter(Boolean)
-      .map(function(role){ return String(role).trim().toLowerCase(); });
-    return roles.includes('programador');
-  }
-
-  function initBuildVersion(){
-    const el = document.getElementById('app-build-version');
-    if(!el) return;
-
-    if(!isExactProgramadorForBuildInfo()){
-      el.hidden = true;
-      el.textContent = '';
-      return;
-    }
-
-    const info = window.MANTTO_BUILD_INFO || {};
-    const isLocalHost = ['localhost','127.0.0.1','::1'].includes(String(window.location.hostname || '').toLowerCase());
-    const environment = isLocalHost ? 'LOCAL' : String(info.environment || 'DEPLOY').toUpperCase();
-    const parts = [environment];
-
-    if(environment === 'LOCAL'){
-      parts.push(String(info.localVersion || 'FIX V016.1'));
-    }else{
-      if(info.message) parts.push(String(info.message));
-      if(info.commitShort) parts.push(String(info.commitShort));
-      else if(info.commit) parts.push(String(info.commit).slice(0,7));
-      if(!info.message && !info.commitShort && !info.commit) parts.push('commit no generado');
-    }
-
-    el.textContent = parts.join(' · ');
-    el.title = environment === 'LOCAL'
-      ? 'Versión local de trabajo'
-      : 'Commit desplegado: ' + (info.commit || info.commitShort || 'no disponible');
-    el.hidden = false;
-  }
-
   const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({
     home:true
   });
@@ -342,7 +298,7 @@
     iniciarTimerNotificaciones();
     if(window.ManttoSupport) window.ManttoSupport.init();
     initDailyPhrase();
-    initBuildVersion();
+    if(window.ManttoBuildInfo && typeof window.ManttoBuildInfo.initProgrammerBanner === 'function') window.ManttoBuildInfo.initProgrammerBanner();
     bindGlobalNavigation();
   }
 
