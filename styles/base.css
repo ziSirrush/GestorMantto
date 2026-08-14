@@ -93,6 +93,16 @@ button{cursor:pointer}
 }
 
 /* HOME definitivo - barra contextual con frase diaria */
+.daily-phrase-stack{
+  margin-left:auto;
+  min-width:0;
+  max-width:58%;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  justify-content:center;
+  gap:2px;
+}
 .daily-phrase{
   margin-left:auto;
   min-width:0;
@@ -111,9 +121,24 @@ button{cursor:pointer}
 #daily-phrase-text{font-style:italic;color:#344054;font-weight:650;max-width:520px}
 .context-separator{color:#98A2B3;font-weight:700;flex-shrink:0}
 #context-date,#context-time{flex-shrink:0;color:var(--navy)}
+.daily-phrase-stack .daily-phrase{margin-left:0;max-width:100%}
+.app-build-version{
+  max-width:100%;
+  color:#667085;
+  font-size:9px;
+  line-height:1.15;
+  font-weight:700;
+  letter-spacing:.025em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  text-align:right;
+}
+.app-build-version[hidden]{display:none!important}
 
 @media(max-width:1180px){
-  .daily-phrase{max-width:45%}
+  .daily-phrase-stack{max-width:45%}
+  .daily-phrase{max-width:100%}
   #daily-phrase-text{max-width:260px}
 }
 @media(max-width:920px){

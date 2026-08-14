@@ -12,7 +12,7 @@
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
     'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
-    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-editar':'Editar cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
+    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
@@ -21,7 +21,7 @@
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
-    'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Estados de Cuenta', 'cobranza-uni-aditivas':'Aditivas'
+    'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional'
   };
 
   const EXPERIMENTAL_ROUTES_EXP = new Set([
@@ -35,6 +35,7 @@
   const COBRANZA_ROUTES_UNI = new Set([
     'cobranza-uni-dashboard',
     'cobranza-uni-estados-cuenta',
+    'cobranza-uni-mp-pro',
     'cobranza-uni-aditivas'
   ]);
 
@@ -433,17 +434,6 @@
   }
 
 
-  function showVentasCotizacionesEditar(){
-    const view=document.getElementById('view-ventas-cotizaciones-nueva');
-    if(!view) return false;
-    activateViewById('view-ventas-cotizaciones-nueva');
-    setActiveSide('ventas-cotizaciones');
-    updateContext('ventas-cotizaciones-editar','Editar cotización · actualización de registro existente en Aiven');
-    if(window.ManttoVentasCotizacionesEditar) window.ManttoVentasCotizacionesEditar.init(currentPayload || null);
-    return true;
-  }
-
-
   function showVentasCotizacionesDetalle(){
     const view=document.getElementById('view-ventas-cotizaciones-detalle');
     if(!view) return false;
@@ -748,7 +738,6 @@
     if(route==='ventas-clientes-detalle' && showVentasClientesDetalle()) return;
     if(route==='ventas-cotizaciones' && showVentasCotizaciones()) return;
     if(route==='ventas-cotizaciones-nueva' && showVentasCotizacionesNueva()) return;
-    if(route==='ventas-cotizaciones-editar' && showVentasCotizacionesEditar()) return;
     if(route==='ventas-cotizaciones-detalle' && showVentasCotizacionesDetalle()) return;
     if(route==='ventas-vendidos' && showVentasVendidos()) return;
     if(route==='ventas-proyeccion' && showVentasProyeccion()) return;

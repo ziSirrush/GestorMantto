@@ -33,7 +33,6 @@
 <link href="./modules/ventas-clientes-detalle/ventas-clientes-detalle.css?v=20260729-v011" rel="stylesheet"/>
 <link href="./modules/ventas-cotizaciones/ventas-cotizaciones.css?v=20260729-v008" rel="stylesheet"/>
 <link href="./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.css?v=20260805-equipos-multiples-v001" rel="stylesheet"/>
-<link href="./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.css?v=20260813-v004" rel="stylesheet"/>
 <link href="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.css?v=20260803-cffaa05-v001" rel="stylesheet"/>
 <link href="./modules/ventas-vendidos/ventas-vendidos.css?v=20260804-paginado-f2-v001" rel="stylesheet"/>
 <link href="./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260804-paginado-f2-v001" rel="stylesheet"/>
@@ -51,7 +50,7 @@
 <link href="./modules/experimental-equipos-criticos/experimental-equipos-criticos.css?v=20260806-fase5-2-v001" rel="stylesheet"/>
 <link href="./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001" rel="stylesheet"/>
 <link href="./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001" rel="stylesheet"/>
-<link href="./modules/cobranza-uni/cobranza-uni.css?v=20260805-fase1-v001" rel="stylesheet"/>
+<link href="./modules/cobranza-uni/cobranza-uni.css?v=20260814-v009" rel="stylesheet"/>
 <style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
     [hidden]{display:none!important}
@@ -198,12 +197,15 @@
 <div id="app-context-title">Inicio</div>
 <div id="app-context-subtitle">Home operativo · tareas, notificaciones e interacciones recientes</div>
 </div>
+<div class="daily-phrase-stack">
 <div class="daily-phrase" title="Frase del día">
 <span id="context-date">—</span>
 <span class="context-separator">|</span>
 <span id="context-time">—</span>
 <span class="context-separator">|</span>
 <span id="daily-phrase-text">—</span>
+</div>
+<div class="app-build-version" id="app-build-version" hidden aria-label="Versión técnica de la aplicación">—</div>
 </div>
 </div>
 </div>
@@ -252,8 +254,9 @@
 </button>
 <div class="side-group-items" id="side-group-cobranza-uni">
 <button class="side-item" data-permission="cobranza_uni_dashboard" data-route="cobranza-uni-dashboard" type="button"><span>📊</span><b>Dashboard Cobranza</b></button>
-<button class="side-item" data-permission="cobranza_uni_estados_cuenta" data-route="cobranza-uni-estados-cuenta" type="button"><span>🧾</span><b>Estados de Cuenta</b></button>
-<button class="side-item" data-permission="cobranza_uni_aditivas" data-route="cobranza-uni-aditivas" type="button"><span>➕</span><b>Aditivas</b></button>
+<button class="side-item" data-permission="cobranza_uni_estados_cuenta" data-route="cobranza-uni-estados-cuenta" type="button"><span>🛡️</span><b>Gestión de Crédito</b></button>
+<button class="side-item" data-permission="cobranza_uni_mantenimiento_preventivo" data-route="cobranza-uni-mp-pro" type="button"><span>🛠️</span><b>Mantenimiento Preventivo</b></button>
+<button class="side-item" data-permission="cobranza_uni_aditivas" data-route="cobranza-uni-aditivas" type="button"><span>➕</span><b>Venta Adicional</b></button>
 </div>
 </section>
 <section class="side-group" data-group="ventas">
@@ -363,8 +366,9 @@
 <section aria-label="Dashboard Call Center Experimental" class="view exp-view" data-view="experimental-dashboard-call-center" id="view-experimental-dashboard-call-center"></section>
 <section aria-label="Proyectos Críticos Experimental" class="view exp-view" data-view="experimental-proyectos-criticos" id="view-experimental-proyectos-criticos"></section>
 <section aria-label="Dashboard Cobranza United" class="view cob-uni-view" data-view="cobranza-uni-dashboard" id="view-cobranza-uni-dashboard"></section>
-<section aria-label="Estados de Cuenta United" class="view cob-uni-view" data-view="cobranza-uni-estados-cuenta" id="view-cobranza-uni-estados-cuenta"></section>
-<section aria-label="Aditivas United" class="view cob-uni-view" data-view="cobranza-uni-aditivas" id="view-cobranza-uni-aditivas"></section>
+<section aria-label="Gestión de Crédito United" class="view cob-uni-view" data-view="cobranza-uni-estados-cuenta" id="view-cobranza-uni-estados-cuenta"></section>
+<section aria-label="Mantenimiento Preventivo United" class="view cob-uni-view" data-view="cobranza-uni-mp-pro" id="view-cobranza-uni-mp-pro"></section>
+<section aria-label="Venta Adicional United" class="view cob-uni-view" data-view="cobranza-uni-aditivas" id="view-cobranza-uni-aditivas"></section>
 <section aria-label="Portafolio" class="view pf-view" data-view="portafolio" id="view-portafolio"></section>
 <section aria-label="Usuarios" class="view usr-view" data-view="usuarios" id="view-usuarios"></section>
 <section aria-label="Panel de Control" class="view pc-view" data-view="panel-control" id="view-panel-control"></section>
@@ -727,18 +731,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="./core/daily-phrases.js?v=20260705-v114"></script>
 <script src="./core/config.js?v=20260705-v114"></script>
+<script src="./core/build-info.generated.js?v=20260814-v016-1"></script>
+<script src="./core/project-name.js?v=20260814-v010"></script>
 <script src="./core/push-notifications.js?v=20260803-fix4-v001"></script>
 <script src="./core/device-permissions.js?v=20260805-native-local-v002"></script>
 <script src="./core/auth.js?v=20260805-visor-completo-v001"></script>
 <script src="./core/viewer-readonly.js?v=20260805-visor-completo-v001"></script>
-<script src="./core/data-sync.js?v=20260813-reactive-v009"></script>
+<script src="./core/data-sync.js?v=20260805-sync-silenciosa-visor-v008"></script>
 <script src="./core/router.js?v=20260805-fase1-exp-cob-uni-v001"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260716-v003"></script>
 <script src="./modules/home/home.js?v=20260803-cffaa02-v001"></script>
-<script src="./modules/resumen-dia/resumen-dia.js?v=20260716-tickets-contextual-v002"></script>
+<script src="./modules/resumen-dia/resumen-dia.js?v=20260814-project-name-v010"></script>
 <script src="./modules/equipos-criticos/equipos-criticos.js?v=20260804-columnas-v001"></script>
-<script src="./modules/portafolio/portafolio.js?v=20260717-kpi-views-v002"></script>
+<script src="./modules/portafolio/portafolio.js?v=20260814-project-name-v010"></script>
 <script src="./modules/proyectos/proyectos.js?v=20260717-proyectos-responsabilidad-v001"></script>
 <script src="./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260726-fix-tabs-activos-v003"></script>
 <script src="./modules/instalaciones-cerrados/instalaciones-cerrados.js?v=20260726-fix-tabs-estados-v002"></script>
@@ -749,10 +755,9 @@
 <script src="./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.js?v=20260729-v009"></script>
 <script src="./modules/ventas-contacto-form/ventas-contacto-form.js?v=20260729-v011"></script>
 <script src="./modules/ventas-clientes-detalle/ventas-clientes-detalle.js?v=20260729-v011"></script>
-<script src="./modules/ventas-cotizaciones/ventas-cotizaciones.js?v=20260813-edit-sync-filter-v004"></script>
-<script src="./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js?v=20260813-v005"></script>
-<script src="./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js?v=20260813-edit-separate-v004"></script>
-<script src="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js?v=20260813-edit-preload-v005"></script>
+<script src="./modules/ventas-cotizaciones/ventas-cotizaciones.js?v=20260804-columnas-v001"></script>
+<script src="./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js?v=20260805-equipos-multiples-v001"></script>
+<script src="./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js?v=20260803-cffaa05-v001"></script>
 <script src="./modules/ventas-vendidos/ventas-vendidos.js?v=20260805-sync-silenciosa-v008"></script>
 <script src="./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260730-v001"></script>
 <script src="./modules/ventas-perdidos/ventas-perdidos.js?v=20260804-columnas-v001"></script>
@@ -780,8 +785,8 @@
 <script src="./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260806-fase6-2-v001"></script>
 <script src="./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001"></script>
 <script src="./modules/experimental/experimental.js?v=20260806-fase7-2-v001"></script>
-<script src="./modules/cobranza-uni/cobranza-uni.js?v=20260805-fase1-v001"></script>
-<script src="./core/details.js?v=v032_1_v031_3_1"></script>
+<script src="./modules/cobranza-uni/cobranza-uni.js?v=20260814-v010"></script>
+<script src="./core/details.js?v=20260814-project-name-v010"></script>
 <script src="./core/user-viewer.js?v=20260805-visor-completo-v001"></script>
 <script src="./core/app.js?v=20260805-nori-dock-integrado-v002"></script>
 </body>

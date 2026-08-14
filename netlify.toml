@@ -1,0 +1,3 @@
+[build]
+  command = "node tools/generate-build-info.js"
+  publish = "."

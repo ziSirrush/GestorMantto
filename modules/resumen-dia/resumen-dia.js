@@ -272,8 +272,9 @@
     if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'proyectos', id:pro, source:'resumen-dia'});
   }
   function formatProyectoName(value){
+    if(window.ManttoFormat && typeof window.ManttoFormat.projectName === 'function') return window.ManttoFormat.projectName(value);
     const raw=String(value || '').trim();
-    const m=raw.match(/^(\d+)-(\d{2})-(\d{2})$/);
+    const m=raw.match(/^(\d+)-(\d{2})-(\d{2})(?:T.*)?$/);
     if(!m) return raw || '—';
     const meses={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
     const numero=String(Number(m[1]) || m[1].replace(/^0+/, '') || m[1]);

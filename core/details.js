@@ -13,6 +13,7 @@
       if(k) ticketCache.set(k, Object.assign({}, ticketCache.get(k) || {}, t));
     });
   }
+  function projectNameDisplay(v){ return window.ManttoFormat&&window.ManttoFormat.projectName?window.ManttoFormat.projectName(v):String(v==null||v===''?'—':v); }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function fmtDate(v){
     if(!v) return '—';
@@ -219,7 +220,7 @@
   }
   function ticketsTable(rows){
     if(!rows || !rows.length) return '<div class="mg-empty">Sin tickets relacionados</div>';
-    return legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Ticket</th><th>Fecha</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>' + rows.map(t=>{const ticketId=t.ticket||t.n||'';const ticketCodes=visualCodesTicket(t);return '<tr><td><button class="mg-link" data-ticket="'+esc(ticketId)+'">'+renderIdentifierVisual(ticketCodes,ticketId)+'</button></td><td>'+fmtDate(t.fecha_reporte || t.fr)+'</td><td>'+esc(t.estado_ticket || t.estado || t.et)+'</td><td><button class="mg-link" data-proyecto="'+esc(t.proyecto || t.pro || '')+'">'+esc(t.proyecto || t.pro)+'</button></td><td><button class="mg-link" data-equipo="'+esc(t.codigo_equipo || t.cod || '')+'">'+esc(t.codigo_equipo || t.cod)+'</button></td><td>'+esc(t.responsabilidad || t.res)+'</td><td>'+esc(t.causa_falla || t.causa || t.caf)+'</td></tr>';}).join('') + '</tbody></table></div>';
+    return legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Ticket</th><th>Fecha</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>' + rows.map(t=>{const ticketId=t.ticket||t.n||'';const ticketCodes=visualCodesTicket(t);return '<tr><td><button class="mg-link" data-ticket="'+esc(ticketId)+'">'+renderIdentifierVisual(ticketCodes,ticketId)+'</button></td><td>'+fmtDate(t.fecha_reporte || t.fr)+'</td><td>'+esc(t.estado_ticket || t.estado || t.et)+'</td><td><button class="mg-link" data-proyecto="'+esc(t.proyecto || t.pro || '')+'">'+esc(projectNameDisplay(t.proyecto || t.pro))+'</button></td><td><button class="mg-link" data-equipo="'+esc(t.codigo_equipo || t.cod || '')+'">'+esc(t.codigo_equipo || t.cod)+'</button></td><td>'+esc(t.responsabilidad || t.res)+'</td><td>'+esc(t.causa_falla || t.causa || t.caf)+'</td></tr>';}).join('') + '</tbody></table></div>';
   }
   function bindLinks(root){
     (root || document).querySelectorAll('[data-proyecto]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openProyecto(el.getAttribute('data-proyecto')); }));
@@ -273,7 +274,7 @@
   }
   function projectGeneral(coreRows, options){
     const first=coreRows[0]||{};
-    return [['Proyecto',valueOf(first,['proyecto'])||options.projectName||options.id],['ID proyecto',valueOf(first,['id_proyecto'])||options.id],['Cliente',valueOf(first,['cliente'])||options.cliente],['Ciudad',valueOf(first,['ciudad'])],['Estado',valueOf(first,['estado'])],['Supervisor',valueOf(first,['supervisor_nombre','supervisor_fl','id_sup'])],['Asesor',valueOf(first,['asesor_nombre','vendedor','id_asesor'])],['ADMIN', valueOf(first,['rel_admin','rel_administrativo','administrativo_nombre','administrativo'])]];
+    return [['Proyecto',projectNameDisplay(valueOf(first,['proyecto'])||options.projectName||options.id)],['ID proyecto',valueOf(first,['id_proyecto'])||options.id],['Cliente',valueOf(first,['cliente'])||options.cliente],['Ciudad',valueOf(first,['ciudad'])],['Estado',valueOf(first,['estado'])],['Supervisor',valueOf(first,['supervisor_nombre','supervisor_fl','id_sup'])],['Asesor',valueOf(first,['asesor_nombre','vendedor','id_asesor'])],['ADMIN', valueOf(first,['rel_admin','rel_administrativo','administrativo_nombre','administrativo'])]];
   }
   async function optionalJson(path){try{return await fetchJson(path);}catch(e){return null;}}
   function projectPhotos(row){
@@ -524,7 +525,7 @@
       return rowId===String(proyecto).trim().toUpperCase()||(projectName&&rowProject===projectName.toUpperCase());
     });
     const first=coreRows[0]||{};
-    const resolvedName=valueOf(first,['proyecto'])||projectName||proyecto;
+    const resolvedName=projectNameDisplay(valueOf(first,['proyecto'])||projectName||proyecto);
     const photoRows=photoResponse?(Array.isArray(photoResponse)?photoResponse:(photoResponse.data||[])):[];
     const photoRow=photoRows.find(row=>String(valueOf(row,['ID Proyecto','id_ppns','id_proyecto'])||'').trim().toUpperCase()===String(proyecto).trim().toUpperCase())||photoRows[0]||{};
     const photos=projectPhotos(photoRow);
@@ -548,7 +549,7 @@
     const unitedTickets=isUnitedPortafolio&&unitedRoot&&Array.isArray(unitedRoot.tickets)?unitedRoot.tickets:[];
     const hasUnited=Boolean(isUnitedPortafolio&&(unitedEquipos.length||unitedTickets.length||up.proyecto||up.proyecto_nombre));
     const unitedRows=unitedEquipos.length?unitedEquipos.map(e=>{const code=String(e.numero_equipo||'').trim();const equipoCell=code?'<button class="mg-link" data-equipo="'+esc(code)+'">'+esc(code)+'</button>':'—';return '<tr><td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.zona)+'</td><td>'+esc(e.estatus_servicio)+'</td><td>'+esc(e.estado_operativo)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mg-empty">Sin equipos relacionados en Portafolio.</td></tr>';
-    const unitedHtml=hasUnited?'<section class="mg-company-block united"><div class="mg-company-head"><div><h3>UNITED · Operación y Mantenimiento</h3><p>Información relacionada del Portafolio de mantenimiento.</p></div></div><div class="mg-company-content"><section class="mg-detail-section"><h3>Información general de Mantenimiento</h3>'+grid([['Proyecto',up.nombre_publico||up.proyecto_nombre||up.proyecto||resolvedName],['Código',up.proyecto_busqueda||up.proyecto_codigo||up.proyecto],['Ciudad',up.ciudad],['Estado',up.estado],['Zona',up.zona],['Supervisor',up.supervisor],['Equipos',up.equipos||unitedEquipos.length],['Parados',up.parados],['Tickets 35d',up.tickets_35d],['MTBC 365d',up.mtbc_365]])+'</section><section class="mg-detail-section"><h3>Equipos de Mantenimiento</h3>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+unitedRows+'</tbody></table></div></section><section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(unitedTickets)+'</section></div></section>':'';
+    const unitedHtml=hasUnited?'<section class="mg-company-block united"><div class="mg-company-head"><div><h3>UNITED · Operación y Mantenimiento</h3><p>Información relacionada del Portafolio de mantenimiento.</p></div></div><div class="mg-company-content"><section class="mg-detail-section"><h3>Información general de Mantenimiento</h3>'+grid([['Proyecto',projectNameDisplay(up.nombre_publico||up.proyecto_nombre||up.proyecto||resolvedName)],['Código',up.proyecto_busqueda||up.proyecto_codigo||up.proyecto],['Ciudad',up.ciudad],['Estado',up.estado],['Zona',up.zona],['Supervisor',up.supervisor],['Equipos',up.equipos||unitedEquipos.length],['Parados',up.parados],['Tickets 35d',up.tickets_35d],['MTBC 365d',up.mtbc_365]])+'</section><section class="mg-detail-section"><h3>Equipos de Mantenimiento</h3>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Zona</th><th>Estatus servicio</th><th>Operativo</th></tr></thead><tbody>'+unitedRows+'</tbody></table></div></section><section class="mg-detail-section"><h3>Tickets relacionados</h3>'+ticketsTable(unitedTickets)+'</section></div></section>':'';
     show('Proyecto · '+resolvedName,valueOf(first,['id_proyecto'])||proyecto,coreHtml+unitedHtml);
     const detailRoot=document.getElementById('mg-detail-body');
     bindLinks(detailRoot);
@@ -771,7 +772,7 @@
       }
       const rows=Array.isArray(tickets)?tickets:[];
       const equipmentCode=equipment.numero_equipo||codigo;
-      const projectName=equipment.proyecto||'—';
+      const projectName=projectNameDisplay(equipment.proyecto||'—');
       const pageWidth=doc.internal.pageSize.getWidth();
       const pageHeight=doc.internal.pageSize.getHeight();
       const margin=32;
@@ -882,7 +883,7 @@
       const services=serviceMonths(e);const confirmed=services.items.filter(item=>item.conf&&item.conf.confirmed).length;const allowed=canConfirm(e);
       const serviceCards=services.items.map(item=>'<article class="mg-service-month '+(item.conf&&item.conf.confirmed?'confirmed':'')+'"><button type="button" data-service-month="'+item.key+'" '+(allowed?'':'disabled')+'><strong>'+esc(item.label)+'</strong><span>'+(item.conf&&item.conf.confirmed?'Confirmado · '+esc(item.conf.by||'Usuario'):'Pendiente')+'</span></button></article>').join('');
       const servicesHtml='<section class="mg-detail-section"><button class="mg-service-panel-toggle" type="button" id="mg-service-toggle" aria-expanded="false"><span>🗓️ Servicios mensuales · '+confirmed+' de 12 confirmados</span><span>⌄</span></button><div id="mg-service-content" hidden><div class="mg-service-months">'+serviceCards+'</div></div></section>';
-      show('Equipo · '+(e.numero_equipo||codigo),e.proyecto||'Detalle de equipo','<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Detalle del Equipo</h3><div class="mg-section-actions"><button type="button" class="mg-project-button" data-proyecto="'+esc(e.proyecto||'')+'">Ir a proyecto</button></div></div>'+grid(general)+'</section><section class="mg-detail-section"><h3>Indicadores del equipo</h3>'+kpis+'</section>'+charts+servicesHtml+'<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Equipo</h3><div class="mg-section-actions"><label>Año <select id="mg-equipment-ticket-year">'+yearOptions+'</select></label><button type="button" class="mg-project-button" data-proyecto="'+esc(e.proyecto||'')+'">Ir a proyecto</button><button type="button" class="mg-pdf-button" id="mg-equipment-ticket-pdf">PDF Archivo de equipo</button></div></div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-equipment-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody id="mg-equipment-ticket-body">'+ticketRows(tickets,selectedYear,years)+'</tbody></table></div></section>');
+      show('Equipo · '+(e.numero_equipo||codigo),projectNameDisplay(e.proyecto||'Detalle de equipo'),'<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Detalle del Equipo</h3><div class="mg-section-actions"><button type="button" class="mg-project-button" data-proyecto="'+esc(e.proyecto||'')+'">Ir a proyecto</button></div></div>'+grid(general)+'</section><section class="mg-detail-section"><h3>Indicadores del equipo</h3>'+kpis+'</section>'+charts+servicesHtml+'<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Equipo</h3><div class="mg-section-actions"><label>Año <select id="mg-equipment-ticket-year">'+yearOptions+'</select></label><button type="button" class="mg-project-button" data-proyecto="'+esc(e.proyecto||'')+'">Ir a proyecto</button><button type="button" class="mg-pdf-button" id="mg-equipment-ticket-pdf">PDF Archivo de equipo</button></div></div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-equipment-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody id="mg-equipment-ticket-body">'+ticketRows(tickets,selectedYear,years)+'</tbody></table></div></section>');
       const root=document.getElementById('mg-detail-body');bindLinks(root);
       root.querySelectorAll('.mg-clickable-row').forEach(row=>row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();row.click();}}));
       const yearSelect=root.querySelector('#mg-equipment-ticket-year');if(yearSelect)yearSelect.addEventListener('change',()=>load(yearSelect.value).catch(err=>show('Equipo',codigo,'<div class="mg-empty">Error: '+esc(err.message)+'</div>')));
@@ -1002,7 +1003,7 @@
     const proyecto = t.proyecto || t.pro || '';
     return '<section class="mg-detail-section"><h3>Datos generales</h3>'+grid([
       ['Ticket', t.ticket || t.n || ticketId], ['Folio', t.folio], ['Estado ticket', t.estado_ticket || t.estado || t.et],
-      ['Proyecto', proyecto ? '<button class="mg-link" data-proyecto="'+esc(proyecto)+'">'+esc(proyecto)+'</button>' : '—'],
+      ['Proyecto', proyecto ? '<button class="mg-link" data-proyecto="'+esc(proyecto)+'">'+esc(projectNameDisplay(proyecto))+'</button>' : '—'],
       ['Equipo', equipo ? '<button class="mg-link" data-equipo="'+esc(equipo)+'">'+esc(equipo)+'</button>' : '—'],
       ['Zona', t.zona || t.zon], ['Ciudad', t.ciudad], ['Prioridad', t.prioridad || t.pri]
     ])+'</section>'+ '<section class="mg-detail-section"><h3>Reporte y atención</h3>'+grid([
@@ -1131,7 +1132,7 @@
       if(!t) t = { ticket: ticketId };
       let interactions={ comentarios:[], validaciones:[], permisos:{} };
       try{ const ix=await fetchJson('/api/tickets/'+encodeURIComponent(ticketId)+'/interacciones'); interactions=ix.data||ix||interactions; }catch(interactionError){ interactions.error=interactionError.message; }
-      show('Ticket · ' + (t.ticket || t.n || ticketId), [t.proyecto || t.pro, t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId, interactions));
+      show('Ticket · ' + (t.ticket || t.n || ticketId), [projectNameDisplay(t.proyecto || t.pro), t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId, interactions));
       const body=document.getElementById('mg-detail-body');
       body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
       bindLinks(body); bindTicketInteractions(t,ticketId);
@@ -1153,7 +1154,7 @@
         try{
           const pd = await fetchJson('/api/proyectos/detalle/' + encodeURIComponent(e.proyecto));
           const p = pd.proyecto || {};
-          projectHtml = grid([['Proyecto','<button class="mg-link" data-proyecto="'+esc(e.proyecto)+'">'+esc(p.proyecto_nombre || e.proyecto)+'</button>'],['Código',p.proyecto_codigo || e.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d]]);
+          projectHtml = grid([['Proyecto','<button class="mg-link" data-proyecto="'+esc(e.proyecto)+'">'+esc(projectNameDisplay(p.proyecto_nombre || e.proyecto))+'</button>'],['Código',p.proyecto_codigo || e.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d]]);
         }catch(e2){ projectHtml = '<div class="mg-empty">No se pudo cargar detalle del proyecto: '+esc(e2.message)+'</div>'; }
       }
       const rows = ticketData.data || ticketData.tickets || [];
