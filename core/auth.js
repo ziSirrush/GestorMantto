@@ -19,8 +19,45 @@
   function setForm(name){
     ['login-form','first-login-form','recovery-form'].forEach(id=>show($(id), id===name));
   }
-  function getToken(){ return state.token || sessionStorage.getItem(TOKEN_KEY) || ''; }
-  function getActorUser(){ return state.user || safeJson(sessionStorage.getItem(USER_KEY)); }
+  function getToken(){ return state.token || sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || ''; }
+  function getActorUser(){ return state.user || safeJson(sessionStorage.getItem(USER_KEY)) || safeJson(localStorage.getItem(USER_KEY)); }
+  function jwtExpiryMs(token){
+    try{
+      const payloadPart=String(token||'').split('.')[1]||'';
+      if(!payloadPart) return 0;
+      const normalized=payloadPart.replace(/-/g,'+').replace(/_/g,'/');
+      const padded=normalized+'='.repeat((4-normalized.length%4)%4);
+      const payload=JSON.parse(window.atob(padded));
+      return Number(payload&&payload.exp||0)*1000;
+    }catch(_error){ return 0; }
+  }
+  function persistActorSession(token,user,marker){
+    const cleanToken=String(token||'').trim();
+    if(!cleanToken) return;
+    const sessionUser=user||null;
+    const expiresAt=jwtExpiryMs(cleanToken);
+    localStorage.setItem(TOKEN_KEY,cleanToken);
+    if(sessionUser) localStorage.setItem(USER_KEY,JSON.stringify(sessionUser));
+    localStorage.setItem(SESSION_KEY,JSON.stringify({
+      token:cleanToken,
+      user:sessionUser,
+      persisted_at:new Date().toISOString(),
+      expires_at:expiresAt||null,
+      marker:marker||'persisted'
+    }));
+  }
+  function readPersistedActorSession(){
+    const token=String(localStorage.getItem(TOKEN_KEY)||'').trim();
+    const user=safeJson(localStorage.getItem(USER_KEY));
+    const expiresAt=jwtExpiryMs(token);
+    if(!token || (expiresAt && expiresAt<=Date.now())){
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return {token,user};
+  }
   function getViewUser(){ return state.viewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY)); }
   function getUser(){ return getViewUser() || getActorUser(); }
   function storeViewUser(user){
@@ -121,6 +158,7 @@
     if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
     if(payload?.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(payload.session_csrf_token));
     sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:state.user,refreshed_at:new Date().toISOString()}));
+    persistActorSession(state.token,state.user,'refresh');
     state.lastSessionRefreshAt=Date.now();
     return payload;
   }
@@ -192,6 +230,7 @@
       state.token=String(json.token);
       sessionStorage.setItem(TOKEN_KEY,state.token);
       sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:getActorUser(),refreshed_at:new Date().toISOString()}));
+      persistActorSession(state.token,getActorUser(),'api-token');
     }
     if(token && !isPublicAuthPath(path) && Date.now()-state.lastSessionRefreshAt>=SESSION_ACTIVITY_TOUCH_MS){
       touchSessionFromActivity();
@@ -223,6 +262,7 @@
     state.viewUser = null;
     sessionStorage.setItem(TOKEN_KEY, payload.token || '');
     sessionStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
+    persistActorSession(payload.token,payload.user,'login');
     if(payload.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(payload.session_csrf_token));
     sessionStorage.removeItem(VIEW_USER_KEY);
     sessionStorage.removeItem(VIEWER_TOKEN_KEY);
@@ -351,9 +391,14 @@
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     $('sidebar-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     const launchedViewUser=consumeViewerLaunch();
-    localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); localStorage.removeItem(SESSION_KEY);
-    let savedToken = sessionStorage.getItem(TOKEN_KEY);
-    let savedUser = safeJson(sessionStorage.getItem(USER_KEY));
+    const persistedSession=readPersistedActorSession();
+    let savedToken = sessionStorage.getItem(TOKEN_KEY) || persistedSession?.token || '';
+    let savedUser = safeJson(sessionStorage.getItem(USER_KEY)) || persistedSession?.user || null;
+    if(savedToken && !sessionStorage.getItem(TOKEN_KEY)){
+      sessionStorage.setItem(TOKEN_KEY,savedToken);
+      if(savedUser) sessionStorage.setItem(USER_KEY,JSON.stringify(savedUser));
+      sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:savedToken,user:savedUser,restored_at:new Date().toISOString()}));
+    }
     if(!savedToken){
       try{
         const refreshed=await refreshAccessToken();
@@ -375,6 +420,7 @@
       if(!validatedUser) throw new Error('Sesión sin usuario válido.');
       state.user=validatedUser;
       sessionStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
+      persistActorSession(state.token,validatedUser,'validated');
       if(state.viewUser) await hydrateViewerUser();
       await completeAuthenticatedAccess();
     }catch(error){
