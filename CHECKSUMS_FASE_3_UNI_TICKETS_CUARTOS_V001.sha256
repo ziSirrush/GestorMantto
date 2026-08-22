@@ -1,0 +1,9 @@
+880b864cdd033fd47d6eec5b2d626a79c9efcf6f352ebea53bbb8e4b74d03e3d  ./ADR_FASE_3_UNI_TICKETS_CUARTOS_V001.md
+349440229abe3248153d83fa3a624510a509b24a072a3d8eeec9f2d366ed2aeb  ./README_FASE_3_UNI_TICKETS_CUARTOS_V001.md
+7a29b3b2ff771c8f8e44ca099c02b1244d251bbdb04a7220a4abbbc6b554bd8e  ./backend/scripts/test-alcance-uni.js
+ec435046b4a9c5fa958179c514372d800fa4b68d37b519ac644de039f1cfe056  ./backend/scripts/test-fase-3-tickets-cuartos-uni.js
+12ab61000fd7a39b1a5ca843ce62486fe1420fa97204e7065e305f1b5e574fdb  ./backend/scripts/test-fase-6-alcances.js
+1de69cbd63c9e1150a60bd0274226d14b8413926b858cf344fc1542e295ae1df  ./backend/src/modules/tickets/tickets-consultas_uni.js
+9371eadfdaa76591106ed406ea08da21f87117c558e89cc587406e7f737c4f00  ./backend/src/modules/tickets/tickets.repository.js
+b595ec87a27a59fa110f68412afd09a5a99dc0d347395c7f10dd63013c069c9c  ./backend/src/services/alcance/alcance-uni.service.js
+a6155cdbdb513f658eac38259f63a1ecd0ccc7da82a855f2c33fe24b19108f12  ./backend/src/services/information-record-scope-gnral.service.js

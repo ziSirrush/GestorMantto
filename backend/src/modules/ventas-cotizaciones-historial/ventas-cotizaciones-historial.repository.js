@@ -10,9 +10,15 @@ async function getConnection() {
 
 function buildScopeClause(scope, alias = 'c') {
   if (!scope || scope.mode === 'ALL') return { sql: '', params: [] };
-  const ids = Array.isArray(scope.advisorIds) ? scope.advisorIds.filter(Number.isInteger) : [];
+  const ids = Array.isArray(scope.advisorIds)
+    ? [...new Set(scope.advisorIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))]
+    : [];
   if (!ids.length) return { sql: '1 = 0', params: [] };
-  return { sql: `${alias}.id_asesor IN (${ids.map(() => '?').join(', ')})`, params: ids };
+  const placeholders = ids.map(() => '?').join(', ');
+  return {
+    sql: `(${alias}.id_asesor IN (${placeholders}) OR ${alias}.id_admin IN (${placeholders}))`,
+    params: [...ids, ...ids]
+  };
 }
 
 async function create(connection, record) {

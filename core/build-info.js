@@ -23,37 +23,33 @@
   function label(){
     const info=current();
     if(info.local) return ['LOCAL',info.localVersion].filter(Boolean).join(' · ');
-    if(!info.generated) return 'DEPLOY · metadata de commit no generada';
-    return ['DEPLOY',info.message,info.commitShort].filter(Boolean).join(' · ');
+    const provider=String(info.provider||'DEPLOY').trim().toUpperCase()||'DEPLOY';
+    if(!info.generated) return provider+' · metadata de commit no generada';
+    return [provider,info.message,info.commitShort].filter(Boolean).join(' · ');
   }
 
   function getProfileLabel(){
     return 'Versión de la aplicación: '+label();
   }
 
-  function exactProgramador(){
-    const user=window.ManttoAuth?.getUser?.()||{};
-    const roles=[user.rol]
-      .concat(Array.isArray(user.roles)?user.roles:[])
-      .concat(Array.isArray(user.roles_detalle)?user.roles_detalle.map(r=>r&&(r.rol||r.nombre)):[])
-      .filter(Boolean)
-      .map(r=>String(r).trim().toLowerCase());
-    return roles.includes('programador');
-  }
-
   function initProgrammerBanner(){
     const el=document.getElementById('app-build-version');
     if(!el)return;
-    if(!exactProgramador()){
-      el.hidden=true;
-      el.textContent='';
-      return;
-    }
     const info=current();
-    el.textContent=label();
-    el.title=info.local ? 'Versión local de trabajo' : ('Commit desplegado: '+(info.commit||info.commitShort||'metadata no generada'));
+    const versionLabel=label();
+    el.textContent='Versión · '+versionLabel;
+    el.title=info.local
+      ? 'Versión local de trabajo: '+versionLabel
+      : 'Versión desplegada · Commit: '+(info.commit||info.commitShort||'metadata no generada');
+    el.setAttribute('aria-label','Versión de la aplicación: '+versionLabel);
     el.hidden=false;
   }
 
-  window.ManttoBuildInfo=Object.freeze({current,label,getProfileLabel,initProgrammerBanner});
+  window.ManttoBuildInfo=Object.freeze({
+    current,
+    label,
+    getProfileLabel,
+    initProgrammerBanner,
+    initBanner:initProgrammerBanner
+  });
 })();

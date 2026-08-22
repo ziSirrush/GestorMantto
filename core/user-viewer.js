@@ -222,6 +222,18 @@
     };
     return [...new Set([key,...(aliases[key]||[])].filter(Boolean))];
   }
+  function companyKey(value){
+    const key=norm(value);
+    if(key.includes('united'))return 'united';
+    if(key.includes('corellian'))return 'corellian';
+    if(key==='general'||key.includes('blt'))return 'general';
+    return key;
+  }
+  function matchesGroupCompany(group,row){
+    const expected=companyKey(group?.dataset?.company);
+    if(!expected)return true;
+    return companyKey(row?.agrupacion_empresa)===expected;
+  }
   function catalogGroupKeys(row){return [row.agrupacion_codigo,row.agrupacion_nombre].map(norm).filter(Boolean);}
   function catalogModuleKeys(row){return [row.modulo_codigo,row.modulo_nombre,row.modulo_ruta_frontend].map(norm).filter(Boolean);}
   function rowsForModule(item){
@@ -232,6 +244,7 @@
     return state.catalog.filter(row=>{
       if(Number(row.modulo_interno_visual)===1)return false;
       if(group){
+        if(!matchesGroupCompany(group,row))return false;
         const catalogGroups=catalogGroupKeys(row);
         const sameGroup=acceptedGroups.some(key=>key&&catalogGroups.includes(key));
         if(!sameGroup)return false;
@@ -253,14 +266,14 @@
   function hasActiveCatalogGroup(group){
     const keys=groupKeys(group);
     if(!keys.length)return false;
-    return state.catalog.some(row=>Number(row.agrupacion_activo)!==0&&keys.some(key=>key&&norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' ')).includes(key)));
+    return state.catalog.some(row=>matchesGroupCompany(group,row)&&Number(row.agrupacion_activo)!==0&&keys.some(key=>key&&norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' ')).includes(key)));
   }
   function groupVisualRows(group){
     const keys=groupKeys(group);
     if(!keys.length)return [];
     return state.catalog.filter(row=>{
       const groupMatch=keys.some(key=>key&&norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' ')).includes(key));
-      return groupMatch&&Number(row.modulo_interno_visual)===1&&Number(row.id_subelemento_accion)>0;
+      return matchesGroupCompany(group,row)&&groupMatch&&Number(row.modulo_interno_visual)===1&&Number(row.id_subelemento_accion)>0;
     });
   }
   function hasGroupVisualAccess(group){return groupVisualRows(group).some(row=>state.permissions.get(Number(row.id_subelemento_accion))===true);}

@@ -5,6 +5,7 @@ const ventasVisibility = require('../ventas/ventas-visibility.service');
 const azureStorage = require('../../services/storage/azure-storage.service');
 const storageAccess = require('../../services/storage/storage-access.service');
 const storageAdapters = require('../../services/storage/storage-metadata.adapters');
+const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 
 const CATALOG_PATHS = Object.freeze({
   id_contacto_via: Object.freeze({ area: 'Ventas', elemento: 'Tipo Contacto' }),
@@ -31,6 +32,15 @@ const ID_FIELDS = Object.freeze([
   'id_estatus',
   'id_cotizacion'
 ]);
+
+const REDES_PERMISSIONS_COR = Object.freeze({
+  crear: 'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_NUEVA_ASIGNACION.CREAR',
+  asignar_crear: 'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_NUEVA_ASIGNACION.ASIGNAR_RESPONSABLES',
+  editar: 'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR',
+  asignar_editar: 'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.ASIGNAR_RESPONSABLES',
+  cambiar_estado: 'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_DETALLE.CAMBIAR_ESTADO',
+  relacion_cotizacion: 'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_RELACION_COTIZACION.GESTIONAR_RELACION_COTIZACION'
+});
 
 function httpError(statusCode, message, details, code) {
   const error = new Error(message);
@@ -96,6 +106,37 @@ function actorId(actionContext) {
 
 function contextUser(actionContext) {
   return actionContext?.contextUser || actionContext?.user || null;
+}
+
+function permissionUserId(actionContext) {
+  const user = contextUser(actionContext);
+  const id = Number(user?.id_SB || user?.id || user?.user_id);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function hasRedesPermission(connection, actionContext, permissionCode) {
+  const userId = permissionUserId(actionContext);
+  return Boolean(userId && await hasEffectivePermission(userId, permissionCode, connection));
+}
+
+async function requireRedesPermission(connection, actionContext, permissionCode, message) {
+  if (await hasRedesPermission(connection, actionContext, permissionCode)) return;
+  throw httpError(403, message || 'No tienes permiso para realizar esta acción en Asignación a Redes.');
+}
+
+async function canAssignRedes(connection, actionContext) {
+  const [createAssign, editAssign] = await Promise.all([
+    hasRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.asignar_crear),
+    hasRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.asignar_editar)
+  ]);
+  return createAssign || editAssign;
+}
+
+function scopeAllowsAssignedUser(scope, userId) {
+  const id = Number(userId);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  if (scope?.mode === 'ALL') return true;
+  return new Set((scope?.advisorIds || []).map(Number)).has(id);
 }
 
 async function resolveScope(connection, actionContext) {
@@ -178,13 +219,12 @@ async function validateCatalogRelations(connection, record) {
 async function validateRecordRelations(connection, record, scope, { assignmentChanged = false } = {}) {
   await validateCatalogRelations(connection, record);
 
-  if (assignmentChanged && !scope.accessTotal) {
-    throw httpError(403, 'Solo el grupo de acceso total puede asignar o reasignar registros de Redes.');
-  }
-
   if (Object.prototype.hasOwnProperty.call(record, 'id_usuario_asignado') && record.id_usuario_asignado !== null) {
     const user = await repository.findActiveUserById(connection, record.id_usuario_asignado);
     if (!user) throw httpError(400, 'El usuario asignado no existe o está inactivo.');
+    if (assignmentChanged && !scopeAllowsAssignedUser(scope, record.id_usuario_asignado)) {
+      throw httpError(403, 'El usuario asignado queda fuera de tu Alcance de Información.');
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(record, 'id_cotizacion') && record.id_cotizacion !== null) {
@@ -466,7 +506,10 @@ async function list(query, actionContext) {
   const connection = await repository.getConnection();
   try {
     const scope = await resolveScope(connection, actionContext);
-    const result = await repository.list(connection, options, scope);
+    const [result, puedeAsignar] = await Promise.all([
+      repository.list(connection, options, scope),
+      canAssignRedes(connection, actionContext)
+    ]);
     return {
       ok: true,
       source: 'aiven',
@@ -478,7 +521,7 @@ async function list(query, actionContext) {
         total_pages: Math.ceil(result.total / options.pageSize)
       },
       visibilidad: ventasVisibility.toClientVisibility(scope),
-      puede_asignar: Boolean(scope.accessTotal)
+      puede_asignar: puedeAsignar
     };
   } finally {
     connection.release();
@@ -489,7 +532,10 @@ async function getById(rawId, actionContext) {
   const connection = await repository.getConnection();
   try {
     const { idRedes, record, scope } = await assertVisibleRecord(connection, rawId, actionContext);
-    const evidence = await repository.listEvidence(connection, idRedes);
+    const [evidence, puedeAsignar] = await Promise.all([
+      repository.listEvidence(connection, idRedes),
+      canAssignRedes(connection, actionContext)
+    ]);
     return {
       ok: true,
       source: 'aiven',
@@ -498,7 +544,7 @@ async function getById(rawId, actionContext) {
         archivos: evidence.map((file) => presentEvidence(file, idRedes))
       },
       visibilidad: ventasVisibility.toClientVisibility(scope),
-      puede_asignar: Boolean(scope.accessTotal)
+      puede_asignar: puedeAsignar
     };
   } finally {
     connection.release();
@@ -509,11 +555,12 @@ async function getCatalogs(actionContext) {
   const connection = await repository.getConnection();
   try {
     const scope = await resolveScope(connection, actionContext);
-    const [contactoVia, estados, solicitudes, estatus] = await Promise.all([
+    const [contactoVia, estados, solicitudes, estatus, puedeAsignar] = await Promise.all([
       repository.listCatalog(connection, 'Ventas', 'Tipo Contacto'),
       repository.listCatalog(connection, 'General', 'Estado'),
       repository.listCatalog(connection, 'Ventas', 'Soli Red'),
-      repository.listCatalog(connection, 'Ventas', 'Estatus Pros')
+      repository.listCatalog(connection, 'Ventas', 'Estatus Pros'),
+      canAssignRedes(connection, actionContext)
     ]);
 
     return {
@@ -531,7 +578,7 @@ async function getCatalogs(actionContext) {
         solicitud: 'catalogo_general\\Ventas\\Soli Red\\',
         estatus: 'catalogo_general\\Ventas\\Estatus Pros\\'
       },
-      puede_asignar: Boolean(scope.accessTotal),
+      puede_asignar: puedeAsignar,
       visibilidad: ventasVisibility.toClientVisibility(scope)
     };
   } finally {
@@ -543,17 +590,17 @@ async function getAssignableUsers(query, actionContext) {
   const connection = await repository.getConnection();
   try {
     const scope = await resolveScope(connection, actionContext);
-    if (!scope.accessTotal) {
-      return {
-        ok: true,
-        source: 'aiven',
-        puede_asignar: false,
-        usuarios: []
-      };
+    const puedeAsignar = await canAssignRedes(connection, actionContext);
+    if (!puedeAsignar) {
+      return { ok: true, source: 'aiven', puede_asignar: false, usuarios: [] };
     }
     const search = cleanText(query?.search || query?.buscar, 200);
     const limit = boundedInteger(query?.limit, 200, 1, 500, 'limit');
-    const rows = await repository.listActiveUsers(connection, search, limit);
+    let rows = await repository.listActiveUsers(connection, search, limit);
+    if (scope.mode !== 'ALL') {
+      const allowed = new Set((scope.advisorIds || []).map(Number));
+      rows = rows.filter((row) => allowed.has(Number(row.id_SB)));
+    }
     return {
       ok: true,
       source: 'aiven',
@@ -594,10 +641,21 @@ async function create(payload, files, actionContext) {
   try {
     await connection.beginTransaction();
     const scope = await resolveScope(connection, actionContext);
-    if (!scope.accessTotal) {
-      throw httpError(403, 'Solo los usuarios con acceso total pueden crear registros de Redes.');
-    }
+    await requireRedesPermission(
+      connection,
+      actionContext,
+      REDES_PERMISSIONS_COR.crear,
+      'No tienes permiso para crear registros de Redes.'
+    );
     const assignmentChanged = record.id_usuario_asignado !== null;
+    if (assignmentChanged) {
+      await requireRedesPermission(
+        connection,
+        actionContext,
+        REDES_PERMISSIONS_COR.asignar_crear,
+        'No tienes permiso para asignar responsables al crear registros de Redes.'
+      );
+    }
     await validateRecordRelations(connection, record, scope, { assignmentChanged });
 
     const idRedes = await repository.insert(connection, record);
@@ -686,9 +744,15 @@ async function update(rawId, payload, actionContext) {
 async function updateGeneral(rawId, payload, actionContext) {
   const connection = await repository.getConnection();
   try {
-    const scope = await resolveScope(connection, actionContext);
-    if (!scope.accessTotal) {
-      throw httpError(403, 'Solo los usuarios con acceso total pueden editar registros de Redes.');
+    await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.editar, 'No tienes permiso para editar registros de Redes.');
+    if (Object.prototype.hasOwnProperty.call(payload || {}, 'id_usuario_asignado')) {
+      await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.asignar_editar, 'No tienes permiso para asignar responsables en Redes.');
+    }
+    if (Object.prototype.hasOwnProperty.call(payload || {}, 'id_estatus')) {
+      await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.cambiar_estado, 'No tienes permiso para cambiar el estado en Redes.');
+    }
+    if (Object.prototype.hasOwnProperty.call(payload || {}, 'id_cotizacion')) {
+      await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.relacion_cotizacion, 'No tienes permiso para gestionar la relación con cotización en Redes.');
     }
   } finally {
     connection.release();
@@ -700,6 +764,12 @@ async function updateStatus(rawId, payload, actionContext) {
   if (!Object.prototype.hasOwnProperty.call(payload || {}, 'id_estatus')) {
     throw httpError(400, 'Debes enviar id_estatus.');
   }
+  const connection = await repository.getConnection();
+  try {
+    await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.cambiar_estado, 'No tienes permiso para cambiar el estado en Redes.');
+  } finally {
+    connection.release();
+  }
   return update(rawId, { id_estatus: payload.id_estatus }, actionContext);
 }
 
@@ -710,10 +780,7 @@ async function updateAssignment(rawId, payload, actionContext) {
 
   const connection = await repository.getConnection();
   try {
-    const scope = await resolveScope(connection, actionContext);
-    if (!scope.accessTotal) {
-      throw httpError(403, 'Solo el grupo de acceso total puede asignar o reasignar registros de Redes.');
-    }
+    await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.asignar_editar, 'No tienes permiso para asignar o reasignar responsables en Redes.');
   } finally {
     connection.release();
   }
@@ -724,6 +791,12 @@ async function updateAssignment(rawId, payload, actionContext) {
 async function updateQuotation(rawId, payload, actionContext) {
   if (!Object.prototype.hasOwnProperty.call(payload || {}, 'id_cotizacion')) {
     throw httpError(400, 'Debes enviar id_cotizacion.');
+  }
+  const connection = await repository.getConnection();
+  try {
+    await requireRedesPermission(connection, actionContext, REDES_PERMISSIONS_COR.relacion_cotizacion, 'No tienes permiso para gestionar la relación con cotización en Redes.');
+  } finally {
+    connection.release();
   }
   return update(rawId, { id_cotizacion: payload.id_cotizacion }, actionContext);
 }

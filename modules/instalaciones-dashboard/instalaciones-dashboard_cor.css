@@ -1,0 +1,91 @@
+.idb-cor-view{padding:0!important}
+.idb-cor-page{--idb-blue:#1f56d8;--idb-blue-soft:#edf4ff;--idb-border:#dce4ef;--idb-text:#172033;--idb-muted:#667085;--idb-bg:#f6f8fc;--idb-danger:#b42318;--idb-warning:#b54708;--idb-success:#067647;display:flex;flex-direction:column;gap:16px;padding:18px 20px 34px;background:var(--idb-bg);min-height:100%;color:var(--idb-text);box-sizing:border-box}
+.idb-cor-card{background:#fff;border:1px solid var(--idb-border);border-radius:16px;box-shadow:0 8px 24px rgba(16,24,40,.045)}
+.idb-cor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px}
+.idb-cor-eyebrow{margin:0 0 5px;font-size:11px;font-weight:900;letter-spacing:.11em;color:var(--idb-blue)}
+.idb-cor-head h1{margin:0;font-size:27px;line-height:1.15;color:#101828}
+.idb-cor-head p{max-width:920px;margin:7px 0 0;color:var(--idb-muted);font-size:13px;line-height:1.5}
+.idb-cor-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.idb-cor-btn{border:1px solid #cfd8e8;background:#fff;color:#24324b;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}
+.idb-cor-btn:hover{border-color:#9fb5dd;background:#f8fbff}.idb-cor-btn:disabled{opacity:.5;cursor:not-allowed}
+.idb-cor-btn-primary{background:var(--idb-blue);border-color:var(--idb-blue);color:#fff}
+.idb-cor-mode{display:flex;padding:3px;border:1px solid #d3dceb;background:#f7f9fd;border-radius:11px}
+.idb-cor-mode-btn{border:0;background:transparent;color:#667085;border-radius:8px;padding:7px 11px;font-weight:800;cursor:pointer}
+.idb-cor-mode-btn.active{background:#fff;color:var(--idb-blue);box-shadow:0 1px 4px rgba(16,24,40,.12)}
+.idb-cor-selector-card,.idb-cor-section{padding:18px 20px}
+.idb-cor-section-title{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
+.idb-cor-section-title>div:first-child{display:flex;align-items:flex-start;gap:11px;min-width:0}
+.idb-cor-section-title h2{margin:0;font-size:17px;color:#182230}.idb-cor-section-title p{margin:4px 0 0;color:var(--idb-muted);font-size:12px;line-height:1.45}
+.idb-cor-step{display:inline-grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:9px;background:var(--idb-blue-soft);color:var(--idb-blue);font-weight:900;font-size:13px}
+.idb-cor-count-pill{display:inline-flex;align-items:center;min-height:26px;padding:4px 9px;border-radius:999px;background:#f2f4f7;color:#344054;font-size:11px;font-weight:850;white-space:nowrap}
+.idb-cor-chip-grid{display:flex;flex-wrap:wrap;gap:8px}
+.idb-cor-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid #d0d8e6;background:#fff;color:#344054;border-radius:10px;padding:8px 11px;font-size:12px;font-weight:750;cursor:pointer;transition:.15s ease}
+.idb-cor-chip:hover{border-color:#9bb5e8;background:#f8fbff}.idb-cor-chip.active{background:#1f56d8;border-color:#1f56d8;color:#fff;box-shadow:0 5px 12px rgba(31,86,216,.18)}
+.idb-cor-chip.afl{border-color:#b6a4f4;background:#f8f6ff;color:#5f3dc4}.idb-cor-chip.afl.active{background:#6941c6;border-color:#6941c6;color:#fff}
+.idb-cor-chip.all{font-weight:900}.idb-cor-chip small{font-size:10px;opacity:.72;font-weight:700}
+.idb-cor-selection-summary{display:flex;align-items:center;gap:10px;margin-top:13px;padding:10px 12px;border-radius:10px;background:#f8faff;border:1px solid #e3eafb}
+.idb-cor-selection-summary span{font-size:18px}.idb-cor-selection-summary small{display:block;color:#667085;font-size:10px;margin-bottom:2px}.idb-cor-selection-summary strong{font-size:12px;color:#1d2939}
+.idb-cor-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:150px;padding:24px;color:#667085}
+.idb-cor-empty>span{font-size:28px;margin-bottom:8px}.idb-cor-empty strong{font-size:14px;color:#344054}.idb-cor-empty p{max-width:620px;margin:5px 0 0;font-size:12px;line-height:1.45}
+.idb-cor-inline-empty{min-height:105px;background:#fafbfc;border:1px dashed #d8dee8;border-radius:12px}
+.idb-cor-table-wrap{width:100%;overflow:auto;border:1px solid #e3e8ef;border-radius:12px;background:#fff}
+.idb-cor-table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px;font-size:11px}
+.idb-cor-table th{position:sticky;top:0;z-index:1;padding:9px 10px;background:#f8fafc;border-bottom:1px solid #dfe5ed;color:#344054;font-size:10px;text-align:left;white-space:nowrap;font-weight:900}
+.idb-cor-table td{padding:9px 10px;border-bottom:1px solid #edf0f4;color:#344054;vertical-align:top;line-height:1.35}.idb-cor-table tbody tr:last-child td{border-bottom:0}
+.idb-cor-table tbody tr.idb-cor-clickable{cursor:pointer}.idb-cor-table tbody tr.idb-cor-clickable:hover td{background:#f4f8ff}
+.idb-cor-table .idb-cor-project-link,.idb-cor-table .idb-cor-equipment-link{border:0;background:none;padding:0;color:#155eef;font:inherit;font-weight:850;text-align:left;cursor:pointer}
+.idb-cor-report-title{align-items:flex-end}.idb-cor-report-controls{display:flex;gap:10px;flex-wrap:wrap}.idb-cor-report-controls label{display:flex;flex-direction:column;gap:4px;color:#667085;font-size:10px;font-weight:800}.idb-cor-report-controls select{min-width:260px;border:1px solid #cfd8e8;border-radius:9px;background:#fff;padding:8px 10px;color:#344054;font-weight:700}
+.idb-cor-scope-banner{margin:0 0 12px;padding:9px 11px;border-radius:10px;border:1px solid #d8cef8;background:#f8f6ff;color:#5f3dc4;font-size:11px;font-weight:800}
+.idb-cor-alerts{display:flex;flex-wrap:wrap;gap:4px}.idb-cor-alert{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:3px 6px;background:#fff4ed;color:#b54708;font-size:9px;font-weight:850;white-space:nowrap}
+.idb-cor-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}.idb-cor-kpi{border:1px solid #e1e7ef;border-radius:12px;padding:13px 14px;background:#fbfcfe}.idb-cor-kpi span{display:block;color:#667085;font-size:10px;font-weight:800}.idb-cor-kpi strong{display:block;margin-top:5px;font-size:20px;color:#101828}.idb-cor-kpi small{display:block;margin-top:4px;color:#667085;font-size:10px}
+.idb-cor-kpi.warning{background:#fffaeb;border-color:#fedf89}.idb-cor-kpi.warning strong{color:#b54708}.idb-cor-kpi.info{background:#eff8ff;border-color:#b2ddff}.idb-cor-kpi.info strong{color:#175cd3}
+.idb-cor-note{margin:0 0 12px;padding:10px 12px;border-radius:10px;font-size:11px;line-height:1.45}.idb-cor-note-neutral{background:#f8fafc;border:1px solid #e4e7ec;color:#475467}.idb-cor-note-warning{background:#fffaeb;border:1px solid #fedf89;color:#93370d}
+.idb-cor-footer-note{display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border:1px solid #cfe0ff;background:#eff6ff;border-radius:11px;color:#344054}.idb-cor-footer-note span{color:#155eef;font-weight:900}.idb-cor-footer-note p{margin:0;font-size:11px;line-height:1.45}
+.idb-cor-loading{opacity:.7;pointer-events:none}.idb-cor-muted{color:#98a2b3}.idb-cor-money{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:800}.idb-cor-negative{color:#b42318}.idb-cor-hidden-by-junta{display:none!important}
+@media (max-width:900px){.idb-cor-page{padding:12px 12px 28px}.idb-cor-head{flex-direction:column}.idb-cor-head-actions{width:100%;justify-content:space-between}.idb-cor-section-title,.idb-cor-report-title{flex-direction:column;align-items:stretch}.idb-cor-report-controls select{width:100%;min-width:0}.idb-cor-kpis{grid-template-columns:1fr}.idb-cor-table{min-width:820px}.idb-cor-chip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.idb-cor-chip{justify-content:center}}
+@media (max-width:520px){.idb-cor-head h1{font-size:23px}.idb-cor-head-actions{align-items:stretch;flex-direction:column}.idb-cor-mode{width:100%}.idb-cor-mode-btn{flex:1}.idb-cor-btn-primary{width:100%}.idb-cor-chip-grid{grid-template-columns:1fr}.idb-cor-selector-card,.idb-cor-section{padding:14px}.idb-cor-table{min-width:760px}}
+
+
+/* Modo Junta · Documentación Pendiente V001 */
+.idb-cor-documentation-card[hidden]{display:none!important}
+.idb-cor-documentation-title{align-items:center}
+.idb-cor-documentation-summary{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.idb-cor-documentation-summary small{display:block;color:#667085;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.03em}
+.idb-cor-documentation-summary strong{display:block;margin-top:2px;color:#344054;font-size:11px}
+.idb-cor-documentation-ring{--pct:0;position:relative;display:grid;place-items:center;width:62px;height:62px;border-radius:50%;background:conic-gradient(var(--idb-blue) calc(var(--pct)*1%),#e8edf5 0)}
+.idb-cor-documentation-ring:after{content:"";position:absolute;inset:7px;border-radius:50%;background:#fff}
+.idb-cor-documentation-ring span{position:relative;z-index:1;color:#101828;font-size:12px;font-weight:950}
+.idb-cor-documentation-table{min-width:1720px}
+.idb-cor-documentation-table th,.idb-cor-documentation-table td{text-align:center}
+.idb-cor-documentation-table th:nth-child(5),.idb-cor-documentation-table th:nth-child(6),.idb-cor-documentation-table td:nth-child(5),.idb-cor-documentation-table td:nth-child(6){text-align:left}
+.idb-cor-doc-chip{display:inline-flex;align-items:center;justify-content:center;max-width:126px;min-height:25px;padding:0 7px;border-radius:8px;font-size:9px;font-weight:850;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.idb-cor-doc-ok{background:#ecfdf3;color:#15803d;border:1px solid #d1fae5}
+.idb-cor-doc-missing{background:#fff1f2;color:#be123c;border:1px solid #ffe4e6}
+.idb-cor-doc-neutral{background:#f4f6f9;color:#7b8798;border:1px solid #e5eaf1}
+.idb-cor-doc-pct{display:inline-flex;min-width:48px;justify-content:center;font-weight:950}.idb-cor-doc-pct.good{color:var(--idb-success)}.idb-cor-doc-pct.mid{color:var(--idb-warning)}.idb-cor-doc-pct.low{color:var(--idb-danger)}
+.idb-cor-documentation-foot{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:10px;color:#667085;font-size:10px;font-weight:800}
+.idb-cor-documentation-foot>span:last-child{justify-self:end}
+.idb-cor-documentation-pages{justify-content:center}
+.idb-cor-documentation-pages{display:flex;align-items:center;gap:6px}.idb-cor-documentation-pages button{width:30px;height:30px;border:1px solid #cfd8e8;border-radius:9px;background:#fff;color:#344054;font-weight:900;cursor:pointer}.idb-cor-documentation-pages button.active{background:var(--idb-blue);border-color:var(--idb-blue);color:#fff}.idb-cor-documentation-pages button:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:900px){.idb-cor-documentation-title{align-items:stretch}.idb-cor-documentation-summary{justify-content:flex-start}.idb-cor-documentation-foot{grid-template-columns:1fr;justify-items:center;text-align:center}.idb-cor-documentation-foot>span:last-child{justify-self:center}}
+
+/* Modo Junta · celdas fantasma reactivas V003 */
+.idb-cor-edit-hint{display:inline-flex;align-items:center;color:#667085;font-weight:800}
+/* En reposo la celda editable se ve igual que cualquier otra: no hay lápiz, botón ni fondo permanente. */
+.idb-cor-cell-editable{position:relative;cursor:pointer!important;transition:background-color .12s ease,box-shadow .12s ease,color .12s ease}
+/* El botón fantasma aparece únicamente por reacción visual al hover/focus/active. */
+.idb-cor-cell-editable:hover,.idb-cor-cell-editable:focus{outline:none;background:#f7faff!important;box-shadow:inset 0 0 0 1px rgba(31,86,216,.34);color:#173f8f}
+.idb-cor-cell-editable:active{background:#edf4ff!important;box-shadow:inset 0 0 0 2px rgba(31,86,216,.34)}
+.idb-cor-cell-editing{background:#eaf2ff!important;box-shadow:inset 0 0 0 2px rgba(31,86,216,.45)!important;color:#173f8f}
+.idb-cor-cell-value{display:inline;white-space:normal}
+.idb-cor-cell-editor{position:fixed;z-index:10050;box-sizing:border-box;width:320px;max-width:calc(100vw - 24px);padding:14px;border:1px solid #b8caec;border-radius:14px;background:#fff;box-shadow:0 18px 45px rgba(16,24,40,.24);color:#1d2939}
+.idb-cor-cell-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:9px}
+.idb-cor-cell-editor-head>div{display:flex;min-width:0;flex-direction:column;gap:2px}.idb-cor-cell-editor-head small{color:#667085;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.04em}.idb-cor-cell-editor-head strong{font-size:14px;color:#101828}
+.idb-cor-cell-editor-close{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border:0;border-radius:8px;background:#f2f4f7;color:#475467;font-size:20px;line-height:1;cursor:pointer}.idb-cor-cell-editor-close:hover{background:#e4e7ec}
+.idb-cor-cell-editor-context{display:flex;flex-direction:column;gap:2px;margin-bottom:11px;padding:8px 10px;border-radius:9px;background:#f8faff;border:1px solid #e2e9f7}.idb-cor-cell-editor-context span{font-size:11px;font-weight:900;color:#344054}.idb-cor-cell-editor-context small{font-size:9px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idb-cor-cell-editor-label{display:flex;flex-direction:column;gap:5px}.idb-cor-cell-editor-label>span{font-size:10px;color:#475467;font-weight:850}
+.idb-cor-cell-editor-control{box-sizing:border-box;width:100%;min-height:38px;border:1px solid #cfd8e8;border-radius:9px;background:#fff;padding:8px 9px;color:#1d2939;font:inherit;font-size:12px}.idb-cor-cell-editor-control:focus{outline:2px solid rgba(31,86,216,.18);border-color:#7aa2eb}.idb-cor-cell-editor-textarea{min-height:92px;resize:vertical;line-height:1.4}
+.idb-cor-cell-editor-note{margin-top:9px;padding:7px 8px;border-radius:8px;background:#fffaeb;border:1px solid #fedf89;color:#93370d;font-size:9px;line-height:1.35}
+.idb-cor-cell-editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:11px}.idb-cor-cell-editor-actions button{min-height:34px;border-radius:9px;padding:7px 11px;font:inherit;font-size:10px;font-weight:900}.idb-cor-cell-editor-cancel{border:1px solid #cfd8e8;background:#fff;color:#344054;cursor:pointer}.idb-cor-cell-editor-save{border:1px solid #1f56d8;background:#1f56d8;color:#fff}.idb-cor-cell-editor-save:disabled{opacity:.42;cursor:not-allowed}
+@media (hover:none){.idb-cor-cell-editable:focus{background:#f7faff!important}.idb-cor-cell-editable:active{background:#eaf2ff!important}}
+@media (max-width:640px){.idb-cor-cell-editor{left:10px!important;right:10px!important;top:auto!important;bottom:max(10px,env(safe-area-inset-bottom));width:auto!important;max-width:none;border-radius:16px;padding:15px;box-shadow:0 16px 50px rgba(16,24,40,.3)}.idb-cor-cell-editor-textarea{min-height:110px}.idb-cor-cell-editor-actions button{flex:1}}

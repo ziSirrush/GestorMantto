@@ -1,0 +1,8 @@
+backend/src/modules/pendientes/pendientes.repository.js
+backend/src/modules/pendientes/pendientes.service.js
+backend/src/modules/pendientes/pendientes.controller.js
+backend/src/controllers/data.controller.js
+core/app.js
+README_HOME_H2_PENDIENTES_PERMISOS_V001.md
+VALIDACIONES_HOME_H2_PENDIENTES_PERMISOS_V001.txt
+MANIFEST_HOME_H2_PENDIENTES_PERMISOS_V001.txt

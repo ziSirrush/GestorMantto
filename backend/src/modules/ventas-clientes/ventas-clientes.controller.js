@@ -15,6 +15,7 @@ function buildActionContext(req) {
   return {
     user: req.user,
     contextUser: req.contextUser || req.user,
+    informationAccess: req.informationAccess || null,
     ip: req.ip || req.socket?.remoteAddress || null,
     userAgent: req.get('user-agent') || null
   };

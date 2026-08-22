@@ -154,61 +154,38 @@ function advisorDto(row) {
 }
 
 async function resolveAssignmentOptions(connection, actionContext) {
-  const actor = actorId(actionContext);
-
-  // La relación administrativa tiene prioridad sobre cualquier permiso amplio.
-  // Un admin solo puede asignar clientes a los asesores vinculados en
-  // usuarios_rel_admin, aunque su usuario también tenga alcance ALL.
-  const isAdmin = await repository.isAdminInRelations(connection, actor);
-  if (isAdmin) {
-    const rows = await repository.listAdminAdvisors(connection, actor);
-    return { mode: 'ADMIN_REL', rows };
-  }
-
   const scope = await resolveScope(connection, actionContext);
-  if (scope.mode === 'ALL') {
-    const rows = await repository.listAssignableCommercialUsers(connection);
-    return { mode: 'ALL', rows };
-  }
+  const rows = await repository.listAssignableCommercialUsers(connection);
+  if (scope.mode === 'ALL') return { mode: 'ALL', rows };
 
-  const current = await repository.findActiveUserById(connection, actor);
-  return { mode: 'SELF', rows: current && current.iniciales ? [current] : [] };
+  const allowed = new Set((scope.advisorIds || []).map(Number));
+  return {
+    mode: 'LIMITED',
+    rows: rows.filter((row) => allowed.has(Number(row.id_SB)))
+  };
 }
 
 async function validateAssignedInitials(connection, initials, actionContext) {
   const requested = cleanText(initials, 30);
   if (!requested) throw httpError(400, 'iniciales es obligatorio.');
 
-  const actor = actorId(actionContext);
   const selected = await repository.findActiveUserByInitials(connection, requested);
   if (!selected) throw httpError(400, 'Las iniciales seleccionadas no corresponden a un usuario activo.');
 
-  // La relación administrativa se valida antes que el alcance ALL.
-  const isAdmin = await repository.isAdminInRelations(connection, actor);
-  if (isAdmin) {
-    const allowed = await repository.isAdvisorLinkedToAdmin(connection, actor, Number(selected.id_SB));
-    if (!allowed) {
-      throw httpError(403, 'El asesor seleccionado no está relacionado contigo en usuarios_rel_admin.');
-    }
-    return String(selected.iniciales).trim().toUpperCase();
+  const commercial = await repository.isAssignableCommercialUser(connection, Number(selected.id_SB));
+  if (!commercial) {
+    throw httpError(403, 'El usuario seleccionado no pertenece al catálogo comercial asignable.');
   }
 
   const scope = await resolveScope(connection, actionContext);
-  if (scope.mode === 'ALL') {
-    const allowed = await repository.isAssignableCommercialUser(connection, Number(selected.id_SB));
-    if (!allowed) {
-      throw httpError(403, 'Acceso total solo puede asignar clientes a Asesores Comerciales, Gerentes Comerciales o Director Ventas.');
+  if (scope.mode !== 'ALL') {
+    const allowed = new Set((scope.advisorIds || []).map(Number));
+    if (!allowed.has(Number(selected.id_SB))) {
+      throw httpError(403, 'El usuario seleccionado queda fuera de tu Alcance de Información.');
     }
-    return String(selected.iniciales).trim().toUpperCase();
   }
 
-  const current = await repository.findActiveUserById(connection, actor);
-  const ownInitials = String(current?.iniciales || '').trim().toUpperCase();
-  if (!ownInitials) throw httpError(400, 'Tu usuario no tiene iniciales configuradas.');
-  if (ownInitials !== String(selected.iniciales || '').trim().toUpperCase()) {
-    throw httpError(403, 'Solo puedes asignar el cliente a tus propias iniciales.');
-  }
-  return ownInitials;
+  return String(selected.iniciales).trim().toUpperCase();
 }
 
 async function getAssignableAdvisors(actionContext) {

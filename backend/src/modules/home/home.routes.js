@@ -11,6 +11,7 @@ const requireHomeStorage = requireStorageSchema(
   'pendientes_comentarios_adjuntos'
 );
 
+router.get('/home/snapshot', requireAuth, requireHomeStorage, homeController.getHomeSnapshot);
 router.get('/home/bootstrap', requireAuth, requireHomeStorage, homeController.getHomeBootstrap);
 router.get('/actividad-reciente', requireAuth, homeController.getActividadReciente);
 

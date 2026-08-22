@@ -1,6 +1,8 @@
 'use strict';
 
 const repository = require('./experimental-dashboard-call-center.repository');
+const informationRecordScope = require('../../services/information-record-scope-gnral.service');
+const canonicalZoneUni = require('../../services/alcance/united-canonical-zone.service');
 
 function clean_uni(value, max = 180) {
   return String(value == null ? '' : value).trim().slice(0, max);
@@ -41,15 +43,16 @@ function isNoFuncionando_uni(value) {
   return normalize_uni(value).includes('no func');
 }
 
-function buildWhere_uni(req) {
+function buildWhere_uni(req, zoneAlias) {
   const from = date_uni(req.query && req.query.desde);
   const to = date_uni(req.query && req.query.hasta);
   const zona = clean_uni(req.query && req.query.zona);
-  const clauses = ['t.fecha_reporte IS NOT NULL'];
-  const params = [];
+  const scope = informationRecordScope.buildTicketScopeSql_gnral(req, 't');
+  const clauses = ['t.fecha_reporte IS NOT NULL', scope.sql];
+  const params = [...scope.params];
   if (from) { clauses.push('t.fecha_reporte >= ?'); params.push(`${from} 00:00:00`); }
   if (to) { clauses.push('t.fecha_reporte < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(`${to} 00:00:00`); }
-  if (zona) { clauses.push("TRIM(COALESCE(t.zona,'')) = ?"); params.push(zona); }
+  if (zona) { clauses.push(canonicalZoneUni.zoneColumnFilterSql_uni(zoneAlias || 'z_exp_ticket')); params.push(zona); }
   return { sql: clauses.join(' AND '), params, selected: { desde: from, hasta: to, zona } };
 }
 
@@ -121,11 +124,15 @@ function summarize_uni(rows) {
 }
 
 async function getDashboard_uni(req) {
-  const filter = buildWhere_uni(req);
+  const zoneAlias = 'z_exp_ticket';
+  const filter = buildWhere_uni(req, zoneAlias);
+  const zoneJoinSql = canonicalZoneUni.ticketZoneJoinSql_uni('t', zoneAlias);
   const sql = `
     SELECT
       t.id, t.ticket, t.folio, t.estado_ticket, t.estado, t.ciudad, t.proyecto,
-      t.codigo_equipo, t.referencia_en_zona_operativa, t.zona, t.descripcion,
+      t.codigo_equipo, t.referencia_en_zona_operativa,
+      t.zona AS zona_legacy, ${zoneAlias}.zona AS zona, ${zoneAlias}.id_zona AS zona_id_oficial,
+      t.descripcion,
       t.fecha_reporte, t.estatus_equipo_ir, t.fecha_llegada, t.fecha_cierre,
       t.estatus_equipo_final, t.causa, t.accion_en_cierre, t.responsabilidad,
       t.causa_falla, t.tiempo_llegada, t.tiempo_solucion, t.tipo_equipo,
@@ -133,20 +140,20 @@ async function getDashboard_uni(req) {
       t.ticket_excede, t.zona_administrativa, t.zona_de_falla, t.proyecto_padre,
       t.vobo_estado
     FROM tickets t
+    ${zoneJoinSql}
     WHERE ${filter.sql}
     ORDER BY t.fecha_reporte DESC, t.id DESC
     LIMIT 10000
   `;
-  const catalogSql = `SELECT TRIM(zona) AS zona FROM tickets WHERE zona IS NOT NULL AND TRIM(zona)<>'' GROUP BY TRIM(zona) ORDER BY zona`;
-  const [ticketsResult, zonesResult] = await Promise.all([
-    repository.query(sql, filter.params), repository.query(catalogSql, [])
-  ]);
-  const rows = ticketsResult[0] || [];
+  const [ticketsResult] = await repository.query(sql, filter.params);
+  const rows = ticketsResult || [];
+  const zonas = informationRecordScope.zoneCodes_gnral(req);
   return {
     ok:true,
     source:'aiven',
     selected_filters:filter.selected,
-    filters:{ zonas:(zonesResult[0]||[]).map(r=>r.zona) },
+    alcance:{zona_ids:informationRecordScope.zoneIds_gnral(req),zonas},
+    filters:{ zonas },
     summary:summarize_uni(rows),
     tickets:rows,
     generated_at:new Date().toISOString()

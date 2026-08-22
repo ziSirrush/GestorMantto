@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const supportFilesService = require('../modules/support/support-files.service');
+const notificationService = require('./notifications/notification.service');
 
 const SUPPORT_ROLE_NAMES = new Set([
   'Soporte',
@@ -260,17 +261,34 @@ async function notifyTicketInteraction({ ticket, actor, kind, fileName }) {
   const folio = ticket.folio || `SUP-${ticket.id_ticket}`;
   const actorName = (actor && (actor.nombre || actor.correo)) || 'Usuario';
   const isFile = kind === 'archivo';
+
+  if (!isFile) {
+    const result = await notificationService.emit({
+      codigoEvento: 'COMENTARIO',
+      destinatarios: recipientIds,
+      actorUserId: actorId || null,
+      zonaOperativaNoAplica: true,
+      requireRoleMatrix: true,
+      allowMissingEvent: true,
+      titulo: 'Nuevo comentario en solicitud',
+      mensaje: `${actorName} comentó en ${folio}`,
+      icono: '💬',
+      accion: 'ABRIR_SOLICITUD',
+      idReferencia: ticket.id_ticket,
+      ruta: 'soporte-solicitudes'
+    });
+    return Number(result.created || 0);
+  }
+
   return createTicketNotifications({
     recipientIds,
     actorId,
     ticketId: ticket.id_ticket,
     folio,
-    type: isFile ? 'SOPORTE_ARCHIVO' : 'SOPORTE_COMENTARIO',
-    title: isFile ? 'Nuevo archivo en solicitud' : 'Nuevo comentario en solicitud',
-    message: isFile
-      ? `${actorName} adjuntó ${fileName || 'un archivo'} en ${folio}`
-      : `${actorName} comentó en ${folio}`,
-    icon: isFile ? '📎' : '💬'
+    type: 'SOPORTE_ARCHIVO',
+    title: 'Nuevo archivo en solicitud',
+    message: `${actorName} adjuntó ${fileName || 'un archivo'} en ${folio}`,
+    icon: '📎'
   });
 }
 

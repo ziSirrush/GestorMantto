@@ -1,0 +1,13 @@
+VALIDACIONES LOCALES
+- node --check backend/src/services/notifications/comment-notification.service.js: PASS
+- node --check backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js: PASS
+- node --check backend/src/modules/ventas-prospeccion/ventas-prospeccion.controller.js: PASS
+- node --check backend/src/modules/ventas-redes/ventas-redes.controller.js: PASS
+- Rutas require del servicio comun desde los tres controladores: PASS
+- Tablas/campos utilizados contrastados contra Estruturacompleta081626.sql: PASS
+- No se incluye ALTER TABLE / CREATE TABLE / DROP TABLE: PASS (el FIX no contiene SQL)
+
+VALIDACION FUNCIONAL PENDIENTE
+- Requiere COMENTARIO activo en notificacion_eventos.
+- Requiere al menos una relacion COMENTARIO -> Rol Principal en notificacion_evento_roles.
+- Requiere deploy de backend y prueba real por modulo.

@@ -2,7 +2,7 @@
   <section class="py-card-shell py-module-head">
     <div>
       <p class="py-eyebrow">Aiven · Instalaciones</p>
-      <h1 class="py-title">Proyectos de Instalación</h1>
+      <h1 class="py-title">Proyectos Activos</h1>
       <p class="py-subtitle">Gestión integral de proyectos, equipos, avance, ajuste y supervisión.</p>
     </div>
     <div class="py-head-actions">
@@ -11,19 +11,11 @@
     </div>
   </section>
 
-  <section class="py-card-shell py-nav-card">
-  <div class="py-tabs">
-    <button class="py-tab active" data-tab="activos" type="button">Proyectos Activos</button>
-    <button class="py-tab" data-tab="cerrados" type="button">Proyectos Cerrados</button>
-    <button class="py-tab" data-tab="fotografias" type="button">Fotografías</button>
-  </div>
-  </section>
-
   <div class="py-source-note-wrap">
     <div class="py-note">
-      La información operativa se consulta desde <b>Aiven</b>. Un proyecto se considera
-      <b>Cerrado</b> cuando el 100% de sus equipos está en estatus <b>08-T</b>; su consulta completa
-      vive en el módulo <b>Proyectos Cerrados</b>. Los demás proyectos permanecen en <b>Activos</b>.
+      La información operativa se consulta desde <b>Aiven</b>. Esta vista muestra únicamente
+      proyectos activos; los proyectos terminados se consultan en el módulo independiente
+      <b>Proyectos Cerrados</b>.
     </div>
   </div>
 
@@ -50,6 +42,15 @@
         <tbody id="py-proyectos-tbody"></tbody>
       </table>
     </div>
+    <footer class="py-table-footer">
+      <span id="py-proyectos-range">0 proyectos</span>
+      <div class="py-pagination" aria-label="Paginación de proyectos activos">
+        <button id="py-proyectos-prev" type="button" aria-label="Página anterior" onclick="pyCambiarPaginaProyectos(-1)">&#8249;</button>
+        <strong id="py-proyectos-page">1 / 1</strong>
+        <button id="py-proyectos-next" type="button" aria-label="Página siguiente" onclick="pyCambiarPaginaProyectos(1)">&#8250;</button>
+      </div>
+      <span class="py-page-size-note">30 por página</span>
+    </footer>
   </section>
 
 

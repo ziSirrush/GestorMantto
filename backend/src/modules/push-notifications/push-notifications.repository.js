@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const { pushVisibilitySql_gnral } = require('../../services/notifications/notification-policy');
 
 async function upsertSubscription({ userId, endpoint, p256dh, auth, userAgent, deviceName }) {
   const [result] = await db.query(`
@@ -72,10 +73,7 @@ async function listPendingNotifications({ userId, cursor, cycleCutoff, limit = 2
       AND n.leido = 0
       AND n.fecha_creacion > ?
       AND n.fecha_creacion <= ?
-      AND (
-        COALESCE(e.obligatoria, 0) = 1
-        OR (COALESCE(p.push, 1) = 1 AND COALESCE(p.silenciada, 0) = 0)
-      )
+      AND ${pushVisibilitySql_gnral('n', 'e', 'p')}
     ORDER BY n.fecha_creacion ASC, n.id_notificacion ASC
     LIMIT ?
   `, [userId, cursor, cycleCutoff, Number(limit)]);

@@ -1,72 +1,87 @@
 (function(){
-  const MODULE_VERSION = '20260717-v015';
-  const state = { loaded:false, filtersLoaded:false, rows:[], summary:null, currentProject:null, tickets:[], criticalCodes:new Set(), criticalProjects:new Set() };
+  const MODULE_VERSION = '20260821-fase8-cuartos-v001';
+  const state = {
+    loaded:false,
+    filtersLoaded:false,
+    rows:[],
+    summary:null,
+    alcance:{zona_ids:[],zonas:[]},
+    currentProject:null,
+    detailTickets:[]
+  };
 
-  const INLINE_HTML = '<div class="proy-page"><section class="proy-card proy-head"><div><p class="proy-eyebrow">Aiven · Proyectos</p><h1>Proyectos</h1><p>Vista agregada desde Portafolio y Tickets.</p></div><div class="proy-head-actions"><span class="proy-status loading" id="proy-status"><span class="proy-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="proy-btn proy-btn-primary" data-proy-action="refresh">↻ Actualizar</button></div></section><section class="proy-card proy-filters"><label>Zona<select id="proy-filter-zona"><option value="">Todas</option></select></label><label>Estado<select id="proy-filter-estado"><option value="">Todos</option></select></label><label>Supervisor<select id="proy-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="proy-filter-search" type="search" placeholder="Proyecto, código, ciudad, supervisor..."></label><button type="button" class="proy-btn" data-proy-action="clear">Limpiar</button><button type="button" class="proy-btn proy-btn-primary" data-proy-action="apply">Aplicar</button></section><section class="proy-grid proy-kpis"><article class="proy-kpi proy-kpi-blue"><span>🏢</span><strong id="proy-kpi-proyectos">—</strong><b>Proyectos</b><small>con equipos activos</small></article><article class="proy-kpi proy-kpi-indigo"><span>🛠️</span><strong id="proy-kpi-equipos">—</strong><b>Equipos</b><small>portafolio activo</small></article><article class="proy-kpi proy-kpi-red"><span>⛔</span><strong id="proy-kpi-parados">—</strong><b>Parados</b><small>último ticket no funcionando</small></article><article class="proy-kpi proy-kpi-green"><span>⏱️</span><strong id="proy-kpi-mtbc">—</strong><b>MTBC prom.</b><small>estimado 365 días</small></article></section><section class="proy-card"><div class="proy-section-head"><div><h2>Listado de proyectos</h2><p id="proy-count">—</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Proyecto</th><th>Ciudad</th><th>Estado</th><th>Zona</th><th>Supervisor</th><th>Equipos</th><th>Parados</th><th>Tickets 35d</th><th>BLT 365d</th><th>Llamadas Resp. BLT (Año)</th><th>Última llamada BLT</th><th>Llamadas Resp. Cliente (Año)</th><th>Última llamada Cliente</th><th>MTBC</th><th></th></tr></thead><tbody id="proy-body"><tr><td colspan="15" class="proy-empty">Cargando...</td></tr></tbody></table></div></section><section id="proy-detail-modal" class="proy-detail" hidden><div class="proy-detail-panel"><div class="proy-detail-head"><button type="button" id="proy-detail-close">×</button><div><h2 id="proy-detail-title">Detalle de proyecto</h2><p id="proy-detail-sub">Aiven</p></div></div><div class="proy-detail-body" id="proy-detail-body"></div></div></section></div>';
+  const INLINE_HTML = '<div class="proy-page"><section class="proy-card proy-head"><div><p class="proy-eyebrow">Aiven &middot; Proyectos</p><h1>Proyectos</h1><p>Vista agregada desde Portafolio y Tickets.</p></div><div class="proy-head-actions"><span class="proy-status loading" id="proy-status"><span class="proy-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="proy-btn proy-btn-primary" data-proy-action="refresh">&#8635; Actualizar</button></div></section><section class="proy-card proy-filters"><label>Zona<select id="proy-filter-zona"><option value="">Todas</option></select></label><label>Estado<select id="proy-filter-estado"><option value="">Todos</option></select></label><label>Supervisor<select id="proy-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="proy-filter-search" type="search" placeholder="Proyecto, codigo, ciudad, supervisor..."></label><button type="button" class="proy-btn" data-proy-action="clear">Limpiar</button><button type="button" class="proy-btn proy-btn-primary" data-proy-action="apply">Aplicar</button></section><section class="proy-grid proy-kpis"><article class="proy-kpi proy-kpi-blue"><span>&#127970;</span><strong id="proy-kpi-proyectos">-</strong><b>Proyectos</b><small>con equipos activos</small></article><article class="proy-kpi proy-kpi-indigo"><span>&#128736;</span><strong id="proy-kpi-equipos">-</strong><b>Equipos</b><small>portafolio activo</small></article><article class="proy-kpi proy-kpi-red"><span>&#9940;</span><strong id="proy-kpi-parados">-</strong><b>Parados</b><small>ultimo ticket no funcionando</small></article><article class="proy-kpi proy-kpi-green"><span>&#9201;</span><strong id="proy-kpi-mtbc">-</strong><b>MTBC prom.</b><small>estimado 365 dias</small></article></section><section class="proy-card"><div class="proy-section-head"><div><h2>Listado de proyectos</h2><p id="proy-count">-</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Proyecto</th><th>Ciudad</th><th>Estado</th><th>Zona</th><th>Supervisor</th><th>Equipos</th><th>Parados</th><th>Tickets 35d</th><th>BLT 365d</th><th>Llamadas Resp. BLT (Ano)</th><th>Ultima llamada BLT</th><th>Llamadas Resp. Cliente (Ano)</th><th>Ultima llamada Cliente</th><th>MTBC</th><th></th></tr></thead><tbody id="proy-body"><tr><td colspan="15" class="proy-empty">Cargando...</td></tr></tbody></table></div></section><section id="proy-detail-modal" class="proy-detail" hidden><div class="proy-detail-panel"><div class="proy-detail-head"><button type="button" id="proy-detail-close">&times;</button><div><h2 id="proy-detail-title">Detalle de proyecto</h2><p id="proy-detail-sub">Aiven</p></div></div><div class="proy-detail-body" id="proy-detail-body"></div></div></section></div>';
 
   function API(){ return (window.MANTTO_API_BASE || '').replace(/\/$/, ''); }
   function $(id){ return document.getElementById(id); }
-  function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function int(v){ const n = Number(v || 0); return Number.isFinite(n) ? n.toLocaleString('es-MX') : '0'; }
-  function num(v){ const n = Number(v || 0); return Number.isFinite(n) ? n : 0; }
-  function val(id){ const el=$(id); return el ? el.value.trim() : ''; }
-  function qs(params){ const u = new URLSearchParams(); Object.entries(params || {}).forEach(([k,v])=>{ if(v !== undefined && v !== null && String(v).trim() !== '') u.set(k, v); }); return u.toString(); }
-  function pct(part,total){ total=num(total); return total ? Math.round((num(part)/total)*100) : 0; }
-  function date(v){ if(!v) return '—'; const d=new Date(v); return Number.isNaN(d.getTime()) ? esc(String(v).slice(0,10)) : d.toLocaleDateString('es-MX'); }
-  function proyectoCodigo(row){ return row && (row.proyecto_codigo || row.proyecto || row.codigo || row.id_proyecto || ''); }
+  function esc(v){
+    return String(v == null || v === '' ? '-' : v).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function int(v){ const n=Number(v||0); return Number.isFinite(n)?n.toLocaleString('es-MX'):'0'; }
+  function num(v){ const n=Number(v||0); return Number.isFinite(n)?n:0; }
+  function val(id){ const el=$(id); return el?el.value.trim():''; }
+  function qs(params){
+    const u=new URLSearchParams();
+    Object.entries(params||{}).forEach(function(entry){
+      const k=entry[0],v=entry[1];
+      if(v!==undefined&&v!==null&&String(v).trim()!=='')u.set(k,v);
+    });
+    return u.toString();
+  }
+  function pct(part,total){ total=num(total); return total?Math.round((num(part)/total)*100):0; }
+  function date(v){
+    if(!v)return '-';
+    const d=new Date(v);
+    return Number.isNaN(d.getTime())?esc(String(v).slice(0,10)):d.toLocaleDateString('es-MX');
+  }
+  function proyectoCodigo(row){ return row&&(row.proyecto_codigo||row.proyecto||row.codigo||row.id_proyecto||''); }
   function formatProyectoName(value){
-    const raw=String(value || '').trim();
+    const raw=String(value||'').trim();
     const m=raw.match(/^(\d+)-(\d{2})-(\d{2})$/);
-    if(!m) return raw || '—';
+    if(!m)return raw||'-';
     const meses={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
-    const numero=String(Number(m[1]) || m[1].replace(/^0+/, '') || m[1]);
-    const dia=String(Number(m[3]) || m[3]);
-    return dia + ' de ' + (meses[m[2]] || m[2]) + ' #' + numero;
+    const numero=String(Number(m[1])||m[1].replace(/^0+/,'')||m[1]);
+    const dia=String(Number(m[3])||m[3]);
+    return dia+' de '+(meses[m[2]]||m[2])+' #'+numero;
   }
   function proyectoNombre(rowOrValue){
-    if(rowOrValue && typeof rowOrValue === 'object') return rowOrValue.proyecto_nombre || formatProyectoName(proyectoCodigo(rowOrValue));
+    if(rowOrValue&&typeof rowOrValue==='object')return rowOrValue.proyecto_nombre||formatProyectoName(proyectoCodigo(rowOrValue));
     return formatProyectoName(rowOrValue);
   }
 
-
-  function buildCriticalMaps(rows){
-    state.criticalCodes=new Set((rows||[]).map(t=>String(t.codigo_equipo||t.cod||'').trim()).filter(c=>c&&window.EstadosVisuales_gnral&&window.EstadosVisuales_gnral.isCriticoEquipo(c)));
-    state.criticalProjects=new Set((rows||[]).filter(t=>state.criticalCodes.has(String(t.codigo_equipo||t.cod||'').trim())).map(t=>String(t.proyecto||t.pro||'').trim()).filter(Boolean));
+  function headers(){
+    return Object.assign(
+      {'Accept':'application/json'},
+      window.ManttoAuth&&typeof window.ManttoAuth.authHeaders==='function'
+        ?window.ManttoAuth.authHeaders()
+        :{}
+    );
   }
-  async function loadVisualTickets(){try{const data=await fetchJson('/api/tickets?limit=20000');state.tickets=data.data||data.rows||data.tickets||[];buildCriticalMaps(state.tickets);}catch(e){state.tickets=[];state.criticalCodes=new Set();state.criticalProjects=new Set();}}
-  function ticketCodes(t){return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.codesForTicket(t||{}):[];}
-  function equipoCodes(e,tickets){const cod=String(e&&e.numero_equipo||'');return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.codesForEquipo(e||{},tickets||[],{critico:state.criticalCodes.has(cod)}):[];}
-  function visualDetailButton(kind,value,label,codes){value=String(value||'').trim();if(!value||value==='—')return esc(label||value||'—');const attr=kind==='equipo'?'data-equipo':kind==='ticket'?'data-ticket':'data-proyecto';const content=window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(codes||[],label||value):esc(label||value);return '<button type="button" class="mg-link" '+attr+'="'+esc(value)+'">'+content+'</button>';}
 
   async function fetchJson(path){
-    const headers = Object.assign(
-      { 'Accept':'application/json' },
-      window.ManttoAuth && typeof window.ManttoAuth.authHeaders === 'function'
-        ? window.ManttoAuth.authHeaders()
-        : {}
-    );
-    const r = await fetch(API() + path, { headers, cache:'no-store' });
-    const text = await r.text();
+    const r=await fetch(API()+path,{headers:headers(),cache:'no-store'});
+    const text=await r.text();
     let data;
-    try { data = text ? JSON.parse(text) : {}; }
-    catch(e) { throw new Error('Respuesta no JSON del backend (' + r.status + '). Revisa que la ruta exista: ' + path); }
-    if(!r.ok || !data.ok) throw new Error(data.message || data.error || 'Error consultando backend');
+    try{data=text?JSON.parse(text):{};}catch(e){throw new Error('Respuesta no JSON del backend ('+r.status+'): '+path);}
+    if(!r.ok||!data.ok)throw new Error(data.message||data.error||'Error consultando backend');
     return data;
   }
 
-  function setStatus(type, text){
-    const el=$('proy-status'); if(!el) return;
-    el.className='proy-status ' + (type || 'loading');
-    el.innerHTML='<span class="proy-dot"></span><span>' + esc(text || 'Cargando...') + '</span>';
+  function setStatus(type,text){
+    const el=$('proy-status');if(!el)return;
+    el.className='proy-status '+(type||'loading');
+    el.innerHTML='<span class="proy-dot"></span><span>'+esc(text||'Cargando...')+'</span>';
   }
 
   async function loadHtml(){
     const view=$('view-proyectos');
-    if(!view || state.loaded) return;
+    if(!view||state.loaded)return;
     let html=INLINE_HTML;
     try{
-      const r=await fetch('./modules/proyectos/proyectos.html?v=' + MODULE_VERSION, { cache:'no-store' });
-      if(r.ok){ const t=await r.text(); if(t && t.trim()) html=t; }
+      const r=await fetch('./modules/proyectos/proyectos.html?v='+MODULE_VERSION,{cache:'no-store'});
+      if(r.ok){const t=await r.text();if(t&&t.trim())html=t;}
     }catch(e){}
     view.innerHTML=html;
     bind();
@@ -74,241 +89,281 @@
   }
 
   function bind(){
-    document.querySelectorAll('[data-proy-action]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const a=btn.dataset.proyAction;
-        if(a==='refresh' || a==='apply') refresh();
-        if(a==='clear') clearFilters();
+    document.querySelectorAll('[data-proy-action]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        const action=btn.dataset.proyAction;
+        if(action==='refresh'||action==='apply')refresh();
+        if(action==='clear')clearFilters();
       });
     });
-    ['proy-filter-zona','proy-filter-estado','proy-filter-supervisor'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', refresh); });
-    const search=$('proy-filter-search'); if(search) search.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); refresh(); } });
-    const close=$('proy-detail-close'); if(close) close.addEventListener('click', closeDetail);
+    ['proy-filter-zona','proy-filter-estado','proy-filter-supervisor'].forEach(function(id){
+      const el=$(id);if(el)el.addEventListener('change',refresh);
+    });
+    const search=$('proy-filter-search');
+    if(search)search.addEventListener('keydown',function(ev){if(ev.key==='Enter'){ev.preventDefault();refresh();}});
+    const close=$('proy-detail-close');
+    if(close)close.addEventListener('click',closeDetail);
   }
 
-  function currentParams(){ return { zona:val('proy-filter-zona'), estado:val('proy-filter-estado'), supervisor:val('proy-filter-supervisor'), search:val('proy-filter-search') }; }
-  function clearFilters(){ ['proy-filter-zona','proy-filter-estado','proy-filter-supervisor','proy-filter-search'].forEach(id=>{ const el=$(id); if(el) el.value=''; }); refresh(); }
+  function currentParams(){
+    return {
+      zona:val('proy-filter-zona'),
+      estado:val('proy-filter-estado'),
+      supervisor:val('proy-filter-supervisor'),
+      search:val('proy-filter-search')
+    };
+  }
 
-  async function loadFilters(){
-    if(state.filtersLoaded) return;
-    const data=await fetchJson('/api/proyectos/filtros');
-    fillSelect('proy-filter-zona', data.filters?.zonas || []);
-    fillSelect('proy-filter-estado', data.filters?.estados || []);
-    fillSelect('proy-filter-supervisor', data.filters?.supervisores || []);
+  function clearFilters(){
+    ['proy-filter-zona','proy-filter-estado','proy-filter-supervisor','proy-filter-search'].forEach(function(id){
+      const el=$(id);if(el)el.value='';
+    });
+    refresh();
+  }
+
+  function fillSelect(id,values){
+    const el=$(id);if(!el)return;
+    const current=el.value;
+    const first=el.querySelector('option')?el.querySelector('option').outerHTML:'<option value="">Todos</option>';
+    const cleaned=(values||[]).filter(Boolean);
+    el.innerHTML=first+cleaned.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+    el.value=cleaned.includes(current)?current:'';
+  }
+
+  function applyFilters(filters){
+    const f=filters||{};
+    fillSelect('proy-filter-zona',f.zonas||[]);
+    fillSelect('proy-filter-estado',f.estados||[]);
+    fillSelect('proy-filter-supervisor',f.supervisores||[]);
     state.filtersLoaded=true;
-  }
-  function fillSelect(id, values){
-    const el=$(id); if(!el) return;
-    const first=el.querySelector('option') ? el.querySelector('option').outerHTML : '<option value="">Todos</option>';
-    el.innerHTML=first + (values || []).filter(Boolean).map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
   }
 
   async function refresh(){
-    await loadFilters().catch(e=>setStatus('error', e.message));
     setStatus('loading','Consultando Proyectos...');
-    const body=$('proy-body'); if(body) body.innerHTML='<tr><td colspan="15" class="proy-empty">Cargando proyectos...</td></tr>';
+    const body=$('proy-body');
+    if(body)body.innerHTML='<tr><td colspan="15" class="proy-empty">Cargando proyectos...</td></tr>';
     try{
-      await loadVisualTickets();
-      const data=await fetchJson('/api/proyectos?' + qs(currentParams()));
-      state.rows=data.data || data.rows || data.proyectos || [];
-      state.summary=data.summary || data.resumen || data.kpis || buildSummaryFromRows(state.rows);
+      const query=qs(currentParams());
+      const data=await fetchJson('/api/proyectos/inicial'+(query?'?'+query:''));
+      state.rows=data.data||data.rows||data.proyectos||[];
+      state.summary=data.summary||data.resumen||data.kpis||buildSummaryFromRows(state.rows);
+      state.alcance=data.alcance||{zona_ids:[],zonas:[]};
+      applyFilters(data.filters||{});
       renderSummary();
       renderTable();
-      setStatus('ok','Proyectos actualizados');
+      const zoneCount=Array.isArray(state.alcance.zonas)?state.alcance.zonas.length:0;
+      setStatus('ok','Proyectos actualizados'+(zoneCount?' · '+zoneCount+' zonas autorizadas':''));
     }catch(e){
-      setStatus('error', e.message);
-      if(body) body.innerHTML='<tr><td colspan="15" class="proy-empty">'+esc(e.message)+'</td></tr>';
+      state.rows=[];
+      state.summary=null;
+      renderSummary();
+      setStatus('error',e.message);
+      if(body)body.innerHTML='<tr><td colspan="15" class="proy-empty">'+esc(e.message)+'</td></tr>';
     }
   }
 
+  async function refreshVisualsAfterPrimaryLoad(){
+    if(!window.EstadosVisuales_gnral||typeof window.EstadosVisuales_gnral.loadCriticidadCorporativa!=='function')return;
+    try{
+      await window.EstadosVisuales_gnral.loadCriticidadCorporativa();
+      renderTable();
+    }catch(e){}
+  }
+
   function buildSummaryFromRows(rows){
-    rows=rows || [];
-    const acc=rows.reduce((a,r)=>{
-      a.proyectos += 1;
-      a.equipos += num(r.equipos || r.total || r.total_equipos);
-      a.parados += num(r.parados || r.equipos_parados);
-      const m = r.mtbc_365 ?? r.mtbcProm ?? r.mtbc_promedio;
-      if(m !== null && m !== undefined && m !== '' && !Number.isNaN(Number(m))){ a.mtbc_sum += Number(m); a.mtbc_count += 1; }
+    rows=rows||[];
+    const acc=rows.reduce(function(a,r){
+      a.proyectos+=1;
+      a.equipos+=num(r.equipos||r.total||r.total_equipos);
+      a.parados+=num(r.parados||r.equipos_parados);
+      const m=r.mtbc_365??r.mtbcProm??r.mtbc_promedio;
+      if(m!==null&&m!==undefined&&m!==''&&!Number.isNaN(Number(m))){a.mtbc_sum+=Number(m);a.mtbc_count+=1;}
       return a;
-    }, { proyectos:0, equipos:0, parados:0, mtbc_sum:0, mtbc_count:0 });
-    acc.mtbc_promedio = acc.mtbc_count ? Math.round(acc.mtbc_sum / acc.mtbc_count) : null;
-    delete acc.mtbc_sum; delete acc.mtbc_count;
+    },{proyectos:0,equipos:0,parados:0,mtbc_sum:0,mtbc_count:0});
+    acc.mtbc_promedio=acc.mtbc_count?Math.round(acc.mtbc_sum/acc.mtbc_count):null;
+    delete acc.mtbc_sum;delete acc.mtbc_count;
     return acc;
   }
 
+  function setText(id,value){const el=$(id);if(el)el.textContent=value;}
   function renderSummary(){
-    const s=(state.summary && Object.keys(state.summary).length) ? state.summary : buildSummaryFromRows(state.rows);
-    setText('proy-kpi-proyectos', int(s.proyectos ?? s.total_proyectos));
-    setText('proy-kpi-equipos', int(s.equipos ?? s.total_equipos));
-    setText('proy-kpi-parados', int(s.parados ?? s.total_parados));
-    const mtbc = s.mtbc_promedio ?? s.mtbc ?? null;
-    setText('proy-kpi-mtbc', mtbc ? int(mtbc) + ' d' : '—');
+    const s=(state.summary&&Object.keys(state.summary).length)?state.summary:buildSummaryFromRows(state.rows);
+    setText('proy-kpi-proyectos',int(s.proyectos??s.total_proyectos));
+    setText('proy-kpi-equipos',int(s.equipos??s.total_equipos));
+    setText('proy-kpi-parados',int(s.parados??s.total_parados));
+    const mtbc=s.mtbc_promedio??s.mtbc??null;
+    setText('proy-kpi-mtbc',mtbc?int(mtbc)+' d':'-');
   }
-  function setText(id, value){ const el=$(id); if(el) el.textContent=value; }
 
-  function visualCodes(row){ if(Array.isArray(row&&row.estados_visuales)) return row.estados_visuales.map(x=>typeof x==='string'?x:x.codigo).filter(Boolean); const code=proyectoCodigo(row),name=String(row&&row.proyecto_nombre||'').trim(); const crit=Number(row&&row.equipos_criticos||0)>0||state.criticalProjects.has(code)||state.criticalProjects.has(name); return crit?['CRITICO']:[]; }
-  function visualIdentifier(row,text){ return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(visualCodes(row),text):esc(text); }
+  function visualCodes(row){
+    if(Array.isArray(row&&row.estados_visuales))return row.estados_visuales.map(function(x){return typeof x==='string'?x:x.codigo;}).filter(Boolean);
+    if(Number(row&&row.equipos_criticos||0)>0)return ['CRITICO'];
+    if(window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.isCriticoProyecto==='function'){
+      const code=String(proyectoCodigo(row)||'').trim();
+      const name=String(row&&row.proyecto_nombre||'').trim();
+      if((code&&window.EstadosVisuales_gnral.isCriticoProyecto(code))||(name&&window.EstadosVisuales_gnral.isCriticoProyecto(name)))return ['CRITICO'];
+    }
+    return [];
+  }
+  function visualIdentifier(row,text){
+    return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(visualCodes(row),text):esc(text);
+  }
+
   function renderTable(){
-    const body=$('proy-body'); if(!body) return;
-    const rows=state.rows || [];
-    setText('proy-count', rows.length + ' proyectos');
-    if(!rows.length){ body.innerHTML='<tr><td colspan="15" class="proy-empty">Sin proyectos para los filtros seleccionados</td></tr>'; return; }
-    body.innerHTML=rows.map(r=>{
+    const body=$('proy-body');if(!body)return;
+    const rows=state.rows||[];
+    setText('proy-count',rows.length+' proyectos');
+    if(!rows.length){body.innerHTML='<tr><td colspan="15" class="proy-empty">Sin proyectos para los filtros seleccionados</td></tr>';return;}
+    body.innerHTML=rows.map(function(r){
       const parados=num(r.parados);
-      const badge=parados>0 ? '<span class="proy-badge proy-badge-bad">'+int(parados)+'</span>' : '<span class="proy-badge proy-badge-ok">0</span>';
-      return '<tr>'+
-        '<td class="proy-name">'+visualIdentifier(r,proyectoNombre(r))+'</td>'+
-        '<td>'+esc(r.ciudad)+'</td>'+
-        '<td>'+esc(r.estado)+'</td>'+
-        '<td>'+esc(r.zona)+'</td>'+
-        '<td>'+esc(r.supervisor)+'</td>'+
-        '<td class="num">'+int(r.equipos)+'</td>'+
-        '<td class="num">'+badge+'</td>'+
-        '<td class="num">'+int(r.tickets_35d)+'</td>'+
-        '<td class="num">'+int(r.fallas_blt_365d)+'</td>'+
-        '<td class="num">'+int(r.llamadas_blt_anio)+'</td>'+
-        '<td class="date">'+date(r.ultima_llamada_blt)+'</td>'+
-        '<td class="num">'+int(r.llamadas_cliente_anio)+'</td>'+
-        '<td class="date">'+date(r.ultima_llamada_cliente)+'</td>'+
-        '<td class="num">'+(r.mtbc_365 ? int(r.mtbc_365)+' d' : '—')+'</td>'+
-        '<td><button type="button" class="proy-btn" data-proy-open="'+esc(proyectoCodigo(r))+'">Ver</button></td>'+
+      const badge=parados>0?'<span class="proy-badge proy-badge-bad">'+int(parados)+'</span>':'<span class="proy-badge proy-badge-ok">0</span>';
+      return '<tr>'+ 
+        '<td class="proy-name">'+visualIdentifier(r,proyectoNombre(r))+'</td>'+ 
+        '<td>'+esc(r.ciudad)+'</td>'+ 
+        '<td>'+esc(r.estado)+'</td>'+ 
+        '<td>'+esc(r.zona_oficial||r.zona)+'</td>'+ 
+        '<td>'+esc(r.supervisor)+'</td>'+ 
+        '<td class="num">'+int(r.equipos)+'</td>'+ 
+        '<td class="num">'+badge+'</td>'+ 
+        '<td class="num">'+int(r.tickets_35d)+'</td>'+ 
+        '<td class="num">'+int(r.fallas_blt_365d)+'</td>'+ 
+        '<td class="num">'+int(r.llamadas_blt_anio)+'</td>'+ 
+        '<td class="date">'+date(r.ultima_llamada_blt)+'</td>'+ 
+        '<td class="num">'+int(r.llamadas_cliente_anio)+'</td>'+ 
+        '<td class="date">'+date(r.ultima_llamada_cliente)+'</td>'+ 
+        '<td class="num">'+(r.mtbc_365?int(r.mtbc_365)+' d':'-')+'</td>'+ 
+        '<td><button type="button" class="proy-btn" data-proy-open="'+esc(proyectoCodigo(r))+'">Ver</button></td>'+ 
       '</tr>';
     }).join('');
-    body.querySelectorAll('[data-proy-open]').forEach(btn=>btn.addEventListener('click',()=>openDetail(btn.dataset.proyOpen)));
+    body.querySelectorAll('[data-proy-open]').forEach(function(btn){btn.addEventListener('click',function(){openDetail(btn.dataset.proyOpen);});});
   }
 
   async function openDetail(project){
-    if(!project) return;
-    if(window.ManttoDetails && window.ManttoDetails.openProyecto){
+    if(!project)return;
+    if(window.ManttoDetails&&window.ManttoDetails.openProyecto){
       window.ManttoDetails.openProyecto(project);
       return;
     }
     state.currentProject=project;
-    const modal=$('proy-detail-modal'), body=$('proy-detail-body');
-    if(modal) modal.hidden=false;
-    const meta=(state.rows||[]).find(r=>proyectoCodigo(r)===project || r.proyecto===project);
-    setText('proy-detail-title', meta ? proyectoNombre(meta) : proyectoNombre(project));
-    setText('proy-detail-sub', 'Consultando detalle desde Aiven...');
-    if(body) body.innerHTML='<div class="proy-card proy-empty">Cargando detalle...</div>';
+    const modal=$('proy-detail-modal'),body=$('proy-detail-body');
+    if(modal)modal.hidden=false;
+    const meta=(state.rows||[]).find(function(r){return proyectoCodigo(r)===project||r.proyecto===project;});
+    setText('proy-detail-title',meta?proyectoNombre(meta):proyectoNombre(project));
+    setText('proy-detail-sub','Consultando detalle desde Aiven...');
+    if(body)body.innerHTML='<div class="proy-card proy-empty">Cargando detalle...</div>';
     try{
-      const candidates = [
-        '/api/proyectos/detalle?' + qs({ proyecto: project }),
-        '/api/proyectos?' + qs({ detalle: 1, proyecto: project }),
-        '/api/proyectos/' + encodeURIComponent(project)
-      ];
-      let data = null;
-      let lastError = null;
-      for (const path of candidates) {
-        try {
-          const attempt = await fetchJson(path);
-          if (hasProyectoDetalle(attempt)) {
-            data = attempt;
-            break;
-          }
-          lastError = new Error('La ruta respondio JSON, pero no trajo detalle de proyecto: ' + path);
-        } catch(err) {
-          lastError = err;
-        }
-      }
-      if (!data) throw lastError || new Error('No se pudo consultar el detalle del proyecto.');
-      setText('proy-detail-sub', 'Equipos, tickets y KPIs del proyecto');
+      const data=await fetchJson('/api/proyectos/detalle?'+qs({proyecto:project}));
+      if(!hasProyectoDetalle(data))throw new Error('La ruta no trajo detalle de proyecto.');
+      setText('proy-detail-sub','Equipos, tickets y KPIs del proyecto');
       renderDetail(data);
     }catch(e){
-      if(body) body.innerHTML='<div class="proy-card proy-empty">'+esc(e.message)+'</div>';
+      if(body)body.innerHTML='<div class="proy-card proy-empty">'+esc(e.message)+'</div>';
     }
   }
-  function closeDetail(){ const modal=$('proy-detail-modal'); if(modal) modal.hidden=true; }
 
+  function closeDetail(){const modal=$('proy-detail-modal');if(modal)modal.hidden=true;}
   function normalizeDetalle(data){
-    if(!data) return {};
-    if(data.proyecto || data.equipos || data.tickets) return data;
-    if(data.data && !Array.isArray(data.data)) return normalizeDetalle(data.data);
-    if(data.detalle && !Array.isArray(data.detalle)) return normalizeDetalle(data.detalle);
-    if(data.payload && !Array.isArray(data.payload)) return normalizeDetalle(data.payload);
+    if(!data)return {};
+    if(data.proyecto||data.equipos||data.tickets)return data;
+    if(data.data&&!Array.isArray(data.data))return normalizeDetalle(data.data);
+    if(data.detalle&&!Array.isArray(data.detalle))return normalizeDetalle(data.detalle);
+    if(data.payload&&!Array.isArray(data.payload))return normalizeDetalle(data.payload);
     return data;
   }
   function hasProyectoDetalle(data){
     const d=normalizeDetalle(data);
-    return !!(d && (d.proyecto || Array.isArray(d.equipos) || Array.isArray(d.tickets)));
+    return !!(d&&(d.proyecto||Array.isArray(d.equipos)||Array.isArray(d.tickets)));
   }
-
-  function info(label, value){ return '<div class="proy-info"><label>'+esc(label)+'</label><span>'+esc(value)+'</span></div>'; }
-  function kpi(label, value, sub, cls){ return '<article class="proy-kpi '+(cls||'proy-kpi-indigo')+'"><strong>'+esc(value)+'</strong><b>'+esc(label)+'</b><small>'+esc(sub||'')+'</small></article>'; }
+  function info(label,value){return '<div class="proy-info"><label>'+esc(label)+'</label><span>'+esc(value)+'</span></div>';}
+  function kpi(label,value,sub,cls){return '<article class="proy-kpi '+(cls||'proy-kpi-indigo')+'"><strong>'+esc(value)+'</strong><b>'+esc(label)+'</b><small>'+esc(sub||'')+'</small></article>';}
 
   function renderDetail(data){
-    const body=$('proy-detail-body'); if(!body) return;
+    const body=$('proy-detail-body');if(!body)return;
     const d=normalizeDetalle(data);
-    const p=d.proyecto || d.resumen || d.kpis || {};
-    const equipos=d.equipos || [];
-    const tickets=d.tickets || [];
-    if(window.ManttoDetails && window.ManttoDetails.registerTickets) window.ManttoDetails.registerTickets(tickets);
-    const months=d.monthly_current || d.fallas_mes_actual || d.meses_actual || [];
-    const prev=d.monthly_previous || d.fallas_mes_anterior || d.meses_anterior || [];
-    const resp=d.responsabilidad || d.responsabilidades || [];
-    const totalTickets=tickets.length;
-    body.innerHTML =
+    const p=d.proyecto||d.resumen||d.kpis||{};
+    const equipos=d.equipos||[];
+    const tickets=d.tickets||[];
+    state.detailTickets=tickets;
+    if(window.ManttoDetails&&window.ManttoDetails.registerTickets)window.ManttoDetails.registerTickets(tickets);
+    const months=d.monthly_current||d.fallas_mes_actual||d.meses_actual||[];
+    const prev=d.monthly_previous||d.fallas_mes_anterior||d.meses_anterior||[];
+    const resp=d.responsabilidad||d.responsabilidades||[];
+    body.innerHTML=
       '<section class="proy-card" style="padding:16px"><div class="proy-info-grid">'+
-        info('Proyecto', proyectoNombre(p))+info('Código proyecto', proyectoCodigo(p))+info('Ciudad', p.ciudad)+info('Estado', p.estado)+info('Zona', p.zona)+info('Supervisor', p.supervisor)+info('Equipos', int(p.equipos))+
-      '</div></section>'+
+        info('Proyecto',proyectoNombre(p))+info('Codigo proyecto',proyectoCodigo(p))+info('Ciudad',p.ciudad)+info('Estado',p.estado)+info('Zona',p.zona_oficial||p.zona)+info('Supervisor',p.supervisor)+info('Equipos',int(p.equipos))+
+      '</div></section>'+ 
       '<section class="proy-grid proy-kpis">'+
-        kpi('Equipos', int(p.equipos), 'Portafolio activo', 'proy-kpi-indigo')+
-        kpi('Parados', int(p.parados), 'Último ticket no funcionando', 'proy-kpi-red')+
-        kpi('Tickets 35d', int(p.tickets_35d), 'Actividad reciente', 'proy-kpi-blue')+
-        kpi('MTBC 365d', p.mtbc_365 ? int(p.mtbc_365)+' d' : '—', 'estimado', 'proy-kpi-green')+
-      '</section>'+
-      '<section class="proy-charts">'+
-        chartCard('Fallas por mes — año actual', months)+chartCard('Fallas por mes — año anterior', prev)+
-      '</section>'+
-      '<section class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>Responsabilidad</h2><p>'+int(totalTickets)+' tickets en detalle</p></div></div>'+renderResp(resp)+'</section>'+
-      '<section class="proy-card"><div class="proy-section-head"><div><h2>Equipos del proyecto</h2><p>'+int(equipos.length)+' equipos</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Código</th><th>Referencia</th><th>Tipo</th><th>Contrato</th><th>Operativo</th><th>Días parado</th><th>Último ticket</th></tr></thead><tbody>'+renderEquipos(equipos)+'</tbody></table></div></section>'+
-      '<section class="proy-card"><div class="proy-section-head"><div><h2>Tickets recientes</h2><p>'+int(tickets.length)+' últimos registros</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Ticket</th><th>Equipo</th><th>Estado</th><th>Reporte</th><th>Cierre</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>'+renderTickets(tickets)+'</tbody></table></div></section>';
+        kpi('Equipos',int(p.equipos),'Portafolio activo','proy-kpi-indigo')+
+        kpi('Parados',int(p.parados),'Ultimo ticket no funcionando','proy-kpi-red')+
+        kpi('Tickets 35d',int(p.tickets_35d),'Actividad reciente','proy-kpi-blue')+
+        kpi('MTBC 365d',p.mtbc_365?int(p.mtbc_365)+' d':'-','estimado','proy-kpi-green')+
+      '</section>'+ 
+      '<section class="proy-charts">'+chartCard('Fallas por mes - ano actual',months)+chartCard('Fallas por mes - ano anterior',prev)+'</section>'+ 
+      '<section class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>Responsabilidad</h2><p>'+int(tickets.length)+' tickets en detalle</p></div></div>'+renderResp(resp)+'</section>'+ 
+      '<section class="proy-card"><div class="proy-section-head"><div><h2>Equipos del proyecto</h2><p>'+int(equipos.length)+' equipos</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Codigo</th><th>Referencia</th><th>Tipo</th><th>Contrato</th><th>Operativo</th><th>Dias parado</th><th>Ultimo ticket</th></tr></thead><tbody>'+renderEquipos(equipos)+'</tbody></table></div></section>'+ 
+      '<section class="proy-card"><div class="proy-section-head"><div><h2>Tickets recientes</h2><p>'+int(tickets.length)+' ultimos registros</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Ticket</th><th>Equipo</th><th>Estado</th><th>Reporte</th><th>Cierre</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>'+renderTickets(tickets)+'</tbody></table></div></section>';
     bindDetalleTablaLinks(body);
   }
 
-  function chartCard(title, rows){ return '<div class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>'+esc(title)+'</h2><p>Tickets por mes</p></div></div>'+bars(rows, 'mes', 'total')+'</div>'; }
-  function bars(rows, labelKey, valueKey){
-    rows=rows || [];
-    if(!rows.length) return '<div class="proy-empty">Sin datos</div>';
-    const max=Math.max(...rows.map(r=>num(r[valueKey])),1);
-    return '<div class="proy-bars">'+rows.map(r=>'<div class="proy-bar-row"><span>'+esc(r[labelKey])+'</span><div class="proy-bar-track"><div class="proy-bar-fill" style="width:'+pct(r[valueKey],max)+'%"></div></div><b>'+int(r[valueKey])+'</b></div>').join('')+'</div>';
+  function chartCard(title,rows){return '<div class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>'+esc(title)+'</h2><p>Tickets por mes</p></div></div>'+bars(rows,'mes','total')+'</div>';}
+  function bars(rows,labelKey,valueKey){
+    rows=rows||[];if(!rows.length)return '<div class="proy-empty">Sin datos</div>';
+    const max=Math.max.apply(null,rows.map(function(r){return num(r[valueKey]);}).concat([1]));
+    return '<div class="proy-bars">'+rows.map(function(r){return '<div class="proy-bar-row"><span>'+esc(r[labelKey])+'</span><div class="proy-bar-track"><div class="proy-bar-fill" style="width:'+pct(r[valueKey],max)+'%"></div></div><b>'+int(r[valueKey])+'</b></div>';}).join('')+'</div>';
   }
   function renderResp(rows){
-    rows=rows || [];
-    if(!rows.length) return '<div class="proy-empty">Sin datos</div>';
-    const total=rows.reduce((a,r)=>a+num(r.total),0);
-    return '<div class="proy-bars">'+rows.map(r=>'<div class="proy-bar-row"><span>'+esc(r.responsabilidad || 'Sin dato')+'</span><div class="proy-bar-track"><div class="proy-bar-fill" style="width:'+pct(r.total,total)+'%"></div></div><b>'+int(r.total)+'</b></div>').join('')+'</div>';
+    rows=rows||[];if(!rows.length)return '<div class="proy-empty">Sin datos</div>';
+    const total=rows.reduce(function(a,r){return a+num(r.total);},0);
+    return '<div class="proy-bars">'+rows.map(function(r){return '<div class="proy-bar-row"><span>'+esc(r.responsabilidad||'Sin dato')+'</span><div class="proy-bar-track"><div class="proy-bar-fill" style="width:'+pct(r.total,total)+'%"></div></div><b>'+int(r.total)+'</b></div>';}).join('')+'</div>';
   }
-  function detailBtn(kind, value, label){
-    value = String(value || '').trim();
-    if(!value || value === '—') return esc(label || value || '—');
-    const attr = kind === 'equipo' ? 'data-equipo' : kind === 'ticket' ? 'data-ticket' : 'data-proyecto';
-    return '<button type="button" class="mg-link" '+attr+'="'+esc(value)+'">'+esc(label || value)+'</button>';
+
+  function ticketCodes(ticket){return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.codesForTicket(ticket||{}):[];}
+  function equipoCodes(e,tickets){
+    const code=String(e&&e.numero_equipo||'');
+    const critical=window.EstadosVisuales_gnral&&typeof window.EstadosVisuales_gnral.isCriticoEquipo==='function'&&window.EstadosVisuales_gnral.isCriticoEquipo(code);
+    return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.codesForEquipo(e||{},tickets||[],{critico:critical}):[];
+  }
+  function visualDetailButton(kind,value,label,codes){
+    value=String(value||'').trim();
+    if(!value||value==='-')return esc(label||value||'-');
+    const attr=kind==='equipo'?'data-equipo':kind==='ticket'?'data-ticket':'data-proyecto';
+    const content=window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(codes||[],label||value):esc(label||value);
+    return '<button type="button" class="mg-link" '+attr+'="'+esc(value)+'">'+content+'</button>';
   }
   function renderEquipos(rows){
-    if(!rows || !rows.length) return '<tr><td colspan="7" class="proy-empty">Sin equipos</td></tr>';
-    return rows.map(e=>{const related=state.tickets.filter(t=>String(t.codigo_equipo||t.cod||'')===String(e.numero_equipo||''));const last=related.find(t=>String(t.ticket||t.n||'')===String(e.ultimo_ticket||''));return '<tr><td class="proy-name">'+visualDetailButton('equipo',e.numero_equipo,e.numero_equipo,equipoCodes(e,related))+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.tipo_equipo)+'</td><td>'+esc(e.contrato)+'</td><td>'+badgeOper(e.estado_operativo)+'</td><td class="num">'+(e.dias_parado==null?'—':int(e.dias_parado))+'</td><td>'+visualDetailButton('ticket',e.ultimo_ticket,e.ultimo_ticket,ticketCodes(last||{}))+'</td></tr>';}).join('');
+    if(!rows||!rows.length)return '<tr><td colspan="7" class="proy-empty">Sin equipos</td></tr>';
+    return rows.map(function(e){
+      const related=state.detailTickets.filter(function(t){return String(t.codigo_equipo||t.cod||'')===String(e.numero_equipo||'');});
+      const last=related.find(function(t){return String(t.ticket||t.n||'')===String(e.ultimo_ticket||'');});
+      return '<tr><td class="proy-name">'+visualDetailButton('equipo',e.numero_equipo,e.numero_equipo,equipoCodes(e,related))+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.tipo_equipo)+'</td><td>'+esc(e.contrato)+'</td><td>'+badgeOper(e.estado_operativo)+'</td><td class="num">'+(e.dias_parado==null?'-':int(e.dias_parado))+'</td><td>'+visualDetailButton('ticket',e.ultimo_ticket,e.ultimo_ticket,ticketCodes(last||{}))+'</td></tr>';
+    }).join('');
   }
   function renderTickets(rows){
-    if(!rows || !rows.length) return '<tr><td colspan="7" class="proy-empty">Sin tickets</td></tr>';
-    return rows.map(t=>'<tr><td class="proy-name">'+visualDetailButton('ticket',t.ticket,t.ticket,ticketCodes(t))+'</td><td>'+visualDetailButton('equipo',t.codigo_equipo,t.codigo_equipo,equipoCodes({numero_equipo:t.codigo_equipo},[t]))+'</td><td>'+esc(t.estado_ticket || t.estado)+'</td><td>'+date(t.fecha_reporte)+'</td><td>'+date(t.fecha_cierre)+'</td><td>'+esc(t.responsabilidad)+'</td><td>'+esc(t.causa_falla || t.causa)+'</td></tr>').join('');
+    if(!rows||!rows.length)return '<tr><td colspan="7" class="proy-empty">Sin tickets</td></tr>';
+    return rows.map(function(t){
+      return '<tr><td class="proy-name">'+visualDetailButton('ticket',t.ticket,t.ticket,ticketCodes(t))+'</td><td>'+visualDetailButton('equipo',t.codigo_equipo,t.codigo_equipo,equipoCodes({numero_equipo:t.codigo_equipo},[t]))+'</td><td>'+esc(t.estado_ticket||t.estado)+'</td><td>'+date(t.fecha_reporte)+'</td><td>'+date(t.fecha_cierre)+'</td><td>'+esc(t.responsabilidad)+'</td><td>'+esc(t.causa_falla||t.causa)+'</td></tr>';
+    }).join('');
   }
   function bindDetalleTablaLinks(root){
-    if(window.ManttoDetails && window.ManttoDetails.bindLinks){
-      window.ManttoDetails.bindLinks(root || document);
-      return;
-    }
-    (root || document).querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const cod=btn.getAttribute('data-equipo'); if(window.ManttoDetails && window.ManttoDetails.openEquipo) window.ManttoDetails.openEquipo(cod); }));
-    (root || document).querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const ticket=btn.getAttribute('data-ticket'); if(window.ManttoDetails && window.ManttoDetails.openTicket) window.ManttoDetails.openTicket(ticket); }));
+    if(window.ManttoDetails&&window.ManttoDetails.bindLinks){window.ManttoDetails.bindLinks(root||document);return;}
+    (root||document).querySelectorAll('[data-equipo]').forEach(function(btn){btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();const code=btn.getAttribute('data-equipo');if(window.ManttoDetails&&window.ManttoDetails.openEquipo)window.ManttoDetails.openEquipo(code);});});
+    (root||document).querySelectorAll('[data-ticket]').forEach(function(btn){btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();const ticket=btn.getAttribute('data-ticket');if(window.ManttoDetails&&window.ManttoDetails.openTicket)window.ManttoDetails.openTicket(ticket);});});
   }
-  function badgeOper(v){ return String(v).toLowerCase()==='parado' ? '<span class="proy-badge proy-badge-bad">Parado</span>' : '<span class="proy-badge proy-badge-ok">Funcionando</span>'; }
+  function badgeOper(v){return String(v).toLowerCase()==='parado'?'<span class="proy-badge proy-badge-bad">Parado</span>':'<span class="proy-badge proy-badge-ok">Funcionando</span>';}
 
   async function init(payload){
-    if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa();
     await loadHtml();
     await refresh();
-    const targetProject = payload && (payload.id || payload.proyecto || payload.project || payload.codigo);
-    if(targetProject) await openDetail(String(targetProject));
+    refreshVisualsAfterPrimaryLoad();
+    const targetProject=payload&&(payload.id||payload.proyecto||payload.project||payload.codigo);
+    if(targetProject)await openDetail(String(targetProject));
   }
 
-  window.ManttoProyectos = { init, refresh, openDetail, formatProyectoName, version:MODULE_VERSION };
+  window.ManttoProyectos={
+    init:init,
+    refresh:refresh,
+    openDetail:openDetail,
+    formatProyectoName:formatProyectoName,
+    version:MODULE_VERSION
+  };
 })();

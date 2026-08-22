@@ -1,15 +1,47 @@
 const db = require('../../config/db');
+const { bellVisibilitySql_gnral } = require('../../services/notifications/notification-policy');
 
 async function getNotificaciones({ whereSql, params, orderSql, limit }) {
   const [rows] = await db.query(`
-    SELECT *
+    SELECT n.*
     FROM sup_notificaciones n
+    LEFT JOIN notificacion_eventos e
+      ON e.codigo_evento = n.tipo_notificacion
+     AND e.activo = 1
+    LEFT JOIN notificacion_preferencias p
+      ON p.codigo_evento = n.tipo_notificacion
+     AND p.id_usuario = n.id_usuario
     ${whereSql}
+      AND ${bellVisibilitySql_gnral('n', 'e', 'p')}
     ${orderSql}
     LIMIT ?
   `, [...params, limit]);
 
   return rows;
+}
+
+async function getEstadoNotificaciones({ whereSql, params }) {
+  const [rows] = await db.query(`
+    SELECT
+      COUNT(*) AS nuevas,
+      COALESCE(MAX(n.id_notificacion), 0) AS ultimo_id
+    FROM sup_notificaciones n
+    LEFT JOIN notificacion_eventos e
+      ON e.codigo_evento = n.tipo_notificacion
+     AND e.activo = 1
+    LEFT JOIN notificacion_preferencias p
+      ON p.codigo_evento = n.tipo_notificacion
+     AND p.id_usuario = n.id_usuario
+    ${whereSql}
+      AND n.leido = 0
+      AND ${bellVisibilitySql_gnral('n', 'e', 'p')}
+  `, params);
+
+  const row = rows[0] || {};
+  return {
+    nuevas: Number(row.nuevas || 0),
+    ultimo_id: Number(row.ultimo_id || 0)
+  };
 }
 
 async function marcarComoAbierta(idNotificacion, idUsuario) {
@@ -42,6 +74,7 @@ async function marcarComoNueva(idNotificacion, idUsuario) {
 
 module.exports = {
   getNotificaciones,
+  getEstadoNotificaciones,
   marcarComoAbierta,
   marcarComoNueva
 };

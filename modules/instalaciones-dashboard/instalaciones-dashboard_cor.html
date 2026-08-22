@@ -1,0 +1,187 @@
+<div class="idb-cor-page" data-idb-cor-root>
+  <section class="idb-cor-card idb-cor-head">
+    <div>
+      <p class="idb-cor-eyebrow">INSTALACIONES · DASHBOARD</p>
+      <h1>Dashboard Supervisores</h1>
+      <p>Resumen operativo por supervisor con comentarios de junta, reporte por etapa, proyectos activos y seguimiento comercial relacionado.</p>
+    </div>
+    <div class="idb-cor-head-actions">
+      <div class="idb-cor-mode" role="group" aria-label="Modo del dashboard">
+        <button type="button" id="idb-cor-mode-normal" class="idb-cor-mode-btn active" aria-pressed="true">Modo normal</button>
+        <button type="button" id="idb-cor-mode-junta" class="idb-cor-mode-btn" aria-pressed="false">Modo Junta</button>
+      </div>
+      <button class="idb-cor-btn idb-cor-btn-primary" id="idb-cor-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="idb-cor-card idb-cor-selector-card"
+           data-permission-code="INSTALACIONES_DASHBOARD_SELECTOR_SUPERVISORES_SELECTOR.VER">
+    <div class="idb-cor-section-title">
+      <div>
+        <span class="idb-cor-step">1</span>
+        <div>
+          <h2>Selecciona uno o más supervisores</h2>
+          <p>Los resultados se actualizan con la selección. AFL funciona como filtro especial de equipos activos en Ajuste.</p>
+        </div>
+      </div>
+      <span id="idb-cor-selection-count" class="idb-cor-count-pill">0 seleccionados</span>
+    </div>
+
+    <div id="idb-cor-supervisor-chips" class="idb-cor-chip-grid" aria-label="Supervisores disponibles"></div>
+
+    <div class="idb-cor-selection-summary">
+      <span aria-hidden="true">👥</span>
+      <div>
+        <small>Universo seleccionado</small>
+        <strong id="idb-cor-selection-text">Selecciona uno o más supervisores para comenzar.</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="idb-cor-empty idb-cor-card" id="idb-cor-empty-selection">
+    <span aria-hidden="true">📊</span>
+    <strong>Selecciona el universo del Dashboard</strong>
+    <p>Puede ser uno o más supervisores, AFL solo, o AFL combinado con supervisores específicos.</p>
+  </section>
+
+  <div id="idb-cor-results" hidden>
+    <section class="idb-cor-card idb-cor-section" id="idb-cor-comments-card"
+             data-permission-code="INSTALACIONES_DASHBOARD_COMENTARIOS_JUNTA_LISTADO.VER">
+      <div class="idb-cor-section-title">
+        <div>
+          <span class="idb-cor-step">1</span>
+          <div>
+            <h2>Tus comentarios de junta en equipos de estos supervisores</h2>
+            <p>Pendientes registrados por el usuario autenticado.</p>
+          </div>
+        </div>
+        <span id="idb-cor-comments-total" class="idb-cor-count-pill">0</span>
+      </div>
+      <div class="idb-cor-table-wrap">
+        <table class="idb-cor-table">
+          <thead><tr><th>Semana</th><th>Proyecto</th><th>Equipo</th><th>Pendiente</th><th>Responsable(s)</th><th>Fecha</th></tr></thead>
+          <tbody id="idb-cor-comments-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="idb-cor-card idb-cor-section" id="idb-cor-report-card">
+      <div class="idb-cor-section-title idb-cor-report-title">
+        <div>
+          <span class="idb-cor-step">2</span>
+          <div>
+            <h2>Reporte de instalaciones por sección</h2>
+            <p id="idb-cor-report-help">Selecciona una etapa para consultar sus equipos.</p>
+          </div>
+        </div>
+        <div class="idb-cor-report-controls"
+             data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.VER">
+          <label for="idb-cor-section-select">
+            <span>Sección</span>
+            <select id="idb-cor-section-select"
+                    data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.FILTRAR"
+                    data-permission-behavior="disable">
+              <option value="">Selecciona una sección...</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div id="idb-cor-report-scope" class="idb-cor-scope-banner" hidden></div>
+      <div id="idb-cor-report-result"
+           data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_LISTADO.VER">
+        <div class="idb-cor-empty idb-cor-inline-empty">
+          <span aria-hidden="true">📋</span><strong>Sin sección consultada</strong>
+          <p>Selecciona una etapa del reporte para mostrar la tabla.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="idb-cor-card idb-cor-section idb-cor-documentation-card" id="idb-cor-documentation-card" hidden>
+      <div class="idb-cor-section-title idb-cor-documentation-title">
+        <div>
+          <span class="idb-cor-step">3</span>
+          <div>
+            <h2>Documentación Pendiente</h2>
+            <p id="idb-cor-documentation-help">Cumplimiento documental del universo de supervisores seleccionado.</p>
+          </div>
+        </div>
+        <div class="idb-cor-documentation-summary">
+          <div class="idb-cor-documentation-ring" id="idb-cor-documentation-ring" style="--pct:0">
+            <span id="idb-cor-documentation-pct">0%</span>
+          </div>
+          <div>
+            <small>% Cumplimiento</small>
+            <strong id="idb-cor-documentation-count">0 pendientes</strong>
+          </div>
+        </div>
+      </div>
+      <div id="idb-cor-documentation-content">
+        <div class="idb-cor-empty idb-cor-inline-empty">
+          <span aria-hidden="true">📄</span><strong>Sin información documental</strong>
+          <p>Selecciona un supervisor y activa Modo Junta.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="idb-cor-card idb-cor-section" id="idb-cor-projects-card"
+             data-permission-code="INSTALACIONES_DASHBOARD_PROYECTOS_ACTIVOS_LISTADO.VER">
+      <div class="idb-cor-section-title">
+        <div>
+          <span class="idb-cor-step">4</span>
+          <div>
+            <h2>Proyectos activos</h2>
+            <p id="idb-cor-projects-help">Proyectos vinculados al universo de supervisores seleccionado.</p>
+          </div>
+        </div>
+        <span id="idb-cor-projects-total" class="idb-cor-count-pill">0</span>
+      </div>
+      <div class="idb-cor-table-wrap">
+        <table class="idb-cor-table">
+          <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor(es)</th></tr></thead>
+          <tbody id="idb-cor-projects-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="idb-cor-card idb-cor-section" id="idb-cor-aditivas-card">
+      <div class="idb-cor-section-title">
+        <div>
+          <span class="idb-cor-step">5</span>
+          <div>
+            <h2>Resumen de Aditivas · Cobranza Corellian</h2>
+            <p>Ruta reservada para la futura fuente de Aditivas de Cobranza Corellian. Mientras no existan sus tablas, no se muestran importes.</p>
+          </div>
+        </div>
+      </div>
+      <div class="idb-cor-kpis" id="idb-cor-aditivas-kpis"
+           data-permission-code="INSTALACIONES_DASHBOARD_ADITIVAS_INDICADORES.VER"></div>
+      <div class="idb-cor-note idb-cor-note-neutral" id="idb-cor-aditivas-note"></div>
+      <div class="idb-cor-table-wrap"
+           data-permission-code="INSTALACIONES_DASHBOARD_ADITIVAS_PENDIENTES.VER">
+        <table class="idb-cor-table">
+          <thead><tr><th>Proyecto</th><th>Concepto</th><th>OV</th><th>Factura</th><th>Pendiente</th></tr></thead>
+          <tbody id="idb-cor-aditivas-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="idb-cor-card idb-cor-section" id="idb-cor-debt-card"
+             data-permission-code="INSTALACIONES_DASHBOARD_ADEUDOS_CONTRACTUALES_LISTADO.VER">
+      <div class="idb-cor-section-title">
+        <div>
+          <span class="idb-cor-step">6</span>
+          <div>
+            <h2>Adeudos contractuales</h2>
+            <p>Suministro + Instalación, excluyendo Aditivas. La ruta Corellian queda preparada y se activará cuando exista la tabla fuente.</p>
+          </div>
+        </div>
+      </div>
+      <div id="idb-cor-debt-content"></div>
+    </section>
+  </div>
+
+  <section class="idb-cor-footer-note" role="note">
+    <span aria-hidden="true">ⓘ</span>
+    <p id="idb-cor-status">Selecciona supervisores para consultar el Dashboard.</p>
+  </section>
+</div>

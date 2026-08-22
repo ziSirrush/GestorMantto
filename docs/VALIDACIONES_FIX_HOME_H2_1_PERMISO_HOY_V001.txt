@@ -1,0 +1,6 @@
+[PASS] core/app.js: node --check
+[PASS] Visibilidad usa GENERAL_INICIO_BARRA_BIENVENIDA_BOTON_HOY.VER
+[PASS] Apertura usa GENERAL_INICIO_BARRA_BIENVENIDA_BOTON_HOY.ABRIR_RESUMEN_DEL_DIA
+[PASS] No se modifica backend
+[PASS] No se modifica Push/Notificaciones
+[PASS] No incluye SQL ni cambios de esquema

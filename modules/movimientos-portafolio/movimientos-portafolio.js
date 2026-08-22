@@ -1,379 +1,499 @@
 (function(){
-  const MODULE_VERSION = '20260716-v005';
-  const state = { loaded:false, rows:[], filtersLoaded:false, weeklyCatalog:[], weeklyRows:[] };
+  'use strict';
 
-  const MOV_INLINE_HTML = `<div class="mov-page">
-  <section class="mov-card mov-head">
-    <div>
-      <p class="mov-eyebrow">Aiven · Portafolio</p>
-      <h1>Movimientos de Portafolio</h1>
-      <p>Comparativo mensual vigente e histórico de cortes semanales.</p>
-    </div>
-    <div class="mov-head-actions">
-      <span class="mov-status loading" id="mov-status"><span class="mov-dot"></span><span>Cargando Aiven...</span></span>
-      <button type="button" class="mov-btn mov-btn-primary" data-mov-action="refresh">↻ Actualizar</button>
-    </div>
-  </section>
-
-  <section class="mov-grid mov-kpis" aria-label="Indicadores de movimientos mensuales">
-    <article class="mov-kpi mov-kpi-blue" data-mov-detail="total"><i class="mov-led blue"></i><strong id="mov-kpi-total">—</strong><b>Diferencias vigentes</b><small>contra corte mensual</small></article>
-    <article class="mov-kpi mov-kpi-red" data-mov-detail="degradados"><i class="mov-led red"></i><strong id="mov-kpi-degradados">—</strong><b>Salidas de servicio</b><small>equipos detenidos</small></article>
-    <article class="mov-kpi mov-kpi-green" data-mov-detail="recuperados"><i class="mov-led green"></i><strong id="mov-kpi-recuperados">—</strong><b>Regresos a servicio</b><small>equipos recuperados</small></article>
-    <article class="mov-kpi mov-kpi-amber" data-mov-detail="cambios"><i class="mov-led amber"></i><strong id="mov-kpi-cambios">—</strong><b>Cambios operativos</b><small>estatus distinto</small></article>
-  </section>
-
-  <section class="mov-card mov-collapsible is-open" data-mov-panel="monthly">
-    <button type="button" class="mov-panel-toggle" data-mov-toggle="monthly" aria-expanded="true">
-      <span><b>Detalle de movimientos mensuales</b><small>Comparativo contra el último corte mensual</small></span><span class="mov-chevron">⌄</span>
-    </button>
-    <div class="mov-panel-content" data-mov-content="monthly">
-      <section class="mov-filters" aria-label="Filtros mensuales">
-        <label>Zona<select id="mov-filter-zona"><option value="">Todas</option></select></label>
-        <label>Tipo de movimiento<select id="mov-filter-tipo"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
-        <label>Buscar<input id="mov-filter-search" type="search" placeholder="Equipo, proyecto, supervisor..." /></label>
-        <button type="button" class="mov-btn" data-mov-action="clear">Limpiar</button>
-        <button type="button" class="mov-btn mov-btn-primary" data-mov-action="apply">Aplicar</button>
-      </section>
-      <div class="mov-section-head"><div><h2>Comparativo mensual</h2><p id="mov-count">—</p></div><small id="mov-corte">Corte mensual: —</small></div>
-      <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,NO_FUNCIONANDO"></div>
-      <div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Estatus anterior</th><th>Estatus actual</th><th>Supervisor</th><th>Fecha corte</th></tr></thead><tbody id="mov-body"><tr><td colspan="8" class="mov-empty">Cargando...</td></tr></tbody></table></div>
-    </div>
-  </section>
-
-  <section class="mov-card mov-collapsible" data-mov-panel="weekly">
-    <button type="button" class="mov-panel-toggle" data-mov-toggle="weekly" aria-expanded="false">
-      <span><b>Histórico semanal</b><small>Cortes dominicales · 12:00 hrs CDMX</small></span><span class="mov-chevron">⌄</span>
-    </button>
-    <div class="mov-panel-content" data-mov-content="weekly" hidden>
-      <section class="mov-filters mov-weekly-filters" aria-label="Filtros semanales">
-        <label>Año<select id="mov-week-year"><option value="">Selecciona</option></select></label>
-        <label>Semana<select id="mov-week-number"><option value="">Selecciona</option></select></label>
-        <label>Buscar proyecto<input id="mov-week-search" type="search" placeholder="Proyecto o código de equipo..." /></label>
-        <label>Tipo de movimiento<select id="mov-week-type"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
-        <button type="button" class="mov-btn" data-mov-week-action="clear">Limpiar</button>
-        <button type="button" class="mov-btn mov-btn-primary" data-mov-week-action="consult">Consultar</button>
-      </section>
-      <div class="mov-section-head"><div><h2 id="mov-week-title">Semana sin seleccionar</h2><p id="mov-week-count">Selecciona un año y una semana</p></div><small id="mov-week-range">Corte semanal: —</small></div>
-      <section class="mov-grid mov-week-kpis" aria-label="Indicadores semanales">
-        <article class="mov-mini-kpi"><strong id="mov-week-total">—</strong><span>Movimientos</span></article>
-        <article class="mov-mini-kpi"><strong id="mov-week-outs">—</strong><span>Salidas</span></article>
-        <article class="mov-mini-kpi"><strong id="mov-week-returns">—</strong><span>Regresos</span></article>
-        <article class="mov-mini-kpi"><strong id="mov-week-changes">—</strong><span>Otros cambios</span></article>
-      </section>
-      <div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Fecha corte</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Estatus anterior</th><th>Estatus actual</th><th>Supervisor</th></tr></thead><tbody id="mov-week-body"><tr><td colspan="8" class="mov-empty">Sin semana seleccionada</td></tr></tbody></table></div>
-    </div>
-  </section>
-
-  <section id="mov-detail-modal" class="mov-detail" hidden><div class="mov-detail-panel"><div class="mov-detail-head"><button type="button" id="mov-detail-close" aria-label="Cerrar">×</button><div><h2 id="mov-detail-title">Detalle</h2><p id="mov-detail-sub">Movimientos de Portafolio</p></div></div><div class="mov-detail-body" id="mov-detail-body"></div></div></section>
-</div>
-`;
+  const MODULE_VERSION = '20260821-fase09-cuartos-v001';
+  const state = {
+    loaded:false,
+    rows:[],
+    alcance:{ zona_ids:[], zonas:[] },
+    weeklyCatalog:[],
+    weeklyRows:[],
+    weeklyCut:null
+  };
 
   function API(){ return (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, ''); }
   function $(id){ return document.getElementById(id); }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function int(v){ const n = Number(v || 0); return Number.isFinite(n) ? n.toLocaleString('es-MX') : '0'; }
-  function val(id){ const el=$(id); return el ? el.value.trim() : ''; }
-  function qs(params){ const u = new URLSearchParams(); Object.entries(params || {}).forEach(([k,v])=>{ if(v !== undefined && v !== null && String(v).trim() !== '') u.set(k, v); }); return u.toString(); }
-  function text(id, value){ const el=$(id); if(el) el.textContent = value; }
+  function int(v){ const n=Number(v||0); return Number.isFinite(n)?n.toLocaleString('es-MX'):'0'; }
+  function val(id){ const el=$(id); return el?el.value.trim():''; }
+  function text(id,value){ const el=$(id); if(el) el.textContent=value; }
+  function qs(params){ const u=new URLSearchParams(); Object.entries(params||{}).forEach(([k,v])=>{ if(v!==undefined&&v!==null&&String(v).trim()!=='')u.set(k,v); }); return u.toString(); }
+  function normTxt(v){ return String(v==null?'':v).trim(); }
+  function normStatus(v){ return normTxt(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function isServicio(v){ const s=normStatus(v); return s==='en servicio'||s==='servicio'; }
+  function fmtDate(v){
+    if(!v)return '—';
+    const s=String(v).trim();
+    const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m)return m[3]+'/'+m[2]+'/'+m[1];
+    const d=new Date(s);
+    return Number.isNaN(d.getTime())?s:d.toLocaleDateString('es-MX');
+  }
+  function fmtProjectName(v){
+    const raw=normTxt(v);
+    const m=raw.match(/^(\d+)-(\d{2})-(\d{2})(?:T.*)?$/);
+    if(!m)return raw;
+    const meses={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
+    const numero=String(Number(m[1])||m[1].replace(/^0+/,'')||m[1]);
+    return String(Number(m[3])||m[3])+' de '+(meses[m[2]]||m[2])+' #'+numero;
+  }
+  function first(row,keys){
+    for(const key of keys){
+      if(row&&row[key]!==undefined&&row[key]!==null&&String(row[key]).trim()!=='')return row[key];
+    }
+    return null;
+  }
+  function tipoLabel(type){
+    const t=String(type||'').toUpperCase();
+    if(t==='DEGRADADO')return 'Salida de servicio';
+    if(t==='RECUPERADO')return 'Regreso a servicio';
+    return 'Cambio operativo';
+  }
+  function tagFor(type){
+    const t=String(type||'').toUpperCase();
+    if(t==='DEGRADADO')return {cls:'red'};
+    if(t==='RECUPERADO')return {cls:'green'};
+    return {cls:'amber'};
+  }
+  function statusPill(value){
+    return '<span class="mov-status-pill '+(isServicio(value)?'ok':'bad')+'"><i></i>'+esc(value)+'</span>';
+  }
+  function visualCodes(row){
+    const supplied=Array.isArray(row&&row.estados_visuales)?row.estados_visuales.map(x=>typeof x==='string'?x:x.codigo):[];
+    if(String(row&&row.tipo_movimiento||row&&row.tipo||'').toUpperCase()==='DEGRADADO')supplied.push('NO_FUNCIONANDO');
+    return [...new Set(supplied.filter(Boolean))];
+  }
+  function visualIdentifier(row,label){
+    return window.EstadosVisuales_gnral
+      ? window.EstadosVisuales_gnral.renderIdentifier(visualCodes(row),label)
+      : esc(label);
+  }
 
   async function fetchJson(path){
-    const headers = Object.assign({ 'Accept':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
-    const r = await fetch(API() + path, { headers, cache:'no-store' });
-    const raw = await r.text();
+    const headers=Object.assign(
+      {'Accept':'application/json'},
+      window.ManttoAuth&&typeof window.ManttoAuth.authHeaders==='function'
+        ? window.ManttoAuth.authHeaders()
+        : {}
+    );
+    const response=await fetch(API()+path,{headers,cache:'no-store'});
+    const raw=await response.text();
     let data;
-    try { data = raw ? JSON.parse(raw) : {}; }
-    catch(e){ const err = new Error('Respuesta inválida del backend. Verifica API_BASE/Railway y que el endpoint responda JSON.'); err.invalidJson = true; err.raw = raw; throw err; }
-    if(!r.ok || !data.ok) throw new Error(data.message || data.error || 'Error consultando backend');
+    try{data=raw?JSON.parse(raw):{};}
+    catch(error){throw new Error('Respuesta no JSON del backend ('+response.status+'). Ruta: '+path);}
+    if(!response.ok||!data.ok)throw new Error(data.message||data.error||'Error consultando backend');
     return data;
   }
 
-  function first(row, keys){ for(const k of keys){ if(row && row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return row[k]; } return null; }
-  function normTxt(value){ return String(value == null ? '' : value).trim(); }
-  function normStatus(value){ return normTxt(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-  function isServicio(value){ const s = normStatus(value); return s === 'en servicio' || s === 'servicio'; }
-  function isInactive(value){ const s = normStatus(value).toUpperCase(); return ['SI','SÍ','1','TRUE','INACTIVO'].includes(s); }
-  function tipoMovimiento(prev, cur){ if(isServicio(prev) && !isServicio(cur)) return 'DEGRADADO'; if(!isServicio(prev) && isServicio(cur)) return 'RECUPERADO'; return 'CAMBIO'; }
-  function tipoLabel(type){ const t=String(type||'').toUpperCase(); if(t==='DEGRADADO') return 'Salida de servicio'; if(t==='RECUPERADO') return 'Regreso a servicio'; return 'Cambio operativo'; }
-  function fmtDate(value){
-    if(!value) return '—';
-    const s = String(value).trim();
-    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if(iso) return iso[3] + '/' + iso[2] + '/' + iso[1];
-    const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('es-MX');
+  function setStatus(type,message){
+    const el=$('mov-status');
+    if(!el)return;
+    el.className='mov-status '+(type||'loading');
+    el.innerHTML='<span class="mov-dot"></span><span>'+esc(message||'Cargando...')+'</span>';
   }
-  function fmtProjectName(value){
-    const raw = String(value || '').trim();
-    const m = raw.match(/^(\d+)-(\d{2})-(\d{2})(?:T.*)?$/);
-    if(!m) return raw;
-    const meses = {'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
-    const numero = String(Number(m[1]) || m[1].replace(/^0+/, '') || m[1]);
-    return String(Number(m[3]) || m[3]) + ' de ' + (meses[m[2]] || m[2]) + ' #' + numero;
-  }
-  function proyectoCodigo(row){ return first(row, ['proyecto_codigo','proyecto','Proyecto','codigo_proyecto']); }
-  function proyectoDisplay(row){ return fmtProjectName(first(row, ['proyecto_nombre','nombre_proyecto','proyecto_visual','Proyecto Visual','proyecto_cc_x_port','Proyecto CC x Port']) || proyectoCodigo(row)); }
-
-  function mapPortafolioMovimiento(row){
-    const anterior = first(row, ['estatus_anterior','estatus_ul_mes','Estatus UL Mes','Estatus_Ul_Mes']);
-    const actual = first(row, ['estatus_actual','estatus_servicio','Estatus Servicio','Estatus_Servicio']);
-    return {
-      id_portafolio: first(row, ['id_portafolio','id','ID_SB']),
-      numero_equipo: first(row, ['numero_equipo','Numero de Equipo','Numero_de_Equipo']),
-      proyecto: proyectoCodigo(row),
-      proyecto_nombre: proyectoDisplay(row),
-      ciudad: first(row, ['ciudad','Ciudad']),
-      estado: first(row, ['estado','Estado']),
-      identificacion_sitio: first(row, ['identificacion_sitio','Identificacion en Sitio','Identificacion_en_Sitio']),
-      zona: first(row, ['zona_operativa','zona','Z. Oper.','Zona Operativa','Zona_Operativa']),
-      supervisor: first(row, ['supervisor_zona','supervisor','Supervisor Zona','Supervisor_Zona']),
-      superintendente: first(row, ['superintendente','Superintendente']),
-      estatus_anterior: anterior,
-      estatus_actual: actual,
-      fecha_corte: first(row, ['estatus_ul_mes_fecha','fecha_corte','Estatus UL Mes Fecha']),
-      tipo_movimiento: first(row, ['tipo_movimiento']) || tipoMovimiento(anterior, actual),
-      inactivo: first(row, ['inactivo','Inactivo']),
-      estado_registro: first(row, ['estado_registro','Estado Registro'])
-    };
-  }
-
-  async function fetchMovimientosFallback(){
-    const data = await fetchJson('/api/portafolio');
-    const rows = Array.isArray(data.data) ? data.data : [];
-    const p = getParams();
-    const zona = normTxt(p.zona).toLowerCase();
-    const tipo = normTxt(p.tipo).toUpperCase();
-    const search = normTxt(p.search).toLowerCase();
-
-    let movs = rows.map(mapPortafolioMovimiento).filter(r=>{
-      if(String(r.estado_registro || '1') !== '1') return false;
-      if(isInactive(r.inactivo)) return false;
-      if(!normTxt(r.estatus_anterior) || !normTxt(r.estatus_actual)) return false;
-      if(normStatus(r.estatus_anterior) === normStatus(r.estatus_actual)) return false;
-      if(zona && !normTxt(r.zona).toLowerCase().includes(zona)) return false;
-      if(tipo && r.tipo_movimiento !== tipo) return false;
-      if(search){ const hay = [r.numero_equipo,r.proyecto,r.proyecto_nombre,r.ciudad,r.estado,r.identificacion_sitio,r.supervisor,r.superintendente].map(normTxt).join(' ').toLowerCase(); if(!hay.includes(search)) return false; }
-      return true;
-    }).sort((a,b)=>String(a.tipo_movimiento).localeCompare(String(b.tipo_movimiento)) || String(a.zona||'').localeCompare(String(b.zona||'')) || String(a.proyecto||'').localeCompare(String(b.proyecto||'')) || String(a.numero_equipo||'').localeCompare(String(b.numero_equipo||''))).slice(0,1000);
-
-    const kpis = movs.reduce((acc,r)=>{ acc.total += 1; if(r.tipo_movimiento === 'DEGRADADO') acc.degradados += 1; else if(r.tipo_movimiento === 'RECUPERADO') acc.recuperados += 1; else acc.cambios += 1; return acc; }, {total:0,degradados:0,recuperados:0,cambios:0});
-    const zonas = [...new Set(rows.map(r=>first(r, ['zona_operativa','Z. Oper.','Zona Operativa','Zona_Operativa'])).filter(Boolean))].sort();
-    const corte = movs.map(r=>r.fecha_corte).filter(Boolean).sort().pop() || null;
-    return { ok:true, source:'aiven-portafolio-fallback', warning:'Movimientos calculados desde /api/portafolio.', kpis, corte, filters:{zonas}, data:movs };
-  }
-
-  function setStatus(type, msg){ const el=$('mov-status'); if(!el) return; el.className = 'mov-status ' + (type || 'loading'); el.innerHTML = '<span class="mov-dot"></span><span>' + esc(msg || 'Cargando...') + '</span>'; }
 
   async function loadHtml(){
-    const view = $('view-movimientos');
-    if(!view || state.loaded) return;
-    let html = MOV_INLINE_HTML;
-    try{ const r = await fetch('./modules/movimientos-portafolio/movimientos-portafolio.html?v=' + MODULE_VERSION, { cache:'no-store' }); if(r.ok){ const t = await r.text(); if(t && t.trim()) html = t; } }catch(e){}
-    view.innerHTML = html;
+    const view=$('view-movimientos');
+    if(!view||state.loaded)return;
+    const response=await fetch('./modules/movimientos-portafolio/movimientos-portafolio.html?v='+MODULE_VERSION,{cache:'no-store'});
+    if(!response.ok)throw new Error('No fue posible cargar la vista de Movimientos de Portafolio.');
+    const html=await response.text();
+    if(!html.trim())throw new Error('La vista de Movimientos de Portafolio esta vacia.');
+    view.innerHTML=html;
     bind();
-    state.loaded = true;
+    state.loaded=true;
   }
 
   function bind(){
-    document.querySelectorAll('[data-mov-action]').forEach(btn=>{ btn.addEventListener('click', ()=>{ const action = btn.dataset.movAction; if(action === 'refresh' || action === 'apply') refresh(); if(action === 'clear') clearFilters(); }); });
-    ['mov-filter-zona','mov-filter-tipo'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', refresh); });
-    const search = $('mov-filter-search'); if(search) search.addEventListener('keydown', ev=>{ if(ev.key === 'Enter'){ ev.preventDefault(); refresh(); } });
-    const close = $('mov-detail-close'); if(close) close.addEventListener('click', ()=>{ $('mov-detail-modal').hidden = true; });
-    document.querySelectorAll('[data-mov-detail]').forEach(el=>el.addEventListener('click', ()=>openDetail(el.dataset.movDetail)));
-    document.querySelectorAll('[data-mov-toggle]').forEach(btn=>btn.addEventListener('click', ()=>togglePanel(btn.dataset.movToggle)));
-    document.querySelectorAll('[data-mov-week-action]').forEach(btn=>btn.addEventListener('click', ()=>{ if(btn.dataset.movWeekAction === 'consult') loadWeekly(); else clearWeeklyFilters(); }));
-    const year=$('mov-week-year'); if(year) year.addEventListener('change', ()=>fillWeeksForYear(year.value));
-    const weekSearch=$('mov-week-search'); if(weekSearch) weekSearch.addEventListener('keydown', ev=>{ if(ev.key === 'Enter'){ ev.preventDefault(); loadWeekly(); } });
+    document.querySelectorAll('[data-mov-action]').forEach(btn=>btn.addEventListener('click',()=>{
+      const action=btn.dataset.movAction;
+      if(action==='refresh'||action==='apply')refresh();
+      if(action==='clear')clearFilters();
+    }));
+    ['mov-filter-zona','mov-filter-tipo'].forEach(id=>{
+      const el=$(id); if(el)el.addEventListener('change',refresh);
+    });
+    const search=$('mov-filter-search');
+    if(search)search.addEventListener('keydown',event=>{
+      if(event.key==='Enter'){event.preventDefault();refresh();}
+    });
+    const close=$('mov-detail-close');
+    if(close)close.addEventListener('click',closeDetailModal);
+    document.querySelectorAll('[data-mov-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.movDetail)));
+    document.querySelectorAll('[data-mov-toggle]').forEach(btn=>btn.addEventListener('click',()=>togglePanel(btn.dataset.movToggle)));
+    document.querySelectorAll('[data-mov-week-action]').forEach(btn=>btn.addEventListener('click',()=>{
+      if(btn.dataset.movWeekAction==='consult')loadWeekly();
+      else clearWeeklyFilters();
+    }));
+    const year=$('mov-week-year');
+    if(year)year.addEventListener('change',()=>fillWeeksForYear(year.value));
+    const weekSearch=$('mov-week-search');
+    if(weekSearch)weekSearch.addEventListener('keydown',event=>{
+      if(event.key==='Enter'){event.preventDefault();loadWeekly();}
+    });
   }
 
-  function clearFilters(){ ['mov-filter-zona','mov-filter-tipo','mov-filter-search'].forEach(id=>{ const el=$(id); if(el) el.value=''; }); refresh(); }
-  function fillZona(rows){ const el=$('mov-filter-zona'); if(!el || state.filtersLoaded) return; const zonas=[...new Set((rows || []).map(r=>r.zona).filter(Boolean))].sort(); el.innerHTML = '<option value="">Todas</option>' + zonas.map(z=>'<option value="'+esc(z)+'">'+esc(z)+'</option>').join(''); state.filtersLoaded = true; }
-  function getParams(){ return { zona:val('mov-filter-zona'), tipo:val('mov-filter-tipo'), search:val('mov-filter-search') }; }
+  function currentParams(){
+    return {zona:val('mov-filter-zona'),tipo:val('mov-filter-tipo'),search:val('mov-filter-search')};
+  }
+
+  function clearFilters(){
+    ['mov-filter-zona','mov-filter-tipo','mov-filter-search'].forEach(id=>{const el=$(id);if(el)el.value='';});
+    refresh();
+  }
+
+  function mapMovimiento(row){
+    const anterior=first(row,['estatus_anterior','estatus_ul_mes','Estatus UL Mes']);
+    const actual=first(row,['estatus_actual','estatus_servicio','Estatus Servicio']);
+    return {
+      ...row,
+      numero_equipo:first(row,['numero_equipo','equipo','codigo_equipo']),
+      proyecto:first(row,['proyecto_codigo','proyecto']),
+      proyecto_nombre:fmtProjectName(first(row,['proyecto_nombre','proyecto','proyecto_codigo'])),
+      zona:first(row,['zona_oficial','zona']),
+      zona_oficial:first(row,['zona_oficial','zona']),
+      zona_id_oficial:first(row,['zona_id_oficial']),
+      supervisor:first(row,['supervisor','supervisor_zona']),
+      estatus_anterior:anterior,
+      estatus_actual:actual,
+      tipo_movimiento:first(row,['tipo_movimiento','tipo'])||'CAMBIO',
+      fecha_corte:first(row,['fecha_corte','estatus_ul_mes_fecha'])
+    };
+  }
+
+  function fillZona(zonas){
+    const el=$('mov-filter-zona');
+    if(!el)return;
+    const selected=el.value;
+    const values=[...new Set((zonas||[]).map(normTxt).filter(Boolean))].sort();
+    el.innerHTML='<option value="">Todas</option>'+values.map(z=>'<option value="'+esc(z)+'">'+esc(z)+'</option>').join('');
+    if(values.includes(selected))el.value=selected;
+  }
 
   async function refresh(){
-    setStatus('loading', 'Consultando movimientos...');
-    const body = $('mov-body'); if(body) body.innerHTML = '<tr><td colspan="8" class="mov-empty">Cargando movimientos...</td></tr>';
+    setStatus('loading','Consultando movimientos...');
+    const body=$('mov-body');
+    if(body)body.innerHTML='<tr><td colspan="8" class="mov-empty">Cargando movimientos...</td></tr>';
     try{
-      let data;
-      try { data = await fetchJson('/api/portafolio/movimientos?' + qs(getParams())); }
-      catch(primaryError){ console.warn('[Movimientos] Endpoint /api/portafolio/movimientos no disponible, usando /api/portafolio:', primaryError.message); data = await fetchMovimientosFallback(); }
-      state.rows = (data.data || []).map(mapPortafolioMovimiento);
-      fillZona(data.filters?.zonas ? data.filters.zonas.map(z=>({ zona:z })) : state.rows);
-      render(data);
-      if(data.warning) setStatus('warn', data.warning); else setStatus('ok', 'Movimientos actualizados');
-    }catch(e){ setStatus('error', e.message); renderError(e.message); }
+      // FASE 9/11: no existe fallback a /api/portafolio. La primera llamada es
+      // propia del modulo y llega ya filtrada por la puerta PORTAFOLIO y usuario_zop.
+      const data=await fetchJson('/api/portafolio/movimientos/inicial?'+qs(currentParams()));
+      state.alcance=data.alcance||{zona_ids:[],zonas:[]};
+      state.rows=(data.data||[]).map(mapMovimiento);
+      fillZona(data.filters?.zonas||state.alcance.zonas||[]);
+      renderMonthly(data);
+      setStatus(data.warning?'warn':'ok',data.warning||'Movimientos actualizados');
+    }catch(error){
+      state.rows=[];
+      renderMonthlyError(error.message);
+      setStatus('error',error.message);
+    }
   }
 
-  function render(data){
-    const k = data.kpis || {};
-    text('mov-kpi-total', int(k.total)); text('mov-kpi-degradados', int(k.degradados)); text('mov-kpi-recuperados', int(k.recuperados)); text('mov-kpi-cambios', int(k.cambios));
-    text('mov-count', int(state.rows.length) + ' movimientos'); text('mov-corte', 'Corte mensual: ' + fmtDate(data.corte));
-    const body = $('mov-body'); if(!body) return;
-    if(!state.rows.length){ body.innerHTML = '<tr><td colspan="8" class="mov-empty">' + esc(data.warning || 'Sin movimientos detectados con los filtros actuales') + '</td></tr>'; return; }
-    body.innerHTML = state.rows.map((row, idx)=>{
-      const tag = tagFor(row.tipo_movimiento);
-      return '<tr class="mov-row" data-mov-idx="'+idx+'" data-codigo="'+esc(row.numero_equipo)+'">'
-        + '<td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(row.tipo_movimiento))+'</span></td>'
-        + '<td class="mov-code">'+visualIdentifier(row,row.numero_equipo)+'</td>'
-        + '<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto)+'">'+visualIdentifier(row,row.proyecto_nombre || row.proyecto)+'</button></td>'
-        + '<td>'+esc(row.zona)+'</td>'
-        + '<td>'+statusPill(row.estatus_anterior)+'</td>'
-        + '<td>'+statusPill(row.estatus_actual)+'</td>'
-        + '<td>'+esc(row.supervisor)+'</td>'
-        + '<td>'+fmtDate(row.fecha_corte)+'</td>'
-        + '</tr>';
+  function renderMonthly(data){
+    const k=data.kpis||{};
+    text('mov-kpi-total',int(k.total));
+    text('mov-kpi-degradados',int(k.degradados));
+    text('mov-kpi-recuperados',int(k.recuperados));
+    text('mov-kpi-cambios',int(k.cambios));
+    text('mov-count',int(state.rows.length)+' movimientos');
+    text('mov-corte','Corte mensual: '+fmtDate(data.corte));
+    const body=$('mov-body');
+    if(!body)return;
+    if(!state.rows.length){
+      body.innerHTML='<tr><td colspan="8" class="mov-empty">'+esc(data.warning||'Sin movimientos detectados con los filtros actuales')+'</td></tr>';
+      return;
+    }
+    body.innerHTML=state.rows.map((row,index)=>{
+      const tag=tagFor(row.tipo_movimiento);
+      return '<tr class="mov-row" data-mov-idx="'+index+'">'
+        +'<td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(row.tipo_movimiento))+'</span></td>'
+        +'<td class="mov-code">'+visualIdentifier(row,row.numero_equipo)+'</td>'
+        +'<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto)+'">'+visualIdentifier(row,row.proyecto_nombre||row.proyecto)+'</button></td>'
+        +'<td>'+esc(row.zona_oficial||row.zona)+'</td>'
+        +'<td>'+statusPill(row.estatus_anterior)+'</td>'
+        +'<td>'+statusPill(row.estatus_actual)+'</td>'
+        +'<td>'+esc(row.supervisor)+'</td>'
+        +'<td>'+fmtDate(row.fecha_corte)+'</td>'
+        +'</tr>';
     }).join('');
-    bindTableRows(body);
+    bindMonthlyRows(body);
   }
 
-  function bindTableRows(root){
-    root.querySelectorAll('tr[data-mov-idx]').forEach(tr=>tr.addEventListener('click', ev=>{ if(ev.target.closest('button')) return; openRow(state.rows[Number(tr.dataset.movIdx)]); }));
-    root.querySelectorAll('[data-mov-proyecto]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.stopPropagation(); const pro=btn.getAttribute('data-mov-proyecto'); if(window.ManttoDetails && window.ManttoDetails.openProyecto) window.ManttoDetails.openProyecto(pro); else openDetailModal('Proyecto', pro, '<div class="mov-empty">Detalle de proyecto no disponible</div>'); }));
+  function renderMonthlyError(message){
+    ['mov-kpi-total','mov-kpi-degradados','mov-kpi-recuperados','mov-kpi-cambios'].forEach(id=>text(id,'0'));
+    text('mov-count','0 movimientos');
+    const body=$('mov-body');
+    if(body)body.innerHTML='<tr><td colspan="8" class="mov-empty">Error: '+esc(message)+'</td></tr>';
   }
 
-  function renderError(msg){ ['mov-kpi-total','mov-kpi-degradados','mov-kpi-recuperados','mov-kpi-cambios'].forEach(id=>text(id, '0')); text('mov-count', '0 movimientos'); const body=$('mov-body'); if(body) body.innerHTML = '<tr><td colspan="8" class="mov-empty">Error: '+esc(msg)+'</td></tr>'; }
-  function tagFor(type){ const t=String(type||'').toUpperCase(); if(t==='DEGRADADO') return { cls:'red' }; if(t==='RECUPERADO') return { cls:'green' }; return { cls:'amber' }; }
-  function visualCodes(row){ const supplied=Array.isArray(row&&row.estados_visuales)?row.estados_visuales.map(x=>typeof x==='string'?x:x.codigo):[]; if(String(row&&row.tipo_movimiento||'').toUpperCase()==='DEGRADADO') supplied.push('NO_FUNCIONANDO'); return [...new Set(supplied.filter(Boolean))]; }
-  function visualIdentifier(row,text){ return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(visualCodes(row),text):esc(text); }
-  function filteredByType(type){ if(type === 'degradados') return state.rows.filter(r=>r.tipo_movimiento === 'DEGRADADO'); if(type === 'recuperados') return state.rows.filter(r=>r.tipo_movimiento === 'RECUPERADO'); if(type === 'cambios') return state.rows.filter(r=>r.tipo_movimiento === 'CAMBIO'); return state.rows; }
-  function openDetailModal(title, sub, html){ const modal=$('mov-detail-modal'), body=$('mov-detail-body'); if(!modal || !body) return; text('mov-detail-title', title); text('mov-detail-sub', sub); body.innerHTML = html || ''; modal.hidden = false; }
-  function closeDetailModal(){ const modal=$('mov-detail-modal'); if(modal) modal.hidden = true; }
+  function bindMonthlyRows(root){
+    root.querySelectorAll('tr[data-mov-idx]').forEach(tr=>tr.addEventListener('click',event=>{
+      if(event.target.closest('button'))return;
+      openRow(state.rows[Number(tr.dataset.movIdx)]);
+    }));
+    bindProjectLinks(root);
+  }
+
+  function bindProjectLinks(root){
+    root.querySelectorAll('[data-mov-proyecto]').forEach(btn=>btn.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      const project=btn.getAttribute('data-mov-proyecto');
+      if(window.ManttoDetails&&window.ManttoDetails.openProyecto)window.ManttoDetails.openProyecto(project);
+    }));
+  }
+
+  function filteredByType(type){
+    if(type==='degradados')return state.rows.filter(row=>row.tipo_movimiento==='DEGRADADO');
+    if(type==='recuperados')return state.rows.filter(row=>row.tipo_movimiento==='RECUPERADO');
+    if(type==='cambios')return state.rows.filter(row=>row.tipo_movimiento==='CAMBIO');
+    return state.rows;
+  }
+
+  function openDetailModal(title,sub,html){
+    const modal=$('mov-detail-modal'),body=$('mov-detail-body');
+    if(!modal||!body)return;
+    text('mov-detail-title',title);
+    text('mov-detail-sub',sub);
+    body.innerHTML=html||'';
+    modal.hidden=false;
+  }
+
+  function closeDetailModal(){
+    const modal=$('mov-detail-modal');
+    if(modal)modal.hidden=true;
+  }
 
   function openDetail(type){
-    const rows = filteredByType(type);
-    const labels = { total:'Todos los movimientos', degradados:'Salidas de servicio', recuperados:'Regresos a servicio', cambios:'Cambios operativos' };
-    const html = rows.length ? '<div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Anterior</th><th>Actual</th><th>Fecha corte</th></tr></thead><tbody>' + rows.map((r, idx)=>{ const tag=tagFor(r.tipo_movimiento); return '<tr class="mov-row" data-mov-idx="'+state.rows.indexOf(r)+'"><td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(r.tipo_movimiento))+'</span></td><td class="mov-code">'+esc(r.numero_equipo)+'</td><td><button type="button" class="mov-link" data-mov-proyecto="'+esc(r.proyecto)+'">'+esc(r.proyecto_nombre || r.proyecto)+'</button></td><td>'+esc(r.zona)+'</td><td>'+statusPill(r.estatus_anterior)+'</td><td>'+statusPill(r.estatus_actual)+'</td><td>'+fmtDate(r.fecha_corte)+'</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="mov-empty">Sin registros para este detalle</div>';
-    openDetailModal(labels[type] || 'Movimientos', int(rows.length) + ' registros · Selecciona un renglón para ver proyecto, equipo y tickets', html);
-    const body=$('mov-detail-body'); if(body) bindTableRows(body);
+    const rows=filteredByType(type);
+    const labels={total:'Todos los movimientos',degradados:'Salidas de servicio',recuperados:'Regresos a servicio',cambios:'Cambios operativos'};
+    const html=rows.length
+      ? '<div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Anterior</th><th>Actual</th><th>Fecha corte</th></tr></thead><tbody>'
+        +rows.map(row=>{
+          const tag=tagFor(row.tipo_movimiento);
+          return '<tr class="mov-row" data-mov-modal-code="'+esc(row.numero_equipo)+'">'
+            +'<td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(row.tipo_movimiento))+'</span></td>'
+            +'<td class="mov-code">'+esc(row.numero_equipo)+'</td>'
+            +'<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto)+'">'+esc(row.proyecto_nombre||row.proyecto)+'</button></td>'
+            +'<td>'+esc(row.zona_oficial||row.zona)+'</td>'
+            +'<td>'+statusPill(row.estatus_anterior)+'</td>'
+            +'<td>'+statusPill(row.estatus_actual)+'</td>'
+            +'<td>'+fmtDate(row.fecha_corte)+'</td>'
+            +'</tr>';
+        }).join('')+'</tbody></table></div>'
+      : '<div class="mov-empty">Sin registros para este detalle</div>';
+    openDetailModal(labels[type]||'Movimientos',int(rows.length)+' registros',html);
+    const body=$('mov-detail-body');
+    if(body){
+      body.querySelectorAll('[data-mov-modal-code]').forEach(tr=>tr.addEventListener('click',event=>{
+        if(event.target.closest('button'))return;
+        const row=rows.find(item=>String(item.numero_equipo)===String(tr.dataset.movModalCode));
+        if(row)openRow(row);
+      }));
+      bindProjectLinks(body);
+    }
   }
 
-  function grid(items){ return '<div class="mov-detail-grid">'+items.map(([k,v])=>'<div class="mov-field"><label>'+esc(k)+'</label><span>'+String(v == null || v === '' ? '—' : v)+'</span></div>').join('')+'</div>'; }
-  function statusPill(value){ const ok=isServicio(value); return '<span class="mov-status-pill '+(ok?'ok':'bad')+'"><i></i>'+esc(value)+'</span>'; }
+  function grid(items){
+    return '<div class="mov-detail-grid">'+items.map(([key,value])=>'<div class="mov-field"><label>'+esc(key)+'</label><span>'+String(value==null||value===''?'—':value)+'</span></div>').join('')+'</div>';
+  }
+
   function ticketTable(rows){
-    if(!rows || !rows.length) return '<div class="mov-empty">Sin tickets relacionados al equipo</div>';
-    return '<div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Ticket</th><th>Fecha</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>' + rows.map(t=>'<tr><td><button type="button" class="mov-link" data-ticket="'+esc(t.ticket || t.n || '')+'">'+esc(t.ticket || t.n)+'</button></td><td>'+fmtDate(t.fecha_reporte || t.fr)+'</td><td>'+esc(t.estado_ticket || t.estado || t.et)+'</td><td><button type="button" class="mov-link" data-mov-proyecto="'+esc(t.proyecto || t.pro || '')+'">'+esc(t.proyecto || t.pro)+'</button></td><td><button type="button" class="mov-link" data-equipo="'+esc(t.codigo_equipo || t.cod || '')+'">'+esc(t.codigo_equipo || t.cod)+'</button></td><td>'+esc(t.responsabilidad || t.res)+'</td><td>'+esc(t.causa_falla || t.causa || t.caf)+'</td></tr>').join('') + '</tbody></table></div>';
+    if(!rows||!rows.length)return '<div class="mov-empty">Sin tickets relacionados al equipo</div>';
+    return '<div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Ticket</th><th>Fecha</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>'
+      +rows.map(ticket=>'<tr>'
+        +'<td><button type="button" class="mov-link" data-ticket="'+esc(ticket.ticket||'')+'">'+esc(ticket.ticket)+'</button></td>'
+        +'<td>'+fmtDate(ticket.fecha_reporte)+'</td>'
+        +'<td>'+esc(ticket.estado_ticket||ticket.estado)+'</td>'
+        +'<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(ticket.proyecto||'')+'">'+esc(fmtProjectName(ticket.proyecto))+'</button></td>'
+        +'<td><button type="button" class="mov-link" data-equipo="'+esc(ticket.codigo_equipo||'')+'">'+esc(ticket.codigo_equipo)+'</button></td>'
+        +'<td>'+esc(ticket.responsabilidad)+'</td>'
+        +'<td>'+esc(ticket.causa_falla||ticket.causa)+'</td>'
+        +'</tr>').join('')
+      +'</tbody></table></div>';
   }
 
   async function openRow(row){
-    if(!row || !row.numero_equipo) return;
-    if(window.ManttoDetails && typeof window.ManttoDetails.openEquipoCritico === 'function'){
-      closeDetailModal();
-      return window.ManttoDetails.openEquipoCritico(row.numero_equipo, { dias: 3650 });
-    }
-    openDetailModal('Movimiento · ' + (row.numero_equipo || 'Equipo'), (fmtProjectName(row.proyecto_nombre || row.proyecto) || 'Movimientos de Portafolio'), '<div class="mov-empty">Cargando detalle combinado...</div>');
+    if(!row||!row.numero_equipo)return;
+    openDetailModal('Movimiento · '+row.numero_equipo,row.proyecto_nombre||row.proyecto||'Movimientos de Portafolio','<div class="mov-empty">Cargando detalle...</div>');
     try{
-      const data = await fetchJson('/api/portafolio/movimientos/' + encodeURIComponent(row.numero_equipo) + '/detalle');
-      const d = data.data || {};
-      const e = d.equipo || {};
-      const p = d.proyecto || {};
-      const tks = d.tickets || [];
-      const equipoCodigo = e.numero_equipo || row.numero_equipo;
-      const proyectoCodigo = e.proyecto_codigo || e.proyecto || row.proyecto;
-      const proyectoNombre = fmtProjectName(e.proyecto_nombre || row.proyecto_nombre || e.proyecto || row.proyecto);
-      const html =
-        '<section class="mov-detail-section"><h3><span>1</span>Detalle del Proyecto</h3>' + grid([
-          ['Proyecto','<button type="button" class="mov-link" data-mov-proyecto="'+esc(proyectoCodigo)+'">'+esc(proyectoNombre)+'</button>'],
-          ['Ciudad', p.ciudad || e.ciudad || row.ciudad], ['Estado', p.estado || e.estado || row.estado], ['Zona', p.zona || e.zona || row.zona], ['Supervisor', p.supervisor || e.supervisor || row.supervisor], ['Superintendente', p.superintendente || e.superintendente || row.superintendente], ['Equipos', p.equipos], ['En servicio', p.en_servicio], ['No en servicio', p.no_en_servicio]
-        ]) + '</section>' +
-        '<section class="mov-detail-section"><h3><span>2</span>Detalle del Equipo</h3>' + grid([
-          ['Código','<button type="button" class="mov-link" data-equipo="'+esc(equipoCodigo)+'">'+esc(equipoCodigo)+'</button>'], ['ID portafolio', e.id_portafolio || row.id_portafolio], ['ID Equipo NS', e.id_equipo_ns], ['Identificación sitio', e.identificacion_sitio || row.identificacion_sitio], ['Estatus anterior', statusPill(e.estatus_ul_mes || row.estatus_anterior)], ['Estatus actual', statusPill(e.estatus_servicio || row.estatus_actual)], ['Movimiento', '<span class="mov-tag '+tagFor(row.tipo_movimiento).cls+'"><i></i>'+esc(tipoLabel(row.tipo_movimiento))+'</span>'], ['Fecha corte', fmtDate(e.estatus_ul_mes_fecha || row.fecha_corte)], ['Contrato', e.contrato], ['Operativo', e.estado_operativo], ['Fecha instalación', e.fecha_instalacion], ['Fecha entrega', e.fecha_entrega], ['Término garantía', e.termino_garantia], ['Dirección', e.direccion]
-        ]) + '</section>' +
-        '<section class="mov-detail-section"><h3><span>3</span>Tickets relacionados al equipo</h3>' + ticketTable(tks) + '</section>';
-      openDetailModal('Movimiento · ' + equipoCodigo, (tks.length || 0) + ' tickets relacionados', html);
+      const data=await fetchJson('/api/portafolio/movimientos/'+encodeURIComponent(row.numero_equipo)+'/detalle');
+      const payload=data.data||{};
+      const equipo=payload.equipo||{};
+      const proyecto=payload.proyecto||{};
+      const tickets=payload.tickets||[];
+      const code=equipo.numero_equipo||row.numero_equipo;
+      const projectCode=equipo.proyecto_codigo||equipo.proyecto||row.proyecto;
+      const projectName=fmtProjectName(equipo.proyecto_nombre||row.proyecto_nombre||projectCode);
+      const zone=equipo.zona_oficial||equipo.zona||row.zona_oficial||row.zona;
+      const html=''
+        +'<section class="mov-detail-section"><h3><span>1</span>Detalle del Proyecto</h3>'+grid([
+          ['Proyecto','<button type="button" class="mov-link" data-mov-proyecto="'+esc(projectCode)+'">'+esc(projectName)+'</button>'],
+          ['Ciudad',proyecto.ciudad||equipo.ciudad||row.ciudad],
+          ['Estado',proyecto.estado||equipo.estado||row.estado],
+          ['Zona',proyecto.zona_oficial||proyecto.zona||zone],
+          ['Supervisor',proyecto.supervisor||equipo.supervisor||row.supervisor],
+          ['Superintendente',proyecto.superintendente||equipo.superintendente||row.superintendente],
+          ['Equipos',proyecto.equipos],
+          ['En servicio',proyecto.en_servicio],
+          ['No en servicio',proyecto.no_en_servicio]
+        ])+'</section>'
+        +'<section class="mov-detail-section"><h3><span>2</span>Detalle del Equipo</h3>'+grid([
+          ['Código','<button type="button" class="mov-link" data-equipo="'+esc(code)+'">'+esc(code)+'</button>'],
+          ['ID portafolio',equipo.id_portafolio||row.id_portafolio],
+          ['ID Equipo NS',equipo.id_equipo_ns],
+          ['Identificación sitio',equipo.identificacion_sitio||row.identificacion_sitio],
+          ['Zona',zone],
+          ['Estatus anterior',statusPill(equipo.estatus_ul_mes||row.estatus_anterior)],
+          ['Estatus actual',statusPill(equipo.estatus_servicio||row.estatus_actual)],
+          ['Movimiento','<span class="mov-tag '+tagFor(row.tipo_movimiento).cls+'"><i></i>'+esc(tipoLabel(row.tipo_movimiento))+'</span>'],
+          ['Fecha corte',fmtDate(equipo.estatus_ul_mes_fecha||row.fecha_corte)],
+          ['Contrato',equipo.contrato],
+          ['Operativo',equipo.estado_operativo],
+          ['Fecha instalación',fmtDate(equipo.fecha_instalacion)],
+          ['Fecha entrega',fmtDate(equipo.fecha_entrega)],
+          ['Término garantía',fmtDate(equipo.termino_garantia)],
+          ['Dirección',equipo.direccion]
+        ])+'</section>'
+        +'<section class="mov-detail-section"><h3><span>3</span>Tickets relacionados al equipo</h3>'+ticketTable(tickets)+'</section>';
+      openDetailModal('Movimiento · '+code,tickets.length+' tickets relacionados',html);
       bindDetailLinks();
-    }catch(e){
-      if(window.ManttoDetails && window.ManttoDetails.openEquipoCritico) return window.ManttoDetails.openEquipoCritico(row.numero_equipo, { dias:3650 });
-      openDetailModal('Movimiento · ' + row.numero_equipo, (row.proyecto_nombre || row.proyecto) || 'Movimientos de Portafolio', '<div class="mov-empty">Error: '+esc(e.message)+'</div>');
+    }catch(error){
+      openDetailModal('Movimiento · '+row.numero_equipo,row.proyecto_nombre||row.proyecto||'Movimientos de Portafolio','<div class="mov-empty">Error: '+esc(error.message)+'</div>');
     }
   }
 
   function bindDetailLinks(){
-    const body=$('mov-detail-body'); if(!body) return;
-    body.querySelectorAll('[data-mov-proyecto]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const pro=btn.getAttribute('data-mov-proyecto'); if(window.ManttoDetails && window.ManttoDetails.openProyecto) window.ManttoDetails.openProyecto(pro); }));
-    body.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const cod=btn.getAttribute('data-equipo'); if(window.ManttoDetails && window.ManttoDetails.openEquipo) window.ManttoDetails.openEquipo(cod); }));
-    body.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); const t=btn.getAttribute('data-ticket'); if(window.ManttoResumenDia && window.ManttoResumenDia.openTicket) window.ManttoResumenDia.openTicket(t); else if(window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Ticket', t, '<div class="mg-empty">Ticket: '+esc(t)+'</div>'); }));
+    const body=$('mov-detail-body');
+    if(!body)return;
+    bindProjectLinks(body);
+    body.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',event=>{
+      event.preventDefault();event.stopPropagation();
+      const code=btn.getAttribute('data-equipo');
+      if(window.ManttoDetails&&window.ManttoDetails.openEquipo)window.ManttoDetails.openEquipo(code);
+    }));
+    body.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',event=>{
+      event.preventDefault();event.stopPropagation();
+      const ticket=btn.getAttribute('data-ticket');
+      if(window.ManttoDetails&&window.ManttoDetails.openTicket)window.ManttoDetails.openTicket(ticket);
+      else if(window.ManttoResumenDia&&window.ManttoResumenDia.openTicket)window.ManttoResumenDia.openTicket(ticket);
+    }));
   }
 
   function togglePanel(name){
     const panel=document.querySelector('[data-mov-panel="'+name+'"]');
     const content=document.querySelector('[data-mov-content="'+name+'"]');
     const button=document.querySelector('[data-mov-toggle="'+name+'"]');
-    if(!panel || !content || !button) return;
+    if(!panel||!content||!button)return;
     const open=content.hidden;
     content.hidden=!open;
-    panel.classList.toggle('is-open', open);
-    button.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if(open && name === 'weekly' && !state.weeklyCatalog.length) loadWeeklyCatalog();
+    panel.classList.toggle('is-open',open);
+    button.setAttribute('aria-expanded',open?'true':'false');
+    if(open&&name==='weekly'&&!state.weeklyCatalog.length)loadWeeklyCatalog();
   }
 
   async function loadWeeklyCatalog(){
-    const year=$('mov-week-year'), week=$('mov-week-number');
+    const year=$('mov-week-year'),week=$('mov-week-number');
     try{
       const data=await fetchJson('/api/portafolio/movimientos-semanales/catalogo');
       state.weeklyCatalog=Array.isArray(data.data)?data.data:[];
       const years=[...new Set(state.weeklyCatalog.map(row=>String(row.anio_iso)))];
-      if(year) year.innerHTML='<option value="">Selecciona</option>'+years.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
-      if(years.length){ year.value=years[0]; fillWeeksForYear(years[0]); }
-      if(!state.weeklyCatalog.length && week) week.innerHTML='<option value="">Sin cortes disponibles</option>';
-    }catch(e){
-      if(week) week.innerHTML='<option value="">Error al cargar</option>';
-      text('mov-week-count', e.message);
+      if(year)year.innerHTML='<option value="">Selecciona</option>'+years.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+      if(years.length){year.value=years[0];fillWeeksForYear(years[0]);}
+      else if(week)week.innerHTML='<option value="">Sin cortes disponibles</option>';
+    }catch(error){
+      if(week)week.innerHTML='<option value="">Error al cargar</option>';
+      text('mov-week-count',error.message);
     }
   }
 
   function fillWeeksForYear(value){
-    const week=$('mov-week-number'); if(!week) return;
+    const week=$('mov-week-number');
+    if(!week)return;
     const rows=state.weeklyCatalog.filter(row=>String(row.anio_iso)===String(value));
     week.innerHTML='<option value="">Selecciona</option>'+rows.map(row=>'<option value="'+esc(row.semana_iso)+'">Semana '+esc(row.semana_iso)+' · '+fmtDate(row.fecha_inicio)+' al '+fmtDate(row.fecha_fin)+'</option>').join('');
-    if(rows.length) week.value=String(rows[0].semana_iso);
+    if(rows.length)week.value=String(rows[0].semana_iso);
   }
 
   function clearWeeklyFilters(){
-    const year=$('mov-week-year');
-    const search=$('mov-week-search'); const type=$('mov-week-type');
-    if(search) search.value=''; if(type) type.value='';
-    if(year && state.weeklyCatalog.length){ year.value=String(state.weeklyCatalog[0].anio_iso); fillWeeksForYear(year.value); }
+    const year=$('mov-week-year'),search=$('mov-week-search'),type=$('mov-week-type');
+    if(search)search.value='';
+    if(type)type.value='';
+    if(year&&state.weeklyCatalog.length){year.value=String(state.weeklyCatalog[0].anio_iso);fillWeeksForYear(year.value);}
     state.weeklyRows=[];
+    state.weeklyCut=null;
     renderWeeklyEmpty('Selecciona un año y una semana');
   }
 
   function renderWeeklyEmpty(message){
-    text('mov-week-title','Semana sin seleccionar'); text('mov-week-count',message || 'Sin información'); text('mov-week-range','Corte semanal: —');
+    state.weeklyCut=null;
+    text('mov-week-title','Semana sin seleccionar');
+    text('mov-week-count',message||'Sin información');
+    text('mov-week-range','Corte semanal: —');
     ['mov-week-total','mov-week-outs','mov-week-returns','mov-week-changes'].forEach(id=>text(id,'—'));
-    const body=$('mov-week-body'); if(body) body.innerHTML='<tr><td colspan="8" class="mov-empty">'+esc(message || 'Sin información')+'</td></tr>';
+    const body=$('mov-week-body');
+    if(body)body.innerHTML='<tr><td colspan="8" class="mov-empty">'+esc(message||'Sin información')+'</td></tr>';
   }
 
   async function loadWeekly(){
-    const anio=val('mov-week-year'), semana=val('mov-week-number');
-    if(!anio || !semana){ renderWeeklyEmpty('Selecciona año y semana'); return; }
-    const body=$('mov-week-body'); if(body) body.innerHTML='<tr><td colspan="8" class="mov-empty">Consultando corte semanal...</td></tr>';
+    const anio=val('mov-week-year'),semana=val('mov-week-number');
+    if(!anio||!semana){renderWeeklyEmpty('Selecciona año y semana');return;}
+    const body=$('mov-week-body');
+    if(body)body.innerHTML='<tr><td colspan="8" class="mov-empty">Consultando corte semanal...</td></tr>';
     try{
       const data=await fetchJson('/api/portafolio/movimientos-semanales?'+qs({anio,semana,search:val('mov-week-search'),tipo:val('mov-week-type')}));
       state.weeklyRows=Array.isArray(data.data)?data.data:[];
-      const c=data.corte||{};
-      text('mov-week-title','Semana '+c.semana_iso+' de '+c.anio_iso);
-      text('mov-week-count',int(data.total_filtrado)+' movimientos mostrados');
-      text('mov-week-range','Del '+fmtDate(c.fecha_inicio)+' al '+fmtDate(c.fecha_fin)+' · Corte: '+fmtDate(c.fecha_corte));
-      text('mov-week-total',int(c.total_movimientos)); text('mov-week-outs',int(c.total_salidas)); text('mov-week-returns',int(c.total_regresos)); text('mov-week-changes',int(c.total_cambios));
+      state.weeklyCut=data.corte||{};
+      const cut=state.weeklyCut;
+      const noMovements=Number(cut.total_movimientos||0)===0;
+      text('mov-week-title','Semana '+cut.semana_iso+' de '+cut.anio_iso);
+      text('mov-week-count',noMovements?'SIN MOVIMIENTOS ESTA SEMANA':int(data.total_filtrado)+' movimientos mostrados');
+      text('mov-week-range','Del '+fmtDate(cut.fecha_inicio)+' al '+fmtDate(cut.fecha_fin)+' · Corte: '+fmtDate(cut.fecha_corte));
+      text('mov-week-total',int(cut.total_movimientos));
+      text('mov-week-outs',int(cut.total_salidas));
+      text('mov-week-returns',int(cut.total_regresos));
+      text('mov-week-changes',int(cut.total_cambios));
       renderWeeklyRows();
-    }catch(e){ renderWeeklyEmpty(e.message); }
+    }catch(error){
+      renderWeeklyEmpty(error.message);
+    }
   }
 
   function renderWeeklyRows(){
-    const body=$('mov-week-body'); if(!body) return;
-    if(!state.weeklyRows.length){ body.innerHTML='<tr><td colspan="8" class="mov-empty">Sin movimientos para los filtros seleccionados</td></tr>'; return; }
+    const body=$('mov-week-body');
+    if(!body)return;
+    if(!state.weeklyRows.length){
+      const noMovements=state.weeklyCut&&Number(state.weeklyCut.total_movimientos||0)===0;
+      body.innerHTML='<tr><td colspan="8" class="mov-empty">'+esc(noMovements?'SIN MOVIMIENTOS ESTA SEMANA':'Sin movimientos para los filtros seleccionados')+'</td></tr>';
+      return;
+    }
     body.innerHTML=state.weeklyRows.map(row=>{
-      const type=String(row.tipo||'CAMBIO').toUpperCase(); const tag=tagFor(type);
+      const type=String(row.tipo||row.tipo_movimiento||'CAMBIO').toUpperCase();
+      const tag=tagFor(type);
+      const code=row.equipo||row.numero_equipo||'';
       return '<tr>'
         +'<td><span class="mov-tag '+tag.cls+'"><i></i>'+esc(tipoLabel(type))+'</span></td>'
-        +'<td>'+fmtDate(row.fecha_movimiento)+'</td>'
-        +'<td class="mov-code">'+esc(row.equipo)+'</td>'
-        +'<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto_codigo||row.proyecto)+'">'+esc(row.proyecto||row.proyecto_codigo)+'</button></td>'
-        +'<td>'+esc(row.zona)+'</td><td>'+statusPill(row.estatus_anterior)+'</td><td>'+statusPill(row.estatus_actual)+'</td><td>'+esc(row.supervisor)+'</td></tr>';
+        +'<td>'+fmtDate(row.fecha_movimiento||row.fecha_corte)+'</td>'
+        +'<td class="mov-code">'+esc(code)+'</td>'
+        +'<td><button type="button" class="mov-link" data-mov-proyecto="'+esc(row.proyecto_codigo||row.proyecto||'')+'">'+esc(fmtProjectName(row.proyecto||row.proyecto_codigo))+'</button></td>'
+        +'<td>'+esc(row.zona_oficial||row.zona)+'</td>'
+        +'<td>'+statusPill(row.estatus_anterior)+'</td>'
+        +'<td>'+statusPill(row.estatus_actual)+'</td>'
+        +'<td>'+esc(row.supervisor)+'</td>'
+        +'</tr>';
     }).join('');
-    bindTableRows(body);
+    bindProjectLinks(body);
   }
 
-  async function init(){ await loadHtml(); await refresh(); }
+  async function init(){
+    try{
+      await loadHtml();
+      await refresh();
+    }catch(error){
+      setStatus('error',error.message);
+    }
+  }
 
-  window.ManttoMovimientosPortafolio = { init, refresh, openRow };
+  window.ManttoMovimientosPortafolio={init,refresh,openRow,version:MODULE_VERSION};
 })();

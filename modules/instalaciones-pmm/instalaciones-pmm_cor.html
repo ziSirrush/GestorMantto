@@ -1,0 +1,96 @@
+<div class="ipmm-cor-page" data-ipmm-cor-root>
+  <section class="ipmm-cor-card ipmm-cor-head">
+    <div>
+      <p class="ipmm-cor-eyebrow">Instalaciones</p>
+      <h1>PM&amp;M</h1>
+      <p>Seguimiento unificado de equipos próximos a montar y equipos en montaje.</p>
+    </div>
+    <div class="ipmm-cor-head-actions">
+      <button id="ipmm-cor-refresh" class="ipmm-cor-button" type="button">Actualizar</button>
+      <span id="ipmm-cor-status" class="ipmm-cor-status" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <div id="ipmm-cor-global-message" class="ipmm-cor-message" hidden></div>
+
+  <section class="ipmm-cor-kpis" id="ipmm-cor-kpis" aria-label="Indicadores PM y Montaje">
+    <article class="ipmm-cor-kpi">
+      <span>Total en seguimiento</span>
+      <strong id="ipmm-cor-kpi-total">0</strong>
+      <small>Etapas 03-PM y 04-M</small>
+    </article>
+    <article class="ipmm-cor-kpi ipmm-cor-kpi-03">
+      <span>Próximos a montar</span>
+      <strong id="ipmm-cor-kpi-03">0</strong>
+      <small>Equipos en 03-PM</small>
+    </article>
+    <article class="ipmm-cor-kpi ipmm-cor-kpi-04">
+      <span>En montaje</span>
+      <strong id="ipmm-cor-kpi-04">0</strong>
+      <small>Equipos en 04-M</small>
+    </article>
+  </section>
+
+  <section class="ipmm-cor-card ipmm-cor-list-card" aria-labelledby="ipmm-cor-list-title">
+    <header class="ipmm-cor-list-head">
+      <div>
+        <h2 id="ipmm-cor-list-title">Equipos PM&amp;M</h2>
+        <p id="ipmm-cor-list-total">0 equipos</p>
+      </div>
+      <div class="ipmm-cor-filters" aria-label="Filtros PM y Montaje">
+        <label>
+          <span>Estatus</span>
+          <select id="ipmm-cor-filter-status">
+            <option value="">Todos</option>
+            <option value="03-PM">03-PM</option>
+            <option value="04-M">04-M</option>
+          </select>
+        </label>
+        <label>
+          <span>Supervisor</span>
+          <select id="ipmm-cor-filter-supervisor">
+            <option value="">Todos</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div id="ipmm-cor-legend" class="ipmm-cor-visual-legend" hidden></div>
+    <div id="ipmm-cor-loading" class="ipmm-cor-loading">Cargando...</div>
+    <div id="ipmm-cor-error" class="ipmm-cor-inline-message" hidden></div>
+
+    <div id="ipmm-cor-table-wrap" class="ipmm-cor-table-wrap" hidden>
+      <table class="ipmm-cor-table ipmm-cor-table-unified">
+        <thead>
+          <tr>
+            <th>ESTATUS</th>
+            <th>SUP</th>
+            <th class="ipmm-cor-col-notif">NOTIF</th>
+            <th>% AVANCE</th>
+            <th>RECEPCIÓN CUBO / CCR</th>
+            <th>PROYECTO</th>
+            <th>REFERENCIA EN SITIO</th>
+            <th>SUBCONTRATISTA</th>
+            <th>INICIO MONTAJE</th>
+            <th>FIN MONTAJE PLANEADO</th>
+            <th>FIN MONTAJE MODIFICADO</th>
+            <th>FIN MONTAJE REAL</th>
+            <th>DÍAS RESTANTES</th>
+            <th class="ipmm-cor-col-comment">COMENTARIOS</th>
+          </tr>
+        </thead>
+        <tbody id="ipmm-cor-body"></tbody>
+      </table>
+    </div>
+
+    <footer id="ipmm-cor-footer" class="ipmm-cor-table-footer" hidden>
+      <span id="ipmm-cor-range"></span>
+      <div class="ipmm-cor-pager" aria-label="Paginación PM y Montaje">
+        <button id="ipmm-cor-prev" type="button" aria-label="Página anterior">&#8249;</button>
+        <strong id="ipmm-cor-page">1 / 1</strong>
+        <button id="ipmm-cor-next" type="button" aria-label="Página siguiente">&#8250;</button>
+      </div>
+      <span class="ipmm-cor-page-size">30 por página</span>
+    </footer>
+  </section>
+</div>

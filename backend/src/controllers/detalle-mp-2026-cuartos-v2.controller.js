@@ -1,0 +1,186 @@
+'use strict';
+
+const db = require('../config/db');
+const cobranzaScope = require('../services/cobranza-uni-scope.service');
+
+function normalizeId(value) {
+  const text = String(value == null ? '' : value).trim();
+  return /^\d+$/.test(text) && !/^0+$/.test(text) ? text : null;
+}
+
+function numberOrZero(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function uniqueSorted(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
+    .map((value) => String(value).trim()))]
+    .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
+function financialProjectKey(row) {
+  const id = Number(row && row.id_proyecto_cobranza || 0);
+  if (Number.isInteger(id) && id > 0) return `id:${id}`;
+  const proyecto = String(row && (row.proyecto_oficial || row.proyecto) || '').trim().toLowerCase();
+  return proyecto ? `proyecto:${proyecto}` : `registro:${String(row && row.id_dmp || '')}`;
+}
+
+function projectMatchSql(alias) {
+  return `(
+    (COALESCE(?, 0) > 0 AND ${alias}.id_proyecto_cobranza = ?)
+    OR (TRIM(COALESCE(?, '')) <> '' AND LOWER(TRIM(COALESCE(${alias}.proyecto, ''))) = LOWER(TRIM(?)))
+  )`;
+}
+
+function projectMatchParams(row) {
+  const id = Number(row && row.id_proyecto_cobranza || 0);
+  const proyecto = String(row && (row.proyecto_oficial || row.proyecto) || '').trim();
+  return [id, id, proyecto, proyecto];
+}
+
+function selectMp(alias = 'mp') {
+  return `${alias}.*,
+    ${cobranzaScope.canonicalProjectSql_uni(alias)} AS proyecto_oficial,
+    ${cobranzaScope.canonicalZoneCodeSql_uni(alias)} AS zona_oficial,
+    ${cobranzaScope.canonicalZoneIdsSql_uni(alias)} AS zona_ids_oficial`;
+}
+
+function selectGc(alias = 'gc') {
+  return `${alias}.*,
+    ${cobranzaScope.canonicalProjectSql_uni(alias)} AS proyecto_oficial,
+    ${cobranzaScope.canonicalZoneCodeSql_uni(alias)} AS zona_oficial,
+    ${cobranzaScope.canonicalZoneIdsSql_uni(alias)} AS zona_ids_oficial`;
+}
+
+function selectPc(alias = 'pc') {
+  return `${alias}.*,
+    ${cobranzaScope.canonicalProjectSql_uni(alias)} AS proyecto_oficial,
+    ${cobranzaScope.canonicalZoneCodeSql_uni(alias)} AS zona_oficial,
+    ${cobranzaScope.canonicalZoneIdsSql_uni(alias)} AS zona_ids_oficial`;
+}
+
+function canonMp(row) { return cobranzaScope.canonicalizeRow_uni(row, 'z_oper'); }
+function canonGc(row) { return cobranzaScope.canonicalizeRow_uni(row, 'z_oper'); }
+function canonPc(row) { return cobranzaScope.canonicalizeRow_uni(row, 'zona_operativa'); }
+
+async function getMainDetalleMp2026(req, res) {
+  const conn = await db.getConnection();
+  const mpScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'mp');
+  const pcScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'pc');
+
+  try {
+    const [rawMpRows] = await conn.query(`SELECT ${selectMp('mp')} FROM detalle_mp_2026 mp WHERE ${mpScope} ORDER BY mp.proyecto ASC, mp.id_dmp ASC`);
+    const [rawPcRows] = await conn.query(`SELECT ${selectPc('pc')} FROM pc pc WHERE ${pcScope}`);
+    const pcRows = rawPcRows.map(canonPc);
+
+    const debtByProject = new Map();
+    for (const row of pcRows) {
+      const key = financialProjectKey(row);
+      debtByProject.set(key, (debtByProject.get(key) || 0) + numberOrZero(row.adeudo));
+    }
+
+    const rows = rawMpRows.map(canonMp).map((row) => ({
+      ...row,
+      adeudo_mp: numberOrZero(row.pendiente_corriente) + numberOrZero(row.pendiente_vencido),
+      adeudo_va: debtByProject.get(financialProjectKey(row)) || 0
+    }));
+
+    const kpis = {
+      total_registros: rows.length,
+      registros_con_pendiente: 0,
+      monto_anual_total: 0,
+      pendiente_corriente_total: 0,
+      pendiente_vencido_total: 0,
+      pendiente_total: 0,
+      facturas_pendientes_total: 0,
+      adeudo_mp_total: 0,
+      adeudo_va_total: 0,
+      adeudo_total: 0
+    };
+    const countedVa = new Set();
+
+    for (const row of rows) {
+      const pendiente = numberOrZero(row.pendiente);
+      const key = financialProjectKey(row);
+      kpis.monto_anual_total += numberOrZero(row.monto_anual);
+      kpis.pendiente_corriente_total += numberOrZero(row.pendiente_corriente);
+      kpis.pendiente_vencido_total += numberOrZero(row.pendiente_vencido);
+      kpis.pendiente_total += pendiente;
+      kpis.facturas_pendientes_total += numberOrZero(row.facturas_pendientes);
+      kpis.adeudo_mp_total += numberOrZero(row.adeudo_mp);
+      if (!countedVa.has(key)) {
+        countedVa.add(key);
+        kpis.adeudo_va_total += numberOrZero(row.adeudo_va);
+      }
+      if (pendiente > 0 || numberOrZero(row.facturas_pendientes) > 0) kpis.registros_con_pendiente += 1;
+    }
+    kpis.adeudo_total = kpis.adeudo_mp_total + kpis.adeudo_va_total;
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      table: 'detalle_mp_2026',
+      generated_at: new Date().toISOString(),
+      alcance: cobranzaScope.alcancePayload_uni(req),
+      kpis,
+      catalogs: {
+        estado: uniqueSorted(rows.map((row) => row.estado)),
+        periodicidad: uniqueSorted(rows.map((row) => row.periodicidad)),
+        momento_facturacion: uniqueSorted(rows.map((row) => row.momento_facturacion)),
+        z_oper: uniqueSorted(rows.map((row) => row.z_oper)),
+        zona_adm: uniqueSorted(rows.map((row) => row.zona_adm)),
+        forma_pago: uniqueSorted(rows.map((row) => row.forma_pago))
+      },
+      rows
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'No fue posible consultar Mantenimiento Preventivo 2026 desde Aiven.', error: error.message });
+  } finally {
+    conn.release();
+  }
+}
+
+async function getDetalleMp2026(req, res) {
+  const id = normalizeId(req.params.id);
+  if (!id) return res.status(400).json({ ok: false, message: 'id_dmp invalido.' });
+  const conn = await db.getConnection();
+  const baseScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'mp');
+
+  try {
+    const [rows] = await conn.query(`SELECT ${selectMp('mp')} FROM detalle_mp_2026 mp WHERE mp.id_dmp = ? AND ${baseScope} LIMIT 1`, [id]);
+    if (!rows.length) return res.status(404).json({ ok: false, message: 'No se encontro el registro de Mantenimiento Preventivo dentro de los cuartos autorizados.' });
+    const mantenimiento = canonMp(rows[0]);
+    const match = projectMatchParams(mantenimiento);
+
+    const mpScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'mp');
+    const [mpRows] = await conn.query(`SELECT ${selectMp('mp')} FROM detalle_mp_2026 mp WHERE ${projectMatchSql('mp')} AND ${mpScope} ORDER BY mp.id_dmp ASC`, match);
+
+    const gcScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'gc');
+    const [gcRows] = await conn.query(`SELECT ${selectGc('gc')} FROM gestion_credito gc WHERE ${projectMatchSql('gc')} AND ${gcScope} ORDER BY gc.id_gc ASC LIMIT 1`, match);
+
+    const pcScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'pc');
+    const [pcRows] = await conn.query(`SELECT ${selectPc('pc')} FROM pc pc WHERE ${projectMatchSql('pc')} AND ${pcScope} ORDER BY pc.id_pc ASC`, match);
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      generated_at: new Date().toISOString(),
+      alcance: cobranzaScope.alcancePayload_uni(req),
+      mantenimiento,
+      gestion_credito: gcRows[0] ? canonGc(gcRows[0]) : null,
+      mantenimiento_preventivo: mpRows.map(canonMp),
+      venta_adicional: pcRows.map(canonPc)
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'No fue posible consultar el detalle de Mantenimiento Preventivo desde Aiven.', error: error.message });
+  } finally {
+    conn.release();
+  }
+}
+
+module.exports = {
+  getMainDetalleMp2026,
+  getDetalleMp2026
+};

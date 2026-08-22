@@ -1,0 +1,79 @@
+<div class="ir-cor-page" data-ir-cor-root>
+  <section class="ir-cor-card ir-cor-head">
+    <div>
+      <p class="ir-cor-eyebrow">INSTALACIONES · REPORTE</p>
+      <h1>Reporte de Instalaciones</h1>
+      <p>Seguimiento operativo por etapa de instalación, con filtros, detalle de equipos y Estados Visuales calculados desde la fuente oficial del Gestor.</p>
+    </div>
+    <div class="ir-cor-head-actions">
+      <span class="ir-cor-status" id="ir-cor-status" role="status" aria-live="polite">Sin actualizar</span>
+      <button class="ir-cor-btn ir-cor-btn-pdf" id="ir-cor-pdf" type="button">📄 Generar PDF</button>
+      <button class="ir-cor-btn" id="ir-cor-clear" type="button">↺ Limpiar filtros</button>
+      <button class="ir-cor-btn ir-cor-btn-primary" id="ir-cor-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="ir-cor-card ir-cor-filters" aria-label="Filtros del Reporte de Instalaciones">
+    <div class="ir-cor-section-label"><span aria-hidden="true">⌕</span><strong>Filtros</strong></div>
+    <div class="ir-cor-filter-grid">
+      <label class="ir-cor-field" for="ir-cor-supervisor">
+        <span>Supervisor</span>
+        <select id="ir-cor-supervisor"><option value="">Todos</option></select>
+      </label>
+      <label class="ir-cor-field" for="ir-cor-asesor">
+        <span>Asesor</span>
+        <select id="ir-cor-asesor"><option value="">Todos</option></select>
+      </label>
+      <label class="ir-cor-field" for="ir-cor-estatus">
+        <span>Estatus</span>
+        <select id="ir-cor-estatus"><option value="">Todos los estatus</option></select>
+      </label>
+      <label class="ir-cor-field" for="ir-cor-year">
+        <span>Entregados 08-T · Año de término</span>
+        <select id="ir-cor-year"><option value="">Cargando años...</option></select>
+      </label>
+    </div>
+    <div class="ir-cor-info-note" role="note">
+      <span aria-hidden="true">ⓘ</span>
+      <span>En este reporte <b>OC significa Obra Civil</b>. De 01-SUS a 07-PE solo se consideran registros activos. En 08-T se consideran registros activos e inactivos y se filtran por el año seleccionado de <b>anio_termino</b> en la BD.</span>
+    </div>
+  </section>
+
+  <section class="ir-cor-summary-layout" aria-label="Resumen del reporte">
+    <div class="ir-cor-stages" id="ir-cor-stages"></div>
+    <section class="ir-cor-card ir-cor-chart-card" aria-labelledby="ir-cor-chart-title">
+      <div class="ir-cor-section-head">
+        <div>
+          <h2 id="ir-cor-chart-title">Resumen por estatus</h2>
+          <p id="ir-cor-total">0 equipos</p>
+        </div>
+      </div>
+      <div class="ir-cor-chart" id="ir-cor-chart" aria-label="Gráfica de equipos por estatus"></div>
+    </section>
+  </section>
+
+  <aside class="ir-cor-overview-meta" aria-label="Etapas y cobertura del reporte">
+    <section class="ir-cor-card ir-cor-side-card">
+      <h2>Etapas</h2>
+      <div class="ir-cor-stage-legend" id="ir-cor-stage-legend"></div>
+    </section>
+
+    <section class="ir-cor-card ir-cor-side-card ir-cor-coverage">
+      <h2>Cobertura del reporte</h2>
+      <strong id="ir-cor-side-total">0 equipos</strong>
+      <p id="ir-cor-side-updated">Sin actualizar</p>
+    </section>
+  </aside>
+
+  <div class="ir-cor-content-layout">
+    <main class="ir-cor-report-main">
+      <section class="ir-cor-accordion-list" id="ir-cor-sections" aria-label="Detalle por etapa"></section>
+    </main>
+  </div>
+
+  <section class="ir-cor-card ir-cor-empty" id="ir-cor-empty" hidden>
+    <div aria-hidden="true">📋</div>
+    <h2>Sin registros para mostrar</h2>
+    <p>Los filtros seleccionados no devolvieron equipos en las etapas del reporte.</p>
+  </section>
+</div>

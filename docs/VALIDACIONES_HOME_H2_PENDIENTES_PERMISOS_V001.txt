@@ -1,0 +1,21 @@
+VALIDACIONES H2
+
+[PASS] Sintaxis Node: pendientes.repository.js
+[PASS] Sintaxis Node: pendientes.service.js
+[PASS] Sintaxis Node: pendientes.controller.js
+[PASS] Sintaxis Node: data.controller.js
+[PASS] Sintaxis JS: core/app.js
+[PASS] pendientes.repository/service/controller no contienen dependencia a controllers/data.controller ni data.controller.legacy
+[PASS] data.controller.js ya no exporta handlers de Pendientes
+[PASS] Los 10 handlers usados por pendientes.routes existen en service y controller
+[PASS] Smoke check de imports/exports con dependencias controladas; la fachada no exporta getPendientes
+[PASS] Permiso Hoy usa el código existente GENERAL_INICIO_BARRA_BIENVENIDA_BOTON_HOY.ABRIR_RESUMEN_DEL_DIA
+[PASS] Tablas usadas por H2 verificadas en Estruturacompleta081626.sql: pendientes, pendientes_usuarios, pendientes_subtareas, pendientes_comentarios, sup_notificaciones, usuarios, portafolio, z_op
+[PASS] Sin ALTER/CREATE/DROP SQL
+[PASS] Sin archivos Push/Notificaciones modificados
+
+NO VALIDADO EN ESTE ENTORNO:
+- arranque completo del backend con credenciales Aiven;
+- ejecución HTTP publicada en Azure;
+- escritura/lectura real contra Aiven tras deploy;
+- prueba visual del permiso con una sesión real sin ABRIR_RESUMEN_DEL_DIA.

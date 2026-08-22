@@ -1,0 +1,7 @@
+./MANIFEST_FIX_NOTIFICACIONES_COMENTARIOS_GENERALES_V001.txt
+./README_FIX_NOTIFICACIONES_COMENTARIOS_GENERALES_V001.md
+./VALIDACIONES_FIX_NOTIFICACIONES_COMENTARIOS_GENERALES_V001.txt
+./backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js
+./backend/src/modules/ventas-prospeccion/ventas-prospeccion.controller.js
+./backend/src/modules/ventas-redes/ventas-redes.controller.js
+./backend/src/services/notifications/comment-notification.service.js

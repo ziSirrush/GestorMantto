@@ -9,6 +9,7 @@
     tasks: [],
     notifications: [],
     unreadNotifications: [],
+    unreadNotificationCount: 0,
     activities: [],
     catalogs: { areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [] },
     selectedTask: null,
@@ -40,57 +41,32 @@
     return token ? { Authorization: 'Bearer ' + token } : {};
   }
 
-  function clearLocalSession(){
-    [
-      'mantto_token',
-      'MANTTO_TOKEN',
-      'token',
-      'mantto_user',
-      'MANTTO_USER',
-      'user',
-      'auth_user',
-      'session_user',
-      'mantto_session',
-      'MANTTO_SESSION'
-    ].forEach(key => {
-      try{ localStorage.removeItem(key); }catch(e){}
-      try{ sessionStorage.removeItem(key); }catch(e){}
-    });
-  }
-
-  function handleInvalidSession(message){
-    console.warn('Sesión inválida en Home:', message);
-
-    if(window.ManttoAuth && typeof window.ManttoAuth.logout === 'function'){
-      try{ window.ManttoAuth.logout(); return; }catch(e){}
-    }
-
-    clearLocalSession();
-    alert('Tu sesión expiró o pertenece a otro entorno. Inicia sesión nuevamente.');
-    window.location.hash = '#/login';
-  }
-
   async function apiRequest(path, options){
     const opts = options || {};
+
+    // Home debe usar el flujo central de autenticacion. ManttoAuth.api()
+    // resuelve 401 mediante refresh + reintento y solo expira la sesion
+    // cuando la renovacion central realmente falla.
+    if(window.ManttoAuth && typeof window.ManttoAuth.api === 'function'){
+      return window.ManttoAuth.api(path, opts);
+    }
+
+    // Fallback defensivo para cargas aisladas: no destruye la sesion local.
     const headers = Object.assign({ Accept: 'application/json' }, authHeaders(), opts.headers || {});
     const isFormData = typeof FormData !== 'undefined' && opts.body instanceof FormData;
-    if(opts.body && !isFormData && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    if(opts.body && !isFormData && !headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json';
     if(isFormData){
       delete headers['Content-Type'];
       delete headers['content-type'];
     }
 
-    const response = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+    const response = await fetch(API_BASE + path, Object.assign({ credentials:'include' }, opts, { headers }));
     const json = await response.json().catch(() => ({}));
 
-    if(response.status === 401){
-      const message = (json && json.message) || 'Sesión inválida';
-      handleInvalidSession(message);
-      throw new Error(message);
-    }
-
     if(!response.ok || (json && json.ok === false)){
-      throw new Error((json && json.message) || ('HTTP ' + response.status + ' en ' + path));
+      const error = new Error((json && json.message) || ('HTTP ' + response.status + ' en ' + path));
+      error.status = response.status;
+      throw error;
     }
 
     return json;
@@ -486,7 +462,7 @@
     const critical = document.getElementById('home-kpi-critical');
     const unread = document.getElementById('home-kpi-unread');
     if(critical) critical.textContent = state.tasks.filter(t=>t.prioridad==='CRITICA' && t.estatus !== 'Cerrado').length;
-    if(unread) unread.textContent = state.unreadNotifications.length;
+    if(unread) unread.textContent = Number(state.unreadNotificationCount || 0);
   }
 
   function renderRails(){
@@ -898,7 +874,6 @@
         await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente), { method:'DELETE' });
         closeTaskModal();
         await loadHomeData();
-        await refreshHeaderNotifications();
       }catch(error){ alert(error.message); }
     });
     root.querySelectorAll('[data-delete-direct-file]').forEach(button => button.addEventListener('click', async () => {
@@ -943,7 +918,6 @@
         await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/comentarios', { method:'POST', body: payload });
         await openTaskDetail(p.id_pendiente);
         await loadHomeData();
-        await refreshHeaderNotifications();
       }catch(error){
         alert(error.message);
       }finally{
@@ -956,25 +930,53 @@
     state.loading = true;
     state.user = getCurrentUser();
     renderShell();
+
     try{
-      const boot = await apiRequest('/api/home/bootstrap');
-      const data = boot.data || boot || {};
+      const snapshot = await apiRequest('/api/home/snapshot');
+      const data = snapshot.data || snapshot || {};
       state.tasks = (data.pendientes || []).filter(canSeeTaskForCurrentUser).map(normalizeTask);
+
       const visibleTaskIds = new Set(state.tasks.map(t => String(t.id)).filter(Boolean));
       const canShowHomeRelatedItem = item => {
         const route = item && item.route ? item.route : {};
         if(String(route.module || '').toLowerCase() !== 'tareas') return true;
         return Boolean(route.id && visibleTaskIds.has(String(route.id)));
       };
-      state.notifications = (data.notificaciones_abiertas || []).map(normalizeNotification).filter(canShowHomeRelatedItem);
-      state.unreadNotifications = (data.notificaciones_nuevas || []).map(normalizeNotification).filter(canShowHomeRelatedItem);
+
       state.activities = (data.actividad_reciente || []).map(normalizeActivity).filter(canShowHomeRelatedItem);
-      if(data.catalogos) state.catalogs = Object.assign({ areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [] }, state.catalogs || {}, data.catalogos);
-      updateHeaderBadge(state.unreadNotifications.length);
       state.apiOk = true;
+
+      // Notificaciones viven fuera del snapshot operativo. El rail obtiene solo
+      // cinco abiertas y el badge usa el endpoint ligero de estado.
+      const notificationResults = await Promise.allSettled([
+        apiGet('/api/notificaciones?estado=abiertas&limit=5'),
+        apiRequest('/api/notificaciones/estado')
+      ]);
+
+      const openResult = notificationResults[0];
+      if(openResult.status === 'fulfilled') {
+        state.notifications = (openResult.value || []).map(normalizeNotification).filter(canShowHomeRelatedItem);
+      } else {
+        state.notifications = [];
+      }
+
+      const stateResult = notificationResults[1];
+      if(stateResult.status === 'fulfilled') {
+        const notifState = stateResult.value && stateResult.value.data ? stateResult.value.data : (stateResult.value || {});
+        state.unreadNotificationCount = Math.max(0, Number(notifState.nuevas || 0));
+        updateHeaderBadge(state.unreadNotificationCount);
+      }
+
+      // La lista completa de nuevas se conserva bajo demanda al abrir la campana.
+      state.unreadNotifications = [];
     }catch(error){
-      console.warn('No se pudo cargar Home desde API:', error);
-      state.tasks = []; state.notifications = []; state.unreadNotifications = []; state.activities = []; state.apiOk = false;
+      console.warn('No se pudo cargar snapshot operativo de Home:', error);
+      state.tasks = [];
+      state.notifications = [];
+      state.unreadNotifications = [];
+      state.unreadNotificationCount = 0;
+      state.activities = [];
+      state.apiOk = false;
       updateHeaderBadge(0);
     }finally{
       state.loading = false;
@@ -991,15 +993,33 @@
     badge.hidden = n <= 0;
   }
 
+  async function refreshHeaderNotificationState(){
+    try{
+      const response = await apiRequest('/api/notificaciones/estado');
+      const data = response && response.data ? response.data : (response || {});
+      const count = Math.max(0, Number(data.nuevas || 0));
+      state.unreadNotificationCount = count;
+      updateHeaderBadge(count);
+      renderCounters();
+      return data;
+    }catch(error){
+      return null;
+    }
+  }
+
   async function refreshHeaderNotifications(){
     try{
       const nuevas = await apiGet('/api/notificaciones?estado=nuevas&limit=30');
       state.unreadNotifications = nuevas.map(normalizeNotification);
-      updateHeaderBadge(state.unreadNotifications.length);
+      if(state.unreadNotifications.length < 30){
+        state.unreadNotificationCount = state.unreadNotifications.length;
+      }else{
+        state.unreadNotificationCount = Math.max(state.unreadNotificationCount, state.unreadNotifications.length);
+      }
+      updateHeaderBadge(state.unreadNotificationCount);
       renderCounters();
       return state.unreadNotifications;
     }catch(error){
-      updateHeaderBadge(0);
       return [];
     }
   }
@@ -1059,5 +1079,5 @@
 
   function init(){ bindHeaderNotifications(); loadHomeData(); }
 
-  window.ManttoHome={init, reload:loadHomeData, refreshHeaderNotifications, openTaskForm, openTaskDetail, openTaskContext};
+  window.ManttoHome={init, reload:loadHomeData, refreshHeaderNotificationState, refreshHeaderNotifications, openTaskForm, openTaskDetail, openTaskContext};
 })();

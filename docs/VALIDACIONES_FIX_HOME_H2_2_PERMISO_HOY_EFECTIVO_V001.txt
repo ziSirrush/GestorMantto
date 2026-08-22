@@ -1,0 +1,6 @@
+VALIDACIONES
+- Base exacta: core/app.js de main, blob SHA 55c7ed74abdeac706af34e7d387615467050a400.
+- node --check core/app.js: PASS.
+- Cambio limitado al bloque de permisos del boton HOY.
+- Sin SQL ni cambios de esquema.
+- Sin cambios backend.

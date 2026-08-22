@@ -1,0 +1,42 @@
+VALIDACIONES H1 V001
+
+- Tabla de referencia del código: usuario_interacciones.
+- El paquete NO contiene ALTER TABLE / CREATE TABLE / DROP TABLE / TRUNCATE TABLE.
+- Home deja de construir actividad mediante UNION de pendientes/comentarios.
+- Home consume interactionsService.listForUser_gnral().
+- GET /api/interacciones: protegido por requireAuth.
+- POST /api/interacciones: protegido por requireAuth y limitado a NAVEGACION/CONSULTAR.
+- Mutaciones de negocio 2xx: registro automático desde middleware backend.
+- Errores HTTP / mutaciones bloqueadas: no se registran como acción exitosa.
+- Request body / contraseñas / tokens: no se almacenan automáticamente en usuario_interacciones.
+- Router: se reutiliza evento mantto:navigation existente.
+- Ruta activity: reutiliza view-placeholder y presenta historial navegable.
+- No se incluye ningún archivo del motor Push ni de push-notifications.
+
+NODE --CHECK
+PASS  backend/src/app.js
+PASS  backend/src/middleware/interaction-tracking.middleware.js
+PASS  backend/src/modules/home/home.repository.js
+PASS  backend/src/modules/home/home.service.js
+PASS  backend/src/modules/interacciones/interacciones.controller.js
+PASS  backend/src/modules/interacciones/interacciones.routes.js
+PASS  backend/src/routes/data.routes.js
+PASS  backend/src/routes/data/interacciones.routes.js
+PASS  backend/src/services/interactions/interactions.repository.js
+PASS  backend/src/services/interactions/interactions.service.js
+PASS  core/app.js
+PASS  core/interactions.js
+
+VALIDACIONES ESTATICAS
+PASS  Sin DDL en backend/core.
+PASS  Sin archivos del motor Push.
+PASS  Repositorio apunta a usuario_interacciones.
+PASS  Home consume el servicio general.
+PASS  Eliminado UNION legacy de actividad en Home repository.
+PASS  Middleware general instalado en app.
+PASS  Endpoint de registro presente.
+PASS  Frontend limitado a navegación/consulta.
+PASS  Listener del Router presente.
+
+- Validación funcional Aiven/Azure: pendiente de deploy y prueba real.
+- Validación completa npm run check: no ejecutada porque el runtime local no contiene el repositorio completo.

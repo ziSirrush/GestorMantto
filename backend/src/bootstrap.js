@@ -44,6 +44,13 @@ async function verifyDatabase() {
 }
 
 function startScheduledJobs(databaseReady) {
+  if (!databaseReady) {
+    logger.warn('Jobs de Portafolio no iniciados porque MySQL no está disponible.');
+    logger.warn('Job global de notificaciones push no iniciado porque MySQL no está disponible.');
+    logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
+    return;
+  }
+
   try {
     startPortafolioCierreMensualJob();
     startPortafolioCierreSemanalJob();
@@ -59,8 +66,7 @@ function startScheduledJobs(databaseReady) {
   }
 
   try {
-    if (databaseReady) startStorageOperationsJob();
-    else logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
+    startStorageOperationsJob();
   } catch (error) {
     logger.error('La API inicio, pero el job de operaciones pendientes de Storage no pudo inicializarse.', error);
   }

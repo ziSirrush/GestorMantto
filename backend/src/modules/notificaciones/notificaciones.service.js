@@ -89,6 +89,11 @@ async function getNotificaciones(req) {
   return notificacionesRepository.getNotificaciones(query);
 }
 
+async function getEstadoNotificaciones(req) {
+  const query = buildNotificationQuery(req);
+  return notificacionesRepository.getEstadoNotificaciones(query);
+}
+
 async function abrirNotificacion(req) {
   const user = currentUserRef(req);
   const id = Number.parseInt(req.params.id, 10);
@@ -147,6 +152,7 @@ async function guardarPreferencias(req) {
 
 module.exports = {
   getNotificaciones,
+  getEstadoNotificaciones,
   abrirNotificacion,
   marcarNotificacionNueva,
   getPreferencias,

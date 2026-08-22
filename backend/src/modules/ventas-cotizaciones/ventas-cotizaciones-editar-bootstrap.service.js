@@ -10,39 +10,32 @@ function positiveInteger(value) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
-function buildClientVisibility(scope, actorId) {
+function buildClientVisibility(scope) {
   if (!scope || scope.mode === 'ALL') return { sql: '', params: [] };
 
-  const clauses = [];
-  const params = [];
   const advisorIds = Array.isArray(scope.advisorIds)
-    ? scope.advisorIds.filter(Number.isInteger)
+    ? scope.advisorIds.filter((id) => Number.isInteger(id) && id > 0)
     : [];
 
-  if (actorId) {
-    clauses.push('vc.created_by = ?');
-    params.push(actorId);
-  }
+  // El creador del registro no amplía el alcance. La visibilidad se resuelve
+  // exclusivamente con Alcance de Información; un alcance vacío es fail-closed.
+  if (!advisorIds.length) return { sql: ' AND 1 = 0', params: [] };
 
-  if (advisorIds.length) {
-    clauses.push(`EXISTS (
+  return {
+    sql: ` AND EXISTS (
       SELECT 1
         FROM usuarios vu
        WHERE vu.estado = 1
          AND vu.id_SB IN (${advisorIds.map(() => '?').join(', ')})
          AND UPPER(TRIM(vu.iniciales)) = UPPER(TRIM(vc.iniciales))
-    )`);
-    params.push(...advisorIds);
-  }
-
-  if (!clauses.length) return { sql: ' AND 1 = 0', params: [] };
-  return { sql: ` AND (${clauses.join(' OR ')})`, params };
+    )`,
+    params: advisorIds
+  };
 }
 
 async function listLightweightClients(connection, actionContext) {
   const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
-  const actorId = positiveInteger(actionContext?.user?.id_SB);
-  const visibility = buildClientVisibility(scope, actorId);
+  const visibility = buildClientVisibility(scope);
 
   const [rows] = await connection.query(
     `SELECT

@@ -58,6 +58,44 @@ function keepsActorIdentity(req) {
   return path === '/api/auth/me' || path.startsWith('/api/device-permissions');
 }
 
+function requestPath(req) {
+  const raw = String(req.originalUrl || req.url || '').split('?')[0];
+  if (raw.length > 1) return raw.replace(/\/+$/, '');
+  return raw || '/';
+}
+
+function firstLoginAccessDecision(req, user) {
+  if (Number(user?.must_change_password) !== 1) {
+    return { allowed: true };
+  }
+
+  const path = requestPath(req);
+
+  if (path === '/api/auth/first-login/security-question') {
+    return { allowed: true };
+  }
+
+  if (path === '/api/auth/first-login/password') {
+    if (Boolean(user?.first_login_security_question_configured)) {
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      status: 409,
+      code: 'FIRST_LOGIN_SECURITY_QUESTION_REQUIRED',
+      message: 'Configura primero la pregunta de seguridad para continuar con el primer acceso.'
+    };
+  }
+
+  return {
+    allowed: false,
+    status: 403,
+    code: 'FIRST_LOGIN_REQUIRED',
+    message: 'Debes completar el primer acceso antes de utilizar el Gestor.'
+  };
+}
+
 function timestampMarker(value) {
   if (!value) return 'never';
   const parsed = value instanceof Date ? value : new Date(value);
@@ -86,6 +124,16 @@ async function hydrateAuthUser(decoded) {
        u.rol_id,
        u.estado,
        u.password_changed_at,
+       u.must_change_password,
+       u.id_pregunta,
+       CASE
+         WHEN u.id_pregunta IS NOT NULL
+          AND u.id_pregunta <> 11
+          AND u.respuesta_recuperacion IS NOT NULL
+          AND CHAR_LENGTH(TRIM(u.respuesta_recuperacion)) > 0
+         THEN 1
+         ELSE 0
+       END AS first_login_security_question_configured,
        u.criticos_fallas,
        u.criticos_periodo,
        r.rol AS rol
@@ -117,6 +165,10 @@ async function hydrateAuthUser(decoded) {
     rol_id: rows[0].rol_id,
     rol: rows[0].rol,
     password_changed_at: rows[0].password_changed_at,
+    must_change_password: Number(rows[0].must_change_password) === 1,
+    id_pregunta: rows[0].id_pregunta,
+    first_login_security_question_configured:
+      Number(rows[0].first_login_security_question_configured) === 1,
     roles: roleNames,
     roles_detalle: rolesRows,
     zonas: zonesRows,
@@ -224,6 +276,16 @@ async function requireAuth(req, res, next) {
 
     if (!user || !sessionMatchesUser(decoded, user)) {
       return res.status(401).json({ ok: false, message: 'Sesión inválida o usuario inactivo.' });
+    }
+
+    const firstLoginDecision = firstLoginAccessDecision(req, user);
+    if (!firstLoginDecision.allowed) {
+      return res.status(firstLoginDecision.status).json({
+        ok: false,
+        code: firstLoginDecision.code,
+        message: firstLoginDecision.message,
+        must_change_password: true
+      });
     }
 
     req.user = user;

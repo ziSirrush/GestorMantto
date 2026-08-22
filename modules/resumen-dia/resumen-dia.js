@@ -160,7 +160,9 @@
       et: estadoTicket({estado_ticket:pick(row,['estado_ticket','Estado_Ticket']), estado:pick(row,['estado','Estado','et'])}),
       edo: nrm(pick(row,['estado','Estado','edo'])), ciu: nrm(pick(row,['ciudad','Ciudad','ciu'])), pro: nrm(pick(row,['proyecto','Proyecto','pro'])),
       cod: nrm(pick(row,['codigo_equipo','Codigo_Equipo','equipo','cod'])), ref: nrm(pick(row,['referencia_en_zona_operativa','Referencia_en_Zona_Operativa','identificacion_sitio','Identificacion_en_Sitio','ref'])),
-      zon: nrm(pick(row,['zona','zona_operativa','Zona_Operativa','zon'])), asu: nrm(pick(row,['descripcion','asunto_ticket','Asunto','asu'])),
+      // FASE 1/11: zona oficial desde z_op a traves de portafolio.zona_id.
+      // tickets.zona queda solo como dato historico de origen y no gobierna la UI.
+      zon: nrm(row.zona_oficial), asu: nrm(pick(row,['descripcion','asunto_ticket','Asunto','asu'])),
       fr, hr,
       eqi: nrm(pick(row,['estatus_equipo_ir','Estatus_Equipo_Ir','eqi'])), fl, hl,
       fs, hs, tec: nrm(pick(row,['tecnico','Tecnico_de_Solucion','tec'])),
@@ -185,7 +187,8 @@
     return {
       cod: nrm(row.numero_equipo || row.codigo_equipo || row.cod || row.equipo),
       pro: nrm(row.proyecto || row.pro),
-      zon: nrm(row.zona_operativa || row.zona || row.zon),
+      // FASE 1/11: no mostrar zona_operativa como autoridad territorial.
+      zon: nrm(row.zona_oficial),
       ref: nrm(row.identificacion_sitio || row.referencia_en_zona_operativa || row.ref),
       inactivo: nrm(row.inactivo).toLowerCase(),
       estatus: nrm(row.estatus_servicio || row.estatus || row.estado_servicio),
@@ -198,33 +201,27 @@
     const estadoReg = pf.estadoRegistro == null ? true : String(pf.estadoRegistro) !== '0';
     return !inactive && estadoReg;
   }
-  async function fetchTickets(){
+  async function fetchResumenInicial(){
     setStatus('loading','Cargando Aiven...');
-    const urls = [apiUrl('/api/tickets?limit=5000'), apiUrl('/api/tickets')];
-    for(const url of urls){
-      try{
-        const res = await fetch(url,{cache:'no-store', headers:Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {})});
-        if(!res.ok) continue;
-        const json = await res.json();
-        const rows = Array.isArray(json) ? json : (json.data || json.tickets || []);
-        if(rows.length){ setStatus('ok','Aiven · '+rows.length.toLocaleString('es-MX')+' tickets'); return rows.map(mapTicket).filter(t=>t.n && t.fr); }
-      }catch(e){}
+    try{
+      const response = await fetch(apiUrl('/api/operacion/resumen-dia/inicial'), {
+        cache:'no-store',
+        headers:Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {})
+      });
+      if(!response.ok) throw new Error('HTTP '+response.status);
+      const payload = await response.json();
+      const data = payload && payload.data ? payload.data : {};
+      const ticketRows = Array.isArray(data.tickets) ? data.tickets : [];
+      const portafolioRows = Array.isArray(data.portafolio) ? data.portafolio : [];
+      const tickets = ticketRows.map(mapTicket).filter(t=>t.n && t.fr);
+      const portafolio = portafolioRows.map(mapPortafolio).filter(p=>p.cod || p.pro);
+      setStatus('ok','Aiven · '+tickets.length.toLocaleString('es-MX')+' tickets');
+      return { tickets, portafolio, alcance: payload.alcance || null };
+    }catch(error){
+      console.error('[Resumen del Día] Error en carga inicial territorial:', error);
+      setStatus('error','Sin datos reales desde Aiven');
+      return { tickets: [], portafolio: [], alcance: null };
     }
-    setStatus('error','Sin datos reales desde Aiven');
-    return [];
-  }
-  async function fetchPortafolio(){
-    const urls = [apiUrl('/api/portafolio?limit=5000'), apiUrl('/api/portafolio')];
-    for(const url of urls){
-      try{
-        const res = await fetch(url,{cache:'no-store', headers:Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {})});
-        if(!res.ok) continue;
-        const json = await res.json();
-        const rows = Array.isArray(json) ? json : (json.data || json.portafolio || []);
-        if(rows.length) return rows.map(mapPortafolio).filter(p=>p.cod || p.pro);
-      }catch(e){}
-    }
-    return [];
   }
   async function fetchCriticidadUsuario(){
     const authHeaders = Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {});
@@ -717,7 +714,25 @@
   }
 
   function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
-  async function load(){ ensureResumenVisualFixes(); if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.load(); const [tickets, portafolio] = await Promise.all([fetchTickets(), fetchPortafolio(), fetchCriticidadUsuario()]); allTickets = tickets; portafolioItems = portafolio; initData(); render(); if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen')); ensureResumenVisualFixes(); }
+  async function load(){
+    ensureResumenVisualFixes();
+
+    // FASE 1/11: la primera llamada de datos del modulo ya llega filtrada
+    // por Puerta OPERACION + usuario_zop. No existe fallback a endpoints globales.
+    const initial = await fetchResumenInicial();
+    allTickets = initial.tickets;
+    portafolioItems = initial.portafolio;
+
+    await Promise.all([
+      fetchCriticidadUsuario(),
+      window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.load() : Promise.resolve()
+    ]);
+
+    initData();
+    render();
+    if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen'));
+    ensureResumenVisualFixes();
+  }
   function init(){ if(!byId('view-resumen')) return; ensureResumenVisualFixes(); if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
   window.ManttoResumenDia = { init, load, openTicket, _detailData:{} };
 })();

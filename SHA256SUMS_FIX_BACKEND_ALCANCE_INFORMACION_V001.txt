@@ -1,0 +1,4 @@
+db08ecfa70777223669bb538dab5fdd629e8a690c00429cf37d22d0915158a3a  backend/src/routes/panel-control.routes.js
+66d0c39116d2535c8c652661de853ba7be511ba0022e025b25be08eece76e654  backend/src/controllers/panel-control-alcance.controller.js
+c750d4f4dd5f3f95812acabce3387f364c8c7adafac3b0016dcd3433bf6f1020  backend/src/services/information-scope-gnral.service.js
+621088ad530f3865dba59005c88b8e8f4c1e3b9975583a379f80fc98364db035  docs/README_FIX_BACKEND_ALCANCE_INFORMACION_V001.md

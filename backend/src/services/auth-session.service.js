@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { hydrateAuthUser } = require('../middleware/auth.middleware');
 
-const IDLE_DAYS = 28;
+const IDLE_DAYS = 90;
 const ABSOLUTE_DAYS = 90;
 const COOKIE_NAME = 'mantto_refresh';
 const DAY_MS = 24 * 60 * 60 * 1000;

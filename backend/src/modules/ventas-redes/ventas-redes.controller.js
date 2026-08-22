@@ -2,6 +2,7 @@
 
 const service = require('./ventas-redes.service');
 const syncService = require('./ventas-redes-sync.service');
+const commentNotifications = require('../../services/notifications/comment-notification.service');
 
 function sendKnownError(error, res, next) {
   const status = Number(error.statusCode || error.status || 0);
@@ -20,6 +21,7 @@ function buildActionContext(req) {
   return {
     user: req.user,
     contextUser: req.contextUser || req.user,
+    informationAccess: req.informationAccess || null,
     ip: req.ip || req.socket?.remoteAddress || null,
     userAgent: req.get('user-agent') || null
   };
@@ -173,12 +175,15 @@ async function listComments(req, res, next) {
 
 async function createComment(req, res, next) {
   try {
-    return res.status(201).json(await service.createComment(
+    const actionContext = buildActionContext(req);
+    const result = await service.createComment(
       req.params.id,
       req.body || {},
       req.files || [],
-      buildActionContext(req)
-    ));
+      actionContext
+    );
+    const notificationResult = await commentNotifications.notifyRedesComment_gnral(req.params.id, actionContext);
+    return res.status(201).json({ ...result, notificaciones: Number(notificationResult?.created || 0) });
   } catch (error) {
     return sendKnownError(error, res, next);
   }

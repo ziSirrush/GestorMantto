@@ -1,12 +1,12 @@
-// [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_2_BACKEND_M2M_GUARDS_V001]
+// [Aster | 2026-08-19 | ASTER-MG | FASE 4: Guard General por modulo]
 'use strict';
 
 const express = require('express');
 const controller = require('./ventas-redes.controller');
-const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { requireStorageSchema, requireStorageSchemaWhenFiles } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
+const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 
 const router = express.Router();
 const requireVentasIntegration = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID');
@@ -32,19 +32,25 @@ const uploadCommentAttachments = createUploadMiddleware_gnral({
   maxRequestMb: Number(process.env.CFFAA_STORAGE_MAX_REQUEST_MB || 50)
 });
 
-// Historical backup import from the controlled Google Sheets backup.
-// With HMAC enabled, only the Ventas M2M identity can execute these routes.
+function redesGuard(permissionCodesAny) {
+  return humanInformationGuard_gnral({
+    permissionCodesAny: Array.isArray(permissionCodesAny) ? permissionCodesAny : [permissionCodesAny],
+    domain: 'CORELLIAN',
+    groupingCodesAny: ['VENTAS']
+  });
+}
+
 router.post('/redes/importar-backup', requireVentasIntegration, controller.syncRecords);
 router.post('/redes/comentarios/importar-backup', requireVentasIntegration, controller.syncComments);
 
-router.get('/redes/catalogos', requireAuth, controller.getCatalogs);
-router.get('/redes/usuarios-asignables', requireAuth, controller.getAssignableUsers);
-router.get('/redes/cotizaciones-activas', requireAuth, controller.getActiveQuotations);
+router.get('/redes/catalogos', ...redesGuard('VENTAS_ASIGNACION_REDES_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'), controller.getCatalogs);
+router.get('/redes/usuarios-asignables', ...redesGuard('VENTAS_ASIGNACION_REDES_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'), controller.getAssignableUsers);
+router.get('/redes/cotizaciones-activas', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_RELACION_COTIZACION.VER'), controller.getActiveQuotations);
 
-router.get('/redes', requireAuth, controller.list);
+router.get('/redes', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_LISTADO.VER'), controller.list);
 router.post(
   '/redes',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_NUEVA_ASIGNACION.CREAR'),
   uploadEvidence,
   requireStorageSchemaWhenFiles('ventas_redes_archivos'),
   controller.create
@@ -52,77 +58,86 @@ router.post(
 
 router.get(
   '/redes/:id/archivos',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_IMAGENES.VER'),
   requireStorageSchema('ventas_redes_archivos'),
   controller.listEvidence
 );
 router.post(
   '/redes/:id/archivos',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_IMAGENES.ADJUNTAR_ARCHIVO'),
   uploadEvidence,
   requireStorageSchemaWhenFiles('ventas_redes_archivos'),
   controller.uploadEvidence
 );
 router.get(
   '/redes/:id/archivos/:idArchivo/acceso',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_IMAGENES.VER'),
   requireStorageSchema('ventas_redes_archivos'),
   controller.getEvidenceAccess
 );
 router.delete(
   '/redes/:id/archivos/:idArchivo',
-  requireAuth,
+  ...redesGuard([
+    'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_IMAGENES.ADJUNTAR_ARCHIVO',
+    'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'
+  ]),
   requireStorageSchema('ventas_redes_archivos'),
   controller.deleteEvidence
 );
 
 router.get(
   '/redes/:id/comentarios',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_COMENTARIOS.VER'),
   requireStorageSchema('ventas_redes_comentarios_adjuntos'),
   controller.listComments
 );
 router.post(
   '/redes/:id/comentarios',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_COMENTARIOS.AGREGAR_COMENTARIO'),
   uploadCommentAttachments,
   requireStorageSchemaWhenFiles('ventas_redes_comentarios_adjuntos'),
   controller.createComment
 );
-router.patch('/redes/:id/comentarios/:idComentario', requireAuth, controller.updateComment);
-router.put('/redes/:id/comentarios/:idComentario', requireAuth, controller.updateComment);
+router.patch('/redes/:id/comentarios/:idComentario', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'), controller.updateComment);
+router.put('/redes/:id/comentarios/:idComentario', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'), controller.updateComment);
 router.delete(
   '/redes/:id/comentarios/:idComentario',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'),
   requireStorageSchema('ventas_redes_comentarios_adjuntos'),
   controller.deleteComment
 );
 router.post(
   '/redes/:id/comentarios/:idComentario/adjuntos',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_COMENTARIOS.ADJUNTAR_ARCHIVO'),
   uploadCommentAttachments,
   requireStorageSchemaWhenFiles('ventas_redes_comentarios_adjuntos'),
   controller.addCommentAttachments
 );
 router.get(
   '/redes/:id/comentarios/:idComentario/adjuntos/:idAdjunto/acceso',
-  requireAuth,
+  ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_COMENTARIOS.VER'),
   requireStorageSchema('ventas_redes_comentarios_adjuntos'),
   controller.getAttachmentAccess
 );
 router.delete(
   '/redes/:id/comentarios/:idComentario/adjuntos/:idAdjunto',
-  requireAuth,
+  ...redesGuard([
+    'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_COMENTARIOS.ADJUNTAR_ARCHIVO',
+    'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'
+  ]),
   requireStorageSchema('ventas_redes_comentarios_adjuntos'),
   controller.deleteAttachment
 );
 
-router.patch('/redes/:id/estatus', requireAuth, controller.updateStatus);
-router.patch('/redes/:id/asignacion', requireAuth, controller.updateAssignment);
-router.patch('/redes/:id/cotizacion', requireAuth, controller.updateQuotation);
-router.get('/redes/:id', requireAuth, controller.getById);
-router.put('/redes/:id', requireAuth, controller.update);
-router.patch('/redes/:id', requireAuth, controller.update);
-router.delete('/redes/:id', requireAuth, controller.remove);
+router.patch('/redes/:id/estatus', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_DETALLE.CAMBIAR_ESTADO'), controller.updateStatus);
+router.patch('/redes/:id/asignacion', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.ASIGNAR_RESPONSABLES'), controller.updateAssignment);
+router.patch('/redes/:id/cotizacion', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_RELACION_COTIZACION.GESTIONAR_RELACION_COTIZACION'), controller.updateQuotation);
+router.get('/redes/:id', ...redesGuard([
+  'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_DETALLE.VER',
+  'VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_LISTADO.ABRIR_DETALLE'
+]), controller.getById);
+router.put('/redes/:id', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'), controller.update);
+router.patch('/redes/:id', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'), controller.update);
+router.delete('/redes/:id', ...redesGuard('VENTAS_ASIGNACION_REDES_TABLA_REGISTROS_EDITAR.EDITAR'), controller.remove);
 
 module.exports = router;

@@ -1,0 +1,166 @@
+<div class="icarp-cor-page">
+  <section class="icarp-cor-card icarp-cor-head">
+    <div class="icarp-cor-head-copy">
+      <p class="icarp-cor-eyebrow">Instalaciones &middot; Corellian</p>
+      <h1>Gestor de Carpetas</h1>
+      <p>Consulta las carpetas sincronizadas, identifica proyectos sin carpeta y relaciona cada proyecto con una carpeta disponible.</p>
+    </div>
+    <div class="icarp-cor-head-actions">
+      <button class="icarp-cor-btn icarp-cor-btn-secondary" id="icarp-cor-refresh" type="button">
+        <span aria-hidden="true">&#8635;</span>
+        Actualizar
+      </button>
+      <span class="icarp-cor-status" data-type="ready" id="icarp-cor-status" role="status" aria-live="polite">Preparando modulo...</span>
+    </div>
+  </section>
+
+  <section class="icarp-cor-card icarp-cor-panel"
+           id="icarp-cor-folders-panel"
+           data-permission-code="INSTALACIONES_CARPETAS_CARPETAS_REGISTRADAS_LISTADO.VER">
+    <header class="icarp-cor-panel-head">
+      <div class="icarp-cor-panel-title">
+        <span class="icarp-cor-step">1</span>
+        <div>
+          <h2>Carpetas registradas</h2>
+          <p>Carpetas disponibles en el catalogo sincronizado de Instalaciones.</p>
+        </div>
+      </div>
+      <label class="icarp-cor-search"
+             id="icarp-cor-folder-search-wrap"
+             data-permission-code="INSTALACIONES_CARPETAS_CARPETAS_REGISTRADAS_LISTADO.BUSCAR">
+        <span>Buscar carpeta</span>
+        <input id="icarp-cor-folder-search" type="search" autocomplete="off" placeholder="Nombre, ID o proyecto..." />
+      </label>
+    </header>
+
+    <div class="icarp-cor-table-wrap">
+      <table class="icarp-cor-table icarp-cor-folders-table">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Carpeta</th>
+            <th scope="col">ID carpeta Drive</th>
+            <th scope="col">Enlace</th>
+            <th scope="col">Proyecto relacionado</th>
+            <th scope="col">Estatus</th>
+            <th scope="col">Ultima sincronizacion</th>
+          </tr>
+        </thead>
+        <tbody id="icarp-cor-folders-body">
+          <tr><td colspan="7" class="icarp-cor-empty-cell">Cargando carpetas...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <footer class="icarp-cor-panel-foot">
+      <span id="icarp-cor-folders-total">0 carpetas</span>
+      <div class="icarp-cor-pagination" id="icarp-cor-folders-pagination" aria-label="Paginacion de carpetas">
+        <button id="icarp-cor-folders-prev" type="button" aria-label="Pagina anterior">&#8249;</button>
+        <span id="icarp-cor-folders-page-info">Pagina 1 de 1</span>
+        <button id="icarp-cor-folders-next" type="button" aria-label="Pagina siguiente">&#8250;</button>
+      </div>
+      <span class="icarp-cor-page-size-note">30 por pagina</span>
+    </footer>
+  </section>
+
+  <div class="icarp-cor-bottom-grid">
+    <section class="icarp-cor-card icarp-cor-panel icarp-cor-projects-panel"
+             id="icarp-cor-projects-panel"
+             data-permission-code="INSTALACIONES_CARPETAS_PROYECTOS_SIN_CARPETA_LISTADO.VER">
+      <header class="icarp-cor-panel-head">
+        <div class="icarp-cor-panel-title">
+          <span class="icarp-cor-step icarp-cor-step-warn">2</span>
+          <div>
+            <h2>Proyectos sin carpeta</h2>
+            <p>Proyectos Activos y Cerrados que no aparecen en el catalogo de carpetas sincronizadas.</p>
+          </div>
+        </div>
+        <div class="icarp-cor-project-tools">
+          <label class="icarp-cor-search"
+                 id="icarp-cor-project-search-wrap"
+                 data-permission-code="INSTALACIONES_CARPETAS_PROYECTOS_SIN_CARPETA_LISTADO.BUSCAR">
+            <span>Buscar proyecto</span>
+            <input id="icarp-cor-project-search" type="search" autocomplete="off" placeholder="Proyecto, ID o supervisor..." />
+          </label>
+          <label class="icarp-cor-filter" id="icarp-cor-project-status-wrap">
+            <span>Estatus</span>
+            <select id="icarp-cor-project-status-filter">
+              <option value="">Todos</option>
+              <option value="ACTIVO">Activo</option>
+              <option value="INACTIVO">Inactivo</option>
+            </select>
+          </label>
+        </div>
+      </header>
+
+      <div class="icarp-cor-table-wrap">
+        <table class="icarp-cor-table icarp-cor-projects-table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">ID Proyecto</th>
+              <th scope="col">Proyecto</th>
+              <th scope="col">Supervisor</th>
+              <th scope="col">Estatus</th>
+            </tr>
+          </thead>
+          <tbody id="icarp-cor-projects-body">
+            <tr><td colspan="5" class="icarp-cor-empty-cell">Cargando proyectos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <footer class="icarp-cor-panel-foot">
+        <span id="icarp-cor-projects-total">0 proyectos sin carpeta</span>
+        <div class="icarp-cor-pagination" id="icarp-cor-projects-pagination" aria-label="Paginacion de proyectos sin carpeta">
+          <button id="icarp-cor-projects-prev" type="button" aria-label="Pagina anterior">&#8249;</button>
+          <span id="icarp-cor-projects-page-info">Pagina 1 de 1</span>
+          <button id="icarp-cor-projects-next" type="button" aria-label="Pagina siguiente">&#8250;</button>
+        </div>
+        <span class="icarp-cor-page-size-note">30 por pagina</span>
+      </footer>
+    </section>
+
+    <section class="icarp-cor-card icarp-cor-panel icarp-cor-relation-panel"
+             id="icarp-cor-relation-panel"
+             data-permission-code="INSTALACIONES_CARPETAS_RELACIONADOR_FORMULARIO.VER">
+      <header class="icarp-cor-panel-head icarp-cor-relation-head">
+        <div class="icarp-cor-panel-title">
+          <span class="icarp-cor-step icarp-cor-step-link">3</span>
+          <div>
+            <h2>Relacionar proyecto con carpeta</h2>
+            <p>Selecciona un proyecto pendiente y una carpeta disponible.</p>
+          </div>
+        </div>
+      </header>
+
+      <form class="icarp-cor-relation-form" id="icarp-cor-relation-form">
+        <label>
+          <span>Proyecto sin carpeta</span>
+          <select id="icarp-cor-project-select" required>
+            <option value="">Selecciona un proyecto...</option>
+          </select>
+        </label>
+        <label>
+          <span>Carpeta disponible</span>
+          <select id="icarp-cor-folder-select" required>
+            <option value="">Selecciona una carpeta...</option>
+          </select>
+        </label>
+        <div class="icarp-cor-relation-actions">
+          <button class="icarp-cor-btn icarp-cor-btn-secondary" id="icarp-cor-relation-clear" type="button">
+            Limpiar
+          </button>
+          <button class="icarp-cor-btn icarp-cor-btn-primary"
+                  id="icarp-cor-save"
+                  type="submit"
+                  data-viewer-mutation="true"
+                  data-permission-code="INSTALACIONES_CARPETAS_RELACIONADOR_FORMULARIO.CREAR">
+            Guardar relacion
+          </button>
+        </div>
+      </form>
+
+      <p class="icarp-cor-relation-note">Al guardar, la relacion se registra en Aiven y los tres paneles se actualizan de forma selectiva, sin recargar el modulo completo.</p>
+      <div class="icarp-cor-feedback" id="icarp-cor-relation-feedback" data-type="ready" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+</div>

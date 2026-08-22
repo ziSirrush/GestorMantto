@@ -1,0 +1,47 @@
+'use strict';
+
+const express = require('express');
+const controller = require('../../modules/resumen-dia/resumen-dia.controller');
+const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
+
+const router = express.Router();
+
+// Cualquier permiso de lectura real del modulo permite cargar el universo base.
+// Las acciones particulares siguen controladas por sus permisos existentes.
+const RESUMEN_DIA_READ_PERMISSIONS = Object.freeze([
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_CAUSA_FALLA_BLT.VER',
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_CAUSA_FALLA_CLIENTE.VER',
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_ESTADO_TICKETS.VER',
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_FALLAS_POR_ESTADO_DE_LA_REPUBLICA.VER',
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_POR_TIPO_DE_EQUIPO.VER',
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_RESPONSABILIDAD.VER',
+  'OPERACION_RESUMEN_DEL_DIA_GRAFICAS_TICKETS_POR_ZONA_OPERATIVA.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_ATRAPADOS.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_CERRADOS.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_EN_CRITICOS.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_EN_CURSO.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_FILTRACIONES.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_FUERA_DE_SLA.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_NO_FUNCIONANDO.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_PROM_CIERRE.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_PROM_LLEGADA.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_RESP_BLT.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_RESP_CLIENTE.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_TICKETS.VER',
+  'OPERACION_RESUMEN_DEL_DIA_KPI_VOLTAJE.VER',
+  'OPERACION_RESUMEN_DEL_DIA_TICKET_PERIODO_TICKETS_DEL_PERIODO.VER'
+]);
+
+const resumenDiaGuard = humanInformationGuard_gnral({
+  permissionCodesAny: RESUMEN_DIA_READ_PERMISSIONS,
+  domain: 'UNITED',
+  groupingCodesAny: ['OPERACION']
+});
+
+router.get(
+  '/operacion/resumen-dia/inicial',
+  ...resumenDiaGuard,
+  controller.getInitialData
+);
+
+module.exports = router;

@@ -2,42 +2,17 @@
 
 const express = require('express');
 const controller = require('./experimental-proyectos-criticos.controller');
-const { requireAuth } = require('../../middleware/auth.middleware');
-const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
+const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
+const { requirePortafolioProjectScope_gnral } = require('../../services/information-record-scope-gnral.service');
 
 const router = express.Router();
-const ACCESS_PERMISSION_UNI = 'PROYECTOS_CRITICOS_EXP_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const guard_exp = humanInformationGuard_gnral({
+  permissionCode: 'PROYECTOS_CRITICOS_EXP_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  domain: 'UNITED',
+  groupingCode: 'EXPERIMENTAL'
+});
 
-async function requireProyectosCriticosAccess_uni(req, res, next) {
-  try {
-    const effectiveUser = req.contextUser || req.user || {};
-    const userId = Number(effectiveUser.id_SB || effectiveUser.id || 0);
-    const allowed = await hasEffectivePermission(userId, ACCESS_PERMISSION_UNI);
-    if (!allowed) {
-      return res.status(403).json({
-        ok: false,
-        message: 'No tienes permiso para consultar Proyectos Críticos Experimental.',
-        permiso: ACCESS_PERMISSION_UNI
-      });
-    }
-    return next();
-  } catch (error) {
-    return next(error);
-  }
-}
-
-router.get(
-  '/proyectos-criticos',
-  requireAuth,
-  requireProyectosCriticosAccess_uni,
-  controller.getProyectosCriticos_uni
-);
-
-router.get(
-  '/proyectos-criticos/:proyecto/tickets',
-  requireAuth,
-  requireProyectosCriticosAccess_uni,
-  controller.getProyectoCriticoTickets_uni
-);
+router.get('/proyectos-criticos', ...guard_exp, controller.getProyectosCriticos_uni);
+router.get('/proyectos-criticos/:proyecto/tickets', ...guard_exp, requirePortafolioProjectScope_gnral, controller.getProyectoCriticoTickets_uni);
 
 module.exports = router;

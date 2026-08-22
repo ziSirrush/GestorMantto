@@ -9,6 +9,9 @@ let PY_EQUIPOS = [];
 const PY_GRUPOS_EQUIPO = [["Identificacion", ["REFERENCIA EN SITIO", "ID PROYECTO", "PROYECTO", "ESTATUS", "EDO", "Sup FL", "Ciudad"]], ["Visita y especificaciones", ["FECHA VISITA", "COMENTARIOS FL", "OC", "MO", "AJ", "NO. PISOS", "NO. DESEMBARQUES", "NO. PUERTAS", "VELOCIDAD [m-s]", "CAPACIDAD [kg]", "ENTREPISO [mm]", "LONGITUD [mm]", "ANCHO DE PELDAÑO [mm]", "DIAS SIN VISITA"]], ["Produccion", ["CARTA DE PRIMER VISITA (CPVP)", "ESTATUS DE PRODUCCION", "FECHA DE DESCARGA", "COLOCACION DE ESC-RAMP", "CARTA CUBO NO RECIBIDO (CCNR)", "CARTA CUBO RECIBIDO (CCR)", "DIAS SIN HACER CCNR", "Posible Recepcion de Cubo"]], ["Montaje", ["SUBCONTRATISTA", "INICIO DE MONTAJE", "FIN DE MONTAJE PLANEADO", "FIN DE MONTAJE MODIFICADO", "FIN DE MONTAJE REAL", "DIAS RESTANTES", "CONDICIONES DE OBRA", "EVALUACION DE SUBCONTRATO"]], ["Ajuste", ["CARTA TERMINO INSTALACION (CTI)", "REVISION DE INSTALACION POR SUPERVISOR", "MINUTA REVISION POR AJUSTE", "LIBERADO POR AJUSTE (MONTAJE)", "AJUSTADOR", "INICIO DE AJUSTE", "FIN DE AJUSTE PLANEADO", "FIN DE AJUSTE MODIFICADO", "FIN DE AJUSTE REAL", "REPORTE DE AJUSTE", "Posible inicio de Ajuste", "MINUTA INTERFON", "CERTIFICADO REGULADOR"]], ["Calidad y entrega", ["PROTOCOLO DE ACEPTACION (CALIDAD)", "ESTATUS DE INSPECCION (CALIDAD)", "PENDIENTES (CALIDAD)", "ENTREGA A CLIENTE (CAF-PG)", "FORMATO (CAF-PG)", "EQUIPO SE QUEDA (ENTREGA)", "AÑO DE TERMINO"]], ["Seguimiento adicional", ["OC - ESTATUS", "05 - ESTATUS", "06 - F INICIO", "06 - F FIN", "COMENTARIOS", "06 - AJUSTADOR", "JUN - POSIBLE RECEPCION DE CUBO", "JUN - POSIBLE INICIO DE AJUSTE", "Conectado correctamente"]]];
 let PY_CLIENTES = [];
 let PY_COBRANZA_POR_ID = {};
+const PY_PROYECTOS_PAGE_SIZE = 30;
+let PY_PROYECTOS_PAGE = 1;
+let PY_PROYECTOS_FILTER_SIGNATURE = '';
 const PY_FOTO_ESTADOS_POR_PAGINA = 4;
 let PY_FOTO_PAGINA = 1;
 let PY_FOTO_FILTRO_SIGNATURE = '';
@@ -457,7 +460,6 @@ function pyRenderKPIs(){
   if(!activosKpis) return;
   activosKpis.innerHTML = `
     <div class="py-card"><div class="label">Proyectos activos</div><div class="value" style="color:var(--accent)">${activos}</div></div>
-    <div class="py-card"><div class="label">Proyectos cerrados</div><div class="value" style="color:var(--ok)">${cerrados}</div></div>
     <div class="py-card"><div class="label">Equipos totales</div><div class="value">${totalEquipos}</div></div>
   `;
 }
@@ -573,6 +575,11 @@ function pyRenderProyectos(){
   const asesor = document.getElementById('py-f-asesor').value;
   const supervisor = document.getElementById('py-f-supervisor').value;
   const activo = document.getElementById('py-f-activo').value;
+  const filterSignature = JSON.stringify([buscar, estado, asesor, supervisor, activo]);
+  if(filterSignature !== PY_PROYECTOS_FILTER_SIGNATURE){
+    PY_PROYECTOS_FILTER_SIGNATURE = filterSignature;
+    PY_PROYECTOS_PAGE = 1;
+  }
 
   let rows = PY_PROYECTOS.filter(r => !pyEsCerrado(r));
   if(buscar) rows = rows.filter(r => [r.Proyecto, r['ID Proyecto'], r.Cliente].some(v => (v||'').toString().toUpperCase().includes(buscar)));
@@ -583,12 +590,14 @@ function pyRenderProyectos(){
   rows = pyOrdenarPorProyecto(rows, 'Proyecto');
 
   const tbody = document.getElementById('py-proyectos-tbody');
-  if(!rows.length){
+  const totalPages = Math.max(1, Math.ceil(rows.length / PY_PROYECTOS_PAGE_SIZE));
+  PY_PROYECTOS_PAGE = Math.min(Math.max(PY_PROYECTOS_PAGE, 1), totalPages);
+  const start = (PY_PROYECTOS_PAGE - 1) * PY_PROYECTOS_PAGE_SIZE;
+  const pageRows = rows.slice(start, start + PY_PROYECTOS_PAGE_SIZE);
+  if(!pageRows.length){
     tbody.innerHTML = '<tr><td colspan="9" class="py-empty">Sin resultados.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = rows.map(r=>`
+  }else{
+    tbody.innerHTML = pageRows.map(r=>`
     <tr class="clickable" onclick="pyAbrirProyecto(${r._id})">
       <td>${pyEsc(r.Proyecto)}</td>
       <td>${pyEsc(r['ID Proyecto'])||'-'}</td>
@@ -600,6 +609,25 @@ function pyRenderProyectos(){
       <td>${pyEsc(r.Cliente)||'-'}</td>
       <td>${r['Activo / Inactivo'] ? `<span class="py-status-chip ${pyStatusClass(r['Activo / Inactivo'])}">${pyEsc(r['Activo / Inactivo'])}</span>` : '-'}</td>
     </tr>`).join('');
+  }
+
+  const range = document.getElementById('py-proyectos-range');
+  const page = document.getElementById('py-proyectos-page');
+  const previous = document.getElementById('py-proyectos-prev');
+  const next = document.getElementById('py-proyectos-next');
+  if(range){
+    const first = rows.length ? start + 1 : 0;
+    const last = rows.length ? start + pageRows.length : 0;
+    range.textContent = rows.length ? `Mostrando ${first}-${last} de ${rows.length}` : '0 proyectos';
+  }
+  if(page) page.textContent = PY_PROYECTOS_PAGE + ' / ' + totalPages;
+  if(previous) previous.disabled = PY_PROYECTOS_PAGE <= 1;
+  if(next) next.disabled = PY_PROYECTOS_PAGE >= totalPages;
+}
+
+function pyCambiarPaginaProyectos(delta){
+  PY_PROYECTOS_PAGE += Number(delta) || 0;
+  pyRenderProyectos();
 }
 
 function pyRenderCerrados(){
@@ -1723,7 +1751,6 @@ async function pyInit(){
   try{ await pyCargarDesdeAiven(); const status=document.getElementById('py-aiven-status'); if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>'; }catch(error){ console.error(error); const page=document.getElementById('py-page'); if(page) page.insertAdjacentHTML('afterbegin',`<div class="py-note">No se pudieron cargar los datos desde Aiven: ${pyEsc(error.message||error)}</div>`); }
   pyRenderKPIs();
   pyPopulateFiltrosBasicos();
-  pyBindTabs();
   pyRenderProyectos();
   document.addEventListener('keydown', (e)=>{
     if(!document.getElementById('py-lightbox').classList.contains('open')) return;
@@ -1737,7 +1764,7 @@ async function pyMount(forceReload){
  if(!view)return false;
  if(forceReload) view.dataset.pyReady='0';
  if(view.dataset.pyReady!=='1'){
-   const r=await fetch('./modules/instalaciones-proyectos/instalaciones-proyectos.html?v=20260726-fix-tabs-activos-v003',{cache:'no-store'});
+   const r=await fetch('./modules/instalaciones-proyectos/instalaciones-proyectos.html?v=20260821-activos-paginados-v004',{cache:'no-store'});
    if(!r.ok)throw new Error('No se pudo cargar Proyectos de Instalación.');
    view.innerHTML=await r.text();
    view.dataset.pyReady='1';
@@ -1746,7 +1773,7 @@ async function pyMount(forceReload){
  return true;
 }
 Object.assign(window,{
-  pyShowTab,pyRenderProyectos,
+  pyShowTab,pyRenderProyectos,pyCambiarPaginaProyectos,
   pyAbrirProyecto,pyAbrirEquipo,pyAbrirProyectoMantto,pyAbrirEquipoMantto,pyAbrirLightboxUna,pyAbrirLightboxProyecto,
   pyLightboxNav,pyCerrarLightbox,pyRenderSlotsFoto
 });

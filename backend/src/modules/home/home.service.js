@@ -1,5 +1,6 @@
 const homeRepository = require('./home.repository');
 const pendientesFiles = require('../pendientes/pendientes-files.service');
+const interactionsService = require('../../services/interactions/interactions.service');
 
 function currentUserRef(req) {
   const user = req.contextUser || req.user || {};
@@ -92,11 +93,51 @@ function decorateProyectoRow(row) {
   };
 }
 
+function mapPendientesRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map(row => ({
+    ...pendientesFiles.sanitizePendienteForClient_gnral(row, {
+      directCount: Number(row.total_archivos_directos || 0)
+    }),
+    evidencias_legacy: pendientesFiles.legacyFilesFromTask_gnral(row)
+  }));
+}
+
+async function getHomeSnapshot(req) {
+  const user = currentUserRef(req);
+  const scope = buildUserTaskScope(user);
+
+  if (!user.id || !scope.correo || !scope.iniciales) {
+    return {
+      status: 401,
+      body: { ok: false, message: 'Sesion sin usuario valido para consultar Home.' }
+    };
+  }
+
+  // H1: Home consume la bitacora general usuario_interacciones como fuente
+  // oficial de actividad reciente, sin mezclarla con auth_audit.
+  const [pendientesRows, actividades] = await Promise.all([
+    homeRepository.getPendientes(scope.where, scope.params),
+    interactionsService.listForUser_gnral(user.id, { limit: 20, offset: 0 })
+  ]);
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      source: 'aiven',
+      data: {
+        pendientes: mapPendientesRows(pendientesRows),
+        actividad_reciente: actividades
+      }
+    }
+  };
+}
+
 async function getHomeBootstrap(req) {
   const user = currentUserRef(req);
   const scope = buildUserTaskScope(user);
 
-  if (!scope.correo || !scope.iniciales) {
+  if (!user.id || !scope.correo || !scope.iniciales) {
     return {
       status: 401,
       body: { ok: false, message: 'Sesion sin usuario valido para consultar Home.' }
@@ -107,12 +148,7 @@ async function getHomeBootstrap(req) {
   const empresa = allowedEmpresas.length === 1 ? allowedEmpresas[0] : (user.empresa || null);
 
   const pendientesRows = await homeRepository.getPendientes(scope.where, scope.params);
-  const pendientes = pendientesRows.map(row => ({
-    ...pendientesFiles.sanitizePendienteForClient_gnral(row, {
-      directCount: Number(row.total_archivos_directos || 0)
-    }),
-    evidencias_legacy: pendientesFiles.legacyFilesFromTask_gnral(row)
-  }));
+  const pendientes = mapPendientesRows(pendientesRows);
 
   const notifParams = [];
   let notifWhere = 'WHERE n.activo = 1';
@@ -144,7 +180,7 @@ async function getHomeBootstrap(req) {
     1,
     80
   );
-  const actividades = await homeRepository.getActividadReciente(scope.where, scope.params);
+  const actividades = await interactionsService.listForUser_gnral(user.id, { limit: 20, offset: 0 });
   const areasRows = await homeRepository.getAreas();
   const usuarios = await homeRepository.getUsuarios(empresa);
   const proyectos = await homeRepository.getProyectos(empresa);
@@ -177,14 +213,14 @@ async function getActividadReciente(req) {
   const user = currentUserRef(req);
   const scope = buildUserTaskScope(user);
 
-  if (!scope.correo || !scope.iniciales) {
+  if (!user.id || !scope.correo || !scope.iniciales) {
     return {
       status: 401,
       body: { ok: false, message: 'Sesion sin usuario valido para consultar actividad.' }
     };
   }
 
-  const rows = await homeRepository.getActividadReciente(scope.where, scope.params);
+  const rows = await interactionsService.listForUser_gnral(user.id, { limit: 100, offset: 0 });
   return {
     status: 200,
     body: { ok: true, source: 'aiven', data: rows }
@@ -192,6 +228,7 @@ async function getActividadReciente(req) {
 }
 
 module.exports = {
+  getHomeSnapshot,
   getHomeBootstrap,
   getActividadReciente
 };

@@ -1,0 +1,7 @@
+6d8459d4e4cec9a8837d780527f38ef7137c7d7e70351a06719b8ce3c4157d75  ./PRUEBA_WORKBENCH_FASE_10_TESTER.sql
+19989f7c80a12a1780354131eb423a522daa474df76d5ed634d842c9958a3bb7  ./README_FASE_10_11_COBRANZA_UNI_CUARTOS_V001.md
+c5923e57b7d5a24b981e8de52bb2289787cd2313054d257ee123741a42c5f326  ./backend/src/controllers/cobranza-uni-cuartos-v2.controller.js
+129c8e9b2cd85ed795c3c1197a6d25375902dfc38807eef595216da7dfce0e8b  ./backend/src/controllers/detalle-mp-2026-cuartos-v2.controller.js
+3e8bbf8fa38e389398a40d4958ede7d79d308d6c947d13f0ca1e2f82ce24e880  ./backend/src/routes/cobranza-uni.routes.js
+c8f04c57269288843545e71eecff449d3449714e3aab95f7d7dcfcfb331843ac  ./backend/src/routes/detalle-mp-2026.routes.js
+d8cd2ecdfcdaad89a902128ca42870ecaee1c1a493b0bf361453143975e50a44  ./backend/src/services/cobranza-uni-scope.service.js

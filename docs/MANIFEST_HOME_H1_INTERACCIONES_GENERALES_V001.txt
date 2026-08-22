@@ -1,0 +1,16 @@
+ADR_HOME_H1_INTERACCIONES_GENERALES_V001.md
+MANIFEST_HOME_H1_INTERACCIONES_GENERALES_V001.txt
+README_HOME_H1_INTERACCIONES_GENERALES_V001.md
+VALIDACIONES_HOME_H1_INTERACCIONES_GENERALES_V001.txt
+backend/src/app.js
+backend/src/middleware/interaction-tracking.middleware.js
+backend/src/modules/home/home.repository.js
+backend/src/modules/home/home.service.js
+backend/src/modules/interacciones/interacciones.controller.js
+backend/src/modules/interacciones/interacciones.routes.js
+backend/src/routes/data.routes.js
+backend/src/routes/data/interacciones.routes.js
+backend/src/services/interactions/interactions.repository.js
+backend/src/services/interactions/interactions.service.js
+core/app.js
+core/interactions.js

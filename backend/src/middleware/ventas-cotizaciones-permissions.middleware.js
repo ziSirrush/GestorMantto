@@ -1,10 +1,6 @@
 'use strict';
 
 const db = require('../config/db');
-const {
-  resolveVisibilityScope
-} = require('../modules/ventas/ventas-visibility.service');
-
 const SALES_GROUP_CODE = 'VENTAS';
 const VISUAL_ACTION_CODE = 'ACCESO_VISUAL';
 
@@ -349,11 +345,8 @@ async function hasSalesVisualAccess(userId) {
 
 async function temporaryFallbackAllowed(req, userId, permissionCode, fallback) {
   if (fallback === 'none') return false;
-  if (fallback === 'accessTotal') {
-    const contextUser = req.contextUser || req.user;
-    const scope = await resolveVisibilityScope(db, { user: contextUser });
-    return Boolean(scope?.accessTotal);
-  }
+  // El Alcance de Información nunca concede permisos funcionales.
+  // Las acciones se resuelven exclusivamente por el catálogo de permisos.
   if (fallback === 'sales') return hasSalesVisualAccess(userId);
   return hasModuleVisualAccess(userId, permissionCode);
 }

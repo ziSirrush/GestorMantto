@@ -1,0 +1,3 @@
+6e835054c65c8b5db402d74c4dcc2573a889e3621bda9c17c4f035da3d1364d2  ./README_FASE_4_11_OPERACION_DETALLE_TICKET_CUARTOS_V001.md
+7f060b5900e323b71d72f9616add36c0a2a97823e3763666de2a1413c59f6b22  ./backend/scripts/test-fase-4-operacion-detalle-ticket.js
+203a16dbda5593a342d0746dc22cac7da912ca2ff56ca40b80872622b0e9549a  ./backend/src/modules/tickets/tickets-consultas_uni.js

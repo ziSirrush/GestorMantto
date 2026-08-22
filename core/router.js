@@ -10,9 +10,9 @@
     'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-documentos':'Documentos de Producción',
     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
-    'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
+    'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
-    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
+    'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-editar':'Editar cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
@@ -339,6 +339,20 @@
 
 
 
+  function showInstalacionesDashboard_cor(){
+    const view=document.getElementById('view-instalaciones-dashboard');
+    if(!view) return false;
+    activateViewById('view-instalaciones-dashboard');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="idb-cor-page"><section class="idb-cor-card idb-cor-head"><div><p class="idb-cor-eyebrow">Cargando módulo</p><h1>Dashboard Supervisores</h1><p>Inicializando Dashboard de Instalaciones...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-dashboard');
+    updateContext('instalaciones-dashboard','Dashboard Supervisores · seguimiento operativo y Modo Junta');
+    if(window.ManttoInstalacionesDashboard_cor) window.ManttoInstalacionesDashboard_cor.init(currentPayload || null);
+    return true;
+  }
+
+
   function showInstalacionesProyectos(){
     const view=document.getElementById('view-instalaciones-proyectos');
     if(!view) return false;
@@ -430,6 +444,16 @@
     setActiveSide('ventas-cotizaciones');
     updateContext('ventas-cotizaciones-nueva','Nueva cotización · alta comercial desde Aiven');
     if(window.ManttoVentasCotizacionesNueva) window.ManttoVentasCotizacionesNueva.init(currentPayload || null);
+    return true;
+  }
+
+  function showVentasCotizacionesEditar(){
+    const view=document.getElementById('view-ventas-cotizaciones-nueva');
+    if(!view) return false;
+    activateViewById('view-ventas-cotizaciones-nueva');
+    setActiveSide('ventas-cotizaciones');
+    updateContext('ventas-cotizaciones-editar','Editar cotización · actualización de registro existente en Aiven');
+    if(window.ManttoVentasCotizacionesEditar) window.ManttoVentasCotizacionesEditar.init(currentPayload || null);
     return true;
   }
 
@@ -554,6 +578,71 @@
     setActiveSide('instalaciones-concentrado-cliente');
     updateContext('instalaciones-concentrado-cliente','Concentrado de proyectos por cliente · datos desde Aiven');
     if(window.ManttoInstalacionesConcentradoCliente) window.ManttoInstalacionesConcentradoCliente.init();
+    return true;
+  }
+
+  function showInstalacionesReporte_cor(){
+    const view=document.getElementById('view-instalaciones-reporte');
+    if(!view) return false;
+    activateViewById('view-instalaciones-reporte');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="ir-cor-page"><section class="ir-cor-card ir-cor-head"><div><p class="ir-cor-eyebrow">Cargando módulo</p><h1>Reporte de Instalaciones</h1><p>Inicializando estructura del reporte...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-reporte');
+    updateContext('instalaciones-reporte','Reporte de Instalaciones · seguimiento operativo por etapa');
+    if(window.ManttoInstalacionesReporte_cor) window.ManttoInstalacionesReporte_cor.init(currentPayload || null);
+    return true;
+  }
+
+  function showInstalacionesAjuste_cor(){
+    const view=document.getElementById('view-instalaciones-ajuste');
+    if(!view) return false;
+    activateViewById('view-instalaciones-ajuste');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="iaj-cor-page"><section class="iaj-cor-card iaj-cor-head"><div><p class="iaj-cor-eyebrow">Cargando módulo</p><h1>Ajuste</h1><p>Inicializando análisis histórico de ajuste...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-ajuste');
+    updateContext('instalaciones-ajuste','Ajuste · comportamiento histórico por tipo de equipo y año de término');
+    if(window.ManttoInstalacionesAjuste_cor) window.ManttoInstalacionesAjuste_cor.init(currentPayload || null);
+    return true;
+  }
+
+  function showInstalacionesCarpetas_cor(){
+    const view=document.getElementById('view-instalaciones-carpetas');
+    if(!view) return false;
+    activateViewById('view-instalaciones-carpetas');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="icarp-cor-page"><section class="icarp-cor-card icarp-cor-head"><div><p class="icarp-cor-eyebrow">Cargando modulo</p><h1>Gestor de Carpetas</h1><p>Inicializando relaciones de proyectos y carpetas...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-carpetas');
+    updateContext('instalaciones-carpetas','Carpetas de Instalaciones \u00b7 relacion Proyecto \u2194 Carpeta Drive');
+    if(window.ManttoInstalacionesCarpetas_cor) window.ManttoInstalacionesCarpetas_cor.init(currentPayload || null);
+    return true;
+  }
+
+  function showInstalacionesDocumentacion_cor(){
+    const view=document.getElementById('view-instalaciones-documentacion');
+    if(!view) return false;
+    activateViewById('view-instalaciones-documentacion');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="idoc-cor-page"><section class="idoc-cor-card idoc-cor-head"><div><p class="idoc-cor-eyebrow">Cargando módulo</p><h1>Documentación Pendiente</h1><p>Inicializando seguimiento documental por supervisor...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-documentacion');
+    updateContext('instalaciones-documentacion','Documentación Pendiente · avance individual por supervisor');
+    if(window.ManttoInstalacionesDocumentacion_cor) window.ManttoInstalacionesDocumentacion_cor.init(currentPayload || null);
+    return true;
+  }
+
+  function showInstalacionesPmm_cor(){
+    const view=document.getElementById('view-instalaciones-pmm');
+    if(!view) return false;
+    activateViewById('view-instalaciones-pmm');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="ipmm-cor-page"><section class="ipmm-cor-card ipmm-cor-head"><div><p class="ipmm-cor-eyebrow">Cargando modulo</p><h1>PM&amp;M</h1><p>Inicializando seguimiento de montaje...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-pmm');
+    updateContext('instalaciones-pmm','PM&amp;M · equipos proximos a montar y equipos en montaje');
+    if(window.ManttoInstalacionesPmm_cor) window.ManttoInstalacionesPmm_cor.init(currentPayload || null);
     return true;
   }
 
@@ -729,6 +818,7 @@
     if(route==='callcenter' && showCallCenter()) return;
     if(route==='operativo' && showOperativo()) return;
     if(route==='movimientos' && showMovimientos()) return;
+    if(route==='instalaciones-dashboard' && showInstalacionesDashboard_cor()) return;
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;
     if(route==='instalaciones-cerrados' && showInstalacionesCerrados()) return;
     if(route==='ventas-dashboard' && showVentasDashboard()) return;
@@ -738,6 +828,7 @@
     if(route==='ventas-clientes-detalle' && showVentasClientesDetalle()) return;
     if(route==='ventas-cotizaciones' && showVentasCotizaciones()) return;
     if(route==='ventas-cotizaciones-nueva' && showVentasCotizacionesNueva()) return;
+    if(route==='ventas-cotizaciones-editar' && showVentasCotizacionesEditar()) return;
     if(route==='ventas-cotizaciones-detalle' && showVentasCotizacionesDetalle()) return;
     if(route==='ventas-vendidos' && showVentasVendidos()) return;
     if(route==='ventas-proyeccion' && showVentasProyeccion()) return;
@@ -750,6 +841,11 @@
     if(route==='ventas-asignacion-redes-detalle' && showVentasAsignacionRedesDetalle()) return;
     if(route==='ventas-asignacion-redes-formulario' && showVentasAsignacionRedesFormulario()) return;
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
+    if(route==='instalaciones-reporte' && showInstalacionesReporte_cor()) return;
+    if(route==='instalaciones-ajuste' && showInstalacionesAjuste_cor()) return;
+    if(route==='instalaciones-carpetas' && showInstalacionesCarpetas_cor()) return;
+    if(route==='instalaciones-documentacion' && showInstalacionesDocumentacion_cor()) return;
+    if(route==='instalaciones-pmm' && showInstalacionesPmm_cor()) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;

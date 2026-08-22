@@ -263,6 +263,8 @@
 #view-instalaciones-cerrados .py-filters input:focus,
 #view-instalaciones-cerrados .py-filters select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 #view-instalaciones-cerrados .py-filters input[type="text"]{min-width:260px;flex:1}
+#view-instalaciones-cerrados .py-filter-clear{min-height:40px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#12305f;padding:9px 13px;font-size:13px;font-weight:800;cursor:pointer}
+#view-instalaciones-cerrados .py-filter-clear:hover{background:#f3f7ff;border-color:#93b4e8}
 #view-instalaciones-cerrados .py-table-wrap{
   overflow-x:auto;
   overflow-y:visible;
@@ -281,6 +283,20 @@
 #view-instalaciones-cerrados table.py-table tbody tr.clickable:hover,
 #view-instalaciones-cerrados table.py-table tbody tr:hover{background:#f8fbff}
 #view-instalaciones-cerrados .py-empty{padding:28px;color:#94a3b8}
+#view-instalaciones-cerrados .ic-table-footer{
+  min-height:50px;padding:9px 14px;border-top:1px solid var(--py-line);background:#fbfcfe;
+  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;
+  color:var(--py-muted);font-size:11px;font-weight:800
+}
+#view-instalaciones-cerrados .ic-pagination{display:flex;align-items:center;justify-content:center;gap:8px}
+#view-instalaciones-cerrados .ic-pagination button{
+  width:32px;height:30px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;
+  color:var(--py-navy);font-size:18px;font-weight:900;line-height:1;cursor:pointer
+}
+#view-instalaciones-cerrados .ic-pagination button:disabled{opacity:.4;cursor:not-allowed}
+#view-instalaciones-cerrados .ic-pagination strong{min-width:60px;text-align:center;color:var(--py-navy)}
+#view-instalaciones-cerrados .ic-page-size-note{justify-self:end}
+@media(min-width:821px){#view-instalaciones-cerrados .py-table-wrap{max-height:calc(100vh - 330px);min-height:260px;overflow:auto}}
 #view-instalaciones-cerrados .py-modal-block-title,
 #view-instalaciones-cerrados .py-grafica-titulo{color:var(--py-navy);font-weight:800}
 #view-instalaciones-cerrados .py-grafica-wrap,
@@ -343,6 +359,8 @@
   #view-instalaciones-cerrados .py-title{font-size:21px}
   #view-instalaciones-cerrados .py-grid{grid-template-columns:1fr 1fr}
   #view-instalaciones-cerrados .py-filters input[type="text"]{min-width:100%;width:100%}
+  #view-instalaciones-cerrados .ic-table-footer{grid-template-columns:1fr;justify-items:center;text-align:center}
+  #view-instalaciones-cerrados .ic-page-size-note{justify-self:center}
 }
 
 

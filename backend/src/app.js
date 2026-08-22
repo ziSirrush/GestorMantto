@@ -7,6 +7,7 @@ const apiRouter = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/error.middleware');
 const { getCorsOptions } = require('./config/http.config');
 const { viewerReadOnlyGuard } = require('./middleware/viewer-readonly.middleware');
+const { interactionTrackingMiddleware_gnral } = require('./middleware/interaction-tracking.middleware');
 
 function enabled(value, fallback = true) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -28,6 +29,7 @@ function createApp() {
     verify: captureRawBody
   }));
   app.use(viewerReadOnlyGuard);
+  app.use(interactionTrackingMiddleware_gnral);
 
   if (enabled(process.env.CFFAA_LEGACY_UPLOADS_ENABLED, true)) {
     app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));

@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const pendientesAccess = require('../modules/pendientes/pendientes-access.service');
 const pendientesFiles = require('../modules/pendientes/pendientes-files.service');
+const notificationService = require('../services/notifications/notification.service');
 
 
 function positiveInt(value, fallback, min, max) {
@@ -1147,6 +1148,183 @@ function normalizeTicketIdentity(value) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+
+const N6_EVENTO_COMENTARIO = 'COMENTARIO';
+
+async function n6ResolveRelatedTicketUserIds(executor, ticketRow) {
+  const responsibleNames = await ticketResponsibleNames(ticketRow, executor);
+  const normalizedResponsibles = new Set(
+    responsibleNames.map(normalizeTicketIdentity).filter(Boolean)
+  );
+  if (!normalizedResponsibles.size) return [];
+
+  const [userRows] = await executor.query(`
+    SELECT id_SB, nombre, iniciales, correo
+    FROM usuarios
+    WHERE estado = 1
+  `);
+
+  const relatedUserIds = new Set();
+  for (const user of userRows) {
+    const identities = [user.nombre, user.iniciales, user.correo]
+      .map(normalizeTicketIdentity)
+      .filter(Boolean);
+    if (identities.some(identity => normalizedResponsibles.has(identity))) {
+      relatedUserIds.add(Number(user.id_SB));
+    }
+  }
+
+  if (relatedUserIds.size) {
+    const ids = [...relatedUserIds];
+    const placeholders = ids.map(() => '?').join(',');
+    const [adminRows] = await executor.query(`
+      SELECT DISTINCT ura.id_admin
+      FROM usuarios_rel_admin ura
+      INNER JOIN usuarios admin
+        ON admin.id_SB = ura.id_admin
+       AND admin.estado = 1
+      WHERE ura.id_asesor IN (${placeholders})
+    `, ids);
+    adminRows.forEach(row => {
+      const id = Number(row.id_admin || 0);
+      if (id > 0) relatedUserIds.add(id);
+    });
+  }
+
+  return [...relatedUserIds].filter(id => Number.isInteger(id) && id > 0);
+}
+
+async function n6FindZoneId(executor, zoneValue) {
+  const raw = String(zoneValue || '').trim();
+  if (!raw) return null;
+  const normalized = raw.toUpperCase().replace(/[-\s]/g, '');
+  const [rows] = await executor.query(`
+    SELECT id_zona, zona
+    FROM z_op
+    WHERE estado = 1
+      AND (
+        UPPER(TRIM(zona)) = UPPER(TRIM(?))
+        OR UPPER(REPLACE(REPLACE(TRIM(zona), '-', ''), ' ', '')) = ?
+      )
+    ORDER BY id_zona ASC
+    LIMIT 1
+  `, [raw, normalized]);
+  return rows[0] ? Number(rows[0].id_zona) || null : null;
+}
+
+async function n6ResolveTicketZoneId(executor, ticketRow) {
+  const candidates = [];
+  const direct = String(ticketRow && ticketRow.zona || '').trim();
+  if (direct) candidates.push(direct);
+
+  const code = String(ticketRow && ticketRow.codigo_equipo || '').trim();
+  const project = String(ticketRow && (ticketRow.proyecto || ticketRow.proyecto_padre) || '').trim();
+  if (code || project) {
+    const clauses = [];
+    const params = [];
+    if (code) { clauses.push("TRIM(COALESCE(numero_equipo, '')) = TRIM(?)"); params.push(code); }
+    if (project) { clauses.push("TRIM(COALESCE(proyecto, '')) = TRIM(?)"); params.push(project); }
+    const [rows] = await executor.query(`
+      SELECT zona_operativa
+      FROM portafolio
+      WHERE estado_registro = 1
+        AND (${clauses.join(' OR ')})
+        AND zona_operativa IS NOT NULL
+        AND TRIM(zona_operativa) <> ''
+      ORDER BY CASE WHEN TRIM(COALESCE(numero_equipo, '')) = TRIM(?) THEN 0 ELSE 1 END,
+               id_portafolio DESC
+      LIMIT 5
+    `, [...params, code || '']);
+    rows.forEach(row => {
+      const value = String(row.zona_operativa || '').trim();
+      if (value && !candidates.includes(value)) candidates.push(value);
+    });
+  }
+
+  for (const candidate of candidates) {
+    const id = await n6FindZoneId(executor, candidate);
+    if (id) return id;
+  }
+  return null;
+}
+
+async function n6ResolveTaskZoneScope(executor, taskRow) {
+  const equipment = String(taskRow && taskRow.equipo || '').trim();
+  const project = String(taskRow && taskRow.proyecto || '').trim();
+  if (!equipment && !project) return { zonaOperativaNoAplica: true };
+
+  const clauses = [];
+  const params = [];
+  if (equipment) {
+    clauses.push("(TRIM(COALESCE(numero_equipo, '')) = TRIM(?) OR TRIM(COALESCE(identificacion_sitio, '')) = TRIM(?))");
+    params.push(equipment, equipment);
+  }
+  if (project) {
+    clauses.push("TRIM(COALESCE(proyecto, '')) = TRIM(?)");
+    params.push(project);
+  }
+
+  const [rows] = await executor.query(`
+    SELECT zona_operativa
+    FROM portafolio
+    WHERE estado_registro = 1
+      AND (${clauses.join(' OR ')})
+      AND zona_operativa IS NOT NULL
+      AND TRIM(zona_operativa) <> ''
+    ORDER BY id_portafolio DESC
+    LIMIT 5
+  `, params);
+
+  for (const row of rows) {
+    const zoneId = await n6FindZoneId(executor, row.zona_operativa);
+    if (zoneId) return { zonaOperativaId: zoneId };
+  }
+
+  // La tarea declara un proyecto/equipo pero no fue posible resolver su zona:
+  // no se marca NO_APLICA para que N3 cierre el envio de forma segura.
+  return {};
+}
+
+async function n6EmitTicketEvent(executor, {
+  codigoEvento,
+  ticketRow,
+  actor,
+  titulo,
+  mensaje,
+  icono
+}) {
+  // N6 legacy conserva aqui exclusivamente comentarios de Ticket.
+  // Los tres eventos criticos se procesan en ticket-critical-notifications_uni.service.js
+  // desde la fachada data.controller.js para evitar doble emision.
+  const recipients = await n6ResolveRelatedTicketUserIds(executor, ticketRow);
+  const zoneId = await n6ResolveTicketZoneId(executor, ticketRow);
+  return notificationService.emitWithConnection_gnral(executor, {
+    codigoEvento,
+    destinatarios: recipients,
+    actorUserId: actor && actor.id,
+    ...(zoneId ? { zonaOperativaId: zoneId } : {}),
+    requireRoleMatrix: true,
+    allowMissingEvent: true,
+    titulo,
+    mensaje,
+    icono,
+    accion: 'ABRIR_TICKET',
+    idReferencia: Number(ticketRow && ticketRow.id) || null,
+    ruta: ticketRow && ticketRow.ticket ? `detalle:ticket:${ticketRow.ticket}` : null
+  });
+}
+
+async function n6CreateTicketCommentNotification(executor, ticketRow, actor, message) {
+  return n6EmitTicketEvent(executor, {
+    codigoEvento: N6_EVENTO_COMENTARIO,
+    ticketRow,
+    actor,
+    titulo: 'Nuevo comentario en ticket',
+    mensaje: String(message || '').slice(0, 2000),
+    icono: '💬'
+  });
+}
+
 async function createTicketNotifications(executor, ticketRow, actor, type, message) {
   const mandatoryRoles = new Set([
     'director general',
@@ -1319,8 +1497,8 @@ async function createTicketComentario(req, res) {
   const conn=await db.getConnection();
   try { await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
     const [result]=await conn.query('INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario) VALUES (?,?,?)',[row.id,user.id,comentario]);
-    const notificationResult = await createTicketNotifications(conn,row,user,'TICKET_COMENTARIO',`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
-    await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId,notificaciones_creadas:notificationResult.inserted,destinatarios_notificacion:notificationResult.recipients}});
+    const notificationResult = await n6CreateTicketCommentNotification(conn,row,user,`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
+    await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId,notificaciones_creadas:notificationResult.created,destinatarios_notificacion:notificationResult.recipients}});
   } catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error agregando comentario.',error:error.message});} finally{conn.release();}
 }
 async function saveTicketValidacion(req,res){
@@ -2255,22 +2433,42 @@ async function createPendienteCommentNotifications(executor, access, actor, inte
   const actionText = preview
     ? `${actorInitials} comentó: ${preview}`
     : `${actorInitials} adjuntó${fileName ? `: ${fileName}` : ' un archivo'}`;
-
-  for (const idUsuario of recipientIds) {
-    await executor.query(`
-      INSERT INTO sup_notificaciones (
-        id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
-        icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
-        leido, activo
-      ) VALUES (?, 'TAREA_COMENTARIO', 'Nueva interacción en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1)
-    `, [
-      idUsuario,
-      actionText,
-      access.row.id_pendiente,
-      `home:tarea:${access.row.id_pendiente}`
-    ]);
+  // N6 unifica solo la interacción COMENTARIO. Un adjunto sin texto conserva
+  // temporalmente su notificación legacy para no cambiar el significado funcional.
+  if (!preview) {
+    for (const idUsuario of recipientIds) {
+      await executor.query(`
+        INSERT INTO sup_notificaciones (
+          id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
+          icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
+          leido, activo
+        ) VALUES (?, 'TAREA_COMENTARIO', 'Nueva interacción en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1)
+      `, [
+        idUsuario,
+        actionText,
+        access.row.id_pendiente,
+        `home:tarea:${access.row.id_pendiente}`
+      ]);
+    }
+    return recipientIds.size;
   }
-  return recipientIds.size;
+
+  const zoneScope = await n6ResolveTaskZoneScope(executor, access.row);
+  const result = await notificationService.emitWithConnection_gnral(executor, {
+    codigoEvento: N6_EVENTO_COMENTARIO,
+    destinatarios: [...recipientIds],
+    actorUserId: actorId || null,
+    ...zoneScope,
+    requireRoleMatrix: true,
+    allowMissingEvent: true,
+    titulo: 'Nuevo comentario en tarea',
+    mensaje: actionText,
+    icono: '💬',
+    accion: 'ABRIR_TAREA',
+    idReferencia: access.row.id_pendiente,
+    ruta: `home:tarea:${access.row.id_pendiente}`
+  });
+  return Number(result.created || 0);
 }
 
 async function createPendienteComentario(req, res) {
@@ -4056,6 +4254,9 @@ async function syncTickets(req, res) {
         });
       }
     }
+
+    // Los eventos criticos se generan una sola vez en la fachada data.controller.js
+    // despues de que este sync operativo termina correctamente.
 
     await connection.commit();
 

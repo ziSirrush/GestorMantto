@@ -1,0 +1,8 @@
+e6512d0014411515c45749084568819733098a0b68c4a2305df035deaf3e2afe  ./ADR_FASE_2_UNI_PORTAFOLIO_CUARTOS_V001.md
+07da19a31b0176381aedba79dec49740b29c469f57a192578fff2ed71231b8a8  ./README_FASE_2_UNI_PORTAFOLIO_CUARTOS_V001.md
+6b24d8d3cc4c4d2c628f8da374f8100c1b44da624f5a9c0ed6ce57eaae77ba11  ./backend/scripts/test-fase-2-portafolio-cuartos-uni.js
+135bf3424b3a1b01dc6945a905933c9bf3d2272f1e7953fa5b3d6f570e966bb3  ./backend/src/modules/portafolio/portafolio-comercial_uni.js
+d2d0e67f44c198555b7ff9b4065021cd7a85eb06f1a759e078f9704e1e83348f  ./backend/src/modules/portafolio/portafolio-consultas_uni.js
+b9ab0ff1cfa7e7cfad2a69d5e375d72d402cbebdd1cee4ec0baaa63c6dfe82c8  ./backend/src/modules/portafolio/portafolio.repository.js
+fc9171fed6e7c61c6ee7b33043cc1f4fa5f4cb10338f7f22d72cc12b81eef404  ./backend/src/modules/portafolio/portafolio.routes.js
+48493b3a8bbcf7ac6008ca0267151ce8679e842137b48531ff97d6126a1c0f53  ./backend/src/services/information-record-scope-gnral.service.js

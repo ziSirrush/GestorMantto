@@ -2,42 +2,17 @@
 
 const express = require('express');
 const controller = require('./experimental-equipos-criticos.controller');
-const { requireAuth } = require('../../middleware/auth.middleware');
-const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
+const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
+const { requirePortafolioEquipmentScope_gnral } = require('../../services/information-record-scope-gnral.service');
 
 const router = express.Router();
-const ACCESS_PERMISSION_UNI = 'EQUIPOS_CRITICOS_EXP_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const guard_exp = humanInformationGuard_gnral({
+  permissionCode: 'EQUIPOS_CRITICOS_EXP_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  domain: 'UNITED',
+  groupingCode: 'EXPERIMENTAL'
+});
 
-async function requireEquiposCriticosAccess_uni(req, res, next) {
-  try {
-    const effectiveUser = req.contextUser || req.user || {};
-    const userId = Number(effectiveUser.id_SB || effectiveUser.id || 0);
-    const allowed = await hasEffectivePermission(userId, ACCESS_PERMISSION_UNI);
-    if (!allowed) {
-      return res.status(403).json({
-        ok: false,
-        message: 'No tienes permiso para consultar Equipos Críticos Experimental.',
-        permiso: ACCESS_PERMISSION_UNI
-      });
-    }
-    return next();
-  } catch (error) {
-    return next(error);
-  }
-}
-
-router.get(
-  '/equipos-criticos',
-  requireAuth,
-  requireEquiposCriticosAccess_uni,
-  controller.getEquiposCriticos_uni
-);
-
-router.get(
-  '/equipos-criticos/:codigo/tickets',
-  requireAuth,
-  requireEquiposCriticosAccess_uni,
-  controller.getEquipoCriticoTickets_uni
-);
+router.get('/equipos-criticos', ...guard_exp, controller.getEquiposCriticos_uni);
+router.get('/equipos-criticos/:codigo/tickets', ...guard_exp, requirePortafolioEquipmentScope_gnral, controller.getEquipoCriticoTickets_uni);
 
 module.exports = router;

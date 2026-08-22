@@ -22,12 +22,23 @@
       <select id="ic-estado"><option value="">Todos los estados</option></select>
       <select id="ic-asesor"><option value="">Todo asesor</option></select>
       <select id="ic-supervisor"><option value="">Todo supervisor</option></select>
+      <select id="ic-anio"><option value="">Todos los años</option></select>
+      <button class="py-filter-clear" id="ic-limpiar" type="button">Limpiar filtros</button>
     </div>
     <div class="py-table-wrap">
       <table class="py-table">
-        <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th><th>Cliente</th></tr></thead>
+        <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Año</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th><th>Cliente</th></tr></thead>
         <tbody id="ic-tbody"></tbody>
       </table>
     </div>
+    <footer class="ic-table-footer">
+      <span id="ic-range">0 proyectos</span>
+      <div class="ic-pagination" aria-label="Paginación de proyectos cerrados">
+        <button id="ic-prev" type="button" aria-label="Página anterior">&#8249;</button>
+        <strong id="ic-page-number">1 / 1</strong>
+        <button id="ic-next" type="button" aria-label="Página siguiente">&#8250;</button>
+      </div>
+      <span class="ic-page-size-note">30 por página</span>
+    </footer>
   </section>
 </div>

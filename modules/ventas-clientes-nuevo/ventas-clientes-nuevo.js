@@ -75,11 +75,11 @@ function updateCommercialCopy(mode){
   const copy=$('#vcln-commercial-section .vcln-section-title p');
   if(!copy)return;
   const messages={
-    ALL:'Puedes asignar el cliente a cualquier asesor disponible.',
-    ADMIN_REL:'Solo se muestran los asesores relacionados contigo en usuarios_rel_admin.',
-    SELF:'El cliente quedará asignado a tus iniciales.'
+    ALL:'Puedes asignar el cliente a cualquier usuario comercial disponible en Corellian.',
+    LIMITED:'Solo se muestran usuarios comerciales incluidos en tu Alcance de Información.',
+    SELF:'Solo se muestran usuarios comerciales incluidos en tu Alcance de Información.'
   };
-  copy.textContent=messages[mode]||messages.SELF;
+  copy.textContent=messages[mode]||messages.LIMITED;
 }
 
 async function loadAssignableAdvisors(){
@@ -96,11 +96,7 @@ async function loadAssignableAdvisors(){
   }
 
   if(!rows.length){
-    throw new Error(
-      assignmentMode==='ADMIN_REL'
-        ? 'Tu usuario administrativo no tiene asesores relacionados en usuarios_rel_admin.'
-        : 'No hay iniciales comerciales disponibles para tu usuario.'
-    );
+    throw new Error('No hay usuarios comerciales disponibles dentro de tu Alcance de Información.');
   }
 }
 

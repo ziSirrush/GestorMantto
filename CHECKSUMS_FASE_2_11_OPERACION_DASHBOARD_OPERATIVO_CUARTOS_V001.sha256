@@ -1,0 +1,7 @@
+187ae0ab530741f197ecacd7d426bcbd1b4743e3bcb41909366d5dbed559ab39  ./README_FASE_2_11_OPERACION_DASHBOARD_OPERATIVO_CUARTOS_V001.md
+e43bf6571986298aeb3e89a499cfeb7f971c9ee74b1f5709c0b734a3e9faa90c  ./backend/scripts/test-fase-2-operacion-dashboard-operativo.js
+23bd251fcb2b7877a6d632d2d84ecd6e6476735ff9346cd38c7efce94f7680aa  ./backend/src/modules/dashboard-operativo/dashboard-operativo.controller.js
+525152350df9617a963c32e45bfe43ff7a2fe6278375ef0218ad1b1bd0ddbcd6  ./backend/src/modules/dashboard-operativo/dashboard-operativo.repository.js
+474113510e1770752854225b920dd5d6fd65589ddd2dcd7352cb15b99f841fce  ./backend/src/modules/dashboard-operativo/dashboard-operativo.routes.js
+9de84eb2bd27c5df7d12b8294a6619f111f7f5592b034ef265c72790c3dbcb32  ./backend/src/modules/dashboard-operativo/dashboard-operativo.service.js
+0a3ef723929e60492d490fba4e8ebd5a9cfedd9439cdd6c8c019cad14a003757  ./modules/dashboard-operativo/dashboard-operativo.js

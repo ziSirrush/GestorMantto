@@ -1,6 +1,8 @@
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
 const { validatePasswordRules } = require('../utils/passwordRules');
+const { resetUserPasswordById } = require('../../scripts/reset-user-id-password');
+const { hasGlobalProgrammerRole } = require('../services/permissions/global-programmer.service');
 
 const PUBLIC_USER_SELECT = `
   u.id_SB,
@@ -35,35 +37,8 @@ function normalizeText(value) {
   return value === undefined || value === null ? null : String(value).trim();
 }
 
-function roleNames(user) {
-  return [user?.rol, ...(user?.roles || [])].filter(Boolean);
-}
-
-async function userHasPermission(userId, permissionColumn) {
-  const allowed = new Set(['usuarios', 'crear_usuario', 'editar_usuario', 'eliminar_usuario', 'programador']);
-  if (!allowed.has(permissionColumn)) return false;
-
-  const [rows] = await db.query(
-    `SELECT 1
-     FROM usuarios u
-     LEFT JOIN usuario_roles ur
-       ON ur.id_usuario = u.id_SB
-      AND ur.activo = 1
-     INNER JOIN permisos p
-       ON p.rol_id IN (u.rol_id, ur.id_rol)
-      AND p.estado = 1
-     WHERE u.id_SB = ?
-       AND (p.programador = 1 OR p.${permissionColumn} = 1)
-     LIMIT 1`,
-    [userId]
-  );
-  return rows.length > 0;
-}
-
-async function canManageUsers(req, permissionColumn) {
-  const names = roleNames(req.user);
-  if (names.includes('Programador')) return true;
-  return userHasPermission(req.user.id_SB, permissionColumn);
+function canManageUsers(req) {
+  return hasGlobalProgrammerRole(req.actorUser || req.user);
 }
 
 async function audit(conn, actorId, eventType, details, ipAddress) {
@@ -220,7 +195,7 @@ async function zonasUsuario(req, res) {
 }
 
 async function createUsuario(req, res) {
-  if (!(await canManageUsers(req, 'crear_usuario'))) {
+  if (!canManageUsers(req)) {
     return res.status(403).json({ ok: false, message: 'No tienes permisos para crear usuarios.' });
   }
 
@@ -300,7 +275,7 @@ async function createUsuario(req, res) {
 }
 
 async function updateUsuario(req, res) {
-  if (!(await canManageUsers(req, 'editar_usuario'))) {
+  if (!canManageUsers(req)) {
     return res.status(403).json({ ok: false, message: 'No tienes permisos para editar usuarios.' });
   }
 
@@ -550,60 +525,55 @@ async function supervisoresMantenimiento(req, res) {
 }
 
 
-function generateTemporaryPassword() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  let body = '';
-  for (let index = 0; index < 12; index += 1) {
-    body += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return `Mg!${body}9`;
-}
-
 async function resetCredentials(req, res) {
-  if (!(await canManageUsers(req, 'editar_usuario'))) {
+  if (!canManageUsers(req)) {
     return res.status(403).json({ ok: false, message: 'No tienes permisos para resetear credenciales.' });
   }
 
   const userId = Number(req.params.id);
-  if (!Number.isFinite(userId)) return res.status(400).json({ ok: false, message: 'ID inválido.' });
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ ok: false, message: 'ID inválido.' });
+  }
 
-  const conn = await db.getConnection();
   try {
-    await conn.beginTransaction();
-    const [rows] = await conn.query('SELECT id_SB, nombre, correo FROM usuarios WHERE id_SB = ? LIMIT 1 FOR UPDATE', [userId]);
-    if (!rows.length) {
-      await conn.rollback();
-      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
-    }
-
-    const temporaryPassword = generateTemporaryPassword();
-    const hash = await bcrypt.hash(temporaryPassword, 10);
-    await conn.query(
-      `UPDATE usuarios
-       SET pass = ?, must_change_password = 1, failed_login_attempts = 0, locked_until = NULL,
-           respuesta_recuperacion = NULL, password_changed_at = NULL, first_login_completed_at = NULL,
-           updated_by = ?
-       WHERE id_SB = ?`,
-      [hash, req.user.correo || String(req.user.id_SB), userId]
-    );
-
-    await audit(conn, req.user.id_SB, 'ADMIN_USER_CREDENTIALS_RESET', {
-      target_user_id: userId,
-      target_email: rows[0].correo,
-      preserved_operational_data: true
-    }, req.ip);
-    await conn.commit();
+    const result = await resetUserPasswordById(userId, {
+      updatedBy: req.user.correo || String(req.user.id_SB),
+      actorId: req.user.id_SB,
+      ipAddress: req.ip
+    });
 
     return res.json({
       ok: true,
       message: 'Credenciales reseteadas correctamente.',
-      data: { temporary_password: temporaryPassword, must_change_password: true }
+      data: {
+        user_id: result.usuario.id_SB,
+        user_email: result.usuario.correo,
+        temporary_password: result.passwordTemporal,
+        must_change_password: true,
+        credential_verified: result.credentialVerified === true,
+        sessions_revoked: result.sessionsRevoked
+      }
     });
   } catch (error) {
-    await conn.rollback();
-    return res.status(500).json({ ok: false, message: 'Error reseteando credenciales.', error: error.message });
-  } finally {
-    conn.release();
+    if (error && error.code === 'USER_NOT_FOUND') {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
+    }
+    if (error && error.code === 'INVALID_USER_ID') {
+      return res.status(400).json({ ok: false, message: 'ID inválido.' });
+    }
+    if (error && ['RESET_UPDATE_FAILED', 'RESET_VERIFICATION_FAILED'].includes(error.code)) {
+      return res.status(500).json({
+        ok: false,
+        code: error.code,
+        message: 'El reseteo no pudo verificarse y fue revertido.',
+        error: error.message
+      });
+    }
+    return res.status(500).json({
+      ok: false,
+      message: 'Error reseteando credenciales.',
+      error: error.message
+    });
   }
 }
 

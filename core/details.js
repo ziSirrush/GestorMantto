@@ -5,7 +5,7 @@
   let ticketChatRefreshBusy = false;
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
-  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'' };
+  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null };
   function ticketKey(v){ return String(v || '').trim(); }
   function registerTickets(rows){
     (rows || []).forEach(t => {
@@ -69,6 +69,19 @@
     const roles=[u&&u.rol].concat((u&&u.roles)||[]).concat(((u&&u.roles_detalle)||[]).map(r=>r&&r.rol)).filter(Boolean).map(v=>String(v).trim().toLowerCase());
     return Boolean(u&&u.is_programador)||roles.includes('programador');
   }
+  function canManageProjectPhotos(){
+    const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
+    const roles=[u&&u.rol].concat((u&&u.roles)||[]).concat(((u&&u.roles_detalle)||[]).map(r=>r&&r.rol)).filter(Boolean).map(v=>String(v).trim().toLowerCase());
+    return roles.includes('programador')||roles.includes('director general');
+  }
+  async function postFormData(path,formData){
+    const headers=Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
+    const r=await fetch(API()+path,{method:'POST',headers,body:formData,cache:'no-store'});
+    const text=await r.text();let data=null;
+    try{data=text?JSON.parse(text):{};}catch(e){throw new Error('Respuesta inválida del backend.');}
+    if(!r.ok||data.ok===false)throw new Error(data.message||data.error||'No fue posible agregar la fotografía');
+    return data;
+  }
   function currentDetailMatches(type, id){
     if(!window.ManttoRouter || !window.ManttoRouter.getCurrent) return false;
     const current = window.ManttoRouter.getCurrent();
@@ -117,15 +130,15 @@
         @media(max-width:720px){.mg-folder-manager-body{max-height:300px;padding:10px 11px}.mg-folder-manager-tabs{overflow-x:auto;white-space:nowrap;padding-bottom:2px}.mg-folder-manager-tab{flex:0 0 auto}.mg-folder-row{min-height:36px}.mg-folder-item-open{padding:5px 3px}.mg-folder-manager-head{align-items:flex-start}.mg-folder-manager-actions{max-width:62%}.mg-folder-manager-open,.mg-folder-oauth-btn{padding:7px 9px}}
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
-        .mg-project-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-project-kpis.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-project-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-project-kpi{min-height:104px;border:0;border-radius:15px;padding:13px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;color:#fff;box-shadow:0 9px 20px rgba(13,46,110,.14)}.mg-project-kpi-icon{font-size:22px;line-height:1}.mg-project-kpi span:not(.mg-project-kpi-icon){display:block;font-size:9px;text-transform:uppercase;font-weight:900;letter-spacing:.04em;color:rgba(255,255,255,.94)}.mg-project-kpi strong{display:block;color:#fff;font-size:28px;line-height:1}.mg-project-kpi small{font-size:9px;color:rgba(255,255,255,.76)}.mg-project-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.mg-project-kpi-red{background:linear-gradient(135deg,#DC2626,#991B1B)}.mg-project-kpi-amber{background:linear-gradient(135deg,#D97706,#B45309)}.mg-project-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.mg-project-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.mg-project-kpi-cyan{background:linear-gradient(135deg,#0284C7,#0369A1)}.mg-project-kpi-slate{background:linear-gradient(135deg,#64748B,#475569)}.mg-project-dashboard{padding:14px}.mg-project-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.mg-project-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-project-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-project-ring-layout{display:flex;align-items:center;gap:14px}.mg-project-ring{width:132px;height:132px;border-radius:50%;position:relative;flex:0 0 132px;background:#E2E8F0}.mg-project-ring:after{content:'';position:absolute;inset:25px;border-radius:50%;background:#fff}.mg-project-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-size:18px;font-weight:900;color:#0D2E6E}.mg-project-ring-legend{display:grid;gap:6px;min-width:0}.mg-project-ring-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#475569}.mg-project-ring-dot{width:10px;height:10px;border-radius:50%}.mg-project-ring-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-project-ring-value{font-weight:800;color:#0D2E6E}.mg-project-equipment-empty{display:none}
+        .mg-project-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-project-kpis.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-project-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-project-kpi{min-height:104px;border:0;border-radius:15px;padding:13px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;color:#fff;box-shadow:0 9px 20px rgba(13,46,110,.14)}.mg-project-kpi-icon{font-size:22px;line-height:1}.mg-project-kpi span:not(.mg-project-kpi-icon){display:block;font-size:9px;text-transform:uppercase;font-weight:900;letter-spacing:.04em;color:rgba(255,255,255,.94)}.mg-project-kpi strong{display:block;color:#fff;font-size:28px;line-height:1}.mg-project-kpi small{font-size:9px;color:rgba(255,255,255,.76)}.mg-project-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.mg-project-kpi-red{background:linear-gradient(135deg,#DC2626,#991B1B)}.mg-project-kpi-amber{background:linear-gradient(135deg,#D97706,#B45309)}.mg-project-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.mg-project-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.mg-project-kpi-cyan{background:linear-gradient(135deg,#0284C7,#0369A1)}.mg-project-kpi-slate{background:linear-gradient(135deg,#64748B,#475569)}.mg-project-kpi-link{cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.mg-project-kpi-link:hover,.mg-project-kpi-link:focus-visible{transform:translateY(-2px);box-shadow:0 12px 28px rgba(15,23,42,.18);outline:2px solid rgba(27,79,216,.28);outline-offset:2px}.mg-project-dashboard{padding:14px}.mg-project-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.mg-project-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-project-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-project-ring-layout{display:flex;align-items:center;gap:14px}.mg-project-ring{width:132px;height:132px;border-radius:50%;position:relative;flex:0 0 132px;background:#E2E8F0}.mg-project-ring:after{content:'';position:absolute;inset:25px;border-radius:50%;background:#fff}.mg-project-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-size:18px;font-weight:900;color:#0D2E6E}.mg-project-ring-legend{display:grid;gap:6px;min-width:0}.mg-project-ring-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#475569}.mg-project-ring-dot{width:10px;height:10px;border-radius:50%}.mg-project-ring-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-project-ring-value{font-weight:800;color:#0D2E6E}.mg-project-equipment-empty{display:none}
         .mg-equipment-identity{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;padding:14px 16px}.mg-equipment-identity h3{margin:0;color:#0D2E6E;font-size:20px}.mg-equipment-identity strong{display:block;margin-top:4px;color:#1E293B;font-size:13px}.mg-equipment-identity span{display:inline-flex;margin-top:7px;padding:4px 9px;border-radius:999px;background:#EAF1FF;color:#0D2E6E;font-size:10px;font-weight:800}
         .mg-progress-panel{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;margin-bottom:14px;overflow:hidden}.mg-progress-panel-title{margin:0;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px}.mg-progress-list{padding:12px 14px}.mg-progress-item{border-bottom:1px solid #E2E8F0;padding:10px 0}.mg-progress-item:last-child{border-bottom:0}.mg-progress-button{display:block;width:100%;border:0;background:transparent;padding:0;cursor:pointer;text-align:left;color:inherit}.mg-progress-button:focus-visible{outline:2px solid #1B4FD8;outline-offset:4px;border-radius:6px}.mg-progress-label-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px}.mg-progress-label{font-size:11px;font-weight:800;color:#334155}.mg-progress-percent{font-size:11px;font-weight:900;color:#0D2E6E}.mg-progress-track{height:7px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-progress-fill{height:100%;border-radius:inherit;transition:width .25s ease}.mg-progress-fill.general{background:#1B4FD8}.mg-progress-fill.oc{background:#C83B3B}.mg-progress-fill.mo{background:#D7A514}.mg-progress-fill.aj{background:#238B45}.mg-progress-chevron{display:inline-block;margin-left:6px;font-size:10px;transition:transform .2s ease}.mg-progress-item.is-open .mg-progress-chevron{transform:rotate(180deg)}.mg-progress-detail{display:none;margin-top:11px;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;background:#F8FAFC}.mg-progress-item.is-open .mg-progress-detail{display:block}
         .mg-clickable-row{cursor:pointer}.mg-clickable-row:hover td{background:#EFF6FF}.mg-clickable-row:focus-visible{outline:2px solid #1B4FD8;outline-offset:-2px}.mg-project-equipment-table{min-width:1180px}.mg-project-ticket-table{min-width:2100px}.mg-ticket-group{cursor:pointer}.mg-ticket-group td{background:#EAF1FF!important;color:#0D2E6E!important;font-weight:900;border-top:2px solid #BFDBFE;padding:10px 12px!important}.mg-ticket-group:hover td{background:#DBEAFE!important}.mg-ticket-group:focus-visible{outline:2px solid #1B4FD8;outline-offset:-2px}.mg-ticket-group-header{display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:520px}.mg-ticket-group-equipment{display:flex;align-items:flex-start;gap:8px;min-width:0}.mg-ticket-group-equipment>span:last-child{display:flex;flex-direction:column;min-width:0}.mg-ticket-group-equipment strong{font-size:12px;line-height:1.25;color:#0D2E6E}.mg-ticket-group-reference{display:block;margin-top:3px;color:#64748B;font-size:10px;font-weight:500;line-height:1.25;white-space:normal}.mg-ticket-group-count{flex:0 0 auto;color:#64748B;font-size:11px;font-weight:700}.mg-ticket-group-chevron{display:inline-block;margin-top:1px;color:#1B4FD8;font-size:12px;transition:transform .2s ease}.mg-ticket-group:not(.is-open) .mg-ticket-group-chevron{transform:rotate(-90deg)}.mg-ticket-group-row[hidden]{display:none}.mg-section-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EFF6FF;padding-right:14px}.mg-section-toolbar h3{flex:1}.mg-section-toolbar label{display:flex;align-items:center;gap:7px;color:#0D2E6E;font-size:11px;font-weight:800}.mg-section-toolbar select{border:1px solid #BFDBFE;border-radius:8px;background:#fff;padding:6px 28px 6px 9px;color:#0D2E6E;font-weight:700}.mg-section-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mg-project-button{border:1px solid #1B4FD8;border-radius:8px;background:#fff;color:#1B4FD8;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer}.mg-project-button:hover{background:#EFF6FF}.mg-pdf-button{border:0;border-radius:8px;background:#B91C1C;color:#fff;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer}.mg-pdf-button:hover{background:#991B1B}.mg-pdf-button:disabled{opacity:.6;cursor:not-allowed}
         .mg-equipment-dashboard{padding:14px}.mg-equipment-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-equipment-kpis.cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.mg-equipment-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-equipment-kpis.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-equipment-ring-wrap{display:grid;grid-template-columns:minmax(0,1fr);margin-top:14px}.mg-equipment-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-equipment-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-equipment-ring-layout{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap}.mg-equipment-ring{width:150px;height:150px;border-radius:50%;position:relative;flex:0 0 150px;background:#E2E8F0}.mg-equipment-ring:after{content:'';position:absolute;inset:28px;border-radius:50%;background:#fff}.mg-equipment-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;color:#0D2E6E}.mg-equipment-ring-center strong{font-size:22px;line-height:1}.mg-equipment-ring-center span{margin-top:3px;font-size:9px;font-weight:800;text-transform:uppercase;color:#64748B}.mg-equipment-ring-legend{display:grid;gap:8px;min-width:min(260px,100%)}.mg-equipment-ring-item{display:grid;grid-template-columns:11px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11px;color:#475569}.mg-equipment-ring-dot{width:11px;height:11px;border-radius:50%}.mg-equipment-ring-value{font-weight:900;color:#0D2E6E}.mg-equipment-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px}.mg-line-chart{border:1px solid #E2E8F0;border-radius:11px;padding:12px;background:#fff}.mg-line-chart h4{margin:0;color:#0D2E6E;font-size:12px}.mg-line-chart p{margin:3px 0 10px;color:#64748B;font-size:10px}.mg-line-chart svg{display:block;width:100%;height:auto}.mg-line-chart .grid{stroke:#E2E8F0;stroke-width:1}.mg-line-chart .axis-label{fill:#64748B;font-size:8px}.mg-line-chart .line{fill:none;stroke:#1B4FD8;stroke-width:2.5}.mg-line-chart .point{fill:#fff;stroke:#1B4FD8;stroke-width:2}.mg-service-panel-toggle{width:100%;border:0;background:#EFF6FF;color:#0D2E6E;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:800;cursor:pointer}.mg-service-months{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px}.mg-service-month{border:1px solid #FED7AA;border-radius:10px;background:#FFF7ED;padding:10px;text-align:center;min-height:66px}.mg-service-month.confirmed{border-color:#86EFAC;background:#F0FDF4}.mg-service-month button{border:0;background:transparent;width:100%;cursor:pointer;color:inherit}.mg-service-month button:disabled{cursor:default}.mg-service-month strong{display:block;color:#0D2E6E;font-size:10px}.mg-service-month span{display:block;margin-top:4px;color:#D97706;font-size:9px}.mg-service-month.confirmed span{color:#15803D}.mg-equipment-ticket-table{min-width:2100px}.mg-equipment-ticket-row[hidden]{display:none}.mg-mobile-fold-title{display:none}
         .mg-compact-table{width:100%;border-collapse:collapse}.mg-compact-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:10px;padding:8px;white-space:nowrap}.mg-compact-table td{font-size:11px;color:#334155;padding:9px 8px;border-bottom:1px solid #E2E8F0;vertical-align:top}.mg-compact-table tr:last-child td{border-bottom:0}.mg-compact-table-wrap{overflow:auto}.mg-section-hidden{display:none!important}
-        .mg-project-overview{display:grid;grid-template-columns:minmax(250px,36%) 1fr;gap:14px;margin-bottom:14px}.mg-project-overview.no-photo{grid-template-columns:1fr}.mg-project-cover{display:block;width:100%;height:260px;border:0;border-radius:12px;overflow:hidden;padding:0;background:#E2E8F0;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.08)}.mg-project-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}.mg-project-overview .mg-detail-section{margin-bottom:0}
+        .mg-project-overview{display:grid;grid-template-columns:minmax(250px,36%) 1fr;gap:14px;margin-bottom:14px}.mg-project-overview.no-photo{grid-template-columns:1fr}.mg-project-cover{display:block;width:100%;height:260px;border:0;border-radius:12px;overflow:hidden;padding:0;background:#E2E8F0;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.08)}.mg-project-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}.mg-project-cover-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed #93C5FD;background:#EFF6FF;color:#0D2E6E;font-weight:900}.mg-project-cover-empty strong{font-size:28px;line-height:1}.mg-project-cover-empty span{font-size:12px}.mg-project-overview .mg-detail-section{margin-bottom:0}
         .mg-stage-bars{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;padding:14px;margin-bottom:14px}.mg-stage-row{margin:11px 0}.mg-stage-row:first-child{margin-top:0}.mg-stage-row:last-child{margin-bottom:0}.mg-stage-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;font-size:11px;font-weight:800;color:#334155}.mg-stage-track{height:9px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-stage-fill{height:100%;border-radius:inherit}.mg-stage-fill.general{background:#1B4FD8}.mg-stage-fill.oc{background:#C83B3B}.mg-stage-fill.mo{background:#D7A514}.mg-stage-fill.aj{background:#238B45}
-        .mg-photo-lightbox{position:fixed;inset:0;z-index:10050;background:rgba(2,6,23,.92);display:grid;place-items:center;padding:28px}.mg-photo-lightbox[hidden]{display:none}.mg-photo-lightbox figure{margin:0;max-width:min(1120px,88vw);text-align:center}.mg-photo-lightbox img{display:block;max-width:100%;max-height:76vh;margin:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}.mg-photo-lightbox figcaption{color:#fff;margin-top:10px;font-size:12px}.mg-photo-close,.mg-photo-nav{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.mg-photo-close{top:18px;right:22px;width:44px;height:44px;border-radius:50%;font-size:30px}.mg-photo-nav{top:50%;transform:translateY(-50%);width:50px;height:70px;border-radius:12px;font-size:46px}.mg-photo-nav.prev{left:18px}.mg-photo-nav.next{right:18px}.mg-photo-principal{margin-top:14px;border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0D2E6E;color:#fff;padding:10px 15px;font-weight:800;cursor:pointer}.mg-photo-principal:disabled{background:#475569;cursor:default;opacity:.9}
+        .mg-photo-lightbox{position:fixed;inset:0;z-index:10050;background:rgba(2,6,23,.92);display:grid;place-items:center;padding:28px}.mg-photo-lightbox[hidden]{display:none}.mg-photo-lightbox figure{margin:0;max-width:min(1120px,88vw);text-align:center}.mg-photo-lightbox img{display:block;max-width:100%;max-height:76vh;margin:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}.mg-photo-lightbox figcaption{color:#fff;margin-top:10px;font-size:12px}.mg-photo-close,.mg-photo-nav{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.mg-photo-close{top:18px;right:22px;width:44px;height:44px;border-radius:50%;font-size:30px}.mg-photo-nav{top:50%;transform:translateY(-50%);width:50px;height:70px;border-radius:12px;font-size:46px}.mg-photo-nav.prev{left:18px}.mg-photo-nav.next{right:18px}.mg-photo-actions{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}.mg-photo-current,.mg-photo-principal,.mg-photo-add,.mg-photo-project{border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0D2E6E;color:#fff;padding:10px 15px;font-weight:800}.mg-photo-current{background:#475569;cursor:default}.mg-photo-principal,.mg-photo-add,.mg-photo-project{cursor:pointer}.mg-photo-add{background:#166534}.mg-photo-project{background:#1B4FD8}.mg-photo-principal:disabled,.mg-photo-add:disabled,.mg-photo-project:disabled{background:#475569;cursor:default;opacity:.9}
         .mg-ticket-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;height:calc(100vh - 205px);min-height:560px}.mg-ticket-main{min-width:0;overflow-y:auto;padding-right:3px}.mg-ticket-side{min-width:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:12px;overflow:hidden}.mg-ticket-chat,.mg-ticket-validation{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:14px;overflow:hidden}.mg-ticket-panel-title{margin:0;padding:10px 13px;background:#EFF6FF;color:#0D2E6E;font-size:12px;font-weight:900}.mg-ticket-chat{display:flex;flex-direction:column;min-height:0}.mg-ticket-chat-list{flex:1;min-height:0;overflow-y:auto;padding:10px;background:#F8FAFC}.mg-ticket-message{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:9px 10px;margin-bottom:8px;box-shadow:0 2px 7px rgba(15,23,42,.04)}.mg-ticket-message.mine{border-color:#93C5FD;background:#EFF6FF}.mg-ticket-message-meta{display:flex;justify-content:space-between;gap:8px;color:#64748B;font-size:9px;font-weight:800;margin-bottom:4px}.mg-ticket-message-text{white-space:pre-wrap;color:#1E293B;font-size:12px;line-height:1.42}.mg-ticket-chat-form{display:flex;gap:7px;padding:9px;border-top:1px solid #E2E8F0;background:#fff}.mg-ticket-chat-form textarea{flex:1;min-width:0;min-height:44px;max-height:100px;resize:vertical;border:1px solid #CBD5E1;border-radius:10px;padding:9px;font:inherit;font-size:12px}.mg-ticket-chat-form button,.mg-ticket-validation button{border:0;border-radius:10px;background:#1B4FD8;color:#fff;font-weight:900;cursor:pointer;padding:0 13px}.mg-ticket-chat-form button:disabled,.mg-ticket-validation button:disabled{opacity:.55;cursor:wait}.mg-ticket-validation-body{padding:11px}.mg-ticket-validation-status{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #E2E8F0;border-radius:10px;padding:9px 10px;margin-bottom:9px}.mg-ticket-validation-status strong{font-size:12px;color:#0D2E6E}.mg-ticket-validation-status span{font-size:10px;font-weight:900;border-radius:999px;padding:4px 8px;background:#F1F5F9;color:#475569}.mg-ticket-validation label{display:block;font-size:9px;text-transform:uppercase;font-weight:900;color:#64748B;margin:8px 0 4px}.mg-ticket-validation select,.mg-ticket-validation textarea{width:100%;border:1px solid #CBD5E1;border-radius:10px;padding:8px 9px;font:inherit;font-size:11px;background:#fff}.mg-ticket-validation textarea{min-height:64px;resize:vertical}.mg-ticket-validation-actions{display:flex;justify-content:flex-end;margin-top:9px}.mg-ticket-validation-actions button{height:36px}.mg-ticket-validation-meta{margin-top:8px;color:#64748B;font-size:9px;line-height:1.45}.mg-ticket-empty{padding:16px;text-align:center;color:#64748B;font-size:11px}
         @media(max-width:1100px){.mg-ticket-layout{grid-template-columns:minmax(0,1fr) 290px}}
         @media(max-width:900px){.mg-ticket-layout{grid-template-columns:1fr;height:auto}.mg-ticket-main{overflow:visible}.mg-ticket-side{grid-template-rows:360px auto;overflow:visible}}
@@ -142,12 +155,15 @@
       lightbox.id='mg-photo-lightbox';
       lightbox.className='mg-photo-lightbox';
       lightbox.hidden=true;
-      lightbox.innerHTML='<button type="button" class="mg-photo-close" aria-label="Cerrar">×</button><button type="button" class="mg-photo-nav prev" aria-label="Anterior">‹</button><figure><img alt="Fotografía del proyecto"><figcaption></figcaption><button type="button" class="mg-photo-principal">Usar como foto principal</button></figure><button type="button" class="mg-photo-nav next" aria-label="Siguiente">›</button>';
+      lightbox.innerHTML='<button type="button" class="mg-photo-close" aria-label="Cerrar">×</button><button type="button" class="mg-photo-nav prev" aria-label="Anterior">‹</button><figure><img alt="Fotografía del proyecto"><figcaption></figcaption><div class="mg-photo-actions"><span class="mg-photo-current">Foto Principal Actual</span><button type="button" class="mg-photo-principal">Seleccionar Foto Principal</button><button type="button" class="mg-photo-add">Agregar Foto</button><button type="button" class="mg-photo-project">Ir a Proyecto</button></div><input type="file" class="mg-photo-input" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden></figure><button type="button" class="mg-photo-nav next" aria-label="Siguiente">›</button>';
       document.body.appendChild(lightbox);
       lightbox.querySelector('.mg-photo-close').addEventListener('click',closeProjectPhotoLightbox);
+      lightbox.querySelector('.mg-photo-add').addEventListener('click',()=>openProjectPhotoUploader());
+      lightbox.querySelector('.mg-photo-input').addEventListener('change',handleProjectPhotoSelected);
       lightbox.querySelector('.mg-photo-nav.prev').addEventListener('click',()=>moveProjectPhoto(-1));
       lightbox.querySelector('.mg-photo-nav.next').addEventListener('click',()=>moveProjectPhoto(1));
       lightbox.querySelector('.mg-photo-principal').addEventListener('click',selectProjectPrincipalPhoto);
+      lightbox.querySelector('.mg-photo-project').addEventListener('click',goToPhotoProject);
       lightbox.addEventListener('click',e=>{if(e.target===lightbox)closeProjectPhotoLightbox();});
     }
     return view;
@@ -288,14 +304,18 @@
     const match=(photos||[]).find(item=>item.campo===selected);
     return match?match.url:((photos&&photos[0]&&photos[0].url)||'');
   }
-  function openProjectPhotoLightbox(projectId, projectName, photos, principalUrl){
+  function openProjectPhotoLightbox(projectId, projectName, photos, principalUrl, options){
     if(!photos||!photos.length)return;
     ensure();
+    const cfg=options||{};
     projectPhotoState.photos=photos.slice();
     projectPhotoState.index=Math.max(0,photos.findIndex(item=>item.url===principalUrl));
     projectPhotoState.projectId=String(projectId||'');
     projectPhotoState.projectName=String(projectName||'');
     projectPhotoState.principalUrl=String(principalUrl||'');
+    projectPhotoState.showProjectLink=Boolean(cfg.showProjectLink);
+    projectPhotoState.projectOptions=cfg.projectOptions?Object.assign({},cfg.projectOptions):null;
+    projectPhotoState.onPhotoChange=typeof cfg.onPhotoChange==='function'?cfg.onPhotoChange:null;
     renderProjectPhotoLightbox();
     document.getElementById('mg-photo-lightbox').hidden=false;
   }
@@ -308,24 +328,103 @@
     const nav=projectPhotoState.photos.length>1;
     lightbox.querySelector('.mg-photo-nav.prev').style.display=nav?'block':'none';
     lightbox.querySelector('.mg-photo-nav.next').style.display=nav?'block':'none';
+    const principalIndex=projectPhotoState.photos.findIndex(photo=>photo.url===projectPhotoState.principalUrl);
+    const current=lightbox.querySelector('.mg-photo-current');
+    if(current)current.textContent='Foto Principal Actual'+(principalIndex>=0?' · '+projectPhotoState.photos[principalIndex].label:' · Sin definir');
     const btn=lightbox.querySelector('.mg-photo-principal');
     const allowed=isProgramador();
-    btn.style.display=allowed?'inline-block':'none';
-    btn.disabled=allowed&&item.url===projectPhotoState.principalUrl;
-    btn.textContent=btn.disabled?'Foto principal actual':'Usar como foto principal';
+    btn.style.display='inline-block';
+    btn.disabled=!allowed||item.url===projectPhotoState.principalUrl;
+    btn.textContent='Seleccionar Foto Principal';
+    btn.title=!allowed?'Disponible únicamente para Programador':(item.url===projectPhotoState.principalUrl?'La fotografía mostrada ya es la principal':'Seleccionar esta fotografía como principal');
+    const addBtn=lightbox.querySelector('.mg-photo-add');
+    const canManage=canManageProjectPhotos();
+    const canAdd=canManage&&projectPhotoState.photos.length<7;
+    addBtn.style.display='inline-block';
+    addBtn.disabled=!canAdd||projectPhotoState.uploading;
+    addBtn.textContent=projectPhotoState.uploading?'Subiendo...':'Agregar Foto';
+    addBtn.title=!canManage?'Disponible para Programador o Director General':(projectPhotoState.photos.length>=7?'El proyecto ya tiene el máximo de 7 fotografías':'Agregar una fotografía al proyecto');
+    const projectBtn=lightbox.querySelector('.mg-photo-project');
+    if(projectBtn){
+      projectBtn.style.display=projectPhotoState.showProjectLink?'inline-block':'none';
+      projectBtn.disabled=!projectPhotoState.showProjectLink;
+    }
+  }
+  function setProjectPhotoContext(projectId,projectName,photos,principalUrl){
+    projectPhotoState.photos=Array.isArray(photos)?photos.slice():[];
+    projectPhotoState.index=Math.max(0,projectPhotoState.photos.findIndex(item=>item.url===principalUrl));
+    projectPhotoState.projectId=String(projectId||'');
+    projectPhotoState.projectName=String(projectName||'');
+    projectPhotoState.principalUrl=String(principalUrl||'');
+    projectPhotoState.showProjectLink=false;
+    projectPhotoState.projectOptions=null;
+    projectPhotoState.onPhotoChange=null;
+  }
+  function notifyProjectPhotoChange(change){
+    if(typeof projectPhotoState.onPhotoChange!=='function')return;
+    try{projectPhotoState.onPhotoChange(Object.assign({projectId:projectPhotoState.projectId,principalUrl:projectPhotoState.principalUrl,photos:projectPhotoState.photos.slice()},change||{}));}catch(error){console.warn('[ManttoDetails] No fue posible sincronizar el cambio de fotografías con la vista origen.',error);}
+  }
+  function openProjectPhotoUploader(projectId,projectName,photos,principalUrl){
+    if(!canManageProjectPhotos())return;
+    if(projectId!==undefined)setProjectPhotoContext(projectId,projectName,photos,principalUrl);
+    if(!projectPhotoState.projectId||projectPhotoState.photos.length>=7)return;
+    ensure();
+    const input=document.querySelector('#mg-photo-lightbox .mg-photo-input');
+    if(input){input.value='';input.click();}
+  }
+  async function handleProjectPhotoSelected(event){
+    const input=event&&event.target;const file=input&&input.files&&input.files[0];
+    if(!file||projectPhotoState.uploading||!projectPhotoState.projectId)return;
+    if(projectPhotoState.photos.length>=7){window.alert('El proyecto ya tiene el máximo de 7 fotografías.');input.value='';return;}
+    projectPhotoState.uploading=true;
+    if(projectPhotoState.photos.length)renderProjectPhotoLightbox();
+    try{
+      const form=new FormData();form.append('foto',file,file.name);
+      const response=await postFormData('/api/ins-fl/proyectos/fotografias/'+encodeURIComponent(projectPhotoState.projectId),form);
+      const data=response&&response.data?response.data:{};
+      const match=String(data.campo||'').match(/(\d+)$/);
+      const slotNumber=Number((match&&match[1])||projectPhotoState.photos.length+1);
+      const item={campo:data.campo,url:String(data.url||''),label:'Foto '+slotNumber};
+      if(!item.campo||!/^https?:\/\//i.test(item.url))throw new Error('El backend no devolvió la fotografía guardada.');
+      projectPhotoState.photos.push(item);
+      projectPhotoState.index=projectPhotoState.photos.length-1;
+      if(!projectPhotoState.principalUrl||data.foto_principal===data.campo)projectPhotoState.principalUrl=item.url;
+      if(!projectPhotoState.showProjectLink){
+        const emptyCover=document.querySelector('[data-project-photo-add]');
+        if(emptyCover){
+          emptyCover.classList.remove('mg-project-cover-empty');
+          emptyCover.removeAttribute('data-project-photo-add');
+          emptyCover.setAttribute('data-project-photo-open','');
+          emptyCover.innerHTML='<img id="mg-project-cover-image" src="'+esc(projectPhotoState.principalUrl||item.url)+'" alt="Foto principal del proyecto">';
+          emptyCover.addEventListener('click',()=>openProjectPhotoLightbox(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl));
+        }
+        const hero=document.getElementById('mg-project-cover-image');if(hero&&projectPhotoState.principalUrl)hero.src=projectPhotoState.principalUrl;
+      }
+      notifyProjectPhotoChange({type:'added',item});
+      ensure();document.getElementById('mg-photo-lightbox').hidden=false;renderProjectPhotoLightbox();
+    }catch(error){window.alert(error.message||'No fue posible agregar la fotografía.');}
+    finally{projectPhotoState.uploading=false;if(input)input.value='';if(projectPhotoState.photos.length)renderProjectPhotoLightbox();}
   }
   function moveProjectPhoto(delta){
     const total=projectPhotoState.photos.length;if(!total)return;
     projectPhotoState.index=(projectPhotoState.index+delta+total)%total;renderProjectPhotoLightbox();
   }
   function closeProjectPhotoLightbox(){const el=document.getElementById('mg-photo-lightbox');if(el)el.hidden=true;}
+  function goToPhotoProject(){
+    const id=String(projectPhotoState.projectId||'').trim();
+    if(!id)return;
+    const options=projectPhotoState.projectOptions?Object.assign({},projectPhotoState.projectOptions):{};
+    closeProjectPhotoLightbox();
+    openProyecto(id,options);
+  }
   async function selectProjectPrincipalPhoto(){
     if(!isProgramador())return;
     const item=projectPhotoState.photos[projectPhotoState.index];if(!item||!item.campo||!projectPhotoState.projectId)return;
     try{
       await patchJson('/api/ins-fl/proyectos/fotografias/'+encodeURIComponent(projectPhotoState.projectId)+'/principal',{campo:item.campo});
       projectPhotoState.principalUrl=item.url;
-      const hero=document.getElementById('mg-project-cover-image');if(hero)hero.src=item.url;
+      if(!projectPhotoState.showProjectLink){const hero=document.getElementById('mg-project-cover-image');if(hero)hero.src=item.url;}
+      notifyProjectPhotoChange({type:'principal',item});
       renderProjectPhotoLightbox();
     }catch(error){window.alert(error.message||'No fue posible actualizar la foto principal.');}
   }
@@ -537,7 +636,8 @@
     const inProcess=Math.max(0,coreRows.length-closed);
     const coreEquipmentRows=coreRows.length?coreRows.map(row=>{const ref=valueOf(row,['referencia_sitio','REFERENCIA EN SITIO']);const key=resolvedName&&ref?resolvedName+'|||'+ref:ref;return '<tr><td><button class="mg-link" data-equipo="'+esc(key)+'">'+esc(ref)+'</button></td><td>'+esc(valueOf(row,['estatus','ESTATUS']))+'</td><td>'+fmtDate(valueOf(row,['fecha_visita','FECHA VISITA']))+'</td><td>'+fmtDate(valueOf(row,['fecha_fin_montaje_real','FIN DE MONTAJE REAL']))+'</td><td>'+fmtDate(valueOf(row,['fecha_fin_ajuste_real','FIN DE AJUSTE REAL']))+'</td><td>'+equipmentProgress(row)+'%</td></tr>';}).join(''):'<tr><td colspan="6" class="mg-empty">Sin equipos de Instalaciones.</td></tr>';
     const generalPct=Math.round((toPct(phaseBars[0].value)*.4)+(toPct(phaseBars[1].value)*.4)+(toPct(phaseBars[2].value)*.2));
-    const overview='<div class="mg-project-overview '+(principalUrl?'':'no-photo')+'">'+(principalUrl?'<button type="button" class="mg-project-cover" data-project-photo-open aria-label="Abrir fotografías del proyecto"><img id="mg-project-cover-image" src="'+esc(principalUrl)+'" alt="Foto principal del proyecto"></button>':'')+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
+    const coverHtml=principalUrl?'<button type="button" class="mg-project-cover" data-project-photo-open aria-label="Abrir fotografías del proyecto"><img id="mg-project-cover-image" src="'+esc(principalUrl)+'" alt="Foto principal del proyecto"></button>':(canManageProjectPhotos()?'<button type="button" class="mg-project-cover mg-project-cover-empty" data-project-photo-add aria-label="Agregar fotografía al proyecto"><strong>+</strong><span>Agregar foto</span></button>':'');
+    const overview='<div class="mg-project-overview '+(coverHtml?'':'no-photo')+'">'+coverHtml+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
     const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
     const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
@@ -553,8 +653,11 @@
     show('Proyecto · '+resolvedName,valueOf(first,['id_proyecto'])||proyecto,coreHtml+unitedHtml);
     const detailRoot=document.getElementById('mg-detail-body');
     bindLinks(detailRoot);
+    setProjectPhotoContext(proyecto,resolvedName,photos,principalUrl);
     const photoButton=detailRoot&&detailRoot.querySelector('[data-project-photo-open]');
-    if(photoButton)photoButton.addEventListener('click',()=>openProjectPhotoLightbox(proyecto,resolvedName,photos,principalUrl));
+    if(photoButton)photoButton.addEventListener('click',()=>openProjectPhotoLightbox(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl));
+    const addPhotoButton=detailRoot&&detailRoot.querySelector('[data-project-photo-add]');
+    if(addPhotoButton)addPhotoButton.addEventListener('click',()=>openProjectPhotoUploader(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl));
     initProjectFolderManager(proyecto);
   }
 
@@ -625,6 +728,11 @@
       const distributions=data.project_distributions||{};
       const general=[['Ciudad',p.ciudad],['Estado',p.estado],['Estatus Serv.',p.estatus_servicio],['Zona Op.',p.zona_operativa||p.zona],['Dirección',p.direccion],['Superintendente',p.superintendente],['Supervisor',p.supervisor_zona||p.supervisor]];
       const kpi=(label,value,icon,tone,subtitle)=>'<article class="mg-project-kpi mg-project-kpi-'+esc(tone)+'"><span class="mg-project-kpi-icon" aria-hidden="true">'+esc(icon)+'</span><strong>'+esc(value||0)+'</strong><span>'+esc(label)+'</span>'+(subtitle?'<small>'+esc(subtitle)+'</small>':'')+'</article>';
+      const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}).format(Number(v)||0);
+      const gestionCreditoId=Number(metrics.gestion_credito_id||0);
+      const deudaSubtitle=gestionCreditoId>0?'Abrir Gestión de Crédito':'Sin Gestión de Crédito relacionada';
+      const debtKpi=(label,value,icon,tone)=>'<article class="mg-project-kpi mg-project-kpi-'+esc(tone)+(gestionCreditoId>0?' mg-project-kpi-link':'')+'"'+(gestionCreditoId>0?' data-project-gc-id="'+esc(gestionCreditoId)+'" tabindex="0" role="button"':'')+'><span class="mg-project-kpi-icon" aria-hidden="true">'+esc(icon)+'</span><strong>'+esc(money(value))+'</strong><span>'+esc(label)+'</span><small>'+esc(deudaSubtitle)+'</small></article>';
+      const debtKpis='<div class="mg-project-kpis cols-3">'+debtKpi('Adeudo Total',metrics.adeudo_total,'💰','red')+debtKpi('Adeudo MP',metrics.adeudo_mp,'🧾','amber')+debtKpi('Adeudo VA',metrics.adeudo_va,'➕','indigo')+'</div>';
       const criticalPeriodSubtitle='≥ '+esc(metrics.criticos_min_fallas||3)+' fallas BLT · '+esc(metrics.criticos_periodo_dias||35)+' días';
       const equipmentKpis='<div class="mg-project-kpis cols-3">'+kpi('Equipos activos',metrics.equipos_activos,'🛠️','green','Portafolio activo')+kpi('Equipos detenidos',metrics.equipos_detenidos,'⛔','red','No funcionando')+kpi('Críticos del período',metrics.equipos_criticos_periodo,'💥','indigo',criticalPeriodSubtitle)+'</div>';
       const callKpis='<div class="mg-project-kpis cols-4">'+kpi('Total de llamadas',metrics.llamadas_total_anio,'☎️','blue','Año actual')+kpi('Resp. BLT',metrics.llamadas_blt_anio,'🔧','indigo','Año actual')+kpi('Resp. Cliente',metrics.llamadas_cliente_anio,'👤','cyan','Año actual')+kpi('Sin responsable',metrics.llamadas_sin_responsable_anio,'❓','slate','Año actual')+'</div>';
@@ -632,13 +740,25 @@
       const ringCard=(title,items,total)=>{const rows=(items||[]).filter(item=>Number(item.total)>0);let acc=0;const sum=Number(total)||rows.reduce((a,b)=>a+Number(b.total||0),0);const stops=rows.map((item,index)=>{const start=sum?acc/sum*360:0;acc+=Number(item.total||0);const end=sum?acc/sum*360:0;return ringPalette[index%ringPalette.length]+' '+start+'deg '+end+'deg';});const bg=stops.length?'conic-gradient('+stops.join(',')+')':'#E2E8F0';const legend=rows.map((item,index)=>'<div class="mg-project-ring-item"><span class="mg-project-ring-dot" style="background:'+ringPalette[index%ringPalette.length]+'"></span><span class="mg-project-ring-label" title="'+esc(item.label)+'">'+esc(item.label)+'</span><span class="mg-project-ring-value">'+esc(item.total)+'</span></div>').join('')||'<div class="mg-empty">Sin llamadas</div>';return '<article class="mg-project-ring-card"><h4>'+esc(title)+'</h4><div class="mg-project-ring-layout"><div class="mg-project-ring" style="background:'+bg+'"><span class="mg-project-ring-center">'+esc(sum)+'</span></div><div class="mg-project-ring-legend">'+legend+'</div></div></article>';};
       const rings='<div class="mg-project-rings">'+ringCard('Total de llamadas',distributions.total_responsabilidad,metrics.llamadas_total_anio)+ringCard('Resp. BLT por equipo',distributions.blt_por_equipo,metrics.llamadas_blt_anio)+ringCard('Resp. Cliente por equipo',distributions.cliente_por_equipo,metrics.llamadas_cliente_anio)+'</div>';
       const yearOptions=years.map(y=>'<option value="'+y+'" '+(y===selectedYear?'selected':'')+'>'+y+'</option>').join('');
-      show('Proyecto · '+(p.proyecto_nombre||p.nombre_publico||p.proyecto||proyecto),proyecto,
+      const proyectoVisible=projectNameDisplay(p.proyecto_nombre||p.nombre_publico||p.proyecto||proyecto);
+      const proyectoCodigoVisible=projectNameDisplay(p.proyecto||proyecto);
+      show('Proyecto · '+proyectoVisible,proyectoCodigoVisible,
         '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid(general)+'</section>'+ 
-        '<section class="mg-detail-section"><h3>Indicadores del Proyecto</h3><div class="mg-project-dashboard">'+equipmentKpis+callKpis+rings+'</div></section>'+ 
+        '<section class="mg-detail-section"><h3>Indicadores del Proyecto</h3><div class="mg-project-dashboard">'+equipmentKpis+callKpis+debtKpis+rings+'</div></section>'+ 
         '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3>'+legendHostVisual(['CRITICO','NO_FUNCIONANDO_PROYECTO'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'</tbody></table></div></section>'+ 
         '<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Proyecto</h3><label>Año <select id="mg-project-ticket-year">'+yearOptions+'</select></label></div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody>'+groupedTicketRows(tickets)+'</tbody></table></div></section>');
       const detailRoot=document.getElementById('mg-detail-body');
       bindLinks(detailRoot);
+      detailRoot.querySelectorAll('[data-project-gc-id]').forEach(card=>{
+        const openGestionCredito=()=>{
+          const id=Number(card.getAttribute('data-project-gc-id')||0);
+          if(id>0&&window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
+            window.ManttoRouter.go('cobranza-uni-estados-cuenta',{id_gc:id,id:id,proyecto:proyecto,source:'detalle_proyecto'});
+          }
+        };
+        card.addEventListener('click',openGestionCredito);
+        card.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openGestionCredito();}});
+      });
       detailRoot.querySelectorAll('.mg-clickable-row').forEach(row=>row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();row.click();}}));
       const ticketGroupHeaders=Array.from(detailRoot.querySelectorAll('[data-ticket-group-toggle]'));
       const openTicketGroup=groupId=>{
@@ -1170,5 +1290,5 @@
     if(!document.hidden && ticketChatRefreshId) refreshTicketChat(ticketChatRefreshId);
   });
 
-  window.ManttoDetails = { show, close, render, openProyecto, openEquipo:openEquipo_gnral, openEquipo_uni, openEquipo_cor, openEquipo_gnral, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
+  window.ManttoDetails = { show, close, render, openProyecto, openProjectPhotos:openProjectPhotoLightbox, openEquipo:openEquipo_gnral, openEquipo_uni, openEquipo_cor, openEquipo_gnral, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };
 })();

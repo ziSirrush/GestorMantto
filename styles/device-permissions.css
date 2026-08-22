@@ -52,3 +52,83 @@
 .device-permission-label small{display:block;margin-top:4px;color:#6f7f96;font-size:11px;font-weight:650;line-height:1.35}
 .device-permission-row[data-state="NO_DISPONIBLE"]{background:#f8fafc}
 .device-permission-row[data-state="NO_DISPONIBLE"] .device-permission-action{color:#52657d;background:#fff}
+
+/* FIX URGENTE RESPONSIVE MOVIL V001
+   Barra contextual simple: Back + titulo.
+   En responsive se ocultan subtitulo, frase/fecha/hora y version global.
+   La version permanece disponible dentro de Mi perfil. */
+@media(max-width:920px){
+  #app-context-nav{
+    height:56px!important;
+    min-height:56px!important;
+    max-height:56px!important;
+    flex:0 0 56px!important;
+    padding:7px 10px!important;
+    overflow:hidden!important;
+  }
+
+  #app-context-nav .app-context-inner{
+    width:100%!important;
+    height:100%!important;
+    display:grid!important;
+    grid-template-columns:auto minmax(0,1fr)!important;
+    grid-template-rows:1fr!important;
+    align-items:center!important;
+    gap:10px!important;
+    min-width:0!important;
+  }
+
+  #app-context-nav .app-context-inner > #app-back-btn{
+    grid-column:1!important;
+    grid-row:1!important;
+    align-self:center!important;
+    min-width:0!important;
+    max-width:150px!important;
+    min-height:38px!important;
+    height:38px!important;
+    padding:0 11px!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+
+  #app-context-nav .app-context-title-wrap{
+    grid-column:2!important;
+    grid-row:1!important;
+    min-width:0!important;
+    width:100%!important;
+    overflow:hidden!important;
+  }
+
+  #app-context-nav #app-context-title{
+    display:block!important;
+    width:100%!important;
+    margin:0!important;
+    font-size:14px!important;
+    line-height:1.2!important;
+    font-weight:900!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    overflow-wrap:normal!important;
+    word-break:normal!important;
+  }
+
+  #app-context-nav #app-context-subtitle,
+  #app-context-nav .daily-phrase-stack,
+  #app-context-nav .daily-phrase,
+  #app-context-nav .app-build-version{
+    display:none!important;
+  }
+
+  .app-body,
+  .main-content{
+    min-height:0!important;
+  }
+
+  .main-content .view.active{
+    min-height:0!important;
+    overflow:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+}

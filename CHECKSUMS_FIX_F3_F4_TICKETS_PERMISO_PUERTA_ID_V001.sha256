@@ -1,0 +1,6 @@
+513be1caa09234eb844d01f1d1fce79a4708cca72ce53476f15196fa45ab933f  ./ADR_FIX_F3_F4_TICKETS_PERMISO_PUERTA_EMPAREJADOS_V001.md
+65bfde08dd8bfc4c39f902968ca6d5227faea6c5cd517b4c90cd40de9e2d5483  ./README_FIX_F3_F4_TICKETS_PERMISO_PUERTA_ID_V001.md
+2ddbe2f9648d767004fc882fba50b87dcaecdc6e347f5319f19c08bab98db86a  ./backend/scripts/test-fix-f3-f4-tickets-paired-access.js
+375dbb8645ec0c09b1a6615e026854a79249370b450d42d9622f4533c787ee8f  ./backend/src/middleware/information-access-gnral.middleware.js
+df8b0205791f6989931a6532f11ae992c54c1c3c5191983de7497e938e94c881  ./backend/src/modules/tickets/tickets-consultas_uni.js
+8ad368d329b0513ff9e7c1d182b92f9c84a3852e2f1bc2396c458db45ee6ecdc  ./backend/src/modules/tickets/tickets.routes.js

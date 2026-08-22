@@ -1,0 +1,14 @@
+8d18fc3e9c5e092257045789a0d7ae835336fcd007739a6b2ccfce49657784f9  ./ADR_FASE_4_UNI_COBERTURA_TOTAL_CUARTOS_V001.md
+60a58e23ecf1a1b685aca39385ebbdb7cdb4f3c2e7171365955b912f8bfd32fb  ./README_FASE_4_UNI_COBERTURA_TOTAL_CUARTOS_V001.md
+88fe2e28b0c57988c7d6d1dd2a43f254279ba365253d6221abaa083f6832cb5c  ./backend/scripts/test-fase-4-cobertura-total-uni.js
+64a854cdac43e0497e85d68da68050f6f6b404e66194043a49a56b33c253e991  ./backend/src/controllers/cobranza-uni-cuartos.controller.js
+abb6909923b4e0c39882c9382853c136d03e0a073ef497d31fa9167323576fe1  ./backend/src/controllers/detalle-mp-2026-cuartos.controller.js
+e45428c48ec0b2151a873dc056d85774d58165972f22d0d3c98194c094004b08  ./backend/src/modules/criticos/criticos.service.js
+ef86db813839b2d80e08c71cf47e5db2b422971c6779d6683952941c485ae321  ./backend/src/modules/dashboard-operativo/dashboard-operativo.repository.js
+b2be6e80525a7eea0a525e27269dc8c86fc0b3c34b67f9f7ccde8ea0c359f14a  ./backend/src/modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.service.js
+f6970c67909162ced8866771f47e13a17e9c9b0b590245e92e9bab2d7ccd7236  ./backend/src/modules/experimental-entregas-recientes/experimental-entregas-recientes.service.js
+8fa6c39b5d74b6c418e1373c488ab7b2c511e7cd24d513fe926848ba8c6a851d  ./backend/src/modules/proyectos/proyectos-cuartos_uni.service.js
+ded139279e0f2b65401f159c0eecda3c0a1093605fba93e18353f60dcc777f7c  ./backend/src/modules/proyectos/proyectos.controller.js
+c5c48f8533c3b81f74da50695bc08713da4779154b6c62b9d3510fa0c6b44e32  ./backend/src/routes/cobranza-uni.routes.js
+75533e983ac78fc2b4e9bda5df1ec56d53b70e3dc19a2b59ceb673445f063110  ./backend/src/routes/detalle-mp-2026.routes.js
+732445d49563aec387a6a7822007e482e5b06f135ab97be072f5232991be2ec9  ./backend/src/services/information-record-scope-gnral.service.js

@@ -1,0 +1,9 @@
+2c06bdc172f9ad5c25e5338b531978aaf0daab777b03818a92b810cf24848d51  ./ADR_ALCANCE_UNI_PUERTAS_CUARTOS_V001.md
+9aef3922eda05feba2b64b3629d72e407c8190dd761bfc4c9d8965fed88428d7  ./README_FASE_1_UNI_PUERTAS_CUARTOS_V001.md
+80f231312c0d3534e7946e87fee887397205db5d740b104038aec8c1ee2d1925  ./backend/scripts/test-alcance-uni.js
+6086ca7af24aadaa3776225d58f004fc66cbaacbc9f4719db7861f4f69cd1534  ./backend/scripts/test-fase-6-alcances.js
+9871b446dd3d09cad31b91b0c21f60004e679bf5b6aca9b83fded8eaf51e995b  ./backend/src/middleware/information-access-gnral.middleware.js
+1f6d106c36ce381c08953f0ad7b1fa2eee86dafaa9b4e300bdb7809bcd7d45a5  ./backend/src/services/alcance/alcance-panel.service.js
+6973854404065f894515d0bbf3052095a54b8c1c95d9eeff4bd476265d049bec  ./backend/src/services/alcance/alcance-uni.service.js
+8f55141ab6d243c1225285a6746ed5552b42b5062c02c89cbec18ec9a11e2b90  ./backend/src/services/alcance/informacion-cruzada.service.js
+677381d261cc612868f20ad2b6f478c2260f2694de3681a22cb6597388cd0912  ./backend/src/services/information-record-scope-gnral.service.js

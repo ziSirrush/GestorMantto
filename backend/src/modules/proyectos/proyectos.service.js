@@ -99,6 +99,109 @@ function likeParam(value) {
   return s ? '%' + s + '%' : null;
 }
 
+function filtroProyectoCobranza_gnral(alias, idProyectoCobranza, proyecto) {
+  const clauses = [];
+  const params = [];
+  const id = Number(idProyectoCobranza);
+
+  if (id > 0) {
+    clauses.push(`${alias}.id_proyecto_cobranza = ?`);
+    params.push(id);
+  }
+
+  const raw = String(proyecto || '').trim();
+  if (raw) {
+    clauses.push(`LOWER(TRIM(COALESCE(${alias}.proyecto, ''))) = LOWER(TRIM(?))`);
+    params.push(raw);
+
+    const normalized = raw
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/,/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const monthNames = {
+      enero: 1, ene: 1, january: 1, jan: 1,
+      febrero: 2, feb: 2, february: 2,
+      marzo: 3, mar: 3, march: 3,
+      abril: 4, abr: 4, april: 4, apr: 4,
+      mayo: 5, may: 5,
+      junio: 6, jun: 6, june: 6,
+      julio: 7, jul: 7, july: 7,
+      agosto: 8, ago: 8, august: 8, aug: 8,
+      septiembre: 9, setiembre: 9, sep: 9, sept: 9, september: 9,
+      octubre: 10, oct: 10, october: 10,
+      noviembre: 11, nov: 11, november: 11,
+      diciembre: 12, dic: 12, dec: 12, december: 12
+    };
+
+    const validParts = (numero, mes, dia) => {
+      const project = Number(numero);
+      const month = Number(mes);
+      const day = Number(dia);
+      if (!Number.isInteger(project) || project < 0) return false;
+      if (!Number.isInteger(month) || month < 1 || month > 12) return false;
+      if (!Number.isInteger(day) || day < 1 || day > 31) return false;
+      const daysByMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      return day <= daysByMonth[month - 1];
+    };
+
+    let parts = null;
+    let match = normalized.match(/^(\d{1,6})\s*([\/.-])\s*(\d{1,2})\s*\2\s*(\d{1,6})(?:[t\s].*)?$/);
+    if (match) {
+      const a = Number(match[1]);
+      const b = Number(match[3]);
+      const c = Number(match[4]);
+      if (validParts(a, b, c)) parts = { numero: a, mes: b, dia: c };
+      else if (validParts(c, b, a)) parts = { numero: c, mes: b, dia: a };
+      else if (validParts(c, a, b)) parts = { numero: c, mes: a, dia: b };
+    }
+
+    if (!parts) {
+      match = normalized.match(/^(\d{1,2})\s+(?:de\s+)?([a-z]+)\s+(?:de\s+)?#?(\d{1,6})$/);
+      if (match) {
+        const month = monthNames[match[2]];
+        if (month && validParts(match[3], month, match[1])) {
+          parts = { numero: Number(match[3]), mes: month, dia: Number(match[1]) };
+        }
+      }
+    }
+
+    if (!parts) {
+      match = normalized.match(/^([a-z]+)\s+(\d{1,2})\s+#?(\d{1,6})$/);
+      if (match) {
+        const month = monthNames[match[1]];
+        if (month && validParts(match[3], month, match[2])) {
+          parts = { numero: Number(match[3]), mes: month, dia: Number(match[2]) };
+        }
+      }
+    }
+
+    if (parts) {
+      const numero = String(Number(parts.numero));
+      const numero4 = numero.padStart(4, '0');
+      const mes = String(Number(parts.mes)).padStart(2, '0');
+      const dia = String(Number(parts.dia)).padStart(2, '0');
+      const prefixes = Array.from(new Set([
+        `${numero}-${mes}-${dia}`,
+        `${numero4}-${mes}-${dia}`
+      ]));
+
+      prefixes.forEach(prefix => {
+        clauses.push(`LOWER(TRIM(COALESCE(${alias}.proyecto, ''))) LIKE LOWER(?)`);
+        params.push(prefix + '%');
+      });
+    }
+  }
+
+  return {
+    sql: clauses.length ? `(${clauses.join(' OR ')})` : '1 = 0',
+    params
+  };
+}
+
 function formatProyectoNombre(value) {
   const raw = String(value || '').trim();
   const m = raw.match(/^(\d+)-(\d{2})-(\d{2})(?:T.*)?$/);
@@ -457,6 +560,7 @@ async function getProyectoDetalle(req, res) {
     const [proyectos] = await db.query(`
       SELECT
         p.proyecto,
+        MAX(p.id_proyecto_cobranza) AS id_proyecto_cobranza,
         MAX(p.proyecto_cc_x_port) AS proyecto_cc_x_port,
         MAX(p.ciudad) AS ciudad,
         MAX(p.estado) AS estado,
@@ -644,6 +748,41 @@ async function getProyectoDetalle(req, res) {
         ))
     `, [proyecto, proyecto]);
     Object.assign(projectMetrics, callMetricsRows[0] || {});
+
+    const idProyectoCobranza = Number(proyectos[0]?.id_proyecto_cobranza || 0) || null;
+    const filtroGcCobranza = filtroProyectoCobranza_gnral('gc', idProyectoCobranza, proyecto);
+    const filtroMpCobranza = filtroProyectoCobranza_gnral('mp', idProyectoCobranza, proyecto);
+    const filtroVaCobranza = filtroProyectoCobranza_gnral('va', idProyectoCobranza, proyecto);
+
+    const [cobranzaRows] = await db.query(`
+      SELECT
+        (
+          SELECT MIN(gc.id_gc)
+          FROM gestion_credito gc
+          WHERE ${filtroGcCobranza.sql}
+        ) AS gestion_credito_id,
+        (
+          SELECT COALESCE(SUM(
+            COALESCE(mp.pendiente_corriente, 0) + COALESCE(mp.pendiente_vencido, 0)
+          ), 0)
+          FROM detalle_mp_2026 mp
+          WHERE ${filtroMpCobranza.sql}
+        ) AS adeudo_mp,
+        (
+          SELECT COALESCE(SUM(COALESCE(va.adeudo, 0)), 0)
+          FROM pc va
+          WHERE ${filtroVaCobranza.sql}
+        ) AS adeudo_va
+    `, [
+      ...filtroGcCobranza.params,
+      ...filtroMpCobranza.params,
+      ...filtroVaCobranza.params
+    ]);
+    const cobranza = cobranzaRows[0] || {};
+    projectMetrics.gestion_credito_id = Number(cobranza.gestion_credito_id || 0) || null;
+    projectMetrics.adeudo_mp = Number(cobranza.adeudo_mp || 0);
+    projectMetrics.adeudo_va = Number(cobranza.adeudo_va || 0);
+    projectMetrics.adeudo_total = projectMetrics.adeudo_mp + projectMetrics.adeudo_va;
 
     const [criticalPeriodRows] = await db.query(`
       SELECT t.codigo_equipo

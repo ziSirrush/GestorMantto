@@ -1,39 +1,40 @@
-const criticosService = require('./criticos.service');
+const criticosCuartosOperacionService = require('./criticos-cuartos-operacion.service');
+const callcenterCuartosOperacionService = require('./callcenter-cuartos-operacion.service');
 
 async function getEquiposCriticos(req, res) {
-  return criticosService.getEquiposCriticos(req, res);
+  return criticosCuartosOperacionService.getEquiposCriticos(req, res);
 }
 
 async function getEquipoCriticoTickets(req, res) {
-  return criticosService.getEquipoCriticoTickets(req, res);
+  return criticosCuartosOperacionService.getEquipoCriticoTickets(req, res);
 }
 
 async function getProyectosCriticos(req, res) {
-  return criticosService.getProyectosCriticos(req, res);
+  return criticosCuartosOperacionService.getProyectosCriticos(req, res);
 }
 
 async function getProyectoCriticoTickets(req, res) {
-  return criticosService.getProyectoCriticoTickets(req, res);
+  return criticosCuartosOperacionService.getProyectoCriticoTickets(req, res);
 }
 
 async function getCriticidadCorporativa(req, res) {
-  return criticosService.getCriticidadCorporativa(req, res);
+  return criticosCuartosOperacionService.getCriticidadCorporativa(req, res);
 }
 
 async function getMtbcEquipos(req, res) {
-  return criticosService.getMtbcEquipos(req, res);
+  return callcenterCuartosOperacionService.getMtbcEquipos(req, res);
 }
 
 async function getMtbcProyectos(req, res) {
-  return criticosService.getMtbcProyectos(req, res);
+  return callcenterCuartosOperacionService.getMtbcProyectos(req, res);
 }
 
 async function getCallCenterU365Equipos(req, res) {
-  return criticosService.getCallCenterU365Equipos(req, res);
+  return callcenterCuartosOperacionService.getCallCenterU365Equipos(req, res);
 }
 
 async function getCallCenterU365Proyectos(req, res) {
-  return criticosService.getCallCenterU365Proyectos(req, res);
+  return callcenterCuartosOperacionService.getCallCenterU365Proyectos(req, res);
 }
 
 module.exports = {

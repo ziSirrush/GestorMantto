@@ -17,7 +17,9 @@ function createAction(handlerName) {
 
 module.exports = {
   getPortafolioFiltros: createAction('getPortafolioFiltros'),
+  getPortafolioDashboardInicial: createAction('getPortafolioDashboardInicial'),
   getPortafolioDashboard: createAction('getPortafolioDashboard'),
+  getPortafolioMovimientosInicial: createAction('getPortafolioMovimientosInicial'),
   getPortafolioMovimientos: createAction('getPortafolioMovimientos'),
   getPortafolioSemanasDisponibles: createAction('getPortafolioSemanasDisponibles'),
   getPortafolioMovimientosSemanales: createAction('getPortafolioMovimientosSemanales'),

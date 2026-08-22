@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const { bellVisibilitySql_gnral } = require('../../services/notifications/notification-policy');
 
 async function getAllowedEmpresas() {
   const [rows] = await db.query(`
@@ -64,44 +65,19 @@ async function getNotificaciones(notifWhere, params, leido, limit) {
     : 'ORDER BY n.fecha_creacion DESC';
 
   const [rows] = await db.query(`
-    SELECT n.* FROM sup_notificaciones n
+    SELECT n.*
+    FROM sup_notificaciones n
+    LEFT JOIN notificacion_eventos e
+      ON e.codigo_evento = n.tipo_notificacion
+     AND e.activo = 1
+    LEFT JOIN notificacion_preferencias p
+      ON p.codigo_evento = n.tipo_notificacion
+     AND p.id_usuario = n.id_usuario
     ${notifWhere} AND n.leido = ?
+      AND ${bellVisibilitySql_gnral('n', 'e', 'p')}
     ${order}
     LIMIT ?
   `, [...params, leido, limit]);
-  return rows;
-}
-
-async function getActividadReciente(userTaskWhere, userTaskParams) {
-  const [rows] = await db.query(`
-    SELECT * FROM (
-      SELECT
-        p.id_pendiente AS id,
-        'tareas' AS modulo,
-        p.pendiente AS titulo,
-        CONCAT('Pendiente ', LOWER(p.estatus), ' · ', p.tipo_pendiente) AS descripcion,
-        p.updated_at AS fecha_creacion,
-        '✅' AS icono,
-        p.id_pendiente AS id_referencia
-      FROM pendientes p
-      WHERE ${userTaskWhere}
-      UNION ALL
-      SELECT
-        pc.id_comentario AS id,
-        'tareas' AS modulo,
-        p.pendiente AS titulo,
-        CONCAT(COALESCE(u.iniciales, 'Usuario'), ' agregó comentario') AS descripcion,
-        pc.fecha AS fecha_creacion,
-        '💬' AS icono,
-        p.id_pendiente AS id_referencia
-      FROM pendientes_comentarios pc
-      INNER JOIN pendientes p ON p.id_pendiente = pc.id_pendiente
-      LEFT JOIN usuarios u ON u.id_SB = pc.id_usuario
-      WHERE ${userTaskWhere}
-    ) x
-    ORDER BY fecha_creacion DESC
-    LIMIT 20
-  `, [...userTaskParams, ...userTaskParams]);
   return rows;
 }
 
@@ -154,7 +130,6 @@ module.exports = {
   getAllowedEmpresas,
   getPendientes,
   getNotificaciones,
-  getActividadReciente,
   getAreas,
   getUsuarios,
   getProyectos

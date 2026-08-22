@@ -5,9 +5,15 @@ const TABLE = 'ventas_cotizaciones_cor';
 function buildScopeClause(scope, alias = '') {
   const prefix = alias ? `${alias}.` : '';
   if (!scope || scope.mode === 'ALL') return { sql: '', params: [] };
-  const ids = Array.isArray(scope.advisorIds) ? scope.advisorIds.filter(Number.isInteger) : [];
+  const ids = Array.isArray(scope.advisorIds)
+    ? [...new Set(scope.advisorIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))]
+    : [];
   if (!ids.length) return { sql: '1 = 0', params: [] };
-  return { sql: `${prefix}id_asesor IN (${ids.map(() => '?').join(', ')})`, params: ids };
+  const placeholders = ids.map(() => '?').join(', ');
+  return {
+    sql: `(${prefix}id_asesor IN (${placeholders}) OR ${prefix}id_admin IN (${placeholders}))`,
+    params: [...ids, ...ids]
+  };
 }
 
 

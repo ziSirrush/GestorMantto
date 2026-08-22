@@ -2,7 +2,7 @@
 
 const db = require('../../config/db');
 const repository = require('./ventas-dashboard.repository');
-const { getProfile } = require('../ventas/ventas-visibility.service');
+const ventasVisibility = require('../ventas/ventas-visibility.service');
 
 function positiveInteger(value, fieldName) {
   const parsed = Number(value);
@@ -14,40 +14,105 @@ function positiveInteger(value, fieldName) {
   return parsed;
 }
 
-
-const FULL_ACCESS_ROLE_IDS = new Set([1, 5, 7, 47]);
-const FULL_ACCESS_ROLE_NAMES = new Set([
-  'director general',
-  'director ventas',
-  'jefa administracion ventas',
-  'auxiliar direccion'
-]);
-
 function normalize(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
+  return String(value || '').trim().toLowerCase();
 }
 
-async function hasFullDashboardScope(userId) {
-  const profile = await getProfile(db, userId);
-  if (!profile) return false;
-  return profile.roleIds.some((id) => FULL_ACCESS_ROLE_IDS.has(Number(id)))
-    || profile.roleNames.some((name) => FULL_ACCESS_ROLE_NAMES.has(normalize(name)));
+function normalizeVisibleUserIds(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b);
+}
+
+async function resolveDashboardScope(context = {}) {
+  const actionContext = context.actionContext || context;
+  return ventasVisibility.resolveVisibilityScope(db, actionContext);
+}
+
+function dashboardUserDto(row) {
+  return {
+    id_usuario: Number(row.id_usuario ?? row.id_SB),
+    nombre: row.nombre || '',
+    iniciales: row.iniciales || '',
+    puesto: row.puesto || null,
+    area: row.area || null,
+    empresa: row.empresa || null,
+    tipo_perfil: row.puesto || row.area || null
+  };
+}
+
+async function listDashboardUsersForScope(scope) {
+  if (scope?.mode === 'ALL') {
+    const [rows] = await db.query(
+      `SELECT
+         u.id_SB AS id_usuario,
+         u.nombre,
+         u.iniciales,
+         u.puesto,
+         u.area,
+         u.empresa
+       FROM usuarios u
+       WHERE u.estado = 1
+         AND UPPER(TRIM(COALESCE(u.area, ''))) = 'VENTAS'
+         AND UPPER(TRIM(COALESCE(u.empresa, ''))) LIKE '%CORELLIAN%'
+       ORDER BY u.nombre ASC, u.id_SB ASC`
+    );
+    return rows.map(dashboardUserDto);
+  }
+
+  const ids = normalizeVisibleUserIds(scope?.advisorIds);
+  if (!ids.length) return [];
+
+  const [rows] = await db.query(
+    `SELECT
+       u.id_SB AS id_usuario,
+       u.nombre,
+       u.iniciales,
+       u.puesto,
+       u.area,
+       u.empresa
+     FROM usuarios u
+     WHERE u.estado = 1
+       AND u.id_SB IN (?)
+       AND UPPER(TRIM(COALESCE(u.area, ''))) = 'VENTAS'
+       AND UPPER(TRIM(COALESCE(u.empresa, ''))) LIKE '%CORELLIAN%'
+     ORDER BY u.nombre ASC, u.id_SB ASC`,
+    [ids]
+  );
+  return rows.map(dashboardUserDto);
+}
+
+async function assertActiveDashboardUser(userId) {
+  const id = positiveInteger(userId, 'usuario_id');
+  const [rows] = await db.query(
+    `SELECT id_SB
+       FROM usuarios
+      WHERE id_SB = ?
+        AND estado = 1
+        AND UPPER(TRIM(COALESCE(area, ''))) = 'VENTAS'
+        AND UPPER(TRIM(COALESCE(empresa, ''))) LIKE '%CORELLIAN%'
+      LIMIT 1`,
+    [id]
+  );
+
+  if (!rows.length) {
+    const error = new Error('El usuario seleccionado no existe, no está activo o no pertenece a Ventas Corellian.');
+    error.status = 404;
+    throw error;
+  }
+
+  return id;
 }
 
 async function getPdfCapabilities(context = {}) {
-  const userId = positiveInteger(context.user_id, 'user_id');
-  const canGeneral = Boolean(context.can_general) && await hasFullDashboardScope(userId);
-  const canIndividual = Boolean(context.can_individual);
+  positiveInteger(context.user_id, 'user_id');
   return {
     ok: true,
     fase: 'B1',
     pdf: {
-      general: canGeneral,
-      individual: canIndividual
+      general: Boolean(context.can_general),
+      individual: Boolean(context.can_individual)
     }
   };
 }
@@ -60,14 +125,21 @@ async function preparePdf(query = {}, context = {}) {
     throw error;
   }
 
-  const userId = positiveInteger(context.user_id, 'user_id');
+  positiveInteger(context.user_id, 'user_id');
   if (type === 'general') {
-    if (!context.can_general || !(await hasFullDashboardScope(userId))) {
+    if (!context.can_general) {
       const error = new Error('No tienes permiso para preparar el PDF general de Dashboard Ventas.');
       error.status = 403;
       throw error;
     }
-    return { ok: true, fase: 'B1', preparado: true, tipo: 'general', asesores: 'todos_los_del_selector', message: 'Flujo general validado. La generación del archivo se habilitará en la Fase B4.' };
+    return {
+      ok: true,
+      fase: 'B1',
+      preparado: true,
+      tipo: 'general',
+      asesores: 'alcance_de_informacion',
+      message: 'Flujo general validado dentro del Alcance de Información. La generación del archivo se habilitará en la Fase B4.'
+    };
   }
 
   if (!context.can_individual) {
@@ -75,17 +147,19 @@ async function preparePdf(query = {}, context = {}) {
     error.status = 403;
     throw error;
   }
+
   const advisorId = positiveInteger(query.usuario_id, 'usuario_id');
-  const allowed = await repository.isCommercialUser(db, advisorId);
-  if (!allowed) {
-    const error = new Error('El responsable comercial seleccionado no está activo o no es válido para Dashboard Ventas.');
-    error.status = 404;
-    throw error;
-  }
-  return { ok: true, fase: 'B1', preparado: true, tipo: 'individual', usuario_id: advisorId, message: 'Flujo individual validado. La generación del archivo se habilitará en la Fase B3.' };
+  await assertActiveDashboardUser(advisorId);
+
+  return {
+    ok: true,
+    fase: 'B1',
+    preparado: true,
+    tipo: 'individual',
+    usuario_id: advisorId,
+    message: 'Flujo individual validado. La generación del archivo se habilitará en la Fase B3.'
+  };
 }
-
-
 
 function parseDateValue(value) {
   const text = String(value || '').trim();
@@ -223,7 +297,7 @@ async function getPdfData(query = {}, context = {}) {
 
   const creatorId = positiveInteger(context.user_id, 'user_id');
   if (type === 'general') {
-    if (!context.can_general || !(await hasFullDashboardScope(creatorId))) {
+    if (!context.can_general) {
       const error = new Error('No tienes permiso para preparar los datos del PDF general de Dashboard Ventas.');
       error.status = 403;
       throw error;
@@ -243,15 +317,11 @@ async function getPdfData(query = {}, context = {}) {
 
   let advisors;
   if (type === 'general') {
-    advisors = await repository.listCommercialUsers(db);
+    const scope = await resolveDashboardScope(context);
+    advisors = await listDashboardUsersForScope(scope);
   } else {
     const advisorId = positiveInteger(query.usuario_id, 'usuario_id');
-    const allowed = await repository.isCommercialUser(db, advisorId);
-    if (!allowed) {
-      const error = new Error('El responsable comercial seleccionado no está activo o no es válido para Dashboard Ventas.');
-      error.status = 404;
-      throw error;
-    }
+    await assertActiveDashboardUser(advisorId);
     advisors = [{ id_usuario: advisorId }];
   }
 
@@ -266,7 +336,7 @@ async function getPdfData(query = {}, context = {}) {
     advisorReports.push(report);
   }
 
-  const response = {
+  return {
     ok: true,
     fase: 'B4',
     tipo: type,
@@ -274,25 +344,24 @@ async function getPdfData(query = {}, context = {}) {
     total_asesores: advisorReports.length,
     asesores: advisorReports,
     message: type === 'general'
-      ? `Datos preparados para ${advisorReports.length} responsables comerciales.`
-      : 'Datos del asesor preparados correctamente.'
+      ? `Datos preparados para ${advisorReports.length} usuarios dentro del Alcance de Información.`
+      : 'Datos del usuario seleccionado preparados correctamente.'
   };
-  return response;
 }
 
-async function listCommercialUsers() {
-  const usuarios = await repository.listCommercialUsers(db);
-  return { ok: true, usuarios };
+async function listCommercialUsers(actionContext = {}) {
+  const scope = await resolveDashboardScope({ actionContext });
+  const usuarios = await listDashboardUsersForScope(scope);
+  return {
+    ok: true,
+    usuarios,
+    visibilidad: ventasVisibility.toClientVisibility(scope)
+  };
 }
 
 async function getCommercialKpis(query = {}) {
   const userId = positiveInteger(query.usuario_id, 'usuario_id');
-  const allowed = await repository.isCommercialUser(db, userId);
-  if (!allowed) {
-    const error = new Error('El responsable comercial seleccionado no está activo o no tiene un rol permitido para Dashboard Ventas.');
-    error.status = 404;
-    throw error;
-  }
+  await assertActiveDashboardUser(userId);
 
   const raw = await repository.getCommercialKpis(db, userId);
   return {
@@ -317,26 +386,22 @@ async function getCommercialKpis(query = {}) {
 
 async function getCommercialTables(query = {}) {
   const userId = positiveInteger(query.usuario_id, 'usuario_id');
-  const allowed = await repository.isCommercialUser(db, userId);
-  if (!allowed) {
-    const error = new Error('El responsable comercial seleccionado no está activo o no tiene un rol permitido para Dashboard Ventas.');
-    error.status = 404;
-    throw error;
-  }
+  await assertActiveDashboardUser(userId);
   return { ok: true, usuario_id: userId, tablas: await repository.getCommercialTables(db, userId) };
 }
 
-
-
 async function getOperationalTables(query = {}) {
   const userId = positiveInteger(query.usuario_id, 'usuario_id');
-  const allowed = await repository.isCommercialUser(db, userId);
-  if (!allowed) {
-    const error = new Error('El responsable comercial seleccionado no está activo o no tiene un rol permitido para Dashboard Ventas.');
-    error.status = 404;
-    throw error;
-  }
+  await assertActiveDashboardUser(userId);
   return { ok: true, usuario_id: userId, tablas: await repository.getOperationalTables(db, userId) };
 }
 
-module.exports = { listCommercialUsers, getCommercialKpis, getCommercialTables, getOperationalTables, getPdfCapabilities, preparePdf, getPdfData };
+module.exports = {
+  listCommercialUsers,
+  getCommercialKpis,
+  getCommercialTables,
+  getOperationalTables,
+  getPdfCapabilities,
+  preparePdf,
+  getPdfData
+};

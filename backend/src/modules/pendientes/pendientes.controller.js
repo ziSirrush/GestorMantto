@@ -1,29 +1,68 @@
 const pendientesService = require('./pendientes.service');
 
-function createAction(handlerName) {
-  return async function pendientesAction(req, res, next) {
+function sendError(res, fallbackMessage, error) {
+  const status = Number(error && error.status) || 500;
+  const payload = {
+    ok: false,
+    message: status < 500 && error && error.expose !== false
+      ? error.message
+      : fallbackMessage
+  };
+  if (status >= 500) payload.error = error && error.message;
+  if (error && error.code) payload.code = error.code;
+  return res.status(status).json(payload);
+}
+
+function action(serviceMethod, fallbackMessage) {
+  return async function pendientesAction(req, res) {
     try {
-      return await pendientesService.execute(handlerName, req, res);
+      const output = await serviceMethod(req);
+      return res.status(output.status || 200).json(output.body);
     } catch (error) {
-      if (typeof next === 'function') return next(error);
-      return res.status(500).json({
-        ok: false,
-        message: 'Error ejecutando la operacion de pendientes.',
-        error: error.message
-      });
+      return sendError(res, fallbackMessage, error);
     }
   };
 }
 
 module.exports = {
-  getPendientesCatalogos: createAction('getPendientesCatalogos'),
-  getPendientes: createAction('getPendientes'),
-  getPendienteDetalle: createAction('getPendienteDetalle'),
-  createPendiente: createAction('createPendiente'),
-  updatePendiente: createAction('updatePendiente'),
-  deletePendiente: createAction('deletePendiente'),
-  updatePendienteEstatus: createAction('updatePendienteEstatus'),
-  updatePendientePrioridad: createAction('updatePendientePrioridad'),
-  createPendienteComentario: createAction('createPendienteComentario'),
-  updatePendienteSubtarea: createAction('updatePendienteSubtarea')
+  getPendientesCatalogos: action(
+    pendientesService.getPendientesCatalogos,
+    'Error consultando catalogos de pendientes.'
+  ),
+  getPendientes: action(
+    pendientesService.getPendientes,
+    'Error consultando pendientes.'
+  ),
+  getPendienteDetalle: action(
+    pendientesService.getPendienteDetalle,
+    'Error consultando detalle de pendiente.'
+  ),
+  createPendiente: action(
+    pendientesService.createPendiente,
+    'Error creando pendiente.'
+  ),
+  updatePendiente: action(
+    pendientesService.updatePendiente,
+    'Error actualizando pendiente.'
+  ),
+  deletePendiente: action(
+    pendientesService.deletePendiente,
+    'Error eliminando tarea.'
+  ),
+  updatePendienteEstatus: action(
+    pendientesService.updatePendienteEstatus,
+    'Error actualizando estatus.'
+  ),
+  updatePendientePrioridad: action(
+    pendientesService.updatePendientePrioridad,
+    'Error actualizando prioridad.'
+  ),
+  createPendienteComentario: action(
+    pendientesService.createPendienteComentario,
+    'Error agregando interacción.'
+  ),
+  updatePendienteSubtarea: action(
+    pendientesService.updatePendienteSubtarea,
+    'Error actualizando subtarea.'
+  )
 };

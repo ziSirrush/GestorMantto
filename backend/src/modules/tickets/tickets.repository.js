@@ -1,19 +1,20 @@
 /**
  * Repositorio transicional del modulo Tickets.
  *
- * Mantiene como fuente de verdad los handlers ya validados durante la
- * migracion incremental. La logica principal de Tickets permanece
- * detras de la fachada controllers/data.controller.js. La dependencia legacy
- * queda explicitamente aislada y no debe extenderse a nuevos endpoints.
+ * FASE 3 mueve las lecturas humanas base de Tickets al motor territorial
+ * UNITED. Las interacciones y escrituras permanecen en el handler legacy,
+ * protegidas por requireTicketRecordScope_gnral en las rutas existentes.
+ * Los endpoints M2M siguen separados del alcance humano.
  */
 const legacyController = require('../../controllers/data.controller');
+const ticketsConsultasUni = require('./tickets-consultas_uni');
 
 const handlers = Object.freeze({
-  getTickets: legacyController.getTickets,
+  getTickets: ticketsConsultasUni.getTickets_uni,
   getTicketInteracciones: legacyController.getTicketInteracciones,
   createTicketComentario: legacyController.createTicketComentario,
   saveTicketValidacion: legacyController.saveTicketValidacion,
-  getTicketDetalle: legacyController.getTicketDetalle,
+  getTicketDetalle: ticketsConsultasUni.getTicketDetalle_uni,
   saveTicketVobo: legacyController.saveTicketVobo,
   syncTickets: legacyController.syncTickets,
   syncTicketDatesCdmx: legacyController.syncTicketDatesCdmx

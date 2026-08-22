@@ -1,5 +1,7 @@
+const db = require('../../config/db');
 const service = require('./ventas-cotizaciones.service');
 const editBootstrapService = require('./ventas-cotizaciones-editar-bootstrap.service');
+const commentNotifications = require('../../services/notifications/comment-notification.service');
 
 function sendKnownError(error, res, next) {
   const status = Number(error.statusCode || error.status);
@@ -18,6 +20,7 @@ function buildActionContext(req) {
   return {
     user: req.user,
     contextUser: req.contextUser || req.user,
+    informationAccess: req.informationAccess || null,
     ip: req.ip || req.socket?.remoteAddress || null,
     userAgent: req.get('user-agent') || null
   };
@@ -64,8 +67,27 @@ async function getProyeccion(req, res, next) {
 }
 
 async function getCatalogos(req, res, next) {
-  try { return res.status(200).json(await service.getCatalogos(buildActionContext(req))); }
-  catch (error) { return sendKnownError(error, res, next); }
+  try {
+    const response = await service.getCatalogos(buildActionContext(req));
+    const [estadoZonaRows] = await db.query(`
+      SELECT DISTINCT
+        TRIM(estado) AS estado,
+        TRIM(zona) AS zona
+      FROM ventas_cotizaciones_cor
+      WHERE activo = 1
+        AND NULLIF(TRIM(estado), '') IS NOT NULL
+        AND NULLIF(TRIM(zona), '') IS NOT NULL
+      ORDER BY TRIM(estado), TRIM(zona)
+    `);
+
+    response.catalogos = response.catalogos || {};
+    response.catalogos.estado_zonas = estadoZonaRows.map((row) => ({
+      estado: row.estado,
+      zona: row.zona
+    }));
+
+    return res.status(200).json(response);
+  } catch (error) { return sendKnownError(error, res, next); }
 }
 
 async function getCotizacion(req, res, next) {
@@ -110,12 +132,15 @@ async function listComentarios(req, res, next) {
 
 async function createComentario(req, res, next) {
   try {
-    return res.status(201).json(await service.createComentario(
+    const actionContext = buildActionContext(req);
+    const result = await service.createComentario(
       req.params.id,
       req.body || {},
       req.file || null,
-      buildActionContext(req)
-    ));
+      actionContext
+    );
+    const notificationResult = await commentNotifications.notifyCotizacionComment_gnral(req.params.id, actionContext);
+    return res.status(201).json({ ...result, notificaciones: Number(notificationResult?.created || 0) });
   } catch (error) { return sendKnownError(error, res, next); }
 }
 

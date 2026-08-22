@@ -382,11 +382,18 @@ async function validateClientAndContact(connection, record, actionContext) {
   if (!record.id_contacto) throw badRequest('id_contacto es obligatorio.');
 
   const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
-  const actorId = getActorId(actionContext);
-  const advisorIds = scope.mode === 'ALL' ? [] : scope.advisorIds;
+  const advisorIds = scope.mode === 'ALL'
+    ? []
+    : (Array.isArray(scope.advisorIds)
+        ? scope.advisorIds.filter((id) => Number.isInteger(id) && id > 0)
+        : []);
   const params = [record.id_cliente];
   let visibilitySql = '';
-  if (advisorIds.length) {
+
+  if (scope.mode !== 'ALL' && !advisorIds.length) {
+    // Alcance restringido sin usuarios visibles: negar por defecto.
+    visibilitySql = ' AND 1 = 0';
+  } else if (advisorIds.length) {
     visibilitySql = ` AND EXISTS (
       SELECT 1 FROM usuarios vu
        WHERE vu.estado = 1
@@ -855,6 +862,20 @@ async function getCatalogos(actionContext) {
   try {
     const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
     const catalogos = await repository.getCatalogos(connection);
+
+    if (scope.mode !== 'ALL') {
+      const allowed = new Set((scope.advisorIds || []).map(Number).filter(Number.isInteger));
+      catalogos.asesores = (catalogos.asesores || []).filter((row) =>
+        allowed.has(Number(row.id_usuario))
+      );
+      catalogos.administrativos = (catalogos.administrativos || []).filter((row) =>
+        allowed.has(Number(row.id_usuario))
+      );
+      catalogos.relaciones_admin = (catalogos.relaciones_admin || []).filter((row) =>
+        allowed.has(Number(row.id_asesor)) && allowed.has(Number(row.id_admin))
+      );
+    }
+
     return {
       ok: true,
       source: 'aiven',

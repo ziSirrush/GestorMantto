@@ -1,4 +1,5 @@
 const service = require('./ventas-prospeccion.service');
+const commentNotifications = require('../../services/notifications/comment-notification.service');
 
 function sendKnownError(error, res, next) {
   const statusCode = Number(error.statusCode || error.status || 0);
@@ -13,11 +14,11 @@ function sendKnownError(error, res, next) {
   return next(error);
 }
 
-
 function buildActionContext(req) {
   return {
     user: req.user,
     contextUser: req.contextUser || req.user,
+    informationAccess: req.informationAccess || null,
     ip: req.ip || req.socket?.remoteAddress || null,
     userAgent: req.get('user-agent') || null
   };
@@ -70,7 +71,14 @@ async function createVisit(req,res,next){try{return res.status(201).json(await s
 
 async function getDetailCatalogs(req,res,next){try{return res.status(200).json(await service.getDetailCatalogs(buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
 async function updateProspectionStatus(req,res,next){try{return res.status(200).json(await service.updateProspectionStatus(req.params.id,req.body||{},buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
-async function createComment(req,res,next){try{return res.status(201).json(await service.createComment(req.params.id,req.body||{},req.files||[],buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
+async function createComment(req,res,next){
+  try{
+    const actionContext = buildActionContext(req);
+    const result = await service.createComment(req.params.id,req.body||{},req.files||[],actionContext);
+    const notificationResult = await commentNotifications.notifyProspeccionComment_gnral(req.params.id, actionContext);
+    return res.status(201).json({ ...result, notificaciones: Number(notificationResult?.created || 0) });
+  }catch(error){return sendKnownError(error,res,next);}
+}
 
 module.exports = {
   syncProspections,

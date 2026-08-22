@@ -8,7 +8,7 @@
     {key:'n',label:'Ticket',visible:true},{key:'et',label:'Estado Ticket',visible:true},{key:'edo',label:'Estado (República)',visible:false},{key:'ciu',label:'Ciudad',visible:false},{key:'pro',label:'Proyecto',visible:true},{key:'cod',label:'Código Equipo',visible:false},{key:'ref',label:'Referencia en sitio',visible:false},{key:'zon',label:'Zona Operativa',visible:true},{key:'zon_adm',label:'Zona Administrativa',visible:false},{key:'zon_falla',label:'Zona de falla',visible:false},{key:'asu',label:'Asunto',visible:true},{key:'fr',label:'Fecha Reporte',visible:true},{key:'hr',label:'Hora Reporte',visible:false},{key:'eqi',label:'Estatus Equipo (ir)',visible:false},{key:'fl',label:'Fecha Llegada',visible:false},{key:'hl',label:'Hora Llegada',visible:false},{key:'persona_atiende',label:'Persona que atiende',visible:false},{key:'fs',label:'Fecha Solución',visible:false},{key:'hs',label:'Hora Solución',visible:false},{key:'tec',label:'Técnico de Solución',visible:false},{key:'sup',label:'Supervisor',visible:false},{key:'eqf',label:'Estatus Equipo Final',visible:false},{key:'cau',label:'Causa',visible:false},{key:'acc',label:'Acción en Cierre',visible:false},{key:'res',label:'Responsabilidad',visible:true},{key:'caf',label:'Causa de Falla',visible:false},{key:'tll',label:'Tiempo Llegada',visible:false},{key:'tso',label:'Tiempo Solución',visible:false},{key:'tll2',label:'Tiempo Llegada II',visible:false},{key:'tso2',label:'Tiempo Solución II',visible:false},{key:'prd',label:'Producto/Tipo equipo',visible:false},{key:'pri',label:'Prioridad',visible:false},{key:'ejecutivo_call',label:'Ejecutivo Call',visible:false},{key:'blt_empleado',label:'BLT empleado',visible:false},{key:'ens',label:'Ticket excede SLA',visible:false}
   ];
   const TICKETS_CONTEXTUAL_UNI_HEADERS=['No. Ticket','Proyecto','Equipo','Estado','Fecha Reporte','Hora Reporte','Asunto','Estatus inicial','Fecha Llegada','Hora Llegada','T. llegada','Fecha Solución','Hora Solución','Estatus final','Causa','Acción cierre','Responsabilidad','Causa de falla'];
-  function $(id){return document.getElementById(id);} function esc(v){return String(v==null||v===''?'—':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function $(id){return document.getElementById(id);} function esc(v){return String(v==null||v===''?'—':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}
   function visualIdentifier(codes,text){return window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.renderIdentifier(codes,text):esc(text);}
   function linkProyecto(v,codes){return v?'<button type="button" class="cc-link" data-proyecto="'+esc(v)+'">'+visualIdentifier(codes||[],v)+'</button>':'—';}
   function linkEquipo(v,codes){return v?'<button type="button" class="cc-link" data-equipo="'+esc(v)+'">'+visualIdentifier(codes||[],v)+'</button>':'—';}
@@ -95,7 +95,45 @@
   function bind(){['cc-refresh','cc-from','cc-to','cc-zona'].forEach(id=>{const el=$(id);if(!el)return;el.addEventListener(id==='cc-refresh'?'click':'change',render);});if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}$('cc-search')?.addEventListener('input',renderTable);$('cc-filter-et')?.addEventListener('change',renderTable);$('cc-page-prev')?.addEventListener('click',()=>changePage(-1));$('cc-page-next')?.addEventListener('click',()=>changePage(1));$('cc-modal-close')?.addEventListener('click',closeModal);$('cc-nf-prev')?.addEventListener('click',()=>changeNoFuncPage(-1));$('cc-nf-next')?.addEventListener('click',()=>changeNoFuncPage(1));$('cc-nofunc-toggle')?.addEventListener('click',toggleNoFuncPanel);$('cc-u365-proy-open')?.addEventListener('click',()=>openU365View('u365-proyectos'));$('cc-u365-eq-open')?.addEventListener('click',()=>openU365View('u365-equipos'));$('cc-u365-proy-prev')?.addEventListener('click',()=>changeU365Page('u365-proyectos',-1));$('cc-u365-proy-next')?.addEventListener('click',()=>changeU365Page('u365-proyectos',1));$('cc-u365-eq-prev')?.addEventListener('click',()=>changeU365Page('u365-equipos',-1));$('cc-u365-eq-next')?.addEventListener('click',()=>changeU365Page('u365-equipos',1));document.querySelectorAll('[data-cc-group-toggle]').forEach(el=>el.addEventListener('click',()=>toggleMobileGroup(el.dataset.ccGroupToggle)));$('cc-detail-modal')?.addEventListener('click',e=>{if(e.target.id==='cc-detail-modal')closeModal();});document.querySelectorAll('[data-cc-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.ccDetail)));}
   async function init(payload){state.requestedView=normalizeCallCenterView(payload);if(window.EstadosVisuales_gnral){await window.EstadosVisuales_gnral.load();}await loadHtml();if(!state.initialized){initDates();await loadData();state.initialized=true;}else render();applyCallCenterView(state.requestedView);}
   function initDates(){const now=new Date();const from=new Date(now.getFullYear(),now.getMonth(),1);if($('cc-from'))$('cc-from').value=from.toISOString().slice(0,10);if($('cc-to'))$('cc-to').value=now.toISOString().slice(0,10);}
-  async function loadData(){setStatus('loading','Cargando datos desde Aiven...');const [tRows,pRows,mtbcEqRows,mtbcProRows,critRows,u365ProRows,u365EqRows]=await Promise.all([fetchRows(['/api/tickets?limit=20000','/api/tickets']),fetchPortafolioPages(),fetchMtbcPages('/api/indicadores/mtbc/equipos'),fetchMtbcPages('/api/indicadores/mtbc/proyectos'),fetchCriticidadUsuario(),fetchMtbcPages('/api/callcenter/u365/proyectos'),fetchMtbcPages('/api/callcenter/u365/equipos')]);state.tickets=tRows.map(mapTicket).filter(t=>t.n&&t.fr);state.portafolio=pRows.map(mapEquipo).filter(e=>e.cod||e.pro);state.mtbcEquipos=new Map(mtbcEqRows.map(r=>[mtbcKey(r.codigo_equipo),r]));state.mtbcProyectos=new Map(mtbcProRows.map(r=>[mtbcKey(r.proyecto),r]));state.u365Proyectos=Array.isArray(u365ProRows)?u365ProRows:[];state.u365Equipos=Array.isArray(u365EqRows)?u365EqRows:[];state.critCods=new Set(critRows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));populateZona();setStatus(state.tickets.length?'ok':'error',state.tickets.length?('Aiven · '+state.tickets.length.toLocaleString('es-MX')+' tickets · Críticos '+state.critFallas+'/'+state.critPeriodo+'d'):'Sin tickets desde Aiven');render();}
+  async function loadData(){
+    setStatus('loading','Cargando datos desde Aiven...');
+
+    // FASE 6/11: la primera llamada de informacion del modulo es exclusiva
+    // de Operacion > Dashboard Call Center y ya llega reducida por cuartos.
+    // No existe fallback a /api/tickets ni /api/portafolio para esta carga.
+    const initial=await fetchJson('/api/operacion/dashboard-call-center/inicial');
+    const initialData=initial&&initial.data?initial.data:{};
+    const tRows=Array.isArray(initialData.tickets)?initialData.tickets:[];
+    const pRows=Array.isArray(initialData.portafolio)?initialData.portafolio:[];
+
+    state.tickets=tRows.map(mapTicket).filter(t=>t.n&&t.fr);
+    state.portafolio=pRows.map(mapEquipo).filter(e=>e.cod||e.pro);
+    populateZona();
+
+    // Los indicadores secundarios se solicitan solo despues de que el universo
+    // territorial base ya fue resuelto por el endpoint inicial de OPERACION.
+    const [mtbcEqRows,mtbcProRows,critRows,u365ProRows,u365EqRows]=await Promise.all([
+      fetchMtbcPages('/api/indicadores/mtbc/equipos'),
+      fetchMtbcPages('/api/indicadores/mtbc/proyectos'),
+      fetchCriticidadUsuario(),
+      fetchMtbcPages('/api/callcenter/u365/proyectos'),
+      fetchMtbcPages('/api/callcenter/u365/equipos')
+    ]);
+
+    state.mtbcEquipos=new Map(mtbcEqRows.map(r=>[mtbcKey(r.codigo_equipo),r]));
+    state.mtbcProyectos=new Map(mtbcProRows.map(r=>[mtbcKey(r.proyecto),r]));
+    state.u365Proyectos=Array.isArray(u365ProRows)?u365ProRows:[];
+    state.u365Equipos=Array.isArray(u365EqRows)?u365EqRows:[];
+    state.critCods=new Set(critRows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));
+
+    setStatus(
+      state.tickets.length?'ok':'error',
+      state.tickets.length
+        ?('Aiven · '+state.tickets.length.toLocaleString('es-MX')+' tickets · Críticos '+state.critFallas+'/'+state.critPeriodo+'d')
+        :'Sin tickets desde Aiven'
+    );
+    render();
+  }
   function populateZona(){const sel=$('cc-zona');if(!sel)return;const cur=sel.value;const zonas=[...new Set(state.tickets.map(t=>t.zon).filter(Boolean))].sort();sel.innerHTML='<option value="">Todas</option>'+zonas.map(z=>`<option value="${esc(z)}">${esc(z)}</option>`).join('');sel.value=zonas.includes(cur)?cur:'';}
   function inRange(t,from,to){if(from&&t.fr<from)return false;if(to&&t.fr>to)return false;return true;}
   function render(){const from=$('cc-from')?.value||'',to=$('cc-to')?.value||'',zona=$('cc-zona')?.value||'';let tks=state.tickets.filter(t=>inRange(t,from,to));if(zona)tks=tks.filter(t=>t.zon===zona);state.periodTickets=tks;$('cc-updated')&&($('cc-updated').textContent='Actualizado '+new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}));renderKpis(tks);renderDonuts(tks);renderBars(tks);renderTopTables(tks);renderU365Details();renderNoFunc(tks);renderTable();}

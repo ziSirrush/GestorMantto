@@ -136,6 +136,18 @@
       alternateRowStyles: Object.assign({ fillColor:[254, 242, 242] }, config.alternateRowStyles || {}),
       columnStyles: config.columnStyles || {},
       margin: Object.assign({ left:36, right:36, bottom:32 }, config.margin || {}),
+      didParseCell: typeof config.didParseCell === 'function'
+        ? function(data){
+            const sourceRow = data && data.row && Number.isInteger(data.row.index) ? rows[data.row.index] : null;
+            config.didParseCell(data, doc, sourceRow);
+          }
+        : undefined,
+      didDrawCell: typeof config.didDrawCell === 'function'
+        ? function(data){
+            const sourceRow = data && data.row && Number.isInteger(data.row.index) ? rows[data.row.index] : null;
+            config.didDrawCell(data, doc, sourceRow);
+          }
+        : undefined,
       didDrawPage: config.didDrawPage
     });
   }

@@ -324,10 +324,18 @@ async function deactivateFile(connection,idPros,idArchivo){
 
 function buildSourceScope(scope, alias, params) {
   if (!scope || scope.mode === 'ALL') return '';
-  const ids = Array.isArray(scope.advisorIds) ? scope.advisorIds.filter(Number.isInteger) : [];
+  const ids = Array.isArray(scope.advisorIds)
+    ? [...new Set(scope.advisorIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))]
+    : [];
   if (!ids.length) return ' AND 1 = 0';
-  params.push(...ids);
-  return ` AND ${alias}.id_asesor IN (${ids.map(() => '?').join(', ')})`;
+
+  const placeholders = ids.map(() => '?').join(', ');
+  const userColumns = alias === 'f'
+    ? ['id_asesor', 'id_sup', 'id_admin']
+    : ['id_asesor', 'id_admin'];
+
+  userColumns.forEach(() => params.push(...ids));
+  return ` AND (${userColumns.map((column) => `${alias}.${column} IN (${placeholders})`).join(' OR ')})`;
 }
 
 async function searchInstallationProjects(connection, q, limit = 30, scope = null) {

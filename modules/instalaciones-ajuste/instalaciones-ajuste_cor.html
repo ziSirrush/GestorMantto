@@ -1,0 +1,153 @@
+<div class="iaj-cor-page" data-iaj-cor-root>
+  <section class="iaj-cor-card iaj-cor-head">
+    <div>
+      <p class="iaj-cor-eyebrow">INSTALACIONES · AJUSTE</p>
+      <h1>Ajuste</h1>
+      <p>Análisis histórico de equipos entregados 08-T, comportamiento por tipo de equipo y detalle por año de término.</p>
+    </div>
+    <div class="iaj-cor-head-actions">
+      <span class="iaj-cor-status" id="iaj-cor-status" role="status" aria-live="polite">Sin actualizar</span>
+      <button class="iaj-cor-btn iaj-cor-btn-primary" id="iaj-cor-refresh" type="button">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="iaj-cor-card iaj-cor-note" role="note">
+    <span class="iaj-cor-note-icon" aria-hidden="true">ⓘ</span>
+    <div>
+      <strong>Base del análisis</strong>
+      <p>Se consideran equipos históricos ya entregados (<b>08-T</b>, activos e inactivos, todos los años) que tengan al menos una métrica de días calculable. Se interpretan fechas ISO y formato <b>DD-Mon-AA</b>; cuando falta una fecha, el conteo correspondiente se mantiene vacío.</p>
+    </div>
+  </section>
+
+
+  <section class="iaj-cor-card iaj-cor-section" id="iaj-cor-behavior-card">
+    <div class="iaj-cor-section-head">
+      <div>
+        <span class="iaj-cor-step">1</span>
+        <div>
+          <h2>Comportamiento por tipo de equipo</h2>
+          <p>Niveles + capacidad. Solo se listan tipos con 5 o más equipos históricos calificados.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="iaj-cor-selector-row"
+         id="iaj-cor-type-selector-wrap"
+         data-permission-code="INSTALACIONES_AJUSTE_COMPORTAMIENTO_TIPO_SELECTOR.VER">
+      <label class="iaj-cor-field" for="iaj-cor-type-select">
+        <span>Tipo de equipo</span>
+        <select id="iaj-cor-type-select"
+                data-permission-code="INSTALACIONES_AJUSTE_COMPORTAMIENTO_TIPO_SELECTOR.FILTRAR"
+                data-permission-behavior="disable">
+          <option value="">Todos</option>
+        </select>
+      </label>
+      <div class="iaj-cor-selected-type" id="iaj-cor-selected-type" hidden>
+        <small>Equipos encontrados</small>
+        <strong id="iaj-cor-selected-type-count">0</strong>
+      </div>
+    </div>
+
+    <div class="iaj-cor-behavior-result"
+         id="iaj-cor-behavior-result"
+         data-permission-code="INSTALACIONES_AJUSTE_COMPORTAMIENTO_TIPO_RESUMEN.VER">
+      <div class="iaj-cor-empty-state" id="iaj-cor-behavior-empty">
+        <span aria-hidden="true">📊</span>
+        <strong>Todos los tipos</strong>
+        <p>Selecciona un tipo de equipo para mostrar su comportamiento histórico.</p>
+      </div>
+
+      <div id="iaj-cor-behavior-content" hidden>
+        <div class="iaj-cor-behavior-title">
+          <div>
+            <h3 id="iaj-cor-behavior-label">Comportamiento histórico</h3>
+            <p>Promedios en días, redondeados. Cada promedio ignora únicamente los equipos que no tienen el dato correspondiente.</p>
+          </div>
+          <div class="iaj-cor-series-legend" aria-label="Series de la gráfica">
+            <span><i class="iaj-cor-dot iaj-cor-dot-real"></i>Inicio → Real</span>
+            <span><i class="iaj-cor-dot iaj-cor-dot-quality"></i>Inicio → Calidad</span>
+            <span><i class="iaj-cor-dot iaj-cor-dot-client"></i>Inicio → Cliente</span>
+          </div>
+        </div>
+
+        <div class="iaj-cor-chart-wrap" id="iaj-cor-chart-wrap" aria-label="Gráfica de comportamiento por año"></div>
+
+        <div class="iaj-cor-table-wrap iaj-cor-summary-table-wrap">
+          <table class="iaj-cor-table iaj-cor-summary-table">
+            <thead>
+              <tr>
+                <th>Año</th>
+                <th># Equipos</th>
+                <th>Prom. días Inicio → Real</th>
+                <th>Prom. días Inicio → Calidad</th>
+                <th>Prom. días Inicio → Cliente</th>
+              </tr>
+            </thead>
+            <tbody id="iaj-cor-behavior-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="iaj-cor-card iaj-cor-section"
+           id="iaj-cor-detail-card"
+           data-permission-code="INSTALACIONES_AJUSTE_DETALLE_ANIO_LISTADO.VER">
+    <div class="iaj-cor-section-head iaj-cor-detail-head">
+      <div>
+        <span class="iaj-cor-step">2</span>
+        <div>
+          <h2>Listado de equipos</h2>
+          <p>Histórico 08-T filtrado por el tipo de equipo y año seleccionados.</p>
+        </div>
+      </div>
+      <div class="iaj-cor-detail-controls">
+        <label class="iaj-cor-field iaj-cor-field-compact" for="iaj-cor-year-select">
+          <span>Año</span>
+          <select id="iaj-cor-year-select"><option value="">Cargando...</option></select>
+        </label>
+      </div>
+    </div>
+
+    <div class="iaj-cor-detail-meta">
+      <span id="iaj-cor-detail-total">0 equipos</span>
+      <span class="iaj-cor-detail-legend"><i class="iaj-cor-legend-swatch iaj-cor-negative"></i>Días negativos</span>
+      <span class="iaj-cor-detail-legend"><i class="iaj-cor-legend-swatch iaj-cor-inverted"></i>Fecha anterior al paso previo</span>
+    </div>
+
+    <div class="iaj-cor-table-wrap iaj-cor-detail-table-wrap">
+      <table class="iaj-cor-table iaj-cor-detail-table">
+        <thead>
+          <tr>
+            <th>Proyecto</th>
+            <th>Equipo</th>
+            <th>Niveles</th>
+            <th>Capacidad</th>
+            <th>Inicio ajuste</th>
+            <th>Fin teórico</th>
+            <th>Días a teórico</th>
+            <th>Fin real</th>
+            <th>Días a real</th>
+            <th>Entrega calidad</th>
+            <th>Días a calidad</th>
+            <th>Entrega cliente</th>
+            <th>Días a cliente</th>
+          </tr>
+        </thead>
+        <tbody id="iaj-cor-detail-body">
+          <tr><td colspan="13" class="iaj-cor-empty-cell">Selecciona un año para consultar el detalle.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="iaj-cor-pager" style="display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center">
+      <span id="iaj-cor-page-summary">0-0 de 0 registros</span>
+      <div style="grid-column:2;width:auto;justify-content:center">
+        <button id="iaj-cor-prev" type="button" aria-label="Página anterior">‹</button>
+        <strong id="iaj-cor-page-number">1</strong>
+        <button id="iaj-cor-next" type="button" aria-label="Página siguiente">›</button>
+      </div>
+      <span class="iaj-cor-page-size-note" style="justify-self:end">30 por página</span>
+    </div>
+  </section>
+</div>

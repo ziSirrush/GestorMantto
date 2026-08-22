@@ -13,6 +13,19 @@ async function getNotificaciones(req, res) {
   }
 }
 
+async function getEstadoNotificaciones(req, res) {
+  try {
+    const data = await notificacionesService.getEstadoNotificaciones(req);
+    return res.json({ ok: true, source: 'aiven', data });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error consultando estado de notificaciones.',
+      error: error.message
+    });
+  }
+}
+
 async function abrirNotificacion(req, res) {
   try {
     const result = await notificacionesService.abrirNotificacion(req);
@@ -71,6 +84,7 @@ async function guardarPreferencias(req, res) {
 
 module.exports = {
   getNotificaciones,
+  getEstadoNotificaciones,
   abrirNotificacion,
   marcarNotificacionNueva,
   getPreferencias,

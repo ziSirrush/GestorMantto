@@ -6,34 +6,24 @@ async function getConnection() {
   return db.getConnection();
 }
 
-function buildVisibilityClause(scope, actorId, alias = 'vc') {
+function buildVisibilityClause(scope, _actorId, alias = 'vc') {
   if (!scope || scope.mode === 'ALL') return { sql: '', params: [] };
 
   const advisorIds = Array.isArray(scope.advisorIds)
-    ? scope.advisorIds.filter(Number.isInteger)
+    ? scope.advisorIds.map(Number).filter(Number.isInteger)
     : [];
 
-  const clauses = [];
-  const params = [];
-
-  if (Number.isInteger(actorId)) {
-    clauses.push(`${alias}.created_by = ?`);
-    params.push(actorId);
-  }
-
-  if (advisorIds.length) {
-    clauses.push(`EXISTS (
+  if (!advisorIds.length) return { sql: '1 = 0', params: [] };
+  return {
+    sql: `EXISTS (
       SELECT 1
         FROM usuarios vu
        WHERE vu.estado = 1
          AND vu.id_SB IN (${advisorIds.map(() => '?').join(', ')})
          AND UPPER(TRIM(vu.iniciales)) = UPPER(TRIM(${alias}.iniciales))
-    )`);
-    params.push(...advisorIds);
-  }
-
-  if (!clauses.length) return { sql: '1 = 0', params: [] };
-  return { sql: `(${clauses.join(' OR ')})`, params };
+    )`,
+    params: advisorIds
+  };
 }
 
 function buildWhere(options = {}, scope = null, actorId = null, alias = 'vc') {
@@ -312,45 +302,6 @@ async function isAssignableCommercialUser(connection, userId) {
   return Boolean(rows[0]);
 }
 
-async function listAdminAdvisors(connection, adminId) {
-  const [rows] = await connection.query(
-    `SELECT DISTINCT
-            asesor.id_SB,
-            asesor.nombre,
-            asesor.iniciales,
-            asesor.puesto
-       FROM usuarios_rel_admin ura
-       INNER JOIN usuarios asesor
-         ON asesor.id_SB = ura.id_asesor
-        AND asesor.estado = 1
-      WHERE ura.id_admin = ?
-        AND NULLIF(TRIM(asesor.iniciales), '') IS NOT NULL
-      ORDER BY asesor.nombre ASC, asesor.id_SB ASC`,
-    [adminId]
-  );
-  return rows;
-}
-
-async function isAdminInRelations(connection, adminId) {
-  const [rows] = await connection.query(
-    'SELECT 1 AS found FROM usuarios_rel_admin WHERE id_admin = ? LIMIT 1',
-    [adminId]
-  );
-  return Boolean(rows[0]);
-}
-
-async function findActiveUserById(connection, userId) {
-  const [rows] = await connection.query(
-    `SELECT id_SB, nombre, iniciales, puesto
-       FROM usuarios
-      WHERE id_SB = ?
-        AND estado = 1
-      LIMIT 1`,
-    [userId]
-  );
-  return rows[0] || null;
-}
-
 async function findActiveUserByInitials(connection, initials) {
   const [rows] = await connection.query(
     `SELECT id_SB, nombre, iniciales, puesto
@@ -362,18 +313,6 @@ async function findActiveUserByInitials(connection, initials) {
     [initials]
   );
   return rows[0] || null;
-}
-
-async function isAdvisorLinkedToAdmin(connection, adminId, advisorId) {
-  const [rows] = await connection.query(
-    `SELECT 1 AS found
-       FROM usuarios_rel_admin
-      WHERE id_admin = ?
-        AND id_asesor = ?
-      LIMIT 1`,
-    [adminId, advisorId]
-  );
-  return Boolean(rows[0]);
 }
 
 module.exports = {
@@ -388,9 +327,5 @@ module.exports = {
   softDelete,
   listAssignableCommercialUsers,
   isAssignableCommercialUser,
-  listAdminAdvisors,
-  isAdminInRelations,
-  findActiveUserById,
-  findActiveUserByInitials,
-  isAdvisorLinkedToAdmin
+  findActiveUserByInitials
 };

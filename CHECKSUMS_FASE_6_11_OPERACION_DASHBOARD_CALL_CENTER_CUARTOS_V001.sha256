@@ -1,0 +1,12 @@
+27f4b0cc6d26cef6c0a8a356aba50206a15073aea881334c87e349039798dafd  ./PRUEBA_WORKBENCH_FASE_6_TESTER.sql
+26a2f5b5e3ec3a4222db5f79373f80676f0983fc21ea4d177c28e4d49f018c47  ./README_FASE_6_11_OPERACION_DASHBOARD_CALL_CENTER_CUARTOS_V001.md
+532b0e4d5de2345ce2050ceba1c16da36276e06b928549b9c8d4e0ac3a552f22  ./backend/scripts/test-fase-6-11-operacion-dashboard-call-center.js
+78a9d70ea496fdff5fc6263c1fd135221290521cd927bbc5d79fbe7acdbbc40f  ./backend/src/modules/criticos/callcenter-cuartos-operacion.service.js
+da1261ff3d3626d792592b8bfa3ce8f76abfe37c739fe90e9a12f5c9d410c4da  ./backend/src/modules/criticos/criticos.controller.js
+71e57a49e8488d7bec92b64a6d4679dfc430b47446ab6e27d618dea59105f431  ./backend/src/modules/dashboard-callcenter/dashboard-callcenter.controller.js
+834756d8773ebba0a57f279af421ecc4d16220fac6b60a917443d08773dd6f31  ./backend/src/modules/dashboard-callcenter/dashboard-callcenter.repository.js
+88a3e90013525fbb93992bf0e81e2e17d53d03796d05826bae68b49e4b92e4e4  ./backend/src/modules/dashboard-callcenter/dashboard-callcenter.routes.js
+8d34c88fdc490eccfe01f1a95186fd62e48ed97522cca82af3d3de67169d3498  ./backend/src/modules/dashboard-callcenter/dashboard-callcenter.service.js
+5432a906854e420912a8fe82e986fe94a7d257b52fcdbf1f6d2e2d913bdec9d9  ./backend/src/routes/data.routes.js
+1fa7cc2119a33c65d537c7a2e21c90cb777cd6b2bbc267f6f7d5c8fbefd9e27e  ./backend/src/routes/data/dashboard-callcenter.routes.js
+4ceeb517adb731ad474cba6b518d6931c6ec6e009c5df33383143c5379f71e24  ./modules/callcenter/callcenter.js

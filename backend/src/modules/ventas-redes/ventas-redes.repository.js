@@ -20,8 +20,8 @@ function buildRecordScope(scope, alias = 'vr') {
 
   const placeholders = ids.map(() => '?').join(', ');
   return {
-    sql: `(${alias}.id_usuario_asignado IN (${placeholders}) OR ${alias}.created_by IN (${placeholders}))`,
-    params: [...ids, ...ids]
+    sql: `${alias}.id_usuario_asignado IN (${placeholders})`,
+    params: ids
   };
 }
 
@@ -33,8 +33,8 @@ function buildQuotationScope(scope, alias = 'vc') {
 
   const placeholders = ids.map(() => '?').join(', ');
   return {
-    sql: `(${alias}.id_asesor IN (${placeholders}) OR ${alias}.id_admin IN (${placeholders}) OR ${alias}.created_by IN (${placeholders}))`,
-    params: [...ids, ...ids, ...ids]
+    sql: `(${alias}.id_asesor IN (${placeholders}) OR ${alias}.id_admin IN (${placeholders}))`,
+    params: [...ids, ...ids]
   };
 }
 

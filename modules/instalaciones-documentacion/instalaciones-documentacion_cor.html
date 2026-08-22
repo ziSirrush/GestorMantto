@@ -1,0 +1,137 @@
+<div class="idoc-cor-page" data-idoc-root>
+  <section class="idoc-cor-card idoc-cor-head">
+    <div>
+      <p class="idoc-cor-eyebrow">Instalaciones &middot; Corellian</p>
+      <h1>Documentaci&oacute;n Pendiente</h1>
+      <p>Seguimiento individual de la documentaci&oacute;n requerida por supervisor, etapa, proyecto y equipo.</p>
+    </div>
+    <div class="idoc-cor-head-actions">
+      <button class="idoc-cor-btn idoc-cor-btn-secondary" id="idoc-cor-refresh" type="button">
+        <span aria-hidden="true">&#8635;</span> Actualizar
+      </button>
+      <span class="idoc-cor-status" id="idoc-cor-status" data-type="ready" role="status" aria-live="polite">Preparando m&oacute;dulo...</span>
+    </div>
+  </section>
+
+  <section class="idoc-cor-card idoc-cor-supervisor-card" id="idoc-cor-supervisor-card">
+    <div class="idoc-cor-supervisor-main">
+      <div class="idoc-cor-avatar" id="idoc-cor-supervisor-avatar">--</div>
+      <div class="idoc-cor-supervisor-copy">
+        <span class="idoc-cor-label">Supervisor</span>
+        <div id="idoc-cor-supervisor-fixed">
+          <strong id="idoc-cor-supervisor-name">—</strong>
+          <small id="idoc-cor-supervisor-meta">—</small>
+        </div>
+        <div id="idoc-cor-supervisor-select-wrap" hidden>
+          <select id="idoc-cor-supervisor-select" aria-label="Seleccionar supervisor"></select>
+          <small id="idoc-cor-supervisor-select-meta">Selecciona un supervisor autorizado.</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="idoc-cor-kpi-strip" id="idoc-cor-kpis">
+      <article class="idoc-cor-kpi"><span>Equipos</span><strong id="idoc-kpi-equipos">0</strong><small>En seguimiento</small></article>
+      <article class="idoc-cor-kpi"><span>Documentos requeridos</span><strong id="idoc-kpi-requeridos">0</strong><small>Total requerido</small></article>
+      <article class="idoc-cor-kpi idoc-cor-kpi-ok"><span>Documentos generados</span><strong id="idoc-kpi-generados">0</strong><small id="idoc-kpi-generados-pct">0%</small></article>
+      <article class="idoc-cor-kpi idoc-cor-kpi-warn"><span>Documentos pendientes</span><strong id="idoc-kpi-pendientes">0</strong><small id="idoc-kpi-pendientes-pct">0%</small></article>
+      <article class="idoc-cor-kpi idoc-cor-kpi-ring">
+        <div class="idoc-cor-ring" id="idoc-cor-ring" style="--pct:0"><span id="idoc-kpi-cumplimiento">0%</span></div>
+        <div><span>% Cumplimiento</span><small>Promedio del supervisor</small></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="idoc-cor-charts-grid" id="idoc-cor-summary-charts">
+    <article class="idoc-cor-card idoc-cor-chart-card">
+      <header><div><span class="idoc-cor-label">Distribuci&oacute;n</span><h2>Equipos por estatus</h2></div><span class="idoc-cor-chip" id="idoc-cor-chart-total">0 equipos</span></header>
+      <div class="idoc-cor-donut-layout">
+        <div class="idoc-cor-donut" id="idoc-cor-status-donut"><div><strong id="idoc-cor-donut-total">0</strong><span>Equipos</span></div></div>
+        <div class="idoc-cor-legend" id="idoc-cor-status-legend"></div>
+      </div>
+    </article>
+
+    <article class="idoc-cor-card idoc-cor-chart-card">
+      <header><div><span class="idoc-cor-label">Progreso</span><h2>Cumplimiento por estatus</h2></div></header>
+      <div class="idoc-cor-progress-list" id="idoc-cor-progress-list"></div>
+    </article>
+  </section>
+
+  <section class="idoc-cor-card idoc-cor-filters" id="idoc-cor-filters-panel">
+    <label class="idoc-cor-field idoc-cor-field-search" id="idoc-cor-search-wrap">
+      <span>Buscar</span>
+      <input id="idoc-cor-q" type="search" placeholder="Proyecto, ID, referencia, estado o ciudad..." autocomplete="off">
+    </label>
+    <label class="idoc-cor-field">
+      <span>Estado (EDO)</span>
+      <select id="idoc-cor-estado"><option value="">Todos</option></select>
+    </label>
+    <label class="idoc-cor-field">
+      <span>Estatus</span>
+      <select id="idoc-cor-estatus"><option value="">Todos</option></select>
+    </label>
+    <label class="idoc-cor-field">
+      <span>Documentaci&oacute;n</span>
+      <select id="idoc-cor-documentacion">
+        <option value="TODOS">Todos</option>
+        <option value="PENDIENTE">Con pendientes</option>
+        <option value="COMPLETA">Completa</option>
+      </select>
+    </label>
+    <button class="idoc-cor-btn idoc-cor-btn-secondary" id="idoc-cor-clear" type="button">Limpiar filtros</button>
+  </section>
+
+  <section class="idoc-cor-card idoc-cor-table-card" id="idoc-cor-list-panel">
+    <header class="idoc-cor-table-head">
+      <div>
+        <span class="idoc-cor-label">Listado</span>
+        <h2>Documentaci&oacute;n Pendiente</h2>
+      </div>
+      <div class="idoc-cor-table-head-meta">
+        <span class="idoc-cor-chip" id="idoc-cor-total-rows">0 registros</span>
+        <span>30 por p&aacute;gina</span>
+      </div>
+    </header>
+
+    <div class="idoc-cor-table-wrap">
+      <table class="idoc-cor-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>SUP</th>
+            <th>EDO</th>
+            <th>ESTATUS</th>
+            <th>PROYECTO</th>
+            <th>REFERENCIA EN SITIO</th>
+            <th>CPVP</th>
+            <th>CCNR</th>
+            <th>CCR</th>
+            <th>COND. OBRA</th>
+            <th>CTI</th>
+            <th>REV. SUP</th>
+            <th>EVAL. MONTAJE</th>
+            <th>MINUTA INTERFON</th>
+            <th>CERT. REGULADOR</th>
+            <th>REQ.</th>
+            <th>GEN.</th>
+            <th>PEND.</th>
+            <th>%</th>
+          </tr>
+        </thead>
+        <tbody id="idoc-cor-tbody">
+          <tr><td colspan="19" class="idoc-cor-empty">Cargando informaci&oacute;n...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="idoc-cor-table-foot">
+      <span id="idoc-cor-range">0 registros</span>
+      <nav class="idoc-cor-pagination" aria-label="Paginaci&oacute;n Documentaci&oacute;n Pendiente">
+        <button id="idoc-cor-prev" type="button" aria-label="P&aacute;gina anterior">&#8249;</button>
+        <div id="idoc-cor-pages" class="idoc-cor-page-buttons"></div>
+        <button id="idoc-cor-next" type="button" aria-label="P&aacute;gina siguiente">&#8250;</button>
+      </nav>
+      <span id="idoc-cor-page-label">P&aacute;gina 1 de 1</span>
+    </footer>
+    <p class="idoc-cor-note">En estatus 04-M se consideran 6 documentos requeridos conforme a la regla original; se conservan visibles los 9 campos documentales para seguimiento.</p>
+  </section>
+</div>

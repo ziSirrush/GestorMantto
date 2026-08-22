@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
+const azureStorage = require('../services/storage/azure-storage.service');
 
 const DB_FIELDS = [
   'proyecto',
@@ -68,6 +69,70 @@ const DB_FIELDS = [
 ];
 
 const REQUIRED_FIELDS = ['proyecto', 'id_proyecto', 'referencia_sitio'];
+const PROJECT_PHOTO_FIELDS = Object.freeze([
+  'foto_blt_1', 'foto_blt_2', 'foto_blt_3', 'foto_blt_4',
+  'foto_blt_5', 'foto_blt_6', 'foto_blt_7'
+]);
+const PROJECT_PHOTO_ALIASES = Object.freeze([
+  ['foto_blt_1', 'FOTO BLT'], ['foto_blt_2', 'FOTO BLT 2'],
+  ['foto_blt_3', 'FOTO BLT 3'], ['foto_blt_4', 'FOTO BLT 4'],
+  ['foto_blt_5', 'FOTO BLT 5'], ['foto_blt_6', 'FOTO BLT 6'],
+  ['foto_blt_7', 'FOTO BLT 7']
+]);
+
+function azureBlobNameFromStableUrl(value) {
+  const raw = String(value || '').trim();
+  if (!/^https:\/\//i.test(raw) || !/\.blob\.core\.windows\.net\//i.test(raw)) return null;
+  try {
+    const parsed = new URL(raw);
+    const container = String(process.env.AZURE_STORAGE_BLOB_CONTAINER_NAME || '').trim();
+    if (!container) return null;
+    const prefix = '/' + container + '/';
+    const decodedPath = decodeURIComponent(parsed.pathname || '');
+    if (!decodedPath.startsWith(prefix)) return null;
+    return decodedPath.slice(prefix.length);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function presentProjectPhotoUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const blobName = azureBlobNameFromStableUrl(raw);
+  if (!blobName) return raw;
+  try {
+    const access = await azureStorage.createReadSas_gnral(blobName);
+    return access.url;
+  } catch (_) {
+    // La URL estable se conserva para no romper la consulta completa si Azure
+    // no puede emitir temporalmente un SAS de lectura.
+    return raw;
+  }
+}
+
+async function presentProjectPhotoRow(row) {
+  const copy = { ...row };
+  for (const [field, alias] of PROJECT_PHOTO_ALIASES) {
+    if (Object.prototype.hasOwnProperty.call(copy, field)) {
+      copy[field] = await presentProjectPhotoUrl(copy[field]);
+    }
+    if (Object.prototype.hasOwnProperty.call(copy, alias)) {
+      copy[alias] = await presentProjectPhotoUrl(copy[alias]);
+    }
+  }
+  const selected = String(copy.foto_principal || '').trim();
+  const selectedAlias = PROJECT_PHOTO_ALIASES.find(([field]) => field === selected);
+  const selectedUrl = selectedAlias
+    ? (copy[selectedAlias[1]] || copy[selectedAlias[0]] || null)
+    : null;
+  copy.foto_portada = selectedUrl ||
+    copy['FOTO BLT'] || copy.foto_blt_1 || copy['FOTO BLT 2'] || copy.foto_blt_2 ||
+    copy['FOTO BLT 3'] || copy.foto_blt_3 || copy['FOTO BLT 4'] || copy.foto_blt_4 ||
+    copy['FOTO BLT 5'] || copy.foto_blt_5 || copy['FOTO BLT 6'] || copy.foto_blt_6 ||
+    copy['FOTO BLT 7'] || copy.foto_blt_7 || null;
+  return copy;
+}
 
 const DATE_FIELDS = new Set([
   'fecha_visita',
@@ -627,7 +692,9 @@ async function getInsFlProjectPhotos(req, res) {
         NULLIF(TRIM(p.foto_blt_2), '') IS NOT NULL OR
         NULLIF(TRIM(p.foto_blt_3), '') IS NOT NULL OR
         NULLIF(TRIM(p.foto_blt_4), '') IS NOT NULL OR
-        NULLIF(TRIM(p.foto_blt_5), '') IS NOT NULL
+        NULLIF(TRIM(p.foto_blt_5), '') IS NOT NULL OR
+        NULLIF(TRIM(p.foto_blt_6), '') IS NOT NULL OR
+        NULLIF(TRIM(p.foto_blt_7), '') IS NOT NULL
       )`);
     }
 
@@ -651,6 +718,7 @@ async function getInsFlProjectPhotos(req, res) {
          p.foto_blt_5 AS \`FOTO BLT 5\`,
          p.foto_blt_6 AS \`FOTO BLT 6\`,
          p.foto_blt_7 AS \`FOTO BLT 7\`,
+         p.foto_principal AS foto_principal,
          p.imagen_drive AS \`Imagen Drive\`,
          p.imagen_p_g AS \`Imagen P G\`
        FROM ins_proyecto_fotos p
@@ -667,17 +735,15 @@ async function getInsFlProjectPhotos(req, res) {
       [...params, limit, offset]
     );
 
-    rows.forEach(row => {
-      const campo = row.foto_principal;
-      row.foto_portada =
-        (campo && row[campo]) ? row[campo] :
-        (row['FOTO BLT'] || row['FOTO BLT 2'] || row['FOTO BLT 3'] || row['FOTO BLT 4'] || row['FOTO BLT 5'] || row['FOTO BLT 6'] || row['FOTO BLT 7'] || null);
-    });
+    const presentedRows = [];
+    for (const row of rows) {
+      presentedRows.push(await presentProjectPhotoRow(row));
+    }
 
     return res.json({
       ok: true,
       source: 'aiven',
-      data: rows,
+      data: presentedRows,
       limit,
       offset
     });
@@ -687,6 +753,147 @@ async function getInsFlProjectPhotos(req, res) {
       message: 'Error consultando fotografias de proyectos.',
       error: error.message
     });
+  }
+}
+
+async function uploadInsFlProjectPhoto(req, res) {
+  const idPpns = String(req.params.id_ppns || '').trim();
+  const actorId = Number(req.user && (req.user.id_SB || req.user.id) || 0) || null;
+  const file = req.file;
+  let uploaded = null;
+  let conn = null;
+  let transactionStarted = false;
+
+  try {
+    if (!idPpns) return res.status(400).json({ ok: false, message: 'ID de proyecto requerido.' });
+    if (!file) return res.status(400).json({ ok: false, message: 'Selecciona una fotografía.' });
+
+    const extension = String(file.originalname || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '';
+    if (extension === '.heic' || extension === '.heif') {
+      return res.status(415).json({
+        ok: false,
+        message: 'HEIC/HEIF no se admite en el carrusel. Usa JPG, PNG, WEBP, GIF o AVIF.'
+      });
+    }
+
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+    transactionStarted = true;
+
+    const [projectRows] = await conn.query(
+      `SELECT id_proyecto
+       FROM ins_fl
+       WHERE TRIM(id_proyecto) = TRIM(?)
+       LIMIT 1`,
+      [idPpns]
+    );
+    if (!projectRows.length) {
+      await conn.rollback();
+      transactionStarted = false;
+      return res.status(404).json({ ok: false, message: 'No se encontró el proyecto en Instalaciones.' });
+    }
+
+    const [rows] = await conn.query(
+      `SELECT id_photo, foto_blt_1, foto_blt_2, foto_blt_3, foto_blt_4,
+              foto_blt_5, foto_blt_6, foto_blt_7, foto_principal
+       FROM ins_proyecto_fotos
+       WHERE TRIM(id_ppns) = TRIM(?)
+       LIMIT 1
+       FOR UPDATE`,
+      [idPpns]
+    );
+
+    let row = rows[0] || null;
+    if (!row) {
+      const [insertResult] = await conn.query(
+        `INSERT INTO ins_proyecto_fotos (id_ppns, activo, created_by, updated_by)
+         VALUES (?, 1, ?, ?)`,
+        [idPpns, actorId, actorId]
+      );
+      row = { id_photo: insertResult.insertId, foto_principal: null };
+      PROJECT_PHOTO_FIELDS.forEach(field => { row[field] = null; });
+    }
+
+    const freeField = PROJECT_PHOTO_FIELDS.find(field => !String(row[field] || '').trim());
+    if (!freeField) {
+      await conn.rollback();
+      transactionStarted = false;
+      return res.status(409).json({ ok: false, message: 'El proyecto ya tiene el máximo de 7 fotografías.' });
+    }
+
+    uploaded = await azureStorage.uploadPrivate_gnral({
+      file,
+      empresa: 'CORELLIAN',
+      modulo: 'instalaciones',
+      entidadTipo: 'proyecto',
+      entidadId: idPpns,
+      subruta: 'fotografias',
+      policyName: 'IMAGE',
+      metadata: {
+        uploaded_by: actorId,
+        id_ppns: idPpns,
+        slot: freeField
+      }
+    });
+
+    // Se genera la URL temporal antes del COMMIT. Si Azure no puede emitirla,
+    // se revierte la operación y se elimina el blob para no dejar Aiven y
+    // Storage en estados distintos.
+    const access = await azureStorage.createReadSas_gnral(uploaded.storage_blob_name);
+    const firstPhoto = !PROJECT_PHOTO_FIELDS.some(field => String(row[field] || '').trim());
+    const principal = firstPhoto ? freeField : (String(row.foto_principal || '').trim() || null);
+
+    await conn.query(
+      `UPDATE ins_proyecto_fotos
+       SET ${freeField} = ?,
+           foto_principal = ?,
+           updated_by = ?,
+           activo = 1
+       WHERE id_photo = ?`,
+      [uploaded.storage_url, principal, actorId, row.id_photo]
+    );
+
+    await conn.commit();
+    transactionStarted = false;
+
+    const used = PROJECT_PHOTO_FIELDS.filter(field => String(row[field] || '').trim()).length + 1;
+    return res.status(201).json({
+      ok: true,
+      data: {
+        id_ppns: idPpns,
+        campo: freeField,
+        url: access.url,
+        storage_url: uploaded.storage_url,
+        foto_principal: principal,
+        total_fotos: used,
+        max_fotos: 7
+      }
+    });
+  } catch (error) {
+    if (transactionStarted) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    if (uploaded && uploaded.storage_blob_name) {
+      try {
+        await azureStorage.deleteBlob_gnral(uploaded.storage_blob_name, {
+          queueOnFailure: true,
+          queueContext: {
+            modulo: 'instalaciones',
+            entidadTipo: 'proyecto',
+            entidadId: idPpns,
+            solicitadoPor: actorId,
+            motivo: 'Compensación: falló el guardado de la fotografía del proyecto en Aiven.'
+          }
+        });
+      } catch (_) {}
+    }
+    const status = Number(error.status || error.statusCode || 500);
+    return res.status(status >= 400 && status < 600 ? status : 500).json({
+      ok: false,
+      message: error.message || 'No fue posible agregar la fotografía del proyecto.'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 }
 
@@ -802,6 +1009,7 @@ module.exports = {
   getInsFlById,
   getInsFlProjects,
   getInsFlProjectPhotos,
+  uploadInsFlProjectPhoto,
   updateInsFlProjectMainPhoto,
   getInsFlClientConcentrate
 };

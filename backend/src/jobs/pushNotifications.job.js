@@ -3,6 +3,7 @@ const { getVapidConfig, validateVapidConfig, sendPush } = require('../modules/pu
 const logger = require('../shared/logger');
 
 let timer = null;
+let startupTimer = null;
 let running = false;
 let warnedConfiguration = false;
 
@@ -17,8 +18,14 @@ function cursorFor(subscription) {
 }
 
 function payloadFor(notification) {
+  const baseTitle = notification.titulo_notificacion || 'Mantto Gestor';
+  const emoji = String(notification.icono_notificacion || '').trim();
+  const title = emoji && !String(baseTitle).trim().startsWith(emoji)
+    ? `${emoji} ${baseTitle}`
+    : baseTitle;
+
   return {
-    title: notification.titulo_notificacion || 'Mantto Gestor',
+    title,
     body: notification.mensaje_notificacion || 'Tienes una nueva notificacion.',
     icon: './assets/img/icons/icon-192.png',
     badge: './assets/img/icons/icon-192.png',
@@ -90,25 +97,42 @@ async function runCycle() {
   }
 }
 
+function executePushCycle() {
+  runCycle().catch(error => logger.error('No fue posible ejecutar el ciclo push.', error));
+}
+
 function startPushNotificationsJob() {
-  if (timer) return timer;
+  if (timer || startupTimer) return timer || startupTimer;
   const validation = validateVapidConfig(getVapidConfig());
   if (!validation.ok) {
     logger.warn(`Job global de notificaciones push no iniciado: ${validation.reason}`);
     return null;
   }
+
   const intervalMs = Math.max(5000, Number(process.env.WEB_PUSH_DISPATCH_INTERVAL_MS || 5000));
-  runCycle().catch(error => logger.error('No fue posible iniciar el primer ciclo push.', error));
-  timer = setInterval(() => runCycle().catch(error => logger.error('No fue posible ejecutar el ciclo push.', error)), intervalMs);
-  timer.unref?.();
-  logger.info(`Job global de notificaciones push activo cada ${intervalMs} ms.`);
-  return timer;
+  const initialDelayMs = Math.max(intervalMs, 15000);
+
+  startupTimer = setTimeout(() => {
+    startupTimer = null;
+    executePushCycle();
+    timer = setInterval(executePushCycle, intervalMs);
+    timer.unref?.();
+  }, initialDelayMs);
+  startupTimer.unref?.();
+
+  logger.info(`Job global de notificaciones push activo: primer ciclo en ${initialDelayMs} ms y luego cada ${intervalMs} ms.`);
+  return startupTimer;
 }
 
 function stopPushNotificationsJob() {
-  if (!timer) return;
-  clearInterval(timer);
-  timer = null;
+  if (startupTimer) {
+    clearTimeout(startupTimer);
+    startupTimer = null;
+  }
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
 }
 
 module.exports = { startPushNotificationsJob, stopPushNotificationsJob, runCycle };

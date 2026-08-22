@@ -1,0 +1,8 @@
+4790b76e6eca43abc8b8b622d97858ffb9e9e873e1e5603ff7e435554e788d60  ./README_FASE_1_11_OPERACION_RESUMEN_DIA_CUARTOS_V001.md
+c8882517a100bfb36e4d32202581efd522c30fc40729cb4b04dcf2f08c27bfaa  ./backend/scripts/test-fase-1-operacion-resumen-dia.js
+2d8eae3f42ac70899bd574e970145882e83b684f5d2ae45c0a86b0f819601033  ./backend/src/modules/resumen-dia/resumen-dia.controller.js
+926cfa1f0b3a8a5d92287ce105b7886ea147c511df96fda832bbbbfb6e58b507  ./backend/src/modules/resumen-dia/resumen-dia.repository.js
+0b2f58b72eb0d54745e9f89b611317a3499f64327dbf26791786effea2913f0f  ./backend/src/modules/resumen-dia/resumen-dia.service.js
+9881d0ab441aa0849b212ca4cf24c460fc5455c218f0f9468e2d3f6bc77569b0  ./backend/src/routes/data.routes.js
+034fcfdcedeffc3204188eb306e0b42f3aba600508e1820b209d6ea1e815e39a  ./backend/src/routes/data/resumen-dia.routes.js
+ee37be1bda3dc141e6e94a9ed8b2014e85aa238b6fc78a712476fb085399600b  ./modules/resumen-dia/resumen-dia.js

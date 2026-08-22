@@ -43,7 +43,7 @@
     catalogs:{estado:[],periodicidad:[],momento_facturacion:[],z_oper:[],zona_adm:[],forma_pago:[]},
     kpis:{},
     generatedAt:null,
-    filters:{search:'',estado:'',periodicidad:'',momento_facturacion:'',z_oper:'',zona_adm:'',forma_pago:''},
+    filters:{search:'',pendiente_tipo:'',estado:'',periodicidad:'',momento_facturacion:'',z_oper:'',zona_adm:'',forma_pago:''},
     page:1,
     pageSize:30,
     detailId:null,
@@ -772,6 +772,9 @@
         const haystack = normalize_uni([row.proyecto,row.idns,row.cliente,row.condiciones_pago].join(' '));
         if(!haystack.includes(search)) return false;
       }
+      const pendienteTipo=normalize_uni(f.pendiente_tipo);
+      if(pendienteTipo==='con pendiente' && !(number_uni(row.pendiente)>0 || number_uni(row.facturas_pendientes)>0)) return false;
+      if(pendienteTipo==='facturas pendientes' && number_uni(row.facturas_pendientes)<=0) return false;
       if(f.estado && normalize_uni(row.estado) !== normalize_uni(f.estado)) return false;
       if(f.periodicidad && normalize_uni(row.periodicidad) !== normalize_uni(f.periodicidad)) return false;
       if(f.momento_facturacion && normalize_uni(row.momento_facturacion) !== normalize_uni(f.momento_facturacion)) return false;
@@ -786,30 +789,62 @@
     return '<article class="mp-uni-kpi mp-tone-' + tone + '"><div class="mp-uni-kpi-icon">' + icon + '</div><div><span>' + escapeHtml_uni(title) + '</span><strong>' + escapeHtml_uni(value) + '</strong><small>' + escapeHtml_uni(meta) + '</small></div></article>';
   }
 
+  function mpFinancialProjectKey_uni(row){
+    const proyecto=normalize_uni(row&&row.proyecto);
+    if(proyecto) return 'proyecto:'+proyecto;
+    const idProyectoCobranza=Number(row&&row.id_proyecto_cobranza||0);
+    if(Number.isInteger(idProyectoCobranza)&&idProyectoCobranza>0) return 'id:'+idProyectoCobranza;
+    return 'registro:'+String(row&&row.id_dmp||'');
+  }
+
   function renderMpKpis_uni(rows){
-    let monto=0,corriente=0,vencido=0,pendiente=0,facturas=0,conPendiente=0;
+    let monto=0,corriente=0,vencido=0,pendiente=0,facturas=0,conPendiente=0,adeudoMp=0,adeudoVa=0;
+    const proyectosVaContados=new Set();
+
     rows.forEach(function(row){
+      const adeudoMpFila=row.adeudo_mp===undefined
+        ? number_uni(row.pendiente_corriente)+number_uni(row.pendiente_vencido)
+        : number_uni(row.adeudo_mp);
+      const projectKey=mpFinancialProjectKey_uni(row);
+
       monto += number_uni(row.monto_anual);
       corriente += number_uni(row.pendiente_corriente);
       vencido += number_uni(row.pendiente_vencido);
       pendiente += number_uni(row.pendiente);
       facturas += number_uni(row.facturas_pendientes);
+      adeudoMp += adeudoMpFila;
+
+      if(!proyectosVaContados.has(projectKey)){
+        proyectosVaContados.add(projectKey);
+        adeudoVa += number_uni(row.adeudo_va);
+      }
+
       if(number_uni(row.pendiente)>0 || number_uni(row.facturas_pendientes)>0) conPendiente += 1;
     });
-    return '<section class="mp-uni-kpis" aria-label="Indicadores de Mantenimiento Preventivo">' +
-      mpKpi_uni('📋','Total registros',integer_uni(rows.length),'Registros del filtro','blue') +
-      mpKpi_uni('🧾','Con pendiente',integer_uni(conPendiente),'Con saldo o facturas pendientes','warning') +
-      mpKpi_uni('📈','Monto anual',money_uni(monto),'Monto anual del filtro','violet') +
-      mpKpi_uni('🟦','Pendiente corriente',money_uni(corriente),'Saldo corriente','blue') +
-      mpKpi_uni('🔴','Pendiente vencido',money_uni(vencido),'Saldo vencido','danger') +
-      mpKpi_uni('📄','Facturas pendientes',integer_uni(facturas),'Facturas del filtro','warning') +
-    '</section>';
+
+    const adeudoTotal=adeudoMp+adeudoVa;
+    return '<div class="mp-uni-kpi-stack">' +
+      '<section class="mp-uni-kpis mp-uni-kpis-summary" aria-label="Indicadores de Mantenimiento Preventivo">' +
+        mpKpi_uni('📋','Total registros',integer_uni(rows.length),'Registros del filtro','blue') +
+        mpKpi_uni('🧾','Con pendiente',integer_uni(conPendiente),'Con saldo o facturas pendientes','warning') +
+        mpKpi_uni('📄','Facturas pendientes',integer_uni(facturas),'Facturas del filtro','warning') +
+        mpKpi_uni('📈','Monto anual',money_uni(monto),'Monto anual del filtro','violet') +
+        mpKpi_uni('🟦','Pendiente corriente',money_uni(corriente),'Saldo corriente','blue') +
+        mpKpi_uni('🔴','Pendiente vencido',money_uni(vencido),'Saldo vencido','danger') +
+      '</section>' +
+      '<section class="mp-uni-kpis mp-uni-kpis-adeudo" aria-label="Desglose del adeudo">' +
+        mpKpi_uni('💰','Adeudo Total',money_uni(adeudoTotal),'Adeudo MP + Adeudo VA','danger') +
+        mpKpi_uni('🧾','Adeudo MP',money_uni(adeudoMp),'Pendiente corriente + vencido','warning') +
+        mpKpi_uni('➕','Adeudo VA',money_uni(adeudoVa),'Venta Adicional con adeudo','violet') +
+      '</section>' +
+    '</div>';
   }
 
   function renderMpFilters_uni(){
     const f=mpState_uni.filters;
     return '<section class="mp-uni-filter-card"><div class="mp-uni-filter-head"><div><h2>Filtros de búsqueda</h2><p>Filtra la tabla sin generar nuevas consultas a Aiven.</p></div><button type="button" class="mp-uni-btn mp-uni-btn-light" data-mp-action="clear">Limpiar filtros</button></div><div class="mp-uni-filters">' +
       '<label class="mp-uni-search"><span>Proyecto, cliente o IDNS</span><input type="search" data-mp-filter="search" value="' + escapeHtml_uni(f.search) + '" placeholder="Buscar..."></label>' +
+      '<label><span>Pendientes</span><select data-mp-filter="pendiente_tipo">' + optionList_uni(['Con Pendiente','Facturas Pendientes'],f.pendiente_tipo,'Todos') + '</select></label>' +
       '<label><span>Estado</span><select data-mp-filter="estado">' + optionList_uni(mpState_uni.catalogs.estado,f.estado,'Todos') + '</select></label>' +
       '<label><span>Periodicidad</span><select data-mp-filter="periodicidad">' + optionList_uni(mpState_uni.catalogs.periodicidad,f.periodicidad,'Todas') + '</select></label>' +
       '<label><span>Momento facturación</span><select data-mp-filter="momento_facturacion">' + optionList_uni(mpState_uni.catalogs.momento_facturacion,f.momento_facturacion,'Todos') + '</select></label>' +
@@ -896,7 +931,7 @@
         const action=button.getAttribute('data-mp-action');
         if(action==='refresh') loadMpMain_uni(true);
         if(action==='clear'){
-          mpState_uni.filters={search:'',estado:'',periodicidad:'',momento_facturacion:'',z_oper:'',zona_adm:'',forma_pago:''};
+          mpState_uni.filters={search:'',pendiente_tipo:'',estado:'',periodicidad:'',momento_facturacion:'',z_oper:'',zona_adm:'',forma_pago:''};
           mpState_uni.page=1;
           renderMpMain_uni();
         }

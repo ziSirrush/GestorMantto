@@ -586,19 +586,82 @@
     return new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
   }
 
-  function pdfTicketWithEmojis(row){
-    const ticket = String((row && (row.ticket || row.folio)) || '—');
-    if(!window.EstadosVisuales_gnral || typeof window.EstadosVisuales_gnral.codesForTicket !== 'function') return ticket;
+  const pdfEmojiImageCache = new Map();
+
+  function pdfTicketText(row){
+    return String((row && (row.ticket || row.folio)) || '—');
+  }
+
+  function pdfTicketEmojiText(row){
+    if(!window.EstadosVisuales_gnral || typeof window.EstadosVisuales_gnral.codesForTicket !== 'function') return '';
     try{
       const codes = window.EstadosVisuales_gnral.codesForTicket(row || {});
-      const emojis = codes.map(code=>window.EstadosVisuales_gnral.emoji(code,'')).filter(Boolean).join(' ');
-      return emojis ? emojis+' '+ticket : ticket;
+      return codes.map(code=>window.EstadosVisuales_gnral.emoji(code,'')).filter(Boolean).join(' ');
     }catch(error){
-      return ticket;
+      return '';
     }
   }
 
+  function pdfEmojiImage(text){
+    const emojis = String(text || '').trim();
+    if(!emojis) return null;
+    if(pdfEmojiImageCache.has(emojis)) return pdfEmojiImageCache.get(emojis);
+    try{
+      const scale = 3;
+      const fontSize = 24;
+      const padding = 4;
+      const canvas = document.createElement('canvas');
+      const measure = canvas.getContext('2d');
+      measure.font = fontSize + 'px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+      const logicalWidth = Math.ceil(measure.measureText(emojis).width) + padding * 2;
+      const logicalHeight = fontSize + padding * 2;
+      canvas.width = logicalWidth * scale;
+      canvas.height = logicalHeight * scale;
+      const context = canvas.getContext('2d');
+      context.scale(scale, scale);
+      context.font = fontSize + 'px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+      context.textAlign = 'left';
+      context.textBaseline = 'middle';
+      context.fillText(emojis, padding, logicalHeight / 2);
+      const image = { data:canvas.toDataURL('image/png'), width:logicalWidth, height:logicalHeight };
+      pdfEmojiImageCache.set(emojis, image);
+      return image;
+    }catch(error){
+      return null;
+    }
+  }
+
+  function pdfTicketDidParseCell(data, _doc, row){
+    if(!data || data.section !== 'body' || data.column.index !== 0 || !pdfTicketEmojiText(row)) return;
+    data.cell.styles.cellPadding = { top:7.4, right:.8, bottom:.8, left:.8 };
+  }
+
+  function pdfTicketDidDrawCell(data, doc, row){
+    if(!data || data.section !== 'body' || data.column.index !== 0 || !doc) return;
+    const image = pdfEmojiImage(pdfTicketEmojiText(row));
+    if(!image) return;
+    const maxWidth = Math.max(1, data.cell.width - 2);
+    const maxHeight = Math.max(1, Math.min(6.2, data.cell.height - 2));
+    const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+    const width = image.width * scale;
+    const height = image.height * scale;
+    doc.addImage(image.data, 'PNG', data.cell.x + 1, data.cell.y + 1, width, height, undefined, 'FAST');
+  }
+
+  async function loadPdfVisualCatalog(){
+    const visual = window.EstadosVisuales_gnral;
+    if(!visual || typeof visual.load !== 'function'){
+      throw new Error('El catálogo de Estados Visuales no está disponible.');
+    }
+    await visual.load(true);
+    if(typeof visual.isLoaded === 'function' && !visual.isLoaded()){
+      throw new Error('No se pudo cargar la tabla de Estados Visuales.');
+    }
+    pdfEmojiImageCache.clear();
+  }
+
   async function buildEquiposPdf(){
+    await loadPdfVisualCatalog();
     const criteria=Object.assign({},state.eq.lastCriteria||eqCriteria());
     const equipos=await fetchAllEquiposForPdf(criteria);
     if(!equipos.length) throw new Error('No hay equipos críticos para exportar con los filtros actuales.');
@@ -656,7 +719,7 @@
         ],
         rows:item.tickets,
         columns:[
-          {key:'ticket',label:'No.\nTicket',value:r=>pdfTicketWithEmojis(r)},
+          {key:'ticket',label:'No.\nTicket',value:r=>pdfTicketText(r)},
           {key:'estado_ticket',label:'Estado',value:r=>r.estado_ticket||r.estado},
           {key:'fecha_reporte',label:'Fecha\nReporte',value:r=>pdfDate(r.fecha_reporte)},
           {key:'h_reporte',label:'Hora\nReporte'},
@@ -694,6 +757,8 @@
         headStyles:{fillColor:[13,46,110]},
         alternateRowStyles:{fillColor:[239,246,255]},
         styles:{fontSize:4.6,cellPadding:0.8,overflow:'linebreak',valign:'middle',minCellWidth:1},
+        didParseCell:pdfTicketDidParseCell,
+        didDrawCell:pdfTicketDidDrawCell,
         margin:{left:30,right:30,bottom:32}
       });
     });
@@ -765,9 +830,15 @@
     }
   }
 
-  function exportDetailPdf(){
+  async function exportDetailPdf(){
     if(!window.ManttoPdf_gnral || typeof window.ManttoPdf_gnral.exportTable !== 'function'){
       alert('El motor general de PDF no está disponible.');
+      return;
+    }
+    try{
+      await loadPdfVisualCatalog();
+    }catch(error){
+      alert('No se pudo generar el PDF: '+error.message);
       return;
     }
     window.ManttoPdf_gnral.exportTable({
@@ -775,13 +846,15 @@
       fileName:state.detail.title,
       rows:state.detail.rows,
       columns:[
-        {key:'ticket',label:'Ticket'}, {key:'fecha_reporte',label:'Fecha reporte'},
+        {key:'ticket',label:'Ticket',value:r=>pdfTicketText(r)}, {key:'fecha_reporte',label:'Fecha reporte'},
         {key:'estado_ticket',label:'Estado'}, {key:'proyecto',label:'Proyecto'},
         {key:'codigo_equipo',label:'Equipo'}, {key:'zona',label:'Zona'},
         {key:'responsabilidad',label:'Responsabilidad'}, {key:'causa_falla',label:'Causa'},
         {key:'tiempo_llegada',label:'T. llegada'}, {key:'tiempo_solucion',label:'T. solución'}
       ],
-      headStyles:{fillColor:[13,46,110]}
+      headStyles:{fillColor:[13,46,110]},
+      didParseCell:pdfTicketDidParseCell,
+      didDrawCell:pdfTicketDidDrawCell
     });
   }
 
@@ -789,7 +862,12 @@
     try{
       await loadHtml();
       await loadUserPreferences();
-      if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa();
+      if(window.EstadosVisuales_gnral){
+        await Promise.all([
+          window.EstadosVisuales_gnral.load(),
+          window.EstadosVisuales_gnral.loadCriticidadCorporativa()
+        ]);
+      }
       await Promise.all([loadEquipos(state.eq.page), loadProyectos(state.pro.page), loadU365()]);
     }catch(e){
       const view=$('view-criticos');

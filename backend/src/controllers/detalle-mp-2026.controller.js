@@ -117,17 +117,44 @@ function uniqueSorted(values) {
     .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }
 
+function financialProjectKey(row) {
+  const proyecto = String(row && row.proyecto || '').trim().toLowerCase();
+  if (proyecto) return `proyecto:${proyecto}`;
+
+  const idProyectoCobranza = Number(row && row.id_proyecto_cobranza || 0);
+  if (Number.isInteger(idProyectoCobranza) && idProyectoCobranza > 0) {
+    return `id:${idProyectoCobranza}`;
+  }
+
+  return `registro:${String(row && row.id_dmp || '')}`;
+}
+
 async function getMainDetalleMp2026(req, res) {
   const conn = await db.getConnection();
 
   try {
     const [rows] = await conn.query(
       `SELECT
-         id_dmp, zona_adm, proyecto, id_proyecto_cobranza, idns, cliente, periodicidad,
-         momento_facturacion, estado, z_oper, forma_pago, iguala, condiciones_pago,
-         monto_anual, pendiente_corriente, pendiente_vencido, pendiente, facturas_pendientes
-       FROM ${TABLE_NAME}
-       ORDER BY proyecto ASC, id_dmp ASC`
+         mp.id_dmp, mp.zona_adm, mp.proyecto, mp.id_proyecto_cobranza, mp.idns, mp.cliente, mp.periodicidad,
+         mp.momento_facturacion, mp.estado, mp.z_oper, mp.forma_pago, mp.iguala, mp.condiciones_pago,
+         mp.monto_anual, mp.pendiente_corriente, mp.pendiente_vencido, mp.pendiente, mp.facturas_pendientes,
+         COALESCE(mp.pendiente_corriente, 0) + COALESCE(mp.pendiente_vencido, 0) AS adeudo_mp,
+         (
+           SELECT COALESCE(SUM(COALESCE(va.adeudo, 0)), 0)
+           FROM pc va
+           WHERE (
+             (
+               COALESCE(mp.id_proyecto_cobranza, 0) > 0
+               AND va.id_proyecto_cobranza = mp.id_proyecto_cobranza
+             )
+             OR (
+               TRIM(COALESCE(mp.proyecto, '')) <> ''
+               AND LOWER(TRIM(COALESCE(va.proyecto, ''))) = LOWER(TRIM(mp.proyecto))
+             )
+           )
+         ) AS adeudo_va
+       FROM ${TABLE_NAME} mp
+       ORDER BY mp.proyecto ASC, mp.id_dmp ASC`
     );
 
     const kpis = {
@@ -137,20 +164,35 @@ async function getMainDetalleMp2026(req, res) {
       pendiente_corriente_total: 0,
       pendiente_vencido_total: 0,
       pendiente_total: 0,
-      facturas_pendientes_total: 0
+      facturas_pendientes_total: 0,
+      adeudo_mp_total: 0,
+      adeudo_va_total: 0,
+      adeudo_total: 0
     };
+    const proyectosVaContados = new Set();
 
     for (const row of rows) {
       const pendiente = numberOrZero(row.pendiente);
+      const adeudoMp = numberOrZero(row.adeudo_mp);
+      const projectKey = financialProjectKey(row);
+
       kpis.monto_anual_total += numberOrZero(row.monto_anual);
       kpis.pendiente_corriente_total += numberOrZero(row.pendiente_corriente);
       kpis.pendiente_vencido_total += numberOrZero(row.pendiente_vencido);
       kpis.pendiente_total += pendiente;
       kpis.facturas_pendientes_total += numberOrZero(row.facturas_pendientes);
+      kpis.adeudo_mp_total += adeudoMp;
+
+      if (!proyectosVaContados.has(projectKey)) {
+        proyectosVaContados.add(projectKey);
+        kpis.adeudo_va_total += numberOrZero(row.adeudo_va);
+      }
+
       if (pendiente > 0 || numberOrZero(row.facturas_pendientes) > 0) {
         kpis.registros_con_pendiente += 1;
       }
     }
+    kpis.adeudo_total = kpis.adeudo_mp_total + kpis.adeudo_va_total;
 
     return res.json({
       ok: true,

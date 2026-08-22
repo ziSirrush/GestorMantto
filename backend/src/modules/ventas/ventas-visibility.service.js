@@ -1,197 +1,104 @@
 'use strict';
 
-const FULL_ACCESS_ROLE_IDS = new Set([1, 5, 7, 47]);
-const MANAGER_ROLE_IDS = new Set([48, 50, 54]);
+const legacyVisibility = require('./ventas-visibility.legacy.service');
+const {
+  resolveInformationScopeForContext_gnral,
+  hasCompleteDomain_gnral,
+  effectiveUserIdFromContext_gnral,
+  runInformationScopeWithFallback_gnral
+} = require('../../services/information-scope-gnral.service');
 
-const FULL_ACCESS_NAMES = new Set([
-  'director general',
-  'director ventas',
-  'jefa administracion ventas',
-  'auxiliar direccion'
-]);
-
-const MANAGER_NAMES = new Set([
-  'gerente de cuentas corporativas',
-  'gerente comercial baja california y sureste',
-  'gerente comercial zona norte'
-]);
-
-function normalize(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function positiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
-}
-
-function getActorId(actionContext) {
-  const actorId = positiveInteger(actionContext?.user?.id_SB);
-  if (!actorId) {
-    const error = new Error('Sesión requerida.');
-    error.statusCode = 401;
-    throw error;
-  }
-  return actorId;
-}
-
-async function getProfile(connection, userId) {
-  const [rows] = await connection.query(
-    `SELECT
-       u.id_SB,
-       u.puesto,
-       u.area,
-       u.reporta_a,
-       u.rol_id AS legacy_role_id,
-       GROUP_CONCAT(DISTINCT r.id_rol ORDER BY r.id_rol) AS role_ids,
-       GROUP_CONCAT(DISTINCT r.rol ORDER BY r.rol SEPARATOR '||') AS role_names
-     FROM usuarios u
-     LEFT JOIN usuario_roles ur
-       ON ur.id_usuario = u.id_SB
-      AND ur.activo = 1
-     LEFT JOIN roles r
-       ON r.id_rol = ur.id_rol
-      AND r.estado = 1
-     WHERE u.id_SB = ?
-       AND u.estado = 1
-     GROUP BY u.id_SB, u.puesto, u.area, u.reporta_a, u.rol_id
-     LIMIT 1`,
-    [userId]
-  );
-
-  const row = rows[0];
-  if (!row) return null;
-
-  const roleIds = String(row.role_ids || '')
-    .split(',')
+function normalizeVisibleUserIds_cor(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
     .map(Number)
-    .filter(Number.isInteger);
+    .filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b);
+}
 
-  const legacyRoleId = positiveInteger(row.legacy_role_id);
-  if (legacyRoleId && !roleIds.includes(legacyRoleId)) roleIds.push(legacyRoleId);
+function resolveGuardScope_cor(actionContext) {
+  const informationAccess = actionContext?.informationAccess || null;
+  if (!informationAccess) return null;
 
-  const roleNames = String(row.role_names || '')
-    .split('||')
-    .map(normalize)
-    .filter(Boolean);
+  const domain = String(informationAccess.dominio || '').trim().toUpperCase();
+  if (domain !== 'CORELLIAN') return null;
 
-  const puesto = normalize(row.puesto);
-  if (puesto && !roleNames.includes(puesto)) roleNames.push(puesto);
+  const actorId = effectiveUserIdFromContext_gnral(actionContext)
+    || Number(informationAccess.effective_user_id)
+    || null;
+  const accessTotal = informationAccess.acceso_dominio_completo === true
+    || informationAccess.requiere_filtro_usuario === false;
+  const advisorIds = accessTotal
+    ? []
+    : normalizeVisibleUserIds_cor(informationAccess.usuarios_visibles);
 
   return {
-    idUsuario: Number(row.id_SB),
-    puesto: row.puesto || '',
-    area: row.area || '',
-    reportaA: positiveInteger(row.reporta_a),
-    roleIds,
-    roleNames
+    mode: accessTotal ? 'ALL' : 'LIMITED',
+    accessTotal,
+    advisorIds,
+    actorId,
+    profile: null,
+    source: 'INFORMATION_ACCESS_GUARD',
+    informationScope: informationAccess.alcance || null,
+    informationAccess
   };
 }
 
-async function getDirectReportIds(connection, managerId) {
-  const [rows] = await connection.query(
-    `SELECT id_SB
-       FROM usuarios
-      WHERE reporta_a = ?
-        AND estado = 1`,
-    [managerId]
-  );
-  return rows.map((row) => Number(row.id_SB)).filter(Number.isInteger);
-}
+async function resolveModernScope_cor(connection, actionContext) {
+  // Compatibilidad temporal para consumidores aun no migrados o integraciones que
+  // no pasan por el Guard General. El resolver moderno sigue siendo la fuente.
+  const informationScope = await resolveInformationScopeForContext_gnral(connection, actionContext);
+  const actorId = effectiveUserIdFromContext_gnral(actionContext);
+  const accessTotal = hasCompleteDomain_gnral(informationScope, 'CORELLIAN');
+  const advisorIds = accessTotal
+    ? []
+    : normalizeVisibleUserIds_cor(informationScope.usuarios_visibles);
 
-async function getAdminAdvisorIds_cor(connection, adminId) {
-  const [rows] = await connection.query(
-    `SELECT DISTINCT asesor.id_SB
-       FROM usuarios_rel_admin ura
-       INNER JOIN usuarios asesor
-         ON asesor.id_SB = ura.id_asesor
-        AND asesor.estado = 1
-      WHERE ura.id_admin = ?
-      ORDER BY asesor.id_SB ASC`,
-    [adminId]
-  );
-
-  return rows
-    .map((row) => Number(row.id_SB))
-    .filter((id) => Number.isInteger(id) && id > 0);
-}
-
-function matchesAny(profile, ids, names) {
-  return profile.roleIds.some((id) => ids.has(id))
-    || profile.roleNames.some((name) => names.has(name));
+  return {
+    mode: accessTotal ? 'ALL' : 'LIMITED',
+    accessTotal,
+    advisorIds,
+    actorId,
+    profile: null,
+    source: 'INFORMATION_SCOPE',
+    informationScope
+  };
 }
 
 async function resolveVisibilityScope(connection, actionContext) {
-  const actorId = getActorId(actionContext);
-  const profile = await getProfile(connection, actorId);
+  // Si la ruta humana ya paso por humanInformationGuard_gnral, ese resultado es
+  // autoritativo. No debe ser reemplazado por INFORMATION_SCOPE_MODE=LEGACY ni
+  // por una segunda resolucion especifica de Ventas.
+  const guardedScope = resolveGuardScope_cor(actionContext);
+  if (guardedScope) return guardedScope;
 
-  if (!profile) {
-    const error = new Error('Usuario autenticado no disponible o inactivo.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  // La relación administrativa es la fuente oficial del alcance de los
-  // auxiliares administrativos. Se consulta con el usuario efectivo de la
-  // solicitud; en modo Visor corresponde al usuario visualizado, no al actor.
-  const adminAdvisorIds = await getAdminAdvisorIds_cor(connection, actorId);
-  if (adminAdvisorIds.length) {
-    return {
-      mode: 'ADMIN_REL',
-      accessTotal: false,
-      advisorIds: [...new Set(adminAdvisorIds)],
-      actorId,
-      profile
-    };
-  }
-
-  if (matchesAny(profile, FULL_ACCESS_ROLE_IDS, FULL_ACCESS_NAMES)) {
-    return {
-      mode: 'ALL',
-      accessTotal: true,
-      advisorIds: [],
-      actorId,
-      profile
-    };
-  }
-
-  if (matchesAny(profile, MANAGER_ROLE_IDS, MANAGER_NAMES)) {
-    const directReports = await getDirectReportIds(connection, actorId);
-    return {
-      mode: 'LIMITED',
-      accessTotal: false,
-      advisorIds: [...new Set([actorId, ...directReports])],
-      actorId,
-      profile
-    };
-  }
-
-  return {
-    mode: 'LIMITED',
-    accessTotal: false,
-    advisorIds: [actorId],
-    actorId,
-    profile
-  };
+  return runInformationScopeWithFallback_gnral({
+    label: 'ventas',
+    modern: () => resolveModernScope_cor(connection, actionContext),
+    legacy: () => legacyVisibility.resolveVisibilityScope(connection, actionContext)
+  });
 }
 
 function toClientVisibility(scope) {
+  if (!['INFORMATION_SCOPE', 'INFORMATION_ACCESS_GUARD'].includes(scope?.source)) {
+    return legacyVisibility.toClientVisibility(scope);
+  }
   return {
-    acceso_total: scope.mode === 'ALL',
+    acceso_total: Boolean(scope.accessTotal),
     modo: scope.mode,
     usuario_id: scope.actorId,
-    ids_asesores_visibles: scope.mode === 'ALL' ? [] : scope.advisorIds
+    ids_asesores_visibles: scope.accessTotal ? [] : scope.advisorIds,
+    fuente: scope.source === 'INFORMATION_ACCESS_GUARD'
+      ? 'GUARD_GENERAL_ALCANCE_INFORMACION'
+      : 'ALCANCE_INFORMACION'
   };
 }
 
 module.exports = {
   resolveVisibilityScope,
   toClientVisibility,
-  getProfile,
-  getDirectReportIds,
-  getAdminAdvisorIds_cor
+  // Compatibilidad temporal para cualquier consumidor no migrado. No participan
+  // en el camino normal cuando la peticion ya trae req.informationAccess.
+  getProfile: legacyVisibility.getProfile,
+  getDirectReportIds: legacyVisibility.getDirectReportIds,
+  getAdminAdvisorIds_cor: legacyVisibility.getAdminAdvisorIds_cor
 };
