@@ -60,7 +60,7 @@ function cookieValue(req, token, maxAgeSeconds) {
     `SameSite=${secure ? 'None' : 'Lax'}`,
     `Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}`
   ];
-  if (secure) parts.push('Secure');
+  if (secure) parts.push('Secure', 'Partitioned');
   return parts.join('; ');
 }
 

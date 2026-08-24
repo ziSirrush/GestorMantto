@@ -1,5 +1,5 @@
 /*
-  Sesiones renovables: 28 dias de inactividad y maximo absoluto de 90 dias.
+  Sesiones renovables: 90 dias de inactividad y maximo absoluto de 90 dias.
 
   IMPORTANTE:
   - Este archivo es de bootstrap para instalaciones donde auth_sessions NO exista.

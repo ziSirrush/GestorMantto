@@ -19,24 +19,31 @@ function timestampMarker(value) {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
 }
 
-function sessionExpirySeconds() {
-  const raw = String(process.env.JWT_EXPIRES_IN || '').trim().toLowerCase();
-  if (!raw) return MAX_SESSION_SECONDS;
+function sessionExpiryTimestamp(absoluteExpiresAt) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const accessExpiresAt = nowSeconds + MAX_SESSION_SECONDS;
+  if (!absoluteExpiresAt) return accessExpiresAt;
 
-  const match = raw.match(/^(\d+)(s|m|h|d)?$/);
-  if (!match) return MAX_SESSION_SECONDS;
+  const absoluteSeconds = Math.floor(new Date(absoluteExpiresAt).getTime() / 1000);
+  if (!Number.isFinite(absoluteSeconds) || absoluteSeconds <= nowSeconds) {
+    const error = new Error('La sesión alcanzó su duración máxima de 90 días.');
+    error.status = 401;
+    error.code = 'SESSION_ABSOLUTE_EXPIRED';
+    throw error;
+  }
 
-  const multipliers = { s: 1, m: 60, h: 3600, d: 86400 };
-  const requested = Number(match[1]) * (multipliers[match[2] || 's']);
-  if (!Number.isSafeInteger(requested) || requested <= 0) return MAX_SESSION_SECONDS;
-  return Math.min(requested, MAX_SESSION_SECONDS);
+  return Math.min(accessExpiresAt, absoluteSeconds);
 }
 
-function signSessionToken(user, explicitRoles) {
+function signSessionToken(user, explicitRoles, absoluteExpiresAt) {
   const roles = Array.isArray(explicitRoles)
     ? explicitRoles
     : Array.isArray(user.roles) ? user.roles : [];
   const isProgramador = roles.includes('Programador') || user.rol === 'Programador';
+  const expiresAt = sessionExpiryTimestamp(absoluteExpiresAt);
+  const absoluteExpiresAtSeconds = absoluteExpiresAt
+    ? Math.floor(new Date(absoluteExpiresAt).getTime() / 1000)
+    : null;
 
   return jwt.sign(
     {
@@ -47,10 +54,11 @@ function signSessionToken(user, explicitRoles) {
       roles,
       empresa: user.empresa,
       is_programador: isProgramador,
-      session_version: timestampMarker(user.password_changed_at)
+      session_version: timestampMarker(user.password_changed_at),
+      session_absolute_expires_at: absoluteExpiresAtSeconds,
+      exp: expiresAt
     },
-    process.env.JWT_SECRET,
-    { expiresIn: sessionExpirySeconds() }
+    process.env.JWT_SECRET
   );
 }
 
@@ -272,14 +280,15 @@ async function login(req, res) {
       roles.includes('Programador') ||
       user.rol === 'Programador';
 
-    const token = signSessionToken(user, roles);
     const refreshState = await createRefreshSession(req, res, user);
+    const token = signSessionToken(user, roles, refreshState.absoluteExpiresAt);
 
     return res.json({
       ok: true,
       message: 'Login correcto.',
       token,
       session_csrf_token: refreshState.csrfToken,
+      session_absolute_expires_at: new Date(refreshState.absoluteExpiresAt).toISOString(),
       must_change_password:
         Number(user.must_change_password) === 1,
       user: {
@@ -310,7 +319,7 @@ async function login(req, res) {
 async function refreshSession(req, res) {
   try {
     const { user, absoluteExpiresAt, csrfToken } = await rotateRefreshSession(req, res);
-    const token = signSessionToken(user, user.roles);
+    const token = signSessionToken(user, user.roles, absoluteExpiresAt);
 
     return res.json({
       ok: true,
@@ -440,16 +449,13 @@ async function firstLoginPassword(req, res) {
       LIMIT 1`,
       [user.id_SB]
     );
-    const token = signSessionToken({
-      ...req.user,
-      password_changed_at: sessionState && sessionState.password_changed_at
-    });
     const refreshedUser = {
       ...req.user,
       password_changed_at: sessionState && sessionState.password_changed_at
     };
     await revokeUserSessions(user.id_SB);
     const refreshState = await createRefreshSession(req, res, refreshedUser);
+    const token = signSessionToken(refreshedUser, undefined, refreshState.absoluteExpiresAt);
 
     await audit(
       user.id_SB,
@@ -462,6 +468,7 @@ async function firstLoginPassword(req, res) {
       ok: true,
       token,
       session_csrf_token: refreshState.csrfToken,
+      session_absolute_expires_at: new Date(refreshState.absoluteExpiresAt).toISOString(),
       message:
         'Contraseña actualizada correctamente.'
     });
@@ -1129,21 +1136,19 @@ async function changePassword(req, res) {
       LIMIT 1`,
       [req.user.id_SB]
     );
-    const token = signSessionToken({
-      ...req.user,
-      password_changed_at: sessionState && sessionState.password_changed_at
-    });
     const refreshedUser = {
       ...req.user,
       password_changed_at: sessionState && sessionState.password_changed_at
     };
     await revokeUserSessions(req.user.id_SB);
     const refreshState = await createRefreshSession(req, res, refreshedUser);
+    const token = signSessionToken(refreshedUser, undefined, refreshState.absoluteExpiresAt);
 
     return res.json({
       ok: true,
       token,
       session_csrf_token: refreshState.csrfToken,
+      session_absolute_expires_at: new Date(refreshState.absoluteExpiresAt).toISOString(),
       message:
         'Contraseña actualizada correctamente.'
     });

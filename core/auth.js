@@ -10,9 +10,12 @@
   const VIEWER_LAUNCH_PREFIX = 'mantto:viewer:launch:';
   const VIEWER_LAUNCH_PARAM = 'viewer_launch';
   const VIEWER_LAUNCH_TTL_MS = 60000;
-  const SESSION_ACTIVITY_TOUCH_MS = 30 * 60 * 1000;
+  const ACCESS_TOKEN_LIFETIME_MS = 12 * 60 * 60 * 1000;
+  const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 5 * 60 * 1000;
+  const SESSION_REFRESH_RETRY_MS = 60 * 1000;
   const state = { token: null, user: null, viewUser: null, pendingUser: null, recoveryToken: null, expiringSession: false, lastSessionRefreshAt: 0 };
   let refreshPromise = null;
+  let refreshTimer = null;
 
   function $(id){ return document.getElementById(id); }
   function msg(id, text, type){ const el=$(id); if(!el) return; el.textContent=text||''; el.className='auth-msg ' + (type||''); }
@@ -22,15 +25,49 @@
   }
   function getToken(){ return state.token || sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || ''; }
   function getActorUser(){ return state.user || safeJson(sessionStorage.getItem(USER_KEY)) || safeJson(localStorage.getItem(USER_KEY)); }
-  function jwtExpiryMs(token){
+  function jwtPayload(token){
     try{
       const payloadPart=String(token||'').split('.')[1]||'';
-      if(!payloadPart) return 0;
+      if(!payloadPart) return null;
       const normalized=payloadPart.replace(/-/g,'+').replace(/_/g,'/');
       const padded=normalized+'='.repeat((4-normalized.length%4)%4);
-      const payload=JSON.parse(window.atob(padded));
-      return Number(payload&&payload.exp||0)*1000;
-    }catch(_error){ return 0; }
+      return JSON.parse(window.atob(padded));
+    }catch(_error){ return null; }
+  }
+  function jwtExpiryMs(token){
+    return Number(jwtPayload(token)?.exp||0)*1000;
+  }
+  function jwtIssuedAtMs(token){
+    return Number(jwtPayload(token)?.iat||0)*1000;
+  }
+  function jwtAbsoluteExpiryMs(token){
+    return Number(jwtPayload(token)?.session_absolute_expires_at||0)*1000;
+  }
+  function tokenRefreshDueAt(token){
+    const expiresAt=jwtExpiryMs(token);
+    const absoluteExpiresAt=jwtAbsoluteExpiryMs(token);
+    if(expiresAt){
+      // El último JWT queda limitado por el vencimiento absoluto. En ese caso
+      // no se intenta extenderlo: al llegar a los 90 días el refresh debe fallar
+      // y solicitar un inicio de sesión nuevo.
+      if(absoluteExpiresAt && expiresAt>=absoluteExpiresAt-1000) return expiresAt+250;
+      return expiresAt-ACCESS_TOKEN_REFRESH_LEEWAY_MS;
+    }
+    const issuedAt=jwtIssuedAtMs(token);
+    return (issuedAt||Date.now())+ACCESS_TOKEN_LIFETIME_MS-ACCESS_TOKEN_REFRESH_LEEWAY_MS;
+  }
+  function clearRefreshTimer(){
+    if(refreshTimer!==null) window.clearTimeout(refreshTimer);
+    refreshTimer=null;
+  }
+  function scheduleSessionRefresh(token, delayOverride){
+    clearRefreshTimer();
+    const cleanToken=String(token||'').trim();
+    if(!cleanToken) return;
+    const delay=delayOverride===undefined
+      ? Math.max(0,tokenRefreshDueAt(cleanToken)-Date.now())
+      : Math.max(0,Number(delayOverride)||0);
+    refreshTimer=window.setTimeout(runScheduledSessionRefresh,delay);
   }
   function persistActorSession(token,user,marker){
     const cleanToken=String(token||'').trim();
@@ -44,6 +81,7 @@
       user:sessionUser,
       persisted_at:new Date().toISOString(),
       expires_at:expiresAt||null,
+      session_absolute_expires_at:jwtAbsoluteExpiryMs(cleanToken)||null,
       marker:marker||'persisted'
     }));
   }
@@ -167,6 +205,7 @@
     sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:state.user,refreshed_at:new Date().toISOString()}));
     persistActorSession(state.token,state.user,'refresh');
     state.lastSessionRefreshAt=Date.now();
+    scheduleSessionRefresh(state.token);
     return payload;
   }
   async function requestSessionRefresh(){
@@ -185,17 +224,62 @@
   }
   async function refreshAccessToken(){
     if(refreshPromise) return refreshPromise;
+    const requestedToken=getToken();
     refreshPromise=(async()=>{
       if(window.navigator?.locks?.request){
-        return window.navigator.locks.request('mantto-session-refresh',{mode:'exclusive'},requestSessionRefresh);
+        return window.navigator.locks.request('mantto-session-refresh',{mode:'exclusive'},()=>{
+          const sharedToken=String(localStorage.getItem(TOKEN_KEY)||'').trim();
+          if(sharedToken && sharedToken!==requestedToken && jwtExpiryMs(sharedToken)>Date.now()){
+            state.token=sharedToken;
+            state.user=safeJson(localStorage.getItem(USER_KEY))||state.user;
+            sessionStorage.setItem(TOKEN_KEY,sharedToken);
+            if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
+            state.lastSessionRefreshAt=jwtIssuedAtMs(sharedToken)||Date.now();
+            scheduleSessionRefresh(sharedToken);
+            return {ok:true,token:sharedToken,user:state.user,shared:true};
+          }
+          return requestSessionRefresh();
+        });
       }
       return requestSessionRefresh();
     })();
     try{return await refreshPromise;}finally{refreshPromise=null;}
   }
+  function isTerminalRefreshError(error){
+    return Number(error?.status||0)===401 || Number(error?.status||0)===403;
+  }
+  async function runScheduledSessionRefresh(){
+    refreshTimer=null;
+    const token=getToken();
+    if(!token) return;
+    const dueAt=tokenRefreshDueAt(token);
+    if(dueAt>Date.now()+1000){
+      scheduleSessionRefresh(token);
+      return;
+    }
+    try{
+      await refreshAccessToken();
+    }catch(error){
+      const expiresAt=jwtExpiryMs(token);
+      if(isTerminalRefreshError(error) && (!expiresAt || expiresAt<=Date.now())){
+        expireSession('Tu sesión alcanzó su vencimiento. Inicia sesión nuevamente.');
+        return;
+      }
+      if(isTerminalRefreshError(error) && expiresAt>Date.now()){
+        scheduleSessionRefresh(token,expiresAt-Date.now()+250);
+        return;
+      }
+      scheduleSessionRefresh(token,SESSION_REFRESH_RETRY_MS);
+    }
+  }
   function touchSessionFromActivity(){
-    if(!getToken() || Date.now()-state.lastSessionRefreshAt<SESSION_ACTIVITY_TOUCH_MS) return;
-    refreshAccessToken().catch(()=>{});
+    const token=getToken();
+    if(!token) return;
+    if(tokenRefreshDueAt(token)>Date.now()){
+      if(refreshTimer===null) scheduleSessionRefresh(token);
+      return;
+    }
+    runScheduledSessionRefresh();
   }
   async function api(path, options){
     const opts = options || {};
@@ -242,11 +326,16 @@
     }
     if(json.token){
       state.token=String(json.token);
+      state.user=json.user||state.user||getActorUser();
       sessionStorage.setItem(TOKEN_KEY,state.token);
-      sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:getActorUser(),refreshed_at:new Date().toISOString()}));
-      persistActorSession(state.token,getActorUser(),'api-token');
+      if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
+      if(json.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(json.session_csrf_token));
+      sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:state.user,refreshed_at:new Date().toISOString()}));
+      persistActorSession(state.token,state.user,'api-token');
+      state.lastSessionRefreshAt=jwtIssuedAtMs(state.token)||Date.now();
+      scheduleSessionRefresh(state.token);
     }
-    if(token && !isPublicAuthPath(path) && Date.now()-state.lastSessionRefreshAt>=SESSION_ACTIVITY_TOUCH_MS){
+    if(token && !isPublicAuthPath(path)){
       touchSessionFromActivity();
     }
     const method=String(opts.method||'GET').toUpperCase();
@@ -282,9 +371,11 @@
     sessionStorage.removeItem(VIEWER_TOKEN_KEY);
     localStorage.removeItem(VIEW_USER_KEY);
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: payload.token, user: payload.user, created_at: new Date().toISOString() }));
-    state.lastSessionRefreshAt=Date.now();
+    state.lastSessionRefreshAt=jwtIssuedAtMs(state.token)||Date.now();
+    scheduleSessionRefresh(state.token);
   }
   function clearSession(){
+    clearRefreshTimer();
     state.token = null; state.user = null; state.viewUser = null; state.pendingUser = null;
     state.lastSessionRefreshAt = 0;
     sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY); sessionStorage.removeItem(SESSION_KEY);
@@ -395,6 +486,17 @@
     document.addEventListener?.('visibilitychange',()=>{
       if(!document.hidden) touchSessionFromActivity();
     });
+    window.addEventListener?.('storage',event=>{
+      if(event.key!==TOKEN_KEY || !event.newValue) return;
+      const sharedToken=String(event.newValue||'').trim();
+      if(!sharedToken || sharedToken===state.token || jwtExpiryMs(sharedToken)<=Date.now()) return;
+      state.token=sharedToken;
+      state.user=safeJson(localStorage.getItem(USER_KEY))||state.user;
+      sessionStorage.setItem(TOKEN_KEY,sharedToken);
+      if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
+      state.lastSessionRefreshAt=jwtIssuedAtMs(sharedToken)||Date.now();
+      scheduleSessionRefresh(sharedToken);
+    });
     $('login-form')?.addEventListener('submit', handleLogin);
     $('first-login-form')?.addEventListener('submit', handleFirstLogin);
     $('recovery-form')?.addEventListener('submit', handleRecovery);
@@ -427,6 +529,8 @@
 
     state.token=savedToken;
     state.user=savedUser;
+    state.lastSessionRefreshAt=jwtIssuedAtMs(savedToken)||Date.now();
+    scheduleSessionRefresh(savedToken);
     state.viewUser=launchedViewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY));
     try{
       const validation=await apiGet('/api/auth/me');
