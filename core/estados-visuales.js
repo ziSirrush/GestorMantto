@@ -35,11 +35,23 @@
   function normalize(code){ return String(code || '').trim().toUpperCase(); }
   function uniqCodes(codes){ return [...new Set((Array.isArray(codes)?codes:[codes]).map(normalize).filter(Boolean))]; }
   function headers(){ return Object.assign({'Accept':'application/json'}, window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{}); }
+  function hasAuthenticatedSession(){
+    return Boolean(
+      window.ManttoAuth &&
+      typeof window.ManttoAuth.getToken === 'function' &&
+      String(window.ManttoAuth.getToken() || '').trim()
+    );
+  }
 
   async function load(force){
+    if(!hasAuthenticatedSession()){
+      apply(document);
+      return api;
+    }
     if(loadedFromApi && !force) return api;
     if(loadingPromise && !force) return loadingPromise;
-    loadingPromise = (async function(){
+
+    const requestPromise = (async function(){
       try{
         const response = await fetch(apiBase() + '/api/estados-visuales', {cache:'no-store',headers:headers()});
         if(!response.ok) throw new Error('HTTP '+response.status);
@@ -59,13 +71,21 @@
       }
       return api;
     })();
-    return loadingPromise;
+
+    loadingPromise=requestPromise;
+    try{
+      return await requestPromise;
+    }finally{
+      if(loadingPromise===requestPromise) loadingPromise=null;
+    }
   }
 
   async function loadCriticidadCorporativa(force){
+    if(!hasAuthenticatedSession()) return api;
     if(criticidadLoaded && !force) return api;
     if(criticidadPromise && !force) return criticidadPromise;
-    criticidadPromise=(async function(){
+
+    const requestPromise=(async function(){
       try{
         const response=await fetch(apiBase()+'/api/criticidad-corporativa?min_fallas=3',{cache:'no-store',headers:headers()});
         if(!response.ok) throw new Error('HTTP '+response.status);
@@ -80,7 +100,13 @@
       }
       return api;
     })();
-    return criticidadPromise;
+
+    criticidadPromise=requestPromise;
+    try{
+      return await requestPromise;
+    }finally{
+      if(criticidadPromise===requestPromise) criticidadPromise=null;
+    }
   }
   function isCriticoEquipo(codigo){ return criticalYearCodes.has(String(codigo||'').trim()); }
   function isCriticoProyecto(proyecto){ return criticalYearProjects.has(String(proyecto||'').trim()); }
@@ -197,9 +223,23 @@
 
   const api={load,loadCriticidadCorporativa,isCriticoEquipo,isCriticoProyecto,getCriticos365,get,getMany,emoji,renderMany,renderIdentifier,renderLegend,codesForTicket,codesForEquipo,codesForProyecto,apply,isLoaded:()=>loadedFromApi};
   window.EstadosVisuales_gnral=api;
-  function start(){
+
+  function loadAuthenticatedData(){
+    if(!hasAuthenticatedSession()) return;
     load();
     loadCriticidadCorporativa();
+  }
+
+  function start(){
+    // Los fallbacks visuales quedan disponibles desde el primer render,
+    // pero las consultas protegidas se difieren hasta que Auth confirme
+    // una sesión válida y emita mantto:auth-ready.
+    apply(document);
+    document.addEventListener('mantto:auth-ready',loadAuthenticatedData);
+
+    // Cobertura para escenarios donde este archivo se cargue después de Auth.
+    if(hasAuthenticatedSession()) loadAuthenticatedData();
+
     if(window.MutationObserver){
       const observer=new MutationObserver(mutations=>{
         mutations.forEach(mutation=>mutation.addedNodes.forEach(node=>{

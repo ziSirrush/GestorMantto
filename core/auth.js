@@ -89,13 +89,32 @@
     const token=String(localStorage.getItem(TOKEN_KEY)||'').trim();
     const user=safeJson(localStorage.getItem(USER_KEY));
     const expiresAt=jwtExpiryMs(token);
-    if(!token || (expiresAt && expiresAt<=Date.now())){
-      localStorage.removeItem(TOKEN_KEY);
+    const absoluteExpiresAt=jwtAbsoluteExpiryMs(token);
+
+    if(!token){
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
-    return {token,user};
+
+    // El vencimiento del JWT de acceso (12 h) no equivale al vencimiento de la
+    // sesión renovable. Se conserva token + usuario para poder intentar refresh
+    // y para no convertir un fallo temporal de red/Azure en un cierre de sesión.
+    if(absoluteExpiresAt && absoluteExpiresAt<=Date.now()){
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_CSRF_KEY);
+      return null;
+    }
+
+    return {
+      token,
+      user,
+      expiresAt,
+      absoluteExpiresAt,
+      accessExpired:Boolean(expiresAt && expiresAt<=Date.now())
+    };
   }
   function getViewUser(){ return state.viewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY)); }
   function getUser(){ return getViewUser() || getActorUser(); }
@@ -185,6 +204,16 @@
     error.payload=json || null;
     return error;
   }
+  function isTransientSessionError(error){
+    const status=Number(error?.status||0);
+    return Boolean(
+      error?.name==='TypeError' ||
+      error?.name==='AbortError' ||
+      status===408 ||
+      status===429 ||
+      status>=500
+    );
+  }
   function expireSession(message){
     if(state.expiringSession) return;
     state.expiringSession=true;
@@ -195,6 +224,31 @@
       detail:{ message:message || 'Tu sesión expiró. Inicia sesión nuevamente.' }
     }));
     window.setTimeout(()=>{ state.expiringSession=false; },0);
+  }
+  function preserveDeferredSession(token,user,marker,error){
+    const cleanToken=String(token||'').trim();
+    if(!cleanToken || !user) return false;
+
+    const absoluteExpiresAt=jwtAbsoluteExpiryMs(cleanToken);
+    if(absoluteExpiresAt && absoluteExpiresAt<=Date.now()) return false;
+
+    state.token=cleanToken;
+    state.user=user;
+    sessionStorage.setItem(TOKEN_KEY,cleanToken);
+    sessionStorage.setItem(USER_KEY,JSON.stringify(user));
+    sessionStorage.setItem(SESSION_KEY,JSON.stringify({
+      token:cleanToken,
+      user,
+      restored_at:new Date().toISOString(),
+      validation_deferred:true,
+      marker:marker||'deferred'
+    }));
+    persistActorSession(cleanToken,user,marker||'deferred');
+    state.lastSessionRefreshAt=jwtIssuedAtMs(cleanToken)||0;
+    scheduleSessionRefresh(cleanToken,SESSION_REFRESH_RETRY_MS);
+    console.warn('[AUTH] Renovación/validación temporalmente no disponible; la sesión local se conserva.',error);
+    showApp();
+    return true;
   }
   function applyRefreshedSession(payload){
     state.token=String(payload?.token||'');
@@ -313,8 +367,25 @@
           try{
             await refreshAccessToken();
             return api(path,Object.assign({},opts,{skipAuthRefresh:true}));
-          }catch(_refreshError){
-            // La renovación fallida continúa con el cierre local controlado.
+          }catch(refreshError){
+            if(isTerminalRefreshError(refreshError)){
+              const sessionMessage=json?.message==='Sesión inválida o usuario inactivo.'
+                ? 'La sesión ya no es válida o el usuario fue desactivado. Inicia sesión nuevamente.'
+                : 'Tu sesión expiró. Inicia sesión nuevamente.';
+              expireSession(sessionMessage);
+              throw refreshError;
+            }
+
+            if(isTransientSessionError(refreshError)){
+              const currentToken=getToken();
+              if(currentToken) scheduleSessionRefresh(currentToken,SESSION_REFRESH_RETRY_MS);
+              console.warn('[AUTH] Refresh temporalmente no disponible; la sesión local se conserva.',refreshError);
+              throw refreshError;
+            }
+
+            // Un error de refresh no terminal y no transitorio no debe borrar
+            // automáticamente una sesión persistida. Se propaga para diagnóstico.
+            throw refreshError;
           }
         }
         const sessionMessage=json?.message==='Sesión inválida o usuario inactivo.'
@@ -515,14 +586,35 @@
       if(savedUser) sessionStorage.setItem(USER_KEY,JSON.stringify(savedUser));
       sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:savedToken,user:savedUser,restored_at:new Date().toISOString()}));
     }
-    if(!savedToken){
+
+    const savedTokenExpiresAt=jwtExpiryMs(savedToken);
+    const savedTokenExpired=Boolean(savedToken && savedTokenExpiresAt && savedTokenExpiresAt<=Date.now());
+
+    // Sin JWT o con JWT de acceso vencido, primero se intenta recuperar la
+    // sesión renovable. Un error temporal no debe borrar el estado persistido.
+    if(!savedToken || savedTokenExpired){
       try{
         const refreshed=await refreshAccessToken();
         savedToken=refreshed.token;
         savedUser=refreshed.user;
-      }catch(_error){
+      }catch(error){
         if(launchedViewUser){ sessionStorage.removeItem(VIEW_USER_KEY); sessionStorage.removeItem(VIEWER_TOKEN_KEY); }
+
+        if(savedToken && savedUser && isTransientSessionError(error)){
+          if(preserveDeferredSession(savedToken,savedUser,'refresh-deferred',error)) return;
+        }
+
+        if(isTerminalRefreshError(error)){
+          clearSession();
+          showLogin();
+          msg('login-msg','Tu sesión renovable ya no es válida. Inicia sesión nuevamente.','info');
+          return;
+        }
+
+        // Si no hay identidad local suficiente para restaurar de forma segura,
+        // no se destruye ninguna cookie de servidor; solo se muestra el acceso.
         showLogin();
+        if(error?.message) msg('login-msg',error.message,'error');
         return;
       }
     }
@@ -559,7 +651,7 @@
       }
 
       const status=Number(error&&error.status||0);
-      const transientFailure=(error&&error.name==='TypeError') || status>=500;
+      const transientFailure=isTransientSessionError(error);
 
       if(status===401){
         clearSession();
@@ -568,28 +660,14 @@
         return;
       }
 
-      // Un fallo temporal de red/Aiven no equivale a una sesion expirada.
-      // Conservamos la sesion local; cada endpoint protegido seguira validando
-      // el JWT en backend cuando la conectividad vuelva a estar disponible.
+      // Un fallo temporal de red/Aiven/Proxy no equivale a una sesión expirada.
+      // Conservamos la sesión local y reintentamos el refresh en segundo plano.
       if(transientFailure && savedToken && savedUser){
-        state.token=savedToken;
-        state.user=savedUser;
-        sessionStorage.setItem(TOKEN_KEY,savedToken);
-        sessionStorage.setItem(USER_KEY,JSON.stringify(savedUser));
-        sessionStorage.setItem(SESSION_KEY,JSON.stringify({
-          token:savedToken,
-          user:savedUser,
-          restored_at:new Date().toISOString(),
-          validation_deferred:true
-        }));
-        persistActorSession(savedToken,savedUser,'validation-deferred');
-        console.warn('[AUTH] Validacion temporalmente no disponible; la sesion local se conserva.',error);
-        showApp();
-        return;
+        if(preserveDeferredSession(savedToken,savedUser,'validation-deferred',error)) return;
       }
 
-      // Errores de acceso distintos de 401 no deben destruir una sesion
-      // persistida. Se conserva para permitir una nueva validacion en F5.
+      // Errores de acceso distintos de 401 no deben destruir una sesión
+      // persistida. Se conserva para permitir una nueva validación en F5.
       showLogin();
       msg('login-msg',error&&error.message ? error.message : 'No fue posible validar el acceso. Intenta nuevamente.','error');
     }
