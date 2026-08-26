@@ -2,7 +2,7 @@
 
 const service = require('./ventas-redes.service');
 const syncService = require('./ventas-redes-sync.service');
-const commentNotifications = require('../../services/notifications/comment-notification.service');
+const ventasNotifications = require('../../services/notifications/ventas-notification.service');
 
 function sendKnownError(error, res, next) {
   const status = Number(error.statusCode || error.status || 0);
@@ -95,13 +95,36 @@ async function create(req, res, next) {
 }
 
 async function update(req, res, next) {
-  try { return res.status(200).json(await service.updateGeneral(req.params.id, req.body || {}, buildActionContext(req))); }
-  catch (error) { return sendKnownError(error, res, next); }
+  try {
+    const payload = req.body || {};
+    const actionContext = buildActionContext(req);
+    const statusBefore = Object.prototype.hasOwnProperty.call(payload, 'id_estatus')
+      ? await ventasNotifications.captureRedesStatus_gnral(req.params.id)
+      : null;
+    const result = await service.updateGeneral(req.params.id, payload, actionContext);
+    const notificationResult = statusBefore && result?.estatus_actualizado === true
+      ? await ventasNotifications.notifyRedesStatus_gnral(req.params.id, statusBefore, actionContext)
+      : { created: 0 };
+    return res.status(200).json({
+      ...result,
+      notificaciones_estatus: Number(notificationResult?.created || 0)
+    });
+  } catch (error) { return sendKnownError(error, res, next); }
 }
 
 async function updateStatus(req, res, next) {
-  try { return res.status(200).json(await service.updateStatus(req.params.id, req.body || {}, buildActionContext(req))); }
-  catch (error) { return sendKnownError(error, res, next); }
+  try {
+    const actionContext = buildActionContext(req);
+    const statusBefore = await ventasNotifications.captureRedesStatus_gnral(req.params.id);
+    const result = await service.updateStatus(req.params.id, req.body || {}, actionContext);
+    const notificationResult = result?.estatus_actualizado === true
+      ? await ventasNotifications.notifyRedesStatus_gnral(req.params.id, statusBefore, actionContext)
+      : { created: 0 };
+    return res.status(200).json({
+      ...result,
+      notificaciones_estatus: Number(notificationResult?.created || 0)
+    });
+  } catch (error) { return sendKnownError(error, res, next); }
 }
 
 async function updateAssignment(req, res, next) {
@@ -182,7 +205,11 @@ async function createComment(req, res, next) {
       req.files || [],
       actionContext
     );
-    const notificationResult = await commentNotifications.notifyRedesComment_gnral(req.params.id, actionContext);
+    const notificationResult = await ventasNotifications.notifyRedesComment_gnral(
+      req.params.id,
+      result?.comentario?.id_comentario,
+      actionContext
+    );
     return res.status(201).json({ ...result, notificaciones: Number(notificationResult?.created || 0) });
   } catch (error) {
     return sendKnownError(error, res, next);

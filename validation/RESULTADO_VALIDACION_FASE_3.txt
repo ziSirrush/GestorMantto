@@ -1,0 +1,65 @@
+GESTOR MANTTO - FASE 3 NOTIFICACIONES
+Fecha: 2026-08-25
+Base revisada: ziSirrush/GestorMantto / main / 0dbbdf425bd17b5f3e6ad9a018d4ec1bc51eaaee
+
+ALCANCE
+- ventas.cotizacion.comentario
+- ventas.cotizacion.estatus
+- ventas.prospeccion.comentario
+- ventas.prospeccion.estatus
+- ventas.redes.comentario
+- ventas.redes.estatus
+
+PRERREQUISITOS
+- Fase 1 Motor Central
+- Fase 2 Emisor seguro post-accion
+
+VALIDACION DE SINTAXIS
+- backend/src/services/notifications/ventas-notification.service.js: OK
+- backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js: OK
+- backend/src/modules/ventas-prospeccion/ventas-prospeccion.controller.js: OK
+- backend/src/modules/ventas-redes/ventas-redes.controller.js: OK
+Total: 4/4 OK
+
+PRUEBAS AUTOMATIZADAS
+- Fase 3: 17/17 PASS
+- Regresion Fase 2: 16/16 PASS
+- Regresion Fase 1: 9/9 PASS
+TOTAL: 42/42 PASS
+
+ESCANEO ESTATICO FASE 3
+- codigoEvento: 'COMENTARIO' generico: 0 coincidencias
+- INSERT INTO sup_notificaciones: 0 coincidencias
+- import comment-notification.service en controladores migrados: 0 coincidencias
+- FALLA_EQUIPO_CRITICO: 0 coincidencias
+- NUEVO_EQUIPO_CRITICO: 0 coincidencias
+- PERSONA_ATRAPADA: 0 coincidencias
+
+SQL
+- 20260825_VERIFICAR_NOTIFICACIONES_FASE_3_VENTAS.sql: SOLO LECTURA
+- ALTER/CREATE/INSERT/UPDATE/DELETE/DROP/TRUNCATE como sentencia: 0 coincidencias
+- No crea tablas ni modifica esquema.
+
+REGLAS VERIFICADAS POR TEST
+1. Se usan exactamente los 6 codigo_evento oficiales de Ventas.
+2. Los controladores migrados dejan de usar COMENTARIO generico.
+3. No hay escritura directa a sup_notificaciones.
+4. Los candidatos salen de Evento-Rol activo + usuario/rol activos.
+5. El alcance reutiliza ventas-visibility.service.
+6. Cotizaciones filtra por id_asesor/id_admin.
+7. Prospeccion filtra por id_usuario.
+8. Redes filtra por id_usuario_asignado.
+9. El emisor seguro de Fase 2 es el camino al motor central.
+10. Comentarios usan PK persistente como identidad de accion.
+11. Estatus exige cambio real e identidad temporal persistida.
+12. La notificacion se intenta despues del resultado exitoso del negocio.
+13. Redes no emite estatus cuando estatus_actualizado=false.
+14. Sincronizaciones M2M no se convierten en emisores humanos.
+15. Se conservan las rutas de detalle ya usadas por Ventas.
+16. Fase 3 no toca los tres eventos criticos de Tickets.
+17. SQL cubre catalogo, matriz, alcance CORELLIAN y prerrequisitos de Fase 1.
+
+LIMITACION DE VALIDACION
+No se ejecuto contra la instancia viva de Aiven/Railway desde este entorno.
+Por ello no se puede confirmar runtime, datos reales de matriz, preferencias,
+suscripciones Push ni navegacion final en produccion hasta desplegar y probar.

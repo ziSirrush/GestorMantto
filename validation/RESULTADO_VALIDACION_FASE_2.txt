@@ -1,0 +1,181 @@
+node --check backend/src/services/notifications/notification-business-emitter.service.js: OK
+node --check backend/src/modules/tickets/tickets-notification-writes.service.js: OK
+node --check backend/src/modules/tickets/tickets.repository.js: OK
+node --check backend/src/modules/pendientes/pendientes.service.js: OK
+node --check backend/src/services/support-solicitudes.service.js: OK
+
+TAP version 13
+# Subtest: Fase 2 usa exactamente los cinco codigos oficiales previstos
+ok 1 - Fase 2 usa exactamente los cinco codigos oficiales previstos
+  ---
+  duration_ms: 1.357087
+  type: 'test'
+  ...
+# Subtest: Tareas no emite codigos legacy ni COMENTARIO generico
+ok 2 - Tareas no emite codigos legacy ni COMENTARIO generico
+  ---
+  duration_ms: 0.418168
+  type: 'test'
+  ...
+# Subtest: Tickets no emite validaciones legacy ni COMENTARIO generico
+ok 3 - Tickets no emite validaciones legacy ni COMENTARIO generico
+  ---
+  duration_ms: 0.43331
+  type: 'test'
+  ...
+# Subtest: Soporte deja de escribir directamente sup_notificaciones
+ok 4 - Soporte deja de escribir directamente sup_notificaciones
+  ---
+  duration_ms: 0.230767
+  type: 'test'
+  ...
+# Subtest: Tareas emite asignacion despues del commit de negocio
+ok 5 - Tareas emite asignacion despues del commit de negocio
+  ---
+  duration_ms: 0.171998
+  type: 'test'
+  ...
+# Subtest: Comentario de Tarea se confirma antes de emitir su notificacion
+ok 6 - Comentario de Tarea se confirma antes de emitir su notificacion
+  ---
+  duration_ms: 0.097837
+  type: 'test'
+  ...
+# Subtest: Tareas usa identidad persistente por relacion y por comentario
+ok 7 - Tareas usa identidad persistente por relacion y por comentario
+  ---
+  duration_ms: 0.19306
+  type: 'test'
+  ...
+# Subtest: Tickets enruta comentario y VoBo al nuevo modulo sin tocar otros handlers
+ok 8 - Tickets enruta comentario y VoBo al nuevo modulo sin tocar otros handlers
+  ---
+  duration_ms: 0.165028
+  type: 'test'
+  ...
+# Subtest: Tickets confirma comentario y VoBo antes de notificar
+ok 9 - Tickets confirma comentario y VoBo antes de notificar
+  ---
+  duration_ms: 0.281112
+  type: 'test'
+  ...
+# Subtest: Tickets mantiene reglas actuales de validacion y reversa
+ok 10 - Tickets mantiene reglas actuales de validacion y reversa
+  ---
+  duration_ms: 0.347772
+  type: 'test'
+  ...
+# Subtest: Tickets usa identidad persistente de id_comentario e id_validacion
+ok 11 - Tickets usa identidad persistente de id_comentario e id_validacion
+  ---
+  duration_ms: 0.178949
+  type: 'test'
+  ...
+# Subtest: Alcance de Ticket no usa tickets.zona para conceder acceso
+ok 12 - Alcance de Ticket no usa tickets.zona para conceder acceso
+  ---
+  duration_ms: 0.100811
+  type: 'test'
+  ...
+# Subtest: Soporte consolida cambios de una accion en una sola emision logica
+ok 13 - Soporte consolida cambios de una accion en una sola emision logica
+  ---
+  duration_ms: 0.33936
+  type: 'test'
+  ...
+# Subtest: Soporte obtiene identidad estable desde historial real
+ok 14 - Soporte obtiene identidad estable desde historial real
+  ---
+  duration_ms: 0.168523
+  type: 'test'
+  ...
+# Subtest: Emisor de negocio exige codigo e identidad y nunca propaga fallo de Notificaciones
+ok 15 - Emisor de negocio exige codigo e identidad y nunca propaga fallo de Notificaciones
+  ---
+  duration_ms: 0.110916
+  type: 'test'
+  ...
+# Subtest: SQL de verificacion cubre catalogo, matriz activa y prerrequisitos de Fase 1
+ok 16 - SQL de verificacion cubre catalogo, matriz activa y prerrequisitos de Fase 1
+  ---
+  duration_ms: 0.132279
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 54.527002
+
+PHASE 1 REGRESSION
+TAP version 13
+# Subtest: Norma 7: OBLIGATORIA gana si cualquiera de los roles activos aplicables es obligatorio
+ok 1 - Norma 7: OBLIGATORIA gana si cualquiera de los roles activos aplicables es obligatorio
+  ---
+  duration_ms: 1.507202
+  type: 'test'
+  ...
+# Subtest: Norma 8: evento OPCIONAL respeta preferencias personales
+ok 2 - Norma 8: evento OPCIONAL respeta preferencias personales
+  ---
+  duration_ms: 0.194802
+  type: 'test'
+  ...
+# Subtest: Norma 3: DOMINIO_COMPLETO UNITED autoriza sin exigir usuario_zop
+ok 3 - Norma 3: DOMINIO_COMPLETO UNITED autoriza sin exigir usuario_zop
+  ---
+  duration_ms: 0.128814
+  type: 'test'
+  ...
+# Subtest: Norma 3: usuario UNITED normal fuera de zona queda excluido con SIN_ALCANCE
+ok 4 - Norma 3: usuario UNITED normal fuera de zona queda excluido con SIN_ALCANCE
+  ---
+  duration_ms: 0.113471
+  type: 'test'
+  ...
+# Subtest: Norma 2: una matriz solo existe si la relacion y el rol estan activos
+ok 5 - Norma 2: una matriz solo existe si la relacion y el rol estan activos
+  ---
+  duration_ms: 0.382434
+  type: 'test'
+  ...
+# Subtest: Norma 4: politica de canal usa todos los roles activos, no solo Rol Principal
+ok 6 - Norma 4: politica de canal usa todos los roles activos, no solo Rol Principal
+  ---
+  duration_ms: 0.415113
+  type: 'test'
+  ...
+# Subtest: Norma 2: Panel valida el ultimo rol dentro de la misma transaccion
+ok 7 - Norma 2: Panel valida el ultimo rol dentro de la misma transaccion
+  ---
+  duration_ms: 0.367762
+  type: 'test'
+  ...
+# Subtest: Norma 9 y 15: motor persiste clave de deduplicacion y trace_id sin INSERT IGNORE
+ok 8 - Norma 9 y 15: motor persiste clave de deduplicacion y trace_id sin INSERT IGNORE
+  ---
+  duration_ms: 0.202413
+  type: 'test'
+  ...
+# Subtest: Norma 5 y 15: el motor registra ACTOR_EXCLUIDO de forma explicita
+ok 9 - Norma 5 y 15: el motor registra ACTOR_EXCLUIDO de forma explicita
+  ---
+  duration_ms: 0.312599
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 49.434137
+
+LEGACY EMITTER SCAN
+OK: no target legacy emitters found

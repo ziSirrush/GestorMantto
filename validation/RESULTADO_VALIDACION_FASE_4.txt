@@ -1,0 +1,35 @@
+GESTOR MANTTO - NOTIFICACIONES FASE 4
+FIX_NOTIFICACIONES_FASE_4_TICKETS_CRITICOS_V001
+Fecha: 2026-08-25
+Base: ziSirrush/GestorMantto @ 0dbbdf425bd17b5f3e6ad9a018d4ec1bc51eaaee
+
+VALIDACION DE SINTAXIS
+- backend/src/services/notifications/ticket-critical-notifications_uni.service.js: OK
+
+PRUEBAS
+- Fase 1: 9/9 PASS
+- Fase 2: 16/16 PASS
+- Fase 3: 17/17 PASS
+- Fase 4: 11/11 PASS
+- TOTAL: 53/53 PASS
+
+CONTROLES FASE 4
+- Tres eventos oficiales conservados: PASS
+- Sin INSERT directo a sup_notificaciones: PASS
+- Emisor seguro central Fase 2: PASS
+- Sin filtro ur.principal = 1 en servicio critico: PASS
+- Zona por Portafolio.zona_id: PASS
+- tickets.zona no concede alcance: PASS
+- Umbral 3 fallas BLT: PASS
+- Ventana 35 dias: PASS
+- Ticket exacto de cruce de umbral en lote: PASS
+- FALLA_EQUIPO_CRITICO sobre equipo previamente critico: PASS
+- PERSONA_ATRAPADA abre Ticket causante: PASS
+- Resincronizacion de Ticket existente sin reemision: PASS
+- Deduplicacion por eventInstanceKey: PASS
+- SQL de verificacion solo lectura: PASS
+
+LIMITACION
+No se ejecuto contra Aiven ni Railway desde este entorno. Por tanto, el estado runtime de
+matrices, usuarios, roles, zonas, preferencias, suscripciones Push y datos actuales debe
+validarse despues del despliegue mediante el SQL incluido y pruebas reales controladas.

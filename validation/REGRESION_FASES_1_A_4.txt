@@ -1,0 +1,367 @@
+=== NODE CHECK FASE 4 ===
+
+=== TEST FASE 1 ===
+TAP version 13
+# Subtest: Norma 7: OBLIGATORIA gana si cualquiera de los roles activos aplicables es obligatorio
+ok 1 - Norma 7: OBLIGATORIA gana si cualquiera de los roles activos aplicables es obligatorio
+  ---
+  duration_ms: 1.579871
+  type: 'test'
+  ...
+# Subtest: Norma 8: evento OPCIONAL respeta preferencias personales
+ok 2 - Norma 8: evento OPCIONAL respeta preferencias personales
+  ---
+  duration_ms: 0.21324
+  type: 'test'
+  ...
+# Subtest: Norma 3: DOMINIO_COMPLETO UNITED autoriza sin exigir usuario_zop
+ok 3 - Norma 3: DOMINIO_COMPLETO UNITED autoriza sin exigir usuario_zop
+  ---
+  duration_ms: 0.134993
+  type: 'test'
+  ...
+# Subtest: Norma 3: usuario UNITED normal fuera de zona queda excluido con SIN_ALCANCE
+ok 4 - Norma 3: usuario UNITED normal fuera de zona queda excluido con SIN_ALCANCE
+  ---
+  duration_ms: 0.116094
+  type: 'test'
+  ...
+# Subtest: Norma 2: una matriz solo existe si la relacion y el rol estan activos
+ok 5 - Norma 2: una matriz solo existe si la relacion y el rol estan activos
+  ---
+  duration_ms: 1.830747
+  type: 'test'
+  ...
+# Subtest: Norma 4: politica de canal usa todos los roles activos, no solo Rol Principal
+ok 6 - Norma 4: politica de canal usa todos los roles activos, no solo Rol Principal
+  ---
+  duration_ms: 0.290526
+  type: 'test'
+  ...
+# Subtest: Norma 2: Panel valida el ultimo rol dentro de la misma transaccion
+ok 7 - Norma 2: Panel valida el ultimo rol dentro de la misma transaccion
+  ---
+  duration_ms: 0.296395
+  type: 'test'
+  ...
+# Subtest: Norma 9 y 15: motor persiste clave de deduplicacion y trace_id sin INSERT IGNORE
+ok 8 - Norma 9 y 15: motor persiste clave de deduplicacion y trace_id sin INSERT IGNORE
+  ---
+  duration_ms: 0.171418
+  type: 'test'
+  ...
+# Subtest: Norma 5 y 15: el motor registra ACTOR_EXCLUIDO de forma explicita
+ok 9 - Norma 5 y 15: el motor registra ACTOR_EXCLUIDO de forma explicita
+  ---
+  duration_ms: 0.682765
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 69.594206
+
+=== TEST FASE 2 ===
+TAP version 13
+# Subtest: Fase 2 usa exactamente los cinco codigos oficiales previstos
+ok 1 - Fase 2 usa exactamente los cinco codigos oficiales previstos
+  ---
+  duration_ms: 2.390638
+  type: 'test'
+  ...
+# Subtest: Tareas no emite codigos legacy ni COMENTARIO generico
+ok 2 - Tareas no emite codigos legacy ni COMENTARIO generico
+  ---
+  duration_ms: 0.510276
+  type: 'test'
+  ...
+# Subtest: Tickets no emite validaciones legacy ni COMENTARIO generico
+ok 3 - Tickets no emite validaciones legacy ni COMENTARIO generico
+  ---
+  duration_ms: 0.324447
+  type: 'test'
+  ...
+# Subtest: Soporte deja de escribir directamente sup_notificaciones
+ok 4 - Soporte deja de escribir directamente sup_notificaciones
+  ---
+  duration_ms: 0.216415
+  type: 'test'
+  ...
+# Subtest: Tareas emite asignacion despues del commit de negocio
+ok 5 - Tareas emite asignacion despues del commit de negocio
+  ---
+  duration_ms: 0.176866
+  type: 'test'
+  ...
+# Subtest: Comentario de Tarea se confirma antes de emitir su notificacion
+ok 6 - Comentario de Tarea se confirma antes de emitir su notificacion
+  ---
+  duration_ms: 0.101833
+  type: 'test'
+  ...
+# Subtest: Tareas usa identidad persistente por relacion y por comentario
+ok 7 - Tareas usa identidad persistente por relacion y por comentario
+  ---
+  duration_ms: 0.194672
+  type: 'test'
+  ...
+# Subtest: Tickets enruta comentario y VoBo al nuevo modulo sin tocar otros handlers
+ok 8 - Tickets enruta comentario y VoBo al nuevo modulo sin tocar otros handlers
+  ---
+  duration_ms: 0.169384
+  type: 'test'
+  ...
+# Subtest: Tickets confirma comentario y VoBo antes de notificar
+ok 9 - Tickets confirma comentario y VoBo antes de notificar
+  ---
+  duration_ms: 0.283585
+  type: 'test'
+  ...
+# Subtest: Tickets mantiene reglas actuales de validacion y reversa
+ok 10 - Tickets mantiene reglas actuales de validacion y reversa
+  ---
+  duration_ms: 0.499189
+  type: 'test'
+  ...
+# Subtest: Tickets usa identidad persistente de id_comentario e id_validacion
+ok 11 - Tickets usa identidad persistente de id_comentario e id_validacion
+  ---
+  duration_ms: 0.202604
+  type: 'test'
+  ...
+# Subtest: Alcance de Ticket no usa tickets.zona para conceder acceso
+ok 12 - Alcance de Ticket no usa tickets.zona para conceder acceso
+  ---
+  duration_ms: 0.369795
+  type: 'test'
+  ...
+# Subtest: Soporte consolida cambios de una accion en una sola emision logica
+ok 13 - Soporte consolida cambios de una accion en una sola emision logica
+  ---
+  duration_ms: 0.798209
+  type: 'test'
+  ...
+# Subtest: Soporte obtiene identidad estable desde historial real
+ok 14 - Soporte obtiene identidad estable desde historial real
+  ---
+  duration_ms: 0.248472
+  type: 'test'
+  ...
+# Subtest: Emisor de negocio exige codigo e identidad y nunca propaga fallo de Notificaciones
+ok 15 - Emisor de negocio exige codigo e identidad y nunca propaga fallo de Notificaciones
+  ---
+  duration_ms: 0.139859
+  type: 'test'
+  ...
+# Subtest: SQL de verificacion cubre catalogo, matriz activa y prerrequisitos de Fase 1
+ok 16 - SQL de verificacion cubre catalogo, matriz activa y prerrequisitos de Fase 1
+  ---
+  duration_ms: 0.141802
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 75.42737
+
+=== TEST FASE 3 ===
+TAP version 13
+# Subtest: Fase 3 usa exactamente los seis eventos oficiales de Ventas
+ok 1 - Fase 3 usa exactamente los seis eventos oficiales de Ventas
+  ---
+  duration_ms: 1.19314
+  type: 'test'
+  ...
+# Subtest: Los controladores de Ventas dejan de usar el emisor COMENTARIO generico
+ok 2 - Los controladores de Ventas dejan de usar el emisor COMENTARIO generico
+  ---
+  duration_ms: 0.854061
+  type: 'test'
+  ...
+# Subtest: Fase 3 no escribe directamente sup_notificaciones
+ok 3 - Fase 3 no escribe directamente sup_notificaciones
+  ---
+  duration_ms: 0.22617
+  type: 'test'
+  ...
+# Subtest: Candidatos se obtienen por Evento-Rol activo y todos los roles activos
+ok 4 - Candidatos se obtienen por Evento-Rol activo y todos los roles activos
+  ---
+  duration_ms: 0.211727
+  type: 'test'
+  ...
+# Subtest: Alcance reutiliza el resolver oficial de Ventas
+ok 5 - Alcance reutiliza el resolver oficial de Ventas
+  ---
+  duration_ms: 0.13306
+  type: 'test'
+  ...
+# Subtest: Cada dominio aplica la misma llave de alcance que su repositorio de Ventas
+ok 6 - Cada dominio aplica la misma llave de alcance que su repositorio de Ventas
+  ---
+  duration_ms: 0.205789
+  type: 'test'
+  ...
+# Subtest: El emisor seguro de Fase 2 es el unico camino hacia el motor central
+ok 7 - El emisor seguro de Fase 2 es el unico camino hacia el motor central
+  ---
+  duration_ms: 0.182995
+  type: 'test'
+  ...
+# Subtest: Comentarios usan la identidad persistente de la accion real
+ok 8 - Comentarios usan la identidad persistente de la accion real
+  ---
+  duration_ms: 0.108362
+  type: 'test'
+  ...
+# Subtest: Cambios de estatus requieren cambio real e identidad persistida
+ok 9 - Cambios de estatus requieren cambio real e identidad persistida
+  ---
+  duration_ms: 0.422254
+  type: 'test'
+  ...
+# Subtest: Cotizaciones notifica estatus despues de que el servicio de negocio termina
+ok 10 - Cotizaciones notifica estatus despues de que el servicio de negocio termina
+  ---
+  duration_ms: 0.351117
+  type: 'test'
+  ...
+# Subtest: Prospeccion notifica estatus despues de la accion confirmada
+ok 11 - Prospeccion notifica estatus despues de la accion confirmada
+  ---
+  duration_ms: 0.249734
+  type: 'test'
+  ...
+# Subtest: Redes solo emite estatus cuando el servicio reporta cambio real
+ok 12 - Redes solo emite estatus cuando el servicio reporta cambio real
+  ---
+  duration_ms: 0.176736
+  type: 'test'
+  ...
+# Subtest: Comentarios se notifican solo despues de que createComment/createComentario retorna exito
+ok 13 - Comentarios se notifican solo despues de que createComment/createComentario retorna exito
+  ---
+  duration_ms: 0.102694
+  type: 'test'
+  ...
+# Subtest: Sincronizaciones M2M no se convierten en emisores humanos
+ok 14 - Sincronizaciones M2M no se convierten en emisores humanos
+  ---
+  duration_ms: 0.079879
+  type: 'test'
+  ...
+# Subtest: Rutas de detalle conservan las rutas ya usadas por Ventas
+ok 15 - Rutas de detalle conservan las rutas ya usadas por Ventas
+  ---
+  duration_ms: 0.125048
+  type: 'test'
+  ...
+# Subtest: Fase 3 no incluye los eventos criticos de Tickets
+ok 16 - Fase 3 no incluye los eventos criticos de Tickets
+  ---
+  duration_ms: 0.11942
+  type: 'test'
+  ...
+# Subtest: SQL es solo lectura y cubre los seis eventos y prerrequisitos
+ok 17 - SQL es solo lectura y cubre los seis eventos y prerrequisitos
+  ---
+  duration_ms: 0.190797
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 70.448703
+
+=== TEST FASE 4 ===
+TAP version 13
+# Subtest: Fase 4 conserva exactamente los tres eventos criticos oficiales
+ok 1 - Fase 4 conserva exactamente los tres eventos criticos oficiales
+  ---
+  duration_ms: 0.840962
+  type: 'test'
+  ...
+# Subtest: Fase 4 deja de escribir sup_notificaciones y usa el emisor seguro central
+ok 2 - Fase 4 deja de escribir sup_notificaciones y usa el emisor seguro central
+  ---
+  duration_ms: 0.306711
+  type: 'test'
+  ...
+# Subtest: Fase 4 ya no restringe destinatarios al rol principal
+ok 3 - Fase 4 ya no restringe destinatarios al rol principal
+  ---
+  duration_ms: 0.361142
+  type: 'test'
+  ...
+# Subtest: Zona del Ticket se resuelve con Portafolio.zona_id y no con tickets.zona
+ok 4 - Zona del Ticket se resuelve con Portafolio.zona_id y no con tickets.zona
+  ---
+  duration_ms: 0.236515
+  type: 'test'
+  ...
+# Subtest: Criterio de criticidad se conserva en 3 fallas BLT dentro de 35 dias
+ok 5 - Criterio de criticidad se conserva en 3 fallas BLT dentro de 35 dias
+  ---
+  duration_ms: 0.350376
+  type: 'test'
+  ...
+# Subtest: NUEVO_EQUIPO_CRITICO apunta al ticket exacto que cruza el umbral dentro del lote
+ok 6 - NUEVO_EQUIPO_CRITICO apunta al ticket exacto que cruza el umbral dentro del lote
+  ---
+  duration_ms: 1.597558
+  type: 'test'
+  ...
+# Subtest: FALLA_EQUIPO_CRITICO se emite para un nuevo BLT cuando el equipo ya era critico
+ok 7 - FALLA_EQUIPO_CRITICO se emite para un nuevo BLT cuando el equipo ya era critico
+  ---
+  duration_ms: 0.295263
+  type: 'test'
+  ...
+# Subtest: PERSONA_ATRAPADA conserva deteccion y abre el Ticket causante
+ok 8 - PERSONA_ATRAPADA conserva deteccion y abre el Ticket causante
+  ---
+  duration_ms: 0.400041
+  type: 'test'
+  ...
+# Subtest: Una resincronizacion de un Ticket ya existente no vuelve a emitir eventos criticos
+ok 9 - Una resincronizacion de un Ticket ya existente no vuelve a emitir eventos criticos
+  ---
+  duration_ms: 0.318277
+  type: 'test'
+  ...
+# Subtest: El actor y el alcance UNITED se delegan al motor central
+ok 10 - El actor y el alcance UNITED se delegan al motor central
+  ---
+  duration_ms: 0.375113
+  type: 'test'
+  ...
+# Subtest: SQL de Fase 4 es solo lectura y verifica eventos, roles, alcance y deduplicacion
+ok 11 - SQL de Fase 4 es solo lectura y verifica eventos, roles, alcance y deduplicacion
+  ---
+  duration_ms: 0.277216
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 77.684441

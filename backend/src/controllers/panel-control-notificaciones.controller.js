@@ -245,6 +245,41 @@ async function persistChanges_gnral(conn, changes) {
   }
 }
 
+async function assertAffectedEventsHaveActiveRoles_gnral(conn, eventCodes) {
+  const codes = [...new Set((Array.isArray(eventCodes) ? eventCodes : [])
+    .map((code) => String(code || '').trim())
+    .filter(Boolean))];
+  if (!codes.length) return;
+
+  const [rows] = await conn.query(`
+    SELECT
+      e.codigo_evento,
+      SUM(CASE WHEN r.id_rol IS NOT NULL THEN 1 ELSE 0 END) AS roles_activos
+    FROM notificacion_eventos e
+    LEFT JOIN notificacion_evento_roles ner
+      ON ner.codigo_evento = e.codigo_evento
+     AND ner.activo = 1
+     AND ner.politica IN ('OBLIGATORIA', 'OPCIONAL')
+    LEFT JOIN roles r
+      ON r.id_rol = ner.id_rol
+     AND r.estado = 1
+    WHERE e.activo = 1
+      AND e.codigo_evento IN (?)
+    GROUP BY e.codigo_evento
+    HAVING SUM(CASE WHEN r.id_rol IS NOT NULL THEN 1 ELSE 0 END) = 0
+  `, [codes]);
+
+  if (rows.length) {
+    const eventList = rows.map((row) => String(row.codigo_evento)).join(', ');
+    const error = new Error(
+      `No se puede guardar: toda interacción activa debe conservar al menos un rol activo. Revisa: ${eventList}`
+    );
+    error.status = 409;
+    error.code = 'NOTIFICATION_EVENT_REQUIRES_ACTIVE_ROLE';
+    throw error;
+  }
+}
+
 async function getNotificationMatrix_gnral(req, res, next) {
   try {
     if (denyUnlessManager_gnral(req, res)) return;
@@ -277,6 +312,10 @@ async function saveNotificationMatrix_gnral(req, res, next) {
     await conn.beginTransaction();
     transactionStarted = true;
     await persistChanges_gnral(conn, changes);
+    await assertAffectedEventsHaveActiveRoles_gnral(
+      conn,
+      changes.map((change) => change.codigo_evento)
+    );
     await conn.commit();
     transactionStarted = false;
 

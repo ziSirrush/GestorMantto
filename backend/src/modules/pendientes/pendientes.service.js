@@ -1,9 +1,12 @@
 const pendientesRepository = require('./pendientes.repository');
 const pendientesAccess = require('./pendientes-access.service');
 const pendientesFiles = require('./pendientes-files.service');
-const notificationService = require('../../services/notifications/notification.service');
+const {
+  emitBusinessEventSafe_gnral
+} = require('../../services/notifications/notification-business-emitter.service');
 
-const N6_EVENTO_COMENTARIO = 'COMENTARIO';
+const EVENT_TASK_ASSIGNED = 'tareas.asignada';
+const EVENT_TASK_COMMENT = 'tareas.comentario.creado';
 const db = pendientesRepository.getExecutor_gnral();
 
 function result(status, body) {
@@ -148,7 +151,7 @@ async function resolveTaskEmpresa_gnral(user, requestedEmpresa, existingEmpresa 
   if (!empresa && allowedEmpresas.length === 1) empresa = allowedEmpresas[0];
   if (!empresa) {
     throw httpError(
-      'Selecciona la empresa o razón social de la tarea.',
+      'Selecciona la empresa o raz\u00f3n social de la tarea.',
       400,
       'PENDIENTE_EMPRESA_REQUIRED'
     );
@@ -159,7 +162,7 @@ async function resolveTaskEmpresa_gnral(user, requestedEmpresa, existingEmpresa 
   ));
   if (allowedEmpresas.length && !allowedMatch) {
     throw httpError(
-      'No tienes autorización para usar la empresa seleccionada.',
+      'No tienes autorizaci\u00f3n para usar la empresa seleccionada.',
       403,
       'PENDIENTE_EMPRESA_FORBIDDEN'
     );
@@ -179,7 +182,7 @@ async function resolveStoredTaskEmpresa_gnral(executor, taskRow) {
   }
 
   throw httpError(
-    'La tarea no tiene una empresa definida. Edítala antes de adjuntar archivos.',
+    'La tarea no tiene una empresa definida. Ed\u00edtala antes de adjuntar archivos.',
     409,
     'PENDIENTE_EMPRESA_NOT_DEFINED'
   );
@@ -223,63 +226,6 @@ async function syncPendienteChildren_gnral(executor, idPendiente, body, creator)
   return { blockedSelfAssignment, insertedInitials: filteredInitials };
 }
 
-async function createTaskAssignmentNotifications_gnral(
-  executor,
-  idPendiente,
-  body,
-  creator,
-  skipInitials
-) {
-  const tipo = normalizeTaskType(body.tipo_pendiente);
-  if (tipo !== 'COLABORATIVA') return { inserted: 0, recipients: [] };
-
-  const skip = new Set((skipInitials || [])
-    .map(value => String(value || '').trim())
-    .filter(Boolean));
-
-  let iniciales = (await pendientesRepository.listTaskResponsibles_gnral(executor, idPendiente))
-    .map(row => sanitizeText(row.iniciales_usuario, 20))
-    .filter(Boolean);
-
-  if (!iniciales.length) {
-    iniciales = (Array.isArray(body.usuarios) ? body.usuarios : [])
-      .map(user => sanitizeText(
-        typeof user === 'string' ? user : (user.iniciales_usuario || user.iniciales),
-        20
-      ))
-      .filter(Boolean);
-  }
-
-  const creatorInitials = normalizeInitials(creator?.iniciales);
-  iniciales = Array.from(new Set(iniciales.map(normalizeInitials)))
-    .filter(initials => initials && !skip.has(initials) && initials !== creatorInitials);
-  if (!iniciales.length) return { inserted: 0, recipients: [] };
-
-  const usuarios = await pendientesRepository.listActiveUsersByInitials_gnral(executor, iniciales);
-  const tituloTarea = sanitizeText(body.pendiente, 120) || 'Tarea colaborativa';
-  const creador = creator.iniciales || creator.correo || 'Usuario';
-  let inserted = 0;
-  const recipients = [];
-
-  for (const usuario of usuarios) {
-    if (!usuario.id_SB) continue;
-    await pendientesRepository.insertTaskAssignmentNotification_gnral(executor, {
-      id_usuario: usuario.id_SB,
-      tipo_notificacion: 'TAREA_ASIGNADA',
-      titulo_notificacion: 'Nueva tarea colaborativa',
-      mensaje_notificacion: `${creador} te asigno la tarea: ${tituloTarea}`,
-      icono_notificacion: '✅',
-      accion_notificacion: 'ABRIR_TAREA',
-      id_referencia: idPendiente,
-      ruta_destino: `home:tarea:${idPendiente}`
-    });
-    inserted += 1;
-    recipients.push(usuario.iniciales);
-  }
-
-  return { inserted, recipients };
-}
-
 async function resolveTaskZoneScope_gnral(executor, taskRow) {
   const equipment = String(taskRow && taskRow.equipo || '').trim();
   const project = String(taskRow && taskRow.proyecto || '').trim();
@@ -297,63 +243,149 @@ async function resolveTaskZoneScope_gnral(executor, taskRow) {
   return {};
 }
 
-async function createPendienteCommentNotifications_gnral(executor, access, actor, interaction) {
-  const actorId = Number(actor?.id || 0);
-  const actorInitials = String(actor?.iniciales || actor?.correo || 'Usuario').trim();
-  const recipientIds = new Set();
+async function listCurrentAssignmentTargets_gnral(executor, idPendiente) {
+  const [rows] = await executor.query(`
+    SELECT
+      pu.id_pendiente_usuario,
+      pu.iniciales_usuario,
+      u.id_SB,
+      u.iniciales
+    FROM pendientes_usuarios pu
+    INNER JOIN usuarios u
+      ON UPPER(TRIM(u.iniciales)) = UPPER(TRIM(pu.iniciales_usuario))
+     AND u.estado = 1
+    WHERE pu.id_pendiente = ?
+      AND pu.tipo_relacion = 'RESPONSABLE'
+    ORDER BY pu.id_pendiente_usuario ASC
+  `, [idPendiente]);
+  return rows;
+}
 
-  const creatorEmail = String(access?.row?.creado_por_email || '').trim();
-  if (creatorEmail) {
-    const creator = await pendientesRepository.findActiveUserIdByEmail_gnral(executor, creatorEmail);
-    if (creator?.id_SB) recipientIds.add(Number(creator.id_SB));
-  }
+async function createTaskAssignmentNotifications_gnral(
+  executor,
+  idPendiente,
+  body,
+  creator,
+  skipInitials
+) {
+  const tipo = normalizeTaskType(body.tipo_pendiente);
+  if (tipo !== 'COLABORATIVA') return { inserted: 0, recipients: [] };
 
-  const relatedRows = await pendientesRepository.listRelatedActiveUserIds_gnral(
-    executor,
-    access.row.id_pendiente
-  );
-  relatedRows.forEach(row => {
-    if (row.id_SB) recipientIds.add(Number(row.id_SB));
-  });
-  if (actorId) recipientIds.delete(actorId);
+  try {
+    const skip = new Set((skipInitials || [])
+      .map(normalizeInitials)
+      .filter(Boolean));
+    const creatorInitials = normalizeInitials(creator?.iniciales);
+    const targets = await listCurrentAssignmentTargets_gnral(executor, idPendiente);
+    const title = sanitizeText(body.pendiente, 120) || 'Tarea colaborativa';
+    const creatorLabel = creator.iniciales || creator.correo || 'Usuario';
+    const zoneScope = await resolveTaskZoneScope_gnral(executor, {
+      equipo: body.equipo,
+      proyecto: body.proyecto
+    });
 
-  const data = interaction && typeof interaction === 'object'
-    ? interaction
-    : { comentario: interaction };
-  const preview = String(data.comentario || '').replace(/\s+/g, ' ').trim().slice(0, 140);
-  const fileName = sanitizeText(data.nombre_archivo, 120);
-  const actionText = preview
-    ? `${actorInitials} comentó: ${preview}`
-    : `${actorInitials} adjuntó${fileName ? `: ${fileName}` : ' un archivo'}`;
+    let inserted = 0;
+    const recipients = [];
+    const issues = [];
 
-  if (!preview) {
-    for (const idUsuario of recipientIds) {
-      await pendientesRepository.insertLegacyCommentNotification_gnral(executor, {
-        id_usuario: idUsuario,
-        mensaje: actionText,
-        id_referencia: access.row.id_pendiente,
-        ruta_destino: `home:tarea:${access.row.id_pendiente}`
+    for (const target of targets) {
+      const initials = normalizeInitials(target.iniciales_usuario || target.iniciales);
+      if (!initials || initials === creatorInitials || skip.has(initials)) continue;
+      const recipientId = Number(target.id_SB || 0);
+      const relationId = Number(target.id_pendiente_usuario || 0);
+      if (!recipientId || !relationId) continue;
+
+      const emitted = await emitBusinessEventSafe_gnral({
+        codigoEvento: EVENT_TASK_ASSIGNED,
+        destinatarios: [recipientId],
+        actorUserId: Number(creator?.id || 0) || null,
+        ...zoneScope,
+        requireRoleMatrix: true,
+        allowMissingEvent: false,
+        titulo: 'Nueva tarea asignada',
+        mensaje: `${creatorLabel} te asigno la tarea: ${title}`,
+        icono: '\uD83C\uDD95',
+        accion: 'ABRIR_TAREA',
+        idReferencia: idPendiente,
+        ruta: `home:tarea:${idPendiente}`,
+        eventInstanceKey: `tarea-asignacion:${idPendiente}:${relationId}`
+      }, {
+        module: 'tareas',
+        action: 'asignacion',
+        recordId: idPendiente
       });
-    }
-    return recipientIds.size;
-  }
 
-  const zoneScope = await resolveTaskZoneScope_gnral(executor, access.row);
-  const notificationResult = await notificationService.emitWithConnection_gnral(executor, {
-    codigoEvento: N6_EVENTO_COMENTARIO,
-    destinatarios: [...recipientIds],
-    actorUserId: actorId || null,
-    ...zoneScope,
-    requireRoleMatrix: true,
-    allowMissingEvent: true,
-    titulo: 'Nuevo comentario en tarea',
-    mensaje: actionText,
-    icono: '💬',
-    accion: 'ABRIR_TAREA',
-    idReferencia: access.row.id_pendiente,
-    ruta: `home:tarea:${access.row.id_pendiente}`
-  });
-  return Number(notificationResult.created || 0);
+      inserted += Number(emitted.created || 0);
+      if (Number(emitted.created || 0) > 0) recipients.push(target.iniciales || initials);
+      if (emitted.reason && !['OK', 'DUPLICADO_EVITADO'].includes(emitted.reason)) {
+        issues.push({ recipientId, reason: emitted.reason });
+      }
+    }
+
+    return { inserted, recipients, issues };
+  } catch (error) {
+    return { inserted: 0, recipients: [], error: error.message };
+  }
+}
+
+async function createPendienteCommentNotifications_gnral(executor, access, actor, interaction) {
+  try {
+    const actorId = Number(actor?.id || 0);
+    const actorInitials = String(actor?.iniciales || actor?.correo || 'Usuario').trim();
+    const recipientIds = new Set();
+
+    const creatorEmail = String(access?.row?.creado_por_email || '').trim();
+    if (creatorEmail) {
+      const creator = await pendientesRepository.findActiveUserIdByEmail_gnral(executor, creatorEmail);
+      if (creator?.id_SB) recipientIds.add(Number(creator.id_SB));
+    }
+
+    const relatedRows = await pendientesRepository.listRelatedActiveUserIds_gnral(
+      executor,
+      access.row.id_pendiente
+    );
+    relatedRows.forEach(row => {
+      if (row.id_SB) recipientIds.add(Number(row.id_SB));
+    });
+    if (actorId) recipientIds.delete(actorId);
+
+    const data = interaction && typeof interaction === 'object'
+      ? interaction
+      : { comentario: interaction };
+    const idComentario = Number(data.id_comentario || 0);
+    if (!idComentario) {
+      return { created: 0, reason: 'IDENTIDAD_EVENTO_NO_DECLARADA' };
+    }
+
+    const preview = String(data.comentario || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+    const fileName = sanitizeText(data.nombre_archivo, 120);
+    const actionText = preview
+      ? `${actorInitials} coment\u00f3: ${preview}`
+      : `${actorInitials} adjunt\u00f3${fileName ? `: ${fileName}` : ' un archivo'}`;
+    const zoneScope = await resolveTaskZoneScope_gnral(executor, access.row);
+
+    return emitBusinessEventSafe_gnral({
+      codigoEvento: EVENT_TASK_COMMENT,
+      destinatarios: [...recipientIds],
+      actorUserId: actorId || null,
+      ...zoneScope,
+      requireRoleMatrix: true,
+      allowMissingEvent: false,
+      titulo: 'Nueva interacci\u00f3n en tarea',
+      mensaje: actionText,
+      icono: '\uD83D\uDCAC',
+      accion: 'ABRIR_TAREA',
+      idReferencia: access.row.id_pendiente,
+      ruta: `home:tarea:${access.row.id_pendiente}`,
+      eventInstanceKey: `tarea-comentario:${idComentario}`
+    }, {
+      module: 'tareas',
+      action: 'comentario',
+      recordId: access.row.id_pendiente
+    });
+  } catch (error) {
+    return { created: 0, reason: 'ERROR_EMISION_NOTIFICACION', error: error.message };
+  }
 }
 
 async function getPendientesCatalogos(req) {
@@ -398,7 +430,7 @@ async function getPendientesCatalogos(req) {
 
 async function getPendientes(req) {
   const user = currentUserRef(req);
-  if (!user.correo) throw httpError('Sesión sin usuario válido.', 401);
+  if (!user.correo) throw httpError('Sesi\u00f3n sin usuario v\u00e1lido.', 401);
 
   const rows = await pendientesRepository.listPendientes_gnral(null, {
     user,
@@ -429,7 +461,7 @@ async function getPendientes(req) {
 
 async function getPendienteDetalle(req) {
   const id = Number.parseInt(req.params.id, 10);
-  if (!id) throw httpError('No se recibió id de pendiente.', 400);
+  if (!id) throw httpError('No se recibi\u00f3 id de pendiente.', 400);
 
   const access = await pendientesAccess.getPendienteAccessContext_gnral(
     db,
@@ -483,17 +515,20 @@ async function createPendiente(req) {
 
   if (!pendiente) throw httpError('El pendiente es obligatorio.', 400);
   if (!user.correo || !user.iniciales || !user.id) {
-    throw httpError('Sesión sin usuario válido.', 401);
+    throw httpError('Sesi\u00f3n sin usuario v\u00e1lido.', 401);
   }
 
   const empresa = await resolveTaskEmpresa_gnral(user, body.empresa);
   const conn = await pendientesRepository.getConnection_gnral();
   let uploadedEvidence = null;
+  let id = null;
+  let tipo = null;
+  let childrenResult = null;
 
   try {
     await conn.beginTransaction();
-    const tipo = normalizeTaskType(body.tipo_pendiente);
-    const id = await pendientesRepository.insertTask_gnral(conn, {
+    tipo = normalizeTaskType(body.tipo_pendiente);
+    id = await pendientesRepository.insertTask_gnral(conn, {
       pendiente,
       tipo_pendiente: tipo,
       estatus: normalizeTaskStatus(body.estatus),
@@ -511,16 +546,10 @@ async function createPendiente(req) {
         : normalizePriority(body.prioridad, 'MEDIA')
     });
 
-    const childrenResult = await syncPendienteChildren_gnral(
+    childrenResult = await syncPendienteChildren_gnral(
       conn,
       id,
       { ...body, tipo_pendiente: tipo },
-      user
-    );
-    const notificationResult = await createTaskAssignmentNotifications_gnral(
-      conn,
-      id,
-      { ...body, tipo_pendiente: tipo, pendiente },
       user
     );
 
@@ -535,16 +564,6 @@ async function createPendiente(req) {
     }
 
     await conn.commit();
-    return result(201, {
-      ok: true,
-      source: 'aiven',
-      message: 'Pendiente creado correctamente.',
-      id_pendiente: id,
-      id_archivo: uploadedEvidence?.persisted?.id_archivo || null,
-      notificaciones_creadas: notificationResult.inserted,
-      notificaciones_destinatarios: notificationResult.recipients,
-      autoasignacion_bloqueada: childrenResult.blockedSelfAssignment
-    });
   } catch (error) {
     try { await conn.rollback(); } catch (_rollbackError) {}
     if (uploadedEvidence && uploadedEvidence.uploaded) {
@@ -558,6 +577,25 @@ async function createPendiente(req) {
   } finally {
     conn.release();
   }
+
+  const notificationResult = await createTaskAssignmentNotifications_gnral(
+    db,
+    id,
+    { ...body, tipo_pendiente: tipo, pendiente },
+    user
+  );
+
+  return result(201, {
+    ok: true,
+    source: 'aiven',
+    message: 'Pendiente creado correctamente.',
+    id_pendiente: id,
+    id_archivo: uploadedEvidence?.persisted?.id_archivo || null,
+    notificaciones_creadas: notificationResult.inserted,
+    notificaciones_destinatarios: notificationResult.recipients,
+    notificacion_error: notificationResult.error || null,
+    autoasignacion_bloqueada: childrenResult.blockedSelfAssignment
+  });
 }
 
 async function updatePendiente(req) {
@@ -568,13 +606,16 @@ async function updatePendiente(req) {
   const dueDate = normalizeOptionalDate(body.due_date);
   const evidence = req.cffaaTaskEvidence || pendientesFiles.extractTaskEvidence_gnral(req);
 
-  if (!id) throw httpError('No se recibió id de pendiente.', 400);
+  if (!id) throw httpError('No se recibi\u00f3 id de pendiente.', 400);
   if (!pendiente) throw httpError('El pendiente es obligatorio.', 400);
-  if (!user.correo || !user.id) throw httpError('Sesión sin usuario válido.', 401);
+  if (!user.correo || !user.id) throw httpError('Sesi\u00f3n sin usuario v\u00e1lido.', 401);
 
   const conn = await pendientesRepository.getConnection_gnral();
   let uploadedEvidence = null;
   let referencesToDelete = [];
+  let oldResponsables = [];
+  let tipo = null;
+  let childrenResult = null;
 
   try {
     await conn.beginTransaction();
@@ -585,14 +626,14 @@ async function updatePendiente(req) {
       { forUpdate: true }
     );
     pendientesAccess.assertCreator_gnral(access, {
-      creatorMessage: 'Solo el creador puede editar la configuración general de la tarea.'
+      creatorMessage: 'Solo el creador puede editar la configuraci\u00f3n general de la tarea.'
     });
 
     const empresa = await resolveTaskEmpresa_gnral(user, body.empresa, access.row.empresa, conn);
-    const oldResponsables = (await pendientesRepository.listTaskResponsibles_gnral(conn, id))
+    oldResponsables = (await pendientesRepository.listTaskResponsibles_gnral(conn, id))
       .map(row => row.iniciales_usuario)
       .filter(Boolean);
-    const tipo = normalizeTaskType(body.tipo_pendiente);
+    tipo = normalizeTaskType(body.tipo_pendiente);
 
     await pendientesRepository.updateTask_gnral(conn, id, {
       pendiente,
@@ -609,18 +650,11 @@ async function updatePendiente(req) {
         : normalizePriority(body.prioridad, 'MEDIA')
     });
 
-    const childrenResult = await syncPendienteChildren_gnral(
+    childrenResult = await syncPendienteChildren_gnral(
       conn,
       id,
       { ...body, tipo_pendiente: tipo },
       user
-    );
-    const notificationResult = await createTaskAssignmentNotifications_gnral(
-      conn,
-      id,
-      { ...body, tipo_pendiente: tipo, pendiente },
-      user,
-      oldResponsables
     );
 
     if (evidence) {
@@ -639,25 +673,6 @@ async function updatePendiente(req) {
     }
 
     await conn.commit();
-    const cleanup = referencesToDelete.length
-      ? await pendientesFiles.deleteReferencesAfterCommit_gnral(referencesToDelete, {
-          entidad_tipo: 'pendiente_evidencia',
-          entidad_id: id,
-          solicitado_por: user.id,
-          motivo: 'Sustitución de evidencia directa de una tarea.'
-        })
-      : null;
-
-    return result(200, {
-      ok: true,
-      source: 'aiven',
-      message: 'Pendiente actualizado correctamente.',
-      id_archivo: uploadedEvidence?.persisted?.id_archivo || null,
-      limpieza_archivos: cleanup,
-      notificaciones_creadas: notificationResult.inserted,
-      notificaciones_destinatarios: notificationResult.recipients,
-      autoasignacion_bloqueada: childrenResult.blockedSelfAssignment
-    });
   } catch (error) {
     try { await conn.rollback(); } catch (_rollbackError) {}
     if (uploadedEvidence && uploadedEvidence.uploaded) {
@@ -672,12 +687,41 @@ async function updatePendiente(req) {
   } finally {
     conn.release();
   }
+
+  const cleanup = referencesToDelete.length
+    ? await pendientesFiles.deleteReferencesAfterCommit_gnral(referencesToDelete, {
+        entidad_tipo: 'pendiente_evidencia',
+        entidad_id: id,
+        solicitado_por: user.id,
+        motivo: 'Sustituci\u00f3n de evidencia directa de una tarea.'
+      })
+    : null;
+
+  const notificationResult = await createTaskAssignmentNotifications_gnral(
+    db,
+    id,
+    { ...body, tipo_pendiente: tipo, pendiente },
+    user,
+    oldResponsables
+  );
+
+  return result(200, {
+    ok: true,
+    source: 'aiven',
+    message: 'Pendiente actualizado correctamente.',
+    id_archivo: uploadedEvidence?.persisted?.id_archivo || null,
+    limpieza_archivos: cleanup,
+    notificaciones_creadas: notificationResult.inserted,
+    notificaciones_destinatarios: notificationResult.recipients,
+    notificacion_error: notificationResult.error || null,
+    autoasignacion_bloqueada: childrenResult.blockedSelfAssignment
+  });
 }
 
 async function updatePendientePrioridad(req) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
-  if (!id) throw httpError('No se recibio id de pendiente.', 400);
+  if (!id) throw httpError('No se recibi\u00f3 id de pendiente.', 400);
 
   const row = await pendientesRepository.getPriorityContext_gnral(null, id, user.iniciales);
   if (!row) throw httpError('Pendiente no encontrado.', 404);
@@ -703,8 +747,8 @@ async function updatePendientePrioridad(req) {
 async function updatePendienteEstatus(req) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
-  if (!id) throw httpError('No se recibio id de pendiente.', 400);
-  if (!user.correo) throw httpError('Sesion sin usuario valido.', 401);
+  if (!id) throw httpError('No se recibi\u00f3 id de pendiente.', 400);
+  if (!user.correo) throw httpError('Sesi\u00f3n sin usuario v\u00e1lido.', 401);
 
   const row = await pendientesRepository.getCreatorEmail_gnral(null, id);
   if (!row) throw httpError('Pendiente no encontrado.', 404);
@@ -727,18 +771,20 @@ async function createPendienteComentario(req) {
   const comentario = sanitizeText(req.body?.comentario);
   const commentFile = pendientesFiles.extractCommentFile_gnral(req);
 
-  if (!id) throw httpError('No se recibió id de pendiente.', 400);
+  if (!id) throw httpError('No se recibi\u00f3 id de pendiente.', 400);
   if (!comentario && !commentFile) {
     throw httpError('Escribe un comentario o selecciona un archivo.', 400);
   }
-  if (!user.id) throw httpError('Sesión sin usuario válido.', 401);
+  if (!user.id) throw httpError('Sesi\u00f3n sin usuario v\u00e1lido.', 401);
 
   const conn = await pendientesRepository.getConnection_gnral();
   let uploadedAttachment = null;
+  let idComentario = null;
+  let access = null;
 
   try {
     await conn.beginTransaction();
-    const access = await pendientesAccess.getPendienteAccessContext_gnral(conn, id, user);
+    access = await pendientesAccess.getPendienteAccessContext_gnral(conn, id, user);
     pendientesAccess.assertAccess_gnral(access, {
       forbiddenMessage: 'No tienes permiso para comentar esta tarea.'
     });
@@ -746,7 +792,7 @@ async function createPendienteComentario(req) {
     const taskEmpresa = commentFile
       ? await resolveStoredTaskEmpresa_gnral(conn, access.row)
       : null;
-    const idComentario = await pendientesRepository.insertComment_gnral(conn, {
+    idComentario = await pendientesRepository.insertComment_gnral(conn, {
       idPendiente: id,
       idUsuario: user.id,
       comentario: comentario || ''
@@ -763,20 +809,7 @@ async function createPendienteComentario(req) {
       });
     }
 
-    const notificaciones = await createPendienteCommentNotifications_gnral(conn, access, user, {
-      comentario,
-      nombre_archivo: commentFile && commentFile.originalname
-    });
     await conn.commit();
-
-    return result(201, {
-      ok: true,
-      source: 'aiven',
-      message: commentFile ? 'Interacción agregada correctamente.' : 'Comentario agregado correctamente.',
-      id_comentario: idComentario,
-      id_adjunto: uploadedAttachment?.persisted?.id_adjunto || null,
-      notificaciones
-    });
   } catch (error) {
     try { await conn.rollback(); } catch (_rollbackError) {}
     if (uploadedAttachment && uploadedAttachment.uploaded) {
@@ -784,20 +817,36 @@ async function createPendienteComentario(req) {
         entidad_tipo: 'pendiente_comentario',
         entidad_id: id,
         solicitado_por: user.id,
-        motivo: 'Rollback al crear una interacción de tarea.'
+        motivo: 'Rollback al crear una interacci\u00f3n de tarea.'
       });
     }
     throw error;
   } finally {
     conn.release();
   }
+
+  const notificationResult = await createPendienteCommentNotifications_gnral(db, access, user, {
+    id_comentario: idComentario,
+    comentario,
+    nombre_archivo: commentFile && commentFile.originalname
+  });
+
+  return result(201, {
+    ok: true,
+    source: 'aiven',
+    message: commentFile ? 'Interacci\u00f3n agregada correctamente.' : 'Comentario agregado correctamente.',
+    id_comentario: idComentario,
+    id_adjunto: uploadedAttachment?.persisted?.id_adjunto || null,
+    notificaciones: Number(notificationResult.created || 0),
+    notificacion_error: notificationResult.error || null
+  });
 }
 
 async function updatePendienteSubtarea(req) {
   const id = Number.parseInt(req.params.id, 10);
   const idSubtarea = Number.parseInt(req.params.idSubtarea, 10);
   const user = currentUserRef(req);
-  if (!id || !idSubtarea) throw httpError('No se recibió id de subtarea.', 400);
+  if (!id || !idSubtarea) throw httpError('No se recibi\u00f3 id de subtarea.', 400);
 
   const access = await pendientesAccess.getPendienteAccessContext_gnral(db, id, user);
   pendientesAccess.assertAccess_gnral(access, {
@@ -819,8 +868,8 @@ async function updatePendienteSubtarea(req) {
 async function deletePendiente(req) {
   const id = Number.parseInt(req.params.id, 10);
   const user = currentUserRef(req);
-  if (!id) throw httpError('No se recibió id de pendiente.', 400);
-  if (!user.correo || !user.id) throw httpError('Sesión sin usuario válido.', 401);
+  if (!id) throw httpError('No se recibi\u00f3 id de pendiente.', 400);
+  if (!user.correo || !user.id) throw httpError('Sesi\u00f3n sin usuario v\u00e1lido.', 401);
 
   const conn = await pendientesRepository.getConnection_gnral();
   let references = [];
@@ -850,7 +899,7 @@ async function deletePendiente(req) {
       entidad_tipo: 'pendiente',
       entidad_id: id,
       solicitado_por: user.id,
-      motivo: 'Eliminación completa de una tarea y sus archivos.'
+      motivo: 'Eliminaci\u00f3n completa de una tarea y sus archivos.'
     });
 
     return result(200, {

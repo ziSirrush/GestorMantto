@@ -2,7 +2,11 @@
 
 const db = require('../config/db');
 const supportFilesService = require('../modules/support/support-files.service');
-const notificationService = require('./notifications/notification.service');
+const {
+  emitBusinessEventSafe_gnral
+} = require('./notifications/notification-business-emitter.service');
+
+const EVENT_SUPPORT_UPDATED = 'soporte.solicitud.actualizada';
 
 const SUPPORT_ROLE_NAMES = new Set([
   'Soporte',
@@ -190,8 +194,6 @@ async function autoAssignIfEmpty(ticketId, userId) {
   return Number(result.affectedRows || 0) > 0;
 }
 
-
-
 function uniqueRecipientIds(values, excludeId) {
   const excluded = Number(excludeId || 0);
   return Array.from(new Set((values || [])
@@ -204,40 +206,68 @@ async function listSupportUserIds() {
   return users.map(user => Number(user.id_usuario || 0)).filter(Boolean);
 }
 
-async function createTicketNotifications({
+function parseHistory_gnral(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function latestSupportActionIdentity_gnral(ticketId, fallbackAction) {
+  const [rows] = await db.query(
+    `SELECT historial, fecha_actualizacion
+       FROM sup_tickets
+      WHERE id_ticket = ?
+      LIMIT 1`,
+    [ticketId]
+  );
+  const row = rows[0] || {};
+  const history = parseHistory_gnral(row.historial);
+  const last = history.length ? history[history.length - 1] : null;
+  const action = String(last && last.accion || fallbackAction || 'actualizacion').trim();
+  const date = String(last && last.fecha || row.fecha_actualizacion || '').trim();
+  const attachment = Number(last && last.id_adjunto || 0) || null;
+
+  if (date) {
+    return `soporte:${ticketId}:${action}:${date}${attachment ? `:${attachment}` : ''}`;
+  }
+
+  // Creaciones antiguas sin historial/fecha mantienen una identidad estable por ticket.
+  return `soporte:${ticketId}:${action}`;
+}
+
+async function emitSupportEvent_gnral({
   recipientIds,
   actorId,
   ticketId,
-  folio,
-  type,
   title,
   message,
-  icon = '🔔'
+  icon,
+  eventInstanceKey
 }) {
   const recipients = uniqueRecipientIds(recipientIds, actorId);
-  if (!ticketId || !recipients.length) return 0;
+  if (!ticketId || !recipients.length) return { created: 0, recipients: [] };
 
-  let inserted = 0;
-  for (const recipientId of recipients) {
-    const [result] = await db.query(
-      `INSERT INTO sup_notificaciones
-       (id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
-        icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
-        leido, activo, fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, ?, ?, 'ABRIR_SOLICITUD', ?, ?, 0, 1, NOW(), NOW())`,
-      [
-        recipientId,
-        type,
-        title,
-        message,
-        icon,
-        ticketId,
-        'soporte-solicitudes'
-      ]
-    );
-    inserted += Number(result.affectedRows || 0);
-  }
-  return inserted;
+  return emitBusinessEventSafe_gnral({
+    codigoEvento: EVENT_SUPPORT_UPDATED,
+    destinatarios: recipients,
+    actorUserId: Number(actorId || 0) || null,
+    zonaOperativaNoAplica: true,
+    requireRoleMatrix: true,
+    titulo: title,
+    mensaje: message,
+    icono: icon,
+    accion: 'ABRIR_SOLICITUD',
+    idReferencia: ticketId,
+    ruta: 'soporte-solicitudes',
+    eventInstanceKey
+  }, {
+    label: `${EVENT_SUPPORT_UPDATED}:${ticketId}`
+  });
 }
 
 async function notifyTicketInteraction({ ticket, actor, kind, fileName }) {
@@ -261,35 +291,23 @@ async function notifyTicketInteraction({ ticket, actor, kind, fileName }) {
   const folio = ticket.folio || `SUP-${ticket.id_ticket}`;
   const actorName = (actor && (actor.nombre || actor.correo)) || 'Usuario';
   const isFile = kind === 'archivo';
-
-  if (!isFile) {
-    const result = await notificationService.emit({
-      codigoEvento: 'COMENTARIO',
-      destinatarios: recipientIds,
-      actorUserId: actorId || null,
-      zonaOperativaNoAplica: true,
-      requireRoleMatrix: true,
-      allowMissingEvent: true,
-      titulo: 'Nuevo comentario en solicitud',
-      mensaje: `${actorName} comentó en ${folio}`,
-      icono: '💬',
-      accion: 'ABRIR_SOLICITUD',
-      idReferencia: ticket.id_ticket,
-      ruta: 'soporte-solicitudes'
-    });
-    return Number(result.created || 0);
-  }
-
-  return createTicketNotifications({
+  const actionKey = await latestSupportActionIdentity_gnral(
+    ticket.id_ticket,
+    isFile ? 'archivo_adjuntado' : 'comentario'
+  );
+  const notificationResult = await emitSupportEvent_gnral({
     recipientIds,
     actorId,
     ticketId: ticket.id_ticket,
-    folio,
-    type: 'SOPORTE_ARCHIVO',
-    title: 'Nuevo archivo en solicitud',
-    message: `${actorName} adjuntó ${fileName || 'un archivo'} en ${folio}`,
-    icon: '📎'
+    title: isFile ? 'Nuevo archivo en solicitud' : 'Nuevo comentario en solicitud',
+    message: isFile
+      ? `${actorName} adjuntó ${fileName || 'un archivo'} en ${folio}`
+      : `${actorName} comentó en ${folio}`,
+    icon: isFile ? '📎' : '💬',
+    eventInstanceKey: actionKey
   });
+
+  return Number(notificationResult.created || 0);
 }
 
 async function notifyTicketChanges({ before, after, actor }) {
@@ -299,60 +317,40 @@ async function notifyTicketChanges({ before, after, actor }) {
   const oldAssignedId = Number(before.id_soporte || 0);
   const newAssignedId = Number(after.id_soporte || 0);
   const folio = after.folio || before.folio || `SUP-${after.id_ticket || before.id_ticket}`;
-  let inserted = 0;
+  const recipients = new Set();
+  const changes = [];
 
   if (String(before.estado_ticket || '') !== String(after.estado_ticket || '')) {
-    inserted += await createTicketNotifications({
-      recipientIds: [ownerId],
-      actorId,
-      ticketId: after.id_ticket,
-      type: 'SOPORTE_ESTADO',
-      title: 'Estado de solicitud actualizado',
-      message: `${folio} cambió a: ${after.estado_ticket || 'Sin estado'}`,
-      icon: '🔄'
-    });
+    if (ownerId) recipients.add(ownerId);
+    changes.push(`Estado: ${before.estado_ticket || 'Sin estado'} → ${after.estado_ticket || 'Sin estado'}`);
   }
 
   if (String(before.prioridad_ticket || '') !== String(after.prioridad_ticket || '')) {
-    inserted += await createTicketNotifications({
-      recipientIds: [newAssignedId],
-      actorId,
-      ticketId: after.id_ticket,
-      type: 'SOPORTE_PRIORIDAD',
-      title: 'Prioridad de solicitud actualizada',
-      message: `${folio}: ${before.prioridad_ticket || 'Sin prioridad'} → ${after.prioridad_ticket || 'Sin prioridad'}`,
-      icon: '⚠️'
-    });
+    if (newAssignedId) recipients.add(newAssignedId);
+    changes.push(`Prioridad: ${before.prioridad_ticket || 'Sin prioridad'} → ${after.prioridad_ticket || 'Sin prioridad'}`);
   }
 
   if (oldAssignedId !== newAssignedId) {
-    if (newAssignedId) {
-      inserted += await createTicketNotifications({
-        recipientIds: [newAssignedId],
-        actorId,
-        ticketId: after.id_ticket,
-        type: 'SOPORTE_ASIGNACION',
-        title: 'Solicitud asignada',
-        message: `Se te asignó la solicitud ${folio}`,
-        icon: '👤'
-      });
-    }
-    if (oldAssignedId) {
-      inserted += await createTicketNotifications({
-        recipientIds: [oldAssignedId],
-        actorId,
-        ticketId: after.id_ticket,
-        type: 'SOPORTE_REASIGNACION',
-        title: 'Solicitud reasignada',
-        message: `${folio} fue reasignada a otro responsable`,
-        icon: '↪️'
-      });
-    }
+    if (newAssignedId) recipients.add(newAssignedId);
+    if (oldAssignedId) recipients.add(oldAssignedId);
+    changes.push('Responsable de soporte actualizado');
   }
 
-  return inserted;
-}
+  if (!changes.length || !recipients.size) return 0;
 
+  const actionKey = await latestSupportActionIdentity_gnral(after.id_ticket, 'ticket_actualizado');
+  const notificationResult = await emitSupportEvent_gnral({
+    recipientIds: [...recipients],
+    actorId,
+    ticketId: after.id_ticket,
+    title: 'Solicitud de soporte actualizada',
+    message: `${folio}. ${changes.join('. ')}.`,
+    icon: '🔄',
+    eventInstanceKey: actionKey
+  });
+
+  return Number(notificationResult.created || 0);
+}
 
 async function notifyRequesterUpdate({ ticket, actor, changedFields }) {
   if (!ticket) return 0;
@@ -364,53 +362,38 @@ async function notifyRequesterUpdate({ ticket, actor, changedFields }) {
   const fieldList = Array.isArray(changedFields) && changedFields.length
     ? ` Campos: ${changedFields.join(', ')}.`
     : '';
+  const actionKey = await latestSupportActionIdentity_gnral(ticket.id_ticket, 'solicitud_actualizada');
 
-  return createTicketNotifications({
+  const notificationResult = await emitSupportEvent_gnral({
     recipientIds,
     actorId,
     ticketId: ticket.id_ticket,
-    folio,
-    type: 'SOPORTE_SOLICITUD_ACTUALIZADA',
     title: 'Solicitud actualizada por el solicitante',
     message: `${actorName} actualizó la solicitud ${folio}.${fieldList}`,
-    icon: '✏️'
+    icon: '✏️',
+    eventInstanceKey: actionKey
   });
+
+  return Number(notificationResult.created || 0);
 }
 
 async function notifySupportUsers({ ticketId, folio, asunto }) {
   if (!ticketId) return 0;
 
-  const [result] = await db.query(
-    `INSERT INTO sup_notificaciones
-       (id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
-        icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
-        leido, activo, fecha_creacion, fecha_actualizacion)
-     SELECT DISTINCT
-       u.id_SB,
-       'SOLICITUD_SOPORTE',
-       'Nueva solicitud de soporte',
-       CONCAT(?, ' - ', ?),
-       '🎫',
-       'ABRIR_SOLICITUD',
-       ?,
-       'soporte-solicitudes',
-       0,
-       1,
-       NOW(),
-       NOW()
-     FROM usuarios u
-     INNER JOIN usuario_roles ur
-       ON ur.id_usuario = u.id_SB
-      AND ur.activo = 1
-     INNER JOIN roles r
-       ON r.id_rol = ur.id_rol
-      AND r.estado = 1
-     WHERE u.estado = 1
-       AND r.rol = 'Soporte'`,
-    [folio || `SUP-${ticketId}`, asunto || 'Solicitud de soporte', ticketId]
-  );
+  const ticket = await getSolicitudById(ticketId);
+  const ownerId = Number(ticket && ticket.id_usuario || 0) || null;
+  const recipientIds = await listSupportUserIds();
+  const notificationResult = await emitSupportEvent_gnral({
+    recipientIds,
+    actorId: ownerId,
+    ticketId,
+    title: 'Nueva solicitud de soporte',
+    message: `${folio || `SUP-${ticketId}`} - ${asunto || 'Solicitud de soporte'}`,
+    icon: '🎫',
+    eventInstanceKey: `soporte-solicitud-creada:${ticketId}`
+  });
 
-  return Number(result.affectedRows || 0);
+  return Number(notificationResult.created || 0);
 }
 
 module.exports = {
@@ -422,5 +405,7 @@ module.exports = {
   autoAssignIfEmpty,
   notifyTicketInteraction,
   notifyTicketChanges,
-  notifyRequesterUpdate
+  notifyRequesterUpdate,
+  // Exportado para pruebas de Fase 2.
+  latestSupportActionIdentity_gnral
 };

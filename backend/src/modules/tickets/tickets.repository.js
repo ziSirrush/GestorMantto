@@ -2,20 +2,21 @@
  * Repositorio transicional del modulo Tickets.
  *
  * FASE 3 mueve las lecturas humanas base de Tickets al motor territorial
- * UNITED. Las interacciones y escrituras permanecen en el handler legacy,
- * protegidas por requireTicketRecordScope_gnral en las rutas existentes.
- * Los endpoints M2M siguen separados del alcance humano.
+ * UNITED. FASE 2 de Notificaciones extrae comentario + Vo.Bo. del handler
+ * legacy para que esas mutaciones emitan exclusivamente los codigos oficiales
+ * y lo hagan despues de confirmar la accion de negocio.
  */
 const legacyController = require('../../controllers/data.controller');
 const ticketsConsultasUni = require('./tickets-consultas_uni');
+const ticketNotificationWrites = require('./tickets-notification-writes.service');
 
 const handlers = Object.freeze({
   getTickets: ticketsConsultasUni.getTickets_uni,
   getTicketInteracciones: legacyController.getTicketInteracciones,
-  createTicketComentario: legacyController.createTicketComentario,
-  saveTicketValidacion: legacyController.saveTicketValidacion,
+  createTicketComentario: ticketNotificationWrites.createTicketComentario,
+  saveTicketValidacion: ticketNotificationWrites.saveTicketValidacion,
   getTicketDetalle: ticketsConsultasUni.getTicketDetalle_uni,
-  saveTicketVobo: legacyController.saveTicketVobo,
+  saveTicketVobo: ticketNotificationWrites.saveTicketVobo,
   syncTickets: legacyController.syncTickets,
   syncTicketDatesCdmx: legacyController.syncTicketDatesCdmx
 });

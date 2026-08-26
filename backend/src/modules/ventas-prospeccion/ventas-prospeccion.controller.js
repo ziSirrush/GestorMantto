@@ -1,5 +1,5 @@
 const service = require('./ventas-prospeccion.service');
-const commentNotifications = require('../../services/notifications/comment-notification.service');
+const ventasNotifications = require('../../services/notifications/ventas-notification.service');
 
 function sendKnownError(error, res, next) {
   const statusCode = Number(error.statusCode || error.status || 0);
@@ -70,12 +70,31 @@ async function getClientContacts(req,res,next){try{return res.status(200).json(a
 async function createVisit(req,res,next){try{return res.status(201).json(await service.createVisit(req.body||{},req.files||[],buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
 
 async function getDetailCatalogs(req,res,next){try{return res.status(200).json(await service.getDetailCatalogs(buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
-async function updateProspectionStatus(req,res,next){try{return res.status(200).json(await service.updateProspectionStatus(req.params.id,req.body||{},buildActionContext(req)));}catch(error){return sendKnownError(error,res,next);}}
+async function updateProspectionStatus(req,res,next){
+  try{
+    const actionContext = buildActionContext(req);
+    const statusBefore = await ventasNotifications.captureProspeccionStatus_gnral(req.params.id);
+    const result = await service.updateProspectionStatus(req.params.id,req.body||{},actionContext);
+    const notificationResult = await ventasNotifications.notifyProspeccionStatus_gnral(
+      req.params.id,
+      statusBefore,
+      actionContext
+    );
+    return res.status(200).json({
+      ...result,
+      notificaciones_estatus: Number(notificationResult?.created || 0)
+    });
+  }catch(error){return sendKnownError(error,res,next);}
+}
 async function createComment(req,res,next){
   try{
     const actionContext = buildActionContext(req);
     const result = await service.createComment(req.params.id,req.body||{},req.files||[],actionContext);
-    const notificationResult = await commentNotifications.notifyProspeccionComment_gnral(req.params.id, actionContext);
+    const notificationResult = await ventasNotifications.notifyProspeccionComment_gnral(
+      req.params.id,
+      result?.id_com_pors,
+      actionContext
+    );
     return res.status(201).json({ ...result, notificaciones: Number(notificationResult?.created || 0) });
   }catch(error){return sendKnownError(error,res,next);}
 }

@@ -1,7 +1,7 @@
 const db = require('../../config/db');
 const service = require('./ventas-cotizaciones.service');
 const editBootstrapService = require('./ventas-cotizaciones-editar-bootstrap.service');
-const commentNotifications = require('../../services/notifications/comment-notification.service');
+const ventasNotifications = require('../../services/notifications/ventas-notification.service');
 
 function sendKnownError(error, res, next) {
   const status = Number(error.statusCode || error.status);
@@ -106,8 +106,21 @@ async function createCotizacion(req, res, next) {
 }
 
 async function updateCotizacion(req, res, next) {
-  try { return res.status(200).json(await service.update(req.params.id, req.body || {}, buildActionContext(req))); }
-  catch (error) { return sendKnownError(error, res, next); }
+  try {
+    const payload = req.body || {};
+    const actionContext = buildActionContext(req);
+    const statusBefore = Object.prototype.hasOwnProperty.call(payload, 'estatus_proyecto')
+      ? await ventasNotifications.captureCotizacionStatus_gnral(req.params.id)
+      : null;
+    const result = await service.update(req.params.id, payload, actionContext);
+    const notificationResult = statusBefore
+      ? await ventasNotifications.notifyCotizacionStatus_gnral(req.params.id, statusBefore, actionContext)
+      : { created: 0 };
+    return res.status(200).json({
+      ...result,
+      notificaciones_estatus: Number(notificationResult?.created || 0)
+    });
+  } catch (error) { return sendKnownError(error, res, next); }
 }
 
 async function deleteCotizacion(req, res, next) {
@@ -116,8 +129,20 @@ async function deleteCotizacion(req, res, next) {
 }
 
 async function updateEstatus(req, res, next) {
-  try { return res.status(200).json(await service.updateEstatus(req.params.id, req.body || {}, buildActionContext(req))); }
-  catch (error) { return sendKnownError(error, res, next); }
+  try {
+    const actionContext = buildActionContext(req);
+    const statusBefore = await ventasNotifications.captureCotizacionStatus_gnral(req.params.id);
+    const result = await service.updateEstatus(req.params.id, req.body || {}, actionContext);
+    const notificationResult = await ventasNotifications.notifyCotizacionStatus_gnral(
+      req.params.id,
+      statusBefore,
+      actionContext
+    );
+    return res.status(200).json({
+      ...result,
+      notificaciones_estatus: Number(notificationResult?.created || 0)
+    });
+  } catch (error) { return sendKnownError(error, res, next); }
 }
 
 async function updateAsignacion(req, res, next) {
@@ -139,7 +164,14 @@ async function createComentario(req, res, next) {
       req.file || null,
       actionContext
     );
-    const notificationResult = await commentNotifications.notifyCotizacionComment_gnral(req.params.id, actionContext);
+    const idComentario = Number(
+      result?.interaccion?.id_comentario || result?.comentario?.id_comentario || 0
+    ) || null;
+    const notificationResult = await ventasNotifications.notifyCotizacionComment_gnral(
+      req.params.id,
+      idComentario,
+      actionContext
+    );
     return res.status(201).json({ ...result, notificaciones: Number(notificationResult?.created || 0) });
   } catch (error) { return sendKnownError(error, res, next); }
 }
