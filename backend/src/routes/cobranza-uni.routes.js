@@ -13,7 +13,7 @@ function cobranzaUniGuard(permissionCode) {
   return humanInformationGuard_gnral({
     permissionCode,
     domain: 'UNITED',
-    groupingCode: 'COBRANZA'
+    groupingCode: 'COBRANZA_UNI'
   });
 }
 

@@ -12,7 +12,7 @@ const requireCobranzaUniIntegration = requireIntegrationAuthFor('INTEGRATION_COB
 const mantenimientoPreventivoGuard = humanInformationGuard_gnral({
   permissionCode: 'COBRANZA_UNI_MANTENIMIENTO_PREVENTIVO_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
   domain: 'UNITED',
-  groupingCode: 'COBRANZA'
+  groupingCode: 'COBRANZA_UNI'
 });
 
 router.get('/', ...mantenimientoPreventivoGuard, detalleMp2026CuartosController.getMainDetalleMp2026);
