@@ -60,7 +60,8 @@ async function listPendingNotifications({ userId, cursor, cycleCutoff, limit = 2
       n.accion_notificacion,
       n.id_referencia,
       n.ruta_destino,
-      n.fecha_creacion
+      n.fecha_creacion,
+      COALESCE(e.prioridad_default, 'MEDIA') AS prioridad_notificacion
     FROM sup_notificaciones n
     LEFT JOIN notificacion_eventos e
       ON e.codigo_evento = n.tipo_notificacion

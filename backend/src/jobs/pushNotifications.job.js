@@ -20,8 +20,18 @@ function cursorFor(subscription) {
 function payloadFor(notification) {
   const baseTitle = notification.titulo_notificacion || 'Mantto Gestor';
   const emoji = String(notification.icono_notificacion || '').trim();
-  const title = emoji && !String(baseTitle).trim().startsWith(emoji)
-    ? `${emoji} ${baseTitle}`
+  const priority = String(notification.prioridad_notificacion || 'MEDIA').trim().toUpperCase();
+  const priorityEmoji = {
+    ALTA: '🟠',
+    MEDIA: '🟡',
+    BAJA: '⚪'
+  }[priority] || '';
+  const prefixes = [priorityEmoji, emoji]
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index);
+  const titlePrefix = prefixes.join(' ');
+  const title = titlePrefix && !String(baseTitle).trim().startsWith(titlePrefix)
+    ? `${titlePrefix} ${baseTitle}`
     : baseTitle;
 
   return {
@@ -32,11 +42,20 @@ function payloadFor(notification) {
     tag: `mantto-notification-${notification.id_notificacion}`,
     notificationId: notification.id_notificacion,
     type: notification.tipo_notificacion || null,
+    priority,
     action: notification.accion_notificacion || null,
     referenceId: notification.id_referencia || null,
     route: notification.ruta_destino || 'notifications',
     focus: String(notification.tipo_notificacion || '').toUpperCase().includes('COMENTARIO') ? 'chat' : null
   };
+}
+
+function deliveryOptionsFor(notification) {
+  const priority = String(notification.prioridad_notificacion || 'MEDIA').trim().toUpperCase();
+  if (priority === 'CRITICA') return { ttl: 300, urgency: 'high' };
+  if (priority === 'ALTA') return { ttl: 900, urgency: 'high' };
+  if (priority === 'BAJA') return { ttl: 86400, urgency: 'low' };
+  return { ttl: 3600, urgency: 'normal' };
 }
 
 async function processSubscription(subscription, cycleCutoff) {
@@ -55,7 +74,7 @@ async function processSubscription(subscription, cycleCutoff) {
   let sent = 0;
   try {
     for (const notification of rows) {
-      await sendPush(subscription, payloadFor(notification), { ttl: 300, urgency: 'high' });
+      await sendPush(subscription, payloadFor(notification), deliveryOptionsFor(notification));
       sent += 1;
     }
     await repository.advanceSubscriptionCursor({ subscriptionId: subscription.id_suscripcion, cycleCutoff });
@@ -135,4 +154,10 @@ function stopPushNotificationsJob() {
   }
 }
 
-module.exports = { startPushNotificationsJob, stopPushNotificationsJob, runCycle };
+module.exports = {
+  startPushNotificationsJob,
+  stopPushNotificationsJob,
+  runCycle,
+  payloadFor,
+  deliveryOptionsFor
+};

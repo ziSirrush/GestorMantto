@@ -105,8 +105,14 @@ function resetRuntime() {
   state.emissions = [];
 }
 
-test('Fase 4 conserva exactamente los tres eventos criticos oficiales', () => {
-  for (const code of ['FALLA_EQUIPO_CRITICO', 'NUEVO_EQUIPO_CRITICO', 'PERSONA_ATRAPADA']) {
+test('Tickets criticos conserva los tres eventos base y agrega las dos combinaciones oficiales', () => {
+  for (const code of [
+    'FALLA_EQUIPO_CRITICO',
+    'NUEVO_EQUIPO_CRITICO',
+    'PERSONA_ATRAPADA',
+    'PERSONA_ATRAPADA_EQUIPO_CRITICO',
+    'PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO'
+  ]) {
     assert.match(serviceSource, new RegExp(code));
   }
 });
@@ -198,6 +204,50 @@ test('PERSONA_ATRAPADA conserva deteccion y abre el Ticket causante', async () =
   assert.equal(event.idReferencia, 301);
   assert.equal(event.accion, 'ABRIR_TICKET');
   assert.equal(event.ruta, 'detalle:ticket:T-301');
+});
+
+test('Persona atrapada en equipo ya critico emite una sola combinacion con maxima precedencia', async () => {
+  resetRuntime();
+  state.insertedRows = [{
+    id: 311,
+    ticket: 'T-311',
+    codigo_equipo: 'EQ-31',
+    responsabilidad: 'BLT',
+    descripcion: 'Persona atrapada en cabina'
+  }];
+  state.periodIds = [311];
+
+  await service.processAfterSync_uni(
+    beforeContext({ ids: [311], failures: { 'EQ-31': 4 } }),
+    null
+  );
+
+  assert.deepEqual(state.emissions.map((item) => item.codigoEvento), [
+    'PERSONA_ATRAPADA_EQUIPO_CRITICO'
+  ]);
+  assert.equal(state.emissions[0].icono, '🚨🆘');
+});
+
+test('Persona atrapada que crea un nuevo equipo critico emite una sola combinacion', async () => {
+  resetRuntime();
+  state.insertedRows = [{
+    id: 321,
+    ticket: 'T-321',
+    codigo_equipo: 'EQ-32',
+    responsabilidad: 'BLT',
+    descripcion: 'Rescate de persona atrapada'
+  }];
+  state.periodIds = [321];
+
+  await service.processAfterSync_uni(
+    beforeContext({ ids: [321], failures: { 'EQ-32': 2 } }),
+    null
+  );
+
+  assert.deepEqual(state.emissions.map((item) => item.codigoEvento), [
+    'PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO'
+  ]);
+  assert.equal(state.emissions[0].icono, '🚨💥');
 });
 
 test('Una resincronizacion de un Ticket ya existente no vuelve a emitir eventos criticos', async () => {

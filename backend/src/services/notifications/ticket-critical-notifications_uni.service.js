@@ -13,6 +13,8 @@ const {
 const EVENT_FALLA_EQUIPO_CRITICO_UNI = 'FALLA_EQUIPO_CRITICO';
 const EVENT_PERSONA_ATRAPADA_UNI = 'PERSONA_ATRAPADA';
 const EVENT_NUEVO_EQUIPO_CRITICO_UNI = 'NUEVO_EQUIPO_CRITICO';
+const EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI = 'PERSONA_ATRAPADA_EQUIPO_CRITICO';
+const EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI = 'PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO';
 const CRITICOS_DIAS_UNI = 35;
 const CRITICOS_MIN_FALLAS_BLT_UNI = 3;
 const PERSONA_ATRAPADA_KEYWORDS_UNI = Object.freeze([
@@ -347,6 +349,8 @@ async function loadInsertedRows_uni(beforeContext) {
 function emptySummary_uni() {
   return {
     inserted_tickets: 0,
+    persona_atrapada_equipo_critico: 0,
+    persona_atrapada_nuevo_equipo_critico: 0,
     falla_equipo_critico: 0,
     persona_atrapada: 0,
     nuevo_equipo_critico: 0,
@@ -388,9 +392,73 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     beforeContext,
     currentPeriodBltIds
   );
+  const newCriticalByTicketId = new Map(
+    [...newCriticalTriggers.entries()].map(([equipment, trigger]) => [
+      Number(trigger.row?.id),
+      { equipment, ...trigger }
+    ])
+  );
 
   for (const row of insertedRows) {
-    if (isPersonaAtrapada_uni(row)) {
+    const equipment = String(row.codigo_equipo || '').trim();
+    const before = beforeContext?.criticalBefore?.get(equipment);
+    const wasCritical = Boolean(
+      equipment && before && Number(before.fallas || 0) >= CRITICOS_MIN_FALLAS_BLT_UNI
+    );
+    const newCritical = newCriticalByTicketId.get(Number(row.id)) || null;
+    const trapped = isPersonaAtrapada_uni(row);
+
+    // La clasificacion es mutuamente excluyente y conserva la precedencia
+    // operativa acordada para evitar dos Push por el mismo Ticket:
+    // 1) atrapada + critico existente; 2) atrapada + nuevo critico;
+    // 3) atrapada; 4) falla en critico; 5) nuevo critico.
+    if (trapped && wasCritical) {
+      const result = await emitTicketEvent_uni({
+        eventCode: EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI,
+        ticketRow: row,
+        actorUserId: actorId,
+        title: 'Persona atrapada en equipo crítico',
+        message: `Se generó el ticket ${row.ticket} por una persona atrapada en el equipo crítico ${equipment}.`,
+        icon: '🚨🆘',
+        activeUserIds
+      });
+      appendEventResult_uni(
+        summary,
+        EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI,
+        row,
+        result,
+        'persona_atrapada_equipo_critico',
+        { numero_equipo: equipment, fallas_blt_antes: Number(before.fallas || 0) }
+      );
+      continue;
+    }
+
+    if (trapped && newCritical) {
+      const result = await emitTicketEvent_uni({
+        eventCode: EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI,
+        ticketRow: row,
+        actorUserId: actorId,
+        title: 'Persona atrapada en un nuevo equipo crítico',
+        message: `Se generó el ticket ${row.ticket} por una persona atrapada y el equipo ${equipment} pasó a condición crítica.`,
+        icon: '🚨💥',
+        activeUserIds
+      });
+      appendEventResult_uni(
+        summary,
+        EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI,
+        row,
+        result,
+        'persona_atrapada_nuevo_equipo_critico',
+        {
+          numero_equipo: equipment,
+          fallas_blt_antes_del_ticket: newCritical.beforeCount,
+          fallas_blt_despues_del_ticket: newCritical.afterCount
+        }
+      );
+      continue;
+    }
+
+    if (trapped) {
       const result = await emitTicketEvent_uni({
         eventCode: EVENT_PERSONA_ATRAPADA_UNI,
         ticketRow: row,
@@ -407,23 +475,20 @@ async function processAfterSync_uni(beforeContext, actorUser) {
         result,
         'persona_atrapada'
       );
+      continue;
     }
 
-    const equipment = String(row.codigo_equipo || '').trim();
-    const before = beforeContext?.criticalBefore?.get(equipment);
     if (
-      equipment &&
-      before &&
-      Number(before.fallas || 0) >= CRITICOS_MIN_FALLAS_BLT_UNI &&
+      wasCritical &&
       isBlt_uni(row)
     ) {
       const result = await emitTicketEvent_uni({
         eventCode: EVENT_FALLA_EQUIPO_CRITICO_UNI,
         ticketRow: row,
         actorUserId: actorId,
-        title: 'Nueva falla en equipo critico',
-        message: `Se genero el ticket ${row.ticket} con responsabilidad BLT sobre el equipo critico ${equipment}.`,
-        icon: '💥',
+        title: 'Falla en equipo crítico',
+        message: `Se generó el ticket ${row.ticket} con responsabilidad BLT sobre el equipo crítico ${equipment}.`,
+        icon: '🆘',
         activeUserIds
       });
       appendEventResult_uni(
@@ -434,32 +499,32 @@ async function processAfterSync_uni(beforeContext, actorUser) {
         'falla_equipo_critico',
         { fallas_blt_antes: Number(before.fallas || 0) }
       );
+      continue;
     }
-  }
 
-  for (const [equipment, trigger] of newCriticalTriggers.entries()) {
-    const row = trigger.row;
-    const result = await emitTicketEvent_uni({
-      eventCode: EVENT_NUEVO_EQUIPO_CRITICO_UNI,
-      ticketRow: row,
-      actorUserId: actorId,
-      title: 'Nuevo equipo critico',
-      message: `El equipo ${equipment} paso a condicion critica al alcanzar ${trigger.afterCount} fallas BLT en los ultimos ${CRITICOS_DIAS_UNI} dias.`,
-      icon: '💥',
-      activeUserIds
-    });
-    appendEventResult_uni(
-      summary,
-      EVENT_NUEVO_EQUIPO_CRITICO_UNI,
-      row,
-      result,
-      'nuevo_equipo_critico',
-      {
-        numero_equipo: equipment,
-        fallas_blt_antes_del_ticket: trigger.beforeCount,
-        fallas_blt_despues_del_ticket: trigger.afterCount
-      }
-    );
+    if (newCritical) {
+      const result = await emitTicketEvent_uni({
+        eventCode: EVENT_NUEVO_EQUIPO_CRITICO_UNI,
+        ticketRow: row,
+        actorUserId: actorId,
+        title: 'Nuevo equipo crítico',
+        message: `El equipo ${equipment} pasó a condición crítica al alcanzar ${newCritical.afterCount} fallas BLT en los últimos ${CRITICOS_DIAS_UNI} días.`,
+        icon: '💥',
+        activeUserIds
+      });
+      appendEventResult_uni(
+        summary,
+        EVENT_NUEVO_EQUIPO_CRITICO_UNI,
+        row,
+        result,
+        'nuevo_equipo_critico',
+        {
+          numero_equipo: equipment,
+          fallas_blt_antes_del_ticket: newCritical.beforeCount,
+          fallas_blt_despues_del_ticket: newCritical.afterCount
+        }
+      );
+    }
   }
 
   return summary;

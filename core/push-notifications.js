@@ -1,6 +1,6 @@
 (function(){
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
-  const SW_PATH = './service-worker.js';
+  const SW_PATH = './service-worker.js?v=20260827-push-priority-v002';
   let registration = null;
   let config = null;
   let initialized = false;

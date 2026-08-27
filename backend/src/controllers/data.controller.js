@@ -94,6 +94,8 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
 
   let notificationSummary = {
     inserted_tickets: 0,
+    persona_atrapada_equipo_critico: 0,
+    persona_atrapada_nuevo_equipo_critico: 0,
     falla_equipo_critico: 0,
     persona_atrapada: 0,
     nuevo_equipo_critico: 0,

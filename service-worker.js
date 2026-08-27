@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20260803-vapid-real-payload-v001';
+const SERVICE_WORKER_VERSION = '20260827-push-priority-v002';
 const DEFAULT_URL = './index.html?push_open=notifications';
 
 self.addEventListener('install', event => {
@@ -38,7 +38,7 @@ self.addEventListener('push', event => {
     badge: payload.badge || './assets/img/icons/icon-192.png',
     tag: payload.tag || `mantto-${payload.notificationId || Date.now()}`,
     renotify: true,
-    requireInteraction: false,
+    requireInteraction: String(payload.priority || '').toUpperCase() === 'CRITICA',
     data: { url, target: payload }
   }));
 });
