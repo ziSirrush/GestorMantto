@@ -1,3 +1,4 @@
+// [Aster | 2026-08-27 | ASTER-MG | FASE_1_CIERRE_LUMBRE_CURSOR_ID_UNICO_V001]
 const repository = require('../modules/push-notifications/push-notifications.repository');
 const { getVapidConfig, validateVapidConfig, sendPush } = require('../modules/push-notifications/push-notifications.sender');
 const logger = require('../shared/logger');
@@ -13,11 +14,19 @@ function normalizeCursorId(value) {
   return Math.floor(numeric);
 }
 
+/**
+ * Desde FASE_1_CIERRE_LUMBRE_CURSOR_ID_UNICO_V001 el unico cursor autoritativo
+ * del dispatcher es notificaciones_push_suscripciones.ultimo_id_notificacion.
+ * ultimo_uso_at se conserva solo como dato operativo/auditable y nunca vuelve
+ * a calcular ni adelantar la frontera de despacho.
+ */
 function cursorFor(subscription) {
-  return Math.max(
-    normalizeCursorId(subscription?.ultimo_id_notificacion),
-    normalizeCursorId(subscription?.cursor_id_efectivo)
-  );
+  const raw = subscription?.ultimo_id_notificacion;
+  if (raw === null || raw === undefined || raw === '') return null;
+
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Math.floor(numeric);
 }
 
 function notificationLimit() {
@@ -82,6 +91,14 @@ async function persistPartialProgress(subscriptionId, startCursorId, lastSuccess
 
 async function processSubscription(subscription, cycleWatermarkId) {
   const startCursorId = cursorFor(subscription);
+  if (startCursorId === null) {
+    const error = new Error(
+      `La suscripcion push ${subscription?.id_suscripcion || '(sin id)'} no tiene un ultimo_id_notificacion valido.`
+    );
+    error.code = 'PUSH_SUBSCRIPTION_CURSOR_ID_INVALID';
+    throw error;
+  }
+
   const watermarkId = normalizeCursorId(cycleWatermarkId);
   const limit = notificationLimit();
 

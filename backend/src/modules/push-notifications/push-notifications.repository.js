@@ -1,3 +1,4 @@
+// [Aster | 2026-08-27 | ASTER-MG | FASE_1_CIERRE_LUMBRE_CURSOR_ID_UNICO_V001]
 const db = require('../../config/db');
 const { pushVisibilitySql_gnral } = require('../../services/notifications/notification-policy');
 
@@ -56,16 +57,7 @@ async function listActiveSubscriptions(limit = 300) {
       s.auth,
       s.ultimo_uso_at,
       s.ultimo_id_notificacion,
-      s.created_at,
-      GREATEST(
-        COALESCE(s.ultimo_id_notificacion, 0),
-        COALESCE((
-          SELECT MAX(n_cursor.id_notificacion)
-          FROM sup_notificaciones n_cursor
-          WHERE n_cursor.id_usuario = s.id_usuario
-            AND n_cursor.fecha_creacion <= COALESCE(s.ultimo_uso_at, s.created_at)
-        ), 0)
-      ) AS cursor_id_efectivo
+      s.created_at
     FROM notificaciones_push_suscripciones s
     WHERE s.activo = 1
     ORDER BY COALESCE(s.ultimo_uso_at, s.created_at) ASC, s.id_suscripcion ASC
