@@ -65,3 +65,21 @@
   .home-file-actions{grid-column:1 / -1;justify-content:flex-start}
   .home-file-actions button{flex:1}
 }
+
+/* FIX Tareas - alcance Proyecto/Equipo por razon social v001 */
+/* El backend devuelve una sola razon social salvo cuando existen ambas llaves maestras. */
+#task-company option[value=""]{display:none}
+#task-company:not(:has(option:nth-of-type(3))){
+  pointer-events:none;
+  background:#F8FAFC;
+  color:var(--muted);
+  cursor:default;
+}
+.task-form label:has(> #task-company option:nth-of-type(3))::after{
+  content:"Tienes acceso a ambas razones sociales. Selecciona la empresa para consultar los proyectos disponibles correspondientes a esa razón social.";
+  color:var(--muted);
+  font-size:11px;
+  font-weight:650;
+  line-height:1.35;
+  margin-top:1px;
+}

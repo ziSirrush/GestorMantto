@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pendientesController = require('./pendientes.controller');
 const pendientesFilesController = require('./pendientes-files.controller');
+const pendientesProjectScope = require('./pendientes-project-scope.service');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireStorageSchema } = require('../../middleware/storage-schema.middleware');
 const { createUploadMiddleware_gnral } = require('../../middleware/storage-upload.middleware');
@@ -30,7 +31,14 @@ const requirePendientesStorage = requireStorageSchema(
   'pendientes_comentarios_adjuntos'
 );
 
-router.get('/pendientes/catalogos', requireAuth, pendientesController.getPendientesCatalogos);
+// El catalogo Proyecto/Equipo es informacion cruzada. Conserva la
+// autenticacion existente de Tareas y consume los motores de alcance CORELLIAN/UNITED
+// segun la razon social efectiva del pendiente.
+router.get(
+  '/pendientes/catalogos',
+  requireAuth,
+  pendientesProjectScope.getPendientesCatalogos_gnral
+);
 router.get('/pendientes', requireAuth, requirePendientesStorage, pendientesController.getPendientes);
 router.get(
   '/pendientes/:id/archivos/:idArchivo/acceso',
@@ -62,6 +70,7 @@ router.post(
   requireAuth,
   requirePendientesStorage,
   taskEvidenceUpload,
+  pendientesProjectScope.validateTaskProjectSelection_gnral,
   pendientesController.createPendiente
 );
 router.put(
@@ -69,6 +78,7 @@ router.put(
   requireAuth,
   requirePendientesStorage,
   taskEvidenceUpload,
+  pendientesProjectScope.validateTaskProjectSelection_gnral,
   pendientesController.updatePendiente
 );
 router.delete('/pendientes/:id', requireAuth, requirePendientesStorage, pendientesController.deletePendiente);
