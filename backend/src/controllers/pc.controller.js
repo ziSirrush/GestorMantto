@@ -32,7 +32,8 @@ const DB_FIELDS = [
   'refacturacion_sustitucion',
   'zona_operativa',
   'estado',
-  'comentarios_cobranza'
+  'comentarios_cobranza',
+  'estatus_cartera'
 ];
 
 const NUMERIC_FIELDS = new Set([

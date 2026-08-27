@@ -20,7 +20,8 @@ const DB_FIELDS = [
   'pendiente_corriente',
   'pendiente_vencido',
   'pendiente',
-  'facturas_pendientes'
+  'facturas_pendientes',
+  'estatus_cartera'
 ];
 
 const NUMERIC_FIELDS = new Set([

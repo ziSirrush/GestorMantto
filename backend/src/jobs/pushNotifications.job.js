@@ -7,14 +7,23 @@ let startupTimer = null;
 let running = false;
 let warnedConfiguration = false;
 
-function mysqlDate(date) {
-  return date.toISOString().slice(0, 19).replace('T', ' ');
+function normalizeCursorId(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return Math.floor(numeric);
 }
 
 function cursorFor(subscription) {
-  const source = subscription.ultimo_uso_at || subscription.created_at || new Date();
-  const date = new Date(source);
-  return Number.isNaN(date.getTime()) ? mysqlDate(new Date()) : mysqlDate(date);
+  return Math.max(
+    normalizeCursorId(subscription?.ultimo_id_notificacion),
+    normalizeCursorId(subscription?.cursor_id_efectivo)
+  );
+}
+
+function notificationLimit() {
+  const configured = Number(process.env.WEB_PUSH_NOTIFICATIONS_PER_CYCLE || 20);
+  if (!Number.isFinite(configured) || configured < 1) return 20;
+  return Math.min(100, Math.floor(configured));
 }
 
 function payloadFor(notification) {
@@ -58,32 +67,87 @@ function deliveryOptionsFor(notification) {
   return { ttl: 3600, urgency: 'normal' };
 }
 
-async function processSubscription(subscription, cycleCutoff) {
+async function persistPartialProgress(subscriptionId, startCursorId, lastSuccessfulId) {
+  if (lastSuccessfulId <= startCursorId) return;
+  try {
+    await repository.advanceSubscriptionCursor({
+      subscriptionId,
+      cursorId: lastSuccessfulId,
+      caughtUp: false
+    });
+  } catch (error) {
+    logger.error(`No fue posible conservar el cursor parcial de la suscripcion ${subscriptionId}.`, error);
+  }
+}
+
+async function processSubscription(subscription, cycleWatermarkId) {
+  const startCursorId = cursorFor(subscription);
+  const watermarkId = normalizeCursorId(cycleWatermarkId);
+  const limit = notificationLimit();
+
+  if (watermarkId <= startCursorId) {
+    await repository.advanceSubscriptionCursor({
+      subscriptionId: subscription.id_suscripcion,
+      cursorId: startCursorId,
+      caughtUp: true
+    });
+    return { sent: 0, cursorId: startCursorId, caughtUp: true };
+  }
+
   const rows = await repository.listPendingNotifications({
     userId: subscription.id_usuario,
-    cursor: cursorFor(subscription),
-    cycleCutoff,
-    limit: Number(process.env.WEB_PUSH_NOTIFICATIONS_PER_CYCLE || 20)
+    cursorId: startCursorId,
+    watermarkId,
+    limit
   });
 
   if (!rows.length) {
-    await repository.advanceSubscriptionCursor({ subscriptionId: subscription.id_suscripcion, cycleCutoff });
-    return { sent: 0 };
+    await repository.advanceSubscriptionCursor({
+      subscriptionId: subscription.id_suscripcion,
+      cursorId: watermarkId,
+      caughtUp: true
+    });
+    return { sent: 0, cursorId: watermarkId, caughtUp: true };
   }
 
   let sent = 0;
+  let lastSuccessfulId = startCursorId;
+
   try {
     for (const notification of rows) {
+      const notificationId = normalizeCursorId(notification.id_notificacion);
+      if (notificationId <= lastSuccessfulId || notificationId > watermarkId) {
+        const error = new Error(`Secuencia de notificaciones invalida para la suscripcion ${subscription.id_suscripcion}.`);
+        error.code = 'PUSH_NOTIFICATION_CURSOR_SEQUENCE_INVALID';
+        throw error;
+      }
+
       await sendPush(subscription, payloadFor(notification), deliveryOptionsFor(notification));
       sent += 1;
+      lastSuccessfulId = notificationId;
     }
-    await repository.advanceSubscriptionCursor({ subscriptionId: subscription.id_suscripcion, cycleCutoff });
-    return { sent };
+
+    const caughtUp = rows.length < limit || lastSuccessfulId >= watermarkId;
+    const nextCursorId = caughtUp ? watermarkId : lastSuccessfulId;
+
+    await repository.advanceSubscriptionCursor({
+      subscriptionId: subscription.id_suscripcion,
+      cursorId: nextCursorId,
+      caughtUp
+    });
+
+    return { sent, cursorId: nextCursorId, caughtUp };
   } catch (error) {
+    await persistPartialProgress(
+      subscription.id_suscripcion,
+      startCursorId,
+      lastSuccessfulId
+    );
+
     if ([404, 410].includes(Number(error.statusCode))) {
       await repository.deactivateById(subscription.id_suscripcion);
       logger.info(`Suscripcion push ${subscription.id_suscripcion} desactivada por respuesta ${error.statusCode}.`);
-      return { sent, expired: true };
+      return { sent, expired: true, cursorId: lastSuccessfulId, caughtUp: false };
     }
     throw error;
   }
@@ -100,11 +164,12 @@ async function runCycle() {
       return;
     }
     warnedConfiguration = false;
-    const cycleCutoff = mysqlDate(new Date());
+
+    const cycleWatermarkId = await repository.getNotificationWatermark();
     const subscriptions = await repository.listActiveSubscriptions(Number(process.env.WEB_PUSH_BATCH_SIZE || 300));
     for (const subscription of subscriptions) {
       try {
-        await processSubscription(subscription, cycleCutoff);
+        await processSubscription(subscription, cycleWatermarkId);
       } catch (error) {
         logger.error(`No fue posible enviar push para la suscripcion ${subscription.id_suscripcion}.`, error);
       }
@@ -158,6 +223,9 @@ module.exports = {
   startPushNotificationsJob,
   stopPushNotificationsJob,
   runCycle,
+  processSubscription,
+  cursorFor,
+  notificationLimit,
   payloadFor,
   deliveryOptionsFor
 };

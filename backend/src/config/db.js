@@ -1,4 +1,5 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FIX_PREPRUEBA_BACKEND_M2M_V001]
+// [Aster | 2026-08-27 | ASTER-MG | FIX_UTF8MB4_BACKUP_V001]
 const mysql = require('mysql2/promise');
 
 const requiredDbVariables = [
@@ -32,6 +33,9 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
+  // Contrato fijo del proyecto: toda conexion de aplicacion usa utf8mb4.
+  // No se expone como variable configurable para evitar una regresion a utf8/utf8mb3.
+  charset: 'utf8mb4',
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: Number(process.env.DB_QUEUE_LIMIT || 0),
