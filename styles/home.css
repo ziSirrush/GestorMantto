@@ -83,3 +83,28 @@
   line-height:1.35;
   margin-top:1px;
 }
+
+/* [Aster | 2026-08-27 | ASTER-MG | FIX_NOTIFICACIONES_POPOVER_WRAP_FECHA_V001] */
+/* Evita que el white-space:nowrap de .hdr-right se herede al popover. */
+.hdr-notif-popover{white-space:normal}
+.hdr-notif-list{overflow-x:hidden}
+.hdr-notif-row{
+  grid-template-columns:32px minmax(0,1fr);
+  min-width:0;
+  overflow:hidden;
+  white-space:normal;
+}
+.hdr-notif-row>b,.hdr-notif-row>small,.hdr-notif-row>em{
+  min-width:0;
+  max-width:100%;
+}
+.hdr-notif-row>b,.hdr-notif-row>small{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.hdr-notif-row>em{
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+}

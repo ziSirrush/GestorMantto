@@ -15,7 +15,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './core/interactions.js?v=20260818-h1-v001';
+      script.src = './core/interactions.js?v=20260828-fase1-calls-v001';
       script.async = true;
       script.dataset.manttoInteractions = '1';
       script.addEventListener('load', () => resolve(window.ManttoInteractions || null), { once:true });
@@ -176,6 +176,9 @@
       };
       const setNoriOpen = open => {
         const shouldOpen = Boolean(open);
+        if(shouldOpen && window.ManttoSupport && typeof window.ManttoSupport.loadNoriMenu === 'function'){
+          window.ManttoSupport.loadNoriMenu();
+        }
         noriChat.classList.toggle('open', shouldOpen);
         noriFloat.classList.toggle('is-open', shouldOpen);
         noriFloat.setAttribute('aria-expanded', String(shouldOpen));
@@ -298,6 +301,10 @@
       }
       iniciarTimerNotificaciones(true);
     });
+
+    document.addEventListener('mantto:push-received', function(){
+      if(!document.hidden) refrescarNotificacionesHeader();
+    });
   }
 
   const HOME_HOY_VIEW_PERMISSION_CODE = 'GENERAL_INICIO_BARRA_BIENVENIDA_BOTON_HOY.VER';
@@ -383,7 +390,8 @@
   function initAfterAuth(){
     if(window.__MANTTO_APP_READY__) return;
     window.__MANTTO_APP_READY__ = true;
-    if(window.ManttoHome) window.ManttoHome.init();
+    const activeRoute=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent().route:'home';
+    if(window.ManttoHome) window.ManttoHome.init({loadData:activeRoute==='home'});
     bindHomeHoyPermission_gnral();
     ensureInteractionsModule_gnral()
       .then(module => {
@@ -393,8 +401,8 @@
         console.warn('No fue posible inicializar el módulo general de interacciones H1.', error);
       });
     bindNotificationRefreshVisibility();
-    iniciarTimerNotificaciones(false);
-    if(window.ManttoSupport) window.ManttoSupport.init();
+    iniciarTimerNotificaciones(true);
+    if(window.ManttoSupport) window.ManttoSupport.init({preload:false});
     initDailyPhrase();
     if(window.ManttoBuildInfo && typeof window.ManttoBuildInfo.initProgrammerBanner === 'function') window.ManttoBuildInfo.initProgrammerBanner();
     bindGlobalNavigation();

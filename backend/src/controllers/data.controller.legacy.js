@@ -1476,19 +1476,55 @@ async function saveTicketVobo(req, res) { return saveTicketValidacion(req, res);
 
 async function getTicketInteracciones(req, res) {
   const ticket = String(req.params.ticket || '').trim();
+  const afterCommentId = Math.max(0, Number.parseInt(req.query?.after_comment_id || req.query?.afterCommentId || 0, 10) || 0);
+  const commentsOnly = String(req.query?.mode || '').trim().toLowerCase() === 'comments';
+  const incremental = commentsOnly || afterCommentId > 0;
+
   try {
-    const row = await findTicketRow(ticket);
+    let row = null;
+    const scopedTicketId = Number(req.ticketRecordScopeId || 0) || null;
+    if (scopedTicketId) {
+      const [ticketRows] = await db.query('SELECT * FROM tickets WHERE id = ? LIMIT 1', [scopedTicketId]);
+      row = ticketRows[0] || null;
+    } else {
+      row = await findTicketRow(ticket);
+    }
     if (!row) return res.status(404).json({ ok:false, message:'Ticket no encontrado.' });
+
+    const commentParams = [row.id];
+    let commentCursorSql = '';
+    if (incremental) {
+      commentCursorSql = ' AND c.id_comentario > ?';
+      commentParams.push(afterCommentId);
+    }
+
     const [comentarios] = await db.query(`SELECT c.id_comentario,c.id_usuario,c.comentario,c.fecha_creacion,u.nombre AS autor_nombre,u.iniciales AS autor_iniciales,
       DATE_FORMAT(c.fecha_creacion,'%d/%m/%Y %H:%i') AS fecha_formateada FROM ticket_comentarios c LEFT JOIN usuarios u ON u.id_SB=c.id_usuario
-      WHERE c.id_ticket=? AND c.activo=1 ORDER BY c.fecha_creacion ASC,c.id_comentario ASC`, [row.id]);
+      WHERE c.id_ticket=? AND c.activo=1${commentCursorSql} ORDER BY c.fecha_creacion ASC,c.id_comentario ASC${incremental ? ' LIMIT 200' : ''}`, commentParams);
+
+    const ultimoComentarioId = comentarios.reduce(
+      (maximo, comentario) => Math.max(maximo, Number(comentario.id_comentario || 0)),
+      afterCommentId
+    );
+
+    if (incremental) {
+      return res.json({
+        ok:true,
+        data:{
+          comentarios,
+          incremental:true,
+          ultimo_comentario_id:ultimoComentarioId
+        }
+      });
+    }
+
     const [validaciones] = await db.query(`SELECT v.*,u.nombre AS autor_nombre,u.iniciales AS autor_iniciales FROM ticket_validaciones v LEFT JOIN usuarios u ON u.id_SB=v.id_usuario
       WHERE v.id_ticket=? ORDER BY v.fecha_creacion DESC,v.id_validacion DESC`, [row.id]);
     const names=(await ticketResponsibleNames(row)).map(v=>v.toLowerCase());
     const user=req.user||{}; const identity=[user.nombre,user.iniciales,user.correo].filter(Boolean).map(v=>String(v).toLowerCase());
     const responsible=identity.some(v=>names.includes(v));
     const canRevert=ticketCanRevert(req);
-    return res.json({ok:true,data:{comentarios,validaciones,permisos:{puede_comentar:Boolean(user.id_SB||user.id),puede_validar:ticketCanValidateRole(req)&&(responsible||ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'))),puede_revertir:canRevert}}});
+    return res.json({ok:true,data:{comentarios,validaciones,ultimo_comentario_id:ultimoComentarioId,permisos:{puede_comentar:Boolean(user.id_SB||user.id),puede_validar:ticketCanValidateRole(req)&&(responsible||ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'))),puede_revertir:canRevert}}});
   } catch(error) { return res.status(500).json({ok:false,message:'Error consultando interacciones del ticket.',error:error.message}); }
 }
 async function createTicketComentario(req, res) {

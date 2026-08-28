@@ -44,6 +44,10 @@
   async function apiRequest(path, options){
     const opts = options || {};
 
+    if(window.ManttoHttp && typeof window.ManttoHttp.request === 'function'){
+      return window.ManttoHttp.request(path, opts);
+    }
+
     // Home debe usar el flujo central de autenticacion. ManttoAuth.api()
     // resuelve 401 mediante refresh + reintento y solo expira la sesion
     // cuando la renovacion central realmente falla.
@@ -926,7 +930,9 @@
     });
   }
 
-  async function loadHomeData(){
+  let homeLoadPromise = null;
+
+  async function performHomeLoad(){
     state.loading = true;
     state.user = getCurrentUser();
     renderShell();
@@ -982,6 +988,12 @@
       state.loading = false;
       renderCounters(); renderTasks(); renderRails();
     }
+  }
+
+  function loadHomeData(){
+    if(homeLoadPromise) return homeLoadPromise;
+    homeLoadPromise = performHomeLoad().finally(()=>{ homeLoadPromise = null; });
+    return homeLoadPromise;
   }
 
 
@@ -1077,7 +1089,11 @@
     });
   }
 
-  function init(){ bindHeaderNotifications(); loadHomeData(); }
+  function init(options){
+    bindHeaderNotifications();
+    if(options && options.loadData === false) return Promise.resolve(false);
+    return loadHomeData();
+  }
 
   window.ManttoHome={init, reload:loadHomeData, refreshHeaderNotificationState, refreshHeaderNotifications, openTaskForm, openTaskDetail, openTaskContext};
 })();

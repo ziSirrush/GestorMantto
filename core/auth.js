@@ -355,7 +355,7 @@
     const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim();
     if(viewerToken) headers['X-Viewer-Token']=viewerToken;
     else if(viewed && viewed.id_SB) headers['X-View-User-ID']=String(viewed.id_SB);
-    const fetchOptions = Object.assign({ credentials:'include' }, opts, { headers });
+    const fetchOptions = Object.assign({ credentials:'include' }, opts, { headers, manttoMutationManaged:true });
     delete fetchOptions.skipMutationEvent;
     delete fetchOptions.skipAuthRefresh;
     const res = await fetch(requestBase(path) + path, fetchOptions);

@@ -1,6 +1,6 @@
 (function(){
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
-  const SW_PATH = './service-worker.js?v=20260827-push-priority-v002';
+  const SW_PATH = './service-worker.js?v=20260828-fase1-calls-v001';
   let registration = null;
   let config = null;
   let initialized = false;
@@ -249,6 +249,11 @@
     if(!event.data) return;
     if(event.data.type === 'MANTTO_OPEN_NOTIFICATIONS') openNotifications();
     if(event.data.type === 'MANTTO_OPEN_PUSH_TARGET') openPushTarget(event.data.target);
+    if(event.data.type === 'MANTTO_PUSH_RECEIVED'){
+      document.dispatchEvent(new CustomEvent('mantto:push-received', {
+        detail:{ target:event.data.target || null, at:Date.now() }
+      }));
+    }
   });
 
   document.addEventListener('mantto:auth-ready', init);

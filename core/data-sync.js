@@ -7,9 +7,9 @@
     running:new Map(),
     handlers:new Map(),
     dirty:new Set(),
+    mutationTimers:new Map(),
     observer:null,
-    channel:null,
-    fetchPatched:false
+    channel:null
   };
 
   const routeObjects = Object.freeze({
@@ -296,26 +296,15 @@
     const targetRoute=detail?.route || routeFromApiPath(detail?.path || detail?.url);
     markDirty(targetRoute);
     if(targetRoute===state.route){
-      window.setTimeout(()=>refresh(targetRoute,'mutacion',{force:true}),80);
+      const previous=state.mutationTimers.get(targetRoute);
+      if(previous) window.clearTimeout(previous);
+      const timer=window.setTimeout(()=>{
+        state.mutationTimers.delete(targetRoute);
+        refresh(targetRoute,'mutacion',{force:true});
+      },120);
+      state.mutationTimers.set(targetRoute,timer);
     }
     try{ state.channel?.postMessage({type:'mutation',route:targetRoute,at:Date.now()}); }catch(e){}
-  }
-
-  function bindFetchMutationObserver(){
-    if(state.fetchPatched || typeof window.fetch!=='function') return;
-    state.fetchPatched=true;
-    const nativeFetch=window.fetch.bind(window);
-    window.fetch=async function(input, init){
-      const method=String(init?.method || (input && input.method) || 'GET').toUpperCase();
-      const response=await nativeFetch(input,init);
-      if(response?.ok && ['POST','PUT','PATCH','DELETE'].includes(method)){
-        const url=typeof input==='string' ? input : (input?.url || '');
-        if(String(url).includes('/api/')){
-          notifyMutation({url,method,source:'fetch'});
-        }
-      }
-      return response;
-    };
   }
 
   function bind(){
@@ -356,7 +345,6 @@
     })));
     state.observer.observe(document.documentElement,{childList:true,subtree:true});
     applyRoleVisibility(document);
-    bindFetchMutationObserver();
   }
 
   window.ManttoDataSync={

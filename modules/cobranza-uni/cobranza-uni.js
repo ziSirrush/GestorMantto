@@ -1148,7 +1148,7 @@
       return '<tr>'+
         '<td><button type="button" class="va-uni-project" data-va-id="'+escapeHtml_uni(row.id_pc)+'">'+escapeHtml_uni(projectName_uni(row.proyecto))+'</button></td>'+
         '<td>'+tableCell_uni(row.ov)+'</td><td>'+tableCell_uni(row.cliente)+'</td><td class="va-uni-concept">'+tableCell_uni(row.concepto)+'</td>'+
-        '<td>'+tableCell_uni(row.tipo_pago)+'</td><td class="va-uni-money">'+tableCell_uni(row.venta_total||row.precio_venta,money_uni)+'</td>'+
+        '<td>'+tableCell_uni(row.tipo_pago)+'</td><td class="va-uni-money">'+tableCell_uni(row.venta_total,money_uni)+'</td>'+
         '<td><span class="va-uni-status '+vaStatusClass_uni(row.estatus)+'">'+tableCell_uni(row.estatus)+'</span></td>'+
         '<td>'+tableCell_uni(row.fecha_ov,date_uni)+'</td><td>'+tableCell_uni(row.no_factura)+'</td><td class="va-uni-money">'+tableCell_uni(row.adeudo,money_uni)+'</td>'+
         '<td><button type="button" class="va-uni-open" data-va-id="'+escapeHtml_uni(row.id_pc)+'" aria-label="Abrir detalle">👁</button></td></tr>';
@@ -1157,10 +1157,10 @@
       '<section class="va-uni-titlebar"><div><p>➕ Cobranza United</p><h1>Venta Adicional</h1><span>Control comercial y financiero de ventas adicionales · fuente Aiven / <code>pc</code>.</span></div><button type="button" class="va-uni-refresh" data-va-action="refresh">↻ Actualizar</button></section>'+
       '<section class="va-uni-kpis">'+
         '<article><i>🛒</i><div><span>Registros</span><strong>'+integer_uni(k.total_registros)+'</strong><small>Ventas adicionales</small></div></article>'+
-        '<article><i>💵</i><div><span>Venta total</span><strong>'+money_uni(k.venta_total)+'</strong><small>Importe acumulado</small></div></article>'+
-        '<article><i>✅</i><div><span>Pagado IVA</span><strong>'+money_uni(k.facturado_pagado)+'</strong><small>Cobrado registrado</small></div></article>'+
+        '<article><i>💵</i><div><span>Venta total</span><strong>'+money_uni(k.venta_total)+'</strong><small>'+money_uni(k.precio_venta_total)+' precio de venta</small></div></article>'+
+        '<article><i>✅</i><div><span>Pagado IVA</span><strong>'+money_uni(k.facturado_pagado)+'</strong><small>Venta total con estatus Pagado por completo</small></div></article>'+
         '<article><i>⏳</i><div><span>Adeudo</span><strong>'+money_uni(k.adeudo_total)+'</strong><small>'+integer_uni(k.registros_con_adeudo)+' registros con pendiente</small></div></article>'+
-        '<article><i>🧾</i><div><span>Facturas pendientes</span><strong>'+integer_uni(k.facturas_pendientes)+'</strong><small>'+money_uni(k.no_pagado)+' no pagado IVA</small></div></article>'+
+        '<article><i>🧾</i><div><span>$ Pendientes</span><strong>'+money_uni(k.pendiente_1pct)+'</strong><small>'+money_uni(k.no_pagado)+' no pagado IVA · '+integer_uni(k.facturas_pendientes)+' facturas pendientes</small></div></article>'+
       '</section>'+
       '<section class="va-uni-card va-uni-filterbar"><label class="wide">Buscar<input type="search" data-va-filter="search" value="'+escapeHtml_uni(vaState_uni.filters.search)+'" placeholder="Proyecto, OV, cliente, concepto, factura..."></label>'+
         '<label>Estatus<select data-va-filter="estatus">'+optionList_uni(vaState_uni.catalogs.estatus,vaState_uni.filters.estatus,'Todos')+'</select></label>'+
@@ -1194,7 +1194,7 @@
     if(vaState_uni.loaded&&!force){renderVaMain_uni();return;}
     const view=document.getElementById('view-' + ROUTE_VENTA_ADICIONAL_UNI); if(!view) return;
     vaState_uni.loading=true;
-    view.innerHTML='<div class="va-uni-page"><section class="va-uni-titlebar"><div><p>➕ Cobranza United</p><h1>Venta Adicional</h1><span>Consultando Aiven...</span></div></section><div class="mp-uni-loading"><span class="gc-uni-spinner"></span><b>Cargando tabla pc...</b></div></div>';
+    view.innerHTML='<div class="va-uni-page"><div class="mp-uni-loading"><span class="gc-uni-spinner"></span><b>Obteniendo información...</b></div></div>';
     try{
       const response=await fetch(apiBase_uni()+'/api/cobranza-uni/venta-adicional',{headers:authHeaders_uni(),cache:'no-store'});
       const payload=await response.json().catch(function(){return {};});
@@ -1209,7 +1209,7 @@
   function vaDetailGrid_uni(row){
     return '<div class="va-uni-detail-grid">'+
       detailItem_uni('Proyecto',projectName_uni(row.proyecto))+detailItem_uni('Cliente',row.cliente)+detailItem_uni('OV',row.ov)+detailItem_uni('Fecha OV',row.fecha_ov,date_uni)+
-      detailItem_uni('Concepto',row.concepto)+detailItem_uni('Tipo de pago',row.tipo_pago)+detailItem_uni('Venta total',row.venta_total||row.precio_venta,money_uni)+detailItem_uni('Precio venta',row.precio_venta,money_uni)+
+      detailItem_uni('Concepto',row.concepto)+detailItem_uni('Tipo de pago',row.tipo_pago)+detailItem_uni('Venta total',row.venta_total,money_uni)+detailItem_uni('Precio venta',row.precio_venta,money_uni)+
       detailItem_uni('Pagado IVA',row.pagado_iva,money_uni)+detailItem_uni('No pagado IVA',row.no_pagado_iva,money_uni)+detailItem_uni('Adeudo',row.adeudo,money_uni)+detailItem_uni('Facturas pendientes',row.facturas_pendientes_pago,integer_uni)+
       detailItem_uni('No. factura',row.no_factura)+detailItem_uni('Fecha factura',row.fecha_factura,date_uni)+detailItem_uni('Términos',row.terminos)+detailItem_uni('Fecha vencimiento',row.fecha_vencimiento,date_uni)+
       detailItem_uni('Días vencimiento',row.dias_vencimiento,integer_uni)+detailItem_uni('Estatus',row.estatus)+detailItem_uni('Estatus administrativo',row.estatus_administrativo)+detailItem_uni('Estatus operativo',row.estatus_operativo)+
@@ -1235,7 +1235,7 @@
     const mp=detail&&Array.isArray(detail.mantenimiento_preventivo)?detail.mantenimiento_preventivo:[];
     const gc=detail&&Array.isArray(detail.gestion_credito)?detail.gestion_credito:[];
     view.innerHTML='<div class="va-uni-page"><section class="va-uni-titlebar va-uni-detail-title"><div><p>➕ Cobranza United · Venta Adicional</p><h1>'+escapeHtml_uni(projectName_uni(actual.proyecto))+'</h1><span>'+escapeHtml_uni(actual.concepto||('Registro VA #'+actual.id_pc))+'</span></div><div class="va-uni-detail-actions"><button data-va-action="back">← Venta Adicional</button><button data-va-action="project">🏗️ Ir a Proyecto</button>'+(gc[0]?'<button data-va-gc="'+escapeHtml_uni(gc[0].id_gc)+'">🛡️ Ir a Gestión de Crédito</button>':'')+(mp[0]?'<button data-va-mp="'+escapeHtml_uni(mp[0].id_dmp)+'">🛠️ Ir a MP</button>':'')+'</div></section>'+
-      '<section class="va-uni-detail-summary"><article><span>Venta total</span><strong>'+money_uni(actual.venta_total||actual.precio_venta)+'</strong></article><article><span>Pagado IVA</span><strong>'+money_uni(actual.pagado_iva)+'</strong></article><article><span>No pagado IVA</span><strong>'+money_uni(actual.no_pagado_iva)+'</strong></article><article><span>Adeudo</span><strong>'+money_uni(actual.adeudo)+'</strong></article><article><span>Facturas pendientes</span><strong>'+integer_uni(actual.facturas_pendientes_pago)+'</strong></article></section>'+
+      '<section class="va-uni-detail-summary"><article><span>Venta total</span><strong>'+money_uni(actual.venta_total)+'</strong></article><article><span>Pagado IVA</span><strong>'+money_uni(actual.pagado_iva)+'</strong></article><article><span>No pagado IVA</span><strong>'+money_uni(actual.no_pagado_iva)+'</strong></article><article><span>Adeudo</span><strong>'+money_uni(actual.adeudo)+'</strong></article><article><span>Facturas pendientes</span><strong>'+integer_uni(actual.facturas_pendientes_pago)+'</strong></article></section>'+
       '<section class="va-uni-card va-uni-detail-card"><div class="va-uni-table-head"><div><h2>Información de la Venta Adicional</h2><p>ID VA '+escapeHtml_uni(actual.id_pc)+' · ID Proyecto Cobranza '+escapeHtml_uni(actual.id_proyecto_cobranza||'—')+'</p></div><span class="va-uni-status '+vaStatusClass_uni(actual.estatus)+'">'+escapeHtml_uni(actual.estatus||'Sin estatus')+'</span></div>'+vaDetailGrid_uni(actual)+'<div class="va-uni-comments"><span>Comentarios de cobranza</span><p>'+escapeHtml_uni(actual.comentarios_cobranza||'Sin comentarios registrados.')+'</p></div></section></div>';
     bindVaDetail_uni(view,actual);
   }

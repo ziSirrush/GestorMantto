@@ -4,7 +4,6 @@
   if(window.ManttoInteractions) return;
 
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
-  const nativeFetch = window.fetch.bind(window);
   const HISTORY_PAGE_SIZE = 100;
   const USER_GESTURE_WINDOW_MS = 8000;
   const ROUTING_PAYLOAD_KEYS = new Set([
@@ -14,7 +13,6 @@
   ]);
 
   let initialized = false;
-  let fetchPatched = false;
   let lastUserGestureAt = 0;
   let homeObserver = null;
   let homeRefreshTimer = null;
@@ -281,7 +279,16 @@
     params.set('limit', String(Math.min(200, Math.max(1, Number(opts.limit || 100)))));
     params.set('offset', String(Math.max(0, Number(opts.offset || 0))));
 
-    const response = await nativeFetch(API_BASE + '/api/interacciones?' + params.toString(), {
+    const path='/api/interacciones?' + params.toString();
+    if(window.ManttoHttp && typeof window.ManttoHttp.get === 'function'){
+      const json=await window.ManttoHttp.get(path);
+      return Array.isArray(json) ? json : (json.data || []);
+    }
+    if(window.ManttoAuth && typeof window.ManttoAuth.api === 'function'){
+      const json=await window.ManttoAuth.api(path,{method:'GET'});
+      return Array.isArray(json) ? json : (json.data || []);
+    }
+    const response = await fetch(API_BASE + path, {
       headers:Object.assign({ 'Accept':'application/json' }, authHeaders_gnral())
     });
     if(!response.ok) throw new Error('No fue posible consultar las interacciones.');
@@ -353,26 +360,6 @@
       payload_json:target.payload || current.payload || null,
       detalle_json:{ source:'frontend-get', endpoint:path }
     });
-  }
-
-  function patchFetch_gnral(){
-    if(fetchPatched) return;
-    fetchPatched = true;
-
-    window.fetch = async function(input, init){
-      const method = requestMethod_gnral(input, init);
-      const url = toUrl_gnral(input);
-      const apiRequest = isGestorApi_gnral(url);
-      const path = url ? url.pathname : '';
-      const trackMutationRefresh = apiRequest && ['POST','PUT','PATCH','DELETE'].includes(method) && !isSystemEndpoint_gnral(path);
-      const nextInit = apiRequest ? addContextHeaders_gnral(input, init) : init;
-      const response = await nativeFetch(input, nextInit);
-
-      if(response.ok && trackMutationRefresh && currentRoute_gnral().route === 'home'){
-        scheduleHomeRefresh_gnral(300);
-      }
-      return response;
-    };
   }
 
   function rowPayload_gnral(row){
@@ -457,13 +444,14 @@
     if(!root) return;
 
     homeObserver = new MutationObserver(() => {
+      if(currentRoute_gnral().route !== 'home') return;
       const activity = document.getElementById('home-activity-list');
       if(!activity) return;
       const hasH1 = activity.querySelector('[data-h1-interaction], [data-h1-interaction-empty]');
       if(!hasH1) scheduleHomeRefresh_gnral(20);
     });
     homeObserver.observe(root, { childList:true, subtree:true });
-    scheduleHomeRefresh_gnral(0);
+    if(currentRoute_gnral().route === 'home') scheduleHomeRefresh_gnral(0);
   }
 
   async function loadHistoryPage_gnral(reset){
@@ -533,8 +521,10 @@
   function init(){
     if(initialized) return;
     initialized = true;
-    patchFetch_gnral();
     document.addEventListener('mantto:navigation', onNavigation_gnral);
+    document.addEventListener('mantto:data-mutated', function(){
+      if(currentRoute_gnral().route === 'home') scheduleHomeRefresh_gnral(300);
+    });
     bindHomeObserver_gnral();
 
     const current = currentRoute_gnral();

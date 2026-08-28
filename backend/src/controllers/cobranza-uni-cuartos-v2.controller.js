@@ -20,6 +20,120 @@ function uniqueSorted(values) {
     .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }
 
+
+function projectLookupKey_uni(value) {
+  return String(value == null ? '' : value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function chunkValues_uni(values, size = 400) {
+  const rows = Array.isArray(values) ? values : [];
+  const chunks = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function loadCanonicalZoneMap_uni(conn, projects) {
+  const projectByKey = new Map();
+  for (const value of projects || []) {
+    const text = String(value == null ? '' : value).trim();
+    const key = projectLookupKey_uni(text);
+    if (!key || projectByKey.has(key)) continue;
+    projectByKey.set(key, text.toLowerCase());
+  }
+
+  const zoneMap = new Map();
+  for (const batch of chunkValues_uni([...projectByKey.values()])) {
+    if (!batch.length) continue;
+    const placeholders = batch.map(() => '?').join(', ');
+    const [rows] = await conn.query(`
+      SELECT
+        LOWER(TRIM(COALESCE(p_cob_batch.proyecto, ''))) AS project_key,
+        GROUP_CONCAT(DISTINCT z_cob_batch.zona ORDER BY z_cob_batch.zona SEPARATOR ' / ') AS zona_oficial,
+        GROUP_CONCAT(DISTINCT p_cob_batch.zona_id ORDER BY p_cob_batch.zona_id SEPARATOR ',') AS zona_ids_oficial
+      FROM portafolio p_cob_batch
+      INNER JOIN z_op z_cob_batch
+        ON z_cob_batch.id_zona = p_cob_batch.zona_id
+       AND z_cob_batch.estado = 1
+      WHERE p_cob_batch.estado_registro = 1
+        AND (p_cob_batch.inactivo IS NULL OR UPPER(p_cob_batch.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
+        AND LOWER(TRIM(COALESCE(p_cob_batch.proyecto, ''))) IN (${placeholders})
+      GROUP BY LOWER(TRIM(COALESCE(p_cob_batch.proyecto, '')))
+    `, batch);
+
+    for (const row of rows) {
+      const key = projectLookupKey_uni(row.project_key);
+      if (!key) continue;
+      zoneMap.set(key, {
+        zona_oficial: row.zona_oficial || null,
+        zona_ids_oficial: row.zona_ids_oficial || ''
+      });
+    }
+  }
+
+  return zoneMap;
+}
+
+async function canonicalizeMainRows_uni(conn, rawRows, legacyField) {
+  const prepared = (Array.isArray(rawRows) ? rawRows : []).map((source) => {
+    const row = { ...source };
+    const joinedProject = row.__proyecto_canonico;
+    delete row.__proyecto_canonico;
+
+    const legacyProject = String(row.proyecto == null ? '' : row.proyecto).trim();
+    const canonicalProject = joinedProject !== null && joinedProject !== undefined
+      ? String(joinedProject)
+      : (legacyProject || null);
+
+    return { row, canonicalProject };
+  });
+
+  const zoneMap = await loadCanonicalZoneMap_uni(
+    conn,
+    prepared.map((item) => item.canonicalProject).filter(Boolean)
+  );
+
+  return prepared.map(({ row, canonicalProject }) => {
+    const zone = zoneMap.get(projectLookupKey_uni(canonicalProject)) || {};
+    return cobranzaScope.canonicalizeRow_uni({
+      ...row,
+      proyecto_oficial: canonicalProject,
+      zona_oficial: zone.zona_oficial || null,
+      zona_ids_oficial: zone.zona_ids_oficial || ''
+    }, legacyField);
+  });
+}
+
+function pcMainSelectSql(alias = 'pc') {
+  return [
+    'id_pc',
+    'zona_adm',
+    'proyecto',
+    'id_proyecto_cobranza',
+    'cliente',
+    'ov',
+    'fecha_ov',
+    'concepto',
+    'pagado_iva',
+    'no_pagado_iva',
+    'venta_total',
+    'facturas_pendientes_pago',
+    'adeudo',
+    'tipo_pago',
+    'no_factura',
+    'estatus',
+    'estatus_administrativo',
+    'estatus_operativo',
+    'zona_operativa',
+    'estado'
+  ].map((field) => `${alias}.${field}`).join(',\n        ');
+}
+
 function projectMatchSql(alias) {
   return `(
     (COALESCE(?, 0) > 0 AND ${alias}.id_proyecto_cobranza = ?)
@@ -67,8 +181,10 @@ async function getGestionCredito(req, res) {
 
   try {
     const [rawRows] = await conn.query(`
-      SELECT ${gestionSelectSql('gc')}
+      SELECT gc.*, cp_gc_main.proyecto AS __proyecto_canonico
       FROM gestion_credito gc
+      LEFT JOIN cobranza_proyectos cp_gc_main
+        ON cp_gc_main.id_proyecto_cobranza = gc.id_proyecto_cobranza
       WHERE ${scope}
       ORDER BY
         CASE
@@ -80,7 +196,7 @@ async function getGestionCredito(req, res) {
         COALESCE(gc.adeudo, 0) DESC,
         gc.proyecto ASC
     `);
-    const rows = rawRows.map(canonGc);
+    const rows = await canonicalizeMainRows_uni(conn, rawRows, 'z_oper');
 
     const kpis = {
       total_proyectos: rows.length,
@@ -202,21 +318,50 @@ async function getVentaAdicional(req, res) {
 
   try {
     const [rawRows] = await conn.query(`
-      SELECT ${pcSelectSql('pc')}
+      SELECT
+        ${pcMainSelectSql('pc')},
+        cp_pc_main.proyecto AS __proyecto_canonico
       FROM pc pc
+      LEFT JOIN cobranza_proyectos cp_pc_main
+        ON cp_pc_main.id_proyecto_cobranza = pc.id_proyecto_cobranza
       WHERE ${scope}
       ORDER BY COALESCE(pc.fecha_ov, '1900-01-01') DESC, pc.id_pc DESC
     `);
-    const rows = rawRows.map(canonPc);
-    const kpis = { total_registros: rows.length, venta_total: 0, facturado_pagado: 0, no_pagado: 0, adeudo_total: 0, facturas_pendientes: 0, registros_con_adeudo: 0 };
+    const rows = await canonicalizeMainRows_uni(conn, rawRows, 'zona_operativa');
+    const kpis = {
+      total_registros: rows.length,
+      precio_venta_total: 0,
+      venta_total: 0,
+      facturado_pagado: 0,
+      no_pagado: 0,
+      pendiente_1pct: 0,
+      adeudo_total: 0,
+      facturas_pendientes: 0,
+      registros_con_adeudo: 0
+    };
     for (const row of rows) {
-      kpis.venta_total += numberOrZero(row.venta_total || row.precio_venta);
-      kpis.facturado_pagado += numberOrZero(row.pagado_iva);
+      // Equivalente a SUBTOTALES(9, I:I) sobre el universo autorizado cargado.
+      kpis.precio_venta_total += numberOrZero(row.precio_venta);
+
+      // Equivalente a SUBTOTALES(9, L:L): NULL/vacio/0 permanece como 0.
+      kpis.venta_total += numberOrZero(row.venta_total);
+
+      // Equivalente a SUMAR.SI(W:W, "Pagado por completo", L:L).
+      // En el mapeo oficial de SEGUIMIENTO, W corresponde a estatus_administrativo.
+      if (String(row.estatus_administrativo || '').trim().toLowerCase() === 'pagado por completo') {
+        kpis.facturado_pagado += numberOrZero(row.venta_total);
+      }
+
+      // Equivalente a SUBTOTALES(9, K:K): suma literal de no_pagado_iva.
       kpis.no_pagado += numberOrZero(row.no_pagado_iva);
+
       kpis.adeudo_total += numberOrZero(row.adeudo);
       kpis.facturas_pendientes += numberOrZero(row.facturas_pendientes_pago);
       if (numberOrZero(row.adeudo) > 0 || numberOrZero(row.facturas_pendientes_pago) > 0) kpis.registros_con_adeudo += 1;
     }
+
+    // Equivalente a =L1*1% en el resumen de Sheets.
+    kpis.pendiente_1pct = kpis.venta_total * 0.01;
 
     return res.json({
       ok: true,

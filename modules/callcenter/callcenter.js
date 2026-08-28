@@ -3,7 +3,7 @@
   const ATRAP_KW=['atrapado','atrapada','encerrado','encerrada','persona atrapada','personas atrapadas','rescate'];
   const AGUA_KW=['agua','filtracion','filtración','inundacion','inundación','goteras','humedad'];
   const VOLTAJE_KW=['voltaje','variacion de voltaje','variación de voltaje','sobre voltaje','bajo voltaje','pico de voltaje','falla electrica','falla eléctrica','corte de luz','falla de energia','falla de energía','sin energia','sin energía','apagon','apagón'];
-  const state={loaded:false,initialized:false,tickets:[],portafolio:[],periodTickets:[],filtered:[],page:0,pageSize:30,critCods:new Set(),critFallas:3,critPeriodo:35,critListenerBound:false,noFunc:[],noFuncPage:0,noFuncPageSize:30,mtbcEquipos:new Map(),mtbcProyectos:new Map(),u365Proyectos:[],u365Equipos:[],u365PageSize:50,u365Page:{'u365-proyectos':0,'u365-equipos':0},activeView:'dashboard',requestedView:'dashboard',u365Sort:{view:null,key:null,direction:'asc'}};
+  const state={loaded:false,initialized:false,tickets:[],portafolio:[],periodTickets:[],filtered:[],page:0,pageSize:30,critCods:new Set(),critFallas:3,critPeriodo:35,critListenerBound:false,noFunc:[],noFuncPage:0,noFuncPageSize:30,mtbcEquipos:new Map(),mtbcProyectos:new Map(),u365Proyectos:[],u365Equipos:[],u365Loaded:{'u365-proyectos':false,'u365-equipos':false},u365Loading:{'u365-proyectos':null,'u365-equipos':null},u365PageSize:50,u365Page:{'u365-proyectos':0,'u365-equipos':0},activeView:'dashboard',requestedView:'dashboard',u365Sort:{view:null,key:null,direction:'asc'}};
   const COLS=[
     {key:'n',label:'Ticket',visible:true},{key:'et',label:'Estado Ticket',visible:true},{key:'edo',label:'Estado (República)',visible:false},{key:'ciu',label:'Ciudad',visible:false},{key:'pro',label:'Proyecto',visible:true},{key:'cod',label:'Código Equipo',visible:false},{key:'ref',label:'Referencia en sitio',visible:false},{key:'zon',label:'Zona Operativa',visible:true},{key:'zon_adm',label:'Zona Administrativa',visible:false},{key:'zon_falla',label:'Zona de falla',visible:false},{key:'asu',label:'Asunto',visible:true},{key:'fr',label:'Fecha Reporte',visible:true},{key:'hr',label:'Hora Reporte',visible:false},{key:'eqi',label:'Estatus Equipo (ir)',visible:false},{key:'fl',label:'Fecha Llegada',visible:false},{key:'hl',label:'Hora Llegada',visible:false},{key:'persona_atiende',label:'Persona que atiende',visible:false},{key:'fs',label:'Fecha Solución',visible:false},{key:'hs',label:'Hora Solución',visible:false},{key:'tec',label:'Técnico de Solución',visible:false},{key:'sup',label:'Supervisor',visible:false},{key:'eqf',label:'Estatus Equipo Final',visible:false},{key:'cau',label:'Causa',visible:false},{key:'acc',label:'Acción en Cierre',visible:false},{key:'res',label:'Responsabilidad',visible:true},{key:'caf',label:'Causa de Falla',visible:false},{key:'tll',label:'Tiempo Llegada',visible:false},{key:'tso',label:'Tiempo Solución',visible:false},{key:'tll2',label:'Tiempo Llegada II',visible:false},{key:'tso2',label:'Tiempo Solución II',visible:false},{key:'prd',label:'Producto/Tipo equipo',visible:false},{key:'pri',label:'Prioridad',visible:false},{key:'ejecutivo_call',label:'Ejecutivo Call',visible:false},{key:'blt_empleado',label:'BLT empleado',visible:false},{key:'ens',label:'Ticket excede SLA',visible:false}
   ];
@@ -92,16 +92,28 @@
   function mtbcProyecto(proyecto){return state.mtbcProyectos.get(mtbcKey(proyecto))||null;}
   function avgMtbc(rows,key){const vals=(rows||[]).map(r=>mtbcDays(r&&r[key])).filter(v=>v!=null);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;}
   async function loadHtml(){const view=$('view-callcenter');if(!view||state.loaded)return;let html='<div class="cc-page"><section class="cc-card cc-head"><div><p class="cc-eyebrow">Cargando módulo</p><h1>Dashboard Call Center</h1><p>Inicializando vista...</p></div></section></div>';try{const r=await fetch('./modules/callcenter/callcenter.html?v=20260716-v004',{cache:'no-store'});if(r.ok)html=await r.text();}catch(e){}view.innerHTML=html;bind();state.loaded=true;if(window.EstadosVisuales_gnral)window.EstadosVisuales_gnral.apply(view);}
-  function bind(){['cc-refresh','cc-from','cc-to','cc-zona'].forEach(id=>{const el=$(id);if(!el)return;el.addEventListener(id==='cc-refresh'?'click':'change',render);});if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}$('cc-search')?.addEventListener('input',renderTable);$('cc-filter-et')?.addEventListener('change',renderTable);$('cc-page-prev')?.addEventListener('click',()=>changePage(-1));$('cc-page-next')?.addEventListener('click',()=>changePage(1));$('cc-modal-close')?.addEventListener('click',closeModal);$('cc-nf-prev')?.addEventListener('click',()=>changeNoFuncPage(-1));$('cc-nf-next')?.addEventListener('click',()=>changeNoFuncPage(1));$('cc-nofunc-toggle')?.addEventListener('click',toggleNoFuncPanel);$('cc-u365-proy-open')?.addEventListener('click',()=>openU365View('u365-proyectos'));$('cc-u365-eq-open')?.addEventListener('click',()=>openU365View('u365-equipos'));$('cc-u365-proy-prev')?.addEventListener('click',()=>changeU365Page('u365-proyectos',-1));$('cc-u365-proy-next')?.addEventListener('click',()=>changeU365Page('u365-proyectos',1));$('cc-u365-eq-prev')?.addEventListener('click',()=>changeU365Page('u365-equipos',-1));$('cc-u365-eq-next')?.addEventListener('click',()=>changeU365Page('u365-equipos',1));document.querySelectorAll('[data-cc-group-toggle]').forEach(el=>el.addEventListener('click',()=>toggleMobileGroup(el.dataset.ccGroupToggle)));$('cc-detail-modal')?.addEventListener('click',e=>{if(e.target.id==='cc-detail-modal')closeModal();});document.querySelectorAll('[data-cc-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.ccDetail)));}
-  async function init(payload){state.requestedView=normalizeCallCenterView(payload);if(window.EstadosVisuales_gnral){await window.EstadosVisuales_gnral.load();}await loadHtml();if(!state.initialized){initDates();await loadData();state.initialized=true;}else render();applyCallCenterView(state.requestedView);}
+  function bind(){const refresh=$('cc-refresh');if(refresh)refresh.addEventListener('click',()=>loadData({forceSecondary:true}));['cc-from','cc-to'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>loadData({periodOnly:true}));});const zona=$('cc-zona');if(zona)zona.addEventListener('change',render);if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}$('cc-search')?.addEventListener('input',renderTable);$('cc-filter-et')?.addEventListener('change',renderTable);$('cc-page-prev')?.addEventListener('click',()=>changePage(-1));$('cc-page-next')?.addEventListener('click',()=>changePage(1));$('cc-modal-close')?.addEventListener('click',closeModal);$('cc-nf-prev')?.addEventListener('click',()=>changeNoFuncPage(-1));$('cc-nf-next')?.addEventListener('click',()=>changeNoFuncPage(1));$('cc-nofunc-toggle')?.addEventListener('click',toggleNoFuncPanel);$('cc-u365-proy-open')?.addEventListener('click',()=>openU365View('u365-proyectos'));$('cc-u365-eq-open')?.addEventListener('click',()=>openU365View('u365-equipos'));$('cc-u365-proy-prev')?.addEventListener('click',()=>changeU365Page('u365-proyectos',-1));$('cc-u365-proy-next')?.addEventListener('click',()=>changeU365Page('u365-proyectos',1));$('cc-u365-eq-prev')?.addEventListener('click',()=>changeU365Page('u365-equipos',-1));$('cc-u365-eq-next')?.addEventListener('click',()=>changeU365Page('u365-equipos',1));document.querySelectorAll('[data-cc-group-toggle]').forEach(el=>el.addEventListener('click',()=>toggleMobileGroup(el.dataset.ccGroupToggle)));$('cc-detail-modal')?.addEventListener('click',e=>{if(e.target.id==='cc-detail-modal')closeModal();});document.querySelectorAll('[data-cc-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.ccDetail)));}
+  async function init(payload){state.requestedView=normalizeCallCenterView(payload);if(window.EstadosVisuales_gnral){await window.EstadosVisuales_gnral.load();}await loadHtml();if(!state.initialized){initDates();await loadData();state.initialized=true;}else render();await applyCallCenterView(state.requestedView);}
   function initDates(){const now=new Date();const from=new Date(now.getFullYear(),now.getMonth(),1);if($('cc-from'))$('cc-from').value=from.toISOString().slice(0,10);if($('cc-to'))$('cc-to').value=now.toISOString().slice(0,10);}
-  async function loadData(){
-    setStatus('loading','Cargando datos desde Aiven...');
+  async function loadData(options){
+    const opts=options||{};
+    if(opts.forceSecondary){
+      state.u365Proyectos=[];state.u365Equipos=[];
+      state.u365Loaded={'u365-proyectos':false,'u365-equipos':false};
+      state.u365Loading={'u365-proyectos':null,'u365-equipos':null};
+      state.u365Page={'u365-proyectos':0,'u365-equipos':0};
+    }
+    setStatus('loading','Cargando datos del período...');
 
-    // FASE 6/11: la primera llamada de informacion del modulo es exclusiva
-    // de Operacion > Dashboard Call Center y ya llega reducida por cuartos.
-    // No existe fallback a /api/tickets ni /api/portafolio para esta carga.
-    const initial=await fetchJson('/api/operacion/dashboard-call-center/inicial');
+    // FASE 2 POST-LUMBRE: Call Center ya no descarga el histórico completo al abrir.
+    // El endpoint inicial recibe el período visible y devuelve solo tickets de ese rango,
+    // mientras Portafolio mantiene únicamente las columnas requeridas por este módulo.
+    const from=$('cc-from')?.value||'';
+    const to=$('cc-to')?.value||'';
+    const q=new URLSearchParams();
+    if(from)q.set('from',from);
+    if(to)q.set('to',to);
+    const initial=await fetchJson('/api/operacion/dashboard-call-center/inicial'+(q.toString()?'?'+q.toString():''));
     const initialData=initial&&initial.data?initial.data:{};
     const tRows=Array.isArray(initialData.tickets)?initialData.tickets:[];
     const pRows=Array.isArray(initialData.portafolio)?initialData.portafolio:[];
@@ -110,27 +122,25 @@
     state.portafolio=pRows.map(mapEquipo).filter(e=>e.cod||e.pro);
     populateZona();
 
-    // Los indicadores secundarios se solicitan solo despues de que el universo
-    // territorial base ya fue resuelto por el endpoint inicial de OPERACION.
-    const [mtbcEqRows,mtbcProRows,critRows,u365ProRows,u365EqRows]=await Promise.all([
-      fetchMtbcPages('/api/indicadores/mtbc/equipos'),
-      fetchMtbcPages('/api/indicadores/mtbc/proyectos'),
-      fetchCriticidadUsuario(),
-      fetchMtbcPages('/api/callcenter/u365/proyectos'),
-      fetchMtbcPages('/api/callcenter/u365/equipos')
-    ]);
-
-    state.mtbcEquipos=new Map(mtbcEqRows.map(r=>[mtbcKey(r.codigo_equipo),r]));
-    state.mtbcProyectos=new Map(mtbcProRows.map(r=>[mtbcKey(r.proyecto),r]));
-    state.u365Proyectos=Array.isArray(u365ProRows)?u365ProRows:[];
-    state.u365Equipos=Array.isArray(u365EqRows)?u365EqRows:[];
-    state.critCods=new Set(critRows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));
+    // Las colecciones U365 son detalle y ya NO se descargan en la apertura del dashboard.
+    // MTBC y criticidad permanecen sin cambio funcional en esta fase porque pertenecen
+    // al bloque Criticos/MTBC que se está auditando por separado.
+    if(!opts.periodOnly || opts.forceSecondary || !state.mtbcEquipos.size){
+      const [mtbcEqRows,mtbcProRows,critRows]=await Promise.all([
+        fetchMtbcPages('/api/indicadores/mtbc/equipos'),
+        fetchMtbcPages('/api/indicadores/mtbc/proyectos'),
+        fetchCriticidadUsuario()
+      ]);
+      state.mtbcEquipos=new Map(mtbcEqRows.map(r=>[mtbcKey(r.codigo_equipo),r]));
+      state.mtbcProyectos=new Map(mtbcProRows.map(r=>[mtbcKey(r.proyecto),r]));
+      state.critCods=new Set(critRows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));
+    }
 
     setStatus(
       state.tickets.length?'ok':'error',
       state.tickets.length
-        ?('Aiven · '+state.tickets.length.toLocaleString('es-MX')+' tickets · Críticos '+state.critFallas+'/'+state.critPeriodo+'d')
-        :'Sin tickets desde Aiven'
+        ?(state.tickets.length.toLocaleString('es-MX')+' tickets del período · Críticos '+state.critFallas+'/'+state.critPeriodo+'d')
+        :'Sin tickets para el período seleccionado'
     );
     render();
   }
@@ -222,7 +232,28 @@
   function toggleNoFuncPanel(){const panel=$('cc-nofunc-section'),btn=$('cc-nofunc-toggle');if(!panel||!btn)return;const opening=panel.hidden;panel.hidden=!opening;btn.classList.toggle('is-active',opening);btn.setAttribute('aria-expanded',String(opening));const sub=btn.querySelector('.sub');if(sub)sub.textContent=opening?'Ocultar tabla':'Mostrar tabla';if(opening)panel.scrollIntoView({behavior:'smooth',block:'nearest'});}
   function normalizeCallCenterView(payload){const view=payload&&payload.view;return view==='u365-proyectos'||view==='u365-equipos'?view:'dashboard';}
   function openU365View(view){if(!window.ManttoRouter)return;window.ManttoRouter.go('callcenter',{view:view});}
-  function applyCallCenterView(view){const next=normalizeCallCenterView({view:view});state.activeView=next;const dashboard=$('cc-dashboard-view'),proyectos=$('cc-u365-proyectos-view'),equipos=$('cc-u365-equipos-view');if(dashboard)dashboard.hidden=next!=='dashboard';if(proyectos)proyectos.hidden=next!=='u365-proyectos';if(equipos)equipos.hidden=next!=='u365-equipos';if(next!=='dashboard')renderU365Details();}
+  async function ensureU365Loaded(view){
+    if(view!=='u365-proyectos'&&view!=='u365-equipos')return;
+    if(state.u365Loaded[view])return;
+    if(state.u365Loading[view])return state.u365Loading[view];
+    const path=view==='u365-proyectos'?'/api/callcenter/u365/proyectos':'/api/callcenter/u365/equipos';
+    state.u365Loading[view]=(async()=>{
+      setStatus('loading','Cargando detalle U365...');
+      const rows=await fetchMtbcPages(path);
+      if(view==='u365-proyectos')state.u365Proyectos=Array.isArray(rows)?rows:[];
+      else state.u365Equipos=Array.isArray(rows)?rows:[];
+      state.u365Loaded[view]=true;
+      state.u365Loading[view]=null;
+      setStatus('ok','Detalle U365 cargado bajo demanda');
+      renderU365Details();
+    })().catch(error=>{
+      state.u365Loading[view]=null;
+      setStatus('error','No fue posible cargar el detalle U365');
+      throw error;
+    });
+    return state.u365Loading[view];
+  }
+  async function applyCallCenterView(view){const next=normalizeCallCenterView({view:view});state.activeView=next;const dashboard=$('cc-dashboard-view'),proyectos=$('cc-u365-proyectos-view'),equipos=$('cc-u365-equipos-view');if(dashboard)dashboard.hidden=next!=='dashboard';if(proyectos)proyectos.hidden=next!=='u365-proyectos';if(equipos)equipos.hidden=next!=='u365-equipos';if(next!=='dashboard'){renderU365Details();await ensureU365Loaded(next);}}
   function renderNoFunc(tks){state.noFunc=(tks||[]).filter(isNoFunc).sort((a,b)=>(b.fr||'').localeCompare(a.fr||''));state.noFuncPage=0;renderNoFuncPage();}
   function changeNoFuncPage(dir){const pages=Math.max(1,Math.ceil(state.noFunc.length/state.noFuncPageSize));state.noFuncPage=Math.max(0,Math.min(state.noFuncPage+dir,pages-1));renderNoFuncPage();}
   function renderNoFuncPage(){const tb=$('cc-nofunc-tbody');if(!tb)return;const pages=Math.max(1,Math.ceil(state.noFunc.length/state.noFuncPageSize)),start=state.noFuncPage*state.noFuncPageSize,items=state.noFunc.slice(start,start+state.noFuncPageSize);txt('cc-nf-info',state.noFunc.length+' equipos no funcionando · Página '+(state.noFuncPage+1)+' de '+pages);if($('cc-nf-prev'))$('cc-nf-prev').disabled=state.noFuncPage===0;if($('cc-nf-next'))$('cc-nf-next').disabled=state.noFuncPage>=pages-1;tb.innerHTML=items.length?items.map(t=>{const ticketCodes=visualCodesForRows([t],false),equipmentCodes=state.critCods.has(t.cod)?['CRITICO']:[];return `<tr><td>${linkTicket(t.n,ticketCodes)}</td><td>${esc(t.et)}</td><td>${linkEquipo(t.cod,equipmentCodes)}</td><td>${linkProyecto(t.pro,[])}</td><td>${esc(t.zon)}</td><td>${esc(t.asu)}</td><td>${esc(t.fr)}</td><td>${esc(t.res)}</td><td>${renderVisuales(visualCodesForRows([t],state.critCods.has(t.cod)),'—')}</td></tr>`;}).join(''):'<tr><td colspan="9" class="cc-empty">Sin equipos No Funcionando en este período</td></tr>';bindDetailLinks(tb);}

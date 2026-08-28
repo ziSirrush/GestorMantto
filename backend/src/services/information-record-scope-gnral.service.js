@@ -250,6 +250,7 @@ async function requireTicketRecordScope_gnral(req, res, next) {
     if (!rows.length) {
       return res.status(404).json({ ok: false, message: 'Ticket no encontrado.' });
     }
+    req.ticketRecordScopeId = Number(rows[0].id) || null;
     return next();
   } catch (error) {
     return next(error);

@@ -896,6 +896,8 @@
     activateViewById('view-home');
     setActiveSide('home');
     updateContext('home', 'Home operativo · datos reales desde Aiven cuando existan registros');
+    const authenticated = !window.ManttoAuth || Boolean(window.ManttoAuth.getUser && window.ManttoAuth.getUser());
+    if(authenticated && window.ManttoHome && window.ManttoHome.init) window.ManttoHome.init();
   }
 
   function render(route, payload){

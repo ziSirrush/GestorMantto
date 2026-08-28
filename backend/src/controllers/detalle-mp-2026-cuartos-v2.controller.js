@@ -20,6 +20,94 @@ function uniqueSorted(values) {
     .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }
 
+function projectLookupKey_uni(value) {
+  return String(value == null ? '' : value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function chunkValues_uni(values, size = 400) {
+  const rows = Array.isArray(values) ? values : [];
+  const chunks = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function loadCanonicalZoneMap_uni(conn, projects) {
+  const projectByKey = new Map();
+  for (const value of projects || []) {
+    const text = String(value == null ? '' : value).trim();
+    const key = projectLookupKey_uni(text);
+    if (!key || projectByKey.has(key)) continue;
+    projectByKey.set(key, text.toLowerCase());
+  }
+
+  const zoneMap = new Map();
+  for (const batch of chunkValues_uni([...projectByKey.values()])) {
+    if (!batch.length) continue;
+    const placeholders = batch.map(() => '?').join(', ');
+    const [rows] = await conn.query(`
+      SELECT
+        LOWER(TRIM(COALESCE(p_cob_batch.proyecto, ''))) AS project_key,
+        GROUP_CONCAT(DISTINCT z_cob_batch.zona ORDER BY z_cob_batch.zona SEPARATOR ' / ') AS zona_oficial,
+        GROUP_CONCAT(DISTINCT p_cob_batch.zona_id ORDER BY p_cob_batch.zona_id SEPARATOR ',') AS zona_ids_oficial
+      FROM portafolio p_cob_batch
+      INNER JOIN z_op z_cob_batch
+        ON z_cob_batch.id_zona = p_cob_batch.zona_id
+       AND z_cob_batch.estado = 1
+      WHERE p_cob_batch.estado_registro = 1
+        AND (p_cob_batch.inactivo IS NULL OR UPPER(p_cob_batch.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
+        AND LOWER(TRIM(COALESCE(p_cob_batch.proyecto, ''))) IN (${placeholders})
+      GROUP BY LOWER(TRIM(COALESCE(p_cob_batch.proyecto, '')))
+    `, batch);
+
+    for (const row of rows) {
+      const key = projectLookupKey_uni(row.project_key);
+      if (!key) continue;
+      zoneMap.set(key, {
+        zona_oficial: row.zona_oficial || null,
+        zona_ids_oficial: row.zona_ids_oficial || ''
+      });
+    }
+  }
+
+  return zoneMap;
+}
+
+async function canonicalizeMainRows_uni(conn, rawRows, legacyField) {
+  const prepared = (Array.isArray(rawRows) ? rawRows : []).map((source) => {
+    const row = { ...source };
+    const joinedProject = row.__proyecto_canonico;
+    delete row.__proyecto_canonico;
+
+    const legacyProject = String(row.proyecto == null ? '' : row.proyecto).trim();
+    const canonicalProject = joinedProject !== null && joinedProject !== undefined
+      ? String(joinedProject)
+      : (legacyProject || null);
+
+    return { row, canonicalProject };
+  });
+
+  const zoneMap = await loadCanonicalZoneMap_uni(
+    conn,
+    prepared.map((item) => item.canonicalProject).filter(Boolean)
+  );
+
+  return prepared.map(({ row, canonicalProject }) => {
+    const zone = zoneMap.get(projectLookupKey_uni(canonicalProject)) || {};
+    return cobranzaScope.canonicalizeRow_uni({
+      ...row,
+      proyecto_oficial: canonicalProject,
+      zona_oficial: zone.zona_oficial || null,
+      zona_ids_oficial: zone.zona_ids_oficial || ''
+    }, legacyField);
+  });
+}
+
 function financialProjectKey(row) {
   const id = Number(row && row.id_proyecto_cobranza || 0);
   if (Number.isInteger(id) && id > 0) return `id:${id}`;
@@ -71,17 +159,32 @@ async function getMainDetalleMp2026(req, res) {
   const pcScope = cobranzaScope.buildCobranzaProjectScopeSql_uni(req, 'pc');
 
   try {
-    const [rawMpRows] = await conn.query(`SELECT ${selectMp('mp')} FROM detalle_mp_2026 mp WHERE ${mpScope} ORDER BY mp.proyecto ASC, mp.id_dmp ASC`);
-    const [rawPcRows] = await conn.query(`SELECT ${selectPc('pc')} FROM pc pc WHERE ${pcScope}`);
-    const pcRows = rawPcRows.map(canonPc);
+    const [rawMpRows] = await conn.query(`
+      SELECT mp.*, cp_mp_main.proyecto AS __proyecto_canonico
+      FROM detalle_mp_2026 mp
+      LEFT JOIN cobranza_proyectos cp_mp_main
+        ON cp_mp_main.id_proyecto_cobranza = mp.id_proyecto_cobranza
+      WHERE ${mpScope}
+      ORDER BY mp.proyecto ASC, mp.id_dmp ASC
+    `);
 
+    // Para el adeudo VA de MP solo se necesitan llave de proyecto + adeudo.
+    // Evita cargar pc.* y evita resolver zonas/proyecto canónico por cada fila de pc.
+    const [rawPcRows] = await conn.query(`
+      SELECT pc.id_pc, pc.id_proyecto_cobranza, pc.proyecto, pc.adeudo
+      FROM pc pc
+      WHERE ${pcScope}
+    `);
+
+    const pcRows = rawPcRows;
     const debtByProject = new Map();
     for (const row of pcRows) {
       const key = financialProjectKey(row);
       debtByProject.set(key, (debtByProject.get(key) || 0) + numberOrZero(row.adeudo));
     }
 
-    const rows = rawMpRows.map(canonMp).map((row) => ({
+    const canonicalMpRows = await canonicalizeMainRows_uni(conn, rawMpRows, 'z_oper');
+    const rows = canonicalMpRows.map((row) => ({
       ...row,
       adeudo_mp: numberOrZero(row.pendiente_corriente) + numberOrZero(row.pendiente_vencido),
       adeudo_va: debtByProject.get(financialProjectKey(row)) || 0

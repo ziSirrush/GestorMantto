@@ -1,8 +1,13 @@
 (function(){
-  const TICKET_CHAT_REFRESH_MS = 10000;
+  const TICKET_CHAT_REFRESH_ACTIVE_MS = 15000;
+  const TICKET_CHAT_REFRESH_IDLE_MS = 30000;
+  const TICKET_CHAT_REFRESH_MAX_MS = 60000;
   let ticketChatRefreshTimer = null;
   let ticketChatRefreshId = null;
   let ticketChatRefreshBusy = false;
+  let ticketChatRefreshDelay = TICKET_CHAT_REFRESH_ACTIVE_MS;
+  let ticketChatComments = [];
+  let ticketChatLastCommentId = 0;
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
   const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null };
@@ -35,6 +40,7 @@
     return esc(s);
   }
   async function fetchJson(path){
+    if(window.ManttoHttp&&typeof window.ManttoHttp.get==='function')return window.ManttoHttp.get(path);
     const headers = Object.assign({ 'Accept':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
     const r = await fetch(API() + path, { headers, cache:'no-store' });
     const text = await r.text();
@@ -45,6 +51,7 @@
     return data;
   }
   async function patchJson(path, body){
+    if(window.ManttoHttp&&typeof window.ManttoHttp.request==='function')return window.ManttoHttp.request(path,{method:'PATCH',body:JSON.stringify(body||{})});
     const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
     const r = await fetch(API() + path, { method:'PATCH', headers, body:JSON.stringify(body || {}), cache:'no-store' });
     const text = await r.text();
@@ -55,6 +62,7 @@
     return data;
   }
   async function postJson(path, body){
+    if(window.ManttoHttp&&typeof window.ManttoHttp.request==='function')return window.ManttoHttp.request(path,{method:'POST',body:JSON.stringify(body||{})});
     const headers = Object.assign({ 'Accept':'application/json', 'Content-Type':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
     const r = await fetch(API() + path, { method:'POST', headers, body:JSON.stringify(body || {}), cache:'no-store' });
     const text = await r.text();
@@ -75,6 +83,7 @@
     return roles.includes('programador')||roles.includes('director general');
   }
   async function postFormData(path,formData){
+    if(window.ManttoHttp&&typeof window.ManttoHttp.request==='function')return window.ManttoHttp.request(path,{method:'POST',body:formData});
     const headers=Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
     const r=await fetch(API()+path,{method:'POST',headers,body:formData,cache:'no-store'});
     const text=await r.text();let data=null;
@@ -178,10 +187,13 @@
     if(body) body.innerHTML=html||'';
   }
   function stopTicketChatRefresh(){
-    if(ticketChatRefreshTimer) window.clearInterval(ticketChatRefreshTimer);
+    if(ticketChatRefreshTimer) window.clearTimeout(ticketChatRefreshTimer);
     ticketChatRefreshTimer = null;
     ticketChatRefreshId = null;
     ticketChatRefreshBusy = false;
+    ticketChatRefreshDelay = TICKET_CHAT_REFRESH_ACTIVE_MS;
+    ticketChatComments = [];
+    ticketChatLastCommentId = 0;
   }
   function close(){
     stopTicketChatRefresh();
@@ -1181,27 +1193,72 @@
     list.innerHTML=(comments||[]).length?(comments||[]).map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(c.fecha_formateada||c.fecha_creacion||'')+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>';
     if(nearBottom) list.scrollTop=list.scrollHeight;
   }
+  function ticketCommentId(comment){
+    return Math.max(0, Number(comment && (comment.id_comentario || comment.id_interaccion || comment.id) || 0));
+  }
+  function mergeTicketComments(current, incoming){
+    const merged=[];
+    const seen=new Set();
+    [...(Array.isArray(current)?current:[]), ...(Array.isArray(incoming)?incoming:[])].forEach(comment=>{
+      const id=ticketCommentId(comment);
+      const key=id>0 ? 'id:'+id : 'legacy:'+String(comment?.fecha_creacion||'')+'|'+String(comment?.comentario||'');
+      if(seen.has(key))return;
+      seen.add(key);
+      merged.push(comment);
+    });
+    merged.sort((a,b)=>{
+      const ai=ticketCommentId(a), bi=ticketCommentId(b);
+      if(ai&&bi)return ai-bi;
+      return String(a?.fecha_creacion||'').localeCompare(String(b?.fecha_creacion||''));
+    });
+    return merged;
+  }
+  function scheduleTicketChatRefresh(ticketId){
+    if(ticketChatRefreshTimer) window.clearTimeout(ticketChatRefreshTimer);
+    ticketChatRefreshTimer=null;
+    if(document.hidden||ticketChatRefreshId!==String(ticketId))return;
+    ticketChatRefreshTimer=window.setTimeout(function(){
+      ticketChatRefreshTimer=null;
+      refreshTicketChat(ticketId);
+    },ticketChatRefreshDelay);
+  }
   async function refreshTicketChat(ticketId){
     if(ticketChatRefreshBusy || ticketChatRefreshId!==String(ticketId)) return;
     if(!currentDetailMatches('ticket', ticketId) || document.hidden){ return; }
     ticketChatRefreshBusy=true;
     try{
-      const ix=await fetchJson('/api/tickets/'+encodeURIComponent(ticketId)+'/interacciones');
+      const path='/api/tickets/'+encodeURIComponent(ticketId)+'/interacciones?mode=comments&after_comment_id='+encodeURIComponent(ticketChatLastCommentId);
+      const ix=await fetchJson(path);
       const interactions=ix.data||ix||{};
-      const comments=interactions.comentarios||[];
-      renderTicketComments(comments);
-      if(!comments.length) stopTicketChatRefresh();
+      const incoming=Array.isArray(interactions.comentarios)?interactions.comentarios:[];
+      if(incoming.length){
+        ticketChatComments=mergeTicketComments(ticketChatComments,incoming);
+        ticketChatLastCommentId=Math.max(
+          ticketChatLastCommentId,
+          Number(interactions.ultimo_comentario_id||0),
+          ...incoming.map(ticketCommentId)
+        );
+        ticketChatRefreshDelay=TICKET_CHAT_REFRESH_ACTIVE_MS;
+        renderTicketComments(ticketChatComments);
+      }else{
+        ticketChatLastCommentId=Math.max(ticketChatLastCommentId,Number(interactions.ultimo_comentario_id||0));
+        ticketChatRefreshDelay=Math.min(TICKET_CHAT_REFRESH_MAX_MS,Math.max(TICKET_CHAT_REFRESH_IDLE_MS,ticketChatRefreshDelay*2));
+      }
     }catch(e){
+      ticketChatRefreshDelay=Math.min(TICKET_CHAT_REFRESH_MAX_MS,Math.max(TICKET_CHAT_REFRESH_IDLE_MS,ticketChatRefreshDelay*2));
       console.warn('[ManttoDetails] No se pudo actualizar el chat del ticket.', e);
     }finally{
       ticketChatRefreshBusy=false;
+      if(ticketChatRefreshId===String(ticketId))scheduleTicketChatRefresh(ticketId);
     }
   }
   function startTicketChatRefresh(ticketId, comments){
     stopTicketChatRefresh();
-    if(!Array.isArray(comments) || comments.length===0) return;
     ticketChatRefreshId=String(ticketId);
-    ticketChatRefreshTimer=window.setInterval(function(){ refreshTicketChat(ticketId); }, TICKET_CHAT_REFRESH_MS);
+    ticketChatComments=Array.isArray(comments)?comments.slice():[];
+    ticketChatLastCommentId=ticketChatComments.reduce((maximo,comment)=>Math.max(maximo,ticketCommentId(comment)),0);
+    ticketChatRefreshDelay=TICKET_CHAT_REFRESH_ACTIVE_MS;
+    scheduleTicketChatRefresh(ticketId);
   }
   function bindTicketInteractions(t, ticketId){
     scrollTicketChat();
@@ -1287,7 +1344,11 @@
     if(!detail || detail.route!=='detalle' || !detail.payload || detail.payload.type!=='ticket') stopTicketChatRefresh();
   });
   document.addEventListener('visibilitychange', function(){
-    if(!document.hidden && ticketChatRefreshId) refreshTicketChat(ticketChatRefreshId);
+    if(!document.hidden && ticketChatRefreshId){
+      if(ticketChatRefreshTimer) window.clearTimeout(ticketChatRefreshTimer);
+      ticketChatRefreshTimer=null;
+      refreshTicketChat(ticketChatRefreshId);
+    }
   });
 
   window.ManttoDetails = { show, close, render, openProyecto, openProjectPhotos:openProjectPhotoLightbox, openEquipo:openEquipo_gnral, openEquipo_uni, openEquipo_cor, openEquipo_gnral, openTicket, openEquipoCritico, bindLinks, ticketsTable, registerTickets };

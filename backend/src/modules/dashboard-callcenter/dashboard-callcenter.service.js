@@ -27,6 +27,7 @@ async function getInitialData(req) {
     ok: true,
     source: 'aiven',
     data,
+    period: data.period || { from: null, to: null },
     alcance: {
       zona_ids: zoneIds,
       zonas: zoneCodes

@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20260827-push-priority-v002';
+const SERVICE_WORKER_VERSION = '20260828-fase1-calls-v001';
 const DEFAULT_URL = './index.html?push_open=notifications';
 
 self.addEventListener('install', event => {
@@ -32,15 +32,22 @@ self.addEventListener('push', event => {
   const payload = normalizePayload(event);
   const title = payload.title || 'Mantto Gestor';
   const url = buildUrl(payload);
-  event.waitUntil(self.registration.showNotification(title, {
-    body: payload.body || 'Tienes una nueva notificacion pendiente.',
-    icon: payload.icon || './assets/img/icons/icon-192.png',
-    badge: payload.badge || './assets/img/icons/icon-192.png',
-    tag: payload.tag || `mantto-${payload.notificationId || Date.now()}`,
-    renotify: true,
-    requireInteraction: String(payload.priority || '').toUpperCase() === 'CRITICA',
-    data: { url, target: payload }
-  }));
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, {
+      body: payload.body || 'Tienes una nueva notificacion pendiente.',
+      icon: payload.icon || './assets/img/icons/icon-192.png',
+      badge: payload.badge || './assets/img/icons/icon-192.png',
+      tag: payload.tag || `mantto-${payload.notificationId || Date.now()}`,
+      renotify: true,
+      requireInteraction: String(payload.priority || '').toUpperCase() === 'CRITICA',
+      data: { url, target: payload }
+    });
+
+    const windows = await clients.matchAll({ type:'window', includeUncontrolled:true });
+    windows.forEach(client => {
+      client.postMessage({ type:'MANTTO_PUSH_RECEIVED', target:payload });
+    });
+  })());
 });
 
 self.addEventListener('notificationclick', event => {
