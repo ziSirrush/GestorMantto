@@ -5,6 +5,7 @@
 
   const nativeFetch = window.fetch.bind(window);
   const inflight = new Map();
+  const rawInflight = new Map();
   const cache = new Map();
   let lastScope = '';
 
@@ -34,9 +35,14 @@
     return scopeKey() + '|' + method + '|' + String(customKey || path || '');
   }
 
+  function rawRequestKey(url, method){
+    return scopeKey() + '|RAW|' + method + '|' + String(url ? url.pathname + url.search : '');
+  }
+
   function clear(){
     cache.clear();
     inflight.clear();
+    rawInflight.clear();
   }
 
   function invalidate(matcher){
@@ -108,6 +114,17 @@
     const sourceHeaders = (init && init.headers) ||
       (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
     const headers = new Headers(sourceHeaders || {});
+
+    // Compatibilidad: cualquier fetch operativo antiguo pasa por el cliente
+    // central y recibe Auth/Viewer/Device sin obligar a reescribir todos los
+    // módulos en una sola entrega.
+    if(window.ManttoAuth && typeof window.ManttoAuth.authHeaders === 'function'){
+      const authHeaders = window.ManttoAuth.authHeaders() || {};
+      Object.keys(authHeaders).forEach(name => {
+        if(!headers.has(name)) headers.set(name, authHeaders[name]);
+      });
+    }
+
     const current = currentNavigationContext();
     headers.set('X-Mantto-Route', String(current.route || 'home').slice(0, 500));
     if(current.payload){
@@ -115,6 +132,14 @@
       if(serialized.length <= 3000) headers.set('X-Mantto-Payload', serialized);
     }
     next.headers = headers;
+    return next;
+  }
+
+  function cleanInternalOptions(init){
+    const next = Object.assign({}, init || {});
+    delete next.manttoMutationManaged;
+    delete next.manttoSkipMutationEvent;
+    delete next.manttoNoDedupe;
     return next;
   }
 
@@ -128,12 +153,28 @@
       const apiRequest = isGestorApi(url);
       const managedMutation = Boolean(init && init.manttoMutationManaged);
       const skipMutationEvent = Boolean(init && init.manttoSkipMutationEvent);
+      const noDedupe = Boolean(init && init.manttoNoDedupe);
 
       let nextInit = apiRequest ? withContextHeaders(input, init) : Object.assign({}, init || {});
-      if(Object.prototype.hasOwnProperty.call(nextInit, 'manttoMutationManaged')) delete nextInit.manttoMutationManaged;
-      if(Object.prototype.hasOwnProperty.call(nextInit, 'manttoSkipMutationEvent')) delete nextInit.manttoSkipMutationEvent;
+      nextInit = cleanInternalOptions(nextInit);
 
-      const response = await nativeFetch(input, nextInit);
+      let response;
+      if(apiRequest && !noDedupe && (method === 'GET' || method === 'HEAD')){
+        const key = rawRequestKey(url, method);
+        let task = rawInflight.get(key);
+        if(!task){
+          task = nativeFetch(input, nextInit);
+          rawInflight.set(key, task);
+          task.then(
+            () => rawInflight.delete(key),
+            () => rawInflight.delete(key)
+          );
+        }
+        const shared = await task;
+        response = shared.clone();
+      }else{
+        response = await nativeFetch(input, nextInit);
+      }
 
       if(
         response && response.ok && apiRequest &&
@@ -146,7 +187,7 @@
             path:url ? url.pathname + url.search : '',
             url:url ? url.toString() : '',
             method,
-            source:'http-fetch-bridge',
+            source:'mantto-http',
             at:Date.now()
           }
         }));
@@ -215,6 +256,16 @@
     return request(path, Object.assign({}, options || {}, { method:'GET' }));
   }
 
+  async function template(path, options){
+    const response = await fetch(path, Object.assign({ cache:'default' }, options || {}));
+    if(!response.ok) throw new Error('No se pudo cargar el recurso ' + path);
+    return response.text();
+  }
+
+  function fetchRaw(input, init){
+    return window.fetch(input, init);
+  }
+
   function refreshScope(){
     const next = scopeKey();
     if(lastScope && next !== lastScope) clear();
@@ -227,5 +278,5 @@
   document.addEventListener('mantto:data-mutated', () => cache.clear());
   lastScope = scopeKey();
 
-  window.ManttoHttp = { request, get, invalidate, clear, scopeKey };
+  window.ManttoHttp = Object.freeze({ request, get, template, fetch:fetchRaw, invalidate, clear, scopeKey });
 })();

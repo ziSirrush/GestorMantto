@@ -80,7 +80,7 @@
     if(!view||state.loaded)return;
     let html=INLINE_HTML;
     try{
-      const r=await fetch('./modules/proyectos/proyectos.html?v='+MODULE_VERSION,{cache:'no-store'});
+      const r=await fetch('./modules/proyectos/proyectos.html?v='+MODULE_VERSION,{cache:'default'});
       if(r.ok){const t=await r.text();if(t&&t.trim())html=t;}
     }catch(e){}
     view.innerHTML=html;

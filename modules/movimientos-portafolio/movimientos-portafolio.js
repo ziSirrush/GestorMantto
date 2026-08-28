@@ -95,7 +95,7 @@
   async function loadHtml(){
     const view=$('view-movimientos');
     if(!view||state.loaded)return;
-    const response=await fetch('./modules/movimientos-portafolio/movimientos-portafolio.html?v='+MODULE_VERSION,{cache:'no-store'});
+    const response=await fetch('./modules/movimientos-portafolio/movimientos-portafolio.html?v='+MODULE_VERSION,{cache:'default'});
     if(!response.ok)throw new Error('No fue posible cargar la vista de Movimientos de Portafolio.');
     const html=await response.text();
     if(!html.trim())throw new Error('La vista de Movimientos de Portafolio esta vacia.');

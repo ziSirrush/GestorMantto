@@ -15,7 +15,9 @@ const sqlSource = read('backend/sql/20260825_VERIFICAR_NOTIFICACIONES_FASE_4_CRI
 
 const state = {
   insertedRows: [],
+  beforeRows: [],
   periodIds: [],
+  criticalCounts: {},
   activeUsers: [11, 12],
   zoneId: 7,
   emissions: []
@@ -28,6 +30,18 @@ const dbStub = {
     if (/SELECT \*\s+FROM tickets\s+WHERE id IN/i.test(text)) {
       const requested = new Set((params || []).map(Number));
       return [state.insertedRows.filter((row) => requested.has(Number(row.id)))];
+    }
+
+    if (/AS calificaba_blt_periodo/i.test(text)) {
+      const requested = new Set((params || []).map(Number));
+      return [state.beforeRows.filter((row) => requested.has(Number(row.id)))];
+    }
+
+    if (/COUNT\(DISTINCT t\.id\) AS fallas_blt_periodo/i.test(text)) {
+      return [(params || []).map((equipment) => ({
+        numero_equipo: equipment,
+        fallas_blt_periodo: Number(state.criticalCounts[equipment] || 0)
+      }))];
     }
 
     if (/SELECT u\.id_SB\s+FROM usuarios u/i.test(text)) {
@@ -88,18 +102,22 @@ try {
   Module._load = originalLoad;
 }
 
-function beforeContext({ ids, existing = [], failures = {} }) {
+function beforeContext({ ids, existing = [], beforeRows = [], failures = {} }) {
+  const rowsById = new Map(beforeRows.map((row) => [Number(row.id), row]));
   return {
     candidateIds: ids,
     candidateOrder: new Map(ids.map((id, index) => [id, index])),
     existingIds: new Set(existing),
+    beforeTickets: rowsById,
     criticalBefore: new Map(Object.entries(failures).map(([equipment, count]) => [equipment, { fallas: count }]))
   };
 }
 
 function resetRuntime() {
   state.insertedRows = [];
+  state.beforeRows = [];
   state.periodIds = [];
+  state.criticalCounts = {};
   state.activeUsers = [11, 12];
   state.zoneId = 7;
   state.emissions = [];
@@ -145,6 +163,48 @@ test('Criterio de criticidad se conserva en 3 fallas BLT dentro de 35 dias', () 
   assert.match(serviceSource, /CRITICOS_MIN_FALLAS_BLT_UNI\s*=\s*3/);
   assert.match(serviceSource, /DATE_SUB\(CURDATE\(\), INTERVAL \$\{CRITICOS_DIAS_UNI\} DAY\)/);
   assert.match(serviceSource, /LIKE '%BLT%'/);
+  assert.match(serviceSource, /fecha_reporte < DATE_ADD\(CURDATE\(\), INTERVAL 1 DAY\)/);
+});
+
+test('Captura previa conserva UPDATE relevantes y descarta resincronizaciones sin cambios criticos', async () => {
+  resetRuntime();
+  state.beforeRows = [
+    {
+      id: 601,
+      ticket: 'T-601',
+      codigo_equipo: 'EQ-6',
+      responsabilidad: null,
+      fecha_reporte: '2026-08-28',
+      descripcion: 'Falla general',
+      causa: null,
+      accion_en_cierre: null,
+      calificaba_blt_periodo: 0
+    },
+    {
+      id: 602,
+      ticket: 'T-602',
+      codigo_equipo: 'EQ-6',
+      responsabilidad: 'BLT',
+      fecha_reporte: '2026-08-28',
+      descripcion: 'Falla general',
+      causa: null,
+      accion_en_cierre: null,
+      calificaba_blt_periodo: 1
+    }
+  ];
+  state.criticalCounts = { 'EQ-6': 2 };
+
+  const context = await service.captureBeforeSync_uni({
+    updates: [
+      { ...state.beforeRows[0], responsabilidad: 'BLT' },
+      { ...state.beforeRows[1] }
+    ]
+  });
+
+  assert.deepEqual(context.receivedCandidateIds, [601, 602]);
+  assert.deepEqual(context.candidateIds, [601]);
+  assert.equal(context.beforeTickets.get(601).responsabilidad, null);
+  assert.equal(context.criticalBefore.get('EQ-6').fallas, 2);
 });
 
 test('NUEVO_EQUIPO_CRITICO apunta al ticket exacto que cruza el umbral dentro del lote', async () => {
@@ -169,6 +229,8 @@ test('NUEVO_EQUIPO_CRITICO apunta al ticket exacto que cruza el umbral dentro de
   assert.equal(result.eventos.find((item) => item.codigo_evento === 'NUEVO_EQUIPO_CRITICO').ticket_id, 102);
   assert.equal(result.eventos.find((item) => item.codigo_evento === 'NUEVO_EQUIPO_CRITICO').fallas_blt_antes_del_ticket, 2);
   assert.equal(result.eventos.find((item) => item.codigo_evento === 'NUEVO_EQUIPO_CRITICO').fallas_blt_despues_del_ticket, 3);
+  assert.equal(state.emissions.filter((item) => item.codigoEvento === 'FALLA_EQUIPO_CRITICO').length, 1);
+  assert.equal(state.emissions.find((item) => item.codigoEvento === 'FALLA_EQUIPO_CRITICO').idReferencia, 103);
 });
 
 test('FALLA_EQUIPO_CRITICO se emite para un nuevo BLT cuando el equipo ya era critico', async () => {
@@ -258,12 +320,171 @@ test('Una resincronizacion de un Ticket ya existente no vuelve a emitir eventos 
   state.periodIds = [401];
 
   const result = await service.processAfterSync_uni(
-    beforeContext({ ids: [401], existing: [401], failures: { 'EQ-4': 5 } }),
+    beforeContext({
+      ids: [401],
+      existing: [401],
+      beforeRows: [{
+        id: 401,
+        codigo_equipo: 'EQ-4',
+        responsabilidad: 'BLT',
+        descripcion: 'Persona atrapada',
+        calificaba_blt_periodo: 1
+      }],
+      failures: { 'EQ-4': 5 }
+    }),
     null
   );
 
+  assert.equal(result.affected_tickets, 1);
   assert.equal(result.inserted_tickets, 0);
+  assert.equal(result.updated_tickets, 1);
   assert.equal(state.emissions.length, 0);
+});
+
+test('UPDATE NULL a BLT genera NUEVO_EQUIPO_CRITICO al cruzar de 2 a 3', async () => {
+  resetRuntime();
+  state.insertedRows = [{
+    id: 501,
+    ticket: 'T-501',
+    codigo_equipo: 'EQ-5',
+    responsabilidad: 'BLT'
+  }];
+  state.periodIds = [501];
+
+  const result = await service.processAfterSync_uni(
+    beforeContext({
+      ids: [501],
+      existing: [501],
+      beforeRows: [{
+        id: 501,
+        codigo_equipo: 'EQ-5',
+        responsabilidad: null,
+        calificaba_blt_periodo: 0
+      }],
+      failures: { 'EQ-5': 2 }
+    }),
+    null
+  );
+
+  assert.deepEqual(state.emissions.map((item) => item.codigoEvento), ['NUEVO_EQUIPO_CRITICO']);
+  assert.equal(state.emissions[0].idReferencia, 501);
+  assert.equal(result.eventos[0].operacion, 'UPDATE');
+  assert.equal(result.eventos[0].calificaba_blt_antes, false);
+  assert.equal(result.eventos[0].califica_blt_despues, true);
+  assert.equal(result.eventos[0].fallas_blt_35d_antes, 2);
+  assert.equal(result.eventos[0].fallas_blt_35d_despues, 3);
+});
+
+test('UPDATE Cliente a BLT genera FALLA_EQUIPO_CRITICO si el equipo ya tenia 3 fallas', async () => {
+  resetRuntime();
+  state.insertedRows = [{
+    id: 502,
+    ticket: 'T-502',
+    codigo_equipo: 'EQ-5',
+    responsabilidad: 'Responsabilidad BLT'
+  }];
+  state.periodIds = [502];
+
+  await service.processAfterSync_uni(
+    beforeContext({
+      ids: [502],
+      existing: [502],
+      beforeRows: [{
+        id: 502,
+        codigo_equipo: 'EQ-5',
+        responsabilidad: 'Cliente',
+        calificaba_blt_periodo: 0
+      }],
+      failures: { 'EQ-5': 3 }
+    }),
+    null
+  );
+
+  assert.deepEqual(state.emissions.map((item) => item.codigoEvento), ['FALLA_EQUIPO_CRITICO']);
+});
+
+test('UPDATE BLT a BLT no vuelve a emitir aunque el equipo siga critico', async () => {
+  resetRuntime();
+  state.insertedRows = [{
+    id: 503,
+    ticket: 'T-503',
+    codigo_equipo: 'EQ-5',
+    responsabilidad: 'BLT'
+  }];
+  state.periodIds = [503];
+
+  await service.processAfterSync_uni(
+    beforeContext({
+      ids: [503],
+      existing: [503],
+      beforeRows: [{
+        id: 503,
+        codigo_equipo: 'EQ-5',
+        responsabilidad: 'BLT',
+        calificaba_blt_periodo: 1
+      }],
+      failures: { 'EQ-5': 4 }
+    }),
+    null
+  );
+
+  assert.equal(state.emissions.length, 0);
+});
+
+test('Un lote de UPDATE conserva secuencia: 1 a 2, 2 a 3 y 3 a 4', async () => {
+  resetRuntime();
+  state.insertedRows = [
+    { id: 511, ticket: 'T-511', codigo_equipo: 'EQ-51', responsabilidad: 'BLT' },
+    { id: 512, ticket: 'T-512', codigo_equipo: 'EQ-51', responsabilidad: 'BLT' },
+    { id: 513, ticket: 'T-513', codigo_equipo: 'EQ-51', responsabilidad: 'BLT' }
+  ];
+  state.periodIds = [511, 512, 513];
+  const beforeRows = state.insertedRows.map((row) => ({
+    ...row,
+    responsabilidad: null,
+    calificaba_blt_periodo: 0
+  }));
+
+  await service.processAfterSync_uni(
+    beforeContext({
+      ids: [511, 512, 513],
+      existing: [511, 512, 513],
+      beforeRows,
+      failures: { 'EQ-51': 1 }
+    }),
+    null
+  );
+
+  assert.deepEqual(state.emissions.map((item) => [item.codigoEvento, item.idReferencia]), [
+    ['NUEVO_EQUIPO_CRITICO', 512],
+    ['FALLA_EQUIPO_CRITICO', 513]
+  ]);
+});
+
+test('Una baja BLT anterior en el lote ajusta el conteo antes de una nueva alta BLT', async () => {
+  resetRuntime();
+  state.insertedRows = [
+    { id: 521, ticket: 'T-521', codigo_equipo: 'EQ-52', responsabilidad: 'Cliente' },
+    { id: 522, ticket: 'T-522', codigo_equipo: 'EQ-52', responsabilidad: 'BLT' }
+  ];
+  state.periodIds = [522];
+
+  await service.processAfterSync_uni(
+    beforeContext({
+      ids: [521, 522],
+      existing: [521, 522],
+      beforeRows: [
+        { id: 521, codigo_equipo: 'EQ-52', responsabilidad: 'BLT', calificaba_blt_periodo: 1 },
+        { id: 522, codigo_equipo: 'EQ-52', responsabilidad: null, calificaba_blt_periodo: 0 }
+      ],
+      failures: { 'EQ-52': 3 }
+    }),
+    null
+  );
+
+  assert.deepEqual(state.emissions.map((item) => [item.codigoEvento, item.idReferencia]), [
+    ['NUEVO_EQUIPO_CRITICO', 522]
+  ]);
 });
 
 test('El actor y el alcance UNITED se delegan al motor central', () => {

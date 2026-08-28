@@ -48,7 +48,7 @@ for (const name of requiredHandlers) {
 }
 
 /**
- * Wrapper incremental para las tres interacciones criticas de Tickets.
+ * Wrapper incremental para los eventos criticos y sus combinaciones de Tickets.
  *
  * El sync legacy sigue siendo la unica funcion que modifica tickets. Este
  * wrapper solo observa el estado antes/despues y, si el sync termino bien,
@@ -93,7 +93,9 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
   }
 
   let notificationSummary = {
+    affected_tickets: 0,
     inserted_tickets: 0,
+    updated_tickets: 0,
     persona_atrapada_equipo_critico: 0,
     persona_atrapada_nuevo_equipo_critico: 0,
     falla_equipo_critico: 0,

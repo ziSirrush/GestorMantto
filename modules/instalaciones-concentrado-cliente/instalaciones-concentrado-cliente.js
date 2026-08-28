@@ -20,7 +20,7 @@
   async function loadHtml(){
     const view=$('view-instalaciones-concentrado-cliente');
     if(!view||view.dataset.ready==='1')return;
-    const response=await fetch('./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.html?v='+VERSION,{cache:'no-store'});
+    const response=await fetch('./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.html?v='+VERSION,{cache:'default'});
     if(!response.ok)throw new Error('No se pudo cargar la vista Concentrado Cliente.');
     view.innerHTML=await response.text();
     view.dataset.ready='1';

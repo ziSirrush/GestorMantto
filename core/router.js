@@ -44,6 +44,7 @@
   const historyStack = [];
   let browserNavActive = false;
   let initialRouteRestored = false;
+  let navigationSequence = 0;
   const NAV_CURRENT_KEY = 'mantto:navigation:current';
 
   function readSession(key, fallback){
@@ -900,6 +901,26 @@
     if(authenticated && window.ManttoHome && window.ManttoHome.init) window.ManttoHome.init();
   }
 
+  async function ensureRouteModule(route){
+    if(!window.ManttoModuleLoader || typeof window.ManttoModuleLoader.ensure !== 'function') return true;
+    return window.ManttoModuleLoader.ensure(route || 'home');
+  }
+
+  function showModuleLoadError(route, error){
+    const view = activateViewById('view-' + route) || activateViewById('view-placeholder');
+    if(view){
+      view.innerHTML = '<div class="placeholder"><div class="card placeholder-card construction-card">' +
+        '<div class="construction-icon">⚠️</div>' +
+        '<h1>' + safeText(label(route)) + '</h1>' +
+        '<h2>No fue posible cargar el módulo</h2>' +
+        '<p>Recarga la pantalla. Si el problema continúa, informa a Soporte.</p>' +
+        '<span class="route-chip">' + safeText(error && error.message ? error.message : 'Error de carga') + '</span>' +
+      '</div></div>';
+    }
+    setActiveSide(route);
+    updateContext(route, 'No fue posible cargar los recursos del módulo');
+  }
+
   function render(route, payload){
     const isInstallationProjectDetail = route === 'detalle' && payload && payload.type === 'proyecto' && (payload.template === 'cliente-unificado' || payload.source === 'instalaciones-concentrado-cliente' || payload.source === 'instalaciones-proyectos');
     document.body.classList.toggle('mg-installation-project-detail', Boolean(isInstallationProjectDetail));
@@ -907,12 +928,13 @@
     return showPlaceholder(route, payload);
   }
 
-  function internalGo(route, payload, opts){
+  async function internalGo(route, payload, opts){
     const options = opts || {};
     const navigationType = options.navigationType || 'forward';
     const nextRoute = route || 'home';
     const nextPayload = payload || null;
     const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(nextPayload);
+    const sequence = ++navigationSequence;
 
     if(!options.replace && !options.skipHistory && currentRoute && !same){
       const previousContext = captureContext(currentRoute, currentPayload);
@@ -923,57 +945,85 @@
 
     currentRoute = nextRoute;
     currentPayload = nextPayload;
-    render(currentRoute, currentPayload);
     saveCurrentRoute();
+    syncBrowserHistory(currentRoute, currentPayload, !!options.replace, 0);
+
+    try{
+      await ensureRouteModule(currentRoute);
+    }catch(error){
+      if(sequence === navigationSequence) showModuleLoadError(currentRoute, error);
+      return false;
+    }
+    if(sequence !== navigationSequence) return false;
+
+    render(currentRoute, currentPayload);
 
     if(navigationType === 'back' && options.context) restoreContext(options.context);
     else window.setTimeout(resetScroll,0);
 
-    syncBrowserHistory(currentRoute, currentPayload, !!options.replace, 0);
     document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:navigationType, route:currentRoute, payload:currentPayload } }));
+    return true;
   }
 
-  function internalBack(opts){
+  async function internalBack(opts){
     const options = opts || {};
     const previous = historyStack.pop();
+    const sequence = ++navigationSequence;
+    let context = null;
     if(previous){
       currentRoute = previous.route;
       currentPayload = previous.payload || null;
-      render(currentRoute, currentPayload);
-      saveCurrentRoute();
-      restoreContext(previous.context);
+      context = previous.context || null;
     } else if(currentRoute !== 'home') {
       currentRoute = 'home';
       currentPayload = null;
-      render('home', null);
-      saveCurrentRoute();
-      window.setTimeout(resetScroll,0);
-    } else {
-      render('home', null);
-      window.setTimeout(resetScroll,0);
     }
+    saveCurrentRoute();
     if(!options.fromBrowser) syncBrowserHistory(currentRoute, currentPayload, true, 0);
+
+    try{
+      await ensureRouteModule(currentRoute);
+    }catch(error){
+      if(sequence === navigationSequence) showModuleLoadError(currentRoute, error);
+      return false;
+    }
+    if(sequence !== navigationSequence) return false;
+
+    render(currentRoute, currentPayload);
+    if(context) restoreContext(context);
+    else window.setTimeout(resetScroll,0);
     document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:'back', route:currentRoute, payload:currentPayload } }));
+    return true;
   }
 
   window.addEventListener('popstate', function(ev){
     browserNavActive = true;
-    try{
-      const state = ev.state;
-      if(state && state.mantto){
-        currentRoute = state.route || 'home';
-        currentPayload = state.payload || null;
-        render(currentRoute, currentPayload);
-        saveCurrentRoute();
-        if(state.context) restoreContext(state.context);
-        else window.setTimeout(resetScroll,0);
-        document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:'back', route:currentRoute, payload:currentPayload } }));
-      } else {
-        internalBack({fromBrowser:true});
+    (async function(){
+      try{
+        const state = ev.state;
+        if(state && state.mantto){
+          const sequence = ++navigationSequence;
+          currentRoute = state.route || 'home';
+          currentPayload = state.payload || null;
+          saveCurrentRoute();
+          try{
+            await ensureRouteModule(currentRoute);
+          }catch(error){
+            if(sequence === navigationSequence) showModuleLoadError(currentRoute, error);
+            return;
+          }
+          if(sequence !== navigationSequence) return;
+          render(currentRoute, currentPayload);
+          if(state.context) restoreContext(state.context);
+          else window.setTimeout(resetScroll,0);
+          document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:'back', route:currentRoute, payload:currentPayload } }));
+        } else {
+          await internalBack({fromBrowser:true});
+        }
+      } finally {
+        browserNavActive = false;
       }
-    } finally {
-      browserNavActive = false;
-    }
+    })();
   });
 
   function isCommentNotification(target){
@@ -1031,16 +1081,16 @@
   }
 
   window.ManttoRouter = {
-    go(route, payload, opts){ internalGo(route, payload, opts); },
-    open(route, payload){ internalGo(route, payload, { navigationType:'open' }); },
-    back(){ internalBack(); },
+    go(route, payload, opts){ return internalGo(route, payload, opts); },
+    open(route, payload){ return internalGo(route, payload, { navigationType:'open' }); },
+    back(){ return internalBack(); },
     openTarget(target){
       const destination = normalizeOpenTarget(target);
       this.go(destination.route, destination.payload);
     },
     getHistory(){ return historyStack.slice(); },
     getCurrent(){ return { route: currentRoute, payload: currentPayload }; },
-    reset(){ historyStack.length = 0; internalGo('home', null, {replace:true,navigationType:'open',skipHistory:true}); }
+    reset(){ historyStack.length = 0; return internalGo('home', null, {replace:true,navigationType:'open',skipHistory:true}); }
   };
 
   function restoreInitialRoute(){
@@ -1053,8 +1103,9 @@
       const sameDetail = hashRoute.route !== 'detalle' || (hashRoute.payload && stored.payload && String(hashRoute.payload.type||'')===String(stored.payload.type||'') && String(hashRoute.payload.id||'')===String(stored.payload.id||''));
       if(sameDetail) target = { route:hashRoute.route, payload:Object.assign({}, stored.payload || {}, hashRoute.payload || {}) };
     }
-    internalGo(target.route || 'home', target.payload || null, { replace:true, skipHistory:true, navigationType:'refresh' });
-    updateBackButton();
+    const task = internalGo(target.route || 'home', target.payload || null, { replace:true, skipHistory:true, navigationType:'refresh' });
+    Promise.resolve(task).finally(updateBackButton);
+    return task;
   }
 
   document.addEventListener('DOMContentLoaded', function(){

@@ -108,7 +108,7 @@ const QUICK_EDIT_FIELDS_COR = Object.freeze({
   '03-PM': new Set(['estatus', 'fecha_posible_recepcion_cubo', 'comentarios_fl']),
   '04-M': new Set(['estatus', 'comentarios_fl']),
   '05-PA': new Set(['estatus', 'ajustador', 'fecha_posible_inicio_ajuste', 'comentarios_fl']),
-  '06-A': new Set(['estatus', 'fecha_inicio_ajuste', 'fecha_fin_ajuste_planeado', 'ajustador', 'comentarios_fl']),
+  '06-A': new Set(['estatus', 'fecha_inicio_ajuste', 'fecha_fin_ajuste_planeado', 'fecha_fin_ajuste_modificado', 'ajustador', 'comentarios_fl']),
   '07-PE': new Set(['estatus', 'comentarios_fl']),
   '08-T': new Set(['estatus', 'comentarios_fl'])
 });
@@ -120,14 +120,16 @@ const QUICK_EDIT_LABELS_COR = Object.freeze({
   ajustador: 'Ajustador',
   fecha_posible_inicio_ajuste: 'Posible inicio de Ajuste',
   fecha_inicio_ajuste: 'Fecha Inicio Ajuste',
-  fecha_fin_ajuste_planeado: 'Fecha Fin Ajuste'
+  fecha_fin_ajuste_planeado: 'Fecha Fin Ajuste',
+  fecha_fin_ajuste_modificado: 'Fecha Fin Ajuste Modificado'
 });
 
 const QUICK_EDIT_DATE_FIELDS_COR = new Set([
   'fecha_posible_recepcion_cubo',
   'fecha_posible_inicio_ajuste',
   'fecha_inicio_ajuste',
-  'fecha_fin_ajuste_planeado'
+  'fecha_fin_ajuste_planeado',
+  'fecha_fin_ajuste_modificado'
 ]);
 
 const REPORT_STATUS_CODES_COR = new Set(REPORT_SECTIONS_COR.map(item => item.codigo));

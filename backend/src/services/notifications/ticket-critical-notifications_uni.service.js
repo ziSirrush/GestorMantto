@@ -67,6 +67,27 @@ function isPersonaAtrapada_uni(ticketRow) {
   return PERSONA_ATRAPADA_KEYWORDS_UNI.some((keyword) => blob.includes(keyword));
 }
 
+function dateKey_uni(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const text = String(value).trim();
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : text;
+}
+
+function requiresPostSyncEvaluation_uni(candidate, beforeRow) {
+  if (!beforeRow) return true;
+
+  return (
+    normalizeText_uni(candidate?.responsabilidad) !== normalizeText_uni(beforeRow.responsabilidad) ||
+    normalizeText_uni(candidate?.codigo_equipo) !== normalizeText_uni(beforeRow.codigo_equipo) ||
+    dateKey_uni(candidate?.fecha_reporte) !== dateKey_uni(beforeRow.fecha_reporte) ||
+    isPersonaAtrapada_uni(candidate) !== isPersonaAtrapada_uni(beforeRow)
+  );
+}
+
 async function listCriticalState_uni(executor, equipmentCodes) {
   const codes = [...new Set((equipmentCodes || [])
     .map((value) => String(value || '').trim())
@@ -84,6 +105,7 @@ async function listCriticalState_uni(executor, equipmentCodes) {
       ON t.codigo_equipo = p.numero_equipo
      AND t.fecha_reporte IS NOT NULL
      AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+     AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
      AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%BLT%'
     WHERE p.numero_equipo IN (${placeholders})
       AND p.estado_registro = 1
@@ -100,30 +122,61 @@ async function listCriticalState_uni(executor, equipmentCodes) {
 async function captureBeforeSync_uni(body) {
   const candidates = candidateRows_uni(body);
   const candidateIds = uniquePositiveIds_uni(candidates.map((row) => row.id));
-  const equipmentCodes = [...new Set(candidates
-    .map((row) => String(row.codigo_equipo || '').trim())
-    .filter(Boolean))];
 
   if (!candidateIds.length) {
     return {
       candidateIds: [],
+      receivedCandidateIds: [],
       candidateOrder: new Map(),
       existingIds: new Set(),
+      beforeTickets: new Map(),
       criticalBefore: new Map()
     };
   }
 
   const idPlaceholders = candidateIds.map(() => '?').join(', ');
   const [existingRows] = await db.query(
-    `SELECT id FROM tickets WHERE id IN (${idPlaceholders})`,
+    `SELECT
+       id,
+       ticket,
+       codigo_equipo,
+       responsabilidad,
+       fecha_reporte,
+       descripcion,
+       causa,
+       accion_en_cierre,
+       CASE
+         WHEN fecha_reporte IS NOT NULL
+          AND fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+          AND fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          AND UPPER(COALESCE(responsabilidad, '')) LIKE '%BLT%'
+         THEN 1 ELSE 0
+       END AS calificaba_blt_periodo
+     FROM tickets
+     WHERE id IN (${idPlaceholders})`,
     candidateIds
   );
 
+  const beforeTickets = new Map(existingRows.map((row) => [Number(row.id), row]));
+  const evaluationCandidates = candidates.filter((row) =>
+    requiresPostSyncEvaluation_uni(row, beforeTickets.get(Number(row.id)) || null)
+  );
+  const evaluationIds = uniquePositiveIds_uni(evaluationCandidates.map((row) => row.id));
+  const evaluationEquipmentCodes = new Set([
+    ...evaluationCandidates.map((row) => String(row.codigo_equipo || '').trim()),
+    ...evaluationIds.map((id) => String(beforeTickets.get(id)?.codigo_equipo || '').trim())
+  ].filter(Boolean));
+
   return {
-    candidateIds,
+    candidateIds: evaluationIds,
+    receivedCandidateIds: candidateIds,
     candidateOrder: new Map(candidates.map((row, index) => [Number(row.id), index])),
     existingIds: new Set(existingRows.map((row) => Number(row.id))),
-    criticalBefore: await listCriticalState_uni(db, equipmentCodes)
+    beforeTickets,
+    criticalBefore: await listCriticalState_uni(
+      db,
+      [...evaluationEquipmentCodes]
+    )
   };
 }
 
@@ -203,8 +256,8 @@ async function listActiveUserIds_uni(executor) {
   return uniquePositiveIds_uni(rows.map((row) => row.id_SB));
 }
 
-async function listCurrentPeriodBltInsertedIds_uni(executor, insertedRows) {
-  const ids = uniquePositiveIds_uni((insertedRows || []).map((row) => row.id));
+async function listCurrentPeriodBltCandidateIds_uni(executor, candidateRows) {
+  const ids = uniquePositiveIds_uni((candidateRows || []).map((row) => row.id));
   if (!ids.length) return new Set();
 
   const placeholders = ids.map(() => '?').join(', ');
@@ -214,44 +267,91 @@ async function listCurrentPeriodBltInsertedIds_uni(executor, insertedRows) {
     WHERE t.id IN (${placeholders})
       AND t.fecha_reporte IS NOT NULL
       AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+      AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
       AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%BLT%'
   `, ids);
 
   return new Set(rows.map((row) => Number(row.id)));
 }
 
-function findNewCriticalTriggers_uni(insertedRows, beforeContext, currentPeriodBltIds) {
-  const runningByEquipment = new Map();
-  const triggerByEquipment = new Map();
+function evaluateCandidateTransitions_uni(candidateRows, beforeContext, currentPeriodBltIds) {
+  const criticalBefore = beforeContext?.criticalBefore || new Map();
+  const beforeTickets = beforeContext?.beforeTickets || new Map();
+  const runningByEquipment = new Map(
+    [...criticalBefore.entries()].map(([equipment, value]) => [
+      equipment,
+      Number(value?.fallas || 0)
+    ])
+  );
 
-  for (const row of insertedRows || []) {
+  return (candidateRows || []).map((row) => {
+    const ticketId = Number(row?.id);
+    const beforeRow = beforeTickets.get(ticketId) || null;
+    const beforeEquipment = String(beforeRow?.codigo_equipo || '').trim();
     const equipment = String(row?.codigo_equipo || '').trim();
-    if (!equipment || !currentPeriodBltIds.has(Number(row.id)) || !isBlt_uni(row)) continue;
+    const qualifiedBefore = Boolean(beforeRow && Number(beforeRow.calificaba_blt_periodo) === 1);
+    const qualifiedAfter = Boolean(
+      equipment && currentPeriodBltIds.has(ticketId) && isBlt_uni(row)
+    );
+    const trappedBefore = Boolean(beforeRow && isPersonaAtrapada_uni(beforeRow));
+    const trappedAfter = isPersonaAtrapada_uni(row);
+    const eligibleEquipment = Boolean(equipment && criticalBefore.has(equipment));
 
-    const before = beforeContext?.criticalBefore?.get(equipment);
-    if (!before) continue;
-
-    const running = runningByEquipment.has(equipment)
-      ? Number(runningByEquipment.get(equipment) || 0)
-      : Number(before.fallas || 0);
-    const afterThisTicket = running + 1;
-
+    // El conteo inicial representa el estado previo completo. Si el Ticket
+    // deja de calificar o cambia de equipo, primero se retira de su conjunto
+    // anterior para mantener la secuencia real dentro del lote.
     if (
-      running < CRITICOS_MIN_FALLAS_BLT_UNI &&
-      afterThisTicket >= CRITICOS_MIN_FALLAS_BLT_UNI &&
-      !triggerByEquipment.has(equipment)
+      qualifiedBefore &&
+      beforeEquipment &&
+      (!qualifiedAfter || beforeEquipment !== equipment)
     ) {
-      triggerByEquipment.set(equipment, {
-        row,
-        beforeCount: running,
-        afterCount: afterThisTicket
-      });
+      const previousCount = Number(runningByEquipment.get(beforeEquipment) || 0);
+      runningByEquipment.set(beforeEquipment, Math.max(0, previousCount - 1));
     }
 
-    runningByEquipment.set(equipment, afterThisTicket);
-  }
+    const beforeCount = equipment
+      ? Number(runningByEquipment.get(equipment) || 0)
+      : 0;
+    let afterCount = beforeCount;
 
-  return triggerByEquipment;
+    if (
+      qualifiedAfter &&
+      !(qualifiedBefore && beforeEquipment === equipment)
+    ) {
+      afterCount = beforeCount + 1;
+      runningByEquipment.set(equipment, afterCount);
+    }
+
+    const enteredBltSet = !qualifiedBefore && qualifiedAfter;
+
+    return {
+      row,
+      beforeRow,
+      operation: beforeRow ? 'UPDATE' : 'INSERT',
+      equipment,
+      qualifiedBefore,
+      qualifiedAfter,
+      trappedBefore,
+      trappedAfter,
+      trappedTransition: !trappedBefore && trappedAfter,
+      enteredBltSet,
+      eligibleEquipment,
+      beforeCount,
+      afterCount,
+      wasCritical: Boolean(eligibleEquipment && beforeCount >= CRITICOS_MIN_FALLAS_BLT_UNI),
+      becameCritical: Boolean(
+        eligibleEquipment &&
+        enteredBltSet &&
+        beforeCount < CRITICOS_MIN_FALLAS_BLT_UNI &&
+        afterCount >= CRITICOS_MIN_FALLAS_BLT_UNI
+      ),
+      criticalFailure: Boolean(
+        eligibleEquipment &&
+        enteredBltSet &&
+        beforeCount >= CRITICOS_MIN_FALLAS_BLT_UNI
+      )
+    };
+  });
 }
 
 function primaryReason_uni(result) {
@@ -326,18 +426,16 @@ async function emitTicketEvent_uni({
   };
 }
 
-async function loadInsertedRows_uni(beforeContext) {
-  const newCandidateIds = (beforeContext?.candidateIds || [])
-    .filter((id) => !beforeContext.existingIds.has(Number(id)));
+async function loadAffectedRows_uni(beforeContext) {
+  const candidateIds = uniquePositiveIds_uni(beforeContext?.candidateIds || []);
+  if (!candidateIds.length) return [];
 
-  if (!newCandidateIds.length) return [];
-
-  const placeholders = newCandidateIds.map(() => '?').join(', ');
+  const placeholders = candidateIds.map(() => '?').join(', ');
   const [rows] = await db.query(`
     SELECT *
     FROM tickets
     WHERE id IN (${placeholders})
-  `, newCandidateIds);
+  `, candidateIds);
 
   const order = beforeContext?.candidateOrder || new Map();
   return rows.sort((a, b) =>
@@ -348,7 +446,9 @@ async function loadInsertedRows_uni(beforeContext) {
 
 function emptySummary_uni() {
   return {
+    affected_tickets: 0,
     inserted_tickets: 0,
+    updated_tickets: 0,
     persona_atrapada_equipo_critico: 0,
     persona_atrapada_nuevo_equipo_critico: 0,
     falla_equipo_critico: 0,
@@ -356,6 +456,45 @@ function emptySummary_uni() {
     nuevo_equipo_critico: 0,
     eventos: []
   };
+}
+
+function transitionMetadata_uni(evaluation) {
+  return {
+    operacion: evaluation.operation,
+    responsabilidad_antes: evaluation.beforeRow?.responsabilidad || null,
+    responsabilidad_despues: evaluation.row?.responsabilidad || null,
+    calificaba_blt_antes: evaluation.qualifiedBefore,
+    califica_blt_despues: evaluation.qualifiedAfter,
+    fallas_blt_35d_antes: evaluation.beforeCount,
+    fallas_blt_35d_despues: evaluation.afterCount,
+    // Alias conservados para consumidores y validaciones de la Fase 4.
+    fallas_blt_antes_del_ticket: evaluation.beforeCount,
+    fallas_blt_despues_del_ticket: evaluation.afterCount,
+    fallas_blt_antes: evaluation.beforeCount
+  };
+}
+
+function reasonWithoutEvent_uni(evaluation) {
+  if (!evaluation.qualifiedAfter) return 'NO_ERA_BLT';
+  if (evaluation.qualifiedBefore) return 'NO_ENTRO_EN_TRANSICION';
+  if (!evaluation.eligibleEquipment) return 'EQUIPO_NO_ELEGIBLE';
+  if (evaluation.afterCount < CRITICOS_MIN_FALLAS_BLT_UNI) return 'NO_ALCANZO_3';
+  return 'NINGUNO';
+}
+
+function traceEvaluation_uni(evaluation, eventCode, result, fallbackReason) {
+  const created = Number(result?.created || 0);
+  logger.info('[NOTIFICATION_CRITICAL_TICKET_EVALUATED]', {
+    ticket_id: Number(evaluation.row?.id) || null,
+    numero_ticket: evaluation.row?.ticket || null,
+    codigo_equipo: evaluation.equipment || null,
+    ...transitionMetadata_uni(evaluation),
+    evento_resultante: eventCode || 'NINGUNO',
+    motivo: created > 0
+      ? 'NOTIFICACION_CREADA'
+      : (result?.reason || fallbackReason || 'NINGUNO'),
+    trace_id: result?.trace_id || null
+  });
 }
 
 function appendEventResult_uni(summary, eventCode, row, result, counterField, extra = {}) {
@@ -375,156 +514,128 @@ function appendEventResult_uni(summary, eventCode, row, result, counterField, ex
 }
 
 async function processAfterSync_uni(beforeContext, actorUser) {
-  const insertedRows = await loadInsertedRows_uni(beforeContext);
+  const affectedRows = await loadAffectedRows_uni(beforeContext);
   const summary = emptySummary_uni();
-  summary.inserted_tickets = insertedRows.length;
+  const beforeTickets = beforeContext?.beforeTickets || new Map();
+  summary.affected_tickets = affectedRows.length;
+  summary.inserted_tickets = affectedRows.filter((row) => !beforeTickets.has(Number(row.id))).length;
+  summary.updated_tickets = affectedRows.length - summary.inserted_tickets;
 
-  if (!insertedRows.length) return summary;
+  if (!affectedRows.length) return summary;
 
   // Se listan todos los usuarios activos. El motor central es la unica capa que
   // decide Evento + Rol, politica obligatoria/opcional, actor, alcance UNITED,
   // preferencias, campana, push y deduplicacion.
   const activeUserIds = await listActiveUserIds_uni(db);
   const actorId = Number(actorUser?.id_SB || actorUser?.id || 0) || null;
-  const currentPeriodBltIds = await listCurrentPeriodBltInsertedIds_uni(db, insertedRows);
-  const newCriticalTriggers = findNewCriticalTriggers_uni(
-    insertedRows,
+  const currentPeriodBltIds = await listCurrentPeriodBltCandidateIds_uni(db, affectedRows);
+  const evaluations = evaluateCandidateTransitions_uni(
+    affectedRows,
     beforeContext,
     currentPeriodBltIds
   );
-  const newCriticalByTicketId = new Map(
-    [...newCriticalTriggers.entries()].map(([equipment, trigger]) => [
-      Number(trigger.row?.id),
-      { equipment, ...trigger }
-    ])
-  );
 
-  for (const row of insertedRows) {
-    const equipment = String(row.codigo_equipo || '').trim();
-    const before = beforeContext?.criticalBefore?.get(equipment);
-    const wasCritical = Boolean(
-      equipment && before && Number(before.fallas || 0) >= CRITICOS_MIN_FALLAS_BLT_UNI
-    );
-    const newCritical = newCriticalByTicketId.get(Number(row.id)) || null;
-    const trapped = isPersonaAtrapada_uni(row);
+  for (const evaluation of evaluations) {
+    const row = evaluation.row;
+    const equipment = evaluation.equipment;
+    let event = null;
 
     // La clasificacion es mutuamente excluyente y conserva la precedencia
     // operativa acordada para evitar dos Push por el mismo Ticket:
     // 1) atrapada + critico existente; 2) atrapada + nuevo critico;
     // 3) atrapada; 4) falla en critico; 5) nuevo critico.
-    if (trapped && wasCritical) {
-      const result = await emitTicketEvent_uni({
+    if (
+      evaluation.trappedAfter &&
+      (evaluation.trappedTransition || evaluation.enteredBltSet) &&
+      evaluation.wasCritical
+    ) {
+      event = {
         eventCode: EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI,
-        ticketRow: row,
-        actorUserId: actorId,
         title: 'Persona atrapada en equipo crítico',
         message: `Se generó el ticket ${row.ticket} por una persona atrapada en el equipo crítico ${equipment}.`,
         icon: '🚨🆘',
-        activeUserIds
-      });
-      appendEventResult_uni(
-        summary,
-        EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI,
-        row,
-        result,
-        'persona_atrapada_equipo_critico',
-        { numero_equipo: equipment, fallas_blt_antes: Number(before.fallas || 0) }
-      );
-      continue;
-    }
-
-    if (trapped && newCritical) {
-      const result = await emitTicketEvent_uni({
+        counterField: 'persona_atrapada_equipo_critico',
+        extra: { numero_equipo: equipment }
+      };
+    } else if (evaluation.trappedAfter && evaluation.becameCritical) {
+      event = {
         eventCode: EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI,
-        ticketRow: row,
-        actorUserId: actorId,
         title: 'Persona atrapada en un nuevo equipo crítico',
         message: `Se generó el ticket ${row.ticket} por una persona atrapada y el equipo ${equipment} pasó a condición crítica.`,
         icon: '🚨💥',
-        activeUserIds
-      });
-      appendEventResult_uni(
-        summary,
-        EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI,
-        row,
-        result,
-        'persona_atrapada_nuevo_equipo_critico',
-        {
-          numero_equipo: equipment,
-          fallas_blt_antes_del_ticket: newCritical.beforeCount,
-          fallas_blt_despues_del_ticket: newCritical.afterCount
-        }
-      );
-      continue;
-    }
-
-    if (trapped) {
-      const result = await emitTicketEvent_uni({
+        counterField: 'persona_atrapada_nuevo_equipo_critico',
+        extra: { numero_equipo: equipment }
+      };
+    } else if (evaluation.trappedTransition) {
+      event = {
         eventCode: EVENT_PERSONA_ATRAPADA_UNI,
-        ticketRow: row,
-        actorUserId: actorId,
         title: 'Ticket de persona atrapada',
         message: `Se genero el ticket ${row.ticket} relacionado con una persona atrapada.`,
         icon: '🚨',
-        activeUserIds
-      });
-      appendEventResult_uni(
-        summary,
-        EVENT_PERSONA_ATRAPADA_UNI,
-        row,
-        result,
-        'persona_atrapada'
-      );
-      continue;
-    }
-
-    if (
-      wasCritical &&
-      isBlt_uni(row)
-    ) {
-      const result = await emitTicketEvent_uni({
+        counterField: 'persona_atrapada',
+        extra: {}
+      };
+    } else if (evaluation.criticalFailure) {
+      event = {
         eventCode: EVENT_FALLA_EQUIPO_CRITICO_UNI,
-        ticketRow: row,
-        actorUserId: actorId,
         title: 'Falla en equipo crítico',
         message: `Se generó el ticket ${row.ticket} con responsabilidad BLT sobre el equipo crítico ${equipment}.`,
         icon: '🆘',
-        activeUserIds
-      });
-      appendEventResult_uni(
-        summary,
-        EVENT_FALLA_EQUIPO_CRITICO_UNI,
-        row,
-        result,
-        'falla_equipo_critico',
-        { fallas_blt_antes: Number(before.fallas || 0) }
-      );
+        counterField: 'falla_equipo_critico',
+        extra: { numero_equipo: equipment }
+      };
+    } else if (evaluation.becameCritical) {
+      event = {
+        eventCode: EVENT_NUEVO_EQUIPO_CRITICO_UNI,
+        title: 'Nuevo equipo crítico',
+        message: `El equipo ${equipment} pasó a condición crítica al alcanzar ${evaluation.afterCount} fallas BLT en los últimos ${CRITICOS_DIAS_UNI} días.`,
+        icon: '💥',
+        counterField: 'nuevo_equipo_critico',
+        extra: { numero_equipo: equipment }
+      };
+    }
+
+    if (!event) {
+      traceEvaluation_uni(evaluation, null, null, reasonWithoutEvent_uni(evaluation));
       continue;
     }
 
-    if (newCritical) {
-      const result = await emitTicketEvent_uni({
-        eventCode: EVENT_NUEVO_EQUIPO_CRITICO_UNI,
+    let result;
+    try {
+      result = await emitTicketEvent_uni({
+        eventCode: event.eventCode,
         ticketRow: row,
         actorUserId: actorId,
-        title: 'Nuevo equipo crítico',
-        message: `El equipo ${equipment} pasó a condición crítica al alcanzar ${newCritical.afterCount} fallas BLT en los últimos ${CRITICOS_DIAS_UNI} días.`,
-        icon: '💥',
+        title: event.title,
+        message: event.message,
+        icon: event.icon,
         activeUserIds
       });
-      appendEventResult_uni(
-        summary,
-        EVENT_NUEVO_EQUIPO_CRITICO_UNI,
-        row,
-        result,
-        'nuevo_equipo_critico',
-        {
-          numero_equipo: equipment,
-          fallas_blt_antes_del_ticket: newCritical.beforeCount,
-          fallas_blt_despues_del_ticket: newCritical.afterCount
-        }
-      );
+    } catch (error) {
+      logger.error('[NOTIFICATION_CRITICAL_TICKET_EMIT_FAILED]', {
+        ticket_id: Number(row?.id) || null,
+        ticket: row?.ticket || null,
+        codigo_equipo: equipment || null,
+        codigo_evento: event.eventCode,
+        error: error.message
+      });
+      result = {
+        created: 0,
+        skipped: activeUserIds.length,
+        reason: 'ERROR_EMISION',
+        trace_id: null
+      };
     }
+
+    appendEventResult_uni(
+      summary,
+      event.eventCode,
+      row,
+      result,
+      event.counterField,
+      { ...event.extra, ...transitionMetadata_uni(evaluation) }
+    );
+    traceEvaluation_uni(evaluation, event.eventCode, result, 'ERROR_EMISION');
   }
 
   return summary;

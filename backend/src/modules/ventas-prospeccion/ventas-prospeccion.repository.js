@@ -1,3 +1,4 @@
+// [Aster | 2026-08-28 | ASTER-MG | FASE_5_SQL_AIVEN_OPTIMIZACION_V001]
 const db = require('../../config/db');
 
 function getConnection() {
@@ -204,7 +205,15 @@ function buildFilters(filters, params, options = {}) {
     sql += ' AND (p.empresa LIKE ? OR p.proyecto LIKE ? OR p.contacto LIKE ? OR p.ciudad LIKE ?)';
     params.push(like, like, like, like);
   }
-  if (filters.year) { sql += ' AND YEAR(p.fecha_visita) = ?'; params.push(filters.year); }
+  if (filters.year) {
+    const year = Number.parseInt(filters.year, 10);
+    if (Number.isInteger(year) && year >= 1900 && year <= 2200) {
+      sql += ' AND p.fecha_visita >= ? AND p.fecha_visita < ?';
+      params.push(`${year}-01-01 00:00:00.000`, `${year + 1}-01-01 00:00:00.000`);
+    } else {
+      sql += ' AND 1 = 0';
+    }
+  }
   if (filters.status) { sql += ' AND COALESCE(p.estatus, pe.nombre) = ?'; params.push(filters.status); }
   if (filters.userId) { sql += ' AND p.id_usuario = ?'; params.push(filters.userId); }
   if (filters.state) { sql += ' AND p.estado = ?'; params.push(filters.state); }
@@ -240,7 +249,11 @@ async function getKpis(connection, filters, scope) {
   const [rows] = await connection.query(`SELECT
       COUNT(*) AS visitas,
       SUM(CASE WHEN p.latitud IS NOT NULL AND p.longitud IS NOT NULL THEN 1 ELSE 0 END) AS con_ubicacion,
-      SUM(CASE WHEN YEAR(p.fecha_visita) = YEAR(CURRENT_DATE()) THEN 1 ELSE 0 END) AS este_anio,
+      SUM(CASE
+        WHEN p.fecha_visita >= MAKEDATE(YEAR(CURRENT_DATE()), 1)
+         AND p.fecha_visita < MAKEDATE(YEAR(CURRENT_DATE()) + 1, 1)
+        THEN 1 ELSE 0
+      END) AS este_anio,
       COUNT(DISTINCT NULLIF(TRIM(COALESCE(p.estatus, pe.nombre)), '')) AS estatus_activos
     FROM ventas_prospecciones p
     LEFT JOIN ventas_prospeccion_estatus pe ON pe.id_estatus=p.id_estatus${where}`, params);

@@ -49,8 +49,10 @@ function fillSelect(id,rows,label,valueKey='value',textKey='value'){
   if([...el.options].some(o=>o.value===current))el.value=current;
 }
 
+const CATALOG_CACHE_MS=5*60*1000;
+function catalogRequest(path){return window.ManttoHttp&&typeof window.ManttoHttp.get==='function'?window.ManttoHttp.get(path,{cacheTtlMs:CATALOG_CACHE_MS,cacheKey:'catalog:'+path}):request(path);}
 async function loadCatalogs(){
-  const j=await request('/api/ventas/prospeccion/catalogos');
+  const j=await catalogRequest('/api/ventas/prospeccion/catalogos');
   state.catalogs=j.catalogos||{};
   fillSelect('#vmp-filter-year',state.catalogs.anios||[],'Todos');
   fillSelect('#vmp-filter-status',state.catalogs.estatus||[],'Todos');
@@ -217,7 +219,7 @@ async function init(payload){
   const view=$('#view-ventas-mapa-prospeccion');
   if(!view)return;
   if(!view.dataset.loaded){
-    const r=await fetch('./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.html?v=20260731-map-fix-v008',{cache:'no-store'});
+    const r=await fetch('./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.html?v=20260731-map-fix-v008',{cache:'default'});
     if(!r.ok)throw new Error('No se pudo cargar Mapa Prospección.');
     view.innerHTML=await r.text();
     view.dataset.loaded='1';

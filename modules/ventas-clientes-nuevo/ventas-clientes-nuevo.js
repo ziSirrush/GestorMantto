@@ -25,6 +25,8 @@ async function request(path,options={}){
   return json;
 }
 
+const CATALOG_CACHE_MS=5*60*1000;
+function catalogRequest(path){return window.ManttoHttp&&typeof window.ManttoHttp.get==='function'?window.ManttoHttp.get(path,{cacheTtlMs:CATALOG_CACHE_MS,cacheKey:'catalog:'+path}):request(path);}
 function toast(message,error=false){
   const el=$('#vcln-toast');
   if(!el)return;
@@ -103,8 +105,8 @@ async function loadAssignableAdvisors(){
 async function loadCatalogs(){
   status('Cargando catálogos...');
   const [general,clientes]=await Promise.all([
-    request('/api/catalogo-general'),
-    request('/api/ventas/clientes/catalogos')
+    catalogRequest('/api/catalogo-general'),
+    catalogRequest('/api/ventas/clientes/catalogos')
   ]);
   const rows=Array.isArray(general.articulos)?general.articulos:Array.isArray(general.data)?general.data:[];
   const by=(area,elemento)=>rows.filter(row=>(
@@ -259,7 +261,7 @@ async function mount(payload){
   if(!view)return false;
 
   if(view.dataset.ready!=='1'){
-    const response=await fetch('./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.html?v=20260729-v009',{cache:'no-store'});
+    const response=await fetch('./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.html?v=20260729-v009',{cache:'default'});
     if(!response.ok)throw new Error('No se pudo cargar Nuevo cliente.');
     view.innerHTML=await response.text();
     view.dataset.ready='1';

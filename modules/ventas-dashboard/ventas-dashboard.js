@@ -136,7 +136,7 @@
     const view = document.getElementById('view-ventas-dashboard');
     if (!view) throw new Error('No existe la vista Dashboard Ventas.');
     if (!view.querySelector('.vd-page')) {
-      const response = await fetch(TEMPLATE_URL, { cache: 'no-store' });
+      const response = await fetch(TEMPLATE_URL, { cache: 'default' });
       if (!response.ok) throw new Error('No fue posible cargar la vista Dashboard Ventas.');
       view.innerHTML = await response.text();
     }

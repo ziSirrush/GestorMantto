@@ -336,6 +336,10 @@ async function listReportRows_cor(supervisors, status, currentYear, options = {}
        f.comentarios_fl,
        f.avance_oc,
        f.avance_mo,
+       f.numero_pisos,
+       f.numero_desembarques,
+       f.numero_puertas,
+       f.capacidad_kg,
        f.fecha_cpvp,
        f.estatus_produccion,
        f.fecha_descarga,
@@ -386,7 +390,8 @@ const QUICK_EDIT_COLUMNS_COR = new Set([
   'ajustador',
   'fecha_posible_inicio_ajuste',
   'fecha_inicio_ajuste',
-  'fecha_fin_ajuste_planeado'
+  'fecha_fin_ajuste_planeado',
+  'fecha_fin_ajuste_modificado'
 ]);
 
 async function getReportRowById_cor(idInsFl, executor = db, forUpdate = false) {
@@ -411,6 +416,10 @@ async function getReportRowById_cor(idInsFl, executor = db, forUpdate = false) {
        f.comentarios_fl,
        f.avance_oc,
        f.avance_mo,
+       f.numero_pisos,
+       f.numero_desembarques,
+       f.numero_puertas,
+       f.capacidad_kg,
        f.fecha_cpvp,
        f.estatus_produccion,
        f.fecha_descarga,

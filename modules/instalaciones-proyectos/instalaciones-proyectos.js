@@ -1764,7 +1764,7 @@ async function pyMount(forceReload){
  if(!view)return false;
  if(forceReload) view.dataset.pyReady='0';
  if(view.dataset.pyReady!=='1'){
-   const r=await fetch('./modules/instalaciones-proyectos/instalaciones-proyectos.html?v=20260821-activos-paginados-v004',{cache:'no-store'});
+   const r=await fetch('./modules/instalaciones-proyectos/instalaciones-proyectos.html?v=20260821-activos-paginados-v004',{cache:'default'});
    if(!r.ok)throw new Error('No se pudo cargar Proyectos de Instalación.');
    view.innerHTML=await r.text();
    view.dataset.pyReady='1';

@@ -7,6 +7,8 @@ const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 const fmt=v=>new Intl.NumberFormat('es-MX').format(Number(v||0));
 const headers=(json=false)=>Object.assign({'Accept':'application/json'},json?{'Content-Type':'application/json'}:{},window.ManttoAuth?.authHeaders?.()||{});
 async function req(path,opts={}){const r=await fetch(API+path,Object.assign({cache:'no-store',headers:headers(Boolean(opts.body))},opts));const t=await r.text();let j={};try{j=t?JSON.parse(t):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}if(!r.ok||j.ok===false)throw new Error(j.message||j.error||('Error HTTP '+r.status));return j;}
+const CATALOG_CACHE_MS=5*60*1000;
+function catalogReq(path){return window.ManttoHttp&&typeof window.ManttoHttp.get==='function'?window.ManttoHttp.get(path,{cacheTtlMs:CATALOG_CACHE_MS,cacheKey:'catalog:'+path}):req(path);}
 function toast(m,e=false){const el=$('#vcd-toast');if(!el)return;el.textContent=m;el.className='vcd-toast show'+(e?' error':'');clearTimeout(toast.t);toast.t=setTimeout(()=>el.className='vcd-toast',2800);}
 function val(v){return v||'—';}
 function date(v){if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v).slice(0,10):d.toLocaleDateString('es-MX');}
@@ -71,10 +73,10 @@ async function loadQuotes(){
 }
 async function loadCatalogs(){
   const [general,clientes,asesores,cotizaciones]=await Promise.all([
-    req('/api/catalogo-general'),
-    req('/api/ventas/clientes/catalogos'),
+    catalogReq('/api/catalogo-general'),
+    catalogReq('/api/ventas/clientes/catalogos'),
     req('/api/ventas/clientes/asesores-asignables'),
-    req('/api/ventas/cotizaciones/catalogos')
+    catalogReq('/api/ventas/cotizaciones/catalogos')
   ]);
   const rows=Array.isArray(general.articulos)?general.articulos:Array.isArray(general.data)?general.data:[];
   const by=(area,elemento)=>rows.filter(row=>(!area||String(row.area||'').toLowerCase()===area.toLowerCase())&&String(row.elemento||'').toLowerCase()===elemento.toLowerCase());
@@ -98,6 +100,6 @@ function openContact(id=null){state.editingContact=id?state.contactos.find(x=>Nu
 async function submit(ev){ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());try{if(state.mode!=='client')return;data.estatus_cliente=normalizeUpper(data.estatus_cliente)||null;data.iniciales=normalizeUpper(data.iniciales)||null;delete data.proyecto_vendido;delete data.visualiza;await req('/api/ventas/clientes/'+state.id,{method:'PATCH',body:JSON.stringify(data)});toast('Cliente actualizado.');await loadClient();close();}catch(e){toast(e.message,true);}}
 async function setPrincipal(id){try{await req('/api/ventas/clientes/'+state.id+'/contactos/'+id+'/principal',{method:'PATCH'});toast('Contacto principal actualizado.');await loadContacts();}catch(e){toast(e.message,true);}}
 async function removeContact(id){if(!window.confirm('¿Desactivar este contacto?'))return;try{await req('/api/ventas/clientes/'+state.id+'/contactos/'+id,{method:'DELETE'});toast('Contacto desactivado.');await loadContacts();}catch(e){toast(e.message,true);}}
-async function mount(payload){state.id=Number(payload?.id||payload?.id_cliente);if(!state.id){toast('No se recibió un cliente válido.',true);return;}const view=$('#view-ventas-clientes-detalle');if(view.dataset.ready!=='1'){const r=await fetch('./modules/ventas-clientes-detalle/ventas-clientes-detalle.html?v=20260729-v009',{cache:'no-store'});view.innerHTML=await r.text();view.dataset.ready='1';$('#vcd-refresh').onclick=loadAll;$('#vcd-edit-client').onclick=clientForm;$('#vcd-new-contact').onclick=()=>openContact();$('#vcd-modal-close').onclick=close;$('#vcd-cancel').onclick=close;$('#vcd-form').onsubmit=submit;$('#vcd-year').onchange=()=>{state.year=$('#vcd-year').value||'todos';state.page=1;loadQuotes().catch(e=>toast(e.message,true));};}state.page=1;state.year='todos';await loadAll();}
+async function mount(payload){state.id=Number(payload?.id||payload?.id_cliente);if(!state.id){toast('No se recibió un cliente válido.',true);return;}const view=$('#view-ventas-clientes-detalle');if(view.dataset.ready!=='1'){const r=await fetch('./modules/ventas-clientes-detalle/ventas-clientes-detalle.html?v=20260729-v009',{cache:'default'});view.innerHTML=await r.text();view.dataset.ready='1';$('#vcd-refresh').onclick=loadAll;$('#vcd-edit-client').onclick=clientForm;$('#vcd-new-contact').onclick=()=>openContact();$('#vcd-modal-close').onclick=close;$('#vcd-cancel').onclick=close;$('#vcd-form').onsubmit=submit;$('#vcd-year').onchange=()=>{state.year=$('#vcd-year').value||'todos';state.page=1;loadQuotes().catch(e=>toast(e.message,true));};}state.page=1;state.year='todos';await loadAll();}
 window.ManttoVentasClientesDetalle={init:mount,reload:loadAll};
 })();

@@ -19,7 +19,7 @@ function generatedExpr_cor(alias, field) {
   const normalized = normalizedTextExpr_cor(alias, field);
   return `CASE
     WHEN ${normalized} IS NULL THEN 0
-    WHEN UPPER(${normalized}) IN ('-', 'FALTA', 'FALTA.') THEN 0
+    WHEN UPPER(${normalized}) IN ('-', 'FALTA', 'FALTA.', 'FALTANTE') THEN 0
     ELSE 1
   END`;
 }
