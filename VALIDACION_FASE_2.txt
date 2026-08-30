@@ -1,26 +1,46 @@
-FASE_2_VENTAS_DASHBOARD_PROSPECCION_REDES_V001
+FASE 2 CIERRE OPTIMIZACION DASHBOARD VENTAS V001
 Fecha: 2026-08-30
 
-VALIDACION ESTATICA
-- node --check: OK en todos los JS del paquete.
-- PROSPECCION_COTIZACION_REQUIRED: presente.
-- RELACION_COTIZACION: presente.
-- CAMBIO_ESTATUS Redes: presente en SQL.
-- vd-row-no-status: presente en Dashboard.
-- mapa embebido Prospeccion: presente.
-- lightbox Prospeccion: presente.
-- lightbox Redes: presente.
-- CREATE TABLE en SQL: no utilizado.
-- DELETE de datos en SQL: no utilizado.
-
-PRUEBA MOCK BACKEND
-- NUEVO -> Cotizado sin id_cotizacion: bloqueado con 409.
-- Relacion valida: commit OK.
-- Historial RELACION_COTIZACION: OK.
-- Historial CAMBIO_ESTATUS: OK.
+VALIDACION ESTATICA / CONTRACTUAL
+[OK] node --check modules/ventas-dashboard/ventas-dashboard.js
+[OK] node --check core/module-loader.js
+[OK] fase2_cierre_optimizacion_dashboard_contract.test.js
+[OK] fase2_dashboard_runtime.test.js
+[OK] HTML sin IDs duplicados
+[OK] CSS con llaves balanceadas
+[OK] Responsable default = Todos en cada entrada
+[OK] Seccion default = Todas las secciones en cada entrada
+[OK] Año default = año actual en cada entrada
+[OK] No persistencia de filtro parcial en sessionStorage
+[OK] Orden oficial 1-10
+[OK] Todas resuelve 10 secciones en runtime contractual
+[OK] Seleccion individual resuelve solo una seccion
+[OK] Todos conserva columna Asesor en Cotizaciones
+[OK] Usuario individual oculta Asesor redundante en Cotizaciones
+[OK] Logistica conserva Supervisor(a) + Asesor
+[OK] Logistica conserva 12 subsecciones
+[OK] 31 filas ENTREGADO => pagina 1 de 2 con PAGE_SIZE 30
+[OK] TABLE_PAGE_SIZE = 30
+[OK] Full width + max-width none + box-sizing border-box
+[OK] Eliminado overflow potencial de subsecciones Logistica por margin externo
+[OK] Responsive 4 columnas -> 2 -> 1 en barra de control
+[OK] Selector de usuario se rehabilita con finally ante error
+[OK] Vista previa anterior se limpia al reingresar
+[OK] Cache-bust Fase 2 CSS/JS
+[OK] Proyectos de interes preservado en module-loader
+[OK] Sin SQL
+[OK] Sin cambios backend
+[OK] Sin cambios Aiven
 
 NO EJECUTADO
-- Aiven / SQL vivo.
-- Azure App Service.
-- Netlify.
-- GitHub writes.
+[NO] Navegador autenticado conectado a backend/Aiven
+[NO] E2E real Todos vs usuario individual
+[NO] E2E real de las 10 secciones con datos productivos simultaneos
+[NO] E2E real selector de año/KPI
+[NO] E2E real Logistica 12 subsecciones con datos Aiven
+[NO] GitHub Pages / Netlify
+[NO] Commit / push
+[NO] Azure deploy
+
+CONCLUSION
+La Fase 2 pasa validacion de sintaxis, contrato y runtime aislado. No puedo confirmar el comportamiento visual/E2E real de produccion hasta integrar y probar en navegador contra el backend real.

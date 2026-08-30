@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  const TEMPLATE_URL = './modules/ventas-dashboard/ventas-dashboard.html?v=20260830-fase5-logistica-activos-v001';
+  const TEMPLATE_VERSION = '20260830-fase2-cierre-optimizacion-v001';
+  const TEMPLATE_URL = `./modules/ventas-dashboard/ventas-dashboard.html?v=${TEMPLATE_VERSION}`;
   const STORAGE_KEY = 'mantto:ventas-dashboard:fase1-reacomodo-v001';
   const TABLE_PAGE_SIZE = 30;
   const ALL_USERS_VALUE = 'todos';
@@ -165,11 +166,11 @@
     return Number.isInteger(year) && year >= 1900 && year <= 2200 ? year : currentYear;
   }
 
-  function renderYearOptions(values = []) {
+  function renderYearOptions(values = [], forceCurrent = false) {
     const select = document.getElementById('vd-year-select');
     if (!select) return;
     const currentYear = new Date().getFullYear();
-    const selected = selectedYear();
+    const selected = forceCurrent ? currentYear : selectedYear();
     const years = [...new Set([currentYear, selected, ...(Array.isArray(values) ? values : [])]
       .map(Number)
       .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2200))]
@@ -264,17 +265,58 @@
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
   }
 
+  function selectedSectionValue() {
+    return String(document.getElementById('vd-section-select')?.value || ALL_USERS_VALUE).trim().toLowerCase();
+  }
+
+  function availableFilters() {
+    return Object.entries(defs)
+      .filter(([key]) => !(availableTableKeys instanceof Set) || availableTableKeys.has(key))
+      .map(([key, def]) => def.filter || key);
+  }
+
   function currentState() {
-    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch (_error) { return {}; }
+    return { seccion: selectedSectionValue() };
   }
 
   function selected() {
-    return [...document.querySelectorAll('#vd-check-grid input:not([value="todos"]):checked:not(:disabled)')].map((input) => input.value);
+    const available = availableFilters();
+    const section = selectedSectionValue();
+    if (section === ALL_USERS_VALUE) return available;
+    return available.includes(section) ? [section] : available;
   }
 
   function save() {
-    // El responsable no se persiste: cada apertura del módulo inicia en Todos.
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ modulos: selected() }));
+    // Optimización de información: no persistir filtros parciales entre entradas al módulo.
+    // Cada apertura inicia siempre en Todos + Todas las secciones autorizadas.
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch (_error) {}
+  }
+
+  function renderLoadingState() {
+    const stage = document.getElementById('vd-stage');
+    if (!stage) return;
+    stage.innerHTML = '<div class="vd-empty"><span>📊</span><h2>Cargando Dashboard</h2><p>Se consultará únicamente la información permitida por tu alcance.</p></div>';
+  }
+
+  function resetDashboardDefaults({ clearData = false } = {}) {
+    const userSelect = document.getElementById('vd-user-select');
+    if (userSelect && [...userSelect.options].some((option) => option.value === ALL_USERS_VALUE)) {
+      userSelect.value = ALL_USERS_VALUE;
+    }
+
+    const sectionSelect = document.getElementById('vd-section-select');
+    if (sectionSelect) sectionSelect.value = ALL_USERS_VALUE;
+
+    resetTablePages();
+    save();
+
+    if (clearData) {
+      tableData = {};
+      availableTableKeys = null;
+      kpis(null, new Date().getFullYear());
+      renderLoadingState();
+      msg('');
+    }
   }
 
   function msg(text, type) {
@@ -289,7 +331,9 @@
   async function template() {
     const view = document.getElementById('view-ventas-dashboard');
     if (!view) throw new Error('No existe la vista Dashboard Ventas.');
-    if (!view.querySelector('.vd-page')) {
+    const current = view.querySelector('.vd-page');
+    const currentVersion = current?.dataset?.vdTemplateVersion || '';
+    if (!current || currentVersion !== TEMPLATE_VERSION) {
       const response = await fetch(TEMPLATE_URL, { cache: 'default' });
       if (!response.ok) throw new Error('No fue posible cargar la vista Dashboard Ventas.');
       view.innerHTML = await response.text();
@@ -306,36 +350,32 @@
     select.value = ALL_USERS_VALUE;
   }
 
-  function syncAll() {
-    const all = document.querySelector('#vd-check-grid input[value="todos"]');
-    const items = [...document.querySelectorAll('#vd-check-grid input:not([value="todos"]):not(:disabled)')];
-    if (all) {
-      all.disabled = items.length === 0;
-      all.checked = items.length > 0 && items.every((item) => item.checked);
-    }
-  }
-
   function applyTableAvailability() {
     if (!(availableTableKeys instanceof Set)) return;
-    document.querySelectorAll('#vd-check-grid input:not([value="todos"])').forEach((input) => {
-      const entry = Object.entries(defs).find(([, def]) => (def.filter || '') === input.value);
+    const select = document.getElementById('vd-section-select');
+    if (!select) return;
+
+    const current = selectedSectionValue();
+    let availableCount = 0;
+
+    [...select.options].forEach((option) => {
+      if (option.value === ALL_USERS_VALUE) return;
+      const entry = Object.entries(defs).find(([, def]) => (def.filter || '') === option.value);
       const allowed = Boolean(entry && availableTableKeys.has(entry[0]));
-      input.disabled = !allowed;
-      const label = input.closest('label');
-      if (label) label.hidden = !allowed;
-      if (!allowed) input.checked = false;
+      option.disabled = !allowed;
+      option.hidden = !allowed;
+      if (allowed) availableCount += 1;
     });
-    syncAll();
+
+    const allOption = [...select.options].find((option) => option.value === ALL_USERS_VALUE);
+    if (allOption) allOption.disabled = availableCount === 0;
+
+    const currentOption = [...select.options].find((option) => option.value === current);
+    if (!currentOption || currentOption.disabled) select.value = ALL_USERS_VALUE;
   }
 
   function applyModules() {
-    const modules = currentState().modulos;
-    if (!Array.isArray(modules) || !modules.length) {
-      document.querySelectorAll('#vd-check-grid input').forEach((input) => { input.checked = true; });
-      return;
-    }
-    document.querySelectorAll('#vd-check-grid input:not([value="todos"])').forEach((input) => { input.checked = modules.includes(input.value); });
-    syncAll();
+    resetDashboardDefaults();
   }
 
   function kpis(data, year = selectedYear()) {
@@ -478,7 +518,7 @@
       const table = statusRows.length
         ? `<div class="vd-table-wrap"><table class="vd-table" style="--vd-col-count:${columns.length}"><thead><tr>${columns.map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${pageRows.map((row) => `<tr>${columns.map((header) => logisticsCell(row, header)).join('')}</tr>`).join('')}</tbody></table></div><div class="vd-table-pagination" data-table-key="${esc(pageKey)}"><button type="button" data-page-action="prev" ${page <= 1 ? 'disabled' : ''}>← Anterior</button><span>Página ${page} de ${totalPages} · ${statusRows.length.toLocaleString('es-MX')} registros</span><button type="button" data-page-action="next" ${page >= totalPages ? 'disabled' : ''}>Siguiente →</button></div>`
         : '<div class="vd-table-empty">Sin registros en esta sección.</div>';
-      return `<section class="vd-table-section" style="margin:14px"><div class="vd-table-head"><h2>${esc(label)}</h2><span class="vd-table-count">${statusRows.length.toLocaleString('es-MX')} registros · 30 por página</span></div>${table}</section>`;
+      return `<section class="vd-table-section vd-logistics-subsection"><div class="vd-table-head"><h2>${esc(label)}</h2><span class="vd-table-count">${statusRows.length.toLocaleString('es-MX')} registros · 30 por página</span></div>${table}</section>`;
     }).join('');
   }
 
@@ -521,7 +561,7 @@
     }).map(([key, def]) => {
       const rows = Array.isArray(tableData[key]) ? tableData[key] : [];
       if (key === 'logistica') {
-        return `<section class="vd-table-section" data-dashboard-section="${esc(def.filter || key)}"><div class="vd-table-head"><h2>${esc(def.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros · ${LOGISTICS_PIPELINE_ORDER.length} secciones</span></div>${renderLogisticsTables(rows)}</section>`;
+        return `<section class="vd-table-section vd-logistics-section" data-dashboard-section="${esc(def.filter || key)}"><div class="vd-table-head"><h2>${esc(def.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros · ${LOGISTICS_PIPELINE_ORDER.length} secciones</span></div><div class="vd-logistics-body">${renderLogisticsTables(rows)}</div></section>`;
       }
       const headers = visibleHeaders(def);
       const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
@@ -542,26 +582,6 @@
   }
 
   function summary() {
-    const select = document.getElementById('vd-user-select');
-    const option = select?.selectedOptions?.[0];
-    const modules = selected();
-    const allMode = isAllUsersMode();
-    const selectedUserNode = document.getElementById('vd-selected-user');
-    const selectedMetaNode = document.getElementById('vd-selected-meta');
-    const selectedModulesNode = document.getElementById('vd-selected-modules');
-
-    if (selectedUserNode) selectedUserNode.textContent = allMode ? 'Todos' : (option?.textContent || 'Responsable comercial');
-    if (selectedMetaNode) {
-      selectedMetaNode.textContent = allMode
-        ? 'Asesores, gerentes y Director de Ventas dentro de tu Alcance de Información.'
-        : (option?.dataset.meta || 'Perfil comercial activo');
-    }
-    if (selectedModulesNode) {
-      const availableCount = availableTableKeys instanceof Set ? availableTableKeys.size : Object.keys(defs).length;
-      selectedModulesNode.textContent = modules.length === availableCount && availableCount > 0
-        ? 'Todas las secciones seleccionadas'
-        : modules.length ? modules.join(' · ') : 'Sin secciones seleccionadas';
-    }
     visibility();
     updatePdfActions();
     save();
@@ -650,11 +670,8 @@
     });
     document.getElementById('vd-pdf-general')?.addEventListener('click', () => preparePdf('general'));
     document.getElementById('vd-pdf-individual')?.addEventListener('click', () => preparePdf('individual'));
-    document.getElementById('vd-check-grid')?.addEventListener('change', (event) => {
-      const input = event.target;
-      if (!(input instanceof HTMLInputElement)) return;
-      if (input.value === 'todos') document.querySelectorAll('#vd-check-grid input:not([value="todos"]):not(:disabled)').forEach((item) => { item.checked = input.checked; });
-      else syncAll();
+    document.getElementById('vd-section-select')?.addEventListener('change', () => {
+      resetTablePages();
       summary();
       renderTables(tableData);
     });
@@ -669,23 +686,31 @@
     const select = document.getElementById('vd-user-select');
     if (!select) return;
     select.disabled = true;
-    const response = await req('/api/ventas/dashboard/usuarios');
-    users = Array.isArray(response.usuarios) ? response.usuarios : [];
-    renderUsers();
-    renderYearOptions([]);
-    applyModules();
-    await loadPdfCapabilities();
-    summary();
-    select.disabled = false;
-    resetTablePages();
-    await loadData(true);
-    if (!users.length) msg('Tu alcance actual no contiene responsables comerciales activos.', 'error');
+    try {
+      const response = await req('/api/ventas/dashboard/usuarios');
+      users = Array.isArray(response.usuarios) ? response.usuarios : [];
+      renderUsers();
+      renderYearOptions([], true);
+      applyModules();
+      await loadPdfCapabilities();
+      summary();
+      resetTablePages();
+      await loadData(true);
+      if (!users.length) msg('Tu alcance actual no contiene responsables comerciales activos.', 'error');
+    } finally {
+      select.disabled = false;
+    }
   }
 
   async function init() {
     if (loadingPromise) return loadingPromise;
     loadingPromise = (async () => {
-      try { await template(); bind(); await loadUsers(); }
+      try {
+        await template();
+        resetDashboardDefaults({ clearData: true });
+        bind();
+        await loadUsers();
+      }
       catch (error) { msg(error.message || 'No fue posible iniciar Dashboard Ventas.', 'error'); }
       finally { loadingPromise = null; }
     })();

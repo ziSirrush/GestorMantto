@@ -1,135 +1,458 @@
-.vd-page{display:grid;gap:16px;padding:18px;max-width:1600px;margin:0 auto;color:#102a56}
-.vd-card{background:#fff;border:1px solid #dce5f2;border-radius:18px;box-shadow:0 8px 24px rgba(15,58,120,.06)}
-.vd-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;background:linear-gradient(135deg,#fff 0%,#f4f8ff 100%)}
-.vd-eyebrow{margin:0 0 5px;font-size:10px;font-weight:900;letter-spacing:.13em;color:#2459b8}
-.vd-head h1{margin:0;color:#0d2e6e;font-size:clamp(24px,3vw,36px)}
-.vd-head p:last-child{margin:7px 0 0;color:#64748b;font-size:13px}
-.vd-controls{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:22px;padding:20px 22px}
-.vd-user-field{display:grid;align-content:start;gap:7px}
-.vd-user-field label,.vd-module-filter legend{font-size:11px;font-weight:900;letter-spacing:.05em;color:#0d2e6e}
-.vd-user-field select{width:100%;height:44px;border:1px solid #cbd8ea;border-radius:12px;background:#fff;color:#102a56;padding:0 12px;font-size:13px;font-weight:700;outline:none}
-.vd-user-field select:focus{border-color:#2f67c7;box-shadow:0 0 0 3px rgba(47,103,199,.12)}
-.vd-user-field small{color:#64748b;font-size:11px;line-height:1.45}
-.vd-module-filter{border:0;padding:0;margin:0;min-width:0}
-.vd-module-filter legend{margin-bottom:9px}
-.vd-check-grid{display:flex;flex-wrap:wrap;gap:8px}
-.vd-check{position:relative;display:inline-flex;align-items:center;cursor:pointer}
-.vd-check input{position:absolute;opacity:0;pointer-events:none}
-.vd-check span{display:inline-flex;align-items:center;min-height:36px;padding:0 13px;border:1px solid #d6e0ee;border-radius:999px;background:#f8fafc;color:#334155;font-size:12px;font-weight:800;transition:.18s ease}
-.vd-check input:checked+span{background:#e8f0ff;border-color:#8eb1ef;color:#12479f;box-shadow:inset 0 0 0 1px rgba(36,89,184,.08)}
-.vd-check-all span{background:#eef4ff}
-.vd-summary{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px}
-.vd-summary-label{margin:0 0 3px;color:#64748b;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
-.vd-summary h2{margin:0;color:#0d2e6e;font-size:20px}
-.vd-summary p:last-child{margin:5px 0 0;color:#64748b;font-size:12px}
-.vd-selected-modules{max-width:45%;padding:9px 12px;border-radius:12px;background:#f1f5f9;color:#475569;font-size:11px;font-weight:800;text-align:right}
-.vd-stage{min-height:300px;border:1px dashed #c9d6e8;border-radius:18px;background:rgba(255,255,255,.65);display:grid;place-items:center;padding:26px}
-.vd-empty{text-align:center;max-width:560px;color:#64748b}
-.vd-empty span{display:block;font-size:42px;margin-bottom:8px}
-.vd-empty h2{margin:0;color:#0d2e6e;font-size:22px}
-.vd-empty p{margin:8px 0 0;font-size:13px;line-height:1.55}
-.vd-message{min-height:18px;padding:0 4px;font-size:12px;font-weight:700;color:#64748b}
-.vd-message.is-error{color:#b42318}.vd-message.is-ok{color:#166534}
-@media(max-width:900px){.vd-page{padding:12px}.vd-controls{grid-template-columns:1fr}.vd-summary{align-items:flex-start;flex-direction:column}.vd-selected-modules{max-width:none;width:100%;text-align:left}}
-@media(max-width:560px){.vd-head,.vd-controls,.vd-summary{padding:16px}.vd-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.vd-check span{width:100%;justify-content:center}.vd-stage{min-height:240px;padding:18px}}
+/* [Aster | 2026-08-30 | ASTER-MG | FASE 2 CIERRE OPTIMIZACION DASHBOARD VENTAS]
+   Objetivos visuales:
+   - ocupar el 100% del ancho util del Gestor;
+   - concentrar filtros en una barra horizontal;
+   - usar una lista unica para el orden oficial 1-10;
+   - conservar tablas 30x30 y scroll horizontal cuando sea necesario. */
 
-/* Fase A2: indicadores comerciales */
-.vd-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+#view-ventas-dashboard{
+  width:100%;
+  max-width:none!important;
+  min-height:100%;
+  padding:14px;
+  background:#f4f7fb;
+  box-sizing:border-box;
 }
 
-.vd-kpi {
-  background: var(--surface, #fff);
-  border: 1px solid var(--border-color, #dfe5ec);
-  border-radius: 16px;
-  padding: 20px;
-  min-height: 168px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+#view-ventas-dashboard *,
+#view-ventas-dashboard *::before,
+#view-ventas-dashboard *::after{
+  box-sizing:border-box;
 }
 
-.vd-kpi[hidden] { display: none; }
-
-.vd-kpi-title {
-  margin: 0 0 12px;
-  font-size: .86rem;
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: #475569;
+.vd-page{
+  display:grid;
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding:0;
+  gap:14px;
+  color:#102a56;
 }
 
-.vd-kpi > strong {
-  font-size: clamp(2rem, 5vw, 3.25rem);
-  line-height: 1;
-  color: #0f172a;
+.vd-card{
+  background:#fff;
+  border:1px solid #dce5f2;
+  border-radius:16px;
+  box-shadow:0 8px 24px rgba(15,58,120,.06);
 }
 
-.vd-kpi > span {
-  margin-top: 6px;
-  color: #64748b;
-  font-size: .9rem;
+.vd-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:92px;
+  padding:18px 22px;
+  background:linear-gradient(135deg,#fff 0%,#f4f8ff 100%);
 }
 
-.vd-kpi-secondary {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
-  color: #475569;
+.vd-eyebrow{
+  margin:0 0 4px;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.13em;
+  color:#2459b8;
 }
 
-.vd-kpi-secondary b {
-  color: #0f172a;
-  font-size: 1.15rem;
+.vd-head h1{
+  margin:0;
+  color:#0d2e6e;
+  font-size:clamp(24px,2.5vw,34px);
 }
 
-@media (max-width: 900px) {
-  .vd-kpis { grid-template-columns: 1fr; }
-  .vd-kpi { min-height: 142px; }
-}
-.vd-table-section{margin:0 0 18px;background:#fff;border:1px solid #dbe4ee;border-radius:16px;overflow:hidden}.vd-table-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px 18px;border-bottom:1px solid #e7edf4}.vd-table-head h2{margin:0;font-size:1.05rem}.vd-table-count{font-size:.82rem;color:#64748b}.vd-table-wrap{overflow:auto}.vd-table{width:100%;border-collapse:collapse;min-width:760px}.vd-table th,.vd-table td{padding:11px 14px;text-align:left;border-bottom:1px solid #eef2f7;font-size:.86rem;vertical-align:top}.vd-table th{background:#f8fafc;color:#475569;font-weight:700;white-space:nowrap}.vd-table tbody tr:hover{background:#f8fbff}.vd-table-empty{padding:24px;text-align:center;color:#64748b}.vd-stage{display:block}.vd-section-hidden{display:none!important}
-
-/* Dashboard Ventas A3/A4: tablas de tamaño útil, responsive y paginadas a 30 registros */
-.vd-stage{width:100%;min-width:0;padding:0;background:transparent;border:0}
-.vd-table-section{width:100%;min-width:0}
-.vd-table-wrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-.vd-table{width:100%;min-width:max(100%,calc(var(--vd-col-count,6) * 145px));table-layout:auto}
-.vd-table th,.vd-table td{min-width:120px;max-width:280px;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
-.vd-table th:first-child,.vd-table td:first-child{min-width:170px}
-.vd-table-pagination{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;padding:12px 16px;background:#f8fafc;border-top:1px solid #e2e8f0}
-.vd-table-pagination button{min-width:30px;min-height:30px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;color:#0d2e6e;font-size:12px;font-weight:800;padding:0 10px;cursor:pointer}
-.vd-table-pagination button:disabled{opacity:.4;cursor:default}
-.vd-table-pagination span{min-width:120px;text-align:center;font-size:12px;color:#64748b}
-@media(max-width:760px){
-  .vd-page{width:100%;max-width:100%;overflow-x:hidden}
-  .vd-table-head{align-items:flex-start;flex-direction:column}
-  .vd-table-wrap{border-top:1px solid #eef2f7}
-  .vd-table{min-width:max(760px,calc(var(--vd-col-count,6) * 135px))}
-  .vd-table th,.vd-table td{padding:10px 12px;font-size:12px}
+.vd-head p:last-child{
+  margin:6px 0 0;
+  color:#64748b;
+  font-size:13px;
 }
 
-/* FIX tablas espejo de módulos fuente */
-.vd-clickable-row{cursor:pointer}.vd-clickable-row:focus{outline:2px solid #2f67c7;outline-offset:-2px}.vd-cell-sub{display:block;margin-top:3px;color:#64748b;font-size:10px}.vd-number{text-align:center!important;font-variant-numeric:tabular-nums}
+/* Barra de optimizacion: Responsable + Año + Seccion + Accion */
+.vd-controls{
+  display:grid;
+  grid-template-columns:minmax(250px,1.15fr) minmax(160px,.55fr) minmax(250px,1fr) minmax(190px,auto);
+  gap:14px;
+  align-items:end;
+  padding:14px 16px;
+}
 
-/* Fase B1: controles de generación PDF sujetos a permisos */
-.vd-pdf-action{display:grid;gap:7px;min-width:210px}
+.vd-user-field{
+  display:grid;
+  align-content:end;
+  gap:5px;
+  min-width:0;
+}
+
+.vd-user-field label{
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  color:#0d2e6e;
+}
+
+.vd-user-field select{
+  width:100%;
+  height:42px;
+  border:1px solid #cbd8ea;
+  border-radius:10px;
+  background:#fff;
+  color:#102a56;
+  padding:0 11px;
+  font-size:13px;
+  font-weight:750;
+  outline:none;
+}
+
+.vd-user-field select:focus{
+  border-color:#2f67c7;
+  box-shadow:0 0 0 3px rgba(47,103,199,.12);
+}
+
+.vd-user-field select option:disabled{
+  color:#94a3b8;
+}
+
+.vd-user-field small{
+  min-height:30px;
+  color:#64748b;
+  font-size:10px;
+  line-height:1.35;
+}
+
+.vd-control-actions{
+  display:flex;
+  align-items:flex-end;
+  justify-content:flex-end;
+  min-width:0;
+  min-height:72px;
+}
+
+/* KPI comerciales */
+.vd-kpis{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+
+.vd-kpi{
+  background:#fff;
+  border:1px solid #dfe5ec;
+  border-radius:15px;
+  padding:16px 18px;
+  min-height:138px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  box-shadow:0 7px 22px rgba(15,23,42,.055);
+}
+
+.vd-kpi[hidden]{display:none!important}
+
+.vd-kpi-title{
+  margin:0 0 9px;
+  font-size:.78rem;
+  font-weight:850;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+  color:#475569;
+}
+
+.vd-kpi>strong{
+  font-size:clamp(1.8rem,3.2vw,2.8rem);
+  line-height:1;
+  color:#0f172a;
+}
+
+.vd-kpi>span{
+  margin-top:5px;
+  color:#64748b;
+  font-size:.82rem;
+}
+
+.vd-kpi-secondary{
+  margin-top:13px;
+  padding-top:11px;
+  border-top:1px solid #e2e8f0;
+  color:#475569;
+  font-size:.82rem;
+}
+
+.vd-kpi-secondary b{
+  color:#0f172a;
+  font-size:1.05rem;
+}
+
+/* Contenedor principal y tablas */
+.vd-stage{
+  display:block;
+  width:100%;
+  min-width:0;
+  min-height:260px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+
+.vd-empty{
+  width:100%;
+  padding:36px 20px;
+  border:1px dashed #c9d6e8;
+  border-radius:16px;
+  background:rgba(255,255,255,.72);
+  text-align:center;
+  color:#64748b;
+}
+
+.vd-empty span{
+  display:block;
+  margin-bottom:7px;
+  font-size:38px;
+}
+
+.vd-empty h2{
+  margin:0;
+  color:#0d2e6e;
+  font-size:20px;
+}
+
+.vd-empty p{
+  margin:7px 0 0;
+  font-size:12px;
+  line-height:1.5;
+}
+
+.vd-table-section{
+  width:100%;
+  min-width:0;
+  margin:0 0 14px;
+  overflow:hidden;
+  background:#fff;
+  border:1px solid #dbe4ee;
+  border-radius:14px;
+  box-shadow:0 5px 16px rgba(15,58,120,.035);
+}
+
+.vd-table-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  padding:13px 16px;
+  border-bottom:1px solid #e7edf4;
+}
+
+.vd-table-head h2{
+  margin:0;
+  font-size:1rem;
+  color:#173567;
+}
+
+.vd-table-count{
+  font-size:.78rem;
+  color:#64748b;
+  white-space:nowrap;
+}
+
+.vd-table-wrap{
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+
+.vd-table{
+  width:100%;
+  min-width:max(100%,calc(var(--vd-col-count,6) * 135px));
+  border-collapse:collapse;
+  table-layout:auto;
+}
+
+.vd-table th,
+.vd-table td{
+  min-width:115px;
+  max-width:280px;
+  padding:10px 12px;
+  border-bottom:1px solid #eef2f7;
+  text-align:left;
+  vertical-align:top;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.32;
+  font-size:.82rem;
+}
+
+.vd-table th{
+  background:#f8fafc;
+  color:#475569;
+  font-size:.76rem;
+  font-weight:750;
+  white-space:nowrap;
+}
+
+.vd-table th:first-child,
+.vd-table td:first-child{
+  min-width:165px;
+}
+
+.vd-table tbody tr:hover{
+  background:#f8fbff;
+}
+
+.vd-table tbody tr:last-child td{
+  border-bottom:0;
+}
+
+.vd-table-empty{
+  padding:24px;
+  text-align:center;
+  color:#64748b;
+  font-size:12px;
+}
+
+.vd-table-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:10px;
+  padding:10px 14px;
+  background:#f8fafc;
+  border-top:1px solid #e2e8f0;
+}
+
+.vd-table-pagination button{
+  min-width:30px;
+  min-height:30px;
+  border:1px solid #cbd5e1;
+  background:#fff;
+  border-radius:8px;
+  color:#0d2e6e;
+  font-size:11px;
+  font-weight:800;
+  padding:0 10px;
+  cursor:pointer;
+}
+
+.vd-table-pagination button:disabled{
+  opacity:.4;
+  cursor:default;
+}
+
+.vd-table-pagination span{
+  min-width:120px;
+  text-align:center;
+  font-size:11px;
+  color:#64748b;
+}
+
+.vd-section-hidden{display:none!important}
+.vd-logistics-section{overflow:hidden}
+.vd-logistics-body{display:grid;width:100%;min-width:0;gap:12px;padding:12px;background:#f8fafc}
+.vd-logistics-subsection{width:100%;min-width:0;margin:0;box-shadow:none;background:#fff}
+.vd-logistics-subsection:last-child{margin-bottom:0}
+.vd-clickable-row{cursor:pointer}
+.vd-clickable-row:focus{outline:2px solid #2f67c7;outline-offset:-2px}
+.vd-cell-sub{display:block;margin-top:3px;color:#64748b;font-size:10px}
+.vd-number{text-align:center!important;font-variant-numeric:tabular-nums}
+.vd-row-no-status{background:#fff7ed}
+.vd-row-missing-client{background:#fffbeb}
+.vd-row-client-no-project{background:#fff7ed}
+
+.vd-message{
+  min-height:18px;
+  padding:0 4px;
+  font-size:12px;
+  font-weight:700;
+  color:#64748b;
+}
+
+.vd-message.is-error{color:#b42318}
+.vd-message.is-ok{color:#166534}
+
+/* PDF sujeto a capacidades del backend */
+.vd-pdf-action{
+  display:grid;
+  width:100%;
+  min-width:185px;
+  gap:6px;
+}
+
 .vd-pdf-action[hidden]{display:none!important}
-.vd-pdf-btn{min-height:44px;border:0;border-radius:13px;padding:0 18px;color:#fff;font-size:12px;font-weight:900;letter-spacing:.02em;cursor:pointer;box-shadow:0 8px 20px rgba(15,46,110,.18);transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease}
-.vd-pdf-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 11px 24px rgba(15,46,110,.24)}
-.vd-pdf-btn:focus-visible{outline:3px solid rgba(47,103,199,.28);outline-offset:2px}
+
+.vd-pdf-btn{
+  width:100%;
+  min-height:42px;
+  border:0;
+  border-radius:10px;
+  padding:0 15px;
+  color:#fff;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.02em;
+  cursor:pointer;
+  box-shadow:0 7px 18px rgba(15,46,110,.17);
+  transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease;
+}
+
+.vd-pdf-btn:hover:not(:disabled){
+  transform:translateY(-1px);
+  box-shadow:0 10px 22px rgba(15,46,110,.23);
+}
+
+.vd-pdf-btn:focus-visible{
+  outline:3px solid rgba(47,103,199,.28);
+  outline-offset:2px;
+}
+
 .vd-pdf-btn:disabled{cursor:wait;opacity:.72}
 .vd-pdf-btn-general{background:linear-gradient(135deg,#0d2e6e,#1e4f9a)}
 .vd-pdf-btn-individual{background:linear-gradient(135deg,#2f67c7,#1e4f9a)}
-.vd-pdf-action-individual{margin-top:4px;max-width:260px}
-.vd-pdf-progress{height:4px;overflow:hidden;border-radius:999px;background:#dbe7f4}
+.vd-pdf-progress{height:4px;overflow:hidden;border-radius:999px;background:#dbe7f4;color:#2f67c7}
 .vd-pdf-progress[hidden]{display:none!important}
 .vd-pdf-progress span{display:block;width:42%;height:100%;border-radius:inherit;background:currentColor;animation:vd-pdf-progress 1s ease-in-out infinite}
-.vd-pdf-action-general .vd-pdf-progress{color:#2f67c7}
-.vd-pdf-action-individual .vd-pdf-progress{color:#2f67c7}
-@keyframes vd-pdf-progress{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
-@media(max-width:900px){.vd-head{align-items:flex-start;gap:16px;flex-direction:column}.vd-pdf-action-general{width:100%}.vd-pdf-action-individual{max-width:none;width:100%}.vd-pdf-btn{width:100%}}
-@media(prefers-reduced-motion:reduce){.vd-pdf-progress span{animation:none;width:100%}.vd-pdf-btn{transition:none}}
+
+@keyframes vd-pdf-progress{
+  0%{transform:translateX(-120%)}
+  100%{transform:translateX(340%)}
+}
+
+@media(max-width:1180px){
+  .vd-controls{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .vd-control-actions{
+    justify-content:stretch;
+    min-height:0;
+  }
+  .vd-pdf-action{min-width:0}
+}
+
+@media(max-width:820px){
+  #view-ventas-dashboard{padding:10px}
+  .vd-page{gap:10px}
+  .vd-head{min-height:0;padding:16px 18px}
+  .vd-controls{grid-template-columns:1fr;padding:13px}
+  .vd-user-field small{min-height:0}
+  .vd-control-actions{width:100%}
+  .vd-kpis{grid-template-columns:1fr}
+  .vd-kpi{min-height:120px}
+  .vd-table-head{align-items:flex-start;flex-direction:column}
+  .vd-table-count{white-space:normal}
+  .vd-logistics-body{gap:9px;padding:9px}
+  .vd-table-wrap{border-top:1px solid #eef2f7}
+  .vd-table{min-width:max(720px,calc(var(--vd-col-count,6) * 130px))}
+  .vd-table th,.vd-table td{padding:9px 11px;font-size:12px}
+}
+
+@media(max-width:520px){
+  .vd-head h1{font-size:24px}
+  .vd-table-pagination{gap:7px;padding:9px}
+  .vd-table-pagination span{width:100%;order:-1}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .vd-pdf-progress span{animation:none;width:100%}
+  .vd-pdf-btn{transition:none}
+}

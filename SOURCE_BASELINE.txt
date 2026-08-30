@@ -1,0 +1,18 @@
+FASE 2 CIERRE OPTIMIZACION DASHBOARD VENTAS V001
+Fecha: 2026-08-30
+
+GITHUB MAIN VERIFICADO (baseline previo a optimizacion F1)
+modules/ventas-dashboard/ventas-dashboard.html  084f514b9d342f0d0acdd3d9843a89d23f987801
+modules/ventas-dashboard/ventas-dashboard.css   e3e301e142b7b353d7d835f315f630a617476036
+modules/ventas-dashboard/ventas-dashboard.js    8ac8c58875e7fa681bebbae1396310fd395a4702
+core/module-loader.js                            bdb70a8d7063b614964db4f43f9ace946066421f
+
+BASELINE LOCAL FASE 1 USADO POR FASE 2
+modules/ventas-dashboard/ventas-dashboard.html  8ecdde55c53ff110df1f54ac9eb8a93ffb54d184
+modules/ventas-dashboard/ventas-dashboard.css   92ba30416e7f427a1430f3d6dd71b7c365c6fa48
+modules/ventas-dashboard/ventas-dashboard.js    161ce3a3987bb499d52e5b2b08ddaca9f29fb61f
+core/module-loader.js                            26596db0614abc6a98270491109cfacf0a6c0717
+
+BACKEND SOLO VERIFICADO, NO MODIFICADO
+backend/src/modules/ventas-dashboard/ventas-dashboard.service.js
+GitHub main blob: 07d4f7a63e12c4228f5d85c4f529182497fea676
