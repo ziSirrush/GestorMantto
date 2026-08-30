@@ -1,4 +1,8 @@
+// [Aster | 2026-08-30 | ASTER-MG | FASE 4 DASHBOARD VENTAS: sync Clientes idempotente]
+'use strict';
+
 const service = require('./ventas-clientes.service');
+const syncF4Service = require('./ventas-clientes-sync-f4.service');
 
 function sendKnownError(error, res, next) {
   if (error.statusCode) {
@@ -22,7 +26,7 @@ function buildActionContext(req) {
 }
 
 async function syncClientes(req, res, next) {
-  try { return res.status(200).json(await service.sync(req.body || {})); }
+  try { return res.status(200).json(await syncF4Service.sync(req.body || {})); }
   catch (error) { return sendKnownError(error, res, next); }
 }
 async function listClientes(req, res, next) {

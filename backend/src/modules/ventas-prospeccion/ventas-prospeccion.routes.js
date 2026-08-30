@@ -1,4 +1,4 @@
-// [Aster | 2026-08-19 | ASTER-MG | FASE 1 VENTAS: Guard General y permisos funcionales]
+// [Aster | 2026-08-30 | ASTER-MG | FASE 2 VENTAS DASHBOARD: Prospeccion + Redes]
 const express = require('express');
 const controller = require('./ventas-prospeccion.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
@@ -43,6 +43,7 @@ const PROSPECCION_VISUAL_PERMISSION = 'VENTAS_PROSPECCION_ACCESO_VISUAL_MODULO.A
 const MAPA_VISUAL_PERMISSION = 'VENTAS_MAPA_PROSPECCION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const MAPA_MARKERS_PERMISSION = 'VENTAS_MAPA_PROSPECCION_MAPA_VISITAS_MARCADORES.VER';
 const MAPA_OPEN_DETAIL_PERMISSION = 'VENTAS_MAPA_PROSPECCION_MAPA_VISITAS_MARCADORES.ABRIR_DETALLE';
+const PROSPECCION_STATUS_PERMISSION = 'VENTAS_PROSPECCION_TABLA_VISITAS_DETALLE_PROSPECCION.CAMBIAR_ESTADO';
 
 router.post('/prospeccion/sync', requireVentasHistoricalIntegration, controller.syncProspections);
 router.post('/prospeccion/comentarios/sync', requireVentasHistoricalIntegration, controller.syncComments);
@@ -58,7 +59,6 @@ router.post(
   controller.createVisit
 );
 
-// Este catálogo también lo consume Mapa Prospección.
 router.get('/prospeccion/catalogos', ...prospeccionGuard([
   PROSPECCION_VISUAL_PERMISSION,
   MAPA_VISUAL_PERMISSION
@@ -70,7 +70,8 @@ router.get('/prospeccion/detalle/catalogos', ...prospeccionGuard([
   'VENTAS_PROSPECCION_TABLA_VISITAS_DETALLE_PROSPECCION.VER',
   MAPA_OPEN_DETAIL_PERMISSION
 ]), controller.getDetailCatalogs);
-router.patch('/prospeccion/:id/estatus', ...prospeccionGuard('VENTAS_PROSPECCION_TABLA_VISITAS_DETALLE_PROSPECCION.CAMBIAR_ESTADO'), controller.updateProspectionStatus);
+router.patch('/prospeccion/:id/estatus', ...prospeccionGuard(PROSPECCION_STATUS_PERMISSION), controller.updateProspectionStatus);
+router.patch('/prospeccion/:id/cotizacion', ...prospeccionGuard(PROSPECCION_STATUS_PERMISSION), controller.linkQuotationAndSetQuoted);
 router.post(
   '/prospeccion/:id/comentarios',
   ...prospeccionGuard('VENTAS_PROSPECCION_TABLA_VISITAS_DETALLE_PROSPECCION.AGREGAR_COMENTARIO'),

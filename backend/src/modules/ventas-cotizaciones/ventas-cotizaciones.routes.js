@@ -1,8 +1,11 @@
 // [Aster | 2026-08-19 | ASTER-MG | FASE 1 VENTAS: Guard General y permisos funcionales]
+// [Aster | 2026-08-30 | ASTER-MG | FASE 3 DASHBOARD VENTAS: Proyecto de interés personal]
+// [Aster | 2026-08-30 | ASTER-MG | FASE 6 VENTAS: Sección personal Proyectos de interés]
 'use strict';
 
 const express = require('express');
 const controller = require('./ventas-cotizaciones.controller');
+const interestController = require('./ventas-cotizaciones-interes.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
@@ -52,7 +55,6 @@ const COTIZACIONES_DETAIL_ACCESS = Object.freeze([
 router.post('/cotizaciones/sync', requireVentasHistoricalIntegration, controller.syncCotizaciones);
 router.post('/cotizaciones/comentarios/sync', requireVentasHistoricalIntegration, controller.syncComentariosHistoricos);
 
-// Catálogos compartidos por Cotizaciones, Vendidos, Perdidos y Proyección.
 router.get('/cotizaciones/catalogos', ...ventasGuard([
   COTIZACIONES_VISUAL,
   VENDIDOS_VISUAL,
@@ -68,6 +70,7 @@ router.get('/cotizaciones/embudo', ...ventasGuard([
 router.get('/cotizaciones/vendidos', ...ventasGuard('VENTAS_VENDIDOS_TABLA_COTIZACIONES_VENDIDAS_LISTADO.VER'), controller.getVendidos);
 router.get('/cotizaciones/perdidos', ...ventasGuard('VENTAS_PERDIDOS_TABLA_COTIZACIONES_PERDIDAS_LISTADO.VER'), controller.getPerdidos);
 router.get('/cotizaciones/proyeccion', ...ventasGuard('VENTAS_PROYECCION_TABLA_COTIZACIONES_POR_ESTATUS_LISTADO.VER'), controller.getProyeccion);
+router.get('/cotizaciones/proyectos-interes', ...ventasGuard('VENTAS_COTIZACIONES_TABLA_COTIZACIONES_LISTADO_COTIZACIONES.VER'), interestController.listProjectInterests);
 router.get('/cotizaciones', ...ventasGuard('VENTAS_COTIZACIONES_TABLA_COTIZACIONES_LISTADO_COTIZACIONES.VER'), controller.listCotizaciones);
 
 router.get(
@@ -147,6 +150,11 @@ router.get(
   ...ventasGuard('VENTAS_COTIZACIONES_TABLA_COTIZACIONES_EDITAR_COTIZACION.EDITAR'),
   controller.getEditBootstrap
 );
+
+// Estado personal del usuario autenticado. No modifica la cotización ni su estatus.
+router.get('/cotizaciones/:id/interes', ...ventasGuard(COTIZACIONES_DETAIL_ACCESS), interestController.getProjectInterest);
+router.put('/cotizaciones/:id/interes', ...ventasGuard(COTIZACIONES_DETAIL_ACCESS), interestController.setProjectInterest);
+
 router.get('/cotizaciones/:id', ...ventasGuard(COTIZACIONES_DETAIL_ACCESS), controller.getCotizacion);
 router.post('/cotizaciones', ...ventasGuard('VENTAS_COTIZACIONES_TABLA_COTIZACIONES_NUEVA_COTIZACION.CREAR'), controller.createCotizacion);
 router.put('/cotizaciones/:id', ...ventasGuard('VENTAS_COTIZACIONES_TABLA_COTIZACIONES_EDITAR_COTIZACION.EDITAR'), controller.updateCotizacion);

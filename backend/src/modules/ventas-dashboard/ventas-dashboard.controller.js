@@ -23,6 +23,12 @@ function targetUserId(value) {
   return id;
 }
 
+function requestedTargetUserId(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw || raw === 'todos' || raw === 'all') return null;
+  return targetUserId(raw);
+}
+
 function scopeAllowsUser(scope, userId) {
   if (!scope || scope.mode === 'ALL') return true;
   const ids = Array.isArray(scope.advisorIds) ? scope.advisorIds : [];
@@ -33,13 +39,24 @@ async function resolveScope(req) {
   return ventasVisibility.resolveVisibilityScope(db, buildActionContext(req));
 }
 
-async function requireTargetInScope(req) {
-  const userId = targetUserId(req.query?.usuario_id);
+async function resolveDashboardTarget(req) {
+  const userId = requestedTargetUserId(req.query?.usuario_id);
   const scope = await resolveScope(req);
-  if (!scopeAllowsUser(scope, userId)) {
+  if (userId && !scopeAllowsUser(scope, userId)) {
     const error = new Error('El responsable seleccionado queda fuera de tu Alcance de Información de Ventas.');
     error.status = 403;
     error.statusCode = 403;
+    throw error;
+  }
+  return { userId, scope };
+}
+
+async function requireTargetInScope(req) {
+  const { userId, scope } = await resolveDashboardTarget(req);
+  if (!userId) {
+    const error = new Error('usuario_id es requerido para esta operación individual.');
+    error.status = 400;
+    error.statusCode = 400;
     throw error;
   }
   return { userId, scope };
@@ -55,8 +72,11 @@ async function listCommercialUsers(req, res, next) {
 
 async function getCommercialKpis(req, res, next) {
   try {
-    const { userId } = await requireTargetInScope(req);
-    return res.status(200).json(await service.getCommercialKpis({ ...req.query, usuario_id: userId }));
+    const target = await resolveDashboardTarget(req);
+    return res.status(200).json(await service.getCommercialKpis(
+      { ...req.query, usuario_id: target.userId || 'todos' },
+      { scope: target.scope, actionContext: buildActionContext(req) }
+    ));
   } catch (error) {
     return next(error);
   }
@@ -64,8 +84,15 @@ async function getCommercialKpis(req, res, next) {
 
 async function getCommercialTables(req, res, next) {
   try {
-    const { userId } = await requireTargetInScope(req);
-    return res.status(200).json(await service.getCommercialTables({ ...req.query, usuario_id: userId }));
+    const target = await resolveDashboardTarget(req);
+    return res.status(200).json(await service.getCommercialTables(
+      { ...req.query, usuario_id: target.userId || 'todos' },
+      {
+        scope: target.scope,
+        actionContext: buildActionContext(req),
+        allowedTableKeys: req.dashboardTablePermissions?.commercial || []
+      }
+    ));
   } catch (error) {
     return next(error);
   }
@@ -73,8 +100,15 @@ async function getCommercialTables(req, res, next) {
 
 async function getOperationalTables(req, res, next) {
   try {
-    const { userId } = await requireTargetInScope(req);
-    return res.status(200).json(await service.getOperationalTables({ ...req.query, usuario_id: userId }));
+    const target = await resolveDashboardTarget(req);
+    return res.status(200).json(await service.getOperationalTables(
+      { ...req.query, usuario_id: target.userId || 'todos' },
+      {
+        scope: target.scope,
+        actionContext: buildActionContext(req),
+        allowedTableKeys: req.dashboardTablePermissions?.operational || []
+      }
+    ));
   } catch (error) {
     return next(error);
   }

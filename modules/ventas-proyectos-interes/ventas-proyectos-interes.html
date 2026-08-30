@@ -1,0 +1,51 @@
+<div class="vpi-page" id="vpi-page">
+  <section class="vpi-head vpi-card">
+    <div>
+      <p class="vpi-eyebrow">Ventas · Lista personal</p>
+      <h1>Proyectos de interés</h1>
+      <p>Las cotizaciones que marcaste como Proyecto de interés desde su detalle. Esta lista es personal y respeta tu alcance comercial.</p>
+    </div>
+    <button class="vpi-btn" id="vpi-refresh" type="button">↻ Actualizar</button>
+  </section>
+
+  <section class="vpi-summary">
+    <article class="vpi-kpi vpi-card">
+      <span>Proyectos marcados</span>
+      <strong id="vpi-total">0</strong>
+      <small>Solo tus marcados activos y todavía visibles para tu usuario.</small>
+    </article>
+    <article class="vpi-help vpi-card">
+      <strong>¿Cómo agregar o quitar proyectos?</strong>
+      <span>Abre el detalle de una cotización y usa el check “Proyecto de interés”.</span>
+    </article>
+  </section>
+
+  <section class="vpi-workspace vpi-card">
+    <div class="vpi-toolbar">
+      <label class="vpi-search">
+        <span>Buscar</span>
+        <input id="vpi-search" type="search" autocomplete="off" placeholder="Proyecto, cliente, estatus, asesor, ciudad o ID...">
+      </label>
+      <div class="vpi-status" id="vpi-status" aria-live="polite">Listo para consultar.</div>
+    </div>
+
+    <div class="vpi-table-wrap">
+      <table class="vpi-table">
+        <thead>
+          <tr>
+            <th>Proyecto</th>
+            <th>Cliente</th>
+            <th>Estatus</th>
+            <th>Equipos</th>
+            <th>Fecha cotización</th>
+            <th>Marcado</th>
+            <th>Ciudad / Estado</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="vpi-body"></tbody>
+      </table>
+    </div>
+    <div class="vpi-pagination" id="vpi-pagination"></div>
+  </section>
+</div>

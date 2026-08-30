@@ -18,6 +18,18 @@ function normalize(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeDashboardYear(value) {
+  const currentYear = new Date().getFullYear();
+  if (value === undefined || value === null || String(value).trim() === '') return currentYear;
+  const year = Number(value);
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    const error = new Error('anio debe ser un entero entre 1900 y 2200.');
+    error.status = 400;
+    throw error;
+  }
+  return year;
+}
+
 function normalizeVisibleUserIds(values) {
   return [...new Set((Array.isArray(values) ? values : [])
     .map(Number)
@@ -38,71 +50,64 @@ function dashboardUserDto(row) {
     puesto: row.puesto || null,
     area: row.area || null,
     empresa: row.empresa || null,
-    tipo_perfil: row.puesto || row.area || null
+    tipo_perfil: row.tipo_perfil || row.puesto || row.area || null
   };
 }
 
 async function listDashboardUsersForScope(scope) {
-  if (scope?.mode === 'ALL') {
-    const [rows] = await db.query(
-      `SELECT
-         u.id_SB AS id_usuario,
-         u.nombre,
-         u.iniciales,
-         u.puesto,
-         u.area,
-         u.empresa
-       FROM usuarios u
-       WHERE u.estado = 1
-         AND UPPER(TRIM(COALESCE(u.area, ''))) = 'VENTAS'
-         AND UPPER(TRIM(COALESCE(u.empresa, ''))) LIKE '%CORELLIAN%'
-       ORDER BY u.nombre ASC, u.id_SB ASC`
-    );
-    return rows.map(dashboardUserDto);
-  }
+  const rows = await repository.listCommercialUsers(db);
+  const allowedIds = scope?.mode === 'ALL'
+    ? null
+    : new Set(normalizeVisibleUserIds(scope?.advisorIds));
 
-  const ids = normalizeVisibleUserIds(scope?.advisorIds);
-  if (!ids.length) return [];
-
-  const [rows] = await db.query(
-    `SELECT
-       u.id_SB AS id_usuario,
-       u.nombre,
-       u.iniciales,
-       u.puesto,
-       u.area,
-       u.empresa
-     FROM usuarios u
-     WHERE u.estado = 1
-       AND u.id_SB IN (?)
-       AND UPPER(TRIM(COALESCE(u.area, ''))) = 'VENTAS'
-       AND UPPER(TRIM(COALESCE(u.empresa, ''))) LIKE '%CORELLIAN%'
-     ORDER BY u.nombre ASC, u.id_SB ASC`,
-    [ids]
-  );
-  return rows.map(dashboardUserDto);
+  return rows
+    .filter((row) => allowedIds === null || allowedIds.has(Number(row.id_usuario ?? row.id_SB)))
+    .map(dashboardUserDto);
 }
 
 async function assertActiveDashboardUser(userId) {
   const id = positiveInteger(userId, 'usuario_id');
-  const [rows] = await db.query(
-    `SELECT id_SB
-       FROM usuarios
-      WHERE id_SB = ?
-        AND estado = 1
-        AND UPPER(TRIM(COALESCE(area, ''))) = 'VENTAS'
-        AND UPPER(TRIM(COALESCE(empresa, ''))) LIKE '%CORELLIAN%'
-      LIMIT 1`,
-    [id]
-  );
-
-  if (!rows.length) {
-    const error = new Error('El usuario seleccionado no existe, no está activo o no pertenece a Ventas Corellian.');
+  const exists = await repository.isCommercialUser(db, id);
+  if (!exists) {
+    const error = new Error('El usuario seleccionado no existe, no está activo o no es un responsable comercial válido del Dashboard Ventas.');
     error.status = 404;
     throw error;
   }
-
   return id;
+}
+
+function scopeAllowsUser(scope, userId) {
+  if (!scope || scope.mode === 'ALL') return true;
+  const ids = normalizeVisibleUserIds(scope.advisorIds);
+  return ids.includes(Number(userId));
+}
+
+async function resolveDashboardSelection(query = {}, context = {}) {
+  const raw = String(query.usuario_id ?? '').trim().toLowerCase();
+  const scope = context.scope || await resolveDashboardScope(context);
+
+  if (raw && !['todos', 'all'].includes(raw)) {
+    const userId = await assertActiveDashboardUser(raw);
+    if (!scopeAllowsUser(scope, userId)) {
+      const error = new Error('El responsable seleccionado queda fuera de tu Alcance de Información de Ventas.');
+      error.status = 403;
+      throw error;
+    }
+    return {
+      mode: 'USER',
+      userId,
+      userIds: [userId],
+      scope
+    };
+  }
+
+  const users = await listDashboardUsersForScope(scope);
+  return {
+    mode: 'ALL',
+    userId: null,
+    userIds: users.map((user) => Number(user.id_usuario)).filter((id) => Number.isInteger(id) && id > 0),
+    scope
+  };
 }
 
 async function getPdfCapabilities(context = {}) {
@@ -359,14 +364,25 @@ async function listCommercialUsers(actionContext = {}) {
   };
 }
 
-async function getCommercialKpis(query = {}) {
-  const userId = positiveInteger(query.usuario_id, 'usuario_id');
-  await assertActiveDashboardUser(userId);
+async function getCommercialKpis(query = {}, context = {}) {
+  const selection = await resolveDashboardSelection(query, context);
+  const year = normalizeDashboardYear(query.anio ?? query.year);
+  const [raw, availableYears] = await Promise.all([
+    repository.getCommercialKpis(db, selection.userIds, year),
+    repository.listCommercialYears(db, selection.userIds)
+  ]);
+  const years = [...new Set([new Date().getFullYear(), year, ...availableYears])]
+    .filter((item) => Number.isInteger(Number(item)))
+    .map(Number)
+    .sort((a, b) => b - a);
 
-  const raw = await repository.getCommercialKpis(db, userId);
   return {
     ok: true,
-    usuario_id: userId,
+    modo: selection.mode,
+    usuario_id: selection.userId,
+    usuarios_incluidos: selection.userIds.length,
+    anio: year,
+    anios_disponibles: years,
     kpis: {
       cotizados: {
         cotizaciones: Number(raw.cotizados_cotizaciones || 0),
@@ -384,16 +400,40 @@ async function getCommercialKpis(query = {}) {
   };
 }
 
-async function getCommercialTables(query = {}) {
-  const userId = positiveInteger(query.usuario_id, 'usuario_id');
-  await assertActiveDashboardUser(userId);
-  return { ok: true, usuario_id: userId, tablas: await repository.getCommercialTables(db, userId) };
+
+function filterTablesByPermission(tables, allowedTableKeys) {
+  const allowed = new Set(Array.isArray(allowedTableKeys) ? allowedTableKeys : []);
+  return Object.fromEntries(Object.entries(tables || {}).filter(([key]) => allowed.has(key)));
 }
 
-async function getOperationalTables(query = {}) {
-  const userId = positiveInteger(query.usuario_id, 'usuario_id');
-  await assertActiveDashboardUser(userId);
-  return { ok: true, usuario_id: userId, tablas: await repository.getOperationalTables(db, userId) };
+async function getCommercialTables(query = {}, context = {}) {
+  const selection = await resolveDashboardSelection(query, context);
+  const year = normalizeDashboardYear(query.anio ?? query.year);
+  return {
+    ok: true,
+    modo: selection.mode,
+    usuario_id: selection.userId,
+    usuarios_incluidos: selection.userIds.length,
+    anio: year,
+    tablas: filterTablesByPermission(
+      await repository.getCommercialTables(db, selection.userIds, year),
+      context.allowedTableKeys
+    )
+  };
+}
+
+async function getOperationalTables(query = {}, context = {}) {
+  const selection = await resolveDashboardSelection(query, context);
+  return {
+    ok: true,
+    modo: selection.mode,
+    usuario_id: selection.userId,
+    usuarios_incluidos: selection.userIds.length,
+    tablas: filterTablesByPermission(
+      await repository.getOperationalTables(db, selection.userIds),
+      context.allowedTableKeys
+    )
+  };
 }
 
 module.exports = {

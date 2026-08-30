@@ -1,31 +1,58 @@
 <div class="vd-page">
   <section class="vd-card vd-head">
-    <div><p class="vd-eyebrow">VENTAS · DASHBOARD</p><h1>Dashboard Ventas</h1><p>Consulta comercial por responsable.</p></div>
+    <div><p class="vd-eyebrow">VENTAS · DASHBOARD</p><h1>Dashboard Ventas</h1><p>Consulta comercial por responsable o por todo tu alcance autorizado.</p></div>
     <div class="vd-pdf-action vd-pdf-action-general" id="vd-pdf-general-wrap" hidden>
       <button type="button" class="vd-pdf-btn vd-pdf-btn-general" id="vd-pdf-general">Generar PDF general</button>
       <div class="vd-pdf-progress" id="vd-pdf-general-progress" hidden><span></span></div>
     </div>
   </section>
+
   <section class="vd-card vd-controls" aria-label="Filtros principales">
-    <div class="vd-user-field"><label for="vd-user-select">Responsable comercial</label><select id="vd-user-select"><option value="">Cargando usuarios...</option></select><small>Director de Ventas, gerentes y asesores activos.</small><div class="vd-pdf-action vd-pdf-action-individual" id="vd-pdf-individual-wrap" hidden><button type="button" class="vd-pdf-btn vd-pdf-btn-individual" id="vd-pdf-individual">Generar PDF del asesor</button><div class="vd-pdf-progress" id="vd-pdf-individual-progress" hidden><span></span></div></div></div>
-    <fieldset class="vd-module-filter"><legend>Información visible</legend><div class="vd-check-grid" id="vd-check-grid">
-      <label class="vd-check vd-check-all"><input type="checkbox" value="todos" checked><span>Todos</span></label>
-      <label class="vd-check"><input type="checkbox" value="clientes" checked><span>Clientes</span></label>
-      <label class="vd-check"><input type="checkbox" value="cotizaciones" checked><span>Cotizaciones</span></label>
-      <label class="vd-check"><input type="checkbox" value="prospeccion" checked><span>Prospección</span></label>
-      <label class="vd-check"><input type="checkbox" value="redes" checked><span>Redes</span></label>
-      <label class="vd-check"><input type="checkbox" value="ventas" checked><span>Ventas</span></label>
-      <label class="vd-check"><input type="checkbox" value="perdido" checked><span>Perdido</span></label>
-      <label class="vd-check"><input type="checkbox" value="logistica" checked><span>Logística</span></label>
-      <label class="vd-check"><input type="checkbox" value="tareas" checked><span>Tareas</span></label>
-    </div></fieldset>
+    <div class="vd-user-field">
+      <label for="vd-user-select">Responsable comercial</label>
+      <select id="vd-user-select"><option value="todos">Todos</option></select>
+      <small>Todos incluye únicamente Asesores, Gerentes y Director de Ventas permitidos por tu Alcance de Información.</small>
+      <div class="vd-pdf-action vd-pdf-action-individual" id="vd-pdf-individual-wrap" hidden>
+        <button type="button" class="vd-pdf-btn vd-pdf-btn-individual" id="vd-pdf-individual">Generar PDF del asesor</button>
+        <div class="vd-pdf-progress" id="vd-pdf-individual-progress" hidden><span></span></div>
+      </div>
+    </div>
+
+    <div class="vd-user-field vd-year-field">
+      <label for="vd-year-select">Año comercial</label>
+      <select id="vd-year-select"><option value="">Cargando...</option></select>
+      <small>Cotizaciones usa Fecha de solicitud (con respaldo en Fecha de cotización); Ventas usa Fecha de cierre y Perdidos usa Fecha de cambio de estatus.</small>
+    </div>
+
+    <fieldset class="vd-module-filter">
+      <legend>Información visible</legend>
+      <div class="vd-check-grid" id="vd-check-grid">
+        <label class="vd-check vd-check-all"><input type="checkbox" value="todos" checked><span>Todas las secciones</span></label>
+        <label class="vd-check"><input type="checkbox" value="prospeccion" checked><span>Prospección</span></label>
+        <label class="vd-check"><input type="checkbox" value="redes" checked><span>Redes</span></label>
+        <label class="vd-check"><input type="checkbox" value="cotizaciones" checked><span>Cotizaciones</span></label>
+        <label class="vd-check"><input type="checkbox" value="clientes" checked><span>Clientes</span></label>
+        <label class="vd-check"><input type="checkbox" value="ventas" checked><span>Ventas</span></label>
+        <label class="vd-check"><input type="checkbox" value="perdido" checked><span>Perdidos</span></label>
+        <label class="vd-check"><input type="checkbox" value="logistica" checked><span>Logística</span></label>
+        <label class="vd-check"><input type="checkbox" value="activos" checked><span>Activos</span></label>
+        <label class="vd-check"><input type="checkbox" value="tareas_asignadas" checked><span>Pendientes asignados</span></label>
+        <label class="vd-check"><input type="checkbox" value="tareas_creadas" checked><span>Pendientes creados</span></label>
+      </div>
+    </fieldset>
   </section>
-  <section class="vd-card vd-summary"><div><p class="vd-summary-label">Consulta preparada para</p><h2 id="vd-selected-user">Selecciona un responsable comercial</h2><p id="vd-selected-meta">Los datos se actualizarán al seleccionar un responsable.</p></div><div class="vd-selected-modules" id="vd-selected-modules">Todos los módulos seleccionados</div></section>
+
+  <section class="vd-card vd-summary">
+    <div><p class="vd-summary-label">Consulta preparada para</p><h2 id="vd-selected-user">Todos</h2><p id="vd-selected-meta">Asesores, gerentes y Director de Ventas dentro de tu Alcance de Información.</p></div>
+    <div class="vd-selected-modules" id="vd-selected-modules">Todas las secciones seleccionadas</div>
+  </section>
+
   <section class="vd-kpis" id="vd-kpis" aria-label="Indicadores comerciales">
-    <article class="vd-kpi" data-dashboard-section="cotizaciones"><p class="vd-kpi-title">Proyectos cotizados</p><strong id="vd-kpi-cotizados-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-cotizados-equipos">—</b> equipos</div></article>
-    <article class="vd-kpi" data-dashboard-section="ventas"><p class="vd-kpi-title">Proyectos vendidos</p><strong id="vd-kpi-vendidos-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-vendidos-equipos">—</b> equipos</div></article>
-    <article class="vd-kpi" data-dashboard-section="perdido"><p class="vd-kpi-title">Proyectos perdidos</p><strong id="vd-kpi-perdidos-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-perdidos-equipos">—</b> equipos</div></article>
+    <article class="vd-kpi" data-dashboard-section="cotizaciones"><p class="vd-kpi-title" id="vd-kpi-title-cotizados">Cotizaciones activas</p><strong id="vd-kpi-cotizados-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-cotizados-equipos">—</b> equipos</div></article>
+    <article class="vd-kpi" data-dashboard-section="ventas"><p class="vd-kpi-title" id="vd-kpi-title-vendidos">Proyectos vendidos</p><strong id="vd-kpi-vendidos-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-vendidos-equipos">—</b> equipos</div></article>
+    <article class="vd-kpi" data-dashboard-section="perdido"><p class="vd-kpi-title" id="vd-kpi-title-perdidos">Proyectos perdidos</p><strong id="vd-kpi-perdidos-cotizaciones">—</strong><span>Cotizaciones</span><div class="vd-kpi-secondary"><b id="vd-kpi-perdidos-equipos">—</b> equipos</div></article>
   </section>
-  <section class="vd-stage" id="vd-stage"><div class="vd-empty"><span>📊</span><h2>Selecciona un responsable</h2><p>Las tablas comerciales aparecerán aquí.</p></div></section>
+
+  <section class="vd-stage" id="vd-stage"><div class="vd-empty"><span>📊</span><h2>Cargando Dashboard</h2><p>Se consultará únicamente la información permitida por tu alcance.</p></div></section>
   <div class="vd-message" id="vd-message" role="status" aria-live="polite"></div>
 </div>

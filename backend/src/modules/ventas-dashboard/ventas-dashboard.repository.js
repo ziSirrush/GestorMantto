@@ -38,6 +38,85 @@ function commercialRoleCondition(userAlias = 'u') {
   };
 }
 
+function normalizeUserIds(values) {
+  const source = Array.isArray(values) ? values : [values];
+  return [...new Set(source
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b);
+}
+
+// Fase 5: misma normalizacion de avance utilizada por Instalaciones > Proyectos.
+function progressNumber(value) {
+  const number = Number(String(value ?? '').replace('%', '').trim());
+  return Number.isFinite(number) ? number : 0;
+}
+
+function normalizedProgress(value) {
+  const number = progressNumber(value);
+  const percentage = number <= 1 ? number * 100 : number;
+  return Math.max(0, Math.min(100, percentage));
+}
+
+function projectAverage(rows, field) {
+  if (!Array.isArray(rows) || !rows.length) return 0;
+  return Math.round(rows.reduce((sum, row) => sum + normalizedProgress(row?.[field]), 0) / rows.length);
+}
+
+function buildActiveProjects(rows) {
+  const groups = new Map();
+  for (const row of (Array.isArray(rows) ? rows : [])) {
+    const projectId = String(row?.id_proyecto || '').trim() || '(SIN ID)';
+    if (!groups.has(projectId)) groups.set(projectId, []);
+    groups.get(projectId).push(row);
+  }
+
+  const projects = [];
+  for (const [projectId, equipment] of groups.entries()) {
+    const oc = projectAverage(equipment, 'avance_oc');
+    const m = projectAverage(equipment, 'avance_mo');
+    const a = projectAverage(equipment, 'avance_aj');
+    const general = Math.round((oc * 0.4) + (m * 0.4) + (a * 0.2));
+    const projectName = equipment.map((row) => String(row?.proyecto || '').trim()).find(Boolean) || projectId;
+    projects.push({
+      id_proyecto: projectId === '(SIN ID)' ? null : projectId,
+      proyecto: projectName,
+      cantidad_equipos: equipment.length,
+      porcentaje_oc: oc,
+      porcentaje_m: m,
+      porcentaje_a: a,
+      porcentaje_general: general
+    });
+  }
+
+  // El usuario pidio orden por avance general. Se conserva el criterio propuesto:
+  // mayor avance primero; empate estable por nombre de proyecto.
+  return projects.sort((left, right) =>
+    Number(right.porcentaje_general || 0) - Number(left.porcentaje_general || 0)
+    || String(left.proyecto || '').localeCompare(String(right.proyecto || ''), 'es', { sensitivity: 'base' })
+  );
+}
+
+function emptyCommercialTables() {
+  return {
+    cotizaciones: [],
+    ventas: [],
+    perdido: [],
+    clientes: [],
+    redes: [],
+    prospeccion: []
+  };
+}
+
+function emptyOperationalTables() {
+  return {
+    instalaciones: [],
+    logistica: [],
+    tareas_asignadas: [],
+    tareas_creadas: []
+  };
+}
+
 async function listCommercialUsers(connection) {
   const condition = commercialRoleCondition('u');
   const [rows] = await connection.query(
@@ -67,6 +146,8 @@ async function listCommercialUsers(connection) {
        END AS tipo_perfil
      FROM usuarios u
      WHERE u.estado = 1
+       AND UPPER(TRIM(COALESCE(u.area, ''))) = 'VENTAS'
+       AND UPPER(TRIM(COALESCE(u.empresa, ''))) LIKE '%CORELLIAN%'
        AND ${condition.sql}
      ORDER BY
        FIELD(tipo_perfil, 'Director de Ventas', 'Gerente', 'Asesor'),
@@ -84,6 +165,8 @@ async function isCommercialUser(connection, userId) {
        FROM usuarios u
       WHERE u.id_SB = ?
         AND u.estado = 1
+        AND UPPER(TRIM(COALESCE(u.area, ''))) = 'VENTAS'
+        AND UPPER(TRIM(COALESCE(u.empresa, ''))) LIKE '%CORELLIAN%'
         AND ${condition.sql}
       LIMIT 1`,
     [userId, ...condition.params]
@@ -92,58 +175,130 @@ async function isCommercialUser(connection, userId) {
   return rows.length > 0;
 }
 
-async function getCommercialKpis(connection, userId) {
+function normalizeCommercialYear(value) {
+  const year = Number(value);
+  return Number.isInteger(year) && year >= 1900 && year <= 2200
+    ? year
+    : new Date().getFullYear();
+}
+
+function commercialOriginDateSql(alias = 'c') {
+  return `COALESCE(NULLIF(TRIM(${alias}.fecha_solicitud), ''), NULLIF(TRIM(${alias}.fecha_cotizacion), ''))`;
+}
+
+async function listCommercialYears(connection, userIds) {
+  const ids = normalizeUserIds(userIds);
+  if (!ids.length) return [];
+
+  const [rows] = await connection.query(
+    `SELECT DISTINCT y.anio
+       FROM (
+         SELECT LEFT(${commercialOriginDateSql('c1')}, 4) AS anio
+           FROM ventas_cotizaciones_cor c1
+          WHERE c1.id_asesor IN (?)
+            AND COALESCE(c1.activo, 1) = 1
+            AND ${commercialOriginDateSql('c1')} IS NOT NULL
+         UNION
+         SELECT LEFT(NULLIF(TRIM(c2.fecha_cierre), ''), 4) AS anio
+           FROM ventas_cotizaciones_cor c2
+          WHERE c2.id_asesor IN (?)
+            AND COALESCE(c2.activo, 1) = 1
+            AND NULLIF(TRIM(c2.fecha_cierre), '') IS NOT NULL
+         UNION
+         SELECT LEFT(NULLIF(TRIM(c3.fecha_cambio_estatus), ''), 4) AS anio
+           FROM ventas_cotizaciones_cor c3
+          WHERE c3.id_asesor IN (?)
+            AND COALESCE(c3.activo, 1) = 1
+            AND NULLIF(TRIM(c3.fecha_cambio_estatus), '') IS NOT NULL
+       ) y
+      WHERE y.anio REGEXP '^[0-9]{4}$'
+      ORDER BY y.anio DESC`,
+    [ids, ids, ids]
+  );
+
+  return rows
+    .map((row) => Number(row.anio))
+    .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2200);
+}
+
+async function getCommercialKpis(connection, userIds, requestedYear) {
+  const ids = normalizeUserIds(userIds);
+  const year = normalizeCommercialYear(requestedYear);
+  if (!ids.length) {
+    return {
+      cotizados_cotizaciones: 0,
+      cotizados_equipos: 0,
+      vendidos_cotizaciones: 0,
+      vendidos_equipos: 0,
+      perdidos_cotizaciones: 0,
+      perdidos_equipos: 0
+    };
+  }
+
+  const originDate = commercialOriginDateSql('c');
   const [rows] = await connection.query(
     `SELECT
-       COUNT(*) AS cotizados_cotizaciones,
-       COALESCE(SUM(COALESCE(c.numero_equipos, 0)), 0) AS cotizados_equipos,
+       SUM(CASE
+             WHEN UPPER(TRIM(COALESCE(c.estatus_proyecto, ''))) NOT IN ('VENDIDO', 'PERDIDO')
+              AND LEFT(${originDate}, 4) = ?
+             THEN 1 ELSE 0
+           END) AS cotizados_cotizaciones,
+       COALESCE(SUM(CASE
+             WHEN UPPER(TRIM(COALESCE(c.estatus_proyecto, ''))) NOT IN ('VENDIDO', 'PERDIDO')
+              AND LEFT(${originDate}, 4) = ?
+             THEN COALESCE(c.numero_equipos, 0) ELSE 0
+           END), 0) AS cotizados_equipos,
        SUM(CASE
              WHEN UPPER(TRIM(COALESCE(c.estatus_proyecto, ''))) = 'VENDIDO'
+              AND LEFT(NULLIF(TRIM(c.fecha_cierre), ''), 4) = ?
              THEN 1 ELSE 0
            END) AS vendidos_cotizaciones,
        COALESCE(SUM(CASE
              WHEN UPPER(TRIM(COALESCE(c.estatus_proyecto, ''))) = 'VENDIDO'
+              AND LEFT(NULLIF(TRIM(c.fecha_cierre), ''), 4) = ?
              THEN COALESCE(c.numero_equipos, 0) ELSE 0
            END), 0) AS vendidos_equipos,
        SUM(CASE
              WHEN UPPER(TRIM(COALESCE(c.estatus_proyecto, ''))) = 'PERDIDO'
+              AND LEFT(NULLIF(TRIM(c.fecha_cambio_estatus), ''), 4) = ?
              THEN 1 ELSE 0
            END) AS perdidos_cotizaciones,
        COALESCE(SUM(CASE
              WHEN UPPER(TRIM(COALESCE(c.estatus_proyecto, ''))) = 'PERDIDO'
+              AND LEFT(NULLIF(TRIM(c.fecha_cambio_estatus), ''), 4) = ?
              THEN COALESCE(c.numero_equipos, 0) ELSE 0
            END), 0) AS perdidos_equipos
      FROM ventas_cotizaciones_cor c
-     WHERE c.id_asesor = ?
+     WHERE c.id_asesor IN (?)
        AND COALESCE(c.activo, 1) = 1`,
-    [userId]
+    [String(year), String(year), String(year), String(year), String(year), String(year), ids]
   );
 
   return rows[0] || {};
 }
 
-module.exports = {
-  listCommercialUsers,
-  isCommercialUser,
-  getCommercialKpis
-};
+async function getCommercialTables(connection, userIds, requestedYear) {
+  const ids = normalizeUserIds(userIds);
+  if (!ids.length) return emptyCommercialTables();
+  const year = normalizeCommercialYear(requestedYear);
 
-async function getCommercialTables(connection, userId) {
   const quoteAdvisor = `COALESCE(NULLIF(TRIM(q.asesor), ''), NULLIF(TRIM(uq.iniciales), ''), uq.nombre)`;
+  const quoteOriginDate = commercialOriginDateSql('q');
   const [openQuotes] = await connection.query(
-    `SELECT q.id_cotizacion, q.nombre_proyecto, q.cliente,
+    `SELECT q.id_cotizacion, q.id_cliente, q.nombre_proyecto, q.cliente,
             ${quoteAdvisor} AS asesor,
             q.estatus_proyecto, q.numero_equipos, q.fecha_cotizacion,
-            q.fecha_solicitud, q.ciudad, q.estado
+            q.fecha_solicitud, ${quoteOriginDate} AS fecha_efectiva,
+            q.ciudad, q.estado
        FROM ventas_cotizaciones_cor q
        LEFT JOIN usuarios uq ON uq.id_SB = q.id_asesor
-      WHERE q.id_asesor = ?
+      WHERE q.id_asesor IN (?)
         AND COALESCE(q.activo, 1) = 1
         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) NOT IN ('VENDIDO', 'PERDIDO')
-      ORDER BY COALESCE(NULLIF(q.fecha_cotizacion, ''), NULLIF(q.fecha_solicitud, '')) DESC,
-               q.id_cotizacion DESC
-      LIMIT 100`,
-    [userId]
+        AND LEFT(${quoteOriginDate}, 4) = ?
+      ORDER BY ${quoteOriginDate} DESC,
+               q.id_cotizacion DESC`,
+    [ids, String(year)]
   );
 
   const [soldQuotes] = await connection.query(
@@ -153,29 +308,29 @@ async function getCommercialTables(connection, userId) {
             q.fecha_solicitud, q.ciudad, q.estado, q.estatus_proyecto
        FROM ventas_cotizaciones_cor q
        LEFT JOIN usuarios uq ON uq.id_SB = q.id_asesor
-      WHERE q.id_asesor = ?
+      WHERE q.id_asesor IN (?)
         AND COALESCE(q.activo, 1) = 1
         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'VENDIDO'
-      ORDER BY NULLIF(q.fecha_cierre, '') DESC, q.id_cotizacion DESC
-      LIMIT 100`,
-    [userId]
+        AND LEFT(NULLIF(TRIM(q.fecha_cierre), ''), 4) = ?
+      ORDER BY NULLIF(TRIM(q.fecha_cierre), '') DESC, q.id_cotizacion DESC`,
+    [ids, String(year)]
   );
 
   const [lostQuotes] = await connection.query(
     `SELECT q.id_cotizacion, q.nombre_proyecto, q.cliente,
             ${quoteAdvisor} AS asesor,
             q.razon_perdido, q.empresa_vs_perdido, q.numero_equipos,
-            q.fecha_cotizacion, q.fecha_solicitud, q.ciudad, q.estado,
-            q.estatus_proyecto
+            q.fecha_cotizacion, q.fecha_solicitud, q.fecha_cambio_estatus,
+            q.ciudad, q.estado, q.estatus_proyecto
        FROM ventas_cotizaciones_cor q
        LEFT JOIN usuarios uq ON uq.id_SB = q.id_asesor
-      WHERE q.id_asesor = ?
+      WHERE q.id_asesor IN (?)
         AND COALESCE(q.activo, 1) = 1
         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'PERDIDO'
-      ORDER BY COALESCE(NULLIF(q.fecha_cambio_estatus, ''), NULLIF(q.fecha_cotizacion, ''), NULLIF(q.fecha_solicitud, '')) DESC,
-               q.id_cotizacion DESC
-      LIMIT 100`,
-    [userId]
+        AND LEFT(NULLIF(TRIM(q.fecha_cambio_estatus), ''), 4) = ?
+      ORDER BY NULLIF(TRIM(q.fecha_cambio_estatus), '') DESC,
+               q.id_cotizacion DESC`,
+    [ids, String(year)]
   );
 
   const quoteRelationSql = `
@@ -210,17 +365,16 @@ async function getCommercialTables(connection, userId) {
        FROM ventas_clientes vc
       WHERE vc.activo = 1
         AND (
-          vc.created_by = ?
+          vc.created_by IN (?)
           OR EXISTS (
             SELECT 1 FROM usuarios uc
-             WHERE uc.id_SB = ?
+             WHERE uc.id_SB IN (?)
                AND uc.estado = 1
                AND UPPER(TRIM(COALESCE(uc.iniciales, ''))) = UPPER(TRIM(COALESCE(vc.iniciales, '')))
           )
         )
-      ORDER BY vc.nombre_empresa ASC, vc.id_cliente DESC
-      LIMIT 100`,
-    [userId, userId]
+      ORDER BY vc.nombre_empresa ASC, vc.id_cliente DESC`,
+    [ids, ids]
   );
 
   const [networks] = await connection.query(
@@ -236,10 +390,9 @@ async function getCommercialTables(connection, userId) {
        LEFT JOIN usuarios u ON u.id_SB = vr.id_usuario_asignado
        LEFT JOIN ventas_cotizaciones_cor q ON q.id_cotizacion = vr.id_cotizacion AND COALESCE(q.activo, 1) = 1
       WHERE vr.activo = 1
-        AND (vr.id_usuario_asignado = ? OR vr.created_by = ?)
-      ORDER BY vr.created_at DESC, vr.id_redes DESC
-      LIMIT 100`,
-    [userId, userId]
+        AND (vr.id_usuario_asignado IN (?) OR vr.created_by IN (?))
+      ORDER BY vr.created_at DESC, vr.id_redes DESC`,
+    [ids, ids]
   );
 
   const [prospecting] = await connection.query(
@@ -251,10 +404,9 @@ async function getCommercialTables(connection, userId) {
        LEFT JOIN ventas_prospeccion_estatus pe ON pe.id_estatus = p.id_estatus
        LEFT JOIN usuarios up ON up.id_SB = p.id_usuario
       WHERE p.activo = 1
-        AND p.id_usuario = ?
-      ORDER BY p.fecha_visita DESC, p.id_pros DESC
-      LIMIT 100`,
-    [userId]
+        AND p.id_usuario IN (?)
+      ORDER BY p.fecha_visita DESC, p.id_pros DESC`,
+    [ids]
   );
 
   return {
@@ -267,87 +419,179 @@ async function getCommercialTables(connection, userId) {
   };
 }
 
-module.exports.getCommercialTables = getCommercialTables;
+async function getOperationalTables(connection, userIds) {
+  const ids = normalizeUserIds(userIds);
+  if (!ids.length) return emptyOperationalTables();
 
-async function getOperationalTables(connection, userId) {
   const [userRows] = await connection.query(
     `SELECT id_SB, nombre, iniciales, correo
        FROM usuarios
-      WHERE id_SB = ?
-        AND estado = 1
-      LIMIT 1`,
-    [userId]
+      WHERE id_SB IN (?)
+        AND estado = 1`,
+    [ids]
   );
 
-  const selectedUser = userRows[0];
-  if (!selectedUser) {
-    return {
-      instalaciones: [],
-      logistica: [],
-      tareas_asignadas: [],
-      tareas_creadas: []
-    };
-  }
+  const selectedUsers = Array.isArray(userRows) ? userRows : [];
+  if (!selectedUsers.length) return emptyOperationalTables();
 
-  const [installations] = await connection.query(
+  const initials = [...new Set(selectedUsers.map((row) => String(row.iniciales || '').trim()).filter(Boolean))];
+  const emails = [...new Set(selectedUsers.map((row) => String(row.correo || '').trim()).filter(Boolean))];
+  const advisorTokens = [...new Set(selectedUsers.flatMap((row) => [row.iniciales, row.nombre]).map((value) => String(value || '').trim()).filter(Boolean))];
+  const safeInitials = initials.length ? initials : ['__SIN_INICIALES__'];
+  const safeEmails = emails.length ? emails : ['__SIN_CORREO__'];
+  const safeAdvisorTokens = advisorTokens.length ? advisorTokens : ['__SIN_ASESOR__'];
+
+  // ACTIVO = una fila por equipo en ins_fl. El resumen por proyecto replica exactamente
+  // la formula del modulo Instalaciones > Proyectos: promedio por equipo de OC/MO/AJ,
+  // redondeo de cada promedio y Avance General = 40% OC + 40% M + 20% A.
+  const [installationEquipment] = await connection.query(
     `SELECT
+       f.id_ins_fl,
        f.id_proyecto,
-       MAX(f.proyecto) AS proyecto,
-       MAX(f.cliente) AS cliente,
-       MAX(f.ciudad) AS ciudad,
-       MAX(f.estado) AS estado,
-       MAX(f.vendedor) AS asesor,
-       MAX(f.supervisor_fl) AS supervisor,
-       COUNT(*) AS total_equipos,
-       MAX(f.activo) AS activo,
-       MAX(f.updated_at) AS ultima_actualizacion
+       f.proyecto,
+       f.referencia_sitio,
+       f.avance_oc,
+       f.avance_mo,
+       f.avance_aj
      FROM ins_fl f
      WHERE f.activo = 1
-       AND f.id_asesor = ?
-     GROUP BY f.id_proyecto
-     ORDER BY proyecto ASC
-     LIMIT 100`,
-    [userId]
+       AND f.id_asesor IN (?)
+     ORDER BY f.id_proyecto ASC, f.id_ins_fl ASC`,
+    [ids]
   );
+  const installations = buildActiveProjects(installationEquipment);
 
+  // LOGISTICA = las 12 etapas confirmadas en el Reporte de Logistica.
+  // ENTREGADO conserva la regla del reporte: solo registros cuya Entrega real en obra
+  // pertenece al anio en curso. No se corrigen ni rellenan datos faltantes del origen.
+  const currentYear = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mexico_City', year: 'numeric' }).format(new Date()));
   const [logistics] = await connection.query(
     `SELECT
        l.id_log_ops,
        l.id_ppns,
-       l.proyecto,
-       l.estatus,
+       l.ph_ns,
+       CASE UPPER(TRIM(COALESCE(l.estatus, '')))
+         WHEN 'SIN PRODUCCIÓN / DOCUMENTACIÓN PENDIENTE' THEN 'SIN PRODUCCIÓN / Documentación Pendiente'
+         WHEN 'SIN PRODUCCION / DOCUMENTACION PENDIENTE' THEN 'SIN PRODUCCIÓN / Documentación Pendiente'
+         WHEN 'SIN PRODUCCIÓN / PRIMERA VISITA A OBRA' THEN 'SIN PRODUCCIÓN / Primera Visita a Obra'
+         WHEN 'SIN PRODUCCION / PRIMERA VISITA A OBRA' THEN 'SIN PRODUCCIÓN / Primera Visita a Obra'
+         WHEN 'SIN PRODUCCIÓN / PENDIENTE LIBERACIÓN POR PARTE DEL CLIENTE' THEN 'SIN PRODUCCIÓN / Pendiente Liberación por Parte del Cliente'
+         WHEN 'SIN PRODUCCION / PENDIENTE LIBERACION POR PARTE DEL CLIENTE' THEN 'SIN PRODUCCIÓN / Pendiente Liberación por Parte del Cliente'
+         WHEN 'SIN PRODUCCIÓN / PROGRAMADOS A PRODUCCIÓN' THEN 'SIN PRODUCCIÓN / Programados a Producción'
+         WHEN 'SIN PRODUCCION / PROGRAMADOS A PRODUCCION' THEN 'SIN PRODUCCIÓN / Programados a Producción'
+         WHEN 'EN PRODUCCIÓN' THEN 'EN PRODUCCION'
+         WHEN 'EN PRODUCCION' THEN 'EN PRODUCCION'
+         WHEN 'PARADOS POR CLIENTE' THEN 'PARADOS POR CLIENTE'
+         WHEN 'PENDIENTE PAGO LIBERACIÓN' THEN 'PENDIENTE PAGO LIBERACIÓN'
+         WHEN 'PENDIENTE PAGO LIBERACION' THEN 'PENDIENTE PAGO LIBERACIÓN'
+         WHEN 'PROGRAMADO' THEN 'PROGRAMADO'
+         WHEN 'EN TRÁNSITO' THEN 'EN TRANSITO'
+         WHEN 'EN TRANSITO' THEN 'EN TRANSITO'
+         WHEN 'PROGRAMA ENTREGA' THEN 'PROGRAMA ENTREGA'
+         WHEN 'ENTREGADA' THEN 'ENTREGADO'
+         WHEN 'ENTREGADO' THEN 'ENTREGADO'
+         WHEN 'ALMACENADOS' THEN 'ALMACENADOS'
+         ELSE TRIM(COALESCE(l.estatus, ''))
+       END AS estatus,
        l.marca,
        l.no_control,
        l.cantidad,
-       l.asesor,
+       l.proyecto,
        l.supervisor,
+       l.asesor,
+       l.ict,
+       l.incoterm,
        l.proveedor,
+       l.carpeta,
+       l.pvo,
+       l.pago_cliente,
+       l.pago_liberacion,
+       l.fecha_produccion,
+       l.fecha_estimada_obra,
+       l.fecha_exw,
+       l.puerto_origen,
+       l.fecha_salida_estimada,
+       l.fecha_salida_real,
+       l.tiempo_transito,
        l.puerto_destino,
-       l.lugar_entrega,
        l.fecha_llegada_estimada,
+       l.fecha_llegada_real,
+       l.fecha_pago_pedimento,
+       l.fecha_carga_transporte_nacional,
+       l.tiempo_aduana,
+       l.lugar_entrega,
        l.fecha_entrega_programada,
        l.fecha_entrega_real_obra,
+       l.fecha_entrada_almacen,
+       l.fecha_salida_almacen,
+       l.fecha_termino_aditiva,
+       l.diferencia_dias,
+       l.tiempo_total,
        l.comentarios
      FROM log_ops l
-     WHERE UPPER(TRIM(COALESCE(l.estatus, ''))) NOT IN ('ENTREGADO', 'ENTREGADA')
+     WHERE (
+       EXISTS (
+         SELECT 1
+           FROM ins_fl f_scope
+          WHERE f_scope.activo = 1
+            AND f_scope.id_asesor IN (?)
+            AND TRIM(COALESCE(f_scope.id_proyecto, '')) = TRIM(COALESCE(l.id_ppns, ''))
+       )
+       OR UPPER(TRIM(COALESCE(l.asesor, ''))) IN (?)
+     )
+       AND UPPER(TRIM(COALESCE(l.estatus, ''))) IN (
+         'SIN PRODUCCIÓN / DOCUMENTACIÓN PENDIENTE',
+         'SIN PRODUCCION / DOCUMENTACION PENDIENTE',
+         'SIN PRODUCCIÓN / PRIMERA VISITA A OBRA',
+         'SIN PRODUCCION / PRIMERA VISITA A OBRA',
+         'SIN PRODUCCIÓN / PENDIENTE LIBERACIÓN POR PARTE DEL CLIENTE',
+         'SIN PRODUCCION / PENDIENTE LIBERACION POR PARTE DEL CLIENTE',
+         'SIN PRODUCCIÓN / PROGRAMADOS A PRODUCCIÓN',
+         'SIN PRODUCCION / PROGRAMADOS A PRODUCCION',
+         'EN PRODUCCIÓN',
+         'EN PRODUCCION',
+         'PARADOS POR CLIENTE',
+         'PENDIENTE PAGO LIBERACIÓN',
+         'PENDIENTE PAGO LIBERACION',
+         'PROGRAMADO',
+         'EN TRÁNSITO',
+         'EN TRANSITO',
+         'PROGRAMA ENTREGA',
+         'ENTREGADO',
+         'ENTREGADA',
+         'ALMACENADOS'
+       )
        AND (
-         EXISTS (
-           SELECT 1
-             FROM ins_fl f_scope
-            WHERE f_scope.id_asesor = ?
-              AND TRIM(COALESCE(f_scope.id_proyecto, '')) = TRIM(COALESCE(l.id_ppns, ''))
-         )
-         OR UPPER(TRIM(COALESCE(l.asesor, ''))) IN (
-           UPPER(TRIM(COALESCE(?, ''))),
-           UPPER(TRIM(COALESCE(?, '')))
-         )
+         UPPER(TRIM(COALESCE(l.estatus, ''))) NOT IN ('ENTREGADO', 'ENTREGADA')
+         OR LEFT(TRIM(COALESCE(l.fecha_entrega_real_obra, '')), 4) = ?
        )
      ORDER BY
-       CASE WHEN l.fecha_entrega_programada IS NULL THEN 1 ELSE 0 END,
-       l.fecha_entrega_programada ASC,
-       l.id_log_ops DESC
-     LIMIT 100`,
-    [userId, selectedUser.iniciales, selectedUser.nombre]
+       CASE UPPER(TRIM(COALESCE(l.estatus, '')))
+         WHEN 'SIN PRODUCCIÓN / DOCUMENTACIÓN PENDIENTE' THEN 1
+         WHEN 'SIN PRODUCCION / DOCUMENTACION PENDIENTE' THEN 1
+         WHEN 'SIN PRODUCCIÓN / PRIMERA VISITA A OBRA' THEN 2
+         WHEN 'SIN PRODUCCION / PRIMERA VISITA A OBRA' THEN 2
+         WHEN 'SIN PRODUCCIÓN / PENDIENTE LIBERACIÓN POR PARTE DEL CLIENTE' THEN 3
+         WHEN 'SIN PRODUCCION / PENDIENTE LIBERACION POR PARTE DEL CLIENTE' THEN 3
+         WHEN 'SIN PRODUCCIÓN / PROGRAMADOS A PRODUCCIÓN' THEN 4
+         WHEN 'SIN PRODUCCION / PROGRAMADOS A PRODUCCION' THEN 4
+         WHEN 'EN PRODUCCION' THEN 5
+         WHEN 'EN PRODUCCIÓN' THEN 5
+         WHEN 'PARADOS POR CLIENTE' THEN 6
+         WHEN 'PENDIENTE PAGO LIBERACIÓN' THEN 7
+         WHEN 'PENDIENTE PAGO LIBERACION' THEN 7
+         WHEN 'PROGRAMADO' THEN 8
+         WHEN 'EN TRANSITO' THEN 9
+         WHEN 'EN TRÁNSITO' THEN 9
+         WHEN 'PROGRAMA ENTREGA' THEN 10
+         WHEN 'ENTREGADO' THEN 11
+         WHEN 'ENTREGADA' THEN 11
+         WHEN 'ALMACENADOS' THEN 12
+         ELSE 99
+       END,
+       l.proyecto ASC,
+       l.id_log_ops ASC`,
+    [ids, safeAdvisorTokens.map((value) => value.toUpperCase()), String(currentYear)]
   );
 
   const taskSelect = `SELECT
@@ -385,8 +629,7 @@ async function getOperationalTables(connection, userId) {
        END,
        CASE WHEN p.due_date IS NULL THEN 1 ELSE 0 END,
        p.due_date ASC,
-       p.updated_at DESC
-     LIMIT 100`;
+       p.updated_at DESC`;
 
   const [assignedTasks] = await connection.query(
     `${taskSelect}
@@ -396,18 +639,18 @@ async function getOperationalTables(connection, userId) {
            FROM pendientes_usuarios pu
           WHERE pu.id_pendiente = p.id_pendiente
             AND UPPER(TRIM(COALESCE(pu.tipo_relacion, ''))) = 'RESPONSABLE'
-            AND UPPER(TRIM(COALESCE(pu.iniciales_usuario, ''))) = UPPER(TRIM(COALESCE(?, '')))
+            AND UPPER(TRIM(COALESCE(pu.iniciales_usuario, ''))) IN (?)
        )
      ${taskOrder}`,
-    [selectedUser.iniciales]
+    [safeInitials.map((value) => value.toUpperCase())]
   );
 
   const [createdTasks] = await connection.query(
     `${taskSelect}
      WHERE UPPER(TRIM(COALESCE(p.estatus, ''))) <> 'CERRADO'
-       AND LOWER(TRIM(COALESCE(p.creado_por_email, ''))) = LOWER(TRIM(COALESCE(?, '')))
+       AND LOWER(TRIM(COALESCE(p.creado_por_email, ''))) IN (?)
      ${taskOrder}`,
-    [selectedUser.correo]
+    [safeEmails.map((value) => value.toLowerCase())]
   );
 
   return {
@@ -417,8 +660,6 @@ async function getOperationalTables(connection, userId) {
     tareas_creadas: createdTasks
   };
 }
-
-module.exports.getOperationalTables = getOperationalTables;
 
 async function getPdfCreatorProfile(connection, userId) {
   const [rows] = await connection.query(
@@ -553,7 +794,7 @@ async function getPdfAdvisorData(connection, userId) {
                   vc.comentario
                 )
                 ORDER BY vc.created_at ASC
-                SEPARATOR '\n'
+                SEPARATOR '\\n'
               ) AS comentarios
          FROM ventas_cotizaciones_comentarios vc
          LEFT JOIN usuarios u ON u.id_SB = vc.id_usuario
@@ -612,7 +853,7 @@ async function getPdfAdvisorData(connection, userId) {
                   CASE WHEN cantidad IS NULL THEN NULL ELSE CONCAT(cantidad, ' equipo(s)') END,
                   NULLIF(TRIM(marca), '')
                 )
-                ORDER BY id_log_ops ASC SEPARATOR '\n'
+                ORDER BY id_log_ops ASC SEPARATOR '\\n'
               ) AS material
          FROM log_ops
         GROUP BY id_ppns
@@ -696,7 +937,7 @@ async function getPdfAdvisorData(connection, userId) {
            DISTINCT CASE
              WHEN UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'VENDIDO'
              THEN q.nombre_proyecto END
-           ORDER BY q.nombre_proyecto SEPARATOR '\n'
+           ORDER BY q.nombre_proyecto SEPARATOR '\\n'
          ) AS proyectos_vendidos
        FROM ventas_cotizaciones_cor q
        WHERE q.activo = 1
@@ -738,6 +979,14 @@ async function getPdfAdvisorData(connection, userId) {
   };
 }
 
-module.exports.getPdfCreatorProfile = getPdfCreatorProfile;
-module.exports.getPdfSharedTasks = getPdfSharedTasks;
-module.exports.getPdfAdvisorData = getPdfAdvisorData;
+module.exports = {
+  listCommercialUsers,
+  isCommercialUser,
+  getCommercialKpis,
+  listCommercialYears,
+  getCommercialTables,
+  getOperationalTables,
+  getPdfCreatorProfile,
+  getPdfSharedTasks,
+  getPdfAdvisorData
+};

@@ -1,0 +1,26 @@
+FASE_2_VENTAS_DASHBOARD_PROSPECCION_REDES_V001
+Fecha: 2026-08-30
+
+VALIDACION ESTATICA
+- node --check: OK en todos los JS del paquete.
+- PROSPECCION_COTIZACION_REQUIRED: presente.
+- RELACION_COTIZACION: presente.
+- CAMBIO_ESTATUS Redes: presente en SQL.
+- vd-row-no-status: presente en Dashboard.
+- mapa embebido Prospeccion: presente.
+- lightbox Prospeccion: presente.
+- lightbox Redes: presente.
+- CREATE TABLE en SQL: no utilizado.
+- DELETE de datos en SQL: no utilizado.
+
+PRUEBA MOCK BACKEND
+- NUEVO -> Cotizado sin id_cotizacion: bloqueado con 409.
+- Relacion valida: commit OK.
+- Historial RELACION_COTIZACION: OK.
+- Historial CAMBIO_ESTATUS: OK.
+
+NO EJECUTADO
+- Aiven / SQL vivo.
+- Azure App Service.
+- Netlify.
+- GitHub writes.

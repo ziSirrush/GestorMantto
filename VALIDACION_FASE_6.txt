@@ -1,0 +1,68 @@
+--- Referencias proyecto interes
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/core/module-loader.js:48:    'ventas-proyectos-interes':{css:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.css?v=20260830-fase6-v001'],js:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.js?v=20260830-fase6-v001']},
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_interest_backend_contract.test.js:13:assert(repo.includes("const INTEREST_ON = 'PROYECTO_INTERES_ACTIVADO'"));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_interest_backend_contract.test.js:14:assert(repo.includes("const INTEREST_OFF = 'PROYECTO_INTERES_DESACTIVADO'"));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_interest_backend_contract.test.js:28:const staticRoute=routes.indexOf("router.get('/cotizaciones/proyectos-interes'");
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_interest_backend_contract.test.js:30:assert(staticRoute>=0,'Falta ruta proyectos-interes');
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:9:const js=read('modules/ventas-proyectos-interes/ventas-proyectos-interes.js');
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:10:const html=read('modules/ventas-proyectos-interes/ventas-proyectos-interes.html');
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:13:assert(loader.includes("'ventas-proyectos-interes'"));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:16:assert(js.includes('/api/ventas/cotizaciones/proyectos-interes?'));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:19:assert(js.includes("detail.tipo!=='proyecto_interes'"));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:22:assert(ps.includes('data-route="ventas-proyectos-interes"'));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:24:assert(ps.includes("if(route==='ventas-proyectos-interes' && showVentasProyectosInteres()) return;"));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/tests/fase6_frontend_contract.test.js:25:assert(ps.includes('view-ventas-proyectos-interes'));
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:18:- eventos `PROYECTO_INTERES_ACTIVADO` / `PROYECTO_INTERES_DESACTIVADO`
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:30:1. El último evento del usuario autenticado es `PROYECTO_INTERES_ACTIVADO`.
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:40:Ruta frontend: `ventas-proyectos-interes`
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:51:- recarga selectiva cuando cambia `proyecto_interes` en el detalle.
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:59:`GET /api/ventas/cotizaciones/proyectos-interes`
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:81:- `modules/ventas-proyectos-interes/ventas-proyectos-interes.html`
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:82:- `modules/ventas-proyectos-interes/ventas-proyectos-interes.css`
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:83:- `modules/ventas-proyectos-interes/ventas-proyectos-interes.js`
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:93:- nombre/ruta de `ventas-proyectos-interes` al router;
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/README_FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001.md:97:- contenedor `view-ventas-proyectos-interes`.
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/modules/ventas-proyectos-interes/ventas-proyectos-interes.js:22:  const view=$('#view-ventas-proyectos-interes');
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/modules/ventas-proyectos-interes/ventas-proyectos-interes.js:44:  window.ManttoRouter.go('ventas-cotizaciones-detalle',{id:quoteId,id_cotizacion:quoteId,origen:'ventas-proyectos-interes'});
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/modules/ventas-proyectos-interes/ventas-proyectos-interes.js:96:    const json=await request('/api/ventas/cotizaciones/proyectos-interes?'+params.toString());
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/modules/ventas-proyectos-interes/ventas-proyectos-interes.js:135:  if(detail.tipo!=='proyecto_interes'&&!Object.prototype.hasOwnProperty.call(detail,'proyecto_interes'))return;
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/modules/ventas-proyectos-interes/ventas-proyectos-interes.js:137:  if(current?.route==='ventas-proyectos-interes')load();
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/patches/CAMBIOS_CORE_FASE_6.md:10:<button class="side-item" data-permission="ventas_cotizaciones" data-route="ventas-proyectos-interes" type="button"><span>⭐</span><b>Proyectos de interés</b></button>
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/patches/CAMBIOS_CORE_FASE_6.md:18:<section aria-label="Proyectos de interés" class="view" data-view="ventas-proyectos-interes" id="view-ventas-proyectos-interes"></section>
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/patches/CAMBIOS_CORE_FASE_6.md:23:- Agregar `ventas-proyectos-interes` a `routeNames`.
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/patches/CAMBIOS_CORE_FASE_6.md:32:'ventas-proyectos-interes':{
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/patches/CAMBIOS_CORE_FASE_6.md:33:  css:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.css?v=20260830-fase6-v001'],
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/patches/CAMBIOS_CORE_FASE_6.md:34:  js:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.js?v=20260830-fase6-v001']
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.repository.js:5:const INTEREST_ON = 'PROYECTO_INTERES_ACTIVADO';
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.repository.js:6:const INTEREST_OFF = 'PROYECTO_INTERES_DESACTIVADO';
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.service.js:59:    proyecto_interes: interestRepository.interestIsActive(event),
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.service.js:125:      proyecto_interes: activo,
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.routes.js:73:router.get('/cotizaciones/proyectos-interes', ...ventasGuard('VENTAS_COTIZACIONES_TABLA_COTIZACIONES_LISTADO_COTIZACIONES.VER'), interestController.listProjectInterests);
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:45:if ($router -notmatch "ventas-proyectos-interes") {
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:48:    "    'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-proyectos-interes':'Proyectos de interés', 'ventas-perdidos':'Perdidos'," `
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:53:    "    const view=document.getElementById('view-ventas-proyectos-interes');",
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:55:    "    activateViewById('view-ventas-proyectos-interes');",
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:56:    "    setActiveSide('ventas-proyectos-interes');",
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:57:    "    updateContext('ventas-proyectos-interes','Proyectos de interés · lista personal de cotizaciones marcadas');",
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:71:    ("    if(route==='ventas-proyeccion' && showVentasProyeccion()) return;" + $routerNl + "    if(route==='ventas-proyectos-interes' && showVentasProyectosInteres()) return;") `
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:75:if ($index -notmatch 'data-route="ventas-proyectos-interes"') {
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:77:  $newButton = '<button class="side-item" data-permission="ventas_cotizaciones" data-route="ventas-proyectos-interes" type="button"><span>⭐</span><b>Proyectos de interés</b></button>'
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:81:  $newView = '<section aria-label="Proyectos de interés" class="view" data-view="ventas-proyectos-interes" id="view-ventas-proyectos-interes"></section>'
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:95:  "modules/ventas-proyectos-interes/ventas-proyectos-interes.html",
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:96:  "modules/ventas-proyectos-interes/ventas-proyectos-interes.css",
+/mnt/data/FASE_6_VENTAS_PROYECTOS_INTERES_CIERRE_V001/APLICAR_FASE_6.ps1:97:  "modules/ventas-proyectos-interes/ventas-proyectos-interes.js"
+
+--- node --check / tests ---
+OK node --check: backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.repository.js
+OK node --check: backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.service.js
+OK node --check: backend/src/modules/ventas-cotizaciones/ventas-cotizaciones-interes.controller.js
+OK node --check: backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.routes.js
+OK node --check: core/module-loader.js
+OK node --check: modules/ventas-proyectos-interes/ventas-proyectos-interes.js
+OK fase6_interest_backend_contract
+OK fase6_frontend_contract
+
+--- Restricciones ---
+Sin CREATE TABLE / ALTER TABLE / DROP TABLE.
+OK sin DDL
+OK paginacion 30

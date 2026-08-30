@@ -1,0 +1,16 @@
+FASE 5 - VALIDACION
+Fecha: 2026-08-30
+
+[OK] Logistica: 12 secciones del pipeline del reporte.
+[OK] Logistica: 179 encabezados comparados exactamente contra PL_COLUMNAS_POR_ESTATUS.
+[OK] Logistica: 30 registros por pagina por cada seccion.
+[OK] Logistica: ENTREGADO limitado al anio en curso de America/Mexico_City segun fecha_entrega_real_obra.
+[OK] Logistica: Supervisor(a) y Asesor permanecen como columnas del reporte.
+[OK] Activos: una fila por proyecto.
+[OK] Activos: columnas Proyecto | Cantidad de equipos | %OC | %M | %A | %General.
+[OK] Activos: formula replicada del modulo Instalaciones Proyectos: OC 40% + MO 40% + AJ 20%.
+[OK] Activos: promedio previo por equipo para OC/MO/AJ y redondeo equivalente al codigo fuente.
+[OK] Activos: orden %General descendente, empate por proyecto.
+[OK] Activos: 30 proyectos por pagina.
+[OK] No se agregan CREATE TABLE ni ALTER TABLE.
+[OK] Dump 2026-08-27 contiene los 39 campos log_ops y 9 campos ins_fl usados (verificacion historica de esquema).

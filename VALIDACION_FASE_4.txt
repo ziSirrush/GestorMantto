@@ -1,0 +1,54 @@
+FASE 4 — VALIDACION
+Fecha: 2026-08-30
+
+[OK] node --check modules/ventas-dashboard/ventas-dashboard.js
+[OK] node --check core/module-loader.js
+[OK] node --check backend/src/modules/ventas-clientes/ventas-clientes.controller.js
+[OK] node --check backend/src/modules/ventas-clientes/ventas-clientes-sync-f4.service.js
+
+[OK] Test mock de sync idempotente:
+     primera carga de 2 filas idénticas => 1 INSERT + 1 UPDATE
+     segunda carga idéntica             => 0 INSERT + 2 UPDATE
+     registros físicos finales          => 1
+
+[OK] Dashboard conserva TABLE_PAGE_SIZE = 30.
+[OK] Ventas muestra Fecha de venta usando fecha_cierre.
+[OK] Ventas elimina la segunda fecha redundante.
+[OK] Perdidos muestra Fecha de pérdida usando fecha_cambio_estatus.
+[OK] Cliente con cotizaciones = 0 queda resaltado con texto de relación faltante.
+[OK] Asesor continúa condicionado por modo Todos mediante ownerCell().
+
+[OK] SQL referencia únicamente tablas/columnas verificadas en SABANA270826.sql:
+     ventas_clientes
+     ventas_clientes_contactos
+     ventas_cotizaciones_cor
+     ventas_prospecciones
+
+[ADVERTENCIA]
+SABANA270826.sql es un dump de referencia del 27/08/2026 y no prueba el estado vivo posterior.
+Ejecutar primero el script PREVIEW. Si aparecen FK adicionales hacia ventas_clientes.id_cliente,
+DETENER el APPLY hasta incorporarlas al plan de consolidación.
+
+[NO EJECUTADO]
+No se modificó Aiven.
+No se hizo deploy de backend/frontend.
+No se hizo commit/push a GitHub.
+
+[VALIDACION CONTRA DUMP SABANA270826.sql]
+ventas_clientes: 2,411 filas.
+Grupos duplicados activos por identidad backend: 1,193.
+Registros excedentes a consolidar: 1,215.
+Filas dentro de grupos duplicados: 2,408.
+Grupos duplicados con iniciales/asesor diferentes: 0.
+Patrón de pares con delta de ID = 1,205: 1,182 grupos.
+
+Referencias del dump hacia IDs duplicados:
+- ventas_cotizaciones_cor.id_cliente: 0
+- ventas_prospecciones.id_cliente: 0
+- ventas_clientes_contactos.id_cliente: 1
+
+Simulación lógica del APPLY sobre el dump:
+- referencias de cotización movidas: 0
+- referencias de prospección movidas: 0
+- referencias de contactos movidas: 1
+- grupos duplicados activos restantes: 0

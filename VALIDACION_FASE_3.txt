@@ -1,0 +1,34 @@
+FASE 3 VENTAS DASHBOARD COTIZACIONES V001
+Fecha de validación: 2026-08-30
+
+VALIDACIONES REALIZADAS SIN CONEXIÓN LIVE A AIVEN
+================================================
+
+[OK] node --check en todos los archivos JavaScript del paquete.
+[OK] Dashboard conserva Todos / usuario individual heredado de Fase 1.
+[OK] Dashboard conserva resaltado Prospección/Redes heredado de Fase 2.
+[OK] Cotizaciones activas excluyen VENDIDO y PERDIDO.
+[OK] Cotizaciones activas usan año de fecha_solicitud con fallback fecha_cotizacion.
+[OK] Ventas usan año de fecha_cierre.
+[OK] Perdidos usan año de fecha_cambio_estatus.
+[OK] Orden de Cotizaciones activas usa fecha efectiva DESC + id_cotizacion DESC.
+[OK] SELECT de Dashboard expone id_cliente para detectar relación formal faltante.
+[OK] Frontend resalta id_cliente nulo con "Sin cliente relacionado".
+[OK] Proyecto de interés usa usuario_interacciones existente; no CREATE TABLE / ALTER.
+[OK] Proyecto de interés usa usuario autenticado como propietario del estado.
+[OK] GET/PUT de Proyecto de interés validan visibilidad de la cotización con alcance Ventas.
+[OK] PUT Proyecto de interés es idempotente en prueba con mocks.
+[OK] Activar/desactivar Proyecto de interés no modifica ventas_cotizaciones_cor.
+[OK] Rutas /cotizaciones/:id/interes están antes de /cotizaciones/:id.
+[OK] Historial actual de cambios de estatus de Cotizaciones se conserva y no se duplica.
+[OK] core/module-loader.js incluye cache busting Fase 3 para Dashboard y Detalle Cotización.
+
+Prueba mock de idempotencia:
+INTEREST_SERVICE_IDEMPOTENCY_OK
+
+LÍMITES DE ESTA VALIDACIÓN
+==========================
+No se ejecutaron consultas contra la base Aiven live.
+No se hizo deploy a Azure, Netlify ni GitHub.
+No se modificaron datos reales.
+El esquema reutilizado de usuario_interacciones se verificó contra SABANA270826.sql (dump 2026-08-27).
