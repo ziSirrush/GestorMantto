@@ -1,0 +1,386 @@
+/* [Aster | 2026-08-31 | ASTER-MG | FASE 1 RESPONSIVE GLOBAL]
+   Contrato global del Gestor:
+   - La aplicacion y cada view permanecen dentro del viewport.
+   - El contenido general no debe ensanchar el shell.
+   - Las tablas anchas conservan su ancho y deben desplazarse dentro de su wrapper local.
+   - No se usa zoom/scale para hacer caber modulos.
+   - Las correcciones puntuales de cada modulo corresponden a Fase 2. */
+
+html,
+body,
+#app,
+.app-shell,
+.app-body,
+.main-content{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+
+html,
+body{
+  overflow:hidden;
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+}
+
+.app-shell,
+.app-body,
+.main-content{
+  box-sizing:border-box;
+}
+
+.main-content{
+  overflow:hidden;
+}
+
+/* La vista administra solo el scroll vertical global.
+   Ningun modulo debe convertir el Gestor completo en un lienzo horizontal. */
+.view{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-x:none;
+}
+
+.view.active{
+  max-width:100%;
+  min-width:0;
+}
+
+/* Primer nivel de cada modulo: nunca puede forzar un ancho superior a la view.
+   Esto NO modifica anchos internos de tablas. */
+.view > *{
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+
+/* Controles generales no deben empujar el viewport.
+   El reacomodo especifico de filas/filtros se corrige modulo por modulo en Fase 2. */
+.view button,
+.view input,
+.view select,
+.view textarea,
+.view fieldset,
+.view form{
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+
+/* Mantiene bloqueado el gesto de pellizco/zoom en dispositivos tactiles,
+   conservando desplazamiento natural horizontal/vertical donde corresponda. */
+@media (pointer:coarse){
+  html,
+  body{
+    touch-action:pan-x pan-y;
+  }
+}
+
+/* En pantallas angostas el shell sigue ocupando exactamente el viewport.
+   Las tablas siguen siendo responsabilidad de sus wrappers overflow-x:auto. */
+@media (max-width:920px){
+  .app-body,
+  .main-content,
+  .view,
+  .view.active{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+}
+
+/* ========================================================================== */
+/* [Aster | 2026-08-31 | ASTER-MG | FASE 2 RESPONSIVE POR MODULOS]            */
+/* ========================================================================== */
+/*
+  Objetivo:
+  - Ningun modulo puede ensanchar la aplicacion ni requerir pellizco/zoom.
+  - Tablas anchas conservan sus dimensiones y desplazan horizontalmente dentro
+    de su propio wrapper.
+  - Encabezados, acciones, filtros, KPIs y formularios se reacomodan.
+  - Las reglas de esta fase son de contencion/layout; no cambian datos ni logica.
+*/
+
+/* Los wrappers raiz tipo *-page ocupan todo el ancho util del view.
+   !important es intencional: los CSS lazy de cada modulo se cargan despues
+   del contrato global y varios reintroducen max-width fijos. */
+.view > [class*="-page"]{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+
+/* Los bloques principales nunca pueden heredar un minimo que empuje el shell. */
+.view > [class*="-page"] > *,
+.view > [class*="-page"] > * > *{
+  min-width:0;
+}
+
+/* Encabezado principal de modulo. Se limita al viewport sin tocar encabezados
+   internos de tablas/acordeones porque solo se aplica al primer nivel de page. */
+.view > [class*="-page"] > [class*="-head"]{
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+
+.view > [class*="-page"] > [class*="-head"] > div,
+.view > [class*="-page"] > [class*="-head"] [class*="-head-actions"]{
+  min-width:0!important;
+  max-width:100%!important;
+}
+
+.view > [class*="-page"] > [class*="-head"] [class*="-head-actions"]{
+  flex-wrap:wrap!important;
+}
+
+/* Toolbars/filtros pueden reacomodarse; nunca deben imponer el ancho de sus
+   inputs al modulo completo. */
+.view [class*="-toolbar"],
+.view [class*="-filters"]{
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+
+.view [class*="-toolbar"] > *,
+.view [class*="-filters"] > *{
+  min-width:0;
+  max-width:100%;
+}
+
+/* Regla oficial de tablas: la tabla puede ser mas ancha; el wrapper es quien
+   desplaza horizontalmente. No se fuerza la tabla a encogerse. */
+.view [class*="-table-wrap"],
+.view [class*="-table-scroll"],
+.view [class*="-table-container"]{
+  width:100%;
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  -webkit-overflow-scrolling:touch;
+}
+
+.view [class*="-table-wrap"]{
+  overflow-x:auto;
+}
+
+/* Elementos de contenido no-tabular no pueden empujar el viewport. */
+.view img:not([class*="map"]),
+.view video{
+  max-width:100%;
+  height:auto;
+}
+
+.view [class*="-workspace"],
+.view [class*="-summary"],
+.view [class*="-kpis"],
+.view [class*="-grid"]{
+  max-width:100%;
+  min-width:0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Prospeccion: caso reportado                                                  */
+/* -------------------------------------------------------------------------- */
+#view-ventas-prospeccion .vpr-page{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+
+#view-ventas-prospeccion .vpr-head,
+#view-ventas-prospeccion .vpr-workspace,
+#view-ventas-prospeccion .vpr-toolbar,
+#view-ventas-prospeccion .vpr-table-wrap{
+  max-width:100%!important;
+  min-width:0!important;
+}
+
+#view-ventas-prospeccion .vpr-head > div:first-child{
+  min-width:0!important;
+  max-width:100%!important;
+}
+
+#view-ventas-prospeccion .vpr-head-actions{
+  min-width:0!important;
+  max-width:100%!important;
+  flex-wrap:wrap!important;
+}
+
+#view-ventas-prospeccion .vpr-toolbar > *{
+  min-width:0!important;
+  max-width:100%!important;
+}
+
+#view-ventas-prospeccion .vpr-table-wrap{
+  overflow-x:auto!important;
+  overflow-y:auto;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Proyeccion: comparte historicamente prefijo .vpr-* con Prospeccion.          */
+/* El aislamiento de estilos en module-loader es la defensa principal.         */
+/* Estas reglas aseguran ademas el layout propio de la ruta.                    */
+/* -------------------------------------------------------------------------- */
+#view-ventas-proyeccion .vpr-page{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+
+#view-ventas-proyeccion .vpr-head,
+#view-ventas-proyeccion .vpr-workspace,
+#view-ventas-proyeccion .vpr-toolbar,
+#view-ventas-proyeccion .vpr-stages,
+#view-ventas-proyeccion .vpr-table-wrap{
+  max-width:100%!important;
+  min-width:0!important;
+}
+
+#view-ventas-proyeccion .vpr-head-actions{
+  flex-wrap:wrap!important;
+  min-width:0!important;
+  max-width:100%!important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Modulos confirmados con max-width de escritorio en el wrapper raiz.         */
+/* Las tablas mantienen sus min-width originales y su scroll local.             */
+/* -------------------------------------------------------------------------- */
+.view .proy-page,
+.view .vc-page,
+.view .vv-page,
+.view .vp-page,
+.view .vpi-page{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  box-sizing:border-box!important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive de controles no-tabulares                                        */
+/* -------------------------------------------------------------------------- */
+@media (max-width:1100px){
+  .view > [class*="-page"] > [class*="-head"]{
+    flex-wrap:wrap!important;
+  }
+
+  .view [class*="-toolbar"],
+  .view [class*="-filters"]{
+    min-width:0!important;
+  }
+
+  /* Grid toolbars comerciales: evita que la suma de min-width de columnas
+     fuerce el viewport en resoluciones intermedias. */
+  #view-ventas-proyeccion .vpr-toolbar,
+  #view-ventas-cotizaciones .vc-toolbar,
+  #view-ventas-clientes .vcl-toolbar,
+  #view-ventas-vendidos .vv-toolbar,
+  #view-ventas-perdidos .vp-toolbar{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+
+  #view-ventas-proyeccion .vpr-search,
+  #view-ventas-cotizaciones .vc-search,
+  #view-ventas-clientes .vcl-search,
+  #view-ventas-vendidos .vv-search,
+  #view-ventas-perdidos .vp-search{
+    grid-column:span 2;
+    min-width:0!important;
+  }
+}
+
+@media (max-width:760px){
+  .view > [class*="-page"] > [class*="-head"]{
+    flex-direction:column!important;
+    align-items:stretch!important;
+  }
+
+  .view > [class*="-page"] > [class*="-head"] [class*="-head-actions"]{
+    width:100%!important;
+    justify-content:flex-start!important;
+    align-items:stretch!important;
+  }
+
+  .view > [class*="-page"] > [class*="-head"] [class*="-head-actions"] > *{
+    max-width:100%!important;
+  }
+
+  /* Prospeccion: acciones y filtros pasan a una sola columna. */
+  #view-ventas-prospeccion .vpr-head-actions{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    width:100%!important;
+  }
+
+  #view-ventas-prospeccion .vpr-head-actions > *,
+  #view-ventas-prospeccion .vpr-status,
+  #view-ventas-prospeccion .vpr-btn{
+    width:100%!important;
+    max-width:100%!important;
+    justify-content:center;
+  }
+
+  #view-ventas-prospeccion .vpr-toolbar{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    align-items:stretch!important;
+    width:100%!important;
+  }
+
+  #view-ventas-prospeccion .vpr-toolbar label,
+  #view-ventas-prospeccion .vpr-search,
+  #view-ventas-prospeccion .vpr-toolbar input,
+  #view-ventas-prospeccion .vpr-toolbar select,
+  #view-ventas-prospeccion .vpr-clear{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+
+  /* Grids comerciales restantes: una columna para controles. */
+  #view-ventas-proyeccion .vpr-toolbar,
+  #view-ventas-cotizaciones .vc-toolbar,
+  #view-ventas-clientes .vcl-toolbar,
+  #view-ventas-vendidos .vv-toolbar,
+  #view-ventas-perdidos .vp-toolbar{
+    grid-template-columns:1fr!important;
+  }
+
+  #view-ventas-proyeccion .vpr-search,
+  #view-ventas-cotizaciones .vc-search,
+  #view-ventas-clientes .vcl-search,
+  #view-ventas-vendidos .vv-search,
+  #view-ventas-perdidos .vp-search{
+    grid-column:auto!important;
+    min-width:0!important;
+    width:100%!important;
+  }
+
+  /* Cualquier boton de accion principal puede bajar de linea, pero nunca salir
+     del viewport. No se fuerza ancho completo fuera de pantallas pequenas. */
+  .view > [class*="-page"] > [class*="-head"] button,
+  .view > [class*="-page"] > [class*="-head"] a{
+    max-width:100%!important;
+  }
+}
+
+@media (max-width:520px){
+  .view > [class*="-page"] > [class*="-head"] [class*="-head-actions"] > button,
+  .view > [class*="-page"] > [class*="-head"] [class*="-head-actions"] > a{
+    width:100%!important;
+  }
+}

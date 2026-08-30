@@ -1,9 +1,20 @@
-<div class="vd-page" data-vd-template-version="20260830-fase2-cierre-optimizacion-v001">
+<div class="vd-page" data-vd-template-version="20260831-fase1-responsive-global-v001">
   <section class="vd-card vd-head">
-    <div>
+    <div class="vd-head-copy">
       <p class="vd-eyebrow">VENTAS · DASHBOARD</p>
       <h1>Dashboard Ventas</h1>
       <p>Consulta comercial consolidada de todo tu alcance autorizado · vista completa por default.</p>
+    </div>
+
+    <div class="vd-head-actions" aria-label="Acciones del Dashboard">
+      <div class="vd-pdf-action vd-pdf-action-general" id="vd-pdf-general-wrap" hidden>
+        <button type="button" class="vd-pdf-btn vd-pdf-btn-general" id="vd-pdf-general">Generar PDF general</button>
+        <div class="vd-pdf-progress" id="vd-pdf-general-progress" hidden><span></span></div>
+      </div>
+      <div class="vd-pdf-action vd-pdf-action-individual" id="vd-pdf-individual-wrap" hidden>
+        <button type="button" class="vd-pdf-btn vd-pdf-btn-individual" id="vd-pdf-individual">Generar PDF del asesor</button>
+        <div class="vd-pdf-progress" id="vd-pdf-individual-progress" hidden><span></span></div>
+      </div>
     </div>
   </section>
 
@@ -40,17 +51,6 @@
         <option value="tareas_creadas">10. Pendientes creados</option>
       </select>
       <small>Por default se muestran todas las secciones autorizadas en el orden oficial.</small>
-    </div>
-
-    <div class="vd-control-actions" aria-label="Acciones del Dashboard">
-      <div class="vd-pdf-action vd-pdf-action-general" id="vd-pdf-general-wrap" hidden>
-        <button type="button" class="vd-pdf-btn vd-pdf-btn-general" id="vd-pdf-general">Generar PDF general</button>
-        <div class="vd-pdf-progress" id="vd-pdf-general-progress" hidden><span></span></div>
-      </div>
-      <div class="vd-pdf-action vd-pdf-action-individual" id="vd-pdf-individual-wrap" hidden>
-        <button type="button" class="vd-pdf-btn vd-pdf-btn-individual" id="vd-pdf-individual">Generar PDF del asesor</button>
-        <div class="vd-pdf-progress" id="vd-pdf-individual-progress" hidden><span></span></div>
-      </div>
     </div>
   </section>
 

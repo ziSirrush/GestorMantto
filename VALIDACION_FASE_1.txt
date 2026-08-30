@@ -1,38 +1,30 @@
-FASE 1 OPTIMIZACION DASHBOARD VENTAS V001
-Fecha: 2026-08-30
+FASE 1 RESPONSIVE GLOBAL GESTOR V001
+Fecha: 2026-08-31
 
-BASELINE GITHUB MAIN VERIFICADO
-[OK] ventas-dashboard.html  blob 084f514b9d342f0d0acdd3d9843a89d23f987801
-[OK] ventas-dashboard.css   blob e3e301e142b7b353d7d835f315f630a617476036
-[OK] ventas-dashboard.js    blob 8ac8c58875e7fa681bebbae1396310fd395a4702
-[OK] core/module-loader.js  blob bdb70a8d7063b614964db4f43f9ace946066421f
+BASE GITHUB MAIN REVISADA
+- index.html: 47f12c4c736c643b3560fda91902b186b1d88499
+- core/module-loader.js: 308dd276695572b1a57f878e4b2cedbf01525f9c
+- modules/ventas-dashboard/ventas-dashboard.html: d1c0880d359b7f64949c65d418f5585ea47241ea
+- modules/ventas-dashboard/ventas-dashboard.css: 622eebb44c53a555529398640526ebc57c958032
+- modules/ventas-dashboard/ventas-dashboard.js: da057f7c31f5656e11614172813e2300ef067726
 
-VALIDACION ESTATICA
-[OK] node --check modules/ventas-dashboard/ventas-dashboard.js
-[OK] node --check core/module-loader.js
-[OK] tests/fase1_optimizacion_dashboard_contract.test.js
-[OK] HTML sin IDs duplicados
-[OK] CSS con llaves balanceadas
-[OK] Eliminado control anterior vd-check-grid
-[OK] Default responsable = Todos
-[OK] Default secciones = Todas las secciones
-[OK] No se persiste seleccion parcial entre entradas
-[OK] Orden oficial 1-10 preservado
-[OK] TABLE_PAGE_SIZE = 30 preservado
-[OK] Dashboard full-width: max-width:none + width:100%
-[OK] Barra de filtros horizontal con responsive 2/1 columnas
-[OK] Cache-bust CSS/JS actualizado
-[OK] Template versionado para reemplazar HTML previo si queda cargado en la vista
-[OK] Sin archivos SQL
-[OK] Sin cambios backend
+VALIDACIONES EJECUTADAS
+[OK] node --check tests/fase1_responsive_contract.test.js
+[OK] node tests/fase1_responsive_contract.test.js
+[OK] Llaves CSS balanceadas en responsive-contract.css
+[OK] Llaves CSS balanceadas en ventas-dashboard.css
+[OK] No existe ningun archivo .sql en el paquete
+[OK] El PDF se encuentra en el encabezado antes de vd-controls
+[OK] IDs del HTML Dashboard sin duplicados
+[OK] .vd-table-wrap conserva overflow-x:auto
+[OK] Contrato global no contiene CSS zoom ni transform:scale()
+[OK] Contrato global no aplica reglas de compresion a tablas
+[OK] Aplicador contiene cache-bust de Dashboard y registro del CSS global
 
-NO EJECUTADO
-[NO] Navegador conectado a backend/Aiven
-[NO] E2E Todos vs usuario individual
-[NO] E2E 10 secciones simultaneas
-[NO] Deploy GitHub Pages/Netlify
-[NO] Commit/push GitHub
-[NO] Cambios Aiven/Azure
+VALIDACIONES NO EJECUTADAS
+- PowerShell real del aplicador: no disponible en el runtime de generacion.
+- Navegador/E2E real.
+- Deploy GitHub Pages / Netlify.
+- Dispositivos tactiles reales.
 
-CONCLUSION
-La fase pasa validacion estatica y de contrato. No puedo confirmar el resultado visual/runtime en produccion hasta integrarla y probarla en navegador.
+No puedo confirmar el comportamiento visual final en cada dispositivo hasta integrar y probar en navegador.
