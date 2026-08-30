@@ -16,6 +16,7 @@
     <article class="mov-kpi mov-kpi-red" data-mov-detail="degradados"><i class="mov-led red"></i><strong id="mov-kpi-degradados">—</strong><b>Salidas de servicio</b><small>equipos detenidos</small></article>
     <article class="mov-kpi mov-kpi-green" data-mov-detail="recuperados"><i class="mov-led green"></i><strong id="mov-kpi-recuperados">—</strong><b>Regresos a servicio</b><small>equipos recuperados</small></article>
     <article class="mov-kpi mov-kpi-amber" data-mov-detail="cambios"><i class="mov-led amber"></i><strong id="mov-kpi-cambios">—</strong><b>Cambios operativos</b><small>estatus distinto</small></article>
+    <article class="mov-kpi mov-kpi-slate" data-mov-detail="ingresos"><i class="mov-led slate"></i><strong id="mov-kpi-ingresos">—</strong><b>Nuevos ingresos</b><small>pendientes del corte semanal</small></article>
   </section>
 
   <section class="mov-card mov-collapsible is-open" data-mov-panel="monthly">
@@ -25,7 +26,7 @@
     <div class="mov-panel-content" data-mov-content="monthly">
       <section class="mov-filters" aria-label="Filtros mensuales">
         <label>Zona<select id="mov-filter-zona"><option value="">Todas</option></select></label>
-        <label>Tipo de movimiento<select id="mov-filter-tipo"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
+        <label>Tipo de movimiento<select id="mov-filter-tipo"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option><option value="NUEVO_INGRESO">Nuevo ingreso</option></select></label>
         <label>Buscar<input id="mov-filter-search" type="search" placeholder="Equipo, proyecto, supervisor..." /></label>
         <button type="button" class="mov-btn" data-mov-action="clear">Limpiar</button>
         <button type="button" class="mov-btn mov-btn-primary" data-mov-action="apply">Aplicar</button>
@@ -45,9 +46,10 @@
         <label>Año<select id="mov-week-year"><option value="">Selecciona</option></select></label>
         <label>Semana<select id="mov-week-number"><option value="">Selecciona</option></select></label>
         <label>Buscar proyecto<input id="mov-week-search" type="search" placeholder="Proyecto o código de equipo..." /></label>
-        <label>Tipo de movimiento<select id="mov-week-type"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option></select></label>
+        <label>Tipo de movimiento<select id="mov-week-type"><option value="">Todos</option><option value="DEGRADADO">Salida de servicio</option><option value="RECUPERADO">Regreso a servicio</option><option value="CAMBIO">Cambio operativo</option><option value="NUEVO_INGRESO">Nuevo ingreso</option></select></label>
         <button type="button" class="mov-btn" data-mov-week-action="clear">Limpiar</button>
         <button type="button" class="mov-btn mov-btn-primary" data-mov-week-action="consult">Consultar</button>
+        <button type="button" class="mov-btn mov-btn-primary" id="mov-week-manual-cut" data-mov-week-action="cut" hidden>Hacer corte semanal</button>
       </section>
       <div class="mov-section-head"><div><h2 id="mov-week-title">Semana sin seleccionar</h2><p id="mov-week-count">Selecciona un año y una semana</p></div><small id="mov-week-range">Corte semanal: —</small></div>
       <section class="mov-grid mov-week-kpis" aria-label="Indicadores semanales">
@@ -55,6 +57,7 @@
         <article class="mov-mini-kpi"><strong id="mov-week-outs">—</strong><span>Salidas</span></article>
         <article class="mov-mini-kpi"><strong id="mov-week-returns">—</strong><span>Regresos</span></article>
         <article class="mov-mini-kpi"><strong id="mov-week-changes">—</strong><span>Otros cambios</span></article>
+        <article class="mov-mini-kpi"><strong id="mov-week-incomes">—</strong><span>Nuevos ingresos</span></article>
       </section>
       <div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Fecha corte</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Estatus anterior</th><th>Estatus actual</th><th>Supervisor</th></tr></thead><tbody id="mov-week-body"><tr><td colspan="8" class="mov-empty">Sin semana seleccionada</td></tr></tbody></table></div>
     </div>

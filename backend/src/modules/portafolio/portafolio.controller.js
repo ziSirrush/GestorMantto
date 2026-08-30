@@ -23,6 +23,7 @@ module.exports = {
   getPortafolioMovimientos: createAction('getPortafolioMovimientos'),
   getPortafolioSemanasDisponibles: createAction('getPortafolioSemanasDisponibles'),
   getPortafolioMovimientosSemanales: createAction('getPortafolioMovimientosSemanales'),
+  ejecutarCorteSemanalManual: createAction('ejecutarCorteSemanalManual'),
   getPortafolioMovimientoDetalle: createAction('getPortafolioMovimientoDetalle'),
   getPortafolioEquipoTicketsLote: createAction('getPortafolioEquipoTicketsLote'),
   getPortafolioEquipoDetalle: createAction('getPortafolioEquipoDetalle'),

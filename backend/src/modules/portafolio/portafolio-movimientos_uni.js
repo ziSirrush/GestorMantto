@@ -8,6 +8,10 @@
 
 const db = require('../../config/db');
 const {
+  latestDueSunday,
+  runWeeklyClose
+} = require('../../jobs/portafolioCierreSemanal.job');
+const {
   hasUnrestrictedUnitedScope_gnral,
   buildPortafolioScopeSql_gnral,
   zoneIds_gnral
@@ -53,12 +57,47 @@ function equipmentKey_uni(value) {
   return normalizeUpper_uni(value);
 }
 
+async function latestWeeklySnapshotEquipmentKeys_uni() {
+  const [cuts] = await db.query(`
+    SELECT id_corte
+    FROM portafolio_cortes_semanales FORCE INDEX (uq_portafolio_semana)
+    WHERE estado = 'CERRADO'
+    ORDER BY anio_iso DESC, semana_iso DESC
+    LIMIT 1
+  `);
+  if (!cuts.length) return null;
+
+  const [snapshots] = await db.query(`
+    SELECT snapshot_json
+    FROM portafolio_cortes_semanales
+    WHERE id_corte = ?
+      AND estado = 'CERRADO'
+    LIMIT 1
+  `, [cuts[0].id_corte]);
+  if (!snapshots.length) return null;
+
+  let snapshot = snapshots[0].snapshot_json;
+  if (Buffer.isBuffer(snapshot)) snapshot = snapshot.toString('utf8');
+  if (!Array.isArray(snapshot)) {
+    try { snapshot = JSON.parse(snapshot); } catch (error) { return null; }
+  }
+  if (!Array.isArray(snapshot)) return null;
+
+  return new Set(
+    snapshot
+      .map(row => equipmentKey_uni(equipmentCodeFromJson_uni(row)))
+      .filter(Boolean)
+  );
+}
+
 function movementType_uni(row) {
   return normalizeUpper_uni(row?.tipo ?? row?.tipo_movimiento ?? 'CAMBIO') || 'CAMBIO';
 }
 
 function classifyMovementSql_uni(alias = 'p') {
   return `CASE
+    WHEN NULLIF(TRIM(COALESCE(${alias}.estatus_ul_mes, '')), '') IS NULL
+      AND LOWER(TRIM(${alias}.estatus_servicio)) IN ('en servicio','servicio') THEN 'NUEVO_INGRESO'
     WHEN LOWER(TRIM(${alias}.estatus_ul_mes)) IN ('en servicio','servicio')
       AND LOWER(TRIM(${alias}.estatus_servicio)) NOT IN ('en servicio','servicio') THEN 'DEGRADADO'
     WHEN LOWER(TRIM(${alias}.estatus_ul_mes)) NOT IN ('en servicio','servicio')
@@ -143,11 +182,18 @@ function monthlyFilters_uni(req, alias = 'p', zoneAlias = 'z') {
   const clauses = [
     `${alias}.estado_registro = 1`,
     `(${alias}.inactivo IS NULL OR UPPER(${alias}.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))`,
-    `${alias}.estatus_ul_mes IS NOT NULL`,
-    `TRIM(${alias}.estatus_ul_mes) <> ''`,
     `${alias}.estatus_servicio IS NOT NULL`,
     `TRIM(${alias}.estatus_servicio) <> ''`,
-    `LOWER(TRIM(${alias}.estatus_ul_mes)) <> LOWER(TRIM(${alias}.estatus_servicio))`,
+    `(
+      (
+        NULLIF(TRIM(COALESCE(${alias}.estatus_ul_mes, '')), '') IS NULL
+        AND LOWER(TRIM(${alias}.estatus_servicio)) IN ('en servicio','servicio')
+      )
+      OR (
+        NULLIF(TRIM(COALESCE(${alias}.estatus_ul_mes, '')), '') IS NOT NULL
+        AND LOWER(TRIM(${alias}.estatus_ul_mes)) <> LOWER(TRIM(${alias}.estatus_servicio))
+      )
+    )`,
     access.sql
   ];
   const params = [...(access.params || [])];
@@ -176,7 +222,7 @@ function monthlyFilters_uni(req, alias = 'p', zoneAlias = 'z') {
     params.push(search, search, search, search, search, search, search, search);
   }
 
-  if (['DEGRADADO', 'RECUPERADO', 'CAMBIO'].includes(tipo)) {
+  if (['DEGRADADO', 'RECUPERADO', 'CAMBIO', 'NUEVO_INGRESO'].includes(tipo)) {
     clauses.push(`${tipoExpr} = ?`);
     params.push(tipo);
   }
@@ -194,7 +240,7 @@ async function buildMonthlyPayload_uni(req) {
       source: 'aiven',
       warning: 'Movimientos pendiente: la tabla portafolio no tiene estatus_ul_mes para comparar contra el corte mensual.',
       alcance,
-      kpis: { total: 0, degradados: 0, recuperados: 0, cambios: 0 },
+      kpis: { total: 0, degradados: 0, recuperados: 0, cambios: 0, ingresos: 0 },
       corte: null,
       filters: { zonas: alcance.zonas },
       data: []
@@ -204,7 +250,7 @@ async function buildMonthlyPayload_uni(req) {
   const filters = monthlyFilters_uni(req, 'p', 'z');
   const fechaCorteExpr = available.has('estatus_ul_mes_fecha') ? 'p.estatus_ul_mes_fecha' : 'NULL';
 
-  const [rows] = await db.query(`
+  const [candidateRows] = await db.query(`
     SELECT
       p.id_portafolio,
       p.numero_equipo,
@@ -229,19 +275,36 @@ async function buildMonthlyPayload_uni(req) {
       ON z.id_zona = p.zona_id
      AND z.estado = 1
     WHERE ${filters.where}
-    ORDER BY tipo_movimiento ASC, z.zona ASC, p.proyecto ASC, p.numero_equipo ASC
-    LIMIT 1000
   `, filters.params);
 
-  const kpis = rows.reduce((acc, row) => {
+  const latestSnapshotKeys = await latestWeeklySnapshotEquipmentKeys_uni();
+  const visibleRows = candidateRows.filter(row => {
+    if (row.tipo_movimiento !== 'NUEVO_INGRESO') return true;
+    return latestSnapshotKeys instanceof Set
+      && !latestSnapshotKeys.has(equipmentKey_uni(row.numero_equipo));
+  });
+  visibleRows.sort((left, right) => [
+    'tipo_movimiento',
+    'zona',
+    'proyecto',
+    'numero_equipo'
+  ].reduce((result, key) => result || normalizeText_uni(left[key]).localeCompare(
+    normalizeText_uni(right[key]),
+    'es-MX',
+    { sensitivity: 'base' }
+  ), 0));
+  const rows = visibleRows.slice(0, 1000);
+
+  const kpis = visibleRows.reduce((acc, row) => {
     acc.total += 1;
     if (row.tipo_movimiento === 'DEGRADADO') acc.degradados += 1;
     else if (row.tipo_movimiento === 'RECUPERADO') acc.recuperados += 1;
+    else if (row.tipo_movimiento === 'NUEVO_INGRESO') acc.ingresos += 1;
     else acc.cambios += 1;
     return acc;
-  }, { total: 0, degradados: 0, recuperados: 0, cambios: 0 });
+  }, { total: 0, degradados: 0, recuperados: 0, cambios: 0, ingresos: 0 });
 
-  const corte = rows.map(row => row.fecha_corte).filter(Boolean).sort().pop() || null;
+  const corte = visibleRows.map(row => row.fecha_corte).filter(Boolean).sort().pop() || null;
 
   return {
     ok: true,
@@ -362,13 +425,15 @@ function scopedMovementTotals_uni(rows) {
     acc.total_movimientos += 1;
     if (type === 'DEGRADADO') acc.total_salidas += 1;
     else if (type === 'RECUPERADO') acc.total_regresos += 1;
+    else if (type === 'NUEVO_INGRESO') acc.total_ingresos += 1;
     else acc.total_cambios += 1;
     return acc;
   }, {
     total_movimientos: 0,
     total_salidas: 0,
     total_regresos: 0,
-    total_cambios: 0
+    total_cambios: 0,
+    total_ingresos: 0
   });
 }
 
@@ -436,6 +501,7 @@ async function getPortafolioMovimientosSemanales_uni(req, res) {
         total_salidas,
         total_regresos,
         total_cambios,
+        total_ingresos,
         snapshot_json,
         movimientos_json,
         estado,
@@ -473,7 +539,7 @@ async function getPortafolioMovimientosSemanales_uni(req, res) {
 
     const search = normalizeText_uni(req.query?.search || req.query?.buscar).toLowerCase();
     const tipo = normalizeUpper_uni(req.query?.tipo);
-    const tiposValidos = new Set(['DEGRADADO', 'RECUPERADO', 'CAMBIO']);
+    const tiposValidos = new Set(['DEGRADADO', 'RECUPERADO', 'CAMBIO', 'NUEVO_INGRESO']);
 
     let movimientos = allScoped;
     if (search) {
@@ -513,6 +579,32 @@ async function getPortafolioMovimientosSemanales_uni(req, res) {
     return res.status(500).json({
       ok: false,
       message: 'Error consultando movimientos semanales de portafolio.',
+      error: error.message
+    });
+  }
+}
+
+async function ejecutarCorteSemanalManual_uni(req, res) {
+  try {
+    const actor = req.actorUser || req.user || {};
+    const generatedBy = Number(actor.id_SB || actor.id || actor.user_id) || null;
+    const now = new Date();
+    const due = latestDueSunday(now);
+    const result = await runWeeklyClose(now, generatedBy, due);
+    const alreadyClosed = result?.skipped && result.reason === 'already_closed';
+
+    return res.json({
+      ok: true,
+      created: !result?.skipped,
+      message: alreadyClosed
+        ? `El corte de la semana ${result.semana_iso} ya estaba cerrado.`
+        : `Corte semanal ${result.semana_iso} generado correctamente.`,
+      corte: result
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'No fue posible generar el corte semanal manual.',
       error: error.message
     });
   }
@@ -659,5 +751,6 @@ module.exports = {
   getPortafolioMovimientos_uni,
   getPortafolioSemanasDisponibles_uni,
   getPortafolioMovimientosSemanales_uni,
+  ejecutarCorteSemanalManual_uni,
   getPortafolioMovimientoDetalle_uni
 };

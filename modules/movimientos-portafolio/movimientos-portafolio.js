@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const MODULE_VERSION = '20260821-fase09-cuartos-v001';
+  const MODULE_VERSION = '20260830-corte-semanal-v004';
   const state = {
     loaded:false,
     rows:[],
@@ -47,12 +47,14 @@
     const t=String(type||'').toUpperCase();
     if(t==='DEGRADADO')return 'Salida de servicio';
     if(t==='RECUPERADO')return 'Regreso a servicio';
+    if(t==='NUEVO_INGRESO')return 'Nuevo ingreso';
     return 'Cambio operativo';
   }
   function tagFor(type){
     const t=String(type||'').toUpperCase();
     if(t==='DEGRADADO')return {cls:'red'};
     if(t==='RECUPERADO')return {cls:'green'};
+    if(t==='NUEVO_INGRESO')return {cls:'slate'};
     return {cls:'amber'};
   }
   function statusPill(value){
@@ -69,14 +71,17 @@
       : esc(label);
   }
 
-  async function fetchJson(path){
+  async function fetchJson(path,options){
+    const config=Object.assign({cache:'no-store'},options||{});
     const headers=Object.assign(
       {'Accept':'application/json'},
       window.ManttoAuth&&typeof window.ManttoAuth.authHeaders==='function'
         ? window.ManttoAuth.authHeaders()
-        : {}
+        : {},
+      config.headers||{}
     );
-    const response=await fetch(API()+path,{headers,cache:'no-store'});
+    config.headers=headers;
+    const response=await fetch(API()+path,config);
     const raw=await response.text();
     let data;
     try{data=raw?JSON.parse(raw):{};}
@@ -90,6 +95,24 @@
     if(!el)return;
     el.className='mov-status '+(type||'loading');
     el.innerHTML='<span class="mov-dot"></span><span>'+esc(message||'Cargando...')+'</span>';
+  }
+
+  function isProgrammer(){
+    if(window.ManttoAuth&&typeof window.ManttoAuth.isViewingAs==='function'&&window.ManttoAuth.isViewingAs())return false;
+    const user=window.ManttoAuth&&typeof window.ManttoAuth.getActorUser==='function'
+      ? window.ManttoAuth.getActorUser()
+      : (window.ManttoAuth&&typeof window.ManttoAuth.getUser==='function'?window.ManttoAuth.getUser():{});
+    if(user&&user.is_programador)return true;
+    const roles=[user&&user.rol].concat(user&&Array.isArray(user.roles)?user.roles:[])
+      .map(value=>normTxt(value).toLowerCase());
+    return roles.includes('programador')||roles.includes('programador united')||roles.includes('programador corellian');
+  }
+
+  function configureManualCut(){
+    const button=$('mov-week-manual-cut');
+    if(!button)return;
+    button.hidden=!isProgrammer();
+    button.setAttribute('aria-hidden',button.hidden?'true':'false');
   }
 
   async function loadHtml(){
@@ -122,7 +145,9 @@
     document.querySelectorAll('[data-mov-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.movDetail)));
     document.querySelectorAll('[data-mov-toggle]').forEach(btn=>btn.addEventListener('click',()=>togglePanel(btn.dataset.movToggle)));
     document.querySelectorAll('[data-mov-week-action]').forEach(btn=>btn.addEventListener('click',()=>{
-      if(btn.dataset.movWeekAction==='consult')loadWeekly();
+      const action=btn.dataset.movWeekAction;
+      if(action==='consult')loadWeekly();
+      else if(action==='cut')runManualWeeklyCut();
       else clearWeeklyFilters();
     }));
     const year=$('mov-week-year');
@@ -131,6 +156,7 @@
     if(weekSearch)weekSearch.addEventListener('keydown',event=>{
       if(event.key==='Enter'){event.preventDefault();loadWeekly();}
     });
+    configureManualCut();
   }
 
   function currentParams(){
@@ -196,6 +222,7 @@
     text('mov-kpi-degradados',int(k.degradados));
     text('mov-kpi-recuperados',int(k.recuperados));
     text('mov-kpi-cambios',int(k.cambios));
+    text('mov-kpi-ingresos',int(k.ingresos));
     text('mov-count',int(state.rows.length)+' movimientos');
     text('mov-corte','Corte mensual: '+fmtDate(data.corte));
     const body=$('mov-body');
@@ -221,7 +248,7 @@
   }
 
   function renderMonthlyError(message){
-    ['mov-kpi-total','mov-kpi-degradados','mov-kpi-recuperados','mov-kpi-cambios'].forEach(id=>text(id,'0'));
+    ['mov-kpi-total','mov-kpi-degradados','mov-kpi-recuperados','mov-kpi-cambios','mov-kpi-ingresos'].forEach(id=>text(id,'0'));
     text('mov-count','0 movimientos');
     const body=$('mov-body');
     if(body)body.innerHTML='<tr><td colspan="8" class="mov-empty">Error: '+esc(message)+'</td></tr>';
@@ -248,6 +275,7 @@
     if(type==='degradados')return state.rows.filter(row=>row.tipo_movimiento==='DEGRADADO');
     if(type==='recuperados')return state.rows.filter(row=>row.tipo_movimiento==='RECUPERADO');
     if(type==='cambios')return state.rows.filter(row=>row.tipo_movimiento==='CAMBIO');
+    if(type==='ingresos')return state.rows.filter(row=>row.tipo_movimiento==='NUEVO_INGRESO');
     return state.rows;
   }
 
@@ -267,7 +295,7 @@
 
   function openDetail(type){
     const rows=filteredByType(type);
-    const labels={total:'Todos los movimientos',degradados:'Salidas de servicio',recuperados:'Regresos a servicio',cambios:'Cambios operativos'};
+    const labels={total:'Todos los movimientos',degradados:'Salidas de servicio',recuperados:'Regresos a servicio',cambios:'Cambios operativos',ingresos:'Nuevos ingresos'};
     const html=rows.length
       ? '<div class="mov-table-wrap"><table class="mov-table"><thead><tr><th>Tipo</th><th>Código</th><th>Proyecto</th><th>Zona</th><th>Anterior</th><th>Actual</th><th>Fecha corte</th></tr></thead><tbody>'
         +rows.map(row=>{
@@ -431,7 +459,7 @@
     text('mov-week-title','Semana sin seleccionar');
     text('mov-week-count',message||'Sin información');
     text('mov-week-range','Corte semanal: —');
-    ['mov-week-total','mov-week-outs','mov-week-returns','mov-week-changes'].forEach(id=>text(id,'—'));
+    ['mov-week-total','mov-week-outs','mov-week-returns','mov-week-changes','mov-week-incomes'].forEach(id=>text(id,'—'));
     const body=$('mov-week-body');
     if(body)body.innerHTML='<tr><td colspan="8" class="mov-empty">'+esc(message||'Sin información')+'</td></tr>';
   }
@@ -454,9 +482,39 @@
       text('mov-week-outs',int(cut.total_salidas));
       text('mov-week-returns',int(cut.total_regresos));
       text('mov-week-changes',int(cut.total_cambios));
+      text('mov-week-incomes',int(cut.total_ingresos));
       renderWeeklyRows();
     }catch(error){
       renderWeeklyEmpty(error.message);
+    }
+  }
+
+  async function runManualWeeklyCut(){
+    const button=$('mov-week-manual-cut');
+    if(!button||button.disabled)return;
+    if(!window.confirm('Se generará el último corte semanal pendiente usando el portafolio actual. ¿Deseas continuar?'))return;
+
+    button.disabled=true;
+    setStatus('loading','Generando corte semanal...');
+    try{
+      const data=await fetchJson('/api/portafolio/movimientos-semanales/corte',{method:'POST'});
+      const cut=data.corte||{};
+      state.weeklyCatalog=[];
+      await loadWeeklyCatalog();
+
+      const year=$('mov-week-year'),week=$('mov-week-number');
+      if(year&&cut.anio_iso){
+        year.value=String(cut.anio_iso);
+        fillWeeksForYear(year.value);
+      }
+      if(week&&cut.semana_iso)week.value=String(cut.semana_iso);
+      if(cut.anio_iso&&cut.semana_iso)await loadWeekly();
+      await refresh();
+      setStatus('ok',data.message||'Corte semanal generado correctamente');
+    }catch(error){
+      setStatus('error',error.message);
+    }finally{
+      button.disabled=false;
     }
   }
 

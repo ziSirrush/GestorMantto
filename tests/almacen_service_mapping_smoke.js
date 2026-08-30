@@ -1,0 +1,20 @@
+'use strict';
+const fs = require('fs');
+const Module = require('module');
+const originalLoad = Module._load;
+const fakeDb = { query: async()=>[[]], getConnection: async()=>{ throw new Error('DB not used in mapping smoke'); } };
+Module._load = function(request, parent, isMain){
+  if(request === '../../config/db') return fakeDb;
+  return originalLoad.call(this, request, parent, isMain);
+};
+const service = require('../backend/src/modules/almacen/almacen.service');
+Module._load = originalLoad;
+const filePath = process.argv[2] || require('path').join(__dirname, 'fixtures', 'inventario_sintetico.xlsx');
+const buffer = fs.readFileSync(filePath);
+const result = service.analyzeSpreadsheet({ originalname:'fixture.xlsx', buffer }, '2026-08-30');
+if(result.rowCount !== 2) throw new Error('rowCount esperado 2, recibido ' + result.rowCount);
+if(!result.mapping.codigo || !result.mapping.articulo || !result.mapping.empresa || !result.mapping.almacen || !result.mapping.fisico) throw new Error('Mapeo requerido incompleto');
+if(result.rows[0].codigo !== 'A-001' || result.rows[0].empresa !== 'Corellian' || result.rows[0].valor !== 1505) throw new Error('Normalización/cálculo de valor incorrecto');
+if(result.cutoffDate !== '2026-08-30') throw new Error('Fecha de corte incorrecta');
+if(result.warnings.length !== 0) throw new Error('Fixture limpio produjo warnings: ' + result.warnings.join(' '));
+console.log('PASS almacen_service_mapping_smoke');

@@ -1,0 +1,33 @@
+'use strict';
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const service=read('backend/src/modules/almacen/almacen.service.js');
+const routes=read('backend/src/modules/almacen/almacen.routes.js');
+const frontend=read('modules/almacen/almacen.js');
+const css=read('modules/almacen/almacen.css');
+const sql=read('sql/FASE_3_ALMACEN_OPERATIVOS_EXCEL_V002.sql');
+function ok(condition,message){if(!condition)throw new Error(message);}
+
+ok(routes.includes("ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL"),'Falta permiso operativo existente');
+for(const endpoint of ["'/stock'","'/prestamos/catalogos'","'/prestamos/resumen'","'/prestamos'","'/resguardos/catalogos'","'/resguardos'"]) ok(routes.includes(endpoint),'Falta endpoint '+endpoint);
+for(const type of ['INVENTARIO','PRESTAMO','RESGUARDO']) ok(service.includes(type),'Falta tipo '+type);
+ok(service.includes("tipo_registro='${RECORD_TYPES.INVENTORY}'"),'Inventario debe filtrar tipo_registro');
+ok(service.includes('beginTransaction')&&service.includes('rollback')&&service.includes('commit'),'Importación debe ser transaccional');
+ok(service.includes('MAYOR A 15 MESES'),'Rangos de antigüedad deben ser no solapados');
+ok(frontend.includes('/api/almacen/stock'),'Frontend Stock no conectado');
+ok(frontend.includes('/api/almacen/prestamos'),'Frontend Préstamos no conectado');
+ok(frontend.includes('/api/almacen/resguardos'),'Frontend Resguardos no conectado');
+ok(frontend.includes('No se fabrican préstamos a partir del inventario'),'Falta fail-closed visual préstamos');
+ok(frontend.includes('No se fabrican resguardos a partir del inventario'),'Falta fail-closed visual resguardos');
+ok(frontend.includes('30 por página'),'Falta paginación 30');
+ok(css.includes('.alm-table-wrap')&&/overflow-x\s*:\s*auto/.test(css),'Tablas deben conservar scroll horizontal interno');
+ok(!/transform\s*:\s*scale\s*\(/i.test(css),'No usar transform:scale');
+ok(!/\bzoom\s*:/i.test(css),'No usar zoom');
+ok(!/CREATE\s+TABLE/i.test(sql),'Fase 3 no debe crear otra tabla');
+ok(/ALTER\s+TABLE\s+almacen_fuente_excel/i.test(sql),'Fase 3 debe ampliar tabla única');
+ok(!/DROP\s+TABLE/i.test(sql),'No debe borrar tablas');
+ok(sql.includes('tipo_registro'),'SQL debe agregar tipo_registro');
+ok(!/INSERT\s+INTO\s+almacen_fuente_excel/i.test(sql),'SQL estructural no debe sembrar registros de negocio');
+console.log('OK fase3_almacen_v002_static');

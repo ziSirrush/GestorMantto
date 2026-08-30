@@ -1,54 +1,38 @@
-FASE 4 — VALIDACION
+FASE 4 ALMACEN AUDITORIA AIVEN V002 - VALIDACION
 Fecha: 2026-08-30
 
-[OK] node --check modules/ventas-dashboard/ventas-dashboard.js
-[OK] node --check core/module-loader.js
-[OK] node --check backend/src/modules/ventas-clientes/ventas-clientes.controller.js
-[OK] node --check backend/src/modules/ventas-clientes/ventas-clientes-sync-f4.service.js
+RESULTADO: OK para entrega como paquete local no desplegado.
 
-[OK] Test mock de sync idempotente:
-     primera carga de 2 filas idénticas => 1 INSERT + 1 UPDATE
-     segunda carga idéntica             => 0 INSERT + 2 UPDATE
-     registros físicos finales          => 1
+OK - Baseline funcional usado: FASE_3_ALMACEN_OPERATIVOS_EXCEL_V002.
+OK - Auditoria consume INVENTARIO del lote activo en almacen_fuente_excel.
+OK - Catalogo de almacenes proviene del backend/Aiven; no se usa inventario del navegador.
+OK - Muestra: 5% de referencias, minimo hasta 3, aprox. 70% orientado a valor + 30% aleatorio.
+OK - Captura esperado/encontrado y diferencias de piezas/valor en memoria.
+OK - Resultado imprimible / Guardar PDF desde navegador.
+OK - No se usa localStorage para auditorias.
+OK - No existe endpoint POST/PUT/PATCH/DELETE de Auditoria.
+OK - El bloque de servicio F4 no contiene INSERT/UPDATE/DELETE/DDL.
+OK - No se crea ni modifica SQL en Fase 4.
+OK - No se reutiliza almacen_fuente_excel como historico de auditorias.
+OK - Permiso reutilizado: ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL.
+OK - GET /api/almacen/auditoria/catalogos.
+OK - GET /api/almacen/auditoria/muestra.
+OK - node --check: routes/controller/service/frontend.
+OK - py_compile: aplicar_fase_4_almacen_v002.py.
+OK - smoke backend con DB simulada: catalogos + muestra + cero escrituras.
+OK - static test de endpoints, lectura, frontend y responsive.
+OK - aplicador probado en worktree simulado de Fase 3 V002.
+OK - aplicador probado por segunda vez con cache-bust ya aplicado.
+OK - cache-bust esperado: 12 referencias -> 20260830-almacen-fase4-auditoria-v002.
+OK - responsive sin zoom ni transform:scale().
 
-[OK] Dashboard conserva TABLE_PAGE_SIZE = 30.
-[OK] Ventas muestra Fecha de venta usando fecha_cierre.
-[OK] Ventas elimina la segunda fecha redundante.
-[OK] Perdidos muestra Fecha de pérdida usando fecha_cambio_estatus.
-[OK] Cliente con cotizaciones = 0 queda resaltado con texto de relación faltante.
-[OK] Asesor continúa condicionado por modo Todos mediante ownerCell().
+NO EJECUTADO - Aiven real.
+NO EJECUTADO - Azure App Service.
+NO EJECUTADO - GitHub commit/push.
+NO EJECUTADO - GitHub Pages.
+NO EJECUTADO - Netlify.
+NO EJECUTADO - auditoria fisica real.
 
-[OK] SQL referencia únicamente tablas/columnas verificadas en SABANA270826.sql:
-     ventas_clientes
-     ventas_clientes_contactos
-     ventas_cotizaciones_cor
-     ventas_prospecciones
-
-[ADVERTENCIA]
-SABANA270826.sql es un dump de referencia del 27/08/2026 y no prueba el estado vivo posterior.
-Ejecutar primero el script PREVIEW. Si aparecen FK adicionales hacia ventas_clientes.id_cliente,
-DETENER el APPLY hasta incorporarlas al plan de consolidación.
-
-[NO EJECUTADO]
-No se modificó Aiven.
-No se hizo deploy de backend/frontend.
-No se hizo commit/push a GitHub.
-
-[VALIDACION CONTRA DUMP SABANA270826.sql]
-ventas_clientes: 2,411 filas.
-Grupos duplicados activos por identidad backend: 1,193.
-Registros excedentes a consolidar: 1,215.
-Filas dentro de grupos duplicados: 2,408.
-Grupos duplicados con iniciales/asesor diferentes: 0.
-Patrón de pares con delta de ID = 1,205: 1,182 grupos.
-
-Referencias del dump hacia IDs duplicados:
-- ventas_cotizaciones_cor.id_cliente: 0
-- ventas_prospecciones.id_cliente: 0
-- ventas_clientes_contactos.id_cliente: 1
-
-Simulación lógica del APPLY sobre el dump:
-- referencias de cotización movidas: 0
-- referencias de prospección movidas: 0
-- referencias de contactos movidas: 1
-- grupos duplicados activos restantes: 0
+DECISION PENDIENTE PARA UNA FASE POSTERIOR:
+Persistencia historica de Auditorias. Requerira revisar el esquema vigente y, si no existe una estructura reutilizable,
+aprobar expresamente una tabla/cabecera-detalle propia. No debe mezclarse con almacen_fuente_excel.

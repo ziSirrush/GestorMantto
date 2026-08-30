@@ -19,7 +19,7 @@
     proyectos:{css:['./modules/proyectos/proyectos.css?v=20260706-v001'],js:['./modules/proyectos/proyectos.js?v=20260828-fase4-frontend-v001']},
     callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260827-fase2-carga-acotada-v001']},
     operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260828-fase4-frontend-v001']},
-    movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260828-fase4-frontend-v001']},
+    movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260830-corte-semanal-v004'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260830-corte-semanal-v004']},
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260830-responsive-v002'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004']},

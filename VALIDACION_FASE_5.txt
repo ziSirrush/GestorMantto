@@ -1,16 +1,18 @@
-FASE 5 - VALIDACION
-Fecha: 2026-08-30
-
-[OK] Logistica: 12 secciones del pipeline del reporte.
-[OK] Logistica: 179 encabezados comparados exactamente contra PL_COLUMNAS_POR_ESTATUS.
-[OK] Logistica: 30 registros por pagina por cada seccion.
-[OK] Logistica: ENTREGADO limitado al anio en curso de America/Mexico_City segun fecha_entrega_real_obra.
-[OK] Logistica: Supervisor(a) y Asesor permanecen como columnas del reporte.
-[OK] Activos: una fila por proyecto.
-[OK] Activos: columnas Proyecto | Cantidad de equipos | %OC | %M | %A | %General.
-[OK] Activos: formula replicada del modulo Instalaciones Proyectos: OC 40% + MO 40% + AJ 20%.
-[OK] Activos: promedio previo por equipo para OC/MO/AJ y redondeo equivalente al codigo fuente.
-[OK] Activos: orden %General descendente, empate por proyecto.
-[OK] Activos: 30 proyectos por pagina.
-[OK] No se agregan CREATE TABLE ni ALTER TABLE.
-[OK] Dump 2026-08-27 contiene los 39 campos log_ops y 9 campos ins_fl usados (verificacion historica de esquema).
+=== FASE 5 ALMACEN V002 - INTEGRACION Y QA ===
+Repo: /mnt/data/fase5_build/sim_repo
+OK: validacion estatica integral
+OK: node --check almacen.js
+OK: node --check almacen.routes.js
+OK: node --check almacen.controller.js
+OK: node --check almacen.service.js
+OK: node --check xlsx-lite.js
+OK: fase5_headers_smoke.js
+    PASS fase5_headers_smoke
+OK: fase5_import_rollback_smoke.js
+    PASS fase5_import_rollback_smoke
+OK: fase5_integration_service_smoke.js
+    PASS fase5_integration_service_smoke
+SKIP: Aiven real (usa --with-aiven cuando el backend tenga acceso al ambiente objetivo).
+SKIP: API HTTP real (usa --with-http con MANTTO_API_BASE y credenciales en variables de entorno).
+RESULTADO: APROBADO - QA LOCAL/ESTATICO
+NOTA: Aprobado local no equivale a E2E productivo. Ejecuta los modos opcionales en el ambiente controlado correspondiente.

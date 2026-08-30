@@ -1,21 +1,35 @@
-Repositorio: ziSirrush/GestorMantto
-Branch: main
-Commit baseline: b0d526b10e82eaca6d694eb8fb579ecc5cbda784
-Commit message: Version 083026.2 - Dashboard Ventas
-Fecha commit: 2026-08-30T21:18:11Z
+FASE 5 ALMACEN INTEGRACION Y QA V002
+Fecha: 2026-08-30
 
-Archivos origen verificados antes del fix:
-- modules/ventas-prospeccion/ventas-prospeccion.css
-  blob: 07b2a5179dd60f833808f27098d16fb64c48b7c3
-- modules/ventas-proyeccion/ventas-proyeccion.css
-  blob: 6dc8fd340dea612ededdcfa0efc0c1ba5b379bef
-- modules/dashboard-logistica/dashboard-logistica.css
-  blob: f4da9fc3c1e61b938e03961b5464bc54403290b3
-- core/module-loader.js
-  blob: 308dd276695572b1a57f878e4b2cedbf01525f9c
+Baseline funcional:
+- FASE_1_ALMACEN_ESQUELETO_V001
+- FASE_2_ALMACEN_DATOS_EXCEL_V002
+- FASE_3_ALMACEN_OPERATIVOS_EXCEL_V002
+- FASE_4_ALMACEN_AUDITORIA_AIVEN_V002
 
-Alcance del fix:
-- Ventas.Prospeccion
-- Ventas.Proyeccion
-- Logistica.Dashboard
-- Cache-bust exclusivamente de los tres CSS anteriores en core/module-loader.js
+Fuente oficial de datos operativos: Aiven MySQL.
+Tabla temporal reutilizada: almacen_fuente_excel.
+Auditoria: consulta/contraste sin persistencia historica.
+
+Cambio funcional de Fase 5:
+- corrige colision de dos funciones pager() del frontend;
+- separa inventoryPager() y operationalPager();
+- actualiza marcador frontend a 5-v002;
+- actualiza cache-bust de las 6 rutas Almacen.
+
+QA incluido:
+- Excel -> backend -> Aiven (contrato estatico + smoke);
+- encabezados y errores 422;
+- rollback de importacion con fallo inyectado;
+- lote activo;
+- Dashboard;
+- Inventario;
+- Stock;
+- Prestamos;
+- Resguardos;
+- Auditoria;
+- permisos;
+- paginacion;
+- responsive.
+
+No se ejecuta SQL ni se modifica Aiven/GitHub/Azure/Netlify durante la generacion del paquete.

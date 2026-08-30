@@ -30,6 +30,7 @@ const handlers = Object.freeze({
   getPortafolioMovimientos: portafolioMovimientosUni.getPortafolioMovimientos_uni,
   getPortafolioSemanasDisponibles: portafolioMovimientosUni.getPortafolioSemanasDisponibles_uni,
   getPortafolioMovimientosSemanales: portafolioMovimientosUni.getPortafolioMovimientosSemanales_uni,
+  ejecutarCorteSemanalManual: portafolioMovimientosUni.ejecutarCorteSemanalManual_uni,
   getPortafolioMovimientoDetalle: portafolioMovimientosUni.getPortafolioMovimientoDetalle_uni,
   getPortafolioEquipoTicketsLote: legacyController.getPortafolioEquipoTicketsLote,
   getPortafolioEquipoDetalle: portafolioConsultasUni.getPortafolioEquipoDetalle_uni,

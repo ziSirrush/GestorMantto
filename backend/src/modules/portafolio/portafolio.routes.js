@@ -15,6 +15,7 @@ const {
 } = require('../../services/information-record-scope-gnral.service');
 
 const requirePortafolioIntegration = requireIntegrationAuthFor('INTEGRATION_PORTAFOLIO_ID');
+const { requireProgrammerRole } = require('../../middleware/historical-sync.middleware');
 
 const PORTAFOLIO_READ_PERMISSIONS = Object.freeze([
   'PORTAFOLIO_DASHBOARD_PORTAFOLIO_TABLA_PROYECTOS_PORTAFOLIO_TABLA_PORTAFOLIO.VER',
@@ -151,6 +152,12 @@ router.get(
   '/portafolio/movimientos-semanales',
   ...movimientosGuard,
   portafolioController.getPortafolioMovimientosSemanales
+);
+router.post(
+  '/portafolio/movimientos-semanales/corte',
+  ...movimientosGuard,
+  requireProgrammerRole,
+  portafolioController.ejecutarCorteSemanalManual
 );
 router.get(
   '/portafolio/movimientos/:codigo/detalle',

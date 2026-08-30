@@ -118,6 +118,10 @@ function compareEquipmentCode(left, right) {
   return 0;
 }
 
+function equipmentKey(value) {
+  return String(value == null ? '' : value).trim().toUpperCase();
+}
+
 async function loadCurrentSnapshot() {
   // FASE 9/11: el snapshot semanal deja de persistir zona_operativa como
   // autoridad. Para cortes nuevos guarda zona_id y z_op.zona canonicos.
@@ -131,7 +135,8 @@ async function loadCurrentSnapshot() {
       z.zona AS zona,
       p.zona_operativa AS zona_legacy,
       p.supervisor_zona AS supervisor,
-      p.estatus_servicio AS estatus
+      p.estatus_servicio AS estatus,
+      p.estatus_ul_mes
     FROM portafolio p
     INNER JOIN z_op z
       ON z.id_zona = p.zona_id
@@ -150,29 +155,69 @@ async function loadCurrentSnapshot() {
     zona_id: Number(row.zona_id) || null,
     zona: row.zona || '',
     zona_legacy: row.zona_legacy || '',
-    supervisor: row.supervisor || ''
+    supervisor: row.supervisor || '',
+    estatus_ul_mes: row.estatus_ul_mes || ''
   })).sort(compareEquipmentCode);
 }
 
 async function getPreviousClosedCut(anioIso, semanaIso) {
+  // No incluir snapshot_json en la consulta ordenada. MySQL puede elegir el
+  // indice por estado y llevar el JSON completo al filesort, agotando el
+  // sort_buffer aun cuando solo se solicita un renglon. El indice unico por
+  // periodo mantiene el recorrido en orden y el snapshot se recupera despues
+  // por llave primaria.
   const [rows] = await db.query(`
-    SELECT id_corte, anio_iso, semana_iso, snapshot_json
-    FROM portafolio_cortes_semanales
+    SELECT id_corte, anio_iso, semana_iso
+    FROM portafolio_cortes_semanales FORCE INDEX (uq_portafolio_semana)
     WHERE estado = 'CERRADO'
       AND (anio_iso < ? OR (anio_iso = ? AND semana_iso < ?))
     ORDER BY anio_iso DESC, semana_iso DESC
     LIMIT 1
   `, [anioIso, anioIso, semanaIso]);
-  return rows[0] || null;
+  if (!rows.length) return null;
+
+  const previous = rows[0];
+  const [snapshotRows] = await db.query(`
+    SELECT snapshot_json
+    FROM portafolio_cortes_semanales
+    WHERE id_corte = ?
+      AND estado = 'CERRADO'
+    LIMIT 1
+  `, [previous.id_corte]);
+
+  if (!snapshotRows.length) {
+    throw new Error(`No fue posible recuperar el snapshot del corte anterior ${previous.id_corte}.`);
+  }
+
+  return {
+    ...previous,
+    snapshot_json: snapshotRows[0].snapshot_json
+  };
 }
 
 function buildMovements(previousSnapshot, currentSnapshot, timestamp) {
-  const previousMap = new Map(previousSnapshot.map(row => [String(row.equipo), row]));
+  const previousMap = new Map(previousSnapshot.map(row => [equipmentKey(row.equipo), row]));
   const movements = [];
 
   currentSnapshot.forEach(current => {
-    const previous = previousMap.get(String(current.equipo));
-    if (!previous) return;
+    const previous = previousMap.get(equipmentKey(current.equipo));
+    if (!previous) {
+      if (normalizeStatus(current.estatus_ul_mes) || !isService(current.estatus)) return;
+      movements.push({
+        tipo: 'NUEVO_INGRESO',
+        equipo: current.equipo,
+        proyecto_codigo: current.proyecto_codigo,
+        proyecto: current.proyecto,
+        zona_id: current.zona_id,
+        zona: current.zona,
+        zona_legacy: current.zona_legacy,
+        estatus_anterior: current.estatus_ul_mes || '',
+        estatus_actual: current.estatus,
+        supervisor: current.supervisor,
+        fecha_movimiento: timestamp
+      });
+      return;
+    }
     if (normalizeStatus(previous.estatus) === normalizeStatus(current.estatus)) return;
 
     movements.push({
@@ -213,16 +258,20 @@ async function runWeeklyClose(date = new Date(), generatedBy = null, targetDate 
 
   const currentSnapshot = await loadCurrentSnapshot();
   const previousCut = await getPreviousClosedCut(iso.anio_iso, iso.semana_iso);
-  const previousSnapshot = previousCut ? parseJson(previousCut.snapshot_json, []) : [];
+  const previousSnapshot = previousCut ? parseJson(previousCut.snapshot_json, null) : [];
+  if (previousCut && !Array.isArray(previousSnapshot)) {
+    throw new Error(`El snapshot del corte anterior ${previousCut.id_corte} no contiene un arreglo JSON valido.`);
+  }
   const movements = previousCut ? buildMovements(previousSnapshot, currentSnapshot, parts.datetime) : [];
 
   const totals = movements.reduce((acc, row) => {
     acc.total += 1;
     if (row.tipo === 'DEGRADADO') acc.salidas += 1;
     else if (row.tipo === 'RECUPERADO') acc.regresos += 1;
+    else if (row.tipo === 'NUEVO_INGRESO') acc.ingresos += 1;
     else acc.cambios += 1;
     return acc;
-  }, { total: 0, salidas: 0, regresos: 0, cambios: 0 });
+  }, { total: 0, salidas: 0, regresos: 0, cambios: 0, ingresos: 0 });
 
   const snapshotJson = JSON.stringify(currentSnapshot);
   const movementsJson = JSON.stringify(movements);
@@ -240,6 +289,7 @@ async function runWeeklyClose(date = new Date(), generatedBy = null, targetDate 
     totals.salidas,
     totals.regresos,
     totals.cambios,
+    totals.ingresos,
     snapshotJson,
     movementsJson,
     'CERRADO',
@@ -251,9 +301,9 @@ async function runWeeklyClose(date = new Date(), generatedBy = null, targetDate 
     INSERT INTO portafolio_cortes_semanales (
       anio_iso, semana_iso, fecha_inicio, fecha_fin, fecha_corte,
       id_corte_anterior, total_portafolio, total_movimientos,
-      total_salidas, total_regresos, total_cambios,
+      total_salidas, total_regresos, total_cambios, total_ingresos,
       snapshot_json, movimientos_json, estado, hash_contenido, generado_por
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       fecha_inicio = VALUES(fecha_inicio),
       fecha_fin = VALUES(fecha_fin),
@@ -264,11 +314,12 @@ async function runWeeklyClose(date = new Date(), generatedBy = null, targetDate 
       total_salidas = VALUES(total_salidas),
       total_regresos = VALUES(total_regresos),
       total_cambios = VALUES(total_cambios),
+      total_ingresos = VALUES(total_ingresos),
       snapshot_json = VALUES(snapshot_json),
       movimientos_json = VALUES(movimientos_json),
       estado = VALUES(estado),
       hash_contenido = VALUES(hash_contenido),
-      generado_por = VALUES(generado_por)
+      generado_por = COALESCE(generado_por, VALUES(generado_por))
   `, values);
 
   console.log('[Portafolio] Cierre semanal ejecutado:', {

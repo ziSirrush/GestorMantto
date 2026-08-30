@@ -1,30 +1,18 @@
-FASE 1 RESPONSIVE GLOBAL GESTOR V001
-Fecha: 2026-08-31
+FASE 1 ALMACEN - VALIDACION ESTATICA
+Fecha: 2026-08-28
 
-BASE GITHUB MAIN REVISADA
-- index.html: 47f12c4c736c643b3560fda91902b186b1d88499
-- core/module-loader.js: 308dd276695572b1a57f878e4b2cedbf01525f9c
-- modules/ventas-dashboard/ventas-dashboard.html: d1c0880d359b7f64949c65d418f5585ea47241ea
-- modules/ventas-dashboard/ventas-dashboard.css: 622eebb44c53a555529398640526ebc57c958032
-- modules/ventas-dashboard/ventas-dashboard.js: da057f7c31f5656e11614172813e2300ef067726
+OK - node --check modules/almacen/almacen.js
+OK - python -m py_compile aplicar_fase_1_almacen.py
+OK - No se encontraron referencias a fetch(), XLSX, localStorage, sessionStorage ni /api/ en almacen.js
+OK - Rutas definidas: Dashboard, Inventario, Stock, Prestamos, Resguardos, Auditoria
+OK - Tabs internos de Inventario: Inventario, Por Empresa, Por Almacen, Top
+OK - Estado visible "Pend. Información" en todas las vistas dependientes de datos
 
-VALIDACIONES EJECUTADAS
-[OK] node --check tests/fase1_responsive_contract.test.js
-[OK] node tests/fase1_responsive_contract.test.js
-[OK] Llaves CSS balanceadas en responsive-contract.css
-[OK] Llaves CSS balanceadas en ventas-dashboard.css
-[OK] No existe ningun archivo .sql en el paquete
-[OK] El PDF se encuentra en el encabezado antes de vd-controls
-[OK] IDs del HTML Dashboard sin duplicados
-[OK] .vd-table-wrap conserva overflow-x:auto
-[OK] Contrato global no contiene CSS zoom ni transform:scale()
-[OK] Contrato global no aplica reglas de compresion a tablas
-[OK] Aplicador contiene cache-bust de Dashboard y registro del CSS global
-
-VALIDACIONES NO EJECUTADAS
-- PowerShell real del aplicador: no disponible en el runtime de generacion.
-- Navegador/E2E real.
-- Deploy GitHub Pages / Netlify.
-- Dispositivos tactiles reales.
-
-No puedo confirmar el comportamiento visual final en cada dispositivo hasta integrar y probar en navegador.
+NO EJECUTADO - Prueba E2E dentro de Mantto Gestor
+NO EJECUTADO - Prueba contra Aiven/backend
+NO EJECUTADO - Deploy GitHub Pages
+NO EJECUTADO - Deploy Netlify
+NO MODIFICADO - GitHub
+NO MODIFICADO - Aiven
+NO MODIFICADO - Azure
+NO MODIFICADO - Netlify

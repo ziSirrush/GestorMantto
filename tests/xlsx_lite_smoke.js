@@ -1,0 +1,14 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const parser = require('../backend/src/modules/almacen/xlsx-lite');
+const file = process.argv[2] || path.join(__dirname, 'fixtures', 'inventario_sintetico.xlsx');
+const result = parser.parseXlsx(fs.readFileSync(path.resolve(file)));
+if(!result || !Array.isArray(result.rows)) throw new Error('Parser XLSX no devolvió filas');
+const rows = result.rows.filter(row => Array.isArray(row) && row.some(v => String(v || '').trim()));
+if(rows.length < 3) throw new Error('Se esperaban al menos 3 filas útiles');
+if(String(rows[0][0]) !== 'Código' || String(rows[0][3]) !== 'Empresa') throw new Error('Encabezados XLSX incorrectos');
+if(String(rows[1][0]) !== 'A-001' || String(rows[2][4]) !== 'MTY') throw new Error('Datos XLSX incorrectos');
+const csv = parser.parseCsv(Buffer.from('Código;Artículo;Empresa;Almacén;Físico\nA-1;Motor;Corellian;CDMX;5\n','utf8'));
+if(csv.rows.length < 2 || csv.rows[1][4] !== '5') throw new Error('Parser CSV incorrecto');
+console.log('PASS xlsx_lite_smoke');
