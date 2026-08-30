@@ -21,7 +21,7 @@
     operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260828-fase4-frontend-v001']},
     movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260707-v003'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260828-fase4-frontend-v001']},
 
-    'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260710-v003'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003']},
+    'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260830-responsive-v002'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004']},
 
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260821-paginador-centrado-v003'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20260819-dashboard-modo-junta-orden-v002']},
@@ -44,10 +44,10 @@
     'ventas-cotizaciones-editar':{css:['./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.css?v=20260805-equipos-multiples-v001','./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.css?v=20260813-v004',CONTACTO_FORM_CSS],js:[CONTACTO_FORM_JS,'./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js?v=20260828-fase4-frontend-v001']},
     'ventas-cotizaciones-detalle':{css:['./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.css?v=20260803-cffaa05-v001'],js:['./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js?v=20260830-fase3-proyecto-interes-v001']},
     'ventas-vendidos':{css:['./modules/ventas-vendidos/ventas-vendidos.css?v=20260804-paginado-f2-v001'],js:['./modules/ventas-vendidos/ventas-vendidos.js?v=20260828-fase4-frontend-v001']},
-    'ventas-proyeccion':{css:['./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260804-paginado-f2-v001'],js:['./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260828-fase4-frontend-v001']},
+    'ventas-proyeccion':{css:['./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260830-responsive-v002'],js:['./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260828-fase4-frontend-v001']},
     'ventas-proyectos-interes':{css:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.css?v=20260830-fase6-v001'],js:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.js?v=20260830-fase6-v001']},
     'ventas-perdidos':{css:['./modules/ventas-perdidos/ventas-perdidos.css?v=20260804-paginado-f2-v001'],js:['./modules/ventas-perdidos/ventas-perdidos.js?v=20260828-fase4-frontend-v001']},
-    'ventas-prospeccion':{css:['./modules/ventas-prospeccion/ventas-prospeccion.css?v=20260804-paginado-f2-v001'],js:['./modules/ventas-prospeccion/ventas-prospeccion.js?v=20260828-fase4-frontend-v001']},
+    'ventas-prospeccion':{css:['./modules/ventas-prospeccion/ventas-prospeccion.css?v=20260830-responsive-v002'],js:['./modules/ventas-prospeccion/ventas-prospeccion.js?v=20260828-fase4-frontend-v001']},
     'ventas-prospeccion-nueva':{css:['./modules/ventas-prospeccion-nueva/ventas-prospeccion-nueva.css?v=20260731-v002'],js:['./modules/ventas-prospeccion-nueva/ventas-prospeccion-nueva.js?v=20260828-fase4-frontend-v001']},
     'ventas-prospeccion-detalle':{css:['./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.css?v=20260803-cffaa04-v001'],js:['./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.js?v=20260828-fase4-frontend-v001']},
     'ventas-mapa-prospeccion':{css:['./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.css?v=20260731-fase1-v001'],js:['./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.js?v=20260828-fase4-frontend-v001']},

@@ -20,3 +20,191 @@
   align-items:center;
   justify-content:center;
 }
+
+/* [Aster | 2026-08-30 | FIX RESPONSIVE CONFIRMADO | Ventas.Prospeccion]
+   Regla: interfaz dentro del viewport; solo la tabla puede excederlo y desplaza
+   horizontalmente dentro de .vpr-table-wrap. Selectores intencionalmente
+   anclados a #view-ventas-prospeccion para evitar colision con Proyeccion. */
+#view-ventas-prospeccion{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:hidden;
+}
+#view-ventas-prospeccion .vpr-page{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  margin:0;
+  overflow-x:hidden;
+  box-sizing:border-box;
+}
+#view-ventas-prospeccion .vpr-page *,
+#view-ventas-prospeccion .vpr-page *::before,
+#view-ventas-prospeccion .vpr-page *::after{
+  box-sizing:border-box;
+}
+#view-ventas-prospeccion .vpr-head{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  flex-wrap:wrap;
+}
+#view-ventas-prospeccion .vpr-head>div:first-child{
+  flex:1 1 320px;
+  min-width:0;
+  max-width:100%;
+}
+#view-ventas-prospeccion .vpr-head h1,
+#view-ventas-prospeccion .vpr-head p{
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+#view-ventas-prospeccion .vpr-head-actions{
+  flex:0 1 auto;
+  min-width:0;
+  max-width:100%;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+#view-ventas-prospeccion .vpr-head-actions>*{
+  max-width:100%;
+}
+#view-ventas-prospeccion .vpr-kpis{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));
+}
+#view-ventas-prospeccion .vpr-kpi{
+  min-width:0;
+}
+#view-ventas-prospeccion .vpr-workspace{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow:hidden;
+}
+#view-ventas-prospeccion .vpr-toolbar{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+}
+#view-ventas-prospeccion .vpr-toolbar>*{
+  min-width:0;
+  max-width:100%;
+}
+#view-ventas-prospeccion .vpr-search{
+  flex:2 1 280px;
+  min-width:0;
+}
+#view-ventas-prospeccion .vpr-toolbar>label:not(.vpr-search){
+  flex:1 1 150px;
+}
+#view-ventas-prospeccion .vpr-search-box,
+#view-ventas-prospeccion .vpr-search-box input,
+#view-ventas-prospeccion .vpr-toolbar input,
+#view-ventas-prospeccion .vpr-toolbar select{
+  width:100%;
+  min-width:0;
+  max-width:100%;
+}
+#view-ventas-prospeccion .vpr-clear{
+  flex:0 1 auto;
+  max-width:100%;
+}
+#view-ventas-prospeccion .vpr-table-wrap{
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+#view-ventas-prospeccion .vpr-table{
+  width:max(100%,860px);
+  min-width:860px;
+}
+#view-ventas-prospeccion .vpr-pagination{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+
+@media(max-width:900px){
+  #view-ventas-prospeccion .vpr-head{
+    align-items:flex-start;
+  }
+  #view-ventas-prospeccion .vpr-head-actions{
+    width:100%;
+    justify-content:flex-start;
+  }
+}
+@media(max-width:760px){
+  #view-ventas-prospeccion .vpr-page{
+    padding:10px;
+    gap:12px;
+  }
+  #view-ventas-prospeccion .vpr-head,
+  #view-ventas-prospeccion .vpr-workspace{
+    padding:16px;
+  }
+  #view-ventas-prospeccion .vpr-head{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  #view-ventas-prospeccion .vpr-head>div:first-child{
+    flex:0 1 auto;
+    width:100%;
+  }
+  #view-ventas-prospeccion .vpr-head-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+    gap:8px;
+  }
+  #view-ventas-prospeccion .vpr-head-actions .vpr-status{
+    grid-column:1/-1;
+    width:100%;
+    justify-content:center;
+  }
+  #view-ventas-prospeccion .vpr-head-actions .vpr-btn{
+    width:100%;
+    min-width:0;
+    white-space:normal;
+  }
+  #view-ventas-prospeccion .vpr-toolbar{
+    display:grid;
+    grid-template-columns:1fr;
+    align-items:stretch;
+    gap:10px;
+  }
+  #view-ventas-prospeccion .vpr-toolbar label,
+  #view-ventas-prospeccion .vpr-search,
+  #view-ventas-prospeccion .vpr-clear{
+    width:100%;
+    min-width:0;
+  }
+  #view-ventas-prospeccion .vpr-clear{
+    justify-self:stretch;
+  }
+}
+@media(max-width:520px){
+  #view-ventas-prospeccion .vpr-page{
+    padding:8px;
+  }
+  #view-ventas-prospeccion .vpr-head,
+  #view-ventas-prospeccion .vpr-workspace{
+    padding:14px;
+  }
+  #view-ventas-prospeccion .vpr-head-actions{
+    grid-template-columns:1fr;
+  }
+  #view-ventas-prospeccion .vpr-head-actions .vpr-status{
+    grid-column:auto;
+  }
+}
