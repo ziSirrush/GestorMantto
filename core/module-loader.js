@@ -11,6 +11,8 @@
   const CONTACTO_FORM_CSS = './modules/ventas-contacto-form/ventas-contacto-form.css?v=20260729-v011';
   const EXPERIMENTAL_SHELL_JS = './modules/experimental/experimental.js?v=20260806-fase7-2-v001';
   const EXPERIMENTAL_SHELL_CSS = './modules/experimental/experimental.css?v=20260805-fase1-v001';
+  const ALMACEN_MODULE_JS = './modules/almacen/almacen.js?v=20260830-almacen-integracion-v002';
+  const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
 
   const ROUTES = Object.freeze({
     resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260814-project-name-v010']},
@@ -54,6 +56,13 @@
     'ventas-asignacion-redes':{css:['./modules/ventas-asignacion-redes/ventas-asignacion-redes.css?v=20260804-paginado-f2-v001'],js:['./modules/ventas-asignacion-redes/ventas-asignacion-redes.js?v=20260828-fase4-frontend-v001']},
     'ventas-asignacion-redes-detalle':{css:['./modules/ventas-asignacion-redes-detalle/ventas-asignacion-redes-detalle.css?v=20260804-v002'],js:['./modules/ventas-asignacion-redes-detalle/ventas-asignacion-redes-detalle.js?v=20260828-fase4-frontend-v001']},
     'ventas-asignacion-redes-formulario':{css:['./modules/ventas-asignacion-redes-formulario/ventas-asignacion-redes-formulario.css?v=20260804-v001'],js:['./modules/ventas-asignacion-redes-formulario/ventas-asignacion-redes-formulario.js?v=20260828-fase4-frontend-v001']},
+
+    'almacen-dashboard':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
+    'almacen-inventario':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
+    'almacen-stock':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
+    'almacen-prestamos':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
+    'almacen-resguardos':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
+    'almacen-auditoria':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
 
     usuarios:{css:['./modules/usuarios/usuarios.css?v=20260707-v001'],js:['./modules/usuarios/usuarios.js?v=20260707-v001']},
     'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260819-permisos-alcance-v001'],js:['./modules/panel-control/panel-control.js?v=20260819-permisos-alcance-v001']},

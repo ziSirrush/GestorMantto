@@ -14,7 +14,8 @@
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-editar':'Editar cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
-    'almacen-dashboard':'Dashboard Almacén', 'almacen-inventarios':'Inventarios', 'almacen-movimientos':'Movimientos Almacén',
+    'almacen-dashboard':'Dashboard Almacén', 'almacen-inventario':'Inventario', 'almacen-stock':'Stock',
+    'almacen-prestamos':'Préstamos', 'almacen-resguardos':'Resguardos', 'almacen-auditoria':'Auditoría',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
     'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte',
@@ -37,6 +38,15 @@
     'cobranza-uni-estados-cuenta',
     'cobranza-uni-mp-pro',
     'cobranza-uni-aditivas'
+  ]);
+
+  const ALMACEN_ROUTES = new Set([
+    'almacen-dashboard',
+    'almacen-inventario',
+    'almacen-stock',
+    'almacen-prestamos',
+    'almacen-resguardos',
+    'almacen-auditoria'
   ]);
 
   let currentRoute = 'home';
@@ -647,6 +657,19 @@
     return true;
   }
 
+  function showAlmacen(route){
+    const view=document.getElementById('view-'+route);
+    if(!view) return false;
+    activateViewById('view-'+route);
+    setActiveSide(route);
+    updateContext(route,'Gestión de Almacén · datos reales desde Aiven');
+    if(window.ManttoAlmacen && typeof window.ManttoAlmacen.init === 'function'){
+      window.ManttoAlmacen.init(route);
+    }
+    return true;
+  }
+
+
   function showLogisticaDashboard(){
     const view=document.getElementById('view-logistica-dashboard');
     if(!view) return false;
@@ -847,6 +870,7 @@
     if(route==='instalaciones-carpetas' && showInstalacionesCarpetas_cor()) return;
     if(route==='instalaciones-documentacion' && showInstalacionesDocumentacion_cor()) return;
     if(route==='instalaciones-pmm' && showInstalacionesPmm_cor()) return;
+    if(ALMACEN_ROUTES.has(route) && showAlmacen(route)) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;

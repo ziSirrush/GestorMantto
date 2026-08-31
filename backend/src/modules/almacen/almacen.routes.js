@@ -11,7 +11,12 @@ const upload = multer({ storage:multer.memoryStorage(), limits:{ fileSize:25*102
 
 const DASHBOARD_PERMISSION = 'ALMACEN_DASHBOARD_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const INVENTORY_PERMISSION = 'ALMACEN_INVENTARIOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const OPERATIONS_PERMISSION = 'ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+// Stock conserva temporalmente el codigo de permiso legado porque el SQL de migracion
+// reutiliza el registro historico de Movimientos. Los demas modulos usan su permiso propio.
+const STOCK_PERMISSION = 'ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const LOANS_PERMISSION = 'ALMACEN_PRESTAMOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const GUARDS_PERMISSION = 'ALMACEN_RESGUARDOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const AUDIT_PERMISSION = 'ALMACEN_AUDITORIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 
 function almacenGuard(permissionCode) {
   return humanInformationGuard_gnral({ permissionCodesAny:[permissionCode], domain:'CORELLIAN', groupingCodesAny:['ALMACEN'] });
@@ -34,15 +39,15 @@ router.get('/inventario/empresa', ...almacenGuard(INVENTORY_PERMISSION), control
 router.get('/inventario/almacenes', ...almacenGuard(INVENTORY_PERMISSION), controller.warehouses);
 router.get('/inventario/top', ...almacenGuard(INVENTORY_PERMISSION), controller.top);
 
-router.get('/stock', ...almacenGuard(OPERATIONS_PERMISSION), controller.stock);
-router.get('/prestamos/catalogos', ...almacenGuard(OPERATIONS_PERMISSION), controller.loanCatalogs);
-router.get('/prestamos/resumen', ...almacenGuard(OPERATIONS_PERMISSION), controller.loanSummary);
-router.get('/prestamos', ...almacenGuard(OPERATIONS_PERMISSION), controller.loans);
-router.get('/resguardos/catalogos', ...almacenGuard(OPERATIONS_PERMISSION), controller.guardCatalogs);
-router.get('/resguardos', ...almacenGuard(OPERATIONS_PERMISSION), controller.guards);
+router.get('/stock', ...almacenGuard(STOCK_PERMISSION), controller.stock);
+router.get('/prestamos/catalogos', ...almacenGuard(LOANS_PERMISSION), controller.loanCatalogs);
+router.get('/prestamos/resumen', ...almacenGuard(LOANS_PERMISSION), controller.loanSummary);
+router.get('/prestamos', ...almacenGuard(LOANS_PERMISSION), controller.loans);
+router.get('/resguardos/catalogos', ...almacenGuard(GUARDS_PERMISSION), controller.guardCatalogs);
+router.get('/resguardos', ...almacenGuard(GUARDS_PERMISSION), controller.guards);
 
-router.get('/auditoria/catalogos', ...almacenGuard(OPERATIONS_PERMISSION), controller.auditCatalogs);
-router.get('/auditoria/muestra', ...almacenGuard(OPERATIONS_PERMISSION), controller.auditSample);
+router.get('/auditoria/catalogos', ...almacenGuard(AUDIT_PERMISSION), controller.auditCatalogs);
+router.get('/auditoria/muestra', ...almacenGuard(AUDIT_PERMISSION), controller.auditSample);
 
 router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION), controller.capabilities);
 router.post('/importaciones/validar', ...almacenGuard(INVENTORY_PERMISSION), requireImportRole, upload.single('archivo'), controller.validateImport);
