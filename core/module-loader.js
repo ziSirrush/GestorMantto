@@ -7,6 +7,173 @@
   const loadedStyles = new Map();
   const routePromises = new Map();
 
+  // [Aster | 2026-09-01 | ASTER-MG | FASE 2 REUSO GLOBAL MODULOS LEGACY V001]
+  // [Aster | 2026-09-01 | ASTER-MG | FASE 3 SYNC SELECTIVO + DEPENDENCIAS CRUZADAS V001]
+  // Compatibilidad central para modulos legacy: el router puede seguir invocando init(),
+  // pero una vista de datos ya inicializada NO vuelve a ejecutar su carga al regresar
+  // si DataSync no la marco dirty. Formularios/detalles transaccionales quedan fuera.
+  const INIT_ARM_TTL_MS = 5000;
+  const PERSISTENT_DATA_ROUTES = new Set([
+    'home','resumen','criticos','portafolio','proyectos','callcenter','operativo','movimientos',
+    'logistica-dashboard','logistica-reporte','logistica-produccion','logistica-pvo','logistica-documentos',
+    'instalaciones-dashboard','instalaciones-proyectos','instalaciones-cerrados',
+    'instalaciones-concentrado-cliente','instalaciones-reporte','instalaciones-ajuste',
+    'instalaciones-carpetas','instalaciones-documentacion','instalaciones-pmm',
+    'ventas-dashboard','ventas-fotos-mapa','ventas-clientes','ventas-cotizaciones','ventas-vendidos',
+    'ventas-proyeccion','ventas-proyectos-interes','ventas-perdidos','ventas-prospeccion',
+    'ventas-mapa-prospeccion','ventas-asignacion-redes',
+    'almacen-dashboard','almacen-inventario','almacen-stock','almacen-prestamos',
+    'almacen-resguardos','almacen-auditoria','almacen-carga',
+    'usuarios','panel-control','soporte-solicitudes',
+    'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
+    'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos',
+    'cobranza-uni-dashboard','cobranza-uni-estados-cuenta','cobranza-uni-mp-pro','cobranza-uni-aditivas'
+  ]);
+  const initializedContexts = new Set();
+  const armedRoutes = new Map();
+
+  function identityPart(user){
+    return String(user && (user.id_SB || user.id || user.correo || user.email) || 'anon');
+  }
+
+  function lifecycleIdentity(){
+    const auth=window.ManttoAuth;
+    const actor=auth&&auth.getActorUser?auth.getActorUser():null;
+    const effective=auth&&auth.getUser?auth.getUser():null;
+    const viewed=auth&&auth.getViewUser?auth.getViewUser():null;
+    return [identityPart(actor),identityPart(effective),identityPart(viewed)].join(':');
+  }
+
+  function currentNavigation(){
+    if(window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'){
+      const current=window.ManttoRouter.getCurrent()||{};
+      return {route:String(current.route||'home'),payload:current.payload||null};
+    }
+    return {route:'home',payload:null};
+  }
+
+  function safePayloadKey(payload){
+    try{return JSON.stringify(payload||null);}catch(_error){return '';}
+  }
+
+  function lifecycleKey(route,payload){
+    return lifecycleIdentity()+'|'+String(route||'home')+'|'+safePayloadKey(payload);
+  }
+
+  function armRouteInit(route){
+    const key=String(route||'home');
+    if(!PERSISTENT_DATA_ROUTES.has(key)) return;
+    armedRoutes.set(key,Date.now());
+  }
+
+  function consumeRouteArm(route){
+    const key=String(route||'');
+    const armedAt=armedRoutes.get(key);
+    armedRoutes.delete(key);
+    return Number.isFinite(armedAt) && Date.now()-armedAt<=INIT_ARM_TTL_MS;
+  }
+
+  function dataSyncIsDirty(route){
+    const sync=window.ManttoDataSync;
+    if(sync&&typeof sync.isDirty==='function') return sync.isDirty(route);
+    if(sync&&typeof sync.getDirtyRoutes==='function') return sync.getDirtyRoutes().includes(String(route||''));
+    return false;
+  }
+
+  function dataSyncCanRefresh(route){
+    const sync=window.ManttoDataSync;
+    return Boolean(sync&&typeof sync.supportsBackgroundSync==='function'&&sync.supportsBackgroundSync(route));
+  }
+
+  function routeFromInitArgs(args,current){
+    const direct=typeof args[0]==='string'?String(args[0]):'';
+    if(PERSISTENT_DATA_ROUTES.has(direct)) return direct;
+    return String(current.route||'home');
+  }
+
+  function payloadFromInitArgs(args,route,current){
+    if(String(current.route||'')===String(route||'')) return current.payload||null;
+    if(args[1]&&typeof args[1]==='object') return args[1];
+    if(args[0]&&typeof args[0]==='object') return args[0];
+    return null;
+  }
+
+  function finishInitialization(key,route,value){
+    initializedContexts.add(key);
+    if(window.ManttoDataSync&&typeof window.ManttoDataSync.markSynced==='function') window.ManttoDataSync.markSynced(route);
+    document.dispatchEvent(new CustomEvent('mantto:view-initialized',{detail:{route,key,at:Date.now()}}));
+    return value;
+  }
+
+  function wrapInitExport(name,target){
+    if(!target||typeof target.init!=='function'||target.init.__manttoLifecycleGuard===true) return false;
+    const original=target.init;
+    function guardedInit(){
+      const args=Array.from(arguments);
+      const current=currentNavigation();
+      const route=routeFromInitArgs(args,current);
+      if(!PERSISTENT_DATA_ROUTES.has(route)||!consumeRouteArm(route)) return original.apply(this,args);
+
+      const payload=payloadFromInitArgs(args,route,current);
+      const key=lifecycleKey(route,payload);
+      const initialized=initializedContexts.has(key);
+      const dirty=dataSyncIsDirty(route);
+
+      if(initialized&&!dirty){
+        document.dispatchEvent(new CustomEvent('mantto:view-reused',{detail:{route,key,exportName:name,dirty:false,at:Date.now()}}));
+        return true;
+      }
+
+      // FASE 3: si la vista ya estaba inicializada y existe un handler selectivo real,
+      // NO ejecutamos init() otra vez. Conservamos DOM/filtros, dejamos la ruta dirty y
+      // DataSync ejecuta el adaptador despues de mantto:navigation. Esto evita que modulos
+      // con state.loaded/initialized limpien dirty sin consultar datos nuevos.
+      if(initialized&&dirty&&dataSyncCanRefresh(route)){
+        document.dispatchEvent(new CustomEvent('mantto:view-reused',{
+          detail:{route,key,exportName:name,dirty:true,pendingSync:true,at:Date.now()}
+        }));
+        return true;
+      }
+
+      // Fallback legacy: si no existe handler selectivo, el propio init() debe realizar
+      // la actualizacion. Se limpia antes para impedir una segunda carga paralela; si
+      // falla, la marca dirty se restaura.
+      if(dirty&&window.ManttoDataSync&&typeof window.ManttoDataSync.markSynced==='function') window.ManttoDataSync.markSynced(route);
+
+      let result;
+      try{result=original.apply(this,args);}catch(error){
+        initializedContexts.delete(key);
+        if(dirty&&window.ManttoDataSync&&typeof window.ManttoDataSync.markDirty==='function') window.ManttoDataSync.markDirty(route);
+        throw error;
+      }
+      if(result&&typeof result.then==='function'){
+        return result.then(value=>finishInitialization(key,route,value),error=>{
+          initializedContexts.delete(key);
+          if(dirty&&window.ManttoDataSync&&typeof window.ManttoDataSync.markDirty==='function') window.ManttoDataSync.markDirty(route);
+          throw error;
+        });
+      }
+      return finishInitialization(key,route,result);
+    }
+    guardedInit.__manttoLifecycleGuard=true;
+    guardedInit.__manttoOriginalInit=original;
+    try{target.init=guardedInit;}catch(_error){return false;}
+    return target.init===guardedInit;
+  }
+
+  function installLifecycleGuards(){
+    Object.keys(window).filter(name=>name.startsWith('Mantto')).forEach(name=>{
+      let target=null;
+      try{target=window[name];}catch(_error){return;}
+      wrapInitExport(name,target);
+    });
+  }
+
+  function resetLifecycle(){
+    initializedContexts.clear();
+    armedRoutes.clear();
+  }
+
   const CONTACTO_FORM_JS = './modules/ventas-contacto-form/ventas-contacto-form.js?v=20260729-v011';
   const CONTACTO_FORM_CSS = './modules/ventas-contacto-form/ventas-contacto-form.css?v=20260729-v011';
   const EXPERIMENTAL_SHELL_JS = './modules/experimental/experimental.js?v=20260806-fase7-2-v001';
@@ -133,20 +300,48 @@
   async function ensure(route){
     const key=String(route||'home');
     const config=ROUTES[key];
-    if(!config) return true;
-    if(routePromises.has(key)) return routePromises.get(key);
+    if(!config){
+      installLifecycleGuards();
+      armRouteInit(key);
+      return true;
+    }
+    if(routePromises.has(key)){
+      const value=await routePromises.get(key);
+      installLifecycleGuards();
+      armRouteInit(key);
+      return value;
+    }
     const task=(async()=>{
       await Promise.all((config.css||[]).map(loadStyle));
       for(const src of (config.js||[])) await loadScript(src);
+      installLifecycleGuards();
       document.dispatchEvent(new CustomEvent('mantto:module-loaded',{detail:{route:key}}));
       return true;
     })();
     routePromises.set(key,task);
-    try{return await task;}catch(error){routePromises.delete(key);throw error;}
+    try{
+      const value=await task;
+      armRouteInit(key);
+      return value;
+    }catch(error){routePromises.delete(key);throw error;}
   }
 
   function hasRoute(route){return Boolean(ROUTES[String(route||'')]);}
 
   seedExisting();
-  window.ManttoModuleLoader=Object.freeze({ensure,hasRoute,loadScript,loadStyle});
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',installLifecycleGuards,{once:true});
+  else installLifecycleGuards();
+  document.addEventListener('mantto:auth-ready',installLifecycleGuards);
+  document.addEventListener('mantto:view-user-changed',()=>{resetLifecycle();installLifecycleGuards();});
+  document.addEventListener('mantto:session-expired',resetLifecycle);
+
+  window.ManttoModuleLoader=Object.freeze({
+    ensure,hasRoute,loadScript,loadStyle,
+    lifecycle:{
+      persistentRoutes:()=>Array.from(PERSISTENT_DATA_ROUTES),
+      initialized:()=>Array.from(initializedContexts),
+      canRefresh:(route)=>dataSyncCanRefresh(String(route||'')),
+      reset:resetLifecycle
+    }
+  });
 })();
