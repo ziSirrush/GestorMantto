@@ -68,6 +68,11 @@ const DB_FIELDS = [
   'activo'
 ];
 
+// [Aster | 2026-08-31 | ASTER-MG | FIX: INS_FL_COPIA_FIEL_MARCADORES_V001]
+// id_admin no viene de FL_Res_VS. Debe conservarse en Aiven y nunca
+// sobrescribirse con NULL durante la sincronizacion de Google Sheets.
+const SYNC_FIELDS = DB_FIELDS.filter(field => field !== 'id_admin');
+
 const REQUIRED_FIELDS = ['proyecto', 'id_proyecto', 'referencia_sitio'];
 const PROJECT_PHOTO_FIELDS = Object.freeze([
   'foto_blt_1', 'foto_blt_2', 'foto_blt_3', 'foto_blt_4',
@@ -190,9 +195,10 @@ function cleanValue(value) {
 
   if (typeof value === 'string') {
     const text = value.trim();
-    if (!text || text === '-' || text === '.' || text.toUpperCase() === 'N/A') {
-      return null;
-    }
+    // Solo una cadena realmente vacia se convierte a NULL.
+    // Marcadores de negocio como -, ., N/A, FALTA., FALTA y FALTANTE
+    // deben llegar intactos a ins_fl.
+    if (!text) return null;
     return text;
   }
 
@@ -264,27 +270,17 @@ function normalizeActive(value) {
 function normalizeIncomingRow(row) {
   const incoming = {};
 
-  for (const field of DB_FIELDS) {
+  for (const field of SYNC_FIELDS) {
     if (field === 'activo') {
       incoming[field] = normalizeActive(row[field]);
       continue;
     }
 
-    if (DATE_FIELDS.has(field)) {
-      incoming[field] = normalizeDateOnly(row[field]);
-      continue;
-    }
-
-    if (INTEGER_FIELDS.has(field)) {
+    // Solo los IDs tecnicos enviados por FL se normalizan como enteros.
+    // El resto de columnas operativas de ins_fl son VARCHAR/TEXT y deben
+    // conservar exactamente marcadores, porcentajes, fechas y textos.
+    if (field === 'id_sup' || field === 'id_asesor') {
       incoming[field] = normalizeNumber(row[field], { integer: true });
-      continue;
-    }
-
-    if (DECIMAL_FIELDS.has(field)) {
-      incoming[field] = normalizeNumber(row[field], {
-        integer: false,
-        percent: field.startsWith('avance_')
-      });
       continue;
     }
 
@@ -307,7 +303,7 @@ function comparable(value) {
 }
 
 function rowChanged(existing, incoming) {
-  return DB_FIELDS.some(
+  return SYNC_FIELDS.some(
     field => comparable(existing[field]) !== comparable(incoming[field])
   );
 }
@@ -364,11 +360,11 @@ async function syncInsFl(req, res) {
         );
 
         if (!existingRows.length) {
-          const placeholders = DB_FIELDS.map(() => '?').join(', ');
-          const values = DB_FIELDS.map(field => incoming[field]);
+          const placeholders = SYNC_FIELDS.map(() => '?').join(', ');
+          const values = SYNC_FIELDS.map(field => incoming[field]);
 
           await conn.query(
-            `INSERT INTO ins_fl (${DB_FIELDS.join(', ')})
+            `INSERT INTO ins_fl (${SYNC_FIELDS.join(', ')})
              VALUES (${placeholders})`,
             values
           );
@@ -384,9 +380,9 @@ async function syncInsFl(req, res) {
           continue;
         }
 
-        const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');
+        const assignments = SYNC_FIELDS.map(field => `${field} = ?`).join(', ');
         const values = [
-          ...DB_FIELDS.map(field => incoming[field]),
+          ...SYNC_FIELDS.map(field => incoming[field]),
           existingRows[0].id_ins_fl
         ];
 

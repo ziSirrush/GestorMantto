@@ -4,7 +4,7 @@
   // [Aster | 2026-08-31 | ASTER-MG | FIX DASHBOARD VENTAS CACHE/REINGRESO/ACTUALIZAR V001]
   // Regla: primera carga completa; conservar datos al navegar; refrescar solo por cambio
   // real, cambio de filtro de datos o solicitud manual del usuario.
-  const TEMPLATE_VERSION = '20260831-cache-reingreso-refresh-v001';
+  const TEMPLATE_VERSION = '20260831-botones-seccion-v002';
   const TEMPLATE_URL = `./modules/ventas-dashboard/ventas-dashboard.html?v=${TEMPLATE_VERSION}`;
   const STORAGE_KEY = 'mantto:ventas-dashboard:fase1-reacomodo-v001';
   const TABLE_PAGE_SIZE = 30;
@@ -298,8 +298,11 @@
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
   }
 
-  function selectedSectionValue() {
-    return String(document.getElementById('vd-section-select')?.value || ALL_USERS_VALUE).trim().toLowerCase();
+  function sectionInputs(includeAll = false) {
+    const selector = includeAll
+      ? '#vd-check-grid input'
+      : '#vd-check-grid input:not([value="todos"])';
+    return [...document.querySelectorAll(selector)];
   }
 
   function availableFilters() {
@@ -308,15 +311,57 @@
       .map(([key, def]) => def.filter || key);
   }
 
-  function currentState() {
-    return { seccion: selectedSectionValue() };
-  }
-
   function selected() {
     const available = availableFilters();
-    const section = selectedSectionValue();
-    if (section === ALL_USERS_VALUE) return available;
-    return available.includes(section) ? [section] : available;
+    const inputs = sectionInputs(false);
+    if (!inputs.length) return available;
+    const checked = new Set(inputs
+      .filter((input) => input.checked && !input.disabled)
+      .map((input) => String(input.value || '').trim().toLowerCase()));
+    return available.filter((value) => checked.has(value));
+  }
+
+  function selectedSectionValue() {
+    const available = availableFilters();
+    const active = selected();
+    if (active.length === available.length) return ALL_USERS_VALUE;
+    if (active.length === 1) return active[0];
+    return active.join(',');
+  }
+
+  function currentState() {
+    return { seccion: selectedSectionValue(), secciones: selected() };
+  }
+
+  function visibleSectionInputs() {
+    return sectionInputs(false).filter((input) => {
+      const label = input.closest('.vd-check');
+      return !input.disabled && (!label || label.hidden !== true);
+    });
+  }
+
+  function syncAllSections() {
+    const all = document.querySelector('#vd-check-grid input[value="todos"]');
+    if (!all) return;
+    const items = visibleSectionInputs();
+    all.checked = items.length > 0 && items.every((item) => item.checked);
+    all.indeterminate = false;
+    all.disabled = items.length === 0;
+  }
+
+  function setAllSections(checked) {
+    visibleSectionInputs().forEach((input) => { input.checked = Boolean(checked); });
+    syncAllSections();
+  }
+
+  function applySectionSelection(values) {
+    if (!Array.isArray(values)) {
+      setAllSections(true);
+      return;
+    }
+    const wanted = new Set(values.map((value) => String(value || '').trim().toLowerCase()));
+    visibleSectionInputs().forEach((input) => { input.checked = wanted.has(input.value); });
+    syncAllSections();
   }
 
   function save() {
@@ -337,8 +382,7 @@
       userSelect.value = ALL_USERS_VALUE;
     }
 
-    const sectionSelect = document.getElementById('vd-section-select');
-    if (sectionSelect) sectionSelect.value = ALL_USERS_VALUE;
+    setAllSections(true);
 
     resetTablePages();
     save();
@@ -391,27 +435,23 @@
   }
 
   function applyTableAvailability() {
-    if (!(availableTableKeys instanceof Set)) return;
-    const select = document.getElementById('vd-section-select');
-    if (!select) return;
+    const inputs = sectionInputs(false);
+    if (!inputs.length) return;
 
-    const current = selectedSectionValue();
-    let availableCount = 0;
-
-    [...select.options].forEach((option) => {
-      if (option.value === ALL_USERS_VALUE) return;
-      const entry = Object.entries(defs).find(([, def]) => (def.filter || '') === option.value);
-      const allowed = Boolean(entry && availableTableKeys.has(entry[0]));
-      option.disabled = !allowed;
-      option.hidden = !allowed;
-      if (allowed) availableCount += 1;
+    const checkedBefore = inputs.filter((input) => input.checked).map((input) => input.value);
+    inputs.forEach((input) => {
+      const entry = Object.entries(defs).find(([, def]) => (def.filter || '') === input.value);
+      const allowed = !(availableTableKeys instanceof Set) || Boolean(entry && availableTableKeys.has(entry[0]));
+      input.disabled = !allowed;
+      const label = input.closest('.vd-check');
+      if (label) label.hidden = !allowed;
     });
 
-    const allOption = [...select.options].find((option) => option.value === ALL_USERS_VALUE);
-    if (allOption) allOption.disabled = availableCount === 0;
-
-    const currentOption = [...select.options].find((option) => option.value === current);
-    if (!currentOption || currentOption.disabled) select.value = ALL_USERS_VALUE;
+    const visible = visibleSectionInputs();
+    if (visible.length && checkedBefore.length && !visible.some((input) => input.checked)) {
+      visible.forEach((input) => { input.checked = true; });
+    }
+    syncAllSections();
   }
 
   function applyModules() {
@@ -813,7 +853,14 @@
       document.getElementById('vd-pdf-general')?.addEventListener('click', () => preparePdf('general'));
       document.getElementById('vd-pdf-individual')?.addEventListener('click', () => preparePdf('individual'));
       document.getElementById('vd-refresh')?.addEventListener('click', () => manualRefresh());
-      document.getElementById('vd-section-select')?.addEventListener('change', () => {
+      document.getElementById('vd-check-grid')?.addEventListener('change', (event) => {
+        const input = event.target;
+        if (!(input instanceof HTMLInputElement)) return;
+        if (input.value === ALL_USERS_VALUE) {
+          visibleSectionInputs().forEach((item) => { item.checked = input.checked; });
+        } else {
+          syncAllSections();
+        }
         resetTablePages();
         summary();
         renderTables(tableData);
@@ -870,11 +917,9 @@
     const wantedYear = String(remembered.year || cachedKpiYear || new Date().getFullYear());
     if (yearSelect && [...yearSelect.options].some((option) => option.value === wantedYear)) yearSelect.value = wantedYear;
 
-    const sectionSelect = document.getElementById('vd-section-select');
-    const wantedSection = String(remembered.section || ALL_USERS_VALUE);
-    if (sectionSelect && [...sectionSelect.options].some((option) => option.value === wantedSection)) sectionSelect.value = wantedSection;
-
     applyTableAvailability();
+    const wantedSections = Array.isArray(remembered.sections) ? remembered.sections : availableFilters();
+    applySectionSelection(wantedSections);
     kpis(cachedKpis, cachedKpiYear);
     renderTables(tableData);
     summary();
@@ -895,7 +940,8 @@
       const snapshot = {
         user: selectedUserValue(),
         year: selectedYear(),
-        section: selectedSectionValue()
+        section: selectedSectionValue(),
+        sections: selected()
       };
       try {
         await template();

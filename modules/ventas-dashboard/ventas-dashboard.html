@@ -1,4 +1,4 @@
-<div class="vd-page" data-vd-template-version="20260831-cache-reingreso-refresh-v001">
+<div class="vd-page" data-vd-template-version="20260831-botones-seccion-v002">
   <section class="vd-card vd-head">
     <div class="vd-head-copy">
       <p class="vd-eyebrow">VENTAS · DASHBOARD</p>
@@ -36,23 +36,23 @@
       <small>Cotizaciones, Ventas y Perdidos respetan el año comercial seleccionado.</small>
     </div>
 
-    <div class="vd-user-field vd-section-field">
-      <label for="vd-section-select">Información visible</label>
-      <select id="vd-section-select">
-        <option value="todos">Todas las secciones</option>
-        <option value="prospeccion">1. Prospección</option>
-        <option value="redes">2. Redes</option>
-        <option value="cotizaciones">3. Cotizaciones</option>
-        <option value="clientes">4. Clientes</option>
-        <option value="ventas">5. Ventas</option>
-        <option value="perdido">6. Perdidos</option>
-        <option value="logistica">7. Logística</option>
-        <option value="activos">8. Activos</option>
-        <option value="tareas_asignadas">9. Pendientes asignados</option>
-        <option value="tareas_creadas">10. Pendientes creados</option>
-      </select>
-      <small>Por default se muestran todas las secciones autorizadas en el orden oficial.</small>
-    </div>
+    <fieldset class="vd-module-filter vd-section-field">
+      <legend>Información visible</legend>
+      <div class="vd-check-grid" id="vd-check-grid">
+        <label class="vd-check vd-check-all"><input type="checkbox" value="todos" checked><span>Todos</span></label>
+        <label class="vd-check"><input type="checkbox" value="prospeccion" checked><span>Prospección</span></label>
+        <label class="vd-check"><input type="checkbox" value="redes" checked><span>Redes</span></label>
+        <label class="vd-check"><input type="checkbox" value="cotizaciones" checked><span>Cotizaciones</span></label>
+        <label class="vd-check"><input type="checkbox" value="clientes" checked><span>Clientes</span></label>
+        <label class="vd-check"><input type="checkbox" value="ventas" checked><span>Ventas</span></label>
+        <label class="vd-check"><input type="checkbox" value="perdido" checked><span>Perdidos</span></label>
+        <label class="vd-check"><input type="checkbox" value="logistica" checked><span>Logística</span></label>
+        <label class="vd-check"><input type="checkbox" value="activos" checked><span>Activos</span></label>
+        <label class="vd-check"><input type="checkbox" value="tareas_asignadas" checked><span>Pendientes asignados</span></label>
+        <label class="vd-check"><input type="checkbox" value="tareas_creadas" checked><span>Pendientes creados</span></label>
+      </div>
+      <small>Todos queda activo por default. Puedes mostrar u ocultar varias secciones sin volver a consultar datos.</small>
+    </fieldset>
   </section>
 
   <section class="vd-kpis" id="vd-kpis" aria-label="Indicadores comerciales">
