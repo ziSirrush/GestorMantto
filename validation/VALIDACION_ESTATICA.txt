@@ -1,0 +1,8 @@
+FIX_NOTIFICACIONES_POPOVER_V002
+Validacion estatica requerida:
+- bloque V002 exactamente una vez en styles/home.css
+- .hdr-notif-list usa display:block!important
+- .hdr-notif-row usa height:auto!important, min-height:76px!important y max-height:none!important
+- hijos b/small/em con height:auto!important y overflow visible
+- index.html usa styles/home.css?v=20260831-notif-popover-v002
+- index.html no referencia styles/notificaciones-layout-fix.css

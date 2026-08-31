@@ -108,3 +108,139 @@
   overflow:visible;
   text-overflow:clip;
 }
+/* BEGIN FIX_NOTIFICACIONES_POPOVER_V002
+   [Aster | 2026-08-31 | ASTER-MG]
+   Popover global de notificaciones: las tarjetas conservan altura natural.
+   La lista hace scroll; las filas NO son flex-items y no pueden comprimirse.
+   Selectores con ID + !important para aislar el componente de CSS lazy de otros modulos.
+*/
+#hdr-notif-popover.hdr-notif-popover{
+  box-sizing:border-box!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:min(440px,calc(100vh - 92px))!important;
+  overflow:hidden!important;
+  white-space:normal!important;
+}
+
+#hdr-notif-popover .hdr-notif-list{
+  box-sizing:border-box!important;
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:min(360px,calc(100vh - 152px))!important;
+  padding:8px!important;
+  margin:0!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior:contain!important;
+  white-space:normal!important;
+}
+
+#hdr-notif-popover .hdr-notif-row{
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:32px minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto!important;
+  column-gap:8px!important;
+  row-gap:3px!important;
+  align-items:start!important;
+  align-content:start!important;
+  width:100%!important;
+  min-width:0!important;
+  height:auto!important;
+  min-height:76px!important;
+  max-height:none!important;
+  margin:0 0 8px 0!important;
+  padding:10px!important;
+  flex:none!important;
+  flex-shrink:0!important;
+  overflow:visible!important;
+  white-space:normal!important;
+  line-height:normal!important;
+  text-overflow:clip!important;
+}
+
+#hdr-notif-popover .hdr-notif-row:last-child{
+  margin-bottom:0!important;
+}
+
+#hdr-notif-popover .hdr-notif-row>span{
+  box-sizing:border-box!important;
+  display:flex!important;
+  position:static!important;
+  grid-column:1!important;
+  grid-row:1 / span 3!important;
+  align-self:start!important;
+  justify-self:start!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:32px!important;
+  min-width:32px!important;
+  max-width:32px!important;
+  height:32px!important;
+  min-height:32px!important;
+  max-height:32px!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:visible!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+
+#hdr-notif-popover .hdr-notif-row>b,
+#hdr-notif-popover .hdr-notif-row>small,
+#hdr-notif-popover .hdr-notif-row>em{
+  box-sizing:border-box!important;
+  display:block!important;
+  position:static!important;
+  grid-column:2!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+  word-break:normal!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+#hdr-notif-popover .hdr-notif-row>b{
+  grid-row:1!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+}
+
+#hdr-notif-popover .hdr-notif-row>small{
+  grid-row:2!important;
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+
+#hdr-notif-popover .hdr-notif-row>em{
+  grid-row:3!important;
+  font-size:10px!important;
+  line-height:1.25!important;
+  white-space:nowrap!important;
+}
+
+@media(max-width:760px){
+  #hdr-notif-popover.hdr-notif-popover{
+    max-height:calc(100vh - 76px)!important;
+  }
+  #hdr-notif-popover .hdr-notif-list{
+    max-height:calc(100vh - 136px)!important;
+  }
+  #hdr-notif-popover .hdr-notif-row{
+    min-height:76px!important;
+  }
+}
+/* END FIX_NOTIFICACIONES_POPOVER_V002 */

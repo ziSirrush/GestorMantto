@@ -1,0 +1,10 @@
+OK: FIX_NOTIFICACIONES_POPOVER_V002 aplicado y validado.
+ - styles/home.css: override global V002 agregado/actualizado al final.
+ - index.html: home.css?v=20260831-notif-popover-v002
+ - link legado notificaciones-layout-fix.css removido si existia.
+OK: FIX_NOTIFICACIONES_POPOVER_V002 aplicado y validado.
+ - styles/home.css: override global V002 agregado/actualizado al final.
+ - index.html: home.css?v=20260831-notif-popover-v002
+ - link legado notificaciones-layout-fix.css removido si existia.
+VALIDACION: OK
+Popover protegido: lista con scroll + filas no comprimibles + cache-bust V002.
