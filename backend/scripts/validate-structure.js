@@ -62,8 +62,8 @@ const requiredFiles = [
   'src/modules/storage-reconciliation/storage-reconciliation.service.js',
   'src/modules/storage-reconciliation/storage-reconciliation.controller.js',
   'src/modules/storage-reconciliation/storage-reconciliation.routes.js',
-  'sql/20260803_CFFAA_06_STORAGE_EVENTOS.sql',
-  'sql/20260803_CFFAA_06_POSTFLIGHT.sql',
+  '../sql/20260803_CFFAA_06_STORAGE_EVENTOS.sql',
+  '../sql/20260803_CFFAA_06_POSTFLIGHT.sql',
   'scripts/validate-cffaa-06.js',
   '../core/router.js'
 ];
