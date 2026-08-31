@@ -78,6 +78,181 @@ function contextFromRequest_gnral(req) {
   return req.contextUser || req.user || req.actorUser || {};
 }
 
+function cleanPublicValue_gnral(value) {
+  const text = value === null || value === undefined ? '' : String(value).trim();
+  return text ? text.slice(0, 180) : null;
+}
+
+function isTechnicalDescription_gnral(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return /^(accion|acción)\s+(post|put|patch|delete)\b.*(completad[ao]|correctamente)/i.test(text) ||
+    /\bhttp\s*(post|put|patch|delete)\b/i.test(text) ||
+    /\bendpoint\b/i.test(text);
+}
+
+function isInvalidReference_gnral(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return !text || [
+    'detalle', 'general', 'equipos', 'tickets', 'proyectos', 'archivos', 'archivo',
+    'comentarios', 'comentario', 'adjuntos', 'adjunto', 'dashboard', 'resumen'
+  ].includes(text);
+}
+
+function entityLabel_gnral(entity, route) {
+  const labels = {
+    tarea: 'Tarea',
+    ticket: 'Ticket',
+    cotizacion: 'Cotización',
+    prospeccion: 'Prospección',
+    redes: 'Asignación a Redes',
+    soporte: 'Solicitud de Soporte',
+    proyecto: 'Proyecto',
+    proyecto_instalaciones: 'Proyecto de Instalación',
+    equipo: 'Equipo'
+  };
+  return labels[String(entity || '').toLowerCase()] || String(route || 'Registro').replace(/[-_]+/g, ' ');
+}
+
+function entityFromPublicRow_gnral(row, payload) {
+  const direct = String(row?.entidad || '').trim().toLowerCase();
+  if (direct) return direct;
+  const type = String(payload?.type || '').trim().toLowerCase();
+  if (['ticket', 'proyecto', 'equipo'].includes(type)) return type;
+  const route = String(row?.ruta_destino || row?.modulo || '').toLowerCase();
+  if (route.includes('ticket')) return 'ticket';
+  if (route.includes('proyecto')) return 'proyecto';
+  if (route.includes('portafolio') || route.includes('equipo')) return 'equipo';
+  if (route.includes('cotizacion')) return 'cotizacion';
+  if (route.includes('prospeccion')) return 'prospeccion';
+  if (route.includes('soporte')) return 'soporte';
+  return null;
+}
+
+function contextFromPublicRow_gnral(row, payload, detail) {
+  const entity = entityFromPublicRow_gnral(row, payload);
+  const reference = isInvalidReference_gnral(row?.id_referencia) ? null : cleanPublicValue_gnral(row?.id_referencia);
+  const stored = detail?.contexto && typeof detail.contexto === 'object' ? detail.contexto : {};
+
+  const ticket = cleanPublicValue_gnral(
+    stored.ticket || payload?.ticket ||
+    (entity === 'ticket' ? (payload?.id || reference) : null)
+  );
+  const proyecto = cleanPublicValue_gnral(
+    stored.proyecto || payload?.proyecto || payload?.project ||
+    (entity === 'proyecto' || entity === 'proyecto_instalaciones' ? (payload?.id || reference) : null)
+  );
+  const equipo = cleanPublicValue_gnral(
+    stored.equipo || payload?.equipo ||
+    (entity === 'equipo' ? (payload?.id || reference) : null)
+  );
+
+  return { entity, reference, ticket, proyecto, equipo };
+}
+
+function ticketLabel_gnral(value) {
+  const text = cleanPublicValue_gnral(value);
+  if (!text) return null;
+  return /^#/.test(text) ? `Ticket ${text}` : `Ticket #${text}`;
+}
+
+function actionVerb_gnral(type, originalTitle) {
+  const normalized = String(type || '').toUpperCase();
+  const original = String(originalTitle || '');
+  const image = /cargaste\s+imagen/i.test(original);
+  const verbs = {
+    CREAR: 'Creaste',
+    EDITAR: 'Editaste',
+    ACTUALIZAR: 'Actualizaste',
+    COMENTAR: 'Comentaste en',
+    CAMBIAR_ESTATUS: 'Cambiaste el estatus de',
+    CAMBIAR_PRIORIDAD: 'Cambiaste la prioridad de',
+    ASIGNAR: 'Asignaste en',
+    VALIDAR: 'Validaste',
+    VOBO: 'Registraste Vo.Bo. en',
+    ADJUNTAR: image ? 'Cargaste imagen en' : 'Adjuntaste archivo en',
+    ELIMINAR: 'Eliminaste'
+  };
+  return verbs[normalized] || 'Actualizaste';
+}
+
+function publicCopy_gnral(row, payload, detail) {
+  const context = contextFromPublicRow_gnral(row, payload, detail);
+  const label = entityLabel_gnral(context.entity, row?.ruta_destino || row?.modulo);
+  let primary = null;
+
+  if (context.entity === 'ticket') primary = ticketLabel_gnral(context.ticket || context.reference);
+  else if (context.entity === 'proyecto' || context.entity === 'proyecto_instalaciones') {
+    primary = context.proyecto ? `Proyecto ${context.proyecto}` : (context.reference ? `${label} ${context.reference}` : label);
+  } else if (context.entity === 'equipo') {
+    primary = context.equipo ? `Equipo ${context.equipo}` : (context.reference ? `Equipo ${context.reference}` : 'Equipo');
+  } else {
+    primary = context.reference ? `${label} ${context.reference}` : label;
+  }
+
+  const originalTitle = String(row?.titulo || '').trim();
+  const rebuiltTitle = `${actionVerb_gnral(row?.tipo_interaccion, originalTitle)} ${primary}`.replace(/\s+/g, ' ').trim();
+  const knownTypes = new Set([
+    'CREAR', 'EDITAR', 'ACTUALIZAR', 'COMENTAR', 'CAMBIAR_ESTATUS',
+    'CAMBIAR_PRIORIDAD', 'ASIGNAR', 'VALIDAR', 'VOBO', 'ADJUNTAR', 'ELIMINAR'
+  ]);
+  const title = (knownTypes.has(String(row?.tipo_interaccion || '').toUpperCase())
+    ? rebuiltTitle
+    : (originalTitle || rebuiltTitle)).slice(0, 255);
+
+  const parts = [];
+  if (context.ticket) parts.push(ticketLabel_gnral(context.ticket));
+  if (context.proyecto) parts.push(`Proyecto ${context.proyecto}`);
+  if (context.equipo) parts.push(`Equipo ${context.equipo}`);
+  const unique = [];
+  parts.filter(Boolean).forEach(part => { if (!unique.includes(part)) unique.push(part); });
+  const contextualDescription = (unique.length ? unique.join(' · ') : primary).slice(0, 500);
+
+  const originalDescription = String(row?.descripcion || '').trim();
+  const description = (!originalDescription || isTechnicalDescription_gnral(originalDescription))
+    ? contextualDescription
+    : originalDescription.slice(0, 500);
+
+  return { title, description };
+}
+
+function safeDetailForClient_gnral(detail) {
+  const context = detail?.contexto && typeof detail.contexto === 'object' ? detail.contexto : null;
+  if (!context) return null;
+  return {
+    contexto: {
+      ticket: cleanPublicValue_gnral(context.ticket),
+      proyecto: cleanPublicValue_gnral(context.proyecto),
+      equipo: cleanPublicValue_gnral(context.equipo)
+    }
+  };
+}
+
+function toPublicInteraction_gnral(row) {
+  const payload = parseDbJson_gnral(row?.payload_json);
+  const detail = parseDbJson_gnral(row?.detalle_json);
+  const copy = publicCopy_gnral(row, payload, detail);
+
+  // No se exponen datos técnicos del transporte/auditoría al navegador.
+  // Permanecen almacenados en Aiven para diagnóstico interno.
+  const {
+    metodo_http: _method,
+    endpoint: _endpoint,
+    ip_address: _ip,
+    user_agent: _ua,
+    detalle_json: _detail,
+    ...publicRow
+  } = row || {};
+
+  return {
+    ...publicRow,
+    titulo: copy.title,
+    descripcion: copy.description,
+    payload_json: payload,
+    detalle_json: safeDetailForClient_gnral(detail)
+  };
+}
+
 async function record_gnral(input, options = {}) {
   const data = input || {};
   const userId = positiveId_gnral(data.id_usuario || data.userId);
@@ -110,7 +285,12 @@ async function record_gnral(input, options = {}) {
   };
 
   const id = await repository.insert_gnral(row, options.executor);
-  return { id_interaccion: id, ...row, payload_json: jsonObject_gnral(data.payload_json), detalle_json: jsonObject_gnral(data.detalle_json) };
+  return {
+    id_interaccion: id,
+    ...row,
+    payload_json: jsonObject_gnral(data.payload_json),
+    detalle_json: jsonObject_gnral(data.detalle_json)
+  };
 }
 
 async function recordFromRequest_gnral(req, input, options = {}) {
@@ -135,11 +315,7 @@ async function listForUser_gnral(userId, options = {}) {
     offset: normalizeOffset_gnral(options.offset)
   });
 
-  return rows.map(row => ({
-    ...row,
-    payload_json: parseDbJson_gnral(row.payload_json),
-    detalle_json: parseDbJson_gnral(row.detalle_json)
-  }));
+  return rows.map(toPublicInteraction_gnral);
 }
 
 module.exports = {
