@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-08-31 | ASTER-MG | FASE 1 ALMACEN EXCEL ESTRUCTURA OFICIAL V001]
+// [Aster | 2026-08-31 | ASTER-MG | FIX FASE 1 EXISTENCIAS NO NUMERICAS V001]
 // Parser especializado para el libro operativo de inventarios de Almacen.
 // No sustituye el parser generico: solo se activa cuando detecta las hojas
 // caracteristicas del formato operativo. Los libros genericos siguen usando
@@ -148,7 +149,7 @@ function parseInventoryDetail(sheet,company,catalog,maxRows){
   if(!warehouses.length) throw error422(`La hoja ${sheet.sheetName} no contiene columnas de almacenes desde la columna D.`,{profile:PROFILE,sheetName:sheet.sheetName,headerRow:headerIndex+1,headers});
 
   const normalized=[];
-  let sourceArticles=0, skippedEmpty=0, invalidNumbers=0;
+  let sourceArticles=0, skippedEmpty=0, ignoredNonNumeric=0;
   for(let r=headerIndex+1;r<rows.length;r+=1){
     const row=rows[r]||[];
     const article=text(row[0]);
@@ -163,7 +164,13 @@ function parseInventoryDetail(sheet,company,catalog,maxRows){
       const rawQty=row[wh.index];
       if(rawQty==null||text(rawQty)==='') continue;
       const qty=numberValue(rawQty);
-      if(qty==null){invalidNumbers+=1;continue;}
+
+      // FIX V001: el prototipo operativo convierte cualquier contenido sin
+      // cantidad numerica util a 0 y no materializa esa celda como existencia.
+      // Por lo tanto '-', 'N/A', texto informativo u otros marcadores no deben
+      // invalidar el libro completo. Se omiten y se contabilizan para trazabilidad.
+      if(qty==null){ignoredNonNumeric+=1;continue;}
+
       // Mantiene la semantica comprobada del prototipo: no materializar celdas 0
       // de una matriz ancha, evitando miles de renglones artificiales.
       if(qty===0) continue;
@@ -184,12 +191,13 @@ function parseInventoryDetail(sheet,company,catalog,maxRows){
     }
   }
   assertRowLimit(normalized.length,maxRows,`La hoja ${sheet.sheetName}`);
-  if(invalidNumbers>0) throw error422(`La hoja ${sheet.sheetName} contiene ${invalidNumbers} existencia(s) no numerica(s) en columnas de almacen.`,{profile:PROFILE,sheetName:sheet.sheetName,headerRow:headerIndex+1,invalidNumbers});
   if(!normalized.length) throw error422(`La hoja ${sheet.sheetName} no genero existencias importables.`,{profile:PROFILE,sheetName:sheet.sheetName,sourceArticles,warehouses:warehouses.map(x=>x.name)});
   return {
     type:TYPES.INVENTORY,sheetName:sheet.sheetName,headerRow:headerIndex+1,headers,
     mapping:{articulo:{header:headers[0]||'Articulo de inventario'},codigo:{header:headers[1]||'Codigo'},precio_unitario:{header:headers[2]||'Costo/Precio'},empresa:{header:`Inferida de ${sheet.sheetName}`},almacen:{header:'Columnas D+'},fisico:{header:'Valor de cada columna de almacen'}},
-    rows:normalized,rowCount:normalized.length,quality:{articulosFuente:sourceArticles,almacenes:warehouses.length,filasNormalizadas:normalized.length,filasVaciasOmitidas:skippedEmpty},warnings:[]
+    rows:normalized,rowCount:normalized.length,
+    quality:{articulosFuente:sourceArticles,almacenes:warehouses.length,filasNormalizadas:normalized.length,filasVaciasOmitidas:skippedEmpty,marcadoresNoNumericosOmitidos:ignoredNonNumeric},
+    warnings:ignoredNonNumeric>0?[`${sheet.sheetName}: ${ignoredNonNumeric} celda(s) de almacen sin cantidad numerica se interpretaron como 0 y fueron omitidas, conforme al formato operativo.`]:[]
   };
 }
 function parseLoan(sheet,company,maxRows){
@@ -280,6 +288,7 @@ function analyzeOfficialWorkbook(options){
   const loanRows=datasets.filter(d=>d.type===TYPES.LOAN).reduce((s,d)=>s+d.rowCount,0);
   const guardRows=datasets.filter(d=>d.type===TYPES.GUARD).reduce((s,d)=>s+d.rowCount,0);
   const warnings=[];
+  inventoryDatasets.forEach(dataset=>warnings.push(...(dataset.warnings||[])));
   if(!getSheet(map,'ARTICULOS')) warnings.push('ARTICULOS: no se encontro el catalogo; Categoria quedara NULL y el inventario seguira usando Codigo/Articulo del desglose.');
   for(const cfg of SUMMARY_SHEETS) if(!getSheet(map,cfg.sheet)) warnings.push(`${cfg.sheet}: no se encontro la hoja resumen; no bloquea el desglose de ${cfg.company}.`);
   for(const cfg of LOAN_SHEETS) if(!getSheet(map,cfg.sheet)) warnings.push(`${cfg.sheet}: no se encontro; ${cfg.company} no tendra prestamos en este cierre.`);
