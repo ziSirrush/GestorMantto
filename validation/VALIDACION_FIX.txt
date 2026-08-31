@@ -1,0 +1,12 @@
+VALIDACION ESTATICA DEL PAQUETE
+- CSS contiene FIX_NOTIFICACIONES_ALTURA_SCROLL_V001: OK
+- .hdr-notif-row incluye flex:0 0 auto: OK
+- .hdr-notif-row incluye flex-shrink:0: OK
+- lista conserva overflow-y:auto: OK
+- aplicador compila con Python: OK
+- aplicador probado dos veces sobre fixture equivalente: OK / idempotente
+- validador del FIX sobre fixture: OK
+- no requiere cambios JS/backend/SQL: OK
+
+NOTA
+No se afirma validacion visual en el navegador real del usuario. La prueba final debe hacerse tras publicar el frontend y abrir el popover con varias notificaciones.
