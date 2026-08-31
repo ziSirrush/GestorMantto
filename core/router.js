@@ -15,7 +15,7 @@
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-editar':'Editar cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventario':'Inventario', 'almacen-stock':'Stock',
-    'almacen-prestamos':'Préstamos', 'almacen-resguardos':'Resguardos', 'almacen-auditoria':'Auditoría',
+    'almacen-prestamos':'Préstamos', 'almacen-resguardos':'Resguardos', 'almacen-auditoria':'Auditoría', 'almacen-carga':'Carga de Información',
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
     'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte',
@@ -46,7 +46,8 @@
     'almacen-stock',
     'almacen-prestamos',
     'almacen-resguardos',
-    'almacen-auditoria'
+    'almacen-auditoria',
+    'almacen-carga'
   ]);
 
   let currentRoute = 'home';
@@ -662,8 +663,12 @@
     if(!view) return false;
     activateViewById('view-'+route);
     setActiveSide(route);
-    updateContext(route,'Gestión de Almacén · datos reales desde Aiven');
-    if(window.ManttoAlmacen && typeof window.ManttoAlmacen.init === 'function'){
+    updateContext(route, route === 'almacen-carga' ? 'Gestión de Almacén · carga controlada hacia Aiven' : 'Gestión de Almacén · datos reales desde Aiven');
+    if(route === 'almacen-carga'){
+      if(window.ManttoAlmacenCarga && typeof window.ManttoAlmacenCarga.init === 'function'){
+        window.ManttoAlmacenCarga.init(route);
+      }
+    } else if(window.ManttoAlmacen && typeof window.ManttoAlmacen.init === 'function'){
       window.ManttoAlmacen.init(route);
     }
     return true;

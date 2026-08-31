@@ -17,20 +17,27 @@ const STOCK_PERMISSION = 'ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
 const LOANS_PERMISSION = 'ALMACEN_PRESTAMOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const GUARDS_PERMISSION = 'ALMACEN_RESGUARDOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const AUDIT_PERMISSION = 'ALMACEN_AUDITORIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const LOAD_PERMISSION = 'ALMACEN_CARGA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 
 function almacenGuard(permissionCode) {
   return humanInformationGuard_gnral({ permissionCodesAny:[permissionCode], domain:'CORELLIAN', groupingCodesAny:['ALMACEN'] });
 }
 
-async function requireImportRole(req,res,next){
+async function inventoryCapabilities(_req,res,next){
   try{
-    const user=req.contextUser||req.user||{};
-    const userId=Number(user.id_SB||user.id);
-    if(!Number.isInteger(userId)||userId<=0)return res.status(401).json({ok:false,message:'Sesión sin usuario válido.'});
-    if(!(await service.canImport(userId)))return res.status(403).json({ok:false,message:'La carga temporal de Excel está restringida a Programador / Programador Corellian.'});
-    next();
+    // Inventario conserva solamente la lectura de la fuente activa.
+    // La mutación del lote fue separada a Almacén > Carga de Información.
+    res.json({ok:true,canImport:false,source:await service.activeSource(),loadRoute:'almacen-carga'});
   }catch(error){next(error);}
 }
+
+async function loadCapabilities(_req,res,next){
+  try{
+    // Llegar aquí implica que humanInformationGuard_gnral ya validó LOAD_PERMISSION.
+    res.json({ok:true,canImport:true,source:await service.activeSource(),permission:LOAD_PERMISSION});
+  }catch(error){next(error);}
+}
+
 
 router.get('/dashboard', ...almacenGuard(DASHBOARD_PERMISSION), controller.dashboard);
 router.get('/inventario', ...almacenGuard(INVENTORY_PERMISSION), controller.inventory);
@@ -49,8 +56,12 @@ router.get('/resguardos', ...almacenGuard(GUARDS_PERMISSION), controller.guards)
 router.get('/auditoria/catalogos', ...almacenGuard(AUDIT_PERMISSION), controller.auditCatalogs);
 router.get('/auditoria/muestra', ...almacenGuard(AUDIT_PERMISSION), controller.auditSample);
 
-router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION), controller.capabilities);
-router.post('/importaciones/validar', ...almacenGuard(INVENTORY_PERMISSION), requireImportRole, upload.single('archivo'), controller.validateImport);
-router.post('/importaciones', ...almacenGuard(INVENTORY_PERMISSION), requireImportRole, upload.single('archivo'), controller.importSpreadsheet);
+// El módulo Inventario ya no expone funciones de carga.
+router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION), inventoryCapabilities);
+
+// Carga de Información: permiso independiente administrable desde Panel de Control.
+router.get('/carga/capabilities', ...almacenGuard(LOAD_PERMISSION), loadCapabilities);
+router.post('/carga/validar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.validateImport);
+router.post('/carga/importar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.importSpreadsheet);
 
 module.exports = router;
