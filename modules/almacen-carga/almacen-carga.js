@@ -16,9 +16,13 @@
   }
   function dateText(value){
     if(!value)return '—';
-    const d=new Date(value);
-    if(Number.isNaN(d.getTime())) return escapeHtml(String(value));
-    return new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(d);
+    const raw=String(value).trim();
+    const iso=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if(iso){
+      const base=`${iso[3]}/${iso[2]}/${iso[1]}`;
+      return iso[4]&&iso[5]?`${base} - ${iso[4]}:${iso[5]}`:base;
+    }
+    return escapeHtml(raw);
   }
   function authApi(path,options){
     if(window.ManttoAuth&&typeof window.ManttoAuth.api==='function') return window.ManttoAuth.api(path,options||{});
@@ -66,7 +70,14 @@
   }
   function validationSummary(data){
     const parts=[];
-    if(data&&data.rows!=null)parts.push(number(data.rows)+' filas');
+    if(data&&data.profile)parts.push('Perfil '+String(data.profile));
+    if(data&&data.rows!=null)parts.push(number(data.rows)+' filas normalizadas');
+    if(Array.isArray(data&&data.datasets)&&data.datasets.length){
+      const sets=data.datasets.map(function(ds){
+        return String(ds.type||'CONJUNTO')+' '+String(ds.sheetName||'')+': '+number(ds.rows||0);
+      });
+      parts.push('Conjuntos: '+sets.join(' · '));
+    }
     if(data&&data.hash)parts.push('Hash '+String(data.hash).slice(0,12));
     const mapping=data&&data.mapping&&typeof data.mapping==='object'?data.mapping:null;
     if(mapping){

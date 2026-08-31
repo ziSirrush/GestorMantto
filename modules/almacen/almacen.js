@@ -6,7 +6,7 @@
   const ROUTES = Object.freeze({
     'almacen-dashboard': { shortTitle:'Dashboard', icon:'📊', description:'Resumen ejecutivo del inventario cargado temporalmente desde Excel hacia Aiven.' },
     'almacen-inventario': { shortTitle:'Inventario', icon:'📦', description:'Consulta consolidada de artículos con vistas por empresa, almacén y ranking.' },
-    'almacen-stock': { shortTitle:'Stock', icon:'📈', description:'Existencia y parámetros de stock suministrados por el cierre Excel seleccionado. No se inventan fórmulas faltantes.' },
+    'almacen-stock': { shortTitle:'Stock', icon:'📈', description:'Existencia del DET y parámetros calculados desde las hojas MOVIMIENTOS del cierre Excel seleccionado.' },
     'almacen-prestamos': { shortTitle:'Préstamos', icon:'🔄', description:'Seguimiento de artículos en préstamo del cierre Excel seleccionado cuando contiene un conjunto compatible.' },
     'almacen-resguardos': { shortTitle:'Resguardos', icon:'🔒', description:'Consulta de resguardos del cierre Excel seleccionado cuando contiene un conjunto compatible.' },
     'almacen-auditoria': { shortTitle:'Auditoría', icon:'🔍', description:'Contraste físico contra el cierre seleccionado, con conteos y observaciones persistidos en Aiven.' }
@@ -134,10 +134,17 @@
   }
   function dateText(value){
     if(!value) return '—';
-    const date = new Date(value);
-    if(Number.isNaN(date.getTime())) return escapeHtml(String(value).slice(0,10));
-    const raw=String(value);
-    return new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:raw.includes('T')?'short':undefined}).format(date);
+    const raw=String(value).trim();
+    // Fechas canónicas del backend: presentar estrictamente DD/MM/AAAA y
+    // DD/MM/AAAA - HH:MM sin reinterpretar zona horaria.
+    const iso=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if(iso){
+      const base=`${iso[3]}/${iso[2]}/${iso[1]}`;
+      return iso[4]&&iso[5]?`${base} - ${iso[4]}:${iso[5]}`:base;
+    }
+    // Textos operativos no canónicos (por ejemplo FECHA2 con varios cortes)
+    // se preservan completos: no se recortan ni se inventa una sola fecha.
+    return escapeHtml(raw);
   }
 
   function statusPill(text, tone){ return '<span class="alm-status-pill' + (tone ? ' is-' + tone : '') + '">' + escapeHtml(text) + '</span>'; }
@@ -242,8 +249,8 @@
     return '<div class="alm-pager"><span>Página ' + number(p.page,0) + ' de ' + number(p.pages,0) + ' · ' + number(p.total,0) + ' registros</span><div><button type="button" data-alm-page="prev" data-alm-page-scope="' + prefix + '"' + (p.page<=1?' disabled':'') + '>← Ant</button><button type="button" data-alm-page="next" data-alm-page-scope="' + prefix + '"' + (p.page>=p.pages?' disabled':'') + '>Sig →</button></div></div>';
   }
   function inventoryMain(data){
-    const rows = (data && data.rows || []).map(function(row){return '<tr><td><strong>' + escapeHtml(row.articulo || '—') + '</strong><small class="alm-cell-sub">' + escapeHtml(row.codigo || '') + '</small></td><td>' + escapeHtml(row.categoria || '—') + '</td><td>' + escapeHtml(row.empresa || '—') + '</td><td>' + number(row.fisico,2) + '</td><td>' + escapeHtml(money(row.precioUnitario)) + '</td><td>' + escapeHtml(money(row.valor)) + '</td><td>' + escapeHtml(row.almacen || '—') + '</td></tr>';});
-    return inventoryFilters(data) + '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Inventario consolidado</h2><p>Cierre Excel seleccionado almacenado en Aiven.</p></div></div>' + renderTable(['Artículo','Categoría','Empresa','Físico','P. Unit.','Valor','Alm.'],rows,900) + inventoryPager(data && data.pagination,'inventory') + '</section>';
+    const rows = (data && data.rows || []).map(function(row){return '<tr><td><strong>' + escapeHtml(row.articulo || '—') + '</strong><small class="alm-cell-sub">' + escapeHtml(row.codigo || '') + '</small></td><td>' + escapeHtml(row.categoria || '—') + '</td><td>' + escapeHtml(row.empresa || '—') + '</td><td>' + number(row.fisico,2) + '</td><td>' + escapeHtml(money(row.precioUnitario)) + '</td><td>' + escapeHtml(money(row.valor)) + '</td><td>' + number(row.almacenes,0) + '</td></tr>';});
+    return inventoryFilters(data) + '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Inventario consolidado</h2><p>Un renglón por artículo/empresa; Físico suma los almacenes del cierre oficial.</p></div></div>' + renderTable(['Artículo','Categoría','Empresa','Físico','P. Unit.','Valor','Alm.'],rows,900) + inventoryPager(data && data.pagination,'inventory') + '</section>';
   }
   function companyTab(data){
     const s = data && data.summary || {};
@@ -252,7 +259,7 @@
   }
   function warehouseTab(data){
     const rows = (data && data.rows || []).map(function(row,index){return '<tr><td>'+(index+1)+'</td><td>' + escapeHtml(row.almacen) + '</td><td>' + escapeHtml(row.tipo || '—') + '</td><td>' + escapeHtml(row.empresa) + '</td><td>' + number(row.piezas,2) + '</td><td>' + escapeHtml(money(row.valorTotal)) + '</td><td>' + number(row.referencias,0) + '</td></tr>';});
-    return '<section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><div class="alm-field alm-field-chips"><span>Empresa</span>' + companyChips(state.warehouse.company,'data-alm-warehouse-company',true) + '</div><label class="alm-field"><span>Buscar almacén</span><input id="alm-warehouse-query" type="search" value="' + escapeHtml(state.warehouse.query) + '"></label><div class="alm-filter-summary"><strong>' + number(rows.length,0) + '</strong> almacenes</div></div></section><section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Almacenes</h2><p>El tipo solo se muestra cuando el Excel lo aporta; no se inventa clasificación.</p></div></div>' + renderTable(['#','Almacén','Tipo','Empresa','Piezas','Valor est.','Refs'],rows,860) + '</section>';
+    return '<section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><div class="alm-field alm-field-chips"><span>Empresa</span>' + companyChips(state.warehouse.company,'data-alm-warehouse-company',true) + '</div><label class="alm-field"><span>Buscar almacén</span><input id="alm-warehouse-query" type="search" value="' + escapeHtml(state.warehouse.query) + '"></label><div class="alm-filter-summary"><strong>' + number(rows.length,0) + '</strong> almacenes</div></div></section><section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Almacenes</h2><p>El tipo se deriva del nombre oficial del almacén con la misma regla de Desarrollo Almacén (Préstamo, Recuperación, Obsoletos, etc.).</p></div></div>' + renderTable(['#','Almacén','Tipo','Empresa','Piezas','Valor est.','Refs'],rows,860) + '</section>';
   }
   function topTab(data){
     const rows = data && data.rows || [];
@@ -396,7 +403,7 @@
     const available=[];
     if(c.abc)available.push('ABC'); if(c.criticidad)available.push('Criticidad'); if(c.demanda)available.push('Demanda');
     if(c.stockSeguridad)available.push('Stock seguridad'); if(c.puntoReorden)available.push('ROP'); if(c.minimo)available.push('Mínimo'); if(c.maximo)available.push('Máximo');
-    return available.length ? 'Campos confirmados en Excel: '+available.join(', ')+'.' : 'El Excel solo confirma existencia actual; no contiene parámetros de stock reconocidos.';
+    return available.length ? 'Parámetros derivados y guardados en el cierre: '+available.join(', ')+'.' : 'No hay artículos con al menos 2 meses de salidas interpretables en MOVIMIENTOS.';
   }
 
   function renderStock(data){
@@ -409,21 +416,21 @@
     const companyOptions=['todas'].concat(data.companies||[]).map(function(value){return '<option value="'+escapeHtml(value)+'"'+(value===state.stock.company?' selected':'')+'>'+escapeHtml(value==='todas'?'Todas':value)+'</option>';}).join('');
     return shell('almacen-stock',
       operationalDatasetCard('INVENTARIO','Fuente para Stock')+
-      '<section class="alm-card alm-operational-note"><strong>Regla de cálculo</strong><span>No se calcula ABC, demanda, SS, ROP, mínimo ni máximo a partir de snapshots. Solo se muestran valores que existan explícitamente en el Excel. '+escapeHtml(stockCoverageLabel(data))+'</span></section>'+
+      '<section class="alm-card alm-operational-note"><strong>Regla de cálculo alineada a Desarrollo Almacén</strong><span>Las hojas MOVIMIENTOS aportan las salidas mensuales. Se calcula Demanda promedio y desviación; SS = Z(95%) × σD × √LT con LT=1 mes; ROP = D̄ × LT + SS; Mínimo = SS; Máximo = ROP + 2×D̄; ABC = Volumen anual × P.Unit. × Criticidad, usando Criticidad Media como valor inicial del modelo de Desarrollo. '+escapeHtml(stockCoverageLabel(data))+'</span></section>'+
       '<section class="alm-kpi-grid">'+
         kpi('Artículos analizados','📊',number(k.articulos,0),'Inventario del cierre','blue')+
-        kpi('Bajo stock seguridad','🚨',c.stockSeguridad?number(k.criticos,0):'—',c.stockSeguridad?'Comparación directa':'Sin Stock seguridad en fuente','red')+
-        kpi('En punto de reorden','⏰',c.puntoReorden?number(k.reorden,0):'—',c.puntoReorden?'Comparación directa':'Sin ROP en fuente','amber')+
-        kpi('Sobre el máximo','📦',c.maximo?number(k.exceso,0):'—',c.maximo?'Comparación directa':'Sin Máximo en fuente','purple')+
+        kpi('Bajo stock seguridad','🔴',c.stockSeguridad?number(k.criticos,0):'—',c.stockSeguridad?'Stock actual vs SS calculado':'Sin cálculo disponible','red')+
+        kpi('En punto de reorden','⏰',c.puntoReorden?number(k.reorden,0):'—',c.puntoReorden?'Stock actual vs ROP calculado':'Sin cálculo disponible','amber')+
+        kpi('Sobre el máximo','📦',c.maximo?number(k.exceso,0):'—',c.maximo?'Stock actual vs Máximo calculado':'Sin cálculo disponible','purple')+
       '</section>'+
       '<section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main">'+
         '<label class="alm-field"><span>Buscar artículo</span><input id="alm-stock-query" type="search" value="'+escapeHtml(state.stock.query)+'" placeholder="Artículo o código..."></label>'+
         '<label class="alm-field"><span>Empresa</span><select id="alm-stock-company">'+companyOptions+'</select></label>'+
         '<label class="alm-field"><span>Clase ABC</span><select id="alm-stock-abc"><option value="todas">Todas</option><option value="A"'+(state.stock.abc==='A'?' selected':'')+'>A</option><option value="B"'+(state.stock.abc==='B'?' selected':'')+'>B</option><option value="C"'+(state.stock.abc==='C'?' selected':'')+'>C</option></select></label>'+
-        '<label class="alm-field"><span>Alerta</span><select id="alm-stock-alert"><option value="todas">Todas</option><option value="critico"'+(state.stock.alert==='critico'?' selected':'')+'>Bajo stock seguridad</option><option value="reorden"'+(state.stock.alert==='reorden'?' selected':'')+'>Punto de reorden</option><option value="exceso"'+(state.stock.alert==='exceso'?' selected':'')+'>Sobre máximo</option><option value="ok"'+(state.stock.alert==='ok'?' selected':'')+'>OK / sin parámetro</option></select></label>'+
+        '<label class="alm-field"><span>Alerta</span><select id="alm-stock-alert"><option value="todas">Todas</option><option value="critico"'+(state.stock.alert==='critico'?' selected':'')+'>Bajo stock seguridad</option><option value="reorden"'+(state.stock.alert==='reorden'?' selected':'')+'>Punto de reorden</option><option value="exceso"'+(state.stock.alert==='exceso'?' selected':'')+'>Sobre máximo</option><option value="ok"'+(state.stock.alert==='ok'?' selected':'')+'>OK</option></select></label>'+
       '</div></section>'+
-      '<section class="alm-stock-class-grid"><article class="alm-stock-class alm-stock-class-a"><span>A</span><div><strong>Clase A</strong><small>Solo si viene en fuente</small></div><b>'+ (c.abc?number(classMap.A||0,0):'—') +'</b></article><article class="alm-stock-class alm-stock-class-b"><span>B</span><div><strong>Clase B</strong><small>Solo si viene en fuente</small></div><b>'+ (c.abc?number(classMap.B||0,0):'—') +'</b></article><article class="alm-stock-class alm-stock-class-c"><span>C</span><div><strong>Clase C</strong><small>Solo si viene en fuente</small></div><b>'+ (c.abc?number(classMap.C||0,0):'—') +'</b></article></section>'+
-      '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Análisis de stock</h2><p>Existencia actual y parámetros explícitos del Excel.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Artículo','Empresa','ABC','Criticidad','Demanda','Stock actual','Stock seg.','Pto. reorden','Mínimo','Máximo','Alerta'],rows,1220)+operationalPager('stock',p)+'</section>'
+      '<section class="alm-stock-class-grid"><article class="alm-stock-class alm-stock-class-a"><span>A</span><div><strong>Clase A</strong><small>Calculada desde MOVIMIENTOS</small></div><b>'+ (c.abc?number(classMap.A||0,0):'—') +'</b></article><article class="alm-stock-class alm-stock-class-b"><span>B</span><div><strong>Clase B</strong><small>Calculada desde MOVIMIENTOS</small></div><b>'+ (c.abc?number(classMap.B||0,0):'—') +'</b></article><article class="alm-stock-class alm-stock-class-c"><span>C</span><div><strong>Clase C</strong><small>Calculada desde MOVIMIENTOS</small></div><b>'+ (c.abc?number(classMap.C||0,0):'—') +'</b></article></section>'+
+      '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Análisis de stock</h2><p>Existencia del DET + parámetros derivados de MOVIMIENTOS del mismo cierre.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Artículo','Empresa','ABC','Criticidad','Demanda','Stock actual','Stock seg.','Pto. reorden','Mínimo','Máximo','Alerta'],rows,1220)+operationalPager('stock',p)+'</section>'
     );
   }
 
@@ -449,9 +456,18 @@
     return values.map(function(value){return '<button type="button" class="alm-loan-company'+(state.loans.company===value?' is-active':'')+'" data-alm-loan-company="'+escapeHtml(value)+'"><span>🏢</span><strong>'+escapeHtml(value==='todas'?'Todas':value)+'</strong><small>'+escapeHtml(value==='todas'?'Consolidado':'Ver préstamos')+'</small></button>';}).join('');
   }
 
+  function loanAgeTone(label,index){
+    const key=String(label||'').toUpperCase();
+    if(key.includes('MAYOR'))return 'red';
+    if(key.includes('0-6')||key.includes('1-6'))return 'green';
+    if(key.includes('6-15'))return 'amber';
+    return ['green','amber','red','purple'][index%4];
+  }
+
   function loanAgeCards(summary){
-    const map={};(summary.ages||[]).forEach(function(row){map[row.antiguedad]=row;});
-    return '<section class="alm-loan-age-grid">'+['1-6 MESES','6-15 MESES','MAYOR A 15 MESES'].map(function(label,index){const row=map[label]||{};const tone=['green','amber','red'][index];return '<article class="alm-loan-age alm-loan-age-'+tone+'"><small>'+label+'</small><strong>'+number(row.articulos||0,0)+' art.</strong><span>Valor: '+money(row.valorTotal)+'</span></article>';}).join('')+'</section>';
+    const ages=(summary.ages||[]).filter(function(row){return row&&row.antiguedad;});
+    if(!ages.length)return '<section class="alm-card alm-operational-note"><strong>Antigüedad</strong><span>El cierre no trae clasificación de antigüedad para los préstamos seleccionados.</span></section>';
+    return '<section class="alm-loan-age-grid">'+ages.map(function(row,index){const label=row.antiguedad||'SIN CLASIFICAR';const tone=loanAgeTone(label,index);return '<article class="alm-loan-age alm-loan-age-'+tone+'"><small>'+escapeHtml(label)+'</small><strong>'+number(row.articulos||0,0)+' art.</strong><span>Valor: '+money(row.valorTotal)+'</span></article>';}).join('')+'</section>';
   }
 
   function renderLoanSummary(summary){
@@ -462,9 +478,9 @@
   function renderLoanDetail(detail){
     const responsibleOptions='<option value="todos">Todos los responsables</option>'+(state.loans.catalogs.responsibles||[]).map(function(value){return '<option value="'+escapeHtml(value)+'"'+(state.loans.responsible===value?' selected':'')+'>'+escapeHtml(value)+'</option>';}).join('');
     const rows=(detail.rows||[]).map(function(row){return '<tr><td><strong>'+escapeHtml(row.articulo||row.codigo||'—')+'</strong><small class="alm-cell-sub">'+escapeHtml(row.codigo||'')+'</small></td><td>'+escapeHtml(row.ag||'—')+'</td><td>'+escapeHtml(row.responsable||'—')+'</td><td>'+escapeHtml(row.sitio||'—')+'</td><td>'+number(row.cantidad,2)+'</td><td>'+money(row.costo)+'</td><td>'+dateText(row.fecha)+'</td><td>'+number(row.dias,0)+'</td><td>'+escapeHtml(row.antiguedad||'—')+'</td></tr>';});
-    return '<section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><label class="alm-field"><span>Responsable</span><select id="alm-loan-responsible">'+responsibleOptions+'</select></label><label class="alm-field"><span>Antigüedad</span><select id="alm-loan-age"><option value="todas">Todas</option>'+['1-6 MESES','6-15 MESES','MAYOR A 15 MESES'].map(function(value){return '<option value="'+value+'"'+(state.loans.age===value?' selected':'')+'>'+value+'</option>';}).join('')+'</select></label><label class="alm-field"><span>Buscar</span><input id="alm-loan-query" type="search" value="'+escapeHtml(state.loans.query)+'" placeholder="Artículo, sitio o AG..."></label></div></section>'+
+    return '<section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><label class="alm-field"><span>Responsable</span><select id="alm-loan-responsible">'+responsibleOptions+'</select></label><label class="alm-field"><span>Antigüedad</span><select id="alm-loan-age"><option value="todas">Todas</option>'+(state.loans.catalogs.ages||[]).map(function(value){return '<option value="'+escapeHtml(value)+'"'+(state.loans.age===value?' selected':'')+'>'+escapeHtml(value)+'</option>';}).join('')+'</select></label><label class="alm-field"><span>Buscar</span><input id="alm-loan-query" type="search" value="'+escapeHtml(state.loans.query)+'" placeholder="Artículo, sitio o AG..."></label></div></section>'+
       '<section class="alm-mini-summary-grid"><article><small>Artículos filtrados</small><strong>'+number(detail.summary&&detail.summary.articulos,0)+'</strong></article><article><small>Cantidad filtrada</small><strong>'+number(detail.summary&&detail.summary.cantidad,2)+' pz</strong></article><article><small>Valor filtrado</small><strong>'+money(detail.summary&&detail.summary.valorTotal)+'</strong></article></section>'+
-      '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Detalle de artículos en préstamo</h2><p>Desglose del conjunto PRESTAMO del cierre seleccionado.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Artículo','AG','Responsable','Sitio','Cant.','Costo','Fecha','Días','Antigüedad'],rows,980)+operationalPager('loans',detail.pagination)+'</section>';
+      '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Detalle de artículos en préstamo</h2><p>Desglose del conjunto PRESTAMO del cierre seleccionado.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Artículo','AG','Responsable','Sitio / AD','Cant.','Costo total','Fecha','Días','Antigüedad'],rows,980)+operationalPager('loans',detail.pagination)+'</section>';
   }
 
   function renderLoans(){
@@ -481,6 +497,8 @@
       state.loans.catalogs=await get('/api/almacen/prestamos/catalogos',{force:true}); state.source=state.loans.catalogs.source||state.source;
       if(!state.loans.catalogs.available){view.innerHTML=renderLoans();return;}
       if(state.loans.company!=='todas' && !(state.loans.catalogs.companies||[]).includes(state.loans.company))state.loans.company='todas';
+      if(state.loans.responsible!=='todos' && !(state.loans.catalogs.responsibles||[]).includes(state.loans.responsible))state.loans.responsible='todos';
+      if(state.loans.age!=='todas' && !(state.loans.catalogs.ages||[]).includes(state.loans.age))state.loans.age='todas';
       state.loans.summary=await get('/api/almacen/prestamos/resumen'+qs({company:state.loans.company}),{force:true});
       if(state.loans.view==='detalle')state.loans.detail=await get('/api/almacen/prestamos'+qs({company:state.loans.company,responsible:state.loans.responsible,age:state.loans.age,q:state.loans.query,page:state.loans.page}),{force:true});
       view.innerHTML=renderLoans(); bindLoans(view);
@@ -503,9 +521,9 @@
     if(!catalogs.available)return shell('almacen-resguardos',operationalDatasetCard('RESGUARDO','Fuente para Resguardos')+empty('No se detectó una hoja o conjunto compatible de Resguardos. No se fabrican resguardos a partir del inventario.'));
     const companyOptions='<option value="todas">Todas las subsidiarias</option>'+(catalogs.companies||[]).map(function(value){return '<option value="'+escapeHtml(value)+'"'+(state.guards.subsidiary===value?' selected':'')+'>'+escapeHtml(value)+'</option>';}).join('');
     const deptOptions='<option value="todos">Todos los departamentos</option>'+(catalogs.departments||[]).map(function(value){return '<option value="'+escapeHtml(value)+'"'+(state.guards.department===value?' selected':'')+'>'+escapeHtml(value)+'</option>';}).join('');
-    const rows=(data.rows||[]).map(function(row){return '<tr><td>'+dateText(row.fecha)+'</td><td>'+escapeHtml(row.folio||'—')+'</td><td>'+escapeHtml(row.subsidiaria||'—')+'</td><td>'+escapeHtml(row.departamento||'—')+'</td><td>'+escapeHtml(row.ag||'—')+'</td><td>'+number(row.cantidad,2)+'</td><td>'+escapeHtml(row.unidad||'—')+'</td><td>'+escapeHtml(row.descripcion||'—')+'</td><td>'+escapeHtml(row.proyecto||'—')+'</td><td>'+escapeHtml(row.equipo||'—')+'</td><td>'+escapeHtml(row.entregadoPor||'—')+'</td><td>'+escapeHtml(row.salida||'—')+'</td><td>'+escapeHtml(row.aCargoDe||'—')+'</td><td>'+escapeHtml(row.ubicacion||'—')+'</td><td>'+escapeHtml(row.conStock||'—')+'</td></tr>';});
+    const rows=(data.rows||[]).map(function(row){return '<tr><td>'+dateText(row.fecha)+'</td><td>'+escapeHtml(row.folio||'—')+'</td><td>'+escapeHtml(row.subsidiaria||'—')+'</td><td>'+escapeHtml(row.departamento||'—')+'</td><td>'+escapeHtml(row.ag||'—')+'</td><td>'+number(row.cantidad,2)+'</td><td>'+escapeHtml(row.unidad||'—')+'</td><td>'+escapeHtml(row.descripcion||'—')+'</td><td>'+escapeHtml(row.proyecto||'—')+'</td><td>'+escapeHtml(row.equipo||'—')+'</td><td>'+escapeHtml(row.entregadoPor||'—')+'</td><td>'+number(row.salida,2)+'</td><td>'+escapeHtml(row.folioSalida||'—')+'</td><td>'+dateText(row.fechaSalida)+'</td><td>'+escapeHtml(row.aCargoDe||'—')+'</td><td>'+number(row.totalPendiente,2)+'</td><td>'+escapeHtml(row.ubicacion||'—')+'</td><td>'+escapeHtml(row.conStock||'—')+'</td></tr>';});
     const k=data.kpis||{};
-    return shell('almacen-resguardos',operationalDatasetCard('RESGUARDO','Fuente para Resguardos')+'<section class="alm-kpi-grid">'+kpi('Total resguardos','🔒',number(k.total,0),'Conjunto del cierre','purple')+kpi('Con salida registrada','✅',number(k.conSalida,0),'Salida con valor','green')+kpi('Sin salida','⏳',number(k.sinSalida,0),'Salida vacía','amber')+kpi('Filtrados','🔍',number(k.filtrados,0),'Filtros actuales','blue')+'</section><section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><label class="alm-field"><span>Buscar</span><input id="alm-guard-query" type="search" value="'+escapeHtml(state.guards.query)+'" placeholder="Descripción, proyecto, AG o folio..."></label><label class="alm-field"><span>Subsidiaria</span><select id="alm-guard-subsidiary">'+companyOptions+'</select></label><label class="alm-field"><span>Departamento</span><select id="alm-guard-department">'+deptOptions+'</select></label><label class="alm-field"><span>Salida</span><select id="alm-guard-exit"><option value="todos">Todos</option><option value="con"'+(state.guards.exitStatus==='con'?' selected':'')+'>Con salida registrada</option><option value="sin"'+(state.guards.exitStatus==='sin'?' selected':'')+'>Sin salida</option></select></label></div></section><section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Resguardos</h2><p>Detalle proveniente del conjunto RESGUARDO del cierre seleccionado.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Fecha','Folio','Subsidiaria','Depto.','AG','Cant.','Unidad','Descripción','Proyecto','Equipo','Entregado por','Salida','A cargo de','Ubicación','Con stock'],rows,1540)+operationalPager('guards',data.pagination)+'</section>');
+    return shell('almacen-resguardos',operationalDatasetCard('RESGUARDO','Fuente para Resguardos')+'<section class="alm-kpi-grid">'+kpi('Total resguardos','🔒',number(k.total,0),'Conjunto del cierre','purple')+kpi('Con salida registrada','✅',number(k.conSalida,0),'SALIDA distinta de 0','green')+kpi('Sin salida','⏳',number(k.sinSalida,0),'SALIDA vacía o 0','amber')+kpi('Filtrados','🔍',number(k.filtrados,0),'Filtros actuales','blue')+'</section><section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><label class="alm-field"><span>Buscar</span><input id="alm-guard-query" type="search" value="'+escapeHtml(state.guards.query)+'" placeholder="Descripción, proyecto, AG o folio..."></label><label class="alm-field"><span>Subsidiaria</span><select id="alm-guard-subsidiary">'+companyOptions+'</select></label><label class="alm-field"><span>Departamento</span><select id="alm-guard-department">'+deptOptions+'</select></label><label class="alm-field"><span>Salida</span><select id="alm-guard-exit"><option value="todos">Todos</option><option value="con"'+(state.guards.exitStatus==='con'?' selected':'')+'>Con salida registrada</option><option value="sin"'+(state.guards.exitStatus==='sin'?' selected':'')+'>Sin salida</option></select></label></div></section><section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Resguardos</h2><p>Detalle proveniente del conjunto RESGUARDO del cierre seleccionado.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Fecha','Folio entrada','Subsidiaria','Depto.','AG','Cant.','Unidad','Descripción','Proyecto','No. equipo','Entregado por','Salida','Folio salida','Fecha salida','A cargo de','Total','Ubicación','Con stock'],rows,1980)+operationalPager('guards',data.pagination)+'</section>');
   }
 
   async function loadGuards(view){

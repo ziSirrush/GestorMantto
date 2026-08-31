@@ -1,11 +1,15 @@
 (function () {
   'use strict';
 
-  const TEMPLATE_VERSION = '20260830-fase2-cierre-optimizacion-v001';
+  // [Aster | 2026-08-31 | ASTER-MG | FIX DASHBOARD VENTAS CACHE/REINGRESO/ACTUALIZAR V001]
+  // Regla: primera carga completa; conservar datos al navegar; refrescar solo por cambio
+  // real, cambio de filtro de datos o solicitud manual del usuario.
+  const TEMPLATE_VERSION = '20260831-cache-reingreso-refresh-v001';
   const TEMPLATE_URL = `./modules/ventas-dashboard/ventas-dashboard.html?v=${TEMPLATE_VERSION}`;
   const STORAGE_KEY = 'mantto:ventas-dashboard:fase1-reacomodo-v001';
   const TABLE_PAGE_SIZE = 30;
   const ALL_USERS_VALUE = 'todos';
+
   let initialized = false;
   let loadingPromise = null;
   let users = [];
@@ -14,7 +18,21 @@
   let availableTableKeys = null;
   let pdfCapabilities = { general: false, individual: false };
   let pdfPreparing = false;
+  let dataLoaded = false;
+  let usersLoaded = false;
+  let pdfCapabilitiesLoaded = false;
+  let cachedKpis = null;
+  let cachedKpiYear = new Date().getFullYear();
+  let cachedYears = [];
+  let cachedQueryKey = '';
+  let refreshBusy = false;
+  let mutationListenerBound = false;
+  let dirtyRefreshPromise = null;
   const tablePages = {};
+  const dirtyScopes = new Set();
+
+  const COMMERCIAL_KEYS = Object.freeze(['prospeccion', 'redes', 'cotizaciones', 'clientes', 'ventas', 'perdido']);
+  const OPERATIONAL_KEYS = Object.freeze(['logistica', 'instalaciones', 'tareas_asignadas', 'tareas_creadas']);
 
   // Fuente: Reporte Logistica (PL_PIPELINE_ORDER / PL_COLUMNAS_POR_ESTATUS).
   // Se mantienen las 12 secciones y los encabezados del reporte sin normalizarlos.
@@ -171,6 +189,7 @@
     if (!select) return;
     const currentYear = new Date().getFullYear();
     const selected = forceCurrent ? currentYear : selectedYear();
+    if (Array.isArray(values) && values.length) cachedYears = [...values];
     const years = [...new Set([currentYear, selected, ...(Array.isArray(values) ? values : [])]
       .map(Number)
       .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2200))]
@@ -195,6 +214,15 @@
     if (progress) progress.hidden = !active;
   }
 
+  function setRefreshProgress(active) {
+    refreshBusy = Boolean(active);
+    const button = document.getElementById('vd-refresh');
+    if (!button) return;
+    button.disabled = refreshBusy;
+    button.textContent = refreshBusy ? '↻ Actualizando...' : '↻ Actualizar';
+    button.setAttribute('aria-busy', refreshBusy ? 'true' : 'false');
+  }
+
   function updatePdfActions() {
     const hasSelectedAdvisor = !isAllUsersMode() && selectedUserId() !== null;
     const generalWrap = document.getElementById('vd-pdf-general-wrap');
@@ -204,6 +232,10 @@
   }
 
   async function loadPdfCapabilities() {
+    if (pdfCapabilitiesLoaded) {
+      updatePdfActions();
+      return;
+    }
     try {
       const response = await req('/api/ventas/dashboard/pdf/capabilities');
       pdfCapabilities = {
@@ -213,6 +245,7 @@
     } catch (_error) {
       pdfCapabilities = { general: false, individual: false };
     }
+    pdfCapabilitiesLoaded = true;
     updatePdfActions();
   }
 
@@ -287,8 +320,8 @@
   }
 
   function save() {
-    // Optimización de información: no persistir filtros parciales entre entradas al módulo.
-    // Cada apertura inicia siempre en Todos + Todas las secciones autorizadas.
+    // Mantiene la regla vigente de no persistir filtros en sessionStorage.
+    // La memoria de la instancia sí se conserva mientras la SPA permanezca abierta.
     try { sessionStorage.removeItem(STORAGE_KEY); } catch (_error) {}
   }
 
@@ -313,7 +346,12 @@
     if (clearData) {
       tableData = {};
       availableTableKeys = null;
-      kpis(null, new Date().getFullYear());
+      cachedKpis = null;
+      cachedKpiYear = new Date().getFullYear();
+      cachedYears = [];
+      cachedQueryKey = '';
+      dataLoaded = false;
+      kpis(null, cachedKpiYear);
       renderLoadingState();
       msg('');
     }
@@ -337,17 +375,19 @@
       const response = await fetch(TEMPLATE_URL, { cache: 'default' });
       if (!response.ok) throw new Error('No fue posible cargar la vista Dashboard Ventas.');
       view.innerHTML = await response.text();
+      initialized = false;
     }
     return view;
   }
 
-  function renderUsers() {
+  function renderUsers(selectedValue = null) {
     const select = document.getElementById('vd-user-select');
     if (!select) return;
+    const desired = selectedValue == null ? selectedUserValue() : String(selectedValue);
     select.innerHTML = `<option value="${ALL_USERS_VALUE}">Todos</option>` + users.map((user) =>
       `<option value="${esc(user.id_usuario)}" data-meta="${esc([user.tipo_perfil, user.puesto].filter(Boolean).join(' · '))}">${esc(user.nombre)}</option>`
     ).join('');
-    select.value = ALL_USERS_VALUE;
+    select.value = [...select.options].some((option) => option.value === desired) ? desired : ALL_USERS_VALUE;
   }
 
   function applyTableAvailability() {
@@ -587,45 +627,147 @@
     save();
   }
 
-  async function loadData(silent) {
+  function replaceDomainTables(keys, incoming) {
+    keys.forEach((key) => { delete tableData[key]; });
+    Object.assign(tableData, incoming || {});
+  }
+
+  function normalizedLoadOptions(options) {
+    const source = options || {};
+    return {
+      kpis: source.kpis !== false,
+      commercial: source.commercial !== false,
+      operational: source.operational !== false
+    };
+  }
+
+  async function loadData(silent, options) {
+    const parts = normalizedLoadOptions(options);
     const allMode = isAllUsersMode();
     const id = selectedUserId();
     const rid = ++requestId;
-    if (!allMode && id === null) { kpis(null); renderTables({}); return; }
+    if (!allMode && id === null) {
+      cachedKpis = null;
+      kpis(null);
+      tableData = {};
+      availableTableKeys = new Set();
+      renderTables(tableData);
+      dataLoaded = true;
+      return false;
+    }
 
     const query = new URLSearchParams();
     query.set('usuario_id', allMode ? ALL_USERS_VALUE : String(id));
     query.set('anio', String(selectedYear()));
     const suffix = `?${query.toString()}`;
+    const queryKey = `${allMode ? ALL_USERS_VALUE : String(id)}|${selectedYear()}`;
+    const contextChanged = Boolean(cachedQueryKey && cachedQueryKey !== queryKey);
+    if (contextChanged) {
+      // Cambio de responsable/año = contexto de autorización/datos diferente.
+      // No conservar filas del contexto anterior si alguna solicitud falla.
+      tableData = {};
+      availableTableKeys = null;
+      cachedKpis = null;
+      cachedKpiYear = selectedYear();
+      dataLoaded = false;
+      dirtyScopes.clear();
+      kpis(null, cachedKpiYear);
+      renderLoadingState();
+    }
+    cachedQueryKey = queryKey;
+
+    const jobs = [];
+    if (parts.kpis) jobs.push({ key: 'kpis', promise: req(`/api/ventas/dashboard/kpis${suffix}`) });
+    if (parts.commercial) jobs.push({ key: 'commercial', promise: req(`/api/ventas/dashboard/tablas${suffix}`) });
+    if (parts.operational) jobs.push({ key: 'operational', promise: req(`/api/ventas/dashboard/operacion${suffix}`) });
+    if (!jobs.length) return false;
 
     if (!silent) msg(allMode ? 'Consultando información de tu alcance comercial...' : 'Consultando información comercial...');
-    const results = await Promise.allSettled([
-      req(`/api/ventas/dashboard/kpis${suffix}`),
-      req(`/api/ventas/dashboard/tablas${suffix}`),
-      req(`/api/ventas/dashboard/operacion${suffix}`)
-    ]);
-    if (rid !== requestId) return;
+    const settled = await Promise.allSettled(jobs.map((job) => job.promise));
+    if (rid !== requestId) return false;
 
-    const [kpiResult, commercialResult, operationalResult] = results;
-    const fulfilled = results.filter((result) => result.status === 'fulfilled').length;
-    if (fulfilled === 0) throw (results.find((result) => result.status === 'rejected')?.reason || new Error('No fue posible cargar Dashboard Ventas.'));
+    const results = jobs.map((job, index) => ({ key: job.key, result: settled[index] }));
+    const fulfilled = results.filter((entry) => entry.result.status === 'fulfilled');
+    if (!fulfilled.length) {
+      const rejected = results.find((entry) => entry.result.status === 'rejected');
+      throw (rejected?.result?.reason || new Error('No fue posible cargar Dashboard Ventas.'));
+    }
 
-    const kpiResponse = kpiResult.status === 'fulfilled' ? kpiResult.value : null;
-    const commercialResponse = commercialResult.status === 'fulfilled' ? commercialResult.value : null;
-    const operationalResponse = operationalResult.status === 'fulfilled' ? operationalResult.value : null;
-    const commercialTables = commercialResponse?.tablas || {};
-    const operationalTables = operationalResponse?.tablas || {};
+    results.filter((entry) => entry.result.status === 'rejected').forEach((entry) => dirtyScopes.add(entry.key));
 
-    availableTableKeys = new Set([...Object.keys(commercialTables), ...Object.keys(operationalTables)]);
+    for (const entry of fulfilled) {
+      const response = entry.result.value;
+      if (entry.key === 'kpis') {
+        cachedKpis = response?.kpis || null;
+        cachedKpiYear = Number(response?.anio) || selectedYear();
+        if (Array.isArray(response?.anios_disponibles)) {
+          cachedYears = [...response.anios_disponibles];
+          renderYearOptions(cachedYears);
+        }
+        dirtyScopes.delete('kpis');
+      } else if (entry.key === 'commercial') {
+        replaceDomainTables(COMMERCIAL_KEYS, response?.tablas || {});
+        dirtyScopes.delete('commercial');
+      } else if (entry.key === 'operational') {
+        replaceDomainTables(OPERATIONAL_KEYS, response?.tablas || {});
+        dirtyScopes.delete('operational');
+      }
+    }
+
+    availableTableKeys = new Set(Object.keys(tableData));
     applyTableAvailability();
-    if (Array.isArray(kpiResponse?.anios_disponibles)) renderYearOptions(kpiResponse.anios_disponibles);
-    kpis(kpiResponse?.kpis || null, Number(kpiResponse?.anio) || selectedYear());
-    renderTables(Object.assign({}, commercialTables, operationalTables));
+    kpis(cachedKpis, cachedKpiYear);
+    renderTables(tableData);
     summary();
+    dataLoaded = true;
 
     if (!silent) {
-      const failed = results.length - fulfilled;
-      msg(failed > 0 ? 'Se cargó la información permitida disponible para tu perfil.' : '');
+      const failed = results.length - fulfilled.length;
+      msg(failed > 0 ? (contextChanged ? 'Se cargó la información disponible para el nuevo filtro; una sección quedó pendiente de actualización.' : 'Se actualizó la información disponible; una sección no pudo renovarse y conserva su última carga válida.') : '');
+    }
+    return true;
+  }
+
+  function noteMutation(path) {
+    const url = String(path || '').toLowerCase();
+    if (url.includes('/api/ventas/')) {
+      dirtyScopes.add('kpis');
+      dirtyScopes.add('commercial');
+    }
+    if (url.includes('/api/ins-fl') || url.includes('/api/logistica') || url.includes('/api/pendientes') || url.includes('/api/tareas')) {
+      dirtyScopes.add('operational');
+    }
+  }
+
+  function dirtyLoadOptions() {
+    return {
+      kpis: dirtyScopes.has('kpis'),
+      commercial: dirtyScopes.has('commercial'),
+      operational: dirtyScopes.has('operational')
+    };
+  }
+
+  async function refreshDirty() {
+    if (dirtyRefreshPromise) return dirtyRefreshPromise;
+    const parts = dirtyLoadOptions();
+    if (!parts.kpis && !parts.commercial && !parts.operational) return false;
+    dirtyRefreshPromise = loadData(true, parts).finally(() => { dirtyRefreshPromise = null; });
+    return dirtyRefreshPromise;
+  }
+
+  async function manualRefresh() {
+    if (refreshBusy) return false;
+    setRefreshProgress(true);
+    try {
+      await loadData(false, { kpis: true, commercial: true, operational: true });
+      dirtyScopes.clear();
+      msg('Dashboard actualizado.', 'ok');
+      return true;
+    } catch (error) {
+      msg(error.message || 'No fue posible actualizar Dashboard Ventas.', 'error');
+      return false;
+    } finally {
+      setRefreshProgress(false);
     }
   }
 
@@ -637,49 +779,54 @@
   }
 
   function bind() {
-    if (initialized) return;
-    initialized = true;
-    document.getElementById('vd-stage')?.addEventListener('click', (event) => {
-      const pageButton = event.target.closest('[data-page-action]');
-      if (pageButton) {
-        const box = pageButton.closest('[data-table-key]');
-        const key = box?.dataset.tableKey;
-        if (!key) return;
-        tablePages[key] = Math.max(1, Number(tablePages[key] || 1) + (pageButton.dataset.pageAction === 'next' ? 1 : -1));
+    if (!initialized) {
+      initialized = true;
+      document.getElementById('vd-stage')?.addEventListener('click', (event) => {
+        const pageButton = event.target.closest('[data-page-action]');
+        if (pageButton) {
+          const box = pageButton.closest('[data-table-key]');
+          const key = box?.dataset.tableKey;
+          if (!key) return;
+          tablePages[key] = Math.max(1, Number(tablePages[key] || 1) + (pageButton.dataset.pageAction === 'next' ? 1 : -1));
+          renderTables(tableData);
+          return;
+        }
+        openRow(event.target.closest('[data-open-route]'));
+      });
+      document.getElementById('vd-stage')?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const row = event.target.closest('[data-open-route]');
+        if (!row) return;
+        event.preventDefault();
+        openRow(row);
+      });
+      document.getElementById('vd-user-select')?.addEventListener('change', () => {
+        resetTablePages();
+        summary();
+        loadData(false, { kpis: true, commercial: true, operational: true }).catch((error) => msg(error.message, 'error'));
+      });
+      document.getElementById('vd-year-select')?.addEventListener('change', () => {
+        resetTablePages();
+        kpis(null, selectedYear());
+        loadData(false, { kpis: true, commercial: true, operational: true }).catch((error) => msg(error.message, 'error'));
+      });
+      document.getElementById('vd-pdf-general')?.addEventListener('click', () => preparePdf('general'));
+      document.getElementById('vd-pdf-individual')?.addEventListener('click', () => preparePdf('individual'));
+      document.getElementById('vd-refresh')?.addEventListener('click', () => manualRefresh());
+      document.getElementById('vd-section-select')?.addEventListener('change', () => {
+        resetTablePages();
+        summary();
         renderTables(tableData);
-        return;
-      }
-      openRow(event.target.closest('[data-open-route]'));
-    });
-    document.getElementById('vd-stage')?.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      const row = event.target.closest('[data-open-route]');
-      if (!row) return;
-      event.preventDefault();
-      openRow(row);
-    });
-    document.getElementById('vd-user-select')?.addEventListener('change', () => {
-      resetTablePages();
-      summary();
-      loadData(false).catch((error) => msg(error.message, 'error'));
-    });
-    document.getElementById('vd-year-select')?.addEventListener('change', () => {
-      resetTablePages();
-      kpis(null, selectedYear());
-      loadData(false).catch((error) => msg(error.message, 'error'));
-    });
-    document.getElementById('vd-pdf-general')?.addEventListener('click', () => preparePdf('general'));
-    document.getElementById('vd-pdf-individual')?.addEventListener('click', () => preparePdf('individual'));
-    document.getElementById('vd-section-select')?.addEventListener('change', () => {
-      resetTablePages();
-      summary();
-      renderTables(tableData);
-    });
-    document.addEventListener('mantto:data-mutated', (event) => {
-      if (window.ManttoDataSync?.supportsBackgroundSync?.('ventas-dashboard')) return;
-      const url = String(event.detail?.path || event.detail?.url || '');
-      if (url.includes('/api/ventas/') || url.includes('/api/ins-fl') || url.includes('/api/logistica') || url.includes('/api/pendientes')) loadData(true).catch(() => {});
-    });
+      });
+    }
+
+    if (!mutationListenerBound) {
+      mutationListenerBound = true;
+      document.addEventListener('mantto:data-mutated', (event) => {
+        const url = String(event.detail?.path || event.detail?.url || '');
+        noteMutation(url);
+      });
+    }
   }
 
   async function loadUsers() {
@@ -687,28 +834,80 @@
     if (!select) return;
     select.disabled = true;
     try {
+      if (usersLoaded) {
+        renderUsers(selectedUserValue());
+        renderYearOptions(cachedYears, !cachedYears.length);
+        await loadPdfCapabilities();
+        if (!dataLoaded) {
+          await loadData(true, { kpis: true, commercial: true, operational: true });
+          dirtyScopes.clear();
+        }
+        return;
+      }
       const response = await req('/api/ventas/dashboard/usuarios');
       users = Array.isArray(response.usuarios) ? response.usuarios : [];
-      renderUsers();
+      usersLoaded = true;
+      renderUsers(ALL_USERS_VALUE);
       renderYearOptions([], true);
       applyModules();
       await loadPdfCapabilities();
       summary();
       resetTablePages();
-      await loadData(true);
+      await loadData(true, { kpis: true, commercial: true, operational: true });
+      dirtyScopes.clear();
       if (!users.length) msg('Tu alcance actual no contiene responsables comerciales activos.', 'error');
     } finally {
       select.disabled = false;
     }
   }
 
+  function restoreCachedView(snapshot) {
+    const remembered = snapshot || {};
+    if (usersLoaded) renderUsers(remembered.user || ALL_USERS_VALUE);
+    renderYearOptions(cachedYears);
+
+    const yearSelect = document.getElementById('vd-year-select');
+    const wantedYear = String(remembered.year || cachedKpiYear || new Date().getFullYear());
+    if (yearSelect && [...yearSelect.options].some((option) => option.value === wantedYear)) yearSelect.value = wantedYear;
+
+    const sectionSelect = document.getElementById('vd-section-select');
+    const wantedSection = String(remembered.section || ALL_USERS_VALUE);
+    if (sectionSelect && [...sectionSelect.options].some((option) => option.value === wantedSection)) sectionSelect.value = wantedSection;
+
+    applyTableAvailability();
+    kpis(cachedKpis, cachedKpiYear);
+    renderTables(tableData);
+    summary();
+    setRefreshProgress(false);
+  }
+
+  async function backgroundSync(_context) {
+    // DataSync llama backgroundSync al volver con navegación "back" incluso si no
+    // hubo cambios. Aquí se rechaza esa recarga automática si el Dashboard no está
+    // marcado localmente como sucio. Si sí hubo mutación, solo se renueva el bloque afectado.
+    if (!dirtyScopes.size) return false;
+    return refreshDirty();
+  }
+
   async function init() {
     if (loadingPromise) return loadingPromise;
     loadingPromise = (async () => {
+      const snapshot = {
+        user: selectedUserValue(),
+        year: selectedYear(),
+        section: selectedSectionValue()
+      };
       try {
         await template();
-        resetDashboardDefaults({ clearData: true });
         bind();
+
+        if (dataLoaded && usersLoaded) {
+          restoreCachedView(snapshot);
+          if (dirtyScopes.size) refreshDirty().catch(() => {});
+          return;
+        }
+
+        resetDashboardDefaults({ clearData: true });
         await loadUsers();
       }
       catch (error) { msg(error.message || 'No fue posible iniciar Dashboard Ventas.', 'error'); }
@@ -719,9 +918,9 @@
 
   window.ManttoVentasDashboard = {
     init,
-    refresh: () => loadData(true),
-    backgroundSync: () => loadData(true),
-    refreshKpis: () => loadData(true),
+    refresh: () => loadData(true, { kpis: true, commercial: true, operational: true }),
+    backgroundSync,
+    refreshKpis: () => loadData(true, { kpis: true, commercial: false, operational: false }),
     getFilters: () => ({ ...currentState(), usuario_id: isAllUsersMode() ? ALL_USERS_VALUE : selectedUserId(), anio: selectedYear() })
   };
 })();
