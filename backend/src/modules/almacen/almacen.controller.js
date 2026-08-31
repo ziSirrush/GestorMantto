@@ -41,25 +41,51 @@ async function importSpreadsheet(req, res, next) {
   }
 }
 
-async function dashboard(_req,res,next){try{res.json(await service.getDashboard());}catch(error){next(error);}}
+async function sources(req,res,next){try{res.json(await service.listSources(req.query||{}));}catch(error){next(error);}}
+
+function knownError(error,res,next){
+  if(error&&error.status){
+    return res.status(Number(error.status)).json({ok:false,message:error.message,details:error.details||undefined});
+  }
+  return next(error);
+}
+
+async function listAudits(req,res,next){try{res.json(await service.listAudits(req.query||{}));}catch(error){knownError(error,res,next);}}
+async function getAudit(req,res,next){try{res.json(await service.getAudit(req.params.folio));}catch(error){knownError(error,res,next);}}
+async function createAudit(req,res,next){try{res.status(201).json(await service.createAudit(req.body||{},effectiveUserId(req)));}catch(error){knownError(error,res,next);}}
+async function updateAuditItem(req,res,next){try{res.json(await service.updateAuditItem(req.params.folio,req.params.id,req.body||{},effectiveUserId(req)));}catch(error){knownError(error,res,next);}}
+async function closeAudit(req,res,next){try{res.json(await service.closeAudit(req.params.folio,effectiveUserId(req)));}catch(error){knownError(error,res,next);}}
+
+async function dashboard(req,res,next){try{res.json(await service.getDashboard(req.query||{}));}catch(error){next(error);}}
+
 async function inventory(req,res,next){try{res.json(await service.getInventory(req.query||{}));}catch(error){next(error);}}
-async function catalogs(_req,res,next){try{res.json(await service.getCatalogs());}catch(error){next(error);}}
+async function catalogs(req,res,next){try{res.json(await service.getCatalogs(req.query||{}));}catch(error){next(error);}}
+
 async function company(req,res,next){try{res.json(await service.getCompany(req.query||{}));}catch(error){next(error);}}
 async function warehouses(req,res,next){try{res.json(await service.getWarehouses(req.query||{}));}catch(error){next(error);}}
 async function top(req,res,next){try{res.json(await service.getTop(req.query||{}));}catch(error){next(error);}}
 async function stock(req,res,next){try{res.json(await service.getStock(req.query||{}));}catch(error){next(error);}}
-async function loanCatalogs(_req,res,next){try{res.json(await service.getLoanCatalogs());}catch(error){next(error);}}
+async function loanCatalogs(req,res,next){try{res.json(await service.getLoanCatalogs(req.query||{}));}catch(error){next(error);}}
+
 async function loanSummary(req,res,next){try{res.json(await service.getLoanSummary(req.query||{}));}catch(error){next(error);}}
 async function loans(req,res,next){try{res.json(await service.getLoans(req.query||{}));}catch(error){next(error);}}
-async function guardCatalogs(_req,res,next){try{res.json(await service.getGuardCatalogs());}catch(error){next(error);}}
+async function guardCatalogs(req,res,next){try{res.json(await service.getGuardCatalogs(req.query||{}));}catch(error){next(error);}}
+
 async function guards(req,res,next){try{res.json(await service.getGuards(req.query||{}));}catch(error){next(error);}}
-async function auditCatalogs(_req,res,next){try{res.json(await service.getAuditCatalogs());}catch(error){next(error);}}
+async function auditCatalogs(req,res,next){try{res.json(await service.getAuditCatalogs(req.query||{}));}catch(error){next(error);}}
+
 async function auditSample(req,res,next){try{res.json(await service.getAuditSample(req.query||{}));}catch(error){next(error);}}
 
 module.exports = {
   capabilities,
   validateImport,
   importSpreadsheet,
+  sources,
+  closeAudit,
+  updateAuditItem,
+  createAudit,
+  getAudit,
+  listAudits,
   dashboard,
   inventory,
   catalogs,

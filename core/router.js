@@ -7,7 +7,7 @@
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
     'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-aditivas':'Aditivas',
-    'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-documentos':'Documentos de Producción',
+    'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-produccion-nuevo':'Agregar Producción', 'logistica-produccion-detalle':'Detalle de Producción', 'logistica-documentos':'Documentos de Producción',
     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
     'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
@@ -203,9 +203,12 @@
   }
 
   function setActiveSide(route){
+    const sideRoute = route === 'logistica-produccion-nuevo' || route === 'logistica-produccion-detalle'
+      ? 'logistica-produccion'
+      : route;
     let activeItem = null;
     document.querySelectorAll('.side-item').forEach(function(button){
-      const active = button.dataset.route === route;
+      const active = button.dataset.route === sideRoute;
       button.classList.toggle('active', active);
       if(active) activeItem = button;
     });
@@ -374,7 +377,7 @@
     }
     setActiveSide('instalaciones-proyectos');
     updateContext('instalaciones-proyectos','Proyectos de Instalación · gestión integral desde Aiven');
-    if(window.ManttoInstalacionesProyectos) window.ManttoInstalacionesProyectos.init();
+    if(window.ManttoInstalacionesProyectos) window.ManttoInstalacionesProyectos.init(currentPayload || null);
     return true;
   }
 
@@ -878,6 +881,10 @@
     if(ALMACEN_ROUTES.has(route) && showAlmacen(route)) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
+    if(['logistica-produccion','logistica-produccion-nuevo','logistica-produccion-detalle','logistica-pvo','logistica-documentos'].includes(route) && showView(route,'Logística · seguimiento de Producción')){
+      if(window.ManttoLogisticaProduccion) window.ManttoLogisticaProduccion.init(route,currentPayload||null);
+      return;
+    }
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
     if(route==='panel-control' && showPanelControl()) return;

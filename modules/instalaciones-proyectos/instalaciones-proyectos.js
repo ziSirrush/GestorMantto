@@ -1759,7 +1759,13 @@ async function pyInit(){
     else if(e.key === 'Escape') pyCerrarLightbox();
   });
 }
-async function pyMount(forceReload){
+async function pyOpenDeepLink(payload){
+ const target=String(payload&&payload.id||'').trim();
+ if(!target)return;
+ const project=PY_PROYECTOS.find(p=>pyNorm(p['ID Proyecto'])===pyNorm(target)||pyNorm(p.Proyecto)===pyNorm(target));
+ if(project)await pyAbrirProyecto(project._id);
+}
+async function pyMount(forceReload,payload){
  const view=document.getElementById('view-instalaciones-proyectos');
  if(!view)return false;
  if(forceReload) view.dataset.pyReady='0';
@@ -1770,6 +1776,7 @@ async function pyMount(forceReload){
    view.dataset.pyReady='1';
    await pyInit();
  }
+ await pyOpenDeepLink(payload);
  return true;
 }
 Object.assign(window,{
@@ -1778,7 +1785,7 @@ Object.assign(window,{
   pyLightboxNav,pyCerrarLightbox,pyRenderSlotsFoto
 });
 window.ManttoInstalacionesProyectos={
- init:function(){return pyMount(false);},
+ init:function(payload){return pyMount(false,payload);},
  reload:async function(){
    try{
      const status=document.getElementById('py-aiven-status');

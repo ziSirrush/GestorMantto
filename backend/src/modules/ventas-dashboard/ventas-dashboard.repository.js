@@ -295,10 +295,9 @@ async function getCommercialTables(connection, userIds, requestedYear) {
       WHERE q.id_asesor IN (?)
         AND COALESCE(q.activo, 1) = 1
         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) NOT IN ('VENDIDO', 'PERDIDO')
-        AND LEFT(${quoteOriginDate}, 4) = ?
       ORDER BY ${quoteOriginDate} DESC,
                q.id_cotizacion DESC`,
-    [ids, String(year)]
+    [ids]
   );
 
   const [soldQuotes] = await connection.query(

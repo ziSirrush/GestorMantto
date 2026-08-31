@@ -18,16 +18,29 @@ const LOANS_PERMISSION = 'ALMACEN_PRESTAMOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const GUARDS_PERMISSION = 'ALMACEN_RESGUARDOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const AUDIT_PERMISSION = 'ALMACEN_AUDITORIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const LOAD_PERMISSION = 'ALMACEN_CARGA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const SOURCE_PERMISSIONS = Object.freeze([
+  DASHBOARD_PERMISSION,
+  INVENTORY_PERMISSION,
+  STOCK_PERMISSION,
+  LOANS_PERMISSION,
+  GUARDS_PERMISSION,
+  AUDIT_PERMISSION,
+  LOAD_PERMISSION
+]);
 
 function almacenGuard(permissionCode) {
   return humanInformationGuard_gnral({ permissionCodesAny:[permissionCode], domain:'CORELLIAN', groupingCodesAny:['ALMACEN'] });
 }
 
-async function inventoryCapabilities(_req,res,next){
+function almacenSourceGuard() {
+  return humanInformationGuard_gnral({ permissionCodesAny:SOURCE_PERMISSIONS, domain:'CORELLIAN', groupingCodesAny:['ALMACEN'] });
+}
+
+async function inventoryCapabilities(req,res,next){
   try{
-    // Inventario conserva solamente la lectura de la fuente activa.
-    // La mutación del lote fue separada a Almacén > Carga de Información.
-    res.json({ok:true,canImport:false,source:await service.activeSource(),loadRoute:'almacen-carga'});
+    // Inventario es de solo lectura y respeta el cierre solicitado por Fase 3.
+    // La mutación/importación sigue separada en Almacén > Carga de Información.
+    res.json({ok:true,canImport:false,source:await service.resolveSource(req.query||{}),loadRoute:'almacen-carga'});
   }catch(error){next(error);}
 }
 
@@ -39,6 +52,8 @@ async function loadCapabilities(_req,res,next){
 }
 
 
+// Fuente común e histórico de cierres; la selección visual se integra en Fase 3.
+router.get('/fuentes', ...almacenSourceGuard(), controller.sources);
 router.get('/dashboard', ...almacenGuard(DASHBOARD_PERMISSION), controller.dashboard);
 router.get('/inventario', ...almacenGuard(INVENTORY_PERMISSION), controller.inventory);
 router.get('/inventario/catalogos', ...almacenGuard(INVENTORY_PERMISSION), controller.catalogs);
@@ -55,6 +70,14 @@ router.get('/resguardos', ...almacenGuard(GUARDS_PERMISSION), controller.guards)
 
 router.get('/auditoria/catalogos', ...almacenGuard(AUDIT_PERMISSION), controller.auditCatalogs);
 router.get('/auditoria/muestra', ...almacenGuard(AUDIT_PERMISSION), controller.auditSample);
+
+// [Aster | 2026-08-31 | ASTER-MG | FASE 3 ALMACEN CIERRES/AUDITORIA PERSISTENTE V001]
+// almacen_fuente_excel permanece inmutable desde Auditoría; las capturas viven en almacen_auditoria.
+router.get('/auditoria/historico', ...almacenGuard(AUDIT_PERMISSION), controller.listAudits);
+router.post('/auditoria', ...almacenGuard(AUDIT_PERMISSION), controller.createAudit);
+router.get('/auditoria/:folio', ...almacenGuard(AUDIT_PERMISSION), controller.getAudit);
+router.patch('/auditoria/:folio/items/:id', ...almacenGuard(AUDIT_PERMISSION), controller.updateAuditItem);
+router.post('/auditoria/:folio/cerrar', ...almacenGuard(AUDIT_PERMISSION), controller.closeAudit);
 
 // El módulo Inventario ya no expone funciones de carga.
 router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION), inventoryCapabilities);

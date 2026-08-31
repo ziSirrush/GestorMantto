@@ -3,6 +3,10 @@
 const crypto = require('crypto');
 const db = require('../../config/db');
 const { parseXlsxSheets, parseCsv } = require('./xlsx-lite');
+const { analyzeOfficialWorkbook } = require('./almacen.official-workbook');
+const queryService = require('./almacen.query-service');
+const auditService = require('./almacen.audit-service');
+const sourceEngine = require('./almacen.source-engine');
 
 const TABLE = 'almacen_fuente_excel';
 const MAX_ROWS = 100000;
@@ -458,6 +462,16 @@ function analyzeSpreadsheet(file, requestedCutoffDate) {
   const sheets = Array.isArray(parsed.sheets) ? parsed.sheets : [];
   if (!sheets.length) throw Object.assign(new Error('El archivo no contiene hojas utilizables.'), { status:422 });
 
+  // Primero intenta el perfil operativo verificado para Gestión de Almacén.
+  // Si no hay ninguna hoja característica, conserva íntegro el validador genérico anterior.
+  const official = analyzeOfficialWorkbook({ sheets, requestedCutoffDate, maxRows:MAX_ROWS });
+  if (official && official.detected) {
+    return {
+      ...official.analysis,
+      fileHash:crypto.createHash('sha256').update(file.buffer).digest('hex')
+    };
+  }
+
   const inventoryCandidate = chooseBestCandidate(sheets, INVENTORY_ALIAS_SETS, inventoryMappingValid, 4);
   if (!inventoryCandidate) {
     const error = new Error('No puedo confirmar una hoja de Inventario. Se requieren Empresa, Almacén, Físico y Artículo o Código.');
@@ -501,6 +515,7 @@ function analyzeSpreadsheet(file, requestedCutoffDate) {
     resguardos:Boolean(guardCandidate && guardResult && guardResult.rows.length)
   };
   return {
+    profile:'GENERIC_ALIASES',
     datasets,
     fileHash:crypto.createHash('sha256').update(file.buffer).digest('hex'),
     cutoffDate:inventoryResult.cutoffDate,
@@ -544,49 +559,7 @@ function safeJson(value, fallback) {
 }
 
 async function activeSource(conn = db) {
-  const [lots] = await conn.query(
-    `SELECT lote_importacion AS loteImportacion,
-            MAX(archivo_origen) AS archivoOrigen,
-            MAX(fecha_corte) AS fechaCorte,
-            MAX(fecha_importacion) AS fechaImportacion,
-            MAX(hash_archivo) AS hashArchivo,
-            COUNT(*) AS filas
-       FROM ${TABLE}
-      WHERE activo=1
-      GROUP BY lote_importacion
-      ORDER BY MAX(fecha_importacion) DESC
-      LIMIT 1`
-  );
-  if (!lots.length) return null;
-  const lot = lots[0];
-  const [types] = await conn.query(
-    `SELECT tipo_registro AS tipoRegistro, MAX(hoja_origen) AS hojaOrigen, COUNT(*) AS filas,
-            ANY_VALUE(encabezados_json) AS encabezadosJson, ANY_VALUE(mapeo_json) AS mapeoJson
-       FROM ${TABLE}
-      WHERE activo=1 AND lote_importacion=?
-      GROUP BY tipo_registro`, [lot.loteImportacion]
-  );
-  const datasets = {};
-  for (const row of types) {
-    datasets[row.tipoRegistro] = {
-      hojaOrigen:row.hojaOrigen,
-      filas:Number(row.filas || 0),
-      encabezados:safeJson(row.encabezadosJson,[]),
-      mapeo:safeJson(row.mapeoJson,{})
-    };
-  }
-  return {
-    loteImportacion:lot.loteImportacion,
-    archivoOrigen:lot.archivoOrigen,
-    fechaCorte:lot.fechaCorte,
-    fechaImportacion:lot.fechaImportacion,
-    hashArchivo:lot.hashArchivo,
-    filas:Number(lot.filas || 0),
-    datasets,
-    hojaOrigen:datasets[RECORD_TYPES.INVENTORY]?.hojaOrigen || null,
-    encabezados:datasets[RECORD_TYPES.INVENTORY]?.encabezados || [],
-    mapeo:datasets[RECORD_TYPES.INVENTORY]?.mapeo || {}
-  };
+  return sourceEngine.activeSource(conn);
 }
 
 async function validateImport(file, cutoffDate) {
@@ -595,6 +568,9 @@ async function validateImport(file, cutoffDate) {
   return {
     ok:true,
     valid:true,
+    profile:analysis.profile || 'GENERIC_ALIASES',
+    recognizedSheets:analysis.recognizedSheets || null,
+    detectedSheets:analysis.detectedSheets || null,
     fileName:file.originalname,
     sheetName:inventoryDataset?.sheetName || null,
     headerRow:inventoryDataset?.headerRow || null,
@@ -665,6 +641,7 @@ async function importSpreadsheet(file, cutoffDate, userId) {
     await conn.commit();
     return {
       ok:true,
+      profile:analysis.profile || 'GENERIC_ALIASES',
       loteImportacion:lotId,
       archivoOrigen:file.originalname,
       hojaOrigen:analysis.datasets.find(dataset => dataset.type === RECORD_TYPES.INVENTORY)?.sheetName || null,
@@ -686,328 +663,31 @@ async function importSpreadsheet(file, cutoffDate, userId) {
   }
 }
 
-function valueExpression(alias='') {
-  const prefix = alias ? `${alias}.` : '';
-  return `COALESCE(${prefix}valor, CASE WHEN ${prefix}fisico IS NOT NULL AND ${prefix}precio_unitario IS NOT NULL THEN ${prefix}fisico * ${prefix}precio_unitario ELSE NULL END)`;
-}
+// [Aster | 2026-08-31 | ASTER-MG | FASE 2 ALMACEN MOTOR FUENTE/CIERRE V001]
+// Lecturas desacopladas: todas resuelven primero el lote/cierre mediante queryService.
+async function resolveSource(query = {}, conn = db) { return sourceEngine.resolveSource(query, conn); }
+async function listSources(query = {}) { return queryService.listSources(query); }
+async function getDashboard(query = {}) { return queryService.getDashboard(query); }
+async function getInventory(query = {}) { return queryService.getInventory(query); }
+async function getCatalogs(query = {}) { return queryService.getCatalogs(query); }
+async function getCompany(query = {}) { return queryService.getCompany(query); }
+async function getWarehouses(query = {}) { return queryService.getWarehouses(query); }
+async function getTop(query = {}) { return queryService.getTop(query); }
+async function getStock(query = {}) { return queryService.getStock(query); }
+async function getLoanCatalogs(query = {}) { return queryService.getLoanCatalogs(query); }
+async function getLoanSummary(query = {}) { return queryService.getLoanSummary(query); }
+async function getLoans(query = {}) { return queryService.getLoans(query); }
+async function getGuardCatalogs(query = {}) { return queryService.getGuardCatalogs(query); }
+async function getGuards(query = {}) { return queryService.getGuards(query); }
+async function getAuditCatalogs(query = {}) { return queryService.getAuditCatalogs(query); }
+async function getAuditSample(query = {}) { return queryService.getAuditSample(query); }
 
-function inventoryWhere() { return `activo=1 AND tipo_registro='${RECORD_TYPES.INVENTORY}'`; }
-
-async function getDashboard() {
-  const source = await activeSource();
-  if (!source) return { ok:true, source:null, kpis:null, companies:[], warehouses:[], topByVolume:[], topByValue:[], coverage:{} };
-  const valueExpr = valueExpression();
-  const base = inventoryWhere();
-  const [[kpiRows],[companies],[warehouses],[topByVolume],[topByValue]] = await Promise.all([
-    db.query(`SELECT COUNT(*) AS referencias, COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,
-      COUNT(DISTINCT NULLIF(TRIM(almacen),'')) AS almacenes,
-      SUM(CASE WHEN fisico IS NOT NULL AND fisico<=0 THEN 1 ELSE 0 END) AS sinStock,
-      SUM(CASE WHEN ${valueExpr} IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,
-      SUM(${valueExpr}) AS valorTotal FROM ${TABLE} WHERE ${base}`),
-    db.query(`SELECT COALESCE(NULLIF(TRIM(empresa),''),'Sin empresa') AS empresa, COUNT(*) AS referencias,
-      COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,
-      SUM(CASE WHEN ${valueExpr} IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,
-      SUM(${valueExpr}) AS valorTotal FROM ${TABLE} WHERE ${base} GROUP BY empresa ORDER BY valorTotal DESC, empresa`),
-    db.query(`SELECT COALESCE(NULLIF(TRIM(almacen),''),'Sin almacén') AS almacen, MAX(empresa) AS empresa,
-      COUNT(*) AS referencias, COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,
-      SUM(${valueExpr}) AS valorTotal FROM ${TABLE} WHERE ${base} GROUP BY almacen ORDER BY valorTotal DESC LIMIT 5`),
-    db.query(`SELECT MAX(codigo) AS codigo, MAX(articulo) AS articulo, MAX(empresa) AS empresa,
-      COALESCE(SUM(COALESCE(fisico,0)),0) AS total FROM ${TABLE} WHERE ${base}
-      GROUP BY COALESCE(NULLIF(TRIM(codigo),''),NULLIF(TRIM(articulo),''),CONCAT('Fila ',fila_origen)) ORDER BY total DESC LIMIT 15`),
-    db.query(`SELECT MAX(codigo) AS codigo, MAX(articulo) AS articulo, MAX(empresa) AS empresa,
-      SUM(${valueExpr}) AS total FROM ${TABLE} WHERE ${base} AND ${valueExpr} IS NOT NULL
-      GROUP BY COALESCE(NULLIF(TRIM(codigo),''),NULLIF(TRIM(articulo),''),CONCAT('Fila ',fila_origen)) ORDER BY total DESC LIMIT 15`)
-  ]);
-  const kpi = kpiRows[0] || {};
-  return {
-    ok:true, source,
-    kpis:{referencias:Number(kpi.referencias||0),piezas:Number(kpi.piezas||0),almacenes:Number(kpi.almacenes||0),sinStock:Number(kpi.sinStock||0),valorTotal:Number(kpi.filasConValor||0)>0?Number(kpi.valorTotal||0):null},
-    coverage:{valor:Number(kpi.filasConValor||0)>0},
-    companies:companies.map(row=>({...row,referencias:Number(row.referencias||0),piezas:Number(row.piezas||0),valorTotal:Number(row.filasConValor||0)>0?Number(row.valorTotal||0):null})),
-    warehouses:warehouses.map(row=>({...row,referencias:Number(row.referencias||0),piezas:Number(row.piezas||0),valorTotal:row.valorTotal==null?null:Number(row.valorTotal)})),
-    topByVolume:topByVolume.map(row=>({...row,total:Number(row.total||0)})),
-    topByValue:topByValue.map(row=>({...row,total:row.total==null?null:Number(row.total)}))
-  };
-}
-
-function buildInventoryWhere(query) {
-  const where = ["activo=1", `tipo_registro='${RECORD_TYPES.INVENTORY}'`];
-  const params=[];
-  const q=String(query.q||'').trim();
-  if(q){const like=`%${q}%`;where.push('(codigo LIKE ? OR articulo LIKE ?)');params.push(like,like);}
-  const company=String(query.company||'').trim(); if(company&&company!=='todas'){where.push('empresa=?');params.push(company);}
-  const category=String(query.category||'').trim(); if(category&&category!=='todas'){where.push('categoria=?');params.push(category);}
-  const warehouse=String(query.warehouse||'').trim(); if(warehouse&&warehouse!=='todos'){where.push('almacen=?');params.push(warehouse);}
-  const minValue=parseNumber(query.minValue); if(minValue!=null){where.push(`${valueExpression()}>=?`);params.push(minValue);}
-  const maxValue=parseNumber(query.maxValue); if(maxValue!=null){where.push(`${valueExpression()}<=?`);params.push(maxValue);}
-  if(String(query.stockOnly||'').toLowerCase()==='true'||String(query.stockOnly)==='1')where.push('COALESCE(fisico,0)>0');
-  return {sql:where.join(' AND '),params};
-}
-
-async function getInventory(query) {
-  const pageSize=Math.min(100,Math.max(1,Number(query.pageSize||30))); const page=Math.max(1,Number(query.page||1)); const offset=(page-1)*pageSize;
-  const where=buildInventoryWhere(query); const valueExpr=valueExpression();
-  const [[rows],[countRows],[summaryRows]]=await Promise.all([
-    db.query(`SELECT id,codigo,articulo,categoria,empresa,almacen,tipo_almacen AS tipoAlmacen,fisico,precio_unitario AS precioUnitario,${valueExpr} AS valor FROM ${TABLE} WHERE ${where.sql} ORDER BY COALESCE(NULLIF(TRIM(articulo),''),codigo,CONCAT('Fila ',fila_origen)) LIMIT ? OFFSET ?`,[...where.params,pageSize,offset]),
-    db.query(`SELECT COUNT(*) AS total FROM ${TABLE} WHERE ${where.sql}`,where.params),
-    db.query(`SELECT COUNT(*) AS registros,COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,SUM(CASE WHEN ${valueExpr} IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,SUM(${valueExpr}) AS valorTotal FROM ${TABLE} WHERE ${where.sql}`,where.params)
-  ]);
-  const total=Number(countRows[0]?.total||0); const summary=summaryRows[0]||{};
-  return {ok:true,rows:rows.map(row=>({...row,fisico:row.fisico==null?null:Number(row.fisico),precioUnitario:row.precioUnitario==null?null:Number(row.precioUnitario),valor:row.valor==null?null:Number(row.valor)})),pagination:{page,pageSize,total,pages:Math.max(1,Math.ceil(total/pageSize))},summary:{registros:Number(summary.registros||0),piezas:Number(summary.piezas||0),valorTotal:Number(summary.filasConValor||0)>0?Number(summary.valorTotal||0):null}};
-}
-
-async function getCatalogs() {
-  const base=inventoryWhere();
-  const [[companies],[categories],[warehouses]]=await Promise.all([
-    db.query(`SELECT DISTINCT empresa AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(empresa),'') IS NOT NULL ORDER BY empresa`),
-    db.query(`SELECT DISTINCT categoria AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(categoria),'') IS NOT NULL ORDER BY categoria`),
-    db.query(`SELECT DISTINCT almacen AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(almacen),'') IS NOT NULL ORDER BY almacen`)
-  ]);
-  return {ok:true,companies:companies.map(x=>x.value),categories:categories.map(x=>x.value),warehouses:warehouses.map(x=>x.value)};
-}
-
-async function getCompany(query) {
-  const company=String(query.company||'').trim(); if(!company)throw Object.assign(new Error('Empresa requerida.'),{status:400});
-  const q=String(query.q||'').trim(); const page=Math.max(1,Number(query.page||1)); const pageSize=30; const offset=(page-1)*pageSize; const params=[company]; let extra='';
-  if(q){extra=' AND (codigo LIKE ? OR articulo LIKE ?)';params.push(`%${q}%`,`%${q}%`);} const valueExpr=valueExpression(); const base=inventoryWhere();
-  const [[rows],[countRows],[summaryRows]]=await Promise.all([
-    db.query(`SELECT MAX(codigo) AS codigo,MAX(articulo) AS articulo,MAX(categoria) AS categoria,empresa,COALESCE(SUM(COALESCE(fisico,0)),0) AS fisico,CASE WHEN SUM(CASE WHEN precio_unitario IS NOT NULL THEN 1 ELSE 0 END)>0 THEN AVG(precio_unitario) ELSE NULL END AS precioUnitario,SUM(${valueExpr}) AS valor,COUNT(DISTINCT almacen) AS almacenes FROM ${TABLE} WHERE ${base} AND empresa=? ${extra} GROUP BY empresa,COALESCE(NULLIF(TRIM(codigo),''),NULLIF(TRIM(articulo),''),CONCAT('Fila ',fila_origen)) ORDER BY valor DESC,articulo LIMIT ? OFFSET ?`,[...params,pageSize,offset]),
-    db.query(`SELECT COUNT(*) AS total FROM (SELECT 1 FROM ${TABLE} WHERE ${base} AND empresa=? ${extra} GROUP BY COALESCE(NULLIF(TRIM(codigo),''),NULLIF(TRIM(articulo),''),CONCAT('Fila ',fila_origen))) x`,params),
-    db.query(`SELECT COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,SUM(${valueExpr}) AS valorTotal,SUM(CASE WHEN ${valueExpr} IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,AVG(precio_unitario) AS precioPromedio FROM ${TABLE} WHERE ${base} AND empresa=?`,[company])
-  ]);
-  const total=Number(countRows[0]?.total||0); const summary=summaryRows[0]||{};
-  return {ok:true,company,rows:rows.map(row=>({...row,fisico:Number(row.fisico||0),precioUnitario:row.precioUnitario==null?null:Number(row.precioUnitario),valor:row.valor==null?null:Number(row.valor),almacenes:Number(row.almacenes||0)})),summary:{piezas:Number(summary.piezas||0),valorTotal:Number(summary.filasConValor||0)>0?Number(summary.valorTotal||0):null,precioPromedio:summary.precioPromedio==null?null:Number(summary.precioPromedio)},pagination:{page,pageSize,total,pages:Math.max(1,Math.ceil(total/pageSize))}};
-}
-
-async function getWarehouses(query) {
-  const company=String(query.company||'').trim(); const q=String(query.q||'').trim(); const params=[]; const where=["activo=1",`tipo_registro='${RECORD_TYPES.INVENTORY}'`];
-  if(company&&company!=='todas'){where.push('empresa=?');params.push(company);} if(q){where.push('almacen LIKE ?');params.push(`%${q}%`);} const valueExpr=valueExpression();
-  const [rows]=await db.query(`SELECT COALESCE(NULLIF(TRIM(almacen),''),'Sin almacén') AS almacen,COALESCE(NULLIF(TRIM(tipo_almacen),''),'—') AS tipo,COALESCE(NULLIF(TRIM(empresa),''),'Sin empresa') AS empresa,COUNT(*) AS referencias,COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,SUM(${valueExpr}) AS valorTotal FROM ${TABLE} WHERE ${where.join(' AND ')} GROUP BY almacen,tipo,empresa ORDER BY valorTotal DESC,almacen`,params);
-  return {ok:true,rows:rows.map(row=>({...row,referencias:Number(row.referencias||0),piezas:Number(row.piezas||0),valorTotal:row.valorTotal==null?null:Number(row.valorTotal)}))};
-}
-
-async function getTop(query) {
-  const mode=String(query.mode||'valor')==='fisico'?'fisico':'valor'; const limit=Math.min(50,Math.max(1,Number(query.limit||20))); const company=String(query.company||'').trim(); const params=[]; const where=["activo=1",`tipo_registro='${RECORD_TYPES.INVENTORY}'`];
-  if(company&&company!=='todas'){where.push('empresa=?');params.push(company);} const metric=mode==='fisico'?'COALESCE(SUM(COALESCE(fisico,0)),0)':`SUM(${valueExpression()})`; if(mode==='valor')where.push(`${valueExpression()} IS NOT NULL`);
-  const [rows]=await db.query(`SELECT MAX(codigo) AS codigo,MAX(articulo) AS articulo,MAX(categoria) AS categoria,MAX(empresa) AS empresa,${metric} AS total FROM ${TABLE} WHERE ${where.join(' AND ')} GROUP BY COALESCE(NULLIF(TRIM(codigo),''),NULLIF(TRIM(articulo),''),CONCAT('Fila ',fila_origen)) ORDER BY total DESC LIMIT ?`,[...params,limit]);
-  return {ok:true,mode,rows:rows.map(row=>({...row,total:row.total==null?null:Number(row.total)}))};
-}
-
-function stockAlertSql() {
-  return `CASE
-    WHEN stock_seguridad IS NOT NULL AND fisico IS NOT NULL AND fisico < stock_seguridad THEN 'critico'
-    WHEN punto_reorden IS NOT NULL AND fisico IS NOT NULL AND fisico <= punto_reorden THEN 'reorden'
-    WHEN maximo IS NOT NULL AND fisico IS NOT NULL AND fisico > maximo THEN 'exceso'
-    ELSE 'ok' END`;
-}
-
-async function getStock(query) {
-  const source=await activeSource();
-  if(!source)return {ok:true,source:null,coverage:{},kpis:null,classSummary:[],rows:[],pagination:{page:1,pageSize:30,total:0,pages:1}};
-  const page=Math.max(1,Number(query.page||1)); const pageSize=30; const offset=(page-1)*pageSize; const params=[]; const where=["activo=1",`tipo_registro='${RECORD_TYPES.INVENTORY}'`];
-  const q=String(query.q||'').trim(); if(q){where.push('(codigo LIKE ? OR articulo LIKE ?)');params.push(`%${q}%`,`%${q}%`);} const company=String(query.company||'').trim(); if(company&&company!=='todas'){where.push('empresa=?');params.push(company);} const abc=String(query.abc||'').trim(); if(abc&&abc!=='todas'){where.push('UPPER(TRIM(abc))=?');params.push(abc.toUpperCase());}
-  const alert=String(query.alert||'').trim(); if(alert&&alert!=='todas'){where.push(`(${stockAlertSql()})=?`);params.push(alert);}
-  const alertSql=stockAlertSql();
-  const [[rows],[countRows],[kpiRows],[classRows],[companyRows]]=await Promise.all([
-    db.query(`SELECT id,codigo,articulo,empresa,UPPER(NULLIF(TRIM(abc),'')) AS abc,criticidad,demanda,fisico,stock_seguridad AS stockSeguridad,punto_reorden AS puntoReorden,minimo,maximo,${alertSql} AS alerta FROM ${TABLE} WHERE ${where.join(' AND ')} ORDER BY COALESCE(NULLIF(TRIM(articulo),''),codigo) LIMIT ? OFFSET ?`,[...params,pageSize,offset]),
-    db.query(`SELECT COUNT(*) AS total FROM ${TABLE} WHERE ${where.join(' AND ')}`,params),
-    db.query(`SELECT COUNT(*) AS articulos,SUM(CASE WHEN ${alertSql}='critico' THEN 1 ELSE 0 END) AS criticos,SUM(CASE WHEN ${alertSql}='reorden' THEN 1 ELSE 0 END) AS reorden,SUM(CASE WHEN ${alertSql}='exceso' THEN 1 ELSE 0 END) AS exceso FROM ${TABLE} WHERE activo=1 AND tipo_registro='${RECORD_TYPES.INVENTORY}'`),
-    db.query(`SELECT UPPER(NULLIF(TRIM(abc),'')) AS abc,COUNT(*) AS total FROM ${TABLE} WHERE activo=1 AND tipo_registro='${RECORD_TYPES.INVENTORY}' AND NULLIF(TRIM(abc),'') IS NOT NULL GROUP BY UPPER(TRIM(abc)) ORDER BY abc`),
-    db.query(`SELECT DISTINCT empresa AS value FROM ${TABLE} WHERE activo=1 AND tipo_registro='${RECORD_TYPES.INVENTORY}' AND NULLIF(TRIM(empresa),'') IS NOT NULL ORDER BY empresa`)
-  ]);
-  const mapping=source.datasets?.[RECORD_TYPES.INVENTORY]?.mapeo||{}; const k=kpiRows[0]||{}; const total=Number(countRows[0]?.total||0);
-  return {ok:true,source,companies:companyRows.map(row=>row.value),coverage:{abc:Boolean(mapping.abc),criticidad:Boolean(mapping.criticidad),demanda:Boolean(mapping.demanda),stockSeguridad:Boolean(mapping.stock_seguridad),puntoReorden:Boolean(mapping.punto_reorden),minimo:Boolean(mapping.minimo),maximo:Boolean(mapping.maximo)},kpis:{articulos:Number(k.articulos||0),criticos:Number(k.criticos||0),reorden:Number(k.reorden||0),exceso:Number(k.exceso||0)},classSummary:classRows.map(row=>({abc:row.abc,total:Number(row.total||0)})),rows:rows.map(row=>({...row,demanda:row.demanda==null?null:Number(row.demanda),fisico:row.fisico==null?null:Number(row.fisico),stockSeguridad:row.stockSeguridad==null?null:Number(row.stockSeguridad),puntoReorden:row.puntoReorden==null?null:Number(row.puntoReorden),minimo:row.minimo==null?null:Number(row.minimo),maximo:row.maximo==null?null:Number(row.maximo)})),pagination:{page,pageSize,total,pages:Math.max(1,Math.ceil(total/pageSize))}};
-}
-
-function loanAgeBucketSql() {
-  return `CASE WHEN fecha_evento IS NULL THEN 'SIN FECHA' WHEN DATEDIFF(CURDATE(),fecha_evento)<=180 THEN '1-6 MESES' WHEN DATEDIFF(CURDATE(),fecha_evento)<=450 THEN '6-15 MESES' ELSE 'MAYOR A 15 MESES' END`;
-}
-
-async function getLoanCatalogs() {
-  const source=await activeSource();
-  const base=`activo=1 AND tipo_registro='${RECORD_TYPES.LOAN}'`;
-  const [[companies],[responsibles]]=await Promise.all([
-    db.query(`SELECT DISTINCT empresa AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(empresa),'') IS NOT NULL ORDER BY empresa`),
-    db.query(`SELECT DISTINCT responsable AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(responsable),'') IS NOT NULL ORDER BY responsable`)
-  ]);
-  return {ok:true,source,available:Boolean(source?.datasets?.[RECORD_TYPES.LOAN]?.filas),companies:companies.map(x=>x.value),responsibles:responsibles.map(x=>x.value)};
-}
-
-async function getLoanSummary(query) {
-  const company=String(query.company||'').trim(); const params=[]; const where=["activo=1",`tipo_registro='${RECORD_TYPES.LOAN}'`]; if(company&&company!=='todas'){where.push('empresa=?');params.push(company);} const ageSql=loanAgeBucketSql();
-  const [[kpiRows],[ageRows],[responsibleRows]]=await Promise.all([
-    db.query(`SELECT COUNT(*) AS articulos,COALESCE(SUM(COALESCE(cantidad,0)),0) AS piezas,SUM(valor) AS valorTotal,COUNT(DISTINCT NULLIF(TRIM(responsable),'')) AS responsables FROM ${TABLE} WHERE ${where.join(' AND ')}`,params),
-    db.query(`SELECT ${ageSql} AS antiguedad,COUNT(*) AS articulos,COALESCE(SUM(COALESCE(cantidad,0)),0) AS piezas,SUM(valor) AS valorTotal FROM ${TABLE} WHERE ${where.join(' AND ')} GROUP BY antiguedad ORDER BY MIN(fecha_evento) DESC`,params),
-    db.query(`SELECT responsable,COUNT(*) AS articulos,COALESCE(SUM(COALESCE(cantidad,0)),0) AS cantidad,SUM(valor) AS valorTotal,MAX(DATEDIFF(CURDATE(),fecha_evento)) AS diasPrestamo,MIN(fecha_evento) AS desde,COUNT(DISTINCT NULLIF(TRIM(sitio),'')) AS sitios FROM ${TABLE} WHERE ${where.join(' AND ')} GROUP BY responsable ORDER BY valorTotal DESC,cantidad DESC,responsable`,params)
-  ]);
-  const k=kpiRows[0]||{}; const totalValue=k.valorTotal==null?null:Number(k.valorTotal);
-  return {ok:true,kpis:{articulos:Number(k.articulos||0),piezas:Number(k.piezas||0),valorTotal:totalValue,responsables:Number(k.responsables||0)},ages:ageRows.map(row=>({...row,articulos:Number(row.articulos||0),piezas:Number(row.piezas||0),valorTotal:row.valorTotal==null?null:Number(row.valorTotal)})),rows:responsibleRows.map(row=>({...row,articulos:Number(row.articulos||0),cantidad:Number(row.cantidad||0),valorTotal:row.valorTotal==null?null:Number(row.valorTotal),porcentaje:totalValue&&row.valorTotal!=null?Number(row.valorTotal)*100/totalValue:null,diasPrestamo:row.diasPrestamo==null?null:Number(row.diasPrestamo),sitios:Number(row.sitios||0)}))};
-}
-
-async function getLoans(query) {
-  const page=Math.max(1,Number(query.page||1)); const pageSize=30; const offset=(page-1)*pageSize; const params=[]; const where=["activo=1",`tipo_registro='${RECORD_TYPES.LOAN}'`];
-  const company=String(query.company||'').trim(); if(company&&company!=='todas'){where.push('empresa=?');params.push(company);} const responsible=String(query.responsible||'').trim(); if(responsible&&responsible!=='todos'){where.push('responsable=?');params.push(responsible);} const age=String(query.age||'').trim(); if(age&&age!=='todas'){where.push(`(${loanAgeBucketSql()})=?`);params.push(age);} const q=String(query.q||'').trim(); if(q){const like=`%${q}%`;where.push('(articulo LIKE ? OR sitio LIKE ? OR ag LIKE ? OR codigo LIKE ?)');params.push(like,like,like,like);}
-  const ageSql=loanAgeBucketSql(); const [[rows],[countRows],[summaryRows]]=await Promise.all([
-    db.query(`SELECT id,fecha_evento AS fecha,codigo,articulo,empresa,ag,responsable,sitio,cantidad,costo_unitario AS costo,valor,DATEDIFF(CURDATE(),fecha_evento) AS dias,${ageSql} AS antiguedad FROM ${TABLE} WHERE ${where.join(' AND ')} ORDER BY fecha_evento ASC,responsable,articulo LIMIT ? OFFSET ?`,[...params,pageSize,offset]),
-    db.query(`SELECT COUNT(*) AS total FROM ${TABLE} WHERE ${where.join(' AND ')}`,params),
-    db.query(`SELECT COUNT(*) AS articulos,COALESCE(SUM(COALESCE(cantidad,0)),0) AS cantidad,SUM(valor) AS valorTotal FROM ${TABLE} WHERE ${where.join(' AND ')}`,params)
-  ]);
-  const total=Number(countRows[0]?.total||0); const s=summaryRows[0]||{};
-  return {ok:true,rows:rows.map(row=>({...row,cantidad:row.cantidad==null?null:Number(row.cantidad),costo:row.costo==null?null:Number(row.costo),valor:row.valor==null?null:Number(row.valor),dias:row.dias==null?null:Number(row.dias)})),summary:{articulos:Number(s.articulos||0),cantidad:Number(s.cantidad||0),valorTotal:s.valorTotal==null?null:Number(s.valorTotal)},pagination:{page,pageSize,total,pages:Math.max(1,Math.ceil(total/pageSize))}};
-}
-
-async function getGuardCatalogs() {
-  const source=await activeSource();
-  const base=`activo=1 AND tipo_registro='${RECORD_TYPES.GUARD}'`;
-  const [[companies],[departments]]=await Promise.all([
-    db.query(`SELECT DISTINCT empresa AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(empresa),'') IS NOT NULL ORDER BY empresa`),
-    db.query(`SELECT DISTINCT departamento AS value FROM ${TABLE} WHERE ${base} AND NULLIF(TRIM(departamento),'') IS NOT NULL ORDER BY departamento`)
-  ]);
-  return {ok:true,source,available:Boolean(source?.datasets?.[RECORD_TYPES.GUARD]?.filas),companies:companies.map(x=>x.value),departments:departments.map(x=>x.value)};
-}
-
-async function getGuards(query) {
-  const page=Math.max(1,Number(query.page||1)); const pageSize=30; const offset=(page-1)*pageSize; const params=[]; const where=["activo=1",`tipo_registro='${RECORD_TYPES.GUARD}'`];
-  const q=String(query.q||'').trim(); if(q){const like=`%${q}%`;where.push('(articulo LIKE ? OR proyecto LIKE ? OR ag LIKE ? OR folio LIKE ?)');params.push(like,like,like,like);} const company=String(query.company||'').trim(); if(company&&company!=='todas'){where.push('empresa=?');params.push(company);} const department=String(query.department||'').trim(); if(department&&department!=='todos'){where.push('departamento=?');params.push(department);} const exitStatus=String(query.exitStatus||'').trim(); if(exitStatus==='con')where.push("NULLIF(TRIM(salida),'') IS NOT NULL"); else if(exitStatus==='sin')where.push("NULLIF(TRIM(salida),'') IS NULL");
-  const [[rows],[countRows],[kpiRows]]=await Promise.all([
-    db.query(`SELECT id,fecha_evento AS fecha,folio,empresa AS subsidiaria,departamento,ag,cantidad,unidad,articulo AS descripcion,proyecto,equipo,entregado_por AS entregadoPor,salida,responsable AS aCargoDe,ubicacion,con_stock AS conStock FROM ${TABLE} WHERE ${where.join(' AND ')} ORDER BY COALESCE(fecha_evento,'1900-01-01') DESC,folio DESC LIMIT ? OFFSET ?`,[...params,pageSize,offset]),
-    db.query(`SELECT COUNT(*) AS total FROM ${TABLE} WHERE ${where.join(' AND ')}`,params),
-    db.query(`SELECT COUNT(*) AS total,SUM(CASE WHEN NULLIF(TRIM(salida),'') IS NOT NULL THEN 1 ELSE 0 END) AS conSalida,SUM(CASE WHEN NULLIF(TRIM(salida),'') IS NULL THEN 1 ELSE 0 END) AS sinSalida FROM ${TABLE} WHERE activo=1 AND tipo_registro='${RECORD_TYPES.GUARD}'`)
-  ]);
-  const total=Number(countRows[0]?.total||0); const k=kpiRows[0]||{};
-  return {ok:true,kpis:{total:Number(k.total||0),conSalida:Number(k.conSalida||0),sinSalida:Number(k.sinSalida||0),filtrados:total},rows:rows.map(row=>({...row,cantidad:row.cantidad==null?null:Number(row.cantidad)})),pagination:{page,pageSize,total,pages:Math.max(1,Math.ceil(total/pageSize))}};
-}
-
-
-// [Aster | 2026-08-30 | ALMACEN-AUDITORIA-AIVEN-V002]
-// Auditoría F4 V002 es de solo lectura/contraste. No persiste resultados ni reutiliza
-// almacen_fuente_excel como histórico de auditorías.
-function shuffleCopy(list) {
-  const copy = list.slice();
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[swap]] = [copy[swap], copy[index]];
-  }
-  return copy;
-}
-
-async function getAuditCatalogs() {
-  const source = await activeSource();
-  if (!source) return { ok:true, source:null, available:false, warehouses:[] };
-  const valueExpr = valueExpression();
-  const [rows] = await db.query(
-    `SELECT empresa,
-            almacen,
-            COALESCE(NULLIF(TRIM(MAX(tipo_almacen)),''),'—') AS tipo,
-            COUNT(*) AS referencias,
-            COALESCE(SUM(COALESCE(fisico,0)),0) AS piezas,
-            SUM(${valueExpr}) AS valorEsperado
-       FROM ${TABLE}
-      WHERE activo=1
-        AND tipo_registro='${RECORD_TYPES.INVENTORY}'
-        AND NULLIF(TRIM(empresa),'') IS NOT NULL
-        AND NULLIF(TRIM(almacen),'') IS NOT NULL
-        AND COALESCE(fisico,0) > 0
-      GROUP BY empresa, almacen
-      ORDER BY empresa, almacen`
-  );
-  return {
-    ok:true,
-    source,
-    available:rows.length > 0,
-    warehouses:rows.map(row => ({
-      company:row.empresa,
-      warehouse:row.almacen,
-      type:row.tipo,
-      references:Number(row.referencias || 0),
-      pieces:Number(row.piezas || 0),
-      expectedValue:row.valorEsperado == null ? null : Number(row.valorEsperado)
-    }))
-  };
-}
-
-async function getAuditSample(query) {
-  const source = await activeSource();
-  if (!source) return { ok:true, source:null, available:false, sample:null };
-  const company = String(query.company || '').trim();
-  const warehouse = String(query.warehouse || '').trim();
-  if (!company || !warehouse) throw Object.assign(new Error('Empresa y almacén son requeridos para generar la muestra.'), { status:400 });
-
-  const valueExpr = valueExpression();
-  const [rows] = await db.query(
-    `SELECT MAX(id) AS sourceId,
-            MAX(codigo) AS codigo,
-            MAX(articulo) AS articulo,
-            MAX(categoria) AS categoria,
-            MAX(tipo_almacen) AS tipoAlmacen,
-            empresa,
-            almacen,
-            COALESCE(SUM(COALESCE(fisico,0)),0) AS esperado,
-            SUM(${valueExpr}) AS valorEsperado
-       FROM ${TABLE}
-      WHERE activo=1
-        AND tipo_registro='${RECORD_TYPES.INVENTORY}'
-        AND empresa=?
-        AND almacen=?
-        AND COALESCE(fisico,0) > 0
-      GROUP BY empresa, almacen,
-               COALESCE(NULLIF(TRIM(codigo),''),NULLIF(TRIM(articulo),''),CONCAT('Fila ',fila_origen))
-      ORDER BY MAX(articulo), MAX(codigo)`,
-    [company, warehouse]
-  );
-
-  if (!rows.length) throw Object.assign(new Error('El almacén seleccionado no tiene artículos con existencia positiva en el lote activo.'), { status:404 });
-
-  const normalized = rows.map(row => {
-    const expected = Number(row.esperado || 0);
-    const expectedValue = row.valorEsperado == null ? null : Number(row.valorEsperado);
-    const impliedUnitValue = expected > 0 && expectedValue != null ? expectedValue / expected : null;
-    return {
-      sourceId:Number(row.sourceId),
-      code:row.codigo || '',
-      article:row.articulo || row.codigo || 'Sin descripción',
-      category:row.categoria || '',
-      company:row.empresa,
-      warehouse:row.almacen,
-      warehouseType:row.tipoAlmacen || '',
-      expected,
-      expectedValue,
-      unitValue:impliedUnitValue
-    };
-  });
-
-  const totalReferences = normalized.length;
-  const requested = Math.max(1, Math.round(totalReferences * 0.05));
-  const sampleSize = Math.min(totalReferences, Math.max(Math.min(3,totalReferences), requested));
-  const valueCount = Math.min(sampleSize, Math.round(sampleSize * 0.70));
-  const randomCount = sampleSize - valueCount;
-
-  const ranked = normalized.slice().sort((a,b) => Number(b.expectedValue || 0) - Number(a.expectedValue || 0));
-  const poolSize = Math.min(ranked.length, Math.max(valueCount * 2, Math.min(10, ranked.length)));
-  const valuePool = shuffleCopy(ranked.slice(0, poolSize));
-  const byValue = valuePool.slice(0, valueCount);
-  const selectedIds = new Set(byValue.map(item => item.sourceId));
-  const remaining = shuffleCopy(normalized.filter(item => !selectedIds.has(item.sourceId)));
-  const randomItems = remaining.slice(0, randomCount);
-  const items = shuffleCopy(byValue.concat(randomItems));
-
-  return {
-    ok:true,
-    source,
-    available:true,
-    sample:{
-      sessionId:crypto.randomUUID(),
-      generatedAt:new Date().toISOString(),
-      company,
-      warehouse,
-      warehouseType:items[0]?.warehouseType || '',
-      totalReferences,
-      sampleSize:items.length,
-      methodology:{ percentage:5, byValuePercent:70, randomPercent:30, minimum:Math.min(3,totalReferences) },
-      items
-    }
-  };
-}
+// [Aster | 2026-08-31 | ASTER-MG | FASE 3 ALMACEN CIERRES/AUDITORIA PERSISTENTE V001]
+async function listAudits(query = {}) { return auditService.listAudits(query); }
+async function getAudit(folio) { return auditService.getAudit(folio); }
+async function createAudit(input = {}, userId) { return auditService.createAudit(input, userId); }
+async function updateAuditItem(folio, id, input = {}, userId) { return auditService.updateAuditItem(folio, id, input, userId); }
+async function closeAudit(folio, userId) { return auditService.closeAudit(folio, userId); }
 
 module.exports = {
   INVENTORY_ALIASES,
@@ -1016,6 +696,13 @@ module.exports = {
   RECORD_TYPES,
   canImport,
   activeSource,
+  resolveSource,
+  listSources,
+  closeAudit,
+  updateAuditItem,
+  createAudit,
+  getAudit,
+  listAudits,
   validateImport,
   importSpreadsheet,
   getDashboard,

@@ -3,7 +3,7 @@
 
   if(window.ManttoAlmacenCarga) return;
 
-  const state={source:null,validation:null,busy:false,file:null,cutoff:''};
+  const state={source:null,sources:[],selectedLot:'',validation:null,busy:false,file:null,cutoff:''};
 
   function escapeHtml(value){
     return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
@@ -30,6 +30,29 @@
       return json;
     });
   }
+  const ALMACEN_SOURCE_KEY='mantto:almacen:lote-seleccionado';
+  function selectedLot(){try{return String(window.sessionStorage.getItem(ALMACEN_SOURCE_KEY)||'').trim();}catch(_error){return '';}}
+  function selectLot(lot){
+    const value=String(lot||'').trim();
+    try{if(value)window.sessionStorage.setItem(ALMACEN_SOURCE_KEY,value);else window.sessionStorage.removeItem(ALMACEN_SOURCE_KEY);}catch(_error){}
+    state.selectedLot=value;
+    if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
+    document.dispatchEvent(new CustomEvent('mantto:almacen-source-changed',{detail:{loteImportacion:value,source:'almacen-carga'}}));
+  }
+  function syncSelectedLot(){
+    const available=(state.sources||[]).map(function(row){return String(row.loteImportacion||'');});
+    let selected=selectedLot();
+    if(!selected||available.indexOf(selected)<0){selected=state.source&&state.source.loteImportacion?String(state.source.loteImportacion):'';if(selected)selectLot(selected);}
+    state.selectedLot=selected;
+  }
+  function historyHtml(){
+    const rows=state.sources||[];
+    if(!rows.length)return '<section class="almload-card"><div class="almload-section-head"><div><h2>Histórico de cierres</h2><p>No hay cierres disponibles.</p></div></div></section>';
+    const selected=state.selectedLot||selectedLot();
+    const current=rows.find(function(row){return String(row.loteImportacion)===selected;});
+    return '<section class="almload-card"><div class="almload-section-head"><div><h2>Histórico de cierres</h2><p>Selecciona qué cierre alimentará Dashboard, Inventario, Stock, Préstamos, Resguardos y Auditoría.</p></div><span class="almload-pill neutral">'+number(rows.length)+' cierres</span></div><div class="almload-current-selection"><b>Cierre consultado:</b> '+escapeHtml(current?(current.archivoOrigen||current.loteImportacion):'Activo por defecto')+' · '+escapeHtml(current&&current.fechaCorte||'—')+'</div><div class="almload-history-list">'+rows.map(function(row){const isSelected=String(row.loteImportacion)===selected;return '<div class="almload-history-row'+(isSelected?' is-selected':'')+'"><div><strong>'+escapeHtml(row.archivoOrigen||'Archivo')+'</strong><small>'+escapeHtml(row.loteImportacion||'')+'</small></div><div><strong>'+escapeHtml(row.fechaCorte||'Sin corte')+'</strong><small>'+dateText(row.fechaImportacion)+'</small></div><div><strong>'+number(row.datasets&&row.datasets.INVENTARIO?row.datasets.INVENTARIO.filas:0)+'</strong><small>inventario</small></div><button type="button" data-almload-source="'+escapeHtml(row.loteImportacion)+'"'+(isSelected?' disabled':'')+'>'+(isSelected?'Seleccionado':'Usar cierre')+'</button></div>';}).join('')+'</div></section>';
+  }
+
   function sourceHtml(){
     if(!state.source){
       return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente activa</span><h2>Sin lote activo</h2><p>La carga que realices aquí será la fuente operativa del módulo de Almacén una vez validada e importada.</p></div><span class="almload-pill warn">Sin carga</span></section>';
@@ -58,16 +81,15 @@
   }
   function render(view,message,tone){
     view.innerHTML='<div class="almload-shell">'+
-      '<section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Módulo independiente para validar e importar la fuente Excel/CSV hacia Aiven. Su acceso depende exclusivamente del permiso de este módulo.</p></div><span class="almload-pill restricted">Acceso restringido</span></section>'+
-      sourceHtml()+
-      '<section class="almload-card"><div class="almload-section-head"><div><h2>Nueva carga</h2><p>El archivo anterior no se sustituye como lote activo hasta completar correctamente la importación.</p></div><span class="almload-pill neutral">.xlsx / .csv · 25 MB</span></div>'+
+      '<section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Fuente temporal mientras la información no exista de forma nativa en Aiven. Cada importación se conserva como cierre histórico.</p></div><span class="almload-pill restricted">Acceso restringido</span></section>'+
+      sourceHtml()+historyHtml()+
+      '<section class="almload-card"><div class="almload-section-head"><div><h2>Nueva carga</h2><p>La importación crea un nuevo cierre; los anteriores se conservan y pueden volver a seleccionarse sin subir el archivo otra vez.</p></div><span class="almload-pill neutral">.xlsx / .csv · 25 MB</span></div>'+
       '<div class="almload-grid"><label><span>Archivo</span><input id="almload-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><small id="almload-file-name">'+escapeHtml(state.file?state.file.name:'Ningún archivo seleccionado')+'</small></label><label><span>Fecha de corte</span><input id="almload-cutoff" type="date" value="'+escapeHtml(state.cutoff)+'"></label></div>'+
-      '<div class="almload-actions"><button type="button" class="almload-btn" id="almload-validate">Validar</button><button type="button" class="almload-btn primary" id="almload-import" '+(state.validation?'':'disabled')+'>Importar y activar</button></div>'+
-      messageHtml(message,tone)+'</section>'+
-      '<section class="almload-card almload-rules"><h2>Controles de seguridad</h2><div><span>1</span><p><b>Permiso independiente.</b> Ver Inventario no concede capacidad de carga.</p></div><div><span>2</span><p><b>Validación obligatoria.</b> El botón de importación solo se habilita después de validar el archivo actual.</p></div><div><span>3</span><p><b>Lote transaccional.</b> La fuente anterior permanece disponible hasta que la nueva importación finaliza.</p></div></section>'+
-      '</div>';
+      '<div class="almload-actions"><button type="button" class="almload-btn" id="almload-validate">Validar</button><button type="button" class="almload-btn primary" id="almload-import" '+(state.validation?'':'disabled')+'>Importar y activar</button></div>'+messageHtml(message,tone)+'</section>'+
+      '<section class="almload-card almload-rules"><h2>Controles de seguridad</h2><div><span>1</span><p><b>Histórico inmutable.</b> Seleccionar un cierre no modifica sus filas ni reactiva físicamente el lote.</p></div><div><span>2</span><p><b>Validación obligatoria.</b> La estructura debe validarse antes de importar.</p></div><div><span>3</span><p><b>Fuente temporal.</b> Cuando Aiven contenga la información nativa, esta carga podrá retirarse sin reconstruir las pantallas consumidoras.</p></div></section></div>';
     bind(view);
   }
+
   function setMessage(view,text,tone){
     const node=view.querySelector('#almload-message');if(!node)return;
     node.className='almload-message '+String(tone||'');node.textContent=text||'';
@@ -87,15 +109,19 @@
     return form;
   }
   async function loadCapabilities(view){
-    view.innerHTML='<div class="almload-shell"><section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Validando permiso y fuente activa...</p></div></section></div>';
+    view.innerHTML='<div class="almload-shell"><section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Validando permiso, fuente activa e histórico...</p></div></section></div>';
     try{
-      const data=await authApi('/api/almacen/carga/capabilities',{method:'GET'});
-      state.source=data.source||null;state.validation=null;state.file=null;state.cutoff='';render(view,'Selecciona un archivo y valida antes de importar.','');
+      const responses=await Promise.all([
+        authApi('/api/almacen/carga/capabilities',{method:'GET'}),
+        authApi('/api/almacen/fuentes',{method:'GET'})
+      ]);
+      const data=responses[0];state.source=data.source||null;state.sources=responses[1].sources||[];syncSelectedLot();state.validation=null;state.file=null;state.cutoff='';render(view,'Selecciona un archivo y valida antes de importar.','');
     }catch(error){
       const denied=Number(error&&error.status)===403;
       view.innerHTML='<div class="almload-shell"><section class="almload-card almload-error"><span>⚠️</span><div><h1>'+(denied?'Acceso no autorizado':'No fue posible abrir Carga de Información')+'</h1><p>'+escapeHtml(error.message||'Error no identificado.')+'</p>'+(denied?'<small>Solicita el permiso ALMACEN_CARGA desde Panel de Control.</small>':'')+'</div></section></div>';
     }
   }
+
   async function validate(view){
     if(!state.file){setMessage(view,'Selecciona un archivo .xlsx o .csv.','error');return;}
     const form=buildForm();state.validation=null;state.busy=true;syncControls(view);setMessage(view,'Validando encabezados, mapeo y estructura...','working');
@@ -113,16 +139,17 @@
   }
   async function runImport(view){
     if(!state.file||!state.validation||state.validation.fileKey!==fileKey(state.file)){state.validation=null;syncControls(view);setMessage(view,'El archivo debe validarse nuevamente antes de importar.','error');return;}
-    if(!window.confirm('Se importará este archivo como nuevo lote activo de Almacén. El lote anterior se conservará desactivado. ¿Continuar?'))return;
+    if(!window.confirm('Se importará este archivo como nuevo cierre activo de Almacén. Los cierres anteriores se conservarán. ¿Continuar?'))return;
     const form=buildForm();state.busy=true;syncControls(view);setMessage(view,'Importando en Aiven. No cierres esta vista...','working');
     try{
       const data=await authApi('/api/almacen/carga/importar',{method:'POST',body:form});
       state.validation=null;state.file=null;
       if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
       document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/carga/importar',method:'POST',source:'almacen-carga'}}));
-      const caps=await authApi('/api/almacen/carga/capabilities',{method:'GET'});
-      state.source=caps.source||null;
-      render(view,'Importación completada. Lote activo: '+(data.loteImportacion||state.source&&state.source.loteImportacion||'confirmado')+' · '+number(data.filas)+' filas.','ok');
+      const responses=await Promise.all([authApi('/api/almacen/carga/capabilities',{method:'GET'}),authApi('/api/almacen/fuentes',{method:'GET'})]);
+      state.source=responses[0].source||null;state.sources=responses[1].sources||[];
+      selectLot(data.loteImportacion||state.source&&state.source.loteImportacion||'');syncSelectedLot();
+      render(view,'Importación completada. El nuevo cierre quedó seleccionado para Gestión de Almacén · '+number(data.filas)+' filas.','ok');
     }catch(error){setMessage(view,error.message||'No se pudo completar la importación.','error');}
     finally{state.busy=false;syncControls(view);}
   }
@@ -135,8 +162,10 @@
     if(cutoff)cutoff.addEventListener('change',function(){state.cutoff=cutoff.value||'';state.validation=null;syncControls(view);setMessage(view,'Fecha de corte modificada. Vuelve a validar antes de importar.','');});
     if(validateBtn)validateBtn.addEventListener('click',function(){if(!state.busy)validate(view);});
     if(importBtn)importBtn.addEventListener('click',function(){if(!state.busy)runImport(view);});
+    view.querySelectorAll('[data-almload-source]').forEach(function(button){button.addEventListener('click',function(){selectLot(button.dataset.almloadSource||'');syncSelectedLot();render(view,'Cierre seleccionado. Las vistas de Gestión de Almacén consultarán este histórico.','ok');});});
     syncControls(view);
   }
+
   function init(route){
     if(route!=='almacen-carga')return false;
     const view=document.getElementById('view-almacen-carga');if(!view)return false;
