@@ -1,5 +1,0 @@
---- index.html
-+++ index.html
-@@
--<script src="./core/auth.js?v=20260824-session-90d-12h-v002"></script>
-+<script src="./core/auth.js?v=20260825-sesion-resiliente-v003"></script>
