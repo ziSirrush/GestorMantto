@@ -52,6 +52,16 @@ async function archiveActive(req, res, next) {
   }
 }
 
+async function archiveSpreadsheet(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ ok:false, message:'Selecciona un archivo .xlsx o .csv.' });
+    res.status(201).json(await archiveService.archiveSpreadsheet(req.file, req.body?.fechaCorte, effectiveUserId(req)));
+  } catch (error) {
+    if (error.status) return res.status(Number(error.status)).json({ ok:false, message:error.message, code:error.code, details:error.details || undefined });
+    next(error);
+  }
+}
+
 async function activateSource(req, res, next) {
   try {
     res.json(await archiveService.activateArchived(req.params.lote, effectiveUserId(req)));
@@ -101,6 +111,7 @@ module.exports = {
   validateImport,
   importSpreadsheet,
   archiveActive,
+  archiveSpreadsheet,
   activateSource,
   sources,
   closeAudit,

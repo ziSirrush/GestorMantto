@@ -348,6 +348,83 @@ async function findArchivedSameFile(hash, cutoffDate) {
   return rows[0]?.loteImportacion || null;
 }
 
+async function findSameFile(hash, cutoffDate) {
+  const [rows] = await db.query(
+    `SELECT lote_importacion AS loteImportacion
+       FROM ${TABLE}
+      WHERE hash_archivo=?
+        AND (fecha_corte <=> ?)
+      GROUP BY lote_importacion
+      ORDER BY MAX(fecha_importacion) DESC
+      LIMIT 1`,
+    [hash, cutoffDate || null]
+  );
+  return rows[0]?.loteImportacion || null;
+}
+
+// Registra el Excel como cierre seleccionable sin cambiar la fuente operativa.
+// Si el archivo corresponde a un lote legacy, reutiliza ese lote para que el
+// histórico previo pueda migrarse gradualmente y no se duplique por UUID.
+async function archiveSpreadsheet(file, cutoffDate, userId) {
+  const normalizedUserId = normalizeUserId(userId);
+  const validation = await service.validateImport(file, cutoffDate);
+  const matchingLot = await findSameFile(validation.hash, validation.cutoffDate);
+  const lotId = matchingLot || crypto.randomUUID();
+  const matchingSource = matchingLot
+    ? await sourceEngine.sourceByLot(matchingLot, db, 'SELECCIONADO')
+    : null;
+  const existing = matchingLot
+    ? await sourceEngine.archiveRecordByLot(matchingLot)
+    : null;
+
+  if (existing) {
+    const exists = await azureStorage.blobExists_gnral(existing.metadata.storage_blob_name, {
+      containerName:existing.metadata.storage_container
+    });
+    if (exists) {
+      return {
+        ok:true,
+        archived:true,
+        alreadyArchived:true,
+        loteImportacion:lotId,
+        source:await sourceEngine.sourceByLot(lotId, db, matchingSource?.activo ? 'ACTIVO' : 'SELECCIONADO')
+      };
+    }
+  }
+
+  const storageResult = await uploadArchive(file, validation, lotId, normalizedUserId);
+  try {
+    await upsertArchiveRecord({
+      lotId,
+      validation,
+      storageResult,
+      userId:normalizedUserId,
+      active:Boolean(matchingSource?.activo),
+      logicalImportedAt:matchingSource?.fechaImportacion || null
+    });
+
+    // Un lote legacy que no está activo ya puede compactarse: su Excel quedó
+    // protegido y podrá reprocesarse cuando el usuario lo elija.
+    if (matchingSource?.loaded && !matchingSource.activo) {
+      await deleteOperationalRows(lotId);
+    }
+  } catch (error) {
+    await cleanupFailedArchive(lotId, storageResult, normalizedUserId);
+    throw error;
+  }
+
+  return {
+    ok:true,
+    archived:true,
+    registered:true,
+    migratedLegacy:Boolean(matchingSource),
+    loteImportacion:lotId,
+    archivoOrigen:storageResult.nombre_original,
+    filas:Number(validation.rows || 0),
+    source:await sourceEngine.sourceByLot(lotId, db, matchingSource?.activo ? 'ACTIVO' : 'SELECCIONADO')
+  };
+}
+
 async function importAndActivate(file, cutoffDate, userId) {
   const normalizedUserId = normalizeUserId(userId);
   const validation = await service.validateImport(file, cutoffDate);
@@ -468,6 +545,7 @@ async function activateArchived(lotId, userId) {
 
 module.exports = {
   archiveActive,
+  archiveSpreadsheet,
   importAndActivate,
   activateArchived,
   deleteOperationalRows,

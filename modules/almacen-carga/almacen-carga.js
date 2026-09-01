@@ -57,21 +57,21 @@
     return '<section class="almload-card"><div class="almload-section-head"><div><h2>Histórico de cierres</h2><p>Los cierres archivados conservan el Excel original en Azure. Activar uno reprocesa ese Excel y sustituye el staging operativo de Aiven.</p></div><span class="almload-pill neutral">'+number(rows.length)+' cierres</span></div><div class="almload-history-list">'+rows.map(function(row){
       const isActive=Boolean(row.activo);
       const archived=Boolean(row.archived);
-      const status=archived?'Azure Blob':(row.loaded?'Legacy en Aiven':'Sin archivo');
+      const status=archived?'Excel en Azure Blob':(row.loaded?'Legacy en Aiven':'Sin archivo');
       const disabled=isActive||!archived;
-      const buttonText=isActive?'Activo':(archived?'Activar cierre':'Pendiente archivar');
+      const buttonText=isActive?'En uso':(archived?'Usar este cierre':'Pendiente archivar');
       return '<div class="almload-history-row'+(isActive?' is-selected':'')+'"><div><strong>'+escapeHtml(row.archivoOrigen||'Archivo')+'</strong><small>'+escapeHtml(row.loteImportacion||'')+'</small></div><div><strong>'+escapeHtml(row.fechaCorte||'Sin corte')+'</strong><small>'+dateText(row.fechaImportacion)+' · '+escapeHtml(status)+'</small></div><div><strong>'+number(row.datasets&&row.datasets.INVENTARIO?row.datasets.INVENTARIO.filas:0)+'</strong><small>inventario</small></div><button type="button" data-almload-source="'+escapeHtml(row.loteImportacion)+'"'+(disabled?' disabled':'')+'>'+buttonText+'</button></div>';
     }).join('')+'</div></section>';
   }
 
   function sourceHtml(){
     if(!state.source){
-      return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente activa</span><h2>Sin lote activo</h2><p>La primera carga guardará el Excel original en Azure Blob y materializará solamente el staging activo en Aiven.</p></div><span class="almload-pill warn">Sin carga</span></section>';
+      return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente global activa</span><h2>Sin cierre en uso</h2><p>Agrega uno o más Excel al histórico y elige cuál se utilizará en todos los módulos de Almacén.</p></div><span class="almload-pill warn">Sin selección</span></section>';
     }
     const s=state.source;
     const rows=s.filas!=null?s.filas:(s.datasets&&s.datasets.INVENTARIO?s.datasets.INVENTARIO.filas:null);
     const archiveText=s.archived?'Excel protegido en Azure Blob':'Legacy: falta archivar Excel original';
-    return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente activa</span><h2>'+escapeHtml(s.archivoOrigen||'Archivo activo')+'</h2><p>'+escapeHtml(s.hojaOrigen||'Lote de Almacén')+' · '+number(rows)+' filas · Corte '+escapeHtml(s.fechaCorte||'—')+'</p><small>Lote: '+escapeHtml(s.loteImportacion||'—')+' · '+archiveText+'</small></div><span class="almload-pill '+(s.archived?'ok':'warn')+'">'+(s.archived?'Activo + archivado':'Migración requerida')+'</span></section>';
+    return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente global activa</span><h2>'+escapeHtml(s.archivoOrigen||'Archivo activo')+'</h2><p>'+escapeHtml(s.hojaOrigen||'Lote de Almacén')+' · '+number(rows)+' filas · Corte '+escapeHtml(s.fechaCorte||'—')+'</p><small>Lote: '+escapeHtml(s.loteImportacion||'—')+' · '+archiveText+'</small></div><span class="almload-pill '+(s.archived?'ok':'warn')+'">'+(s.archived?'En uso para todos':'Migración requerida')+'</span></section>';
   }
 
   function messageHtml(text,tone){
@@ -95,14 +95,15 @@
     const migration=requiresArchive
       ? '<div class="almload-message warn"><b>Migración única requerida:</b> selecciona el mismo Excel que generó el cierre activo ('+escapeHtml(state.source.archivoOrigen||'actual')+'), valídalo y pulsa <b>Archivar cierre actual</b>. El backend comprobará su SHA-256 antes de asociarlo.</div>'
       : '';
-    const archiveButton=requiresArchive?'<button type="button" class="almload-btn" id="almload-archive" '+(state.validation?'':'disabled')+'>Archivar cierre actual</button>':'';
+    const archiveButton=requiresArchive?'<button type="button" class="almload-btn primary" id="almload-archive" '+(state.validation?'':'disabled')+'>Archivar cierre actual</button>':'';
+    const saveButton=!requiresArchive?'<button type="button" class="almload-btn primary" id="almload-save" '+(state.validation?'':'disabled')+'>Guardar en histórico</button>':'';
     view.innerHTML='<div class="almload-shell">'+
-      '<section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Excel temporal archivado en Azure Blob privado. Aiven conserva una referencia ligera por cierre y únicamente las filas normalizadas del cierre activo.</p></div><span class="almload-pill restricted">Acceso restringido</span></section>'+
+      '<section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Todos los Excel cargados quedan disponibles en el histórico. El cierre seleccionado se usa globalmente en los módulos de Almacén.</p></div><span class="almload-pill restricted">Selección global</span></section>'+
       sourceHtml()+historyHtml()+
-      '<section class="almload-card"><div class="almload-section-head"><div><h2>Nueva carga</h2><p>El Excel original se conserva fuera de MySQL. Al activar un cierre, Aiven reemplaza el staging operativo en lugar de acumular snapshots mensuales.</p></div><span class="almload-pill neutral">.xlsx / .csv · 25 MB</span></div>'+migration+
+      '<section class="almload-card"><div class="almload-section-head"><div><h2>Agregar archivo al histórico</h2><p>Guardar el Excel no cambia la información en uso. Después podrás seleccionarlo en el histórico cuando quieras convertirlo en la fuente global.</p></div><span class="almload-pill neutral">.xlsx / .csv · 25 MB</span></div>'+migration+
       '<div class="almload-grid"><label><span>Archivo</span><input id="almload-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><small id="almload-file-name">'+escapeHtml(state.file?state.file.name:'Ningún archivo seleccionado')+'</small></label><label><span>Fecha de corte</span><input id="almload-cutoff" type="date" value="'+escapeHtml(state.cutoff)+'"></label></div>'+
-      '<div class="almload-actions"><button type="button" class="almload-btn" id="almload-validate">Validar</button>'+archiveButton+'<button type="button" class="almload-btn primary" id="almload-import" '+(state.validation&&!requiresArchive?'':'disabled')+'>Importar y activar</button></div>'+messageHtml(message,tone)+'</section>'+
-      '<section class="almload-card almload-rules"><h2>Controles de seguridad</h2><div><span>1</span><p><b>Excel original privado.</b> Cada cierre nuevo se archiva en Azure Blob antes de liberar el staging anterior.</p></div><div><span>2</span><p><b>Aiven solo opera el cierre activo.</b> Los cierres históricos ya no conservan miles de filas normalizadas.</p></div><div><span>3</span><p><b>Reactivación verificable.</b> Un histórico se descarga del Blob, verifica por SHA-256 y se reprocesa antes de volver a ser fuente operativa.</p></div></section></div>';
+      '<div class="almload-actions"><button type="button" class="almload-btn" id="almload-validate">Validar</button>'+archiveButton+saveButton+'</div>'+messageHtml(message,tone)+'</section>'+
+      '<section class="almload-card almload-rules"><h2>Controles de seguridad</h2><div><span>1</span><p><b>Excel original privado.</b> Cada archivo se conserva en Azure Blob y aparece en el histórico.</p></div><div><span>2</span><p><b>Selección única y global.</b> Sólo un cierre está en uso y cualquier cambio afecta a todos los usuarios y módulos de Almacén.</p></div><div><span>3</span><p><b>Activación verificable.</b> El Excel elegido se descarga, verifica por SHA-256 y reemplaza el staging operativo de Aiven.</p></div></section></div>';
     bind(view);
   }
 
@@ -114,10 +115,10 @@
     const requiresArchive=Boolean(state.source&&!state.source.archived);
     const validateBtn=view.querySelector('#almload-validate');
     const archiveBtn=view.querySelector('#almload-archive');
-    const importBtn=view.querySelector('#almload-import');
+    const saveBtn=view.querySelector('#almload-save');
     if(validateBtn)validateBtn.disabled=state.busy;
     if(archiveBtn)archiveBtn.disabled=state.busy||!state.validation||!state.file;
-    if(importBtn)importBtn.disabled=state.busy||!state.validation||requiresArchive;
+    if(saveBtn)saveBtn.disabled=state.busy||!state.validation||!state.file||requiresArchive;
     const fileName=view.querySelector('#almload-file-name');if(fileName)fileName.textContent=state.file?state.file.name:'Ningún archivo seleccionado';
   }
   function fileKey(file){return file?[file.name,file.size,file.lastModified].join('|'):'';}
@@ -131,7 +132,7 @@
   async function refreshSources(){
     const responses=await Promise.all([
       authApi('/api/almacen/carga/capabilities',{method:'GET'}),
-      authApi('/api/almacen/fuentes',{method:'GET'})
+      authApi('/api/almacen/fuentes?all=1',{method:'GET'})
     ]);
     state.source=responses[0].source||null;
     state.sources=responses[1].sources||[];
@@ -180,33 +181,32 @@
     finally{state.busy=false;syncControls(view);}
   }
 
-  async function runImport(view){
+  async function saveToHistory(view){
     if(state.source&&!state.source.archived){setMessage(view,'Primero archiva el cierre activo legacy.','error');return;}
     if(!state.file||!state.validation||state.validation.fileKey!==fileKey(state.file)){state.validation=null;syncControls(view);setMessage(view,'El archivo debe validarse nuevamente antes de importar.','error');return;}
-    if(!window.confirm('El Excel se guardará en Azure Blob y sustituirá el staging activo de Almacén en Aiven. El cierre anterior conservará solo su referencia histórica. ¿Continuar?'))return;
-    const form=buildForm();state.busy=true;syncControls(view);setMessage(view,'Archivando Excel en Azure y reemplazando staging activo en Aiven. No cierres esta vista...','working');
+    if(!window.confirm('El Excel se guardará en el histórico de Azure Blob. La fuente global activa no cambiará hasta que elijas “Usar este cierre”. ¿Continuar?'))return;
+    const form=buildForm();state.busy=true;syncControls(view);setMessage(view,'Guardando Excel en el histórico de cierres...','working');
     try{
-      const data=await authApi('/api/almacen/carga/importar',{method:'POST',body:form});
+      const data=await authApi('/api/almacen/carga/archivar',{method:'POST',body:form});
       state.validation=null;state.file=null;
       if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
-      document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/carga/importar',method:'POST',source:'almacen-carga'}}));
+      document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/carga/archivar',method:'POST',source:'almacen-carga'}}));
       await refreshSources();
-      selectLot(data.loteImportacion||state.source&&state.source.loteImportacion||'');
-      render(view,'Importación completada. Excel protegido en Azure Blob y staging activo actualizado · '+number(data.filas)+' filas operativas.','ok');
-    }catch(error){setMessage(view,error.message||'No se pudo completar la importación.','error');}
+      render(view,(data.alreadyArchived?'El archivo ya estaba registrado.':'Excel guardado en el histórico.')+' El cierre activo no cambió; usa el botón “Usar este cierre” cuando quieras aplicarlo globalmente.','ok');
+    }catch(error){setMessage(view,error.message||'No se pudo guardar el archivo en el histórico.','error');}
     finally{state.busy=false;syncControls(view);}
   }
 
   async function activateSource(view,lot){
     const target=String(lot||'').trim();if(!target||state.busy)return;
-    if(!window.confirm('Se descargará el Excel histórico desde Azure, se verificará su hash y reemplazará el staging activo de Almacén. ¿Continuar?'))return;
+    if(!window.confirm('Este cierre sustituirá la información activa de Almacén para TODOS los usuarios. Se verificará el Excel y se reemplazará el staging operativo de Aiven. ¿Continuar?'))return;
     state.busy=true;syncControls(view);setMessage(view,'Reactivando cierre histórico desde Azure Blob...','working');
     try{
       const data=await authApi('/api/almacen/carga/fuentes/'+encodeURIComponent(target)+'/activar',{method:'POST'});
       if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
       document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/carga/fuentes/'+target+'/activar',method:'POST',source:'almacen-carga'}}));
       await refreshSources();selectLot(data.loteImportacion||target);
-      render(view,'Cierre histórico reactivado. Sus datos son ahora el staging operativo de Gestión de Almacén.','ok');
+      render(view,'Cierre seleccionado. Sus datos son ahora la fuente global de Gestión de Almacén para todos los usuarios.','ok');
     }catch(error){setMessage(view,error.message||'No se pudo reactivar el cierre histórico.','error');}
     finally{state.busy=false;syncControls(view);}
   }
@@ -216,12 +216,12 @@
     const cutoff=view.querySelector('#almload-cutoff');
     const validateBtn=view.querySelector('#almload-validate');
     const archiveBtn=view.querySelector('#almload-archive');
-    const importBtn=view.querySelector('#almload-import');
+    const saveBtn=view.querySelector('#almload-save');
     if(file)file.addEventListener('change',function(){state.file=file.files&&file.files[0]?file.files[0]:null;state.validation=null;syncControls(view);setMessage(view,state.file?'Archivo seleccionado. Valídalo antes de continuar.':'Selecciona un archivo .xlsx o .csv.','');});
     if(cutoff)cutoff.addEventListener('change',function(){state.cutoff=cutoff.value||'';state.validation=null;syncControls(view);setMessage(view,'Fecha de corte modificada. Vuelve a validar antes de importar.','');});
     if(validateBtn)validateBtn.addEventListener('click',function(){if(!state.busy)validate(view);});
     if(archiveBtn)archiveBtn.addEventListener('click',function(){if(!state.busy)archiveCurrent(view);});
-    if(importBtn)importBtn.addEventListener('click',function(){if(!state.busy)runImport(view);});
+    if(saveBtn)saveBtn.addEventListener('click',function(){if(!state.busy)saveToHistory(view);});
     view.querySelectorAll('[data-almload-source]').forEach(function(button){button.addEventListener('click',function(){if(!button.disabled)activateSource(view,button.dataset.almloadSource||'');});});
     syncControls(view);
   }

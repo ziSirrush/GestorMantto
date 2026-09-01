@@ -87,6 +87,7 @@ router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION),
 router.get('/carga/capabilities', ...almacenGuard(LOAD_PERMISSION), loadCapabilities);
 router.post('/carga/validar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.validateImport);
 router.post('/carga/archivar-activo', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.archiveActive);
+router.post('/carga/archivar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.archiveSpreadsheet);
 router.post('/carga/importar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.importSpreadsheet);
 router.post('/carga/fuentes/:lote/activar', ...almacenGuard(LOAD_PERMISSION), controller.activateSource);
 

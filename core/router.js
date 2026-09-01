@@ -783,6 +783,7 @@
           window.ManttoRouter.go('detalle', { type:'ticket', id:ruta.split(':').slice(2).join(':') || ref, focus:focusChat ? 'chat' : null });
         }
         else if(ruta === 'soporte-solicitudes' || el.dataset.action === 'ABRIR_SOLICITUD') window.ManttoRouter.go('soporte-solicitudes', { id: ref });
+        else if(ruta && document.getElementById('view-' + ruta)) window.ManttoRouter.go(ruta, { id: ref });
         else window.ManttoRouter.go('home');
       }));
     }catch(error){

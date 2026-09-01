@@ -202,8 +202,10 @@ async function resolveSource(input, conn = db) {
 }
 
 async function listSources(input = {}, conn = db) {
+  const includeAll = input?.all === true || String(input?.all || '').trim() === '1';
   const requestedLimit = Number(input?.limit || 100);
   const limit = Math.min(250, Math.max(1, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 100));
+  const limitSql = includeAll ? '' : `LIMIT ${limit}`;
 
   const [rows] = await conn.query(
     `SELECT lote_importacion AS loteImportacion,
@@ -221,7 +223,7 @@ async function listSources(input = {}, conn = db) {
       ORDER BY MAX(activo) DESC,
                COALESCE(MAX(fecha_corte),'1000-01-01') DESC,
                MAX(fecha_importacion) DESC
-      LIMIT ${limit}`,
+      ${limitSql}`,
     [RECORD_TYPES.ARCHIVE]
   );
 

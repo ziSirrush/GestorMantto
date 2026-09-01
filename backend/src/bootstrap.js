@@ -9,6 +9,7 @@ const { startPortafolioCierreSemanalJob } = require('./jobs/portafolioCierreSema
 const { startLogisticaCierreSemanalJob, stopLogisticaCierreSemanalJob } = require('./jobs/logisticaCierreSemanal.job');
 const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/pushNotifications.job');
 const { startStorageOperationsJob, stopStorageOperationsJob } = require('./jobs/storageOperations.job');
+const { startAlmacenCierreIncorrectoJob, stopAlmacenCierreIncorrectoJob } = require('./jobs/almacenCierreIncorrecto.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -56,6 +57,7 @@ function startScheduledJobs(databaseReady) {
     startPortafolioCierreMensualJob();
     startPortafolioCierreSemanalJob();
     startLogisticaCierreSemanalJob();
+    startAlmacenCierreIncorrectoJob();
     logger.info('Jobs de Portafolio inicializados.');
   } catch (error) {
     logger.error('La API inicio, pero los jobs de Portafolio no pudieron inicializarse.', error);
@@ -115,6 +117,7 @@ function registerShutdownHandlers() {
       stopPushNotificationsJob();
       stopStorageOperationsJob();
       stopLogisticaCierreSemanalJob();
+      stopAlmacenCierreIncorrectoJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);
