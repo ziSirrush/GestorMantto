@@ -84,10 +84,10 @@
   font-size:13px;
 }
 
-/* Barra de optimizacion: Responsable + Año + Seccion. */
+/* Barra principal: Responsable + selector visual de secciones. El año vive dentro de Ventas/Perdidos. */
 .vd-controls{
   display:grid;
-  grid-template-columns:minmax(250px,1.15fr) minmax(160px,.55fr) minmax(250px,1fr);
+  grid-template-columns:minmax(260px,.85fr) minmax(520px,2.15fr);
   gap:14px;
   align-items:end;
   min-width:0;
@@ -264,6 +264,56 @@
   margin:0;
   font-size:1rem;
   color:#173567;
+}
+
+/* Filtros de año locales: solo Ventas y Perdidos. */
+.vd-table-head-main{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-width:0;
+  flex:1 1 auto;
+}
+
+.vd-table-head-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex:0 0 auto;
+}
+
+.vd-table-year-filter{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+}
+
+.vd-table-year-filter label{
+  color:#64748b;
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+.vd-table-year-filter select{
+  min-width:92px;
+  height:34px;
+  padding:0 30px 0 10px;
+  border:1px solid #cbd8ea;
+  border-radius:9px;
+  background:#fff;
+  color:#102a56;
+  font-size:12px;
+  font-weight:800;
+  outline:none;
+}
+
+.vd-table-year-filter select:focus{
+  border-color:#2f67c7;
+  box-shadow:0 0 0 3px rgba(47,103,199,.12);
 }
 
 .vd-table-count{
@@ -469,6 +519,8 @@
   .vd-kpis{grid-template-columns:1fr}
   .vd-kpi{min-height:120px}
   .vd-table-head{align-items:flex-start;flex-direction:column}
+  .vd-table-head-main{width:100%;align-items:flex-start}
+  .vd-table-head-actions{width:100%;justify-content:flex-start}
   .vd-table-count{white-space:normal}
   .vd-logistics-body{gap:9px;padding:9px}
   .vd-table-wrap{border-top:1px solid #eef2f7}
@@ -584,7 +636,7 @@
 
 @media(min-width:1181px){
   .vd-controls{
-    grid-template-columns:minmax(250px,1.05fr) minmax(150px,.5fr) minmax(520px,2fr);
+    grid-template-columns:minmax(260px,.85fr) minmax(520px,2.15fr);
   }
 }
 

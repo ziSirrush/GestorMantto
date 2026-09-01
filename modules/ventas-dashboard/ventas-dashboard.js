@@ -4,7 +4,7 @@
   // [Aster | 2026-08-31 | ASTER-MG | FIX DASHBOARD VENTAS CACHE/REINGRESO/ACTUALIZAR V001]
   // Regla: primera carga completa; conservar datos al navegar; refrescar solo por cambio
   // real, cambio de filtro de datos o solicitud manual del usuario.
-  const TEMPLATE_VERSION = '20260831-botones-seccion-v002';
+  const TEMPLATE_VERSION = '20260831-anio-seccion-v003';
   const TEMPLATE_URL = `./modules/ventas-dashboard/ventas-dashboard.html?v=${TEMPLATE_VERSION}`;
   const STORAGE_KEY = 'mantto:ventas-dashboard:fase1-reacomodo-v001';
   const TABLE_PAGE_SIZE = 30;
@@ -22,8 +22,8 @@
   let usersLoaded = false;
   let pdfCapabilitiesLoaded = false;
   let cachedKpis = null;
-  let cachedKpiYear = new Date().getFullYear();
   let cachedYears = [];
+  let sectionYears = { ventas: new Date().getFullYear(), perdido: new Date().getFullYear() };
   let cachedQueryKey = '';
   let refreshBusy = false;
   let mutationListenerBound = false;
@@ -178,24 +178,55 @@
     return Number.isInteger(id) && id > 0 ? id : null;
   }
 
-  function selectedYear() {
-    const currentYear = new Date().getFullYear();
-    const year = Number(document.getElementById('vd-year-select')?.value);
-    return Number.isInteger(year) && year >= 1900 && year <= 2200 ? year : currentYear;
+  function currentCommercialYear() {
+    return new Date().getFullYear();
   }
 
-  function renderYearOptions(values = [], forceCurrent = false) {
-    const select = document.getElementById('vd-year-select');
-    if (!select) return;
-    const currentYear = new Date().getFullYear();
-    const selected = forceCurrent ? currentYear : selectedYear();
-    if (Array.isArray(values) && values.length) cachedYears = [...values];
-    const years = [...new Set([currentYear, selected, ...(Array.isArray(values) ? values : [])]
-      .map(Number)
-      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2200))]
+  function normalizedYear(value, fallback = currentCommercialYear()) {
+    const year = Number(value);
+    return Number.isInteger(year) && year >= 1900 && year <= 2200 ? year : fallback;
+  }
+
+  function selectedSectionYear(key) {
+    const current = normalizedYear(sectionYears[key]);
+    const select = document.querySelector(`[data-section-year="${key}"]`);
+    if (!select) return current;
+    const selected = normalizedYear(select.value, current);
+    sectionYears[key] = selected;
+    return selected;
+  }
+
+  function setSectionYear(key, value) {
+    if (!['ventas', 'perdido'].includes(key)) return currentCommercialYear();
+    const year = normalizedYear(value);
+    sectionYears[key] = year;
+    return year;
+  }
+
+  function mergeCachedYears(values = []) {
+    const current = currentCommercialYear();
+    const incoming = Array.isArray(values) ? values : [];
+    cachedYears = [...new Set([
+      current,
+      sectionYears.ventas,
+      sectionYears.perdido,
+      ...cachedYears,
+      ...incoming
+    ].map(Number).filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2200))]
       .sort((a, b) => b - a);
-    select.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
-    select.value = String(years.includes(selected) ? selected : currentYear);
+    return cachedYears;
+  }
+
+  function yearOptionsHtml(key) {
+    const selectedYear = selectedSectionYear(key);
+    const years = mergeCachedYears([]);
+    return years.map((year) => `<option value="${year}"${year === selectedYear ? ' selected' : ''}>${year}</option>`).join('');
+  }
+
+  function sectionYearFilterHtml(key) {
+    if (!['ventas', 'perdido'].includes(key)) return '';
+    const label = key === 'ventas' ? 'Año de venta' : 'Año de pérdida';
+    return `<div class="vd-table-head-actions"><div class="vd-table-year-filter"><label for="vd-year-${key}">${label}</label><select id="vd-year-${key}" data-section-year="${key}" aria-label="${label}">${yearOptionsHtml(key)}</select></div></div>`;
   }
 
   function resetTablePages() {
@@ -391,11 +422,11 @@
       tableData = {};
       availableTableKeys = null;
       cachedKpis = null;
-      cachedKpiYear = new Date().getFullYear();
       cachedYears = [];
+      sectionYears = { ventas: currentCommercialYear(), perdido: currentCommercialYear() };
       cachedQueryKey = '';
       dataLoaded = false;
-      kpis(null, cachedKpiYear);
+      kpis(null);
       renderLoadingState();
       msg('');
     }
@@ -458,23 +489,39 @@
     resetDashboardDefaults();
   }
 
-  function kpis(data, year = selectedYear()) {
+  function activeQuoteKpis() {
+    const rows = Array.isArray(tableData.cotizaciones) ? tableData.cotizaciones : [];
+    return {
+      cotizaciones: rows.length,
+      equipos: rows.reduce((sum, row) => sum + Number(row?.numero_equipos || 0), 0)
+    };
+  }
+
+  function syncActiveQuoteKpis() {
+    cachedKpis = {
+      ...(cachedKpis || {}),
+      cotizados: activeQuoteKpis()
+    };
+  }
+
+  function kpis(data) {
+    const source = data || cachedKpis;
     const values = {
-      'vd-kpi-cotizados-cotizaciones': data?.cotizados?.cotizaciones,
-      'vd-kpi-cotizados-equipos': data?.cotizados?.equipos,
-      'vd-kpi-vendidos-cotizaciones': data?.vendidos?.cotizaciones,
-      'vd-kpi-vendidos-equipos': data?.vendidos?.equipos,
-      'vd-kpi-perdidos-cotizaciones': data?.perdidos?.cotizaciones,
-      'vd-kpi-perdidos-equipos': data?.perdidos?.equipos
+      'vd-kpi-cotizados-cotizaciones': source?.cotizados?.cotizaciones,
+      'vd-kpi-cotizados-equipos': source?.cotizados?.equipos,
+      'vd-kpi-vendidos-cotizaciones': source?.vendidos?.cotizaciones,
+      'vd-kpi-vendidos-equipos': source?.vendidos?.equipos,
+      'vd-kpi-perdidos-cotizaciones': source?.perdidos?.cotizaciones,
+      'vd-kpi-perdidos-equipos': source?.perdidos?.equipos
     };
     Object.entries(values).forEach(([id, value]) => {
       const node = document.getElementById(id);
       if (node) node.textContent = value == null ? '—' : Number(value).toLocaleString('es-MX');
     });
     const titles = {
-      'vd-kpi-title-cotizados': `Cotizaciones activas · ${year}`,
-      'vd-kpi-title-vendidos': `Ventas · ${year}`,
-      'vd-kpi-title-perdidos': `Perdidos · ${year}`
+      'vd-kpi-title-cotizados': 'Cotizaciones activas',
+      'vd-kpi-title-vendidos': `Ventas · ${selectedSectionYear('ventas')}`,
+      'vd-kpi-title-perdidos': `Perdidos · ${selectedSectionYear('perdido')}`
     };
     Object.entries(titles).forEach(([id, text]) => {
       const node = document.getElementById(id);
@@ -557,6 +604,79 @@
     }
   }
 
+  function sortDateValue(value) {
+    const text = String(value || '').trim();
+    if (!text) return 0;
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (match) {
+      return Date.UTC(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        Number(match[4] || 0),
+        Number(match[5] || 0),
+        Number(match[6] || 0)
+      );
+    }
+    const parsed = Date.parse(text);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  function numericSequence(value) {
+    const matches = String(value || '').match(/\d+/g);
+    if (!matches || !matches.length) return 0;
+    const number = Number(matches.join(''));
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function newestStamp(key, row) {
+    const fields = {
+      prospeccion: ['fecha_visita', 'updated_at', 'created_at'],
+      redes: ['created_at', 'updated_at', 'fecha_cambio_estatus'],
+      cotizaciones: ['fecha_efectiva', 'fecha_solicitud', 'fecha_cotizacion', 'updated_at', 'created_at'],
+      clientes: ['updated_at', 'created_at'],
+      ventas: ['fecha_cierre', 'updated_at', 'created_at'],
+      perdido: ['fecha_cambio_estatus', 'updated_at', 'created_at'],
+      logistica: ['updated_at', 'fecha_sync', 'created_at', 'fecha_entrega_real_obra', 'fecha_llegada_real'],
+      instalaciones: ['updated_at', 'created_at', 'fecha_visita'],
+      tareas_asignadas: ['updated_at', 'date_created', 'created_at'],
+      tareas_creadas: ['updated_at', 'date_created', 'created_at']
+    }[key] || ['updated_at', 'created_at'];
+    for (const field of fields) {
+      const stamp = sortDateValue(row?.[field]);
+      if (stamp) return stamp;
+    }
+    return 0;
+  }
+
+  function newestFallback(key, row) {
+    const ids = {
+      prospeccion: 'id_pros',
+      redes: 'id_redes',
+      cotizaciones: 'id_cotizacion',
+      clientes: 'id_cliente',
+      ventas: 'id_cotizacion',
+      perdido: 'id_cotizacion',
+      logistica: 'id_log_ops',
+      instalaciones: 'id_proyecto',
+      tareas_asignadas: 'id_pendiente',
+      tareas_creadas: 'id_pendiente'
+    };
+    return numericSequence(row?.[ids[key]]);
+  }
+
+  function sortRowsForDisplay(key, rows) {
+    return [...(Array.isArray(rows) ? rows : [])].sort((left, right) => {
+      const stampDiff = newestStamp(key, right) - newestStamp(key, left);
+      if (stampDiff) return stampDiff;
+      const idDiff = newestFallback(key, right) - newestFallback(key, left);
+      if (idDiff) return idDiff;
+      const leftName = String(left?.nombre_proyecto || left?.proyecto || left?.nombre_empresa || left?.pendiente || '');
+      const rightName = String(right?.nombre_proyecto || right?.proyecto || right?.nombre_empresa || right?.pendiente || '');
+      return rightName.localeCompare(leftName, 'es', { sensitivity: 'base' });
+    });
+  }
+
   function logisticsCanonicalStatus(value) {
     const raw = String(value || '').trim();
     if (LOGISTICS_PIPELINE_ORDER.includes(raw)) return raw;
@@ -586,7 +706,7 @@
 
   function renderLogisticsTables(rows) {
     return LOGISTICS_PIPELINE_ORDER.map((statusName) => {
-      const statusRows = rows.filter((row) => logisticsCanonicalStatus(row?.estatus) === statusName);
+      const statusRows = sortRowsForDisplay('logistica', rows.filter((row) => logisticsCanonicalStatus(row?.estatus) === statusName));
       const columns = LOGISTICS_COLUMNS_BY_STATUS[statusName] || [];
       const pageKey = `logistica::${statusName}`;
       const totalPages = Math.max(1, Math.ceil(statusRows.length / TABLE_PAGE_SIZE));
@@ -639,9 +759,9 @@
       if (availableTableKeys instanceof Set && !availableTableKeys.has(key)) return false;
       return modules.includes(def.filter || key);
     }).map(([key, def]) => {
-      const rows = Array.isArray(tableData[key]) ? tableData[key] : [];
+      const rows = sortRowsForDisplay(key, tableData[key]);
       if (key === 'logistica') {
-        return `<section class="vd-table-section vd-logistics-section" data-dashboard-section="${esc(def.filter || key)}"><div class="vd-table-head"><h2>${esc(def.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros · ${LOGISTICS_PIPELINE_ORDER.length} secciones</span></div><div class="vd-logistics-body">${renderLogisticsTables(rows)}</div></section>`;
+        return `<section class="vd-table-section vd-logistics-section" data-dashboard-section="${esc(def.filter || key)}"><div class="vd-table-head"><div class="vd-table-head-main"><h2>${esc(def.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros · ${LOGISTICS_PIPELINE_ORDER.length} secciones</span></div></div><div class="vd-logistics-body">${renderLogisticsTables(rows)}</div></section>`;
       }
       const headers = visibleHeaders(def);
       const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
@@ -652,7 +772,8 @@
       const table = rows.length
         ? `<div class="vd-table-wrap"><table class="vd-table" style="--vd-col-count:${headers.length}"><thead><tr>${headers.map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${pageRows.map((row) => rowHtml(key, row)).join('')}</tbody></table></div><div class="vd-table-pagination" data-table-key="${esc(key)}"><button type="button" data-page-action="prev" ${page <= 1 ? 'disabled' : ''}>← Anterior</button><span>Página ${page} de ${totalPages} · ${rows.length.toLocaleString('es-MX')} registros</span><button type="button" data-page-action="next" ${page >= totalPages ? 'disabled' : ''}>Siguiente →</button></div>`
         : '<div class="vd-table-empty">Sin registros para la consulta actual.</div>';
-      return `<section class="vd-table-section" data-dashboard-section="${esc(def.filter || key)}"><div class="vd-table-head"><h2>${esc(def.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros · 30 por página</span></div>${table}</section>`;
+      const yearFilter = sectionYearFilterHtml(key);
+      return `<section class="vd-table-section" data-dashboard-section="${esc(def.filter || key)}"><div class="vd-table-head"><div class="vd-table-head-main"><h2>${esc(def.title)}</h2><span class="vd-table-count">${rows.length.toLocaleString('es-MX')} registros · 30 por página</span></div>${yearFilter}</div>${table}</section>`;
     }).join('') || '<div class="vd-empty"><h2>Sin secciones seleccionadas</h2></div>';
   }
 
@@ -669,7 +790,9 @@
 
   function replaceDomainTables(keys, incoming) {
     keys.forEach((key) => { delete tableData[key]; });
-    Object.assign(tableData, incoming || {});
+    Object.entries(incoming || {}).forEach(([key, rows]) => {
+      tableData[key] = sortRowsForDisplay(key, rows);
+    });
   }
 
   function normalizedLoadOptions(options) {
@@ -679,6 +802,19 @@
       commercial: source.commercial !== false,
       operational: source.operational !== false
     };
+  }
+
+  function dashboardSuffix(userValue, year) {
+    const query = new URLSearchParams();
+    query.set('usuario_id', userValue);
+    query.set('anio', String(normalizedYear(year)));
+    return `?${query.toString()}`;
+  }
+
+  function scopeNameForJob(jobKey) {
+    if (String(jobKey).startsWith('kpis')) return 'kpis';
+    if (String(jobKey).startsWith('commercial')) return 'commercial';
+    return 'operational';
   }
 
   async function loadData(silent, options) {
@@ -696,30 +832,37 @@
       return false;
     }
 
-    const query = new URLSearchParams();
-    query.set('usuario_id', allMode ? ALL_USERS_VALUE : String(id));
-    query.set('anio', String(selectedYear()));
-    const suffix = `?${query.toString()}`;
-    const queryKey = `${allMode ? ALL_USERS_VALUE : String(id)}|${selectedYear()}`;
+    const userValue = allMode ? ALL_USERS_VALUE : String(id);
+    const ventasYear = selectedSectionYear('ventas');
+    const perdidoYear = selectedSectionYear('perdido');
+    const ventasSuffix = dashboardSuffix(userValue, ventasYear);
+    const perdidoSuffix = dashboardSuffix(userValue, perdidoYear);
+    const queryKey = `${userValue}|ventas:${ventasYear}|perdido:${perdidoYear}`;
     const contextChanged = Boolean(cachedQueryKey && cachedQueryKey !== queryKey);
     if (contextChanged) {
-      // Cambio de responsable/año = contexto de autorización/datos diferente.
-      // No conservar filas del contexto anterior si alguna solicitud falla.
+      // Cambio de responsable o de los años locales de Ventas/Perdidos.
+      // No conservar filas de otro contexto si una solicitud del nuevo contexto falla.
       tableData = {};
       availableTableKeys = null;
       cachedKpis = null;
-      cachedKpiYear = selectedYear();
+      cachedYears = [];
       dataLoaded = false;
       dirtyScopes.clear();
-      kpis(null, cachedKpiYear);
+      kpis(null);
       renderLoadingState();
     }
     cachedQueryKey = queryKey;
 
     const jobs = [];
-    if (parts.kpis) jobs.push({ key: 'kpis', promise: req(`/api/ventas/dashboard/kpis${suffix}`) });
-    if (parts.commercial) jobs.push({ key: 'commercial', promise: req(`/api/ventas/dashboard/tablas${suffix}`) });
-    if (parts.operational) jobs.push({ key: 'operational', promise: req(`/api/ventas/dashboard/operacion${suffix}`) });
+    if (parts.kpis) {
+      jobs.push({ key: 'kpis_ventas', promise: req(`/api/ventas/dashboard/kpis${ventasSuffix}`) });
+      if (perdidoYear !== ventasYear) jobs.push({ key: 'kpis_perdido', promise: req(`/api/ventas/dashboard/kpis${perdidoSuffix}`) });
+    }
+    if (parts.commercial) {
+      jobs.push({ key: 'commercial_ventas', promise: req(`/api/ventas/dashboard/tablas${ventasSuffix}`) });
+      if (perdidoYear !== ventasYear) jobs.push({ key: 'commercial_perdido', promise: req(`/api/ventas/dashboard/tablas${perdidoSuffix}`) });
+    }
+    if (parts.operational) jobs.push({ key: 'operational', promise: req(`/api/ventas/dashboard/operacion${ventasSuffix}`) });
     if (!jobs.length) return false;
 
     if (!silent) msg(allMode ? 'Consultando información de tu alcance comercial...' : 'Consultando información comercial...');
@@ -733,30 +876,46 @@
       throw (rejected?.result?.reason || new Error('No fue posible cargar Dashboard Ventas.'));
     }
 
-    results.filter((entry) => entry.result.status === 'rejected').forEach((entry) => dirtyScopes.add(entry.key));
+    const failedScopes = new Set(results
+      .filter((entry) => entry.result.status === 'rejected')
+      .map((entry) => scopeNameForJob(entry.key)));
+    failedScopes.forEach((scope) => dirtyScopes.add(scope));
 
     for (const entry of fulfilled) {
       const response = entry.result.value;
-      if (entry.key === 'kpis') {
-        cachedKpis = response?.kpis || null;
-        cachedKpiYear = Number(response?.anio) || selectedYear();
-        if (Array.isArray(response?.anios_disponibles)) {
-          cachedYears = [...response.anios_disponibles];
-          renderYearOptions(cachedYears);
-        }
-        dirtyScopes.delete('kpis');
-      } else if (entry.key === 'commercial') {
+      if (entry.key === 'kpis_ventas') {
+        const activeSnapshot = cachedKpis?.cotizados || activeQuoteKpis();
+        cachedKpis = { ...(response?.kpis || {}), cotizados: activeSnapshot };
+        mergeCachedYears(response?.anios_disponibles || []);
+      } else if (entry.key === 'kpis_perdido') {
+        cachedKpis = {
+          ...(cachedKpis || {}),
+          perdidos: response?.kpis?.perdidos || { cotizaciones: 0, equipos: 0 }
+        };
+        mergeCachedYears(response?.anios_disponibles || []);
+      } else if (entry.key === 'commercial_ventas') {
         replaceDomainTables(COMMERCIAL_KEYS, response?.tablas || {});
-        dirtyScopes.delete('commercial');
+      } else if (entry.key === 'commercial_perdido') {
+        tableData.perdido = sortRowsForDisplay('perdido', response?.tablas?.perdido || []);
       } else if (entry.key === 'operational') {
         replaceDomainTables(OPERATIONAL_KEYS, response?.tablas || {});
-        dirtyScopes.delete('operational');
       }
     }
 
+    ['kpis', 'commercial', 'operational'].forEach((scope) => {
+      if (!failedScopes.has(scope) && results.some((entry) => scopeNameForJob(entry.key) === scope)) dirtyScopes.delete(scope);
+    });
+
+    const commercialBaseLoaded = fulfilled.some((entry) => entry.key === 'commercial_ventas');
+    const commercialLostFailed = perdidoYear !== ventasYear && results.some((entry) => entry.key === 'commercial_perdido' && entry.result.status === 'rejected');
+    const kpiLostFailed = perdidoYear !== ventasYear && results.some((entry) => entry.key === 'kpis_perdido' && entry.result.status === 'rejected');
+    if (commercialLostFailed) tableData.perdido = [];
+    if (kpiLostFailed && cachedKpis) cachedKpis = { ...cachedKpis, perdidos: null };
+    if (commercialBaseLoaded) syncActiveQuoteKpis();
+    else if (parts.commercial && cachedKpis) cachedKpis = { ...cachedKpis, cotizados: null };
     availableTableKeys = new Set(Object.keys(tableData));
     applyTableAvailability();
-    kpis(cachedKpis, cachedKpiYear);
+    kpis(cachedKpis);
     renderTables(tableData);
     summary();
     dataLoaded = true;
@@ -766,6 +925,56 @@
       msg(failed > 0 ? (contextChanged ? 'Se cargó la información disponible para el nuevo filtro; una sección quedó pendiente de actualización.' : 'Se actualizó la información disponible; una sección no pudo renovarse y conserva su última carga válida.') : '');
     }
     return true;
+  }
+
+  async function loadSectionYear(key, requestedYear) {
+    if (!['ventas', 'perdido'].includes(key)) return false;
+    const previousYear = normalizedYear(sectionYears[key]);
+    const nextYear = setSectionYear(key, requestedYear);
+    if (nextYear === previousYear && dataLoaded) {
+      renderTables(tableData);
+      kpis(cachedKpis);
+      return true;
+    }
+
+    const allMode = isAllUsersMode();
+    const id = selectedUserId();
+    if (!allMode && id === null) return false;
+    const userValue = allMode ? ALL_USERS_VALUE : String(id);
+    const suffix = dashboardSuffix(userValue, nextYear);
+    const rid = ++requestId;
+    msg(key === 'ventas' ? `Consultando ventas ${nextYear}...` : `Consultando perdidos ${nextYear}...`);
+
+    try {
+      const [tablesResponse, kpiResponse] = await Promise.all([
+        req(`/api/ventas/dashboard/tablas${suffix}`),
+        req(`/api/ventas/dashboard/kpis${suffix}`)
+      ]);
+      if (rid !== requestId) return false;
+
+      tableData[key] = sortRowsForDisplay(key, tablesResponse?.tablas?.[key] || []);
+      mergeCachedYears(kpiResponse?.anios_disponibles || []);
+      cachedKpis = {
+        ...(cachedKpis || {}),
+        [key === 'ventas' ? 'vendidos' : 'perdidos']:
+          kpiResponse?.kpis?.[key === 'ventas' ? 'vendidos' : 'perdidos'] || { cotizaciones: 0, equipos: 0 }
+      };
+      syncActiveQuoteKpis();
+      tablePages[key] = 1;
+      cachedQueryKey = `${userValue}|ventas:${selectedSectionYear('ventas')}|perdido:${selectedSectionYear('perdido')}`;
+      availableTableKeys = new Set(Object.keys(tableData));
+      applyTableAvailability();
+      kpis(cachedKpis);
+      renderTables(tableData);
+      summary();
+      msg('');
+      return true;
+    } catch (error) {
+      setSectionYear(key, previousYear);
+      renderTables(tableData);
+      kpis(cachedKpis);
+      throw error;
+    }
   }
 
   function noteMutation(path) {
@@ -833,6 +1042,12 @@
         }
         openRow(event.target.closest('[data-open-route]'));
       });
+      document.getElementById('vd-stage')?.addEventListener('change', (event) => {
+        const yearSelect = event.target.closest('[data-section-year]');
+        if (!yearSelect) return;
+        const key = String(yearSelect.dataset.sectionYear || '');
+        loadSectionYear(key, yearSelect.value).catch((error) => msg(error.message || 'No fue posible cambiar el año de la sección.', 'error'));
+      });
       document.getElementById('vd-stage')?.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         const row = event.target.closest('[data-open-route]');
@@ -843,11 +1058,6 @@
       document.getElementById('vd-user-select')?.addEventListener('change', () => {
         resetTablePages();
         summary();
-        loadData(false, { kpis: true, commercial: true, operational: true }).catch((error) => msg(error.message, 'error'));
-      });
-      document.getElementById('vd-year-select')?.addEventListener('change', () => {
-        resetTablePages();
-        kpis(null, selectedYear());
         loadData(false, { kpis: true, commercial: true, operational: true }).catch((error) => msg(error.message, 'error'));
       });
       document.getElementById('vd-pdf-general')?.addEventListener('click', () => preparePdf('general'));
@@ -883,7 +1093,6 @@
     try {
       if (usersLoaded) {
         renderUsers(selectedUserValue());
-        renderYearOptions(cachedYears, !cachedYears.length);
         await loadPdfCapabilities();
         if (!dataLoaded) {
           await loadData(true, { kpis: true, commercial: true, operational: true });
@@ -895,7 +1104,6 @@
       users = Array.isArray(response.usuarios) ? response.usuarios : [];
       usersLoaded = true;
       renderUsers(ALL_USERS_VALUE);
-      renderYearOptions([], true);
       applyModules();
       await loadPdfCapabilities();
       summary();
@@ -911,16 +1119,16 @@
   function restoreCachedView(snapshot) {
     const remembered = snapshot || {};
     if (usersLoaded) renderUsers(remembered.user || ALL_USERS_VALUE);
-    renderYearOptions(cachedYears);
-
-    const yearSelect = document.getElementById('vd-year-select');
-    const wantedYear = String(remembered.year || cachedKpiYear || new Date().getFullYear());
-    if (yearSelect && [...yearSelect.options].some((option) => option.value === wantedYear)) yearSelect.value = wantedYear;
+    if (remembered.years && typeof remembered.years === 'object') {
+      setSectionYear('ventas', remembered.years.ventas);
+      setSectionYear('perdido', remembered.years.perdido);
+    }
+    mergeCachedYears([]);
 
     applyTableAvailability();
     const wantedSections = Array.isArray(remembered.sections) ? remembered.sections : availableFilters();
     applySectionSelection(wantedSections);
-    kpis(cachedKpis, cachedKpiYear);
+    kpis(cachedKpis);
     renderTables(tableData);
     summary();
     setRefreshProgress(false);
@@ -939,7 +1147,7 @@
     loadingPromise = (async () => {
       const snapshot = {
         user: selectedUserValue(),
-        year: selectedYear(),
+        years: { ventas: selectedSectionYear('ventas'), perdido: selectedSectionYear('perdido') },
         section: selectedSectionValue(),
         sections: selected()
       };
@@ -967,6 +1175,6 @@
     refresh: () => loadData(true, { kpis: true, commercial: true, operational: true }),
     backgroundSync,
     refreshKpis: () => loadData(true, { kpis: true, commercial: false, operational: false }),
-    getFilters: () => ({ ...currentState(), usuario_id: isAllUsersMode() ? ALL_USERS_VALUE : selectedUserId(), anio: selectedYear() })
+    getFilters: () => ({ ...currentState(), usuario_id: isAllUsersMode() ? ALL_USERS_VALUE : selectedUserId(), anio_vendidos: selectedSectionYear('ventas'), anio_perdidos: selectedSectionYear('perdido') })
   };
 })();
