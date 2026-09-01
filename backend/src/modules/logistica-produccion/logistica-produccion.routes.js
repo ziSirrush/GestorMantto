@@ -1,11 +1,19 @@
 'use strict';
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
+// [Aster | 2026-09-01 | ASTER-MG | ENDPOINT SYNC M2M LOGISTICA PRODUCCION V001]
 const express=require('express');
 const controller=require('./logistica-produccion.controller');
 const {requireAuth}=require('../../middleware/auth.middleware');
+const {requireIntegrationAuthFor}=require('../../middleware/integration-auth.middleware');
 const {createUploadMiddleware_gnral}=require('../../middleware/storage-upload.middleware');
 const upload=createUploadMiddleware_gnral({fieldName:'archivo',required:true,maxFiles:1,maxFileMb:25,policyName:'GENERAL'});
+const requireLogisticaIntegration=requireIntegrationAuthFor('INTEGRATION_LOGISTICA_ID');
 const router=express.Router();
+
+// M2M debe declararse ANTES de router.use(requireAuth):
+// usa la misma identidad/secret de Logistica ya configurada en Azure.
+router.post('/sync',requireLogisticaIntegration,controller.sync);
+
 router.use(requireAuth);
 router.get('/opciones-ppns',controller.options);
 router.get('/manual/catalogos',controller.manualCatalogs);

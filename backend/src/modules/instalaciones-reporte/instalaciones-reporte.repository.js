@@ -201,6 +201,7 @@ async function listReportRows(filters, deliveredYear, informationAccess) {
        ${where.sql}
        ORDER BY
          FIELD(f.estatus, ${statusPlaceholders()}),
+         f.estado ASC,
          f.proyecto ASC,
          f.referencia_sitio ASC,
          f.id_ins_fl ASC

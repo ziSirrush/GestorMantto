@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20260901-pdf-02oc-v001';
+  const VERSION_COR = '20260901-pdf-sort-sup-edo-v001';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const PAGE_SIZE = 30;
   const API_LIMIT = 5000;
@@ -678,10 +678,30 @@
     return selectedStatus ? pdfStages.filter(stage => stage.code === selectedStatus) : pdfStages;
   }
 
-  function pdfLegacySortByProject_cor(rows){
-    return (Array.isArray(rows) ? rows : []).slice().sort((a, b) =>
-      raw(a && a.proyecto).localeCompare(raw(b && b.proyecto), 'es', { sensitivity:'base' })
-    );
+  function pdfLegacySortBySupervisorEstado_cor(rows){
+    return (Array.isArray(rows) ? rows : []).slice().sort((a, b) => {
+      const supervisorOrder = raw(a && a.supervisor_fl).localeCompare(
+        raw(b && b.supervisor_fl), 'es', { sensitivity:'base' }
+      );
+      if(supervisorOrder !== 0) return supervisorOrder;
+
+      const estadoOrder = raw(a && a.estado).localeCompare(
+        raw(b && b.estado), 'es', { sensitivity:'base' }
+      );
+      if(estadoOrder !== 0) return estadoOrder;
+
+      const proyectoOrder = raw(a && a.proyecto).localeCompare(
+        raw(b && b.proyecto), 'es', { sensitivity:'base' }
+      );
+      if(proyectoOrder !== 0) return proyectoOrder;
+
+      const referenciaOrder = raw(a && a.referencia_sitio).localeCompare(
+        raw(b && b.referencia_sitio), 'es', { sensitivity:'base' }
+      );
+      if(referenciaOrder !== 0) return referenciaOrder;
+
+      return Number(a && a.id_ins_fl || 0) - Number(b && b.id_ins_fl || 0);
+    });
   }
 
   function pdfLegacyFormatValue_cor(value, type){
@@ -770,7 +790,7 @@
   }
 
   function pdfLegacyTableSection_cor(stage, allRows){
-    const rows = pdfLegacySortByProject_cor(stageRowsFrom_cor(allRows, stage.code));
+    const rows = pdfLegacySortBySupervisorEstado_cor(stageRowsFrom_cor(allRows, stage.code));
     const columns = pdfLegacyColumns_cor(stage);
     const headings = columns.map(column => '<th class="col-' + esc(column.type) + '">' + esc(column.label) + '</th>').join('');
 

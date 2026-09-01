@@ -1,8 +1,11 @@
 'use strict';
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
+// [Aster | 2026-09-01 | ASTER-MG | ENDPOINT SYNC M2M LOGISTICA PRODUCCION V001]
 const service=require('./logistica-produccion.service');
-const wrap=fn=>async(req,res,next)=>{try{const result=await fn(req);res.status(result.status||200).json(result.body||result);}catch(e){if(e.status||e.statusCode)return res.status(e.status||e.statusCode).json({ok:false,code:e.code,message:e.message});next(e);}};
+const syncService=require('./logistica-produccion-sync.service');
+const wrap=fn=>async(req,res,next)=>{try{const result=await fn(req);res.status(result.status||200).json(result.body||result);}catch(e){if(e.status||e.statusCode)return res.status(e.status||e.statusCode).json({ok:false,code:e.code,message:e.message,detalles:e.detalles||undefined});next(e);}};
 module.exports={
+ sync:wrap(req=>syncService.sync(req.body||{})),
  list:wrap(req=>service.list(req.query)),options:wrap(req=>service.options(req.query)),detail:wrap(req=>service.detail(req.params.id)),
  manualCatalogs:wrap(()=>service.manualCatalogs()),manualProjects:wrap(req=>service.manualProjects(req.query)),
  manualAdvisors:wrap(req=>service.manualAdvisors(req.query)),manualSupervisors:wrap(req=>service.manualSupervisors(req.query)),manualPpns:wrap(req=>service.manualPpns(req.query)),
