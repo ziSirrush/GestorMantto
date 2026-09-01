@@ -7,6 +7,11 @@ const upload=createUploadMiddleware_gnral({fieldName:'archivo',required:true,max
 const router=express.Router();
 router.use(requireAuth);
 router.get('/opciones-ppns',controller.options);
+router.get('/manual/catalogos',controller.manualCatalogs);
+router.get('/manual/proyectos-vendidos',controller.manualProjects);
+router.get('/manual/asesores',controller.manualAdvisors);
+router.get('/manual/supervisores',controller.manualSupervisors);
+router.get('/manual/ppns',controller.manualPpns);
 router.get('/documentos/faltantes',controller.missingDocuments);
 router.get('/documentos',controller.documents);
 router.get('/pvo/completos',controller.pvoComplete);

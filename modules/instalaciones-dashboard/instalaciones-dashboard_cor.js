@@ -76,7 +76,7 @@
       ['Minuta Revisión de Ajuste','fecha_minuta_revision_ajuste','fecha'],
       ['Liberado por Ajuste','fecha_liberacion_ajuste','texto']
     ]),
-    '06-A': Object.freeze([
+    '05-PA': Object.freeze([
       ['No. Pisos','numero_pisos','texto'],
       ['No. Desembarques','numero_desembarques','texto'],
       ['No. Puertas','numero_puertas','texto'],
@@ -96,7 +96,7 @@
     selector_ver:'INSTALACIONES_DASHBOARD_SELECTOR_SUPERVISORES_SELECTOR.VER',
     selector_filtrar:'INSTALACIONES_DASHBOARD_SELECTOR_SUPERVISORES_SELECTOR.FILTRAR',
     comentarios_ver:'INSTALACIONES_DASHBOARD_COMENTARIOS_JUNTA_LISTADO.VER',
-    reporte_selector_ver:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.VER',
+    reporte_selector_fer:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.VER',
     reporte_selector_filtrar:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.FILTRAR',
     reporte_listado_ver:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_LISTADO.VER',
     reporte_abrir_detalle:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_LISTADO.ABRIR_DETALLE',
@@ -623,7 +623,7 @@
     const editable = QUICK_EDIT_FIELDS_COR[sectionCode];
     if(!editable) return withStatus;
 
-    // 04-M y 06-A tienen columnas adicionales exclusivas de Modo Junta.
+    // 04-M y 05-PA tienen columnas adicionales exclusivas de Modo Junta.
     // Las columnas repetidas se retiran de la base y se reinsertan al final
     // para respetar el orden exacto solicitado sin duplicarlas.
     const meetingAppend = Array.isArray(MEETING_APPEND_COLUMNS_COR[sectionCode])
