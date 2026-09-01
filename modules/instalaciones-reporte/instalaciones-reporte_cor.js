@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20260821-orden-vistas-v002';
+  const VERSION_COR = '20260901-pdf-02oc-v001';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const PAGE_SIZE = 30;
   const API_LIMIT = 5000;
@@ -664,7 +664,18 @@
 
   function pdfLegacyStages_cor(){
     const selectedStatus = currentFilter_cor('ir-cor-estatus');
-    return selectedStatus ? STAGES.filter(stage => stage.code === selectedStatus) : STAGES;
+    const obraCivil = Object.freeze({
+      code:'02-OC',
+      name:'Equipos en Obra Civil',
+      short:'Obra Civil',
+      color:'#64748b'
+    });
+    const pdfStages = [];
+    STAGES.forEach(stage => {
+      pdfStages.push(stage);
+      if(stage.code === '01-SUS') pdfStages.push(obraCivil);
+    });
+    return selectedStatus ? pdfStages.filter(stage => stage.code === selectedStatus) : pdfStages;
   }
 
   function pdfLegacySortByProject_cor(rows){

@@ -1,4 +1,5 @@
 'use strict';
+// [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 const express=require('express');
 const controller=require('./logistica-produccion.controller');
 const {requireAuth}=require('../../middleware/auth.middleware');
@@ -24,8 +25,4 @@ router.get('/:id/archivos',controller.files);
 router.post('/:id/archivos',upload,controller.upload);
 router.patch('/:id/archivos/:idArchivo',upload,controller.replaceFile);
 router.delete('/:id/archivos/:idArchivo',controller.removeFile);
-router.get('/:id/comentarios',controller.comments);
-router.post('/:id/comentarios',controller.addComment);
-router.patch('/:id/comentarios/:idComentario',controller.editComment);
-router.delete('/:id/comentarios/:idComentario',controller.removeComment);
 module.exports=router;
