@@ -7,7 +7,7 @@ const {requireAuth}=require('../../middleware/auth.middleware');
 const {requireIntegrationAuthFor}=require('../../middleware/integration-auth.middleware');
 const {createUploadMiddleware_gnral}=require('../../middleware/storage-upload.middleware');
 const upload=createUploadMiddleware_gnral({fieldName:'archivo',required:true,maxFiles:1,maxFileMb:25,policyName:'GENERAL'});
-const requireLogisticaIntegration=requireIntegrationAuthFor('INTEGRATION_LOGISTICA_ID');
+const requireLogisticaIntegration=requireIntegrationAuthFor('INTEGRATION_VENTAS_ID');
 const router=express.Router();
 
 // M2M debe declararse ANTES de router.use(requireAuth):
