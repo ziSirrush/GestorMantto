@@ -192,11 +192,11 @@
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260830-responsive-v002'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260710-v003']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260711-v004']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-detalle-doble-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-detalle-doble-v001']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-detalle-doble-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-detalle-doble-v001']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-detalle-doble-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-detalle-doble-v001']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-detalle-doble-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-detalle-doble-v001']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-detalle-doble-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-detalle-doble-v001']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-fix-ux-catalog-cancel-v001']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-fix-ux-catalog-cancel-v001']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-fix-ux-catalog-cancel-v001']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-fix-ux-catalog-cancel-v001']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260901-logprod-fix-ux-catalog-cancel-v001']},
 
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260821-paginador-centrado-v003'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20260819-dashboard-modo-junta-orden-v002']},
     'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260821-activos-paginados-v004'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260828-fase4-frontend-v001']},

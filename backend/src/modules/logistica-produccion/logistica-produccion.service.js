@@ -33,8 +33,8 @@ function decorate(row){
 }
 async function list(query){return {ok:true,data:(await repo.list(query)).map(decorate),reglas:{documentos:'PROVISIONAL_AL_MENOS_UN_ARCHIVO'}};}
 async function detail(id){const row=await repo.byId(positive(id,'id'));if(!row)throw error('Registro de Producción no encontrado.',404);const decorated=decorate(row);return {ok:true,data:{produccion:decorated,logistica:{id_log_ops:row.id_log_ops,relacionada:Boolean(row.id_log_ops),modo_registro:decorated.modo_registro,ppns:decorated.ppns,proyecto:decorated.proyecto,fecha_pvo:row.fecha_pvo,estatus:row.estatus_logistica},instalaciones:decorated.instalaciones,venta:decorated.venta,archivos:await listFiles(id),comentarios:await repo.comments(id),indicadores:decorated.indicadores}};}
-async function options(query){return {ok:true,data:await repo.ppnsOptions(query.q),catalogo_estatus:await repo.statuses()};}
-async function manualCatalogs(){const statuses=await repo.statuses();return {ok:true,data:{modos:[{codigo:'SEMI_AUTOMATICO',nombre:'Semi automático'},{codigo:'MANUAL',nombre:'Manual'}],estatus_produccion:statuses,estatus_logistica:statuses.map(x=>({valor:x.articulo,orden:x.orden}))}};}
+async function options(query){const catalogo=repo.statusCatalogDefinition();return {ok:true,data:await repo.ppnsOptions(query.q),catalogo_estatus:await repo.statuses(),catalogo_estatus_produccion:catalogo};}
+async function manualCatalogs(){const statuses=await repo.statuses(),catalogo=repo.statusCatalogDefinition();return {ok:true,data:{catalogo_estatus_produccion:catalogo,modos:[{codigo:'SEMI_AUTOMATICO',nombre:'Semi automático'},{codigo:'MANUAL',nombre:'Manual'}],estatus_produccion:statuses,estatus_logistica:statuses.map(x=>({valor:x.articulo,orden:x.orden}))}};}
 async function manualProjects(query){return {ok:true,data:await repo.soldProjectOptions(query.q)};}
 async function manualAdvisors(query){return {ok:true,data:await repo.manualUserOptions('ASESOR',query.q)};}
 async function manualSupervisors(query){return {ok:true,data:await repo.manualUserOptions('SUPERVISOR',query.q)};}
@@ -73,7 +73,7 @@ async function update(id,input,user){
   const unknown=Object.keys(input).filter(k=>!allowed.includes(k));
   if(unknown.length)throw error(`Campos no editables: ${unknown.join(', ')}.`);
 
-  if(Object.hasOwn(input,'id_estatus_produccion')&&!(await repo.validStatus(input.id_estatus_produccion)))throw error('El Estatus Producción no pertenece al catálogo activo.');
+  if(Object.hasOwn(input,'id_estatus_produccion')&&!(await repo.validStatus(input.id_estatus_produccion)))throw error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');
   const common={
     id_estatus_produccion:Object.hasOwn(input,'id_estatus_produccion')?input.id_estatus_produccion:current.id_estatus_produccion,
     fecha_envio_docs_fabrica:Object.hasOwn(input,'fecha_envio_docs_fabrica')?optionalDate(input.fecha_envio_docs_fabrica,'fecha_envio_docs_fabrica'):current.fecha_envio_docs_fabrica,

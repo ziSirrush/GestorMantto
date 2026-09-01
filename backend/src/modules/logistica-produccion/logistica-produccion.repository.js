@@ -2,6 +2,8 @@
 
 const db = require('../../config/db');
 
+const STATUS_CATALOG=Object.freeze({area:'Logistica',elemento:'Estatus Produccion'});
+
 const MANUAL_SALES_ROLE_SQL = `(
   r.codigo IN ('DIRECTOR_VENTAS','ASESOR_COMERCIAL','GERENTE_CUENTAS_CORPORATIVAS')
   OR r.codigo LIKE 'GERENTE_COMERCIAL%'
@@ -167,7 +169,7 @@ async function manualUserValid(id,group,connection=db){
 async function validStatus(id, connection = db) {
   if (id == null || id === '') return true;
   const [rows] = await connection.query(`SELECT id_catalogo FROM catalogo_general
-    WHERE id_catalogo=? AND activo=1 AND area='Logistica' AND elemento='Estatus Produccion' LIMIT 1`, [id]);
+    WHERE id_catalogo=? AND activo=1 AND area=? AND elemento=? LIMIT 1`, [id,STATUS_CATALOG.area,STATUS_CATALOG.elemento]);
   return rows.length === 1;
 }
 
@@ -175,8 +177,8 @@ async function validManualLogStatus(value,connection=db){
   const status=String(value||'').trim();
   if(!status)return true;
   const [rows]=await connection.query(`SELECT id_catalogo FROM catalogo_general
-    WHERE activo=1 AND area='Logistica' AND elemento='Estatus Produccion' AND UPPER(TRIM(articulo))=UPPER(TRIM(?))
-    LIMIT 1`,[status]);
+    WHERE activo=1 AND area=? AND elemento=? AND UPPER(TRIM(articulo))=UPPER(TRIM(?))
+    LIMIT 1`,[STATUS_CATALOG.area,STATUS_CATALOG.elemento,status]);
   return rows.length===1;
 }
 
@@ -185,7 +187,7 @@ async function create(input, userId) {
   try {
     await connection.beginTransaction();
     if (!(await validStatus(input.id_estatus_produccion, connection))) {
-      const e=new Error('El Estatus Producción no pertenece al catálogo activo.');e.status=400;throw e;
+      const e=new Error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');e.status=400;throw e;
     }
 
     const mode=String(input.modo_registro||'SEMI_AUTOMATICO').trim().toUpperCase();
@@ -246,7 +248,7 @@ async function logRowById(id,connection=db,forUpdate=false){
 }
 
 async function update(id, input, userId) {
-  if (!(await validStatus(input.id_estatus_produccion))) { const e=new Error('El Estatus Producción no pertenece al catálogo activo.');e.status=400;throw e; }
+  if (!(await validStatus(input.id_estatus_produccion))) { const e=new Error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');e.status=400;throw e; }
   const [result] = await db.query(`UPDATE logistica_produccion SET id_estatus_produccion=?,fecha_envio_docs_fabrica=?,
     fecha_envio_pago_fabrica=?,updated_by=? WHERE id_produccion=? AND activo=1`,
   [input.id_estatus_produccion||null,input.fecha_envio_docs_fabrica||null,input.fecha_envio_pago_fabrica||null,userId,id]);
@@ -345,12 +347,13 @@ async function deleteComment(id, commentId, userId) {
 
 async function statuses() {
   const [rows]=await db.query(`SELECT id_catalogo,articulo,descripcion,orden FROM catalogo_general
-    WHERE activo=1 AND area='Logistica' AND elemento='Estatus Produccion' ORDER BY orden,articulo`);
+    WHERE activo=1 AND area=? AND elemento=? ORDER BY orden,articulo`,[STATUS_CATALOG.area,STATUS_CATALOG.elemento]);
   return rows;
 }
+function statusCatalogDefinition(){return {...STATUS_CATALOG};}
 
 module.exports={
   list,byId,ppnsOptions,soldProjectOptions,manualUserOptions,soldProjectById,manualUserValid,
   create,update,updateManual,files,fileById,upsertFile,deactivateFile,comments,addComment,updateComment,deleteComment,
-  statuses,validStatus,validManualLogStatus,logRowById
+  statuses,statusCatalogDefinition,validStatus,validManualLogStatus,logRowById
 };
