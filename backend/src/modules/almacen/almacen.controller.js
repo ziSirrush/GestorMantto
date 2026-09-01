@@ -1,6 +1,7 @@
 'use strict';
 
 const service = require('./almacen.service');
+const archiveService = require('./almacen.archive-service');
 
 function effectiveUserId(req) {
   const user = req.contextUser || req.user || {};
@@ -26,7 +27,7 @@ async function validateImport(req, res, next) {
     if (!req.file) return res.status(400).json({ ok:false, message:'Selecciona un archivo .xlsx o .csv.' });
     res.json(await service.validateImport(req.file, req.body?.fechaCorte));
   } catch (error) {
-    if (error.details) return res.status(Number(error.status || 422)).json({ ok:false, message:error.message, details:error.details });
+    if (error.details) return res.status(Number(error.status || 422)).json({ ok:false, message:error.message, code:error.code, details:error.details });
     next(error);
   }
 }
@@ -34,9 +35,28 @@ async function validateImport(req, res, next) {
 async function importSpreadsheet(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ ok:false, message:'Selecciona un archivo .xlsx o .csv.' });
-    res.status(201).json(await service.importSpreadsheet(req.file, req.body?.fechaCorte, effectiveUserId(req)));
+    res.status(201).json(await archiveService.importAndActivate(req.file, req.body?.fechaCorte, effectiveUserId(req)));
   } catch (error) {
-    if (error.details) return res.status(Number(error.status || 422)).json({ ok:false, message:error.message, details:error.details });
+    if (error.status) return res.status(Number(error.status)).json({ ok:false, message:error.message, code:error.code, details:error.details || undefined });
+    next(error);
+  }
+}
+
+async function archiveActive(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ ok:false, message:'Selecciona el Excel exacto que originó el cierre activo.' });
+    res.json(await archiveService.archiveActive(req.file, effectiveUserId(req)));
+  } catch (error) {
+    if (error.status) return res.status(Number(error.status)).json({ ok:false, message:error.message, code:error.code, details:error.details || undefined });
+    next(error);
+  }
+}
+
+async function activateSource(req, res, next) {
+  try {
+    res.json(await archiveService.activateArchived(req.params.lote, effectiveUserId(req)));
+  } catch (error) {
+    if (error.status) return res.status(Number(error.status)).json({ ok:false, message:error.message, code:error.code, details:error.details || undefined });
     next(error);
   }
 }
@@ -45,7 +65,7 @@ async function sources(req,res,next){try{res.json(await service.listSources(req.
 
 function knownError(error,res,next){
   if(error&&error.status){
-    return res.status(Number(error.status)).json({ok:false,message:error.message,details:error.details||undefined});
+    return res.status(Number(error.status)).json({ok:false,message:error.message,code:error.code,details:error.details||undefined});
   }
   return next(error);
 }
@@ -80,6 +100,8 @@ module.exports = {
   capabilities,
   validateImport,
   importSpreadsheet,
+  archiveActive,
+  activateSource,
   sources,
   closeAudit,
   updateAuditItem,

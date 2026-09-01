@@ -51,8 +51,7 @@ async function loadCapabilities(_req,res,next){
   }catch(error){next(error);}
 }
 
-
-// Fuente común e histórico de cierres; la selección visual se integra en Fase 3.
+// Fuente común e histórico de cierres.
 router.get('/fuentes', ...almacenSourceGuard(), controller.sources);
 router.get('/dashboard', ...almacenGuard(DASHBOARD_PERMISSION), controller.dashboard);
 router.get('/inventario', ...almacenGuard(INVENTORY_PERMISSION), controller.inventory);
@@ -82,9 +81,13 @@ router.post('/auditoria/:folio/cerrar', ...almacenGuard(AUDIT_PERMISSION), contr
 // El módulo Inventario ya no expone funciones de carga.
 router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION), inventoryCapabilities);
 
-// Carga de Información: permiso independiente administrable desde Panel de Control.
+// [Aster | 2026-09-01 | ASTER-MG | FIX ALMACEN ARCHIVO BLOB + STAGING ACTIVO V001]
+// Carga de Información: el Excel original queda privado en Azure Blob. Aiven solo
+// conserva una fila ARCHIVO por cierre y las filas normalizadas del cierre activo.
 router.get('/carga/capabilities', ...almacenGuard(LOAD_PERMISSION), loadCapabilities);
 router.post('/carga/validar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.validateImport);
+router.post('/carga/archivar-activo', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.archiveActive);
 router.post('/carga/importar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.importSpreadsheet);
+router.post('/carga/fuentes/:lote/activar', ...almacenGuard(LOAD_PERMISSION), controller.activateSource);
 
 module.exports = router;

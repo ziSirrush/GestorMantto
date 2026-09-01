@@ -596,26 +596,51 @@ async function validateImport(file, cutoffDate) {
   };
 }
 
+// El Excel original queda archivado en Blob. En Aiven solo conservamos en
+// raw_json los campos internos (__*) que las consultas operativas necesitan.
+// La fila ARCHIVO conserva encabezados/mapeos y el XLSX completo queda fuera de MySQL.
+function compactOperationalRaw(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const compact = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (String(key).startsWith('__')) compact[key] = value;
+  }
+  return compact;
+}
+
 function rowParams(lotId, fileName, fileHash, cutoffDate, userId, dataset, row) {
-  const rawJson = JSON.stringify(row.raw);
-  const rowHash = crypto.createHash('sha256').update(`${dataset.type}|${dataset.sheetName}|${rawJson}`).digest('hex');
+  const sourceRawJson = JSON.stringify(row.raw || {});
+  const storedRawJson = JSON.stringify(compactOperationalRaw(row.raw));
+  const rowHash = crypto.createHash('sha256').update(`${dataset.type}|${dataset.sheetName}|${sourceRawJson}`).digest('hex');
   return [
     lotId, fileName, dataset.sheetName, row.filaOrigen, cutoffDate,
-    fileHash, rowHash, JSON.stringify(dataset.headers), JSON.stringify(dataset.mapping), dataset.type,
+    fileHash, rowHash, null, null, dataset.type,
     row.codigo, row.articulo, row.categoria, row.empresa, row.almacen, row.tipoAlmacen,
     row.fisico, row.precioUnitario, row.valor,
     row.abc, row.criticidad, row.demanda, row.stockSeguridad, row.puntoReorden, row.minimo, row.maximo,
     row.fechaEvento, row.ag, row.responsable, row.sitio, row.cantidad, row.costoUnitario,
     row.folio, row.departamento, row.unidad, row.proyecto, row.equipo, row.entregadoPor,
     row.salida, row.ubicacion, row.conStock,
-    rawJson, Number(userId)
+    storedRawJson, Number(userId)
   ];
 }
 
-async function importSpreadsheet(file, cutoffDate, userId) {
+function requestedLotId(options) {
+  const raw = String(options?.lotId || '').trim();
+  if (!raw) return crypto.randomUUID();
+  if (raw.length > 36 || !/^[0-9a-f-]+$/i.test(raw)) {
+    const error = new Error('El lote solicitado para importacion no es valido.');
+    error.status = 400;
+    error.code = 'ALMACEN_IMPORT_LOT_INVALID';
+    throw error;
+  }
+  return raw;
+}
+
+async function importSpreadsheet(file, cutoffDate, userId, options = {}) {
   const analysis = analyzeSpreadsheet(file, cutoffDate);
   const conn = await db.getConnection();
-  const lotId = crypto.randomUUID();
+  const lotId = requestedLotId(options);
   try {
     await conn.beginTransaction();
     const columns = `(lote_importacion, archivo_origen, hoja_origen, fila_origen, fecha_corte,
