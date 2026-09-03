@@ -1,5 +1,7 @@
 'use strict';
 
+// [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION GUARDAR CAMBIOS V001]
@@ -187,8 +189,10 @@ async function update(id,input,user){
   };
 
   if(Object.hasOwn(input,'id_estatus_produccion')){
-    next.id_estatus_produccion=optionalPositive(input.id_estatus_produccion,'id_estatus_produccion');
-    if(!(await repo.validStatus(next.id_estatus_produccion)))throw error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');
+    const candidate=optionalPositive(input.id_estatus_produccion,'id_estatus_produccion');
+    const changed=String(candidate??'')!==String(current.id_estatus_produccion??'');
+    if(changed&&!(await repo.validStatus(candidate)))throw error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');
+    next.id_estatus_produccion=candidate;
   }
   if(Object.hasOwn(input,'comentario'))next.comentario=optionalText(input.comentario,'comentario',5000);
   if(Object.hasOwn(input,'fecha_envio_docs_fabrica'))next.fecha_envio_docs_fabrica=optionalDate(input.fecha_envio_docs_fabrica,'fecha_envio_docs_fabrica');
@@ -197,18 +201,20 @@ async function update(id,input,user){
   if(mode==='MANUAL'){
     if(Object.hasOwn(input,'id_log_ops')){
       const idLog=positive(input.id_log_ops,'id_log_ops');
-      const source=await repo.logSnapshotById(idLog);
-      if(!source)throw error('El proyecto seleccionado ya no existe en Logística.',404);
+      const changed=String(idLog)!==String(current.id_log_ops??'');
+      if(changed){const source=await repo.logSnapshotById(idLog);if(!source)throw error('El proyecto seleccionado ya no existe en Logística.',404);}
       next.id_log_ops=idLog;
     }
     if(Object.hasOwn(input,'id_asesor')){
       const advisor=positive(input.id_asesor,'id_asesor');
-      if(!(await repo.manualUserValid(advisor,'ASESOR')))throw error('El asesor seleccionado no pertenece a los roles autorizados de Ventas.');
+      const changed=String(advisor)!==String(current.id_asesor??'');
+      if(changed&&!(await repo.manualUserValid(advisor,'ASESOR')))throw error('El asesor seleccionado no pertenece a los roles autorizados de Ventas.');
       next.id_asesor=advisor;
     }
     if(Object.hasOwn(input,'id_supervisor')){
       const supervisor=positive(input.id_supervisor,'id_supervisor');
-      if(!(await repo.manualUserValid(supervisor,'SUPERVISOR')))throw error('El supervisor seleccionado no pertenece a Supervisores/Superintendentes de Instalaciones.');
+      const changed=String(supervisor)!==String(current.id_supervisor??'');
+      if(changed&&!(await repo.manualUserValid(supervisor,'SUPERVISOR')))throw error('El supervisor seleccionado no pertenece a Supervisores/Superintendentes de Instalaciones.');
       next.id_supervisor=supervisor;
     }
   }

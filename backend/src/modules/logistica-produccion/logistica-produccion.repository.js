@@ -1,5 +1,7 @@
 'use strict';
 
+// [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION FILTROS MAIN V001]
@@ -259,11 +261,14 @@ async function update(id,input,userId){
   const connection=await db.getConnection();
   try{
     await connection.beginTransaction();
-    const [currentRows]=await connection.query(`SELECT id_produccion FROM logistica_produccion
+    const [currentRows]=await connection.query(`SELECT id_produccion,id_log_ops,id_estatus_produccion FROM logistica_produccion
       WHERE id_produccion=? AND activo=1 LIMIT 1 FOR UPDATE`,[id]);
     if(!currentRows.length){const e=new Error('Registro de PVO-Producción no encontrado.');e.status=404;throw e;}
-    if(!(await validStatus(input.id_estatus_produccion,connection))){const e=new Error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');e.status=400;throw e;}
-    if(input.id_log_ops){
+    const locked=currentRows[0];
+    const statusChanged=String(input.id_estatus_produccion??'')!==String(locked.id_estatus_produccion??'');
+    if(statusChanged&&!(await validStatus(input.id_estatus_produccion,connection))){const e=new Error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');e.status=400;throw e;}
+    const logChanged=String(input.id_log_ops??'')!==String(locked.id_log_ops??'');
+    if(logChanged&&input.id_log_ops){
       const log=await logSnapshotById(input.id_log_ops,connection,true);
       if(!log){const e=new Error('La fila logística relacionada ya no existe.');e.status=404;throw e;}
     }
