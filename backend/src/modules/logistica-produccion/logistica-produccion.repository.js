@@ -1,7 +1,12 @@
 'use strict';
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
-// Produccion es dueña de sus datos: Manual y Semi automatico persisten en las mismas columnas.
+// [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
+// [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION FILTROS MAIN V001]
+// [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE SIN VENTAS V001]
+// id_log_ops es la relacion operativa. Proyecto/PPNS/PVO/Estatus Logistica se leen de log_ops;
+// Fecha de Visita y Fecha entrega cubos se leen de ins_fl. Las columnas snapshot existentes
+// se conservan solo para compatibilidad con registros historicos sin id_log_ops.
 
 const db = require('../../config/db');
 
@@ -22,11 +27,11 @@ const FL_AGG = `
          CASE WHEN COUNT(DISTINCT i.id_asesor)=1 THEN MAX(i.id_asesor) ELSE NULL END AS id_asesor,
          GROUP_CONCAT(DISTINCT us.iniciales ORDER BY us.iniciales SEPARATOR ', ') AS supervisores,
          GROUP_CONCAT(DISTINCT ua.iniciales ORDER BY ua.iniciales SEPARATOR ', ') AS asesores,
-         GROUP_CONCAT(DISTINCT NULLIF(TRIM(i.fecha_visita),'') ORDER BY i.fecha_visita SEPARATOR ', ') AS fechas_pvo_fl,
+         GROUP_CONCAT(DISTINCT NULLIF(TRIM(i.fecha_visita),'') ORDER BY i.fecha_visita SEPARATOR ', ') AS fechas_visita,
          GROUP_CONCAT(DISTINCT NULLIF(TRIM(i.fecha_posible_recepcion_cubo),'') ORDER BY i.fecha_posible_recepcion_cubo SEPARATOR ', ') AS fechas_cubos,
          COUNT(DISTINCT i.id_sup) AS supervisores_count,
          COUNT(DISTINCT i.id_asesor) AS asesores_count,
-         COUNT(DISTINCT NULLIF(TRIM(i.fecha_visita),'')) AS pvo_fl_count,
+         COUNT(DISTINCT NULLIF(TRIM(i.fecha_visita),'')) AS visita_count,
          COUNT(DISTINCT NULLIF(TRIM(i.fecha_posible_recepcion_cubo),'')) AS cubos_count
     FROM ins_fl i
     LEFT JOIN usuarios us ON us.id_SB=i.id_sup
@@ -42,21 +47,25 @@ const BASE_SELECT = `
          COALESCE(a.archivos_count,0) AS archivos_count,
          ua.iniciales AS asesores,
          us.iniciales AS supervisores,
-         DATE_FORMAT(p.fecha_pvo_fl,'%Y-%m-%d') AS fechas_pvo_fl,
-         DATE_FORMAT(p.fecha_cubos,'%Y-%m-%d') AS fechas_cubos,
-         IF(p.id_supervisor IS NULL,0,1) AS supervisores_count,
-         IF(p.id_asesor IS NULL,0,1) AS asesores_count,
-         IF(p.fecha_pvo_fl IS NULL,0,1) AS pvo_fl_count,
-         IF(p.fecha_cubos IS NULL,0,1) AS cubos_count,
-         COALESCE(v.fechas_venta,NULLIF(TRIM(vr.fecha_cierre),'')) AS fechas_venta,
-         CASE WHEN v.ventas_count IS NOT NULL THEN v.ventas_count WHEN vr.id_cotizacion IS NOT NULL THEN 1 ELSE 0 END AS ventas_count,
-         vr.nombre_proyecto AS proyecto_venta_referencia,
-         vr.id_equipo_vendido AS ppns_venta_referencia
+         l.id_ppns AS ppns_logistica,
+         l.proyecto AS proyecto_logistica,
+         l.pvo AS fecha_pvo_logistica,
+         l.estatus AS estatus_logistica_fuente,
+         fl.supervisores AS supervisores_fuente,
+         fl.asesores AS asesores_fuente,
+         fl.fechas_visita,
+         fl.fechas_visita AS fechas_pvo_fl_fuente,
+         fl.fechas_cubos AS fechas_cubos_fuente,
+         COALESCE(fl.supervisores_count,0) AS supervisores_fuente_count,
+         COALESCE(fl.asesores_count,0) AS asesores_fuente_count,
+         COALESCE(fl.visita_count,0) AS visita_count,
+         COALESCE(fl.cubos_count,0) AS cubos_count
     FROM logistica_produccion p
+    LEFT JOIN log_ops l ON l.id_log_ops=p.id_log_ops
+    LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(l.id_ppns)
     LEFT JOIN catalogo_general cg ON cg.id_catalogo=p.id_estatus_produccion
     LEFT JOIN usuarios ua ON ua.id_SB=p.id_asesor
     LEFT JOIN usuarios us ON us.id_SB=p.id_supervisor
-    LEFT JOIN ventas_cotizaciones_cor vr ON vr.id_cotizacion=p.id_cotizacion_venta
     LEFT JOIN (
       SELECT id_produccion,
              SUM(tipo_archivo='CPVO') AS cpvo_count,
@@ -66,23 +75,26 @@ const BASE_SELECT = `
        WHERE activo=1
        GROUP BY id_produccion
     ) a ON a.id_produccion=p.id_produccion
-    LEFT JOIN (
-      SELECT TRIM(id_equipo_vendido) AS ppns,
-             GROUP_CONCAT(DISTINCT NULLIF(TRIM(fecha_cierre),'') ORDER BY fecha_cierre SEPARATOR ', ') AS fechas_venta,
-             COUNT(DISTINCT NULLIF(TRIM(fecha_cierre),'')) AS ventas_count
-        FROM ventas_cotizaciones_cor
-       WHERE activo=1
-         AND UPPER(TRIM(estatus_proyecto))='VENDIDO'
-         AND NULLIF(TRIM(fecha_cierre),'') IS NOT NULL
-       GROUP BY TRIM(id_equipo_vendido)
-    ) v ON v.ppns=TRIM(p.ppns)`;
+`;
 
 async function list(filters={}){
   const where=['p.activo=1'];
   const params=[];
-  if(String(filters.sin_fecha_pvo||'')==='1')where.push('p.fecha_pvo IS NULL');
+  const vista=String(filters.vista||'').trim().toLowerCase();
+  const sinPvo=vista==='sin_pvo'||String(filters.sin_fecha_pvo||'')==='1';
+  const sinDocumentos=vista==='sin_documentos'||String(filters.sin_documentos||'')==='1';
+  if(sinPvo){
+    where.push(`(
+      (p.id_log_ops IS NOT NULL AND NULLIF(TRIM(l.pvo),'') IS NULL)
+      OR (p.id_log_ops IS NULL AND p.fecha_pvo IS NULL)
+    )`);
+  }
+  if(sinDocumentos)where.push('COALESCE(a.archivos_count,0)=0');
   if(filters.q){
-    where.push('(p.proyecto LIKE ? OR p.ppns LIKE ?)');
+    where.push(`(
+      CASE WHEN p.id_log_ops IS NOT NULL THEN l.proyecto ELSE p.proyecto END LIKE ?
+      OR CASE WHEN p.id_log_ops IS NOT NULL THEN l.id_ppns ELSE p.ppns END LIKE ?
+    )`);
     const q=`%${String(filters.q).trim()}%`;
     params.push(q,q);
   }
@@ -106,10 +118,11 @@ async function ppnsOptions(q=''){
   const [rows]=await db.query(`
     SELECT l.id_log_ops,l.id_ppns,l.proyecto,l.pvo,l.estatus,
            fl.id_supervisor,fl.id_asesor,fl.supervisores,fl.asesores,
-           fl.fechas_pvo_fl,fl.fechas_cubos,
+           fl.fechas_visita,fl.fechas_visita AS fechas_pvo_fl,fl.fechas_cubos,
            COALESCE(fl.supervisores_count,0) AS supervisores_count,
            COALESCE(fl.asesores_count,0) AS asesores_count,
-           COALESCE(fl.pvo_fl_count,0) AS pvo_fl_count,
+           COALESCE(fl.visita_count,0) AS visita_count,
+           COALESCE(fl.visita_count,0) AS pvo_fl_count,
            COALESCE(fl.cubos_count,0) AS cubos_count,
            EXISTS(
              SELECT 1 FROM logistica_produccion p
@@ -123,39 +136,45 @@ async function ppnsOptions(q=''){
   return rows;
 }
 
+async function projectOptions(q=''){
+  const term=String(q||'').trim();
+  const params=[];
+  let filter="WHERE l.proyecto IS NOT NULL AND TRIM(l.proyecto)<>''";
+  if(term){
+    filter+=' AND l.proyecto LIKE ?';
+    params.push(`%${term}%`);
+  }
+  const [rows]=await db.query(`
+    SELECT l.id_log_ops,l.proyecto,l.id_ppns,l.pvo,l.estatus,
+           fl.fechas_visita,fl.fechas_cubos,
+           EXISTS(
+             SELECT 1 FROM logistica_produccion p
+              WHERE p.id_log_ops=l.id_log_ops AND p.activo=1
+           ) AS ya_registrado
+      FROM log_ops l
+      LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(l.id_ppns)
+      ${filter}
+     ORDER BY l.proyecto,l.id_log_ops
+     LIMIT 200`,params);
+  return rows;
+}
+
 async function logSnapshotById(id,connection=db,forUpdate=false){
   const lock=forUpdate?' FOR UPDATE':'';
   const [rows]=await connection.query(`
     SELECT l.id_log_ops,l.id_ppns,l.proyecto,l.pvo,l.estatus,
            fl.id_supervisor,fl.id_asesor,fl.supervisores,fl.asesores,
-           fl.fechas_pvo_fl,fl.fechas_cubos,
+           fl.fechas_visita,fl.fechas_visita AS fechas_pvo_fl,fl.fechas_cubos,
            COALESCE(fl.supervisores_count,0) AS supervisores_count,
            COALESCE(fl.asesores_count,0) AS asesores_count,
-           COALESCE(fl.pvo_fl_count,0) AS pvo_fl_count,
+           COALESCE(fl.visita_count,0) AS visita_count,
+           COALESCE(fl.visita_count,0) AS pvo_fl_count,
            COALESCE(fl.cubos_count,0) AS cubos_count
       FROM log_ops l
       LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(l.id_ppns)
      WHERE l.id_log_ops=?
      LIMIT 1${lock}`,[id]);
   return rows[0]||null;
-}
-
-async function soldProjectOptions(q=''){
-  const term=String(q||'').trim();
-  const params=[];
-  let filter="WHERE v.activo=1 AND UPPER(TRIM(v.estatus_proyecto))='VENDIDO'";
-  if(term){
-    filter+=' AND (v.nombre_proyecto LIKE ? OR v.id_equipo_vendido LIKE ? OR v.cliente LIKE ? OR v.asesor LIKE ?)';
-    const like=`%${term}%`;
-    params.push(like,like,like,like);
-  }
-  const [rows]=await db.query(`SELECT v.id_cotizacion,v.nombre_proyecto,v.id_equipo_vendido,v.numero_equipos,v.tipo_equipos,
-      v.id_asesor,v.asesor,v.cliente,v.fecha_cierre
-    FROM ventas_cotizaciones_cor v
-    ${filter}
-    ORDER BY v.nombre_proyecto,v.id_equipo_vendido,v.id_cotizacion DESC
-    LIMIT 200`,params);
-  return rows;
 }
 
 async function manualUserOptions(group,q=''){
@@ -174,14 +193,6 @@ async function manualUserOptions(group,q=''){
     WHERE u.estado=1 AND r.estado=1 AND ${roleSql}${search}
     ORDER BY u.nombre,u.iniciales`,params);
   return rows;
-}
-
-async function soldProjectById(id,connection=db){
-  const [rows]=await connection.query(`SELECT id_cotizacion,nombre_proyecto,id_equipo_vendido,id_asesor,asesor,fecha_cierre
-    FROM ventas_cotizaciones_cor
-    WHERE id_cotizacion=? AND activo=1 AND UPPER(TRIM(estatus_proyecto))='VENDIDO'
-    LIMIT 1`,[id]);
-  return rows[0]||null;
 }
 
 async function manualUserValid(id,group,connection=db){
@@ -238,7 +249,7 @@ async function create(input,userId){
     await connection.rollback();
     if(error.code==='ER_DUP_ENTRY'){
       error.status=409;
-      error.message='La fila logística seleccionada ya tiene seguimiento activo de Producción.';
+      error.message='El proyecto seleccionado ya tiene seguimiento activo de PVO-Producción.';
     }
     throw error;
   }finally{connection.release();}
@@ -250,7 +261,7 @@ async function update(id,input,userId){
     await connection.beginTransaction();
     const [currentRows]=await connection.query(`SELECT id_produccion FROM logistica_produccion
       WHERE id_produccion=? AND activo=1 LIMIT 1 FOR UPDATE`,[id]);
-    if(!currentRows.length){const e=new Error('Registro de Producción no encontrado.');e.status=404;throw e;}
+    if(!currentRows.length){const e=new Error('Registro de PVO-Producción no encontrado.');e.status=404;throw e;}
     if(!(await validStatus(input.id_estatus_produccion,connection))){const e=new Error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');e.status=400;throw e;}
     if(input.id_log_ops){
       const log=await logSnapshotById(input.id_log_ops,connection,true);
@@ -272,7 +283,7 @@ async function update(id,input,userId){
     await connection.rollback();
     if(error.code==='ER_DUP_ENTRY'){
       error.status=409;
-      error.message='La fila logística seleccionada ya tiene seguimiento activo de Producción.';
+      error.message='El proyecto seleccionado ya tiene seguimiento activo de PVO-Producción.';
     }
     throw error;
   }finally{connection.release();}
@@ -322,6 +333,6 @@ async function statuses(){
 function statusCatalogDefinition(){return {...STATUS_CATALOG};}
 
 module.exports={
-  list,byId,ppnsOptions,logSnapshotById,soldProjectOptions,manualUserOptions,soldProjectById,manualUserValid,
+  list,byId,ppnsOptions,projectOptions,logSnapshotById,manualUserOptions,manualUserValid,
   create,update,files,fileById,upsertFile,deactivateFile,statuses,statusCatalogDefinition,validStatus,validLogisticsStatus
 };

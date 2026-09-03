@@ -1,4 +1,5 @@
 (function(){
+  // [Aster | 2026-09-03 | ASTER-MG | FASE 1 PVO-PRODUCCION NAVEGACION V001]
   const routeNames = {
     home:'Inicio', resumen:'Resumen del día', tickets:'Tickets', callcenter:'Dashboard Call Center',
     operativo:'Dashboard Operativo', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio',
@@ -7,7 +8,7 @@
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
     'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-aditivas':'Aditivas',
-    'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'Producción', 'logistica-produccion-nuevo':'Agregar Producción', 'logistica-produccion-detalle':'Detalle de Producción', 'logistica-documentos':'Documentos de Producción',
+    'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'PVO-Producción', 'logistica-produccion-nuevo':'Agregar PVO-Producción', 'logistica-produccion-detalle':'Detalle de PVO-Producción', 'logistica-documentos':'Documentos de Producción',
     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
     'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
@@ -145,6 +146,11 @@
     const route = parts[0];
     if(route === 'detalle' && parts[1] && parts[2]) return { route:'detalle', payload:{ type:parts[1], id:parts.slice(2).join('/') } };
     return { route:route, payload:parts[1] ? { id:parts.slice(1).join('/') } : null };
+  }
+
+  function canonicalRoute(route){
+    const value = String(route || 'home');
+    return value === 'logistica-pvo' || value === 'logistica-documentos' ? 'logistica-produccion' : value;
   }
 
   function label(route){ return routeNames[route] || route || 'Inicio'; }
@@ -882,7 +888,7 @@
     if(ALMACEN_ROUTES.has(route) && showAlmacen(route)) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;
-    if(['logistica-produccion','logistica-produccion-nuevo','logistica-produccion-detalle','logistica-pvo','logistica-documentos'].includes(route) && showView(route,'Logística · seguimiento de Producción')){
+    if(['logistica-produccion','logistica-produccion-nuevo','logistica-produccion-detalle'].includes(route) && showView(route,'Logística · seguimiento de PVO-Producción')){
       if(window.ManttoLogisticaProduccion) window.ManttoLogisticaProduccion.init(route,currentPayload||null);
       return;
     }
@@ -968,7 +974,7 @@
   async function internalGo(route, payload, opts){
     const options = opts || {};
     const navigationType = options.navigationType || 'forward';
-    const nextRoute = route || 'home';
+    const nextRoute = canonicalRoute(route);
     const nextPayload = payload || null;
     const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(nextPayload);
     const sequence = ++navigationSequence;
@@ -1008,7 +1014,7 @@
     const sequence = ++navigationSequence;
     let context = null;
     if(previous){
-      currentRoute = previous.route;
+      currentRoute = canonicalRoute(previous.route);
       currentPayload = previous.payload || null;
       context = previous.context || null;
     } else if(currentRoute !== 'home') {
@@ -1040,7 +1046,7 @@
         const state = ev.state;
         if(state && state.mantto){
           const sequence = ++navigationSequence;
-          currentRoute = state.route || 'home';
+          currentRoute = canonicalRoute(state.route);
           currentPayload = state.payload || null;
           saveCurrentRoute();
           try{

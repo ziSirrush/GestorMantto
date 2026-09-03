@@ -1,6 +1,7 @@
 'use strict';
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-01 | ASTER-MG | ENDPOINT SYNC M2M LOGISTICA PRODUCCION V001]
+// [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
 const express=require('express');
 const controller=require('./logistica-produccion.controller');
 const {requireAuth}=require('../../middleware/auth.middleware');
@@ -17,6 +18,8 @@ router.post('/sync',requireLogisticaIntegration,controller.sync);
 router.use(requireAuth);
 router.get('/opciones-ppns',controller.options);
 router.get('/manual/catalogos',controller.manualCatalogs);
+router.get('/manual/proyectos',controller.manualProjects);
+// Alias temporal para clientes anteriores. Ya no consulta Cotizaciones: devuelve log_ops.
 router.get('/manual/proyectos-vendidos',controller.manualProjects);
 router.get('/manual/asesores',controller.manualAdvisors);
 router.get('/manual/supervisores',controller.manualSupervisors);
