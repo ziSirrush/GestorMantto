@@ -2,6 +2,7 @@
 
 const service = require('./almacen.service');
 const archiveService = require('./almacen.archive-service');
+const stockReabastoService = require('./almacen.stock-reabasto-service');
 
 function effectiveUserId(req) {
   const user = req.contextUser || req.user || {};
@@ -95,6 +96,9 @@ async function company(req,res,next){try{res.json(await service.getCompany(req.q
 async function warehouses(req,res,next){try{res.json(await service.getWarehouses(req.query||{}));}catch(error){next(error);}}
 async function top(req,res,next){try{res.json(await service.getTop(req.query||{}));}catch(error){next(error);}}
 async function stock(req,res,next){try{res.json(await service.getStock(req.query||{}));}catch(error){next(error);}}
+// [Aster | 2026-09-07 | ASTER-MG | FASE 4 ALMACEN NO REQUIERE REABASTO V001]
+async function stockReabasto(req,res,next){try{res.json(await stockReabastoService.getStockReabasto(req.query||{}));}catch(error){knownError(error,res,next);}}
+async function setStockReabasto(req,res,next){try{res.json(await stockReabastoService.setStockReabasto(req.body||{},effectiveUserId(req),req.query||{}));}catch(error){knownError(error,res,next);}}
 async function loanCatalogs(req,res,next){try{res.json(await service.getLoanCatalogs(req.query||{}));}catch(error){next(error);}}
 
 async function loanSummary(req,res,next){try{res.json(await service.getLoanSummary(req.query||{}));}catch(error){next(error);}}
@@ -126,6 +130,8 @@ module.exports = {
   warehouses,
   top,
   stock,
+  stockReabasto,
+  setStockReabasto,
   loanCatalogs,
   loanSummary,
   loans,

@@ -61,6 +61,11 @@ router.get('/inventario/almacenes', ...almacenGuard(INVENTORY_PERMISSION), contr
 router.get('/inventario/top', ...almacenGuard(INVENTORY_PERMISSION), controller.top);
 
 router.get('/stock', ...almacenGuard(STOCK_PERMISSION), controller.stock);
+// [Aster | 2026-09-07 | ASTER-MG | FASE 4 ALMACEN NO REQUIERE REABASTO V001]
+// El bypass operativo conserva la alerta tecnica de Stock. La ruta de lectura devuelve
+// estado operativo/auditoria y PATCH agrega un evento append-only; no edita el cierre Excel.
+router.get('/stock/reabasto', ...almacenGuard(STOCK_PERMISSION), controller.stockReabasto);
+router.patch('/stock/reabasto', ...almacenGuard(STOCK_PERMISSION), controller.setStockReabasto);
 router.get('/prestamos/catalogos', ...almacenGuard(LOANS_PERMISSION), controller.loanCatalogs);
 router.get('/prestamos/resumen', ...almacenGuard(LOANS_PERMISSION), controller.loanSummary);
 router.get('/prestamos', ...almacenGuard(LOANS_PERMISSION), controller.loans);

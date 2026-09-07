@@ -1,17 +1,22 @@
 (function(){
 'use strict';
 // [Aster | 2026-08-19 | ASTER-MG | FASE 3 VENTAS: Fotos Mapa por puerta VENTAS]
+// [Aster | 2026-09-07 | ASTER-MG | FASE 2 FOTOS CORELLIAN UNITED 7X7 V001]
 let proyectos=[];
 const API=(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
+const MAX_FOTOS_ORIGEN=7;
+const MAX_FOTOS_CARRUSEL=MAX_FOTOS_ORIGEN*2;
 const slots=['FOTO BLT','FOTO BLT 2','FOTO BLT 3','FOTO BLT 4','FOTO BLT 5','FOTO BLT 6','FOTO BLT 7'];
 const dbMap={'FOTO BLT':'foto_blt_1','FOTO BLT 2':'foto_blt_2','FOTO BLT 3':'foto_blt_3','FOTO BLT 4':'foto_blt_4','FOTO BLT 5':'foto_blt_5','FOTO BLT 6':'foto_blt_6','FOTO BLT 7':'foto_blt_7'};
 const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const headers=()=>Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
 async function getJson(path){const r=await fetch(API+path,{headers:headers(),cache:'no-store'});const t=await r.text();let j;try{j=t?JSON.parse(t):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}if(!r.ok||j.ok===false)throw new Error(j.message||j.error||('Error HTTP '+r.status));return j;}
 function info(url,campo,origen,manageable){if(!url||/\.heic(\?|$)/i.test(String(url)))return null;return{url:String(url).trim(),campo,origen,manageable:manageable!==false};}
-function corePhotos(p){return slots.map((slot,index)=>{const item=info(p[slot],dbMap[slot],'CORELLIAN',true);if(item)item.label='CORELLIAN · Foto '+(index+1);return item;}).filter(Boolean);}
-function unitedPhotos(p){return (Array.isArray(p.unitedRows)?p.unitedRows:[]).flatMap(row=>[1,2,3,4,5,6,7].map(index=>{const item=info(row['foto_'+index],'foto_'+index,'UNITED',false);if(item)item.label='UNITED · Foto '+index;return item;}).filter(Boolean));}
-function carouselFotos(p){const seen=new Set();return [...corePhotos(p),...unitedPhotos(p)].filter(item=>{if(seen.has(item.url))return false;seen.add(item.url);return true;}).slice(0,14);}
+function uniquePhotos(items){const seen=new Set();return (Array.isArray(items)?items:[]).filter(item=>{const url=String(item?.url||'').trim();if(!url||seen.has(url))return false;seen.add(url);return true;});}
+function corePhotos(p){return uniquePhotos(slots.map((slot,index)=>{const item=info(p[slot],dbMap[slot],'CORELLIAN',true);if(item)item.label='CORELLIAN · Foto '+(index+1);return item;}).filter(Boolean)).slice(0,MAX_FOTOS_ORIGEN);}
+function allUnitedPhotos(p){return uniquePhotos((Array.isArray(p.unitedRows)?p.unitedRows:[]).flatMap(row=>[1,2,3,4,5,6,7].map(index=>{const item=info(row['foto_'+index],'foto_'+index,'UNITED',false);if(item)item.label='UNITED · Foto '+index;return item;}).filter(Boolean)));}
+function unitedPhotos(p){return allUnitedPhotos(p).slice(0,MAX_FOTOS_ORIGEN);}
+function carouselFotos(p){const core=corePhotos(p);const coreUrls=new Set(core.map(item=>item.url));const united=allUnitedPhotos(p).filter(item=>!coreUrls.has(item.url)).slice(0,MAX_FOTOS_ORIGEN);return [...core,...united].slice(0,MAX_FOTOS_CARRUSEL);}
 function fotos(p){return carouselFotos(p);}
 function principal(p){const core=corePhotos(p);const direct=String(p.foto_portada||'').trim();if(/^https?:\/\//i.test(direct))return info(direct,null,'CORELLIAN',true);const sel=String(p.foto_principal||p['Foto Principal']||'').trim();const coreMatch=core.find(item=>item.campo===sel);if(coreMatch)return coreMatch;if(core.length)return core[0];const united=unitedPhotos(p);const unitedSelected=String((p.unitedRows?.[0]||{}).foto_principal||'').trim();return united.find(item=>item.campo===unitedSelected||item.url===unitedSelected)||united[0]||null;}
 function build(rows){const map=new Map();rows.forEach(r=>{const id=String(r.id_proyecto||'').trim();if(!id)return;if(!map.has(id))map.set(id,{id,galleryKey:'core:'+id,proyecto:r.proyecto||'',estado:r.estado||'',cliente:r.cliente||'',equipos:0,unitedRows:[],coreManaged:true});map.get(id).equipos++;});return[...map.values()];}

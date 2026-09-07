@@ -1,0 +1,43 @@
+/* [Aster | 2026-09-07 | ASTER-MG | FASE 4 ALMACEN NO REQUIERE REABASTO V001] */
+.alm-reabasto-summary{display:grid;gap:10px;padding:14px 16px;border:1px solid #dbe3ef;border-radius:16px;background:#fff;box-shadow:0 8px 20px rgba(13,46,110,.05)}
+.alm-reabasto-summary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.alm-reabasto-summary-head strong{display:block;color:#0d2e6e;font-size:13px}
+.alm-reabasto-summary-head small{display:block;margin-top:3px;color:#64748b;font-size:11px}
+.alm-reabasto-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.alm-reabasto-kpis article{padding:12px 14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.alm-reabasto-kpis small{display:block;color:#64748b;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.alm-reabasto-kpis strong{display:block;margin-top:4px;color:#0d2e6e;font-size:22px;line-height:1.1}
+.alm-reabasto-kpis span{display:block;margin-top:4px;color:#7b879c;font-size:10px}
+.alm-reabasto-state{display:inline-flex;align-items:center;justify-content:center;padding:5px 8px;border:1px solid #dbe3ef;border-radius:999px;background:#f8fafc;color:#475569;font-size:10px;font-weight:800;white-space:nowrap}
+.alm-reabasto-state.is-need{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+.alm-reabasto-state.is-skip{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}
+.alm-reabasto-state.is-none{border-color:#d1fae5;background:#ecfdf5;color:#047857}
+.alm-reabasto-reason{display:block;max-width:230px;margin-top:5px;color:#64748b;font-size:9px;line-height:1.35;white-space:normal}
+.alm-reabasto-technical{text-transform:capitalize}
+.alm-reabasto-action{min-width:138px;white-space:normal;line-height:1.2}
+.alm-reabasto-error{padding:12px 14px!important;border-color:#fecaca!important;background:#fff7f7!important}
+.alm-reabasto-error strong{display:block;color:#b91c1c;font-size:12px}
+.alm-reabasto-error small{display:block;margin-top:3px;color:#7f1d1d;font-size:10px}
+
+.alm-reabasto-modal{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:18px}
+.alm-reabasto-modal[hidden]{display:none}
+.alm-reabasto-modal-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.48);backdrop-filter:blur(2px)}
+.alm-reabasto-modal-card{position:relative;z-index:1;width:min(520px,100%);padding:18px;border:1px solid #dbe3ef;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.25);color:#334155}
+.alm-reabasto-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.alm-reabasto-modal-head span{display:block;color:#2563eb;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
+.alm-reabasto-modal-head h3{margin:3px 0 0;color:#0d2e6e;font-size:18px}
+.alm-reabasto-modal-head>button{display:grid;place-items:center;width:32px;height:32px;border:1px solid #dbe3ef;border-radius:9px;background:#fff;color:#64748b;font-size:20px;cursor:pointer}
+.alm-reabasto-modal-card>p{margin:12px 0;color:#64748b;font-size:12px;line-height:1.45}
+.alm-reabasto-modal-card>label{display:grid;gap:6px}
+.alm-reabasto-modal-card>label>span{color:#475569;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.alm-reabasto-modal-card textarea{width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#1e293b;font:inherit;font-size:12px;line-height:1.45;resize:vertical;outline:none}
+.alm-reabasto-modal-card textarea:focus{border-color:#93b4f7;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+#alm-reabasto-modal-help{display:block;margin-top:7px;color:#7b879c;font-size:10px;line-height:1.4}
+.alm-reabasto-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.alm-reabasto-modal-actions button{padding:8px 13px;border:1px solid #2563eb;border-radius:9px;background:#2563eb;color:#fff;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.alm-reabasto-modal-actions .alm-reabasto-secondary{border-color:#dbe3ef;background:#fff;color:#475569}
+
+@media (max-width:800px){
+  .alm-reabasto-kpis{grid-template-columns:1fr}
+  .alm-reabasto-action{min-width:118px}
+}

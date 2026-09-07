@@ -1,5 +1,8 @@
 'use strict';
 
+// [Aster | 2026-09-07 | ASTER-MG | FASE_1_NOTIFICACIONES_CRITICOS_PERSONA_ATRAPADA_V001]
+// Persona atrapada en equipo ya critico se evalua por la transicion de persona atrapada,
+// independiente de la responsabilidad del Ticket. BLT solo conserva la regla de criticidad 3/35.
 // [Aster | 2026-08-25 | ASTER-MG | FIX_NOTIFICACIONES_FASE_4_CRITICOS_V001]
 // Fase 4: los tres eventos criticos de Tickets se emiten exclusivamente por el
 // motor central. La sincronizacion de negocio permanece independiente.
@@ -546,7 +549,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     // 3) atrapada; 4) falla en critico; 5) nuevo critico.
     if (
       evaluation.trappedAfter &&
-      (evaluation.trappedTransition || evaluation.enteredBltSet) &&
+      evaluation.trappedTransition &&
       evaluation.wasCritical
     ) {
       event = {
