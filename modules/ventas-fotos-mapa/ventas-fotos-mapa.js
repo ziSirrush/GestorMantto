@@ -8,11 +8,14 @@ const dbMap={'FOTO BLT':'foto_blt_1','FOTO BLT 2':'foto_blt_2','FOTO BLT 3':'fot
 const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const headers=()=>Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
 async function getJson(path){const r=await fetch(API+path,{headers:headers(),cache:'no-store'});const t=await r.text();let j;try{j=t?JSON.parse(t):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}if(!r.ok||j.ok===false)throw new Error(j.message||j.error||('Error HTTP '+r.status));return j;}
-function info(url,campo){if(!url||/\.heic(\?|$)/i.test(String(url)))return null;return{url:String(url),campo};}
-function fotos(p){return slots.map(s=>info(p[s],s)).filter(Boolean);}
-function principal(p){const direct=String(p.foto_portada||'').trim();if(/^https?:\/\//i.test(direct))return info(direct,null);const sel=String(p.foto_principal||p['Foto Principal']||'').trim();const ui=Object.keys(dbMap).find(k=>dbMap[k]===sel);return(ui&&info(p[ui],ui))||fotos(p)[0]||null;}
-function build(rows){const map=new Map();rows.forEach(r=>{const id=String(r.id_proyecto||'').trim();if(!id)return;if(!map.has(id))map.set(id,{id,proyecto:r.proyecto||'',estado:r.estado||'',cliente:r.cliente||'',equipos:0});map.get(id).equipos++;});return[...map.values()];}
-function carouselFotos(p){return slots.map((slot,index)=>{const item=info(p[slot],dbMap[slot]);if(item)item.label='Foto '+(index+1);return item;}).filter(Boolean);}
+function info(url,campo,origen,manageable){if(!url||/\.heic(\?|$)/i.test(String(url)))return null;return{url:String(url).trim(),campo,origen,manageable:manageable!==false};}
+function corePhotos(p){return slots.map((slot,index)=>{const item=info(p[slot],dbMap[slot],'CORELLIAN',true);if(item)item.label='CORELLIAN · Foto '+(index+1);return item;}).filter(Boolean);}
+function unitedPhotos(p){return (Array.isArray(p.unitedRows)?p.unitedRows:[]).flatMap(row=>[1,2,3,4,5,6,7].map(index=>{const item=info(row['foto_'+index],'foto_'+index,'UNITED',false);if(item)item.label='UNITED · Foto '+index;return item;}).filter(Boolean));}
+function carouselFotos(p){const seen=new Set();return [...corePhotos(p),...unitedPhotos(p)].filter(item=>{if(seen.has(item.url))return false;seen.add(item.url);return true;}).slice(0,14);}
+function fotos(p){return carouselFotos(p);}
+function principal(p){const core=corePhotos(p);const direct=String(p.foto_portada||'').trim();if(/^https?:\/\//i.test(direct))return info(direct,null,'CORELLIAN',true);const sel=String(p.foto_principal||p['Foto Principal']||'').trim();const coreMatch=core.find(item=>item.campo===sel);if(coreMatch)return coreMatch;if(core.length)return core[0];const united=unitedPhotos(p);const unitedSelected=String((p.unitedRows?.[0]||{}).foto_principal||'').trim();return united.find(item=>item.campo===unitedSelected||item.url===unitedSelected)||united[0]||null;}
+function build(rows){const map=new Map();rows.forEach(r=>{const id=String(r.id_proyecto||'').trim();if(!id)return;if(!map.has(id))map.set(id,{id,galleryKey:'core:'+id,proyecto:r.proyecto||'',estado:r.estado||'',cliente:r.cliente||'',equipos:0,unitedRows:[],coreManaged:true});map.get(id).equipos++;});return[...map.values()];}
+function mergeUnited(rows){const byId=new Map(proyectos.map(project=>[String(project.id).trim(),project]));const byName=new Map(proyectos.map(project=>[String(project.proyecto).trim(),project]));(Array.isArray(rows)?rows:[]).forEach((row,index)=>{const related=String(row.proyecto_corellian||'').trim();let project=related?(byId.get(related)||byName.get(related)):null;if(!project){const united=String(row.proyecto_united||'').trim();if(!united)return;project={id:'united:'+united,galleryKey:'united:'+united+':'+index,proyecto:row.nombre_publico||united,estado:row.estado||'',cliente:row.cliente||'',equipos:0,unitedRows:[],coreManaged:false};proyectos.push(project);}project.unitedRows.push(row);});}
 function openPhotoCarousel(p){
   const photos=carouselFotos(p);
   if(!photos.length)return;
@@ -27,18 +30,21 @@ function openPhotoCarousel(p){
     photos,
     (main&&main.url)||photos[0].url,
     {
-      showProjectLink:true,
+      showProjectLink:p.coreManaged!==false,
       projectOptions:{template:'cliente-unificado',source:'ventas-fotos-mapa',projectName:p.proyecto,cliente:p.cliente||''},
       onPhotoChange:change=>{
         const item=change&&change.item;
-        if(item&&item.campo&&item.url){
+        if(item&&item.manageable!==false&&item.campo&&item.url){
           const ui=Object.keys(dbMap).find(key=>dbMap[key]===item.campo);
           if(ui)p[ui]=item.url;
           if(change.type==='principal'||change.principalUrl===item.url)p.foto_principal=item.campo;
         }
         if(change&&change.principalUrl)p.foto_portada=change.principalUrl;
         render();
-      }
+      },
+      allowAdd:p.coreManaged!==false,
+      allowSetPrincipal:p.coreManaged!==false,
+      managedPhotoLimit:7
     }
   );
 }
@@ -56,15 +62,15 @@ function render(){
   if(!rows.length){box.innerHTML='<div class="py-empty">No hay proyectos con fotografías para los criterios seleccionados.</div>';return;}
   const grupos=new Map();
   rows.forEach(p=>{const key=String(p.estado||'Sin estado').trim()||'Sin estado';if(!grupos.has(key))grupos.set(key,[]);grupos.get(key).push(p);});
-  box.innerHTML=[...grupos.entries()].map(([estado,items])=>'<div class="py-foto-grupo"><div class="py-foto-grupo-title">'+esc(estado)+' <span class="count">('+items.length+')</span></div><div class="py-foto-mosaico">'+items.map(p=>{const img=principal(p);return img?'<div class="py-foto-tile" role="button" tabindex="0" data-project-id="'+esc(p.id)+'"><img src="'+esc(img.url)+'" loading="lazy" alt="'+esc(p.proyecto)+'"><div class="nombre">'+esc(p.proyecto)+'</div><div class="n-fotos">'+fotos(p).length+' foto(s)</div></div>':'';}).join('')+'</div></div>').join('');
-  box.querySelectorAll('[data-project-id]').forEach(el=>{
-    const p=rows.find(x=>String(x.id)===String(el.dataset.projectId));
+  box.innerHTML=[...grupos.entries()].map(([estado,items])=>'<div class="py-foto-grupo"><div class="py-foto-grupo-title">'+esc(estado)+' <span class="count">('+items.length+')</span></div><div class="py-foto-mosaico">'+items.map(p=>{const img=principal(p);return img?'<div class="py-foto-tile" role="button" tabindex="0" data-gallery-key="'+esc(p.galleryKey)+'"><img src="'+esc(img.url)+'" loading="lazy" alt="'+esc(p.proyecto)+'"><div class="nombre">'+esc(p.proyecto)+'</div><div class="n-fotos">'+fotos(p).length+' foto(s)</div></div>':'';}).join('')+'</div></div>').join('');
+  box.querySelectorAll('[data-gallery-key]').forEach(el=>{
+    const p=rows.find(x=>String(x.galleryKey)===String(el.dataset.galleryKey));
     if(!p)return;
     el.addEventListener('click',()=>openPhotoCarousel(p));
     el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPhotoCarousel(p);}});
   });
 }
-async function load(){const [e,f]=await Promise.all([getJson('/api/ventas/fotos-mapa/proyectos?limit=5000'),getJson('/api/ventas/fotos-mapa/proyectos/fotografias?limit=5000').catch(()=>({data:[]}))]);proyectos=build(Array.isArray(e.data)?e.data:[]);const photoMap=new Map((Array.isArray(f.data)?f.data:[]).map(x=>[String(x['ID Proyecto']||'').trim(),x]));proyectos.forEach(p=>Object.assign(p,photoMap.get(p.id)||{}));populate();render();const s=document.getElementById('vfm-aiven-status');if(s)s.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+proyectos.filter(p=>fotos(p).length).length+' con foto</span>';}
+async function load(){const [e,f,u]=await Promise.all([getJson('/api/ventas/fotos-mapa/proyectos?limit=5000'),getJson('/api/ventas/fotos-mapa/proyectos/fotografias?limit=5000').catch(()=>({data:[]})),getJson('/api/ventas/fotos-mapa/proyectos-united/fotografias?limit=5000').catch(()=>({data:[]}))]);proyectos=build(Array.isArray(e.data)?e.data:[]);const photoMap=new Map((Array.isArray(f.data)?f.data:[]).map(x=>[String(x['ID Proyecto']||'').trim(),x]));proyectos.forEach(p=>Object.assign(p,photoMap.get(p.id)||{}));mergeUnited(u.data);populate();render();const s=document.getElementById('vfm-aiven-status');if(s)s.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+proyectos.filter(p=>fotos(p).length).length+' con foto</span>';}
 async function mount(force){const view=document.getElementById('view-ventas-fotos-mapa');if(!view)return false;if(force)view.dataset.ready='0';if(view.dataset.ready!=='1'){const r=await fetch('./modules/ventas-fotos-mapa/ventas-fotos-mapa.html?v=20260725-v001',{cache:'default'});if(!r.ok)throw new Error('No se pudo cargar Fotos Mapa.');view.innerHTML=await r.text();view.dataset.ready='1';document.getElementById('vfm-buscar')?.addEventListener('input',render);document.getElementById('vfm-estado')?.addEventListener('change',render);await load();}return true;}
 window.ManttoVentasFotosMapa={init:()=>mount(false),reload:()=>load()};
 })();

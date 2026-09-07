@@ -16,3 +16,4 @@
 .vc-toolbar [hidden]{display:none!important;}
 
 .vc-clickable-row{cursor:pointer}.vc-clickable-row:hover{background:#f7faff}.vc-clickable-row:focus{outline:2px solid #2563eb;outline-offset:-2px}
+.vc-table tbody tr.vc-interest-row{background:#fff8dc;box-shadow:inset 4px 0 0 #d5a000}.vc-table tbody tr.vc-interest-row:hover{background:#fff3bd}.vc-table tbody tr.vc-interest-row .vc-project{color:#684b00}

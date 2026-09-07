@@ -5,6 +5,7 @@ const storageAccess = require('../../services/storage/storage-access.service');
 const storageAdapters = require('../../services/storage/storage-metadata.adapters');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
 const historialService = require('../ventas-cotizaciones-historial/ventas-cotizaciones-historial.service');
+const interestRepository = require('./ventas-cotizaciones-interes.repository');
 
 
 function changedFields(existing, changes) {
@@ -737,6 +738,11 @@ async function getVendidos(query, actionContext) {
   try {
     const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
     const result = await repository.listVendidos(connection, options, scope);
+    const rows = await interestRepository.attachProjectInterestState(
+      connection,
+      getActorId(actionContext),
+      result.rows
+    );
     return {
       ok: true,
       source: 'aiven',
@@ -748,7 +754,7 @@ async function getVendidos(query, actionContext) {
         con_fecha_cierre: Number(result.resumen.con_fecha_cierre || 0),
         sin_fecha_cierre: Number(result.resumen.sin_fecha_cierre || 0)
       },
-      ...buildPaginationResult(options, result.rows.map((row) => ({
+      ...buildPaginationResult(options, rows.map((row) => ({
         ...row,
         id_cotizacion: Number(row.id_cotizacion)
       })), result.total)
@@ -971,12 +977,17 @@ async function list(query, actionContext) {
   try {
     const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
     const { rows, total } = await repository.list(connection, options, scope);
+    const rowsWithInterest = await interestRepository.attachProjectInterestState(
+      connection,
+      getActorId(actionContext),
+      rows
+    );
     const totalPages = total === 0 ? 0 : Math.ceil(total / options.pageSize);
 
     return {
       ok: true,
       source: 'aiven',
-      cotizaciones: rows,
+      cotizaciones: rowsWithInterest,
       paginacion: {
         pagina: options.page,
         tamano_pagina: options.pageSize,

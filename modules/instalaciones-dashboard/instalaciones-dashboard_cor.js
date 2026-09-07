@@ -1056,7 +1056,7 @@
     const body = rows.length ? rows.map(row => {
       const dynamic = columns.map(item => renderReportCell_cor(row, item, sectionCode)).join('');
       const alerts = Array.isArray(row.notificaciones) && row.notificaciones.length
-        ? '<div class="idb-cor-alerts">' + row.notificaciones.map(alert => '<span class="idb-cor-alert" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + ' ' + esc(alert.texto) + '</span>').join('') + '</div>'
+        ? '<div class="idb-cor-alerts">' + row.notificaciones.map(alert => '<span class="idb-cor-alert" role="img" aria-label="' + esc(alert.texto) + '" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + '</span>').join('') + '</div>'
         : '<span class="idb-cor-muted">—</span>';
       const attrs = canOpen && raw(row.proyecto) && raw(row.referencia_sitio)
         ? ' class="idb-cor-clickable" data-equipment-project="' + esc(row.proyecto) + '" data-equipment-reference="' + esc(row.referencia_sitio) + '"'

@@ -35,7 +35,8 @@ function renderRows(){
     const quoteId=resolveQuoteId(r);
     const viewAttr=quoteId?' data-view="'+esc(quoteId)+'"':'';
     const indicators=recordIndicators(r);
-    return '<tr data-row-index="'+index+'"'+viewAttr+'>'
+    const interest=r.proyecto_interes===true;
+    return '<tr data-row-index="'+index+'" data-quote-id="'+esc(quoteId||'')+'"'+viewAttr+' class="'+(interest?'vv-interest-row':'')+'"'+(interest?' title="Proyecto de interés para tu usuario"':'')+'>'
       +'<td><button class="vv-project vv-project-link"'+viewAttr+' data-row-index="'+index+'" type="button">'+(indicators?indicators+' ':'')+esc(r.nombre_proyecto||'Sin proyecto')+'</button></td>'
       +'<td>'+esc(r.cliente||'—')+'</td>'
       +'<td>'+esc(r.asesor||'—')+'</td>'
@@ -85,7 +86,9 @@ async function load(options={}){
   }
 }
 function openDetail(id,rowIndex){let quoteId=Number(id);if(!Number.isInteger(quoteId)||quoteId<=0){const row=state.rows[Number(rowIndex)];quoteId=resolveQuoteId(row);}if(!Number.isInteger(quoteId)||quoteId<=0){console.error('[Ventas Vendidos] Registro sin id_cotizacion válido:',state.rows[Number(rowIndex)]||null);toast('La venta no incluye el ID interno de la cotización.',true);return;}if(!window.ManttoRouter?.go){toast('No se pudo abrir el detalle de cotización.',true);return;}window.ManttoRouter.go('ventas-cotizaciones-detalle',{id:quoteId,id_cotizacion:quoteId,origen:'ventas-vendidos'});}
+function updateInterestRow(id,active){const quoteId=Number(id);if(!Number.isInteger(quoteId)||quoteId<=0)return;const row=state.rows.find(item=>resolveQuoteId(item)===quoteId);if(row)row.proyecto_interes=active===true;const element=$('#vv-body tr[data-quote-id="'+quoteId+'"]');if(!element)return;element.classList.toggle('vv-interest-row',active===true);if(active===true)element.title='Proyecto de interés para tu usuario';else element.removeAttribute('title');}
 function bind(){let timer;$('#vv-search').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>{state.page=1;load();},350);});['vv-filter-year','vv-filter-advisor','vv-filter-admin','vv-filter-zone'].forEach(id=>$('#'+id)?.addEventListener('change',()=>{state.page=1;load();}));$('#vv-clear').addEventListener('click',()=>{$('#vv-search').value='';$('#vv-filter-year').value=String(new Date().getFullYear());$('#vv-filter-advisor').value='';$('#vv-filter-admin').value='';$('#vv-filter-zone').value='';state.page=1;load();});$('#vv-refresh').addEventListener('click',load);$('#vv-body').addEventListener('click',e=>{const target=e.target.closest('[data-view], tr[data-row-index]');if(!target)return;const rowIndex=target.dataset.rowIndex??target.closest('tr')?.dataset.rowIndex;openDetail(target.dataset.view,rowIndex);});$('#vv-pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(!b)return;state.page=Number(b.dataset.page)||1;load();});}
 async function init(){const view=$('#view-ventas-vendidos');if(!view)return;if(!view.dataset.loaded){const r=await fetch('./modules/ventas-vendidos/ventas-vendidos.html',{cache:'default'});if(!r.ok)throw new Error('No se pudo cargar la vista Vendidos.');view.innerHTML=await r.text();view.dataset.loaded='1';bind();await loadCatalogs();}await load();state.initialized=true;}
+window.addEventListener('mantto:ventas-cotizacion-actualizada',event=>{const detail=event?.detail||{};if(detail.tipo!=='proyecto_interes'&&!Object.prototype.hasOwnProperty.call(detail,'proyecto_interes'))return;updateInterestRow(detail.id_cotizacion||detail.id,detail.proyecto_interes===true);});
 window.ManttoVentasVendidos={init,refresh:()=>load(),backgroundSync:()=>load({silent:true})};
 })();

@@ -10,7 +10,7 @@
   let ticketChatLastCommentId = 0;
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
-  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null };
+  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7 };
   function ticketKey(v){ return String(v || '').trim(); }
   function registerTickets(rows){
     (rows || []).forEach(t => {
@@ -328,6 +328,9 @@
     projectPhotoState.showProjectLink=Boolean(cfg.showProjectLink);
     projectPhotoState.projectOptions=cfg.projectOptions?Object.assign({},cfg.projectOptions):null;
     projectPhotoState.onPhotoChange=typeof cfg.onPhotoChange==='function'?cfg.onPhotoChange:null;
+    projectPhotoState.allowAdd=cfg.allowAdd!==false;
+    projectPhotoState.allowSetPrincipal=cfg.allowSetPrincipal!==false;
+    projectPhotoState.managedPhotoLimit=Math.max(1,Number(cfg.managedPhotoLimit)||7);
     renderProjectPhotoLightbox();
     document.getElementById('mg-photo-lightbox').hidden=false;
   }
@@ -344,18 +347,19 @@
     const current=lightbox.querySelector('.mg-photo-current');
     if(current)current.textContent='Foto Principal Actual'+(principalIndex>=0?' · '+projectPhotoState.photos[principalIndex].label:' · Sin definir');
     const btn=lightbox.querySelector('.mg-photo-principal');
-    const allowed=isProgramador();
+    const allowed=isProgramador()&&projectPhotoState.allowSetPrincipal&&item.manageable!==false;
     btn.style.display='inline-block';
     btn.disabled=!allowed||item.url===projectPhotoState.principalUrl;
     btn.textContent='Seleccionar Foto Principal';
-    btn.title=!allowed?'Disponible únicamente para Programador':(item.url===projectPhotoState.principalUrl?'La fotografía mostrada ya es la principal':'Seleccionar esta fotografía como principal');
+    btn.title=item.manageable===false?'La fotografía pertenece a UNITED y conserva su administración original':(!allowed?'Disponible únicamente para Programador':(item.url===projectPhotoState.principalUrl?'La fotografía mostrada ya es la principal':'Seleccionar esta fotografía como principal'));
     const addBtn=lightbox.querySelector('.mg-photo-add');
     const canManage=canManageProjectPhotos();
-    const canAdd=canManage&&projectPhotoState.photos.length<7;
+    const managedCount=projectPhotoState.photos.filter(photo=>photo.manageable!==false).length;
+    const canAdd=canManage&&projectPhotoState.allowAdd&&managedCount<projectPhotoState.managedPhotoLimit;
     addBtn.style.display='inline-block';
     addBtn.disabled=!canAdd||projectPhotoState.uploading;
     addBtn.textContent=projectPhotoState.uploading?'Subiendo...':'Agregar Foto';
-    addBtn.title=!canManage?'Disponible para Programador o Director General':(projectPhotoState.photos.length>=7?'El proyecto ya tiene el máximo de 7 fotografías':'Agregar una fotografía al proyecto');
+    addBtn.title=!canManage?'Disponible para Programador o Director General':(!projectPhotoState.allowAdd?'Este origen conserva su administración de fotografías':(managedCount>=projectPhotoState.managedPhotoLimit?'El proyecto ya tiene el máximo de 7 fotografías CORELLIAN':'Agregar una fotografía CORELLIAN al proyecto'));
     const projectBtn=lightbox.querySelector('.mg-photo-project');
     if(projectBtn){
       projectBtn.style.display=projectPhotoState.showProjectLink?'inline-block':'none';
@@ -371,15 +375,18 @@
     projectPhotoState.showProjectLink=false;
     projectPhotoState.projectOptions=null;
     projectPhotoState.onPhotoChange=null;
+    projectPhotoState.allowAdd=true;
+    projectPhotoState.allowSetPrincipal=true;
+    projectPhotoState.managedPhotoLimit=7;
   }
   function notifyProjectPhotoChange(change){
     if(typeof projectPhotoState.onPhotoChange!=='function')return;
     try{projectPhotoState.onPhotoChange(Object.assign({projectId:projectPhotoState.projectId,principalUrl:projectPhotoState.principalUrl,photos:projectPhotoState.photos.slice()},change||{}));}catch(error){console.warn('[ManttoDetails] No fue posible sincronizar el cambio de fotografías con la vista origen.',error);}
   }
   function openProjectPhotoUploader(projectId,projectName,photos,principalUrl){
-    if(!canManageProjectPhotos())return;
+    if(!canManageProjectPhotos()||!projectPhotoState.allowAdd)return;
     if(projectId!==undefined)setProjectPhotoContext(projectId,projectName,photos,principalUrl);
-    if(!projectPhotoState.projectId||projectPhotoState.photos.length>=7)return;
+    if(!projectPhotoState.projectId||projectPhotoState.photos.filter(photo=>photo.manageable!==false).length>=projectPhotoState.managedPhotoLimit)return;
     ensure();
     const input=document.querySelector('#mg-photo-lightbox .mg-photo-input');
     if(input){input.value='';input.click();}
@@ -387,7 +394,7 @@
   async function handleProjectPhotoSelected(event){
     const input=event&&event.target;const file=input&&input.files&&input.files[0];
     if(!file||projectPhotoState.uploading||!projectPhotoState.projectId)return;
-    if(projectPhotoState.photos.length>=7){window.alert('El proyecto ya tiene el máximo de 7 fotografías.');input.value='';return;}
+    if(!projectPhotoState.allowAdd||projectPhotoState.photos.filter(photo=>photo.manageable!==false).length>=projectPhotoState.managedPhotoLimit){window.alert('El proyecto ya tiene el máximo de 7 fotografías CORELLIAN.');input.value='';return;}
     projectPhotoState.uploading=true;
     if(projectPhotoState.photos.length)renderProjectPhotoLightbox();
     try{
@@ -396,7 +403,7 @@
       const data=response&&response.data?response.data:{};
       const match=String(data.campo||'').match(/(\d+)$/);
       const slotNumber=Number((match&&match[1])||projectPhotoState.photos.length+1);
-      const item={campo:data.campo,url:String(data.url||''),label:'Foto '+slotNumber};
+      const item={campo:data.campo,url:String(data.url||''),label:'CORELLIAN · Foto '+slotNumber,origen:'CORELLIAN',manageable:true};
       if(!item.campo||!/^https?:\/\//i.test(item.url))throw new Error('El backend no devolvió la fotografía guardada.');
       projectPhotoState.photos.push(item);
       projectPhotoState.index=projectPhotoState.photos.length-1;
@@ -430,8 +437,9 @@
     openProyecto(id,options);
   }
   async function selectProjectPrincipalPhoto(){
-    if(!isProgramador())return;
+    if(!isProgramador()||!projectPhotoState.allowSetPrincipal)return;
     const item=projectPhotoState.photos[projectPhotoState.index];if(!item||!item.campo||!projectPhotoState.projectId)return;
+    if(item.manageable===false)return;
     try{
       await patchJson('/api/ins-fl/proyectos/fotografias/'+encodeURIComponent(projectPhotoState.projectId)+'/principal',{campo:item.campo});
       projectPhotoState.principalUrl=item.url;

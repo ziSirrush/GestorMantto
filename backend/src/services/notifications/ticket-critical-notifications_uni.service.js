@@ -346,8 +346,8 @@ function evaluateCandidateTransitions_uni(candidateRows, beforeContext, currentP
         afterCount >= CRITICOS_MIN_FALLAS_BLT_UNI
       ),
       criticalFailure: Boolean(
+        !beforeRow &&
         eligibleEquipment &&
-        enteredBltSet &&
         beforeCount >= CRITICOS_MIN_FALLAS_BLT_UNI
       )
     };
@@ -579,7 +579,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       event = {
         eventCode: EVENT_FALLA_EQUIPO_CRITICO_UNI,
         title: 'Falla en equipo crítico',
-        message: `Se generó el ticket ${row.ticket} con responsabilidad BLT sobre el equipo crítico ${equipment}.`,
+        message: `Se generó el ticket ${row.ticket} sobre el equipo crítico ${equipment}.`,
         icon: '🆘',
         counterField: 'falla_equipo_critico',
         extra: { numero_equipo: equipment }

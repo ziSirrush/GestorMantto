@@ -73,6 +73,49 @@ function interestIsActive(event) {
   return String(event?.tipo_interaccion || '').trim().toUpperCase() === INTEREST_ON;
 }
 
+async function listActiveProjectInterestIds(connection, idUsuario, quotationIds) {
+  const ids = [...new Set((Array.isArray(quotationIds) ? quotationIds : [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) return new Set();
+
+  const references = ids.map(String);
+  const placeholders = references.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT latest.id_referencia, ui.tipo_interaccion
+       FROM (
+         SELECT id_referencia, MAX(id_interaccion) AS id_interaccion
+           FROM usuario_interacciones
+          WHERE id_usuario = ?
+            AND modulo = ?
+            AND entidad = ?
+            AND tipo_interaccion IN (?, ?)
+            AND id_referencia IN (${placeholders})
+          GROUP BY id_referencia
+       ) latest
+       JOIN usuario_interacciones ui
+         ON ui.id_interaccion = latest.id_interaccion`,
+    [idUsuario, INTEREST_MODULE, INTEREST_ENTITY, INTEREST_ON, INTEREST_OFF, ...references]
+  );
+
+  return new Set(rows
+    .filter((row) => interestIsActive(row))
+    .map((row) => String(row.id_referencia)));
+}
+
+async function attachProjectInterestState(connection, idUsuario, rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  const activeIds = await listActiveProjectInterestIds(
+    connection,
+    idUsuario,
+    source.map((row) => row.id_cotizacion)
+  );
+  return source.map((row) => ({
+    ...row,
+    proyecto_interes: activeIds.has(String(row.id_cotizacion))
+  }));
+}
+
 async function listProjectInterests(connection, options) {
   const idUsuario = Number(options?.idUsuario);
   const pageSize = Math.min(30, Math.max(1, Number(options?.pageSize) || 30));
@@ -176,5 +219,7 @@ module.exports = {
   getLatestProjectInterest,
   insertProjectInterestEvent,
   interestIsActive,
+  listActiveProjectInterestIds,
+  attachProjectInterestState,
   listProjectInterests
 };
