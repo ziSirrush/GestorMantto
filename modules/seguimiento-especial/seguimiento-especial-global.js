@@ -20,6 +20,7 @@
   let scanTimer=null;
   let observer=null;
   let detailMountTimer=null;
+  let backendAccessConfirmed=null;
 
   function normalize(value){
     return String(value==null?'':value).trim().replace(/\s+/g,' ').toLocaleLowerCase('es-MX');
@@ -47,9 +48,23 @@
     return Boolean(state&&state.exists&&state.efectivo===true);
   }
 
+  function localAccessState(){
+    if(!window.ManttoPermissions||typeof window.ManttoPermissions.state!=='function')return null;
+    const access=window.ManttoPermissions.state(ACCESS_PERMISSION);
+    const manage=window.ManttoPermissions.state(MANAGE_PERMISSION);
+    if((access&&access.exists&&access.efectivo===true)||(manage&&manage.exists&&manage.efectivo===true))return true;
+    // Si ambas facultades ya existen en el catálogo efectivo y ninguna está
+    // concedida, la respuesta local es definitiva. Si todavía no existen en
+    // el snapshot del frontend, se considera estado desconocido y se permite
+    // que el backend confirme la lectura del módulo.
+    if(access&&access.exists===true&&manage&&manage.exists===true)return false;
+    return null;
+  }
+
   function canAccess(){
     if(isViewingAs())return false;
-    return permissionEffective(ACCESS_PERMISSION)||permissionEffective(MANAGE_PERMISSION);
+    const local=localAccessState();
+    return local===true||backendAccessConfirmed===true;
   }
 
   function canManage(){
@@ -386,19 +401,38 @@
 
   async function refresh(force){
     syncPermissionUi();
-    if(isViewingAs()||!authenticated()||!canAccess()){
+    if(isViewingAs()||!authenticated()){
+      backendAccessConfirmed=null;
       clearSnapshot();
       return getSnapshot();
     }
+
+    const local=localAccessState();
+    if(local===false){
+      backendAccessConfirmed=false;
+      syncPermissionUi();
+      clearSnapshot();
+      return getSnapshot();
+    }
+
     if(refreshPromise&&!force)return refreshPromise;
     const task=(async()=>{
       try{
+        // El GET del módulo es la validación autoritativa de acceso cuando el
+        // snapshot de permisos todavía no terminó de cargar en frontend.
         const json=await request('/api/portafolio/seguimiento-especial');
+        backendAccessConfirmed=true;
+        syncPermissionUi();
         applySnapshot(json.data||{});
         document.dispatchEvent(new CustomEvent('mantto:seguimiento-especial-refreshed',{detail:getSnapshot()}));
         return getSnapshot();
       }catch(error){
-        if(error.status===401||error.status===403){clearSnapshot();return getSnapshot();}
+        if(error.status===401||error.status===403){
+          backendAccessConfirmed=false;
+          syncPermissionUi();
+          clearSnapshot();
+          return getSnapshot();
+        }
         console.error('[SEGUIMIENTO_ESPECIAL_REFRESH]',error);
         throw error;
       }
@@ -593,24 +627,36 @@
     patchVisualCatalog();
     syncPermissionUi();
     bindObserver();
-    document.addEventListener('mantto:auth-ready',()=>{syncPermissionUi();refresh(true).catch(()=>{});});
+    document.addEventListener('mantto:auth-ready',()=>{
+      backendAccessConfirmed=null;
+      syncPermissionUi();
+      refresh(true).catch(()=>{});
+    });
     document.addEventListener('mantto:permissions-updated',()=>{
+      backendAccessConfirmed=null;
       syncPermissionUi();
       refresh(true).catch(()=>{});
       const current=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent():null;
       if(current&&current.route==='detalle')scheduleDetailMount(current.payload||{},40);
     });
     document.addEventListener('mantto:view-user-changed',()=>{
+      backendAccessConfirmed=null;
       syncPermissionUi();
       if(isViewingAs())clearSnapshot();else refresh(true).catch(()=>{});
     });
-    document.addEventListener('mantto:session-expired',clearSnapshot);
+    document.addEventListener('mantto:session-expired',()=>{
+      backendAccessConfirmed=null;
+      clearSnapshot();
+      syncPermissionUi();
+    });
     document.addEventListener('mantto:navigation',handleNavigation);
     document.addEventListener('mantto:module-loaded',()=>{patchVisualCatalog();scheduleDecorate();});
 
     const current=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent():null;
     if(current&&current.route==='detalle')scheduleDetailMount(current.payload||{},40);
-    if(authenticated()&&canAccess())refresh(true).catch(()=>{});
+    // No depender de que el evento de permisos haya ocurrido antes de cargar
+    // este script. Si el snapshot aún no está listo, el backend confirma acceso.
+    if(authenticated())refresh(true).catch(()=>{});
   }
 
   window.ManttoSeguimientoEspecial=Object.freeze({
