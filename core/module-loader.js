@@ -16,7 +16,7 @@
   // si DataSync no la marco dirty. Formularios/detalles transaccionales quedan fuera.
   const INIT_ARM_TTL_MS = 5000;
   const PERSISTENT_DATA_ROUTES = new Set([
-    'home','resumen','criticos','portafolio','proyectos','callcenter','operativo','movimientos',
+    'home','resumen','criticos','portafolio','proyectos','seguimiento-especial','callcenter','operativo','movimientos',
     'logistica-dashboard','logistica-reporte','logistica-produccion','logistica-pvo','logistica-documentos',
     'instalaciones-dashboard','instalaciones-proyectos','instalaciones-cerrados',
     'instalaciones-concentrado-cliente','instalaciones-reporte','instalaciones-ajuste',
@@ -184,7 +184,7 @@
   const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
   const ALMACEN_REABASTO_JS = './modules/almacen/almacen-stock-reabasto.js?v=20260907-fase4-reabasto-v001';
   const ALMACEN_REABASTO_CSS = './modules/almacen/almacen-stock-reabasto.css?v=20260907-fase4-reabasto-v001';
-  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260908-seguimiento-especial-v002';
+  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260908-seguimiento-especial-v003';
 
   const ROUTES = Object.freeze({
     resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260814-project-name-v010']},

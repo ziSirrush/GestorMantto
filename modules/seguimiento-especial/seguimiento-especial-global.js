@@ -19,6 +19,7 @@
   let refreshPromise=null;
   let scanTimer=null;
   let observer=null;
+  let detailMountTimer=null;
 
   function normalize(value){
     return String(value==null?'':value).trim().replace(/\s+/g,' ').toLocaleLowerCase('es-MX');
@@ -85,11 +86,13 @@
     style.id='mg-seguimiento-especial-global-styles';
     style.textContent=`
       .mg-se-star-generated,.mg-se-star{display:inline-block;line-height:1;vertical-align:middle;margin-right:.22rem;background:transparent!important;border:0!important;box-shadow:none!important;color:inherit!important}
-      .mg-se-detail-card{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;padding:11px 14px;margin-bottom:14px;box-shadow:0 4px 14px rgba(15,23,42,.04)}
-      .mg-se-detail-copy{min-width:0}.mg-se-detail-copy strong{display:block;color:#0D2E6E;font-size:13px}.mg-se-detail-copy span{display:block;margin-top:3px;color:#64748B;font-size:11px;line-height:1.35}
-      .mg-se-detail-toggle{display:inline-flex;align-items:center;gap:8px;color:#0D2E6E;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer}.mg-se-detail-toggle input{width:18px;height:18px;accent-color:#1455d9;cursor:pointer}.mg-se-detail-toggle input:disabled{cursor:wait;opacity:.65}
+      .mg-detail-head{flex-wrap:wrap}
+      .mg-se-detail-card{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-left:auto;min-width:270px;max-width:370px;background:#fff;border:1px solid rgba(255,255,255,.72);border-radius:10px;padding:8px 10px;box-shadow:0 5px 14px rgba(0,0,0,.16);color:#0D2E6E;flex:0 0 auto}
+      .mg-se-detail-copy{min-width:0}.mg-se-detail-copy strong{display:block;color:#0D2E6E;font-size:12px;line-height:1.15}.mg-se-detail-copy span{display:block;margin-top:2px;color:#64748B;font-size:9px;line-height:1.25;max-width:230px}
+      .mg-se-detail-toggle{display:inline-flex;align-items:center;gap:6px;color:#0D2E6E;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer}.mg-se-detail-toggle input{width:17px;height:17px;accent-color:#1455d9;cursor:pointer}.mg-se-detail-toggle input:disabled{cursor:wait;opacity:.65}
       .mg-se-detail-card.error{border-color:#fecaca}.mg-se-detail-card.error .mg-se-detail-copy span{color:#991b1b}
-      @media(max-width:680px){.mg-se-detail-card{align-items:flex-start;flex-direction:column}.mg-se-detail-toggle{width:100%;justify-content:flex-start}}
+      @media(max-width:820px){.mg-se-detail-card{width:100%;max-width:none;margin-left:0}.mg-se-detail-copy span{max-width:none}}
+      @media(max-width:520px){.mg-se-detail-card{align-items:flex-start;flex-direction:column}.mg-se-detail-toggle{width:100%;justify-content:flex-start}}
     `;
     document.head.appendChild(style);
   }
@@ -104,7 +107,8 @@
     button.className='side-item';
     button.type='button';
     button.dataset.route=ROUTE;
-    button.hidden=true;
+    button.setAttribute('aria-label','Seguimiento Especial');
+    button.title='Seguimiento Especial';
     button.innerHTML='<span>⭐</span><b>Seguimiento Especial</b>';
     button.addEventListener('click',event=>{
       event.preventDefault();
@@ -119,7 +123,9 @@
         else sidebar.classList.add('collapsed');
       }
     });
-    group.appendChild(button);
+    const anchor=group.querySelector('.side-item[data-route="proyectos"]');
+    if(anchor&&anchor.parentElement===group)anchor.insertAdjacentElement('afterend',button);
+    else group.appendChild(button);
     return button;
   }
 
@@ -469,6 +475,16 @@
       : 'Actívalo para seguir únicamente este equipo y recibir sus notificaciones.';
   }
 
+  function scheduleDetailMount(payload,delay){
+    if(detailMountTimer!==null)window.clearTimeout(detailMountTimer);
+    detailMountTimer=window.setTimeout(()=>{
+      detailMountTimer=null;
+      const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
+      const effective=current&&current.route==='detalle'&&current.payload?current.payload:payload;
+      if(effective)mountDetailControl(effective);
+    },Math.max(0,Number(delay)||0));
+  }
+
   async function mountDetailControl(payload){
     clearDetailControl();
     if(!canManage()||!isManttoTarget(payload))return;
@@ -477,8 +493,11 @@
     try{
       const json=await request(endpoint);
       let data=json.data||{};
-      const body=document.querySelector('#view-detalle .mg-detail-body')||document.querySelector('.mg-detail-body');
-      if(!body)return;
+      const head=document.querySelector('#view-detalle .mg-detail-head')||document.querySelector('.mg-detail-head');
+      if(!head){
+        scheduleDetailMount(payload,90);
+        return;
+      }
 
       const root=document.createElement('div');
       root.id=DETAIL_CONTROL_ID;
@@ -530,7 +549,7 @@
         }
       });
 
-      body.insertBefore(root,body.firstChild||null);
+      head.appendChild(root);
     }catch(error){
       if(error.status===403||error.status===404)return;
       console.error('[SEGUIMIENTO_ESPECIAL_DETALLE]',error);
@@ -541,10 +560,16 @@
     if(observer||typeof MutationObserver!=='function')return;
     const root=document.querySelector('.main-content')||document.body;
     observer=new MutationObserver(mutations=>{
-      if(!trackedProjects.size&&!trackedEquipment.size)return;
-      if(mutations.some(mutation=>Array.from(mutation.addedNodes||[]).some(node=>node&&node.nodeType===1&&!node.classList?.contains('mg-se-star-generated')))){
-        scheduleDecorate();
+      const hasAdded=mutations.some(mutation=>Array.from(mutation.addedNodes||[]).some(node=>node&&node.nodeType===1&&!node.classList?.contains('mg-se-star-generated')));
+      if(!hasAdded)return;
+
+      const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
+      if(current&&current.route==='detalle'&&current.payload&&canManage()&&isManttoTarget(current.payload)){
+        const head=document.querySelector('#view-detalle .mg-detail-head');
+        if(head&&!document.getElementById(DETAIL_CONTROL_ID))scheduleDetailMount(current.payload,40);
       }
+
+      if(trackedProjects.size||trackedEquipment.size)scheduleDecorate();
     });
     observer.observe(root,{childList:true,subtree:true});
   }
@@ -553,7 +578,7 @@
     const detail=event&&event.detail||{};
     if(detail.route==='detalle'){
       window.setTimeout(()=>{
-        mountDetailControl(detail.payload||{});
+        scheduleDetailMount(detail.payload||{},40);
         if(String(detail.payload&&detail.payload.source||'').toLowerCase()===ROUTE){
           const backLabel=document.getElementById('app-back-label');
           if(backLabel)backLabel.textContent='Seguimiento Especial';
@@ -573,7 +598,7 @@
       syncPermissionUi();
       refresh(true).catch(()=>{});
       const current=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent():null;
-      if(current&&current.route==='detalle')window.setTimeout(()=>mountDetailControl(current.payload||{}),0);
+      if(current&&current.route==='detalle')scheduleDetailMount(current.payload||{},40);
     });
     document.addEventListener('mantto:view-user-changed',()=>{
       syncPermissionUi();
@@ -584,7 +609,7 @@
     document.addEventListener('mantto:module-loaded',()=>{patchVisualCatalog();scheduleDecorate();});
 
     const current=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent():null;
-    if(current&&current.route==='detalle')window.setTimeout(()=>mountDetailControl(current.payload||{}),0);
+    if(current&&current.route==='detalle')scheduleDetailMount(current.payload||{},40);
     if(authenticated()&&canAccess())refresh(true).catch(()=>{});
   }
 
