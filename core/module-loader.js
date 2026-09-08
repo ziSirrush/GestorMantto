@@ -189,6 +189,7 @@
     resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260814-project-name-v010']},
     criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260821-pdf-emojis-v001']},
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
+    detalle:{css:[],js:['./modules/intereses/portafolio-interes.js?v=20260908-interes-mantto-v001']},
     proyectos:{css:['./modules/proyectos/proyectos.css?v=20260706-v001'],js:['./modules/proyectos/proyectos.js?v=20260828-fase4-frontend-v001']},
     callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260827-fase2-carga-acotada-v001']},
     operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260828-fase4-frontend-v001']},

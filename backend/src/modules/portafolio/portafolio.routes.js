@@ -1,7 +1,9 @@
 // [Aster | 2026-08-21 | ASTER-MG | FASE 9/11: Movimientos Portafolio por cuartos UNITED]
+// [Aster | 2026-09-08 | ASTER-MG | FIX: INTERES PERSONAL PROYECTO/EQUIPO MANTTO V001]
 const express = require('express');
 const router = express.Router();
 const portafolioController = require('./portafolio.controller');
+const portafolioInterestController = require('./portafolio-interes.controller');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const {
   humanInformationGuard_gnral,
@@ -16,6 +18,9 @@ const {
 
 const requirePortafolioIntegration = requireIntegrationAuthFor('INTEGRATION_PORTAFOLIO_ID');
 const { requireProgrammerRole } = require('../../middleware/historical-sync.middleware');
+
+const PORTAFOLIO_INTEREST_PERMISSION =
+  'PORTAFOLIO_PROYECTOS_DE_MANTENIMIENTO_SEGUIMIENTO_INTERES_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
 
 const PORTAFOLIO_READ_PERMISSIONS = Object.freeze([
   'PORTAFOLIO_DASHBOARD_PORTAFOLIO_TABLA_PROYECTOS_PORTAFOLIO_TABLA_PORTAFOLIO.VER',
@@ -92,6 +97,13 @@ const dashboardPortafolioGuard = humanInformationGuard_gnral({
 const portafolioDetailGuard = humanInformationGuard_gnral({
   domain: 'UNITED',
   groupingPermissionPairsAny: unitedGroupingPermissionPairs(PORTAFOLIO_DETAIL_PERMISSIONS)
+});
+
+// Facultad independiente: marcar/desmarcar Proyecto/Equipo de interés.
+const portafolioInterestGuard = humanInformationGuard_gnral({
+  permissionCode: PORTAFOLIO_INTEREST_PERMISSION,
+  domain: 'UNITED',
+  groupingCode: 'PORTAFOLIO'
 });
 
 // FASE 9/11: Movimientos tiene puerta funcional propia. No se hereda acceso
@@ -171,6 +183,35 @@ router.post(
   filterPortafolioEquipmentBodyScope_gnral,
   portafolioController.getPortafolioEquipoTicketsLote
 );
+
+// Seguimiento personal de interés. La puerta funcional y el alcance de registro
+// se evalúan por separado. El proyecto se materializa como sus equipos visibles
+// en portafolio_interes; no existe una tabla maestra de proyectos en Mantto.
+router.get(
+  '/proyectos/:proyecto/interes',
+  ...portafolioInterestGuard,
+  requirePortafolioProjectScope_gnral,
+  portafolioInterestController.getProjectInterest
+);
+router.put(
+  '/proyectos/:proyecto/interes',
+  ...portafolioInterestGuard,
+  requirePortafolioProjectScope_gnral,
+  portafolioInterestController.setProjectInterest
+);
+router.get(
+  '/equipos/:codigo/interes',
+  ...portafolioInterestGuard,
+  requirePortafolioEquipmentScope_gnral,
+  portafolioInterestController.getEquipmentInterest
+);
+router.put(
+  '/equipos/:codigo/interes',
+  ...portafolioInterestGuard,
+  requirePortafolioEquipmentScope_gnral,
+  portafolioInterestController.setEquipmentInterest
+);
+
 router.get(
   '/portafolio/equipos/:codigo',
   ...contextualEquipmentGuard,

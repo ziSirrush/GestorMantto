@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const portafolioInterestNotifications = require('../notifications/portafolio-interest-notifications_uni.service');
 
 async function insert_gnral(row, executor = db) {
   const [result] = await executor.query(`
@@ -40,7 +41,16 @@ async function insert_gnral(row, executor = db) {
     row.user_agent
   ]);
 
-  return Number(result.insertId || 0);
+  const idInteraccion = Number(result.insertId || 0);
+
+  // El seguimiento de interés es un efecto secundario de la auditoría existente:
+  // si esta emisión falla, NO revierte ni bloquea la interacción/operación original.
+  await portafolioInterestNotifications.processInteraction_uni({
+    id_interaccion: idInteraccion,
+    ...row
+  }, executor);
+
+  return idInteraccion;
 }
 
 async function listForUser_gnral({ userId, limit = 100, offset = 0 }) {
