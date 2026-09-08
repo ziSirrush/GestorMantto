@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
-const portafolioInterestNotifications = require('../notifications/portafolio-interest-notifications_uni.service');
+const portafolioSeguimientoEspecialNotifications = require('../notifications/portafolio-seguimiento-especial-notifications_uni.service');
 
 async function insert_gnral(row, executor = db) {
   const [result] = await executor.query(`
@@ -43,9 +43,9 @@ async function insert_gnral(row, executor = db) {
 
   const idInteraccion = Number(result.insertId || 0);
 
-  // El seguimiento de interés es un efecto secundario de la auditoría existente:
-  // si esta emisión falla, NO revierte ni bloquea la interacción/operación original.
-  await portafolioInterestNotifications.processInteraction_uni({
+  // Seguimiento Especial usa la auditoría existente como disparador.
+  // El fanout atrapa sus propios errores: nunca debe bloquear la operación original.
+  await portafolioSeguimientoEspecialNotifications.processInteraction_uni({
     id_interaccion: idInteraccion,
     ...row
   }, executor);

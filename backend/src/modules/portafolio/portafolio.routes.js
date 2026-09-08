@@ -1,9 +1,10 @@
 // [Aster | 2026-08-21 | ASTER-MG | FASE 9/11: Movimientos Portafolio por cuartos UNITED]
 // [Aster | 2026-09-08 | ASTER-MG | FIX: INTERES PERSONAL PROYECTO/EQUIPO MANTTO V001]
+// [Aster | 2026-09-08 | ASTER-MG | FIX: SEGUIMIENTO ESPECIAL MANTTO V002]
 const express = require('express');
 const router = express.Router();
 const portafolioController = require('./portafolio.controller');
-const portafolioInterestController = require('./portafolio-interes.controller');
+const portafolioSeguimientoEspecialController = require('./portafolio-seguimiento-especial.controller');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const {
   humanInformationGuard_gnral,
@@ -19,8 +20,10 @@ const {
 const requirePortafolioIntegration = requireIntegrationAuthFor('INTEGRATION_PORTAFOLIO_ID');
 const { requireProgrammerRole } = require('../../middleware/historical-sync.middleware');
 
-const PORTAFOLIO_INTEREST_PERMISSION =
-  'PORTAFOLIO_PROYECTOS_DE_MANTENIMIENTO_SEGUIMIENTO_INTERES_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
+const PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACCESS_PERMISSION =
+  'PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+const PORTAFOLIO_SEGUIMIENTO_ESPECIAL_MANAGE_PERMISSION =
+  'PORTAFOLIO_SEGUIMIENTO_ESPECIAL_SEGUIMIENTO_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
 
 const PORTAFOLIO_READ_PERMISSIONS = Object.freeze([
   'PORTAFOLIO_DASHBOARD_PORTAFOLIO_TABLA_PROYECTOS_PORTAFOLIO_TABLA_PORTAFOLIO.VER',
@@ -99,9 +102,20 @@ const portafolioDetailGuard = humanInformationGuard_gnral({
   groupingPermissionPairsAny: unitedGroupingPermissionPairs(PORTAFOLIO_DETAIL_PERMISSIONS)
 });
 
-// Facultad independiente: marcar/desmarcar Proyecto/Equipo de interés.
-const portafolioInterestGuard = humanInformationGuard_gnral({
-  permissionCode: PORTAFOLIO_INTEREST_PERMISSION,
+// Seguimiento Especial: lectura del módulo y gestión son facultades separadas.
+// La lectura acepta ACCESO_VISUAL o GESTIONAR_SEGUIMIENTO para tolerar asignaciones
+// parciales; toda mutación exige explícitamente GESTIONAR_SEGUIMIENTO.
+const portafolioSeguimientoEspecialReadGuard = humanInformationGuard_gnral({
+  permissionCodesAny: [
+    PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACCESS_PERMISSION,
+    PORTAFOLIO_SEGUIMIENTO_ESPECIAL_MANAGE_PERMISSION
+  ],
+  domain: 'UNITED',
+  groupingCode: 'PORTAFOLIO'
+});
+
+const portafolioSeguimientoEspecialManageGuard = humanInformationGuard_gnral({
+  permissionCode: PORTAFOLIO_SEGUIMIENTO_ESPECIAL_MANAGE_PERMISSION,
   domain: 'UNITED',
   groupingCode: 'PORTAFOLIO'
 });
@@ -184,32 +198,36 @@ router.post(
   portafolioController.getPortafolioEquipoTicketsLote
 );
 
-// Seguimiento personal de interés. La puerta funcional y el alcance de registro
-// se evalúan por separado. El proyecto se materializa como sus equipos visibles
-// en portafolio_interes; no existe una tabla maestra de proyectos en Mantto.
+// Seguimiento Especial personal. Mantto no tiene tabla maestra de proyectos:
+// marcar Proyecto materializa sus equipos visibles en portafolio_interes.
 router.get(
-  '/proyectos/:proyecto/interes',
-  ...portafolioInterestGuard,
-  requirePortafolioProjectScope_gnral,
-  portafolioInterestController.getProjectInterest
-);
-router.put(
-  '/proyectos/:proyecto/interes',
-  ...portafolioInterestGuard,
-  requirePortafolioProjectScope_gnral,
-  portafolioInterestController.setProjectInterest
+  '/portafolio/seguimiento-especial',
+  ...portafolioSeguimientoEspecialReadGuard,
+  portafolioSeguimientoEspecialController.list
 );
 router.get(
-  '/equipos/:codigo/interes',
-  ...portafolioInterestGuard,
-  requirePortafolioEquipmentScope_gnral,
-  portafolioInterestController.getEquipmentInterest
+  '/proyectos/:proyecto/seguimiento-especial',
+  ...portafolioSeguimientoEspecialReadGuard,
+  requirePortafolioProjectScope_gnral,
+  portafolioSeguimientoEspecialController.getProject
 );
 router.put(
-  '/equipos/:codigo/interes',
-  ...portafolioInterestGuard,
+  '/proyectos/:proyecto/seguimiento-especial',
+  ...portafolioSeguimientoEspecialManageGuard,
+  requirePortafolioProjectScope_gnral,
+  portafolioSeguimientoEspecialController.setProject
+);
+router.get(
+  '/equipos/:codigo/seguimiento-especial',
+  ...portafolioSeguimientoEspecialReadGuard,
   requirePortafolioEquipmentScope_gnral,
-  portafolioInterestController.setEquipmentInterest
+  portafolioSeguimientoEspecialController.getEquipment
+);
+router.put(
+  '/equipos/:codigo/seguimiento-especial',
+  ...portafolioSeguimientoEspecialManageGuard,
+  requirePortafolioEquipmentScope_gnral,
+  portafolioSeguimientoEspecialController.setEquipment
 );
 
 router.get(
