@@ -212,7 +212,17 @@ async function emitTicketEvent_gnral({
       accion: 'ABRIR_TICKET',
       idReferencia: Number(ticketRow && ticketRow.id) || null,
       ruta: ticketRow && ticketRow.ticket ? `detalle:ticket:${ticketRow.ticket}` : null,
-      eventInstanceKey
+      eventInstanceKey,
+      contextoSeguimiento: {
+        dominio: 'UNITED',
+        tipo: 'TICKET',
+        id_ticket: Number(ticketRow && ticketRow.id) || null,
+        ticket: ticketRow && ticketRow.ticket || null,
+        numero_equipo: ticketRow && (ticketRow.codigo_equipo || ticketRow.equipo) || null,
+        proyecto: ticketRow && (ticketRow.proyecto || ticketRow.proyecto_padre) || null,
+        zona_id: zoneId,
+        identificador_operacion: eventInstanceKey
+      }
     }, {
       label: `${eventCode}:${ticketRow && ticketRow.ticket || 'sin-ticket'}`
     });

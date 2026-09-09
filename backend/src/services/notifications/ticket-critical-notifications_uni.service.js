@@ -7,6 +7,7 @@
 // Fase 4: los tres eventos criticos de Tickets se emiten exclusivamente por el
 // motor central. La sincronizacion de negocio permanece independiente.
 
+const crypto = require('crypto');
 const db = require('../../config/db');
 const logger = require('../../shared/logger');
 const {
@@ -18,6 +19,11 @@ const EVENT_PERSONA_ATRAPADA_UNI = 'PERSONA_ATRAPADA';
 const EVENT_NUEVO_EQUIPO_CRITICO_UNI = 'NUEVO_EQUIPO_CRITICO';
 const EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI = 'PERSONA_ATRAPADA_EQUIPO_CRITICO';
 const EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI = 'PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO';
+const EVENT_TICKET_CREADO_UNI = 'TICKET_CREADO';
+const EVENT_TICKET_ESTATUS_CAMBIADO_UNI = 'TICKET_ESTATUS_CAMBIADO';
+const EVENT_TICKET_PRIORIDAD_CAMBIADA_UNI = 'TICKET_PRIORIDAD_CAMBIADA';
+const EVENT_TICKET_ASIGNACION_CAMBIADA_UNI = 'TICKET_ASIGNACION_CAMBIADA';
+const EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI = 'TICKET_RESPONSABILIDAD_CAMBIADA';
 const CRITICOS_DIAS_UNI = 35;
 const CRITICOS_MIN_FALLAS_BLT_UNI = 3;
 const PERSONA_ATRAPADA_KEYWORDS_UNI = Object.freeze([
@@ -140,23 +146,16 @@ async function captureBeforeSync_uni(body) {
   const idPlaceholders = candidateIds.map(() => '?').join(', ');
   const [existingRows] = await db.query(
     `SELECT
-       id,
-       ticket,
-       codigo_equipo,
-       responsabilidad,
-       fecha_reporte,
-       descripcion,
-       causa,
-       accion_en_cierre,
+       t.*,
        CASE
-         WHEN fecha_reporte IS NOT NULL
-          AND fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
-          AND fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-          AND UPPER(COALESCE(responsabilidad, '')) LIKE '%BLT%'
+         WHEN t.fecha_reporte IS NOT NULL
+          AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+          AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%BLT%'
          THEN 1 ELSE 0
        END AS calificaba_blt_periodo
-     FROM tickets
-     WHERE id IN (${idPlaceholders})`,
+     FROM tickets t
+     WHERE t.id IN (${idPlaceholders})`,
     candidateIds
   );
 
@@ -357,6 +356,86 @@ function evaluateCandidateTransitions_uni(candidateRows, beforeContext, currentP
   });
 }
 
+function comparableText_uni(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+function anyChanged_uni(before, after, fields) {
+  return fields.some((field) => comparableText_uni(before?.[field]) !== comparableText_uni(after?.[field]));
+}
+
+function nativeTicketTransition_uni(before, after) {
+  if (!after) return null;
+  if (!before) return {
+    eventCode: EVENT_TICKET_CREADO_UNI,
+    kind: 'CREACION',
+    fields: ['ticket']
+  };
+  if (anyChanged_uni(before, after, ['estado_ticket', 'estado', 'estatus_equipo_final', 'fecha_cierre'])) {
+    return {
+      eventCode: EVENT_TICKET_ESTATUS_CAMBIADO_UNI,
+      kind: 'ESTATUS',
+      fields: ['estado_ticket', 'estado', 'estatus_equipo_final', 'fecha_cierre']
+    };
+  }
+  if (anyChanged_uni(before, after, ['prioridad'])) {
+    return {
+      eventCode: EVENT_TICKET_PRIORIDAD_CAMBIADA_UNI,
+      kind: 'PRIORIDAD',
+      fields: ['prioridad']
+    };
+  }
+  if (anyChanged_uni(before, after, ['responsabilidad'])) {
+    return {
+      eventCode: EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI,
+      kind: 'RESPONSABILIDAD',
+      fields: ['responsabilidad']
+    };
+  }
+  if (anyChanged_uni(before, after, ['tecnico', 'supervisor', 'persona_que_atiende', 'blt_empleado', 'ejecutivo_call'])) {
+    return {
+      eventCode: EVENT_TICKET_ASIGNACION_CAMBIADA_UNI,
+      kind: 'ASIGNACION',
+      fields: ['tecnico', 'supervisor', 'persona_que_atiende', 'blt_empleado', 'ejecutivo_call']
+    };
+  }
+  return null;
+}
+
+function ticketTransitionIdentity_uni(before, after, transition) {
+  const selected = {};
+  for (const field of transition.fields) {
+    selected[field] = {
+      before: comparableText_uni(before?.[field]),
+      after: comparableText_uni(after?.[field])
+    };
+  }
+  return crypto.createHash('sha256').update(JSON.stringify({
+    id: Number(after?.id || before?.id || 0),
+    event: transition.eventCode,
+    selected
+  })).digest('hex');
+}
+
+function ticketTransitionPresentation_uni(transition, before, after) {
+  const ticket = String(after?.ticket || before?.ticket || after?.id || '').trim();
+  if (transition.kind === 'CREACION') {
+    return { title: `Nuevo Ticket ${ticket}`, message: `Se generó el ticket ${ticket}.` };
+  }
+  if (transition.kind === 'ESTATUS') {
+    const previous = before?.estado_ticket || before?.estado || before?.estatus_equipo_final || 'Sin estatus';
+    const current = after?.estado_ticket || after?.estado || after?.estatus_equipo_final || 'Sin estatus';
+    return { title: `Estatus de Ticket ${ticket}`, message: `El ticket ${ticket} cambió de ${previous} a ${current}.` };
+  }
+  if (transition.kind === 'PRIORIDAD') {
+    return { title: `Prioridad de Ticket ${ticket}`, message: `El ticket ${ticket} cambió su prioridad de ${before?.prioridad || 'Sin prioridad'} a ${after?.prioridad || 'Sin prioridad'}.` };
+  }
+  if (transition.kind === 'RESPONSABILIDAD') {
+    return { title: `Responsabilidad de Ticket ${ticket}`, message: `El ticket ${ticket} cambió su responsabilidad de ${before?.responsabilidad || 'Sin definir'} a ${after?.responsabilidad || 'Sin definir'}.` };
+  }
+  return { title: `Asignación de Ticket ${ticket}`, message: `Se actualizó la asignación del ticket ${ticket}.` };
+}
+
 function primaryReason_uni(result) {
   if (result?.reason) return result.reason;
   const skippedReasons = result?.skipped_reasons || {};
@@ -376,7 +455,8 @@ async function emitTicketEvent_uni({
   title,
   message,
   icon,
-  activeUserIds
+  activeUserIds,
+  eventInstanceKey: providedEventInstanceKey = null
 }) {
   const zoneId = await resolveTicketZoneId_uni(db, ticketRow);
   if (!zoneId) {
@@ -401,7 +481,7 @@ async function emitTicketEvent_uni({
 
   const ticketId = Number(ticketRow?.id) || null;
   const ticketRef = String(ticketRow?.ticket || ticketId || '').trim();
-  const eventInstanceKey = `ticket-critical:${eventCode}:ticket-id:${ticketId}`;
+  const eventInstanceKey = providedEventInstanceKey || `ticket-critical:${eventCode}:ticket-id:${ticketId}`;
 
   const result = await emitBusinessEventSafe_gnral({
     codigoEvento: eventCode,
@@ -416,7 +496,17 @@ async function emitTicketEvent_uni({
     accion: 'ABRIR_TICKET',
     idReferencia: ticketId,
     ruta: ticketRef ? `detalle:ticket:${ticketRef}` : null,
-    eventInstanceKey
+    eventInstanceKey,
+    contextoSeguimiento: {
+      dominio: 'UNITED',
+      tipo: 'TICKET',
+      id_ticket: ticketId,
+      ticket: ticketRow?.ticket || null,
+      numero_equipo: ticketRow?.codigo_equipo || ticketRow?.equipo || null,
+      proyecto: ticketRow?.proyecto || ticketRow?.proyecto_padre || null,
+      zona_id: zoneId,
+      identificador_operacion: eventInstanceKey
+    }
   }, {
     label: `tickets-critical:${eventCode}`
   });
@@ -447,6 +537,26 @@ async function loadAffectedRows_uni(beforeContext) {
   );
 }
 
+async function loadReceivedRows_uni(beforeContext) {
+  const candidateIds = uniquePositiveIds_uni(
+    beforeContext?.receivedCandidateIds || beforeContext?.candidateIds || []
+  );
+  if (!candidateIds.length) return [];
+
+  const placeholders = candidateIds.map(() => '?').join(', ');
+  const [rows] = await db.query(`
+    SELECT *
+    FROM tickets
+    WHERE id IN (${placeholders})
+  `, candidateIds);
+
+  const order = beforeContext?.candidateOrder || new Map();
+  return rows.sort((a, b) =>
+    Number(order.get(Number(a.id)) ?? Number.MAX_SAFE_INTEGER) -
+    Number(order.get(Number(b.id)) ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
 function emptySummary_uni() {
   return {
     affected_tickets: 0,
@@ -457,6 +567,11 @@ function emptySummary_uni() {
     falla_equipo_critico: 0,
     persona_atrapada: 0,
     nuevo_equipo_critico: 0,
+    ticket_creado: 0,
+    ticket_estatus_cambiado: 0,
+    ticket_prioridad_cambiada: 0,
+    ticket_asignacion_cambiada: 0,
+    ticket_responsabilidad_cambiada: 0,
     eventos: []
   };
 }
@@ -518,13 +633,14 @@ function appendEventResult_uni(summary, eventCode, row, result, counterField, ex
 
 async function processAfterSync_uni(beforeContext, actorUser) {
   const affectedRows = await loadAffectedRows_uni(beforeContext);
+  const receivedRows = await loadReceivedRows_uni(beforeContext);
   const summary = emptySummary_uni();
   const beforeTickets = beforeContext?.beforeTickets || new Map();
-  summary.affected_tickets = affectedRows.length;
-  summary.inserted_tickets = affectedRows.filter((row) => !beforeTickets.has(Number(row.id))).length;
-  summary.updated_tickets = affectedRows.length - summary.inserted_tickets;
+  summary.affected_tickets = receivedRows.length;
+  summary.inserted_tickets = receivedRows.filter((row) => !beforeTickets.has(Number(row.id))).length;
+  summary.updated_tickets = receivedRows.length - summary.inserted_tickets;
 
-  if (!affectedRows.length) return summary;
+  if (!receivedRows.length) return summary;
 
   // Se listan todos los usuarios activos. El motor central es la unica capa que
   // decide Evento + Rol, politica obligatoria/opcional, actor, alcance UNITED,
@@ -537,6 +653,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     beforeContext,
     currentPeriodBltIds
   );
+  const nativeWinnerTicketIds = new Set();
 
   for (const evaluation of evaluations) {
     const row = evaluation.row;
@@ -603,6 +720,10 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       continue;
     }
 
+    // La seleccion del ganador, y no el resultado del canal, bloquea cualquier
+    // evento nativo de menor precedencia para el mismo Ticket.
+    nativeWinnerTicketIds.add(Number(row.id));
+
     let result;
     try {
       result = await emitTicketEvent_uni({
@@ -641,10 +762,68 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     traceEvaluation_uni(evaluation, event.eventCode, result, 'ERROR_EMISION');
   }
 
+  for (const row of receivedRows) {
+    const ticketId = Number(row.id);
+    if (nativeWinnerTicketIds.has(ticketId)) continue;
+
+    const beforeRow = beforeTickets.get(ticketId) || null;
+    const transition = nativeTicketTransition_uni(beforeRow, row);
+    if (!transition) continue;
+
+    const presentation = ticketTransitionPresentation_uni(transition, beforeRow, row);
+    const eventInstanceKey = `ticket-native:${transition.eventCode}:${ticketTransitionIdentity_uni(beforeRow, row, transition)}`;
+    const counterFieldByEvent = {
+      [EVENT_TICKET_CREADO_UNI]: 'ticket_creado',
+      [EVENT_TICKET_ESTATUS_CAMBIADO_UNI]: 'ticket_estatus_cambiado',
+      [EVENT_TICKET_PRIORIDAD_CAMBIADA_UNI]: 'ticket_prioridad_cambiada',
+      [EVENT_TICKET_ASIGNACION_CAMBIADA_UNI]: 'ticket_asignacion_cambiada',
+      [EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI]: 'ticket_responsabilidad_cambiada'
+    };
+
+    let result;
+    try {
+      result = await emitTicketEvent_uni({
+        eventCode: transition.eventCode,
+        ticketRow: row,
+        actorUserId: actorId,
+        title: presentation.title,
+        message: presentation.message,
+        icon: 'ti ti-ticket',
+        activeUserIds,
+        eventInstanceKey
+      });
+    } catch (error) {
+      logger.error('[NOTIFICATION_NATIVE_TICKET_EMIT_FAILED]', {
+        ticket_id: ticketId,
+        ticket: row?.ticket || null,
+        codigo_evento: transition.eventCode,
+        error: error.message
+      });
+      result = {
+        created: 0,
+        skipped: activeUserIds.length,
+        reason: 'ERROR_EMISION',
+        trace_id: null,
+        event_instance_key: eventInstanceKey
+      };
+    }
+
+    appendEventResult_uni(
+      summary,
+      transition.eventCode,
+      row,
+      result,
+      counterFieldByEvent[transition.eventCode],
+      { transicion: transition.kind }
+    );
+  }
+
   return summary;
 }
 
 module.exports = {
   captureBeforeSync_uni,
-  processAfterSync_uni
+  processAfterSync_uni,
+  nativeTicketTransition_uni,
+  ticketTransitionIdentity_uni
 };

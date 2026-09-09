@@ -1,4 +1,11 @@
 const db = require('../../config/db');
+const logger = require('../../shared/logger');
+
+function normalizeVisualCodes_gnral(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value || '').trim().toUpperCase())
+    .filter(Boolean))];
+}
 
 async function listEventPreferences(idUsuario, queryable = db) {
   const [rows] = await queryable.query(`
@@ -89,6 +96,17 @@ async function findEvent(connection, codigoEvento) {
       AND e.activo = 1
     LIMIT 1
   `, [codigoEvento]);
+  return rows[0] || null;
+}
+
+async function findActiveVisualState(connection, codigo) {
+  const [rows] = await connection.query(`
+    SELECT codigo, nombre, categoria, emoji, icono, prioridad
+    FROM estados_visuales
+    WHERE UPPER(codigo) = UPPER(?)
+      AND activo = 1
+    LIMIT 1
+  `, [codigo]);
   return rows[0] || null;
 }
 
@@ -244,42 +262,92 @@ async function upsertPreferences(connection, idUsuario, preferences) {
 
 async function insertOneNotification_gnral(connection, notification) {
   const hasDedupKey = Boolean(notification.clave_deduplicacion);
+  const visualCodes = normalizeVisualCodes_gnral(notification.codigos_visuales);
+  const params = [
+    notification.id_usuario,
+    notification.tipo_notificacion,
+    notification.titulo_notificacion,
+    notification.mensaje_notificacion,
+    notification.icono_notificacion || null,
+    notification.accion_notificacion,
+    notification.id_referencia || null,
+    notification.ruta_destino || null,
+    notification.clave_deduplicacion || null,
+    notification.trace_id || null
+  ];
+  const insertNative = () => connection.query(`
+    INSERT INTO sup_notificaciones (
+      id_usuario,
+      tipo_notificacion,
+      titulo_notificacion,
+      mensaje_notificacion,
+      icono_notificacion,
+      accion_notificacion,
+      id_referencia,
+      ruta_destino,
+      clave_deduplicacion,
+      trace_id,
+      leido,
+      activo,
+      fecha_creacion,
+      fecha_actualizacion
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, NOW(), NOW())
+  `, params);
+
   try {
-    const [result] = await connection.query(`
-      INSERT INTO sup_notificaciones (
-        id_usuario,
-        tipo_notificacion,
-        titulo_notificacion,
-        mensaje_notificacion,
-        icono_notificacion,
-        accion_notificacion,
-        id_referencia,
-        ruta_destino,
-        clave_deduplicacion,
-        trace_id,
-        leido,
-        activo,
-        fecha_creacion,
-        fecha_actualizacion
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, NOW(), NOW())
-    `, [
-      notification.id_usuario,
-      notification.tipo_notificacion,
-      notification.titulo_notificacion,
-      notification.mensaje_notificacion,
-      notification.icono_notificacion || null,
-      notification.accion_notificacion,
-      notification.id_referencia || null,
-      notification.ruta_destino || null,
-      notification.clave_deduplicacion || null,
-      notification.trace_id || null
-    ]);
+    let result;
+    let visualMetadataPersisted = visualCodes.length === 0;
+    let visualMetadataError = null;
+
+    if (visualCodes.length) {
+      try {
+        [result] = await connection.query(`
+          INSERT INTO sup_notificaciones (
+            id_usuario,
+            tipo_notificacion,
+            titulo_notificacion,
+            mensaje_notificacion,
+            icono_notificacion,
+            accion_notificacion,
+            id_referencia,
+            ruta_destino,
+            clave_deduplicacion,
+            trace_id,
+            codigos_visuales_json,
+            leido,
+            activo,
+            fecha_creacion,
+            fecha_actualizacion
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, NOW(), NOW())
+        `, [...params, JSON.stringify(visualCodes)]);
+        visualMetadataPersisted = true;
+      } catch (error) {
+        if (hasDedupKey && (error?.code === 'ER_DUP_ENTRY' || Number(error?.errno) === 1062)) {
+          throw error;
+        }
+        visualMetadataError = error?.code || 'VISUAL_METADATA_WRITE_FAILED';
+        logger.error('[NOTIFICATION_VISUAL_METADATA_WRITE_FAILED]', {
+          id_notificacion: null,
+          id_usuario: Number(notification.id_usuario || 0) || null,
+          tipo_notificacion: notification.tipo_notificacion || null,
+          trace_id: notification.trace_id || null,
+          visual_codes: visualCodes,
+          error_code: error?.code || null,
+          error: error?.message || String(error)
+        });
+        [result] = await insertNative();
+      }
+    } else {
+      [result] = await insertNative();
+    }
 
     return {
       notification,
       inserted: Number(result.affectedRows || 0) === 1,
       duplicate: false,
-      insertId: Number(result.insertId || 0) || null
+      insertId: Number(result.insertId || 0) || null,
+      visualMetadataPersisted,
+      visualMetadataError
     };
   } catch (error) {
     const duplicateKey = hasDedupKey && (error?.code === 'ER_DUP_ENTRY' || Number(error?.errno) === 1062);
@@ -352,6 +420,7 @@ async function withTransaction(work) {
 module.exports = {
   listEventPreferences,
   findEvent,
+  findActiveVisualState,
   findPreference,
   listPreferencesForUsers,
   listRecipientPolicyContext,
@@ -359,5 +428,6 @@ module.exports = {
   upsertPreferences,
   insertNotification,
   insertNotifications,
-  withTransaction
+  withTransaction,
+  normalizeVisualCodes_gnral
 };

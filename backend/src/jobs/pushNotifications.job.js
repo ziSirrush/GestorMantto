@@ -35,7 +35,20 @@ function notificationLimit() {
   return Math.min(100, Math.floor(configured));
 }
 
-function payloadFor(notification) {
+function parseVisualCodes_gnral(value) {
+  if (Array.isArray(value)) return [...new Set(value.map(String).map(code => code.trim().toUpperCase()).filter(Boolean))];
+  if (value == null || value === '') return [];
+  try {
+    const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
+    return Array.isArray(parsed)
+      ? [...new Set(parsed.map(String).map(code => code.trim().toUpperCase()).filter(Boolean))]
+      : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function payloadFor(notification, visualCatalogByCode = new Map()) {
   const baseTitle = notification.titulo_notificacion || 'Mantto Gestor';
   const emoji = String(notification.icono_notificacion || '').trim();
   const priority = String(notification.prioridad_notificacion || 'MEDIA').trim().toUpperCase();
@@ -44,7 +57,11 @@ function payloadFor(notification) {
     MEDIA: '🟡',
     BAJA: '⚪'
   }[priority] || '';
-  const prefixes = [priorityEmoji, emoji]
+  const visualEmojis = parseVisualCodes_gnral(notification.codigos_visuales_json)
+    .map(code => visualCatalogByCode.get(code))
+    .map(item => String(item?.emoji || '').trim())
+    .filter(Boolean);
+  const prefixes = [priorityEmoji, ...visualEmojis, emoji]
     .filter(Boolean)
     .filter((value, index, values) => values.indexOf(value) === index);
   const titlePrefix = prefixes.join(' ');
@@ -129,6 +146,27 @@ async function processSubscription(subscription, cycleWatermarkId) {
 
   let sent = 0;
   let lastSuccessfulId = startCursorId;
+  let visualCatalogByCode = new Map();
+
+  const visualCodes = [...new Set(rows.flatMap((notification) =>
+    parseVisualCodes_gnral(notification.codigos_visuales_json)
+  ))];
+  if (visualCodes.length) {
+    try {
+      const visualRows = await repository.listActiveVisualStates(visualCodes);
+      visualCatalogByCode = new Map(visualRows.map((row) => [
+        String(row.codigo || '').trim().toUpperCase(),
+        row
+      ]));
+    } catch (error) {
+      logger.error('[PUSH_VISUAL_CATALOG_FAILED]', {
+        subscription_id: subscription.id_suscripcion,
+        visual_codes: visualCodes,
+        error_code: error?.code || null,
+        error: error?.message || String(error)
+      });
+    }
+  }
 
   try {
     for (const notification of rows) {
@@ -139,7 +177,11 @@ async function processSubscription(subscription, cycleWatermarkId) {
         throw error;
       }
 
-      await sendPush(subscription, payloadFor(notification), deliveryOptionsFor(notification));
+      await sendPush(
+        subscription,
+        payloadFor(notification, visualCatalogByCode),
+        deliveryOptionsFor(notification)
+      );
       sent += 1;
       lastSuccessfulId = notificationId;
     }
@@ -244,5 +286,6 @@ module.exports = {
   cursorFor,
   notificationLimit,
   payloadFor,
+  parseVisualCodes_gnral,
   deliveryOptionsFor
 };

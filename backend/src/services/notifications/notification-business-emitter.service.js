@@ -47,6 +47,8 @@ async function emitBusinessEventSafe_gnral(eventInput, context = {}) {
   const actionIdentity = actionIdentity_gnral(input);
   const traceId = String(input.traceId || input.trace_id || '').trim() || crypto.randomUUID();
   const label = String(context.label || codigoEvento || 'notification-business-event').trim();
+  const contextoSeguimiento = input.contextoSeguimiento || input.contexto_seguimiento ||
+    context.contextoSeguimiento || context.contexto_seguimiento || null;
 
   if (!codigoEvento) {
     const result = emptyFailure_gnral(input, 'CODIGO_EVENTO_NO_DECLARADO', null, traceId);
@@ -72,6 +74,7 @@ async function emitBusinessEventSafe_gnral(eventInput, context = {}) {
   try {
     const result = await notificationService.emit({
       ...input,
+      ...(contextoSeguimiento ? { contextoSeguimiento } : {}),
       traceId
     });
     return {

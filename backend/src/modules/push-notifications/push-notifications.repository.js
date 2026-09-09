@@ -2,6 +2,31 @@
 const db = require('../../config/db');
 const { pushVisibilitySql_gnral } = require('../../services/notifications/notification-policy');
 
+let visualMetadataColumnCache = { value: false, checkedAt: 0 };
+
+async function hasVisualMetadataColumn_gnral(queryable = db) {
+  const now = Date.now();
+  if (now - visualMetadataColumnCache.checkedAt < 60000) {
+    return visualMetadataColumnCache.value;
+  }
+  try {
+    const [rows] = await queryable.query(`
+      SELECT COUNT(*) AS total
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'sup_notificaciones'
+        AND COLUMN_NAME = 'codigos_visuales_json'
+    `);
+    visualMetadataColumnCache = {
+      value: Number(rows[0]?.total || 0) === 1,
+      checkedAt: now
+    };
+  } catch (_error) {
+    visualMetadataColumnCache = { value: false, checkedAt: now };
+  }
+  return visualMetadataColumnCache.value;
+}
+
 async function upsertSubscription({ userId, endpoint, p256dh, auth, userAgent, deviceName }) {
   const [result] = await db.query(`
     INSERT INTO notificaciones_push_suscripciones (
@@ -75,6 +100,9 @@ async function getNotificationWatermark() {
 }
 
 async function listPendingNotifications({ userId, cursorId, watermarkId, limit = 20 }) {
+  const visualColumn = await hasVisualMetadataColumn_gnral()
+    ? 'n.codigos_visuales_json'
+    : 'NULL AS codigos_visuales_json';
   const [rows] = await db.query(`
     SELECT
       n.id_notificacion,
@@ -86,6 +114,7 @@ async function listPendingNotifications({ userId, cursorId, watermarkId, limit =
       n.id_referencia,
       n.ruta_destino,
       n.fecha_creacion,
+      ${visualColumn},
       COALESCE(e.prioridad_default, 'MEDIA') AS prioridad_notificacion
     FROM sup_notificaciones n
     LEFT JOIN notificacion_eventos e
@@ -103,6 +132,21 @@ async function listPendingNotifications({ userId, cursorId, watermarkId, limit =
     ORDER BY n.id_notificacion ASC
     LIMIT ?
   `, [userId, Number(cursorId || 0), Number(watermarkId || 0), Number(limit)]);
+  return rows;
+}
+
+async function listActiveVisualStates(codes) {
+  const normalized = [...new Set((Array.isArray(codes) ? codes : [])
+    .map((code) => String(code || '').trim().toUpperCase())
+    .filter(Boolean))];
+  if (!normalized.length) return [];
+  const [rows] = await db.query(`
+    SELECT codigo, nombre, categoria, emoji, icono, prioridad
+    FROM estados_visuales
+    WHERE activo = 1
+      AND UPPER(codigo) IN (?)
+    ORDER BY prioridad ASC, codigo ASC
+  `, [normalized]);
   return rows;
 }
 
@@ -135,6 +179,8 @@ module.exports = {
   listActiveSubscriptions,
   getNotificationWatermark,
   listPendingNotifications,
+  listActiveVisualStates,
   advanceSubscriptionCursor,
-  deactivateById
+  deactivateById,
+  hasVisualMetadataColumn_gnral
 };

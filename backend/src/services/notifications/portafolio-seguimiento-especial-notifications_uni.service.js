@@ -1,369 +1,324 @@
 'use strict';
 
-const notificationService = require('./notification.service');
 const {
   listUsersWithEffectivePermission
 } = require('../permissions/effective-permission.service');
-const logger = require('../../shared/logger');
 
 const MANAGE_PERMISSION =
   'PORTAFOLIO_SEGUIMIENTO_ESPECIAL_SEGUIMIENTO_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
-const EVENT_CODE = 'PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACTUALIZACION';
-
-const MEANINGFUL_INTERACTIONS = new Set([
-  'CREAR',
-  'EDITAR',
-  'ACTUALIZAR',
-  'COMENTAR',
-  'CAMBIAR_ESTATUS',
-  'CAMBIAR_PRIORIDAD',
-  'ASIGNAR',
-  'VALIDAR',
-  'VOBO',
-  'ADJUNTAR',
-  'ELIMINAR'
-]);
-
-const EXCLUDED_MODULES = new Set([
-  'seguimiento-especial',
-  'notifications',
-  'services',
-  'panel-control',
-  'usuarios'
-]);
+const VISUAL_CODE = 'SEGUIMIENTO_ESPECIAL';
 
 function cleanText(value, max = 500) {
   const text = String(value == null ? '' : value).trim();
   return text ? text.slice(0, max) : null;
 }
 
-function parseJson(value) {
-  if (!value) return {};
-  if (typeof value === 'object') return value;
-  try {
-    const parsed = JSON.parse(String(value));
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (_error) {
-    return {};
+function positiveId(value) {
+  const id = Number(value || 0);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function uniqueFollowers(values) {
+  const byUser = new Map();
+  for (const value of Array.isArray(values) ? values : []) {
+    const idUsuario = positiveId(value?.id_usuario ?? value);
+    if (!idUsuario) continue;
+    const origin = cleanText(value?.origen_seguimiento, 40) || 'EQUIPO';
+    const current = byUser.get(idUsuario);
+    if (!current || current.origen_seguimiento === 'PROYECTO_HEREDADO') {
+      byUser.set(idUsuario, {
+        id_usuario: idUsuario,
+        origen_seguimiento: origin,
+        autorizado: true
+      });
+    }
   }
+  return [...byUser.values()];
 }
 
-function uniquePositiveIds(values) {
-  return [...new Set((Array.isArray(values) ? values : [])
-    .map(Number)
-    .filter((id) => Number.isInteger(id) && id > 0))];
+function normalizeContext(contextoNegocio) {
+  const source = contextoNegocio && typeof contextoNegocio === 'object'
+    ? contextoNegocio
+    : {};
+  const snapshot = source.snapshot_pre_mutacion && typeof source.snapshot_pre_mutacion === 'object'
+    ? source.snapshot_pre_mutacion
+    : {};
+
+  return {
+    dominio: cleanText(source.dominio, 40)?.toUpperCase() || null,
+    tipo: cleanText(source.tipo, 40)?.toUpperCase() || null,
+    id_ticket: positiveId(source.id_ticket ?? snapshot.id_ticket),
+    ticket: cleanText(source.ticket ?? snapshot.ticket, 255),
+    id_portafolio: positiveId(source.id_portafolio ?? snapshot.id_portafolio),
+    numero_equipo: cleanText(
+      source.numero_equipo ?? source.equipo ?? snapshot.numero_equipo ?? snapshot.equipo,
+      255
+    ),
+    proyecto: cleanText(source.proyecto ?? snapshot.proyecto, 255),
+    zona_id: positiveId(source.zona_id ?? source.zonaOperativaId ?? snapshot.zona_id),
+    snapshot_pre_mutacion: Object.keys(snapshot).length ? snapshot : null,
+    followers_snapshot: uniqueFollowers(
+      source.followers_snapshot ?? source.seguidores_snapshot ?? source.seguidores_aplicables ?? []
+    ),
+    identificador_operacion: cleanText(
+      source.identificador_operacion ?? source.event_instance_key,
+      255
+    )
+  };
 }
 
-function initialContext(interaction) {
-  const payload = parseJson(interaction?.payload_json);
-  const detail = parseJson(interaction?.detalle_json);
-  const stored = detail?.contexto && typeof detail.contexto === 'object' ? detail.contexto : {};
-  const entity = cleanText(interaction?.entidad, 100)?.toLowerCase() || null;
-  const reference = cleanText(interaction?.id_referencia, 255);
+async function findTicketContext(executor, context) {
+  const clauses = [];
+  const params = [];
+  if (context.id_ticket) {
+    clauses.push('t.id = ?');
+    params.push(context.id_ticket);
+  }
+  if (context.ticket) {
+    clauses.push("TRIM(COALESCE(t.ticket, '')) = TRIM(?)");
+    params.push(context.ticket);
+  }
+  if (!clauses.length) return null;
 
-  const ticket = cleanText(
-    stored.ticket || payload.ticket || payload.folio ||
-    (entity === 'ticket' ? (payload.id || reference) : null),
-    255
-  );
-  const equipment = cleanText(
-    stored.equipo || payload.equipo || payload.codigo_equipo ||
-    (entity === 'equipo' ? (payload.id || reference) : null),
-    255
-  );
-  const project = cleanText(
-    stored.proyecto || payload.proyecto || payload.project ||
-    (entity === 'proyecto' ? (payload.id || reference) : null),
-    255
-  );
-
-  return { entity, ticket, equipment, project };
-}
-
-async function resolveTicketContext(executor, reference) {
-  const ref = cleanText(reference, 255);
-  if (!ref) return null;
-  const [rows] = await executor.query(
-    `SELECT id, ticket, codigo_equipo, equipo, proyecto, proyecto_padre
-       FROM tickets
-      WHERE TRIM(COALESCE(ticket, '')) = TRIM(?)
-         OR CAST(id AS CHAR) = ?
-         OR TRIM(COALESCE(folio, '')) = TRIM(?)
-         OR TRIM(COALESCE(id_interno, '')) = TRIM(?)
-      ORDER BY id DESC
-      LIMIT 1`,
-    [ref, ref, ref, ref]
-  );
+  const [rows] = await executor.query(`
+    SELECT
+      t.id AS id_ticket,
+      t.ticket,
+      t.codigo_equipo AS numero_equipo,
+      COALESCE(NULLIF(TRIM(t.proyecto), ''), NULLIF(TRIM(t.proyecto_padre), '')) AS proyecto
+    FROM tickets t
+    WHERE ${clauses.join(' OR ')}
+    ORDER BY t.id DESC
+    LIMIT 1
+  `, params);
   return rows[0] || null;
 }
 
-async function resolveEquipmentContext(executor, reference) {
-  const ref = cleanText(reference, 255);
-  if (!ref) return null;
-  const [rows] = await executor.query(
-    `SELECT id_portafolio, numero_equipo, identificacion_sitio, proyecto, zona_id
-       FROM portafolio
-      WHERE estado_registro = 1
-        AND (
-          TRIM(COALESCE(numero_equipo, '')) = TRIM(?)
-          OR TRIM(COALESCE(identificacion_sitio, '')) = TRIM(?)
-        )
-      LIMIT 1`,
-    [ref, ref]
-  );
+async function findEquipmentContext(executor, context) {
+  const clauses = [];
+  const params = [];
+  if (context.id_portafolio) {
+    clauses.push('p.id_portafolio = ?');
+    params.push(context.id_portafolio);
+  }
+  if (context.numero_equipo) {
+    clauses.push("TRIM(COALESCE(p.numero_equipo, '')) = TRIM(?)");
+    params.push(context.numero_equipo);
+  }
+  if (!clauses.length) return null;
+
+  const [rows] = await executor.query(`
+    SELECT p.id_portafolio, p.numero_equipo, p.proyecto, p.zona_id, p.estado_registro
+    FROM portafolio p
+    WHERE ${clauses.join(' OR ')}
+    ORDER BY (p.id_portafolio = ?) DESC, p.estado_registro DESC, p.id_portafolio DESC
+    LIMIT 1
+  `, [...params, context.id_portafolio || 0]);
   return rows[0] || null;
+}
+
+async function resolveContext(executor, contextoNegocio) {
+  const context = normalizeContext(contextoNegocio);
+  if (context.dominio !== 'UNITED') return { applicable: false, context, equipmentRow: null };
+
+  if ((!context.numero_equipo || !context.proyecto) && (context.id_ticket || context.ticket)) {
+    const ticketRow = await findTicketContext(executor, context);
+    if (ticketRow) {
+      context.id_ticket = context.id_ticket || positiveId(ticketRow.id_ticket);
+      context.ticket = context.ticket || cleanText(ticketRow.ticket, 255);
+      context.numero_equipo = context.numero_equipo || cleanText(ticketRow.numero_equipo, 255);
+      context.proyecto = context.proyecto || cleanText(ticketRow.proyecto, 255);
+    }
+  }
+
+  let equipmentRow = null;
+  if (context.id_portafolio || context.numero_equipo) {
+    equipmentRow = await findEquipmentContext(executor, context);
+    if (equipmentRow) {
+      context.id_portafolio = context.id_portafolio || positiveId(equipmentRow.id_portafolio);
+      context.numero_equipo = context.numero_equipo || cleanText(equipmentRow.numero_equipo, 255);
+      context.proyecto = context.proyecto || cleanText(equipmentRow.proyecto, 255);
+      context.zona_id = context.zona_id || positiveId(equipmentRow.zona_id);
+    }
+  }
+
+  const verified = Boolean(
+    (context.id_portafolio && context.numero_equipo && context.zona_id) ||
+    (context.proyecto && context.zona_id)
+  );
+
+  return { applicable: verified, context, equipmentRow };
 }
 
 function currentUnitedScopeSql(userAlias, zoneSql) {
   return `(
     EXISTS (
       SELECT 1
-        FROM usuarios_alcance_informacion uai_se_master
-       WHERE uai_se_master.id_usuario = ${userAlias}
-         AND uai_se_master.tipo_alcance = 'DOMINIO_COMPLETO'
-         AND UPPER(TRIM(uai_se_master.dominio)) = 'UNITED'
-         AND uai_se_master.activo = 1
+      FROM usuarios_alcance_informacion uai_se_master
+      WHERE uai_se_master.id_usuario = ${userAlias}
+        AND uai_se_master.tipo_alcance = 'DOMINIO_COMPLETO'
+        AND UPPER(TRIM(uai_se_master.dominio)) = 'UNITED'
+        AND uai_se_master.activo = 1
     )
     OR (
       EXISTS (
         SELECT 1
-          FROM usuarios_alcance_informacion uai_se_group
-          INNER JOIN perm_agrupaciones pa_se
-                  ON pa_se.id_agrupacion = uai_se_group.id_agrupacion
-                 AND pa_se.codigo = 'PORTAFOLIO'
-                 AND pa_se.activo = 1
-         WHERE uai_se_group.id_usuario = ${userAlias}
-           AND uai_se_group.tipo_alcance = 'AGRUPACION'
-           AND uai_se_group.activo = 1
+        FROM usuarios_alcance_informacion uai_se_group
+        INNER JOIN perm_agrupaciones pa_se
+          ON pa_se.id_agrupacion = uai_se_group.id_agrupacion
+         AND pa_se.codigo = 'PORTAFOLIO'
+         AND pa_se.activo = 1
+        WHERE uai_se_group.id_usuario = ${userAlias}
+          AND uai_se_group.tipo_alcance = 'AGRUPACION'
+          AND uai_se_group.activo = 1
       )
       AND ${zoneSql} IS NOT NULL
       AND EXISTS (
         SELECT 1
-          FROM usuario_zop uz_se
-         WHERE uz_se.usuario_id = ${userAlias}
-           AND uz_se.zona_id = ${zoneSql}
-           AND uz_se.estado = 1
+        FROM usuario_zop uz_se
+        WHERE uz_se.usuario_id = ${userAlias}
+          AND uz_se.zona_id = ${zoneSql}
+          AND uz_se.estado = 1
       )
     )
   )`;
 }
 
 async function recipientsForEquipment(executor, equipment) {
-  const idPortafolio = Number(equipment?.id_portafolio || 0);
+  const idPortafolio = positiveId(equipment?.id_portafolio);
   const project = cleanText(equipment?.proyecto, 255);
-  const zoneId = Number(equipment?.zona_id || 0) || null;
-  if (!idPortafolio) return [];
+  const zoneId = positiveId(equipment?.zona_id);
+  if (!idPortafolio || !zoneId) return [];
 
-  const [rows] = await executor.query(
-    `SELECT DISTINCT candidate.id_usuario
-       FROM (
-         -- Relación directa activa con el equipo actual.
-         SELECT direct_follow.id_usuario
-           FROM portafolio_interes direct_follow
-          WHERE direct_follow.id_portafolio = ?
-            AND direct_follow.activo = 1
+  const [rows] = await executor.query(`
+    SELECT
+      candidate.id_usuario,
+      CASE
+        WHEN MAX(candidate.directo) = 1 THEN MAX(candidate.origen_seguimiento)
+        ELSE 'PROYECTO_HEREDADO'
+      END AS origen_seguimiento
+    FROM (
+      SELECT
+        direct_follow.id_usuario,
+        1 AS directo,
+        direct_follow.origen AS origen_seguimiento
+      FROM portafolio_interes direct_follow
+      WHERE direct_follow.id_portafolio = ?
+        AND direct_follow.activo = 1
 
-         UNION
+      UNION ALL
 
-         -- Herencia del Proyecto para equipos agregados después de marcarlo.
-         -- Cualquier fila directa usuario+equipo (activa o inactiva) prevalece
-         -- y evita que la herencia del Proyecto la sobreescriba.
-         SELECT project_follow.id_usuario
-           FROM portafolio_interes project_follow
-           INNER JOIN portafolio project_source
-                   ON project_source.id_portafolio = project_follow.id_portafolio
-                  AND project_source.estado_registro = 1
-          WHERE project_follow.activo = 1
-            AND project_follow.origen = 'PROYECTO'
-            AND LOWER(TRIM(COALESCE(project_source.proyecto, ''))) = LOWER(TRIM(?))
-            AND NOT EXISTS (
-              SELECT 1
-                FROM portafolio_interes direct_override
-               WHERE direct_override.id_usuario = project_follow.id_usuario
-                 AND direct_override.id_portafolio = ?
-            )
-       ) candidate
-       INNER JOIN usuarios u_interest
-               ON u_interest.id_SB = candidate.id_usuario
-              AND u_interest.estado = 1
-      WHERE ${currentUnitedScopeSql('candidate.id_usuario', '?')}`,
-    [idPortafolio, project || '', idPortafolio, zoneId, zoneId]
-  );
+      SELECT
+        project_follow.id_usuario,
+        0 AS directo,
+        'PROYECTO_HEREDADO' AS origen_seguimiento
+      FROM portafolio_interes project_follow
+      INNER JOIN portafolio project_source
+        ON project_source.id_portafolio = project_follow.id_portafolio
+       AND project_source.estado_registro = 1
+      WHERE project_follow.activo = 1
+        AND project_follow.origen = 'PROYECTO'
+        AND LOWER(TRIM(COALESCE(project_source.proyecto, ''))) = LOWER(TRIM(?))
+        AND NOT EXISTS (
+          SELECT 1
+          FROM portafolio_interes direct_override
+          WHERE direct_override.id_usuario = project_follow.id_usuario
+            AND direct_override.id_portafolio = ?
+        )
+    ) candidate
+    INNER JOIN usuarios u_interest
+      ON u_interest.id_SB = candidate.id_usuario
+     AND u_interest.estado = 1
+    WHERE ${currentUnitedScopeSql('candidate.id_usuario', '?')}
+    GROUP BY candidate.id_usuario
+  `, [idPortafolio, project || '', idPortafolio, zoneId, zoneId]);
 
-  return uniquePositiveIds(rows.map((row) => row.id_usuario));
+  return uniqueFollowers(rows);
 }
 
-async function recipientsForProject(executor, project) {
+async function recipientsForProject(executor, project, zoneId) {
   const ref = cleanText(project, 255);
-  if (!ref) return [];
+  const normalizedZoneId = positiveId(zoneId);
+  if (!ref || !normalizedZoneId) return [];
 
-  const [rows] = await executor.query(
-    `SELECT DISTINCT pi.id_usuario
-       FROM portafolio_interes pi
-       INNER JOIN portafolio p_interest
-               ON p_interest.id_portafolio = pi.id_portafolio
-              AND p_interest.estado_registro = 1
-       INNER JOIN usuarios u_interest
-               ON u_interest.id_SB = pi.id_usuario
-              AND u_interest.estado = 1
-      WHERE pi.activo = 1
-        AND pi.origen = 'PROYECTO'
-        AND LOWER(TRIM(COALESCE(p_interest.proyecto, ''))) = LOWER(TRIM(?))
-        AND ${currentUnitedScopeSql('pi.id_usuario', 'p_interest.zona_id')}`,
-    [ref]
+  const [rows] = await executor.query(`
+    SELECT DISTINCT pi.id_usuario, 'PROYECTO' AS origen_seguimiento
+    FROM portafolio_interes pi
+    INNER JOIN portafolio p_interest
+      ON p_interest.id_portafolio = pi.id_portafolio
+     AND p_interest.estado_registro = 1
+    INNER JOIN usuarios u_interest
+      ON u_interest.id_SB = pi.id_usuario
+     AND u_interest.estado = 1
+    WHERE pi.activo = 1
+      AND pi.origen = 'PROYECTO'
+      AND LOWER(TRIM(COALESCE(p_interest.proyecto, ''))) = LOWER(TRIM(?))
+      AND p_interest.zona_id = ?
+      AND ${currentUnitedScopeSql('pi.id_usuario', 'p_interest.zona_id')}
+  `, [ref, normalizedZoneId]);
+
+  return uniqueFollowers(rows);
+}
+
+async function filterByPermission(executor, followers) {
+  const normalized = uniqueFollowers(followers);
+  if (!normalized.length) return [];
+  const permitted = new Set(
+    (await listUsersWithEffectivePermission(MANAGE_PERMISSION, executor)).map(Number)
   );
-
-  return uniquePositiveIds(rows.map((row) => row.id_usuario));
+  return normalized.filter((item) => permitted.has(item.id_usuario));
 }
 
-async function filterByPermission(executor, recipients) {
-  if (!recipients.length) return [];
-  const permitted = new Set(await listUsersWithEffectivePermission(MANAGE_PERMISSION, executor));
-  return recipients.filter((id) => permitted.has(id));
-}
+async function resolveSeguimientoRecipients_uni({
+  executor,
+  contextoNegocio,
+  actorUserId,
+  codigoEventoNativo
+}) {
+  if (!executor || typeof executor.query !== 'function') {
+    throw new Error('Se requiere un executor MySQL para resolver Seguimiento Especial.');
+  }
 
-function activityLabel(type) {
-  const map = {
-    CREAR: 'se creó un registro',
-    EDITAR: 'se editó información',
-    ACTUALIZAR: 'se actualizó información',
-    COMENTAR: 'se agregó un comentario',
-    CAMBIAR_ESTATUS: 'cambió el estatus',
-    CAMBIAR_PRIORIDAD: 'cambió la prioridad',
-    ASIGNAR: 'se realizó una asignación',
-    VALIDAR: 'se realizó una validación',
-    VOBO: 'se actualizó un Vo.Bo.',
-    ADJUNTAR: 'se adjuntó un archivo',
-    ELIMINAR: 'se eliminó un registro'
+  const resolved = await resolveContext(executor, contextoNegocio);
+  if (!resolved.applicable) {
+    return {
+      applicable: false,
+      context: resolved.context,
+      followers: [],
+      visual_codes: [],
+      follow_candidate_count: 0,
+      follow_authorized_count: 0
+    };
+  }
+
+  const rawFollowers = resolved.context.followers_snapshot.length
+    ? resolved.context.followers_snapshot
+    : (resolved.context.id_portafolio
+      ? await recipientsForEquipment(executor, resolved.context)
+      : await recipientsForProject(executor, resolved.context.proyecto, resolved.context.zona_id));
+  const actorId = positiveId(actorUserId);
+  const followers = (await filterByPermission(executor, rawFollowers))
+    .filter((item) => !actorId || item.id_usuario !== actorId);
+
+  return {
+    applicable: true,
+    context: resolved.context,
+    followers,
+    visual_codes: followers.length ? [VISUAL_CODE] : [],
+    follow_candidate_count: uniqueFollowers(rawFollowers).length,
+    follow_authorized_count: followers.length,
+    codigo_evento_nativo: cleanText(codigoEventoNativo, 120)
   };
-  return map[type] || 'se registró actividad';
-}
-
-async function resolveContext(executor, interaction) {
-  const context = initialContext(interaction);
-  let equipmentRow = null;
-
-  if (context.ticket) {
-    const ticketRow = await resolveTicketContext(executor, context.ticket);
-    if (ticketRow) {
-      context.equipment = cleanText(ticketRow.codigo_equipo || ticketRow.equipo, 255) || context.equipment;
-      context.project = cleanText(ticketRow.proyecto || ticketRow.proyecto_padre, 255) || context.project;
-    }
-  }
-
-  if (context.equipment) {
-    equipmentRow = await resolveEquipmentContext(executor, context.equipment);
-    if (equipmentRow) {
-      context.equipment = cleanText(equipmentRow.numero_equipo, 255) || context.equipment;
-      context.project = cleanText(equipmentRow.proyecto, 255) || context.project;
-    }
-  }
-
-  return { context, equipmentRow };
-}
-
-async function processInteraction_uni(interaction, executor) {
-  const type = String(interaction?.tipo_interaccion || '').trim().toUpperCase();
-  const moduleName = String(interaction?.modulo || '').trim().toLowerCase();
-  const entity = String(interaction?.entidad || '').trim().toLowerCase();
-  const interactionId = Number(interaction?.id_interaccion || interaction?.id || 0);
-  const endpoint = String(interaction?.endpoint || '').trim().toLowerCase();
-  const payload = parseJson(interaction?.payload_json);
-  const domainMarker = [
-    moduleName,
-    endpoint,
-    payload?.source,
-    payload?.origen,
-    payload?.template
-  ].filter(Boolean).join(' ').toLowerCase();
-
-  if (!interactionId || !MEANINGFUL_INTERACTIONS.has(type)) {
-    return { skipped: true, reason: 'INTERACCION_NO_APLICA' };
-  }
-  if (EXCLUDED_MODULES.has(moduleName)) return { skipped: true, reason: 'MODULO_EXCLUIDO' };
-  if (/\/seguimiento-especial(?:\/|$|\?)/i.test(endpoint)) {
-    return { skipped: true, reason: 'CAMBIO_DE_SEGUIMIENTO' };
-  }
-  if (entity === 'cotizacion' || entity === 'proyecto_instalaciones') {
-    return { skipped: true, reason: 'ENTIDAD_NO_MANTTO' };
-  }
-  if (/^\/api\/(?:instalaciones(?:\/|$)|ins-fl(?:\/|$)|ventas(?:\/|$)|logistica(?:\/|$)|cobranza-cor(?:\/|$))/i.test(endpoint)) {
-    return { skipped: true, reason: 'DOMINIO_NO_MANTTO' };
-  }
-  if (/\b(?:instalaciones?|corellian)\b/i.test(domainMarker)) {
-    return { skipped: true, reason: 'DOMINIO_NO_MANTTO' };
-  }
-
-  try {
-    const resolved = await resolveContext(executor, interaction);
-    const context = resolved.context;
-    let recipients = [];
-    let subject = null;
-
-    if (resolved.equipmentRow) {
-      recipients = await recipientsForEquipment(executor, resolved.equipmentRow);
-      subject = `equipo ${resolved.equipmentRow.numero_equipo}`;
-    } else if (context.project) {
-      recipients = await recipientsForProject(executor, context.project);
-      subject = `proyecto ${context.project}`;
-    } else {
-      return { skipped: true, reason: 'SIN_CONTEXTO_PORTAFOLIO' };
-    }
-
-    recipients = await filterByPermission(executor, uniquePositiveIds(recipients));
-    if (!recipients.length) return { skipped: true, reason: 'SIN_SEGUIDORES_AUTORIZADOS' };
-
-    const originalTitle = cleanText(interaction?.titulo, 220);
-    const originalDescription = cleanText(interaction?.descripcion, 350);
-    const contextParts = [];
-    if (context.ticket) contextParts.push(`Ticket ${context.ticket}`);
-    if (context.project) contextParts.push(`Proyecto ${context.project}`);
-    if (context.equipment) contextParts.push(`Equipo ${context.equipment}`);
-
-    const messageParts = [
-      `En ${subject} ${activityLabel(type)}.`,
-      originalTitle && !/^actualizaste\b/i.test(originalTitle) ? originalTitle : null,
-      originalDescription,
-      contextParts.length ? contextParts.join(' · ') : null
-    ].filter(Boolean);
-
-    const result = await notificationService.emitWithConnection_gnral(executor, {
-      codigoEvento: EVENT_CODE,
-      destinatarios: recipients,
-      actorUserId: Number(interaction?.id_usuario || 0) || null,
-      eventInstanceKey: `usuario_interaccion:${interactionId}`,
-      titulo: resolved.equipmentRow
-        ? `⭐ Seguimiento Especial · ${resolved.equipmentRow.numero_equipo}`
-        : `⭐ Seguimiento Especial · ${context.project}`,
-      mensaje: messageParts.join(' ').slice(0, 500),
-      idReferencia: interactionId,
-      ruta: 'seguimiento-especial',
-      accion: 'ABRIR_MODULO'
-    });
-
-    return {
-      skipped: false,
-      recipients,
-      created: Number(result?.created || 0),
-      trace_id: result?.trace_id || null
-    };
-  } catch (error) {
-    logger.error('[PORTAFOLIO_SEGUIMIENTO_ESPECIAL_NOTIFICATION_FAILED]', {
-      id_interaccion: interactionId || null,
-      tipo_interaccion: type || null,
-      modulo: moduleName || null,
-      entidad: entity || null,
-      error_code: error?.code || null,
-      error: error?.message || String(error)
-    });
-    return {
-      skipped: true,
-      reason: 'ERROR_FANOUT_SEGUIMIENTO_ESPECIAL',
-      error: error?.message || String(error)
-    };
-  }
 }
 
 module.exports = {
-  processInteraction_uni
+  MANAGE_PERMISSION,
+  VISUAL_CODE,
+  normalizeContext,
+  resolveContext,
+  recipientsForEquipment,
+  recipientsForProject,
+  filterByPermission,
+  currentUnitedScopeSql,
+  resolveSeguimientoRecipients_uni
 };

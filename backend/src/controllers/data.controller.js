@@ -8,6 +8,7 @@
  */
 const legacy = require('./data.controller.legacy');
 const criticalTicketNotifications = require('../services/notifications/ticket-critical-notifications_uni.service');
+const portafolioNativeNotifications = require('../services/notifications/portafolio-native-notifications_uni.service');
 
 const requiredHandlers = [
   // Tickets
@@ -101,6 +102,11 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
     falla_equipo_critico: 0,
     persona_atrapada: 0,
     nuevo_equipo_critico: 0,
+    ticket_creado: 0,
+    ticket_estatus_cambiado: 0,
+    ticket_prioridad_cambiada: 0,
+    ticket_asignacion_cambiada: 0,
+    ticket_responsabilidad_cambiada: 0,
     eventos: []
   };
 
@@ -127,5 +133,67 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
 }
 
 exportedHandlers.syncTickets = syncTicketsWithCriticalNotifications_uni;
+
+async function syncPortafolioWithNotifications_uni(req, res) {
+  let beforeContext = null;
+  let notificationError = null;
+
+  try {
+    beforeContext = await portafolioNativeNotifications.captureBeforeSync_uni(req.body || {});
+  } catch (error) {
+    notificationError = `No fue posible capturar el contexto previo de Portafolio: ${error.message}`;
+    console.error('[portafolio/sync][notificaciones] Preparacion omitida:', error.message);
+  }
+
+  const originalJson = res.json.bind(res);
+  let capturedPayload = null;
+  res.json = function captureLegacyJson(payload) {
+    capturedPayload = payload;
+    return res;
+  };
+
+  try {
+    await legacy.syncPortafolio(req, res);
+  } finally {
+    res.json = originalJson;
+  }
+
+  if (!capturedPayload) {
+    return originalJson({
+      ok: false,
+      message: 'El sincronizador de Portafolio no devolvio una respuesta valida.',
+      notificaciones_portafolio_error: notificationError
+    });
+  }
+
+  if (capturedPayload.ok !== true || Number(res.statusCode || 200) >= 400) {
+    return originalJson(capturedPayload);
+  }
+
+  let notificationSummary = { created: 0, skipped: 0, events: [] };
+  if (beforeContext) {
+    try {
+      notificationSummary = await portafolioNativeNotifications.processAfterSync_uni(
+        beforeContext,
+        req.body || {},
+        req.contextUser || req.user || null
+      );
+    } catch (error) {
+      notificationError = error.message;
+      console.error(
+        '[portafolio/sync][notificaciones] El Portafolio se conservo; fallo solo la generacion de notificaciones:',
+        error.message
+      );
+    }
+  }
+
+  return originalJson({
+    ...capturedPayload,
+    notificaciones_portafolio: notificationSummary,
+    notificaciones_portafolio_error: notificationError
+  });
+}
+
+exportedHandlers.syncPortafolio = syncPortafolioWithNotifications_uni;
 
 module.exports = Object.freeze(exportedHandlers);

@@ -23,6 +23,30 @@ function notificationStateFilter(value) {
   return null;
 }
 
+function parseVisualCodes_gnral(value) {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map(String).map(item => item.trim().toUpperCase()).filter(Boolean))];
+  }
+  if (value == null || value === '') return [];
+  try {
+    const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
+    return Array.isArray(parsed)
+      ? [...new Set(parsed.map(String).map(item => item.trim().toUpperCase()).filter(Boolean))]
+      : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function toInboxNotification_gnral(row) {
+  const source = row && typeof row === 'object' ? row : {};
+  const { codigos_visuales_json: rawVisualCodes, ...notification } = source;
+  return {
+    ...notification,
+    codigos_visuales: parseVisualCodes_gnral(rawVisualCodes ?? source.codigos_visuales)
+  };
+}
+
 function buildNotificationQuery(req) {
   const user = currentUserRef(req);
   const params = [];
@@ -86,7 +110,7 @@ function buildNotificationQuery(req) {
 
 async function getNotificaciones(req) {
   const query = buildNotificationQuery(req);
-  return notificacionesRepository.getNotificaciones(query);
+  return (await notificacionesRepository.getNotificaciones(query)).map(toInboxNotification_gnral);
 }
 
 async function getEstadoNotificaciones(req) {
@@ -156,5 +180,7 @@ module.exports = {
   abrirNotificacion,
   marcarNotificacionNueva,
   getPreferencias,
-  guardarPreferencias
+  guardarPreferencias,
+  parseVisualCodes_gnral,
+  toInboxNotification_gnral
 };

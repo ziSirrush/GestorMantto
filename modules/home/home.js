@@ -325,8 +325,24 @@
       text: row.mensaje_notificacion || row.mensaje || '',
       time: formatRelativeDate(row.fecha_lectura || row.fecha_creacion || row.created_at || row.fecha),
       unread: row.leido === 0 || row.leido === false,
+      visualCodes: [...new Set((Array.isArray(row.codigos_visuales) ? row.codigos_visuales : [])
+        .map(code=>String(code||'').trim().toUpperCase()).filter(Boolean))],
       route: notificationRoute(row, id)
     };
+  }
+
+  function notificationVisualMarkup(notification){
+    const codes = Array.isArray(notification?.visualCodes) ? notification.visualCodes : [];
+    if(!codes.length) return '';
+    if(window.EstadosVisuales_gnral && window.EstadosVisuales_gnral.isLoaded()){
+      return window.EstadosVisuales_gnral.renderMany(codes,{empty:'',separator:' '});
+    }
+    return codes.map(code=>`<span class="estado-visual-gnral" data-estado-visual="${safeText(code)}"><span data-estado-visual-icon></span></span>`).join(' ');
+  }
+
+  function notificationTitleMarkup(notification){
+    const visual = notificationVisualMarkup(notification);
+    return (visual ? visual+' ' : '')+safeText(notification?.title || 'Notificacion');
   }
 
   function notificationIcon(type){
@@ -388,7 +404,7 @@
     const markNew = cls === 'notif-item' && i.id && !i.unread ? `<button type="button" class="notif-mark-new" data-mark-new="${safeText(i.id)}">Marcar como nuevo</button>` : '';
     return `<article class="${cls} clickable ${i.unread?'unread':''}" data-target='${toTargetAttr(i.route)}'${notifAttr}>
       <div class="${prefix}-icon">${safeText(i.icon)}</div>
-      <div><div class="${prefix}-title">${safeText(i.title)}</div><div class="${prefix}-text">${safeText(i.text)}</div><div class="${prefix}-time">${safeText(i.time)}</div>${markNew}</div>
+      <div><div class="${prefix}-title">${notificationTitleMarkup(i)}</div><div class="${prefix}-text">${safeText(i.text)}</div><div class="${prefix}-time">${safeText(i.time)}</div>${markNew}</div>
     </article>`;
   }
 
@@ -898,8 +914,18 @@
       catch(error){ alert(error.message); }
     });
     document.querySelectorAll('[data-subtask-id]').forEach(chk=>chk.addEventListener('change', async ev=>{
-      try{ await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/subtareas/' + encodeURIComponent(ev.target.dataset.subtaskId), { method:'PATCH', body: JSON.stringify({ estatus: ev.target.checked ? 'Cerrado' : 'Pendiente' }) }); await loadHomeData(); }
-      catch(error){ alert(error.message); }
+      const input = ev.currentTarget;
+      const requestedChecked = Boolean(input.checked);
+      input.disabled = true;
+      try{
+        await apiRequest('/api/pendientes/' + encodeURIComponent(p.id_pendiente) + '/subtareas/' + encodeURIComponent(input.dataset.subtaskId), { method:'PATCH', body: JSON.stringify({ estatus: requestedChecked ? 'Cerrado' : 'Pendiente' }) });
+        await loadHomeData();
+      }catch(error){
+        input.checked = !requestedChecked;
+        alert(error.message);
+      }finally{
+        input.disabled = false;
+      }
     }));
     const commentInput = document.getElementById('comment-file');
     commentInput?.addEventListener('change', () => {
@@ -933,9 +959,15 @@
   let homeLoadPromise = null;
 
   async function performHomeLoad(){
+    // [Aster | 2026-09-07 | ASTER-MG | FIX GENERAL TAREAS MODAL PERSISTENTE V001]
+    // Si una tarea esta abierta en ventana flotante, el refresh de Home actualiza
+    // listas/KPIs sin reconstruir el shell que contiene el modal.
+    const taskModalRoot = document.getElementById('home-task-modal-root');
+    const preserveTaskModal = Boolean(taskModalRoot && taskModalRoot.firstElementChild);
+
     state.loading = true;
     state.user = getCurrentUser();
-    renderShell();
+    if(!preserveTaskModal) renderShell();
 
     try{
       const snapshot = await apiRequest('/api/home/snapshot');
@@ -1049,7 +1081,7 @@
     if(!pop) return;
     const rows = items || state.unreadNotifications || [];
     pop.innerHTML = `<div class="hdr-notif-head"><strong>Notificaciones nuevas</strong><button type="button" id="hdr-notif-close">×</button></div>` +
-      (rows.length ? `<div class="hdr-notif-list">${rows.map(n => `<button type="button" class="hdr-notif-row" data-header-notification="${safeText(n.id)}" data-target='${toTargetAttr(n.route)}'><span>${safeText(n.icon)}</span><b>${safeText(n.title)}</b><small>${safeText(n.text)}</small><em>${safeText(n.time)}</em></button>`).join('')}</div>` : '<div class="hdr-notif-empty">Sin notificaciones nuevas.</div>');
+      (rows.length ? `<div class="hdr-notif-list">${rows.map(n => `<button type="button" class="hdr-notif-row" data-header-notification="${safeText(n.id)}" data-target='${toTargetAttr(n.route)}'><span>${safeText(n.icon)}</span><b>${notificationTitleMarkup(n)}</b><small>${safeText(n.text)}</small><em>${safeText(n.time)}</em></button>`).join('')}</div>` : '<div class="hdr-notif-empty">Sin notificaciones nuevas.</div>');
     pop.hidden = false;
     if(btn) btn.setAttribute('aria-expanded', 'true');
     document.getElementById('hdr-notif-close')?.addEventListener('click', ev=>{ ev.stopPropagation(); closeHeaderNotificationDropdown(); });

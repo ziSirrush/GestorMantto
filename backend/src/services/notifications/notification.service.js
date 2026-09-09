@@ -4,6 +4,10 @@ const logger = require('../../shared/logger');
 const {
   resolveMatrixRecipientDecision_gnral
 } = require('./notification-decision');
+const {
+  resolveSeguimientoRecipients_uni,
+  VISUAL_CODE: SEGUIMIENTO_VISUAL_CODE
+} = require('./portafolio-seguimiento-especial-notifications_uni.service');
 
 function bool(value, fallback = 0) {
   if (value === undefined || value === null) return fallback ? 1 : 0;
@@ -71,7 +75,7 @@ function dedupKey_gnral(input, codigoEvento) {
     .digest('hex');
 }
 
-function baseNotification_gnral(input, event, idUsuario, codigoEvento, traceId, dedupKey) {
+function baseNotification_gnral(input, event, idUsuario, codigoEvento, traceId, dedupKey, visualCodes = []) {
   return {
     id_usuario: idUsuario,
     tipo_notificacion: codigoEvento,
@@ -82,8 +86,17 @@ function baseNotification_gnral(input, event, idUsuario, codigoEvento, traceId, 
     id_referencia: Number(input.idReferencia || input.id_referencia || 0) || null,
     ruta_destino: input.ruta || input.ruta_destino || event.ruta_default || null,
     clave_deduplicacion: dedupKey || null,
-    trace_id: traceId || null
+    trace_id: traceId || null,
+    codigos_visuales: [...new Set((Array.isArray(visualCodes) ? visualCodes : [])
+      .map((code) => String(code || '').trim().toUpperCase())
+      .filter(Boolean))]
   };
+}
+
+function recipientVisualCodes_gnral(prepared, idUsuario) {
+  return prepared.decoratedFollowRecipientIds?.has(Number(idUsuario))
+    ? [SEGUIMIENTO_VISUAL_CODE]
+    : [];
 }
 
 function emptyEmitResult_gnral(extra = {}) {
@@ -110,8 +123,104 @@ function logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients, r
     legacy_mode: result?.legacy_mode === true,
     reason: result?.reason || null,
     zone_scope: result?.zone_scope ?? null,
+    seguimiento_especial: result?.seguimiento_especial || null,
     decisions: Array.isArray(result?.decisions) ? result.decisions : []
   });
+}
+
+function seguimientoContext_gnral(input) {
+  const context = input?.contextoSeguimiento ?? input?.contexto_seguimiento;
+  return context && typeof context === 'object' ? context : null;
+}
+
+async function applySeguimientoLayer_gnral(connection, prepared) {
+  const context = seguimientoContext_gnral(prepared.input);
+  const normalRecipients = prepared.recipients.slice();
+  prepared.normalRecipients = normalRecipients;
+  prepared.followRecipientIds = new Set();
+  prepared.decoratedFollowRecipientIds = new Set();
+  prepared.seguimientoTrace = {
+    applicable: false,
+    normal_recipient_count: normalRecipients.length,
+    follow_candidate_count: 0,
+    follow_authorized_count: 0,
+    final_recipient_count: normalRecipients.length,
+    follow_decorated_count: 0,
+    deduped_count: 0,
+    visual_code: SEGUIMIENTO_VISUAL_CODE,
+    catalog_lookup_status: 'NO_REQUERIDO'
+  };
+
+  if (!context) return prepared;
+
+  try {
+    const resolved = await resolveSeguimientoRecipients_uni({
+      executor: connection,
+      contextoNegocio: context,
+      actorUserId: prepared.actorId,
+      codigoEventoNativo: prepared.codigoEvento
+    });
+    const followers = Array.isArray(resolved?.followers) ? resolved.followers : [];
+    const followerIds = normalizeRecipients(followers);
+    const merged = normalizeRecipients([...normalRecipients, ...followerIds]);
+    const decoratedIds = new Set();
+    let catalogStatus = 'NO_REQUERIDO';
+
+    if (followerIds.length) {
+      try {
+        const visual = await repository.findActiveVisualState(connection, SEGUIMIENTO_VISUAL_CODE);
+        catalogStatus = visual ? 'RESUELTO' : 'NO_ENCONTRADO_O_INACTIVO';
+        if (visual) followerIds.forEach((id) => decoratedIds.add(id));
+      } catch (catalogError) {
+        catalogStatus = 'ERROR';
+        logger.error('[NOTIFICATION_SEGUIMIENTO_VISUAL_CATALOG_FAILED]', {
+          trace_id: prepared.traceId,
+          codigo_evento_nativo: prepared.codigoEvento,
+          visual_code: SEGUIMIENTO_VISUAL_CODE,
+          error_code: catalogError?.code || null,
+          error: catalogError?.message || String(catalogError)
+        });
+      }
+    }
+
+    prepared.followRecipientIds = new Set(followerIds);
+    prepared.decoratedFollowRecipientIds = decoratedIds;
+    prepared.recipients = merged.filter((id) => !prepared.actorId || id !== prepared.actorId);
+    prepared.candidateRecipients = normalizeRecipients([
+      ...prepared.candidateRecipients,
+      ...followerIds
+    ]);
+    prepared.seguimientoTrace = {
+      applicable: resolved?.applicable === true,
+      tipo_contexto: resolved?.context?.tipo || null,
+      ticket: resolved?.context?.ticket || null,
+      id_portafolio: resolved?.context?.id_portafolio || null,
+      numero_equipo: resolved?.context?.numero_equipo || null,
+      proyecto: resolved?.context?.proyecto || null,
+      zona_id: resolved?.context?.zona_id || null,
+      snapshot_pre_mutacion: resolved?.context?.snapshot_pre_mutacion || null,
+      normal_recipient_count: normalRecipients.length,
+      follow_candidate_count: Number(resolved?.follow_candidate_count ?? followers.length),
+      follow_authorized_count: Number(resolved?.follow_authorized_count ?? followerIds.length),
+      final_recipient_count: prepared.recipients.length,
+      follow_decorated_count: decoratedIds.size,
+      deduped_count: normalRecipients.length + followerIds.length - merged.length,
+      visual_code: SEGUIMIENTO_VISUAL_CODE,
+      catalog_lookup_status: catalogStatus
+    };
+  } catch (error) {
+    logger.error('[NOTIFICATION_SEGUIMIENTO_RESOLUTION_FAILED]', {
+      trace_id: prepared.traceId,
+      codigo_evento_nativo: prepared.codigoEvento,
+      actor_user_id: prepared.actorId,
+      error_code: error?.code || null,
+      error: error?.message || String(error)
+    });
+    prepared.seguimientoTrace.error_code = error?.code || 'SEGUIMIENTO_RESOLUTION_FAILED';
+    prepared.seguimientoTrace.error_reason = error?.message || String(error);
+  }
+
+  return prepared;
 }
 
 async function getPreferences(req) {
@@ -212,7 +321,8 @@ async function emitLegacy_gnral(connection, prepared, event) {
       idUsuario,
       codigoEvento,
       traceId,
-      dedupKey
+      dedupKey,
+      recipientVisualCodes_gnral(prepared, idUsuario)
     ));
   }
 
@@ -242,7 +352,8 @@ async function emitLegacy_gnral(connection, prepared, event) {
     push_recipients: [],
     matrix_managed: false,
     legacy_mode: true,
-    decisions
+    decisions,
+    seguimiento_especial: prepared.seguimientoTrace
   };
 }
 
@@ -316,7 +427,8 @@ async function emitMatrix_gnral(connection, prepared, event) {
         idUsuario,
         codigoEvento,
         traceId,
-        dedupKey
+        dedupKey,
+        recipientVisualCodes_gnral(prepared, idUsuario)
       ),
       decision
     });
@@ -382,7 +494,8 @@ async function emitMatrix_gnral(connection, prepared, event) {
     legacy_mode: false,
     zone_scope: zoneScope.noAplica ? 'NO_APLICA' : zoneScope.ids,
     skipped_reasons: skippedReasons,
-    decisions
+    decisions,
+    seguimiento_especial: prepared.seguimientoTrace
   };
 }
 
@@ -402,7 +515,10 @@ function prepareEmit_gnral(eventInput) {
     actorId,
     candidateRecipients,
     recipients,
+    normalRecipients: recipients.slice(),
     actorExcluded,
+    followRecipientIds: new Set(),
+    decoratedFollowRecipientIds: new Set(),
     traceId: traceId_gnral(input),
     dedupKey: dedupKey_gnral(input, codigoEvento)
   };
@@ -413,35 +529,20 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
     input,
     codigoEvento,
     actorId,
-    candidateRecipients,
-    recipients,
     actorExcluded,
     traceId
   } = prepared;
-
-  if (!recipients.length) {
-    const result = emptyEmitResult_gnral({
-      skipped: candidateRecipients.length,
-      reason: actorExcluded ? 'ACTOR_EXCLUIDO' : 'SIN_DESTINATARIOS',
-      trace_id: traceId,
-      decisions: actorExcluded
-        ? [{ id_usuario: actorId, status: 'OMITIDA', reason: 'ACTOR_EXCLUIDO' }]
-        : []
-    });
-    logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients, result });
-    return result;
-  }
 
   const event = await repository.findEvent(connection, codigoEvento);
   if (!event) {
     if (input.allowMissingEvent === true || input.allow_missing_event === true) {
       const result = emptyEmitResult_gnral({
-        skipped: recipients.length + (actorExcluded ? 1 : 0),
+        skipped: prepared.recipients.length + (actorExcluded ? 1 : 0),
         reason: 'EVENTO_NO_REGISTRADO',
         trace_id: traceId,
         decisions: [
           ...(actorExcluded ? [{ id_usuario: actorId, status: 'OMITIDA', reason: 'ACTOR_EXCLUIDO' }] : []),
-          ...recipients.map((idUsuario) => ({
+          ...prepared.recipients.map((idUsuario) => ({
             id_usuario: idUsuario,
             status: 'OMITIDA',
             reason: 'EVENTO_NO_REGISTRADO'
@@ -449,24 +550,46 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
         ]
       });
       logger.warn(`Notificacion ${codigoEvento} omitida: el evento no existe en notificacion_eventos.`);
-      logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients, result });
+      logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients: prepared.candidateRecipients, result });
       return result;
     }
     throw new Error(`Evento de notificacion no registrado: ${codigoEvento}`);
+  }
+
+  await applySeguimientoLayer_gnral(connection, prepared);
+
+  if (!prepared.recipients.length) {
+    const result = emptyEmitResult_gnral({
+      skipped: prepared.candidateRecipients.length,
+      reason: actorExcluded ? 'ACTOR_EXCLUIDO' : 'SIN_DESTINATARIOS',
+      trace_id: traceId,
+      seguimiento_especial: prepared.seguimientoTrace,
+      decisions: actorExcluded
+        ? [{ id_usuario: actorId, status: 'OMITIDA', reason: 'ACTOR_EXCLUIDO' }]
+        : []
+    });
+    logTrace_gnral({
+      traceId,
+      codigoEvento,
+      actorId,
+      candidateRecipients: prepared.candidateRecipients,
+      result
+    });
+    return result;
   }
 
   const requireRoleMatrix = input.requireRoleMatrix === true || input.require_role_matrix === true;
   const matrixConfigured = Number(event.matriz_roles_configurada) === 1;
   if (requireRoleMatrix && !matrixConfigured) {
     const result = emptyEmitResult_gnral({
-      skipped: recipients.length + (actorExcluded ? 1 : 0),
+      skipped: prepared.recipients.length + (actorExcluded ? 1 : 0),
       matrix_managed: true,
       legacy_mode: false,
       reason: 'MATRIZ_ROLES_NO_CONFIGURADA',
       trace_id: traceId,
       decisions: [
         ...(actorExcluded ? [{ id_usuario: actorId, status: 'OMITIDA', reason: 'ACTOR_EXCLUIDO' }] : []),
-        ...recipients.map((idUsuario) => ({
+        ...prepared.recipients.map((idUsuario) => ({
           id_usuario: idUsuario,
           status: 'OMITIDA',
           reason: 'MATRIZ_ROLES_NO_CONFIGURADA'
@@ -474,7 +597,7 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
       ]
     });
     logger.warn(`Notificacion ${codigoEvento} omitida: se exige al menos una relacion Evento + Rol activa.`);
-    logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients, result });
+    logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients: prepared.candidateRecipients, result });
     return result;
   }
 
@@ -494,8 +617,15 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
   }
   result.trace_id = traceId;
   result.dedup_enabled = Boolean(prepared.dedupKey);
+  result.seguimiento_especial = prepared.seguimientoTrace;
 
-  logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients, result });
+  logTrace_gnral({
+    traceId,
+    codigoEvento,
+    actorId,
+    candidateRecipients: prepared.candidateRecipients,
+    result
+  });
   return result;
 }
 
@@ -508,25 +638,6 @@ async function emitWithConnection_gnral(connection, eventInput) {
 
 async function emit(eventInput) {
   const prepared = prepareEmit_gnral(eventInput);
-  if (!prepared.recipients.length) {
-    const result = emptyEmitResult_gnral({
-      skipped: prepared.candidateRecipients.length,
-      reason: prepared.actorExcluded ? 'ACTOR_EXCLUIDO' : 'SIN_DESTINATARIOS',
-      trace_id: prepared.traceId,
-      decisions: prepared.actorExcluded
-        ? [{ id_usuario: prepared.actorId, status: 'OMITIDA', reason: 'ACTOR_EXCLUIDO' }]
-        : []
-    });
-    logTrace_gnral({
-      traceId: prepared.traceId,
-      codigoEvento: prepared.codigoEvento,
-      actorId: prepared.actorId,
-      candidateRecipients: prepared.candidateRecipients,
-      result
-    });
-    return result;
-  }
-
   return repository.withTransaction((connection) =>
     emitPreparedWithConnection_gnral(connection, prepared)
   );
@@ -536,5 +647,7 @@ module.exports = {
   getPreferences,
   savePreferences,
   emit,
-  emitWithConnection_gnral
+  emitWithConnection_gnral,
+  applySeguimientoLayer_gnral,
+  recipientVisualCodes_gnral
 };

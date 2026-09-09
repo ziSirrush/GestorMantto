@@ -1,7 +1,6 @@
 'use strict';
 
 const db = require('../../config/db');
-const portafolioSeguimientoEspecialNotifications = require('../notifications/portafolio-seguimiento-especial-notifications_uni.service');
 
 async function insert_gnral(row, executor = db) {
   const [result] = await executor.query(`
@@ -42,13 +41,6 @@ async function insert_gnral(row, executor = db) {
   ]);
 
   const idInteraccion = Number(result.insertId || 0);
-
-  // Seguimiento Especial usa la auditoría existente como disparador.
-  // El fanout atrapa sus propios errores: nunca debe bloquear la operación original.
-  await portafolioSeguimientoEspecialNotifications.processInteraction_uni({
-    id_interaccion: idInteraccion,
-    ...row
-  }, executor);
 
   return idInteraccion;
 }
