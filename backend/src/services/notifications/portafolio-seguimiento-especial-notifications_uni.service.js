@@ -272,7 +272,6 @@ async function filterByPermission(executor, followers) {
 async function resolveSeguimientoRecipients_uni({
   executor,
   contextoNegocio,
-  actorUserId,
   codigoEventoNativo
 }) {
   if (!executor || typeof executor.query !== 'function') {
@@ -296,9 +295,9 @@ async function resolveSeguimientoRecipients_uni({
     : (resolved.context.id_portafolio
       ? await recipientsForEquipment(executor, resolved.context)
       : await recipientsForProject(executor, resolved.context.proyecto, resolved.context.zona_id));
-  const actorId = positiveId(actorUserId);
-  const followers = (await filterByPermission(executor, rawFollowers))
-    .filter((item) => !actorId || item.id_usuario !== actorId);
+  // Seguimiento Especial resuelve autorizacion y alcance, no politica nativa
+  // de destinatarios. Exclusiones como la del actor pertenecen al emisor nativo.
+  const followers = await filterByPermission(executor, rawFollowers);
 
   return {
     applicable: true,

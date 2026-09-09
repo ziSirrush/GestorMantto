@@ -144,6 +144,8 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
     normal_recipient_count: normalRecipients.length,
     follow_candidate_count: 0,
     follow_authorized_count: 0,
+    follow_native_excluded_count: 0,
+    follow_recipient_count: 0,
     final_recipient_count: normalRecipients.length,
     follow_decorated_count: 0,
     deduped_count: 0,
@@ -157,12 +159,15 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
     const resolved = await resolveSeguimientoRecipients_uni({
       executor: connection,
       contextoNegocio: context,
-      actorUserId: prepared.actorId,
       codigoEventoNativo: prepared.codigoEvento
     });
     const followers = Array.isArray(resolved?.followers) ? resolved.followers : [];
-    const followerIds = normalizeRecipients(followers);
-    const merged = normalizeRecipients([...normalRecipients, ...followerIds]);
+    const authorizedFollowerIds = normalizeRecipients(followers);
+    const merged = normalizeRecipients([...normalRecipients, ...authorizedFollowerIds]);
+    const nativeExcludedRecipientIds = prepared.nativeExcludedRecipientIds || new Set();
+    const finalRecipients = merged.filter((id) => !nativeExcludedRecipientIds.has(id));
+    const finalRecipientSet = new Set(finalRecipients);
+    const followerIds = authorizedFollowerIds.filter((id) => finalRecipientSet.has(id));
     const decoratedIds = new Set();
     let catalogStatus = 'NO_REQUERIDO';
 
@@ -185,11 +190,16 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
 
     prepared.followRecipientIds = new Set(followerIds);
     prepared.decoratedFollowRecipientIds = decoratedIds;
-    prepared.recipients = merged.filter((id) => !prepared.actorId || id !== prepared.actorId);
+    prepared.recipients = finalRecipients;
     prepared.candidateRecipients = normalizeRecipients([
       ...prepared.candidateRecipients,
-      ...followerIds
+      ...authorizedFollowerIds
     ]);
+    prepared.actorExcluded = Boolean(
+      prepared.actorId &&
+      prepared.candidateRecipients.includes(prepared.actorId) &&
+      nativeExcludedRecipientIds.has(prepared.actorId)
+    );
     prepared.seguimientoTrace = {
       applicable: resolved?.applicable === true,
       tipo_contexto: resolved?.context?.tipo || null,
@@ -201,10 +211,12 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
       snapshot_pre_mutacion: resolved?.context?.snapshot_pre_mutacion || null,
       normal_recipient_count: normalRecipients.length,
       follow_candidate_count: Number(resolved?.follow_candidate_count ?? followers.length),
-      follow_authorized_count: Number(resolved?.follow_authorized_count ?? followerIds.length),
+      follow_authorized_count: Number(resolved?.follow_authorized_count ?? authorizedFollowerIds.length),
+      follow_native_excluded_count: authorizedFollowerIds.length - followerIds.length,
+      follow_recipient_count: followerIds.length,
       final_recipient_count: prepared.recipients.length,
       follow_decorated_count: decoratedIds.size,
-      deduped_count: normalRecipients.length + followerIds.length - merged.length,
+      deduped_count: normalRecipients.length + authorizedFollowerIds.length - merged.length,
       visual_code: SEGUIMIENTO_VISUAL_CODE,
       catalog_lookup_status: catalogStatus
     };
@@ -506,7 +518,8 @@ function prepareEmit_gnral(eventInput) {
 
   const actorId = Number(input.actorUserId || input.actor_usuario_id || 0) || null;
   const candidateRecipients = normalizeRecipients(input.destinatarios || input.recipientUserIds);
-  const recipients = candidateRecipients.filter((id) => !actorId || id !== actorId);
+  const nativeExcludedRecipientIds = new Set(actorId ? [actorId] : []);
+  const recipients = candidateRecipients.filter((id) => !nativeExcludedRecipientIds.has(id));
   const actorExcluded = Boolean(actorId && candidateRecipients.includes(actorId));
 
   return {
@@ -517,6 +530,7 @@ function prepareEmit_gnral(eventInput) {
     recipients,
     normalRecipients: recipients.slice(),
     actorExcluded,
+    nativeExcludedRecipientIds,
     followRecipientIds: new Set(),
     decoratedFollowRecipientIds: new Set(),
     traceId: traceId_gnral(input),
@@ -529,9 +543,9 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
     input,
     codigoEvento,
     actorId,
-    actorExcluded,
     traceId
   } = prepared;
+  let actorExcluded = prepared.actorExcluded;
 
   const event = await repository.findEvent(connection, codigoEvento);
   if (!event) {
@@ -557,6 +571,7 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
   }
 
   await applySeguimientoLayer_gnral(connection, prepared);
+  actorExcluded = prepared.actorExcluded;
 
   if (!prepared.recipients.length) {
     const result = emptyEmitResult_gnral({

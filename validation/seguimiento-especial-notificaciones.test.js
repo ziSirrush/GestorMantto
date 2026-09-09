@@ -347,3 +347,307 @@ test('SQL es condicional y registra eventos nativos sin reactivar el fanout gene
   assert.match(migration, /tickets\.comentario\.creado/);
   assert.doesNotMatch(migration, /UPDATE\s+notificacion_eventos[\s\S]*PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACTUALIZACION/i);
 });
+
+test('actor que entra solo por Follow sigue excluido cuando la politica nativa excluye actor', async () => {
+  reset();
+  state.followers = [{ id_usuario: 10, origen_seguimiento: 'EQUIPO', autorizado: true }];
+  const result = await notificationService.emit({ ...nativeInput([]), actorUserId: 10 });
+  assert.equal(result.created, 0);
+  assert.equal(result.reason, 'ACTOR_EXCLUIDO');
+  assert.equal(state.inserted.length, 0);
+  assert.equal(result.seguimiento_especial.follow_native_excluded_count, 1);
+});
+
+test('Seguimiento no excluye al actor cuando el evento nativo no lo marco como excluido', async () => {
+  reset();
+  state.followers = [{ id_usuario: 10, origen_seguimiento: 'EQUIPO', autorizado: true }];
+  const prepared = {
+    input: nativeInput([]),
+    codigoEvento: 'EVENTO_NATIVO',
+    actorId: 10,
+    candidateRecipients: [],
+    recipients: [],
+    normalRecipients: [],
+    actorExcluded: false,
+    nativeExcludedRecipientIds: new Set(),
+    followRecipientIds: new Set(),
+    decoratedFollowRecipientIds: new Set(),
+    traceId: 'trace-actor-permitido',
+    dedupKey: 'evento-nativo:123456'
+  };
+
+  await notificationService.applySeguimientoLayer_gnral(repositoryStub, prepared);
+  assert.deepEqual(prepared.recipients, [10]);
+  assert.equal(prepared.actorExcluded, false);
+  assert.equal(prepared.seguimientoTrace.follow_native_excluded_count, 0);
+  assert.equal(prepared.seguimientoTrace.follow_recipient_count, 1);
+});
+
+function loadActualResolverWithPermissions(permittedIds) {
+  const modulePath = require.resolve('../backend/src/services/notifications/portafolio-seguimiento-especial-notifications_uni.service');
+  delete require.cache[modulePath];
+  const original = Module._load;
+  Module._load = function patchedLoad(request, parent, isMain) {
+    if (request === '../permissions/effective-permission.service') {
+      return {
+        async listUsersWithEffectivePermission() {
+          return permittedIds.slice();
+        }
+      };
+    }
+    return original.call(this, request, parent, isMain);
+  };
+
+  try {
+    return require(modulePath);
+  } finally {
+    Module._load = original;
+    delete require.cache[modulePath];
+  }
+}
+
+test('resolver conserva follower autorizado por permiso y no aplica exclusion propia del actor', async () => {
+  const resolver = loadActualResolverWithPermissions([20]);
+  const executor = {
+    async query() {
+      throw new Error('No debe consultar BD cuando existe snapshot completo de followers y contexto verificable.');
+    }
+  };
+
+  const result = await resolver.resolveSeguimientoRecipients_uni({
+    executor,
+    contextoNegocio: {
+      dominio: 'UNITED',
+      tipo: 'PORTAFOLIO',
+      proyecto: 'P-1',
+      zona_id: 7,
+      followers_snapshot: [
+        { id_usuario: 20, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true },
+        { id_usuario: 30, origen_seguimiento: 'EQUIPO', autorizado: true }
+      ]
+    },
+    actorUserId: 20,
+    codigoEventoNativo: 'PORTAFOLIO_EQUIPO_SALIDA'
+  });
+
+  assert.equal(result.applicable, true);
+  assert.deepEqual(result.followers, [
+    { id_usuario: 20, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }
+  ]);
+  assert.deepEqual(result.visual_codes, ['SEGUIMIENTO_ESPECIAL']);
+  assert.equal(result.follow_candidate_count, 2);
+  assert.equal(result.follow_authorized_count, 1);
+});
+
+test('permiso efectivo revocado elimina candidatos de Seguimiento', async () => {
+  const resolver = loadActualResolverWithPermissions([]);
+  const executor = {
+    async query() {
+      throw new Error('No debe consultar BD cuando existe snapshot completo.');
+    }
+  };
+
+  const result = await resolver.resolveSeguimientoRecipients_uni({
+    executor,
+    contextoNegocio: {
+      dominio: 'UNITED',
+      tipo: 'PORTAFOLIO',
+      proyecto: 'P-1',
+      zona_id: 7,
+      followers_snapshot: [{ id_usuario: 20, origen_seguimiento: 'EQUIPO', autorizado: true }]
+    },
+    codigoEventoNativo: 'PORTAFOLIO_EQUIPO_CAMBIO'
+  });
+
+  assert.deepEqual(result.followers, []);
+  assert.deepEqual(result.visual_codes, []);
+  assert.equal(result.follow_candidate_count, 1);
+  assert.equal(result.follow_authorized_count, 0);
+});
+
+test('resolver falla cerrado fuera de UNITED o sin zona verificable', async () => {
+  const resolver = loadActualResolverWithPermissions([20]);
+  let queryCount = 0;
+  const executor = {
+    async query() {
+      queryCount += 1;
+      return [[]];
+    }
+  };
+
+  const otherDomain = await resolver.resolveSeguimientoRecipients_uni({
+    executor,
+    contextoNegocio: { dominio: 'CORELLIAN', tipo: 'PORTAFOLIO', proyecto: 'P-1', zona_id: 7 },
+    codigoEventoNativo: 'EVENTO_OTRO_DOMINIO'
+  });
+  const noZone = await resolver.resolveSeguimientoRecipients_uni({
+    executor,
+    contextoNegocio: { dominio: 'UNITED', tipo: 'PORTAFOLIO', proyecto: 'P-1' },
+    codigoEventoNativo: 'PORTAFOLIO_EQUIPO_CAMBIO'
+  });
+
+  assert.equal(otherDomain.applicable, false);
+  assert.equal(noZone.applicable, false);
+  assert.deepEqual(otherDomain.followers, []);
+  assert.deepEqual(noZone.followers, []);
+  assert.equal(queryCount, 0);
+});
+
+test('consulta de Equipo exige usuario activo y alcance UNITED maestro o PORTAFOLIO + ZOP', async () => {
+  const resolver = loadActualResolverWithPermissions([]);
+  let capturedSql = '';
+  let capturedParams = null;
+  const executor = {
+    async query(sql, params) {
+      capturedSql = String(sql);
+      capturedParams = params;
+      return [[]];
+    }
+  };
+
+  const result = await resolver.recipientsForEquipment(executor, {
+    id_portafolio: 55,
+    numero_equipo: 'EQ-55',
+    proyecto: 'Proyecto 55',
+    zona_id: 7
+  });
+
+  assert.deepEqual(result, []);
+  assert.deepEqual(capturedParams, [55, 'Proyecto 55', 55, 7, 7]);
+  assert.match(capturedSql, /direct_follow\.id_portafolio\s*=\s*\?/i);
+  assert.match(capturedSql, /direct_follow\.activo\s*=\s*1/i);
+  assert.match(capturedSql, /project_follow\.origen\s*=\s*'PROYECTO'/i);
+  assert.match(capturedSql, /u_interest\.estado\s*=\s*1/i);
+  assert.match(capturedSql, /tipo_alcance\s*=\s*'DOMINIO_COMPLETO'/i);
+  assert.match(capturedSql, /UPPER\(TRIM\(uai_se_master\.dominio\)\)\s*=\s*'UNITED'/i);
+  assert.match(capturedSql, /pa_se\.codigo\s*=\s*'PORTAFOLIO'/i);
+  assert.match(capturedSql, /FROM usuario_zop uz_se/i);
+  assert.match(capturedSql, /uz_se\.estado\s*=\s*1/i);
+});
+
+test('Equipo sin zona no intenta ampliar alcance ni consultar seguidores', async () => {
+  const resolver = loadActualResolverWithPermissions([20]);
+  let queryCount = 0;
+  const result = await resolver.recipientsForEquipment({
+    async query() {
+      queryCount += 1;
+      return [[]];
+    }
+  }, {
+    id_portafolio: 55,
+    proyecto: 'P-1',
+    zona_id: null
+  });
+
+  assert.deepEqual(result, []);
+  assert.equal(queryCount, 0);
+});
+
+function loadPortafolioNativeHarness() {
+  const modulePath = require.resolve('../backend/src/services/notifications/portafolio-native-notifications_uni.service');
+  delete require.cache[modulePath];
+  const emitted = [];
+  const original = Module._load;
+  Module._load = function patchedLoad(request, parent, isMain) {
+    if (request === '../../config/db') return {};
+    if (request === '../../shared/logger') return loggerStub;
+    if (request === './notification-business-emitter.service') {
+      return {
+        async emitBusinessEventSafe_gnral(input) {
+          emitted.push(input);
+          return { ok: true, created: 1, skipped: 0, trace_id: 'trace-portafolio-test' };
+        }
+      };
+    }
+    if (request === './portafolio-seguimiento-especial-notifications_uni.service') {
+      return {
+        async resolveSeguimientoRecipients_uni() {
+          return { followers: [] };
+        }
+      };
+    }
+    return original.call(this, request, parent, isMain);
+  };
+
+  try {
+    return { service: require(modulePath), emitted };
+  } finally {
+    Module._load = original;
+    delete require.cache[modulePath];
+  }
+}
+
+test('salida de Portafolio conserva snapshot pre-mutation y followers previos', async () => {
+  const { service, emitted } = loadPortafolioNativeHarness();
+  const before = {
+    id_portafolio: 55,
+    numero_equipo: 'EQ-55',
+    proyecto: 'Proyecto previo',
+    zona_id: 7,
+    estado_registro: 1,
+    inactivo: null,
+    estatus_servicio: 'ACTIVO'
+  };
+  const after = { ...before, estado_registro: 0 };
+  const previousFollowers = [
+    { id_usuario: 20, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }
+  ];
+  const beforeContext = {
+    operationId: 'operacion-prueba-55',
+    beforeByEquipment: new Map([
+      ['EQ-55', { row: before, followers: previousFollowers }]
+    ])
+  };
+  const executor = {
+    async query(sql) {
+      if (/FROM\s+portafolio/i.test(String(sql))) return [[after]];
+      throw new Error(`Consulta inesperada: ${sql}`);
+    }
+  };
+
+  const summary = await service.processAfterSync_uni(
+    beforeContext,
+    { rows: [{ numero_equipo: 'EQ-55' }] },
+    null,
+    executor
+  );
+
+  assert.equal(summary.events.length, 1);
+  assert.equal(summary.events[0].codigo_evento, 'PORTAFOLIO_EQUIPO_SALIDA');
+  assert.equal(summary.events[0].snapshot_pre_mutacion, true);
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].codigoEvento, 'PORTAFOLIO_EQUIPO_SALIDA');
+  assert.deepEqual(emitted[0].destinatarios, []);
+  assert.equal(emitted[0].contextoSeguimiento.proyecto, 'Proyecto previo');
+  assert.equal(emitted[0].contextoSeguimiento.snapshot_pre_mutacion.proyecto, 'Proyecto previo');
+  assert.deepEqual(emitted[0].contextoSeguimiento.followers_snapshot, previousFollowers);
+});
+
+test('comentario y VoBo de Ticket usan evento nativo con contexto Seguimiento; adjunto no se inventa', () => {
+  const writes = read('backend/src/modules/tickets/tickets-notification-writes.service.js');
+  const routes = read('backend/src/modules/tickets/tickets.routes.js');
+
+  assert.match(writes, /const EVENT_TICKET_COMMENT\s*=\s*'tickets\.comentario\.creado'/);
+  assert.match(writes, /const EVENT_TICKET_VOBO\s*=\s*'tickets\.vobo\.actualizado'/);
+  assert.match(writes, /contextoSeguimiento\s*:\s*\{/);
+  assert.match(writes, /dominio\s*:\s*'UNITED'/);
+  assert.match(writes, /tipo\s*:\s*'TICKET'/);
+  assert.match(writes, /eventCode:\s*EVENT_TICKET_COMMENT/);
+  assert.match(writes, /eventCode:\s*EVENT_TICKET_VOBO/);
+
+  assert.match(routes, /\/tickets\/:ticket\/comentarios/);
+  assert.match(routes, /\/tickets\/:ticket\/validacion/);
+  assert.match(routes, /\/tickets\/:ticket\/vobo/);
+  assert.doesNotMatch(routes, /\/tickets\/:ticket\/(adjuntos|attachments|upload)/i);
+});
+
+test('npm test queda conectado al workflow existente sin modificar el workflow', () => {
+  const packageJson = JSON.parse(read('backend/package.json'));
+  const workflow = read('.github/workflows/main_mantto-gestor-api.yml');
+
+  assert.equal(
+    packageJson.scripts.test,
+    'node --test ../validation/seguimiento-especial-notificaciones.test.js'
+  );
+  assert.match(workflow, /npm run test --if-present/);
+});
