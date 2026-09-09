@@ -741,6 +741,30 @@
     return true;
   }
 
+  function notificationVisualCodes_gnral(row){
+    const raw=row&&row.codigos_visuales;
+    if(Array.isArray(raw)){
+      return [...new Set(raw.map(code=>String(code||'').trim().toUpperCase()).filter(Boolean))];
+    }
+    return [];
+  }
+
+  function notificationVisualMarkup_gnral(row){
+    const codes=notificationVisualCodes_gnral(row);
+    if(!codes.length)return '';
+    const catalog=window.EstadosVisuales_gnral;
+    if(catalog&&typeof catalog.renderMany==='function'){
+      const rendered=catalog.renderMany(codes,{empty:'',separator:' '});
+      if(rendered)return rendered;
+    }
+    return codes.map(code=>`<span class="estado-visual-gnral" data-estado-visual="${safeText(code)}"><span data-estado-visual-icon></span></span>`).join(' ');
+  }
+
+  function applyNotificationVisuals_gnral(root){
+    const catalog=window.EstadosVisuales_gnral;
+    if(catalog&&typeof catalog.apply==='function')catalog.apply(root||document);
+  }
+
   async function showNotifications(payload){
     const view = activateViewById('view-placeholder');
     setActiveSide('notifications');
@@ -759,7 +783,11 @@
       }
       view.innerHTML = `<div class="placeholder"><div class="card placeholder-card construction-card"><div class="construction-icon">🔔</div><h1>Notificaciones nuevas</h1><p>Solo aparecen notificaciones que todavía no han sido abiertas.</p><div id="notif-new-list" class="rail-list" style="max-height:60vh;overflow:auto;margin-top:14px"></div></div></div>`;
       const list = document.getElementById('notif-new-list');
-      list.innerHTML = rows.map(n => `<article class="notif-item unread clickable" data-id="${safeText(n.id_notificacion || '')}" data-ref="${safeText(n.id_referencia || '')}" data-action="${safeText(n.accion_notificacion || '')}" data-tipo="${safeText(n.tipo_notificacion || '')}" data-title="${safeText(n.titulo_notificacion || '')}" data-message="${safeText(n.mensaje_notificacion || '')}" data-ruta="${safeText(n.ruta_destino || '')}"><div class="notif-icon">${safeText(n.icono_notificacion || '🔔')}</div><div><div class="notif-title">${safeText(n.titulo_notificacion || 'Notificación')}</div><div class="notif-text">${safeText(n.mensaje_notificacion || '')}</div><div class="notif-time">${new Date(n.fecha_creacion).toLocaleString('es-MX')}</div></div></article>`).join('');
+      list.innerHTML = rows.map(n => {
+        const visual=notificationVisualMarkup_gnral(n);
+        return `<article class="notif-item unread clickable" data-id="${safeText(n.id_notificacion || '')}" data-ref="${safeText(n.id_referencia || '')}" data-action="${safeText(n.accion_notificacion || '')}" data-tipo="${safeText(n.tipo_notificacion || '')}" data-title="${safeText(n.titulo_notificacion || '')}" data-message="${safeText(n.mensaje_notificacion || '')}" data-ruta="${safeText(n.ruta_destino || '')}"><div class="notif-icon">${safeText(n.icono_notificacion || '🔔')}</div><div><div class="notif-title">${visual?visual+' ':''}${safeText(n.titulo_notificacion || 'Notificación')}</div><div class="notif-text">${safeText(n.mensaje_notificacion || '')}</div><div class="notif-time">${new Date(n.fecha_creacion).toLocaleString('es-MX')}</div></div></article>`;
+      }).join('');
+      applyNotificationVisuals_gnral(list);
       list.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', async () => {
         const id = el.dataset.id;
         const ref = el.dataset.ref;

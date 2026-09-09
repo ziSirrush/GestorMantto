@@ -641,6 +641,38 @@ test('comentario y VoBo de Ticket usan evento nativo con contexto Seguimiento; a
   assert.doesNotMatch(routes, /\/tickets\/:ticket\/(adjuntos|attachments|upload)/i);
 });
 
+test('frontend Seguimiento Especial usa solo codigo semantico y no suplanta estados_visuales', () => {
+  const globalModule = read('modules/seguimiento-especial/seguimiento-especial-global.js');
+  const screenModule = read('modules/seguimiento-especial/seguimiento-especial.js');
+
+  assert.match(globalModule, /VISUAL_CODE\s*=\s*'SEGUIMIENTO_ESPECIAL'/);
+  assert.match(screenModule, /VISUAL_CODE\s*=\s*'SEGUIMIENTO_ESPECIAL'/);
+  assert.doesNotMatch(globalModule, /const\s+STAR\s*=|ti ti-star-filled|⭐/);
+  assert.doesNotMatch(screenModule, /ti ti-star-filled|⭐/);
+  assert.doesNotMatch(globalModule, /visual\.(get|getMany|emoji|renderMany|renderIdentifier|codesForEquipo|codesForProyecto)\s*=/);
+  assert.match(globalModule, /data-estado-visual['\"]?,?\s*VISUAL_CODE|setAttribute\('data-estado-visual',VISUAL_CODE\)/);
+  assert.doesNotMatch(globalModule, /querySelectorAll\([^\n]*data-estado-codigo[^\n]*SEGUIMIENTO_ESPECIAL/);
+});
+
+test('pantalla Notificaciones renderiza codigos_visuales mediante catalogo central', () => {
+  const router = read('core/router.js');
+  assert.match(router, /notificationVisualCodes_gnral/);
+  assert.match(router, /codigos_visuales/);
+  assert.match(router, /EstadosVisuales_gnral/);
+  assert.match(router, /renderMany\(codes,\{empty:'',separator:' '\}\)/);
+  assert.match(router, /data-estado-visual/);
+  assert.match(router, /applyNotificationVisuals_gnral\(list\)/);
+});
+
+test('cache bust de cierre apunta a los archivos frontend corregidos', () => {
+  const loader = read('core/module-loader.js');
+  const index = read('index.html');
+  assert.match(loader, /seguimiento-especial-global\.js\?v=20260909-seguimiento-especial-cierre-v005/);
+  assert.match(loader, /seguimiento-especial\.js\?v=20260909-seguimiento-especial-cierre-v003/);
+  assert.match(index, /core\/module-loader\.js\?v=20260909-seguimiento-especial-cierre-v001/);
+  assert.match(index, /core\/router\.js\?v=20260909-seguimiento-especial-cierre-v001/);
+});
+
 test('npm test queda conectado al workflow existente sin modificar el workflow', () => {
   const packageJson = JSON.parse(read('backend/package.json'));
   const workflow = read('.github/workflows/main_mantto-gestor-api.yml');

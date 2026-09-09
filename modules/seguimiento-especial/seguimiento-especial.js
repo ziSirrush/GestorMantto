@@ -4,11 +4,22 @@
   if(window.ManttoSeguimientoEspecialModulo)return;
 
   const ROUTE='seguimiento-especial';
+  const VISUAL_CODE='SEGUIMIENTO_ESPECIAL';
   const state={search:'',loading:false,bound:false};
   const $=(selector,root=document)=>root.querySelector(selector);
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
   function api(){return window.ManttoSeguimientoEspecial||null;}
+
+  function visualMarkup(extraClass){
+    const css=String(extraClass||'').trim();
+    return `<span class="estado-visual-gnral${css?' '+esc(css):''}" data-estado-visual="${VISUAL_CODE}"><span data-estado-visual-icon></span></span>`;
+  }
+
+  function applyVisuals(root){
+    const catalog=window.EstadosVisuales_gnral;
+    if(catalog&&typeof catalog.apply==='function')catalog.apply(root||document);
+  }
 
   function fmtDateTime(value){
     if(!value)return '—';
@@ -25,8 +36,8 @@
       <section class="se-head se-card">
         <div>
           <p class="se-eyebrow">Portafolio · Seguimiento personal</p>
-          <h1>⭐ Seguimiento Especial</h1>
-          <p>Proyectos y equipos que requieren tu atención. La estrella solo corresponde a tu usuario y no amplía tu alcance UNITED.</p>
+          <h1>${visualMarkup('se-visual')} Seguimiento Especial</h1>
+          <p>Proyectos y equipos que requieren tu atención. El indicador visual solo corresponde a tu usuario y no amplía tu alcance UNITED.</p>
         </div>
         <button class="se-btn" id="se-refresh" type="button">↻ Actualizar</button>
       </section>
@@ -34,7 +45,7 @@
       <section class="se-summary">
         <article class="se-kpi se-card"><span>Proyectos</span><strong id="se-total-projects">0</strong><small>Proyectos marcados de forma completa.</small></article>
         <article class="se-kpi se-card"><span>Equipos</span><strong id="se-total-equipment">0</strong><small>Equipos actualmente activos en tu seguimiento.</small></article>
-        <article class="se-help se-card"><strong>⭐ Indicador personal</strong><span>La estrella identifica estos proyectos/equipos en las vistas de Mantto para tu usuario.</span></article>
+        <article class="se-help se-card"><strong>${visualMarkup('se-visual')} Indicador personal</strong><span>El indicador identifica estos proyectos/equipos en las vistas de Mantto para tu usuario.</span></article>
       </section>
 
       <section class="se-toolbar se-card">
@@ -58,6 +69,7 @@
     const view=$('#view-seguimiento-especial');
     if(!view)return false;
     if(!$('#se-page',view))view.innerHTML=template();
+    applyVisuals(view);
     return true;
   }
 
@@ -82,7 +94,7 @@
     const total=Number(row.total_equipos||0);
     const partial=Boolean(row.parcial)||active<total;
     return `<tr>
-      <td><button class="se-link" type="button" data-open-project="${esc(project)}">⭐ ${esc(project||'—')}</button></td>
+      <td><button class="se-link" type="button" data-open-project="${esc(project)}">${visualMarkup('se-visual')} ${esc(project||'—')}</button></td>
       <td>${active.toLocaleString('es-MX')}</td>
       <td>${total.toLocaleString('es-MX')}</td>
       <td><span class="se-pill ${partial?'partial':'active'}">${partial?'Activo · con excepciones':'Activo'}</span></td>
@@ -98,7 +110,7 @@
     const rawOrigin=String(row.origen||'').toUpperCase();
     const origin=rawOrigin==='PROYECTO'?'Proyecto':(rawOrigin==='PROYECTO_HEREDADO'?'Proyecto · heredado':'Equipo');
     return `<tr>
-      <td><button class="se-link" type="button" data-open-equipment="${esc(code)}">⭐ ${esc(code||'—')}</button></td>
+      <td><button class="se-link" type="button" data-open-equipment="${esc(code)}">${visualMarkup('se-visual')} ${esc(code||'—')}</button></td>
       <td>${project?`<button class="se-link" type="button" data-open-project="${esc(project)}">${esc(project)}</button>`:'—'}</td>
       <td>${esc(row.identificacion_sitio||'—')}</td>
       <td>${esc(place)}</td>
@@ -132,6 +144,7 @@
       ?equipment.map(row=>equipmentRow(row,manage)).join('')
       :'<tr class="se-empty"><td colspan="8">No hay equipos en Seguimiento Especial para esta búsqueda.</td></tr>';
 
+    applyVisuals($('#view-seguimiento-especial'));
     setStatus(`${snapshot.proyectos.length.toLocaleString('es-MX')} proyecto${snapshot.proyectos.length===1?'':'s'} · ${snapshot.equipos.length.toLocaleString('es-MX')} equipo${snapshot.equipos.length===1?'':'s'}.`);
   }
 

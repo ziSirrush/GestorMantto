@@ -184,14 +184,14 @@
   const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
   const ALMACEN_REABASTO_JS = './modules/almacen/almacen-stock-reabasto.js?v=20260907-fase4-reabasto-v001';
   const ALMACEN_REABASTO_CSS = './modules/almacen/almacen-stock-reabasto.css?v=20260907-fase4-reabasto-v001';
-  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260908-seguimiento-especial-v004';
+  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260909-seguimiento-especial-cierre-v005';
 
   const ROUTES = Object.freeze({
     resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260814-project-name-v010']},
     criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260821-pdf-emojis-v001']},
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
     detalle:{css:[],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS]},
-    'seguimiento-especial':{css:['./modules/seguimiento-especial/seguimiento-especial.css?v=20260908-seguimiento-especial-v002'],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS,'./modules/seguimiento-especial/seguimiento-especial.js?v=20260908-seguimiento-especial-v002']},
+    'seguimiento-especial':{css:['./modules/seguimiento-especial/seguimiento-especial.css?v=20260908-seguimiento-especial-v002'],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS,'./modules/seguimiento-especial/seguimiento-especial.js?v=20260909-seguimiento-especial-cierre-v003']},
     proyectos:{css:['./modules/proyectos/proyectos.css?v=20260706-v001'],js:['./modules/proyectos/proyectos.js?v=20260828-fase4-frontend-v001']},
     callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260827-fase2-carga-acotada-v001']},
     operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260828-fase4-frontend-v001']},

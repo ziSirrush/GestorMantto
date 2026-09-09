@@ -7,8 +7,7 @@
   const ACCESS_PERMISSION='PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
   const MANAGE_PERMISSION='PORTAFOLIO_SEGUIMIENTO_ESPECIAL_SEGUIMIENTO_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
   const ROUTE='seguimiento-especial';
-  const STAR_CODE='SEGUIMIENTO_ESPECIAL';
-  const STAR={codigo:STAR_CODE,nombre:'Seguimiento Especial',emoji:'⭐',icono:'ti ti-star-filled',prioridad:0.5};
+  const VISUAL_CODE='SEGUIMIENTO_ESPECIAL';
   const SIDEBAR_ID='side-seguimiento-especial';
   const VIEW_ID='view-seguimiento-especial';
   const DETAIL_CONTROL_ID='mg-seguimiento-especial-control';
@@ -26,8 +25,19 @@
     return String(value==null?'':value).trim().replace(/\s+/g,' ').toLocaleLowerCase('es-MX');
   }
 
-  function escapeHtml(value){
-    return String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  function createVisualIndicator(extraClass){
+    const visual=document.createElement('span');
+    visual.className=['estado-visual-gnral',String(extraClass||'').trim()].filter(Boolean).join(' ');
+    visual.setAttribute('data-estado-visual',VISUAL_CODE);
+    const icon=document.createElement('span');
+    icon.setAttribute('data-estado-visual-icon','');
+    visual.appendChild(icon);
+    return visual;
+  }
+
+  function applyVisualState(root){
+    const catalog=window.EstadosVisuales_gnral;
+    if(catalog&&typeof catalog.apply==='function')catalog.apply(root||document);
   }
 
   function authHeaders(){
@@ -103,7 +113,7 @@
       .mg-se-star-generated,.mg-se-star{display:inline-block;line-height:1;vertical-align:middle;margin-right:.22rem;background:transparent!important;border:0!important;box-shadow:none!important;color:inherit!important}
       .mg-detail-head{flex-wrap:wrap}
       .mg-se-detail-card{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-left:auto;min-width:270px;max-width:370px;background:#fff;border:1px solid rgba(255,255,255,.72);border-radius:10px;padding:8px 10px;box-shadow:0 5px 14px rgba(0,0,0,.16);color:#0D2E6E;flex:0 0 auto}
-      .mg-se-detail-copy{min-width:0}.mg-se-detail-copy strong{display:block;color:#0D2E6E;font-size:12px;line-height:1.15}.mg-se-detail-copy span{display:block;margin-top:2px;color:#64748B;font-size:9px;line-height:1.25;max-width:230px}
+      .mg-se-detail-copy{min-width:0}.mg-se-detail-copy strong{display:block;color:#0D2E6E;font-size:12px;line-height:1.15}.mg-se-detail-copy strong .estado-visual-gnral{display:inline-block;margin:0 .22rem 0 0}.mg-se-detail-copy span{display:block;margin-top:2px;color:#64748B;font-size:9px;line-height:1.25;max-width:230px}
       .mg-se-detail-toggle{display:inline-flex;align-items:center;gap:6px;color:#0D2E6E;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer}.mg-se-detail-toggle input{width:17px;height:17px;accent-color:#1455d9;cursor:pointer}.mg-se-detail-toggle input:disabled{cursor:wait;opacity:.65}
       .mg-se-detail-card.error{border-color:#fecaca}.mg-se-detail-card.error .mg-se-detail-copy span{color:#991b1b}
       @media(max-width:820px){.mg-se-detail-card{width:100%;max-width:none;margin-left:0}.mg-se-detail-copy span{max-width:none}}
@@ -124,7 +134,10 @@
     button.dataset.route=ROUTE;
     button.setAttribute('aria-label','Seguimiento Especial');
     button.title='Seguimiento Especial';
-    button.innerHTML='<span>⭐</span><b>Seguimiento Especial</b>';
+    const visual=createVisualIndicator('mg-se-nav-visual');
+    const label=document.createElement('b');
+    label.textContent='Seguimiento Especial';
+    button.append(visual,label);
     button.addEventListener('click',event=>{
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -141,6 +154,7 @@
     const anchor=group.querySelector('.side-item[data-route="proyectos"]');
     if(anchor&&anchor.parentElement===group)anchor.insertAdjacentElement('afterend',button);
     else group.appendChild(button);
+    applyVisualState(group);
     return button;
   }
 
@@ -241,7 +255,7 @@
   }
 
   function removeGeneratedStars(){
-    document.querySelectorAll('.mg-se-star-generated,[data-estado-codigo="SEGUIMIENTO_ESPECIAL"]').forEach(node=>node.remove());
+    document.querySelectorAll('.mg-se-star-generated').forEach(node=>node.remove());
   }
 
   function shouldSkipTextNode(node){
@@ -251,7 +265,7 @@
     if(parent.closest('script,style,textarea,select,option,input,[contenteditable="true"],[data-no-seguimiento-star]'))return true;
     if(parent.closest('.mg-se-star-generated,.mg-se-star'))return true;
     const identifier=parent.closest('.estado-identificador-gnral');
-    if(identifier&&identifier.querySelector('[data-estado-codigo="SEGUIMIENTO_ESPECIAL"]'))return true;
+    if(identifier&&identifier.querySelector('[data-estado-codigo="SEGUIMIENTO_ESPECIAL"],[data-estado-visual="SEGUIMIENTO_ESPECIAL"]'))return true;
     const previous=node.previousSibling;
     if(previous&&previous.nodeType===1&&previous.classList&&previous.classList.contains('mg-se-star-generated'))return true;
     return false;
@@ -274,12 +288,10 @@
     while((node=walker.nextNode()))nodes.push(node);
     nodes.forEach(textNode=>{
       if(shouldSkipTextNode(textNode))return;
-      const star=document.createElement('span');
-      star.className='mg-se-star-generated';
-      star.title='Seguimiento Especial';
-      star.setAttribute('aria-label','Seguimiento Especial');
-      star.textContent='⭐';
-      textNode.parentNode.insertBefore(star,textNode);
+      const visual=createVisualIndicator('mg-se-star-generated');
+      visual.setAttribute('aria-label','Seguimiento Especial');
+      textNode.parentNode.insertBefore(visual,textNode);
+      applyVisualState(textNode.parentNode);
     });
   }
 
@@ -294,11 +306,10 @@
     const old=head.querySelector('.mg-se-star-generated');
     if(old)old.remove();
     if(!tracked||isViewingAs()||!isManttoView())return;
-    const star=document.createElement('span');
-    star.className='mg-se-star-generated';
-    star.title='Seguimiento Especial';
-    star.textContent='⭐';
-    head.insertBefore(star,head.firstChild||null);
+    const visual=createVisualIndicator('mg-se-star-generated');
+    visual.setAttribute('aria-label','Seguimiento Especial');
+    head.insertBefore(visual,head.firstChild||null);
+    applyVisualState(head);
   }
 
   function decorateAll(){
@@ -312,69 +323,8 @@
     if(scanTimer!==null)window.clearTimeout(scanTimer);
     scanTimer=window.setTimeout(()=>{
       scanTimer=null;
-      patchVisualCatalog();
       decorateAll();
     },30);
-  }
-
-  function patchVisualCatalog(){
-    const visual=window.EstadosVisuales_gnral;
-    if(!visual||visual.__seguimientoEspecialV002===true)return Boolean(visual);
-
-    const originalGet=typeof visual.get==='function'?visual.get.bind(visual):()=>null;
-    const originalGetMany=typeof visual.getMany==='function'?visual.getMany.bind(visual):()=>[];
-    const originalEmoji=typeof visual.emoji==='function'?visual.emoji.bind(visual):()=>'';
-    const originalRenderMany=typeof visual.renderMany==='function'?visual.renderMany.bind(visual):()=>'';
-    const originalCodesEquipo=typeof visual.codesForEquipo==='function'?visual.codesForEquipo.bind(visual):()=>[];
-    const originalCodesProyecto=typeof visual.codesForProyecto==='function'?visual.codesForProyecto.bind(visual):()=>[];
-
-    visual.get=function(code){
-      return String(code||'').trim().toUpperCase()===STAR_CODE?Object.assign({},STAR):originalGet(code);
-    };
-    visual.getMany=function(codes,options){
-      const source=Array.isArray(codes)?codes:[codes];
-      const hasStar=source.some(code=>String(code||'').trim().toUpperCase()===STAR_CODE);
-      const excluded=new Set((options&&Array.isArray(options.excludeCodes)?options.excludeCodes:[]).map(code=>String(code||'').trim().toUpperCase()));
-      const other=source.filter(code=>String(code||'').trim().toUpperCase()!==STAR_CODE);
-      const rows=originalGetMany(other,options)||[];
-      return hasStar&&!excluded.has(STAR_CODE)?[Object.assign({},STAR),...rows]:rows;
-    };
-    visual.emoji=function(code,fallback){
-      return String(code||'').trim().toUpperCase()===STAR_CODE?'⭐':originalEmoji(code,fallback);
-    };
-    visual.renderMany=function(codes,options){
-      const opts=options||{};
-      const source=Array.isArray(codes)?codes:[codes];
-      const hasStar=source.some(code=>String(code||'').trim().toUpperCase()===STAR_CODE);
-      const excluded=new Set((Array.isArray(opts.excludeCodes)?opts.excludeCodes:[]).map(code=>String(code||'').trim().toUpperCase()));
-      const others=source.filter(code=>String(code||'').trim().toUpperCase()!==STAR_CODE);
-      const pieces=[];
-      if(hasStar&&!excluded.has(STAR_CODE))pieces.push('<span class="estado-visual-gnral mg-se-star" data-estado-codigo="SEGUIMIENTO_ESPECIAL" title="Seguimiento Especial">⭐</span>');
-      const rest=originalRenderMany(others,Object.assign({},opts,{empty:''}));
-      if(rest)pieces.push(rest);
-      return pieces.length?pieces.join(opts.separator==null?' ':opts.separator):(opts.empty==null?'':String(opts.empty));
-    };
-    visual.renderIdentifier=function(codes,text,options){
-      const opts=options||{};
-      const source=Array.isArray(codes)?codes.slice():[codes];
-      if(isManttoView()&&isReferenceTracked(text)&&!source.some(code=>String(code||'').trim().toUpperCase()===STAR_CODE))source.unshift(STAR_CODE);
-      const icons=visual.renderMany(source,{empty:'',separator:opts.separator==null?' ':opts.separator,excludeCodes:opts.excludeCodes||[]});
-      const label=opts.escape===false?String(text==null?'—':text):escapeHtml(text==null||text===''?'—':text);
-      return '<span class="estado-identificador-gnral">'+(icons?icons+' ':'')+'<span class="estado-identificador-texto-gnral">'+label+'</span></span>';
-    };
-    visual.codesForEquipo=function(row,tickets,options){
-      const codes=originalCodesEquipo(row,tickets,options)||[];
-      if(isManttoView()&&isEquipmentTracked(equipmentReference(row))&&!codes.includes(STAR_CODE))return [STAR_CODE,...codes];
-      return codes;
-    };
-    visual.codesForProyecto=function(row,equipos,tickets,options){
-      const codes=originalCodesProyecto(row,equipos,tickets,options)||[];
-      if(isManttoView()&&isProjectTracked(projectReference(row))&&!codes.includes(STAR_CODE))return [STAR_CODE,...codes];
-      return codes;
-    };
-    try{Object.defineProperty(visual,'__seguimientoEspecialV002',{value:true,configurable:false,enumerable:false});}
-    catch(_error){visual.__seguimientoEspecialV002=true;}
-    return true;
   }
 
   function applySnapshot(data){
@@ -388,7 +338,6 @@
       equipos:equipments.map(row=>Object.assign({},row)),
       resumen:Object.assign({proyectos:projects.length,equipos:equipments.length},payload.resumen||{})
     };
-    patchVisualCatalog();
     scheduleDecorate();
   }
 
@@ -505,7 +454,7 @@
           : `Actívalo para incluir los ${total} equipos visibles del proyecto.`;
     }
     return data&&data.activo
-      ? 'Este equipo está en tu Seguimiento Especial y mostrará la estrella ⭐.'
+      ? 'Este equipo está en tu Seguimiento Especial y mostrará su indicador visual personal.'
       : 'Actívalo para seguir únicamente este equipo y recibir sus notificaciones.';
   }
 
@@ -539,7 +488,8 @@
       const copy=document.createElement('div');
       copy.className='mg-se-detail-copy';
       const strong=document.createElement('strong');
-      strong.textContent='⭐ Seguimiento Especial';
+      const visual=createVisualIndicator('mg-se-detail-visual');
+      strong.append(visual,document.createTextNode(' Seguimiento Especial'));
       const description=document.createElement('span');
       description.textContent=detailCopy(payload,data);
       copy.append(strong,description);
@@ -584,6 +534,7 @@
       });
 
       head.appendChild(root);
+      applyVisualState(root);
     }catch(error){
       if(error.status===403||error.status===404)return;
       console.error('[SEGUIMIENTO_ESPECIAL_DETALLE]',error);
@@ -624,7 +575,6 @@
 
   function initialize(){
     ensureShell();
-    patchVisualCatalog();
     syncPermissionUi();
     bindObserver();
     document.addEventListener('mantto:auth-ready',()=>{
@@ -650,7 +600,7 @@
       syncPermissionUi();
     });
     document.addEventListener('mantto:navigation',handleNavigation);
-    document.addEventListener('mantto:module-loaded',()=>{patchVisualCatalog();scheduleDecorate();});
+    document.addEventListener('mantto:module-loaded',scheduleDecorate);
 
     const current=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent():null;
     if(current&&current.route==='detalle')scheduleDetailMount(current.payload||{},40);
@@ -669,8 +619,7 @@
     canAccess,
     canManage,
     activateModuleView,
-    mountDetailControl,
-    star:()=>Object.assign({},STAR)
+    mountDetailControl
   });
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
