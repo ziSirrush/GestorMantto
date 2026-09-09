@@ -19,6 +19,7 @@
   let scanTimer=null;
   let observer=null;
   let detailMountTimer=null;
+  let detailMountGeneration=0;
   let backendAccessConfirmed=null;
 
   function normalize(value){
@@ -437,9 +438,28 @@
     return null;
   }
 
+  function detailTargetKey(payload){
+    const type=String(payload&&payload.type||'').trim().toLowerCase();
+    const id=String(payload&&payload.id||'').trim();
+    return type&&id?type+'|'+normalize(id):'';
+  }
+
+  function currentDetailTargetKey(){
+    const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
+    return current&&current.route==='detalle'?detailTargetKey(current.payload):'';
+  }
+
   function clearDetailControl(){
-    const current=document.getElementById(DETAIL_CONTROL_ID);
-    if(current)current.remove();
+    document.querySelectorAll('[id="'+DETAIL_CONTROL_ID+'"]').forEach(node=>node.remove());
+  }
+
+  function cancelDetailMount(){
+    detailMountGeneration+=1;
+    if(detailMountTimer!==null){
+      window.clearTimeout(detailMountTimer);
+      detailMountTimer=null;
+    }
+    clearDetailControl();
   }
 
   function detailCopy(payload,data){
@@ -460,31 +480,42 @@
 
   function scheduleDetailMount(payload,delay){
     if(detailMountTimer!==null)window.clearTimeout(detailMountTimer);
+    const generation=++detailMountGeneration;
     detailMountTimer=window.setTimeout(()=>{
+      if(generation!==detailMountGeneration)return;
       detailMountTimer=null;
       const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
       const effective=current&&current.route==='detalle'&&current.payload?current.payload:payload;
-      if(effective)mountDetailControl(effective);
+      if(effective)mountDetailControl(effective,generation);
     },Math.max(0,Number(delay)||0));
   }
 
-  async function mountDetailControl(payload){
+  async function mountDetailControl(payload,generation){
+    const mountGeneration=Number.isFinite(Number(generation))?Number(generation):++detailMountGeneration;
+    const targetKey=detailTargetKey(payload);
     clearDetailControl();
-    if(!canManage()||!isManttoTarget(payload))return;
+    if(!targetKey||!canManage()||!isManttoTarget(payload))return;
     const endpoint=detailEndpoint(payload);
     if(!endpoint)return;
     try{
       const json=await request(endpoint);
+      if(mountGeneration!==detailMountGeneration||currentDetailTargetKey()!==targetKey)return;
       let data=json.data||{};
       const head=document.querySelector('#view-detalle .mg-detail-head')||document.querySelector('.mg-detail-head');
       if(!head){
-        scheduleDetailMount(payload,90);
+        if(mountGeneration===detailMountGeneration&&currentDetailTargetKey()===targetKey) scheduleDetailMount(payload,90);
         return;
       }
+
+      // Puede existir un control residual de una respuesta async anterior. La
+      // generacion invalida esa respuesta y esta limpieza garantiza un solo DOM.
+      clearDetailControl();
+      if(mountGeneration!==detailMountGeneration||currentDetailTargetKey()!==targetKey)return;
 
       const root=document.createElement('div');
       root.id=DETAIL_CONTROL_ID;
       root.className='mg-se-detail-card';
+      root.dataset.seguimientoTarget=targetKey;
       const copy=document.createElement('div');
       copy.className='mg-se-detail-copy';
       const strong=document.createElement('strong');
@@ -536,6 +567,7 @@
       head.appendChild(root);
       applyVisualState(root);
     }catch(error){
+      if(mountGeneration!==detailMountGeneration)return;
       if(error.status===403||error.status===404)return;
       console.error('[SEGUIMIENTO_ESPECIAL_DETALLE]',error);
     }
@@ -551,7 +583,8 @@
       const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
       if(current&&current.route==='detalle'&&current.payload&&canManage()&&isManttoTarget(current.payload)){
         const head=document.querySelector('#view-detalle .mg-detail-head');
-        if(head&&!document.getElementById(DETAIL_CONTROL_ID))scheduleDetailMount(current.payload,40);
+        const controls=document.querySelectorAll('[id="'+DETAIL_CONTROL_ID+'"]');
+        if(head&&controls.length!==1)scheduleDetailMount(current.payload,40);
       }
 
       if(trackedProjects.size||trackedEquipment.size)scheduleDecorate();
@@ -561,6 +594,9 @@
 
   function handleNavigation(event){
     const detail=event&&event.detail||{};
+    // Invalida de inmediato cualquier request de detalle anterior. Sin esto,
+    // una respuesta tardia de Equipo puede insertarse despues de abrir Proyecto.
+    cancelDetailMount();
     if(detail.route==='detalle'){
       window.setTimeout(()=>{
         scheduleDetailMount(detail.payload||{},40);
@@ -569,7 +605,7 @@
           if(backLabel)backLabel.textContent='Seguimiento Especial';
         }
       },0);
-    }else clearDetailControl();
+    }
     scheduleDecorate();
   }
 

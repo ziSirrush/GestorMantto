@@ -184,7 +184,7 @@
   const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
   const ALMACEN_REABASTO_JS = './modules/almacen/almacen-stock-reabasto.js?v=20260907-fase4-reabasto-v001';
   const ALMACEN_REABASTO_CSS = './modules/almacen/almacen-stock-reabasto.css?v=20260907-fase4-reabasto-v001';
-  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260909-seguimiento-especial-cierre-v005';
+  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260909-seguimiento-especial-control-unico-v006';
 
   const ROUTES = Object.freeze({
     resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260814-project-name-v010']},

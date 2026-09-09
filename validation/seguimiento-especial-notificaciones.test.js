@@ -667,10 +667,27 @@ test('pantalla Notificaciones renderiza codigos_visuales mediante catalogo centr
 test('cache bust de cierre apunta a los archivos frontend corregidos', () => {
   const loader = read('core/module-loader.js');
   const index = read('index.html');
-  assert.match(loader, /seguimiento-especial-global\.js\?v=20260909-seguimiento-especial-cierre-v005/);
+  assert.match(loader, /seguimiento-especial-global\.js\?v=20260909-seguimiento-especial-control-unico-v006/);
   assert.match(loader, /seguimiento-especial\.js\?v=20260909-seguimiento-especial-cierre-v003/);
-  assert.match(index, /core\/module-loader\.js\?v=20260909-seguimiento-especial-cierre-v001/);
+  assert.match(index, /core\/module-loader\.js\?v=20260909-seguimiento-especial-control-unico-v002/);
   assert.match(index, /core\/router\.js\?v=20260909-seguimiento-especial-cierre-v001/);
+});
+
+test('detalle Seguimiento Especial invalida montajes async viejos y conserva un solo control', () => {
+  const globalModule = read('modules/seguimiento-especial/seguimiento-especial-global.js');
+
+  assert.match(globalModule, /let detailMountGeneration=0/);
+  assert.match(globalModule, /function detailTargetKey\(payload\)/);
+  assert.match(globalModule, /function currentDetailTargetKey\(\)/);
+  assert.match(globalModule, /function cancelDetailMount\(\)/);
+  assert.match(globalModule, /const generation=\+\+detailMountGeneration/);
+  assert.match(globalModule, /mountDetailControl\(effective,generation\)/);
+  assert.match(globalModule, /mountGeneration!==detailMountGeneration\|\|currentDetailTargetKey\(\)!==targetKey/);
+  assert.match(globalModule, /querySelectorAll\('\[id="'\+DETAIL_CONTROL_ID\+'"\]'\)/);
+  assert.match(globalModule, /controls\.length!==1/);
+  assert.match(globalModule, /root\.dataset\.seguimientoTarget=targetKey/);
+  assert.match(globalModule, /function handleNavigation\(event\)[\s\S]*?cancelDetailMount\(\)/);
+  assert.equal((globalModule.match(/head\.appendChild\(root\)/g)||[]).length,1);
 });
 
 test('npm test queda conectado al workflow existente sin modificar el workflow', () => {
