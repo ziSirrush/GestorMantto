@@ -255,7 +255,6 @@ async function listCorellianProjects_gnral(executor, scope, search) {
       AND ${scoped.sql}
       ${searchSql}
     ORDER BY proyecto ASC
-    LIMIT 250
   `, params);
   return rows;
 }
@@ -278,7 +277,6 @@ async function listUnitedProjects_gnral(executor, scope, search) {
       AND ${scoped.sql}
       ${searchSql}
     ORDER BY proyecto ASC
-    LIMIT 250
   `, params);
   return rows;
 }
