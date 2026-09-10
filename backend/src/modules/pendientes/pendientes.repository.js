@@ -82,7 +82,6 @@ async function getCatalogProjects_gnral(executor, { empresa, search }) {
     FROM portafolio
     WHERE ${where}
     ORDER BY proyecto ASC
-    LIMIT 250
   `, params);
   return rows;
 }

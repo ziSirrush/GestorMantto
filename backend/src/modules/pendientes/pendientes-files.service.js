@@ -130,11 +130,28 @@ function isAzureReference_gnral(row) {
     && Boolean(String(row && row.storage_blob_name || '').trim());
 }
 
+function normalizeDateOnlyForClient_gnral(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const year = String(value.getFullYear()).padStart(4, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
 function sanitizePendienteForClient_gnral(row, options = {}) {
   const safe = { ...(row || {}) };
   const hasLegacy = Boolean(String(safe.photo_url || '').trim() || String(safe.adjunto_url || '').trim());
   delete safe.photo_url;
   delete safe.adjunto_url;
+  safe.due_date = normalizeDateOnlyForClient_gnral(safe.due_date);
   safe.tiene_evidencia_directa = Number(options.directCount || 0) > 0 ? 1 : 0;
   safe.tiene_evidencia_legacy = hasLegacy ? 1 : 0;
   return safe;

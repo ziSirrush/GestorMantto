@@ -126,19 +126,29 @@
     return false;
   }
 
+  function dateOnlyParts(value){
+    if(!value) return null;
+    const raw = String(value).trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(!match) return null;
+    return {
+      year: match[1],
+      month: match[2],
+      day: match[3],
+      iso: `${match[1]}-${match[2]}-${match[3]}`
+    };
+  }
+
   function formatDateInput(value){
-    if(!value) return '';
-    if(/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value).slice(0,10);
-    const d = new Date(value);
-    if(Number.isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0,10);
+    const parts = dateOnlyParts(value);
+    return parts ? parts.iso : '';
   }
 
   function formatDate(value){
     if(!value) return 'Sin fecha';
-    const d = new Date(value);
-    if(Number.isNaN(d.getTime())) return safeText(value);
-    return d.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' });
+    const parts = dateOnlyParts(value);
+    if(!parts) return safeText(value);
+    return `${parts.day}/${parts.month}/${parts.year}`;
   }
 
   function formatRelativeDate(value){
