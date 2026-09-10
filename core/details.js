@@ -10,7 +10,9 @@
   let ticketChatLastCommentId = 0;
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
-  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7 };
+  const PROJECT_PHOTO_DOMAIN_COR = 'CORELLIAN';
+  const PROJECT_PHOTO_DOMAIN_UNI = 'UNITED';
+  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7, photoDomain:PROJECT_PHOTO_DOMAIN_COR };
   function ticketKey(v){ return String(v || '').trim(); }
   function registerTickets(rows){
     (rows || []).forEach(t => {
@@ -72,15 +74,30 @@
     if(!r.ok || data.ok === false) throw new Error(data.message || data.error || 'No fue posible guardar la información');
     return data;
   }
-  function isProgramador(){
+  const PROJECT_PHOTO_MANAGER_ROLE_TOKENS = Object.freeze([
+    'gestor de fotografias',
+    'gestor_fotografias'
+  ]);
+  const PROJECT_PHOTO_MANAGER_TITLE = 'Se requiere el rol Gestor de Fotografías';
+  function normalizeProjectPhotoRoleToken(value){
+    return String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  }
+  function projectPhotoRoleValues(role){
+    if(!role)return [];
+    if(typeof role!=='object')return [role];
+    return [role.rol,role.role,role.nombre,role.name,role.codigo,role.code,role.rol_codigo,role.role_code];
+  }
+  function projectPhotoRoleTokens(){
     const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
-    const roles=[u&&u.rol].concat((u&&u.roles)||[]).concat(((u&&u.roles_detalle)||[]).map(r=>r&&r.rol)).filter(Boolean).map(v=>String(v).trim().toLowerCase());
-    return Boolean(u&&u.is_programador)||roles.includes('programador');
+    const values=[u&&u.rol,u&&u.role,u&&u.rol_codigo,u&&u.role_code,u&&u.codigo_rol];
+    ((u&&u.roles)||[]).forEach(role=>values.push(...projectPhotoRoleValues(role)));
+    ((u&&u.roles_detalle)||[]).forEach(role=>values.push(...projectPhotoRoleValues(role)));
+    return Array.from(new Set(values.filter(Boolean).map(normalizeProjectPhotoRoleToken).filter(Boolean)));
   }
   function canManageProjectPhotos(){
-    const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
-    const roles=[u&&u.rol].concat((u&&u.roles)||[]).concat(((u&&u.roles_detalle)||[]).map(r=>r&&r.rol)).filter(Boolean).map(v=>String(v).trim().toLowerCase());
-    return roles.includes('programador')||roles.includes('director general');
+    if(window.ManttoAuth&&window.ManttoAuth.isViewingAs&&window.ManttoAuth.isViewingAs())return false;
+    const roles=projectPhotoRoleTokens();
+    return PROJECT_PHOTO_MANAGER_ROLE_TOKENS.some(role=>roles.includes(role));
   }
   async function postFormData(path,formData){
     if(window.ManttoHttp&&typeof window.ManttoHttp.request==='function')return window.ManttoHttp.request(path,{method:'POST',body:formData});
@@ -164,7 +181,7 @@
       lightbox.id='mg-photo-lightbox';
       lightbox.className='mg-photo-lightbox';
       lightbox.hidden=true;
-      lightbox.innerHTML='<button type="button" class="mg-photo-close" aria-label="Cerrar">×</button><button type="button" class="mg-photo-nav prev" aria-label="Anterior">‹</button><figure><img alt="Fotografía del proyecto"><figcaption></figcaption><div class="mg-photo-actions"><span class="mg-photo-current">Foto Principal Actual</span><button type="button" class="mg-photo-principal">Seleccionar Foto Principal</button><button type="button" class="mg-photo-add">Agregar Foto</button><button type="button" class="mg-photo-project">Ir a Proyecto</button></div><input type="file" class="mg-photo-input" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden></figure><button type="button" class="mg-photo-nav next" aria-label="Siguiente">›</button>';
+      lightbox.innerHTML='<button type="button" class="mg-photo-close" aria-label="Cerrar">×</button><button type="button" class="mg-photo-nav prev" aria-label="Anterior">‹</button><figure><img alt="Fotografía del proyecto"><figcaption></figcaption><div class="mg-photo-actions"><span class="mg-photo-current">Foto Principal Actual</span><button type="button" class="mg-photo-principal">Seleccionar Foto Principal</button><button type="button" class="mg-photo-add">Agregar Foto</button><button type="button" class="mg-photo-project" id="mg-photo-project">Ir a Proyecto</button></div><input type="file" class="mg-photo-input" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden></figure><button type="button" class="mg-photo-nav next" aria-label="Siguiente">›</button>';
       document.body.appendChild(lightbox);
       lightbox.querySelector('.mg-photo-close').addEventListener('click',closeProjectPhotoLightbox);
       lightbox.querySelector('.mg-photo-add').addEventListener('click',()=>openProjectPhotoUploader());
@@ -305,9 +322,32 @@
     return [['Proyecto',projectNameDisplay(valueOf(first,['proyecto'])||options.projectName||options.id)],['ID proyecto',valueOf(first,['id_proyecto'])||options.id],['Cliente',valueOf(first,['cliente'])||options.cliente],['Ciudad',valueOf(first,['ciudad'])],['Estado',valueOf(first,['estado'])],['Supervisor',valueOf(first,['supervisor_nombre','supervisor_fl','id_sup'])],['Asesor',valueOf(first,['asesor_nombre','vendedor','id_asesor'])],['ADMIN', valueOf(first,['rel_admin','rel_administrativo','administrativo_nombre','administrativo'])]];
   }
   async function optionalJson(path){try{return await fetchJson(path);}catch(e){return null;}}
-  function projectPhotos(row){
-    const fields=[['foto_blt_1','FOTO BLT'],['foto_blt_2','FOTO BLT 2'],['foto_blt_3','FOTO BLT 3'],['foto_blt_4','FOTO BLT 4'],['foto_blt_5','FOTO BLT 5'],['foto_blt_6','FOTO BLT 6'],['foto_blt_7','FOTO BLT 7']];
-    return fields.map(([campo,alias],index)=>({campo,url:String((row&&(row[alias]||row[campo]))||'').trim(),label:'Foto '+(index+1)})).filter(item=>/^https?:\/\//i.test(item.url));
+  function normalizeProjectPhotoDomain(value){
+    return String(value||'').trim().toUpperCase()===PROJECT_PHOTO_DOMAIN_UNI
+      ? PROJECT_PHOTO_DOMAIN_UNI
+      : PROJECT_PHOTO_DOMAIN_COR;
+  }
+  function projectPhotoEndpoints(projectId,domain){
+    const id=encodeURIComponent(String(projectId||'').trim());
+    if(normalizeProjectPhotoDomain(domain)===PROJECT_PHOTO_DOMAIN_UNI){
+      return {
+        upload:'/api/portafolio/proyectos/'+id+'/fotografias',
+        principal:'/api/portafolio/proyectos/'+id+'/fotografias/principal'
+      };
+    }
+    return {
+      upload:'/api/ins-fl/proyectos/fotografias/'+id,
+      principal:'/api/ins-fl/proyectos/fotografias/'+id+'/principal'
+    };
+  }
+  function projectPhotos(row,options){
+    const cfg=options||{};
+    const hasUnitedFields=Boolean(row&&['foto_1','foto_2','foto_3','foto_4','foto_5','foto_6','foto_7'].some(field=>Object.prototype.hasOwnProperty.call(row,field)));
+    const domain=normalizeProjectPhotoDomain(cfg.photoDomain||(hasUnitedFields?PROJECT_PHOTO_DOMAIN_UNI:PROJECT_PHOTO_DOMAIN_COR));
+    const fields=domain===PROJECT_PHOTO_DOMAIN_UNI
+      ? [['foto_1','foto_1'],['foto_2','foto_2'],['foto_3','foto_3'],['foto_4','foto_4'],['foto_5','foto_5'],['foto_6','foto_6'],['foto_7','foto_7']]
+      : [['foto_blt_1','FOTO BLT'],['foto_blt_2','FOTO BLT 2'],['foto_blt_3','FOTO BLT 3'],['foto_blt_4','FOTO BLT 4'],['foto_blt_5','FOTO BLT 5'],['foto_blt_6','FOTO BLT 6'],['foto_blt_7','FOTO BLT 7']];
+    return fields.map(([campo,alias],index)=>({campo,url:String((row&&(row[alias]||row[campo]))||'').trim(),label:'Foto '+(index+1),origen:domain,manageable:true})).filter(item=>/^https?:\/\//i.test(item.url));
   }
   function projectPrincipalUrl(row, photos){
     const direct=String(row&&row.foto_portada||'').trim();
@@ -315,6 +355,22 @@
     const selected=String(row&&row.foto_principal||'').trim();
     const match=(photos||[]).find(item=>item.campo===selected);
     return match?match.url:((photos&&photos[0]&&photos[0].url)||'');
+  }
+  function projectPhotoCoverHtml(principalUrl){
+    return principalUrl
+      ? '<button type="button" class="mg-project-cover" data-project-photo-open aria-label="Abrir fotografías del proyecto"><img id="mg-project-cover-image" src="'+esc(principalUrl)+'" alt="Foto principal del proyecto"></button>'
+      : (canManageProjectPhotos()?'<button type="button" class="mg-project-cover mg-project-cover-empty" data-project-photo-add aria-label="Agregar fotografía al proyecto"><strong>+</strong><span>Agregar foto</span></button>':'');
+  }
+  function currentProjectPhotoOptions(){
+    return {
+      showProjectLink:projectPhotoState.showProjectLink,
+      projectOptions:projectPhotoState.projectOptions?Object.assign({},projectPhotoState.projectOptions):null,
+      onPhotoChange:projectPhotoState.onPhotoChange,
+      allowAdd:projectPhotoState.allowAdd,
+      allowSetPrincipal:projectPhotoState.allowSetPrincipal,
+      managedPhotoLimit:projectPhotoState.managedPhotoLimit,
+      photoDomain:projectPhotoState.photoDomain
+    };
   }
   function openProjectPhotoLightbox(projectId, projectName, photos, principalUrl, options){
     if(!photos||!photos.length)return;
@@ -331,6 +387,7 @@
     projectPhotoState.allowAdd=cfg.allowAdd!==false;
     projectPhotoState.allowSetPrincipal=cfg.allowSetPrincipal!==false;
     projectPhotoState.managedPhotoLimit=Math.max(1,Number(cfg.managedPhotoLimit)||7);
+    projectPhotoState.photoDomain=normalizeProjectPhotoDomain(cfg.photoDomain);
     renderProjectPhotoLightbox();
     document.getElementById('mg-photo-lightbox').hidden=false;
   }
@@ -347,45 +404,56 @@
     const current=lightbox.querySelector('.mg-photo-current');
     if(current)current.textContent='Foto Principal Actual'+(principalIndex>=0?' · '+projectPhotoState.photos[principalIndex].label:' · Sin definir');
     const btn=lightbox.querySelector('.mg-photo-principal');
-    const allowed=isProgramador()&&projectPhotoState.allowSetPrincipal&&item.manageable!==false;
-    btn.style.display='inline-block';
-    btn.disabled=!allowed||item.url===projectPhotoState.principalUrl;
+    const allowed=canManageProjectPhotos()&&projectPhotoState.allowSetPrincipal&&item.manageable!==false;
+    btn.style.display=allowed?'inline-block':'none';
+    btn.disabled=item.url===projectPhotoState.principalUrl;
     btn.textContent='Seleccionar Foto Principal';
-    btn.title=item.manageable===false?'La fotografía pertenece a UNITED y conserva su administración original':(!allowed?'Disponible únicamente para Programador':(item.url===projectPhotoState.principalUrl?'La fotografía mostrada ya es la principal':'Seleccionar esta fotografía como principal'));
+    btn.title=!allowed?PROJECT_PHOTO_MANAGER_TITLE:(item.url===projectPhotoState.principalUrl?'La fotografía mostrada ya es la principal':'Seleccionar esta fotografía como principal');
     const addBtn=lightbox.querySelector('.mg-photo-add');
     const canManage=canManageProjectPhotos();
     const managedCount=projectPhotoState.photos.filter(photo=>photo.manageable!==false).length;
     const canAdd=canManage&&projectPhotoState.allowAdd&&managedCount<projectPhotoState.managedPhotoLimit;
-    addBtn.style.display='inline-block';
+    addBtn.style.display=canManage&&projectPhotoState.allowAdd?'inline-block':'none';
     addBtn.disabled=!canAdd||projectPhotoState.uploading;
     addBtn.textContent=projectPhotoState.uploading?'Subiendo...':'Agregar Foto';
-    addBtn.title=!canManage?'Disponible para Programador o Director General':(!projectPhotoState.allowAdd?'Este origen conserva su administración de fotografías':(managedCount>=projectPhotoState.managedPhotoLimit?'El proyecto ya tiene el máximo de 7 fotografías CORELLIAN':'Agregar una fotografía CORELLIAN al proyecto'));
+    addBtn.title=!canManage?PROJECT_PHOTO_MANAGER_TITLE:(!projectPhotoState.allowAdd?'Este origen conserva su administración de fotografías':(managedCount>=projectPhotoState.managedPhotoLimit?'El proyecto ya tiene el máximo de 7 fotografías':'Agregar una fotografía al proyecto'));
     const projectBtn=lightbox.querySelector('.mg-photo-project');
     if(projectBtn){
       projectBtn.style.display=projectPhotoState.showProjectLink?'inline-block':'none';
       projectBtn.disabled=!projectPhotoState.showProjectLink;
     }
   }
-  function setProjectPhotoContext(projectId,projectName,photos,principalUrl){
+  function setProjectPhotoContext(projectId,projectName,photos,principalUrl,options){
+    const cfg=options||{};
     projectPhotoState.photos=Array.isArray(photos)?photos.slice():[];
     projectPhotoState.index=Math.max(0,projectPhotoState.photos.findIndex(item=>item.url===principalUrl));
     projectPhotoState.projectId=String(projectId||'');
     projectPhotoState.projectName=String(projectName||'');
     projectPhotoState.principalUrl=String(principalUrl||'');
-    projectPhotoState.showProjectLink=false;
-    projectPhotoState.projectOptions=null;
-    projectPhotoState.onPhotoChange=null;
-    projectPhotoState.allowAdd=true;
-    projectPhotoState.allowSetPrincipal=true;
-    projectPhotoState.managedPhotoLimit=7;
+    projectPhotoState.showProjectLink=Boolean(cfg.showProjectLink);
+    projectPhotoState.projectOptions=cfg.projectOptions?Object.assign({},cfg.projectOptions):null;
+    projectPhotoState.onPhotoChange=typeof cfg.onPhotoChange==='function'?cfg.onPhotoChange:null;
+    projectPhotoState.allowAdd=cfg.allowAdd!==false;
+    projectPhotoState.allowSetPrincipal=cfg.allowSetPrincipal!==false;
+    projectPhotoState.managedPhotoLimit=Math.max(1,Number(cfg.managedPhotoLimit)||7);
+    projectPhotoState.photoDomain=normalizeProjectPhotoDomain(cfg.photoDomain);
+  }
+  function bindProjectPhotoCover(root,config){
+    if(!root)return;
+    const cfg=config||{};
+    setProjectPhotoContext(cfg.projectId,cfg.projectName,cfg.photos,cfg.principalUrl,cfg);
+    const photoButton=root.querySelector('[data-project-photo-open]');
+    if(photoButton)photoButton.addEventListener('click',()=>openProjectPhotoLightbox(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl,currentProjectPhotoOptions()));
+    const addPhotoButton=root.querySelector('[data-project-photo-add]');
+    if(addPhotoButton)addPhotoButton.addEventListener('click',()=>openProjectPhotoUploader(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl,currentProjectPhotoOptions()));
   }
   function notifyProjectPhotoChange(change){
     if(typeof projectPhotoState.onPhotoChange!=='function')return;
     try{projectPhotoState.onPhotoChange(Object.assign({projectId:projectPhotoState.projectId,principalUrl:projectPhotoState.principalUrl,photos:projectPhotoState.photos.slice()},change||{}));}catch(error){console.warn('[ManttoDetails] No fue posible sincronizar el cambio de fotografías con la vista origen.',error);}
   }
-  function openProjectPhotoUploader(projectId,projectName,photos,principalUrl){
+  function openProjectPhotoUploader(projectId,projectName,photos,principalUrl,options){
     if(!canManageProjectPhotos()||!projectPhotoState.allowAdd)return;
-    if(projectId!==undefined)setProjectPhotoContext(projectId,projectName,photos,principalUrl);
+    if(projectId!==undefined)setProjectPhotoContext(projectId,projectName,photos,principalUrl,options);
     if(!projectPhotoState.projectId||projectPhotoState.photos.filter(photo=>photo.manageable!==false).length>=projectPhotoState.managedPhotoLimit)return;
     ensure();
     const input=document.querySelector('#mg-photo-lightbox .mg-photo-input');
@@ -394,16 +462,17 @@
   async function handleProjectPhotoSelected(event){
     const input=event&&event.target;const file=input&&input.files&&input.files[0];
     if(!file||projectPhotoState.uploading||!projectPhotoState.projectId)return;
-    if(!projectPhotoState.allowAdd||projectPhotoState.photos.filter(photo=>photo.manageable!==false).length>=projectPhotoState.managedPhotoLimit){window.alert('El proyecto ya tiene el máximo de 7 fotografías CORELLIAN.');input.value='';return;}
+    if(!projectPhotoState.allowAdd||projectPhotoState.photos.filter(photo=>photo.manageable!==false).length>=projectPhotoState.managedPhotoLimit){window.alert('El proyecto ya tiene el máximo de 7 fotografías.');input.value='';return;}
     projectPhotoState.uploading=true;
     if(projectPhotoState.photos.length)renderProjectPhotoLightbox();
     try{
       const form=new FormData();form.append('foto',file,file.name);
-      const response=await postFormData('/api/ins-fl/proyectos/fotografias/'+encodeURIComponent(projectPhotoState.projectId),form);
+      const endpoints=projectPhotoEndpoints(projectPhotoState.projectId,projectPhotoState.photoDomain);
+      const response=await postFormData(endpoints.upload,form);
       const data=response&&response.data?response.data:{};
       const match=String(data.campo||'').match(/(\d+)$/);
       const slotNumber=Number((match&&match[1])||projectPhotoState.photos.length+1);
-      const item={campo:data.campo,url:String(data.url||''),label:'CORELLIAN · Foto '+slotNumber,origen:'CORELLIAN',manageable:true};
+      const item={campo:data.campo,url:String(data.url||''),label:'Foto '+slotNumber,origen:projectPhotoState.photoDomain,manageable:true};
       if(!item.campo||!/^https?:\/\//i.test(item.url))throw new Error('El backend no devolvió la fotografía guardada.');
       projectPhotoState.photos.push(item);
       projectPhotoState.index=projectPhotoState.photos.length-1;
@@ -415,7 +484,7 @@
           emptyCover.removeAttribute('data-project-photo-add');
           emptyCover.setAttribute('data-project-photo-open','');
           emptyCover.innerHTML='<img id="mg-project-cover-image" src="'+esc(projectPhotoState.principalUrl||item.url)+'" alt="Foto principal del proyecto">';
-          emptyCover.addEventListener('click',()=>openProjectPhotoLightbox(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl));
+          emptyCover.addEventListener('click',()=>openProjectPhotoLightbox(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl,currentProjectPhotoOptions()));
         }
         const hero=document.getElementById('mg-project-cover-image');if(hero&&projectPhotoState.principalUrl)hero.src=projectPhotoState.principalUrl;
       }
@@ -437,11 +506,12 @@
     openProyecto(id,options);
   }
   async function selectProjectPrincipalPhoto(){
-    if(!isProgramador()||!projectPhotoState.allowSetPrincipal)return;
+    if(!canManageProjectPhotos()||!projectPhotoState.allowSetPrincipal)return;
     const item=projectPhotoState.photos[projectPhotoState.index];if(!item||!item.campo||!projectPhotoState.projectId)return;
     if(item.manageable===false)return;
     try{
-      await patchJson('/api/ins-fl/proyectos/fotografias/'+encodeURIComponent(projectPhotoState.projectId)+'/principal',{campo:item.campo});
+      const endpoints=projectPhotoEndpoints(projectPhotoState.projectId,projectPhotoState.photoDomain);
+      await patchJson(endpoints.principal,{campo:item.campo});
       projectPhotoState.principalUrl=item.url;
       if(!projectPhotoState.showProjectLink){const hero=document.getElementById('mg-project-cover-image');if(hero)hero.src=item.url;}
       notifyProjectPhotoChange({type:'principal',item});
@@ -647,7 +717,7 @@
     const resolvedName=projectNameDisplay(valueOf(first,['proyecto'])||projectName||proyecto);
     const photoRows=photoResponse?(Array.isArray(photoResponse)?photoResponse:(photoResponse.data||[])):[];
     const photoRow=photoRows.find(row=>String(valueOf(row,['ID Proyecto','id_ppns','id_proyecto'])||'').trim().toUpperCase()===String(proyecto).trim().toUpperCase())||photoRows[0]||{};
-    const photos=projectPhotos(photoRow);
+    const photos=projectPhotos(photoRow,{photoDomain:PROJECT_PHOTO_DOMAIN_COR});
     const principalUrl=projectPrincipalUrl(photoRow,photos);
     const phaseBars=[{label:'Obra Civil',value:average(coreRows.map(r=>valueOf(r,['avance_oc','OC'])))},{label:'Montaje',value:average(coreRows.map(r=>valueOf(r,['avance_mo','MO'])))},{label:'Ajuste',value:average(coreRows.map(r=>valueOf(r,['avance_aj','AJ','avance_ajuste'])))}];
     const equipmentBars=coreRows.map(row=>({label:valueOf(row,['referencia_sitio','REFERENCIA EN SITIO'])||'Equipo',value:equipmentProgress(row)}));
@@ -656,7 +726,7 @@
     const inProcess=Math.max(0,coreRows.length-closed);
     const coreEquipmentRows=coreRows.length?coreRows.map(row=>{const ref=valueOf(row,['referencia_sitio','REFERENCIA EN SITIO']);const key=resolvedName&&ref?resolvedName+'|||'+ref:ref;return '<tr><td><button class="mg-link" data-equipo="'+esc(key)+'">'+esc(ref)+'</button></td><td>'+esc(valueOf(row,['estatus','ESTATUS']))+'</td><td>'+fmtDate(valueOf(row,['fecha_visita','FECHA VISITA']))+'</td><td>'+fmtDate(valueOf(row,['fecha_fin_montaje_real','FIN DE MONTAJE REAL']))+'</td><td>'+fmtDate(valueOf(row,['fecha_fin_ajuste_real','FIN DE AJUSTE REAL']))+'</td><td>'+equipmentProgress(row)+'%</td></tr>';}).join(''):'<tr><td colspan="6" class="mg-empty">Sin equipos de Instalaciones.</td></tr>';
     const generalPct=Math.round((toPct(phaseBars[0].value)*.4)+(toPct(phaseBars[1].value)*.4)+(toPct(phaseBars[2].value)*.2));
-    const coverHtml=principalUrl?'<button type="button" class="mg-project-cover" data-project-photo-open aria-label="Abrir fotografías del proyecto"><img id="mg-project-cover-image" src="'+esc(principalUrl)+'" alt="Foto principal del proyecto"></button>':(canManageProjectPhotos()?'<button type="button" class="mg-project-cover mg-project-cover-empty" data-project-photo-add aria-label="Agregar fotografía al proyecto"><strong>+</strong><span>Agregar foto</span></button>':'');
+    const coverHtml=projectPhotoCoverHtml(principalUrl);
     const overview='<div class="mg-project-overview '+(coverHtml?'':'no-photo')+'">'+coverHtml+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
     const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
@@ -673,11 +743,7 @@
     show('Proyecto · '+resolvedName,valueOf(first,['id_proyecto'])||proyecto,coreHtml+unitedHtml);
     const detailRoot=document.getElementById('mg-detail-body');
     bindLinks(detailRoot);
-    setProjectPhotoContext(proyecto,resolvedName,photos,principalUrl);
-    const photoButton=detailRoot&&detailRoot.querySelector('[data-project-photo-open]');
-    if(photoButton)photoButton.addEventListener('click',()=>openProjectPhotoLightbox(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl));
-    const addPhotoButton=detailRoot&&detailRoot.querySelector('[data-project-photo-add]');
-    if(addPhotoButton)addPhotoButton.addEventListener('click',()=>openProjectPhotoUploader(projectPhotoState.projectId,projectPhotoState.projectName,projectPhotoState.photos,projectPhotoState.principalUrl));
+    bindProjectPhotoCover(detailRoot,{projectId:proyecto,projectName:resolvedName,photos,principalUrl,photoDomain:PROJECT_PHOTO_DOMAIN_COR});
     initProjectFolderManager(proyecto);
   }
 
@@ -740,6 +806,11 @@
       selectedYear=Number(year)||currentYear;
       const data=await fetchJson('/api/proyectos/detalle/'+encodeURIComponent(proyecto)+'?anio_tickets='+encodeURIComponent(selectedYear));
       const p=data.proyecto||data.data?.proyecto||{};
+      const photoProjectId=String(p.proyecto_busqueda||p.proyecto_codigo||p.proyecto||proyecto).trim();
+      const photoResponse=photoProjectId?await optionalJson('/api/portafolio/proyectos/'+encodeURIComponent(photoProjectId)+'/fotografias'):null;
+      const photoRow=photoResponse?(photoResponse.data||photoResponse):{};
+      const photos=projectPhotos(photoRow,{photoDomain:PROJECT_PHOTO_DOMAIN_UNI});
+      const principalUrl=projectPrincipalUrl(photoRow,photos);
       const equipos=data.equipos||data.data?.equipos||[];
       const tickets=data.tickets||data.data?.tickets||[];
       const years=Array.from(new Set((data.ticket_years||[]).map(Number).filter(Boolean).concat([selectedYear]))).sort((a,b)=>b-a);
@@ -762,13 +833,17 @@
       const yearOptions=years.map(y=>'<option value="'+y+'" '+(y===selectedYear?'selected':'')+'>'+y+'</option>').join('');
       const proyectoVisible=projectNameDisplay(p.proyecto_nombre||p.nombre_publico||p.proyecto||proyecto);
       const proyectoCodigoVisible=projectNameDisplay(p.proyecto||proyecto);
+      const coverHtml=projectPhotoCoverHtml(principalUrl);
+      const generalOverview=[['Proyecto',proyectoVisible],['Código',proyectoCodigoVisible]].concat(general);
+      const overview='<div class="mg-project-overview '+(coverHtml?'':'no-photo')+'">'+coverHtml+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(generalOverview)+'</section></div>';
       show('Proyecto · '+proyectoVisible,proyectoCodigoVisible,
-        '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+grid(general)+'</section>'+ 
+        overview+
         '<section class="mg-detail-section"><h3>Indicadores del Proyecto</h3><div class="mg-project-dashboard">'+equipmentKpis+callKpis+debtKpis+rings+'</div></section>'+ 
         '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3>'+legendHostVisual(['CRITICO','NO_FUNCIONANDO_PROYECTO'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'</tbody></table></div></section>'+ 
         '<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Proyecto</h3><label>Año <select id="mg-project-ticket-year">'+yearOptions+'</select></label></div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody>'+groupedTicketRows(tickets)+'</tbody></table></div></section>');
       const detailRoot=document.getElementById('mg-detail-body');
       bindLinks(detailRoot);
+      bindProjectPhotoCover(detailRoot,{projectId:photoProjectId,projectName:proyectoVisible,photos,principalUrl,photoDomain:PROJECT_PHOTO_DOMAIN_UNI});
       detailRoot.querySelectorAll('[data-project-gc-id]').forEach(card=>{
         const openGestionCredito=()=>{
           const id=Number(card.getAttribute('data-project-gc-id')||0);

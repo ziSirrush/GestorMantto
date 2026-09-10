@@ -257,6 +257,11 @@
   function hasModuleAccess(item){
     const permission=item.dataset.permission||'';
     if(permission==='home')return true;
+    const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
+    if(exactPermissionCode){
+      const exact=permissionState(exactPermissionCode);
+      return exact.exists===true&&exact.efectivo===true;
+    }
     const rows=rowsForModule(item).filter(isActiveCatalogRow);
     if(!rows.length)return false;
     const actionRows=rows.filter(row=>Number(row.id_subelemento_accion)>0);

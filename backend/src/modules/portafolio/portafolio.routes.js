@@ -16,9 +16,33 @@ const {
   filterPortafolioEquipmentBodyScope_gnral,
   requireContextualEquipmentScope_gnral
 } = require('../../services/information-record-scope-gnral.service');
+const filePolicy = require('../../services/storage/storage-file-policy.service');
+const { requireProjectPhotoManager_gnral } = require('../../middleware/project-photo.middleware');
+const multer = require('multer');
 
 const requirePortafolioIntegration = requireIntegrationAuthFor('INTEGRATION_PORTAFOLIO_ID');
 const { requireProgrammerRole } = require('../../middleware/historical-sync.middleware');
+
+const uploadProjectPhotoMulter_uni = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: 1,
+    fileSize: filePolicy.getLimits_gnral().maxFileBytes
+  }
+}).single('foto');
+
+function uploadProjectPhoto_uni(req, res, next) {
+  uploadProjectPhotoMulter_uni(req, res, error => {
+    if (!error) return next();
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ ok: false, message: 'La fotografía supera el tamaño máximo permitido.' });
+    }
+    return res.status(400).json({
+      ok: false,
+      message: error.message || 'No fue posible leer la fotografía.'
+    });
+  });
+}
 
 const PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACCESS_PERMISSION =
   'PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
@@ -237,6 +261,29 @@ router.get(
   portafolioController.getPortafolioEquipoDetalle
 );
 router.get('/portafolio/equipos', ...portafolioReadGuard, portafolioController.getPortafolioEquipos);
+// La lectura usa exclusivamente el permiso y el alcance del detalle United.
+// POST/PATCH agregan el rol funcional de escritura GESTOR_FOTOGRAFIAS.
+router.get(
+  '/portafolio/proyectos/:proyecto/fotografias',
+  ...portafolioDetailGuard,
+  requirePortafolioProjectScope_gnral,
+  portafolioController.getPortafolioProyectoFotografias
+);
+router.post(
+  '/portafolio/proyectos/:proyecto/fotografias',
+  ...portafolioDetailGuard,
+  requirePortafolioProjectScope_gnral,
+  requireProjectPhotoManager_gnral,
+  uploadProjectPhoto_uni,
+  portafolioController.uploadPortafolioProyectoFotografia
+);
+router.patch(
+  '/portafolio/proyectos/:proyecto/fotografias/principal',
+  ...portafolioDetailGuard,
+  requirePortafolioProjectScope_gnral,
+  requireProjectPhotoManager_gnral,
+  portafolioController.updatePortafolioProyectoFotoPrincipal
+);
 router.get(
   '/portafolio/proyectos/detalle/:proyecto',
   ...portafolioDetailGuard,

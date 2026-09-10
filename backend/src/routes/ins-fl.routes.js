@@ -4,10 +4,13 @@ const multer = require('multer');
 const router = express.Router();
 const insFlController = require('../controllers/ins-fl.controller');
 const insFlReadController = require('../controllers/ins-fl-read-cor.controller');
-const { requireRole } = require('../middleware/auth.middleware');
 const filePolicy = require('../services/storage/storage-file-policy.service');
 const { requireIntegrationAuthFor } = require('../middleware/integration-auth.middleware');
 const { humanInformationGuard_gnral } = require('../middleware/information-access-gnral.middleware');
+const {
+  requireProjectPhotoManager_gnral,
+  requireCorellianProjectPhotoScope_gnral
+} = require('../middleware/project-photo.middleware');
 
 const requireInsFlIntegration = requireIntegrationAuthFor('INTEGRATION_INS_FL_ID');
 
@@ -29,19 +32,6 @@ function uploadProjectPhoto(req, res, next) {
   });
 }
 
-function requireProjectPhotoManager(req, res, next) {
-  const roles = new Set([
-    req.user && req.user.rol,
-    ...((req.user && Array.isArray(req.user.roles)) ? req.user.roles : [])
-  ].filter(Boolean));
-
-  if (roles.has('Programador') || roles.has('Director General')) return next();
-  return res.status(403).json({
-    ok: false,
-    message: 'No tienes permisos para agregar fotografias de proyecto.'
-  });
-}
-
 function instalacionesGuard(permissionCodesAny) {
   return humanInformationGuard_gnral({
     permissionCodesAny: Array.isArray(permissionCodesAny) ? permissionCodesAny : [permissionCodesAny],
@@ -52,23 +42,31 @@ function instalacionesGuard(permissionCodesAny) {
 
 router.post('/sync', requireInsFlIntegration, insFlController.syncInsFl);
 
+const PROJECT_DETAIL_PHOTO_ACCESS = Object.freeze([
+  'INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.ABRIR_DETALLE',
+  'INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'
+]);
+
 router.get('/', ...instalacionesGuard('INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'), insFlReadController.getInsFl_cor);
 router.get('/proyectos', ...instalacionesGuard('INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'), insFlReadController.getInsFlProjects_cor);
-router.get('/proyectos/fotografias', ...instalacionesGuard('INSTALACIONES_PROYECTOS_REDIRECCIONES_FOTOGRAFIAS.VER'), insFlReadController.getInsFlProjectPhotos_cor);
+router.get(
+  '/proyectos/fotografias',
+  ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
+  insFlReadController.getInsFlProjectPhotos_cor
+);
 router.post(
   '/proyectos/fotografias/:id_ppns',
-  ...instalacionesGuard([
-    'INSTALACIONES_PROYECTOS_REDIRECCIONES_FOTOGRAFIAS.VER',
-    'INSTALACIONES_PROYECTOS_REDIRECCIONES_FOTOGRAFIAS.ABRIR_SECCION'
-  ]),
-  requireProjectPhotoManager,
+  ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
+  requireCorellianProjectPhotoScope_gnral,
+  requireProjectPhotoManager_gnral,
   uploadProjectPhoto,
   insFlController.uploadInsFlProjectPhoto
 );
 router.patch(
   '/proyectos/fotografias/:id_ppns/principal',
-  ...instalacionesGuard('INSTALACIONES_PROYECTOS_REDIRECCIONES_FOTOGRAFIAS.VER'),
-  requireRole('Programador'),
+  ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
+  requireCorellianProjectPhotoScope_gnral,
+  requireProjectPhotoManager_gnral,
   insFlController.updateInsFlProjectMainPhoto
 );
 router.get('/proyectos/concentrado-clientes', ...instalacionesGuard('INSTALACIONES_CONCENTRADO_CLIENTE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'), insFlReadController.getInsFlClientConcentrate_cor);

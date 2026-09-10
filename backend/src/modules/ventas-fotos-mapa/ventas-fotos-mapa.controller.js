@@ -19,6 +19,9 @@ const CORE_PHOTO_ALIASES = Object.freeze([
   ['foto_blt_6', 'FOTO BLT 6'],
   ['foto_blt_7', 'FOTO BLT 7']
 ]);
+const UNITED_PHOTO_FIELDS = Object.freeze([
+  'foto_1', 'foto_2', 'foto_3', 'foto_4', 'foto_5', 'foto_6', 'foto_7'
+]);
 
 function normalizedLimit(value) {
   const parsed = Number(value);
@@ -86,6 +89,14 @@ async function presentCorePhotoRow(row) {
     copy['FOTO BLT 6'] || copy.foto_blt_6 ||
     copy['FOTO BLT 7'] || copy.foto_blt_7 || null;
 
+  return copy;
+}
+
+async function presentUnitedPhotoRow(row) {
+  const copy = { ...row };
+  for (const field of UNITED_PHOTO_FIELDS) {
+    copy[field] = await presentCorePhotoUrl(copy[field]);
+  }
   return copy;
 }
 
@@ -188,7 +199,11 @@ async function listGeneralUnitedPhotos(limit) {
     [limit]
   );
 
-  return rows;
+  const presentedRows = [];
+  for (const row of rows) {
+    presentedRows.push(await presentUnitedPhotoRow(row));
+  }
+  return presentedRows;
 }
 
 async function getGeneralProjectPhotos(req, res, next) {
@@ -258,11 +273,16 @@ async function getUnitedProjectPhotos(req, res, next) {
       [...scope.params, limit]
     );
 
+    const presentedRows = [];
+    for (const row of rows) {
+      presentedRows.push(await presentUnitedPhotoRow(row));
+    }
+
     return res.json({
       ok: true,
       source: 'aiven',
       domain: 'UNITED',
-      data: rows
+      data: presentedRows
     });
   } catch (error) {
     return next(error);
