@@ -235,7 +235,7 @@ function normalizeFuente_cor(row) {
   return {
     proyecto: requiredText_cor(field_cor(map, 'PROYECTO', 'proyecto'), 'PROYECTO', 255),
     id_proyecto_origen: cleanText_cor(field_cor(map, 'ID_PROYECTO', 'id_proyecto_origen'), 100),
-    porcentaje: percent_cor(field_cor(map, 'PCT', 'porcentaje'), '%'),
+    porcentaje: percentage01_cor(field_cor(map, 'PCT', 'porcentaje'), '%'),
     condicion: cleanText_cor(field_cor(map, 'CONDICION', 'condicion'), 500),
     moneda: cleanText_cor(field_cor(map, 'MONEDA', 'moneda'), 10),
     subtotal: decimal_cor(field_cor(map, 'SUBTOTAL', 'subtotal'), 'SUBTOTAL'),
@@ -290,7 +290,7 @@ function normalizeAditiva_cor(row) {
     fecha_pago: date_cor(field_cor(map, 'FECHA_DE_PAGO', 'fecha_pago'), 'FECHA DE PAGO'),
     semana_pago: cleanText_cor(field_cor(map, 'SEMANA_DE_PAGO', 'semana_pago'), 30),
     moneda: cleanText_cor(field_cor(map, 'MONEDA', 'moneda'), 10),
-    gasto_ejercido: decimal_cor(field_cor(map, 'GASTO_EJERCIDO', 'gasto_ejercido'), 'GASTO EJERCIDO'),
+    gasto_ejercido: cleanText_cor(field_cor(map, 'GASTO_EJERCIDO', 'gasto_ejercido'), 50),
     activo: 1
   };
 
