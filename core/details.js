@@ -771,7 +771,7 @@
         if(isStopped(e)) equipoCodes.push('NO_FUNCIONANDO_PROYECTO');
         const equipoCell=equipoKey?renderIdentifierVisual(equipoCodes,equipoKey):'—';
         return '<tr class="mg-project-equipment-row mg-clickable-row" data-equipo="'+esc(equipoKey)+'" data-is-stopped="'+(isStopped(e)?'1':'0')+'" tabindex="0" role="button">'+
-          '<td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.estado_operativo)+'</td><td>'+esc(e.fallas_blt_anio||0)+'</td><td>'+esc(e.resp_blt_anio||0)+'</td><td>'+fmtDate(e.ultimo_blt)+'</td><td>'+esc(e.resp_cliente_anio||0)+'</td><td>'+fmtDate(e.ultimo_cliente)+'</td><td>'+fmtMtbc(e.mtbc_anio)+'</td><td>'+fmtMtbc(e.mtbc_365)+'</td></tr>';
+          '<td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.estado_operativo)+'</td><td>'+esc(e.fallas_anio||0)+'</td><td>'+esc(e.resp_blt_anio||0)+'</td><td>'+fmtDate(e.ultimo_blt)+'</td><td>'+esc(e.resp_cliente_anio||0)+'</td><td>'+fmtDate(e.ultimo_cliente)+'</td><td>'+fmtMtbc(e.mtbc_anio)+'</td><td>'+fmtMtbc(e.mtbc_365)+'</td></tr>';
       }).join('');
     }
 
