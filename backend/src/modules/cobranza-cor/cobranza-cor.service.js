@@ -73,9 +73,19 @@ function decimal_cor(value, fieldName) {
 
   let text = String(value).trim();
   if (!text) return null;
-  text = text.replace(/\$/g, '').replace(/\s+/g, '');
+  text = text
+    .replace(/\u00a0/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[\$€£]/g, '');
 
-  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(text)) {
+  // 1.234,56 -> 1234.56
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(text)) {
+    text = text.replace(/\./g, '').replace(',', '.');
+  } else if (/^-?\d+,\d+$/.test(text)) {
+    // 0,50 -> 0.50
+    text = text.replace(',', '.');
+  } else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(text)) {
+    // 1,234.56 -> 1234.56
     text = text.replace(/,/g, '');
   }
 
@@ -102,6 +112,15 @@ function percent_cor(value, fieldName) {
     return number === null ? null : number / 100;
   }
   return decimal_cor(text, fieldName);
+}
+
+function percentage01_cor(value, fieldName) {
+  const number = percent_cor(value, fieldName);
+  if (number === null) return null;
+  if (number < 0 || number > 1) {
+    throw new Error(`${fieldName} debe estar entre 0% y 100%.`);
+  }
+  return number;
 }
 
 function integer_cor(value, fieldName, { min = null, max = null } = {}) {
@@ -202,8 +221,8 @@ function normalizeIndice_cor(row) {
     vend: cleanText_cor(field_cor(map, 'VEND', 'vend'), 50),
     edo: cleanText_cor(field_cor(map, 'EDO', 'edo'), 50),
     estatus: cleanText_cor(field_cor(map, 'ESTATUS', 'estatus'), 100),
-    cobranza_usd: decimal_cor(field_cor(map, 'COBRANZA_USD', 'cobranza_usd'), 'COBRANZA USD'),
-    cobranza_mxn: decimal_cor(field_cor(map, 'COBRANZA_MXN', 'cobranza_mxn'), 'COBRANZA MXN'),
+    cobranza_usd: percentage01_cor(field_cor(map, 'COBRANZA_USD', 'cobranza_usd'), 'COBRANZA USD'),
+    cobranza_mxn: percentage01_cor(field_cor(map, 'COBRANZA_MXN', 'cobranza_mxn'), 'COBRANZA MXN'),
     fianzas: boolean_cor(field_cor(map, 'FIANZAS', 'fianzas'), 'FIANZAS', 0),
     tipo_fianza: cleanText_cor(field_cor(map, 'TIPO_DE_FIANZA', 'tipo_fianza'), 255),
     repse_siroc: boolean_cor(field_cor(map, 'REPSE_SIROC', 'repse_siroc'), 'REPSE / SIROC', 0),
