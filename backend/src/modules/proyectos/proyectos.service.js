@@ -631,7 +631,7 @@ async function getProyectoDetalle(req, res) {
     const [equipos] = await db.query(`
       SELECT ${portafolioBaseSelect},
         (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
-        (SELECT COUNT(*) FROM tickets trblt WHERE trblt.codigo_equipo = p.numero_equipo AND trblt.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND trblt.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(TRIM(COALESCE(trblt.responsabilidad,''))) = 'BLT') AS resp_blt_anio,
+        (SELECT COUNT(*) FROM tickets trblt WHERE trblt.codigo_equipo = p.numero_equipo AND trblt.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND trblt.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(trblt.responsabilidad,'')) LIKE '%BLT%') AS resp_blt_anio,
         (SELECT MAX(tay.fecha_reporte) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS ultimo_blt,
         (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tcli.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
         (SELECT MAX(tcli.fecha_reporte) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS ultimo_cliente,
