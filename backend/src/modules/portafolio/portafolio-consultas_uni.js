@@ -769,6 +769,9 @@ function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
       return date && date >= yearStart && date < nextYear;
     });
     const bltYear = yearTickets.filter(ticket => normalizeUpper_uni(ticket.responsabilidad).includes('BLT'));
+    const responsibilityBltYear = yearTickets.filter(
+      ticket => normalizeUpper_uni(ticket.responsabilidad) === 'BLT'
+    );
     const clientYear = yearTickets.filter(ticket => normalizeUpper_uni(ticket.responsabilidad).includes('CLIENTE'));
     const blt365 = tickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
@@ -782,8 +785,13 @@ function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
     }) : [];
     if (bltCritical.length >= criteria.minFallas) criticalCodes.add(code);
 
+    // Detalle Proyecto > Equipos del Proyecto:
+    // - Fallas al año incluye todos los tickets del año calendario actual.
+    // - Resp BLT incluye únicamente los tickets cuya responsabilidad es BLT.
+    row.fallas_anio = yearTickets.length;
+    row.resp_blt_anio = responsibilityBltYear.length;
     row.fallas_blt_anio = bltYear.length;
-    row.ultimo_blt = bltYear.map(ticket => ticket.fecha_reporte).filter(Boolean).sort().pop() || null;
+    row.ultimo_blt = responsibilityBltYear.map(ticket => ticket.fecha_reporte).filter(Boolean).sort().pop() || null;
     row.resp_cliente_anio = clientYear.length;
     row.ultimo_cliente = tickets
       .filter(ticket => normalizeUpper_uni(ticket.responsabilidad).includes('CLIENTE'))
