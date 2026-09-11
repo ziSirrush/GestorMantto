@@ -763,7 +763,7 @@
     const normalizeResponsibility=v=>{const value=String(v||'').trim();return value||'—';};
 
     function equipmentRows(equipos,tickets){
-      if(!equipos.length)return '<tr><td colspan="9" class="mg-empty">Sin equipos</td></tr>';
+      if(!equipos.length)return '<tr><td colspan="10" class="mg-empty">Sin equipos</td></tr>';
       return equipos.map(e=>{
         const equipoKey=String(e.numero_equipo||'').trim();
         const equipoCodes=[];
@@ -771,7 +771,7 @@
         if(isStopped(e)) equipoCodes.push('NO_FUNCIONANDO_PROYECTO');
         const equipoCell=equipoKey?renderIdentifierVisual(equipoCodes,equipoKey):'—';
         return '<tr class="mg-project-equipment-row mg-clickable-row" data-equipo="'+esc(equipoKey)+'" data-is-stopped="'+(isStopped(e)?'1':'0')+'" tabindex="0" role="button">'+
-          '<td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.estado_operativo)+'</td><td>'+esc(e.fallas_blt_anio||0)+'</td><td>'+fmtDate(e.ultimo_blt)+'</td><td>'+esc(e.resp_cliente_anio||0)+'</td><td>'+fmtDate(e.ultimo_cliente)+'</td><td>'+fmtMtbc(e.mtbc_anio)+'</td><td>'+fmtMtbc(e.mtbc_365)+'</td></tr>';
+          '<td>'+equipoCell+'</td><td>'+esc(e.identificacion_sitio)+'</td><td>'+esc(e.estado_operativo)+'</td><td>'+esc(e.fallas_blt_anio||0)+'</td><td>'+esc(e.resp_blt_anio||0)+'</td><td>'+fmtDate(e.ultimo_blt)+'</td><td>'+esc(e.resp_cliente_anio||0)+'</td><td>'+fmtDate(e.ultimo_cliente)+'</td><td>'+fmtMtbc(e.mtbc_anio)+'</td><td>'+fmtMtbc(e.mtbc_365)+'</td></tr>';
       }).join('');
     }
 
@@ -839,7 +839,7 @@
       show('Proyecto · '+proyectoVisible,proyectoCodigoVisible,
         overview+
         '<section class="mg-detail-section"><h3>Indicadores del Proyecto</h3><div class="mg-project-dashboard">'+equipmentKpis+callKpis+debtKpis+rings+'</div></section>'+ 
-        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3>'+legendHostVisual(['CRITICO','NO_FUNCIONANDO_PROYECTO'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'</tbody></table></div></section>'+ 
+        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3>'+legendHostVisual(['CRITICO','NO_FUNCIONANDO_PROYECTO'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp BLT</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'</tbody></table></div></section>'+ 
         '<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Proyecto</h3><label>Año <select id="mg-project-ticket-year">'+yearOptions+'</select></label></div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody>'+groupedTicketRows(tickets)+'</tbody></table></div></section>');
       const detailRoot=document.getElementById('mg-detail-body');
       bindLinks(detailRoot);
