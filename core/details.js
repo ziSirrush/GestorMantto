@@ -154,6 +154,22 @@
         .mg-folder-manager-body{min-height:150px;max-height:420px;overflow-y:auto;overscroll-behavior:contain;padding:12px 14px;scrollbar-gutter:stable}.mg-folder-empty,.mg-folder-status{font-size:12px;font-weight:900;text-align:center;border-radius:10px;padding:12px 14px;margin:12px auto;max-width:420px}.mg-folder-empty{color:#9F1239;background:#FFF1F2;border:1px solid #FECDD3}.mg-folder-status{color:#0D2E6E;background:#EFF6FF;border:1px solid #BFDBFE}.mg-folder-status.error{color:#9F1239;background:#FFF1F2;border-color:#FECDD3}
         .mg-folder-tree{list-style:none;margin:0;padding:0}.mg-folder-tree ul{list-style:none;margin:3px 0 3px 22px;padding:0;border-left:1px dashed #CBD5E1}.mg-folder-node{margin:2px 0}.mg-folder-row{display:flex;align-items:center;gap:7px;min-height:32px;padding:4px 7px;border-radius:7px}.mg-folder-row:hover{background:#F8FAFC}.mg-folder-toggle{width:22px;height:22px;border:0;background:transparent;color:#334155;cursor:pointer;font-size:12px}.mg-folder-toggle.placeholder{visibility:hidden}.mg-folder-icon{width:20px;text-align:center}.mg-folder-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:750;color:#1E293B}.mg-folder-item-open{border:0;background:transparent;color:#0D2E6E;font-size:11px;font-weight:850;cursor:pointer}.mg-folder-children[hidden]{display:none}.mg-folder-muted{font-size:11px;color:#64748B}
         @media(max-width:720px){.mg-folder-manager-body{max-height:300px;padding:10px 11px}.mg-folder-manager-tabs{overflow-x:auto;white-space:nowrap;padding-bottom:2px}.mg-folder-manager-tab{flex:0 0 auto}.mg-folder-row{min-height:36px}.mg-folder-item-open{padding:5px 3px}.mg-folder-manager-head{align-items:flex-start}.mg-folder-manager-actions{max-width:62%}.mg-folder-manager-open,.mg-folder-oauth-btn{padding:7px 9px}}
+
+        .mg-bitacora-panel{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;overflow:hidden}
+        .mg-bitacora-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px;font-weight:900;flex-wrap:wrap}
+        .mg-bitacora-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+        .mg-bitacora-lastsync{font-size:10px;font-weight:750;color:#475569;text-align:right}
+        .mg-bitacora-refresh{border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:850;cursor:pointer}.mg-bitacora-refresh:disabled{opacity:.6;cursor:wait}
+        .mg-bitacora-body{padding:0}
+        .mg-bitacora-table{width:100%;border-collapse:collapse}.mg-bitacora-table th{background:#F8FAFC;color:#475569;text-align:left;font-size:10px;text-transform:uppercase;font-weight:800;padding:8px 12px;border-bottom:1px solid #E2E8F0}.mg-bitacora-table td{font-size:12px;padding:8px 12px;border-bottom:1px solid #F1F5F9;color:#334155;vertical-align:top}.mg-bitacora-table tr.eliminado td{color:#94A3B8}
+        .mg-bitacora-doc-link{color:#1B4FD8;text-decoration:underline;cursor:pointer;font-weight:700}
+        .mg-bitacora-ruta{color:#64748B;font-size:11px}
+        .mg-bitacora-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px}
+        .mg-bitacora-badge.activo{background:#DCFCE7;color:#166534}
+        .mg-bitacora-badge.eliminado{background:#FEE2E2;color:#991B1B}
+        .mg-bitacora-empty{padding:16px;text-align:center;color:#64748B;font-size:12px}
+        .mg-bitacora-truncado{font-size:10px;color:#B45309;background:#FFFBEB;border-top:1px solid #FDE68A;padding:6px 12px}
+        @media(max-width:720px){.mg-bitacora-table{display:block;overflow-x:auto}.mg-bitacora-head{align-items:flex-start}}
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
         .mg-project-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-project-kpis.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-project-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-project-kpi{min-height:104px;border:0;border-radius:15px;padding:13px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;color:#fff;box-shadow:0 9px 20px rgba(13,46,110,.14)}.mg-project-kpi-icon{font-size:22px;line-height:1}.mg-project-kpi span:not(.mg-project-kpi-icon){display:block;font-size:9px;text-transform:uppercase;font-weight:900;letter-spacing:.04em;color:rgba(255,255,255,.94)}.mg-project-kpi strong{display:block;color:#fff;font-size:28px;line-height:1}.mg-project-kpi small{font-size:9px;color:rgba(255,255,255,.76)}.mg-project-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.mg-project-kpi-red{background:linear-gradient(135deg,#DC2626,#991B1B)}.mg-project-kpi-amber{background:linear-gradient(135deg,#D97706,#B45309)}.mg-project-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.mg-project-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.mg-project-kpi-cyan{background:linear-gradient(135deg,#0284C7,#0369A1)}.mg-project-kpi-slate{background:linear-gradient(135deg,#64748B,#475569)}.mg-project-kpi-link{cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.mg-project-kpi-link:hover,.mg-project-kpi-link:focus-visible{transform:translateY(-2px);box-shadow:0 12px 28px rgba(15,23,42,.18);outline:2px solid rgba(27,79,216,.28);outline-offset:2px}.mg-project-dashboard{padding:14px}.mg-project-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.mg-project-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-project-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-project-ring-layout{display:flex;align-items:center;gap:14px}.mg-project-ring{width:132px;height:132px;border-radius:50%;position:relative;flex:0 0 132px;background:#E2E8F0}.mg-project-ring:after{content:'';position:absolute;inset:25px;border-radius:50%;background:#fff}.mg-project-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-size:18px;font-weight:900;color:#0D2E6E}.mg-project-ring-legend{display:grid;gap:6px;min-width:0}.mg-project-ring-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#475569}.mg-project-ring-dot{width:10px;height:10px;border-radius:50%}.mg-project-ring-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-project-ring-value{font-weight:800;color:#0D2E6E}.mg-project-equipment-empty{display:none}
@@ -703,6 +719,100 @@
     }
   }
 
+  /* =========================================================
+     BITACORA DE OBRA
+     Historial persistente (BD) de los documentos encontrados en la
+     carpeta de Drive del proyecto (raiz + subcarpetas). Al abrir la
+     pestana se muestra primero lo ya guardado (rapido) y en paralelo
+     se dispara un sync contra Drive que reconcilia altas/bajas; el
+     boton "Actualizar" repite ese sync bajo demanda.
+     ========================================================= */
+  function bitacoraDocIcon(mime){
+    const m=String(mime||'').toLowerCase();
+    if(m.includes('pdf'))return '📕';
+    if(m.includes('spreadsheet')||m.includes('excel'))return '📊';
+    if(m.includes('document')||m.includes('word'))return '📘';
+    if(m.startsWith('image/'))return '🖼️';
+    return '📄';
+  }
+  function fmtDateTime(v){
+    if(!v)return '—';
+    const s=String(v).trim();
+    const m=s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if(m)return m[3]+'/'+m[2]+'/'+m[1]+' '+m[4]+':'+m[5];
+    return fmtDate(s);
+  }
+  function renderBitacoraLastSync(panel,sincronizacion){
+    const el=panel.querySelector('.mg-bitacora-lastsync');
+    if(!el)return;
+    if(!sincronizacion||!sincronizacion.ultima_sincronizacion){el.textContent='Aún no se ha sincronizado.';return;}
+    el.textContent='Última actualización: '+fmtDateTime(sincronizacion.ultima_sincronizacion);
+  }
+  function renderBitacoraTable(panel,data){
+    const body=panel.querySelector('.mg-bitacora-body');
+    const documentos=(data&&data.documentos)||[];
+    renderBitacoraLastSync(panel,data&&data.sincronizacion);
+    if(!documentos.length){
+      body.innerHTML='<div class="mg-bitacora-empty">Todavía no se ha registrado ningún documento. Usa "Actualizar" para sincronizar con Drive.</div>';
+      return;
+    }
+    const rows=documentos.map(doc=>{
+      const activo=doc.estatus==='activo';
+      const badge=activo?'<span class="mg-bitacora-badge activo">✅ Activo</span>':'<span class="mg-bitacora-badge eliminado">❌ Ya no está en Drive</span>';
+      const nombre=doc.web_view_link?'<span class="mg-bitacora-doc-link" data-bitacora-link="'+esc(doc.web_view_link)+'">'+bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo)+'</span>':bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo);
+      const ruta=doc.ruta_carpeta?esc(doc.ruta_carpeta):'Carpeta raíz';
+      return '<tr class="'+(activo?'':'eliminado')+'"><td>'+nombre+'</td><td class="mg-bitacora-ruta">'+ruta+'</td><td>'+fmtDate(doc.fecha_creacion_drive)+'</td><td>'+badge+(activo?'':' <span class="mg-bitacora-ruta">('+fmtDate(doc.fecha_baja)+')</span>')+'</td></tr>';
+    }).join('');
+    body.innerHTML='<div class="mg-table-wrap"><table class="mg-bitacora-table"><thead><tr><th>Documento</th><th>Subcarpeta</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+      (data&&data.sincronizacion&&data.sincronizacion.truncado?'<div class="mg-bitacora-truncado">La carpeta es muy grande: esta sincronización no alcanzó a recorrerla por completo. Vuelve a pulsar "Actualizar".</div>':'');
+    body.querySelectorAll('[data-bitacora-link]:not([data-bound])').forEach(el=>{
+      el.dataset.bound='1';
+      el.addEventListener('click',()=>window.open(el.dataset.bitacoraLink,'_blank','noopener,noreferrer'));
+    });
+  }
+  function bitacoraStatus(panel,message,isError){
+    const body=panel.querySelector('.mg-bitacora-body');
+    if(body)body.innerHTML='<div class="mg-folder-status'+(isError?' error':'')+'">'+esc(message)+'</div>';
+  }
+  async function loadBitacoraPersisted(panel,projectId){
+    try{
+      const data=await fetchJson('/api/instalaciones/bitacora/'+encodeURIComponent(projectId));
+      renderBitacoraTable(panel,data);
+    }catch(error){
+      bitacoraStatus(panel,error.message||'No fue posible cargar la Bitácora de Obra.',true);
+    }
+  }
+  async function syncBitacora(panel,projectId){
+    const button=panel.querySelector('.mg-bitacora-refresh');
+    if(button)button.disabled=true;
+    const lastSyncEl=panel.querySelector('.mg-bitacora-lastsync');
+    if(lastSyncEl)lastSyncEl.textContent='Sincronizando con Drive...';
+    try{
+      const data=await postJson('/api/instalaciones/bitacora/'+encodeURIComponent(projectId)+'/sync',{});
+      renderBitacoraTable(panel,data);
+    }catch(error){
+      if(/conectar.*google|google.*conect/i.test(String(error.message||''))){
+        if(lastSyncEl)lastSyncEl.textContent='Conecta tu cuenta de Google (arriba, en "Gestor de la carpeta") para sincronizar.';
+      }else if(lastSyncEl){
+        lastSyncEl.textContent='No fue posible sincronizar: '+(error.message||'error desconocido.');
+      }
+    }finally{
+      if(button)button.disabled=false;
+    }
+  }
+  async function initBitacoraObra(projectId){
+    const panel=document.querySelector('.mg-bitacora-panel[data-project-id="'+CSS.escape(String(projectId))+'"]');
+    if(!panel)return;
+    const button=panel.querySelector('.mg-bitacora-refresh');
+    if(button&&!button.dataset.bound){
+      button.dataset.bound='1';
+      button.addEventListener('click',()=>syncBitacora(panel,projectId));
+    }
+    await loadBitacoraPersisted(panel,projectId);
+    // Actualiza automaticamente al abrir la vista, sin bloquear lo ya mostrado.
+    syncBitacora(panel,projectId);
+  }
+
   async function openUnifiedClientProject(proyecto, options){
     show('Proyecto',options.projectName||proyecto,'<div class="mg-empty">Preparando expediente unificado del cliente...</div>');
     const projectName=String(options.projectName||'').trim();
@@ -730,7 +840,8 @@
     const overview='<div class="mg-project-overview '+(coverHtml?'':'no-photo')+'">'+coverHtml+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
     const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
-    const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
+    const bitacoraObra='<section class="mg-bitacora-panel" data-project-id="'+esc(proyecto)+'" aria-label="Bitácora de Obra"><div class="mg-bitacora-head"><span>Bitácora de Obra</span><div class="mg-bitacora-actions"><span class="mg-bitacora-lastsync">Preparando bitácora...</span><button type="button" class="mg-bitacora-refresh">Actualizar</button></div></div><div class="mg-bitacora-body"><div class="mg-folder-status">Preparando bitácora...</div></div></section>';
+    const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+bitacoraObra+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
     const unitedRoot=unitedResponse&&(unitedResponse.data||unitedResponse);
     const unitedSource=String(unitedResponse&&(unitedResponse.origen||unitedResponse.source)||'').trim().toUpperCase();
     const isUnitedPortafolio=unitedSource==='PORTAFOLIO'||unitedSource==='AIVEN-PORTAFOLIO';
@@ -745,6 +856,7 @@
     bindLinks(detailRoot);
     bindProjectPhotoCover(detailRoot,{projectId:proyecto,projectName:resolvedName,photos,principalUrl,photoDomain:PROJECT_PHOTO_DOMAIN_COR});
     initProjectFolderManager(proyecto);
+    initBitacoraObra(proyecto);
   }
 
   async function openProyecto(proyecto, options){
