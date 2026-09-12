@@ -1,88 +1,61 @@
-# FIX COBRANZA COR - ADM / SUP / VEND POR USUARIO ID V007
+# FIX COBRANZA COR - COLLATION ADM / SUP / VEND V008
 
-Base verificada: `ziSirrush/GestorMantto` / `main` / commit `4e2bac8dfd03e8e47d73a7a4161c7ad8ac491f1d` (`Version 091126.20 - Edo Cta`).
+Base verificada: `ziSirrush/GestorMantto` / `main` / commit `53a4cc1bfa34759e50982ed031f0d15f80ba65d7` (`Version 091126.21 - Edo Cta`).
 
-## Objetivo
+## Error corregido
 
-Hacer que los campos de INDICE:
+Después de V007 el backend podía responder:
 
-- `ADM`
-- `SUP`
-- `VEND`
+`ER_CANT_AGGREGATE_2COLLATIONS: Illegal mix of collations (utf8mb4_unicode_ci,IMPLICIT) and (utf8mb4_general_ci,IMPLICIT) for operation '='`
 
-se interpreten de forma canonica como `usuarios.id_SB`, para que el alcance de informacion de CORELLIAN pueda filtrar los proyectos por usuario de manera inequívoca.
+La causa estaba en la resolución de ADM / SUP / VEND: las columnas de `cobranza_indice_cor` son texto y V007 las comparaba contra `usuarios.id_SB` convirtiendo el ID numérico a `CHAR`.
 
-## Regla de seguridad
+Ejemplo anterior:
 
-El Guard ya entrega al modulo la lista `usuarios_visibles` como IDs de usuario. Este FIX hace que `buildIndiceScope_cor()` compare esa lista exclusivamente contra:
+`TRIM(COALESCE(i.adm, '')) = CAST(u_adm.id_SB AS CHAR)`
 
-- `cobranza_indice_cor.adm = usuarios.id_SB`
-- `cobranza_indice_cor.sup = usuarios.id_SB`
-- `cobranza_indice_cor.vend = usuarios.id_SB`
+Eso convertía una relación que conceptualmente es numérica en una comparación textual y podía enfrentar collations distintas.
 
-Se elimina del filtro de alcance la compatibilidad anterior por `usuarios.iniciales`.
+## Corrección
 
-Por lo tanto, iniciales coincidentes ya no conceden visibilidad. La decision de alcance utiliza el ID numerico.
+ADM / SUP / VEND son IDs de usuario. Por lo tanto, V008 convierte el valor guardado en INDICE a `UNSIGNED` y compara número contra número:
 
-## Carga INDICE
+`usuarios.id_SB = CAST(NULLIF(TRIM(indice.adm), '') AS UNSIGNED)`
 
-`normalizeIndice_cor()` ahora valida ADM, SUP y VEND como IDs enteros positivos o NULL.
+Se aplica a:
 
-Valores permitidos:
+- alcance de información (`buildIndiceScope_cor`);
+- JOIN de ADM para mostrar usuario;
+- JOIN de SUP para mostrar usuario;
+- JOIN de VEND para mostrar usuario;
+- listado MAIN;
+- encabezado/detalle del proyecto.
 
-- `66`
-- `44`
-- `51`
-- vacio / NULL / `-` -> NULL
+El Guard continúa usando exclusivamente `usuarios.id_SB`.
 
-Valores de texto o iniciales ya no se aceptan como usuario valido para esos tres campos.
+## Lo que NO cambia
 
-No es necesario recargar INDICE para que el Guard use los IDs que ya existen en Aiven. La validacion nueva protege cargas futuras.
+- No cambia la lógica FUENTE del detalle del Estado de Cuenta.
+- No cambia PP / nombre de proyecto.
+- No cambia frontend.
+- No cambia service.
+- No se cambian collations de tablas.
+- No requiere SQL, ALTER TABLE, tabla nueva ni FK nueva.
 
-## Resolucion para pantalla
-
-El backend hace `LEFT JOIN usuarios` por `id_SB` para ADM, SUP y VEND y devuelve, ademas del ID:
-
-- `nombre`
-- `iniciales`
-
-El frontend deja de mostrar solamente `66 / 44 / 51` y muestra el nombre del usuario. El `title` conserva nombre, iniciales e ID para consulta rapida.
-
-Ejemplo de la SABANA de referencia:
-
-- ID 66 -> Yageri Garcia / YG
-- ID 44 -> Aldo Mendez / AM
-- ID 51 -> Ignacio Neri / IN
-
-La SABANA es referencia historica. El nombre mostrado en ejecucion siempre se obtiene de la tabla `usuarios` de Aiven mediante el ID guardado en INDICE.
-
-## Estado de Cuenta / FUENTE
-
-Este FIX NO cambia la regla acordada anteriormente:
-
-- MAIN Estados de Cuenta nace de `cobranza_indice_cor`.
-- La resolucion flexible PP/Nombre contra `cobranza_fuente_cor` sigue ocurriendo solo al abrir el DETALLE del Estado de Cuenta.
-
-## Archivos modificados completos
+## Archivo modificado completo
 
 - `backend/src/modules/cobranza-cor/cobranza-cor.repository.js`
-- `backend/src/modules/cobranza-cor/cobranza-cor.service.js`
-- `modules/cobranza-cor/cobranza-cor-estados-cuenta.js`
-
-No requiere SQL, ALTER TABLE, tabla nueva ni FK nueva.
 
 ## Validaciones ejecutadas
 
 - `node --check backend/src/modules/cobranza-cor/cobranza-cor.repository.js` -> OK
-- `node --check backend/src/modules/cobranza-cor/cobranza-cor.service.js` -> OK
-- `node --check modules/cobranza-cor/cobranza-cor-estados-cuenta.js` -> OK
-- `buildIndiceScope_cor()` ya no usa `u_scope.iniciales` -> OK
-- ADM / SUP / VEND en la carga se validan como IDs enteros positivos -> OK
-- El MAIN y el DETALLE resuelven nombre/iniciales por `usuarios.id_SB` -> OK
+- No quedan comparaciones `CAST(u_*.id_SB AS CHAR)` -> OK
+- ADM / SUP / VEND se comparan numéricamente contra `usuarios.id_SB` -> OK
 
-## Prueba recomendada despues del deploy
+## Prueba después del deploy
 
-1. Abrir Cobranza > Estados de Cuenta con un usuario con llave maestra CORELLIAN: debe ver el alcance completo autorizado.
-2. Abrir con un usuario sin llave maestra y alcance limitado: solo deben llegar proyectos donde ADM, SUP o VEND corresponda a uno de sus `usuarios_visibles`.
-3. Revisar un proyecto con ADM=66, SUP=44, VEND=51 y confirmar que la interfaz resuelva los usuarios por ID.
-4. Abrir el detalle del Estado de Cuenta y confirmar que la logica FUENTE por PP/Nombre se mantiene sin cambios.
+1. Abrir `Cobranza > Estados de Cuenta`.
+2. Confirmar que el MAIN responde 200 y ya no presenta `ER_CANT_AGGREGATE_2COLLATIONS`.
+3. Confirmar que ADM / SUP / VEND muestran el usuario resuelto por `id_SB`.
+4. Probar con usuario de alcance limitado y confirmar que el Guard filtra por los IDs ADM / SUP / VEND.
+5. Abrir un proyecto y confirmar que el detalle FUENTE sigue funcionando con la lógica ya acordada.

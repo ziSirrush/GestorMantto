@@ -90,6 +90,10 @@ async function resolveIndiceAditiva_cor(connection, proyecto, ppNs) {
   };
 }
 
+function userIdSql_cor(expression) {
+  return `CAST(NULLIF(TRIM(${expression}), '') AS UNSIGNED)`;
+}
+
 function buildIndiceScope_cor(alias, visibleUserIds) {
   if (visibleUserIds === null) {
     return { sql: '', params: [] };
@@ -114,9 +118,9 @@ function buildIndiceScope_cor(alias, visibleUserIds) {
          WHERE u_scope.estado = 1
            AND u_scope.id_SB IN (${placeholders})
            AND (
-             TRIM(COALESCE(${alias}.adm, '')) = CAST(u_scope.id_SB AS CHAR)
-             OR TRIM(COALESCE(${alias}.sup, '')) = CAST(u_scope.id_SB AS CHAR)
-             OR TRIM(COALESCE(${alias}.vend, '')) = CAST(u_scope.id_SB AS CHAR)
+             ${userIdSql_cor(`${alias}.adm`)} = u_scope.id_SB
+             OR ${userIdSql_cor(`${alias}.sup`)} = u_scope.id_SB
+             OR ${userIdSql_cor(`${alias}.vend`)} = u_scope.id_SB
            )
       )`,
     params
@@ -285,11 +289,11 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
        ) AS monedas
      FROM ${TABLES_COR.indice} i
      LEFT JOIN usuarios u_adm
-       ON TRIM(COALESCE(i.adm, '')) = CAST(u_adm.id_SB AS CHAR)
+       ON u_adm.id_SB = ${userIdSql_cor('i.adm')}
      LEFT JOIN usuarios u_sup
-       ON TRIM(COALESCE(i.sup, '')) = CAST(u_sup.id_SB AS CHAR)
+       ON u_sup.id_SB = ${userIdSql_cor('i.sup')}
      LEFT JOIN usuarios u_vend
-       ON TRIM(COALESCE(i.vend, '')) = CAST(u_vend.id_SB AS CHAR)
+       ON u_vend.id_SB = ${userIdSql_cor('i.vend')}
      WHERE ${clauses.join('\n       AND ')}
        ${scope.sql}
      ORDER BY i.proyecto ASC, i.id_indice_cor ASC`,
@@ -332,11 +336,11 @@ async function getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds
        i.repse_siroc
      FROM ${TABLES_COR.indice} i
      LEFT JOIN usuarios u_adm
-       ON TRIM(COALESCE(i.adm, '')) = CAST(u_adm.id_SB AS CHAR)
+       ON u_adm.id_SB = ${userIdSql_cor('i.adm')}
      LEFT JOIN usuarios u_sup
-       ON TRIM(COALESCE(i.sup, '')) = CAST(u_sup.id_SB AS CHAR)
+       ON u_sup.id_SB = ${userIdSql_cor('i.sup')}
      LEFT JOIN usuarios u_vend
-       ON TRIM(COALESCE(i.vend, '')) = CAST(u_vend.id_SB AS CHAR)
+       ON u_vend.id_SB = ${userIdSql_cor('i.vend')}
      WHERE i.id_indice_cor = ?
        AND i.activo = 1
        ${scope.sql}
