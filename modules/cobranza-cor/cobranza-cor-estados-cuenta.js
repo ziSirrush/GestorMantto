@@ -24,7 +24,8 @@
     detailSequence: 0,
     searchTimer: null,
     loadingList: false,
-    loadingDetail: false
+    loadingDetail: false,
+    view: 'list'
   };
 
   function currentRoute_cor(){
@@ -67,22 +68,19 @@
   function formatPercent_cor(value){
     const parsed = number_cor(value);
     if(parsed === null) return '—';
-    const pct = parsed * 100;
     return new Intl.NumberFormat('es-MX', {
       minimumFractionDigits:0,
       maximumFractionDigits:2
-    }).format(pct) + '%';
+    }).format(parsed * 100) + '%';
   }
 
-  function formatDifference_cor(value){
+  function formatAmount_cor(value){
     const parsed = number_cor(value);
     if(parsed === null) return '—';
-    const pp = parsed * 100;
-    const sign = pp > 0 ? '+' : '';
-    return sign + new Intl.NumberFormat('es-MX', {
-      minimumFractionDigits:0,
+    return new Intl.NumberFormat('es-MX', {
+      minimumFractionDigits:2,
       maximumFractionDigits:2
-    }).format(pp) + ' pp';
+    }).format(parsed);
   }
 
   function formatMoney_cor(value, currency){
@@ -99,11 +97,7 @@
         }).format(parsed);
       }catch(_error){}
     }
-    const amount = new Intl.NumberFormat('es-MX', {
-      minimumFractionDigits:2,
-      maximumFractionDigits:2
-    }).format(parsed);
-    return code && code !== 'SIN_MONEDA' ? amount + ' ' + code : amount;
+    return formatAmount_cor(parsed) + (code && code !== 'SIN_MONEDA' ? ' ' + code : '');
   }
 
   function formatDate_cor(value){
@@ -114,12 +108,18 @@
     return match[3] + '/' + match[2] + '/' + match[1];
   }
 
+  function formatDateTimeNow_cor(){
+    return new Intl.DateTimeFormat('es-MX', {
+      day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+    }).format(new Date());
+  }
+
   function statusClass_cor(value){
     const status = String(value || '').trim().toUpperCase();
     if(!status) return 'is-neutral';
-    if(['PAGADO','PAGADA','COBRADO','COBRADA','LIQUIDADO','LIQUIDADA','AL DIA','AL DÍA'].includes(status)) return 'is-ok';
+    if(['PAGADO','PAGADA','COBRADO','COBRADA','LIQUIDADO','LIQUIDADA','AL DIA','AL DÍA','ACTIVO'].includes(status)) return 'is-ok';
     if(status.includes('VENC') || status.includes('NO PAG') || status.includes('PEND')) return 'is-danger';
-    if(status.includes('COBRANZA') || status.includes('PROCESO') || status.includes('ESPERA')) return 'is-warn';
+    if(status.includes('COBRANZA') || status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVISAR')) return 'is-warn';
     return 'is-neutral';
   }
 
@@ -144,22 +144,23 @@
     const status = Number(error && error.status);
     if(status === 401) return 'La sesión ya no está disponible. Vuelve a iniciar sesión para consultar Estados de Cuenta.';
     if(status === 403) return 'No tienes permiso o alcance de información para consultar estos Estados de Cuenta.';
-    if(status === 404 && context === 'list') return 'El endpoint de Estados de Cuenta no está disponible en este entorno. Despliega primero el backend de la FASE 3.';
+    if(status === 404 && context === 'list') return 'El endpoint de Estados de Cuenta no está disponible en este entorno.';
     if(status === 404) return 'El proyecto ya no existe o quedó fuera de tu alcance autorizado.';
     return text_cor(error && error.message, 'No fue posible consultar Estados de Cuenta.');
   }
 
-  function renderShell_cor(){
+  function renderListShell_cor(){
     const root = state.root;
     if(!root) return;
+    state.view = 'list';
 
     root.innerHTML = `
-      <div class="ccor-ec-page">
+      <div class="ccor-ec-page ccor-ec-list-page">
         <section class="ccor-ec-card ccor-ec-hero">
           <div>
             <p class="ccor-ec-eyebrow">Cobranza · Corellian</p>
             <h1>Estados de Cuenta</h1>
-            <p>Detalle de facturación, pagos y adeudos por proyecto.</p>
+            <p>Selecciona un proyecto para abrir su Estado de Cuenta.</p>
           </div>
           <div class="ccor-ec-hero-actions">
             <span id="ccor-ec-updated">Sin actualizar</span>
@@ -212,18 +213,10 @@
             </table>
           </div>
         </section>
-
-        <section id="ccor-ec-detail" class="ccor-ec-detail" aria-live="polite">
-          <div class="ccor-ec-card ccor-ec-empty-detail">
-            <div class="ccor-ec-empty-icon">🧾</div>
-            <h2>Selecciona un proyecto</h2>
-            <p>El Estado de Cuenta se abrirá por <code>id_indice_cor</code>.</p>
-          </div>
-        </section>
       </div>`;
 
     const contextSubtitle = document.getElementById('app-context-subtitle');
-    if(contextSubtitle) contextSubtitle.textContent = 'Cobranza Corellian · detalle de facturación, pagos y adeudos por proyecto';
+    if(contextSubtitle) contextSubtitle.textContent = 'Cobranza Corellian · Estados de Cuenta por proyecto';
 
     const search = document.getElementById('ccor-ec-search');
     const year = document.getElementById('ccor-ec-year');
@@ -253,19 +246,17 @@
   }
 
   function updateCatalogsFromRecords_cor(records){
-    if(!state.catalogYears.length){
-      state.catalogYears = [...new Set((records || [])
-        .map(row => number_cor(row && row.anio))
-        .filter(value => value !== null)
-        .map(String))]
-        .sort((a,b) => Number(b) - Number(a));
-    }
-    if(!state.catalogStatuses.length){
-      state.catalogStatuses = [...new Set((records || [])
-        .map(row => text_cor(row && row.estatus, ''))
-        .filter(Boolean))]
-        .sort((a,b) => a.localeCompare(b, 'es'));
-    }
+    state.catalogYears = [...new Set((records || [])
+      .map(row => number_cor(row && row.anio))
+      .filter(value => value !== null)
+      .map(String))]
+      .sort((a,b) => Number(b) - Number(a));
+
+    state.catalogStatuses = [...new Set((records || [])
+      .map(row => text_cor(row && row.estatus, ''))
+      .filter(Boolean))]
+      .sort((a,b) => a.localeCompare(b, 'es'));
+
     renderCatalogs_cor();
   }
 
@@ -289,10 +280,9 @@
 
     body.innerHTML = state.records.map(row => {
       const id = Number(row.id_indice_cor);
-      const selected = id === Number(state.selectedId);
       const currencies = Array.isArray(row.monedas) && row.monedas.length ? row.monedas.join(', ') : '—';
       return `
-        <tr class="ccor-ec-project-row${selected ? ' is-selected' : ''}" data-id-indice-cor="${Number.isFinite(id) ? id : ''}" tabindex="0" role="button" aria-selected="${selected ? 'true' : 'false'}">
+        <tr class="ccor-ec-project-row" data-id-indice-cor="${Number.isFinite(id) ? id : ''}" tabindex="0" role="button" aria-label="Abrir Estado de Cuenta de ${escapeHtml_cor(text_cor(row.proyecto, 'proyecto'))}">
           <td><strong>${escapeHtml_cor(text_cor(row.proyecto))}</strong></td>
           <td>${escapeHtml_cor(text_cor(row.pp))}</td>
           <td>${escapeHtml_cor(text_cor(row.anio))}</td>
@@ -310,181 +300,289 @@
     }).join('');
   }
 
+  function getSummaryItems_cor(detail){
+    return Array.isArray(detail && detail.resumen && detail.resumen.monedas)
+      ? detail.resumen.monedas
+      : [];
+  }
+
+  function getMovements_cor(detail){
+    return Array.isArray(detail && detail.estado_cuenta) ? detail.estado_cuenta : [];
+  }
+
+  function isMxn_cor(currency){
+    return String(currency || '').trim().toUpperCase() === 'MXN';
+  }
+
+  function isKnownForeign_cor(currency){
+    const code = String(currency || '').trim().toUpperCase();
+    return Boolean(code) && code !== 'MXN' && code !== 'SIN_MONEDA';
+  }
+
+  function renderSummaryMini_cor(item, sectionClass){
+    if(!item){
+      return '<div class="ccor-ec-summary-empty">Sin movimientos</div>';
+    }
+    return `
+      <div class="ccor-ec-summary-line ${sectionClass || ''}">
+        <div class="ccor-ec-summary-currency">${escapeHtml_cor(text_cor(item.moneda))}</div>
+        <div><span>Monto inicial</span><b>${escapeHtml_cor(formatMoney_cor(item.total, item.moneda))}</b></div>
+        <div><span>Monto cobrado</span><b>${escapeHtml_cor(formatMoney_cor(item.cobrado, item.moneda))}</b></div>
+        <div><span>Monto pendiente</span><b>${escapeHtml_cor(formatMoney_cor(item.pendiente, item.moneda))}</b></div>
+        <div><span>% cobrado</span><b>${escapeHtml_cor(formatPercent_cor(item.porcentaje_cobrado_calculado))}</b></div>
+      </div>`;
+  }
+
+  function renderSupplySummary_cor(summaryItems){
+    const foreign = summaryItems.filter(item => isKnownForeign_cor(item.moneda));
+    if(!foreign.length) return '<div class="ccor-ec-summary-empty">Sin movimientos de moneda extranjera.</div>';
+    return foreign.map(item => renderSummaryMini_cor(item, 'is-supply')).join('');
+  }
+
+  function renderInstallationSummary_cor(summaryItems){
+    const mxn = summaryItems.find(item => isMxn_cor(item.moneda));
+    return mxn
+      ? renderSummaryMini_cor(mxn, 'is-installation')
+      : '<div class="ccor-ec-summary-empty">Sin movimientos en MXN.</div>';
+  }
+
+  function renderVencido_cor(row){
+    const status = text_cor(row && row.estatus_vencimiento, '');
+    if(status) return status;
+    const days = number_cor(row && row.dias_vencimiento);
+    if(days !== null && days > 0) return formatInteger_cor(days) + ' días';
+    return '—';
+  }
+
+  function renderPaymentMe_cor(row){
+    if(!isKnownForeign_cor(row && row.moneda)) return '—';
+    const amount = number_cor(row && row.pago_contabilizado);
+    return amount && amount > 0 ? formatAmount_cor(amount) : '—';
+  }
+
+  function renderPaymentMxn_cor(row){
+    if(!isMxn_cor(row && row.moneda)) return '—';
+    const amount = number_cor(row && row.pago_contabilizado);
+    return amount && amount > 0 ? formatAmount_cor(amount) : '—';
+  }
+
+  function renderMovementRows_cor(rows, section){
+    if(!rows.length){
+      return '<tr><td colspan="12" class="ccor-ec-table-empty">Sin movimientos para esta sección.</td></tr>';
+    }
+
+    return rows.map(row => `
+      <tr>
+        <td>${escapeHtml_cor(formatPercent_cor(row.porcentaje))}</td>
+        <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.condicion))}</td>
+        <td>${escapeHtml_cor(text_cor(row.factura))}</td>
+        <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.subtotal))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.iva))}</td>
+        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(row.total))}</b></td>
+        <td>${escapeHtml_cor(formatDate_cor(row.fecha_pago))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(renderPaymentMe_cor(row))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(renderPaymentMxn_cor(row))}</td>
+        <td>${escapeHtml_cor(renderVencido_cor(row))}</td>
+        <td class="ccor-ec-num is-pending">${escapeHtml_cor(formatAmount_cor(row.pendiente_calculado))}</td>
+      </tr>`).join('');
+  }
+
+  function renderTotalsRows_cor(summaryItems, section){
+    const selected = section === 'supply'
+      ? summaryItems.filter(item => isKnownForeign_cor(item.moneda))
+      : summaryItems.filter(item => isMxn_cor(item.moneda));
+
+    if(!selected.length) return '';
+
+    return selected.map(item => `
+      <tr class="ccor-ec-total-row">
+        <td colspan="4">TOTAL ${escapeHtml_cor(text_cor(item.moneda))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.subtotal))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.iva))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.total))}</td>
+        <td>—</td>
+        <td class="ccor-ec-num">${section === 'supply' ? escapeHtml_cor(formatAmount_cor(item.cobrado)) : '—'}</td>
+        <td class="ccor-ec-num">${section === 'installation' ? escapeHtml_cor(formatAmount_cor(item.cobrado)) : '—'}</td>
+        <td>—</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.pendiente))}</td>
+      </tr>`).join('');
+  }
+
+  function renderAccountTable_cor(title, section, rows, summaryItems){
+    const sectionClass = section === 'supply' ? 'is-supply' : 'is-installation';
+    const percentLabel = section === 'supply' ? '% ME' : '% MXN';
+
+    return `
+      <section class="ccor-ec-account-section ${sectionClass}">
+        <div class="ccor-ec-account-title">${escapeHtml_cor(title)}</div>
+        <div class="ccor-ec-table-wrap ccor-ec-detail-table-wrap">
+          <table class="ccor-ec-table ccor-ec-detail-table">
+            <thead>
+              <tr>
+                <th>${percentLabel}</th>
+                <th>Condición</th>
+                <th>Factura</th>
+                <th>Mon</th>
+                <th>Subtotal</th>
+                <th>IVA</th>
+                <th>Total</th>
+                <th>Fecha pago</th>
+                <th>Pago M.E.</th>
+                <th>Pago MXN</th>
+                <th>Vencido</th>
+                <th>Por cobrar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${renderMovementRows_cor(rows, section)}
+              ${renderTotalsRows_cor(summaryItems, section)}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function renderUnknownCurrency_cor(rows){
+    if(!rows.length) return '';
+    return `
+      <section class="ccor-ec-card ccor-ec-unknown-card">
+        <b>Movimientos sin moneda identificada: ${escapeHtml_cor(formatInteger_cor(rows.length))}</b>
+        <span>Estos registros no se clasifican como Suministro ni Instalación hasta que la fuente indique la moneda.</span>
+      </section>`;
+  }
+
   function renderDetailLoading_cor(){
-    const root = document.getElementById('ccor-ec-detail');
+    const root = state.root;
     if(!root) return;
+    state.view = 'detail';
     root.innerHTML = `
-      <div class="ccor-ec-card ccor-ec-loading-card">
-        <span class="ccor-ec-spinner" aria-hidden="true"></span>
-        <div><b>Cargando Estado de Cuenta...</b><small>Consultando Aiven mediante el backend de Gestor Mantto.</small></div>
+      <div class="ccor-ec-page">
+        <button class="ccor-ec-back" type="button" data-ccor-back>← Regresar</button>
+        <section class="ccor-ec-card ccor-ec-loading-card">
+          <span class="ccor-ec-spinner" aria-hidden="true"></span>
+          <div><b>Cargando Estado de Cuenta...</b><small>Consultando la información del proyecto seleccionado.</small></div>
+        </section>
       </div>`;
   }
 
   function renderDetailError_cor(message){
-    const root = document.getElementById('ccor-ec-detail');
+    const root = state.root;
     if(!root) return;
     root.innerHTML = `
-      <div class="ccor-ec-card ccor-ec-error-card">
-        <div class="ccor-ec-empty-icon">⚠️</div>
-        <div><h2>No fue posible abrir el Estado de Cuenta</h2><p>${escapeHtml_cor(message)}</p></div>
-      </div>`;
-  }
-
-  function renderCurrencyCards_cor(summary){
-    const currencies = Array.isArray(summary && summary.monedas) ? summary.monedas : [];
-    if(!currencies.length){
-      return '<div class="ccor-ec-empty-box">Este proyecto no tiene movimientos vinculados en <code>cobranza_fuente_cor</code>.</div>';
-    }
-    return currencies.map(item => {
-      const currency = text_cor(item.moneda, 'SIN MONEDA');
-      return `
-        <article class="ccor-ec-currency-card">
-          <div class="ccor-ec-currency-head">
-            <strong>${escapeHtml_cor(currency === 'SIN_MONEDA' ? 'Sin moneda' : currency)}</strong>
-            <span>${escapeHtml_cor(formatInteger_cor(item.registros))} mov.</span>
-          </div>
-          <dl>
-            <div><dt>Total</dt><dd>${escapeHtml_cor(formatMoney_cor(item.total, item.moneda))}</dd></div>
-            <div><dt>Cobrado</dt><dd class="is-positive">${escapeHtml_cor(formatMoney_cor(item.cobrado, item.moneda))}</dd></div>
-            <div><dt>Pendiente</dt><dd class="is-negative">${escapeHtml_cor(formatMoney_cor(item.pendiente, item.moneda))}</dd></div>
-            <div><dt>% cobrado calculado</dt><dd>${escapeHtml_cor(formatPercent_cor(item.porcentaje_cobrado_calculado))}</dd></div>
-            <div><dt>% cobranza Índice</dt><dd>${escapeHtml_cor(formatPercent_cor(item.porcentaje_cobranza_indice))}</dd></div>
-            <div><dt>Pagados / No pagados</dt><dd>${escapeHtml_cor(formatInteger_cor(item.pagados))} / ${escapeHtml_cor(formatInteger_cor(item.no_pagados))}</dd></div>
-          </dl>
-        </article>`;
-    }).join('');
-  }
-
-  function renderQuality_cor(quality){
-    const comparison = Array.isArray(quality && quality.comparacion_porcentaje_indice_fuente)
-      ? quality.comparacion_porcentaje_indice_fuente
-      : [];
-    const alerts = [
-      ['Filas sin moneda', number_cor(quality && quality.filas_sin_moneda) || 0],
-      ['Total inconsistente', number_cor(quality && quality.filas_total_inconsistente) || 0],
-      ['Pagadas sin fecha de pago', number_cor(quality && quality.filas_pagadas_sin_fecha_pago) || 0]
-    ];
-    const totalAlerts = alerts.reduce((sum, entry) => sum + entry[1], 0);
-
-    const comparisonHtml = comparison.length
-      ? `<div class="ccor-ec-comparison-grid">${comparison.map(item => `
-          <div class="ccor-ec-comparison-card">
-            <b>${escapeHtml_cor(text_cor(item.moneda))}</b>
-            <span>Índice <strong>${escapeHtml_cor(formatPercent_cor(item.porcentaje_indice))}</strong></span>
-            <span>Fuente <strong>${escapeHtml_cor(formatPercent_cor(item.porcentaje_calculado_fuente))}</strong></span>
-            <span>Diferencia <strong>${escapeHtml_cor(formatDifference_cor(item.diferencia))}</strong></span>
-          </div>`).join('')}</div>`
-      : '<p class="ccor-ec-muted">Sin comparación USD/MXN disponible.</p>';
-
-    return `
-      <div class="ccor-ec-quality-row ${totalAlerts ? 'has-alerts' : ''}">
-        <div>
-          <b>${totalAlerts ? 'Validaciones de consistencia' : 'Consistencia de la fuente'}</b>
-          <span>${totalAlerts ? 'Se detectaron observaciones que conviene revisar en la fuente.' : 'Sin alertas detectadas por el backend para este Estado de Cuenta.'}</span>
-        </div>
-        <div class="ccor-ec-quality-counts">
-          ${alerts.map(entry => `<span><b>${escapeHtml_cor(entry[1])}</b> ${escapeHtml_cor(entry[0])}</span>`).join('')}
-        </div>
-      </div>
-      ${comparisonHtml}`;
-  }
-
-  function renderMovements_cor(rows){
-    const records = Array.isArray(rows) ? rows : [];
-    if(!records.length){
-      return '<div class="ccor-ec-empty-box">No hay movimientos que mostrar.</div>';
-    }
-    return `
-      <div class="ccor-ec-table-wrap ccor-ec-movements-wrap">
-        <table class="ccor-ec-table ccor-ec-movements-table">
-          <thead>
-            <tr>
-              <th>#</th><th>%</th><th>Condición</th><th>Factura</th><th>Moneda</th>
-              <th>Subtotal</th><th>IVA</th><th>Total</th><th>Estatus factura</th>
-              <th>Fecha pago</th><th>Pago (TOTAL)</th><th>Pago contabilizado</th><th>Pendiente</th>
-              <th>Fecha vencimiento</th><th>Días venc.</th><th>Estimado pago</th><th>Estatus venc.</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${records.map((row, index) => `
-              <tr>
-                <td>${index + 1}</td>
-                <td>${escapeHtml_cor(formatPercent_cor(row.porcentaje))}</td>
-                <td>${escapeHtml_cor(text_cor(row.condicion))}</td>
-                <td>${escapeHtml_cor(text_cor(row.factura))}</td>
-                <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
-                <td class="ccor-ec-num">${escapeHtml_cor(formatMoney_cor(row.subtotal, row.moneda))}</td>
-                <td class="ccor-ec-num">${escapeHtml_cor(formatMoney_cor(row.iva, row.moneda))}</td>
-                <td class="ccor-ec-num"><b>${escapeHtml_cor(formatMoney_cor(row.total, row.moneda))}</b></td>
-                <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_factura)}">${escapeHtml_cor(text_cor(row.estatus_factura))}</span></td>
-                <td>${escapeHtml_cor(formatDate_cor(row.fecha_pago))}</td>
-                <td class="ccor-ec-num">${escapeHtml_cor(formatMoney_cor(row.pago_total, row.moneda))}</td>
-                <td class="ccor-ec-num is-positive">${escapeHtml_cor(formatMoney_cor(row.pago_contabilizado, row.moneda))}</td>
-                <td class="ccor-ec-num is-negative">${escapeHtml_cor(formatMoney_cor(row.pendiente_calculado, row.moneda))}</td>
-                <td>${escapeHtml_cor(formatDate_cor(row.fecha_vencimiento))}</td>
-                <td>${escapeHtml_cor(text_cor(row.dias_vencimiento))}</td>
-                <td>${escapeHtml_cor(text_cor(row.estimado_pago))}</td>
-                <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_vencimiento)}">${escapeHtml_cor(text_cor(row.estatus_vencimiento))}</span></td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
+      <div class="ccor-ec-page">
+        <button class="ccor-ec-back" type="button" data-ccor-back>← Regresar</button>
+        <section class="ccor-ec-card ccor-ec-error-card">
+          <div class="ccor-ec-empty-icon">⚠️</div>
+          <div><h2>No fue posible abrir el Estado de Cuenta</h2><p>${escapeHtml_cor(message)}</p></div>
+        </section>
       </div>`;
   }
 
   function renderDetail_cor(){
-    const root = document.getElementById('ccor-ec-detail');
+    const root = state.root;
     const detail = state.detail;
     if(!root || !detail) return;
 
     const project = detail.proyecto || {};
-    const summary = detail.resumen || {};
-    const quality = detail.calidad || {};
-    const movements = Array.isArray(detail.estado_cuenta) ? detail.estado_cuenta : [];
+    const movements = getMovements_cor(detail);
+    const summaryItems = getSummaryItems_cor(detail);
+    const supplyRows = movements.filter(row => isKnownForeign_cor(row && row.moneda));
+    const installationRows = movements.filter(row => isMxn_cor(row && row.moneda));
+    const unknownRows = movements.filter(row => !isKnownForeign_cor(row && row.moneda) && !isMxn_cor(row && row.moneda));
+    const sourceByPp = movements.filter(row => {
+      const pp = String(project.pp || '').trim().toUpperCase();
+      const source = String(row && row.id_proyecto_origen || '').trim().toUpperCase();
+      return Boolean(pp) && pp === source;
+    }).length;
+    const sourceByName = movements.filter(row => {
+      const projectName = String(project.proyecto || '').trim().toUpperCase();
+      const sourceName = String(row && row.proyecto || '').trim().toUpperCase();
+      return Boolean(projectName) && projectName === sourceName;
+    }).length;
 
+    state.view = 'detail';
     root.innerHTML = `
-      <section class="ccor-ec-card ccor-ec-detail-card">
-        <div class="ccor-ec-detail-head">
+      <div class="ccor-ec-page ccor-ec-detail-page">
+        <div class="ccor-ec-detail-toolbar">
+          <button class="ccor-ec-back" type="button" data-ccor-back>← Regresar</button>
+          <span>Fecha de consulta: <b>${escapeHtml_cor(formatDateTimeNow_cor())}</b></span>
+        </div>
+
+        <section class="ccor-ec-detail-title">
           <div>
-            <div class="ccor-ec-title-row">
-              <h2>${escapeHtml_cor(text_cor(project.proyecto, 'Proyecto'))}</h2>
-              <span class="ccor-ec-badge ${statusClass_cor(project.estatus)}">${escapeHtml_cor(text_cor(project.estatus))}</span>
-            </div>
-            <div class="ccor-ec-project-meta">
-              <span><b>ID</b> ${escapeHtml_cor(text_cor(project.id_indice_cor))}</span>
-              <span><b>PP</b> ${escapeHtml_cor(text_cor(project.pp))}</span>
-              <span><b>Año</b> ${escapeHtml_cor(text_cor(project.anio))}</span>
-              <span><b>QTY</b> ${escapeHtml_cor(formatInteger_cor(project.qty))}</span>
-              <span><b>EDO</b> ${escapeHtml_cor(text_cor(project.edo))}</span>
-            </div>
+            <p class="ccor-ec-eyebrow">Cobranza · Corellian</p>
+            <h1>Estado de Cuenta</h1>
           </div>
-          <div class="ccor-ec-compliance">
-            <span class="${project.fianzas ? 'is-ok' : 'is-neutral'}">Fianzas: <b>${project.fianzas ? 'Sí' : 'No'}</b>${project.tipo_fianza ? ' · ' + escapeHtml_cor(project.tipo_fianza) : ''}</span>
-            <span class="${project.repse_siroc ? 'is-ok' : 'is-neutral'}">REPSE / SIROC: <b>${project.repse_siroc ? 'Sí' : 'No'}</b></span>
-          </div>
-        </div>
+          <span class="ccor-ec-badge ${statusClass_cor(project.estatus)}">${escapeHtml_cor(text_cor(project.estatus))}</span>
+        </section>
 
-        <div class="ccor-ec-responsibles">
-          <span><small>ADM</small><b>${escapeHtml_cor(text_cor(project.adm))}</b></span>
-          <span><small>SUP</small><b>${escapeHtml_cor(text_cor(project.sup))}</b></span>
-          <span><small>VEND</small><b>${escapeHtml_cor(text_cor(project.vend))}</b></span>
-          <span><small>MRC</small><b>${escapeHtml_cor(text_cor(project.mrc))}</b></span>
-        </div>
+        <section class="ccor-ec-card ccor-ec-project-header">
+          <div><span>Proyecto</span><b>${escapeHtml_cor(text_cor(project.proyecto))}</b></div>
+          <div><span>PP / Contrato</span><b>${escapeHtml_cor(text_cor(project.pp))}</b></div>
+          <div><span>Año</span><b>${escapeHtml_cor(text_cor(project.anio))}</b></div>
+          <div><span>Unidades</span><b>${escapeHtml_cor(formatInteger_cor(project.qty))}</b></div>
+          <div><span>EDO</span><b>${escapeHtml_cor(text_cor(project.edo))}</b></div>
+        </section>
 
-        <div class="ccor-ec-section-title"><div><h3>Resumen por moneda</h3><p>${escapeHtml_cor(text_cor(summary.nota, 'Los importes se muestran por moneda.'))}</p></div></div>
-        <div class="ccor-ec-currency-grid">${renderCurrencyCards_cor(summary)}</div>
-      </section>
+        <section class="ccor-ec-summary-grid">
+          <article class="ccor-ec-card ccor-ec-summary-card is-supply">
+            <div class="ccor-ec-summary-title">
+              <div><span class="ccor-ec-summary-icon">◎</span><b>SUMINISTRO</b></div>
+              <small>Moneda extranjera</small>
+            </div>
+            ${renderSupplySummary_cor(summaryItems)}
+          </article>
 
-      <section class="ccor-ec-card ccor-ec-quality-card">
-        <div class="ccor-ec-section-title"><div><h3>Comparativo Índice vs. Fuente</h3><p>Los porcentajes se reciben calculados desde backend; el frontend solo los presenta.</p></div></div>
-        ${renderQuality_cor(quality)}
-      </section>
+          <article class="ccor-ec-card ccor-ec-summary-card is-installation">
+            <div class="ccor-ec-summary-title">
+              <div><span class="ccor-ec-summary-icon">⌁</span><b>INSTALACIÓN</b></div>
+              <small>Moneda nacional · MXN</small>
+            </div>
+            ${renderInstallationSummary_cor(summaryItems)}
+          </article>
+        </section>
 
-      <section class="ccor-ec-card ccor-ec-movements-card">
-        <div class="ccor-ec-section-title">
-          <div><h3>Movimientos</h3><p>${escapeHtml_cor(formatInteger_cor(movements.length))} registros vinculados al proyecto.</p></div>
-        </div>
-        ${renderMovements_cor(movements)}
-      </section>`;
+        ${renderAccountTable_cor('SUMINISTRO', 'supply', supplyRows, summaryItems)}
+        ${renderAccountTable_cor('INSTALACIÓN', 'installation', installationRows, summaryItems)}
+        ${renderUnknownCurrency_cor(unknownRows)}
+
+        <section class="ccor-ec-info-grid">
+          <article class="ccor-ec-card ccor-ec-info-card">
+            <h3>Información del proyecto</h3>
+            <dl>
+              <div><dt>ADM</dt><dd>${escapeHtml_cor(text_cor(project.adm))}</dd></div>
+              <div><dt>SUP</dt><dd>${escapeHtml_cor(text_cor(project.sup))}</dd></div>
+              <div><dt>VEND</dt><dd>${escapeHtml_cor(text_cor(project.vend))}</dd></div>
+              <div><dt>MRC</dt><dd>${escapeHtml_cor(text_cor(project.mrc))}</dd></div>
+            </dl>
+          </article>
+
+          <article class="ccor-ec-card ccor-ec-info-card">
+            <h3>Cumplimiento</h3>
+            <dl>
+              <div><dt>Fianzas</dt><dd>${project.fianzas ? 'Sí' : 'No'}</dd></div>
+              <div><dt>Tipo de fianza</dt><dd>${escapeHtml_cor(text_cor(project.tipo_fianza))}</dd></div>
+              <div><dt>REPSE / SIROC</dt><dd>${project.repse_siroc ? 'Sí' : 'No'}</dd></div>
+              <div><dt>Movimientos</dt><dd>${escapeHtml_cor(formatInteger_cor(movements.length))}</dd></div>
+            </dl>
+          </article>
+
+          <article class="ccor-ec-card ccor-ec-info-card">
+            <h3>Coincidencia con FUENTE</h3>
+            <dl>
+              <div><dt>Por PP / ID Proyecto</dt><dd>${escapeHtml_cor(formatInteger_cor(sourceByPp))}</dd></div>
+              <div><dt>Por nombre de proyecto</dt><dd>${escapeHtml_cor(formatInteger_cor(sourceByName))}</dd></div>
+              <div><dt>Filas mostradas</dt><dd>${escapeHtml_cor(formatInteger_cor(movements.length))}</dd></div>
+            </dl>
+            <p class="ccor-ec-info-note">Una fila se muestra una sola vez aunque coincida por PP y por nombre.</p>
+          </article>
+        </section>
+      </div>`;
+
+    const contextSubtitle = document.getElementById('app-context-subtitle');
+    if(contextSubtitle) contextSubtitle.textContent = 'Estado de Cuenta · ' + text_cor(project.proyecto, 'Proyecto');
+    try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_error){ window.scrollTo(0, 0); }
   }
 
   async function loadDetail_cor(id, options){
@@ -493,7 +591,6 @@
     state.selectedId = numericId;
     state.detail = null;
     state.loadingDetail = true;
-    renderList_cor();
     renderDetailLoading_cor();
 
     const sequence = ++state.detailSequence;
@@ -515,9 +612,8 @@
 
   async function loadList_cor(options){
     const sequence = ++state.listSequence;
-    const preserveSelection = !(options && options.resetSelection);
-    const previousSelection = preserveSelection ? Number(state.selectedId) : null;
     state.loadingList = true;
+    if(state.view !== 'list') renderListShell_cor();
     renderListStatus_cor('Cargando proyectos...', 'loading');
 
     try{
@@ -529,30 +625,14 @@
 
       const records = Array.isArray(payload && payload.data) ? payload.data : [];
       state.records = records;
+      state.selectedId = null;
+      state.detail = null;
       updateCatalogsFromRecords_cor(records);
-
-      const stillVisible = previousSelection && records.some(row => Number(row.id_indice_cor) === previousSelection);
-      if(stillVisible) state.selectedId = previousSelection;
-      else state.selectedId = records.length ? Number(records[0].id_indice_cor) : null;
-
       renderList_cor();
       renderListStatus_cor(records.length ? '' : 'No hay proyectos para los filtros actuales.', records.length ? '' : 'empty');
-      const updated = document.getElementById('ccor-ec-updated');
-      if(updated){
-        updated.textContent = 'Actualizado ' + new Intl.DateTimeFormat('es-MX', {
-          day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
-        }).format(new Date());
-      }
 
-      if(state.selectedId){
-        await loadDetail_cor(state.selectedId, { force:Boolean(options && options.force) });
-      }else{
-        state.detail = null;
-        const detailRoot = document.getElementById('ccor-ec-detail');
-        if(detailRoot){
-          detailRoot.innerHTML = '<div class="ccor-ec-card ccor-ec-empty-detail"><div class="ccor-ec-empty-icon">🧾</div><h2>Sin proyectos</h2><p>No hay un proyecto disponible para abrir con los filtros actuales.</p></div>';
-        }
-      }
+      const updated = document.getElementById('ccor-ec-updated');
+      if(updated) updated.textContent = 'Actualizado ' + formatDateTimeNow_cor();
     }catch(error){
       if(sequence !== state.listSequence || !isActive_cor()) return;
       state.records = [];
@@ -560,17 +640,25 @@
       state.detail = null;
       renderList_cor();
       renderListStatus_cor(errorMessage_cor(error, 'list'), 'error');
-      const detailRoot = document.getElementById('ccor-ec-detail');
-      if(detailRoot){
-        detailRoot.innerHTML = '<div class="ccor-ec-card ccor-ec-empty-detail"><div class="ccor-ec-empty-icon">⚠️</div><h2>Estados de Cuenta no disponible</h2><p>' + escapeHtml_cor(errorMessage_cor(error, 'list')) + '</p></div>';
-      }
     }finally{
       if(sequence === state.listSequence) state.loadingList = false;
     }
   }
 
+  function restoreList_cor(){
+    state.detail = null;
+    state.selectedId = null;
+    renderListShell_cor();
+    renderCatalogs_cor();
+    renderList_cor();
+    const updated = document.getElementById('ccor-ec-updated');
+    if(updated) updated.textContent = 'Actualizado ' + formatDateTimeNow_cor();
+    try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_error){ window.scrollTo(0, 0); }
+  }
+
   function applyFilterAndReload_cor(){
-    loadList_cor({ force:true, resetSelection:true });
+    state.view = 'list';
+    loadList_cor({ force:true });
   }
 
   function bindEvents_cor(){
@@ -579,6 +667,12 @@
     root.dataset.ccorEstadosCuentaBound = '1';
 
     root.addEventListener('click', event => {
+      const back = event.target.closest('[data-ccor-back]');
+      if(back){
+        restoreList_cor();
+        return;
+      }
+
       const refresh = event.target.closest('#ccor-ec-refresh');
       if(refresh){
         loadList_cor({ force:true });
@@ -588,7 +682,7 @@
       const row = event.target.closest('[data-id-indice-cor]');
       if(row){
         const id = Number(row.dataset.idIndiceCor);
-        if(Number.isInteger(id) && id > 0 && id !== Number(state.selectedId)) loadDetail_cor(id, { force:true });
+        if(Number.isInteger(id) && id > 0) loadDetail_cor(id, { force:true });
       }
     });
 
@@ -598,7 +692,7 @@
       if(!row) return;
       event.preventDefault();
       const id = Number(row.dataset.idIndiceCor);
-      if(Number.isInteger(id) && id > 0 && id !== Number(state.selectedId)) loadDetail_cor(id, { force:true });
+      if(Number.isInteger(id) && id > 0) loadDetail_cor(id, { force:true });
     });
 
     root.addEventListener('change', event => {
@@ -631,17 +725,20 @@
     if(!root) return false;
 
     state.root = root;
-    renderShell_cor();
+    state.view = 'list';
+    renderListShell_cor();
     bindEvents_cor();
     renderCatalogs_cor();
     renderList_cor();
-
     await loadList_cor({ force:true });
     return true;
   }
 
   function refresh_cor(){
     if(!isActive_cor()) return Promise.resolve(false);
+    if(state.view === 'detail' && state.selectedId){
+      return loadDetail_cor(state.selectedId, { force:true });
+    }
     return loadList_cor({ force:true });
   }
 

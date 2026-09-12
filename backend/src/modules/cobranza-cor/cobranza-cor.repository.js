@@ -126,10 +126,21 @@ function buildIndiceScope_cor(alias, visibleUserIds) {
   };
 }
 
+function fuenteMatchesIndiceSql_cor(indiceAlias = 'i', fuenteAlias = 'f') {
+  return `(
+    (
+      NULLIF(TRIM(COALESCE(${indiceAlias}.pp, '')), '') IS NOT NULL
+      AND UPPER(TRIM(COALESCE(${fuenteAlias}.id_proyecto_origen, ''))) = UPPER(TRIM(${indiceAlias}.pp))
+    )
+    OR UPPER(TRIM(COALESCE(${fuenteAlias}.proyecto, ''))) = UPPER(TRIM(COALESCE(${indiceAlias}.proyecto, '')))
+  )`;
+}
+
 async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = null) {
   const scope = buildIndiceScope_cor('i', visibleUserIds);
   const clauses = ['i.activo = 1'];
   const params = [];
+  const sourceMatch = fuenteMatchesIndiceSql_cor('i', 'f');
 
   if (filters.buscar) {
     clauses.push(`(
@@ -151,7 +162,12 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
   }
 
   if (filters.soloConFuente === true) {
-    clauses.push('COALESCE(fsum.registros_estado_cuenta, 0) > 0');
+    clauses.push(`EXISTS (
+      SELECT 1
+        FROM ${TABLES_COR.fuente} f
+       WHERE f.activo = 1
+         AND ${sourceMatch}
+    )`);
   }
 
   params.push(...scope.params);
@@ -174,23 +190,23 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
        i.fianzas,
        i.tipo_fianza,
        i.repse_siroc,
-       COALESCE(fsum.registros_estado_cuenta, 0) AS registros_estado_cuenta,
-       fsum.monedas
-     FROM ${TABLES_COR.indice} i
-     LEFT JOIN (
-       SELECT
-         id_indice_cor,
-         COUNT(*) AS registros_estado_cuenta,
-         GROUP_CONCAT(
-           DISTINCT NULLIF(UPPER(TRIM(moneda)), '')
-           ORDER BY UPPER(TRIM(moneda))
+       COALESCE((
+         SELECT COUNT(*)
+           FROM ${TABLES_COR.fuente} f
+          WHERE f.activo = 1
+            AND ${sourceMatch}
+       ), 0) AS registros_estado_cuenta,
+       (
+         SELECT GROUP_CONCAT(
+           DISTINCT NULLIF(UPPER(TRIM(f.moneda)), '')
+           ORDER BY UPPER(TRIM(f.moneda))
            SEPARATOR ','
-         ) AS monedas
-       FROM ${TABLES_COR.fuente}
-       WHERE activo = 1
-         AND id_indice_cor IS NOT NULL
-       GROUP BY id_indice_cor
-     ) fsum ON fsum.id_indice_cor = i.id_indice_cor
+         )
+           FROM ${TABLES_COR.fuente} f
+          WHERE f.activo = 1
+            AND ${sourceMatch}
+       ) AS monedas
+     FROM ${TABLES_COR.indice} i
      WHERE ${clauses.join('\n       AND ')}
        ${scope.sql}
      ORDER BY i.proyecto ASC, i.id_indice_cor ASC`,
@@ -234,31 +250,35 @@ async function getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds
 }
 
 async function listFuenteEstadoCuenta_cor(connection, idIndiceCor) {
+  const sourceMatch = fuenteMatchesIndiceSql_cor('i', 'f');
   const [rows] = await connection.query(
-    `SELECT
-       id_fuente_cor,
-       id_indice_cor,
-       proyecto,
-       id_proyecto_origen,
-       porcentaje,
-       condicion,
-       moneda,
-       subtotal,
-       iva,
-       total,
-       factura,
-       pago_total,
-       estatus_factura,
-       DATE_FORMAT(fecha_pago, '%Y-%m-%d') AS fecha_pago,
-       DATE_FORMAT(fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
-       dias_vencimiento,
-       estimado_pago,
-       estatus_vencimiento,
-       anio_proyecto
-     FROM ${TABLES_COR.fuente}
-     WHERE id_indice_cor = ?
-       AND activo = 1
-     ORDER BY id_fuente_cor ASC`,
+    `SELECT DISTINCT
+       f.id_fuente_cor,
+       f.id_indice_cor,
+       f.proyecto,
+       f.id_proyecto_origen,
+       f.porcentaje,
+       f.condicion,
+       f.moneda,
+       f.subtotal,
+       f.iva,
+       f.total,
+       f.factura,
+       f.pago_total,
+       f.estatus_factura,
+       DATE_FORMAT(f.fecha_pago, '%Y-%m-%d') AS fecha_pago,
+       DATE_FORMAT(f.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
+       f.dias_vencimiento,
+       f.estimado_pago,
+       f.estatus_vencimiento,
+       f.anio_proyecto
+     FROM ${TABLES_COR.fuente} f
+     INNER JOIN ${TABLES_COR.indice} i
+       ON i.id_indice_cor = ?
+      AND i.activo = 1
+     WHERE f.activo = 1
+       AND ${sourceMatch}
+     ORDER BY f.id_fuente_cor ASC`,
     [idIndiceCor]
   );
 
