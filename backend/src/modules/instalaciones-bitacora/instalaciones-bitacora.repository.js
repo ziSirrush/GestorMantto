@@ -15,10 +15,14 @@ async function listDocumentos(idProyecto) {
        fecha_primera_deteccion,
        fecha_ultima_deteccion,
        fecha_baja,
-       estatus
+       estatus,
+       CASE
+         WHEN estatus = 'eliminado' THEN COALESCE(fecha_baja, fecha_modificacion_drive, fecha_creacion_drive, fecha_primera_deteccion)
+         ELSE COALESCE(fecha_modificacion_drive, fecha_creacion_drive, fecha_primera_deteccion)
+       END AS fecha_movimiento
      FROM instalaciones_bitacora_documentos
      WHERE id_proyecto = ?
-     ORDER BY (estatus = 'activo') DESC, fecha_creacion_drive DESC, nombre_archivo ASC`,
+     ORDER BY fecha_movimiento DESC, nombre_archivo ASC`,
     [idProyecto]
   );
   return rows;

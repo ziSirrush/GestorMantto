@@ -12,6 +12,7 @@
   const ticketCache = new Map();
   const PROJECT_PHOTO_DOMAIN_COR = 'CORELLIAN';
   const PROJECT_PHOTO_DOMAIN_UNI = 'UNITED';
+  const BITACORA_VIEW_PERMISSION = 'INSTALACIONES_PROYECTOS_DETALLE_PROYECTO_BITACORA.VER';
   const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7, photoDomain:PROJECT_PHOTO_DOMAIN_COR };
   function ticketKey(v){ return String(v || '').trim(); }
   function registerTickets(rows){
@@ -159,7 +160,7 @@
         .mg-bitacora-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px;font-weight:900;flex-wrap:wrap}
         .mg-bitacora-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
         .mg-bitacora-lastsync{font-size:10px;font-weight:750;color:#475569;text-align:right}
-        .mg-bitacora-refresh{border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:850;cursor:pointer}.mg-bitacora-refresh:disabled{opacity:.6;cursor:wait}
+        .mg-bitacora-refresh{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:0;font-size:18px;line-height:1;font-weight:850;cursor:pointer}.mg-bitacora-refresh:disabled{opacity:.6;cursor:wait}
         .mg-bitacora-body{padding:0}
         .mg-bitacora-table{width:100%;border-collapse:collapse}.mg-bitacora-table th{background:#F8FAFC;color:#475569;text-align:left;font-size:10px;text-transform:uppercase;font-weight:800;padding:8px 12px;border-bottom:1px solid #E2E8F0}.mg-bitacora-table td{font-size:12px;padding:8px 12px;border-bottom:1px solid #F1F5F9;color:#334155;vertical-align:top}.mg-bitacora-table tr.eliminado td{color:#94A3B8}
         .mg-bitacora-doc-link{color:#1B4FD8;text-decoration:underline;cursor:pointer;font-weight:700}
@@ -735,6 +736,11 @@
     if(m.startsWith('image/'))return '🖼️';
     return '📄';
   }
+  function canViewBitacora(){
+    if(!window.ManttoPermissions||typeof window.ManttoPermissions.state!=='function')return false;
+    const permission=window.ManttoPermissions.state(BITACORA_VIEW_PERMISSION);
+    return Boolean(permission&&permission.exists===true&&permission.efectivo===true);
+  }
   function fmtDateTime(v){
     if(!v)return '—';
     const s=String(v).trim();
@@ -761,9 +767,9 @@
       const badge=activo?'<span class="mg-bitacora-badge activo">✅ Activo</span>':'<span class="mg-bitacora-badge eliminado">❌ Ya no está en Drive</span>';
       const nombre=doc.web_view_link?'<span class="mg-bitacora-doc-link" data-bitacora-link="'+esc(doc.web_view_link)+'">'+bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo)+'</span>':bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo);
       const ruta=doc.ruta_carpeta?esc(doc.ruta_carpeta):'Carpeta raíz';
-      return '<tr class="'+(activo?'':'eliminado')+'"><td>'+nombre+'</td><td class="mg-bitacora-ruta">'+ruta+'</td><td>'+fmtDate(doc.fecha_creacion_drive)+'</td><td>'+badge+(activo?'':' <span class="mg-bitacora-ruta">('+fmtDate(doc.fecha_baja)+')</span>')+'</td></tr>';
+      return '<tr class="'+(activo?'':'eliminado')+'"><td>'+nombre+'</td><td class="mg-bitacora-ruta">'+ruta+'</td><td>'+fmtDateTime(doc.fecha_movimiento||doc.fecha_modificacion_drive||doc.fecha_creacion_drive)+'</td><td>'+badge+'</td></tr>';
     }).join('');
-    body.innerHTML='<div class="mg-table-wrap"><table class="mg-bitacora-table"><thead><tr><th>Documento</th><th>Subcarpeta</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    body.innerHTML='<div class="mg-table-wrap"><table class="mg-bitacora-table"><thead><tr><th>Documento</th><th>Subcarpeta</th><th>Último movimiento</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
       (data&&data.sincronizacion&&data.sincronizacion.truncado?'<div class="mg-bitacora-truncado">La carpeta es muy grande: esta sincronización no alcanzó a recorrerla por completo. Vuelve a pulsar "Actualizar".</div>':'');
     body.querySelectorAll('[data-bitacora-link]:not([data-bound])').forEach(el=>{
       el.dataset.bound='1';
@@ -803,6 +809,13 @@
   async function initBitacoraObra(projectId){
     const panel=document.querySelector('.mg-bitacora-panel[data-project-id="'+CSS.escape(String(projectId))+'"]');
     if(!panel)return;
+    if(!canViewBitacora()){
+      panel.hidden=true;
+      return;
+    }
+    panel.hidden=false;
+    if(panel.dataset.initialized==='1')return;
+    panel.dataset.initialized='1';
     const button=panel.querySelector('.mg-bitacora-refresh');
     if(button&&!button.dataset.bound){
       button.dataset.bound='1';
@@ -812,6 +825,11 @@
     // Actualiza automaticamente al abrir la vista, sin bloquear lo ya mostrado.
     syncBitacora(panel,projectId);
   }
+  document.addEventListener('mantto:permissions-updated',()=>{
+    document.querySelectorAll('.mg-bitacora-panel[data-project-id]').forEach(panel=>{
+      initBitacoraObra(panel.dataset.projectId);
+    });
+  });
 
   async function openUnifiedClientProject(proyecto, options){
     show('Proyecto',options.projectName||proyecto,'<div class="mg-empty">Preparando expediente unificado del cliente...</div>');
@@ -840,7 +858,7 @@
     const overview='<div class="mg-project-overview '+(coverHtml?'':'no-photo')+'">'+coverHtml+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
     const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
-    const bitacoraObra='<section class="mg-bitacora-panel" data-project-id="'+esc(proyecto)+'" aria-label="Bitácora de Obra"><div class="mg-bitacora-head"><span>Bitácora de Obra</span><div class="mg-bitacora-actions"><span class="mg-bitacora-lastsync">Preparando bitácora...</span><button type="button" class="mg-bitacora-refresh">Actualizar</button></div></div><div class="mg-bitacora-body"><div class="mg-folder-status">Preparando bitácora...</div></div></section>';
+    const bitacoraObra='<section class="mg-bitacora-panel" data-project-id="'+esc(proyecto)+'" aria-label="Bitácora de Obra" hidden><div class="mg-bitacora-head"><span>Bitácora de Obra</span><div class="mg-bitacora-actions"><span class="mg-bitacora-lastsync">Preparando bitácora...</span><button type="button" class="mg-bitacora-refresh" title="Actualizar bitácora" aria-label="Actualizar bitácora">↻</button></div></div><div class="mg-bitacora-body"><div class="mg-folder-status">Preparando bitácora...</div></div></section>';
     const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+bitacoraObra+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
     const unitedRoot=unitedResponse&&(unitedResponse.data||unitedResponse);
     const unitedSource=String(unitedResponse&&(unitedResponse.origen||unitedResponse.source)||'').trim().toUpperCase();

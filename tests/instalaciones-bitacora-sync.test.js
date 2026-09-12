@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const Module = require('node:module');
 const path = require('node:path');
 
@@ -13,6 +14,11 @@ const servicePath = path.resolve(
   __dirname,
   '../backend/src/modules/instalaciones-bitacora/instalaciones-bitacora.service.js'
 );
+const routesPath = path.resolve(
+  __dirname,
+  '../backend/src/modules/instalaciones-bitacora/instalaciones-bitacora.routes.js'
+);
+const permissionCode = 'INSTALACIONES_PROYECTOS_DETALLE_PROYECTO_BITACORA.VER';
 
 function requireWithStubs(modulePath, stubs) {
   const originalLoad = Module._load;
@@ -57,6 +63,96 @@ test('upsertDocumento enlaza id_proyecto recibido como primer parámetro SQL', a
   assert.equal(queries.length, 1);
   assert.equal(queries[0].params[0], 'P14223');
   assert.equal(queries[0].params[2], 'drive-file-1');
+});
+
+test('listDocumentos ordena por el movimiento más reciente', async () => {
+  let capturedSql = '';
+  const repository = requireWithStubs(repositoryPath, {
+    '../../config/db': {
+      async query(sql) {
+        capturedSql = String(sql).replace(/\s+/g, ' ').trim();
+        return [[]];
+      }
+    }
+  });
+
+  await repository.listDocumentos('P14223');
+
+  assert.match(capturedSql, /END AS fecha_movimiento/);
+  assert.match(capturedSql, /ORDER BY fecha_movimiento DESC, nombre_archivo ASC/);
+});
+
+test('la interfaz muestra el movimiento y usa un botón Actualizar de 30 por 30', () => {
+  const details = fs.readFileSync(path.resolve(__dirname, '../core/details.js'), 'utf8');
+
+  assert.match(details, /\.mg-bitacora-refresh\{width:30px;height:30px;/);
+  assert.match(details, /<th>Último movimiento<\/th>/);
+  assert.match(details, /aria-label="Actualizar bitácora">↻<\/button>/);
+});
+
+test('la Bitácora solo se inicializa con permiso visual efectivo', () => {
+  const details = fs.readFileSync(path.resolve(__dirname, '../core/details.js'), 'utf8');
+  const migration = fs.readFileSync(
+    path.resolve(__dirname, '../sql/20260911_BITACORA_OBRA_PERMISO_VISUAL_V001.sql'),
+    'utf8'
+  );
+
+  assert.match(details, new RegExp(permissionCode.replace('.', '\\.')));
+  assert.match(details, /permission\.exists===true&&permission\.efectivo===true/);
+  assert.match(details, /mg-bitacora-panel[^']+hidden/);
+  assert.match(migration, new RegExp(permissionCode.replace('.', '\\.')));
+  assert.doesNotMatch(migration, /INSERT\s+INTO\s+(?:rol_permisos|usuario_permisos)/i);
+});
+
+test('las rutas GET y sync rechazan usuarios sin permiso de Bitácora', async () => {
+  const registrations = [];
+  let checkedUserId = null;
+  let checkedPermission = null;
+  const routerStub = {
+    get(pathname, ...handlers) { registrations.push({ method: 'GET', pathname, handlers }); },
+    post(pathname, ...handlers) { registrations.push({ method: 'POST', pathname, handlers }); }
+  };
+  const requireAuthStub = (_req, _res, next) => next();
+
+  requireWithStubs(routesPath, {
+    express: { Router: () => routerStub },
+    './instalaciones-bitacora.controller': { getBitacora() {}, syncBitacora() {} },
+    '../../middleware/auth.middleware': { requireAuth: requireAuthStub },
+    '../../services/permissions/effective-permission.service': {
+      async hasEffectivePermission(userId, code) {
+        checkedUserId = userId;
+        checkedPermission = code;
+        return false;
+      }
+    }
+  });
+
+  const getRoute = registrations.find(entry => entry.method === 'GET');
+  const postRoute = registrations.find(entry => entry.method === 'POST');
+  assert.ok(getRoute);
+  assert.ok(postRoute);
+  assert.equal(getRoute.handlers[0], requireAuthStub);
+  assert.equal(postRoute.handlers[0], requireAuthStub);
+  assert.equal(getRoute.handlers[1], postRoute.handlers[1]);
+
+  let statusCode = null;
+  let payload = null;
+  let nextCalled = false;
+  const response = {
+    status(value) { statusCode = value; return this; },
+    json(value) { payload = value; return value; }
+  };
+  await getRoute.handlers[1](
+    { method: 'GET', contextUser: { id_SB: 77 } },
+    response,
+    () => { nextCalled = true; }
+  );
+
+  assert.equal(checkedUserId, 77);
+  assert.equal(checkedPermission, permissionCode);
+  assert.equal(statusCode, 403);
+  assert.equal(payload.code, 'INSTALACIONES_BITACORA_FORBIDDEN');
+  assert.equal(nextCalled, false);
 });
 
 test('syncBitacora propaga el proyecto normalizado al upsert de cada archivo', async () => {
