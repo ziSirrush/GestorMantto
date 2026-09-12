@@ -19,7 +19,7 @@ const requireCobranzaCorIntegration = requireIntegrationAuthFor('INTEGRATION_VEN
 // El Guard General resuelve sesion, permiso funcional, puerta de informacion
 // y alcance de usuarios visible. El repositorio aplica ese alcance a ADM/SUP/VEND.
 const requireEstadosCuentaCor = humanInformationGuard_gnral({
-  permissionCode: 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL',
+  permissionCode: 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
   domain: 'CORELLIAN',
   groupingCode: 'COBRANZA'
 });
