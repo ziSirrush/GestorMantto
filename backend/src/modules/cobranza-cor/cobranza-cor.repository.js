@@ -131,9 +131,8 @@ function usableProjectKeySql_cor(expression) {
           AND UPPER(TRIM(COALESCE(${expression}, ''))) NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP')`;
 }
 
-// Normaliza diferencias de captura que no cambian la identidad comercial del proyecto:
-// espacios invisibles, tabuladores/saltos, puntuacion, # y la abreviacion WM/WALMART.
-// La comparacion conserva utf8mb4_unicode_ci para no volver sensibles los acentos.
+// Normaliza diferencias de captura solo para el DETALLE del Estado de Cuenta.
+// El listado MAIN no usa esta resolucion por PP/nombre.
 function normalizedProjectSql_cor(expression) {
   const base = `REGEXP_REPLACE(
             UPPER(
@@ -163,6 +162,9 @@ function normalizedProjectSql_cor(expression) {
           ) COLLATE utf8mb4_unicode_ci`;
 }
 
+// REGLA EXCLUSIVA DEL DETALLE:
+// una fila de FUENTE pertenece al proyecto seleccionado por FK, nombre normalizado
+// o PP/ID Proyecto cuando ese PP es seguro/desambiguado.
 function fuenteMatchesIndiceSql_cor(fuenteAlias, indiceAlias) {
   const f = fuenteAlias;
   const i = indiceAlias;
@@ -228,12 +230,14 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
     params.push(filters.estatus);
   }
 
+  // MAIN: no intenta resolver FUENTE por PP ni por nombre.
+  // El filtro solo reconoce movimientos que ya tienen la FK directa id_indice_cor.
   if (filters.soloConFuente === true) {
     clauses.push(`EXISTS (
       SELECT 1
         FROM ${TABLES_COR.fuente} f_filter
        WHERE f_filter.activo = 1
-         AND ${fuenteMatchesIndiceSql_cor('f_filter', 'i')}
+         AND f_filter.id_indice_cor = i.id_indice_cor
     )`);
   }
 
@@ -261,7 +265,7 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
          SELECT COUNT(DISTINCT f_count.id_fuente_cor)
            FROM ${TABLES_COR.fuente} f_count
           WHERE f_count.activo = 1
-            AND ${fuenteMatchesIndiceSql_cor('f_count', 'i')}
+            AND f_count.id_indice_cor = i.id_indice_cor
        ) AS registros_estado_cuenta,
        (
          SELECT GROUP_CONCAT(
@@ -271,7 +275,7 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
                 )
            FROM ${TABLES_COR.fuente} f_currency
           WHERE f_currency.activo = 1
-            AND ${fuenteMatchesIndiceSql_cor('f_currency', 'i')}
+            AND f_currency.id_indice_cor = i.id_indice_cor
        ) AS monedas
      FROM ${TABLES_COR.indice} i
      WHERE ${clauses.join('\n       AND ')}

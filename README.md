@@ -1,95 +1,63 @@
-# FIX COBRANZA COR - ESTADO DE CUENTA MATCH + BACK CONTEXTUAL V004
+# FIX COBRANZA COR - MATCH SOLO EN DETALLE V006
 
-Base verificada: `ziSirrush/GestorMantto` / `main` / commit `58a62e27a7b9c0d4e7911bef219e2bc46c3c2e3c` (`Version 091126.17 - Edo Cta`).
+Base verificada: `ziSirrush/GestorMantto` / `main` / commit `0ddc10ddd08314f65e07c0806e0cfbd1110c1ef8` (`Version 091126.19 - Edo Cta`).
 
-## Objetivos
+## Correccion
 
-1. Dejar un solo control de regreso: el Back global de la barra contextual de Gestor Mantto.
-2. Corregir la lectura de `cobranza_fuente_cor` cuando el nombre/PP no coincide de forma literal entre INDICE y FUENTE.
-3. No crear tablas ni llaves foraneas nuevas.
+El V004/V005 aplico por error la resolucion `PP/ID Proyecto OR nombre de proyecto` tanto al MAIN de Estados de Cuenta como al DETALLE.
 
-## Navegacion
+La regla correcta queda separada:
 
-Se eliminan los botones internos `← Regresar` del modulo.
+### MAIN - Estados de Cuenta
 
-El detalle sigue abriendose mediante el Router central:
+`GET /api/cobranza-cor/estados-cuenta`
 
-- Listado: `#/cobranza-estados-cuenta`
-- Detalle: `#/cobranza-estados-cuenta/{id_indice_cor}`
-- Regreso: exclusivamente el Back contextual de Gestor Mantto (`ManttoRouter.back()`).
+- La lista principal nace de `cobranza_indice_cor`.
+- NO ejecuta la resolucion flexible por PP/nombre contra FUENTE.
+- Los campos auxiliares `Mov.` y `Monedas`, y el filtro `Solo con movimientos`, solo usan la FK directa existente:
+  `cobranza_fuente_cor.id_indice_cor = cobranza_indice_cor.id_indice_cor`.
+- Por lo tanto, abrir/cargar el MAIN no dispara la normalizacion de nombres ni la busqueda por PP.
 
-## Relacion INDICE -> FUENTE
+### DETALLE - Estado de Cuenta
 
-Ya existe la FK:
+`GET /api/cobranza-cor/estados-cuenta/:idIndiceCor`
 
-`cobranza_fuente_cor.id_indice_cor -> cobranza_indice_cor.id_indice_cor`
+Solo aqui se aplica la resolucion de los renglones financieros de `cobranza_fuente_cor`:
 
-No se agrega otra FK.
-
-La lectura funcional V004 considera una fila de FUENTE relacionada con el proyecto seleccionado por esta prioridad logica:
-
-1. FK existente: `FUENTE.id_indice_cor = INDICE.id_indice_cor`.
+1. FK directa si existe.
 2. Nombre de proyecto normalizado.
-3. PP / ID Proyecto cuando el PP identifica un solo registro de INDICE.
-4. Si el PP existe en mas de un proyecto, usa PP + `SOUNDEX` del nombre normalizado para desambiguar; no acepta el PP compartido por si solo.
+3. PP/ID Proyecto cuando identifica un unico proyecto.
+4. Si el PP esta compartido, PP + nombre fonetico para desambiguar.
 
-El nombre normalizado tolera:
+Una fila de FUENTE se devuelve una sola vez mediante `SELECT DISTINCT`.
 
-- espacios normales/no separables;
-- tabs y saltos de linea;
-- puntuacion, incluido `#`;
-- mayusculas/minusculas;
-- equivalencia `WALMART` / `WM`;
-- `WM SC` / `WM` para la convencion actual de proyectos Walmart.
+## UTF-8 / NBSP
 
-La consulta mantiene `COUNT(DISTINCT id_fuente_cor)` y `SELECT DISTINCT`, por lo que una misma fila fisica de FUENTE no se muestra dos veces.
+Se conserva la correccion V005:
 
-## Diagnostico verificado contra Cobranza.sql proporcionado
+- NBSP: `CONVERT(0xC2A0 USING utf8mb4)`
+- TAB: `CONVERT(0x09 USING utf8mb4)`
+- CR: `CONVERT(0x0D USING utf8mb4)`
+- LF: `CONVERT(0x0A USING utf8mb4)`
 
-FUENTE contiene 189 filas agrupadas en 39 proyectos.
+La normalizacion solo se ejecuta durante la lectura del DETALLE.
 
-Con el match literal anterior existian diferencias como:
-
-- `THALASSA TOWER` -> INDICE `THALASA TOWER`, PP `P14056` compartido tambien por `DHARANA CANCUN`.
-- `RIVIERA CENTER` -> INDICE `RIVERA CENTER`.
-- `MACONDO TULUM 3` -> INDICE `MACONDO TULUM #3`.
-- `WALMART HUAMANTLA` -> INDICE `WM HUAMANTLA`.
-- `WALMART SC CHILPANCINGO` -> INDICE `WM SC CHILPANCINGO`.
-- `WALMART SC PLAN DE AYALA` -> INDICE `WM PLAN DE AYALA`.
-
-La regla V004 fue simulada contra los 372 renglones del ultimo bloque completo de INDICE y los 189 renglones de FUENTE del dump compartido:
-
-- grupos FUENTE: 39
-- grupos resueltos a exactamente un INDICE: 39
-- ambiguos/sin resolver: 0
-
-Esto es validacion sobre el dump proporcionado; Aiven en ejecucion debe validarse despues del deploy.
-
-## Estado de Cuenta
-
-- SUMINISTRO = toda moneda extranjera (`moneda <> MXN`).
-- INSTALACION = moneda nacional (`MXN`).
-- No se mezclan monedas extranjeras distintas en un mismo total.
-
-## Archivos modificados completos
+## Archivo modificado completo
 
 - `backend/src/modules/cobranza-cor/cobranza-cor.repository.js`
-- `modules/cobranza-cor/cobranza-cor-estados-cuenta.js`
 
-No requiere SQL, `ALTER TABLE`, nueva tabla ni nueva FK.
+No modifica frontend, rutas, permisos, tablas ni llaves foraneas.
+No requiere SQL.
 
-## Validacion ejecutada
+## Validacion
 
-- `node --check backend/src/modules/cobranza-cor/cobranza-cor.repository.js` -> OK
-- `node --check modules/cobranza-cor/cobranza-cor-estados-cuenta.js` -> OK
-- Verificacion estatica: no queda `data-ccor-back`, `backFromDetail_cor` ni boton interno `ccor-ec-back` en el JS -> OK
-- Simulacion del match sobre dump compartido: 39/39 grupos FUENTE resueltos sin ambiguedad -> OK
+- `node --check backend/src/modules/cobranza-cor/cobranza-cor.repository.js`
+- Verificacion estatica: `fuenteMatchesIndiceSql_cor()` se usa solo dentro de `listFuenteEstadoCuenta_cor()`.
+- Verificacion estatica: `listEstadosCuenta_cor()` usa unicamente la FK directa para Mov./Monedas/solo_con_fuente.
 
-## Pendiente despues de aplicar
+## Prueba recomendada despues del deploy
 
-1. Deploy backend.
-2. Publicar frontend.
-3. Abrir un proyecto con nombre literal identico.
-4. Probar `THALASA/THALASSA TOWER` y confirmar que no mezcla filas de `DHARANA CANCUN` aunque compartan `P14056`.
-5. Probar los proyectos `WM/WALMART`.
-6. Confirmar que solo existe el Back contextual superior.
+1. `GET /api/cobranza-cor/estados-cuenta` debe cargar el MAIN sin ejecutar match flexible.
+2. Click en un proyecto.
+3. `GET /api/cobranza-cor/estados-cuenta/:idIndiceCor` debe recuperar FUENTE por PP o nombre cuando la FK no exista.
+4. Validar especialmente proyectos con diferencias de captura (`THALASA/THALASSA`, `WM/WALMART`, etc.).
