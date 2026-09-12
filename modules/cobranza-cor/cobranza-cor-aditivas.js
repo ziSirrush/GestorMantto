@@ -1,8 +1,9 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS BACKEND V001]
+  // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS DETALLE V001]
   // Contrato funcional: FASE_3_COBRANZA_COR_ADITIVAS_BACKEND_V001.
+  // El detalle es una vista interna del Gestor: misma ruta + payload id, sin modal.
   // Filtros, paginacion, resumen y detalle son autoritativos en backend.
   if(window.ManttoCobranzaCorAditivas) return;
 
@@ -30,7 +31,9 @@
     searchTimer:null,
     loading:false,
     boundRoot:null,
-    pendingDetailId:null
+    view:'list',
+    selectedId:null,
+    detail:null
   };
 
   function currentNavigation_cor(){
@@ -150,6 +153,7 @@
 
   function renderShell_cor(){
     if(!state.root) return;
+    state.view='list';
     state.root.innerHTML=`
       <div class="ccor-ad-page">
         <section class="ccor-ad-card ccor-ad-hero">
@@ -217,14 +221,6 @@
             </div>
           </section>
         </section>
-
-        <div id="ccor-ad-modal" class="ccor-ad-modal" hidden>
-          <div class="ccor-ad-modal-backdrop" data-ccor-ad-close></div>
-          <section class="ccor-ad-modal-card" role="dialog" aria-modal="true" aria-labelledby="ccor-ad-modal-title">
-            <button class="ccor-ad-modal-close" type="button" aria-label="Cerrar detalle" data-ccor-ad-close>×</button>
-            <div id="ccor-ad-modal-content"></div>
-          </section>
-        </div>
       </div>`;
 
     const subtitle=document.getElementById('app-context-subtitle');
@@ -342,104 +338,254 @@
     setText_cor('ccor-ad-count',`${formatInteger_cor(p.totalRecords)} registros`);
   }
 
-  function detailField_cor(label,value,className){
-    return `<div class="ccor-ad-detail-field ${className||''}"><span>${escapeHtml_cor(label)}</span><b>${escapeHtml_cor(text_cor(value))}</b></div>`;
+  function detailValue_cor(label,value,className){
+    return `<div class="ccor-ad-detail-pair ${className||''}"><span>${escapeHtml_cor(label)}</span><b>${escapeHtml_cor(text_cor(value))}</b></div>`;
   }
 
-  function moneyField_cor(label,value,currency,className){
-    return `<div class="ccor-ad-detail-field ${className||''}"><span>${escapeHtml_cor(label)}</span><b>${escapeHtml_cor(formatMoney_cor(value,currency))}</b></div>`;
+  function detailMoney_cor(label,value,currency,className){
+    return `<div class="ccor-ad-detail-pair ${className||''}"><span>${escapeHtml_cor(label)}</span><b>${escapeHtml_cor(formatMoney_cor(value,currency))}</b></div>`;
+  }
+
+  function detailStatusBadge_cor(value){
+    return `<span class="ccor-ad-badge ${statusClass_cor(value)}">${escapeHtml_cor(text_cor(value))}</span>`;
+  }
+
+  function renderDetailLoading_cor(){
+    if(!state.root) return;
+    state.view='detail';
+    state.root.innerHTML=`
+      <div class="ccor-ad-page ccor-ad-detail-page">
+        <section class="ccor-ad-card ccor-ad-detail-loading">
+          <span class="ccor-ad-spinner" aria-hidden="true"></span>
+          <div><b>Cargando Aditiva...</b><small>Consultando el registro autorizado en CORELLIAN.</small></div>
+        </section>
+      </div>`;
+  }
+
+  function renderDetailError_cor(message){
+    if(!state.root) return;
+    state.view='detail';
+    state.root.innerHTML=`
+      <div class="ccor-ad-page ccor-ad-detail-page">
+        <div class="ccor-ad-detail-toolbar">
+          <button class="ccor-ad-detail-back" type="button" data-ccor-ad-back>← Regresar a Aditivas</button>
+        </div>
+        <section class="ccor-ad-card ccor-ad-detail-error">
+          <div class="ccor-ad-detail-error-icon">⚠️</div>
+          <div><h2>No fue posible abrir la Aditiva</h2><p>${escapeHtml_cor(message)}</p></div>
+        </section>
+      </div>`;
+  }
+
+  function renderLinkedProject_cor(row){
+    const indice=row&&row.indice&&typeof row.indice==='object'?row.indice:null;
+    if(!row||row.vinculo_indice!==true||!indice){
+      return `
+        <section class="ccor-ad-card ccor-ad-linked-card is-unlinked">
+          <div class="ccor-ad-linked-title"><span class="ccor-ad-linked-icon">○</span><b>Proyecto CORELLIAN vinculado</b></div>
+          <div class="ccor-ad-linked-empty">
+            <strong>Sin vínculo a INDICE</strong>
+            <span>Esta Aditiva no tiene una relación estructurada inequívoca con un proyecto de Cobranza COR.</span>
+          </div>
+        </section>`;
+    }
+
+    const indiceId=Number(indice.id_indice_cor||row.id_indice_cor);
+    return `
+      <section class="ccor-ad-card ccor-ad-linked-card">
+        <div class="ccor-ad-linked-title"><span class="ccor-ad-linked-icon">↗</span><b>Proyecto CORELLIAN vinculado</b></div>
+        <div class="ccor-ad-linked-body">
+          <dl>
+            <div><dt>Proyecto</dt><dd>${escapeHtml_cor(text_cor(indice.proyecto))}</dd></div>
+            <div><dt>PP / NS</dt><dd>${escapeHtml_cor(text_cor(indice.pp))}</dd></div>
+            <div><dt>Año</dt><dd>${escapeHtml_cor(text_cor(indice.anio))}</dd></div>
+          </dl>
+          ${Number.isInteger(indiceId)&&indiceId>0?`<button class="ccor-ad-btn ccor-ad-btn-primary ccor-ad-linked-button" type="button" data-ccor-ad-estado-cuenta="${indiceId}">Ver Estado de Cuenta</button>`:''}
+        </div>
+        <div class="ccor-ad-linked-ok">✓ Vinculada a INDICE</div>
+      </section>`;
+  }
+
+  function renderDetailSection_cor(title,icon,body,className){
+    return `
+      <section class="ccor-ad-card ccor-ad-detail-section ${className||''}">
+        <div class="ccor-ad-detail-section-title"><span>${icon}</span><h2>${escapeHtml_cor(title)}</h2></div>
+        <div class="ccor-ad-detail-section-body">${body}</div>
+      </section>`;
   }
 
   function renderDetail_cor(row){
-    const modal=document.getElementById('ccor-ad-modal');
-    const content=document.getElementById('ccor-ad-modal-content');
-    if(!modal||!content||!row) return;
-    const currency=canonical_cor(row.moneda);
-    const indice=row.indice&&typeof row.indice==='object'?row.indice:null;
-    content.innerHTML=`
-      <div class="ccor-ad-detail-head">
-        <p class="ccor-ad-eyebrow">Aditiva · Corellian</p>
-        <h2 id="ccor-ad-modal-title">${escapeHtml_cor(text_cor(row.no_cot,'Detalle de Aditiva'))}</h2>
-        <p>${escapeHtml_cor(text_cor(row.descripcion,'Sin descripción registrada.'))}</p>
-      </div>
-      <div class="ccor-ad-detail-grid">
-        ${detailField_cor('Proyecto',row.proyecto,'is-wide')}
-        ${detailField_cor('PP NS',row.pp_ns)}
-        ${detailField_cor('Equipo',row.equipo)}
-        ${detailField_cor('Año cot.',row.anio_cot)}
-        ${detailField_cor('Fecha cot.',formatDate_cor(row.fecha_cot))}
-        ${detailField_cor('Firma cot.',row.firma_cot)}
-        ${detailField_cor('Departamento',row.departamento)}
-        ${detailField_cor('Categoría',row.categoria)}
-        ${detailField_cor('SUP',row.sup)}
-        ${detailField_cor('OV',row.ov)}
-        ${detailField_cor('Factura',row.factura)}
-        ${detailField_cor('OC',row.oc)}
-        ${detailField_cor('Estatus trabajos',row.estatus_trabajos)}
-        ${detailField_cor('Estatus cobranza',row.estatus_cobranza)}
-        ${detailField_cor('Moneda',currency||'—')}
-        ${detailField_cor('Semana de pago',row.semana_pago)}
-        ${detailField_cor('Fecha de pago',formatDate_cor(row.fecha_pago))}
-        ${detailField_cor('Gasto ejercido',row.gasto_ejercido)}
-        ${detailField_cor('Vínculo INDICE',row.vinculo_indice?'Sí':'No')}
-        ${detailField_cor('INDICE proyecto',indice&&indice.proyecto)}
-        ${detailField_cor('INDICE PP',indice&&indice.pp)}
-        ${detailField_cor('INDICE año',indice&&indice.anio)}
-      </div>
-      <div class="ccor-ad-money-grid">
-        ${moneyField_cor('Subtotal',row.monto_subtotal,currency)}
-        ${detailField_cor('IVA %',formatPercent_cor(row.iva_pct))}
-        ${moneyField_cor('Monto IVA',row.monto_iva,currency)}
-        ${moneyField_cor('Total',row.monto_total,currency)}
-        ${moneyField_cor('Gasto subtotal',row.gasto_subtotal,currency)}
-        ${moneyField_cor('Diferencia',row.diferencia,currency)}
-        ${detailField_cor('Utilidad real',formatPercent_cor(row.utilidad_real_pct))}
-        ${moneyField_cor('Monto pagado',row.monto_pagado,currency)}
-        ${moneyField_cor('Pagado sin IVA',row.pagado_sin_iva,currency)}
-        ${moneyField_cor('Pendiente de pago',row.pendiente_pago,currency,'is-pending')}
-      </div>
-      <div class="ccor-ad-detail-comments"><span>Comentario fuente</span><p>${escapeHtml_cor(text_cor(row.comentario_fuente,'Sin comentario registrado.'))}</p></div>`;
-    modal.hidden=false;
-    document.body.classList.add('ccor-ad-modal-open');
+    if(!state.root||!row) return;
+    state.view='detail';
+    const currency=canonical_cor(row.moneda)||'—';
+    const pending=number_cor(row.pendiente_pago);
+    const pendingClass=pending!==null&&pending>0?'is-danger':'is-ok';
+    const project=text_cor(row.proyecto,'Proyecto sin nombre');
+    const equipment=text_cor(row.equipo,'');
+    const subtitle=equipment&&equipment!=='—'?project+' · '+equipment:project;
+
+    const identification=[
+      detailValue_cor('Año Cot.',row.anio_cot),
+      detailValue_cor('No. Cotización',row.no_cot),
+      detailValue_cor('Fecha Cotización',formatDate_cor(row.fecha_cot)),
+      detailValue_cor('Departamento',row.departamento),
+      detailValue_cor('Categoría',row.categoria),
+      detailValue_cor('Firma Cot.',row.firma_cot),
+      detailValue_cor('Supervisor (SUP)',row.sup)
+    ].join('');
+
+    const work=[
+      detailValue_cor('Proyecto',row.proyecto,'is-wide'),
+      detailValue_cor('PP / NS',row.pp_ns),
+      detailValue_cor('Equipo',row.equipo),
+      detailValue_cor('Estatus Trabajos',row.estatus_trabajos,'is-wide'),
+      `<div class="ccor-ad-detail-pair is-wide"><span>Descripción</span><b class="is-normal">${escapeHtml_cor(text_cor(row.descripcion,'Sin descripción registrada.'))}</b></div>`,
+      `<div class="ccor-ad-detail-pair is-wide"><span>Comentario Fuente</span><b class="is-normal">${escapeHtml_cor(text_cor(row.comentario_fuente,'Sin comentario registrado.'))}</b></div>`
+    ].join('');
+
+    const documents=[
+      detailValue_cor('Orden de Venta (OV)',row.ov),
+      detailValue_cor('Orden de Compra (OC)',row.oc),
+      detailValue_cor('Factura',row.factura)
+    ].join('');
+
+    const financial=[
+      detailMoney_cor('Subtotal',row.monto_subtotal,currency),
+      detailValue_cor('IVA %',formatPercent_cor(row.iva_pct)),
+      detailMoney_cor('IVA',row.monto_iva,currency),
+      detailMoney_cor('Total',row.monto_total,currency),
+      detailMoney_cor('Gasto Subtotal',row.gasto_subtotal,currency),
+      detailMoney_cor('Diferencia',row.diferencia,currency),
+      detailValue_cor('Utilidad Real %',formatPercent_cor(row.utilidad_real_pct))
+    ].join('');
+
+    const collection=[
+      detailValue_cor('Estatus Cobranza',row.estatus_cobranza),
+      detailMoney_cor('Monto Pagado',row.monto_pagado,currency),
+      detailMoney_cor('Pagado sin IVA',row.pagado_sin_iva,currency),
+      detailMoney_cor('Pendiente de Pago',row.pendiente_pago,currency,'is-pending'),
+      detailValue_cor('Fecha de Pago',formatDate_cor(row.fecha_pago)),
+      detailValue_cor('Semana de Pago',row.semana_pago),
+      detailValue_cor('Moneda',currency),
+      detailValue_cor('Gasto Ejercido',row.gasto_ejercido)
+    ].join('');
+
+    state.root.innerHTML=`
+      <div class="ccor-ad-page ccor-ad-detail-page">
+        <div class="ccor-ad-detail-toolbar">
+          <button class="ccor-ad-detail-back" type="button" data-ccor-ad-back>← Regresar a Aditivas</button>
+          <span>Consulta: <b>${escapeHtml_cor(formatDateTimeNow_cor())}</b></span>
+        </div>
+
+        <section class="ccor-ad-detail-hero">
+          <div class="ccor-ad-detail-identity">
+            <div class="ccor-ad-detail-document-icon" aria-hidden="true">▤+</div>
+            <div>
+              <p class="ccor-ad-eyebrow">Cobranza · Corellian</p>
+              <h1>Aditiva · ${escapeHtml_cor(text_cor(row.no_cot,'Sin No. Cot.'))}</h1>
+              <p class="ccor-ad-detail-subtitle">${escapeHtml_cor(subtitle)}</p>
+              <div class="ccor-ad-detail-badges">
+                ${detailStatusBadge_cor(row.estatus_cobranza)}
+                ${detailStatusBadge_cor(row.estatus_trabajos)}
+                <span class="ccor-ad-badge is-currency">${escapeHtml_cor(currency)}</span>
+              </div>
+            </div>
+          </div>
+          <article class="ccor-ad-card ccor-ad-pending-hero ${pendingClass}">
+            <span>Pendiente de pago</span>
+            <b>${escapeHtml_cor(formatMoney_cor(row.pendiente_pago,currency))}</b>
+          </article>
+        </section>
+
+        <div class="ccor-ad-detail-summary-row">
+          <section class="ccor-ad-card ccor-ad-detail-summary-card">
+            <div class="ccor-ad-detail-summary-title">Resumen financiero</div>
+            <div class="ccor-ad-detail-summary-grid">
+              ${detailMoney_cor('Subtotal',row.monto_subtotal,currency)}
+              ${detailMoney_cor('IVA',row.monto_iva,currency)}
+              ${detailMoney_cor('Total',row.monto_total,currency)}
+              ${detailMoney_cor('Pagado',row.monto_pagado,currency,'is-paid')}
+              ${detailMoney_cor('Pendiente',row.pendiente_pago,currency,'is-pending')}
+            </div>
+          </section>
+          ${renderLinkedProject_cor(row)}
+        </div>
+
+        <div class="ccor-ad-detail-grid-top">
+          ${renderDetailSection_cor('1. Identificación','▤',identification)}
+          ${renderDetailSection_cor('2. Proyecto / Trabajo','▣',work)}
+          ${renderDetailSection_cor('3. Documentación comercial','□',documents)}
+        </div>
+
+        <div class="ccor-ad-detail-grid-bottom">
+          ${renderDetailSection_cor('4. Información financiera','⌁',financial)}
+          ${renderDetailSection_cor('5. Cobranza','$',collection)}
+        </div>
+      </div>`;
+
+    const subtitleNode=document.getElementById('app-context-subtitle');
+    if(subtitleNode) subtitleNode.textContent='Aditiva · '+text_cor(row.no_cot,'Detalle');
+    try{window.scrollTo({top:0,behavior:'smooth'});}catch(_error){window.scrollTo(0,0);}
   }
 
-  function showDetailLoading_cor(){
-    const modal=document.getElementById('ccor-ad-modal');
-    const content=document.getElementById('ccor-ad-modal-content');
-    if(!modal||!content) return;
-    content.innerHTML='<div class="ccor-ad-detail-head"><p class="ccor-ad-eyebrow">Aditiva · Corellian</p><h2 id="ccor-ad-modal-title">Cargando detalle...</h2><p>Consultando el registro autorizado en backend.</p></div>';
-    modal.hidden=false;
-    document.body.classList.add('ccor-ad-modal-open');
-  }
-
-  function showDetailError_cor(message){
-    const content=document.getElementById('ccor-ad-modal-content');
-    if(content) content.innerHTML=`<div class="ccor-ad-detail-head"><p class="ccor-ad-eyebrow">Aditiva · Corellian</p><h2 id="ccor-ad-modal-title">No fue posible abrir el detalle</h2><p>${escapeHtml_cor(message)}</p></div>`;
-  }
-
-  async function openDetailById_cor(id){
+  async function loadDetail_cor(id){
     const parsed=Number(id);
     if(!Number.isInteger(parsed)||parsed<=0) return false;
+    state.selectedId=parsed;
+    state.detail=null;
     const sequence=++state.detailSequence;
-    showDetailLoading_cor();
+    renderDetailLoading_cor();
     try{
       const response=await apiGet_cor(API_PATH+'/'+encodeURIComponent(parsed));
-      if(sequence!==state.detailSequence) return false;
+      if(sequence!==state.detailSequence||!isActive_cor()) return false;
       if(!response||!response.aditiva) throw new Error('El backend no devolvió el objeto aditiva esperado.');
-      renderDetail_cor(response.aditiva);
+      state.detail=response.aditiva;
+      renderDetail_cor(state.detail);
       return true;
     }catch(error){
-      if(sequence!==state.detailSequence) return false;
-      showDetailError_cor(errorMessage_cor(error,'detail'));
+      if(sequence!==state.detailSequence||!isActive_cor()) return false;
+      renderDetailError_cor(errorMessage_cor(error,'detail'));
       return false;
     }
   }
 
-  function closeDetail_cor(){
-    state.detailSequence+=1;
-    const modal=document.getElementById('ccor-ad-modal');
-    if(modal) modal.hidden=true;
-    document.body.classList.remove('ccor-ad-modal-open');
+  function openDetailRoute_cor(id){
+    const parsed=Number(id);
+    if(!Number.isInteger(parsed)||parsed<=0) return false;
+    if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
+      window.ManttoRouter.go(ROUTE,{id:parsed},{navigationType:'open'});
+      return true;
+    }
+    loadDetail_cor(parsed);
+    return true;
+  }
+
+  function returnToList_cor(){
+    const router=window.ManttoRouter;
+    if(router&&typeof router.getHistory==='function'&&typeof router.back==='function'){
+      const history=router.getHistory();
+      const previous=history[history.length-1];
+      if(previous&&String(previous.route||'')===ROUTE&&!(previous.payload&&previous.payload.id)){
+        router.back();
+        return;
+      }
+    }
+    if(router&&typeof router.go==='function'){
+      router.go(ROUTE,null,{replace:true,skipHistory:true,navigationType:'back'});
+    }
+  }
+
+  function openEstadoCuenta_cor(idIndiceCor){
+    const parsed=Number(idIndiceCor);
+    if(!Number.isInteger(parsed)||parsed<=0) return;
+    if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
+      const navigation=window.ManttoRouter.go('cobranza-estados-cuenta',{id:parsed},{navigationType:'open'});
+      Promise.resolve(navigation).then(()=>{
+        if(window.ManttoCobranzaCorEstadosCuenta&&typeof window.ManttoCobranzaCorEstadosCuenta.init==='function'){
+          window.ManttoCobranzaCorEstadosCuenta.init();
+        }
+      }).catch(()=>{});
+    }
   }
 
   function renderStatus_cor(message,kind){
@@ -493,11 +639,6 @@
       applyResponse_cor(response);
       renderStatus_cor(state.pagination.totalRecords?'':'La consulta fue exitosa, pero no devolvió Aditivas para los filtros y alcance actuales.',state.pagination.totalRecords?'':'empty');
       setText_cor('ccor-ad-updated','Actualizado '+formatDateTimeNow_cor());
-      if(state.pendingDetailId){
-        const target=state.pendingDetailId;
-        state.pendingDetailId=null;
-        openDetailById_cor(target);
-      }
       return true;
     }catch(error){
       if(sequence!==state.requestSequence) return false;
@@ -547,18 +688,19 @@
       if(prev&&!prev.disabled){ state.pagination.page-=1; refresh_cor(); return; }
       const next=event.target.closest('#ccor-ad-next');
       if(next&&!next.disabled){ state.pagination.page+=1; refresh_cor(); return; }
-      if(event.target.closest('[data-ccor-ad-close]')){ closeDetail_cor(); return; }
+      if(event.target.closest('[data-ccor-ad-back]')){ returnToList_cor(); return; }
+      const estadoCuenta=event.target.closest('[data-ccor-ad-estado-cuenta]');
+      if(estadoCuenta&&estadoCuenta.dataset.ccorAdEstadoCuenta){ openEstadoCuenta_cor(estadoCuenta.dataset.ccorAdEstadoCuenta); return; }
       const row=event.target.closest('[data-ccor-ad-row]');
-      if(row&&row.dataset.ccorAdRow) openDetailById_cor(row.dataset.ccorAdRow);
+      if(row&&row.dataset.ccorAdRow) openDetailRoute_cor(row.dataset.ccorAdRow);
     });
 
     root.addEventListener('keydown',event=>{
-      if(event.key==='Escape'){ closeDetail_cor(); return; }
       if(event.key!=='Enter'&&event.key!==' ') return;
       const row=event.target.closest('[data-ccor-ad-row]');
       if(!row||!row.dataset.ccorAdRow) return;
       event.preventDefault();
-      openDetailById_cor(row.dataset.ccorAdRow);
+      openDetailRoute_cor(row.dataset.ccorAdRow);
     });
 
     root.addEventListener('input',event=>{
@@ -576,15 +718,42 @@
     });
   }
 
-  function init_cor(rootArg){
+  async function init_cor(rootArg){
     const root=rootArg&&rootArg.nodeType===1?rootArg:(document.getElementById('view-cobranza-aditivas')||document.getElementById('view-placeholder'));
-    if(!root) return false;
+    if(!root||!isActive_cor()) return false;
     state.root=root;
+    bindEvents_cor();
+
     const payload=currentPayload_cor();
-    state.pendingDetailId=payload&&(payload.id||payload.id_aditiva_cor)?(payload.id||payload.id_aditiva_cor):null;
+    const requestedId=Number(payload&&(payload.id||payload.id_aditiva_cor));
+    if(Number.isInteger(requestedId)&&requestedId>0){
+      state.view='detail';
+      await loadDetail_cor(requestedId);
+      return true;
+    }
+
+    state.view='list';
+    state.selectedId=null;
+    state.detail=null;
     renderShell_cor();
-    refresh_cor();
+
+    if(state.response&&!isBackendPending_cor(state.response)){
+      renderBackendReady_cor();
+      applyResponse_cor(state.response);
+      setText_cor('ccor-ad-updated','Datos conservados de la consulta anterior');
+      return true;
+    }
+
+    await refresh_cor();
     return true;
+  }
+
+  function refreshCurrent_cor(){
+    if(!isActive_cor()) return Promise.resolve(false);
+    const payload=currentPayload_cor();
+    const requestedId=Number(payload&&(payload.id||payload.id_aditiva_cor));
+    if(Number.isInteger(requestedId)&&requestedId>0) return loadDetail_cor(requestedId);
+    return refresh_cor();
   }
 
   document.addEventListener('mantto:navigation',event=>{
@@ -599,14 +768,16 @@
     state.records=[];
     state.summary=null;
     state.pagination.page=1;
-    closeDetail_cor();
-    if(isActive_cor()&&state.root) refresh_cor({resetPage:true});
+    state.selectedId=null;
+    state.detail=null;
+    state.detailSequence+=1;
+    if(isActive_cor()&&state.root) init_cor(state.root);
   });
 
   window.ManttoCobranzaCorAditivas=Object.freeze({
     init:init_cor,
-    refresh:refresh_cor,
-    openDetail:openDetailById_cor,
+    refresh:refreshCurrent_cor,
+    openDetail:openDetailRoute_cor,
     route:ROUTE,
     apiPath:API_PATH
   });
