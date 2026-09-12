@@ -131,20 +131,75 @@ function usableProjectKeySql_cor(expression) {
           AND UPPER(TRIM(COALESCE(${expression}, ''))) NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP')`;
 }
 
+// Normaliza diferencias de captura que no cambian la identidad comercial del proyecto:
+// espacios invisibles, tabuladores/saltos, puntuacion, # y la abreviacion WM/WALMART.
+// La comparacion conserva utf8mb4_unicode_ci para no volver sensibles los acentos.
+function normalizedProjectSql_cor(expression) {
+  const base = `REGEXP_REPLACE(
+            UPPER(
+              TRIM(
+                REPLACE(
+                  REPLACE(
+                    REPLACE(
+                      REPLACE(COALESCE(${expression}, ''), CHAR(160), ' '),
+                      CHAR(9), ' '
+                    ),
+                    CHAR(13), ' '
+                  ),
+                  CHAR(10), ' '
+                )
+              )
+            ),
+            '[^[:alnum:]]+',
+            ' '
+          )`;
+
+  return `TRIM(
+            REGEXP_REPLACE(
+              REGEXP_REPLACE(${base}, '^WALMART[[:space:]]+', 'WM '),
+              '^WM[[:space:]]+SC[[:space:]]+',
+              'WM '
+            )
+          ) COLLATE utf8mb4_unicode_ci`;
+}
+
 function fuenteMatchesIndiceSql_cor(fuenteAlias, indiceAlias) {
   const f = fuenteAlias;
   const i = indiceAlias;
-  return `(
-        (
+  const normalizedFuente = normalizedProjectSql_cor(`${f}.proyecto`);
+  const normalizedIndice = normalizedProjectSql_cor(`${i}.proyecto`);
+  const ppMatch = `(
           ${usableProjectKeySql_cor(`${i}.pp`)}
           AND ${usableProjectKeySql_cor(`${f}.id_proyecto_origen`)}
           AND UPPER(TRIM(${f}.id_proyecto_origen)) = UPPER(TRIM(${i}.pp))
-        )
-        OR
-        (
-          NULLIF(TRIM(COALESCE(${i}.proyecto, '')), '') IS NOT NULL
-          AND NULLIF(TRIM(COALESCE(${f}.proyecto, '')), '') IS NOT NULL
-          AND UPPER(TRIM(${f}.proyecto)) = UPPER(TRIM(${i}.proyecto))
+        )`;
+  const uniquePpMatch = `(
+          SELECT COUNT(DISTINCT i_pp.id_indice_cor)
+            FROM ${TABLES_COR.indice} i_pp
+           WHERE i_pp.activo = 1
+             AND ${usableProjectKeySql_cor('i_pp.pp')}
+             AND UPPER(TRIM(i_pp.pp)) = UPPER(TRIM(${f}.id_proyecto_origen))
+        ) = 1`;
+  const projectMatch = `(
+          NULLIF(${normalizedFuente}, '') IS NOT NULL
+          AND NULLIF(${normalizedIndice}, '') IS NOT NULL
+          AND ${normalizedFuente} = ${normalizedIndice}
+        )`;
+  const ppNameDisambiguation = `(
+          NULLIF(${normalizedFuente}, '') IS NOT NULL
+          AND NULLIF(${normalizedIndice}, '') IS NOT NULL
+          AND SOUNDEX(${normalizedFuente}) = SOUNDEX(${normalizedIndice})
+        )`;
+
+  return `(
+        ${f}.id_indice_cor = ${i}.id_indice_cor
+        OR ${projectMatch}
+        OR (
+          ${ppMatch}
+          AND (
+            ${uniquePpMatch}
+            OR ${ppNameDisambiguation}
+          )
         )
       )`;
 }

@@ -471,7 +471,6 @@
     state.view = 'detail';
     root.innerHTML = `
       <div class="ccor-ec-page">
-        <button class="ccor-ec-back" type="button" data-ccor-back>← Regresar</button>
         <section class="ccor-ec-card ccor-ec-loading-card">
           <span class="ccor-ec-spinner" aria-hidden="true"></span>
           <div><b>Cargando Estado de Cuenta...</b><small>Consultando la información del proyecto seleccionado.</small></div>
@@ -484,7 +483,6 @@
     if(!root) return;
     root.innerHTML = `
       <div class="ccor-ec-page">
-        <button class="ccor-ec-back" type="button" data-ccor-back>← Regresar</button>
         <section class="ccor-ec-card ccor-ec-error-card">
           <div class="ccor-ec-empty-icon">⚠️</div>
           <div><h2>No fue posible abrir el Estado de Cuenta</h2><p>${escapeHtml_cor(message)}</p></div>
@@ -503,22 +501,10 @@
     const supplyRows = movements.filter(row => isKnownForeign_cor(row && row.moneda));
     const installationRows = movements.filter(row => isMxn_cor(row && row.moneda));
     const unknownRows = movements.filter(row => !isKnownForeign_cor(row && row.moneda) && !isMxn_cor(row && row.moneda));
-    const sourceByPp = movements.filter(row => {
-      const pp = String(project.pp || '').trim().toUpperCase();
-      const source = String(row && row.id_proyecto_origen || '').trim().toUpperCase();
-      return Boolean(pp) && pp === source;
-    }).length;
-    const sourceByName = movements.filter(row => {
-      const projectName = String(project.proyecto || '').trim().toUpperCase();
-      const sourceName = String(row && row.proyecto || '').trim().toUpperCase();
-      return Boolean(projectName) && projectName === sourceName;
-    }).length;
-
     state.view = 'detail';
     root.innerHTML = `
       <div class="ccor-ec-page ccor-ec-detail-page">
         <div class="ccor-ec-detail-toolbar">
-          <button class="ccor-ec-back" type="button" data-ccor-back>← Regresar</button>
           <span>Fecha de consulta: <b>${escapeHtml_cor(formatDateTimeNow_cor())}</b></span>
         </div>
 
@@ -582,13 +568,13 @@
           </article>
 
           <article class="ccor-ec-card ccor-ec-info-card">
-            <h3>Coincidencia con FUENTE</h3>
+            <h3>Movimientos de FUENTE</h3>
             <dl>
-              <div><dt>Por PP / ID Proyecto</dt><dd>${escapeHtml_cor(formatInteger_cor(sourceByPp))}</dd></div>
-              <div><dt>Por nombre de proyecto</dt><dd>${escapeHtml_cor(formatInteger_cor(sourceByName))}</dd></div>
-              <div><dt>Filas mostradas</dt><dd>${escapeHtml_cor(formatInteger_cor(movements.length))}</dd></div>
+              <div><dt>Total</dt><dd>${escapeHtml_cor(formatInteger_cor(movements.length))}</dd></div>
+              <div><dt>Suministro</dt><dd>${escapeHtml_cor(formatInteger_cor(supplyRows.length))}</dd></div>
+              <div><dt>Instalación</dt><dd>${escapeHtml_cor(formatInteger_cor(installationRows.length))}</dd></div>
             </dl>
-            <p class="ccor-ec-info-note">Una fila se muestra una sola vez aunque coincida por PP y por nombre.</p>
+            <p class="ccor-ec-info-note">El backend resuelve la relación con FUENTE sin repetir el mismo id_fuente_cor.</p>
           </article>
         </section>
       </div>`;
@@ -658,17 +644,6 @@
     }
   }
 
-  function restoreList_cor(){
-    state.detail = null;
-    state.selectedId = null;
-    renderListShell_cor();
-    renderCatalogs_cor();
-    renderList_cor();
-    const updated = document.getElementById('ccor-ec-updated');
-    if(updated) updated.textContent = 'Actualizado ' + formatDateTimeNow_cor();
-    try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_error){ window.scrollTo(0, 0); }
-  }
-
   function openDetailRoute_cor(id){
     const numericId = Number(id);
     if(!Number.isInteger(numericId) || numericId <= 0) return;
@@ -679,14 +654,6 @@
     }
 
     loadDetail_cor(numericId, { force:true });
-  }
-
-  function backFromDetail_cor(){
-    if(window.ManttoRouter && typeof window.ManttoRouter.back === 'function'){
-      window.ManttoRouter.back();
-      return;
-    }
-    restoreList_cor();
   }
 
   function applyFilterAndReload_cor(){
@@ -700,12 +667,6 @@
     root.dataset.ccorEstadosCuentaBound = '1';
 
     root.addEventListener('click', event => {
-      const back = event.target.closest('[data-ccor-back]');
-      if(back){
-        backFromDetail_cor();
-        return;
-      }
-
       const refresh = event.target.closest('#ccor-ec-refresh');
       if(refresh){
         loadList_cor({ force:true });
