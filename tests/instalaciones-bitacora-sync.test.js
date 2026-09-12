@@ -82,12 +82,17 @@ test('listDocumentos ordena por el movimiento más reciente', async () => {
   assert.match(capturedSql, /ORDER BY fecha_movimiento DESC, nombre_archivo ASC/);
 });
 
-test('la interfaz muestra el movimiento y usa un botón Actualizar de 30 por 30', () => {
+test('la interfaz muestra el movimiento y pagina la Bitácora de 15 en 15', () => {
   const details = fs.readFileSync(path.resolve(__dirname, '../core/details.js'), 'utf8');
 
-  assert.match(details, /\.mg-bitacora-refresh\{width:30px;height:30px;/);
+  assert.match(details, /const BITACORA_PAGE_SIZE = 15;/);
+  assert.match(details, /documentos\.slice\(start,start\+BITACORA_PAGE_SIZE\)/);
+  assert.match(details, /data-bitacora-page/);
+  assert.match(details, />Anterior<\/button>/);
+  assert.match(details, />Siguiente<\/button>/);
   assert.match(details, /<th>Último movimiento<\/th>/);
-  assert.match(details, /aria-label="Actualizar bitácora">↻<\/button>/);
+  assert.match(details, /aria-label="Actualizar bitácora">Actualizar<\/button>/);
+  assert.doesNotMatch(details, /\.mg-bitacora-refresh\{width:15px;height:15px;/);
 });
 
 test('la Bitácora solo se inicializa con permiso visual efectivo', () => {

@@ -13,6 +13,7 @@
   const PROJECT_PHOTO_DOMAIN_COR = 'CORELLIAN';
   const PROJECT_PHOTO_DOMAIN_UNI = 'UNITED';
   const BITACORA_VIEW_PERMISSION = 'INSTALACIONES_PROYECTOS_DETALLE_PROYECTO_BITACORA.VER';
+  const BITACORA_PAGE_SIZE = 15;
   const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7, photoDomain:PROJECT_PHOTO_DOMAIN_COR };
   function ticketKey(v){ return String(v || '').trim(); }
   function registerTickets(rows){
@@ -160,7 +161,7 @@
         .mg-bitacora-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px;font-weight:900;flex-wrap:wrap}
         .mg-bitacora-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
         .mg-bitacora-lastsync{font-size:10px;font-weight:750;color:#475569;text-align:right}
-        .mg-bitacora-refresh{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:0;font-size:18px;line-height:1;font-weight:850;cursor:pointer}.mg-bitacora-refresh:disabled{opacity:.6;cursor:wait}
+        .mg-bitacora-refresh{border:0;background:#0D2E6E;color:#fff;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:850;cursor:pointer}.mg-bitacora-refresh:disabled{opacity:.6;cursor:wait}
         .mg-bitacora-body{padding:0}
         .mg-bitacora-table{width:100%;border-collapse:collapse}.mg-bitacora-table th{background:#F8FAFC;color:#475569;text-align:left;font-size:10px;text-transform:uppercase;font-weight:800;padding:8px 12px;border-bottom:1px solid #E2E8F0}.mg-bitacora-table td{font-size:12px;padding:8px 12px;border-bottom:1px solid #F1F5F9;color:#334155;vertical-align:top}.mg-bitacora-table tr.eliminado td{color:#94A3B8}
         .mg-bitacora-doc-link{color:#1B4FD8;text-decoration:underline;cursor:pointer;font-weight:700}
@@ -170,6 +171,7 @@
         .mg-bitacora-badge.eliminado{background:#FEE2E2;color:#991B1B}
         .mg-bitacora-empty{padding:16px;text-align:center;color:#64748B;font-size:12px}
         .mg-bitacora-truncado{font-size:10px;color:#B45309;background:#FFFBEB;border-top:1px solid #FDE68A;padding:6px 12px}
+        .mg-bitacora-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-top:1px solid #E2E8F0;background:#F8FAFC;color:#64748B;font-size:10px;font-weight:700;flex-wrap:wrap}.mg-bitacora-page-actions{display:flex;align-items:center;gap:7px}.mg-bitacora-page-button{border:1px solid #CBD5E1;background:#fff;color:#0D2E6E;border-radius:7px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer}.mg-bitacora-page-button:disabled{opacity:.45;cursor:not-allowed}
         @media(max-width:720px){.mg-bitacora-table{display:block;overflow-x:auto}.mg-bitacora-head{align-items:flex-start}}
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
@@ -754,26 +756,37 @@
     if(!sincronizacion||!sincronizacion.ultima_sincronizacion){el.textContent='Aún no se ha sincronizado.';return;}
     el.textContent='Última actualización: '+fmtDateTime(sincronizacion.ultima_sincronizacion);
   }
-  function renderBitacoraTable(panel,data){
+  function renderBitacoraTable(panel,data,pageNumber){
     const body=panel.querySelector('.mg-bitacora-body');
     const documentos=(data&&data.documentos)||[];
+    panel._bitacoraData=data;
     renderBitacoraLastSync(panel,data&&data.sincronizacion);
     if(!documentos.length){
       body.innerHTML='<div class="mg-bitacora-empty">Todavía no se ha registrado ningún documento. Usa "Actualizar" para sincronizar con Drive.</div>';
       return;
     }
-    const rows=documentos.map(doc=>{
+    const totalPages=Math.max(1,Math.ceil(documentos.length/BITACORA_PAGE_SIZE));
+    const currentPage=Math.min(totalPages,Math.max(1,Number(pageNumber)||1));
+    const start=(currentPage-1)*BITACORA_PAGE_SIZE;
+    const pageDocuments=documentos.slice(start,start+BITACORA_PAGE_SIZE);
+    panel._bitacoraPage=currentPage;
+    const rows=pageDocuments.map(doc=>{
       const activo=doc.estatus==='activo';
       const badge=activo?'<span class="mg-bitacora-badge activo">✅ Activo</span>':'<span class="mg-bitacora-badge eliminado">❌ Ya no está en Drive</span>';
       const nombre=doc.web_view_link?'<span class="mg-bitacora-doc-link" data-bitacora-link="'+esc(doc.web_view_link)+'">'+bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo)+'</span>':bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo);
       const ruta=doc.ruta_carpeta?esc(doc.ruta_carpeta):'Carpeta raíz';
       return '<tr class="'+(activo?'':'eliminado')+'"><td>'+nombre+'</td><td class="mg-bitacora-ruta">'+ruta+'</td><td>'+fmtDateTime(doc.fecha_movimiento||doc.fecha_modificacion_drive||doc.fecha_creacion_drive)+'</td><td>'+badge+'</td></tr>';
     }).join('');
-    body.innerHTML='<div class="mg-table-wrap"><table class="mg-bitacora-table"><thead><tr><th>Documento</th><th>Subcarpeta</th><th>Último movimiento</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    const end=Math.min(start+BITACORA_PAGE_SIZE,documentos.length);
+    const pagination='<div class="mg-bitacora-pagination"><span>Registros '+(start+1)+'–'+end+' de '+documentos.length+'</span><div class="mg-bitacora-page-actions"><button type="button" class="mg-bitacora-page-button" data-bitacora-page="'+(currentPage-1)+'" '+(currentPage===1?'disabled':'')+'>Anterior</button><span>Página '+currentPage+' de '+totalPages+'</span><button type="button" class="mg-bitacora-page-button" data-bitacora-page="'+(currentPage+1)+'" '+(currentPage===totalPages?'disabled':'')+'>Siguiente</button></div></div>';
+    body.innerHTML='<div class="mg-table-wrap"><table class="mg-bitacora-table"><thead><tr><th>Documento</th><th>Subcarpeta</th><th>Último movimiento</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+pagination+
       (data&&data.sincronizacion&&data.sincronizacion.truncado?'<div class="mg-bitacora-truncado">La carpeta es muy grande: esta sincronización no alcanzó a recorrerla por completo. Vuelve a pulsar "Actualizar".</div>':'');
     body.querySelectorAll('[data-bitacora-link]:not([data-bound])').forEach(el=>{
       el.dataset.bound='1';
       el.addEventListener('click',()=>window.open(el.dataset.bitacoraLink,'_blank','noopener,noreferrer'));
+    });
+    body.querySelectorAll('[data-bitacora-page]:not(:disabled)').forEach(button=>{
+      button.addEventListener('click',()=>renderBitacoraTable(panel,panel._bitacoraData,Number(button.dataset.bitacoraPage)));
     });
   }
   function bitacoraStatus(panel,message,isError){
@@ -783,7 +796,7 @@
   async function loadBitacoraPersisted(panel,projectId){
     try{
       const data=await fetchJson('/api/instalaciones/bitacora/'+encodeURIComponent(projectId));
-      renderBitacoraTable(panel,data);
+      renderBitacoraTable(panel,data,1);
     }catch(error){
       bitacoraStatus(panel,error.message||'No fue posible cargar la Bitácora de Obra.',true);
     }
@@ -795,7 +808,7 @@
     if(lastSyncEl)lastSyncEl.textContent='Sincronizando con Drive...';
     try{
       const data=await postJson('/api/instalaciones/bitacora/'+encodeURIComponent(projectId)+'/sync',{});
-      renderBitacoraTable(panel,data);
+      renderBitacoraTable(panel,data,1);
     }catch(error){
       if(/conectar.*google|google.*conect/i.test(String(error.message||''))){
         if(lastSyncEl)lastSyncEl.textContent='Conecta tu cuenta de Google (arriba, en "Gestor de la carpeta") para sincronizar.';
@@ -858,7 +871,7 @@
     const overview='<div class="mg-project-overview '+(coverHtml?'':'no-photo')+'">'+coverHtml+'<section class="mg-detail-section"><h3>Información general del proyecto</h3>'+grid(projectGeneral(coreRows,options))+'</section></div>';
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
     const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
-    const bitacoraObra='<section class="mg-bitacora-panel" data-project-id="'+esc(proyecto)+'" aria-label="Bitácora de Obra" hidden><div class="mg-bitacora-head"><span>Bitácora de Obra</span><div class="mg-bitacora-actions"><span class="mg-bitacora-lastsync">Preparando bitácora...</span><button type="button" class="mg-bitacora-refresh" title="Actualizar bitácora" aria-label="Actualizar bitácora">↻</button></div></div><div class="mg-bitacora-body"><div class="mg-folder-status">Preparando bitácora...</div></div></section>';
+    const bitacoraObra='<section class="mg-bitacora-panel" data-project-id="'+esc(proyecto)+'" aria-label="Bitácora de Obra" hidden><div class="mg-bitacora-head"><span>Bitácora de Obra</span><div class="mg-bitacora-actions"><span class="mg-bitacora-lastsync">Preparando bitácora...</span><button type="button" class="mg-bitacora-refresh" title="Actualizar bitácora" aria-label="Actualizar bitácora">Actualizar</button></div></div><div class="mg-bitacora-body"><div class="mg-folder-status">Preparando bitácora...</div></div></section>';
     const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+bitacoraObra+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
     const unitedRoot=unitedResponse&&(unitedResponse.data||unitedResponse);
     const unitedSource=String(unitedResponse&&(unitedResponse.origen||unitedResponse.source)||'').trim().toUpperCase();
