@@ -28,10 +28,23 @@
     view: 'list'
   };
 
-  function currentRoute_cor(){
-    if(!window.ManttoRouter || typeof window.ManttoRouter.getCurrent !== 'function') return '';
+  function currentNavigation_cor(){
+    if(!window.ManttoRouter || typeof window.ManttoRouter.getCurrent !== 'function'){
+      return { route:'', payload:null };
+    }
     const current = window.ManttoRouter.getCurrent() || {};
-    return String(current.route || '');
+    return {
+      route:String(current.route || ''),
+      payload:current.payload || null
+    };
+  }
+
+  function currentRoute_cor(){
+    return currentNavigation_cor().route;
+  }
+
+  function currentPayload_cor(){
+    return currentNavigation_cor().payload;
   }
 
   function isActive_cor(){
@@ -656,6 +669,26 @@
     try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_error){ window.scrollTo(0, 0); }
   }
 
+  function openDetailRoute_cor(id){
+    const numericId = Number(id);
+    if(!Number.isInteger(numericId) || numericId <= 0) return;
+
+    if(window.ManttoRouter && typeof window.ManttoRouter.go === 'function'){
+      window.ManttoRouter.go(ROUTE, { id:numericId }, { navigationType:'open' });
+      return;
+    }
+
+    loadDetail_cor(numericId, { force:true });
+  }
+
+  function backFromDetail_cor(){
+    if(window.ManttoRouter && typeof window.ManttoRouter.back === 'function'){
+      window.ManttoRouter.back();
+      return;
+    }
+    restoreList_cor();
+  }
+
   function applyFilterAndReload_cor(){
     state.view = 'list';
     loadList_cor({ force:true });
@@ -669,7 +702,7 @@
     root.addEventListener('click', event => {
       const back = event.target.closest('[data-ccor-back]');
       if(back){
-        restoreList_cor();
+        backFromDetail_cor();
         return;
       }
 
@@ -682,7 +715,7 @@
       const row = event.target.closest('[data-id-indice-cor]');
       if(row){
         const id = Number(row.dataset.idIndiceCor);
-        if(Number.isInteger(id) && id > 0) loadDetail_cor(id, { force:true });
+        if(Number.isInteger(id) && id > 0) openDetailRoute_cor(id);
       }
     });
 
@@ -692,7 +725,7 @@
       if(!row) return;
       event.preventDefault();
       const id = Number(row.dataset.idIndiceCor);
-      if(Number.isInteger(id) && id > 0) loadDetail_cor(id, { force:true });
+      if(Number.isInteger(id) && id > 0) openDetailRoute_cor(id);
     });
 
     root.addEventListener('change', event => {
@@ -725,19 +758,39 @@
     if(!root) return false;
 
     state.root = root;
-    state.view = 'list';
-    renderListShell_cor();
     bindEvents_cor();
+
+    const payload = currentPayload_cor();
+    const requestedId = Number(payload && payload.id);
+    if(Number.isInteger(requestedId) && requestedId > 0){
+      state.view = 'detail';
+      await loadDetail_cor(requestedId, { force:true });
+      return true;
+    }
+
+    state.view = 'list';
+    state.selectedId = null;
+    state.detail = null;
+    renderListShell_cor();
     renderCatalogs_cor();
     renderList_cor();
+
+    if(state.records.length){
+      const updated = document.getElementById('ccor-ec-updated');
+      if(updated) updated.textContent = 'Actualizado ' + formatDateTimeNow_cor();
+      return true;
+    }
+
     await loadList_cor({ force:true });
     return true;
   }
 
   function refresh_cor(){
     if(!isActive_cor()) return Promise.resolve(false);
-    if(state.view === 'detail' && state.selectedId){
-      return loadDetail_cor(state.selectedId, { force:true });
+    const payload = currentPayload_cor();
+    const requestedId = Number(payload && payload.id);
+    if(Number.isInteger(requestedId) && requestedId > 0){
+      return loadDetail_cor(requestedId, { force:true });
     }
     return loadList_cor({ force:true });
   }

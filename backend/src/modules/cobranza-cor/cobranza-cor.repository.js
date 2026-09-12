@@ -126,21 +126,33 @@ function buildIndiceScope_cor(alias, visibleUserIds) {
   };
 }
 
-function fuenteMatchesIndiceSql_cor(indiceAlias = 'i', fuenteAlias = 'f') {
+function usableProjectKeySql_cor(expression) {
+  return `NULLIF(TRIM(COALESCE(${expression}, '')), '') IS NOT NULL
+          AND UPPER(TRIM(COALESCE(${expression}, ''))) NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP')`;
+}
+
+function fuenteMatchesIndiceSql_cor(fuenteAlias, indiceAlias) {
+  const f = fuenteAlias;
+  const i = indiceAlias;
   return `(
-    (
-      NULLIF(TRIM(COALESCE(${indiceAlias}.pp, '')), '') IS NOT NULL
-      AND UPPER(TRIM(COALESCE(${fuenteAlias}.id_proyecto_origen, ''))) = UPPER(TRIM(${indiceAlias}.pp))
-    )
-    OR UPPER(TRIM(COALESCE(${fuenteAlias}.proyecto, ''))) = UPPER(TRIM(COALESCE(${indiceAlias}.proyecto, '')))
-  )`;
+        (
+          ${usableProjectKeySql_cor(`${i}.pp`)}
+          AND ${usableProjectKeySql_cor(`${f}.id_proyecto_origen`)}
+          AND UPPER(TRIM(${f}.id_proyecto_origen)) = UPPER(TRIM(${i}.pp))
+        )
+        OR
+        (
+          NULLIF(TRIM(COALESCE(${i}.proyecto, '')), '') IS NOT NULL
+          AND NULLIF(TRIM(COALESCE(${f}.proyecto, '')), '') IS NOT NULL
+          AND UPPER(TRIM(${f}.proyecto)) = UPPER(TRIM(${i}.proyecto))
+        )
+      )`;
 }
 
 async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = null) {
   const scope = buildIndiceScope_cor('i', visibleUserIds);
   const clauses = ['i.activo = 1'];
   const params = [];
-  const sourceMatch = fuenteMatchesIndiceSql_cor('i', 'f');
 
   if (filters.buscar) {
     clauses.push(`(
@@ -164,9 +176,9 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
   if (filters.soloConFuente === true) {
     clauses.push(`EXISTS (
       SELECT 1
-        FROM ${TABLES_COR.fuente} f
-       WHERE f.activo = 1
-         AND ${sourceMatch}
+        FROM ${TABLES_COR.fuente} f_filter
+       WHERE f_filter.activo = 1
+         AND ${fuenteMatchesIndiceSql_cor('f_filter', 'i')}
     )`);
   }
 
@@ -190,21 +202,21 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
        i.fianzas,
        i.tipo_fianza,
        i.repse_siroc,
-       COALESCE((
-         SELECT COUNT(*)
-           FROM ${TABLES_COR.fuente} f
-          WHERE f.activo = 1
-            AND ${sourceMatch}
-       ), 0) AS registros_estado_cuenta,
+       (
+         SELECT COUNT(DISTINCT f_count.id_fuente_cor)
+           FROM ${TABLES_COR.fuente} f_count
+          WHERE f_count.activo = 1
+            AND ${fuenteMatchesIndiceSql_cor('f_count', 'i')}
+       ) AS registros_estado_cuenta,
        (
          SELECT GROUP_CONCAT(
-           DISTINCT NULLIF(UPPER(TRIM(f.moneda)), '')
-           ORDER BY UPPER(TRIM(f.moneda))
-           SEPARATOR ','
-         )
-           FROM ${TABLES_COR.fuente} f
-          WHERE f.activo = 1
-            AND ${sourceMatch}
+                  DISTINCT NULLIF(UPPER(TRIM(f_currency.moneda)), '')
+                  ORDER BY UPPER(TRIM(f_currency.moneda))
+                  SEPARATOR ','
+                )
+           FROM ${TABLES_COR.fuente} f_currency
+          WHERE f_currency.activo = 1
+            AND ${fuenteMatchesIndiceSql_cor('f_currency', 'i')}
        ) AS monedas
      FROM ${TABLES_COR.indice} i
      WHERE ${clauses.join('\n       AND ')}
@@ -250,7 +262,6 @@ async function getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds
 }
 
 async function listFuenteEstadoCuenta_cor(connection, idIndiceCor) {
-  const sourceMatch = fuenteMatchesIndiceSql_cor('i', 'f');
   const [rows] = await connection.query(
     `SELECT DISTINCT
        f.id_fuente_cor,
@@ -277,7 +288,7 @@ async function listFuenteEstadoCuenta_cor(connection, idIndiceCor) {
        ON i.id_indice_cor = ?
       AND i.activo = 1
      WHERE f.activo = 1
-       AND ${sourceMatch}
+       AND ${fuenteMatchesIndiceSql_cor('f', 'i')}
      ORDER BY f.id_fuente_cor ASC`,
     [idIndiceCor]
   );
