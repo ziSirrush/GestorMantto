@@ -165,6 +165,7 @@
         .mg-bitacora-body{padding:0}
         .mg-bitacora-table{width:100%;border-collapse:collapse}.mg-bitacora-table th{background:#F8FAFC;color:#475569;text-align:left;font-size:10px;text-transform:uppercase;font-weight:800;padding:8px 12px;border-bottom:1px solid #E2E8F0}.mg-bitacora-table td{font-size:12px;padding:8px 12px;border-bottom:1px solid #F1F5F9;color:#334155;vertical-align:top}.mg-bitacora-table tr.eliminado td{color:#94A3B8}
         .mg-bitacora-doc-link{color:#1B4FD8;text-decoration:underline;cursor:pointer;font-weight:700}
+        .mg-bitacora-photo-evidence{display:inline-flex;align-items:center;gap:3px;margin-left:7px;border-radius:999px;padding:2px 6px;background:#E0F2FE;color:#075985;font-size:10px;font-weight:850;text-decoration:none;white-space:nowrap}
         .mg-bitacora-ruta{color:#64748B;font-size:11px}
         .mg-bitacora-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px}
         .mg-bitacora-badge.activo{background:#DCFCE7;color:#166534}
@@ -773,7 +774,9 @@
     const rows=pageDocuments.map(doc=>{
       const activo=doc.estatus==='activo';
       const badge=activo?'<span class="mg-bitacora-badge activo">✅ Activo</span>':'<span class="mg-bitacora-badge eliminado">❌ Ya no está en Drive</span>';
-      const nombre=doc.web_view_link?'<span class="mg-bitacora-doc-link" data-bitacora-link="'+esc(doc.web_view_link)+'">'+bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo)+'</span>':bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo);
+      const totalFotos=Math.max(0,Number(doc.total_imagenes_evidencia)||0);
+      const evidencia=totalFotos?'<span class="mg-bitacora-photo-evidence" title="'+totalFotos+' imagen'+(totalFotos===1?'':'es')+' de evidencia con la fecha del documento" aria-label="'+totalFotos+' imagen'+(totalFotos===1?'':'es')+' de evidencia fotográfica">📷 '+totalFotos+'</span>':'';
+      const nombre=(doc.web_view_link?'<span class="mg-bitacora-doc-link" data-bitacora-link="'+esc(doc.web_view_link)+'">'+bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo)+'</span>':bitacoraDocIcon(doc.mime_type)+' '+esc(doc.nombre_archivo))+evidencia;
       const ruta=doc.ruta_carpeta?esc(doc.ruta_carpeta):'Carpeta raíz';
       return '<tr class="'+(activo?'':'eliminado')+'"><td>'+nombre+'</td><td class="mg-bitacora-ruta">'+ruta+'</td><td>'+fmtDateTime(doc.fecha_movimiento||doc.fecha_modificacion_drive||doc.fecha_creacion_drive)+'</td><td>'+badge+'</td></tr>';
     }).join('');

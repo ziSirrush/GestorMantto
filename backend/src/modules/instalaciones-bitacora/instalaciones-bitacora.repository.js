@@ -4,26 +4,43 @@ const db = require('../../config/db');
 async function listDocumentos(idProyecto) {
   const [rows] = await db.query(
     `SELECT
-       id_documento,
-       drive_file_id,
-       nombre_archivo,
-       ruta_carpeta,
-       mime_type,
-       web_view_link,
-       fecha_creacion_drive,
-       fecha_modificacion_drive,
-       fecha_primera_deteccion,
-       fecha_ultima_deteccion,
-       fecha_baja,
-       estatus,
+       d.id_documento,
+       d.drive_file_id,
+       d.nombre_archivo,
+       d.ruta_carpeta,
+       d.mime_type,
+       d.web_view_link,
+       d.fecha_creacion_drive,
+       d.fecha_modificacion_drive,
+       d.fecha_primera_deteccion,
+       d.fecha_ultima_deteccion,
+       d.fecha_baja,
+       d.estatus,
+       COALESCE(fotos.total_imagenes_evidencia, 0) AS total_imagenes_evidencia,
+       CASE WHEN COALESCE(fotos.total_imagenes_evidencia, 0) > 0 THEN 1 ELSE 0 END AS evidencia_fotografica,
        CASE
-         WHEN estatus = 'eliminado' THEN COALESCE(fecha_baja, fecha_modificacion_drive, fecha_creacion_drive, fecha_primera_deteccion)
-         ELSE COALESCE(fecha_modificacion_drive, fecha_creacion_drive, fecha_primera_deteccion)
+         WHEN d.estatus = 'eliminado' THEN COALESCE(d.fecha_baja, d.fecha_modificacion_drive, d.fecha_creacion_drive, d.fecha_primera_deteccion)
+         ELSE COALESCE(d.fecha_modificacion_drive, d.fecha_creacion_drive, d.fecha_primera_deteccion)
        END AS fecha_movimiento
-     FROM instalaciones_bitacora_documentos
-     WHERE id_proyecto = ?
-     ORDER BY fecha_movimiento DESC, nombre_archivo ASC`,
-    [idProyecto]
+     FROM instalaciones_bitacora_documentos d
+     LEFT JOIN (
+       SELECT
+         id_proyecto,
+         DATE(fecha_creacion_drive) AS fecha_evidencia,
+         COUNT(*) AS total_imagenes_evidencia
+       FROM instalaciones_bitacora_documentos
+       WHERE id_proyecto = ?
+         AND estatus = 'activo'
+         AND mime_type LIKE 'image/%'
+         AND fecha_creacion_drive IS NOT NULL
+       GROUP BY id_proyecto, DATE(fecha_creacion_drive)
+     ) fotos
+       ON fotos.id_proyecto = d.id_proyecto
+      AND fotos.fecha_evidencia = DATE(d.fecha_creacion_drive)
+     WHERE d.id_proyecto = ?
+       AND COALESCE(d.mime_type, '') NOT LIKE 'image/%'
+     ORDER BY fecha_movimiento DESC, d.nombre_archivo ASC`,
+    [idProyecto, idProyecto]
   );
   return rows;
 }

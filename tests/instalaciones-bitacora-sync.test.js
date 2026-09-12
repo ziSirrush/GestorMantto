@@ -79,7 +79,11 @@ test('listDocumentos ordena por el movimiento más reciente', async () => {
   await repository.listDocumentos('P14223');
 
   assert.match(capturedSql, /END AS fecha_movimiento/);
-  assert.match(capturedSql, /ORDER BY fecha_movimiento DESC, nombre_archivo ASC/);
+  assert.match(capturedSql, /ORDER BY fecha_movimiento DESC, d.nombre_archivo ASC/);
+  assert.match(capturedSql, /mime_type LIKE 'image\/%'/);
+  assert.match(capturedSql, /estatus = 'activo'/);
+  assert.match(capturedSql, /fotos\.fecha_evidencia = DATE\(d\.fecha_creacion_drive\)/);
+  assert.match(capturedSql, /COALESCE\(d\.mime_type, ''\) NOT LIKE 'image\/%'/);
 });
 
 test('la interfaz muestra el movimiento y pagina la Bitácora de 15 en 15', () => {
@@ -93,6 +97,8 @@ test('la interfaz muestra el movimiento y pagina la Bitácora de 15 en 15', () =
   assert.match(details, /<th>Último movimiento<\/th>/);
   assert.match(details, /aria-label="Actualizar bitácora">Actualizar<\/button>/);
   assert.doesNotMatch(details, /\.mg-bitacora-refresh\{width:15px;height:15px;/);
+  assert.match(details, /mg-bitacora-photo-evidence/);
+  assert.match(details, /📷 '\+totalFotos/);
 });
 
 test('la Bitácora solo se inicializa con permiso visual efectivo', () => {
