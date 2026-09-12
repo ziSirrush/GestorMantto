@@ -30,6 +30,87 @@
     console.warn('No fue posible cargar el módulo general de interacciones H1.', error);
   });
 
+  // [Aster | 2026-09-11 | ASTER-MG | FASE 4 COBRANZA COR ESTADOS CUENTA FRONTEND V001]
+  const COBRANZA_COR_ESTADOS_CUENTA_ROUTE = 'cobranza-estados-cuenta';
+  let cobranzaCorEstadosCuentaModulePromise = null;
+
+  function currentAppRoute_cor(){
+    if(!window.ManttoRouter || typeof window.ManttoRouter.getCurrent !== 'function') return '';
+    const current = window.ManttoRouter.getCurrent() || {};
+    return String(current.route || '');
+  }
+
+  function ensureCobranzaCorEstadosCuentaModule_cor(){
+    if(window.ManttoCobranzaCorEstadosCuenta) return Promise.resolve(window.ManttoCobranzaCorEstadosCuenta);
+    if(cobranzaCorEstadosCuentaModulePromise) return cobranzaCorEstadosCuentaModulePromise;
+
+    cobranzaCorEstadosCuentaModulePromise = new Promise((resolve, reject) => {
+      let style = document.querySelector('link[data-mantto-cobranza-cor-estados-cuenta="1"]');
+      if(!style){
+        style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = './modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260911-fase4-estados-cuenta-v001';
+        style.dataset.manttoCobranzaCorEstadosCuenta = '1';
+        document.head.appendChild(style);
+      }
+
+      const existing = document.querySelector('script[data-mantto-cobranza-cor-estados-cuenta="1"]');
+      if(existing){
+        if(window.ManttoCobranzaCorEstadosCuenta){
+          resolve(window.ManttoCobranzaCorEstadosCuenta);
+          return;
+        }
+        existing.addEventListener('load', () => resolve(window.ManttoCobranzaCorEstadosCuenta || null), { once:true });
+        existing.addEventListener('error', reject, { once:true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260911-fase4-estados-cuenta-v001';
+      script.async = true;
+      script.dataset.manttoCobranzaCorEstadosCuenta = '1';
+      script.addEventListener('load', () => resolve(window.ManttoCobranzaCorEstadosCuenta || null), { once:true });
+      script.addEventListener('error', reject, { once:true });
+      document.head.appendChild(script);
+    }).catch(error => {
+      cobranzaCorEstadosCuentaModulePromise = null;
+      throw error;
+    });
+
+    return cobranzaCorEstadosCuentaModulePromise;
+  }
+
+  function activateCobranzaCorEstadosCuenta_cor(){
+    if(currentAppRoute_cor() !== COBRANZA_COR_ESTADOS_CUENTA_ROUTE) return Promise.resolve(false);
+    return ensureCobranzaCorEstadosCuentaModule_cor()
+      .then(module => {
+        if(currentAppRoute_cor() !== COBRANZA_COR_ESTADOS_CUENTA_ROUTE) return false;
+        if(!module || typeof module.init !== 'function') throw new Error('Módulo de Estados de Cuenta no disponible.');
+        return module.init();
+      })
+      .catch(error => {
+        console.error('No fue posible inicializar Cobranza COR · Estados de Cuenta.', error);
+        if(currentAppRoute_cor() !== COBRANZA_COR_ESTADOS_CUENTA_ROUTE) return false;
+        const view = document.getElementById('view-placeholder');
+        if(view){
+          view.innerHTML = '<div class="placeholder"><div class="card placeholder-card construction-card">' +
+            '<div class="construction-icon">⚠️</div><h1>Estados de Cuenta</h1>' +
+            '<h2>No fue posible cargar el frontend</h2><p>Revisa los archivos de Cobranza COR y vuelve a intentar.</p></div></div>';
+        }
+        return false;
+      });
+  }
+
+  function bindCobranzaCorEstadosCuenta_cor(){
+    if(window.__MANTTO_COBRANZA_COR_ESTADOS_CUENTA_BOUND__) return;
+    window.__MANTTO_COBRANZA_COR_ESTADOS_CUENTA_BOUND__ = true;
+    document.addEventListener('mantto:navigation', event => {
+      const route = String(event && event.detail && event.detail.route || '');
+      if(route === COBRANZA_COR_ESTADOS_CUENTA_ROUTE) activateCobranzaCorEstadosCuenta_cor();
+    });
+    activateCobranzaCorEstadosCuenta_cor();
+  }
+
 
   function formatDate(date){
     return date.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
@@ -393,6 +474,7 @@
     const activeRoute=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent().route:'home';
     if(window.ManttoHome) window.ManttoHome.init({loadData:activeRoute==='home'});
     bindHomeHoyPermission_gnral();
+    bindCobranzaCorEstadosCuenta_cor();
     ensureInteractionsModule_gnral()
       .then(module => {
         if(module && typeof module.init === 'function') module.init();

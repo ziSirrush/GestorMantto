@@ -9,6 +9,8 @@ const ROUTES_COR = Object.freeze({
   carga_indice: '/api/cobranza-cor/carga/indice',
   carga_fuente: '/api/cobranza-cor/carga/fuente',
   carga_aditivas: '/api/cobranza-cor/carga/aditivas',
+  estados_cuenta: '/api/cobranza-cor/estados-cuenta',
+  estado_cuenta_detalle: '/api/cobranza-cor/estados-cuenta/:idIndiceCor',
   aditivas: '/api/cobranza-cor/aditivas',
   adeudos_contractuales: '/api/cobranza-cor/adeudos-contractuales'
 });
@@ -72,7 +74,7 @@ function decimal_cor(value, fieldName) {
   }
 
   let text = String(value).trim();
-  if (!text) return null;
+  if (!text || text === '-') return null;
   text = text
     .replace(/\u00a0/g, '')
     .replace(/\s+/g, '')
@@ -106,7 +108,7 @@ function percent_cor(value, fieldName) {
   }
 
   const text = String(value).trim();
-  if (!text) return null;
+  if (!text || text === '-') return null;
   if (text.endsWith('%')) {
     const number = decimal_cor(text.slice(0, -1), fieldName);
     return number === null ? null : number / 100;
@@ -125,6 +127,7 @@ function percentage01_cor(value, fieldName) {
 
 function integer_cor(value, fieldName, { min = null, max = null } = {}) {
   if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string' && value.trim() === '-') return null;
   const number = Number(value);
   if (!Number.isInteger(number)) throw new Error(`${fieldName} debe ser un entero.`);
   if (min !== null && number < min) throw new Error(`${fieldName} debe ser mayor o igual a ${min}.`);
@@ -162,28 +165,46 @@ function date_cor(value, fieldName) {
   }
 
   const text = String(value).trim();
-  if (!text) return null;
+  if (!text || text === '-') return null;
 
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  if (iso) return validateDateParts_cor(Number(iso[3]), Number(iso[2]), Number(iso[1]), fieldName);
 
-  const dmy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const dmy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
   if (dmy) {
-    const day = Number(dmy[1]);
-    const month = Number(dmy[2]);
-    const year = Number(dmy[3]);
-    const candidate = new Date(Date.UTC(year, month - 1, day));
-    if (
-      candidate.getUTCFullYear() !== year ||
-      candidate.getUTCMonth() !== month - 1 ||
-      candidate.getUTCDate() !== day
-    ) {
-      throw new Error(`${fieldName} no es una fecha valida.`);
-    }
-    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const year = dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+    return validateDateParts_cor(Number(dmy[1]), Number(dmy[2]), year, fieldName);
   }
 
-  throw new Error(`${fieldName} debe usar YYYY-MM-DD, ISO o DD/MM/YYYY.`);
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const named = normalized.match(/^(\d{1,2})-([a-z]{3})-(\d{2}|\d{4})$/);
+  if (named) {
+    const months = {
+      ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6,
+      jul: 7, ago: 8, sep: 9, oct: 10, nov: 11, dic: 12
+    };
+    const month = months[named[2]];
+    if (!month) throw new Error(`${fieldName} no es una fecha valida.`);
+    const year = named[3].length === 2 ? 2000 + Number(named[3]) : Number(named[3]);
+    return validateDateParts_cor(Number(named[1]), month, year, fieldName);
+  }
+
+  throw new Error(`${fieldName} debe usar YYYY-MM-DD, DD/MM/YYYY o DD-mmm-AA en espanol.`);
+}
+
+function validateDateParts_cor(day, month, year, fieldName) {
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    throw new Error(`${fieldName} no es una fecha valida.`);
+  }
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function isEmptyRow_cor(row) {
@@ -450,6 +471,345 @@ async function cargarAditivas_cor(payload) {
   });
 }
 
+function numberOrNull_cor(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function integerOrNull_cor(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function positiveId_cor(value, fieldName = 'id') {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw badRequest(`${fieldName} debe ser un entero positivo.`);
+  }
+  return parsed;
+}
+
+function roundAmount_cor(value) {
+  const number = Number(value || 0);
+  return Math.round((number + Number.EPSILON) * 100) / 100;
+}
+
+function canonicalText_cor(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ');
+}
+
+function isPaidStatus_cor(value) {
+  const status = canonicalText_cor(value);
+  if (!status) return false;
+  if (status.startsWith('NO PAGAD') || status.startsWith('NO COBRAD') || status.startsWith('NO LIQUIDAD')) {
+    return false;
+  }
+  return [
+    'PAGADO',
+    'PAGADA',
+    'COBRADO',
+    'COBRADA',
+    'LIQUIDADO',
+    'LIQUIDADA'
+  ].includes(status);
+}
+
+function resolveVisibleUserIds_cor(informationAccess) {
+  const context = informationAccess || null;
+  if (!context) {
+    throw httpError(403, 'No fue posible resolver el alcance de informacion de CORELLIAN.');
+  }
+
+  const domain = String(context.dominio || context.empresa || '').trim().toUpperCase();
+  if (domain !== 'CORELLIAN') {
+    throw httpError(403, 'El alcance de informacion no corresponde a CORELLIAN.');
+  }
+
+  if (context.requiere_filtro_usuario !== true) return null;
+
+  return [...new Set((Array.isArray(context.usuarios_visibles) ? context.usuarios_visibles : [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b);
+}
+
+function normalizeEstadosCuentaFilters_cor(query = {}) {
+  const buscar = cleanText_cor(query.q ?? query.buscar, 200);
+  const estatus = cleanText_cor(query.estatus, 100);
+
+  let anio = null;
+  if (query.anio !== undefined && query.anio !== null && String(query.anio).trim() !== '') {
+    anio = year_cor(query.anio, 'anio');
+  }
+
+  let soloConFuente = false;
+  if (query.solo_con_fuente !== undefined || query.soloConFuente !== undefined) {
+    const raw = query.solo_con_fuente ?? query.soloConFuente;
+    const value = canonicalText_cor(raw);
+    if (['1', 'TRUE', 'SI', 'S', 'YES', 'Y'].includes(value)) {
+      soloConFuente = true;
+    } else if (['0', 'FALSE', 'NO', 'N', ''].includes(value)) {
+      soloConFuente = false;
+    } else {
+      throw badRequest('solo_con_fuente debe representar SI/NO o 1/0.');
+    }
+  }
+
+  return { buscar, anio, estatus, soloConFuente };
+}
+
+function serializeIndiceEstadoCuenta_cor(row) {
+  const currencies = cleanText_cor(row?.monedas)
+    ? String(row.monedas).split(',').map((item) => item.trim()).filter(Boolean)
+    : [];
+
+  return {
+    id_indice_cor: integerOrNull_cor(row?.id_indice_cor),
+    proyecto: cleanText_cor(row?.proyecto),
+    qty: integerOrNull_cor(row?.qty),
+    anio: integerOrNull_cor(row?.anio),
+    pp: cleanText_cor(row?.pp),
+    mrc: cleanText_cor(row?.mrc),
+    adm: cleanText_cor(row?.adm),
+    sup: cleanText_cor(row?.sup),
+    vend: cleanText_cor(row?.vend),
+    edo: cleanText_cor(row?.edo),
+    estatus: cleanText_cor(row?.estatus),
+    cobranza_usd: numberOrNull_cor(row?.cobranza_usd),
+    cobranza_mxn: numberOrNull_cor(row?.cobranza_mxn),
+    fianzas: Number(row?.fianzas || 0) === 1,
+    tipo_fianza: cleanText_cor(row?.tipo_fianza),
+    repse_siroc: Number(row?.repse_siroc || 0) === 1,
+    registros_estado_cuenta: integerOrNull_cor(row?.registros_estado_cuenta) || 0,
+    monedas: currencies,
+    estado_cuenta_disponible: (integerOrNull_cor(row?.registros_estado_cuenta) || 0) > 0
+  };
+}
+
+function serializeFuenteEstadoCuenta_cor(row) {
+  const total = numberOrNull_cor(row?.total);
+  const pagoTotal = numberOrNull_cor(row?.pago_total);
+  const pagado = isPaidStatus_cor(row?.estatus_factura);
+  const pagoContabilizado = pagado
+    ? (pagoTotal !== null ? pagoTotal : (total !== null ? total : 0))
+    : 0;
+  const pendiente = total === null
+    ? null
+    : Math.max(roundAmount_cor(total - pagoContabilizado), 0);
+
+  return {
+    id_fuente_cor: integerOrNull_cor(row?.id_fuente_cor),
+    id_indice_cor: integerOrNull_cor(row?.id_indice_cor),
+    proyecto: cleanText_cor(row?.proyecto),
+    id_proyecto_origen: cleanText_cor(row?.id_proyecto_origen),
+    porcentaje: numberOrNull_cor(row?.porcentaje),
+    condicion: cleanText_cor(row?.condicion),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    subtotal: numberOrNull_cor(row?.subtotal),
+    iva: numberOrNull_cor(row?.iva),
+    total,
+    factura: cleanText_cor(row?.factura),
+    pago_total: pagoTotal,
+    estatus_factura: cleanText_cor(row?.estatus_factura),
+    fecha_pago: cleanText_cor(row?.fecha_pago),
+    fecha_vencimiento: cleanText_cor(row?.fecha_vencimiento),
+    dias_vencimiento: integerOrNull_cor(row?.dias_vencimiento),
+    estimado_pago: cleanText_cor(row?.estimado_pago),
+    estatus_vencimiento: cleanText_cor(row?.estatus_vencimiento),
+    anio_proyecto: integerOrNull_cor(row?.anio_proyecto),
+    es_pagado: pagado,
+    pago_contabilizado: roundAmount_cor(pagoContabilizado),
+    pendiente_calculado: pendiente
+  };
+}
+
+function indexCollectionPercentage_cor(project, currency) {
+  const code = String(currency || '').trim().toUpperCase();
+  if (code === 'USD') return project.cobranza_usd;
+  if (code === 'MXN') return project.cobranza_mxn;
+  return null;
+}
+
+function buildEstadoCuentaSummary_cor(project, rows) {
+  const buckets = new Map();
+
+  rows.forEach((row) => {
+    const currency = row.moneda || 'SIN_MONEDA';
+    if (!buckets.has(currency)) {
+      buckets.set(currency, {
+        moneda: currency,
+        registros: 0,
+        pagados: 0,
+        no_pagados: 0,
+        subtotal: 0,
+        iva: 0,
+        total: 0,
+        cobrado: 0,
+        pendiente: 0
+      });
+    }
+
+    const bucket = buckets.get(currency);
+    bucket.registros += 1;
+    bucket.pagados += row.es_pagado ? 1 : 0;
+    bucket.no_pagados += row.es_pagado ? 0 : 1;
+    bucket.subtotal += row.subtotal || 0;
+    bucket.iva += row.iva || 0;
+    bucket.total += row.total || 0;
+    bucket.cobrado += row.pago_contabilizado || 0;
+    bucket.pendiente += row.pendiente_calculado || 0;
+  });
+
+  const priority = new Map([['USD', 1], ['MXN', 2], ['EUR', 3], ['SIN_MONEDA', 99]]);
+  const monedas = [...buckets.values()]
+    .map((bucket) => {
+      const total = roundAmount_cor(bucket.total);
+      const cobrado = roundAmount_cor(bucket.cobrado);
+      const porcentajeCalculado = total > 0 ? cobrado / total : null;
+      return {
+        ...bucket,
+        subtotal: roundAmount_cor(bucket.subtotal),
+        iva: roundAmount_cor(bucket.iva),
+        total,
+        cobrado,
+        pendiente: roundAmount_cor(bucket.pendiente),
+        porcentaje_cobrado_calculado: porcentajeCalculado === null
+          ? null
+          : Math.round(porcentajeCalculado * 1000000) / 1000000,
+        porcentaje_cobranza_indice: indexCollectionPercentage_cor(project, bucket.moneda)
+      };
+    })
+    .sort((a, b) => {
+      const left = priority.get(a.moneda) ?? 50;
+      const right = priority.get(b.moneda) ?? 50;
+      if (left !== right) return left - right;
+      return a.moneda.localeCompare(b.moneda);
+    });
+
+  return {
+    registros: rows.length,
+    monedas,
+    nota: 'Los importes se resumen por moneda; no se suman monedas diferentes.'
+  };
+}
+
+function buildEstadoCuentaQuality_cor(project, rows, summary) {
+  let filasSinMoneda = 0;
+  let filasTotalInconsistente = 0;
+  let filasPagadasSinFecha = 0;
+
+  rows.forEach((row) => {
+    if (!row.moneda) filasSinMoneda += 1;
+    if (row.es_pagado && !row.fecha_pago) filasPagadasSinFecha += 1;
+
+    if (row.subtotal !== null && row.iva !== null && row.total !== null) {
+      const difference = Math.abs(roundAmount_cor(row.subtotal + row.iva - row.total));
+      if (difference > 0.05) filasTotalInconsistente += 1;
+    }
+  });
+
+  const comparacion = summary.monedas
+    .filter((item) => ['USD', 'MXN'].includes(item.moneda))
+    .map((item) => {
+      const indexPct = item.porcentaje_cobranza_indice;
+      const calcPct = item.porcentaje_cobrado_calculado;
+      return {
+        moneda: item.moneda,
+        porcentaje_indice: indexPct,
+        porcentaje_calculado_fuente: calcPct,
+        diferencia: indexPct === null || calcPct === null
+          ? null
+          : Math.round((indexPct - calcPct) * 1000000) / 1000000
+      };
+    });
+
+  return {
+    tiene_estado_cuenta: rows.length > 0,
+    filas_sin_moneda: filasSinMoneda,
+    filas_total_inconsistente: filasTotalInconsistente,
+    filas_pagadas_sin_fecha_pago: filasPagadasSinFecha,
+    comparacion_porcentaje_indice_fuente: comparacion,
+    referencia_proyecto: {
+      cobranza_usd: project.cobranza_usd,
+      cobranza_mxn: project.cobranza_mxn
+    }
+  };
+}
+
+async function listarEstadosCuenta_cor(query = {}, informationAccess) {
+  const filters = normalizeEstadosCuentaFilters_cor(query);
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+
+  try {
+    const rows = await repository.listEstadosCuenta_cor(connection, filters, visibleUserIds);
+    const data = rows.map(serializeIndiceEstadoCuenta_cor);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.estados_cuenta,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      total: data.length,
+      filtros: {
+        q: filters.buscar,
+        anio: filters.anio,
+        estatus: filters.estatus,
+        solo_con_fuente: filters.soloConFuente
+      },
+      data
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function detalleEstadoCuenta_cor(idIndiceCorValue, informationAccess) {
+  const idIndiceCor = positiveId_cor(idIndiceCorValue, 'idIndiceCor');
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+
+  try {
+    const indexRow = await repository.getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds);
+    if (!indexRow) {
+      throw httpError(404, 'Proyecto no encontrado o fuera del alcance autorizado.');
+    }
+
+    const sourceRows = await repository.listFuenteEstadoCuenta_cor(connection, idIndiceCor);
+    const project = serializeIndiceEstadoCuenta_cor(indexRow);
+    const detailRows = sourceRows.map(serializeFuenteEstadoCuenta_cor);
+    const summary = buildEstadoCuentaSummary_cor(project, detailRows);
+    project.registros_estado_cuenta = detailRows.length;
+    project.monedas = summary.monedas
+      .map((item) => item.moneda)
+      .filter((currency) => currency !== 'SIN_MONEDA');
+    project.estado_cuenta_disponible = detailRows.length > 0;
+    const quality = buildEstadoCuentaQuality_cor(project, detailRows, summary);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.estado_cuenta_detalle,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      proyecto: project,
+      resumen: summary,
+      calidad: quality,
+      estado_cuenta: detailRows
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+
 function pendingFunctionalRead_cor(kind) {
   const config = kind === 'adeudos_contractuales'
     ? {
@@ -489,6 +849,8 @@ module.exports = {
   cargarIndice_cor,
   cargarFuente_cor,
   cargarAditivas_cor,
+  listarEstadosCuenta_cor,
+  detalleEstadoCuenta_cor,
   getAditivas_cor,
   getAdeudosContractuales_cor
 };

@@ -39,6 +39,26 @@ async function cargarAditivas_cor(req, res, next) {
   }
 }
 
+async function listarEstadosCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.listarEstadosCuenta_cor(req.query || {}, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function detalleEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.detalleEstadoCuenta_cor(req.params.idIndiceCor, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function aditivas_cor(_req, res, next) {
   try {
     return res.json({
@@ -67,6 +87,8 @@ module.exports = {
   cargarIndice_cor,
   cargarFuente_cor,
   cargarAditivas_cor,
+  listarEstadosCuenta_cor,
+  detalleEstadoCuenta_cor,
   aditivas_cor,
   adeudosContractuales_cor
 };
