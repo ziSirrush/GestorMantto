@@ -12,6 +12,7 @@ const ROUTES_COR = Object.freeze({
   estados_cuenta: '/api/cobranza-cor/estados-cuenta',
   estado_cuenta_detalle: '/api/cobranza-cor/estados-cuenta/:idIndiceCor',
   aditivas: '/api/cobranza-cor/aditivas',
+  aditiva_detalle: '/api/cobranza-cor/aditivas/:idAditivaCor',
   adeudos_contractuales: '/api/cobranza-cor/adeudos-contractuales'
 });
 
@@ -834,38 +835,287 @@ async function detalleEstadoCuenta_cor(idIndiceCorValue, informationAccess) {
 }
 
 
-function pendingFunctionalRead_cor(kind) {
-  const config = kind === 'adeudos_contractuales'
-    ? {
-        route: ROUTES_COR.adeudos_contractuales,
-        label: 'Adeudos contractuales',
-        sourceTable: repository.TABLES_COR.fuente
-      }
-    : {
-        route: ROUTES_COR.aditivas,
-        label: 'Aditivas',
-        sourceTable: repository.TABLES_COR.aditivas
-      };
+function booleanQuery_cor(value, fieldName, fallback = false) {
+  if (value === undefined || value === null || String(value).trim() === '') return fallback;
+  const normalized = canonicalText_cor(value);
+  if (['1', 'TRUE', 'SI', 'S', 'YES', 'Y'].includes(normalized)) return true;
+  if (['0', 'FALSE', 'NO', 'N'].includes(normalized)) return false;
+  throw badRequest(`${fieldName} debe representar SI/NO o 1/0.`);
+}
 
+function normalizeAditivasFilters_cor(query = {}) {
+  const filters = {
+    buscar: cleanText_cor(query.q ?? query.buscar, 200),
+    departamento: cleanText_cor(query.departamento, 100),
+    categoria: cleanText_cor(query.categoria, 100),
+    firmaCot: cleanText_cor(query.firma_cot ?? query.firmaCot, 100),
+    estatusTrabajos: cleanText_cor(query.estatus_trabajos ?? query.estatusTrabajos, 100),
+    estatusCobranza: cleanText_cor(query.estatus_cobranza ?? query.estatusCobranza, 100),
+    supervisor: cleanText_cor(query.sup ?? query.supervisor, 50),
+    moneda: cleanText_cor(query.moneda, 10),
+    soloPendientes: booleanQuery_cor(
+      query.solo_pendientes ?? query.soloPendientes,
+      'solo_pendientes',
+      false
+    )
+  };
+
+  if (query.anio !== undefined && query.anio !== null && String(query.anio).trim() !== '') {
+    filters.anio = year_cor(query.anio, 'anio');
+  } else {
+    filters.anio = null;
+  }
+
+  const page = integer_cor(query.page ?? query.pagina, 'page', { min: 1 }) || 1;
+  const pageSize = integer_cor(query.page_size ?? query.pageSize ?? query.tamano, 'page_size', {
+    min: 1,
+    max: 100
+  }) || 50;
+
+  return { ...filters, page, pageSize };
+}
+
+function serializeAditiva_cor(row) {
+  return {
+    id_aditiva_cor: integerOrNull_cor(row?.id_aditiva_cor),
+    id_indice_cor: integerOrNull_cor(row?.id_indice_cor),
+    anio_cot: integerOrNull_cor(row?.anio_cot),
+    departamento: cleanText_cor(row?.departamento),
+    categoria: cleanText_cor(row?.categoria),
+    fecha_cot: cleanText_cor(row?.fecha_cot),
+    firma_cot: cleanText_cor(row?.firma_cot),
+    no_cot: cleanText_cor(row?.no_cot),
+    ov: cleanText_cor(row?.ov),
+    factura: cleanText_cor(row?.factura),
+    estatus_trabajos: cleanText_cor(row?.estatus_trabajos),
+    estatus_cobranza: cleanText_cor(row?.estatus_cobranza),
+    sup: cleanText_cor(row?.sup),
+    pp_ns: cleanText_cor(row?.pp_ns),
+    proyecto: cleanText_cor(row?.proyecto),
+    equipo: cleanText_cor(row?.equipo),
+    descripcion: cleanText_cor(row?.descripcion),
+    comentario_fuente: cleanText_cor(row?.comentario_fuente),
+    monto_subtotal: numberOrNull_cor(row?.monto_subtotal),
+    iva_pct: numberOrNull_cor(row?.iva_pct),
+    monto_iva: numberOrNull_cor(row?.monto_iva),
+    monto_total: numberOrNull_cor(row?.monto_total),
+    gasto_subtotal: numberOrNull_cor(row?.gasto_subtotal),
+    oc: cleanText_cor(row?.oc),
+    diferencia: numberOrNull_cor(row?.diferencia),
+    utilidad_real_pct: numberOrNull_cor(row?.utilidad_real_pct),
+    monto_pagado: numberOrNull_cor(row?.monto_pagado),
+    pagado_sin_iva: numberOrNull_cor(row?.pagado_sin_iva),
+    pendiente_pago: numberOrNull_cor(row?.pendiente_pago),
+    fecha_pago: cleanText_cor(row?.fecha_pago),
+    semana_pago: cleanText_cor(row?.semana_pago),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    gasto_ejercido: cleanText_cor(row?.gasto_ejercido),
+    vinculo_indice: integerOrNull_cor(row?.id_indice_cor) !== null,
+    indice: integerOrNull_cor(row?.id_indice_cor) === null
+      ? null
+      : {
+          id_indice_cor: integerOrNull_cor(row?.id_indice_cor),
+          proyecto: cleanText_cor(row?.indice_proyecto),
+          pp: cleanText_cor(row?.indice_pp),
+          anio: integerOrNull_cor(row?.indice_anio)
+        }
+  };
+}
+
+function countByText_cor(rows, fieldName) {
+  const counts = new Map();
+  rows.forEach((row) => {
+    const value = cleanText_cor(row?.[fieldName]);
+    if (!value) return;
+    const key = value;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return [...counts.entries()]
+    .map(([valor, registros]) => ({ valor, registros }))
+    .sort((a, b) => b.registros - a.registros || a.valor.localeCompare(b.valor, 'es'));
+}
+
+function buildAditivasSummary_cor(rows) {
+  const buckets = new Map();
+  let conPendiente = 0;
+  let vinculadas = 0;
+  let sinVinculo = 0;
+
+  rows.forEach((row) => {
+    const currency = cleanText_cor(row?.moneda)?.toUpperCase() || 'SIN_MONEDA';
+    if (!buckets.has(currency)) {
+      buckets.set(currency, {
+        moneda: currency,
+        registros: 0,
+        monto_subtotal: 0,
+        monto_iva: 0,
+        monto_total: 0,
+        gasto_subtotal: 0,
+        diferencia: 0,
+        monto_pagado: 0,
+        pagado_sin_iva: 0,
+        pendiente_pago: 0
+      });
+    }
+
+    const bucket = buckets.get(currency);
+    bucket.registros += 1;
+    bucket.monto_subtotal += Number(row?.monto_subtotal || 0);
+    bucket.monto_iva += Number(row?.monto_iva || 0);
+    bucket.monto_total += Number(row?.monto_total || 0);
+    bucket.gasto_subtotal += Number(row?.gasto_subtotal || 0);
+    bucket.diferencia += Number(row?.diferencia || 0);
+    bucket.monto_pagado += Number(row?.monto_pagado || 0);
+    bucket.pagado_sin_iva += Number(row?.pagado_sin_iva || 0);
+    bucket.pendiente_pago += Number(row?.pendiente_pago || 0);
+
+    if (Number(row?.pendiente_pago || 0) > 0) conPendiente += 1;
+    if (integerOrNull_cor(row?.id_indice_cor) === null) sinVinculo += 1;
+    else vinculadas += 1;
+  });
+
+  const porMoneda = [...buckets.values()]
+    .map((bucket) => ({
+      ...bucket,
+      monto_subtotal: roundAmount_cor(bucket.monto_subtotal),
+      monto_iva: roundAmount_cor(bucket.monto_iva),
+      monto_total: roundAmount_cor(bucket.monto_total),
+      gasto_subtotal: roundAmount_cor(bucket.gasto_subtotal),
+      diferencia: roundAmount_cor(bucket.diferencia),
+      monto_pagado: roundAmount_cor(bucket.monto_pagado),
+      pagado_sin_iva: roundAmount_cor(bucket.pagado_sin_iva),
+      pendiente_pago: roundAmount_cor(bucket.pendiente_pago)
+    }))
+    .sort((a, b) => a.moneda.localeCompare(b.moneda));
+
+  return {
+    registros: rows.length,
+    con_pendiente: conPendiente,
+    vinculadas_indice: vinculadas,
+    sin_vinculo_indice: sinVinculo,
+    por_moneda: porMoneda,
+    por_estatus_cobranza: countByText_cor(rows, 'estatus_cobranza'),
+    por_estatus_trabajos: countByText_cor(rows, 'estatus_trabajos'),
+    por_firma_cot: countByText_cor(rows, 'firma_cot'),
+    nota: 'Los importes se resumen por moneda. No se suman monedas diferentes entre si.'
+  };
+}
+
+function distinctValues_cor(rows, fieldName, { numeric = false } = {}) {
+  const values = new Set();
+  rows.forEach((row) => {
+    if (numeric) {
+      const value = integerOrNull_cor(row?.[fieldName]);
+      if (value !== null) values.add(value);
+      return;
+    }
+    const value = cleanText_cor(row?.[fieldName]);
+    if (value) values.add(value);
+  });
+
+  return [...values].sort((a, b) => numeric
+    ? Number(b) - Number(a)
+    : String(a).localeCompare(String(b), 'es'));
+}
+
+function buildAditivasCatalogs_cor(rows) {
+  return {
+    anios: distinctValues_cor(rows, 'anio_cot', { numeric: true }),
+    departamentos: distinctValues_cor(rows, 'departamento'),
+    categorias: distinctValues_cor(rows, 'categoria'),
+    firmas_cot: distinctValues_cor(rows, 'firma_cot'),
+    estatus_trabajos: distinctValues_cor(rows, 'estatus_trabajos'),
+    estatus_cobranza: distinctValues_cor(rows, 'estatus_cobranza'),
+    supervisores: distinctValues_cor(rows, 'sup'),
+    monedas: distinctValues_cor(rows, 'moneda').map((value) => value.toUpperCase())
+  };
+}
+
+async function listarAditivas_cor(query = {}, informationAccess) {
+  const filters = normalizeAditivasFilters_cor(query);
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+
+  try {
+    const filteredRows = await repository.listAditivas_cor(connection, filters, visibleUserIds);
+    const catalogRows = await repository.listAditivas_cor(connection, {}, visibleUserIds);
+
+    const total = filteredRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+    const page = Math.min(filters.page, totalPages);
+    const start = (page - 1) * filters.pageSize;
+    const pageRows = filteredRows.slice(start, start + filters.pageSize);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.aditivas,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      filtros: {
+        q: filters.buscar,
+        anio: filters.anio,
+        departamento: filters.departamento,
+        categoria: filters.categoria,
+        firma_cot: filters.firmaCot,
+        estatus_trabajos: filters.estatusTrabajos,
+        estatus_cobranza: filters.estatusCobranza,
+        sup: filters.supervisor,
+        moneda: filters.moneda,
+        solo_pendientes: filters.soloPendientes
+      },
+      paginacion: {
+        pagina: page,
+        tamano: filters.pageSize,
+        total_registros: total,
+        total_paginas: totalPages
+      },
+      resumen: buildAditivasSummary_cor(filteredRows),
+      catalogos: buildAditivasCatalogs_cor(catalogRows),
+      data: pageRows.map(serializeAditiva_cor)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function detalleAditiva_cor(idAditivaCorValue, informationAccess) {
+  const idAditivaCor = positiveId_cor(idAditivaCorValue, 'idAditivaCor');
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+
+  try {
+    const row = await repository.getAditiva_cor(connection, idAditivaCor, visibleUserIds);
+    if (!row) {
+      throw httpError(404, 'Aditiva no encontrada o fuera del alcance autorizado.');
+    }
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.aditiva_detalle,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      aditiva: serializeAditiva_cor(row)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+
+function getAdeudosContractuales_cor() {
   return {
     available: false,
     supported: false,
     domain: 'CORELLIAN',
-    route: config.route,
-    source_table: config.sourceTable,
+    route: ROUTES_COR.adeudos_contractuales,
+    source_table: repository.TABLES_COR.fuente,
     status: 'PENDING_COBRANZA_COR_FUNCTIONAL_READ',
-    label: config.label,
-    message: `La tabla ${config.sourceTable} ya existe; la lectura funcional de ${config.label} se implementa en una fase posterior.`,
+    label: 'Adeudos contractuales',
+    message: `La tabla ${repository.TABLES_COR.fuente} ya existe; la lectura funcional de Adeudos contractuales se implementa en una fase posterior.`,
     data: []
   };
-}
-
-function getAditivas_cor() {
-  return pendingFunctionalRead_cor('aditivas');
-}
-
-function getAdeudosContractuales_cor() {
-  return pendingFunctionalRead_cor('adeudos_contractuales');
 }
 
 module.exports = {
@@ -875,6 +1125,7 @@ module.exports = {
   cargarAditivas_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
-  getAditivas_cor,
+  listarAditivas_cor,
+  detalleAditiva_cor,
   getAdeudosContractuales_cor
 };

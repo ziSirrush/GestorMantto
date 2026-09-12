@@ -24,6 +24,13 @@ const requireEstadosCuentaCor = humanInformationGuard_gnral({
   groupingCode: 'COBRANZA'
 });
 
+
+const requireAditivasCor = humanInformationGuard_gnral({
+  permissionCode: 'COBRANZA_ADITIVAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  domain: 'CORELLIAN',
+  groupingCode: 'COBRANZA'
+});
+
 router.post('/carga/indice', requireCobranzaCorIntegration, controller.cargarIndice_cor);
 router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
@@ -31,8 +38,10 @@ router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarA
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
 router.get('/estados-cuenta/:idIndiceCor', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
 
-// Existing read routes remain reserved for the rest of the functional backend phase.
-router.get('/aditivas', requireAuth, controller.aditivas_cor);
+router.get('/aditivas', ...requireAditivasCor, controller.aditivas_cor);
+router.get('/aditivas/:idAditivaCor', ...requireAditivasCor, controller.detalleAditiva_cor);
+
+// Existing read route remains reserved for the rest of the functional backend phase.
 router.get('/adeudos-contractuales', requireAuth, controller.adeudosContractuales_cor);
 
 module.exports = router;

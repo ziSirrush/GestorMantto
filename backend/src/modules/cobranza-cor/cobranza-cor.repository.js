@@ -127,6 +127,156 @@ function buildIndiceScope_cor(alias, visibleUserIds) {
   };
 }
 
+function buildAditivaScope_cor(alias, visibleUserIds) {
+  if (visibleUserIds === null) {
+    return { sql: '', params: [] };
+  }
+
+  const indiceScope = buildIndiceScope_cor('i_scope', visibleUserIds);
+
+  return {
+    sql: `
+      AND EXISTS (
+        SELECT 1
+          FROM ${TABLES_COR.indice} i_scope
+         WHERE i_scope.id_indice_cor = ${alias}.id_indice_cor
+           AND i_scope.activo = 1
+           ${indiceScope.sql}
+      )`,
+    params: indiceScope.params
+  };
+}
+
+function buildAditivasWhere_cor(filters = {}, visibleUserIds = null) {
+  const scope = buildAditivaScope_cor('a', visibleUserIds);
+  const clauses = ['a.activo = 1'];
+  const params = [];
+
+  if (filters.buscar) {
+    clauses.push(`(
+      UPPER(TRIM(COALESCE(a.proyecto, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(a.pp_ns, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(a.no_cot, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(a.ov, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(a.factura, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(a.equipo, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(a.descripcion, ''))) LIKE UPPER(?)
+    )`);
+    const pattern = `%${filters.buscar}%`;
+    params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern);
+  }
+
+  if (Number.isInteger(filters.anio)) {
+    clauses.push('a.anio_cot = ?');
+    params.push(filters.anio);
+  }
+
+  const exactTextFilters = [
+    ['departamento', 'a.departamento'],
+    ['categoria', 'a.categoria'],
+    ['firmaCot', 'a.firma_cot'],
+    ['estatusTrabajos', 'a.estatus_trabajos'],
+    ['estatusCobranza', 'a.estatus_cobranza'],
+    ['supervisor', 'a.sup'],
+    ['moneda', 'a.moneda']
+  ];
+
+  exactTextFilters.forEach(([key, column]) => {
+    if (!filters[key]) return;
+    clauses.push(`UPPER(TRIM(COALESCE(${column}, ''))) = UPPER(TRIM(?))`);
+    params.push(filters[key]);
+  });
+
+  if (filters.soloPendientes === true) {
+    clauses.push('COALESCE(a.pendiente_pago, 0) > 0');
+  }
+
+  params.push(...scope.params);
+
+  return {
+    sql: `${clauses.join('\n       AND ')}${scope.sql}`,
+    params
+  };
+}
+
+function aditivaSelectSql_cor() {
+  return `
+       a.id_aditiva_cor,
+       a.id_indice_cor,
+       a.anio_cot,
+       a.departamento,
+       a.categoria,
+       DATE_FORMAT(a.fecha_cot, '%Y-%m-%d') AS fecha_cot,
+       a.firma_cot,
+       a.no_cot,
+       a.ov,
+       a.factura,
+       a.estatus_trabajos,
+       a.estatus_cobranza,
+       a.sup,
+       a.pp_ns,
+       a.proyecto,
+       a.equipo,
+       a.descripcion,
+       a.comentario_fuente,
+       a.monto_subtotal,
+       a.iva_pct,
+       a.monto_iva,
+       a.monto_total,
+       a.gasto_subtotal,
+       a.oc,
+       a.diferencia,
+       a.utilidad_real_pct,
+       a.monto_pagado,
+       a.pagado_sin_iva,
+       a.pendiente_pago,
+       DATE_FORMAT(a.fecha_pago, '%Y-%m-%d') AS fecha_pago,
+       a.semana_pago,
+       a.moneda,
+       a.gasto_ejercido,
+       i.proyecto AS indice_proyecto,
+       i.pp AS indice_pp,
+       i.anio AS indice_anio`;
+}
+
+async function listAditivas_cor(connection, filters = {}, visibleUserIds = null) {
+  const where = buildAditivasWhere_cor(filters, visibleUserIds);
+  const [rows] = await connection.query(
+    `SELECT${aditivaSelectSql_cor()}
+       FROM ${TABLES_COR.aditivas} a
+       LEFT JOIN ${TABLES_COR.indice} i
+         ON i.id_indice_cor = a.id_indice_cor
+        AND i.activo = 1
+      WHERE ${where.sql}
+      ORDER BY
+        CASE WHEN a.fecha_cot IS NULL THEN 1 ELSE 0 END ASC,
+        a.fecha_cot DESC,
+        a.id_aditiva_cor DESC`,
+    where.params
+  );
+
+  return rows;
+}
+
+async function getAditiva_cor(connection, idAditivaCor, visibleUserIds = null) {
+  const scope = buildAditivaScope_cor('a', visibleUserIds);
+  const params = [idAditivaCor, ...scope.params];
+  const [rows] = await connection.query(
+    `SELECT${aditivaSelectSql_cor()}
+       FROM ${TABLES_COR.aditivas} a
+       LEFT JOIN ${TABLES_COR.indice} i
+         ON i.id_indice_cor = a.id_indice_cor
+        AND i.activo = 1
+      WHERE a.id_aditiva_cor = ?
+        AND a.activo = 1
+        ${scope.sql}
+      LIMIT 1`,
+    params
+  );
+
+  return rows[0] || null;
+}
+
 function usableProjectKeySql_cor(expression) {
   return `NULLIF(TRIM(COALESCE(${expression}, '')), '') IS NOT NULL
           AND UPPER(TRIM(COALESCE(${expression}, ''))) NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP')`;
@@ -394,5 +544,7 @@ module.exports = {
   resolveIndiceAditiva_cor,
   listEstadosCuenta_cor,
   getIndiceEstadoCuenta_cor,
-  listFuenteEstadoCuenta_cor
+  listFuenteEstadoCuenta_cor,
+  listAditivas_cor,
+  getAditiva_cor
 };

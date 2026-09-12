@@ -59,15 +59,23 @@ async function detalleEstadoCuenta_cor(req, res, next) {
   }
 }
 
-async function aditivas_cor(_req, res, next) {
+async function aditivas_cor(req, res, next) {
   try {
-    return res.json({
-      ok: true,
-      source: 'aiven',
-      ...service.getAditivas_cor()
-    });
+    return res.status(200).json(
+      await service.listarAditivas_cor(req.query || {}, req.informationAccess)
+    );
   } catch (error) {
-    return next(error);
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function detalleAditiva_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.detalleAditiva_cor(req.params.idAditivaCor, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
   }
 }
 
@@ -90,5 +98,6 @@ module.exports = {
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
   aditivas_cor,
+  detalleAditiva_cor,
   adeudosContractuales_cor
 };
