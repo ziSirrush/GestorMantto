@@ -1,10 +1,10 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS DETALLE V001]
-  // Contrato funcional: FASE_3_COBRANZA_COR_ADITIVAS_BACKEND_V001.
-  // El detalle es una vista interna del Gestor: misma ruta + payload id, sin modal.
-  // Filtros, paginacion, resumen y detalle son autoritativos en backend.
+  // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
+  // Contrato funcional: FASE_3_COBRANZA_COR_ADITIVAS_BACKEND_V001 + CRUD manual de esta entrega.
+  // Listado, detalle y formulario son vistas internas del Gestor. No se usan modales.
+  // El Back pertenece exclusivamente a la barra contextual global.
   if(window.ManttoCobranzaCorAditivas) return;
 
   const ROUTE = 'cobranza-aditivas';
@@ -28,12 +28,15 @@
     },
     requestSequence:0,
     detailSequence:0,
+    formSequence:0,
     searchTimer:null,
     loading:false,
+    saving:false,
     boundRoot:null,
     view:'list',
     selectedId:null,
-    detail:null
+    detail:null,
+    formMode:null
   };
 
   function currentNavigation_cor(){
@@ -111,9 +114,24 @@
     return window.ManttoHttp.get(path);
   }
 
+  function apiRequest_cor(path,options){
+    if(!window.ManttoHttp || typeof window.ManttoHttp.request!=='function') return Promise.reject(new Error('Cliente HTTP central no disponible.'));
+    return window.ManttoHttp.request(path,options||{});
+  }
+
+  function isViewerReadonly_cor(){
+    const auth=window.ManttoAuth;
+    if(auth&&typeof auth.getViewUser==='function'){
+      try{return Boolean(auth.getViewUser());}catch(_error){}
+    }
+    const banner=document.getElementById('user-viewer-banner');
+    return Boolean(banner&&!banner.hidden);
+  }
+
   function errorMessage_cor(error,context){
     const status=Number(error&&error.status);
     if(status===401) return 'La sesión ya no está disponible. Vuelve a iniciar sesión para consultar Aditivas.';
+    if(status===403 && context==='save') return text_cor(error&&error.message,'No tienes permiso o alcance para guardar esta Aditiva.');
     if(status===403) return 'No tienes permiso o alcance de información para consultar Aditivas.';
     if(status===404 && context==='detail') return 'La Aditiva no existe o quedó fuera de tu alcance autorizado.';
     if(status===404) return 'El endpoint funcional de Aditivas no está disponible en este entorno.';
@@ -164,7 +182,8 @@
           </div>
           <div class="ccor-ad-hero-actions">
             <span id="ccor-ad-updated">Sin actualizar</span>
-            <button id="ccor-ad-refresh" class="ccor-ad-btn ccor-ad-btn-primary" type="button">↻ Actualizar</button>
+            <button id="ccor-ad-new" class="ccor-ad-btn ccor-ad-btn-primary" type="button" ${isViewerReadonly_cor()?'disabled title="El Visor de usuarios es de solo lectura"':''}>+ Nueva Aditiva</button>
+            <button id="ccor-ad-refresh" class="ccor-ad-btn" type="button">↻ Actualizar</button>
           </div>
         </section>
 
@@ -367,9 +386,6 @@
     state.view='detail';
     state.root.innerHTML=`
       <div class="ccor-ad-page ccor-ad-detail-page">
-        <div class="ccor-ad-detail-toolbar">
-          <button class="ccor-ad-detail-back" type="button" data-ccor-ad-back>← Regresar a Aditivas</button>
-        </div>
         <section class="ccor-ad-card ccor-ad-detail-error">
           <div class="ccor-ad-detail-error-icon">⚠️</div>
           <div><h2>No fue posible abrir la Aditiva</h2><p>${escapeHtml_cor(message)}</p></div>
@@ -473,8 +489,8 @@
     state.root.innerHTML=`
       <div class="ccor-ad-page ccor-ad-detail-page">
         <div class="ccor-ad-detail-toolbar">
-          <button class="ccor-ad-detail-back" type="button" data-ccor-ad-back>← Regresar a Aditivas</button>
           <span>Consulta: <b>${escapeHtml_cor(formatDateTimeNow_cor())}</b></span>
+          <button class="ccor-ad-btn ccor-ad-btn-primary" type="button" data-ccor-ad-edit="${escapeHtml_cor(row.id_aditiva_cor)}" ${isViewerReadonly_cor()?'disabled title="El Visor de usuarios es de solo lectura"':''}>Editar Aditiva</button>
         </div>
 
         <section class="ccor-ad-detail-hero">
@@ -528,6 +544,285 @@
     try{window.scrollTo({top:0,behavior:'smooth'});}catch(_error){window.scrollTo(0,0);}
   }
 
+  function formRaw_cor(value){
+    return value===null||value===undefined?'':String(value);
+  }
+
+  function formPercent_cor(value){
+    const parsed=number_cor(value);
+    if(parsed===null) return '';
+    const pct=Math.abs(parsed)<=1?parsed*100:parsed;
+    return String(Math.round((pct+Number.EPSILON)*10000)/10000);
+  }
+
+  function formOptions_cor(values){
+    return (Array.isArray(values)?values:[])
+      .map(value=>`<option value="${escapeHtml_cor(value)}"></option>`)
+      .join('');
+  }
+
+  async function ensureFormCatalogs_cor(){
+    const c=state.catalogs||{};
+    if(Object.values(c).some(values=>Array.isArray(values)&&values.length)) return true;
+    try{
+      const response=await apiGet_cor(API_PATH+'?page=1&page_size=1');
+      if(response&&response.catalogos&&typeof response.catalogos==='object') state.catalogs=response.catalogos;
+      return true;
+    }catch(_error){
+      return false;
+    }
+  }
+
+  function formField_cor(label,name,value,options){
+    const cfg=options||{};
+    const type=cfg.type||'text';
+    const wide=cfg.wide?' is-wide':'';
+    const list=cfg.list?` list="${escapeHtml_cor(cfg.list)}"`:'';
+    const step=cfg.step?` step="${escapeHtml_cor(cfg.step)}"`:'';
+    const min=cfg.min!==undefined?` min="${escapeHtml_cor(cfg.min)}"`:'';
+    const max=cfg.max!==undefined?` max="${escapeHtml_cor(cfg.max)}"`:'';
+    const placeholder=cfg.placeholder?` placeholder="${escapeHtml_cor(cfg.placeholder)}"`:'';
+    return `<label class="ccor-ad-form-field${wide}"><span>${escapeHtml_cor(label)}</span><input name="${escapeHtml_cor(name)}" type="${escapeHtml_cor(type)}" value="${escapeHtml_cor(formRaw_cor(value))}"${list}${step}${min}${max}${placeholder}></label>`;
+  }
+
+  function formTextarea_cor(label,name,value){
+    return `<label class="ccor-ad-form-field is-wide"><span>${escapeHtml_cor(label)}</span><textarea name="${escapeHtml_cor(name)}" rows="4">${escapeHtml_cor(formRaw_cor(value))}</textarea></label>`;
+  }
+
+  function renderForm_cor(mode,row){
+    if(!state.root) return;
+    if(isViewerReadonly_cor()){
+      renderDetailError_cor('El Visor de usuarios es de solo lectura. Sal del visor para crear o editar Aditivas.');
+      return;
+    }
+    const record=row||{};
+    const isEdit=mode==='edit';
+    state.view='form';
+    state.formMode=isEdit?'edit':'create';
+    state.selectedId=isEdit?Number(record.id_aditiva_cor)||null:null;
+    const c=state.catalogs||{};
+
+    state.root.innerHTML=`
+      <div class="ccor-ad-page ccor-ad-form-page">
+        <section class="ccor-ad-card ccor-ad-form-hero">
+          <div>
+            <p class="ccor-ad-eyebrow">Cobranza · Corellian</p>
+            <h1>${isEdit?'Editar Aditiva':'Nueva Aditiva'}</h1>
+            <p>${isEdit?'Actualiza el registro existente usando el mismo formulario de alta.':'Captura una Aditiva nueva. El vínculo con INDICE se resuelve y valida en backend.'}</p>
+          </div>
+          ${isEdit?`<span class="ccor-ad-form-id">ID ${escapeHtml_cor(record.id_aditiva_cor)}</span>`:''}
+        </section>
+
+        <div id="ccor-ad-form-status" class="ccor-ad-inline-status" aria-live="polite"></div>
+
+        <form id="ccor-ad-form" class="ccor-ad-form" novalidate>
+          <section class="ccor-ad-card ccor-ad-form-section">
+            <div class="ccor-ad-detail-section-title"><span>▤</span><h2>1. Identificación</h2></div>
+            <div class="ccor-ad-form-grid">
+              ${formField_cor('Año Cot.','anio_cot',record.anio_cot,{type:'number',min:1900,max:2500})}
+              ${formField_cor('No. Cotización','no_cot',record.no_cot)}
+              ${formField_cor('Fecha Cotización','fecha_cot',record.fecha_cot,{type:'date'})}
+              ${formField_cor('Departamento','departamento',record.departamento,{list:'ccor-ad-form-departamentos'})}
+              ${formField_cor('Categoría','categoria',record.categoria,{list:'ccor-ad-form-categorias'})}
+              ${formField_cor('Firma Cot.','firma_cot',record.firma_cot,{list:'ccor-ad-form-firmas'})}
+            </div>
+          </section>
+
+          <section class="ccor-ad-card ccor-ad-form-section">
+            <div class="ccor-ad-detail-section-title"><span>▣</span><h2>2. Proyecto / Trabajo</h2></div>
+            <div class="ccor-ad-form-grid">
+              ${formField_cor('Proyecto','proyecto',record.proyecto,{wide:true})}
+              ${formField_cor('PP / NS','pp_ns',record.pp_ns)}
+              ${formField_cor('Equipo','equipo',record.equipo)}
+              ${formField_cor('Supervisor (SUP)','sup',record.sup,{list:'ccor-ad-form-supervisores'})}
+              ${formField_cor('Estatus Trabajos','estatus_trabajos',record.estatus_trabajos,{list:'ccor-ad-form-estatus-trabajos'})}
+              ${formTextarea_cor('Descripción','descripcion',record.descripcion)}
+              ${formTextarea_cor('Comentario Fuente','comentario_fuente',record.comentario_fuente)}
+            </div>
+          </section>
+
+          <section class="ccor-ad-card ccor-ad-form-section">
+            <div class="ccor-ad-detail-section-title"><span>□</span><h2>3. Documentación comercial</h2></div>
+            <div class="ccor-ad-form-grid ccor-ad-form-grid-3">
+              ${formField_cor('Orden de Venta (OV)','ov',record.ov)}
+              ${formField_cor('Orden de Compra (OC)','oc',record.oc)}
+              ${formField_cor('Factura','factura',record.factura)}
+            </div>
+          </section>
+
+          <section class="ccor-ad-form-two-columns">
+            <section class="ccor-ad-card ccor-ad-form-section">
+              <div class="ccor-ad-detail-section-title"><span>⌁</span><h2>4. Información financiera</h2></div>
+              <div class="ccor-ad-form-grid">
+                ${formField_cor('Subtotal','monto_subtotal',record.monto_subtotal,{type:'number',step:'0.01'})}
+                ${formField_cor('IVA %','iva_pct',formPercent_cor(record.iva_pct),{type:'number',step:'0.01'})}
+                ${formField_cor('IVA','monto_iva',record.monto_iva,{type:'number',step:'0.01'})}
+                ${formField_cor('Total','monto_total',record.monto_total,{type:'number',step:'0.01'})}
+                ${formField_cor('Gasto Subtotal','gasto_subtotal',record.gasto_subtotal,{type:'number',step:'0.01'})}
+                ${formField_cor('Diferencia','diferencia',record.diferencia,{type:'number',step:'0.01'})}
+                ${formField_cor('Utilidad Real %','utilidad_real_pct',formPercent_cor(record.utilidad_real_pct),{type:'number',step:'0.01'})}
+              </div>
+              <p class="ccor-ad-form-note">El frontend no recalcula importes ni porcentajes. El backend valida y guarda los valores capturados.</p>
+            </section>
+
+            <section class="ccor-ad-card ccor-ad-form-section">
+              <div class="ccor-ad-detail-section-title"><span>$</span><h2>5. Cobranza</h2></div>
+              <div class="ccor-ad-form-grid">
+                ${formField_cor('Estatus Cobranza','estatus_cobranza',record.estatus_cobranza,{list:'ccor-ad-form-estatus-cobranza'})}
+                ${formField_cor('Moneda','moneda',record.moneda,{list:'ccor-ad-form-monedas'})}
+                ${formField_cor('Monto Pagado','monto_pagado',record.monto_pagado,{type:'number',step:'0.01'})}
+                ${formField_cor('Pagado sin IVA','pagado_sin_iva',record.pagado_sin_iva,{type:'number',step:'0.01'})}
+                ${formField_cor('Pendiente de Pago','pendiente_pago',record.pendiente_pago,{type:'number',step:'0.01'})}
+                ${formField_cor('Fecha de Pago','fecha_pago',record.fecha_pago,{type:'date'})}
+                ${formField_cor('Semana de Pago','semana_pago',record.semana_pago)}
+                ${formField_cor('Gasto Ejercido','gasto_ejercido',record.gasto_ejercido)}
+              </div>
+            </section>
+          </section>
+
+          <datalist id="ccor-ad-form-departamentos">${formOptions_cor(c.departamentos)}</datalist>
+          <datalist id="ccor-ad-form-categorias">${formOptions_cor(c.categorias)}</datalist>
+          <datalist id="ccor-ad-form-firmas">${formOptions_cor(c.firmas_cot)}</datalist>
+          <datalist id="ccor-ad-form-supervisores">${formOptions_cor(c.supervisores)}</datalist>
+          <datalist id="ccor-ad-form-estatus-trabajos">${formOptions_cor(c.estatus_trabajos)}</datalist>
+          <datalist id="ccor-ad-form-estatus-cobranza">${formOptions_cor(c.estatus_cobranza)}</datalist>
+          <datalist id="ccor-ad-form-monedas">${formOptions_cor(c.monedas)}</datalist>
+
+          <section class="ccor-ad-card ccor-ad-form-actions">
+            <button class="ccor-ad-btn" type="button" data-ccor-ad-cancel>Cancelar</button>
+            <button class="ccor-ad-btn ccor-ad-btn-primary" type="submit" id="ccor-ad-save">${isEdit?'Guardar cambios':'Guardar Aditiva'}</button>
+          </section>
+        </form>
+      </div>`;
+
+    const subtitle=document.getElementById('app-context-subtitle');
+    if(subtitle) subtitle.textContent=isEdit?'Aditivas · Editar '+text_cor(record.no_cot,'registro'):'Aditivas · Nueva Aditiva';
+    try{window.scrollTo({top:0,behavior:'auto'});}catch(_error){window.scrollTo(0,0);}
+  }
+
+  function setFormStatus_cor(message,kind){
+    const node=document.getElementById('ccor-ad-form-status');
+    if(!node) return;
+    node.className='ccor-ad-inline-status'+(kind?' is-'+kind:'');
+    node.textContent=message||'';
+  }
+
+  function formPayload_cor(form){
+    const raw=Object.fromEntries(new FormData(form).entries());
+    Object.keys(raw).forEach(key=>{ if(typeof raw[key]==='string') raw[key]=raw[key].trim(); });
+    if(raw.iva_pct) raw.iva_pct=raw.iva_pct+'%';
+    if(raw.utilidad_real_pct) raw.utilidad_real_pct=raw.utilidad_real_pct+'%';
+    if(raw.moneda) raw.moneda=String(raw.moneda).toUpperCase();
+    return raw;
+  }
+
+  function validateFormPayload_cor(payload){
+    const hasIdentifier=['proyecto','no_cot','ov','factura','descripcion'].some(key=>String(payload[key]||'').trim());
+    if(!hasIdentifier) return 'Captura al menos Proyecto, No. Cotización, OV, Factura o Descripción.';
+    return '';
+  }
+
+  async function saveForm_cor(form){
+    if(state.saving||isViewerReadonly_cor()) return false;
+    const payload=formPayload_cor(form);
+    const validation=validateFormPayload_cor(payload);
+    if(validation){ setFormStatus_cor(validation,'error'); return false; }
+
+    const isEdit=state.formMode==='edit';
+    const id=Number(state.selectedId);
+    if(isEdit&&(!Number.isInteger(id)||id<=0)){ setFormStatus_cor('No fue posible identificar la Aditiva a editar.','error'); return false; }
+
+    state.saving=true;
+    const save=document.getElementById('ccor-ad-save');
+    if(save){save.disabled=true;save.textContent='Guardando...';}
+    setFormStatus_cor(isEdit?'Actualizando Aditiva...':'Creando Aditiva...','loading');
+
+    try{
+      const response=await apiRequest_cor(
+        isEdit?API_PATH+'/'+encodeURIComponent(id):API_PATH,
+        {
+          method:isEdit?'PUT':'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify(payload),
+          dedupe:false
+        }
+      );
+      if(!response||!response.aditiva) throw new Error('El backend no devolvió la Aditiva guardada.');
+      const savedId=Number(response.aditiva.id_aditiva_cor);
+      if(!Number.isInteger(savedId)||savedId<=0) throw new Error('El backend no devolvió un identificador válido para la Aditiva.');
+
+      state.response=null;
+      state.records=[];
+      state.summary=null;
+      state.detail=response.aditiva;
+      state.selectedId=savedId;
+      if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function') window.ManttoHttp.invalidate(API_PATH);
+
+      const router=window.ManttoRouter;
+      if(isEdit&&router&&typeof router.getHistory==='function'&&typeof router.back==='function'){
+        const history=router.getHistory();
+        const previous=history[history.length-1];
+        if(previous&&String(previous.route||'')===ROUTE&&Number(previous.payload&&previous.payload.id)===savedId){
+          await router.back();
+          return true;
+        }
+      }
+      if(router&&typeof router.go==='function'){
+        await router.go(ROUTE,{id:savedId},{replace:true,skipHistory:true,navigationType:'open'});
+        return true;
+      }
+      renderDetail_cor(response.aditiva);
+      return true;
+    }catch(error){
+      setFormStatus_cor(errorMessage_cor(error,'save'),'error');
+      return false;
+    }finally{
+      state.saving=false;
+      const button=document.getElementById('ccor-ad-save');
+      if(button){button.disabled=false;button.textContent=isEdit?'Guardar cambios':'Guardar Aditiva';}
+    }
+  }
+
+  async function loadCreateForm_cor(){
+    state.formMode='create';
+    state.selectedId=null;
+    await ensureFormCatalogs_cor();
+    if(!isActive_cor()) return false;
+    renderForm_cor('create',{});
+    return true;
+  }
+
+  async function loadEditForm_cor(id){
+    const parsed=Number(id);
+    if(!Number.isInteger(parsed)||parsed<=0) return false;
+    if(isViewerReadonly_cor()){
+      renderDetailError_cor('El Visor de usuarios es de solo lectura. Sal del visor para editar Aditivas.');
+      return false;
+    }
+    state.view='form';
+    state.formMode='edit';
+    state.selectedId=parsed;
+    const sequence=++state.formSequence;
+    if(state.root){
+      state.root.innerHTML=`<div class="ccor-ad-page ccor-ad-form-page"><section class="ccor-ad-card ccor-ad-detail-loading"><span class="ccor-ad-spinner" aria-hidden="true"></span><div><b>Cargando formulario...</b><small>Consultando la Aditiva autorizada.</small></div></section></div>`;
+    }
+    try{
+      const [response]=await Promise.all([
+        apiGet_cor(API_PATH+'/'+encodeURIComponent(parsed)),
+        ensureFormCatalogs_cor()
+      ]);
+      if(sequence!==state.formSequence||!isActive_cor()) return false;
+      if(!response||!response.aditiva) throw new Error('El backend no devolvió el objeto aditiva esperado.');
+      state.detail=response.aditiva;
+      renderForm_cor('edit',response.aditiva);
+      return true;
+    }catch(error){
+      if(sequence!==state.formSequence||!isActive_cor()) return false;
+      renderDetailError_cor(errorMessage_cor(error,'detail'));
+      return false;
+    }
+  }
+
   async function loadDetail_cor(id){
     const parsed=Number(id);
     if(!Number.isInteger(parsed)||parsed<=0) return false;
@@ -560,19 +855,46 @@
     return true;
   }
 
-  function returnToList_cor(){
+  function openCreateForm_cor(){
+    if(isViewerReadonly_cor()) return false;
+    const router=window.ManttoRouter;
+    if(router&&typeof router.go==='function'){
+      router.go(ROUTE,{mode:'create'},{navigationType:'open'});
+      return true;
+    }
+    renderForm_cor('create',{});
+    return true;
+  }
+
+  function openEditForm_cor(id){
+    const parsed=Number(id);
+    if(!Number.isInteger(parsed)||parsed<=0||isViewerReadonly_cor()) return false;
+    const router=window.ManttoRouter;
+    if(router&&typeof router.go==='function'){
+      router.go(ROUTE,{mode:'edit',id:parsed},{navigationType:'open'});
+      return true;
+    }
+    loadEditForm_cor(parsed);
+    return true;
+  }
+
+  function cancelForm_cor(){
     const router=window.ManttoRouter;
     if(router&&typeof router.getHistory==='function'&&typeof router.back==='function'){
       const history=router.getHistory();
       const previous=history[history.length-1];
-      if(previous&&String(previous.route||'')===ROUTE&&!(previous.payload&&previous.payload.id)){
+      if(previous&&String(previous.route||'')===ROUTE){
         router.back();
         return;
       }
     }
     if(router&&typeof router.go==='function'){
       router.go(ROUTE,null,{replace:true,skipHistory:true,navigationType:'back'});
+      return;
     }
+    state.formMode=null;
+    renderShell_cor();
+    refresh_cor({resetPage:true});
   }
 
   function openEstadoCuenta_cor(idIndiceCor){
@@ -682,17 +1004,27 @@
     state.boundRoot=root;
 
     root.addEventListener('click',event=>{
+      if(event.target.closest('#ccor-ad-new')){ openCreateForm_cor(); return; }
       if(event.target.closest('#ccor-ad-refresh')){ refresh_cor(); return; }
       if(event.target.closest('#ccor-ad-clear')){ resetFilters_cor(); return; }
       const prev=event.target.closest('#ccor-ad-prev');
       if(prev&&!prev.disabled){ state.pagination.page-=1; refresh_cor(); return; }
       const next=event.target.closest('#ccor-ad-next');
       if(next&&!next.disabled){ state.pagination.page+=1; refresh_cor(); return; }
-      if(event.target.closest('[data-ccor-ad-back]')){ returnToList_cor(); return; }
+      const edit=event.target.closest('[data-ccor-ad-edit]');
+      if(edit&&edit.dataset.ccorAdEdit){ openEditForm_cor(edit.dataset.ccorAdEdit); return; }
+      if(event.target.closest('[data-ccor-ad-cancel]')){ cancelForm_cor(); return; }
       const estadoCuenta=event.target.closest('[data-ccor-ad-estado-cuenta]');
       if(estadoCuenta&&estadoCuenta.dataset.ccorAdEstadoCuenta){ openEstadoCuenta_cor(estadoCuenta.dataset.ccorAdEstadoCuenta); return; }
       const row=event.target.closest('[data-ccor-ad-row]');
       if(row&&row.dataset.ccorAdRow) openDetailRoute_cor(row.dataset.ccorAdRow);
+    });
+
+    root.addEventListener('submit',event=>{
+      if(event.target&&event.target.id==='ccor-ad-form'){
+        event.preventDefault();
+        saveForm_cor(event.target);
+      }
     });
 
     root.addEventListener('keydown',event=>{
@@ -725,7 +1057,16 @@
     bindEvents_cor();
 
     const payload=currentPayload_cor();
+    const mode=String(payload&&payload.mode||'').toLowerCase();
     const requestedId=Number(payload&&(payload.id||payload.id_aditiva_cor));
+    if(mode==='create'){
+      await loadCreateForm_cor();
+      return true;
+    }
+    if(mode==='edit'&&Number.isInteger(requestedId)&&requestedId>0){
+      await loadEditForm_cor(requestedId);
+      return true;
+    }
     if(Number.isInteger(requestedId)&&requestedId>0){
       state.view='detail';
       await loadDetail_cor(requestedId);
@@ -733,6 +1074,7 @@
     }
 
     state.view='list';
+    state.formMode=null;
     state.selectedId=null;
     state.detail=null;
     renderShell_cor();
@@ -751,7 +1093,10 @@
   function refreshCurrent_cor(){
     if(!isActive_cor()) return Promise.resolve(false);
     const payload=currentPayload_cor();
+    const mode=String(payload&&payload.mode||'').toLowerCase();
     const requestedId=Number(payload&&(payload.id||payload.id_aditiva_cor));
+    if(mode==='create') return loadCreateForm_cor();
+    if(mode==='edit'&&Number.isInteger(requestedId)&&requestedId>0) return loadEditForm_cor(requestedId);
     if(Number.isInteger(requestedId)&&requestedId>0) return loadDetail_cor(requestedId);
     return refresh_cor();
   }
@@ -770,7 +1115,9 @@
     state.pagination.page=1;
     state.selectedId=null;
     state.detail=null;
+    state.formMode=null;
     state.detailSequence+=1;
+    state.formSequence+=1;
     if(isActive_cor()&&state.root) init_cor(state.root);
   });
 
@@ -778,6 +1125,8 @@
     init:init_cor,
     refresh:refreshCurrent_cor,
     openDetail:openDetailRoute_cor,
+    newAditiva:openCreateForm_cor,
+    editAditiva:openEditForm_cor,
     route:ROUTE,
     apiPath:API_PATH
   });

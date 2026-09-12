@@ -1,4 +1,4 @@
-/* [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS DETALLE V001] */
+/* [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001] */
 
 .ccor-ad-page{
   --ccor-ad-blue:#153d78;
@@ -261,16 +261,6 @@
   font-size:12px;
 }
 
-.ccor-ad-detail-back{
-  border:0;
-  padding:6px 0;
-  background:transparent;
-  color:var(--ccor-ad-blue-2);
-  font:inherit;
-  font-weight:800;
-  cursor:pointer;
-}
-.ccor-ad-detail-back:hover{text-decoration:underline}
 
 .ccor-ad-detail-hero{
   display:grid;
@@ -375,6 +365,44 @@
 .ccor-ad-detail-error p{margin:0;color:var(--ccor-ad-muted)}
 @keyframes ccor-ad-spin{to{transform:rotate(360deg)}}
 
+
+.ccor-ad-form-page{max-width:1500px;margin:0 auto}
+.ccor-ad-form-hero{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  padding:20px 22px;
+  margin-bottom:14px;
+}
+.ccor-ad-form-hero h1{margin:0;color:#102f61;font-size:28px}
+.ccor-ad-form-hero p{margin:8px 0 0;color:var(--ccor-ad-muted)}
+.ccor-ad-form-id{padding:8px 11px;border-radius:999px;background:#edf3fb;color:#2459a6;font-size:12px;font-weight:850;white-space:nowrap}
+.ccor-ad-form{display:grid;gap:14px}
+.ccor-ad-form-section{overflow:hidden}
+.ccor-ad-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:16px}
+.ccor-ad-form-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ccor-ad-form-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ccor-ad-form-field{display:grid;gap:6px;min-width:0}
+.ccor-ad-form-field.is-wide{grid-column:1/-1}
+.ccor-ad-form-field>span{color:#5e6d82;font-size:12px;font-weight:800}
+.ccor-ad-form-field input,
+.ccor-ad-form-field textarea{
+  width:100%;
+  min-height:40px;
+  padding:9px 11px;
+  border:1px solid #cbd7e7;
+  border-radius:9px;
+  background:#fff;
+  color:#172033;
+  font:inherit;
+}
+.ccor-ad-form-field textarea{min-height:96px;resize:vertical;line-height:1.45}
+.ccor-ad-form-field input:focus,
+.ccor-ad-form-field textarea:focus{outline:2px solid rgba(36,89,166,.16);border-color:#4f7fc2}
+.ccor-ad-form-note{margin:0;padding:0 16px 16px;color:#6b788b;font-size:12px;line-height:1.45}
+.ccor-ad-form-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:14px 16px;position:sticky;bottom:8px;z-index:4}
+
 @media (max-width:1250px){
   .ccor-ad-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
   .ccor-ad-search-field{grid-column:span 2}
@@ -391,6 +419,7 @@
   .ccor-ad-detail-grid-top{grid-template-columns:1fr 1fr}
   .ccor-ad-detail-grid-top .ccor-ad-detail-section:last-child{grid-column:1/-1}
   .ccor-ad-detail-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ccor-ad-form-two-columns{grid-template-columns:1fr}
 }
 
 @media (max-width:600px){
@@ -410,4 +439,7 @@
   .ccor-ad-detail-hero h1{font-size:23px}
   .ccor-ad-linked-body{align-items:flex-start;flex-direction:column}
   .ccor-ad-pagination{justify-content:space-between}
+  .ccor-ad-form-hero{flex-direction:column;padding:16px}
+  .ccor-ad-form-grid,.ccor-ad-form-grid-3{grid-template-columns:1fr}
+  .ccor-ad-form-actions{position:static}
 }

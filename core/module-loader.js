@@ -255,9 +255,9 @@
     'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260806-fase6-2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
 
-    // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS BACKEND V001]
+    // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
     'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260912-cobranza-cor-estados-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260912-cobranza-cor-estados-v001']},
-    'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-fix-aditivas-detalle-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260912-fix-aditivas-detalle-v001']},
+    'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260912-aditivas-crud-v001']},
 
     'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20260817-lote-cobranza-uni-v001']},
     'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20260817-lote-cobranza-uni-v001']},

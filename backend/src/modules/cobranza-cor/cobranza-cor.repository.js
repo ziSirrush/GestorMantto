@@ -8,6 +8,41 @@ const TABLES_COR = Object.freeze({
   aditivas: 'cobranza_aditivas_cor'
 });
 
+const ADITIVA_MUTABLE_COLUMNS_COR = Object.freeze([
+  'id_indice_cor',
+  'anio_cot',
+  'departamento',
+  'categoria',
+  'fecha_cot',
+  'firma_cot',
+  'no_cot',
+  'ov',
+  'factura',
+  'estatus_trabajos',
+  'estatus_cobranza',
+  'sup',
+  'pp_ns',
+  'proyecto',
+  'equipo',
+  'descripcion',
+  'comentario_fuente',
+  'monto_subtotal',
+  'iva_pct',
+  'monto_iva',
+  'monto_total',
+  'gasto_subtotal',
+  'oc',
+  'diferencia',
+  'utilidad_real_pct',
+  'monto_pagado',
+  'pagado_sin_iva',
+  'pendiente_pago',
+  'fecha_pago',
+  'semana_pago',
+  'moneda',
+  'gasto_ejercido'
+]);
+
 async function getConnection_cor() {
   return db.getConnection();
 }
@@ -25,6 +60,24 @@ async function insertRecord_cor(connection, tableName, record) {
 
   const [result] = await connection.query(
     `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
+    values
+  );
+
+  return result;
+}
+
+async function updateAditiva_cor(connection, idAditivaCor, record) {
+  const assignments = ADITIVA_MUTABLE_COLUMNS_COR.map((column) => `${column} = ?`);
+  const values = ADITIVA_MUTABLE_COLUMNS_COR.map((column) =>
+    Object.prototype.hasOwnProperty.call(record || {}, column) ? record[column] : null
+  );
+  values.push(idAditivaCor);
+
+  const [result] = await connection.query(
+    `UPDATE ${TABLES_COR.aditivas}
+        SET ${assignments.join(', ')}
+      WHERE id_aditiva_cor = ?
+        AND activo = 1`,
     values
   );
 
@@ -145,6 +198,21 @@ function buildAditivaScope_cor(alias, visibleUserIds) {
       )`,
     params: indiceScope.params
   };
+}
+
+async function getIndiceAditivaScope_cor(connection, idIndiceCor, visibleUserIds = null) {
+  const scope = buildIndiceScope_cor('i', visibleUserIds);
+  const params = [idIndiceCor, ...scope.params];
+  const [rows] = await connection.query(
+    `SELECT i.id_indice_cor, i.proyecto, i.pp, i.anio
+       FROM ${TABLES_COR.indice} i
+      WHERE i.id_indice_cor = ?
+        AND i.activo = 1
+        ${scope.sql}
+      LIMIT 1`,
+    params
+  );
+  return rows[0] || null;
 }
 
 function buildAditivasWhere_cor(filters = {}, visibleUserIds = null) {
@@ -540,8 +608,10 @@ module.exports = {
   TABLES_COR,
   getConnection_cor,
   insertRecord_cor,
+  updateAditiva_cor,
   resolveIndiceFuente_cor,
   resolveIndiceAditiva_cor,
+  getIndiceAditivaScope_cor,
   listEstadosCuenta_cor,
   getIndiceEstadoCuenta_cor,
   listFuenteEstadoCuenta_cor,

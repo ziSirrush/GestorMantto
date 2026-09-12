@@ -79,6 +79,30 @@ async function detalleAditiva_cor(req, res, next) {
   }
 }
 
+async function crearAditiva_cor(req, res, next) {
+  try {
+    return res.status(201).json(
+      await service.crearAditiva_cor(req.body || {}, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function actualizarAditiva_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.actualizarAditiva_cor(
+        req.params.idAditivaCor,
+        req.body || {},
+        req.informationAccess
+      )
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function adeudosContractuales_cor(_req, res, next) {
   try {
     return res.json({
@@ -99,5 +123,7 @@ module.exports = {
   detalleEstadoCuenta_cor,
   aditivas_cor,
   detalleAditiva_cor,
+  crearAditiva_cor,
+  actualizarAditiva_cor,
   adeudosContractuales_cor
 };

@@ -13,6 +13,8 @@ const ROUTES_COR = Object.freeze({
   estado_cuenta_detalle: '/api/cobranza-cor/estados-cuenta/:idIndiceCor',
   aditivas: '/api/cobranza-cor/aditivas',
   aditiva_detalle: '/api/cobranza-cor/aditivas/:idAditivaCor',
+  aditiva_crear: '/api/cobranza-cor/aditivas',
+  aditiva_actualizar: '/api/cobranza-cor/aditivas/:idAditivaCor',
   adeudos_contractuales: '/api/cobranza-cor/adeudos-contractuales'
 });
 
@@ -1104,6 +1106,134 @@ async function detalleAditiva_cor(idAditivaCorValue, informationAccess) {
 }
 
 
+async function resolveManualAditivaRelation_cor(connection, record, visibleUserIds) {
+  const relation = await repository.resolveIndiceAditiva_cor(
+    connection,
+    record.proyecto,
+    record.pp_ns
+  );
+
+  if (relation.matches > 1) {
+    throw httpError(409, 'El proyecto / PP de la Aditiva coincide con mas de un registro de INDICE. Corrige la referencia antes de guardar.', {
+      proyecto: record.proyecto || null,
+      pp_ns: record.pp_ns || null,
+      coincidencias: relation.matches
+    });
+  }
+
+  if (relation.matches === 0 || !relation.id_indice_cor) {
+    if (visibleUserIds === null) return null;
+    throw httpError(403, 'La Aditiva debe vincularse a un proyecto CORELLIAN dentro de tu alcance autorizado para poder guardarse.', {
+      proyecto: record.proyecto || null,
+      pp_ns: record.pp_ns || null
+    });
+  }
+
+  if (visibleUserIds !== null) {
+    const visibleIndex = await repository.getIndiceAditivaScope_cor(
+      connection,
+      relation.id_indice_cor,
+      visibleUserIds
+    );
+    if (!visibleIndex) {
+      throw httpError(403, 'El proyecto CORELLIAN relacionado con la Aditiva queda fuera de tu alcance autorizado.');
+    }
+  }
+
+  return relation.id_indice_cor;
+}
+
+function normalizeManualAditiva_cor(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw badRequest('El cuerpo de la Aditiva debe ser un objeto JSON.');
+  }
+  try {
+    return normalizeAditiva_cor(payload);
+  } catch (error) {
+    throw badRequest(error && error.message ? error.message : 'La Aditiva contiene datos invalidos.');
+  }
+}
+
+async function crearAditiva_cor(payload, informationAccess) {
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const record = normalizeManualAditiva_cor(payload);
+  const connection = await repository.getConnection_cor();
+  let idAditivaCor = null;
+
+  try {
+    await connection.beginTransaction();
+    try {
+      record.id_indice_cor = await resolveManualAditivaRelation_cor(connection, record, visibleUserIds);
+      const result = await repository.insertRecord_cor(connection, repository.TABLES_COR.aditivas, record);
+      idAditivaCor = Number(result.insertId);
+      if (!Number.isInteger(idAditivaCor) || idAditivaCor <= 0) {
+        throw new Error('No fue posible obtener el identificador de la Aditiva creada.');
+      }
+      await connection.commit();
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
+
+    const created = await repository.getAditiva_cor(connection, idAditivaCor, visibleUserIds);
+    if (!created) {
+      throw httpError(500, 'La Aditiva fue creada, pero no pudo recuperarse para confirmar el resultado.');
+    }
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.aditiva_crear,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      aditiva: serializeAditiva_cor(created)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function actualizarAditiva_cor(idAditivaCorValue, payload, informationAccess) {
+  const idAditivaCor = positiveId_cor(idAditivaCorValue, 'idAditivaCor');
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const record = normalizeManualAditiva_cor(payload);
+  const connection = await repository.getConnection_cor();
+
+  try {
+    const existing = await repository.getAditiva_cor(connection, idAditivaCor, visibleUserIds);
+    if (!existing) {
+      throw httpError(404, 'Aditiva no encontrada o fuera del alcance autorizado.');
+    }
+
+    await connection.beginTransaction();
+    try {
+      record.id_indice_cor = await resolveManualAditivaRelation_cor(connection, record, visibleUserIds);
+      await repository.updateAditiva_cor(connection, idAditivaCor, record);
+      await connection.commit();
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
+
+    const updated = await repository.getAditiva_cor(connection, idAditivaCor, visibleUserIds);
+    if (!updated) {
+      throw httpError(500, 'La Aditiva fue actualizada, pero no pudo recuperarse para confirmar el resultado.');
+    }
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.aditiva_actualizar,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      aditiva: serializeAditiva_cor(updated)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+
 function getAdeudosContractuales_cor() {
   return {
     available: false,
@@ -1127,5 +1257,7 @@ module.exports = {
   detalleEstadoCuenta_cor,
   listarAditivas_cor,
   detalleAditiva_cor,
+  crearAditiva_cor,
+  actualizarAditiva_cor,
   getAdeudosContractuales_cor
 };
