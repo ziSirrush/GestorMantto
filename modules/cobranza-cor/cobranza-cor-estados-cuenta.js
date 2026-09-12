@@ -136,6 +136,26 @@
     return 'is-neutral';
   }
 
+  function userLabel_cor(user, fallbackId){
+    const id = number_cor(user && user.id_SB !== undefined ? user.id_SB : fallbackId);
+    const name = text_cor(user && user.nombre, '');
+    const initials = text_cor(user && user.iniciales, '');
+    if(name) return name;
+    if(initials) return initials;
+    return id === null ? '—' : 'ID ' + formatInteger_cor(id);
+  }
+
+  function userTitle_cor(user, fallbackId){
+    const id = number_cor(user && user.id_SB !== undefined ? user.id_SB : fallbackId);
+    const name = text_cor(user && user.nombre, '');
+    const initials = text_cor(user && user.iniciales, '');
+    const parts = [];
+    if(name) parts.push(name);
+    if(initials) parts.push('Iniciales: ' + initials);
+    if(id !== null) parts.push('ID: ' + formatInteger_cor(id));
+    return parts.join(' · ');
+  }
+
   function apiGet_cor(path, options){
     if(!window.ManttoHttp || typeof window.ManttoHttp.get !== 'function'){
       return Promise.reject(new Error('Cliente HTTP central no disponible.'));
@@ -300,9 +320,9 @@
           <td>${escapeHtml_cor(text_cor(row.pp))}</td>
           <td>${escapeHtml_cor(text_cor(row.anio))}</td>
           <td>${escapeHtml_cor(formatInteger_cor(row.qty))}</td>
-          <td>${escapeHtml_cor(text_cor(row.adm))}</td>
-          <td>${escapeHtml_cor(text_cor(row.sup))}</td>
-          <td>${escapeHtml_cor(text_cor(row.vend))}</td>
+          <td title="${escapeHtml_cor(userTitle_cor(row.adm_usuario, row.adm))}">${escapeHtml_cor(userLabel_cor(row.adm_usuario, row.adm))}</td>
+          <td title="${escapeHtml_cor(userTitle_cor(row.sup_usuario, row.sup))}">${escapeHtml_cor(userLabel_cor(row.sup_usuario, row.sup))}</td>
+          <td title="${escapeHtml_cor(userTitle_cor(row.vend_usuario, row.vend))}">${escapeHtml_cor(userLabel_cor(row.vend_usuario, row.vend))}</td>
           <td>${escapeHtml_cor(text_cor(row.edo))}</td>
           <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus)}">${escapeHtml_cor(text_cor(row.estatus))}</span></td>
           <td>${escapeHtml_cor(formatPercent_cor(row.cobranza_usd))}</td>
@@ -550,9 +570,9 @@
           <article class="ccor-ec-card ccor-ec-info-card">
             <h3>Información del proyecto</h3>
             <dl>
-              <div><dt>ADM</dt><dd>${escapeHtml_cor(text_cor(project.adm))}</dd></div>
-              <div><dt>SUP</dt><dd>${escapeHtml_cor(text_cor(project.sup))}</dd></div>
-              <div><dt>VEND</dt><dd>${escapeHtml_cor(text_cor(project.vend))}</dd></div>
+              <div><dt>ADM</dt><dd title="${escapeHtml_cor(userTitle_cor(project.adm_usuario, project.adm))}">${escapeHtml_cor(userLabel_cor(project.adm_usuario, project.adm))}</dd></div>
+              <div><dt>SUP</dt><dd title="${escapeHtml_cor(userTitle_cor(project.sup_usuario, project.sup))}">${escapeHtml_cor(userLabel_cor(project.sup_usuario, project.sup))}</dd></div>
+              <div><dt>VEND</dt><dd title="${escapeHtml_cor(userTitle_cor(project.vend_usuario, project.vend))}">${escapeHtml_cor(userLabel_cor(project.vend_usuario, project.vend))}</dd></div>
               <div><dt>MRC</dt><dd>${escapeHtml_cor(text_cor(project.mrc))}</dd></div>
             </dl>
           </article>

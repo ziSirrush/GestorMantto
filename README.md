@@ -1,63 +1,88 @@
-# FIX COBRANZA COR - MATCH SOLO EN DETALLE V006
+# FIX COBRANZA COR - ADM / SUP / VEND POR USUARIO ID V007
 
-Base verificada: `ziSirrush/GestorMantto` / `main` / commit `0ddc10ddd08314f65e07c0806e0cfbd1110c1ef8` (`Version 091126.19 - Edo Cta`).
+Base verificada: `ziSirrush/GestorMantto` / `main` / commit `4e2bac8dfd03e8e47d73a7a4161c7ad8ac491f1d` (`Version 091126.20 - Edo Cta`).
 
-## Correccion
+## Objetivo
 
-El V004/V005 aplico por error la resolucion `PP/ID Proyecto OR nombre de proyecto` tanto al MAIN de Estados de Cuenta como al DETALLE.
+Hacer que los campos de INDICE:
 
-La regla correcta queda separada:
+- `ADM`
+- `SUP`
+- `VEND`
 
-### MAIN - Estados de Cuenta
+se interpreten de forma canonica como `usuarios.id_SB`, para que el alcance de informacion de CORELLIAN pueda filtrar los proyectos por usuario de manera inequívoca.
 
-`GET /api/cobranza-cor/estados-cuenta`
+## Regla de seguridad
 
-- La lista principal nace de `cobranza_indice_cor`.
-- NO ejecuta la resolucion flexible por PP/nombre contra FUENTE.
-- Los campos auxiliares `Mov.` y `Monedas`, y el filtro `Solo con movimientos`, solo usan la FK directa existente:
-  `cobranza_fuente_cor.id_indice_cor = cobranza_indice_cor.id_indice_cor`.
-- Por lo tanto, abrir/cargar el MAIN no dispara la normalizacion de nombres ni la busqueda por PP.
+El Guard ya entrega al modulo la lista `usuarios_visibles` como IDs de usuario. Este FIX hace que `buildIndiceScope_cor()` compare esa lista exclusivamente contra:
 
-### DETALLE - Estado de Cuenta
+- `cobranza_indice_cor.adm = usuarios.id_SB`
+- `cobranza_indice_cor.sup = usuarios.id_SB`
+- `cobranza_indice_cor.vend = usuarios.id_SB`
 
-`GET /api/cobranza-cor/estados-cuenta/:idIndiceCor`
+Se elimina del filtro de alcance la compatibilidad anterior por `usuarios.iniciales`.
 
-Solo aqui se aplica la resolucion de los renglones financieros de `cobranza_fuente_cor`:
+Por lo tanto, iniciales coincidentes ya no conceden visibilidad. La decision de alcance utiliza el ID numerico.
 
-1. FK directa si existe.
-2. Nombre de proyecto normalizado.
-3. PP/ID Proyecto cuando identifica un unico proyecto.
-4. Si el PP esta compartido, PP + nombre fonetico para desambiguar.
+## Carga INDICE
 
-Una fila de FUENTE se devuelve una sola vez mediante `SELECT DISTINCT`.
+`normalizeIndice_cor()` ahora valida ADM, SUP y VEND como IDs enteros positivos o NULL.
 
-## UTF-8 / NBSP
+Valores permitidos:
 
-Se conserva la correccion V005:
+- `66`
+- `44`
+- `51`
+- vacio / NULL / `-` -> NULL
 
-- NBSP: `CONVERT(0xC2A0 USING utf8mb4)`
-- TAB: `CONVERT(0x09 USING utf8mb4)`
-- CR: `CONVERT(0x0D USING utf8mb4)`
-- LF: `CONVERT(0x0A USING utf8mb4)`
+Valores de texto o iniciales ya no se aceptan como usuario valido para esos tres campos.
 
-La normalizacion solo se ejecuta durante la lectura del DETALLE.
+No es necesario recargar INDICE para que el Guard use los IDs que ya existen en Aiven. La validacion nueva protege cargas futuras.
 
-## Archivo modificado completo
+## Resolucion para pantalla
+
+El backend hace `LEFT JOIN usuarios` por `id_SB` para ADM, SUP y VEND y devuelve, ademas del ID:
+
+- `nombre`
+- `iniciales`
+
+El frontend deja de mostrar solamente `66 / 44 / 51` y muestra el nombre del usuario. El `title` conserva nombre, iniciales e ID para consulta rapida.
+
+Ejemplo de la SABANA de referencia:
+
+- ID 66 -> Yageri Garcia / YG
+- ID 44 -> Aldo Mendez / AM
+- ID 51 -> Ignacio Neri / IN
+
+La SABANA es referencia historica. El nombre mostrado en ejecucion siempre se obtiene de la tabla `usuarios` de Aiven mediante el ID guardado en INDICE.
+
+## Estado de Cuenta / FUENTE
+
+Este FIX NO cambia la regla acordada anteriormente:
+
+- MAIN Estados de Cuenta nace de `cobranza_indice_cor`.
+- La resolucion flexible PP/Nombre contra `cobranza_fuente_cor` sigue ocurriendo solo al abrir el DETALLE del Estado de Cuenta.
+
+## Archivos modificados completos
 
 - `backend/src/modules/cobranza-cor/cobranza-cor.repository.js`
+- `backend/src/modules/cobranza-cor/cobranza-cor.service.js`
+- `modules/cobranza-cor/cobranza-cor-estados-cuenta.js`
 
-No modifica frontend, rutas, permisos, tablas ni llaves foraneas.
-No requiere SQL.
+No requiere SQL, ALTER TABLE, tabla nueva ni FK nueva.
 
-## Validacion
+## Validaciones ejecutadas
 
-- `node --check backend/src/modules/cobranza-cor/cobranza-cor.repository.js`
-- Verificacion estatica: `fuenteMatchesIndiceSql_cor()` se usa solo dentro de `listFuenteEstadoCuenta_cor()`.
-- Verificacion estatica: `listEstadosCuenta_cor()` usa unicamente la FK directa para Mov./Monedas/solo_con_fuente.
+- `node --check backend/src/modules/cobranza-cor/cobranza-cor.repository.js` -> OK
+- `node --check backend/src/modules/cobranza-cor/cobranza-cor.service.js` -> OK
+- `node --check modules/cobranza-cor/cobranza-cor-estados-cuenta.js` -> OK
+- `buildIndiceScope_cor()` ya no usa `u_scope.iniciales` -> OK
+- ADM / SUP / VEND en la carga se validan como IDs enteros positivos -> OK
+- El MAIN y el DETALLE resuelven nombre/iniciales por `usuarios.id_SB` -> OK
 
 ## Prueba recomendada despues del deploy
 
-1. `GET /api/cobranza-cor/estados-cuenta` debe cargar el MAIN sin ejecutar match flexible.
-2. Click en un proyecto.
-3. `GET /api/cobranza-cor/estados-cuenta/:idIndiceCor` debe recuperar FUENTE por PP o nombre cuando la FK no exista.
-4. Validar especialmente proyectos con diferencias de captura (`THALASA/THALASSA`, `WM/WALMART`, etc.).
+1. Abrir Cobranza > Estados de Cuenta con un usuario con llave maestra CORELLIAN: debe ver el alcance completo autorizado.
+2. Abrir con un usuario sin llave maestra y alcance limitado: solo deben llegar proyectos donde ADM, SUP o VEND corresponda a uno de sus `usuarios_visibles`.
+3. Revisar un proyecto con ADM=66, SUP=44, VEND=51 y confirmar que la interfaz resuelva los usuarios por ID.
+4. Abrir el detalle del Estado de Cuenta y confirmar que la logica FUENTE por PP/Nombre se mantiene sin cambios.

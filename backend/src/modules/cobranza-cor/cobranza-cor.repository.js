@@ -115,11 +115,8 @@ function buildIndiceScope_cor(alias, visibleUserIds) {
            AND u_scope.id_SB IN (${placeholders})
            AND (
              TRIM(COALESCE(${alias}.adm, '')) = CAST(u_scope.id_SB AS CHAR)
-             OR UPPER(TRIM(COALESCE(${alias}.adm, ''))) = UPPER(TRIM(u_scope.iniciales))
              OR TRIM(COALESCE(${alias}.sup, '')) = CAST(u_scope.id_SB AS CHAR)
-             OR UPPER(TRIM(COALESCE(${alias}.sup, ''))) = UPPER(TRIM(u_scope.iniciales))
              OR TRIM(COALESCE(${alias}.vend, '')) = CAST(u_scope.id_SB AS CHAR)
-             OR UPPER(TRIM(COALESCE(${alias}.vend, ''))) = UPPER(TRIM(u_scope.iniciales))
            )
       )`,
     params
@@ -254,6 +251,15 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
        i.adm,
        i.sup,
        i.vend,
+       u_adm.id_SB AS adm_usuario_id,
+       u_adm.nombre AS adm_usuario_nombre,
+       u_adm.iniciales AS adm_usuario_iniciales,
+       u_sup.id_SB AS sup_usuario_id,
+       u_sup.nombre AS sup_usuario_nombre,
+       u_sup.iniciales AS sup_usuario_iniciales,
+       u_vend.id_SB AS vend_usuario_id,
+       u_vend.nombre AS vend_usuario_nombre,
+       u_vend.iniciales AS vend_usuario_iniciales,
        i.edo,
        i.estatus,
        i.cobranza_usd,
@@ -278,6 +284,12 @@ async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = 
             AND f_currency.id_indice_cor = i.id_indice_cor
        ) AS monedas
      FROM ${TABLES_COR.indice} i
+     LEFT JOIN usuarios u_adm
+       ON TRIM(COALESCE(i.adm, '')) = CAST(u_adm.id_SB AS CHAR)
+     LEFT JOIN usuarios u_sup
+       ON TRIM(COALESCE(i.sup, '')) = CAST(u_sup.id_SB AS CHAR)
+     LEFT JOIN usuarios u_vend
+       ON TRIM(COALESCE(i.vend, '')) = CAST(u_vend.id_SB AS CHAR)
      WHERE ${clauses.join('\n       AND ')}
        ${scope.sql}
      ORDER BY i.proyecto ASC, i.id_indice_cor ASC`,
@@ -302,6 +314,15 @@ async function getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds
        i.adm,
        i.sup,
        i.vend,
+       u_adm.id_SB AS adm_usuario_id,
+       u_adm.nombre AS adm_usuario_nombre,
+       u_adm.iniciales AS adm_usuario_iniciales,
+       u_sup.id_SB AS sup_usuario_id,
+       u_sup.nombre AS sup_usuario_nombre,
+       u_sup.iniciales AS sup_usuario_iniciales,
+       u_vend.id_SB AS vend_usuario_id,
+       u_vend.nombre AS vend_usuario_nombre,
+       u_vend.iniciales AS vend_usuario_iniciales,
        i.edo,
        i.estatus,
        i.cobranza_usd,
@@ -310,6 +331,12 @@ async function getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds
        i.tipo_fianza,
        i.repse_siroc
      FROM ${TABLES_COR.indice} i
+     LEFT JOIN usuarios u_adm
+       ON TRIM(COALESCE(i.adm, '')) = CAST(u_adm.id_SB AS CHAR)
+     LEFT JOIN usuarios u_sup
+       ON TRIM(COALESCE(i.sup, '')) = CAST(u_sup.id_SB AS CHAR)
+     LEFT JOIN usuarios u_vend
+       ON TRIM(COALESCE(i.vend, '')) = CAST(u_vend.id_SB AS CHAR)
      WHERE i.id_indice_cor = ?
        AND i.activo = 1
        ${scope.sql}

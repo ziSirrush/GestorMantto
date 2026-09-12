@@ -139,6 +139,15 @@ function year_cor(value, fieldName) {
   return integer_cor(value, fieldName, { min: 1900, max: 2500 });
 }
 
+function userId_cor(value, fieldName) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (!text || text === '-') return null;
+  }
+  return integer_cor(value, fieldName, { min: 1 });
+}
+
 function boolean_cor(value, fieldName, fallback = 0) {
   if (value === undefined || value === null || value === '') return fallback;
   if (typeof value === 'boolean') return value ? 1 : 0;
@@ -237,9 +246,9 @@ function normalizeIndice_cor(row) {
     anio: year_cor(field_cor(map, 'ANO', 'anio'), 'ANO'),
     pp: cleanText_cor(field_cor(map, 'PP', 'pp'), 50),
     mrc: cleanText_cor(field_cor(map, 'MRC', 'mrc'), 50),
-    adm: cleanText_cor(field_cor(map, 'ADM', 'adm'), 50),
-    sup: cleanText_cor(field_cor(map, 'SUP', 'sup'), 50),
-    vend: cleanText_cor(field_cor(map, 'VEND', 'vend'), 50),
+    adm: userId_cor(field_cor(map, 'ADM', 'adm'), 'ADM'),
+    sup: userId_cor(field_cor(map, 'SUP', 'sup'), 'SUP'),
+    vend: userId_cor(field_cor(map, 'VEND', 'vend'), 'VEND'),
     edo: cleanText_cor(field_cor(map, 'EDO', 'edo'), 50),
     estatus: cleanText_cor(field_cor(map, 'ESTATUS', 'estatus'), 100),
     cobranza_usd: percentage01_cor(field_cor(map, 'COBRANZA_USD', 'cobranza_usd'), 'COBRANZA USD'),
@@ -564,6 +573,18 @@ function normalizeEstadosCuentaFilters_cor(query = {}) {
   return { buscar, anio, estatus, soloConFuente };
 }
 
+function serializeUsuarioReferencia_cor(row, prefix) {
+  const rawId = row?.[`${prefix}_usuario_id`] ?? row?.[prefix];
+  const id = integerOrNull_cor(rawId);
+  if (id === null) return null;
+
+  return {
+    id_SB: id,
+    nombre: cleanText_cor(row?.[`${prefix}_usuario_nombre`]),
+    iniciales: cleanText_cor(row?.[`${prefix}_usuario_iniciales`])
+  };
+}
+
 function serializeIndiceEstadoCuenta_cor(row) {
   const currencies = cleanText_cor(row?.monedas)
     ? String(row.monedas).split(',').map((item) => item.trim()).filter(Boolean)
@@ -576,9 +597,12 @@ function serializeIndiceEstadoCuenta_cor(row) {
     anio: integerOrNull_cor(row?.anio),
     pp: cleanText_cor(row?.pp),
     mrc: cleanText_cor(row?.mrc),
-    adm: cleanText_cor(row?.adm),
-    sup: cleanText_cor(row?.sup),
-    vend: cleanText_cor(row?.vend),
+    adm: integerOrNull_cor(row?.adm),
+    sup: integerOrNull_cor(row?.sup),
+    vend: integerOrNull_cor(row?.vend),
+    adm_usuario: serializeUsuarioReferencia_cor(row, 'adm'),
+    sup_usuario: serializeUsuarioReferencia_cor(row, 'sup'),
+    vend_usuario: serializeUsuarioReferencia_cor(row, 'vend'),
     edo: cleanText_cor(row?.edo),
     estatus: cleanText_cor(row?.estatus),
     cobranza_usd: numberOrNull_cor(row?.cobranza_usd),
