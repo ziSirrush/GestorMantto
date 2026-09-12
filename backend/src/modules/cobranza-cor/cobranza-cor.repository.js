@@ -141,12 +141,12 @@ function normalizedProjectSql_cor(expression) {
                 REPLACE(
                   REPLACE(
                     REPLACE(
-                      REPLACE(COALESCE(${expression}, ''), CHAR(160), ' '),
-                      CHAR(9), ' '
+                      REPLACE(COALESCE(${expression}, ''), CONVERT(0xC2A0 USING utf8mb4), ' '),
+                      CONVERT(0x09 USING utf8mb4), ' '
                     ),
-                    CHAR(13), ' '
+                    CONVERT(0x0D USING utf8mb4), ' '
                   ),
-                  CHAR(10), ' '
+                  CONVERT(0x0A USING utf8mb4), ' '
                 )
               )
             ),
