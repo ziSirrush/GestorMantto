@@ -141,7 +141,7 @@ async function syncBitacora(userId, idProyecto) {
     await connection.beginTransaction();
 
     for (const file of files) {
-      await repository.upsertDocumento(connection, {
+      await repository.upsertDocumento(connection, normalizedProjectId, {
         ...file,
         carpeta_raiz_id: carpetaProyecto.carpeta_id,
         detectado_por_usuario: userId

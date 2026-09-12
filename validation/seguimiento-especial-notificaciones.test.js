@@ -696,7 +696,7 @@ test('npm test queda conectado al workflow existente sin modificar el workflow',
 
   assert.equal(
     packageJson.scripts.test,
-    'node --test ../validation/seguimiento-especial-notificaciones.test.js'
+    'node --test ../validation/seguimiento-especial-notificaciones.test.js ../tests/instalaciones-bitacora-sync.test.js'
   );
   assert.match(workflow, /npm run test --if-present/);
 });

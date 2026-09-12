@@ -45,7 +45,7 @@ async function findExistingFileIds(connection, idProyecto) {
   return rows;
 }
 
-async function upsertDocumento(connection, doc) {
+async function upsertDocumento(connection, idProyecto, doc) {
   await connection.query(
     `INSERT INTO instalaciones_bitacora_documentos (
        id_proyecto, carpeta_raiz_id, drive_file_id, drive_parent_folder_id,

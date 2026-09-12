@@ -8,7 +8,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "check": "node scripts/validate-structure.js",
-    "test": "node --test ../validation/seguimiento-especial-notificaciones.test.js"
+    "test": "node --test ../validation/seguimiento-especial-notificaciones.test.js ../tests/instalaciones-bitacora-sync.test.js"
   },
   "keywords": [],
   "author": "",
