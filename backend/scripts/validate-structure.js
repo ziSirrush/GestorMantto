@@ -25,6 +25,7 @@ const requiredFiles = [
   'src/modules/pendientes/pendientes-access.service.js',
   'src/modules/pendientes/pendientes-files.service.js',
   'src/modules/pendientes/pendientes.routes.js',
+  'src/shared/rich-text.js',
   'src/modules/home/home.repository.js',
   'src/modules/home/home.service.js',
   'src/controllers/data.controller.legacy.js',
@@ -93,6 +94,25 @@ for (const relativeFile of requiredFiles) {
     failed = true;
   }
 }
+
+function validatePackagedRelativeRequires(relativeFile) {
+  const absoluteFile = path.join(root, relativeFile);
+  const source = fs.readFileSync(absoluteFile, 'utf8');
+  const expression = /require\(\s*['"](\.[^'"]+)['"]\s*\)/g;
+  let match;
+  while ((match = expression.exec(source))) {
+    const request = match[1];
+    const target = path.resolve(path.dirname(absoluteFile), request);
+    const staysInArtifact = target === root || target.startsWith(root + path.sep);
+    const exists = [target, `${target}.js`, path.join(target, 'index.js')].some(candidate => fs.existsSync(candidate));
+    if (!staysInArtifact || !exists) {
+      console.error(`[DEPENDENCIA FUERA DEL ARTEFACTO] ${relativeFile}: ${request}`);
+      failed = true;
+    }
+  }
+}
+
+validatePackagedRelativeRequires('src/modules/pendientes/pendientes.service.js');
 
 if (failed) {
   process.exit(1);

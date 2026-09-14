@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const richText = require('../core/rich-text');
+const backendRichText = require('../backend/src/shared/rich-text');
 
 const repositoryRoot = path.resolve(__dirname, '..');
 
@@ -53,4 +54,18 @@ test('Home carga el sanitizador antes del editor y protege altas y ediciones', (
     assert.match(home, new RegExp('data-rich-(?:command|color)="' + command + '"'));
   });
   assert.equal((service.match(/taskRichText\.sanitizeHtml\(sanitizeText\(body\.descripcion\)\)/g) || []).length, 2);
+  assert.match(service, /require\(['"]\.\.\/\.\.\/shared\/rich-text['"]\)/);
+  assert.doesNotMatch(service, /\.\.\/\.\.\/\.\.\/\.\.\/core\/rich-text/);
+});
+
+test('frontend y artefacto aislado del backend aplican el mismo contrato', () => {
+  const samples = [
+    'Texto anterior\nSegunda línea',
+    '<p><strong>Negrita</strong> <span style="color:#2563eb;background-color:#fef08a;font-size:18px">formato</span></p>',
+    '<script>alert(1)</script><p onclick="alert(2)">Seguro</p>',
+    'Enviar a <usuario@empresa.com>'
+  ];
+  samples.forEach(sample => {
+    assert.equal(backendRichText.sanitizeHtml(sample), richText.sanitizeHtml(sample));
+  });
 });

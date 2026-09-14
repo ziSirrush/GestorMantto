@@ -1,7 +1,7 @@
 const pendientesRepository = require('./pendientes.repository');
 const pendientesAccess = require('./pendientes-access.service');
 const pendientesFiles = require('./pendientes-files.service');
-const taskRichText = require('../../../../core/rich-text');
+const taskRichText = require('../../shared/rich-text');
 const {
   emitBusinessEventSafe_gnral
 } = require('../../services/notifications/notification-business-emitter.service');
