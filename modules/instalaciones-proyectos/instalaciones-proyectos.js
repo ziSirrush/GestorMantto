@@ -28,6 +28,10 @@ PY_EQUIPOS.forEach(e=>{
 
 
 const PY_API_BASE=(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
+function pyCurrentDateCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function'?window.ManttoHumanTime.mexicoCityDate():new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+function pyCurrentYearCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityYear==='function'?window.ManttoHumanTime.mexicoCityYear():Number(pyCurrentDateCdmx().slice(0,4));}
+function pyCurrentDateLabelCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'?window.ManttoHumanTime.formatMexicoCityDate():new Date().toLocaleDateString('es-MX',{timeZone:'America/Mexico_City'});}
+function pyComparableDate(v){const raw=String(v==null?'':v).trim();const iso=raw.match(/^(\d{4}-\d{2}-\d{2})/);if(iso)return iso[1];const d=typeof pyParsearFecha==='function'?pyParsearFecha(raw):null;if(!d||Number.isNaN(d.getTime()))return'';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function pyAuthHeaders(){return Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});}
 async function pyFetchJson(path){
   const response=await fetch(PY_API_BASE+path,{headers:pyAuthHeaders(),cache:'no-store'});
@@ -875,9 +879,9 @@ function pyNotificacionesA(e){
   const resultado = [];
   const planeado = e['FIN DE AJUSTE PLANEADO'];
   if(planeado){
-    const fechaPlaneada = new Date(planeado);
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    if(!isNaN(fechaPlaneada.getTime()) && fechaPlaneada < hoy) resultado.push({ emoji: '⏰', texto: 'Ajuste con retraso' });
+    const fechaPlaneada = pyComparableDate(planeado);
+    const hoy = pyCurrentDateCdmx();
+    if(fechaPlaneada && fechaPlaneada < hoy) resultado.push({ emoji: '⏰', texto: 'Ajuste con retraso' });
   }
   if(!pyEsVacioOMarcador(e['FIN DE AJUSTE MODIFICADO'])) resultado.push({ emoji: '❌', texto: 'Fin ajuste modificado' });
   if(pyEsVacioOMarcador(e['REVISION DE INSTALACION POR SUPERVISOR'])) resultado.push({ emoji: '👁️', texto: 'Falta revision de supervisor' });
@@ -960,7 +964,7 @@ const PY_SECCIONES_REPORTE = [
       ['FORMATO', 'FORMATO (CAF-PG)', 'texto'], ['EL EQUIPO SE QUEDA', 'EQUIPO SE QUEDA (ENTREGA)', 'texto'],
     ] },
 ];
-const PY_ANIO_ACTUAL = new Date().getFullYear();
+const PY_ANIO_ACTUAL = pyCurrentYearCdmx();
 
 
 function pyPopulateFiltrosReporte(){
@@ -976,7 +980,7 @@ function pyPopulateFiltrosReporte(){
 function pyGenerarPDF(){
   pyShowTab('reporte');
   const fechaEl = document.getElementById('py-print-fecha');
-  if(fechaEl) fechaEl.textContent = new Date().toLocaleDateString('es-MX');
+  if(fechaEl) fechaEl.textContent = pyCurrentDateLabelCdmx();
   setTimeout(() => window.print(), 50);
 }
 

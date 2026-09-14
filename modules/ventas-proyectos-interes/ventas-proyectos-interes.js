@@ -9,7 +9,7 @@ const state={page:1,total:0,totalPages:0,rows:[],search:'',initialized:false,req
 const $=(selector,root=document)=>root.querySelector(selector);
 const esc=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const fmtDate=value=>{if(!value)return '—';const raw=String(value).slice(0,10);const d=new Date(raw+'T12:00:00');return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});};
-const fmtDateTime=value=>{if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});};
+const fmtDateTime=value=>{if(!value)return '—';return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'?window.ManttoHumanTime.formatDateTime(value,{fallback:String(value)}):String(value);};
 const authHeaders=()=>Object.assign({'Accept':'application/json'},window.ManttoAuth?.authHeaders?window.ManttoAuth.authHeaders():{});
 
 function template(){return `<div class="vpi-page" id="vpi-page">

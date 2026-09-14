@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const { mexicoCityYear } = require('../../utils/temporal');
 const repository = require('./ventas-dashboard.repository');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
 
@@ -19,7 +20,7 @@ function normalize(value) {
 }
 
 function normalizeDashboardYear(value) {
-  const currentYear = new Date().getFullYear();
+  const currentYear = mexicoCityYear();
   if (value === undefined || value === null || String(value).trim() === '') return currentYear;
   const year = Number(value);
   if (!Number.isInteger(year) || year < 1900 || year > 2200) {
@@ -371,7 +372,7 @@ async function getCommercialKpis(query = {}, context = {}) {
     repository.getCommercialKpis(db, selection.userIds, year),
     repository.listCommercialYears(db, selection.userIds)
   ]);
-  const years = [...new Set([new Date().getFullYear(), year, ...availableYears])]
+  const years = [...new Set([mexicoCityYear(), year, ...availableYears])]
     .filter((item) => Number.isInteger(Number(item)))
     .map(Number)
     .sort((a, b) => b - a);

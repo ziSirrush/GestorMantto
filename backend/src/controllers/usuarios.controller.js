@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
+const { mexicoCityYear } = require('../utils/temporal');
 const { validatePasswordRules } = require('../utils/passwordRules');
 const { resetUserPasswordById } = require('../../scripts/reset-user-id-password');
 const { hasGlobalProgrammerRole } = require('../services/permissions/global-programmer.service');
@@ -218,7 +219,7 @@ async function createUsuario(req, res) {
     return res.status(400).json({ ok: false, message: 'Nombre, iniciales, puesto, área, correo y rol principal son obligatorios.' });
   }
 
-  const finalPassword = tempPassword || `Mantto-${iniciales}-${new Date().getFullYear()}!`;
+  const finalPassword = tempPassword || `Mantto-${iniciales}-${mexicoCityYear()}!`;
   const passwordError = validatePasswordRules(finalPassword);
   if (passwordError) return res.status(400).json({ ok: false, message: passwordError });
 

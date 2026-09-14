@@ -433,7 +433,7 @@ async function updateMyTicket(req, res) {
     }
 
     const setSql = Object.keys(changes).map(column => `\`${column}\` = ?`);
-    setSql.push('fecha_actualizacion = NOW()');
+    setSql.push('fecha_actualizacion = UTC_TIMESTAMP(3)');
     await db.query(
       `UPDATE sup_tickets SET ${setSql.join(', ')} WHERE id_ticket = ? AND id_usuario = ?`,
       [...Object.values(changes), beforeTicket.id_ticket, req.user.id_SB]
@@ -712,7 +712,7 @@ async function addTicketComment(req, res) {
     await appendTicketHistory('sup_tickets', 'id_ticket', ticket.id_ticket, supportEvent(req, 'comentario', { mensaje: comentario }));
     await db.query(
       `UPDATE sup_tickets
-          SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW(), ultima_respuesta_por = ?
+          SET fecha_ultima_respuesta = UTC_TIMESTAMP(3), fecha_actualizacion = UTC_TIMESTAMP(3), ultima_respuesta_por = ?
         WHERE id_ticket = ?`,
       [hasExactSupportRole(req.user || {}) ? 'Soporte' : 'Usuario', ticket.id_ticket]
     );

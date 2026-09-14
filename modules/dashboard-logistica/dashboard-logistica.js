@@ -13,11 +13,12 @@
   const $=id=>document.getElementById(id);
   const esc=v=>String(v==null||v===''?'—':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=v=>String(v==null?'':v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const currentYearCdmx=()=>window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityYear==='function'?window.ManttoHumanTime.mexicoCityYear():Number(new Intl.DateTimeFormat('en',{timeZone:'America/Mexico_City',year:'numeric'}).format(new Date()));
   const num=v=>Number(v||0).toLocaleString('es-MX');
   const text=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
   const api=()=>String(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
   function isSin(r){const v=norm(r.id_ppns);return ['SIN PP NS','SIN PPNS','SIN CARPETA'].includes(v);}
-  function deliveredYear(r){const m=String(r.fecha_entrega_real_obra||'').match(/^(\d{4})/);return norm(r.estatus)==='ENTREGADO'&&m&&Number(m[1])===new Date().getFullYear();}
+  function deliveredYear(r){const m=String(r.fecha_entrega_real_obra||'').match(/^(\d{4})/);return norm(r.estatus)==='ENTREGADO'&&m&&Number(m[1])===currentYearCdmx();}
   function setStatus(cls,msg){const e=$('dl-status');if(!e)return;e.className='dl-status '+cls;e.innerHTML='<span class="dl-dot"></span><span>'+esc(msg)+'</span>';}
   async function fetchRows(){const headers=Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});const r=await fetch(api()+'/api/logistica?limit=5000',{headers,cache:'no-store'});const raw=await r.text();let j;try{j=raw?JSON.parse(raw):{};}catch(e){throw new Error('Respuesta no JSON del backend.');}if(!r.ok||!j.ok)throw new Error(j.message||j.error||'Error consultando Logística');return Array.isArray(j.data)?j.data:[];}
   async function fetchLatestCut(){const headers=Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});const r=await fetch(api()+'/api/logistica/cortes/semanales/ultimo',{headers,cache:'no-store'});const raw=await r.text();let j;try{j=raw?JSON.parse(raw):{};}catch(e){throw new Error('Respuesta no JSON del corte semanal.');}if(!r.ok||!j.ok)throw new Error(j.message||j.error||'Error consultando el corte semanal');return j.data||null;}

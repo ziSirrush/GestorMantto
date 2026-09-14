@@ -1,6 +1,7 @@
 'use strict';
 
 const repository = require('./experimental-atencion-prioritaria.repository');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
 const canonicalZoneUni = require('../../services/alcance/united-canonical-zone.service');
 
@@ -76,18 +77,18 @@ async function getAtencionPrioritaria_exp(req){
   const criticalOuterScope=informationRecordScope.buildTicketScopeSqlInline_gnral(req,'t');
   const criticalMetricsSql=`
     SELECT critical.codigo_equipo,critical.fallas_blt_periodo,
-      SUM(CASE WHEN t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(CURDATE(),INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS llamadas_7d,
-      SUM(CASE WHEN t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(CURDATE(),INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS llamadas_30d
+      SUM(CASE WHEN t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(${sqlMexicoCityToday()},INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS llamadas_7d,
+      SUM(CASE WHEN t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(${sqlMexicoCityToday()},INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS llamadas_30d
     FROM (
       SELECT tc.codigo_equipo,COUNT(*) AS fallas_blt_periodo
       FROM tickets tc
       WHERE ${criticalInnerScope.sql}
         AND tc.codigo_equipo IS NOT NULL AND TRIM(tc.codigo_equipo)<>'' AND tc.fecha_reporte IS NOT NULL
-        AND DATE(tc.fecha_reporte)>=DATE_SUB(CURDATE(),INTERVAL ? DAY)
+        AND DATE(tc.fecha_reporte)>=DATE_SUB(${sqlMexicoCityToday()},INTERVAL ? DAY)
         AND UPPER(COALESCE(tc.responsabilidad,'')) LIKE '%BLT%'
       GROUP BY tc.codigo_equipo HAVING COUNT(*)>=?
     ) critical
-    LEFT JOIN tickets t ON t.codigo_equipo=critical.codigo_equipo AND t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(CURDATE(),INTERVAL 30 DAY) AND ${criticalOuterScope.sql}
+    LEFT JOIN tickets t ON t.codigo_equipo=critical.codigo_equipo AND t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(${sqlMexicoCityToday()},INTERVAL 30 DAY) AND ${criticalOuterScope.sql}
     GROUP BY critical.codigo_equipo,critical.fallas_blt_periodo`;
 
   const [openResult,catalogResult,metricsResult]=await Promise.all([

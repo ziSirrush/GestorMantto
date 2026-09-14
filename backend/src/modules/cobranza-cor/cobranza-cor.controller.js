@@ -15,14 +15,6 @@ function sendKnownError(error, res, next) {
   return next(error);
 }
 
-async function cargarIndice_cor(req, res, next) {
-  try {
-    return res.status(200).json(await service.cargarIndice_cor(req.body || {}));
-  } catch (error) {
-    return sendKnownError(error, res, next);
-  }
-}
-
 async function cargarFuente_cor(req, res, next) {
   try {
     return res.status(200).json(await service.cargarFuente_cor(req.body || {}));
@@ -52,7 +44,7 @@ async function listarEstadosCuenta_cor(req, res, next) {
 async function detalleEstadoCuenta_cor(req, res, next) {
   try {
     return res.status(200).json(
-      await service.detalleEstadoCuenta_cor(req.params.idIndiceCor, req.informationAccess)
+      await service.detalleEstadoCuenta_cor(req.params.ppns, req.informationAccess)
     );
   } catch (error) {
     return sendKnownError(error, res, next);
@@ -116,7 +108,6 @@ async function adeudosContractuales_cor(_req, res, next) {
 }
 
 module.exports = {
-  cargarIndice_cor,
   cargarFuente_cor,
   cargarAditivas_cor,
   listarEstadosCuenta_cor,

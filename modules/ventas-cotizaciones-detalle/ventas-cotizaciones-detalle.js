@@ -50,12 +50,15 @@ function date(v){
 }
 function dateTime(v){
   if(!v)return'—';
-  const d=new Date(v);
-  return Number.isNaN(d.getTime())?String(v):d.toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'
+    ? window.ManttoHumanTime.formatDateTime(v,{fallback:String(v)})
+    : String(v);
 }
 function isoToday(){
-  const d=new Date();
-  return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+  if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function') return window.ManttoHumanTime.mexicoCityDate();
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+  return values.year+'-'+values.month+'-'+values.day;
 }
 function toast(m,e=false){
   const el=$('#vqd-toast');

@@ -1,5 +1,6 @@
 // [Aster | 2026-08-28 | ASTER-MG | FASE_5_SQL_AIVEN_OPTIMIZACION_V001]
 const db = require('../../config/db');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 
 function getConnection() {
   return db.getConnection();
@@ -250,8 +251,8 @@ async function getKpis(connection, filters, scope) {
       COUNT(*) AS visitas,
       SUM(CASE WHEN p.latitud IS NOT NULL AND p.longitud IS NOT NULL THEN 1 ELSE 0 END) AS con_ubicacion,
       SUM(CASE
-        WHEN p.fecha_visita >= MAKEDATE(YEAR(CURRENT_DATE()), 1)
-         AND p.fecha_visita < MAKEDATE(YEAR(CURRENT_DATE()) + 1, 1)
+        WHEN p.fecha_visita >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+         AND p.fecha_visita < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         THEN 1 ELSE 0
       END) AS este_anio,
       COUNT(DISTINCT NULLIF(TRIM(COALESCE(p.estatus, pe.nombre)), '')) AS estatus_activos
@@ -612,7 +613,7 @@ async function insertHistory(connection, record) {
   await connection.query(
     `INSERT INTO ventas_prospeccion_historial
        (id_pros, id_usuario, tipo_evento, campo, valor_anterior, valor_nuevo, comentario, fecha_evento, ip_origen)
-     VALUES (?, ?, 'CREACION', NULL, NULL, ?, ?, CURRENT_TIMESTAMP(3), ?)`,
+     VALUES (?, ?, 'CREACION', NULL, NULL, ?, ?, UTC_TIMESTAMP(3), ?)`,
     [record.id_pros, record.id_usuario, JSON.stringify(record.valor_nuevo || {}), record.comentario || null, record.ip || null]
   );
 }
@@ -655,7 +656,7 @@ async function findProspectionStatus(connection, statusName) {
 async function updateProspectionStatus(connection, idPros, status) {
   await connection.query(
     `UPDATE ventas_prospecciones
-        SET id_estatus = ?, estatus = ?, fecha_cam_estatus = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        SET id_estatus = ?, estatus = ?, fecha_cam_estatus = UTC_TIMESTAMP(3), updated_at = UTC_TIMESTAMP(3)
       WHERE id_pros = ? AND activo = 1`,
     [status.id_estatus, status.estatus, idPros]
   );
@@ -665,7 +666,7 @@ async function createProspectionComment(connection, data) {
   const [result] = await connection.query(
     `INSERT INTO ventas_prospeccion_comentarios
        (id_pros, id_usuario, comentario, fecha_hora, editado, activo)
-     VALUES (?, ?, ?, CURRENT_TIMESTAMP(3), 0, 1)`,
+     VALUES (?, ?, ?, UTC_TIMESTAMP(3), 0, 1)`,
     [data.id_pros, data.id_usuario, data.comentario || '']
   );
   return Number(result.insertId);
@@ -689,7 +690,7 @@ async function insertProspectionHistory(connection, record) {
   await connection.query(
     `INSERT INTO ventas_prospeccion_historial
        (id_pros, id_usuario, tipo_evento, campo, valor_anterior, valor_nuevo, comentario, fecha_evento, ip_origen)
-     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3), ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?)`,
     [record.id_pros, record.id_usuario || null, record.tipo_evento, record.campo || null,
      record.valor_anterior == null ? null : JSON.stringify(record.valor_anterior),
      record.valor_nuevo == null ? null : JSON.stringify(record.valor_nuevo),

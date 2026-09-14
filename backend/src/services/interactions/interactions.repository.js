@@ -21,7 +21,7 @@ async function insert_gnral(row, executor = db) {
       ip_address,
       user_agent,
       created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
   `, [
     row.id_usuario,
     row.tipo_interaccion,

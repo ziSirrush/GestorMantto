@@ -263,7 +263,7 @@ async function createTicketComentario(req, res) {
     }
 
     const [result] = await conn.query(
-      'INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario) VALUES (?,?,?)',
+      'INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario,fecha_creacion,fecha_actualizacion) VALUES (?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))',
       [row.id, user.id, comentario]
     );
     commentId = Number(result.insertId || 0) || null;
@@ -360,7 +360,7 @@ async function saveTicketValidacion(req, res) {
           vobo_comentario = ?,
           vobo_por_id = ?,
           vobo_por_nombre = ?,
-          vobo_en = CURRENT_TIMESTAMP
+          vobo_en = UTC_TIMESTAMP(3)
       WHERE id = ?
     `, [
       estado,
@@ -372,8 +372,8 @@ async function saveTicketValidacion(req, res) {
 
     const [validationResult] = await conn.query(`
       INSERT INTO ticket_validaciones (
-        id_ticket, id_usuario, estado_anterior, estado_nuevo, comentario, ip_origen
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        id_ticket, id_usuario, estado_anterior, estado_nuevo, comentario, ip_origen, fecha_creacion
+      ) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
     `, [row.id, user.id, previous, estado, comentario, req.ip || null]);
     validationId = Number(validationResult.insertId || 0) || null;
 

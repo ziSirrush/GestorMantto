@@ -46,10 +46,9 @@
 
   function fmt(value) {
     if (!value) return '—';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime())
-      ? String(value)
-      : date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'
+      ? window.ManttoHumanTime.formatDateTime(value,{fallback:String(value)})
+      : String(value);
   }
 
   function initials(row) {

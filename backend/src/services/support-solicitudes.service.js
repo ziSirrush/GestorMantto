@@ -187,7 +187,7 @@ async function autoAssignIfEmpty(ticketId, userId) {
   const [result] = await db.query(
     `UPDATE sup_tickets
         SET id_soporte = ?, estado_ticket = CASE WHEN estado_ticket = 'Abierto' THEN 'Asignado' ELSE estado_ticket END,
-            fecha_actualizacion = NOW()
+            fecha_actualizacion = UTC_TIMESTAMP(3)
       WHERE id_ticket = ? AND id_soporte IS NULL`,
     [userId, ticketId]
   );

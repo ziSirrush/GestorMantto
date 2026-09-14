@@ -341,9 +341,10 @@
 
   function formatRelativeDate(value){
     if(!value) return 'Sin fecha';
-    const d = new Date(value);
-    if(Number.isNaN(d.getTime())) return safeText(value);
-    return d.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatDateTime === 'function'){
+      return window.ManttoHumanTime.formatDateTime(value, { fallback:safeText(value) });
+    }
+    return safeText(value);
   }
 
   const HOME_MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -1280,11 +1281,33 @@
     const btn = document.getElementById('hdr-notif-btn');
     if(!pop) return;
     const rows = items || state.unreadNotifications || [];
-    pop.innerHTML = `<div class="hdr-notif-head"><strong>Notificaciones nuevas</strong><button type="button" id="hdr-notif-close">×</button></div>` +
+    pop.innerHTML = `<div class="hdr-notif-head"><strong>Notificaciones nuevas</strong><div class="hdr-notif-actions">${rows.length ? '<button type="button" class="hdr-notif-mark-all" id="hdr-notif-mark-all">Marcar todo como visto</button>' : ''}<button type="button" class="hdr-notif-close" id="hdr-notif-close" aria-label="Cerrar notificaciones">×</button></div></div>` +
       (rows.length ? `<div class="hdr-notif-list">${rows.map(n => `<button type="button" class="hdr-notif-row" data-header-notification="${safeText(n.id)}" data-target='${toTargetAttr(n.route)}'><span>${safeText(n.icon)}</span><b>${notificationTitleMarkup(n)}</b><small>${safeText(n.text)}</small><em>${safeText(n.time)}</em></button>`).join('')}</div>` : '<div class="hdr-notif-empty">Sin notificaciones nuevas.</div>');
     pop.hidden = false;
     if(btn) btn.setAttribute('aria-expanded', 'true');
     document.getElementById('hdr-notif-close')?.addEventListener('click', ev=>{ ev.stopPropagation(); closeHeaderNotificationDropdown(); });
+    document.getElementById('hdr-notif-mark-all')?.addEventListener('click', async ev=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+      const markAllButton = ev.currentTarget;
+      markAllButton.disabled = true;
+      markAllButton.textContent = 'Marcando...';
+      try{
+        await apiRequest('/api/notificaciones/abrir-todas', { method:'PATCH' });
+        state.unreadNotifications = [];
+        state.unreadNotificationCount = 0;
+        updateHeaderBadge(0);
+        renderCounters();
+        renderHeaderNotificationDropdown([]);
+        await loadHomeData();
+      }catch(error){
+        alert(error.message || 'No se pudieron marcar las notificaciones como vistas.');
+        if(markAllButton.isConnected){
+          markAllButton.disabled = false;
+          markAllButton.textContent = 'Marcar todo como visto';
+        }
+      }
+    });
     pop.querySelectorAll('[data-header-notification]').forEach(row=>{
       row.addEventListener('click', async ev=>{
         ev.preventDefault();

@@ -10,20 +10,19 @@ const { humanInformationGuard_gnral } = require('../../middleware/information-ac
 const router = express.Router();
 
 // Cobranza COR reuses the same M2M credentials already approved for Ventas.
-// No new integration id/secret is introduced in this phase.
+// No new integration id/secret is introduced by this FIX.
 const requireCobranzaCorIntegration = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID', {
   whenDisabled: [requireAuth, requireHistoricalSyncEnabled]
 });
 
-// Estados de Cuenta pertenece a CORELLIAN / agrupacion COBRANZA.
-// El Guard General resuelve sesion, permiso funcional, puerta de informacion
-// y alcance de usuarios visible. El repositorio aplica ese alcance a ADM/SUP/VEND.
+// CORELLIAN / COBRANZA keeps the existing central functional + information guard.
+// Repository-level filtering now resolves each PPNS through ins_fl.id_proyecto and
+// checks SUP/ASESOR against the centrally-resolved visible user set.
 const requireEstadosCuentaCor = humanInformationGuard_gnral({
   permissionCode: 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
   domain: 'CORELLIAN',
   groupingCode: 'COBRANZA'
 });
-
 
 const requireAditivasCor = humanInformationGuard_gnral({
   permissionCode: 'COBRANZA_ADITIVAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
@@ -42,19 +41,17 @@ function rejectViewerMutation_cor(req, res, next) {
   return next();
 }
 
-router.post('/carga/indice', requireCobranzaCorIntegration, controller.cargarIndice_cor);
 router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
 
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
-router.get('/estados-cuenta/:idIndiceCor', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
+router.get('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
 
 router.get('/aditivas', ...requireAditivasCor, controller.aditivas_cor);
 router.post('/aditivas', ...requireAditivasCor, rejectViewerMutation_cor, controller.crearAditiva_cor);
 router.get('/aditivas/:idAditivaCor', ...requireAditivasCor, controller.detalleAditiva_cor);
 router.put('/aditivas/:idAditivaCor', ...requireAditivasCor, rejectViewerMutation_cor, controller.actualizarAditiva_cor);
 
-// Existing read route remains reserved for the rest of the functional backend phase.
 router.get('/adeudos-contractuales', requireAuth, controller.adeudosContractuales_cor);
 
 module.exports = router;

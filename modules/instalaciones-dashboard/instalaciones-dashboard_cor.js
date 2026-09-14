@@ -315,9 +315,9 @@
   function formatDateTime_cor(value){
     const text = raw(value);
     if(!text) return '—';
-    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
-    if(match) return match[3] + '/' + match[2] + '/' + match[1] + ' - ' + match[4] + ':' + match[5];
-    return formatDate_cor(text);
+    return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'
+      ? window.ManttoHumanTime.formatDateTime(value,{fallback:formatDate_cor(text)})
+      : formatDate_cor(text);
   }
 
   function formatPct_cor(value){

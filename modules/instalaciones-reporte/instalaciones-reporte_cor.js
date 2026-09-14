@@ -133,9 +133,10 @@
   function formatTimestamp_cor(value){
     const date = value ? new Date(value) : new Date();
     if(Number.isNaN(date.getTime())) return 'Actualizado';
-    const pad = number => String(number).padStart(2, '0');
-    return pad(date.getDate()) + '/' + pad(date.getMonth() + 1) + '/' + date.getFullYear() +
-      ' - ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDateTime === 'function'){
+      return window.ManttoHumanTime.formatMexicoCityDateTime(date);
+    }
+    return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date).replace(',', ' -');
   }
 
   function formatPercent_cor(value){
@@ -549,13 +550,19 @@
   }
 
   function printDate_cor(){
-    return new Date().toLocaleDateString('es-MX');
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDate === 'function'){
+      return window.ManttoHumanTime.formatMexicoCityDate();
+    }
+    return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
   }
 
   function printFilenameDate_cor(){
-    const date = new Date();
-    const pad = number => String(number).padStart(2, '0');
-    return date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate());
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.mexicoCityDate === 'function'){
+      return window.ManttoHumanTime.mexicoCityDate().replace(/-/g, '');
+    }
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return values.year + values.month + values.day;
   }
 
   const PDF_LEGEND_BY_STATUS_COR = Object.freeze({

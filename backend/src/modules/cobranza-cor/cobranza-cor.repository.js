@@ -3,13 +3,11 @@
 const db = require('../../config/db');
 
 const TABLES_COR = Object.freeze({
-  indice: 'cobranza_indice_cor',
   fuente: 'cobranza_fuente_cor',
   aditivas: 'cobranza_aditivas_cor'
 });
 
 const ADITIVA_MUTABLE_COLUMNS_COR = Object.freeze([
-  'id_indice_cor',
   'anio_cot',
   'departamento',
   'categoria',
@@ -52,17 +50,15 @@ async function insertRecord_cor(connection, tableName, record) {
     throw new Error(`Tabla Cobranza COR no autorizada: ${tableName}`);
   }
 
-  const columns = Object.keys(record);
+  const columns = Object.keys(record || {});
   if (!columns.length) throw new Error('No hay columnas para insertar.');
 
   const placeholders = columns.map(() => '?').join(', ');
   const values = columns.map((column) => record[column]);
-
   const [result] = await connection.query(
     `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
     values
   );
-
   return result;
 }
 
@@ -80,139 +76,285 @@ async function updateAditiva_cor(connection, idAditivaCor, record) {
         AND activo = 1`,
     values
   );
-
   return result;
 }
 
-async function resolveIndiceFuente_cor(connection, proyecto, anioProyecto) {
-  const params = [proyecto];
-  let yearSql = '';
-
-  if (Number.isInteger(anioProyecto)) {
-    yearSql = ' AND anio = ?';
-    params.push(anioProyecto);
-  }
-
-  const [rows] = await connection.query(
-    `SELECT id_indice_cor
-       FROM ${TABLES_COR.indice}
-      WHERE activo = 1
-        AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
-        ${yearSql}
-      ORDER BY id_indice_cor ASC
-      LIMIT 2`,
-    params
-  );
-
-  return {
-    id_indice_cor: rows.length === 1 ? Number(rows[0].id_indice_cor) : null,
-    matches: rows.length
-  };
+function normalizedKeySql_cor(expression) {
+  return `UPPER(TRIM(COALESCE(${expression}, '')))`;
 }
 
-async function resolveIndiceAditiva_cor(connection, proyecto, ppNs) {
-  const clauses = ['activo = 1'];
-  const params = [];
-
-  if (proyecto) {
-    clauses.push('UPPER(TRIM(proyecto)) = UPPER(TRIM(?))');
-    params.push(proyecto);
-  }
-
-  if (ppNs) {
-    clauses.push('UPPER(TRIM(pp)) = UPPER(TRIM(?))');
-    params.push(ppNs);
-  }
-
-  if (clauses.length === 1) {
-    return { id_indice_cor: null, matches: 0 };
-  }
-
-  const [rows] = await connection.query(
-    `SELECT id_indice_cor
-       FROM ${TABLES_COR.indice}
-      WHERE ${clauses.join(' AND ')}
-      ORDER BY id_indice_cor ASC
-      LIMIT 2`,
-    params
-  );
-
-  return {
-    id_indice_cor: rows.length === 1 ? Number(rows[0].id_indice_cor) : null,
-    matches: rows.length
-  };
+function usablePpnsSql_cor(expression) {
+  return `NULLIF(TRIM(COALESCE(${expression}, '')), '') IS NOT NULL
+          AND ${normalizedKeySql_cor(expression)} NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP', 'SIN PPNS')`;
 }
 
-function userIdSql_cor(expression) {
-  return `CAST(NULLIF(TRIM(${expression}), '') AS UNSIGNED)`;
-}
-
-function buildIndiceScope_cor(alias, visibleUserIds) {
-  if (visibleUserIds === null) {
-    return { sql: '', params: [] };
-  }
-
-  const ids = [...new Set((Array.isArray(visibleUserIds) ? visibleUserIds : [])
+function normalizeVisibleUserIds_cor(visibleUserIds) {
+  return [...new Set((Array.isArray(visibleUserIds) ? visibleUserIds : [])
     .map(Number)
-    .filter((value) => Number.isInteger(value) && value > 0))];
+    .filter((value) => Number.isInteger(value) && value > 0))]
+    .sort((a, b) => a - b);
+}
 
-  if (!ids.length) {
-    return { sql: ' AND 1 = 0', params: [] };
-  }
+// CORELLIAN fail-closed:
+// - Full domain: no record filter.
+// - Limited domain: PPNS must resolve to ins_fl and its SUP or ASESOR must be
+//   part of the centrally-resolved visible user set. REL_ADMIN is already
+//   converted to visible advisor IDs by alcance-cor.service.js; it is NOT
+//   re-inferred here so a relationship cannot bypass the central scope engine.
+function buildPpnsScope_cor(ppnsExpression, visibleUserIds) {
+  if (visibleUserIds === null) return { sql: '', params: [] };
+
+  const ids = normalizeVisibleUserIds_cor(visibleUserIds);
+  if (!ids.length) return { sql: ' AND 1 = 0', params: [] };
 
   const placeholders = ids.map(() => '?').join(', ');
-  const params = [...ids];
-
   return {
     sql: `
       AND EXISTS (
         SELECT 1
-          FROM usuarios u_scope
-         WHERE u_scope.estado = 1
-           AND u_scope.id_SB IN (${placeholders})
+          FROM ins_fl fl_scope
+         WHERE fl_scope.activo = 1
+           AND ${normalizedKeySql_cor('fl_scope.id_proyecto')} = ${normalizedKeySql_cor(ppnsExpression)}
            AND (
-             ${userIdSql_cor(`${alias}.adm`)} = u_scope.id_SB
-             OR ${userIdSql_cor(`${alias}.sup`)} = u_scope.id_SB
-             OR ${userIdSql_cor(`${alias}.vend`)} = u_scope.id_SB
+             fl_scope.id_sup IN (${placeholders})
+             OR fl_scope.id_asesor IN (${placeholders})
            )
       )`,
+    params: [...ids, ...ids]
+  };
+}
+
+async function canAccessPpns_cor(connection, ppns, visibleUserIds = null) {
+  if (visibleUserIds === null) return true;
+  const ids = normalizeVisibleUserIds_cor(visibleUserIds);
+  if (!ids.length) return false;
+  const placeholders = ids.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT 1 AS ok
+       FROM ins_fl fl_check
+      WHERE fl_check.activo = 1
+        AND ${normalizedKeySql_cor('fl_check.id_proyecto')} = ${normalizedKeySql_cor('?')}
+        AND (
+          fl_check.id_sup IN (${placeholders})
+          OR fl_check.id_asesor IN (${placeholders})
+        )
+      LIMIT 1`,
+    [ppns, ...ids, ...ids]
+  );
+  return rows.length > 0;
+}
+
+function buildEstadosCuentaBaseSql_cor() {
+  return `
+    SELECT
+      ${normalizedKeySql_cor('f.id_proyecto_origen')} AS ppns_key,
+      MAX(NULLIF(TRIM(f.id_proyecto_origen), '')) AS ppns,
+      GROUP_CONCAT(
+        DISTINCT NULLIF(TRIM(f.proyecto), '')
+        ORDER BY NULLIF(TRIM(f.proyecto), '')
+        SEPARATOR ' - '
+      ) AS proyecto,
+      GROUP_CONCAT(
+        DISTINCT NULLIF(TRIM(f.cliente), '')
+        ORDER BY NULLIF(TRIM(f.cliente), '')
+        SEPARATOR ' - '
+      ) AS cliente,
+      SUM(
+        CASE
+          WHEN NULLIF(TRIM(f.moneda), '') IS NOT NULL
+           AND UPPER(TRIM(f.moneda)) <> 'MXN'
+          THEN 1 ELSE 0
+        END
+      ) AS hitos_suministro,
+      SUM(
+        CASE WHEN UPPER(TRIM(COALESCE(f.moneda, ''))) = 'MXN' THEN 1 ELSE 0 END
+      ) AS hitos_mxn,
+      COUNT(DISTINCT f.id_fuente_cor) AS registros_estado_cuenta,
+      GROUP_CONCAT(
+        DISTINCT NULLIF(UPPER(TRIM(f.moneda)), '')
+        ORDER BY NULLIF(UPPER(TRIM(f.moneda)), '')
+        SEPARATOR '-'
+      ) AS monedas,
+      GROUP_CONCAT(
+        DISTINCT NULLIF(TRIM(f.contractual), '')
+        ORDER BY NULLIF(TRIM(f.contractual), '')
+        SEPARATOR ' - '
+      ) AS contractual,
+      GROUP_CONCAT(
+        DISTINCT CAST(f.anio_proyecto AS CHAR)
+        ORDER BY f.anio_proyecto DESC
+        SEPARATOR '-'
+      ) AS anios
+    FROM ${TABLES_COR.fuente} f
+    WHERE f.activo = 1
+      AND ${usablePpnsSql_cor('f.id_proyecto_origen')}
+    GROUP BY ${normalizedKeySql_cor('f.id_proyecto_origen')}`;
+}
+
+function mainSelectSql_cor() {
+  return `
+    base.ppns,
+    base.proyecto,
+    base.cliente,
+    (
+      SELECT GROUP_CONCAT(
+               DISTINCT NULLIF(TRIM(u_sup.iniciales), '')
+               ORDER BY NULLIF(TRIM(u_sup.iniciales), '')
+               SEPARATOR '-'
+             )
+        FROM ins_fl fl_sup
+        INNER JOIN usuarios u_sup
+          ON u_sup.id_SB = fl_sup.id_sup
+         AND u_sup.estado = 1
+       WHERE fl_sup.activo = 1
+         AND ${normalizedKeySql_cor('fl_sup.id_proyecto')} = base.ppns_key
+    ) AS supervisor_iniciales,
+    (
+      SELECT GROUP_CONCAT(
+               DISTINCT NULLIF(TRIM(u_asesor.iniciales), '')
+               ORDER BY NULLIF(TRIM(u_asesor.iniciales), '')
+               SEPARATOR '-'
+             )
+        FROM ins_fl fl_asesor
+        INNER JOIN usuarios u_asesor
+          ON u_asesor.id_SB = fl_asesor.id_asesor
+         AND u_asesor.estado = 1
+       WHERE fl_asesor.activo = 1
+         AND ${normalizedKeySql_cor('fl_asesor.id_proyecto')} = base.ppns_key
+    ) AS asesor_iniciales,
+    (
+      SELECT GROUP_CONCAT(
+               DISTINCT NULLIF(TRIM(u_admin.iniciales), '')
+               ORDER BY NULLIF(TRIM(u_admin.iniciales), '')
+               SEPARATOR '-'
+             )
+        FROM ins_fl fl_admin
+        INNER JOIN usuarios_rel_admin ura
+          ON ura.id_asesor = fl_admin.id_asesor
+        INNER JOIN usuarios u_admin
+          ON u_admin.id_SB = ura.id_admin
+         AND u_admin.estado = 1
+       WHERE fl_admin.activo = 1
+         AND ${normalizedKeySql_cor('fl_admin.id_proyecto')} = base.ppns_key
+    ) AS administrativo_iniciales,
+    base.hitos_suministro,
+    base.hitos_mxn,
+    (
+      SELECT COUNT(DISTINCT a_count.id_aditiva_cor)
+        FROM ${TABLES_COR.aditivas} a_count
+       WHERE a_count.activo = 1
+         AND ${usablePpnsSql_cor('a_count.pp_ns')}
+         AND ${normalizedKeySql_cor('a_count.pp_ns')} = base.ppns_key
+    ) AS aditivas,
+    base.monedas,
+    base.registros_estado_cuenta,
+    base.contractual,
+    base.anios`;
+}
+
+function buildEstadosCuentaWhere_cor(filters = {}, visibleUserIds = null, { exactPpns = null } = {}) {
+  const clauses = ['1 = 1'];
+  const params = [];
+
+  if (exactPpns) {
+    clauses.push('base.ppns_key = ' + normalizedKeySql_cor('?'));
+    params.push(exactPpns);
+  }
+
+  if (filters.buscar) {
+    clauses.push(`(
+      UPPER(TRIM(COALESCE(base.ppns, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(base.proyecto, ''))) LIKE UPPER(?)
+      OR UPPER(TRIM(COALESCE(base.cliente, ''))) LIKE UPPER(?)
+    )`);
+    const pattern = `%${filters.buscar}%`;
+    params.push(pattern, pattern, pattern);
+  }
+
+  if (Number.isInteger(filters.anio)) {
+    clauses.push(`EXISTS (
+      SELECT 1
+        FROM ${TABLES_COR.fuente} f_year
+       WHERE f_year.activo = 1
+         AND ${normalizedKeySql_cor('f_year.id_proyecto_origen')} = base.ppns_key
+         AND f_year.anio_proyecto = ?
+    )`);
+    params.push(filters.anio);
+  }
+
+  if (filters.contractual) {
+    clauses.push(`UPPER(TRIM(COALESCE(base.contractual, ''))) LIKE UPPER(?)`);
+    params.push(`%${filters.contractual}%`);
+  }
+
+  const scope = buildPpnsScope_cor('base.ppns', visibleUserIds);
+  params.push(...scope.params);
+
+  return {
+    sql: `${clauses.join('\n       AND ')}${scope.sql}`,
     params
   };
+}
+
+async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = null) {
+  const where = buildEstadosCuentaWhere_cor(filters, visibleUserIds);
+  const [rows] = await connection.query(
+    `SELECT ${mainSelectSql_cor()}
+       FROM (${buildEstadosCuentaBaseSql_cor()}) base
+      WHERE ${where.sql}
+      ORDER BY base.proyecto ASC, base.ppns ASC`,
+    where.params
+  );
+  return rows;
+}
+
+async function getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds = null) {
+  const where = buildEstadosCuentaWhere_cor({}, visibleUserIds, { exactPpns: ppns });
+  const [rows] = await connection.query(
+    `SELECT ${mainSelectSql_cor()}
+       FROM (${buildEstadosCuentaBaseSql_cor()}) base
+      WHERE ${where.sql}
+      LIMIT 1`,
+    where.params
+  );
+  return rows[0] || null;
+}
+
+async function listFuenteEstadoCuenta_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT
+       f.id_fuente_cor,
+       f.proyecto,
+       f.id_proyecto_origen,
+       f.cliente,
+       f.contractual,
+       f.porcentaje,
+       f.condicion,
+       f.moneda,
+       f.subtotal,
+       f.iva,
+       f.total,
+       f.factura,
+       f.pago_total,
+       f.estatus_factura,
+       DATE_FORMAT(f.fecha_pago, '%Y-%m-%d') AS fecha_pago,
+       DATE_FORMAT(f.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
+       f.dias_vencimiento,
+       f.estimado_pago,
+       f.estatus_vencimiento,
+       f.anio_proyecto
+     FROM ${TABLES_COR.fuente} f
+     WHERE f.activo = 1
+       AND ${usablePpnsSql_cor('f.id_proyecto_origen')}
+       AND ${normalizedKeySql_cor('f.id_proyecto_origen')} = ${normalizedKeySql_cor('?')}
+     ORDER BY f.id_fuente_cor ASC`,
+    [ppns]
+  );
+  return rows;
 }
 
 function buildAditivaScope_cor(alias, visibleUserIds) {
-  if (visibleUserIds === null) {
-    return { sql: '', params: [] };
-  }
-
-  const indiceScope = buildIndiceScope_cor('i_scope', visibleUserIds);
-
-  return {
-    sql: `
-      AND EXISTS (
-        SELECT 1
-          FROM ${TABLES_COR.indice} i_scope
-         WHERE i_scope.id_indice_cor = ${alias}.id_indice_cor
-           AND i_scope.activo = 1
-           ${indiceScope.sql}
-      )`,
-    params: indiceScope.params
-  };
-}
-
-async function getIndiceAditivaScope_cor(connection, idIndiceCor, visibleUserIds = null) {
-  const scope = buildIndiceScope_cor('i', visibleUserIds);
-  const params = [idIndiceCor, ...scope.params];
-  const [rows] = await connection.query(
-    `SELECT i.id_indice_cor, i.proyecto, i.pp, i.anio
-       FROM ${TABLES_COR.indice} i
-      WHERE i.id_indice_cor = ?
-        AND i.activo = 1
-        ${scope.sql}
-      LIMIT 1`,
-    params
-  );
-  return rows[0] || null;
+  return buildPpnsScope_cor(`${alias}.pp_ns`, visibleUserIds);
 }
 
 function buildAditivasWhere_cor(filters = {}, visibleUserIds = null) {
@@ -260,7 +402,6 @@ function buildAditivasWhere_cor(filters = {}, visibleUserIds = null) {
   }
 
   params.push(...scope.params);
-
   return {
     sql: `${clauses.join('\n       AND ')}${scope.sql}`,
     params
@@ -270,7 +411,6 @@ function buildAditivasWhere_cor(filters = {}, visibleUserIds = null) {
 function aditivaSelectSql_cor() {
   return `
        a.id_aditiva_cor,
-       a.id_indice_cor,
        a.anio_cot,
        a.departamento,
        a.categoria,
@@ -302,9 +442,31 @@ function aditivaSelectSql_cor() {
        a.semana_pago,
        a.moneda,
        a.gasto_ejercido,
-       i.proyecto AS indice_proyecto,
-       i.pp AS indice_pp,
-       i.anio AS indice_anio`;
+       EXISTS (
+         SELECT 1
+           FROM ${TABLES_COR.fuente} f_link
+          WHERE f_link.activo = 1
+            AND ${usablePpnsSql_cor('a.pp_ns')}
+            AND ${normalizedKeySql_cor('f_link.id_proyecto_origen')} = ${normalizedKeySql_cor('a.pp_ns')}
+       ) AS fuente_ppns_existe,
+       (
+         SELECT GROUP_CONCAT(
+                  DISTINCT NULLIF(TRIM(f_project.proyecto), '')
+                  ORDER BY NULLIF(TRIM(f_project.proyecto), '')
+                  SEPARATOR ' - '
+                )
+           FROM ${TABLES_COR.fuente} f_project
+          WHERE f_project.activo = 1
+            AND ${usablePpnsSql_cor('a.pp_ns')}
+            AND ${normalizedKeySql_cor('f_project.id_proyecto_origen')} = ${normalizedKeySql_cor('a.pp_ns')}
+       ) AS fuente_proyecto,
+       (
+         SELECT MAX(f_year.anio_proyecto)
+           FROM ${TABLES_COR.fuente} f_year
+          WHERE f_year.activo = 1
+            AND ${usablePpnsSql_cor('a.pp_ns')}
+            AND ${normalizedKeySql_cor('f_year.id_proyecto_origen')} = ${normalizedKeySql_cor('a.pp_ns')}
+       ) AS fuente_anio`;
 }
 
 async function listAditivas_cor(connection, filters = {}, visibleUserIds = null) {
@@ -312,9 +474,6 @@ async function listAditivas_cor(connection, filters = {}, visibleUserIds = null)
   const [rows] = await connection.query(
     `SELECT${aditivaSelectSql_cor()}
        FROM ${TABLES_COR.aditivas} a
-       LEFT JOIN ${TABLES_COR.indice} i
-         ON i.id_indice_cor = a.id_indice_cor
-        AND i.activo = 1
       WHERE ${where.sql}
       ORDER BY
         CASE WHEN a.fecha_cot IS NULL THEN 1 ELSE 0 END ASC,
@@ -322,7 +481,6 @@ async function listAditivas_cor(connection, filters = {}, visibleUserIds = null)
         a.id_aditiva_cor DESC`,
     where.params
   );
-
   return rows;
 }
 
@@ -332,276 +490,13 @@ async function getAditiva_cor(connection, idAditivaCor, visibleUserIds = null) {
   const [rows] = await connection.query(
     `SELECT${aditivaSelectSql_cor()}
        FROM ${TABLES_COR.aditivas} a
-       LEFT JOIN ${TABLES_COR.indice} i
-         ON i.id_indice_cor = a.id_indice_cor
-        AND i.activo = 1
       WHERE a.id_aditiva_cor = ?
         AND a.activo = 1
         ${scope.sql}
       LIMIT 1`,
     params
   );
-
   return rows[0] || null;
-}
-
-function usableProjectKeySql_cor(expression) {
-  return `NULLIF(TRIM(COALESCE(${expression}, '')), '') IS NOT NULL
-          AND UPPER(TRIM(COALESCE(${expression}, ''))) NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP')`;
-}
-
-// Normaliza diferencias de captura solo para el DETALLE del Estado de Cuenta.
-// El listado MAIN no usa esta resolucion por PP/nombre.
-function normalizedProjectSql_cor(expression) {
-  const base = `REGEXP_REPLACE(
-            UPPER(
-              TRIM(
-                REPLACE(
-                  REPLACE(
-                    REPLACE(
-                      REPLACE(COALESCE(${expression}, ''), CONVERT(0xC2A0 USING utf8mb4), ' '),
-                      CONVERT(0x09 USING utf8mb4), ' '
-                    ),
-                    CONVERT(0x0D USING utf8mb4), ' '
-                  ),
-                  CONVERT(0x0A USING utf8mb4), ' '
-                )
-              )
-            ),
-            '[^[:alnum:]]+',
-            ' '
-          )`;
-
-  return `TRIM(
-            REGEXP_REPLACE(
-              REGEXP_REPLACE(${base}, '^WALMART[[:space:]]+', 'WM '),
-              '^WM[[:space:]]+SC[[:space:]]+',
-              'WM '
-            )
-          ) COLLATE utf8mb4_unicode_ci`;
-}
-
-// REGLA EXCLUSIVA DEL DETALLE:
-// una fila de FUENTE pertenece al proyecto seleccionado por FK, nombre normalizado
-// o PP/ID Proyecto cuando ese PP es seguro/desambiguado.
-function fuenteMatchesIndiceSql_cor(fuenteAlias, indiceAlias) {
-  const f = fuenteAlias;
-  const i = indiceAlias;
-  const normalizedFuente = normalizedProjectSql_cor(`${f}.proyecto`);
-  const normalizedIndice = normalizedProjectSql_cor(`${i}.proyecto`);
-  const ppMatch = `(
-          ${usableProjectKeySql_cor(`${i}.pp`)}
-          AND ${usableProjectKeySql_cor(`${f}.id_proyecto_origen`)}
-          AND UPPER(TRIM(${f}.id_proyecto_origen)) = UPPER(TRIM(${i}.pp))
-        )`;
-  const uniquePpMatch = `(
-          SELECT COUNT(DISTINCT i_pp.id_indice_cor)
-            FROM ${TABLES_COR.indice} i_pp
-           WHERE i_pp.activo = 1
-             AND ${usableProjectKeySql_cor('i_pp.pp')}
-             AND UPPER(TRIM(i_pp.pp)) = UPPER(TRIM(${f}.id_proyecto_origen))
-        ) = 1`;
-  const projectMatch = `(
-          NULLIF(${normalizedFuente}, '') IS NOT NULL
-          AND NULLIF(${normalizedIndice}, '') IS NOT NULL
-          AND ${normalizedFuente} = ${normalizedIndice}
-        )`;
-  const ppNameDisambiguation = `(
-          NULLIF(${normalizedFuente}, '') IS NOT NULL
-          AND NULLIF(${normalizedIndice}, '') IS NOT NULL
-          AND SOUNDEX(${normalizedFuente}) = SOUNDEX(${normalizedIndice})
-        )`;
-
-  return `(
-        ${f}.id_indice_cor = ${i}.id_indice_cor
-        OR ${projectMatch}
-        OR (
-          ${ppMatch}
-          AND (
-            ${uniquePpMatch}
-            OR ${ppNameDisambiguation}
-          )
-        )
-      )`;
-}
-
-async function listEstadosCuenta_cor(connection, filters = {}, visibleUserIds = null) {
-  const scope = buildIndiceScope_cor('i', visibleUserIds);
-  const clauses = ['i.activo = 1'];
-  const params = [];
-
-  if (filters.buscar) {
-    clauses.push(`(
-      UPPER(TRIM(i.proyecto)) LIKE UPPER(?)
-      OR UPPER(TRIM(COALESCE(i.pp, ''))) LIKE UPPER(?)
-    )`);
-    const pattern = `%${filters.buscar}%`;
-    params.push(pattern, pattern);
-  }
-
-  if (Number.isInteger(filters.anio)) {
-    clauses.push('i.anio = ?');
-    params.push(filters.anio);
-  }
-
-  if (filters.estatus) {
-    clauses.push('UPPER(TRIM(COALESCE(i.estatus, \'\'))) = UPPER(TRIM(?))');
-    params.push(filters.estatus);
-  }
-
-  // MAIN: no intenta resolver FUENTE por PP ni por nombre.
-  // El filtro solo reconoce movimientos que ya tienen la FK directa id_indice_cor.
-  if (filters.soloConFuente === true) {
-    clauses.push(`EXISTS (
-      SELECT 1
-        FROM ${TABLES_COR.fuente} f_filter
-       WHERE f_filter.activo = 1
-         AND f_filter.id_indice_cor = i.id_indice_cor
-    )`);
-  }
-
-  params.push(...scope.params);
-
-  const [rows] = await connection.query(
-    `SELECT
-       i.id_indice_cor,
-       i.proyecto,
-       i.qty,
-       i.anio,
-       i.pp,
-       i.mrc,
-       i.adm,
-       i.sup,
-       i.vend,
-       u_adm.id_SB AS adm_usuario_id,
-       u_adm.nombre AS adm_usuario_nombre,
-       u_adm.iniciales AS adm_usuario_iniciales,
-       u_sup.id_SB AS sup_usuario_id,
-       u_sup.nombre AS sup_usuario_nombre,
-       u_sup.iniciales AS sup_usuario_iniciales,
-       u_vend.id_SB AS vend_usuario_id,
-       u_vend.nombre AS vend_usuario_nombre,
-       u_vend.iniciales AS vend_usuario_iniciales,
-       i.edo,
-       i.estatus,
-       i.cobranza_usd,
-       i.cobranza_mxn,
-       i.fianzas,
-       i.tipo_fianza,
-       i.repse_siroc,
-       (
-         SELECT COUNT(DISTINCT f_count.id_fuente_cor)
-           FROM ${TABLES_COR.fuente} f_count
-          WHERE f_count.activo = 1
-            AND f_count.id_indice_cor = i.id_indice_cor
-       ) AS registros_estado_cuenta,
-       (
-         SELECT GROUP_CONCAT(
-                  DISTINCT NULLIF(UPPER(TRIM(f_currency.moneda)), '')
-                  ORDER BY UPPER(TRIM(f_currency.moneda))
-                  SEPARATOR ','
-                )
-           FROM ${TABLES_COR.fuente} f_currency
-          WHERE f_currency.activo = 1
-            AND f_currency.id_indice_cor = i.id_indice_cor
-       ) AS monedas
-     FROM ${TABLES_COR.indice} i
-     LEFT JOIN usuarios u_adm
-       ON u_adm.id_SB = ${userIdSql_cor('i.adm')}
-     LEFT JOIN usuarios u_sup
-       ON u_sup.id_SB = ${userIdSql_cor('i.sup')}
-     LEFT JOIN usuarios u_vend
-       ON u_vend.id_SB = ${userIdSql_cor('i.vend')}
-     WHERE ${clauses.join('\n       AND ')}
-       ${scope.sql}
-     ORDER BY i.proyecto ASC, i.id_indice_cor ASC`,
-    params
-  );
-
-  return rows;
-}
-
-async function getIndiceEstadoCuenta_cor(connection, idIndiceCor, visibleUserIds = null) {
-  const scope = buildIndiceScope_cor('i', visibleUserIds);
-  const params = [idIndiceCor, ...scope.params];
-
-  const [rows] = await connection.query(
-    `SELECT
-       i.id_indice_cor,
-       i.proyecto,
-       i.qty,
-       i.anio,
-       i.pp,
-       i.mrc,
-       i.adm,
-       i.sup,
-       i.vend,
-       u_adm.id_SB AS adm_usuario_id,
-       u_adm.nombre AS adm_usuario_nombre,
-       u_adm.iniciales AS adm_usuario_iniciales,
-       u_sup.id_SB AS sup_usuario_id,
-       u_sup.nombre AS sup_usuario_nombre,
-       u_sup.iniciales AS sup_usuario_iniciales,
-       u_vend.id_SB AS vend_usuario_id,
-       u_vend.nombre AS vend_usuario_nombre,
-       u_vend.iniciales AS vend_usuario_iniciales,
-       i.edo,
-       i.estatus,
-       i.cobranza_usd,
-       i.cobranza_mxn,
-       i.fianzas,
-       i.tipo_fianza,
-       i.repse_siroc
-     FROM ${TABLES_COR.indice} i
-     LEFT JOIN usuarios u_adm
-       ON u_adm.id_SB = ${userIdSql_cor('i.adm')}
-     LEFT JOIN usuarios u_sup
-       ON u_sup.id_SB = ${userIdSql_cor('i.sup')}
-     LEFT JOIN usuarios u_vend
-       ON u_vend.id_SB = ${userIdSql_cor('i.vend')}
-     WHERE i.id_indice_cor = ?
-       AND i.activo = 1
-       ${scope.sql}
-     LIMIT 1`,
-    params
-  );
-
-  return rows[0] || null;
-}
-
-async function listFuenteEstadoCuenta_cor(connection, idIndiceCor) {
-  const [rows] = await connection.query(
-    `SELECT DISTINCT
-       f.id_fuente_cor,
-       f.id_indice_cor,
-       f.proyecto,
-       f.id_proyecto_origen,
-       f.porcentaje,
-       f.condicion,
-       f.moneda,
-       f.subtotal,
-       f.iva,
-       f.total,
-       f.factura,
-       f.pago_total,
-       f.estatus_factura,
-       DATE_FORMAT(f.fecha_pago, '%Y-%m-%d') AS fecha_pago,
-       DATE_FORMAT(f.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
-       f.dias_vencimiento,
-       f.estimado_pago,
-       f.estatus_vencimiento,
-       f.anio_proyecto
-     FROM ${TABLES_COR.fuente} f
-     INNER JOIN ${TABLES_COR.indice} i
-       ON i.id_indice_cor = ?
-      AND i.activo = 1
-     WHERE f.activo = 1
-       AND ${fuenteMatchesIndiceSql_cor('f', 'i')}
-     ORDER BY f.id_fuente_cor ASC`,
-    [idIndiceCor]
-  );
-
-  return rows;
 }
 
 module.exports = {
@@ -609,11 +504,9 @@ module.exports = {
   getConnection_cor,
   insertRecord_cor,
   updateAditiva_cor,
-  resolveIndiceFuente_cor,
-  resolveIndiceAditiva_cor,
-  getIndiceAditivaScope_cor,
+  canAccessPpns_cor,
   listEstadosCuenta_cor,
-  getIndiceEstadoCuenta_cor,
+  getEstadoCuentaByPpns_cor,
   listFuenteEstadoCuenta_cor,
   listAditivas_cor,
   getAditiva_cor

@@ -1,5 +1,7 @@
 'use strict';
 
+const { mexicoCityYear } = require('../../utils/temporal');
+
 const COMMERCIAL_ROLE_IDS = [5, 39, 48, 50, 54];
 const COMMERCIAL_ROLE_CODES = [
   'DIRECTOR_VENTAS',
@@ -179,7 +181,7 @@ function normalizeCommercialYear(value) {
   const year = Number(value);
   return Number.isInteger(year) && year >= 1900 && year <= 2200
     ? year
-    : new Date().getFullYear();
+    : mexicoCityYear();
 }
 
 function commercialOriginDateSql(alias = 'c') {
@@ -786,7 +788,7 @@ async function getPdfAdvisorData(connection, userId) {
        SELECT vc.id_cotizacion,
               GROUP_CONCAT(
                 CONCAT(
-                  DATE_FORMAT(vc.created_at, '%d/%m/%Y'),
+                  CONCAT('@', CAST(UNIX_TIMESTAMP(vc.created_at) * 1000 AS UNSIGNED)),
                   ' - ',
                   COALESCE(NULLIF(TRIM(u.iniciales), ''), u.nombre, 'Usuario'),
                   ': ',

@@ -12,7 +12,9 @@
 
   function $(id){ return document.getElementById(id); }
   function esc(v){ return String(v == null || v === '' ? '—' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function date(v){ if(!v) return '—'; const d=new Date(v); return Number.isNaN(d.getTime()) ? esc(v) : d.toLocaleDateString('es-MX'); }
+  function date(v){if(!v)return '—';const raw=String(v).trim();const match=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);if(match)return match[3]+'/'+match[2]+'/'+match[1];const d=new Date(raw);return Number.isNaN(d.getTime())?esc(v):d.toLocaleDateString('es-MX');}
+  function currentYearCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityYear==='function'?window.ManttoHumanTime.mexicoCityYear():Number(new Intl.DateTimeFormat('en',{timeZone:'America/Mexico_City',year:'numeric'}).format(new Date()));}
+  function dateOffsetCdmx(days){if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDateOffset==='function')return window.ManttoHumanTime.mexicoCityDateOffset(days);const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()).split('-').map(Number);const d=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]+Number(days||0)));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
   function qs(params){ const u=new URLSearchParams(); Object.entries(params).forEach(([k,v])=>{ if(v!==undefined && v!==null && String(v).trim()!=='') u.set(k, v); }); return u.toString(); }
   function num(id, fallback){ const el=$(id); const n=parseInt(el && el.value,10); return Number.isNaN(n) ? fallback : n; }
   function val(id){ const el=$(id); return el ? el.value.trim() : ''; }
@@ -348,9 +350,7 @@
   async function buildProyectosCriticosFromFrontend(c){
     const tickets = await fetchTicketsForCriticalProjects();
     const portafolio = await fetchPortafolioForCriticalProjects();
-    const cut = new Date();
-    cut.setDate(cut.getDate() - Math.max(1, Number(c.dias || 35)));
-    const cutStr = cut.toISOString().slice(0,10);
+    const cutStr = dateOffsetCdmx(-Math.max(1, Number(c.dias || 35)));
     const proNeedle = String(c.proyecto || '').trim().toLowerCase();
     const zonaNeedle = String(c.zona || '').trim().toLowerCase();
     const proMap = new Map();
@@ -556,7 +556,7 @@
   }
 
   async function fetchEquipoTicketsBatchForPdf(equipos){
-    const anio = new Date().getFullYear();
+    const anio = currentYearCdmx();
     const codigos = Array.from(new Set((equipos || [])
       .map(equipo=>String(equipo && equipo.codigo_equipo || '').trim())
       .filter(Boolean)));
@@ -583,7 +583,9 @@
 
 
   function pdfLongDate(){
-    return new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+    return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'
+      ? window.ManttoHumanTime.formatMexicoCityDate(undefined,{dateOptions:{day:'numeric',month:'long',year:'numeric'}})
+      : new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric',timeZone:'America/Mexico_City'});
   }
 
   const pdfEmojiImageCache = new Map();
@@ -707,7 +709,7 @@
     }];
 
     details.forEach(item=>{
-      const anio = new Date().getFullYear();
+      const anio = currentYearCdmx();
       sections.push({
         title:'Tickets del equipo — '+item.equipo.codigo_equipo,
         titleColor:[30,64,175],

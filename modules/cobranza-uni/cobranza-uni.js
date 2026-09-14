@@ -631,7 +631,10 @@
     if(!value) return '—';
     const date = new Date(value);
     if(Number.isNaN(date.getTime())) return '—';
-    return date.toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDateTime === 'function'){
+      return window.ManttoHumanTime.formatMexicoCityDateTime(date);
+    }
+    return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',dateStyle:'short',timeStyle:'short',hourCycle:'h23'}).format(date);
   }
 
   function bindGestionCredito_uni(root){

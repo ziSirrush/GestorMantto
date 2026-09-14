@@ -39,6 +39,19 @@ async function abrirNotificacion(req, res) {
   }
 }
 
+async function abrirTodasLasNotificaciones(req, res) {
+  try {
+    const result = await notificacionesService.abrirTodasLasNotificaciones(req);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Error marcando todas las notificaciones como vistas.',
+      error: error.message
+    });
+  }
+}
+
 async function marcarNotificacionNueva(req, res) {
   try {
     const result = await notificacionesService.marcarNotificacionNueva(req);
@@ -86,6 +99,7 @@ module.exports = {
   getNotificaciones,
   getEstadoNotificaciones,
   abrirNotificacion,
+  abrirTodasLasNotificaciones,
   marcarNotificacionNueva,
   getPreferencias,
   guardarPreferencias

@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const repository = require('./ventas-cotizaciones.repository');
+const { mexicoCityYear } = require('../../utils/temporal');
 const azureStorage = require('../../services/storage/azure-storage.service');
 const storageAccess = require('../../services/storage/storage-access.service');
 const storageAdapters = require('../../services/storage/storage-metadata.adapters');
@@ -617,7 +618,7 @@ function normalizeListQuery(query) {
 
   if (!Object.prototype.hasOwnProperty.call(filters, 'activo')) filters.activo = 1;
 
-  const currentYear = new Date().getFullYear();
+  const currentYear = mexicoCityYear();
   const rawYear = query.anio ?? query.year;
   let year = currentYear;
   if (rawYear !== undefined && rawYear !== null && String(rawYear).trim() !== '') {

@@ -6,6 +6,7 @@ const azureStorage = require('../../services/storage/azure-storage.service');
 const storageAccess = require('../../services/storage/storage-access.service');
 const storageAdapters = require('../../services/storage/storage-metadata.adapters');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
+const { utcDateTime } = require('../../utils/temporal');
 
 const CATALOG_PATHS = Object.freeze({
   id_contacto_via: Object.freeze({ area: 'Ventas', elemento: 'Tipo Contacto' }),
@@ -1044,13 +1045,16 @@ async function createComment(rawId, payload, files, actionContext) {
     });
     idRedes = visible.idRedes;
 
+    const instanteUtc = utcDateTime();
     const idComentario = await repository.insertComment(connection, {
       id_redes: idRedes,
       id_usuario: actor,
       comentario,
-      fecha_hora: new Date(),
+      fecha_hora: instanteUtc,
       editado: 0,
-      activo: 1
+      activo: 1,
+      created_at: instanteUtc,
+      updated_at: instanteUtc
     });
 
     await uploadCommentAttachments(

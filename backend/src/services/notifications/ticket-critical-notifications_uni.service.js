@@ -9,6 +9,7 @@
 
 const crypto = require('crypto');
 const db = require('../../config/db');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const logger = require('../../shared/logger');
 const {
   emitBusinessEventSafe_gnral
@@ -113,8 +114,8 @@ async function listCriticalState_uni(executor, equipmentCodes) {
     LEFT JOIN tickets t
       ON t.codigo_equipo = p.numero_equipo
      AND t.fecha_reporte IS NOT NULL
-     AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
-     AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+     AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+     AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
      AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%BLT%'
     WHERE p.numero_equipo IN (${placeholders})
       AND p.estado_registro = 1
@@ -149,8 +150,8 @@ async function captureBeforeSync_uni(body) {
        t.*,
        CASE
          WHEN t.fecha_reporte IS NOT NULL
-          AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
-          AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+          AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
           AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%BLT%'
          THEN 1 ELSE 0
        END AS calificaba_blt_periodo
@@ -268,8 +269,8 @@ async function listCurrentPeriodBltCandidateIds_uni(executor, candidateRows) {
     FROM tickets t
     WHERE t.id IN (${placeholders})
       AND t.fecha_reporte IS NOT NULL
-      AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ${CRITICOS_DIAS_UNI} DAY)
-      AND t.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+      AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL ${CRITICOS_DIAS_UNI} DAY)
+      AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
       AND UPPER(COALESCE(t.responsabilidad, '')) LIKE '%BLT%'
   `, ids);
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const {
   buildPortafolioScopeSql_gnral,
   zoneIds_gnral,
@@ -167,7 +168,7 @@ function portafolioBaseSelect_uni(zoneAlias = 'z_pf') {
     END AS estado_operativo,
     CASE
       WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL
-        THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte))
+        THEN DATEDIFF(${sqlMexicoCityToday()}, DATE(lt.fecha_reporte))
       ELSE NULL
     END AS dias_parado
   `;
@@ -304,7 +305,7 @@ async function queryEquiposData_uni(req) {
     zona: 'z_pf.zona',
     tipo_equipo: "COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo')",
     supervisor: 'p.supervisor_zona',
-    dias_parado: "CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte)) ELSE NULL END"
+    dias_parado: `CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(${sqlMexicoCityToday()}, DATE(lt.fecha_reporte)) ELSE NULL END`
   };
 
   const sortKey = String(req.query.sort || 'proyecto').trim();

@@ -157,10 +157,10 @@
   }
 
   function formatTimestamp_cor(){
-    const date = new Date();
-    const pad = value => String(value).padStart(2, '0');
-    return pad(date.getDate()) + '/' + pad(date.getMonth() + 1) + '/' + date.getFullYear() +
-      ' - ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDateTime === 'function'){
+      return window.ManttoHumanTime.formatMexicoCityDateTime();
+    }
+    return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).replace(',', ' -');
   }
 
   function normalizeSearch_cor(value){

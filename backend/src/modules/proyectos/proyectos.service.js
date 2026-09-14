@@ -1,6 +1,7 @@
 // Módulo Proyectos extraído de data.controller.js sin alterar contratos HTTP.
 // En esta etapa transicional conserva los handlers completos para minimizar riesgo.
 const proyectosRepository = require('./proyectos.repository');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const db = { query: (...args) => proyectosRepository.query(...args) };
 
 const latestTicketJoin = `
@@ -64,7 +65,7 @@ const portafolioBaseSelect = `
     ELSE 'Funcionando'
   END AS estado_operativo,
   CASE
-    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte))
+    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(${sqlMexicoCityToday()}, DATE(lt.fecha_reporte))
     ELSE NULL
   END AS dias_parado
 `;
@@ -365,14 +366,14 @@ async function getProyectos(req, res) {
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS tickets_35d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 35 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 35 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
         GROUP BY codigo_equipo
       ) t35 ON t35.codigo_equipo = p.numero_equipo
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS blt_365d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
@@ -385,8 +386,8 @@ async function getProyectos(req, res) {
           SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
           MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
         FROM tickets
-        WHERE fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-          AND fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        WHERE fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+          AND fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
           AND codigo_equipo IS NOT NULL
           AND TRIM(codigo_equipo) <> ''
         GROUP BY codigo_equipo
@@ -597,14 +598,14 @@ async function getProyectoDetalle(req, res) {
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS tickets_35d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 35 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 35 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
         GROUP BY codigo_equipo
       ) t35 ON t35.codigo_equipo = p.numero_equipo
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS blt_365d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
@@ -630,12 +631,12 @@ async function getProyectoDetalle(req, res) {
 
     const [equipos] = await db.query(`
       SELECT ${portafolioBaseSelect},
-        (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY)) AS fallas_anio,
-        (SELECT COUNT(*) FROM tickets trblt WHERE trblt.codigo_equipo = p.numero_equipo AND trblt.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND trblt.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(trblt.responsabilidad,'')) LIKE '%BLT%') AS resp_blt_anio,
-        (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tcli.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
+        (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)) AS fallas_anio,
+        (SELECT COUNT(*) FROM tickets trblt WHERE trblt.codigo_equipo = p.numero_equipo AND trblt.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND trblt.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(trblt.responsabilidad,'')) LIKE '%BLT%') AS resp_blt_anio,
+        (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tcli.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
         (SELECT MAX(tcli.fecha_reporte) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS ultimo_cliente,
-        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1 ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
-        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN 365 ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets t365 WHERE t365.codigo_equipo = p.numero_equipo AND t365.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) AND t365.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN DATEDIFF(${sqlMexicoCityToday()}, MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)) + 1 ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN 365 ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets t365 WHERE t365.codigo_equipo = p.numero_equipo AND t365.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) AND t365.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
       FROM portafolio p
       ${latestTicketJoin}
       WHERE ${filtroVisible}
@@ -689,7 +690,7 @@ async function getProyectoDetalle(req, res) {
     const [monthlyCurrent] = await db.query(`
       SELECT DATE_FORMAT(t.fecha_reporte, '%Y-%m') AS mes, COUNT(*) AS total
       FROM tickets t
-      WHERE YEAR(t.fecha_reporte) = YEAR(CURDATE())
+      WHERE YEAR(t.fecha_reporte) = YEAR(${sqlMexicoCityToday()})
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -700,7 +701,7 @@ async function getProyectoDetalle(req, res) {
     const [monthlyPrevious] = await db.query(`
       SELECT DATE_FORMAT(t.fecha_reporte, '%Y-%m') AS mes, COUNT(*) AS total
       FROM tickets t
-      WHERE YEAR(t.fecha_reporte) = YEAR(CURDATE()) - 1
+      WHERE YEAR(t.fecha_reporte) = YEAR(${sqlMexicoCityToday()}) - 1
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -711,7 +712,7 @@ async function getProyectoDetalle(req, res) {
     const [responsabilidad] = await db.query(`
       SELECT COALESCE(NULLIF(TRIM(t.responsabilidad),''),'Sin dato') AS responsabilidad, COUNT(*) AS total
       FROM tickets t
-      WHERE t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+      WHERE t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -741,8 +742,8 @@ async function getProyectoDetalle(req, res) {
         SUM(CASE WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
         SUM(CASE WHEN TRIM(COALESCE(t.responsabilidad,'')) = '' OR UPPER(TRIM(t.responsabilidad)) NOT IN ('BLT','CLIENTE') THEN 1 ELSE 0 END) AS llamadas_sin_responsable_anio
       FROM tickets t
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -793,7 +794,7 @@ async function getProyectoDetalle(req, res) {
         AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'
         AND UPPER(TRIM(p.proyecto)) = UPPER(TRIM(?))
         AND t.fecha_reporte IS NOT NULL
-        AND t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+        AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL ? DAY)
         AND t.codigo_equipo IS NOT NULL
         AND TRIM(t.codigo_equipo) <> ''
         AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'
@@ -818,8 +819,8 @@ async function getProyectoDetalle(req, res) {
         END AS label,
         COUNT(*) AS total
       FROM tickets t
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -843,8 +844,8 @@ async function getProyectoDetalle(req, res) {
           AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         GROUP BY numero_equipo
       ) eq ON eq.numero_equipo = t.codigo_equipo
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) IN ('BLT','CLIENTE')
         AND t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))

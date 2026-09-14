@@ -370,10 +370,10 @@
 
   function formatDateTime_gnral(value){
     if(!value) return '';
-    const date = new Date(value);
-    if(Number.isNaN(date.getTime())) return String(value);
-    const pad = number => String(number).padStart(2, '0');
-    return `${pad(date.getDate())}/${pad(date.getMonth()+1)}/${date.getFullYear()} - ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'){
+      return window.ManttoHumanTime.formatDateTime(value,{fallback:String(value)});
+    }
+    return String(value);
   }
 
   function iconForType_gnral(type, fallback){

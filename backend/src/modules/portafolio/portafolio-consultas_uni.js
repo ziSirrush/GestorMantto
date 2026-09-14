@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const { sqlMexicoCityToday, mexicoCityYear, mexicoCityDate, mexicoCityCivilDateUtc } = require('../../utils/temporal');
 const {
   buildPortafolioScopeSql_gnral
 } = require('../../services/information-record-scope-gnral.service');
@@ -278,7 +279,7 @@ const portafolioBaseSelect_uni = `
     ELSE 'Funcionando'
   END AS estado_operativo,
   CASE
-    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte))
+    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(${sqlMexicoCityToday()}, DATE(lt.fecha_reporte))
     ELSE NULL
   END AS dias_parado
 `;
@@ -608,7 +609,7 @@ async function getPortafolioEquipoDetalle_uni(req, res) {
     const anioRaw = Number.parseInt(req.query.anio_tickets, 10);
     const anio = Number.isInteger(anioRaw) && anioRaw >= 2000 && anioRaw <= 2100
       ? anioRaw
-      : new Date().getFullYear();
+      : mexicoCityYear();
 
     // Tickets se limitan al equipo que ya paso el filtro territorial UNITED.
     // La fase dedicada a Tickets agregara su validacion funcional propia.
@@ -637,13 +638,13 @@ async function getPortafolioEquipoDetalle_uni(req, res) {
     const isBlt = ticket => normalizeUpper_uni(ticket.responsabilidad).includes('BLT');
     const isClient = ticket => normalizeUpper_uni(ticket.responsabilidad).includes('CLIENTE');
 
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const yearStart = new Date(currentYear, 0, 1);
-    const nextYear = new Date(currentYear + 1, 0, 1);
+    const now = mexicoCityCivilDateUtc();
+    const currentYear = mexicoCityYear();
+    const yearStart = new Date(Date.UTC(currentYear, 0, 1));
+    const nextYear = new Date(Date.UTC(currentYear + 1, 0, 1));
     const elapsedYearDays = Math.max(1, Math.floor((now - yearStart) / 86400000) + 1);
     const u365Start = new Date(now);
-    u365Start.setDate(u365Start.getDate() - 365);
+    u365Start.setUTCDate(u365Start.getUTCDate() - 365);
 
     const currentYearTickets = allTickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
@@ -740,14 +741,14 @@ function mtbcFromTickets_uni(tickets, periodDays) {
 }
 
 function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const yearStart = new Date(year, 0, 1);
-  const nextYear = new Date(year + 1, 0, 1);
+  const now = mexicoCityCivilDateUtc();
+  const year = mexicoCityYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const nextYear = new Date(Date.UTC(year + 1, 0, 1));
   const u365Start = new Date(now);
-  u365Start.setDate(u365Start.getDate() - 365);
+  u365Start.setUTCDate(u365Start.getUTCDate() - 365);
   const criticalStart = new Date(now);
-  criticalStart.setDate(criticalStart.getDate() - criteria.dias);
+  criticalStart.setUTCDate(criticalStart.getUTCDate() - criteria.dias);
   const elapsedYearDays = Math.max(1, Math.floor((now - yearStart) / 86400000) + 1);
 
   const byEquipment = new Map();

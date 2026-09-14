@@ -1,12 +1,12 @@
 'use strict';
 
 const dashboardOperativoService = require('./dashboard-operativo.service');
+const { mexicoCityDate } = require('../../utils/temporal');
 
 function normalizeMes(value) {
   const raw = String(value || '').trim();
   if (/^\d{4}-\d{2}$/.test(raw)) return raw;
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return mexicoCityDate().slice(0, 7);
 }
 
 async function getInitialData(req, res) {

@@ -142,6 +142,30 @@ async function abrirNotificacion(req) {
   };
 }
 
+async function abrirTodasLasNotificaciones(req) {
+  const user = currentUserRef(req);
+
+  if (!user.id) {
+    return { status: 401, body: { ok: false, message: 'Sesion sin usuario valido.' } };
+  }
+
+  const query = buildNotificationQuery(req);
+  const result = await notificacionesRepository.marcarTodasComoAbiertas(query);
+  const actualizadas = Number(result.affectedRows || 0);
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      source: 'aiven',
+      message: actualizadas
+        ? 'Todas las notificaciones fueron marcadas como vistas.'
+        : 'No habia notificaciones nuevas por marcar.',
+      data: { actualizadas }
+    }
+  };
+}
+
 async function marcarNotificacionNueva(req) {
   const user = currentUserRef(req);
   const id = Number.parseInt(req.params.id, 10);
@@ -178,6 +202,7 @@ module.exports = {
   getNotificaciones,
   getEstadoNotificaciones,
   abrirNotificacion,
+  abrirTodasLasNotificaciones,
   marcarNotificacionNueva,
   getPreferencias,
   guardarPreferencias,

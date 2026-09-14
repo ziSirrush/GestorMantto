@@ -1,6 +1,7 @@
 'use strict';
 
 const repository = require('./experimental-entregas-recientes.repository');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
 
 const TIME_ZONE_EXP='America/Mexico_City';
@@ -43,7 +44,7 @@ async function getEntregasRecientes_exp(req){
   const zonasPermitidas=informationRecordScope.zoneCodes_gnral(req);
   const zoneIdsPermitidas=informationRecordScope.zoneIds_gnral(req);
 
-  const equipmentClauses=[roomScope.sql,'p.estado_registro = 1','z.estado = 1',`${receptionDate} IS NOT NULL`,`${receptionDate} >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)`];
+  const equipmentClauses=[roomScope.sql,'p.estado_registro = 1','z.estado = 1',`${receptionDate} IS NOT NULL`,`${receptionDate} >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL ? MONTH)`];
   const equipmentParams=[...roomScope.params,months];
   if(estado){equipmentClauses.push("TRIM(COALESCE(p.estado, '')) = ?");equipmentParams.push(estado);}
   if(zona){equipmentClauses.push("UPPER(TRIM(COALESCE(z.zona, ''))) = UPPER(TRIM(?))");equipmentParams.push(zona);}
@@ -65,7 +66,7 @@ async function getEntregasRecientes_exp(req){
     WHERE ${roomScope.sql}
       AND p.estado_registro=1
       AND ${receptionDate} IS NOT NULL
-      AND ${receptionDate}>=DATE_SUB(CURDATE(),INTERVAL ? MONTH)
+      AND ${receptionDate}>=DATE_SUB(${sqlMexicoCityToday()},INTERVAL ? MONTH)
       AND p.estado IS NOT NULL
       AND TRIM(p.estado)<>''
     GROUP BY TRIM(p.estado)
@@ -90,7 +91,7 @@ async function getEntregasRecientes_exp(req){
 
   const officialByCode=new Map(equipmentRows.map(r=>[String(r.codigo_equipo||'').trim(),{fecha:r.fecha_recepcion_mantenimiento_normalizada,zona:String(r.zona_oficial||'').trim(),zonaId:r.zona_id_oficial==null?null:Number(r.zona_id_oficial)}]));
   const ticketSql=`SELECT t.id,t.ticket,t.folio,t.estado_ticket,t.estado,t.ciudad,t.proyecto,t.proyecto_padre,t.codigo_equipo,t.referencia_en_zona_operativa,t.zona,t.zona_administrativa,t.zona_de_falla,t.descripcion,DATE_FORMAT(t.fecha_reporte,'%Y-%m-%d') AS fecha_reporte_fecha,t.h_reporte,t.estatus_equipo_ir,DATE_FORMAT(t.fecha_llegada,'%Y-%m-%d') AS fecha_llegada_fecha,t.h_llegada,t.persona_que_atiende,DATE_FORMAT(t.fecha_cierre,'%Y-%m-%d') AS fecha_cierre_fecha,t.h_solucion,t.tecnico,t.estatus_equipo_final,t.causa,t.accion_en_cierre,t.responsabilidad,t.causa_falla,t.tiempo_llegada,t.tiempo_solucion,t.tipo_equipo,t.prioridad,t.ejecutivo_call,t.blt_empleado,t.tiempo_llegada_ii,t.tiempo_solucion_ii,t.ticket_excede FROM tickets t WHERE t.codigo_equipo IN (${placeholders}) AND DATE(t.fecha_reporte)=? ORDER BY t.fecha_reporte DESC,t.id DESC`;
-  const criticalSql=`SELECT t.codigo_equipo,COUNT(*) AS fallas_blt FROM tickets t WHERE t.codigo_equipo IN (${placeholders}) AND t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(CURDATE(),INTERVAL ? DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' GROUP BY t.codigo_equipo HAVING COUNT(*)>=?`;
+  const criticalSql=`SELECT t.codigo_equipo,COUNT(*) AS fallas_blt FROM tickets t WHERE t.codigo_equipo IN (${placeholders}) AND t.fecha_reporte IS NOT NULL AND DATE(t.fecha_reporte)>=DATE_SUB(${sqlMexicoCityToday()},INTERVAL ? DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' GROUP BY t.codigo_equipo HAVING COUNT(*)>=?`;
   const [ticketResult,criticalResult]=await Promise.all([repository.query(ticketSql,[...codes,selectedDate]),repository.query(criticalSql,[...codes,criticDays,criticFailures])]);
   const rawTickets=ticketResult[0]||[];
   for(const row of rawTickets){

@@ -57,7 +57,7 @@ async function insertTicket_gnral(executor, ticket) {
   const addNow = column => {
     if (!columns.has(column)) return;
     fields.push(`\`${column}\``);
-    placeholders.push('NOW()');
+    placeholders.push('UTC_TIMESTAMP(3)');
   };
 
   addValue('folio', ticket.folio);
@@ -90,7 +90,7 @@ async function insertAttachment_gnral(executor, attachment) {
       nombre_servidor, ruta_archivo, extension_archivo, mime_type, peso_archivo,
       storage_provider, storage_container, storage_blob_name,
       activo, fecha_creacion, fecha_actualizacion)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
     [
       attachment.id_ticket,
       attachment.tipo_adjunto,
@@ -139,7 +139,7 @@ async function appendHistory_gnral(executor, ticketId, event) {
   }
   history.push(event);
   await executor.query(
-    'UPDATE sup_tickets SET historial = ?, fecha_actualizacion = NOW() WHERE id_ticket = ?',
+    'UPDATE sup_tickets SET historial = ?, fecha_actualizacion = UTC_TIMESTAMP(3) WHERE id_ticket = ?',
     [JSON.stringify(history), ticketId]
   );
   return true;
@@ -155,7 +155,7 @@ async function touchTicket_gnral(executor, ticketId, lastReplyBy) {
   params.push(ticketId);
   await executor.query(
     `UPDATE sup_tickets
-        SET fecha_ultima_respuesta = NOW(), fecha_actualizacion = NOW()${lastReplySql}
+        SET fecha_ultima_respuesta = UTC_TIMESTAMP(3), fecha_actualizacion = UTC_TIMESTAMP(3)${lastReplySql}
       WHERE id_ticket = ?`,
     params
   );
@@ -164,7 +164,7 @@ async function touchTicket_gnral(executor, ticketId, lastReplyBy) {
 async function deactivateAttachment_gnral(executor, ticketId, attachmentId) {
   const [result] = await executor.query(
     `UPDATE sup_adjuntos
-        SET activo = 0, fecha_actualizacion = NOW()
+        SET activo = 0, fecha_actualizacion = UTC_TIMESTAMP(3)
       WHERE id_ticket = ? AND id_adjunto = ? AND COALESCE(activo, 1) = 1`,
     [ticketId, attachmentId]
   );

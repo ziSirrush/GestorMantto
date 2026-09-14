@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
+const { sqlMexicoCityToday, mexicoCityYear, mexicoCityCivilDateUtc } = require('../utils/temporal');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -184,7 +185,7 @@ const portafolioBaseSelect = `
     ELSE 'Funcionando'
   END AS estado_operativo,
   CASE
-    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte))
+    WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(${sqlMexicoCityToday()}, DATE(lt.fecha_reporte))
     ELSE NULL
   END AS dias_parado
 `;
@@ -640,7 +641,7 @@ async function getPortafolioEquipos(req, res) {
   const sortMap = {
     numero_equipo: 'p.numero_equipo', proyecto: 'p.proyecto', ciudad: 'p.ciudad',
     zona: 'p.zona_operativa', tipo_equipo: "COALESCE(lt.tipo_equipo, p.id_equipo_ns, 'Sin tipo')",
-    supervisor: 'p.supervisor_zona', dias_parado: "CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(CURDATE(), DATE(lt.fecha_reporte)) ELSE NULL END"
+    supervisor: 'p.supervisor_zona', dias_parado: `CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' AND lt.fecha_reporte IS NOT NULL THEN DATEDIFF(${sqlMexicoCityToday()}, DATE(lt.fecha_reporte)) ELSE NULL END`
   };
   const sortKey = String(req.query.sort || 'proyecto').trim();
   const sortExpr = sortMap[sortKey] || sortMap.proyecto;
@@ -709,7 +710,7 @@ async function getPortafolioEquipoDetalle(req, res) {
       const anioTicketsRaw = Number.parseInt(req.query.anio_tickets, 10);
       const anioTickets = Number.isInteger(anioTicketsRaw) && anioTicketsRaw >= 2000 && anioTicketsRaw <= 2100
         ? anioTicketsRaw
-        : new Date().getFullYear();
+        : mexicoCityYear();
 
       const [allTickets] = await db.query(`
         SELECT *
@@ -780,16 +781,15 @@ async function getPortafolioEquipoDetalle(req, res) {
       const hasAny = (ticket, words) => words.some(word => blob(ticket).includes(word));
       const isBlt = ticket => normalize(ticket.responsabilidad).includes('BLT');
       const isClient = ticket => normalize(ticket.responsabilidad).includes('CLIENTE');
-      const inCurrentYear = ticket => yearOf(ticket.fecha_reporte) === new Date().getFullYear();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const inCurrentYear = ticket => yearOf(ticket.fecha_reporte) === mexicoCityYear();
+      const today = mexicoCityCivilDateUtc();
       const todayEnd = new Date(today);
-      todayEnd.setHours(23, 59, 59, 999);
+      todayEnd.setUTCHours(23, 59, 59, 999);
       const u365Start = new Date(today);
-      u365Start.setDate(u365Start.getDate() - 365);
+      u365Start.setUTCDate(u365Start.getUTCDate() - 365);
       const localDateKey = date => {
         const value = new Date(date);
-        return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
+        return value.getUTCFullYear() + '-' + String(value.getUTCMonth() + 1).padStart(2, '0') + '-' + String(value.getUTCDate()).padStart(2, '0');
       };
       const inU365 = ticket => {
         const date = dateParts(ticket.fecha_reporte)?.date;
@@ -807,9 +807,9 @@ async function getPortafolioEquipoDetalle(req, res) {
         return nums.length ? Math.round((nums.reduce((sum, value) => sum + value, 0) / nums.length) * 10) / 10 : null;
       };
 
-      const currentYear = new Date().getFullYear();
-      const currentYearStart = new Date(currentYear, 0, 1);
-      const elapsedCurrentYearDays = Math.max(1, Math.floor((Date.now() - currentYearStart.getTime()) / 86400000) + 1);
+      const currentYear = mexicoCityYear();
+      const currentYearStart = new Date(Date.UTC(currentYear, 0, 1));
+      const elapsedCurrentYearDays = Math.max(1, Math.floor((today.getTime() - currentYearStart.getTime()) / 86400000) + 1);
       const currentYearTickets = allTickets.filter(inCurrentYear);
       const currentYearBlt = currentYearTickets.filter(isBlt);
       const u365Blt = allTickets.filter(ticket => inU365(ticket) && isBlt(ticket));
@@ -986,7 +986,7 @@ async function getPortafolioEquipoTicketsLote(req, res) {
   const anioRaw = Number.parseInt(req.body?.anio, 10);
   const anio = Number.isInteger(anioRaw) && anioRaw >= 2000 && anioRaw <= 2100
     ? anioRaw
-    : new Date().getFullYear();
+    : mexicoCityYear();
   const fechaInicio = `${anio}-01-01`;
   const fechaFin = `${anio + 1}-01-01`;
   const placeholders = equipos.map(() => '?').join(', ');
@@ -1532,7 +1532,7 @@ async function createTicketComentario(req, res) {
   if(!comentario)return res.status(400).json({ok:false,message:'El comentario es obligatorio.'});
   const conn=await db.getConnection();
   try { await conn.beginTransaction(); const row=await findTicketRow(ticket,conn); if(!row){await conn.rollback();return res.status(404).json({ok:false,message:'Ticket no encontrado.'});}
-    const [result]=await conn.query('INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario) VALUES (?,?,?)',[row.id,user.id,comentario]);
+    const [result]=await conn.query('INSERT INTO ticket_comentarios (id_ticket,id_usuario,comentario,fecha_creacion,fecha_actualizacion) VALUES (?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))',[row.id,user.id,comentario]);
     const notificationResult = await n6CreateTicketCommentNotification(conn,row,user,`${user.iniciales||user.correo||'Usuario'} comentó el ticket ${row.ticket}.`);
     await conn.commit(); return res.status(201).json({ok:true,message:'Comentario agregado.',data:{id_comentario:result.insertId,notificaciones_creadas:notificationResult.created,destinatarios_notificacion:notificationResult.recipients}});
   } catch(error){await conn.rollback();return res.status(500).json({ok:false,message:'Error agregando comentario.',error:error.message});} finally{conn.release();}
@@ -1547,8 +1547,8 @@ async function saveTicketValidacion(req,res){
     const names=(await ticketResponsibleNames(row,conn)).map(v=>v.toLowerCase()); const identity=[req.user?.nombre,req.user?.iniciales,req.user?.correo].filter(Boolean).map(v=>String(v).toLowerCase());
     const elevated=ticketRoleNames(req).some(r=>r.includes('director general')||r.includes('programador'));
     if(!reverting&&(!ticketCanValidateRole(req)||(!elevated&&!identity.some(v=>names.includes(v))))){await conn.rollback();return res.status(403).json({ok:false,message:'Solo el Supervisor o Superintendente responsable puede validar este ticket.'});}
-    await conn.query(`UPDATE tickets SET vobo_estado=?,vobo_comentario=?,vobo_por_id=?,vobo_por_nombre=?,vobo_en=CURRENT_TIMESTAMP WHERE id=?`,[estado,comentario,user.id,req.user?.nombre||user.iniciales||user.correo,row.id]);
-    await conn.query(`INSERT INTO ticket_validaciones (id_ticket,id_usuario,estado_anterior,estado_nuevo,comentario,ip_origen) VALUES (?,?,?,?,?,?)`,[row.id,user.id,previous,estado,comentario,req.ip||null]);
+    await conn.query(`UPDATE tickets SET vobo_estado=?,vobo_comentario=?,vobo_por_id=?,vobo_por_nombre=?,vobo_en=UTC_TIMESTAMP(3) WHERE id=?`,[estado,comentario,user.id,req.user?.nombre||user.iniciales||user.correo,row.id]);
+    await conn.query(`INSERT INTO ticket_validaciones (id_ticket,id_usuario,estado_anterior,estado_nuevo,comentario,ip_origen,fecha_creacion) VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(3))`,[row.id,user.id,previous,estado,comentario,req.ip||null]);
     const kind=estado==='Pendiente'?'TICKET_VALIDACION_PENDIENTE':'TICKET_VALIDACION';
     const notificationResult = await createTicketNotifications(conn,row,user,kind,`${user.iniciales||user.correo||'Usuario'} cambió la validación del ticket ${row.ticket}: ${previous} → ${estado}.`);
     await conn.commit(); return res.json({ok:true,message:'Validación guardada.',data:{ticket:row.ticket,vobo_estado:estado,vobo_comentario:comentario,notificaciones_creadas:notificationResult.inserted,destinatarios_notificacion:notificationResult.recipients}});
@@ -2532,7 +2532,7 @@ async function createPendienteComentario(req, res) {
       ? await resolveStoredTaskEmpresa_gnral(conn, access.row)
       : null;
     const [result] = await conn.query(
-      'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario) VALUES (?, ?, ?)',
+      'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario, fecha) VALUES (?, ?, ?, UTC_TIMESTAMP(3))',
       [id, user.id, comentario || '']
     );
 
@@ -3328,14 +3328,14 @@ async function getProyectos(req, res) {
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS tickets_35d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 35 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 35 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
         GROUP BY codigo_equipo
       ) t35 ON t35.codigo_equipo = p.numero_equipo
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS blt_365d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
@@ -3348,8 +3348,8 @@ async function getProyectos(req, res) {
           SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
           MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
         FROM tickets
-        WHERE fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-          AND fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        WHERE fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+          AND fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
           AND codigo_equipo IS NOT NULL
           AND TRIM(codigo_equipo) <> ''
         GROUP BY codigo_equipo
@@ -3559,14 +3559,14 @@ async function getProyectoDetalle(req, res) {
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS tickets_35d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 35 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 35 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
         GROUP BY codigo_equipo
       ) t35 ON t35.codigo_equipo = p.numero_equipo
       LEFT JOIN (
         SELECT codigo_equipo, COUNT(*) AS blt_365d
         FROM tickets
-        WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
           AND codigo_equipo IS NOT NULL AND codigo_equipo <> ''
           AND UPPER(COALESCE(responsabilidad,'')) = 'BLT'
         GROUP BY codigo_equipo
@@ -3592,12 +3592,12 @@ async function getProyectoDetalle(req, res) {
 
     const [equipos] = await db.query(`
       SELECT ${portafolioBaseSelect},
-        (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
-        (SELECT MAX(tay.fecha_reporte) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS ultimo_blt,
-        (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tcli.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
+        (SELECT COUNT(*) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
+        (SELECT MAX(tay.fecha_reporte) FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS ultimo_blt,
+        (SELECT COUNT(*) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND tcli.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tcli.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS resp_cliente_anio,
         (SELECT MAX(tcli.fecha_reporte) FROM tickets tcli WHERE tcli.codigo_equipo = p.numero_equipo AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS ultimo_cliente,
-        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN DATEDIFF(CURDATE(), MAKEDATE(YEAR(CURDATE()), 1)) + 1 ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1) AND tay.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
-        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN 365 ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets t365 WHERE t365.codigo_equipo = p.numero_equipo AND t365.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) AND t365.fecha_reporte < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN DATEDIFF(${sqlMexicoCityToday()}, MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)) + 1 ELSE ROUND(DATEDIFF(MAX(tay.fecha_reporte), MIN(tay.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets tay WHERE tay.codigo_equipo = p.numero_equipo AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1) AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
+        (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN COUNT(*) = 1 THEN 365 ELSE ROUND(DATEDIFF(MAX(t365.fecha_reporte), MIN(t365.fecha_reporte)) / NULLIF(COUNT(*) - 1, 0), 1) END FROM tickets t365 WHERE t365.codigo_equipo = p.numero_equipo AND t365.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) AND t365.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
       FROM portafolio p
       ${latestTicketJoin}
       WHERE ${filtroVisible}
@@ -3651,7 +3651,7 @@ async function getProyectoDetalle(req, res) {
     const [monthlyCurrent] = await db.query(`
       SELECT DATE_FORMAT(t.fecha_reporte, '%Y-%m') AS mes, COUNT(*) AS total
       FROM tickets t
-      WHERE YEAR(t.fecha_reporte) = YEAR(CURDATE())
+      WHERE YEAR(t.fecha_reporte) = YEAR(${sqlMexicoCityToday()})
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -3662,7 +3662,7 @@ async function getProyectoDetalle(req, res) {
     const [monthlyPrevious] = await db.query(`
       SELECT DATE_FORMAT(t.fecha_reporte, '%Y-%m') AS mes, COUNT(*) AS total
       FROM tickets t
-      WHERE YEAR(t.fecha_reporte) = YEAR(CURDATE()) - 1
+      WHERE YEAR(t.fecha_reporte) = YEAR(${sqlMexicoCityToday()}) - 1
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -3673,7 +3673,7 @@ async function getProyectoDetalle(req, res) {
     const [responsabilidad] = await db.query(`
       SELECT COALESCE(NULLIF(TRIM(t.responsabilidad),''),'Sin dato') AS responsabilidad, COUNT(*) AS total
       FROM tickets t
-      WHERE t.fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+      WHERE t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -3701,8 +3701,8 @@ async function getProyectoDetalle(req, res) {
         SUM(CASE WHEN UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
         SUM(CASE WHEN TRIM(COALESCE(t.responsabilidad,'')) = '' OR UPPER(TRIM(t.responsabilidad)) NOT IN ('BLT','CLIENTE') THEN 1 ELSE 0 END) AS llamadas_sin_responsable_anio
       FROM tickets t
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -3714,8 +3714,8 @@ async function getProyectoDetalle(req, res) {
       FROM (
         SELECT t.codigo_equipo
         FROM tickets t
-        WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-          AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+        WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+          AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
           AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) = 'BLT'
           AND t.codigo_equipo IN (
             SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
@@ -3735,8 +3735,8 @@ async function getProyectoDetalle(req, res) {
         END AS label,
         COUNT(*) AS total
       FROM tickets t
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         AND (UPPER(TRIM(t.proyecto)) = UPPER(TRIM(?)) OR t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         ))
@@ -3760,8 +3760,8 @@ async function getProyectoDetalle(req, res) {
           AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))
         GROUP BY numero_equipo
       ) eq ON eq.numero_equipo = t.codigo_equipo
-      WHERE t.fecha_reporte >= MAKEDATE(YEAR(CURDATE()), 1)
-        AND t.fecha_reporte < MAKEDATE(YEAR(CURDATE()) + 1, 1)
+      WHERE t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+        AND t.fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
         AND UPPER(TRIM(COALESCE(t.responsabilidad,''))) IN ('BLT','CLIENTE')
         AND t.codigo_equipo IN (
           SELECT numero_equipo FROM portafolio WHERE ${filtroVisibleSubquery} AND UPPER(TRIM(proyecto)) = UPPER(TRIM(?))

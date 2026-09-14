@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const { mexicoCityDate } = require('../../utils/temporal');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
 
 const REPORT_CURRENT_STATUSES = Object.freeze([
@@ -164,12 +165,7 @@ function buildWhere(filters, deliveredYear, informationAccess) {
 }
 
 async function getRulesDate() {
-  const [rows] = await db.query(
-    `SELECT DATE_FORMAT(CURRENT_DATE(), '%Y-%m-%d') AS fecha_actual`
-  );
-
-  const row = rows[0] || {};
-  return String(row.fecha_actual || '').trim() || new Date().toISOString().slice(0, 10);
+  return mexicoCityDate();
 }
 
 async function getDeliveredYears(informationAccess) {

@@ -23,7 +23,7 @@
   function msg(id,text,type){ const el=$(id); if(!el)return; el.textContent=text||''; el.className='auth-msg '+(type||''); }
   function normalize(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
   function first(o,keys,fallback){for(const k of keys)if(o&&o[k]!==undefined&&o[k]!==null&&o[k]!=='')return o[k];return fallback;}
-  function formatDate(value){if(!value)return '—';const d=new Date(value);if(Number.isNaN(d.getTime()))return '—';return new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d)+' hrs';}
+  function formatDate(value){if(!value)return '—';return (window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'?window.ManttoHumanTime.formatDateTime(value):String(value))+' hrs';}
   function toLocalInput(value){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';const pad=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;}
   function unique(values){return Array.from(new Set(values.filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));}
   function fillSelect(id,values,label){const el=$(id);if(!el)return;const current=el.value;el.innerHTML=`<option value="">${esc(label)}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');el.value=values.includes(current)?current:'';}

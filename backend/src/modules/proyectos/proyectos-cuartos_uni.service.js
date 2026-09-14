@@ -1,6 +1,7 @@
 'use strict';
 
 const repository = require('./proyectos.repository');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
 const portafolioConsultasUni = require('../portafolio/portafolio-consultas_uni');
 const db = { query: (...args) => repository.query(...args) };
@@ -174,14 +175,14 @@ async function queryProyectos_uni(req) {
     LEFT JOIN (
       SELECT TRIM(codigo_equipo) AS codigo_equipo, COUNT(*) AS tickets_35d
       FROM tickets
-      WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 35 DAY)
+      WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 35 DAY)
         AND NULLIF(TRIM(COALESCE(codigo_equipo, '')), '') IS NOT NULL
       GROUP BY TRIM(codigo_equipo)
     ) t35 ON t35.codigo_equipo = TRIM(p.numero_equipo)
     LEFT JOIN (
       SELECT TRIM(codigo_equipo) AS codigo_equipo, COUNT(*) AS blt_365d
       FROM tickets
-      WHERE fecha_reporte >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+      WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
         AND NULLIF(TRIM(COALESCE(codigo_equipo, '')), '') IS NOT NULL
         AND UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT'
       GROUP BY TRIM(codigo_equipo)
@@ -194,8 +195,8 @@ async function queryProyectos_uni(req) {
         SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,'')))='CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
         MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,'')))='CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
       FROM tickets
-      WHERE fecha_reporte >= MAKEDATE(YEAR(CURDATE()),1)
-        AND fecha_reporte < MAKEDATE(YEAR(CURDATE())+1,1)
+      WHERE fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1)
+        AND fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()})+1,1)
         AND NULLIF(TRIM(COALESCE(codigo_equipo, '')), '') IS NOT NULL
       GROUP BY TRIM(codigo_equipo)
     ) resp_anio ON resp_anio.codigo_equipo = TRIM(p.numero_equipo)

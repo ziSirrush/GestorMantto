@@ -22,9 +22,32 @@
     return text || (fallback === undefined ? '—' : fallback);
   }
 
+  function humanInteractionLines(value){
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatInteractionLines==='function'){
+      return window.ManttoHumanTime.formatInteractionLines(value);
+    }
+    return value;
+  }
+
   function number(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function reportDateCdmx() {
+    if (window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDate === 'function') {
+      return window.ManttoHumanTime.formatMexicoCityDate();
+    }
+    return new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
+  }
+
+  function reportDateStampCdmx() {
+    if (window.ManttoHumanTime && typeof window.ManttoHumanTime.mexicoCityDate === 'function') {
+      return window.ManttoHumanTime.mexicoCityDate().replace(/-/g, '');
+    }
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return values.year + values.month + values.day;
   }
 
   function formatDate(value) {
@@ -131,7 +154,7 @@
     doc.setFontSize(9);
     doc.setTextColor.apply(doc, COLORS.slate);
     doc.text(`Asesor: ${clean(advisor?.nombre)}`, MARGIN, 44);
-    doc.text(`Fecha de creación: ${formatDate(new Date())}`, width - MARGIN, 44, { align: 'right' });
+    doc.text(`Fecha de creación: ${reportDateCdmx()}`, width - MARGIN, 44, { align: 'right' });
     doc.setDrawColor.apply(doc, COLORS.line);
     doc.line(MARGIN, 51, width - MARGIN, 51);
     return 67;
@@ -209,7 +232,7 @@
     y = sectionTitle(doc, y, 3, 'Cotizaciones activas');
     if (!rows?.length) return addNoData(doc, y);
     return addTable(doc, y, ['PROYECTO', 'ESTATUS', 'CLIENTE', 'NO. EQUIPOS', 'CIUDAD', 'COMENTARIOS'], rows.map(function (row) {
-      return [clean(row.proyecto), clean(row.estatus), clean(row.cliente), number(row.numero_equipos), clean(row.ciudad), clean(row.comentarios, 'Sin comentarios recientes')];
+      return [clean(row.proyecto), clean(row.estatus), clean(row.cliente), number(row.numero_equipos), clean(row.ciudad), clean(humanInteractionLines(row.comentarios), 'Sin comentarios recientes')];
     }), {
       fontSize: 6.8,
       columnStyles: { 0: { cellWidth: 118 }, 1: { cellWidth: 82 }, 2: { cellWidth: 115 }, 3: { cellWidth: 52, halign: 'center' }, 4: { cellWidth: 72 }, 5: { cellWidth: 270 } }
@@ -285,7 +308,7 @@
 
   function addGeneralFooters(doc, creator) {
     const total = doc.getNumberOfPages();
-    const date = formatDate(new Date());
+    const date = reportDateCdmx();
     const creatorInitials = clean(creator?.iniciales, 'USUARIO');
     for (let page = 1; page <= total; page += 1) {
       doc.setPage(page);
@@ -316,7 +339,7 @@
 
   function addFooters(doc, advisor, creator) {
     const total = doc.getNumberOfPages();
-    const date = formatDate(new Date());
+    const date = reportDateCdmx();
     const advisorInitials = clean(advisor?.iniciales, 'ASESOR');
     const creatorInitials = clean(creator?.iniciales, 'USUARIO');
     for (let page = 1; page <= total; page += 1) {
@@ -340,7 +363,7 @@
     const doc = createDoc();
     renderAdvisorReport(doc, report, creator);
     addFooters(doc, advisor, creator);
-    const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStamp = reportDateStampCdmx();
     doc.save(`Dashboard_Ventas_${fileSafe(advisor.iniciales || advisor.nombre)}_${dateStamp}.pdf`);
     return true;
   }
@@ -356,7 +379,7 @@
       renderAdvisorReport(doc, report, creator);
     });
     addGeneralFooters(doc, creator);
-    const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStamp = reportDateStampCdmx();
     doc.save(`Dashboard_Ventas_General_${dateStamp}.pdf`);
     return true;
   }

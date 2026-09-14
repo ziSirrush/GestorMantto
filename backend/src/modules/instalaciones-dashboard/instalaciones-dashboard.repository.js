@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const { mexicoCityDate, mexicoCityYear } = require('../../utils/temporal');
 
 const AFL_USER_ID_COR = 38;
 const AFL_USER_EMAIL_COR = 'alflores@bltmexico.com.mx';
@@ -101,15 +102,9 @@ function activeProjectsDerivedSql_cor(supervisors, options = {}) {
 }
 
 async function getRulesDate_cor() {
-  const [rows] = await db.query(
-    `SELECT
-       DATE_FORMAT(CURRENT_DATE(), '%Y-%m-%d') AS fecha_actual,
-       YEAR(CURRENT_DATE()) AS anio_actual`
-  );
-  const row = rows[0] || {};
   return {
-    fecha_actual: String(row.fecha_actual || '').trim() || new Date().toISOString().slice(0, 10),
-    anio_actual: Number(row.anio_actual) || new Date().getFullYear()
+    fecha_actual: mexicoCityDate(),
+    anio_actual: mexicoCityYear()
   };
 }
 

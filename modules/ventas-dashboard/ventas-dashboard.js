@@ -9,6 +9,7 @@
   const STORAGE_KEY = 'mantto:ventas-dashboard:fase1-reacomodo-v001';
   const TABLE_PAGE_SIZE = 30;
   const ALL_USERS_VALUE = 'todos';
+  const currentYearCdmx = () => window.ManttoHumanTime && typeof window.ManttoHumanTime.mexicoCityYear === 'function' ? window.ManttoHumanTime.mexicoCityYear() : Number(new Intl.DateTimeFormat('en', { timeZone:'America/Mexico_City', year:'numeric' }).format(new Date()));
 
   let initialized = false;
   let loadingPromise = null;
@@ -23,7 +24,7 @@
   let pdfCapabilitiesLoaded = false;
   let cachedKpis = null;
   let cachedYears = [];
-  let sectionYears = { ventas: new Date().getFullYear(), perdido: new Date().getFullYear() };
+  let sectionYears = { ventas: currentYearCdmx(), perdido: currentYearCdmx() };
   let cachedQueryKey = '';
   let refreshBusy = false;
   let mutationListenerBound = false;
@@ -179,7 +180,7 @@
   }
 
   function currentCommercialYear() {
-    return new Date().getFullYear();
+    return currentYearCdmx();
   }
 
   function normalizedYear(value, fallback = currentCommercialYear()) {
@@ -532,10 +533,8 @@
   function val(value) {
     if (value == null || value === '') return '—';
     const text = String(value);
-    if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
-      const date = new Date(text.length === 10 ? `${text}T12:00:00` : text);
-      if (!Number.isNaN(date.getTime())) return date.toLocaleDateString('es-MX');
-    }
+    const dateMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+    if (dateMatch) return `${dateMatch[3]}/${dateMatch[2]}/${dateMatch[1]}`;
     return text;
   }
 

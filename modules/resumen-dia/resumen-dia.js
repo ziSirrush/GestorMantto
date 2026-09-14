@@ -533,6 +533,12 @@
   }
   function currentUser(){ return window.ManttoAuth && window.ManttoAuth.getUser ? (window.ManttoAuth.getUser() || {}) : {}; }
   function currentUserName(){ const u = currentUser(); return u.nombre || u.correo || 'Usuario'; }
+  function humanDateTime(value){
+    const fallback=String(value==null||value===''?'—':value);
+    return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'
+      ? window.ManttoHumanTime.formatDateTime(value,{fallback})
+      : fallback;
+  }
   function canEditVobo(){
     const u = currentUser();
     const roles = Array.isArray(u.roles) ? u.roles : [];
@@ -544,7 +550,7 @@
     const estado = t.vobo_estado || 'Pendiente';
     const comentario = t.vobo_comentario || '';
     const validadoPor = t.vobo_por || t.vobo_guardado_por || '—';
-    const validadoEn = t.vobo_en || t.vobo_guardado_en || t.actualizado_en || '—';
+    const validadoEn = humanDateTime(t.vobo_en || t.vobo_guardado_en || t.actualizado_en);
     const opts = ['Pendiente','Validado','Rechazado'];
     if(!canEditVobo()){
       return `<section class="rd-ticket-section"><h3>Validación / Vo.Bo.</h3><div class="rd-ticket-vobo-readonly">
@@ -581,7 +587,7 @@
       t.vobo_estado = payload.vobo_estado;
       t.vobo_comentario = payload.vobo_comentario;
       t.vobo_por = currentUserName();
-      t.vobo_en = new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+      t.vobo_en = new Date().toISOString();
       const badges = byId('rd-ticket-badges');
       if(badges) badges.innerHTML = `<span class="rd-ticket-pill">${escapeHtml(t.et || 'Sin estado')}</span><span class="rd-ticket-pill">${escapeHtml(t.res || 'Sin responsabilidad')}</span><span class="rd-ticket-pill">${escapeHtml(t.vobo_estado || 'Pendiente')}</span>${t.xat ? '<span class="rd-ticket-pill">Fuera de SLA</span>' : ''}`;
       openTicket(t.n);

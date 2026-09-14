@@ -15,7 +15,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './core/interactions.js?v=20260828-fase1-calls-v001';
+      script.src = './core/interactions.js?v=20260914-human-time-v001';
       script.async = true;
       script.dataset.manttoInteractions = '1';
       script.addEventListener('load', () => resolve(window.ManttoInteractions || null), { once:true });
@@ -113,10 +113,14 @@
 
 
   function formatDate(date){
-    return date.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'){
+      return window.ManttoHumanTime.formatMexicoCityDate(date,{dateOptions:{weekday:'long',day:'2-digit',month:'long',year:'numeric'}});
+    }
+    return date.toLocaleDateString('es-MX',{weekday:'long',day:'2-digit',month:'long',year:'numeric',timeZone:'America/Mexico_City'});
   }
   function formatTime(date){
-    return date.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityTime==='function') return window.ManttoHumanTime.mexicoCityTime(date);
+    return date.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'America/Mexico_City'});
   }
   function initDailyPhrase(){
     const dateEl = document.getElementById('context-date');
@@ -126,7 +130,8 @@
       const now = new Date();
       if(dateEl) dateEl.textContent = formatDate(now);
       if(timeEl) timeEl.textContent = formatTime(now);
-      if(phraseEl) phraseEl.textContent = '"' + window.ManttoDailyPhrases.getDailyPhrase(now) + '"';
+      const phraseDate=window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function'?window.ManttoHumanTime.mexicoCityDate(now):now;
+      if(phraseEl) phraseEl.textContent = '"' + window.ManttoDailyPhrases.getDailyPhrase(phraseDate) + '"';
     }
     render();
     window.setInterval(render, 30000);

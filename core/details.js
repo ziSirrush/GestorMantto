@@ -43,6 +43,34 @@
     // No convertir cadenas desconocidas a Date: evita cambiar el día por zona horaria.
     return esc(s);
   }
+  function formatHumanDateTime(value){
+    const fallback=String(value==null||value===''?'—':value);
+    return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'
+      ? window.ManttoHumanTime.formatDateTime(value,{fallback})
+      : fallback;
+  }
+  function cdmxDate(){
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function') return window.ManttoHumanTime.mexicoCityDate();
+    return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  }
+  function cdmxYear(){
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityYear==='function') return window.ManttoHumanTime.mexicoCityYear();
+    return Number(cdmxDate().slice(0,4));
+  }
+  function cdmxDateOffset(days){
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDateOffset==='function') return window.ManttoHumanTime.mexicoCityDateOffset(days);
+    const parts=cdmxDate().split('-').map(Number);const date=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]+Number(days||0)));
+    return date.getUTCFullYear()+'-'+String(date.getUTCMonth()+1).padStart(2,'0')+'-'+String(date.getUTCDate()).padStart(2,'0');
+  }
+  function cdmxMonthOffset(months,separator){
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityMonthOffset==='function') return window.ManttoHumanTime.mexicoCityMonthOffset(months,undefined,separator);
+    const parts=cdmxDate().split('-').map(Number);const date=new Date(Date.UTC(parts[0],parts[1]-1+Number(months||0),1));const joiner=separator==='_'?'_':'-';
+    return date.getUTCFullYear()+joiner+String(date.getUTCMonth()+1).padStart(2,'0');
+  }
+  function cdmxDateTime(){
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDateTime==='function') return window.ManttoHumanTime.formatMexicoCityDateTime();
+    return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
+  }
   async function fetchJson(path){
     if(window.ManttoHttp&&typeof window.ManttoHttp.get==='function')return window.ManttoHttp.get(path);
     const headers = Object.assign({ 'Accept':'application/json' }, window.ManttoAuth && window.ManttoAuth.authHeaders ? window.ManttoAuth.authHeaders() : {});
@@ -267,7 +295,7 @@
     const target=String(code||'').trim();
     if(!target) return false;
     if(window.EstadosVisuales_gnral && window.EstadosVisuales_gnral.isCriticoEquipo) return window.EstadosVisuales_gnral.isCriticoEquipo(target);
-    const year=String(new Date().getFullYear());
+    const year=String(cdmxYear());
     return (tickets||[]).filter(t=>{
       const ticketCode=String(t.codigo_equipo||t.cod||t.equipo||'').trim();
       const date=String(t.fecha_reporte||t.fr||'').slice(0,10);
@@ -898,7 +926,7 @@
     proyecto = String(proyecto || '').trim(); if(!proyecto || proyecto === '—') return;
     if(!currentDetailMatches('proyecto', proyecto) && navigate('proyecto', proyecto, options)) return;
     if(options.template==='cliente-unificado'||options.source==='instalaciones-concentrado-cliente'){try{return await openUnifiedClientProject(proyecto,options);}catch(e){show('Proyecto',proyecto,'<div class="mg-empty">Error: '+esc(e.message)+'</div>');return;}}
-    const currentYear=new Date().getFullYear();
+    const currentYear=cdmxYear();
     let selectedYear=Number(options.anio_tickets)||currentYear;
     show('Proyecto', proyecto, '<div class="mg-empty">Cargando detalle del proyecto...</div>');
 
@@ -1067,7 +1095,7 @@
   async function openEquipo_uni(codigo){
     codigo = String(codigo || '').trim(); if(!codigo || codigo === '—') return;
     if(!currentDetailMatches('equipo', codigo) && navigate('equipo', codigo)) return;
-    const currentYear=new Date().getFullYear();
+    const currentYear=cdmxYear();
     let selectedYear=currentYear;
     let activeFilter='all';
     show('Equipo', codigo, '<div class="mg-empty">Cargando detalle del equipo...</div>');
@@ -1090,7 +1118,7 @@
       if(key==='client')return normalize(t.responsabilidad).includes('CLIENTE');
       return true;
     };
-    const monthLabel=key=>{const [y,m]=String(key).split('-').map(Number);return new Intl.DateTimeFormat('es-MX',{month:'short',year:'2-digit'}).format(new Date(y,m-1,1)).replace('.','');};
+    const monthLabel=key=>{const [y,m]=String(key).split('-').map(Number);return new Intl.DateTimeFormat('es-MX',{month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(Date.UTC(y,m-1,1,12))).replace('.','');};
     const lineChart=(title,subtitle,rows,keys)=>{
       const map=new Map((rows||[]).map(r=>[String(r.mes),Number(r.total||0)]));
       const vals=keys.map(k=>map.get(k)||0);
@@ -1183,17 +1211,17 @@
       const detailBody=[];for(let i=0;i<detailRows.length;i+=3){const row=[];for(let j=0;j<3;j++){const item=detailRows[i+j]||['',''];row.push(item[0]);row.push(item[1]==null||item[1]===''?'—':String(item[1]));}detailBody.push(row);}
       doc.autoTable({startY:y,body:detailBody,theme:'grid',styles:{fontSize:7.2,cellPadding:3,valign:'middle',overflow:'linebreak'},columnStyles:{0:{fontStyle:'bold',textColor:hexToRgb(colors.slate),cellWidth:74},1:{cellWidth:151},2:{fontStyle:'bold',textColor:hexToRgb(colors.slate),cellWidth:74},3:{cellWidth:151},4:{fontStyle:'bold',textColor:hexToRgb(colors.slate),cellWidth:74},5:{cellWidth:151}},margin:{left:margin,right:margin},alternateRowStyles:{fillColor:[248,250,252]}});
       y=doc.lastAutoTable.finalY+14;y=drawSectionTitle('Indicadores del equipo',y);const kc=kpiCanvas();const kpiHeight=contentWidth*kc.height/kc.width;canvasImage(kc,margin,y,contentWidth,kpiHeight);y+=kpiHeight+12;y=addPageIfNeeded(y,215);const rc=responsibilityCanvas();canvasImage(rc,margin,y,contentWidth,contentWidth*rc.height/rc.width);y+=contentWidth*rc.height/rc.width+14;
-      y=drawSectionTitle('Fallas BLT por mes',y);const cc1=chartCanvas('Año en curso',String(new Date().getFullYear()),data.fallas_blt_mes_anio||[],currentKeys);const cc2=chartCanvas('Bloque 365 días',u365Subtitle,data.fallas_blt_mes_u365||[],u365Keys);const chartGap=12,chartW=(contentWidth-chartGap)/2,chartH=chartW*cc1.height/cc1.width;y=addPageIfNeeded(y,chartH);canvasImage(cc1,margin,y,chartW,chartH);canvasImage(cc2,margin+chartW+chartGap,y,chartW,chartH);y+=chartH+16;
+      y=drawSectionTitle('Fallas BLT por mes',y);const cc1=chartCanvas('Año en curso',String(currentYear),data.fallas_blt_mes_anio||[],currentKeys);const cc2=chartCanvas('Bloque 365 días',u365Subtitle,data.fallas_blt_mes_u365||[],u365Keys);const chartGap=12,chartW=(contentWidth-chartGap)/2,chartH=chartW*cc1.height/cc1.width;y=addPageIfNeeded(y,chartH);canvasImage(cc1,margin,y,chartW,chartH);canvasImage(cc2,margin+chartW+chartGap,y,chartW,chartH);y+=chartH+16;
       y=drawSectionTitle('Tickets del Equipo',y);
       doc.autoTable({startY:y,head:[['No. Ticket','Estado','Fecha Reporte','Hora Reporte','Asunto','Estatus inicial','Fecha Llegada','Hora Llegada','T. llegada','Fecha Solución','Hora Solución','Estatus final','Causa','Acción cierre','Responsabilidad','Causa de falla']],body:rows.map(t=>[ticketWithEmojis(t),t.estado_ticket||t.estado,fmtDate(t.fecha_reporte),fmtTime(t.h_reporte),t.descripcion||t.asunto,t.estatus_equipo_ir,fmtDate(t.fecha_llegada),fmtTime(t.h_llegada),fmtDuration(t.tiempo_llegada),fmtDate(t.fecha_cierre),fmtTime(t.h_solucion),t.estatus_equipo_final,t.causa||t.causa_falla,t.accion_en_cierre,t.responsabilidad,t.causa_falla||t.causa]),styles:{fontSize:4.6,cellPadding:.8,overflow:'linebreak',valign:'middle',minCellWidth:1},headStyles:{fillColor:[13,46,110],textColor:[255,255,255]},alternateRowStyles:{fillColor:[239,246,255]},columnStyles:{0:{cellWidth:44},1:{cellWidth:32},2:{cellWidth:38},3:{cellWidth:30},4:{cellWidth:56},5:{cellWidth:44},6:{cellWidth:38},7:{cellWidth:30},8:{cellWidth:28,halign:'center'},9:{cellWidth:38},10:{cellWidth:30},11:{cellWidth:42},12:{cellWidth:58},13:{cellWidth:68},14:{cellWidth:48},15:{cellWidth:84}},margin:{left:margin,right:margin,bottom:32}});
       const count=doc.getNumberOfPages();for(let page=1;page<=count;page++){doc.setPage(page);doc.setFont('helvetica','normal');doc.setFontSize(7);setColor('setTextColor',colors.slate);doc.text('Mantto Gestor · United Elevadores',margin,pageHeight-18);doc.text('Página '+page+' de '+count,pageWidth-margin,pageHeight-18,{align:'right'});}
-      const safe=String(equipmentCode).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_');doc.save('Archivo_Equipo_'+safe+'_'+year+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+      const safe=String(equipmentCode).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_');doc.save('Archivo_Equipo_'+safe+'_'+year+'_'+cdmxDate()+'.pdf');
     }
 
     function userTokens(){const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};return [u.nombre,u.name,u.iniciales,u.initials,u.correo,u.email,u.puesto,u.rol,u.role,u.rol_nombre,u.role_name].map(normalize).filter(Boolean);}
     function isDirectorAllowed(){const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};const containers=[u,u.permisos,u.permissions,u.permiso,u.access].filter(Boolean);const keys=['dashboard_operativo_confirmar','confirmar_servicio_operativo','operativo_confirmar_servicio','director_confirmar_servicio','puede_confirmar_operativo'];return userTokens().some(v=>v.includes('DIRECTOR'))&&containers.some(obj=>keys.some(k=>obj[k]===true||obj[k]===1||obj[k]==='1'||String(obj[k]).toLowerCase()==='true'));}
     function canConfirm(e){const assigned=[e.supervisor,e.superintendente].map(normalize).filter(Boolean);return assigned.some(name=>userTokens().some(token=>name===token||name.includes(token)||token.includes(name)))||isDirectorAllowed();}
-    function serviceMonths(e){const storageKey='mantto_operativo_servicio_confirm_v1';let confirmations={};try{confirmations=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}catch(_e){}const items=[];const now=new Date();for(let i=0;i<12;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const key=d.getFullYear()+'_'+String(d.getMonth()+1).padStart(2,'0');const conf=confirmations[codigo+'__'+key];items.push({key,label:new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric'}).format(d),conf});}return{storageKey,confirmations,items};}
+    function serviceMonths(e){const storageKey='mantto_operativo_servicio_confirm_v1';let confirmations={};try{confirmations=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}catch(_e){}const items=[];for(let i=0;i<12;i++){const key=cdmxMonthOffset(-i,'_');const parts=key.split('_').map(Number);const d=new Date(Date.UTC(parts[0],parts[1]-1,1,12));const conf=confirmations[codigo+'__'+key];items.push({key,label:new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(d),conf});}return{storageKey,confirmations,items};}
 
     async function load(year){
       selectedYear=Number(year)||currentYear;
@@ -1236,9 +1264,10 @@
         '<div class="mg-equipment-ring-wrap"><article class="mg-equipment-ring-card"><h4>Responsabilidad de llamadas · Año actual</h4><div class="mg-equipment-ring-layout"><div class="mg-equipment-ring" style="background:'+responsibilityBg+'"><div class="mg-equipment-ring-center"><strong>'+esc(responsibilityTotal)+'</strong><span>Total llamadas</span></div></div><div class="mg-equipment-ring-legend">'+responsibilityLegend+'</div></div></article></div>'+
       '</div>';
       const currentKeys=Array.from({length:12},(_,i)=>currentYear+'-'+String(i+1).padStart(2,'0'));
-      const u365Start=data.u365_desde?new Date(data.u365_desde+'T00:00:00'):(()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-365);return d;})();
-      const u365End=data.u365_hasta?new Date(data.u365_hasta+'T00:00:00'):new Date();
-      const u365Keys=[];for(let d=new Date(u365Start.getFullYear(),u365Start.getMonth(),1);d<=new Date(u365End.getFullYear(),u365End.getMonth(),1);d.setMonth(d.getMonth()+1)){u365Keys.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));}
+      const u365StartKey=String(data.u365_desde||cdmxDateOffset(-365)).slice(0,10);
+      const u365EndKey=String(data.u365_hasta||cdmxDate()).slice(0,10);
+      const startParts=u365StartKey.split('-').map(Number),endParts=u365EndKey.split('-').map(Number);
+      const u365Keys=[];for(let d=new Date(Date.UTC(startParts[0],startParts[1]-1,1)),end=new Date(Date.UTC(endParts[0],endParts[1]-1,1));d<=end;d.setUTCMonth(d.getUTCMonth()+1)){u365Keys.push(d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0'));}
       const u365Subtitle='Del '+fmtDate(data.u365_desde)+' al '+fmtDate(data.u365_hasta);
       const charts='<section class="mg-detail-section"><h3>Fallas BLT por mes</h3><div class="mg-equipment-charts">'+lineChart('Año en curso',String(currentYear),data.fallas_blt_mes_anio||[],currentKeys)+lineChart('Bloque 365 días',u365Subtitle,data.fallas_blt_mes_u365||[],u365Keys)+'</div></section>';
       const services=serviceMonths(e);const confirmed=services.items.filter(item=>item.conf&&item.conf.confirmed).length;const allowed=canConfirm(e);
@@ -1250,7 +1279,7 @@
       const yearSelect=root.querySelector('#mg-equipment-ticket-year');if(yearSelect)yearSelect.addEventListener('change',()=>load(yearSelect.value).catch(err=>show('Equipo',codigo,'<div class="mg-empty">Error: '+esc(err.message)+'</div>')));
       const pdfButton=root.querySelector('#mg-equipment-ticket-pdf');if(pdfButton)pdfButton.addEventListener('click',()=>exportEquipmentArchivePdf(e,tickets,selectedYear,metrics,data,currentKeys,u365Keys,u365Subtitle));
       const toggle=root.querySelector('#mg-service-toggle');if(toggle)toggle.addEventListener('click',()=>{const content=root.querySelector('#mg-service-content');const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!open));content.hidden=open;toggle.lastElementChild.textContent=open?'⌄':'⌃';});
-      root.querySelectorAll('[data-service-month]').forEach(btn=>btn.addEventListener('click',()=>{if(!allowed)return;const key=btn.dataset.serviceMonth;const store=serviceMonths(e);const storageKey=codigo+'__'+key;if(store.confirmations[storageKey]&&store.confirmations[storageKey].confirmed){delete store.confirmations[storageKey];}else{const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};store.confirmations[storageKey]={confirmed:true,by:u.iniciales||u.nombre||u.correo||'Usuario',at:new Date().toLocaleString('es-MX'),mes:key,role:'SUPERVISION'};}localStorage.setItem(store.storageKey,JSON.stringify(store.confirmations));load(selectedYear).catch(()=>{});}));
+      root.querySelectorAll('[data-service-month]').forEach(btn=>btn.addEventListener('click',()=>{if(!allowed)return;const key=btn.dataset.serviceMonth;const store=serviceMonths(e);const storageKey=codigo+'__'+key;if(store.confirmations[storageKey]&&store.confirmations[storageKey].confirmed){delete store.confirmations[storageKey];}else{const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};store.confirmations[storageKey]={confirmed:true,by:u.iniciales||u.nombre||u.correo||'Usuario',at:cdmxDateTime(),mes:key,role:'SUPERVISION'};}localStorage.setItem(store.storageKey,JSON.stringify(store.confirmations));load(selectedYear).catch(()=>{});}));
     }
     try{await load(selectedYear);}catch(error){show('Equipo',codigo,'<div class="mg-empty">Error: '+esc(error.message)+'</div>');}
   }
@@ -1386,7 +1415,7 @@
     const user=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
     const uid=String(user&& (user.id_SB||user.id) || '');
     return '<section class="mg-ticket-chat"><h3 class="mg-ticket-panel-title">Chat / comentarios</h3><div class="mg-ticket-chat-list" id="mg-ticket-chat-list">'+
-      (comments.length?comments.map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(c.fecha_formateada||c.fecha_creacion||'')+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>')+
+      (comments.length?comments.map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(formatHumanDateTime(c.fecha_creacion))+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>')+
       '</div><form class="mg-ticket-chat-form" id="mg-ticket-chat-form"><textarea id="mg-ticket-chat-input" maxlength="2000" placeholder="Escribe un comentario..." required></textarea><button type="submit" title="Enviar comentario">➤</button></form></section>';
   }
   function ticketValidationHtml(t, interactions){
@@ -1398,7 +1427,7 @@
     const options=['Pendiente','Validado','Rechazado'];
     return '<section class="mg-ticket-validation"><h3 class="mg-ticket-panel-title">Validación / acciones</h3><div class="mg-ticket-validation-body"><div class="mg-ticket-validation-status"><strong>Vo.Bo.</strong><span>'+esc(estado)+'</span></div>'+
       (editing?'<label>Resultado</label><select id="mg-ticket-vobo-state">'+options.map(o=>'<option value="'+o+'" '+(o===estado?'selected':'')+'>'+o+'</option>').join('')+'</select><label>Comentario</label><textarea id="mg-ticket-vobo-comment" maxlength="2000" placeholder="Observaciones de validación...">'+esc(t.vobo_comentario||'')+'</textarea><div class="mg-ticket-validation-actions"><button type="button" id="mg-ticket-vobo-save">Guardar validación</button></div>':'<div class="mg-ticket-empty">Solo el Supervisor o Superintendente responsable puede validar. El Programador puede revertir.</div>')+
-      '<div class="mg-ticket-validation-meta">'+(t.vobo_por_nombre?'Última acción: '+esc(t.vobo_por_nombre)+'<br>':'')+(t.vobo_en?'Fecha: '+esc(t.vobo_en):'')+'</div></div></section>';
+      '<div class="mg-ticket-validation-meta">'+(t.vobo_por_nombre?'Última acción: '+esc(t.vobo_por_nombre)+'<br>':'')+(t.vobo_en?'Fecha: '+esc(formatHumanDateTime(t.vobo_en)):'')+'</div></div></section>';
   }
   function ticketDetailHtml(t, ticketId, interactions){
     return '<div class="mg-ticket-layout"><main class="mg-ticket-main">'+ticketMainHtml(t,ticketId)+'</main><aside class="mg-ticket-side">'+ticketChatHtml(interactions)+ticketValidationHtml(t,interactions)+'</aside></div>';
@@ -1419,7 +1448,7 @@
     const user=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
     const uid=String(user&& (user.id_SB||user.id) || '');
     const nearBottom=(list.scrollHeight-list.scrollTop-list.clientHeight)<40;
-    list.innerHTML=(comments||[]).length?(comments||[]).map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(c.fecha_formateada||c.fecha_creacion||'')+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>';
+    list.innerHTML=(comments||[]).length?(comments||[]).map(c=>'<article class="mg-ticket-message '+(uid&&String(c.id_usuario)===uid?'mine':'')+'"><div class="mg-ticket-message-meta"><span>'+esc(c.autor_nombre||c.autor_iniciales||'Usuario')+'</span><span>'+esc(formatHumanDateTime(c.fecha_creacion))+'</span></div><div class="mg-ticket-message-text">'+esc(c.comentario)+'</div></article>').join(''):'<div class="mg-ticket-empty">Sin comentarios todavía.</div>';
     if(nearBottom) list.scrollTop=list.scrollHeight;
   }
   function ticketCommentId(comment){

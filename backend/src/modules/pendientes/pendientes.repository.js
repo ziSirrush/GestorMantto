@@ -456,15 +456,15 @@ async function insertLegacyCommentNotification_gnral(executor, record) {
     INSERT INTO sup_notificaciones (
       id_usuario, tipo_notificacion, titulo_notificacion, mensaje_notificacion,
       icono_notificacion, accion_notificacion, id_referencia, ruta_destino,
-      leido, activo
-    ) VALUES (?, 'TAREA_COMENTARIO', 'Nueva interacción en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1)
+      leido, activo, fecha_creacion, fecha_actualizacion
+    ) VALUES (?, 'TAREA_COMENTARIO', 'Nueva interacción en tarea', ?, '💬', 'ABRIR_TAREA', ?, ?, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
   `, [record.id_usuario, record.mensaje, record.id_referencia, record.ruta_destino]);
 }
 
 async function insertComment_gnral(executor, { idPendiente, idUsuario, comentario }) {
   const connection = executor_gnral(executor);
   const [result] = await connection.query(
-    'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario) VALUES (?, ?, ?)',
+    'INSERT INTO pendientes_comentarios (id_pendiente, id_usuario, comentario, fecha) VALUES (?, ?, ?, UTC_TIMESTAMP(3))',
     [idPendiente, idUsuario, comentario]
   );
   return result.insertId;

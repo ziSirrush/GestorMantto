@@ -1,6 +1,7 @@
 (function(){
   'use strict';
 
+  // [Aster | 2026-09-14 | ASTER-MG | FIX COBRANZA COR MAIN PPNS V002]
   if(window.ManttoCobranzaCorEstadosCuenta) return;
 
   const ROUTE = 'cobranza-estados-cuenta';
@@ -8,24 +9,17 @@
   const SEARCH_DELAY_MS = 350;
 
   const state = {
-    root: null,
-    records: [],
-    catalogYears: [],
-    catalogStatuses: [],
-    selectedId: null,
-    detail: null,
-    filters: {
-      q: '',
-      anio: '',
-      estatus: '',
-      soloConFuente: false
-    },
-    listSequence: 0,
-    detailSequence: 0,
-    searchTimer: null,
-    loadingList: false,
-    loadingDetail: false,
-    view: 'list'
+    root:null,
+    records:[],
+    catalogYears:[],
+    catalogContractual:[],
+    selectedPpns:null,
+    detail:null,
+    filters:{ q:'', anio:'', contractual:'' },
+    listSequence:0,
+    detailSequence:0,
+    searchTimer:null,
+    view:'list'
   };
 
   function currentNavigation_cor(){
@@ -33,34 +27,19 @@
       return { route:'', payload:null };
     }
     const current = window.ManttoRouter.getCurrent() || {};
-    return {
-      route:String(current.route || ''),
-      payload:current.payload || null
-    };
+    return { route:String(current.route || ''), payload:current.payload || null };
   }
 
-  function currentRoute_cor(){
-    return currentNavigation_cor().route;
-  }
-
-  function currentPayload_cor(){
-    return currentNavigation_cor().payload;
-  }
-
-  function isActive_cor(){
-    return currentRoute_cor() === ROUTE;
-  }
+  function isActive_cor(){ return currentNavigation_cor().route === ROUTE; }
+  function currentPayload_cor(){ return currentNavigation_cor().payload; }
 
   function escapeHtml_cor(value){
     return String(value === null || value === undefined ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
-  function text_cor(value, fallback = '—'){
+  function text_cor(value, fallback='—'){
     if(value === null || value === undefined) return fallback;
     const normalized = String(value).trim();
     return normalized || fallback;
@@ -74,40 +53,28 @@
 
   function formatInteger_cor(value){
     const parsed = number_cor(value);
-    if(parsed === null) return '—';
-    return new Intl.NumberFormat('es-MX', { maximumFractionDigits:0 }).format(parsed);
+    return parsed === null ? '—' : new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(parsed);
   }
 
   function formatPercent_cor(value){
     const parsed = number_cor(value);
     if(parsed === null) return '—';
-    return new Intl.NumberFormat('es-MX', {
-      minimumFractionDigits:0,
-      maximumFractionDigits:2
-    }).format(parsed * 100) + '%';
+    return new Intl.NumberFormat('es-MX',{minimumFractionDigits:0,maximumFractionDigits:2}).format(parsed * 100) + '%';
   }
 
   function formatAmount_cor(value){
     const parsed = number_cor(value);
     if(parsed === null) return '—';
-    return new Intl.NumberFormat('es-MX', {
-      minimumFractionDigits:2,
-      maximumFractionDigits:2
-    }).format(parsed);
+    return new Intl.NumberFormat('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}).format(parsed);
   }
 
-  function formatMoney_cor(value, currency){
+  function formatMoney_cor(value,currency){
     const parsed = number_cor(value);
     if(parsed === null) return '—';
     const code = String(currency || '').trim().toUpperCase();
     if(/^[A-Z]{3}$/.test(code) && code !== 'SIN_MONEDA'){
       try{
-        return new Intl.NumberFormat('es-MX', {
-          style:'currency',
-          currency:code,
-          minimumFractionDigits:2,
-          maximumFractionDigits:2
-        }).format(parsed);
+        return new Intl.NumberFormat('es-MX',{style:'currency',currency:code,minimumFractionDigits:2,maximumFractionDigits:2}).format(parsed);
       }catch(_error){}
     }
     return formatAmount_cor(parsed) + (code && code !== 'SIN_MONEDA' ? ' ' + code : '');
@@ -117,131 +84,118 @@
     const raw = String(value || '').trim();
     if(!raw) return '—';
     const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if(!match) return raw;
-    return match[3] + '/' + match[2] + '/' + match[1];
+    return match ? match[3] + '/' + match[2] + '/' + match[1] : raw;
   }
 
   function formatDateTimeNow_cor(){
-    return new Intl.DateTimeFormat('es-MX', {
-      day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
-    }).format(new Date());
+    return new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date());
   }
 
   function statusClass_cor(value){
     const status = String(value || '').trim().toUpperCase();
     if(!status) return 'is-neutral';
-    if(['PAGADO','PAGADA','COBRADO','COBRADA','LIQUIDADO','LIQUIDADA','AL DIA','AL DÍA','ACTIVO'].includes(status)) return 'is-ok';
-    if(status.includes('VENC') || status.includes('NO PAG') || status.includes('PEND')) return 'is-danger';
-    if(status.includes('COBRANZA') || status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVISAR')) return 'is-warn';
+    if(status.includes('CORRIENTE') || status.includes('AL DIA') || status.includes('AL DÍA') || status.includes('PAGAD')) return 'is-ok';
+    if(status.includes('VENC') || status.includes('NO PAG') || status.includes('ADEUD') || status.includes('ATRAS')) return 'is-danger';
+    if(status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVIS')) return 'is-warn';
     return 'is-neutral';
   }
 
-  function userLabel_cor(user, fallbackId){
-    const id = number_cor(user && user.id_SB !== undefined ? user.id_SB : fallbackId);
-    const name = text_cor(user && user.nombre, '');
-    const initials = text_cor(user && user.iniciales, '');
-    if(name) return name;
-    if(initials) return initials;
-    return id === null ? '—' : 'ID ' + formatInteger_cor(id);
-  }
-
-  function userTitle_cor(user, fallbackId){
-    const id = number_cor(user && user.id_SB !== undefined ? user.id_SB : fallbackId);
-    const name = text_cor(user && user.nombre, '');
-    const initials = text_cor(user && user.iniciales, '');
-    const parts = [];
-    if(name) parts.push(name);
-    if(initials) parts.push('Iniciales: ' + initials);
-    if(id !== null) parts.push('ID: ' + formatInteger_cor(id));
-    return parts.join(' · ');
-  }
-
-  function apiGet_cor(path, options){
+  function apiGet_cor(path,options){
     if(!window.ManttoHttp || typeof window.ManttoHttp.get !== 'function'){
       return Promise.reject(new Error('Cliente HTTP central no disponible.'));
     }
-    return window.ManttoHttp.get(path, options || {});
+    return window.ManttoHttp.get(path,options || {});
+  }
+
+  function ensureStyles_cor(){
+    if(document.getElementById('ccor-ec-main-fuente-v001-style')) return;
+    const style = document.createElement('style');
+    style.id = 'ccor-ec-main-fuente-v001-style';
+    style.textContent = `
+      .ccor-ec-projects-table.ccor-ec-main-v001{min-width:1480px;border-collapse:separate;border-spacing:0}
+      .ccor-ec-main-v001 thead th{background:#17365d;color:#fff;font-size:11px;line-height:1.15;text-transform:uppercase;letter-spacing:.02em;padding:9px 8px;white-space:nowrap;border-color:#294a73}
+      .ccor-ec-main-v001 tbody td{font-size:12px;line-height:1.2;padding:8px 8px;vertical-align:middle;white-space:nowrap}
+      .ccor-ec-main-v001 tbody tr{cursor:pointer}
+      .ccor-ec-main-v001 tbody tr:hover td{background:rgba(23,54,93,.06)}
+      .ccor-ec-main-v001 .ccor-ec-main-project,.ccor-ec-main-v001 .ccor-ec-main-client{white-space:normal;min-width:180px;max-width:300px}
+      .ccor-ec-main-v001 .ccor-ec-main-initials{text-align:center;font-weight:700;min-width:72px}
+      .ccor-ec-main-v001 .ccor-ec-main-count{text-align:center;font-variant-numeric:tabular-nums}
+      .ccor-ec-main-v001 .ccor-ec-main-ppns{font-weight:800}
+      .ccor-ec-main-v001 .ccor-ec-main-money{text-align:center;font-weight:700}
+      .ccor-ec-main-v001 .ccor-ec-main-account{text-align:center}
+      .ccor-ec-main-v001 .ccor-ec-main-contractual{min-width:120px}
+      .ccor-ec-filters.ccor-ec-main-filters{grid-template-columns:minmax(180px,.7fr) minmax(180px,.8fr) minmax(280px,1.6fr) auto}
+      .ccor-ec-project-header.ccor-ec-main-detail-header{grid-template-columns:repeat(4,minmax(140px,1fr))}
+      @media(max-width:900px){
+        .ccor-ec-filters.ccor-ec-main-filters{grid-template-columns:1fr}
+        .ccor-ec-project-header.ccor-ec-main-detail-header{grid-template-columns:1fr 1fr}
+      }
+      @media(max-width:560px){.ccor-ec-project-header.ccor-ec-main-detail-header{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(style);
   }
 
   function buildListPath_cor(){
     const params = new URLSearchParams();
-    if(state.filters.q) params.set('q', state.filters.q);
-    if(state.filters.anio) params.set('anio', state.filters.anio);
-    if(state.filters.estatus) params.set('estatus', state.filters.estatus);
-    if(state.filters.soloConFuente) params.set('solo_con_fuente', '1');
+    if(state.filters.q) params.set('q',state.filters.q);
+    if(state.filters.anio) params.set('anio',state.filters.anio);
+    if(state.filters.contractual) params.set('contractual',state.filters.contractual);
     const query = params.toString();
     return LIST_PATH + (query ? '?' + query : '');
   }
 
-  function errorMessage_cor(error, context){
+  function errorMessage_cor(error,context){
     const status = Number(error && error.status);
-    if(status === 401) return 'La sesión ya no está disponible. Vuelve a iniciar sesión para consultar Estados de Cuenta.';
-    if(status === 403) return 'No tienes permiso o alcance de información para consultar estos Estados de Cuenta.';
+    if(status === 401) return 'La sesión ya no está disponible. Vuelve a iniciar sesión.';
+    if(status === 403) return 'No tienes permiso o alcance de información para consultar Cobranza COR.';
     if(status === 404 && context === 'list') return 'El endpoint de Estados de Cuenta no está disponible en este entorno.';
-    if(status === 404) return 'El proyecto ya no existe o quedó fuera de tu alcance autorizado.';
-    return text_cor(error && error.message, 'No fue posible consultar Estados de Cuenta.');
+    if(status === 404) return 'El PPNS ya no existe en FUENTE o quedó fuera de tu alcance autorizado.';
+    return text_cor(error && error.message,'No fue posible consultar Estados de Cuenta.');
   }
 
   function renderListShell_cor(){
     const root = state.root;
     if(!root) return;
     state.view = 'list';
-
     root.innerHTML = `
       <div class="ccor-ec-page ccor-ec-list-page">
         <section class="ccor-ec-card ccor-ec-hero">
           <div>
             <p class="ccor-ec-eyebrow">Cobranza · Corellian</p>
             <h1>Estados de Cuenta</h1>
-            <p>Selecciona un proyecto para abrir su Estado de Cuenta.</p>
+            <p>Vista agrupada por PPNS a partir de FUENTE. Selecciona un registro para abrir su Estado de Cuenta.</p>
           </div>
           <div class="ccor-ec-hero-actions">
             <span id="ccor-ec-updated">Sin actualizar</span>
-            <button id="ccor-ec-refresh" class="ccor-ec-btn ccor-ec-btn-primary" type="button">↻ Actualizar</button>
+            <button id="ccor-ec-refresh" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Actualizar</button>
           </div>
         </section>
 
-        <section class="ccor-ec-card ccor-ec-filters" aria-label="Filtros de Estados de Cuenta">
-          <label>
-            <span>Año</span>
-            <select id="ccor-ec-year"><option value="">Todos</option></select>
-          </label>
-          <label>
-            <span>Estatus</span>
-            <select id="ccor-ec-status"><option value="">Todos</option></select>
-          </label>
-          <label class="ccor-ec-search-field">
-            <span>Buscar proyecto / PP</span>
-            <input id="ccor-ec-search" type="search" autocomplete="off" placeholder="Buscar..." />
-          </label>
-          <label class="ccor-ec-check">
-            <input id="ccor-ec-only-source" type="checkbox" />
-            <span>Solo con movimientos</span>
-          </label>
-          <div class="ccor-ec-filter-total">Proyectos: <b id="ccor-ec-total">0</b></div>
+        <section class="ccor-ec-card ccor-ec-filters ccor-ec-main-filters" aria-label="Filtros de Estados de Cuenta">
+          <label><span>Año</span><select id="ccor-ec-year"><option value="">Todos</option></select></label>
+          <label><span>Contractual</span><select id="ccor-ec-contractual"><option value="">Todos</option></select></label>
+          <label class="ccor-ec-search-field"><span>Buscar PPNS / Proyecto / Cliente</span><input id="ccor-ec-search" type="search" autocomplete="off" placeholder="Buscar..." /></label>
+          <div class="ccor-ec-filter-total">PPNS: <b id="ccor-ec-total">0</b></div>
         </section>
 
         <section class="ccor-ec-card ccor-ec-projects-card">
           <div id="ccor-ec-list-status" class="ccor-ec-inline-status" aria-live="polite"></div>
           <div class="ccor-ec-table-wrap ccor-ec-projects-wrap">
-            <table class="ccor-ec-table ccor-ec-projects-table">
-              <thead>
-                <tr>
-                  <th>Proyecto</th>
-                  <th>PP</th>
-                  <th>Año</th>
-                  <th>QTY</th>
-                  <th>ADM</th>
-                  <th>SUP</th>
-                  <th>VEND</th>
-                  <th>EDO</th>
-                  <th>Estatus</th>
-                  <th>% USD</th>
-                  <th>% MXN</th>
-                  <th>Mov.</th>
-                  <th>Monedas</th>
-                </tr>
-              </thead>
+            <table class="ccor-ec-table ccor-ec-projects-table ccor-ec-main-v001">
+              <thead><tr>
+                <th>PPNS</th>
+                <th>Proyecto</th>
+                <th>Cliente</th>
+                <th>Supervisor</th>
+                <th>Asesor</th>
+                <th>Administrativo</th>
+                <th>Hitos Suministro</th>
+                <th>Hitos MXN</th>
+                <th>Aditivas</th>
+                <th>Monedas</th>
+                <th>Estado de Cuenta</th>
+                <th>Contractual</th>
+              </tr></thead>
               <tbody id="ccor-ec-projects-body"></tbody>
             </table>
           </div>
@@ -249,51 +203,30 @@
       </div>`;
 
     const contextSubtitle = document.getElementById('app-context-subtitle');
-    if(contextSubtitle) contextSubtitle.textContent = 'Cobranza Corellian · Estados de Cuenta por proyecto';
-
+    if(contextSubtitle) contextSubtitle.textContent = 'Cobranza Corellian · Estados de Cuenta por PPNS';
     const search = document.getElementById('ccor-ec-search');
-    const year = document.getElementById('ccor-ec-year');
-    const status = document.getElementById('ccor-ec-status');
-    const onlySource = document.getElementById('ccor-ec-only-source');
     if(search) search.value = state.filters.q;
-    if(year) year.value = state.filters.anio;
-    if(status) status.value = state.filters.estatus;
-    if(onlySource) onlySource.checked = state.filters.soloConFuente;
-  }
-
-  function renderCatalogs_cor(){
-    const yearSelect = document.getElementById('ccor-ec-year');
-    const statusSelect = document.getElementById('ccor-ec-status');
-    if(yearSelect){
-      yearSelect.innerHTML = '<option value="">Todos</option>' + state.catalogYears
-        .map(value => `<option value="${escapeHtml_cor(value)}">${escapeHtml_cor(value)}</option>`)
-        .join('');
-      yearSelect.value = state.filters.anio;
-    }
-    if(statusSelect){
-      statusSelect.innerHTML = '<option value="">Todos</option>' + state.catalogStatuses
-        .map(value => `<option value="${escapeHtml_cor(value)}">${escapeHtml_cor(value)}</option>`)
-        .join('');
-      statusSelect.value = state.filters.estatus;
-    }
   }
 
   function updateCatalogsFromRecords_cor(records){
-    state.catalogYears = [...new Set((records || [])
-      .map(row => number_cor(row && row.anio))
-      .filter(value => value !== null)
-      .map(String))]
-      .sort((a,b) => Number(b) - Number(a));
+    state.catalogYears = [...new Set((records || []).flatMap(row => Array.isArray(row && row.anios) ? row.anios : []).map(Number).filter(Number.isInteger))]
+      .sort((a,b)=>b-a).map(String);
+    state.catalogContractual = [...new Set((records || []).map(row => text_cor(row && row.contractual,'')).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'es'));
 
-    state.catalogStatuses = [...new Set((records || [])
-      .map(row => text_cor(row && row.estatus, ''))
-      .filter(Boolean))]
-      .sort((a,b) => a.localeCompare(b, 'es'));
-
-    renderCatalogs_cor();
+    const year = document.getElementById('ccor-ec-year');
+    const contractual = document.getElementById('ccor-ec-contractual');
+    if(year){
+      year.innerHTML = '<option value="">Todos</option>' + state.catalogYears.map(v=>`<option value="${escapeHtml_cor(v)}">${escapeHtml_cor(v)}</option>`).join('');
+      year.value = state.filters.anio;
+    }
+    if(contractual){
+      contractual.innerHTML = '<option value="">Todos</option>' + state.catalogContractual.map(v=>`<option value="${escapeHtml_cor(v)}">${escapeHtml_cor(v)}</option>`).join('');
+      contractual.value = state.filters.contractual;
+    }
   }
 
-  function renderListStatus_cor(message, kind){
+  function renderListStatus_cor(message,kind){
     const node = document.getElementById('ccor-ec-list-status');
     if(!node) return;
     node.className = 'ccor-ec-inline-status' + (kind ? ' is-' + kind : '');
@@ -305,479 +238,247 @@
     const total = document.getElementById('ccor-ec-total');
     if(total) total.textContent = String(state.records.length);
     if(!body) return;
-
     if(!state.records.length){
-      body.innerHTML = '<tr><td colspan="13" class="ccor-ec-table-empty">No se encontraron proyectos con los filtros seleccionados.</td></tr>';
+      body.innerHTML = '<tr><td colspan="12" class="ccor-ec-table-empty">No se encontraron PPNS con los filtros seleccionados.</td></tr>';
       return;
     }
 
     body.innerHTML = state.records.map(row => {
-      const id = Number(row.id_indice_cor);
-      const currencies = Array.isArray(row.monedas) && row.monedas.length ? row.monedas.join(', ') : '—';
+      const ppns = text_cor(row.ppns,'');
+      const currencies = Array.isArray(row.monedas) && row.monedas.length ? row.monedas.join('-') : '—';
+      const available = row.estado_cuenta_disponible === true;
       return `
-        <tr class="ccor-ec-project-row" data-id-indice-cor="${Number.isFinite(id) ? id : ''}" tabindex="0" role="button" aria-label="Abrir Estado de Cuenta de ${escapeHtml_cor(text_cor(row.proyecto, 'proyecto'))}">
-          <td><strong>${escapeHtml_cor(text_cor(row.proyecto))}</strong></td>
-          <td>${escapeHtml_cor(text_cor(row.pp))}</td>
-          <td>${escapeHtml_cor(text_cor(row.anio))}</td>
-          <td>${escapeHtml_cor(formatInteger_cor(row.qty))}</td>
-          <td title="${escapeHtml_cor(userTitle_cor(row.adm_usuario, row.adm))}">${escapeHtml_cor(userLabel_cor(row.adm_usuario, row.adm))}</td>
-          <td title="${escapeHtml_cor(userTitle_cor(row.sup_usuario, row.sup))}">${escapeHtml_cor(userLabel_cor(row.sup_usuario, row.sup))}</td>
-          <td title="${escapeHtml_cor(userTitle_cor(row.vend_usuario, row.vend))}">${escapeHtml_cor(userLabel_cor(row.vend_usuario, row.vend))}</td>
-          <td>${escapeHtml_cor(text_cor(row.edo))}</td>
-          <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus)}">${escapeHtml_cor(text_cor(row.estatus))}</span></td>
-          <td>${escapeHtml_cor(formatPercent_cor(row.cobranza_usd))}</td>
-          <td>${escapeHtml_cor(formatPercent_cor(row.cobranza_mxn))}</td>
-          <td>${escapeHtml_cor(formatInteger_cor(row.registros_estado_cuenta))}</td>
-          <td>${escapeHtml_cor(currencies)}</td>
+        <tr class="ccor-ec-project-row" data-ppns="${escapeHtml_cor(ppns)}" tabindex="0" role="button" aria-label="Abrir Estado de Cuenta ${escapeHtml_cor(ppns)}">
+          <td class="ccor-ec-main-ppns">${escapeHtml_cor(text_cor(ppns))}</td>
+          <td class="ccor-ec-main-project"><strong>${escapeHtml_cor(text_cor(row.proyecto))}</strong></td>
+          <td class="ccor-ec-main-client">${escapeHtml_cor(text_cor(row.cliente))}</td>
+          <td class="ccor-ec-main-initials">${escapeHtml_cor(text_cor(row.supervisor))}</td>
+          <td class="ccor-ec-main-initials">${escapeHtml_cor(text_cor(row.asesor))}</td>
+          <td class="ccor-ec-main-initials">${escapeHtml_cor(text_cor(row.administrativo))}</td>
+          <td class="ccor-ec-main-count">${escapeHtml_cor(formatInteger_cor(row.hitos_suministro))}</td>
+          <td class="ccor-ec-main-count">${escapeHtml_cor(formatInteger_cor(row.hitos_mxn))}</td>
+          <td class="ccor-ec-main-count">${escapeHtml_cor(formatInteger_cor(row.aditivas))}</td>
+          <td class="ccor-ec-main-money">${escapeHtml_cor(currencies)}</td>
+          <td class="ccor-ec-main-account"><span class="ccor-ec-badge ${available ? 'is-ok' : 'is-neutral'}">${available ? 'Disponible' : 'No disponible'}</span></td>
+          <td class="ccor-ec-main-contractual"><span class="ccor-ec-badge ${statusClass_cor(row.contractual)}">${escapeHtml_cor(text_cor(row.contractual))}</span></td>
         </tr>`;
     }).join('');
   }
 
-  function getSummaryItems_cor(detail){
-    return Array.isArray(detail && detail.resumen && detail.resumen.monedas)
-      ? detail.resumen.monedas
-      : [];
+  function getSummaryItems_cor(detail){ return Array.isArray(detail && detail.resumen && detail.resumen.monedas) ? detail.resumen.monedas : []; }
+  function getMovements_cor(detail){ return Array.isArray(detail && detail.estado_cuenta) ? detail.estado_cuenta : []; }
+  function isMxn_cor(currency){ return String(currency || '').trim().toUpperCase() === 'MXN'; }
+  function isForeign_cor(currency){ const code=String(currency || '').trim().toUpperCase(); return Boolean(code) && code !== 'MXN' && code !== 'SIN_MONEDA'; }
+
+  function renderSummaryMini_cor(item){
+    if(!item) return '<div class="ccor-ec-summary-empty">Sin movimientos</div>';
+    return `<div class="ccor-ec-summary-line">
+      <div class="ccor-ec-summary-currency">${escapeHtml_cor(text_cor(item.moneda))}</div>
+      <div><span>Monto inicial</span><b>${escapeHtml_cor(formatMoney_cor(item.total,item.moneda))}</b></div>
+      <div><span>Monto cobrado</span><b>${escapeHtml_cor(formatMoney_cor(item.cobrado,item.moneda))}</b></div>
+      <div><span>Monto pendiente</span><b>${escapeHtml_cor(formatMoney_cor(item.pendiente,item.moneda))}</b></div>
+      <div><span>% cobrado</span><b>${escapeHtml_cor(formatPercent_cor(item.porcentaje_cobrado_calculado))}</b></div>
+    </div>`;
   }
 
-  function getMovements_cor(detail){
-    return Array.isArray(detail && detail.estado_cuenta) ? detail.estado_cuenta : [];
+  function renderSummaryGroup_cor(items,foreign){
+    const selected = items.filter(item => foreign ? isForeign_cor(item.moneda) : isMxn_cor(item.moneda));
+    return selected.length ? selected.map(renderSummaryMini_cor).join('') : '<div class="ccor-ec-summary-empty">Sin movimientos.</div>';
   }
 
-  function isMxn_cor(currency){
-    return String(currency || '').trim().toUpperCase() === 'MXN';
-  }
-
-  function isKnownForeign_cor(currency){
-    const code = String(currency || '').trim().toUpperCase();
-    return Boolean(code) && code !== 'MXN' && code !== 'SIN_MONEDA';
-  }
-
-  function renderSummaryMini_cor(item, sectionClass){
-    if(!item){
-      return '<div class="ccor-ec-summary-empty">Sin movimientos</div>';
-    }
-    return `
-      <div class="ccor-ec-summary-line ${sectionClass || ''}">
-        <div class="ccor-ec-summary-currency">${escapeHtml_cor(text_cor(item.moneda))}</div>
-        <div><span>Monto inicial</span><b>${escapeHtml_cor(formatMoney_cor(item.total, item.moneda))}</b></div>
-        <div><span>Monto cobrado</span><b>${escapeHtml_cor(formatMoney_cor(item.cobrado, item.moneda))}</b></div>
-        <div><span>Monto pendiente</span><b>${escapeHtml_cor(formatMoney_cor(item.pendiente, item.moneda))}</b></div>
-        <div><span>% cobrado</span><b>${escapeHtml_cor(formatPercent_cor(item.porcentaje_cobrado_calculado))}</b></div>
-      </div>`;
-  }
-
-  function renderSupplySummary_cor(summaryItems){
-    const foreign = summaryItems.filter(item => isKnownForeign_cor(item.moneda));
-    if(!foreign.length) return '<div class="ccor-ec-summary-empty">Sin movimientos de moneda extranjera.</div>';
-    return foreign.map(item => renderSummaryMini_cor(item, 'is-supply')).join('');
-  }
-
-  function renderInstallationSummary_cor(summaryItems){
-    const mxn = summaryItems.find(item => isMxn_cor(item.moneda));
-    return mxn
-      ? renderSummaryMini_cor(mxn, 'is-installation')
-      : '<div class="ccor-ec-summary-empty">Sin movimientos en MXN.</div>';
-  }
-
-  function renderVencido_cor(row){
-    const status = text_cor(row && row.estatus_vencimiento, '');
-    if(status) return status;
-    const days = number_cor(row && row.dias_vencimiento);
-    if(days !== null && days > 0) return formatInteger_cor(days) + ' días';
-    return '—';
-  }
-
-  function renderPaymentMe_cor(row){
-    if(!isKnownForeign_cor(row && row.moneda)) return '—';
-    const amount = number_cor(row && row.pago_contabilizado);
-    return amount && amount > 0 ? formatAmount_cor(amount) : '—';
-  }
-
-  function renderPaymentMxn_cor(row){
-    if(!isMxn_cor(row && row.moneda)) return '—';
-    const amount = number_cor(row && row.pago_contabilizado);
-    return amount && amount > 0 ? formatAmount_cor(amount) : '—';
-  }
-
-  function renderMovementRows_cor(rows, section){
-    if(!rows.length){
-      return '<tr><td colspan="12" class="ccor-ec-table-empty">Sin movimientos para esta sección.</td></tr>';
-    }
-
-    return rows.map(row => `
-      <tr>
-        <td>${escapeHtml_cor(formatPercent_cor(row.porcentaje))}</td>
-        <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.condicion))}</td>
-        <td>${escapeHtml_cor(text_cor(row.factura))}</td>
-        <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.subtotal))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.iva))}</td>
-        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(row.total))}</b></td>
-        <td>${escapeHtml_cor(formatDate_cor(row.fecha_pago))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(renderPaymentMe_cor(row))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(renderPaymentMxn_cor(row))}</td>
-        <td>${escapeHtml_cor(renderVencido_cor(row))}</td>
-        <td class="ccor-ec-num is-pending">${escapeHtml_cor(formatAmount_cor(row.pendiente_calculado))}</td>
-      </tr>`).join('');
-  }
-
-  function renderTotalsRows_cor(summaryItems, section){
-    const selected = section === 'supply'
-      ? summaryItems.filter(item => isKnownForeign_cor(item.moneda))
-      : summaryItems.filter(item => isMxn_cor(item.moneda));
-
-    if(!selected.length) return '';
-
-    return selected.map(item => `
-      <tr class="ccor-ec-total-row">
-        <td colspan="4">TOTAL ${escapeHtml_cor(text_cor(item.moneda))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.subtotal))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.iva))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.total))}</td>
-        <td>—</td>
-        <td class="ccor-ec-num">${section === 'supply' ? escapeHtml_cor(formatAmount_cor(item.cobrado)) : '—'}</td>
-        <td class="ccor-ec-num">${section === 'installation' ? escapeHtml_cor(formatAmount_cor(item.cobrado)) : '—'}</td>
-        <td>—</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(item.pendiente))}</td>
-      </tr>`).join('');
-  }
-
-  function renderAccountTable_cor(title, section, rows, summaryItems){
-    const sectionClass = section === 'supply' ? 'is-supply' : 'is-installation';
-    const percentLabel = section === 'supply' ? '% ME' : '% MXN';
-
-    return `
-      <section class="ccor-ec-account-section ${sectionClass}">
-        <div class="ccor-ec-account-title">${escapeHtml_cor(title)}</div>
-        <div class="ccor-ec-table-wrap ccor-ec-detail-table-wrap">
-          <table class="ccor-ec-table ccor-ec-detail-table">
-            <thead>
-              <tr>
-                <th>${percentLabel}</th>
-                <th>Condición</th>
-                <th>Factura</th>
-                <th>Mon</th>
-                <th>Subtotal</th>
-                <th>IVA</th>
-                <th>Total</th>
-                <th>Fecha pago</th>
-                <th>Pago M.E.</th>
-                <th>Pago MXN</th>
-                <th>Vencido</th>
-                <th>Por cobrar</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${renderMovementRows_cor(rows, section)}
-              ${renderTotalsRows_cor(summaryItems, section)}
-            </tbody>
-          </table>
-        </div>
-      </section>`;
-  }
-
-  function renderUnknownCurrency_cor(rows){
-    if(!rows.length) return '';
-    return `
-      <section class="ccor-ec-card ccor-ec-unknown-card">
-        <b>Movimientos sin moneda identificada: ${escapeHtml_cor(formatInteger_cor(rows.length))}</b>
-        <span>Estos registros no se clasifican como Suministro ni Instalación hasta que la fuente indique la moneda.</span>
-      </section>`;
-  }
-
-  function renderDetailLoading_cor(){
-    const root = state.root;
-    if(!root) return;
-    state.view = 'detail';
-    root.innerHTML = `
-      <div class="ccor-ec-page">
-        <section class="ccor-ec-card ccor-ec-loading-card">
-          <span class="ccor-ec-spinner" aria-hidden="true"></span>
-          <div><b>Cargando Estado de Cuenta...</b><small>Consultando la información del proyecto seleccionado.</small></div>
-        </section>
-      </div>`;
-  }
-
-  function renderDetailError_cor(message){
-    const root = state.root;
-    if(!root) return;
-    root.innerHTML = `
-      <div class="ccor-ec-page">
-        <section class="ccor-ec-card ccor-ec-error-card">
-          <div class="ccor-ec-empty-icon">⚠️</div>
-          <div><h2>No fue posible abrir el Estado de Cuenta</h2><p>${escapeHtml_cor(message)}</p></div>
-        </section>
-      </div>`;
+  function renderMovementRows_cor(rows){
+    if(!rows.length) return '<tr><td colspan="12" class="ccor-ec-table-empty">Sin movimientos.</td></tr>';
+    return rows.map(row=>`<tr>
+      <td>${escapeHtml_cor(formatPercent_cor(row.porcentaje))}</td>
+      <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.condicion))}</td>
+      <td>${escapeHtml_cor(text_cor(row.factura))}</td>
+      <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
+      <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.subtotal))}</td>
+      <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.iva))}</td>
+      <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(row.total))}</b></td>
+      <td>${escapeHtml_cor(text_cor(row.estatus_factura))}</td>
+      <td>${escapeHtml_cor(formatDate_cor(row.fecha_pago))}</td>
+      <td>${escapeHtml_cor(formatDate_cor(row.fecha_vencimiento))}</td>
+      <td>${escapeHtml_cor(text_cor(row.estatus_vencimiento))}</td>
+      <td class="ccor-ec-num is-pending">${escapeHtml_cor(formatAmount_cor(row.pendiente_calculado))}</td>
+    </tr>`).join('');
   }
 
   function renderDetail_cor(){
     const root = state.root;
     const detail = state.detail;
     if(!root || !detail) return;
-
     const project = detail.proyecto || {};
     const movements = getMovements_cor(detail);
     const summaryItems = getSummaryItems_cor(detail);
-    const supplyRows = movements.filter(row => isKnownForeign_cor(row && row.moneda));
-    const installationRows = movements.filter(row => isMxn_cor(row && row.moneda));
-    const unknownRows = movements.filter(row => !isKnownForeign_cor(row && row.moneda) && !isMxn_cor(row && row.moneda));
     state.view = 'detail';
     root.innerHTML = `
       <div class="ccor-ec-page ccor-ec-detail-page">
-        <div class="ccor-ec-detail-toolbar">
-          <span>Fecha de consulta: <b>${escapeHtml_cor(formatDateTimeNow_cor())}</b></span>
-        </div>
-
+        <div class="ccor-ec-detail-toolbar"><span>Fecha de consulta: <b>${escapeHtml_cor(formatDateTimeNow_cor())}</b></span></div>
         <section class="ccor-ec-detail-title">
-          <div>
-            <p class="ccor-ec-eyebrow">Cobranza · Corellian</p>
-            <h1>Estado de Cuenta</h1>
-          </div>
-          <span class="ccor-ec-badge ${statusClass_cor(project.estatus)}">${escapeHtml_cor(text_cor(project.estatus))}</span>
+          <div><p class="ccor-ec-eyebrow">Cobranza · Corellian</p><h1>Estado de Cuenta</h1></div>
+          <span class="ccor-ec-badge ${statusClass_cor(project.contractual)}">${escapeHtml_cor(text_cor(project.contractual))}</span>
         </section>
 
-        <section class="ccor-ec-card ccor-ec-project-header">
+        <section class="ccor-ec-card ccor-ec-project-header ccor-ec-main-detail-header">
+          <div><span>PPNS</span><b>${escapeHtml_cor(text_cor(project.ppns))}</b></div>
           <div><span>Proyecto</span><b>${escapeHtml_cor(text_cor(project.proyecto))}</b></div>
-          <div><span>PP / Contrato</span><b>${escapeHtml_cor(text_cor(project.pp))}</b></div>
-          <div><span>Año</span><b>${escapeHtml_cor(text_cor(project.anio))}</b></div>
-          <div><span>Unidades</span><b>${escapeHtml_cor(formatInteger_cor(project.qty))}</b></div>
-          <div><span>EDO</span><b>${escapeHtml_cor(text_cor(project.edo))}</b></div>
+          <div><span>Cliente</span><b>${escapeHtml_cor(text_cor(project.cliente))}</b></div>
+          <div><span>Contractual</span><b>${escapeHtml_cor(text_cor(project.contractual))}</b></div>
+          <div><span>Supervisor</span><b>${escapeHtml_cor(text_cor(project.supervisor))}</b></div>
+          <div><span>Asesor</span><b>${escapeHtml_cor(text_cor(project.asesor))}</b></div>
+          <div><span>Administrativo</span><b>${escapeHtml_cor(text_cor(project.administrativo))}</b></div>
+          <div><span>Aditivas</span><b>${escapeHtml_cor(formatInteger_cor(project.aditivas))}</b></div>
         </section>
 
         <section class="ccor-ec-summary-grid">
-          <article class="ccor-ec-card ccor-ec-summary-card is-supply">
-            <div class="ccor-ec-summary-title">
-              <div><span class="ccor-ec-summary-icon">◎</span><b>SUMINISTRO</b></div>
-              <small>Moneda extranjera</small>
-            </div>
-            ${renderSupplySummary_cor(summaryItems)}
-          </article>
-
-          <article class="ccor-ec-card ccor-ec-summary-card is-installation">
-            <div class="ccor-ec-summary-title">
-              <div><span class="ccor-ec-summary-icon">⌁</span><b>INSTALACIÓN</b></div>
-              <small>Moneda nacional · MXN</small>
-            </div>
-            ${renderInstallationSummary_cor(summaryItems)}
-          </article>
+          <article class="ccor-ec-card ccor-ec-summary-card is-supply"><div class="ccor-ec-summary-title"><div><b>SUMINISTRO</b></div><small>Moneda extranjera</small></div>${renderSummaryGroup_cor(summaryItems,true)}</article>
+          <article class="ccor-ec-card ccor-ec-summary-card is-installation"><div class="ccor-ec-summary-title"><div><b>INSTALACIÓN</b></div><small>Moneda nacional · MXN</small></div>${renderSummaryGroup_cor(summaryItems,false)}</article>
         </section>
 
-        ${renderAccountTable_cor('SUMINISTRO', 'supply', supplyRows, summaryItems)}
-        ${renderAccountTable_cor('INSTALACIÓN', 'installation', installationRows, summaryItems)}
-        ${renderUnknownCurrency_cor(unknownRows)}
-
-        <section class="ccor-ec-info-grid">
-          <article class="ccor-ec-card ccor-ec-info-card">
-            <h3>Información del proyecto</h3>
-            <dl>
-              <div><dt>ADM</dt><dd title="${escapeHtml_cor(userTitle_cor(project.adm_usuario, project.adm))}">${escapeHtml_cor(userLabel_cor(project.adm_usuario, project.adm))}</dd></div>
-              <div><dt>SUP</dt><dd title="${escapeHtml_cor(userTitle_cor(project.sup_usuario, project.sup))}">${escapeHtml_cor(userLabel_cor(project.sup_usuario, project.sup))}</dd></div>
-              <div><dt>VEND</dt><dd title="${escapeHtml_cor(userTitle_cor(project.vend_usuario, project.vend))}">${escapeHtml_cor(userLabel_cor(project.vend_usuario, project.vend))}</dd></div>
-              <div><dt>MRC</dt><dd>${escapeHtml_cor(text_cor(project.mrc))}</dd></div>
-            </dl>
-          </article>
-
-          <article class="ccor-ec-card ccor-ec-info-card">
-            <h3>Cumplimiento</h3>
-            <dl>
-              <div><dt>Fianzas</dt><dd>${project.fianzas ? 'Sí' : 'No'}</dd></div>
-              <div><dt>Tipo de fianza</dt><dd>${escapeHtml_cor(text_cor(project.tipo_fianza))}</dd></div>
-              <div><dt>REPSE / SIROC</dt><dd>${project.repse_siroc ? 'Sí' : 'No'}</dd></div>
-              <div><dt>Movimientos</dt><dd>${escapeHtml_cor(formatInteger_cor(movements.length))}</dd></div>
-            </dl>
-          </article>
-
-          <article class="ccor-ec-card ccor-ec-info-card">
-            <h3>Movimientos de FUENTE</h3>
-            <dl>
-              <div><dt>Total</dt><dd>${escapeHtml_cor(formatInteger_cor(movements.length))}</dd></div>
-              <div><dt>Suministro</dt><dd>${escapeHtml_cor(formatInteger_cor(supplyRows.length))}</dd></div>
-              <div><dt>Instalación</dt><dd>${escapeHtml_cor(formatInteger_cor(installationRows.length))}</dd></div>
-            </dl>
-            <p class="ccor-ec-info-note">El backend resuelve la relación con FUENTE sin repetir el mismo id_fuente_cor.</p>
-          </article>
+        <section class="ccor-ec-card ccor-ec-account-section">
+          <div class="ccor-ec-account-title">MOVIMIENTOS DE FUENTE</div>
+          <div class="ccor-ec-table-wrap ccor-ec-detail-table-wrap">
+            <table class="ccor-ec-table ccor-ec-detail-table">
+              <thead><tr><th>%</th><th>Condición</th><th>Factura</th><th>Mon</th><th>Subtotal</th><th>IVA</th><th>Total</th><th>Estatus factura</th><th>Fecha pago</th><th>Vencimiento</th><th>Estatus venc.</th><th>Por cobrar</th></tr></thead>
+              <tbody>${renderMovementRows_cor(movements)}</tbody>
+            </table>
+          </div>
         </section>
       </div>`;
-
     const contextSubtitle = document.getElementById('app-context-subtitle');
-    if(contextSubtitle) contextSubtitle.textContent = 'Estado de Cuenta · ' + text_cor(project.proyecto, 'Proyecto');
-    try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_error){ window.scrollTo(0, 0); }
+    if(contextSubtitle) contextSubtitle.textContent = 'Estado de Cuenta · ' + text_cor(project.ppns,'PPNS');
+    try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(_error){ window.scrollTo(0,0); }
   }
 
-  async function loadDetail_cor(id, options){
-    const numericId = Number(id);
-    if(!Number.isInteger(numericId) || numericId <= 0) return;
-    state.selectedId = numericId;
-    state.detail = null;
-    state.loadingDetail = true;
-    renderDetailLoading_cor();
+  function renderDetailLoading_cor(){
+    if(!state.root) return;
+    state.view='detail';
+    state.root.innerHTML='<div class="ccor-ec-page"><section class="ccor-ec-card ccor-ec-loading-card"><span class="ccor-ec-spinner" aria-hidden="true"></span><div><b>Cargando Estado de Cuenta...</b><small>Consultando FUENTE por PPNS.</small></div></section></div>';
+  }
 
+  function renderDetailError_cor(message){
+    if(!state.root) return;
+    state.root.innerHTML=`<div class="ccor-ec-page"><section class="ccor-ec-card ccor-ec-error-card"><div><h2>No fue posible abrir el Estado de Cuenta</h2><p>${escapeHtml_cor(message)}</p></div></section></div>`;
+  }
+
+  async function loadDetail_cor(ppns,options){
+    const normalized = String(ppns || '').trim();
+    if(!normalized) return;
+    state.selectedPpns = normalized;
+    state.detail = null;
+    renderDetailLoading_cor();
     const sequence = ++state.detailSequence;
     try{
-      const payload = await apiGet_cor(LIST_PATH + '/' + encodeURIComponent(numericId), {
-        force:Boolean(options && options.force),
-        cacheTtlMs:0
-      });
+      const payload = await apiGet_cor(LIST_PATH + '/' + encodeURIComponent(normalized),{force:Boolean(options && options.force),cacheTtlMs:0});
       if(sequence !== state.detailSequence || !isActive_cor()) return;
       state.detail = payload || null;
       renderDetail_cor();
     }catch(error){
       if(sequence !== state.detailSequence || !isActive_cor()) return;
-      renderDetailError_cor(errorMessage_cor(error, 'detail'));
-    }finally{
-      if(sequence === state.detailSequence) state.loadingDetail = false;
+      renderDetailError_cor(errorMessage_cor(error,'detail'));
     }
   }
 
   async function loadList_cor(options){
     const sequence = ++state.listSequence;
-    state.loadingList = true;
     if(state.view !== 'list') renderListShell_cor();
-    renderListStatus_cor('Cargando proyectos...', 'loading');
-
+    renderListStatus_cor('Cargando PPNS...','loading');
     try{
-      const payload = await apiGet_cor(buildListPath_cor(), {
-        force:Boolean(options && options.force),
-        cacheTtlMs:0
-      });
+      const payload = await apiGet_cor(buildListPath_cor(),{force:Boolean(options && options.force),cacheTtlMs:0});
       if(sequence !== state.listSequence || !isActive_cor()) return;
-
-      const records = Array.isArray(payload && payload.data) ? payload.data : [];
-      state.records = records;
-      state.selectedId = null;
+      state.records = Array.isArray(payload && payload.data) ? payload.data : [];
+      state.selectedPpns = null;
       state.detail = null;
-      updateCatalogsFromRecords_cor(records);
+      updateCatalogsFromRecords_cor(state.records);
       renderList_cor();
-      renderListStatus_cor(records.length ? '' : 'No hay proyectos para los filtros actuales.', records.length ? '' : 'empty');
-
+      renderListStatus_cor(state.records.length ? '' : 'No hay PPNS para los filtros actuales.',state.records.length ? '' : 'empty');
       const updated = document.getElementById('ccor-ec-updated');
       if(updated) updated.textContent = 'Actualizado ' + formatDateTimeNow_cor();
     }catch(error){
       if(sequence !== state.listSequence || !isActive_cor()) return;
-      state.records = [];
-      state.selectedId = null;
-      state.detail = null;
+      state.records=[];
       renderList_cor();
-      renderListStatus_cor(errorMessage_cor(error, 'list'), 'error');
-    }finally{
-      if(sequence === state.listSequence) state.loadingList = false;
+      renderListStatus_cor(errorMessage_cor(error,'list'),'error');
     }
   }
 
-  function openDetailRoute_cor(id){
-    const numericId = Number(id);
-    if(!Number.isInteger(numericId) || numericId <= 0) return;
-
+  function openDetailRoute_cor(ppns){
+    const normalized = String(ppns || '').trim();
+    if(!normalized) return;
     if(window.ManttoRouter && typeof window.ManttoRouter.go === 'function'){
-      window.ManttoRouter.go(ROUTE, { id:numericId }, { navigationType:'open' });
+      window.ManttoRouter.go(ROUTE,{ppns:normalized},{navigationType:'open'});
       return;
     }
-
-    loadDetail_cor(numericId, { force:true });
+    loadDetail_cor(normalized,{force:true});
   }
 
-  function applyFilterAndReload_cor(){
-    state.view = 'list';
-    loadList_cor({ force:true });
-  }
+  function applyFilterAndReload_cor(){ state.view='list'; loadList_cor({force:true}); }
 
   function bindEvents_cor(){
     const root = state.root;
     if(!root || root.dataset.ccorEstadosCuentaBound === '1') return;
-    root.dataset.ccorEstadosCuentaBound = '1';
+    root.dataset.ccorEstadosCuentaBound='1';
 
-    root.addEventListener('click', event => {
-      const refresh = event.target.closest('#ccor-ec-refresh');
-      if(refresh){
-        loadList_cor({ force:true });
-        return;
-      }
-
-      const row = event.target.closest('[data-id-indice-cor]');
-      if(row){
-        const id = Number(row.dataset.idIndiceCor);
-        if(Number.isInteger(id) && id > 0) openDetailRoute_cor(id);
-      }
+    root.addEventListener('click',event=>{
+      if(event.target.closest('#ccor-ec-refresh')){ loadList_cor({force:true}); return; }
+      const row=event.target.closest('[data-ppns]');
+      if(row) openDetailRoute_cor(row.dataset.ppns);
     });
 
-    root.addEventListener('keydown', event => {
+    root.addEventListener('keydown',event=>{
       if(event.key !== 'Enter' && event.key !== ' ') return;
-      const row = event.target.closest('[data-id-indice-cor]');
+      const row=event.target.closest('[data-ppns]');
       if(!row) return;
       event.preventDefault();
-      const id = Number(row.dataset.idIndiceCor);
-      if(Number.isInteger(id) && id > 0) openDetailRoute_cor(id);
+      openDetailRoute_cor(row.dataset.ppns);
     });
 
-    root.addEventListener('change', event => {
+    root.addEventListener('change',event=>{
       if(event.target.id === 'ccor-ec-year'){
-        state.filters.anio = String(event.target.value || '');
+        state.filters.anio=String(event.target.value || '');
         applyFilterAndReload_cor();
-      }else if(event.target.id === 'ccor-ec-status'){
-        state.filters.estatus = String(event.target.value || '');
-        applyFilterAndReload_cor();
-      }else if(event.target.id === 'ccor-ec-only-source'){
-        state.filters.soloConFuente = Boolean(event.target.checked);
+      }else if(event.target.id === 'ccor-ec-contractual'){
+        state.filters.contractual=String(event.target.value || '');
         applyFilterAndReload_cor();
       }
     });
 
-    root.addEventListener('input', event => {
+    root.addEventListener('input',event=>{
       if(event.target.id !== 'ccor-ec-search') return;
-      state.filters.q = String(event.target.value || '').trim();
+      state.filters.q=String(event.target.value || '').trim();
       if(state.searchTimer) window.clearTimeout(state.searchTimer);
-      state.searchTimer = window.setTimeout(() => {
-        state.searchTimer = null;
-        applyFilterAndReload_cor();
-      }, SEARCH_DELAY_MS);
+      state.searchTimer=window.setTimeout(()=>{ state.searchTimer=null; applyFilterAndReload_cor(); },SEARCH_DELAY_MS);
     });
   }
 
   async function init_cor(){
     if(!isActive_cor()) return false;
-    const root = document.getElementById('view-placeholder');
+    const root=document.getElementById('view-placeholder');
     if(!root) return false;
-
-    state.root = root;
+    state.root=root;
+    ensureStyles_cor();
     bindEvents_cor();
-
-    const payload = currentPayload_cor();
-    const requestedId = Number(payload && payload.id);
-    if(Number.isInteger(requestedId) && requestedId > 0){
-      state.view = 'detail';
-      await loadDetail_cor(requestedId, { force:true });
+    const payload=currentPayload_cor();
+    const requestedPpns=String(payload && payload.ppns || '').trim();
+    if(requestedPpns){
+      state.view='detail';
+      await loadDetail_cor(requestedPpns,{force:true});
       return true;
     }
-
-    state.view = 'list';
-    state.selectedId = null;
-    state.detail = null;
+    state.view='list';
     renderListShell_cor();
-    renderCatalogs_cor();
     renderList_cor();
-
-    if(state.records.length){
-      const updated = document.getElementById('ccor-ec-updated');
-      if(updated) updated.textContent = 'Actualizado ' + formatDateTimeNow_cor();
-      return true;
-    }
-
-    await loadList_cor({ force:true });
+    await loadList_cor({force:true});
     return true;
   }
 
   function refresh_cor(){
     if(!isActive_cor()) return Promise.resolve(false);
-    const payload = currentPayload_cor();
-    const requestedId = Number(payload && payload.id);
-    if(Number.isInteger(requestedId) && requestedId > 0){
-      return loadDetail_cor(requestedId, { force:true });
-    }
-    return loadList_cor({ force:true });
+    const payload=currentPayload_cor();
+    const requestedPpns=String(payload && payload.ppns || '').trim();
+    return requestedPpns ? loadDetail_cor(requestedPpns,{force:true}) : loadList_cor({force:true});
   }
 
-  window.ManttoCobranzaCorEstadosCuenta = Object.freeze({
-    init:init_cor,
-    refresh:refresh_cor
-  });
+  window.ManttoCobranzaCorEstadosCuenta=Object.freeze({init:init_cor,refresh:refresh_cor});
 })();

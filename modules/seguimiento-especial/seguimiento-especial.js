@@ -23,12 +23,9 @@
 
   function fmtDateTime(value){
     if(!value)return '—';
-    const date=new Date(value);
-    if(Number.isNaN(date.getTime()))return esc(value);
-    const parts=new Intl.DateTimeFormat('es-MX',{
-      day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false
-    }).formatToParts(date).reduce((acc,part)=>{acc[part.type]=part.value;return acc;},{});
-    return `${parts.day||'--'}/${parts.month||'--'}/${parts.year||'----'} - ${parts.hour||'--'}:${parts.minute||'--'}`;
+    return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatDateTime==='function'
+      ? window.ManttoHumanTime.formatDateTime(value,{fallback:esc(value)})
+      : esc(value);
   }
 
   function template(){

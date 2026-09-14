@@ -33,14 +33,31 @@
     'La mejor alerta es la que llega antes del problema mayor.'
   ];
 
-  function dayOfYear(date){
-    const start = new Date(date.getFullYear(), 0, 0);
-    const diff = date - start + ((start.getTimezoneOffset() - date.getTimezoneOffset()) * 60000);
-    return Math.floor(diff / 86400000);
+  function civilParts(value){
+    if(typeof value === 'string'){
+      const match=value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(match) return {year:Number(match[1]),month:Number(match[2]),day:Number(match[3])};
+    }
+    const date=value instanceof Date?value:new Date(value);
+    if(Number.isNaN(date.getTime())) return null;
+    return {year:date.getFullYear(),month:date.getMonth()+1,day:date.getDate()};
   }
 
-  function getDailyPhrase(date = new Date()){
-    const idx = dayOfYear(date) % PHRASES.length;
+  function dayOfYear(value){
+    const parts=civilParts(value);
+    if(!parts) return 0;
+    const start=Date.UTC(parts.year,0,0);
+    const current=Date.UTC(parts.year,parts.month-1,parts.day);
+    return Math.floor((current-start)/86400000);
+  }
+
+  function getDailyPhrase(value){
+    const source=value!==undefined
+      ? value
+      : (window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function'
+        ? window.ManttoHumanTime.mexicoCityDate()
+        : new Date());
+    const idx=dayOfYear(source)%PHRASES.length;
     return PHRASES[idx];
   }
 

@@ -101,6 +101,7 @@
   const esc=v=>String(v==null||v===''?'—':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const rawEsc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=v=>String(v==null?'':v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const currentYearCdmx=()=>window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityYear==='function'?window.ManttoHumanTime.mexicoCityYear():Number(new Intl.DateTimeFormat('en',{timeZone:'America/Mexico_City',year:'numeric'}).format(new Date()));
   const api=()=>String(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
 
   const HTML=`<div class="rl-page">
@@ -146,7 +147,7 @@
 
   function deliveredCurrentYear(row){
     const match=String(row.fecha_entrega_real_obra||'').match(/^(\d{4})/);
-    return norm(row.estatus)==='ENTREGADO'&&match&&Number(match[1])===new Date().getFullYear();
+    return norm(row.estatus)==='ENTREGADO'&&match&&Number(match[1])===currentYearCdmx();
   }
   function rowsFor(status){
     const query=norm(state.search);

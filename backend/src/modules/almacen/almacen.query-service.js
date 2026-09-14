@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const db = require('../../config/db');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const sourceEngine = require('./almacen.source-engine');
 
 const TABLE = sourceEngine.TABLE;
@@ -291,7 +292,7 @@ function loanAgeBucketSql() {
 }
 
 function loanDaysSql() {
-  return `CASE WHEN fecha_evento IS NULL THEN NULL ELSE DATEDIFF(COALESCE(fecha_corte,CURDATE()),fecha_evento) END`;
+  return `CASE WHEN fecha_evento IS NULL THEN NULL ELSE DATEDIFF(COALESCE(fecha_corte,${sqlMexicoCityToday()}),fecha_evento) END`;
 }
 
 async function getLoanCatalogs(query = {}) {

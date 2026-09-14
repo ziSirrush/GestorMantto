@@ -8,6 +8,7 @@ router.use(requireAuth);
 
 router.get('/notificaciones', notificacionesController.getNotificaciones);
 router.get('/notificaciones/estado', notificacionesController.getEstadoNotificaciones);
+router.patch('/notificaciones/abrir-todas', notificacionesController.abrirTodasLasNotificaciones);
 router.patch('/notificaciones/:id/abrir', notificacionesController.abrirNotificacion);
 router.patch('/notificaciones/:id/nuevo', notificacionesController.marcarNotificacionNueva);
 router.get('/notificaciones/preferencias', notificacionesController.getPreferencias);

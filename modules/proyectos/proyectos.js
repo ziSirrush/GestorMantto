@@ -33,8 +33,11 @@
   function pct(part,total){ total=num(total); return total?Math.round((num(part)/total)*100):0; }
   function date(v){
     if(!v)return '-';
-    const d=new Date(v);
-    return Number.isNaN(d.getTime())?esc(String(v).slice(0,10)):d.toLocaleDateString('es-MX');
+    const raw=String(v).trim();
+    const match=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+    if(match)return match[3]+'/'+match[2]+'/'+match[1];
+    const d=new Date(raw);
+    return Number.isNaN(d.getTime())?esc(raw.slice(0,10)):new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
   }
   function proyectoCodigo(row){ return row&&(row.proyecto_codigo||row.proyecto||row.codigo||row.id_proyecto||''); }
   function formatProyectoName(value){

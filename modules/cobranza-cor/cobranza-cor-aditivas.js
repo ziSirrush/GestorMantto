@@ -106,7 +106,10 @@
   }
 
   function formatDateTimeNow_cor(){
-    return new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date());
+    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDateTime === 'function'){
+      return window.ManttoHumanTime.formatMexicoCityDateTime();
+    }
+    return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).replace(',', ' -');
   }
 
   function apiGet_cor(path){
@@ -197,8 +200,8 @@
         <section id="ccor-ad-content">
           <section class="ccor-ad-kpi-grid" aria-label="Resumen autoritativo de Aditivas">
             <article class="ccor-ad-card ccor-ad-kpi"><span>Registros</span><b id="ccor-ad-kpi-records">0</b><small>Resultado filtrado</small></article>
-            <article class="ccor-ad-card ccor-ad-kpi"><span>Vinculadas</span><b id="ccor-ad-kpi-linked">0</b><small>Con relación a INDICE</small></article>
-            <article class="ccor-ad-card ccor-ad-kpi"><span>Sin vínculo</span><b id="ccor-ad-kpi-unlinked">0</b><small>Sin id_indice_cor</small></article>
+            <article class="ccor-ad-card ccor-ad-kpi"><span>Vinculadas</span><b id="ccor-ad-kpi-linked">0</b><small>Con relación por PPNS</small></article>
+            <article class="ccor-ad-card ccor-ad-kpi"><span>Sin vínculo</span><b id="ccor-ad-kpi-unlinked">0</b><small>Sin PPNS relacionado</small></article>
             <article class="ccor-ad-card ccor-ad-kpi"><span>Con pendiente</span><b id="ccor-ad-kpi-pending">0</b><small>Saldo pendiente &gt; 0</small></article>
           </section>
 
@@ -289,8 +292,8 @@
   function renderKpis_cor(){
     const s=state.summary||{};
     setText_cor('ccor-ad-kpi-records',formatInteger_cor(s.registros??state.pagination.totalRecords));
-    setText_cor('ccor-ad-kpi-linked',formatInteger_cor(s.vinculadas_indice??0));
-    setText_cor('ccor-ad-kpi-unlinked',formatInteger_cor(s.sin_vinculo_indice??0));
+    setText_cor('ccor-ad-kpi-linked',formatInteger_cor(s.con_ppns??0));
+    setText_cor('ccor-ad-kpi-unlinked',formatInteger_cor(s.sin_ppns??0));
     setText_cor('ccor-ad-kpi-pending',formatInteger_cor(s.con_pendiente??0));
   }
 
@@ -394,33 +397,43 @@
   }
 
   function renderLinkedProject_cor(row){
-    const indice=row&&row.indice&&typeof row.indice==='object'?row.indice:null;
-    if(!row||row.vinculo_indice!==true||!indice){
-      return `
-        <section class="ccor-ad-card ccor-ad-linked-card is-unlinked">
-          <div class="ccor-ad-linked-title"><span class="ccor-ad-linked-icon">○</span><b>Proyecto CORELLIAN vinculado</b></div>
-          <div class="ccor-ad-linked-empty">
-            <strong>Sin vínculo a INDICE</strong>
-            <span>Esta Aditiva no tiene una relación estructurada inequívoca con un proyecto de Cobranza COR.</span>
-          </div>
-        </section>`;
-    }
+  const reference=row&&row.ppns_referencia&&typeof row.ppns_referencia==='object'
+    ?row.ppns_referencia
+    :null;
 
-    const indiceId=Number(indice.id_indice_cor||row.id_indice_cor);
+  if(!row||row.vinculo_ppns!==true||!reference){
     return `
-      <section class="ccor-ad-card ccor-ad-linked-card">
-        <div class="ccor-ad-linked-title"><span class="ccor-ad-linked-icon">↗</span><b>Proyecto CORELLIAN vinculado</b></div>
-        <div class="ccor-ad-linked-body">
-          <dl>
-            <div><dt>Proyecto</dt><dd>${escapeHtml_cor(text_cor(indice.proyecto))}</dd></div>
-            <div><dt>PP / NS</dt><dd>${escapeHtml_cor(text_cor(indice.pp))}</dd></div>
-            <div><dt>Año</dt><dd>${escapeHtml_cor(text_cor(indice.anio))}</dd></div>
-          </dl>
-          ${Number.isInteger(indiceId)&&indiceId>0?`<button class="ccor-ad-btn ccor-ad-btn-primary ccor-ad-linked-button" type="button" data-ccor-ad-estado-cuenta="${indiceId}">Ver Estado de Cuenta</button>`:''}
+      <section class="ccor-ad-card ccor-ad-linked-card is-unlinked">
+        <div class="ccor-ad-linked-title">
+          <span class="ccor-ad-linked-icon">○</span>
+          <b>Proyecto CORELLIAN vinculado</b>
         </div>
-        <div class="ccor-ad-linked-ok">✓ Vinculada a INDICE</div>
+        <div class="ccor-ad-linked-empty">
+          <strong>Sin vínculo por PPNS</strong>
+          <span>Esta Aditiva no tiene una relación estructurada inequívoca con un PPNS de Cobranza COR.</span>
+        </div>
       </section>`;
   }
+
+  const ppns=String(reference.ppns||row.pp_ns||'').trim();
+
+  return `
+    <section class="ccor-ad-card ccor-ad-linked-card">
+      <div class="ccor-ad-linked-title">
+        <span class="ccor-ad-linked-icon">↗</span>
+        <b>Proyecto CORELLIAN vinculado</b>
+      </div>
+      <div class="ccor-ad-linked-body">
+        <dl>
+          <div><dt>Proyecto</dt><dd>${escapeHtml_cor(text_cor(reference.proyecto))}</dd></div>
+          <div><dt>PPNS</dt><dd>${escapeHtml_cor(text_cor(reference.ppns))}</dd></div>
+          <div><dt>Año</dt><dd>${escapeHtml_cor(text_cor(reference.anio))}</dd></div>
+        </dl>
+        ${ppns?`<button class="ccor-ad-btn ccor-ad-btn-primary ccor-ad-linked-button" type="button" data-ccor-ad-estado-cuenta="${escapeHtml_cor(ppns)}">Ver Estado de Cuenta</button>`:''}
+      </div>
+      <div class="ccor-ad-linked-ok">✓ Vinculada por PPNS</div>
+    </section>`;
+}
 
   function renderDetailSection_cor(title,icon,body,className){
     return `
@@ -608,7 +621,7 @@
           <div>
             <p class="ccor-ad-eyebrow">Cobranza · Corellian</p>
             <h1>${isEdit?'Editar Aditiva':'Nueva Aditiva'}</h1>
-            <p>${isEdit?'Actualiza el registro existente usando el mismo formulario de alta.':'Captura una Aditiva nueva. El vínculo con INDICE se resuelve y valida en backend.'}</p>
+            <p>${isEdit?'Actualiza el registro existente usando el mismo formulario de alta.':'Captura una Aditiva nueva. El vínculo con el proyecto se resuelve por PPNS y se valida en backend.'}</p>
           </div>
           ${isEdit?`<span class="ccor-ad-form-id">ID ${escapeHtml_cor(record.id_aditiva_cor)}</span>`:''}
         </section>
@@ -897,18 +910,22 @@
     refresh_cor({resetPage:true});
   }
 
-  function openEstadoCuenta_cor(idIndiceCor){
-    const parsed=Number(idIndiceCor);
-    if(!Number.isInteger(parsed)||parsed<=0) return;
-    if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
-      const navigation=window.ManttoRouter.go('cobranza-estados-cuenta',{id:parsed},{navigationType:'open'});
-      Promise.resolve(navigation).then(()=>{
-        if(window.ManttoCobranzaCorEstadosCuenta&&typeof window.ManttoCobranzaCorEstadosCuenta.init==='function'){
-          window.ManttoCobranzaCorEstadosCuenta.init();
-        }
-      }).catch(()=>{});
-    }
+  function openEstadoCuenta_cor(ppnsValue){
+  const ppns=String(ppnsValue||'').trim();
+  if(!ppns) return;
+  if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
+    const navigation=window.ManttoRouter.go(
+      'cobranza-estados-cuenta',
+      {ppns:ppns},
+      {navigationType:'open'}
+    );
+    Promise.resolve(navigation).then(()=>{
+      if(window.ManttoCobranzaCorEstadosCuenta&&typeof window.ManttoCobranzaCorEstadosCuenta.init==='function'){
+        window.ManttoCobranzaCorEstadosCuenta.init();
+      }
+    }).catch(()=>{});
   }
+}
 
   function renderStatus_cor(message,kind){
     const node=document.getElementById('ccor-ad-status-line');

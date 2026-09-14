@@ -14,15 +14,15 @@
   }
 
   function currentDateStamp(){
-    const now = new Date();
-    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 10);
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function') return window.ManttoHumanTime.mexicoCityDate();
+    return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   }
 
   function longDate(){
-    return new Date().toLocaleDateString('es-MX', {
-      weekday:'long', year:'numeric', month:'long', day:'numeric'
-    });
+    if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'){
+      return window.ManttoHumanTime.formatMexicoCityDate(undefined,{dateOptions:{weekday:'long',year:'numeric',month:'long',day:'numeric'}});
+    }
+    return new Date().toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric',timeZone:'America/Mexico_City'});
   }
 
   function resolveValue(row, column){

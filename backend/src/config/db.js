@@ -156,6 +156,19 @@ const pool = mysql.createPool({
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  // Contrato fijo del proyecto: hace deterministica la frontera MySQL -> Node,
+  // sin depender del TZ del proceso Node y sin tocar la zona horaria de Aiven
+  // (no emite SET time_zone; solo cambia como el driver interpreta el texto
+  // que el servidor ya devolvio).
+  // - timezone:'Z' interpreta todo DATETIME/TIMESTAMP recibido como UTC al
+  //   construir el objeto Date, en vez de 'local' (que variaria segun host).
+  // - dateStrings:['DATE'] devuelve las columnas DATE puras como cadena
+  //   literal 'YYYY-MM-DD', sin pasar por conversion de zona horaria
+  //   (evita que una fecha civil se recorra un dia).
+  // No se expone como variable de entorno: es un contrato de interpretacion,
+  // no una preferencia de despliegue.
+  timezone: 'Z',
+  dateStrings: ['DATE'],
   ssl: useSsl
     ? {
         // Aiven usa TLS. El contrato historico del proyecto es DB_SSL=true.

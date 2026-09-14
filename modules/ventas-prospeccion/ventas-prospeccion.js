@@ -5,7 +5,7 @@ const state={page:1,pageSize:30,total:0,totalPages:1,rows:[],kpis:null,kpiFilter
 const controllers={list:null,kpis:null};
 const $=(s,r=document)=>r.querySelector(s);
 const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const fmtDate=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});};
+const fmtDate=v=>{if(!v)return '—';const raw=String(v).trim();const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);if(m)return m[3]+'/'+m[2]+'/'+m[1];const d=new Date(raw);return Number.isNaN(d.getTime())?'—':new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric'}).format(d);};
 function isAbortError(error){return Boolean(error&&error.name==='AbortError');}
 function nextController(kind){if(controllers[kind])controllers[kind].abort();const controller=new AbortController();controllers[kind]=controller;return controller;}
 function abortDataRequests(){Object.keys(controllers).forEach(kind=>{if(controllers[kind])controllers[kind].abort();controllers[kind]=null;});}

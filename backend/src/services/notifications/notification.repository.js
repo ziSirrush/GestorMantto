@@ -214,13 +214,13 @@ async function upsertPreference(connection, idUsuario, preference) {
   const [result] = await connection.query(`
     INSERT INTO notificacion_preferencias (
       id_usuario, codigo_evento, campana, push, correo, silenciada, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+    ) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
     ON DUPLICATE KEY UPDATE
       campana = VALUES(campana),
       push = VALUES(push),
       correo = VALUES(correo),
       silenciada = VALUES(silenciada),
-      updated_at = NOW()
+      updated_at = UTC_TIMESTAMP(3)
   `, [
     idUsuario,
     preference.codigo_evento,
@@ -236,7 +236,7 @@ async function upsertPreferences(connection, idUsuario, preferences) {
   const items = Array.isArray(preferences) ? preferences : [];
   if (!items.length) return { affectedRows: 0 };
 
-  const placeholders = items.map(() => '(?, ?, ?, ?, ?, ?, NOW(), NOW())').join(', ');
+  const placeholders = items.map(() => '(?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))').join(', ');
   const params = items.flatMap((preference) => [
     idUsuario,
     preference.codigo_evento,
@@ -255,7 +255,7 @@ async function upsertPreferences(connection, idUsuario, preferences) {
       push = VALUES(push),
       correo = VALUES(correo),
       silenciada = VALUES(silenciada),
-      updated_at = NOW()
+      updated_at = UTC_TIMESTAMP(3)
   `, params);
   return result;
 }
@@ -291,7 +291,7 @@ async function insertOneNotification_gnral(connection, notification) {
       activo,
       fecha_creacion,
       fecha_actualizacion
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, NOW(), NOW())
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
   `, params);
 
   try {
@@ -318,7 +318,7 @@ async function insertOneNotification_gnral(connection, notification) {
             activo,
             fecha_creacion,
             fecha_actualizacion
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, NOW(), NOW())
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
         `, [...params, JSON.stringify(visualCodes)]);
         visualMetadataPersisted = true;
       } catch (error) {

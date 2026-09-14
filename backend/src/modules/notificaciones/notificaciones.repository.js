@@ -48,12 +48,32 @@ async function marcarComoAbierta(idNotificacion, idUsuario) {
   const [result] = await db.query(`
     UPDATE sup_notificaciones
     SET leido = 1,
-        fecha_lectura = COALESCE(fecha_lectura, NOW()),
-        fecha_actualizacion = NOW()
+        fecha_lectura = COALESCE(fecha_lectura, UTC_TIMESTAMP(3)),
+        fecha_actualizacion = UTC_TIMESTAMP(3)
     WHERE id_notificacion = ?
       AND id_usuario = ?
       AND activo = 1
   `, [idNotificacion, idUsuario]);
+
+  return result;
+}
+
+async function marcarTodasComoAbiertas({ whereSql, params }) {
+  const [result] = await db.query(`
+    UPDATE sup_notificaciones n
+    LEFT JOIN notificacion_eventos e
+      ON e.codigo_evento = n.tipo_notificacion
+     AND e.activo = 1
+    LEFT JOIN notificacion_preferencias p
+      ON p.codigo_evento = n.tipo_notificacion
+     AND p.id_usuario = n.id_usuario
+    SET n.leido = 1,
+        n.fecha_lectura = COALESCE(n.fecha_lectura, UTC_TIMESTAMP(3)),
+        n.fecha_actualizacion = UTC_TIMESTAMP(3)
+    ${whereSql}
+      AND n.leido = 0
+      AND ${bellVisibilitySql_gnral('n', 'e', 'p')}
+  `, params);
 
   return result;
 }
@@ -63,7 +83,7 @@ async function marcarComoNueva(idNotificacion, idUsuario) {
     UPDATE sup_notificaciones
     SET leido = 0,
         fecha_lectura = NULL,
-        fecha_actualizacion = NOW()
+        fecha_actualizacion = UTC_TIMESTAMP(3)
     WHERE id_notificacion = ?
       AND id_usuario = ?
       AND activo = 1
@@ -76,5 +96,6 @@ module.exports = {
   getNotificaciones,
   getEstadoNotificaciones,
   marcarComoAbierta,
+  marcarTodasComoAbiertas,
   marcarComoNueva
 };
