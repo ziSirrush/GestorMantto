@@ -119,10 +119,10 @@ ORDER BY s.index_name;
 
 -- ---------------------------------------------------------------------------
 -- 6. PREFLIGHT FUNCIONAL DE NORMA 2.
---    RESULTADO ESPERADO: 0 filas.
---    Si aparecen filas, NO se inventan roles ni se corrige automaticamente:
---    deben asignarse desde Panel de Control > Notificaciones antes de validar
---    integralmente la Fase 1.
+--    RESULTADO ESPERADO: 0 filas para eventos NATIVOS con matriz.
+--    Los eventos FOLLOW-ONLY se excluyen expresamente: por diseno deben tener
+--    cero relaciones Evento-Rol activas y solo entregarse por Seguimiento.
+--    Si aparecen otros eventos, NO se inventan roles ni se corrige automaticamente.
 -- ---------------------------------------------------------------------------
 SELECT
   e.codigo_evento,
@@ -137,6 +137,16 @@ LEFT JOIN roles r
   ON r.id_rol = ner.id_rol
  AND r.estado = 1
 WHERE e.activo = 1
+  AND e.codigo_evento NOT IN (
+    'PORTAFOLIO_EQUIPO_INGRESO',
+    'PORTAFOLIO_EQUIPO_SALIDA',
+    'PORTAFOLIO_EQUIPO_CAMBIO',
+    'TICKET_CREADO',
+    'TICKET_ESTATUS_CAMBIADO',
+    'TICKET_PRIORIDAD_CAMBIADA',
+    'TICKET_ASIGNACION_CAMBIADA',
+    'TICKET_RESPONSABILIDAD_CAMBIADA'
+  )
 GROUP BY e.codigo_evento, e.nombre_evento
 HAVING COUNT(r.id_rol) = 0
 ORDER BY e.codigo_evento;

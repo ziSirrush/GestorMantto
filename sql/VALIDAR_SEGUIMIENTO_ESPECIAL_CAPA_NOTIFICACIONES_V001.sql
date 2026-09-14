@@ -52,6 +52,8 @@ WHERE codigo_evento IN (
 )
 ORDER BY codigo_evento;
 
+-- FOLLOW-ONLY: RESULTADO ESPERADO = 0 filas.
+-- Ninguna relacion Evento-Rol activa puede abrir estos eventos.
 SELECT
   ner.codigo_evento,
   ner.id_rol,
@@ -59,6 +61,29 @@ SELECT
   ner.activo
 FROM notificacion_evento_roles ner
 WHERE ner.codigo_evento IN (
+  'PORTAFOLIO_EQUIPO_INGRESO',
+  'PORTAFOLIO_EQUIPO_SALIDA',
+  'PORTAFOLIO_EQUIPO_CAMBIO',
+  'TICKET_CREADO',
+  'TICKET_ESTATUS_CAMBIADO',
+  'TICKET_PRIORIDAD_CAMBIADA',
+  'TICKET_ASIGNACION_CAMBIADA',
+  'TICKET_RESPONSABILIDAD_CAMBIADA'
+)
+  AND ner.activo = 1
+ORDER BY ner.codigo_evento, ner.id_rol;
+
+-- Historico informativo: puede contener filas inactivas.
+SELECT
+  ner.codigo_evento,
+  ner.id_rol,
+  ner.politica,
+  ner.activo
+FROM notificacion_evento_roles ner
+WHERE ner.codigo_evento IN (
+  'PORTAFOLIO_EQUIPO_INGRESO',
+  'PORTAFOLIO_EQUIPO_SALIDA',
+  'PORTAFOLIO_EQUIPO_CAMBIO',
   'TICKET_CREADO',
   'TICKET_ESTATUS_CAMBIADO',
   'TICKET_PRIORIDAD_CAMBIADA',
