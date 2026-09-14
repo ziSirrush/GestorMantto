@@ -668,9 +668,9 @@ test('cache bust de cierre apunta a los archivos frontend corregidos', () => {
   const loader = read('core/module-loader.js');
   const index = read('index.html');
   assert.match(loader, /seguimiento-especial-global\.js\?v=20260909-seguimiento-especial-control-unico-v006/);
-  assert.match(loader, /seguimiento-especial\.js\?v=20260909-seguimiento-especial-cierre-v003/);
-  assert.match(index, /core\/module-loader\.js\?v=20260909-seguimiento-especial-control-unico-v002/);
-  assert.match(index, /core\/router\.js\?v=20260909-seguimiento-especial-cierre-v001/);
+  assert.match(loader, /seguimiento-especial\.js\?v=20260914-human-time-v001/);
+  assert.match(index, /core\/module-loader\.js\?v=20260914-horarios-f2-v001/);
+  assert.match(index, /core\/router\.js\?v=20260914-human-time-v001/);
 });
 
 test('detalle Seguimiento Especial invalida montajes async viejos y conserva un solo control', () => {

@@ -38,7 +38,10 @@ test('la campanita muestra la accion y consume la ruta masiva', () => {
   assert.match(homeSource, /apiRequest\('\/api\/notificaciones\/abrir-todas', \{ method:'PATCH' \}\)/);
   assert.match(homeSource, /state\.unreadNotificationCount = 0/);
   assert.match(stylesSource, /\.hdr-notif-mark-all/);
-  assert.equal((indexSource.match(/20260914-notif-mark-all-v001/g) || []).length, 2);
+  // El CSS y el JS de Home deben conservar cache-bust, pero cada recurso puede
+  // avanzar de version de forma independiente (por ejemplo, por fixes posteriores).
+  assert.match(indexSource, /styles\/home\.css\?v=[^"'<>\s]+/);
+  assert.match(indexSource, /modules\/home\/home\.js\?v=[^"'<>\s]+/);
 });
 
 test('la ruta masiva queda protegida por el mismo router autenticado', () => {
