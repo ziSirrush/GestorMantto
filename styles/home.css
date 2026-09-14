@@ -84,6 +84,42 @@
   margin-top:1px;
 }
 
+/* Home tareas v1.0 - editor de texto enriquecido */
+.task-rich-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.task-rich-label{color:var(--navy);font-size:12px;font-weight:850}
+.task-rich-editor{overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fff;transition:border-color .15s,box-shadow .15s}
+.task-rich-editor:focus-within{border-color:#7aa2f7;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.task-rich-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line);background:#F8FAFC}
+.task-rich-toolbar-group{display:flex;align-items:center;gap:3px;padding-right:6px;border-right:1px solid var(--line)}
+.task-rich-toolbar button,.task-rich-select select,.task-rich-color{height:32px;box-sizing:border-box;border:1px solid #D8E0EB;border-radius:8px;background:#fff;color:var(--navy);font:inherit;font-size:11px;font-weight:800}
+.task-rich-toolbar button{min-width:32px;padding:0 8px;cursor:pointer}
+.task-rich-toolbar button:hover,.task-rich-toolbar button.active{border-color:#93B4F7;background:#EAF1FF;color:#174EA6}
+.task-rich-toolbar button:focus-visible,.task-rich-select select:focus-visible,.task-rich-color:focus-within{outline:2px solid #2563EB;outline-offset:1px}
+.task-rich-select select{padding:0 26px 0 9px;cursor:pointer}
+.task-rich-colors{gap:5px}
+.task-rich-color{position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;cursor:pointer}
+.task-rich-color span{font-size:14px;font-weight:900;line-height:1;border-bottom:3px solid #1F2937}
+.task-rich-color.is-highlight span{padding:2px 3px;background:#FEF08A;border-bottom:0}
+.task-rich-color input{position:absolute;inset:0;width:100%;height:100%;padding:0!important;border:0!important;opacity:0;cursor:pointer}
+.task-rich-clear{white-space:nowrap}
+.task-rich-input{min-height:132px;max-height:320px;overflow:auto;padding:12px;color:var(--text);font-size:14px;font-weight:400;line-height:1.5;outline:none;white-space:normal;overflow-wrap:anywhere}
+.task-rich-input:empty::before{content:attr(data-placeholder);color:#98A2B3;pointer-events:none}
+.task-rich-input p,.task-rich-content p{margin:0 0 8px}
+.task-rich-input p:last-child,.task-rich-content p:last-child{margin-bottom:0}
+.task-rich-input ul,.task-rich-input ol,.task-rich-content ul,.task-rich-content ol{margin:7px 0;padding-left:24px}
+.task-rich-input li,.task-rich-content li{margin:3px 0}
+.task-rich-help{color:var(--muted);font-size:11px;font-weight:650;line-height:1.35}
+.task-rich-content{color:var(--text);font-size:14px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
+.task-rich-content span[style*="background-color"]{padding:1px 2px;border-radius:2px}
+.task-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:pre-line}
+@media(max-width:760px){
+  .task-rich-toolbar{align-items:stretch}
+  .task-rich-toolbar-group{padding-right:4px}
+  .task-rich-toolbar button{min-width:36px}
+  .task-rich-clear{flex:1}
+  .task-rich-input{min-height:150px;max-height:42vh}
+}
+
 /* [Aster | 2026-08-27 | ASTER-MG | FIX_NOTIFICACIONES_POPOVER_WRAP_FECHA_V001] */
 /* Evita que el white-space:nowrap de .hdr-right se herede al popover. */
 .hdr-notif-popover{white-space:normal}

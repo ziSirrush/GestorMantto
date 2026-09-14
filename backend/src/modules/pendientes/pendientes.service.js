@@ -1,6 +1,7 @@
 const pendientesRepository = require('./pendientes.repository');
 const pendientesAccess = require('./pendientes-access.service');
 const pendientesFiles = require('./pendientes-files.service');
+const taskRichText = require('../../../../core/rich-text');
 const {
   emitBusinessEventSafe_gnral
 } = require('../../services/notifications/notification-business-emitter.service');
@@ -534,7 +535,7 @@ async function createPendiente(req) {
       estatus: normalizeTaskStatus(body.estatus),
       area: sanitizeText(body.area, 100) || null,
       empresa,
-      descripcion: sanitizeText(body.descripcion) || null,
+      descripcion: taskRichText.sanitizeHtml(sanitizeText(body.descripcion)) || null,
       creado_por_email: user.correo,
       creado_por_iniciales: user.iniciales,
       due_date: dueDate,
@@ -640,7 +641,7 @@ async function updatePendiente(req) {
       tipo_pendiente: tipo,
       area: sanitizeText(body.area, 100) || null,
       empresa,
-      descripcion: sanitizeText(body.descripcion) || null,
+      descripcion: taskRichText.sanitizeHtml(sanitizeText(body.descripcion)) || null,
       due_date: dueDate,
       proyecto: sanitizeText(body.proyecto, 255) || null,
       equipo: sanitizeText(body.equipo, 100) || null,
