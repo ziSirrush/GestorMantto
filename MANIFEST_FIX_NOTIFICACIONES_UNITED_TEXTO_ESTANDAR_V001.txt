@@ -1,0 +1,16 @@
+FIX_NOTIFICACIONES_UNITED_TEXTO_ESTANDAR_V001
+
+ARCHIVOS PRODUCTIVOS
+backend/src/services/notifications/ticket-critical-notifications_uni.service.js
+backend/src/services/notifications/portafolio-native-notifications_uni.service.js
+backend/src/modules/tickets/tickets-notification-writes.service.js
+backend/src/jobs/pushNotifications.job.js
+
+VALIDACION
+validation/seguimiento-especial-fase2-cobertura-united.test.js
+validation/seguimiento-especial-notificaciones.test.js
+
+DOCUMENTACION
+README_FIX_NOTIFICACIONES_UNITED_TEXTO_ESTANDAR_V001.md
+MANIFEST_FIX_NOTIFICACIONES_UNITED_TEXTO_ESTANDAR_V001.txt
+CHECKSUMS_FIX_NOTIFICACIONES_UNITED_TEXTO_ESTANDAR_V001_SHA256.txt

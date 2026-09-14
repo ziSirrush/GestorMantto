@@ -11,6 +11,8 @@ const state = {
   policyRows: [],
   policyQueries: 0,
   preferenceQueries: 0,
+  followerError: null,
+  lastFollowerInput: null,
   visual: { codigo: 'SEGUIMIENTO_ESPECIAL', emoji: '⭐' }
 };
 
@@ -56,7 +58,9 @@ const repositoryStub = {
 
 const followerStub = {
   VISUAL_CODE: 'SEGUIMIENTO_ESPECIAL',
-  async resolveSeguimientoRecipients_uni() {
+  async resolveSeguimientoRecipients_uni(input) {
+    state.lastFollowerInput = input;
+    if (state.followerError) throw state.followerError;
     return {
       applicable: true,
       context: {
@@ -125,6 +129,8 @@ function reset() {
   state.policyRows = [];
   state.policyQueries = 0;
   state.preferenceQueries = 0;
+  state.followerError = null;
+  state.lastFollowerInput = null;
   state.visual = { codigo: 'SEGUIMIENTO_ESPECIAL', emoji: '⭐' };
 }
 
@@ -243,4 +249,136 @@ test('La exclusion nativa del actor se conserva aunque el actor tenga Seguimient
   assert.equal(result.reason, 'ACTOR_EXCLUIDO');
   assert.equal(state.inserted.length, 0);
   assert.equal(result.seguimiento_especial.follow_native_excluded_count, 1);
+});
+
+test('los cinco eventos exclusivos ignoran la matriz y entregan a Equipo directo y Proyecto heredado', async () => {
+  reset();
+  state.followers = [
+    { id_usuario: 20, origen_seguimiento: 'EQUIPO', autorizado: true },
+    { id_usuario: 21, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }
+  ];
+  state.policyRows = [
+    { id_usuario: 20, id_rol: 1 },
+    { id_usuario: 30, id_rol: 1 }
+  ];
+
+  for (const codigoEvento of notificationService.SEGUIMIENTO_EXCLUSIVE_EVENT_CODES) {
+    state.inserted = [];
+    state.policyQueries = 0;
+    const result = await notificationService.emit({
+      ...unitedInput([20, 30]),
+      codigoEvento,
+      eventInstanceKey: `exclusivo:${codigoEvento}:55`
+    });
+
+    assert.deepEqual(result.recipients, [20, 21], codigoEvento);
+    assert.deepEqual(result.bell_recipients, [20, 21], codigoEvento);
+    assert.deepEqual(result.push_recipients, [20, 21], codigoEvento);
+    assert.equal(state.policyQueries, 0, codigoEvento);
+    assert.equal(state.inserted.length, 2, codigoEvento);
+    assert.deepEqual(state.inserted.map((item) => item.id_usuario), [20, 21], codigoEvento);
+    assert.equal(
+      state.inserted.every((item) => item.codigos_visuales.includes('SEGUIMIENTO_ESPECIAL')),
+      true,
+      codigoEvento
+    );
+    assert.equal(result.seguimiento_especial.exclusive_event, true, codigoEvento);
+    assert.equal(result.seguimiento_especial.native_recipients_suppressed_count, 2, codigoEvento);
+    assert.equal('modoSeguimiento' in state.lastFollowerInput, false, codigoEvento);
+  }
+});
+
+test('destinatario nativo que tambien es follower recibe una sola notificacion con estrella', async () => {
+  reset();
+  state.followers = [{ id_usuario: 20, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }];
+  state.policyRows = [{ id_usuario: 20, id_rol: 1 }];
+
+  const result = await notificationService.emit({
+    ...unitedInput([20]),
+    codigoEvento: 'TICKET_PRIORIDAD_CAMBIADA',
+    eventInstanceKey: 'follow-only-dedup:55'
+  });
+
+  assert.equal(result.created, 1);
+  assert.deepEqual(result.recipients, [20]);
+  assert.equal(state.inserted.length, 1);
+  assert.deepEqual(state.inserted[0].codigos_visuales, ['SEGUIMIENTO_ESPECIAL']);
+  assert.equal(state.policyQueries, 0);
+});
+
+test('evento exclusivo sin seguidor no se abre por rol ni por matriz', async () => {
+  reset();
+  state.policyRows = [{ id_usuario: 30, id_rol: 1 }];
+
+  const result = await notificationService.emit({
+    ...unitedInput([30]),
+    codigoEvento: 'TICKET_CREADO',
+    eventInstanceKey: 'exclusivo-sin-seguidor:55'
+  });
+
+  assert.equal(result.created, 0);
+  assert.deepEqual(result.recipients, []);
+  assert.equal(state.policyQueries, 0);
+  assert.equal(state.inserted.length, 0);
+  assert.equal(result.seguimiento_especial.native_recipients_suppressed_count, 1);
+});
+
+test('evento exclusivo falla cerrado si el resolver de Seguimiento no esta disponible', async () => {
+  reset();
+  state.followerError = Object.assign(new Error('resolver no disponible'), { code: 'TEST_RESOLVER_ERROR' });
+  state.policyRows = [{ id_usuario: 30, id_rol: 1 }];
+
+  const result = await notificationService.emit({
+    ...unitedInput([30]),
+    codigoEvento: 'TICKET_ESTATUS_CAMBIADO',
+    eventInstanceKey: 'exclusivo-resolver-error:55'
+  });
+
+  assert.equal(result.created, 0);
+  assert.deepEqual(result.recipients, []);
+  assert.equal(state.policyQueries, 0);
+  assert.equal(result.seguimiento_especial.fail_closed, true);
+  assert.equal(result.seguimiento_especial.error_code, 'TEST_RESOLVER_ERROR');
+});
+
+test('evento exclusivo falla cerrado sin contexto de Seguimiento', async () => {
+  reset();
+  state.policyRows = [{ id_usuario: 30, id_rol: 1 }];
+
+  const result = await notificationService.emit({
+    codigoEvento: 'TICKET_ASIGNACION_CAMBIADA',
+    destinatarios: [30],
+    zonaOperativaId: 7,
+    eventInstanceKey: 'exclusivo-sin-contexto:55'
+  });
+
+  assert.equal(result.created, 0);
+  assert.deepEqual(result.recipients, []);
+  assert.equal(state.policyQueries, 0);
+  assert.equal(state.inserted.length, 0);
+  assert.equal(
+    result.seguimiento_especial.exclusion_reason,
+    'CONTEXTO_SEGUIMIENTO_NO_DECLARADO'
+  );
+});
+
+test('actor conserva su exclusion en evento follow-only y no bloquea a otro follower', async () => {
+  reset();
+  state.followers = [
+    { id_usuario: 20, origen_seguimiento: 'EQUIPO', autorizado: true },
+    { id_usuario: 21, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }
+  ];
+
+  const result = await notificationService.emit({
+    ...unitedInput([30]),
+    codigoEvento: 'TICKET_RESPONSABILIDAD_CAMBIADA',
+    actorUserId: 20,
+    eventInstanceKey: 'follow-only-actor:55'
+  });
+
+  assert.equal(result.created, 1);
+  assert.deepEqual(result.recipients, [21]);
+  assert.deepEqual(state.inserted.map((item) => item.id_usuario), [21]);
+  assert.equal(result.seguimiento_especial.follow_native_excluded_count, 1);
+  assert.equal(state.policyQueries, 0);
 });

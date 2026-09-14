@@ -286,8 +286,8 @@ async function createTicketComentario(req, res) {
     eventCode: EVENT_TICKET_COMMENT,
     ticketRow: row,
     actor: user,
-    title: 'Nuevo comentario en Ticket',
-    message: `${user.iniciales || user.correo || 'Usuario'} comentó el ticket ${row.ticket} de ${siteLabel_gnral(row)}.`,
+    title: 'Comentario en Ticket',
+    message: `Se generó comentario en ticket ${row.ticket} por ${user.iniciales || user.correo || 'Usuario'} · ${siteLabel_gnral(row)}.`,
     icon: '💬',
     eventInstanceKey: `ticket-comentario:${row.id}:${commentId}`
   });
@@ -397,7 +397,7 @@ async function saveTicketValidacion(req, res) {
     ticketRow: row,
     actor: user,
     title: 'Vo.Bo. de Ticket actualizado',
-    message: `${user.iniciales || user.correo || 'Usuario'} cambió la validación del ticket ${row.ticket} de ${siteLabel_gnral(row)}: ${previous} → ${estado}.`,
+    message: `Se generó actualización de Vo.Bo. del ticket ${row.ticket} de ${previous} a ${estado} por ${user.iniciales || user.correo || 'Usuario'} · ${siteLabel_gnral(row)}.`,
     icon: '✅',
     eventInstanceKey: `ticket-vobo:${row.id}:${validationId}`
   });

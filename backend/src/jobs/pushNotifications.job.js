@@ -48,6 +48,41 @@ function parseVisualCodes_gnral(value) {
   }
 }
 
+
+const UNITED_PRESENTATION_EVENT_CODES = new Set([
+  'FALLA_EQUIPO_CRITICO',
+  'NUEVO_EQUIPO_CRITICO',
+  'PERSONA_ATRAPADA',
+  'PERSONA_ATRAPADA_EQUIPO_CRITICO',
+  'PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO',
+  'TICKET_CREADO',
+  'TICKET_ESTATUS_CAMBIADO',
+  'TICKET_PRIORIDAD_CAMBIADA',
+  'TICKET_ASIGNACION_CAMBIADA',
+  'TICKET_RESPONSABILIDAD_CAMBIADA',
+  'tickets.comentario.creado',
+  'tickets.vobo.actualizado',
+  'PORTAFOLIO_EQUIPO_INGRESO',
+  'PORTAFOLIO_EQUIPO_SALIDA',
+  'PORTAFOLIO_EQUIPO_CAMBIO'
+]);
+
+function isCssIconToken_gnral(value) {
+  return /^(?:ti|fa|fas|far|fal|fab)\s+/i.test(String(value || '').trim());
+}
+
+function unitedPushTitle_gnral(notification, baseTitle, visualEmojis) {
+  const eventIcon = String(notification.icono_notificacion || '').trim();
+  const safeEventIcon = eventIcon && !isCssIconToken_gnral(eventIcon) ? eventIcon : '';
+  const cleanVisuals = visualEmojis
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .filter((value) => value !== safeEventIcon);
+  const prefix = safeEventIcon ? `${safeEventIcon} ` : '';
+  const suffix = cleanVisuals.length ? ` ${cleanVisuals.join(' ')}` : '';
+  return `${prefix}${String(baseTitle).trim()}${suffix}`.trim();
+}
+
 function payloadFor(notification, visualCatalogByCode = new Map()) {
   const baseTitle = notification.titulo_notificacion || 'Mantto Gestor';
   const emoji = String(notification.icono_notificacion || '').trim();
@@ -61,13 +96,22 @@ function payloadFor(notification, visualCatalogByCode = new Map()) {
     .map(code => visualCatalogByCode.get(code))
     .map(item => String(item?.emoji || '').trim())
     .filter(Boolean);
-  const prefixes = [priorityEmoji, ...visualEmojis, emoji]
-    .filter(Boolean)
-    .filter((value, index, values) => values.indexOf(value) === index);
-  const titlePrefix = prefixes.join(' ');
-  const title = titlePrefix && !String(baseTitle).trim().startsWith(titlePrefix)
-    ? `${titlePrefix} ${baseTitle}`
-    : baseTitle;
+  const eventType = String(notification.tipo_notificacion || '').trim();
+  let title;
+  if (UNITED_PRESENTATION_EVENT_CODES.has(eventType)) {
+    // Norma UNITED: primera linea limpia = Emoji del Evento + Evento.
+    // El indicador semantico de Seguimiento Especial (⭐) se agrega al final.
+    // Las clases CSS (por ejemplo "ti ti-ticket") nunca se imprimen como texto.
+    title = unitedPushTitle_gnral(notification, baseTitle, visualEmojis);
+  } else {
+    const prefixes = [priorityEmoji, ...visualEmojis, emoji]
+      .filter(Boolean)
+      .filter((value, index, values) => values.indexOf(value) === index);
+    const titlePrefix = prefixes.join(' ');
+    title = titlePrefix && !String(baseTitle).trim().startsWith(titlePrefix)
+      ? `${titlePrefix} ${baseTitle}`
+      : baseTitle;
+  }
 
   return {
     title,
@@ -287,5 +331,8 @@ module.exports = {
   notificationLimit,
   payloadFor,
   parseVisualCodes_gnral,
-  deliveryOptionsFor
+  deliveryOptionsFor,
+  UNITED_PRESENTATION_EVENT_CODES,
+  isCssIconToken_gnral,
+  unitedPushTitle_gnral
 };

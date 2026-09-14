@@ -153,14 +153,16 @@ function eventPresentation(transition, before, after, fields) {
     return {
       eventCode: EVENTS.ENTRY,
       title: 'Ingreso a Portafolio',
-      message: `${site} ingresó al Portafolio.`
+      message: `Se generó ingreso a Portafolio · ${site}.`,
+      icon: '📥'
     };
   }
   if (transition === 'EXIT') {
     return {
       eventCode: EVENTS.EXIT,
       title: 'Salida de Portafolio',
-      message: `${site} salió del Portafolio.`
+      message: `Se generó salida de Portafolio · ${site}.`,
+      icon: '📤'
     };
   }
 
@@ -175,24 +177,29 @@ function eventPresentation(transition, before, after, fields) {
       ? ` También se actualizaron: ${otherFields.join(', ')}.`
       : '';
 
-    let title = 'Cambio de estatus de servicio';
+    let title = 'Cambio de Estatus de Servicio';
+    let icon = '🔄';
     if (previousKind === 'EN_SERVICIO' && currentKind === 'NO_EN_SERVICIO') {
-      title = 'Equipo pasó a No en Servicio';
+      title = 'Equipo No en Servicio';
+      icon = '⛔';
     } else if (previousKind === 'NO_EN_SERVICIO' && currentKind === 'EN_SERVICIO') {
-      title = 'Equipo regresó a En Servicio';
+      title = 'Equipo en Servicio';
+      icon = '✅';
     }
 
     return {
       eventCode: EVENTS.CHANGE,
       title,
-      message: `${site} cambió de ${previous} a ${current}.${otherChanges}`
+      message: `Se generó cambio de estatus de servicio de ${previous} a ${current} · ${site}.${otherChanges}`,
+      icon
     };
   }
 
   return {
     eventCode: EVENTS.CHANGE,
     title: 'Actualización de Portafolio',
-    message: `Se actualizaron ${changed.join(', ')} de ${site}.`
+    message: `Se generó actualización de ${changed.join(', ')} · ${site}.`,
+    icon: '🔄'
   };
 }
 
@@ -242,6 +249,7 @@ async function processAfterSync_uni(beforeContext, body, actorUser, executor = d
       allowMissingEvent: true,
       titulo: presentation.title,
       mensaje: presentation.message,
+      icono: presentation.icon,
       accion: 'ABRIR_EQUIPO',
       idReferencia: Number(context.id_portafolio) || null,
       ruta: context.numero_equipo ? `detalle:equipo:${context.numero_equipo}` : 'portafolio',

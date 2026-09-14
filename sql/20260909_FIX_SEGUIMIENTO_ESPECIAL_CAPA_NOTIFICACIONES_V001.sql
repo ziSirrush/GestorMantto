@@ -149,29 +149,19 @@ WHERE NOT EXISTS (
   WHERE existing.codigo_evento = source.codigo_evento
 );
 
--- Los eventos nativos de Ticket heredan la matriz vigente del comentario de
--- Ticket. La seleccion final sigue pasando por Evento + Rol y sus preferencias.
-INSERT INTO notificacion_evento_roles (codigo_evento, id_rol, politica, activo)
-SELECT
-  target.codigo_evento,
-  source.id_rol,
-  source.politica,
-  1
-FROM (
-  SELECT 'TICKET_CREADO' AS codigo_evento
-  UNION ALL SELECT 'TICKET_ESTATUS_CAMBIADO'
-  UNION ALL SELECT 'TICKET_PRIORIDAD_CAMBIADA'
-  UNION ALL SELECT 'TICKET_ASIGNACION_CAMBIADA'
-  UNION ALL SELECT 'TICKET_RESPONSABILIDAD_CAMBIADA'
-) target
-INNER JOIN notificacion_evento_roles source
-  ON source.codigo_evento = 'tickets.comentario.creado'
- AND source.activo = 1
- AND source.politica IN ('OBLIGATORIA', 'OPCIONAL')
-ON DUPLICATE KEY UPDATE
-  politica = VALUES(politica),
-  activo = 1,
-  updated_at = CURRENT_TIMESTAMP;
+-- Estos cinco eventos son FOLLOW-ONLY. Permanecen registrados en el catalogo,
+-- pero ninguna relacion Evento-Rol puede abrir su audiencia.
+UPDATE notificacion_evento_roles
+SET activo = 0,
+    updated_at = CURRENT_TIMESTAMP
+WHERE codigo_evento IN (
+  'TICKET_CREADO',
+  'TICKET_ESTATUS_CAMBIADO',
+  'TICKET_PRIORIDAD_CAMBIADA',
+  'TICKET_ASIGNACION_CAMBIADA',
+  'TICKET_RESPONSABILIDAD_CAMBIADA'
+)
+  AND activo <> 0;
 
 SELECT
   COLUMN_NAME,

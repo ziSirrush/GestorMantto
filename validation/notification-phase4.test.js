@@ -490,7 +490,7 @@ test('Una baja BLT anterior en el lote ajusta el conteo antes de una nueva alta 
 test('El actor y el alcance UNITED se delegan al motor central', () => {
   assert.match(serviceSource, /actorUserId:/);
   assert.match(serviceSource, /zonaOperativaId:\s*zoneId/);
-  assert.match(serviceSource, /destinatarios:\s*activeUserIds/);
+  assert.match(serviceSource, /destinatarios:\s*producerRecipients/);
   assert.match(serviceSource, /accion:\s*'ABRIR_TICKET'/);
 });
 

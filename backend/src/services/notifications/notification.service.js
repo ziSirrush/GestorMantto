@@ -9,6 +9,19 @@ const {
   VISUAL_CODE: SEGUIMIENTO_VISUAL_CODE
 } = require('./portafolio-seguimiento-especial-notifications_uni.service');
 
+const SEGUIMIENTO_EXCLUSIVE_EVENT_CODES = Object.freeze([
+  'TICKET_CREADO',
+  'TICKET_ESTATUS_CAMBIADO',
+  'TICKET_PRIORIDAD_CAMBIADA',
+  'TICKET_ASIGNACION_CAMBIADA',
+  'TICKET_RESPONSABILIDAD_CAMBIADA'
+]);
+const SEGUIMIENTO_EXCLUSIVE_EVENT_SET = new Set(SEGUIMIENTO_EXCLUSIVE_EVENT_CODES);
+
+function isSeguimientoExclusiveEvent_gnral(codigoEvento) {
+  return SEGUIMIENTO_EXCLUSIVE_EVENT_SET.has(String(codigoEvento || '').trim());
+}
+
 function bool(value, fallback = 0) {
   if (value === undefined || value === null) return fallback ? 1 : 0;
   return value === true || value === 1 || value === '1' ? 1 : 0;
@@ -161,6 +174,7 @@ function seguimientoContext_gnral(input) {
 async function applySeguimientoLayer_gnral(connection, prepared) {
   const context = seguimientoContext_gnral(prepared.input);
   const normalRecipients = prepared.recipients.slice();
+  const exclusiveEvent = isSeguimientoExclusiveEvent_gnral(prepared.codigoEvento);
   prepared.normalRecipients = normalRecipients;
   prepared.followRecipientIds = new Set();
   prepared.decoratedFollowRecipientIds = new Set();
@@ -171,14 +185,22 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
     follow_authorized_count: 0,
     follow_native_excluded_count: 0,
     follow_recipient_count: 0,
-    final_recipient_count: normalRecipients.length,
+    final_recipient_count: exclusiveEvent ? 0 : normalRecipients.length,
     follow_decorated_count: 0,
     deduped_count: 0,
     visual_code: SEGUIMIENTO_VISUAL_CODE,
-    catalog_lookup_status: 'NO_REQUERIDO'
+    catalog_lookup_status: 'NO_REQUERIDO',
+    exclusive_event: exclusiveEvent,
+    delivery_scope: exclusiveEvent ? 'SEGUIMIENTO_ESPECIAL_FOLLOW_ONLY' : 'MATRIZ_MAS_SEGUIMIENTO'
   };
 
-  if (!context) return prepared;
+  if (!context) {
+    if (exclusiveEvent) {
+      prepared.recipients = [];
+      prepared.seguimientoTrace.exclusion_reason = 'CONTEXTO_SEGUIMIENTO_NO_DECLARADO';
+    }
+    return prepared;
+  }
 
   try {
     const resolved = await resolveSeguimientoRecipients_uni({
@@ -188,7 +210,9 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
     });
     const followers = Array.isArray(resolved?.followers) ? resolved.followers : [];
     const authorizedFollowerIds = normalizeRecipients(followers);
-    const merged = normalizeRecipients([...normalRecipients, ...authorizedFollowerIds]);
+    const merged = exclusiveEvent
+      ? authorizedFollowerIds
+      : normalizeRecipients([...normalRecipients, ...authorizedFollowerIds]);
     const nativeExcludedRecipientIds = prepared.nativeExcludedRecipientIds || new Set();
     const finalRecipients = merged.filter((id) => !nativeExcludedRecipientIds.has(id));
     const finalRecipientSet = new Set(finalRecipients);
@@ -244,11 +268,24 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
       follow_recipient_count: followerIds.length,
       final_recipient_count: prepared.recipients.length,
       follow_decorated_count: decoratedIds.size,
-      deduped_count: normalRecipients.length + authorizedFollowerIds.length - merged.length,
+      deduped_count: exclusiveEvent
+        ? 0
+        : normalRecipients.length + authorizedFollowerIds.length - merged.length,
       visual_code: SEGUIMIENTO_VISUAL_CODE,
-      catalog_lookup_status: catalogStatus
+      catalog_lookup_status: catalogStatus,
+      exclusive_event: exclusiveEvent,
+      delivery_scope: exclusiveEvent ? 'SEGUIMIENTO_ESPECIAL_FOLLOW_ONLY' : 'MATRIZ_MAS_SEGUIMIENTO',
+      native_recipients_suppressed_count: exclusiveEvent ? normalRecipients.length : 0
     };
   } catch (error) {
+    if (exclusiveEvent) {
+      prepared.recipients = [];
+      prepared.followRecipientIds = new Set();
+      prepared.decoratedFollowRecipientIds = new Set();
+      prepared.seguimientoTrace.final_recipient_count = 0;
+      prepared.seguimientoTrace.fail_closed = true;
+      prepared.seguimientoTrace.exclusion_reason = 'ERROR_RESOLVIENDO_SEGUIMIENTO_EXCLUSIVO';
+    }
     logger.error('[NOTIFICATION_SEGUIMIENTO_RESOLUTION_FAILED]', {
       trace_id: prepared.traceId,
       codigo_evento_nativo: prepared.codigoEvento,
@@ -810,5 +847,7 @@ module.exports = {
   applySeguimientoLayer_gnral,
   recipientVisualCodes_gnral,
   isSeguimientoRecipient_gnral,
-  seguimientoDirectDecision_gnral
+  seguimientoDirectDecision_gnral,
+  isSeguimientoExclusiveEvent_gnral,
+  SEGUIMIENTO_EXCLUSIVE_EVENT_CODES
 };

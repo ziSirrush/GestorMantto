@@ -344,7 +344,9 @@ test('SQL es condicional y registra eventos nativos sin reactivar el fanout gene
   assert.match(migration, /INFORMATION_SCHEMA\.COLUMNS/);
   assert.match(migration, /TICKET_CREADO/);
   assert.match(migration, /PORTAFOLIO_EQUIPO_SALIDA/);
-  assert.match(migration, /tickets\.comentario\.creado/);
+  assert.match(migration, /UPDATE\s+notificacion_evento_roles[\s\S]*SET\s+activo\s*=\s*0/i);
+  assert.doesNotMatch(migration, /INSERT\s+INTO\s+notificacion_evento_roles/i);
+  assert.doesNotMatch(migration, /tickets\.comentario\.creado/i);
   assert.doesNotMatch(migration, /UPDATE\s+notificacion_eventos[\s\S]*PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACTUALIZACION/i);
 });
 
@@ -525,6 +527,37 @@ test('consulta de Equipo exige usuario activo y alcance UNITED maestro o PORTAFO
   assert.match(capturedSql, /uz_se\.estado\s*=\s*1/i);
 });
 
+test('resolver conserva juntos el seguimiento directo de Equipo y el heredado por Proyecto', async () => {
+  const resolver = loadActualResolverWithPermissions([20, 30]);
+  const executor = {
+    async query() {
+      throw new Error('No debe consultar BD cuando existe snapshot completo.');
+    }
+  };
+
+  const result = await resolver.resolveSeguimientoRecipients_uni({
+    executor,
+    contextoNegocio: {
+      dominio: 'UNITED',
+      tipo: 'TICKET',
+      proyecto: 'Proyecto 55',
+      zona_id: 7,
+      followers_snapshot: [
+        { id_usuario: 20, origen_seguimiento: 'EQUIPO', autorizado: true },
+        { id_usuario: 30, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }
+      ]
+    },
+    codigoEventoNativo: 'TICKET_CREADO'
+  });
+
+  assert.deepEqual(result.followers, [
+    { id_usuario: 20, origen_seguimiento: 'EQUIPO', autorizado: true },
+    { id_usuario: 30, origen_seguimiento: 'PROYECTO_HEREDADO', autorizado: true }
+  ]);
+  assert.equal(result.follow_candidate_count, 2);
+  assert.equal(result.follow_authorized_count, 2);
+});
+
 test('Equipo sin zona no intenta ampliar alcance ni consultar seguidores', async () => {
   const resolver = loadActualResolverWithPermissions([20]);
   let queryCount = 0;
@@ -620,7 +653,8 @@ test('salida de Portafolio conserva snapshot pre-mutation y followers previos', 
   assert.equal(emitted[0].codigoEvento, 'PORTAFOLIO_EQUIPO_SALIDA');
   assert.deepEqual(emitted[0].destinatarios, []);
   assert.equal(emitted[0].titulo, 'Salida de Portafolio');
-  assert.equal(emitted[0].mensaje, 'Proyecto previo - Lobby salió del Portafolio.');
+  assert.equal(emitted[0].mensaje, 'Se generó salida de Portafolio · Proyecto previo - Lobby.');
+  assert.equal(emitted[0].icono, '📤');
   assert.doesNotMatch(emitted[0].titulo + ' ' + emitted[0].mensaje, /EQ-55/);
   assert.equal(emitted[0].contextoSeguimiento.proyecto, 'Proyecto previo');
   assert.equal(emitted[0].contextoSeguimiento.snapshot_pre_mutacion.proyecto, 'Proyecto previo');
