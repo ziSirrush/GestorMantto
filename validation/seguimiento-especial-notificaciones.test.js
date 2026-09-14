@@ -151,13 +151,13 @@ test('el actor excluido no revive por Seguimiento Especial', async () => {
   assert.equal(state.inserted.length, 0);
 });
 
-test('falla de catalogo conserva follower y notificacion nativa sin decoracion', async () => {
+test('falla temporal de catalogo conserva metadata semantica de Seguimiento para entrega posterior', async () => {
   reset();
   state.followers = [{ id_usuario: 20, origen_seguimiento: 'EQUIPO', autorizado: true }];
   state.visual = null;
   const result = await notificationService.emit(nativeInput([]));
   assert.deepEqual(result.recipients, [20]);
-  assert.deepEqual(state.inserted[0].codigos_visuales, []);
+  assert.deepEqual(state.inserted[0].codigos_visuales, ['SEGUIMIENTO_ESPECIAL']);
   assert.equal(result.seguimiento_especial.catalog_lookup_status, 'NO_ENCONTRADO_O_INACTIVO');
 });
 
@@ -582,6 +582,7 @@ test('salida de Portafolio conserva snapshot pre-mutation y followers previos', 
   const before = {
     id_portafolio: 55,
     numero_equipo: 'EQ-55',
+    identificacion_sitio: 'Lobby',
     proyecto: 'Proyecto previo',
     zona_id: 7,
     estado_registro: 1,
@@ -618,9 +619,31 @@ test('salida de Portafolio conserva snapshot pre-mutation y followers previos', 
   assert.equal(emitted.length, 1);
   assert.equal(emitted[0].codigoEvento, 'PORTAFOLIO_EQUIPO_SALIDA');
   assert.deepEqual(emitted[0].destinatarios, []);
+  assert.equal(emitted[0].titulo, 'Salida de Portafolio');
+  assert.equal(emitted[0].mensaje, 'Proyecto previo - Lobby salió del Portafolio.');
+  assert.doesNotMatch(emitted[0].titulo + ' ' + emitted[0].mensaje, /EQ-55/);
   assert.equal(emitted[0].contextoSeguimiento.proyecto, 'Proyecto previo');
   assert.equal(emitted[0].contextoSeguimiento.snapshot_pre_mutacion.proyecto, 'Proyecto previo');
   assert.deepEqual(emitted[0].contextoSeguimiento.followers_snapshot, previousFollowers);
+});
+
+test('presentacion de notificaciones usa Proyecto - Ref en sitio y no expone numero de equipo', () => {
+  const siteHelper = read('backend/src/services/notifications/notification-site-label.service.js');
+  const critical = read('backend/src/services/notifications/ticket-critical-notifications_uni.service.js');
+  const native = read('backend/src/services/notifications/portafolio-native-notifications_uni.service.js');
+  const interest = read('backend/src/services/notifications/portafolio-interest-notifications_uni.service.js');
+  const writes = read('backend/src/modules/tickets/tickets-notification-writes.service.js');
+
+  assert.match(siteHelper, /return `\$\{project\} - \$\{reference\}`/);
+  assert.match(critical, /siteLabel_gnral/);
+  assert.match(native, /siteLabel_gnral/);
+  assert.match(interest, /Actividad en sitio de interés: \$\{site\}/);
+  assert.match(writes, /siteLabel_gnral\(row\)/);
+
+  assert.doesNotMatch(critical, /sobre el equipo crítico \$\{equipment\}/);
+  assert.doesNotMatch(critical, /El equipo \$\{equipment\} pasó a condición crítica/);
+  assert.doesNotMatch(native, /title:\s*`(?:Ingreso|Salida|Actualización) de Portafolio[^`]*\$\{equipment\}/);
+  assert.doesNotMatch(interest, /Actividad en equipo de interés: \$\{resolved\.equipmentRow\.numero_equipo\}/);
 });
 
 test('comentario y VoBo de Ticket usan evento nativo con contexto Seguimiento; adjunto no se inventa', () => {
@@ -690,13 +713,20 @@ test('detalle Seguimiento Especial invalida montajes async viejos y conserva un 
   assert.equal((globalModule.match(/head\.appendChild\(root\)/g)||[]).length,1);
 });
 
-test('npm test queda conectado al workflow existente sin modificar el workflow', () => {
+test('npm test queda conectado al workflow existente y admite validaciones incrementales', () => {
   const packageJson = JSON.parse(read('backend/package.json'));
   const workflow = read('.github/workflows/main_mantto-gestor-api.yml');
+  const command = String(packageJson.scripts.test || '');
 
-  assert.equal(
-    packageJson.scripts.test,
-    'node --test ../validation/seguimiento-especial-notificaciones.test.js ../tests/instalaciones-bitacora-sync.test.js ../tests/notificaciones-marcar-todas.test.js'
-  );
+  assert.match(command, /^node --test\b/);
+  for (const requiredTest of [
+    '../validation/seguimiento-especial-notificaciones.test.js',
+    '../validation/seguimiento-especial-fase1-sin-rol.test.js',
+    '../validation/seguimiento-especial-fase2-cobertura-united.test.js',
+    '../tests/instalaciones-bitacora-sync.test.js',
+    '../tests/notificaciones-marcar-todas.test.js'
+  ]) {
+    assert.match(command, new RegExp(requiredTest.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
   assert.match(workflow, /npm run test --if-present/);
 });

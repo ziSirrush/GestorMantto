@@ -6,6 +6,22 @@ function safeAlias_gnral(value, fallback) {
   return alias;
 }
 
+const SEGUIMIENTO_VISUAL_CODE_GNRAL = 'SEGUIMIENTO_ESPECIAL';
+
+/**
+ * Seguimiento Especial ya fue autorizado por el resolver UNITED antes de
+ * persistir la notificacion. El codigo visual es metadata semantica del origen
+ * de la entrega y permite que Campana/Push no vuelvan a vetarla por la matriz
+ * del evento nativo.
+ */
+function seguimientoEspecialSql_gnral(notificationAlias = 'n') {
+  const n = safeAlias_gnral(notificationAlias, 'n');
+  return `JSON_CONTAINS(
+    COALESCE(${n}.codigos_visuales_json, JSON_ARRAY()),
+    JSON_QUOTE('${SEGUIMIENTO_VISUAL_CODE_GNRAL}')
+  )`;
+}
+
 function matrixExistsSql_gnral(notificationAlias = 'n') {
   const n = safeAlias_gnral(notificationAlias, 'n');
   return `EXISTS (
@@ -33,9 +49,9 @@ function matrixChannelSql_gnral({
   const defaultColumn = channelName === 'push' ? 'push_default' : 'campana_default';
   const fallback = channelName === 'push' ? 0 : 1;
 
-  // Todos los roles activos del usuario participan en la decision.
-  // Si cualquiera de ellos marca el evento OBLIGATORIO, el canal queda activo.
-  // Las preferencias personales solo se evalúan cuando el rol aplicable es OPCIONAL.
+  // Todos los roles activos del usuario participan en la decision NATIVA.
+  // Seguimiento Especial se resuelve antes y se exceptua en las funciones de
+  // visibilidad finales, no dentro de esta matriz.
   return `EXISTS (
     SELECT 1
     FROM usuario_roles ur_policy
@@ -61,6 +77,7 @@ function matrixChannelSql_gnral({
 }
 
 function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', preferenceAlias = 'p') {
+  const seguimiento = seguimientoEspecialSql_gnral(notificationAlias);
   const matrixExists = matrixExistsSql_gnral(notificationAlias);
   const matrixBell = matrixChannelSql_gnral({
     notificationAlias,
@@ -69,11 +86,11 @@ function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
     channel: 'campana'
   });
 
-  // Compatibilidad temporal para codigos legacy que todavia no tienen una
-  // relacion activa Evento <-> Rol. Los eventos oficiales administrados por
-  // matriz solo son visibles si alguno de los roles activos del usuario aplica.
+  // Un follower autorizado siempre conserva Campana. Para receptores nativos
+  // se mantiene intacta la politica anterior Evento + Rol + preferencias.
   return `(
-    NOT ${matrixExists}
+    ${seguimiento}
+    OR NOT ${matrixExists}
     OR ${matrixBell}
   )`;
 }
@@ -82,6 +99,7 @@ function pushVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
   const n = safeAlias_gnral(notificationAlias, 'n');
   const e = safeAlias_gnral(eventAlias, 'e');
   const p = safeAlias_gnral(preferenceAlias, 'p');
+  const seguimiento = seguimientoEspecialSql_gnral(n);
   const matrixExists = matrixExistsSql_gnral(n);
   const matrixPush = matrixChannelSql_gnral({
     notificationAlias: n,
@@ -98,13 +116,18 @@ function pushVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
     )
   )`;
 
+  // El motor de Seguimiento Especial entrega Campana + Push por suscripcion
+  // explicita. Los demas destinatarios conservan exactamente la politica nativa.
   return `(
-    (NOT ${matrixExists} AND ${legacyPush})
+    ${seguimiento}
+    OR (NOT ${matrixExists} AND ${legacyPush})
     OR ${matrixPush}
   )`;
 }
 
 module.exports = {
+  SEGUIMIENTO_VISUAL_CODE_GNRAL,
+  seguimientoEspecialSql_gnral,
   matrixExistsSql_gnral,
   matrixChannelSql_gnral,
   bellVisibilitySql_gnral,

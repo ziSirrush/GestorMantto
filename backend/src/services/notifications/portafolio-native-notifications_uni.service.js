@@ -7,6 +7,9 @@ const {
   emitBusinessEventSafe_gnral
 } = require('./notification-business-emitter.service');
 const {
+  siteLabel_gnral
+} = require('./notification-site-label.service');
+const {
   resolveSeguimientoRecipients_uni
 } = require('./portafolio-seguimiento-especial-notifications_uni.service');
 
@@ -30,6 +33,22 @@ const RELEVANT_FIELDS = Object.freeze([
 
 function text(value) {
   return String(value == null ? '' : value).trim();
+}
+
+function normalizeServiceText_uni(value) {
+  return text(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function serviceStatusKind_uni(value) {
+  const normalized = normalizeServiceText_uni(value);
+  if (!normalized) return null;
+  if (normalized.includes('no en servicio')) return 'NO_EN_SERVICIO';
+  if (normalized.includes('en servicio') || normalized === 'servicio') return 'EN_SERVICIO';
+  return 'OTRO';
 }
 
 function active(row) {
@@ -127,31 +146,53 @@ async function loadAfterRows_uni(beforeContext, body, executor = db) {
   return rows;
 }
 
-function eventPresentation(transition, row, fields) {
-  const equipment = text(row?.numero_equipo) || 'Equipo';
-  const project = text(row?.proyecto);
+function eventPresentation(transition, before, after, fields) {
+  const row = transition === 'EXIT' ? before : (after || before);
+  const site = siteLabel_gnral(row || {});
   if (transition === 'ENTRY') {
     return {
       eventCode: EVENTS.ENTRY,
-      title: `Ingreso a Portafolio · ${equipment}`,
-      message: project
-        ? `El equipo ${equipment} ingresó al Portafolio del proyecto ${project}.`
-        : `El equipo ${equipment} ingresó al Portafolio.`
+      title: 'Ingreso a Portafolio',
+      message: `${site} ingresó al Portafolio.`
     };
   }
   if (transition === 'EXIT') {
     return {
       eventCode: EVENTS.EXIT,
-      title: `Salida de Portafolio · ${equipment}`,
-      message: project
-        ? `El equipo ${equipment} salió del Portafolio del proyecto ${project}.`
-        : `El equipo ${equipment} salió del Portafolio.`
+      title: 'Salida de Portafolio',
+      message: `${site} salió del Portafolio.`
     };
   }
+
+  const changed = Array.isArray(fields) ? fields : [];
+  if (changed.includes('estatus_servicio')) {
+    const previous = text(before?.estatus_servicio) || 'Sin estatus';
+    const current = text(after?.estatus_servicio) || 'Sin estatus';
+    const previousKind = serviceStatusKind_uni(previous);
+    const currentKind = serviceStatusKind_uni(current);
+    const otherFields = changed.filter((field) => field !== 'estatus_servicio');
+    const otherChanges = otherFields.length
+      ? ` También se actualizaron: ${otherFields.join(', ')}.`
+      : '';
+
+    let title = 'Cambio de estatus de servicio';
+    if (previousKind === 'EN_SERVICIO' && currentKind === 'NO_EN_SERVICIO') {
+      title = 'Equipo pasó a No en Servicio';
+    } else if (previousKind === 'NO_EN_SERVICIO' && currentKind === 'EN_SERVICIO') {
+      title = 'Equipo regresó a En Servicio';
+    }
+
+    return {
+      eventCode: EVENTS.CHANGE,
+      title,
+      message: `${site} cambió de ${previous} a ${current}.${otherChanges}`
+    };
+  }
+
   return {
     eventCode: EVENTS.CHANGE,
-    title: `Actualización de Portafolio · ${equipment}`,
-    message: `Se actualizaron ${fields.join(', ')} del equipo ${equipment}${project ? ` en el proyecto ${project}` : ''}.`
+    title: 'Actualización de Portafolio',
+    message: `Se actualizaron ${changed.join(', ')} de ${site}.`
   };
 }
 
@@ -169,7 +210,7 @@ async function processAfterSync_uni(beforeContext, body, actorUser, executor = d
     if (!transition) continue;
 
     const fields = changedFields(before, after);
-    const presentation = eventPresentation(transition, transition === 'EXIT' ? before : after, fields);
+    const presentation = eventPresentation(transition, before, after, fields);
     const eventInstanceKey = `portafolio:${presentation.eventCode}:${transitionIdentity(before, after, transition)}`;
     const useSnapshot = transition === 'EXIT';
     const contextRow = useSnapshot ? before : after;
@@ -243,6 +284,8 @@ module.exports = {
   changedFields,
   classifyTransition,
   transitionIdentity,
+  serviceStatusKind_uni,
+  eventPresentation,
   captureBeforeSync_uni,
   processAfterSync_uni
 };

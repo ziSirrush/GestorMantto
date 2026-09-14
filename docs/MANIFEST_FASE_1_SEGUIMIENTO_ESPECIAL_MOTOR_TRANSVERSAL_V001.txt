@@ -1,0 +1,29 @@
+FASE_1_SEGUIMIENTO_ESPECIAL_MOTOR_TRANSVERSAL_V001
+Fecha: 2026-09-14
+Base GitHub main: ed6d9d7e552b387cd0a6e0d2928786861b12c73c
+
+ARCHIVOS MODIFICADOS
+- backend/src/services/notifications/notification.service.js
+- backend/package.json
+
+ARCHIVOS NUEVOS
+- validation/seguimiento-especial-fase1-sin-rol.test.js
+- ADR_20260914_SEGUIMIENTO_ESPECIAL_SUSCRIPCION_TRANSVERSAL_V001.md
+- README_FASE_1_SEGUIMIENTO_ESPECIAL_MOTOR_TRANSVERSAL_V001.md
+- MANIFEST_FASE_1_SEGUIMIENTO_ESPECIAL_MOTOR_TRANSVERSAL_V001.txt
+- CHECKSUMS_FASE_1_SEGUIMIENTO_ESPECIAL_MOTOR_TRANSVERSAL_V001_SHA256.txt
+
+CAMBIO FUNCIONAL
+- Seguimiento Especial autorizado deja de depender de rol del evento nativo.
+- Destinatarios normales conservan la matriz vigente.
+- Normal + follower se deduplica a una sola entrega con SEGUIMIENTO_ESPECIAL.
+- Campana y push quedan activos para followers autorizados.
+- Se conserva exclusion nativa del actor.
+
+SIN CAMBIOS
+- SQL: ninguno.
+- Tablas: ninguna.
+- Permisos: no se crean ni se renombran.
+- Sync Tickets: sin cambios.
+- Sync Portafolio: sin cambios.
+- Productores de eventos UNITED: Fase 2.

@@ -5,6 +5,10 @@ const {
   listUsersWithEffectivePermission
 } = require('../permissions/effective-permission.service');
 const logger = require('../../shared/logger');
+const {
+  siteLabel_gnral,
+  replaceEquipmentWithSite_gnral
+} = require('./notification-site-label.service');
 
 const PERMISSION_CODE =
   'PORTAFOLIO_PROYECTOS_DE_MANTENIMIENTO_SEGUIMIENTO_INTERES_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
@@ -76,15 +80,22 @@ function initialContext(interaction) {
     (entity === 'proyecto' ? (payload.id || reference) : null),
     255
   );
+  const siteReference = cleanText(
+    stored.referencia_en_zona_operativa || stored.identificacion_sitio ||
+    stored.referencia_sitio || stored.referencia_en_sitio ||
+    payload.referencia_en_zona_operativa || payload.identificacion_sitio ||
+    payload.referencia_sitio || payload.referencia_en_sitio,
+    255
+  );
 
-  return { entity, ticket, equipment, project };
+  return { entity, ticket, equipment, project, siteReference };
 }
 
 async function resolveTicketContext(executor, reference) {
   const ref = cleanText(reference, 255);
   if (!ref) return null;
   const [rows] = await executor.query(
-    `SELECT id, ticket, codigo_equipo, equipo, proyecto, proyecto_padre
+    `SELECT id, ticket, codigo_equipo, equipo, proyecto, proyecto_padre, referencia_en_zona_operativa
        FROM tickets
       WHERE TRIM(COALESCE(ticket, '')) = TRIM(?)
          OR CAST(id AS CHAR) = ?
@@ -232,6 +243,7 @@ async function resolveContext(executor, interaction) {
     if (ticketRow) {
       context.equipment = cleanText(ticketRow.codigo_equipo || ticketRow.equipo, 255) || context.equipment;
       context.project = cleanText(ticketRow.proyecto || ticketRow.proyecto_padre, 255) || context.project;
+      context.siteReference = cleanText(ticketRow.referencia_en_zona_operativa, 255) || context.siteReference;
     }
   }
 
@@ -240,6 +252,7 @@ async function resolveContext(executor, interaction) {
     if (equipmentRow) {
       context.equipment = cleanText(equipmentRow.numero_equipo, 255) || context.equipment;
       context.project = cleanText(equipmentRow.proyecto, 255) || context.project;
+      context.siteReference = cleanText(equipmentRow.identificacion_sitio, 255) || context.siteReference;
     }
   }
 
@@ -281,10 +294,10 @@ async function processInteraction_uni(interaction, executor) {
 
     if (resolved.equipmentRow) {
       recipients = await recipientsForEquipment(executor, resolved.equipmentRow);
-      subject = `equipo ${resolved.equipmentRow.numero_equipo}`;
+      subject = siteLabel_gnral(resolved.equipmentRow);
     } else if (context.project) {
       recipients = await recipientsForProject(executor, context.project);
-      subject = `proyecto ${context.project}`;
+      subject = siteLabel_gnral({ proyecto: context.project, referencia_en_sitio: context.siteReference });
     } else {
       return { skipped: true, reason: 'SIN_CONTEXTO_PORTAFOLIO' };
     }
@@ -292,12 +305,23 @@ async function processInteraction_uni(interaction, executor) {
     recipients = await filterByInterestPermission(executor, uniquePositiveIds(recipients));
     if (!recipients.length) return { skipped: true, reason: 'SIN_SEGUIDORES_AUTORIZADOS' };
 
-    const originalTitle = cleanText(interaction?.titulo, 220);
-    const originalDescription = cleanText(interaction?.descripcion, 350);
+    const site = siteLabel_gnral({
+      proyecto: context.project,
+      referencia_en_sitio: context.siteReference || resolved.equipmentRow?.identificacion_sitio
+    });
+    const originalTitle = replaceEquipmentWithSite_gnral(
+      cleanText(interaction?.titulo, 220),
+      context.equipment,
+      site
+    );
+    const originalDescription = replaceEquipmentWithSite_gnral(
+      cleanText(interaction?.descripcion, 350),
+      context.equipment,
+      site
+    );
     const contextParts = [];
     if (context.ticket) contextParts.push(`Ticket ${context.ticket}`);
-    if (context.project) contextParts.push(`Proyecto ${context.project}`);
-    if (context.equipment) contextParts.push(`Equipo ${context.equipment}`);
+    if (site !== 'Sitio sin referencia') contextParts.push(site);
 
     const messageParts = [
       `En ${subject} ${activityLabel(type)}.`,
@@ -312,8 +336,8 @@ async function processInteraction_uni(interaction, executor) {
       actorUserId: Number(interaction?.id_usuario || 0) || null,
       eventInstanceKey: `usuario_interaccion:${interactionId}`,
       titulo: resolved.equipmentRow
-        ? `Actividad en equipo de interés: ${resolved.equipmentRow.numero_equipo}`
-        : `Actividad en proyecto de interés: ${context.project}`,
+        ? `Actividad en sitio de interés: ${site}`
+        : `Actividad en proyecto de interés: ${site}`,
       mensaje: messageParts.join(' ').slice(0, 500),
       idReferencia: interactionId,
       ruta: 'proyectos',

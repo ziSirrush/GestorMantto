@@ -1,0 +1,41 @@
+FASE_2_SEGUIMIENTO_ESPECIAL_COBERTURA_UNITED_V001
+Fecha: 2026-09-14
+Proyecto: Gestor Mantto
+Base GitHub: ziSirrush/GestorMantto main @ ed6d9d7e552b387cd0a6e0d2928786861b12c73c
+Prerrequisito: FASE_1_SEGUIMIENTO_ESPECIAL_MOTOR_TRANSVERSAL_V001
+
+ARCHIVOS DE PROGRAMACION
+backend/package.json
+backend/src/modules/tickets/tickets-notification-writes.service.js
+backend/src/services/notifications/notification-policy.js
+backend/src/services/notifications/notification-site-label.service.js
+backend/src/services/notifications/notification.service.js
+backend/src/services/notifications/portafolio-interest-notifications_uni.service.js
+backend/src/services/notifications/portafolio-native-notifications_uni.service.js
+backend/src/services/notifications/ticket-critical-notifications_uni.service.js
+
+VALIDACION
+validation/seguimiento-especial-notificaciones.test.js
+validation/seguimiento-especial-fase2-cobertura-united.test.js
+sql/VALIDAR_FASE_2_SEGUIMIENTO_ESPECIAL_COBERTURA_UNITED_V001.sql
+
+DOCUMENTACION
+README_FASE_2_SEGUIMIENTO_ESPECIAL_COBERTURA_UNITED_V001.md
+ADR_20260914_SEGUIMIENTO_ESPECIAL_COBERTURA_UNITED_V001.md
+
+REGLAS CERRADAS
+- Follower autorizado no depende de rol nativo.
+- Campana y Push tampoco re-vetan follower por rol.
+- Mismo evento nativo + metadata SEGUIMIENTO_ESPECIAL.
+- Emoji se resuelve desde estados_visuales; no se hardcodea en motor/politica.
+- Normal + Follow = una sola notificacion con Seguimiento.
+- Ticket Cerrado solo en transicion hacia Cerrado + Estatus Final del Equipo.
+- En Servicio -> No en Servicio notifica con PORTAFOLIO_EQUIPO_CAMBIO.
+- No en Servicio -> En Servicio notifica con PORTAFOLIO_EQUIPO_CAMBIO.
+- Comentarios y Vo.Bo. conservan evento nativo + contexto UNITED.
+- Presentacion visible Proyecto - Ref en sitio; No. Equipo solo interno.
+- Se conserva exclusion nativa del actor.
+- Se conserva precedencia de eventos criticos.
+
+NO INCLUYE MIGRACIONES DE ESQUEMA NI DML.
+El SQL incluido es exclusivamente de validacion de solo lectura.

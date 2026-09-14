@@ -4,6 +4,9 @@ const db = require('../../config/db');
 const {
   emitBusinessEventSafe_gnral
 } = require('../../services/notifications/notification-business-emitter.service');
+const {
+  siteLabel_gnral
+} = require('../../services/notifications/notification-site-label.service');
 
 const EVENT_TICKET_COMMENT = 'tickets.comentario.creado';
 const EVENT_TICKET_VOBO = 'tickets.vobo.actualizado';
@@ -284,7 +287,7 @@ async function createTicketComentario(req, res) {
     ticketRow: row,
     actor: user,
     title: 'Nuevo comentario en Ticket',
-    message: `${user.iniciales || user.correo || 'Usuario'} comentó el ticket ${row.ticket}.`,
+    message: `${user.iniciales || user.correo || 'Usuario'} comentó el ticket ${row.ticket} de ${siteLabel_gnral(row)}.`,
     icon: '💬',
     eventInstanceKey: `ticket-comentario:${row.id}:${commentId}`
   });
@@ -394,7 +397,7 @@ async function saveTicketValidacion(req, res) {
     ticketRow: row,
     actor: user,
     title: 'Vo.Bo. de Ticket actualizado',
-    message: `${user.iniciales || user.correo || 'Usuario'} cambió la validación del ticket ${row.ticket}: ${previous} → ${estado}.`,
+    message: `${user.iniciales || user.correo || 'Usuario'} cambió la validación del ticket ${row.ticket} de ${siteLabel_gnral(row)}: ${previous} → ${estado}.`,
     icon: '✅',
     eventInstanceKey: `ticket-vobo:${row.id}:${validationId}`
   });

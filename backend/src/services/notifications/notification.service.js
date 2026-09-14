@@ -99,6 +99,31 @@ function recipientVisualCodes_gnral(prepared, idUsuario) {
     : [];
 }
 
+// [Aster | 2026-09-14 | ASTER-MG | FASE_1_SEGUIMIENTO_ESPECIAL_MOTOR_TRANSVERSAL_V001]
+// Un destinatario autorizado por Seguimiento Especial ya supero la frontera de
+// acceso UNITED en el resolver especializado. La matriz del evento nativo sigue
+// aplicando a los destinatarios normales, pero no puede volver a excluir al
+// follower por rol, alcance nativo o preferencia del evento.
+function isSeguimientoRecipient_gnral(prepared, idUsuario) {
+  return Boolean(
+    prepared?.followRecipientIds instanceof Set &&
+    prepared.followRecipientIds.has(Number(idUsuario))
+  );
+}
+
+function seguimientoDirectDecision_gnral() {
+  return {
+    eligible: true,
+    reason: null,
+    policy: 'SEGUIMIENTO_ESPECIAL',
+    role_ids: [],
+    bell_enabled: true,
+    push_enabled: true,
+    scope_allowed: true,
+    scope_via: 'SEGUIMIENTO_ESPECIAL'
+  };
+}
+
 function emptyEmitResult_gnral(extra = {}) {
   return {
     created: 0,
@@ -168,14 +193,17 @@ async function applySeguimientoLayer_gnral(connection, prepared) {
     const finalRecipients = merged.filter((id) => !nativeExcludedRecipientIds.has(id));
     const finalRecipientSet = new Set(finalRecipients);
     const followerIds = authorizedFollowerIds.filter((id) => finalRecipientSet.has(id));
-    const decoratedIds = new Set();
+    // FASE 2: SEGUIMIENTO_ESPECIAL es metadata semantica persistente, no una
+    // decoracion calculada en memoria. Se conserva para todo follower autorizado
+    // aunque el lookup del catalogo visual falle momentaneamente; asi Campana y
+    // Push pueden reconocer el origen Seguimiento sin volver a consultar roles.
+    const decoratedIds = new Set(followerIds);
     let catalogStatus = 'NO_REQUERIDO';
 
     if (followerIds.length) {
       try {
         const visual = await repository.findActiveVisualState(connection, SEGUIMIENTO_VISUAL_CODE);
         catalogStatus = visual ? 'RESUELTO' : 'NO_ENCONTRADO_O_INACTIVO';
-        if (visual) followerIds.forEach((id) => decoratedIds.add(id));
       } catch (catalogError) {
         catalogStatus = 'ERROR';
         logger.error('[NOTIFICATION_SEGUIMIENTO_VISUAL_CATALOG_FAILED]', {
@@ -307,24 +335,45 @@ async function emitLegacy_gnral(connection, prepared, event) {
     traceId,
     dedupKey
   } = prepared;
-  const preferences = await repository.listPreferencesForUsers(connection, recipients, codigoEvento);
+
+  // Solo los destinatarios nativos consultan preferencias legacy.
+  // El seguimiento activo ya es la suscripcion explicita del usuario.
+  const policyRecipients = recipients.filter((idUsuario) =>
+    !isSeguimientoRecipient_gnral(prepared, idUsuario)
+  );
+  const preferences = await repository.listPreferencesForUsers(connection, policyRecipients, codigoEvento);
   const preferenceByUser = new Map(preferences.map((preference) => [Number(preference.id_usuario), preference]));
   const notifications = [];
+  const deliveryByUser = new Map();
   const decisions = [];
 
   for (const idUsuario of recipients) {
-    const preference = preferenceByUser.get(idUsuario) || null;
-    const obligatory = Number(event.obligatoria) === 1;
-    const silenced = !obligatory && Number(preference?.silenciada || 0) === 1;
-    const bellEnabled = obligatory || Number(preference?.campana ?? 1) === 1;
-    if (silenced || !bellEnabled) {
-      decisions.push({
-        id_usuario: idUsuario,
-        status: 'OMITIDA',
-        reason: 'PREFERENCIA_DESACTIVADA',
-        policy: obligatory ? 'OBLIGATORIA' : 'LEGACY'
+    const seguimiento = isSeguimientoRecipient_gnral(prepared, idUsuario);
+
+    if (seguimiento) {
+      deliveryByUser.set(idUsuario, seguimientoDirectDecision_gnral());
+    } else {
+      const preference = preferenceByUser.get(idUsuario) || null;
+      const obligatory = Number(event.obligatoria) === 1;
+      const silenced = !obligatory && Number(preference?.silenciada || 0) === 1;
+      const bellEnabled = obligatory || Number(preference?.campana ?? 1) === 1;
+      if (silenced || !bellEnabled) {
+        decisions.push({
+          id_usuario: idUsuario,
+          status: 'OMITIDA',
+          reason: 'PREFERENCIA_DESACTIVADA',
+          policy: obligatory ? 'OBLIGATORIA' : 'LEGACY'
+        });
+        continue;
+      }
+      deliveryByUser.set(idUsuario, {
+        policy: obligatory ? 'OBLIGATORIA' : 'LEGACY',
+        role_ids: [],
+        bell_enabled: true,
+        push_enabled: false,
+        scope_allowed: true,
+        scope_via: 'LEGACY'
       });
-      continue;
     }
 
     notifications.push(baseNotification_gnral(
@@ -344,15 +393,46 @@ async function emitLegacy_gnral(connection, prepared, event) {
     outcome
   ]));
   const bellRecipients = [];
+  const pushRecipients = [];
 
   for (const notification of notifications) {
     const idUsuario = Number(notification.id_usuario);
     const outcome = outcomeByUser.get(idUsuario);
+    const delivery = deliveryByUser.get(idUsuario) || {
+      policy: 'LEGACY',
+      role_ids: [],
+      bell_enabled: true,
+      push_enabled: false,
+      scope_allowed: true,
+      scope_via: 'LEGACY'
+    };
+
     if (outcome?.inserted) {
-      bellRecipients.push(idUsuario);
-      decisions.push({ id_usuario: idUsuario, status: 'CREADA', reason: null, policy: 'LEGACY' });
+      if (delivery.bell_enabled) bellRecipients.push(idUsuario);
+      if (delivery.push_enabled) pushRecipients.push(idUsuario);
+      decisions.push({
+        id_usuario: idUsuario,
+        status: 'CREADA',
+        reason: null,
+        policy: delivery.policy,
+        role_ids: delivery.role_ids || [],
+        scope_allowed: delivery.scope_allowed !== false,
+        scope_via: delivery.scope_via || null,
+        bell_enabled: Boolean(delivery.bell_enabled),
+        push_enabled: Boolean(delivery.push_enabled)
+      });
     } else if (outcome?.duplicate) {
-      decisions.push({ id_usuario: idUsuario, status: 'OMITIDA', reason: 'DUPLICADO_EVITADO', policy: 'LEGACY' });
+      decisions.push({
+        id_usuario: idUsuario,
+        status: 'OMITIDA',
+        reason: 'DUPLICADO_EVITADO',
+        policy: delivery.policy,
+        role_ids: delivery.role_ids || [],
+        scope_allowed: delivery.scope_allowed !== false,
+        scope_via: delivery.scope_via || null,
+        bell_enabled: Boolean(delivery.bell_enabled),
+        push_enabled: Boolean(delivery.push_enabled)
+      });
     }
   }
 
@@ -361,7 +441,7 @@ async function emitLegacy_gnral(connection, prepared, event) {
     skipped: decisions.filter((decision) => decision.status !== 'CREADA').length,
     recipients: insertResult.insertedNotifications.map((item) => Number(item.id_usuario)),
     bell_recipients: bellRecipients,
-    push_recipients: [],
+    push_recipients: pushRecipients,
     matrix_managed: false,
     legacy_mode: true,
     decisions,
@@ -378,8 +458,14 @@ async function emitMatrix_gnral(connection, prepared, event) {
     dedupKey
   } = prepared;
   const zoneScope = resolveZoneScope_gnral(input);
+  const followRecipients = recipients.filter((idUsuario) =>
+    isSeguimientoRecipient_gnral(prepared, idUsuario)
+  );
+  const nativeRecipients = recipients.filter((idUsuario) =>
+    !isSeguimientoRecipient_gnral(prepared, idUsuario)
+  );
 
-  if (!zoneScope.declared) {
+  if (!zoneScope.declared && !followRecipients.length) {
     logger.warn(`Notificacion ${codigoEvento} omitida: falta declarar alcance de Zona Operativa para un evento administrado por matriz.`);
     return emptyEmitResult_gnral({
       skipped: recipients.length,
@@ -394,11 +480,14 @@ async function emitMatrix_gnral(connection, prepared, event) {
     });
   }
 
-  const rows = await repository.listRecipientPolicyContext(connection, {
-    codigoEvento,
-    idUsuarios: recipients,
-    zonaOperativaIds: zoneScope.ids
-  });
+  let rows = [];
+  if (zoneScope.declared && nativeRecipients.length) {
+    rows = await repository.listRecipientPolicyContext(connection, {
+      codigoEvento,
+      idUsuarios: nativeRecipients,
+      zonaOperativaIds: zoneScope.ids
+    });
+  }
 
   const rowsByUser = new Map();
   for (const row of rows) {
@@ -411,6 +500,37 @@ async function emitMatrix_gnral(connection, prepared, event) {
   const decisions = [];
 
   for (const idUsuario of recipients) {
+    if (isSeguimientoRecipient_gnral(prepared, idUsuario)) {
+      pending.push({
+        notification: baseNotification_gnral(
+          input,
+          event,
+          idUsuario,
+          codigoEvento,
+          traceId,
+          dedupKey,
+          recipientVisualCodes_gnral(prepared, idUsuario)
+        ),
+        decision: seguimientoDirectDecision_gnral()
+      });
+      continue;
+    }
+
+    if (!zoneScope.declared) {
+      decisions.push({
+        id_usuario: idUsuario,
+        status: 'OMITIDA',
+        reason: 'ZONA_OPERATIVA_NO_DECLARADA',
+        policy: null,
+        role_ids: [],
+        scope_allowed: false,
+        scope_via: null,
+        bell_enabled: false,
+        push_enabled: false
+      });
+      continue;
+    }
+
     const decision = resolveMatrixRecipientDecision_gnral({
       rows: rowsByUser.get(idUsuario) || [],
       event,
@@ -504,7 +624,9 @@ async function emitMatrix_gnral(connection, prepared, event) {
     push_recipients: pushRecipients,
     matrix_managed: true,
     legacy_mode: false,
-    zone_scope: zoneScope.noAplica ? 'NO_APLICA' : zoneScope.ids,
+    zone_scope: zoneScope.noAplica
+      ? 'NO_APLICA'
+      : (zoneScope.ids.length ? zoneScope.ids : 'NO_DECLARADA'),
     skipped_reasons: skippedReasons,
     decisions,
     seguimiento_especial: prepared.seguimientoTrace
@@ -595,29 +717,51 @@ async function emitPreparedWithConnection_gnral(connection, prepared) {
 
   const requireRoleMatrix = input.requireRoleMatrix === true || input.require_role_matrix === true;
   const matrixConfigured = Number(event.matriz_roles_configurada) === 1;
+  let result;
+
   if (requireRoleMatrix && !matrixConfigured) {
-    const result = emptyEmitResult_gnral({
-      skipped: prepared.recipients.length + (actorExcluded ? 1 : 0),
-      matrix_managed: true,
-      legacy_mode: false,
-      reason: 'MATRIZ_ROLES_NO_CONFIGURADA',
-      trace_id: traceId,
-      decisions: [
-        ...(actorExcluded ? [{ id_usuario: actorId, status: 'OMITIDA', reason: 'ACTOR_EXCLUIDO' }] : []),
-        ...prepared.recipients.map((idUsuario) => ({
+    const followRecipients = prepared.recipients.filter((idUsuario) =>
+      isSeguimientoRecipient_gnral(prepared, idUsuario)
+    );
+    const blockedNativeRecipients = prepared.recipients.filter((idUsuario) =>
+      !isSeguimientoRecipient_gnral(prepared, idUsuario)
+    );
+
+    if (!followRecipients.length) {
+      result = emptyEmitResult_gnral({
+        skipped: prepared.recipients.length,
+        matrix_managed: true,
+        legacy_mode: false,
+        reason: 'MATRIZ_ROLES_NO_CONFIGURADA',
+        decisions: prepared.recipients.map((idUsuario) => ({
           id_usuario: idUsuario,
           status: 'OMITIDA',
           reason: 'MATRIZ_ROLES_NO_CONFIGURADA'
         }))
-      ]
-    });
-    logger.warn(`Notificacion ${codigoEvento} omitida: se exige al menos una relacion Evento + Rol activa.`);
-    logTrace_gnral({ traceId, codigoEvento, actorId, candidateRecipients: prepared.candidateRecipients, result });
-    return result;
-  }
-
-  let result;
-  if (matrixConfigured) {
+      });
+      logger.warn(`Notificacion ${codigoEvento} omitida: se exige al menos una relacion Evento + Rol activa.`);
+    } else {
+      const followPrepared = {
+        ...prepared,
+        recipients: followRecipients
+      };
+      result = await emitLegacy_gnral(connection, followPrepared, event);
+      result.matrix_managed = true;
+      result.legacy_mode = false;
+      result.skipped += blockedNativeRecipients.length;
+      result.decisions = [
+        ...(result.decisions || []),
+        ...blockedNativeRecipients.map((idUsuario) => ({
+          id_usuario: idUsuario,
+          status: 'OMITIDA',
+          reason: 'MATRIZ_ROLES_NO_CONFIGURADA'
+        }))
+      ];
+      if (blockedNativeRecipients.length) {
+        result.reason = 'MATRIZ_ROLES_NO_CONFIGURADA_PARA_DESTINATARIOS_NATIVOS';
+      }
+    }
+  } else if (matrixConfigured) {
     result = await emitMatrix_gnral(connection, prepared, event);
   } else {
     result = await emitLegacy_gnral(connection, prepared, event);
@@ -664,5 +808,7 @@ module.exports = {
   emit,
   emitWithConnection_gnral,
   applySeguimientoLayer_gnral,
-  recipientVisualCodes_gnral
+  recipientVisualCodes_gnral,
+  isSeguimientoRecipient_gnral,
+  seguimientoDirectDecision_gnral
 };

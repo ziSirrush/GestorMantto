@@ -14,6 +14,9 @@ const logger = require('../../shared/logger');
 const {
   emitBusinessEventSafe_gnral
 } = require('./notification-business-emitter.service');
+const {
+  siteLabel_gnral
+} = require('./notification-site-label.service');
 
 const EVENT_FALLA_EQUIPO_CRITICO_UNI = 'FALLA_EQUIPO_CRITICO';
 const EVENT_PERSONA_ATRAPADA_UNI = 'PERSONA_ATRAPADA';
@@ -365,6 +368,19 @@ function anyChanged_uni(before, after, fields) {
   return fields.some((field) => comparableText_uni(before?.[field]) !== comparableText_uni(after?.[field]));
 }
 
+function ticketStatus_uni(row) {
+  return comparableText_uni(row?.estado_ticket || row?.estado) || 'Sin estatus';
+}
+
+function equipmentFinalStatus_uni(row) {
+  return comparableText_uni(row?.estatus_equipo_final) || 'Sin estatus final';
+}
+
+function isClosedTicketStatus_uni(value) {
+  const normalized = normalizeText_uni(value).replace(/\s+/g, ' ');
+  return /\bcerrad[oa]\b/.test(normalized);
+}
+
 function nativeTicketTransition_uni(before, after) {
   if (!after) return null;
   if (!before) return {
@@ -420,21 +436,54 @@ function ticketTransitionIdentity_uni(before, after, transition) {
 
 function ticketTransitionPresentation_uni(transition, before, after) {
   const ticket = String(after?.ticket || before?.ticket || after?.id || '').trim();
+  const site = siteLabel_gnral(after || before || {});
   if (transition.kind === 'CREACION') {
-    return { title: `Nuevo Ticket ${ticket}`, message: `Se generó el ticket ${ticket}.` };
+    return { title: `Nuevo Ticket ${ticket}`, message: `Se generó el ticket ${ticket} sobre ${site}.` };
   }
   if (transition.kind === 'ESTATUS') {
-    const previous = before?.estado_ticket || before?.estado || before?.estatus_equipo_final || 'Sin estatus';
-    const current = after?.estado_ticket || after?.estado || after?.estatus_equipo_final || 'Sin estatus';
-    return { title: `Estatus de Ticket ${ticket}`, message: `El ticket ${ticket} cambió de ${previous} a ${current}.` };
+    const previousTicketStatus = ticketStatus_uni(before);
+    const currentTicketStatus = ticketStatus_uni(after);
+    const previousFinalStatus = equipmentFinalStatus_uni(before);
+    const currentFinalStatus = equipmentFinalStatus_uni(after);
+    const closedTransition = !isClosedTicketStatus_uni(previousTicketStatus) &&
+      isClosedTicketStatus_uni(currentTicketStatus);
+
+    // Norma Seguimiento Especial: el cierre se reconoce solo en la transicion
+    // hacia Cerrado. Updates posteriores de un Ticket ya cerrado no vuelven a
+    // anunciar "Ticket cerrado". El cierre siempre expone Estatus Final Equipo.
+    if (closedTransition) {
+      return {
+        title: `Ticket cerrado ${ticket}`,
+        message: `El ticket ${ticket} de ${site} fue cerrado. Estatus Final del Equipo: ${currentFinalStatus}.`
+      };
+    }
+
+    if (previousTicketStatus !== currentTicketStatus) {
+      return {
+        title: `Estatus de Ticket ${ticket}`,
+        message: `El ticket ${ticket} de ${site} cambió de ${previousTicketStatus} a ${currentTicketStatus}.`
+      };
+    }
+
+    if (previousFinalStatus !== currentFinalStatus) {
+      return {
+        title: `Estatus final del equipo · Ticket ${ticket}`,
+        message: `El estatus final del equipo del ticket ${ticket} de ${site} cambió de ${previousFinalStatus} a ${currentFinalStatus}.`
+      };
+    }
+
+    return {
+      title: `Actualización de cierre · Ticket ${ticket}`,
+      message: `Se actualizó la información de cierre del ticket ${ticket} de ${site}. Estatus Final del Equipo: ${currentFinalStatus}.`
+    };
   }
   if (transition.kind === 'PRIORIDAD') {
-    return { title: `Prioridad de Ticket ${ticket}`, message: `El ticket ${ticket} cambió su prioridad de ${before?.prioridad || 'Sin prioridad'} a ${after?.prioridad || 'Sin prioridad'}.` };
+    return { title: `Prioridad de Ticket ${ticket}`, message: `El ticket ${ticket} de ${site} cambió su prioridad de ${before?.prioridad || 'Sin prioridad'} a ${after?.prioridad || 'Sin prioridad'}.` };
   }
   if (transition.kind === 'RESPONSABILIDAD') {
-    return { title: `Responsabilidad de Ticket ${ticket}`, message: `El ticket ${ticket} cambió su responsabilidad de ${before?.responsabilidad || 'Sin definir'} a ${after?.responsabilidad || 'Sin definir'}.` };
+    return { title: `Responsabilidad de Ticket ${ticket}`, message: `El ticket ${ticket} de ${site} cambió su responsabilidad de ${before?.responsabilidad || 'Sin definir'} a ${after?.responsabilidad || 'Sin definir'}.` };
   }
-  return { title: `Asignación de Ticket ${ticket}`, message: `Se actualizó la asignación del ticket ${ticket}.` };
+  return { title: `Asignación de Ticket ${ticket}`, message: `Se actualizó la asignación del ticket ${ticket} de ${site}.` };
 }
 
 function primaryReason_uni(result) {
@@ -659,6 +708,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
   for (const evaluation of evaluations) {
     const row = evaluation.row;
     const equipment = evaluation.equipment;
+    const site = siteLabel_gnral(row);
     let event = null;
 
     // La clasificacion es mutuamente excluyente y conserva la precedencia
@@ -673,7 +723,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       event = {
         eventCode: EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI,
         title: 'Persona atrapada en equipo crítico',
-        message: `Se generó el ticket ${row.ticket} por una persona atrapada en el equipo crítico ${equipment}.`,
+        message: `Se generó el ticket ${row.ticket} por una persona atrapada en ${site}.`,
         icon: '🚨🆘',
         counterField: 'persona_atrapada_equipo_critico',
         extra: { numero_equipo: equipment }
@@ -682,7 +732,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       event = {
         eventCode: EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI,
         title: 'Persona atrapada en un nuevo equipo crítico',
-        message: `Se generó el ticket ${row.ticket} por una persona atrapada y el equipo ${equipment} pasó a condición crítica.`,
+        message: `Se generó el ticket ${row.ticket} por una persona atrapada y ${site} pasó a condición crítica.`,
         icon: '🚨💥',
         counterField: 'persona_atrapada_nuevo_equipo_critico',
         extra: { numero_equipo: equipment }
@@ -691,7 +741,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       event = {
         eventCode: EVENT_PERSONA_ATRAPADA_UNI,
         title: 'Ticket de persona atrapada',
-        message: `Se genero el ticket ${row.ticket} relacionado con una persona atrapada.`,
+        message: `Se generó el ticket ${row.ticket} por una persona atrapada en ${site}.`,
         icon: '🚨',
         counterField: 'persona_atrapada',
         extra: {}
@@ -700,7 +750,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       event = {
         eventCode: EVENT_FALLA_EQUIPO_CRITICO_UNI,
         title: 'Falla en equipo crítico',
-        message: `Se generó el ticket ${row.ticket} sobre el equipo crítico ${equipment}.`,
+        message: `Se generó el ticket ${row.ticket} sobre ${site}.`,
         icon: '🆘',
         counterField: 'falla_equipo_critico',
         extra: { numero_equipo: equipment }
@@ -709,7 +759,7 @@ async function processAfterSync_uni(beforeContext, actorUser) {
       event = {
         eventCode: EVENT_NUEVO_EQUIPO_CRITICO_UNI,
         title: 'Nuevo equipo crítico',
-        message: `El equipo ${equipment} pasó a condición crítica al alcanzar ${evaluation.afterCount} fallas BLT en los últimos ${CRITICOS_DIAS_UNI} días.`,
+        message: `${site} pasó a condición crítica al alcanzar ${evaluation.afterCount} fallas BLT en los últimos ${CRITICOS_DIAS_UNI} días.`,
         icon: '💥',
         counterField: 'nuevo_equipo_critico',
         extra: { numero_equipo: equipment }
@@ -826,5 +876,9 @@ module.exports = {
   captureBeforeSync_uni,
   processAfterSync_uni,
   nativeTicketTransition_uni,
-  ticketTransitionIdentity_uni
+  ticketTransitionIdentity_uni,
+  ticketTransitionPresentation_uni,
+  ticketStatus_uni,
+  equipmentFinalStatus_uni,
+  isClosedTicketStatus_uni
 };
