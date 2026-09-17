@@ -160,8 +160,80 @@ async function loadNew(view,resetMode=true){
 function statusOptions(selected){return '<option value="">Sin estatus</option>'+state.statuses.map(x=>`<option value="${x.id_catalogo}" ${String(x.id_catalogo)===String(selected)?'selected':''}>${esc(x.articulo)}</option>`).join('');}
 function modeName(mode){return String(mode||'SEMI_AUTOMATICO')==='MANUAL'?'Manual':'Semi automático';}
 function fieldSource(label,value,source='',conflict=false){return `<div class="lp-field ${conflict?'conflict':''}"><small>${esc(label)}</small><strong>${esc(value)}</strong>${source?`<span class="lp-field-source">${esc(source)}</span>`:''}${conflict?'<em>Valores distintos en FL</em>':''}</div>`;}
-function existingManualSelection(kind,key,fallback){const cfg=kind==='project'?MANUAL_PROJECT:MANUAL_PICKERS[kind],rows=state.manual.lists[kind]||[],found=rows.find(row=>String(row[cfg.key])===String(key||''));return found||fallback||null;}
-function prepareManualDetailSelections(p,fl){const projectFallback={id_log_ops:p.id_log_ops,proyecto:p.proyecto||'',id_ppns:p.ppns||'',pvo:p.fecha_pvo||'',fechas_visita:p.fechas_visita||p.fecha_visita||'',fechas_cubos:p.fechas_cubos||p.fecha_cubos||'',estatus:p.estatus_logistica||'',ya_registrado:1};state.manual.selected.project=existingManualSelection('project',p.id_log_ops,projectFallback);if(state.manual.selected.project&&state.manual.selected.project.id_log_ops!=null&&!state.manual.lists.project.some(row=>String(row.id_log_ops)===String(state.manual.selected.project.id_log_ops)))state.manual.lists.project.unshift(state.manual.selected.project);state.manual.selected.advisor=existingManualSelection('advisor',p.id_asesor,{id_SB:p.id_asesor,nombre:(fl.asesores||[]).join(', '),iniciales:(fl.asesores||[]).join(', '),rol:'Referencia guardada'});state.manual.selected.supervisor=existingManualSelection('supervisor',p.id_supervisor,{id_SB:p.id_supervisor,nombre:(fl.supervisores||[]).join(', '),iniciales:(fl.supervisores||[]).join(', '),rol:'Referencia guardada'});}
+function existingManualSelection(kind,key,fallback){
+  const cfg=kind==='project'?MANUAL_PROJECT:MANUAL_PICKERS[kind],
+        rows=state.manual.lists[kind]||[],
+        found=rows.find(row=>String(row[cfg.key])===String(key||''));
+  return found||fallback||null;
+}
+
+function manualDetailPersonSelection(kind,storedId,visibleValues){
+  const rows=state.manual.lists[kind]||[];
+  const stored=storedId==null?'':String(storedId);
+
+  if(stored){
+    const byId=rows.find(row=>String(row.id_SB)===stored);
+    if(byId)return byId;
+  }
+
+  const labels=(Array.isArray(visibleValues)?visibleValues:[visibleValues])
+    .map(raw)
+    .filter(Boolean);
+
+  if(labels.length===1){
+    const target=norm(labels[0]);
+
+    const byVisibleValue=rows.find(row=>
+      norm(row.nombre)===target ||
+      norm(row.iniciales)===target
+    );
+
+    if(byVisibleValue)return byVisibleValue;
+  }
+
+  if(!stored && !labels.length)return null;
+
+  const label=labels.join(', ');
+
+  return {
+    id_SB:storedId||null,
+    nombre:label,
+    iniciales:label,
+    rol:stored?'Referencia guardada':'Referencia existente'
+  };
+}
+
+function prepareManualDetailSelections(p,fl){
+  const projectFallback={
+    id_log_ops:p.id_log_ops,
+    proyecto:p.proyecto||'',
+    id_ppns:p.ppns||'',
+    pvo:p.fecha_pvo||'',
+    fechas_visita:p.fechas_visita||p.fecha_visita||'',
+    fechas_cubos:p.fechas_cubos||p.fecha_cubos||'',
+    estatus:p.estatus_logistica||'',
+    ya_registrado:1
+  };
+
+  state.manual.selected.project=
+    existingManualSelection('project',p.id_log_ops,projectFallback);
+
+  if(
+    state.manual.selected.project &&
+    state.manual.selected.project.id_log_ops!=null &&
+    !state.manual.lists.project.some(
+      row=>String(row.id_log_ops)===String(state.manual.selected.project.id_log_ops)
+    )
+  ){
+    state.manual.lists.project.unshift(state.manual.selected.project);
+  }
+
+  state.manual.selected.advisor=
+    manualDetailPersonSelection('advisor',p.id_asesor,fl.asesores);
+
+  state.manual.selected.supervisor=
+    manualDetailPersonSelection('supervisor',p.id_supervisor,fl.supervisores);
+}
 function semiDetailEditForm(p){return `<form id="lp-edit-form" class="lp-form compact" hidden><div class="lp-detail-mode-note wide"><strong>Registro histórico Semi automático</strong><span>La captura nueva está limitada a modo Manual. Este registro conserva su modo de origen.</span></div><label>Estatus Producción<select id="lp-edit-status">${statusOptions(p.id_estatus_produccion)}</select></label><label>Fecha envío Docs a Fábrica<input id="lp-doc-date" type="date" value="${escRaw(fmt(p.fecha_envio_docs_fabrica)==='—'?'':fmt(p.fecha_envio_docs_fabrica))}"></label><label>Fecha envío Pago a Fábrica<input id="lp-pay-date" type="date" value="${escRaw(fmt(p.fecha_envio_pago_fabrica)==='—'?'':fmt(p.fecha_envio_pago_fabrica))}"></label><label class="wide">Comentario<textarea id="lp-edit-comment" maxlength="5000" rows="4">${escRaw(p.comentario||'')}</textarea></label><div id="lp-edit-feedback" class="wide" aria-live="polite"></div><div class="lp-form-actions wide"><button id="lp-edit-cancel" class="lp-btn ghost" type="button">Cancelar cambios</button><button class="lp-btn primary" type="submit">Guardar cambios</button></div></form>`;}
 function manualDetailEditForm(p){return `<form id="lp-edit-form" class="lp-form compact" hidden><div class="lp-detail-mode-note wide"><strong>Modo Manual</strong><span>Proyecto se relaciona por id_log_ops. PVO, Visita, Cubos y Estatus Logística se consultan desde sus fuentes y no son editables aquí.</span></div><label class="wide">Proyecto *<select id="lp-manual-project-select">${manualProjectSelectOptions()}</select></label><label>Asesor *<div class="lp-combobox"><input id="lp-manual-advisor-search" type="search" autocomplete="off" placeholder="Buscar asesor, gerente o director" role="combobox" aria-autocomplete="list" aria-controls="lp-manual-advisor-list" aria-expanded="false"><div id="lp-manual-advisor-list" class="lp-options lp-picker-options" role="listbox" hidden></div></div><small id="lp-manual-advisor-meta" class="lp-picker-meta"></small></label><label>Supervisor *<div class="lp-combobox"><input id="lp-manual-supervisor-search" type="search" autocomplete="off" placeholder="Buscar supervisor o superintendente" role="combobox" aria-autocomplete="list" aria-controls="lp-manual-supervisor-list" aria-expanded="false"><div id="lp-manual-supervisor-list" class="lp-options lp-picker-options" role="listbox" hidden></div></div><small id="lp-manual-supervisor-meta" class="lp-picker-meta"></small></label><div class="lp-manual-source-grid wide"><label>Fecha PVO<input id="lp-manual-pvo" type="text" readonly><small id="lp-manual-pvo-note" class="lp-source-note"></small></label><label>Fecha de Visita<input id="lp-manual-visita" type="text" readonly><small id="lp-manual-visita-note" class="lp-source-note"></small></label><label>Fecha entrega cubos<input id="lp-manual-cubos" type="text" readonly><small id="lp-manual-cubos-note" class="lp-source-note"></small></label><label>Estatus Logística<input id="lp-manual-log-status" type="text" readonly><small id="lp-manual-log-status-note" class="lp-source-note"></small></label></div><label>Estatus Producción<select id="lp-manual-prod-status"></select></label><label>Fecha envío Docs a Fábrica<input id="lp-doc-date" type="date" value="${escRaw(fmt(p.fecha_envio_docs_fabrica)==='—'?'':fmt(p.fecha_envio_docs_fabrica))}"></label><label>Fecha envío Pago a Fábrica<input id="lp-pay-date" type="date" value="${escRaw(fmt(p.fecha_envio_pago_fabrica)==='—'?'':fmt(p.fecha_envio_pago_fabrica))}"></label><label class="wide">Comentario<textarea id="lp-edit-comment" maxlength="5000" rows="4">${escRaw(p.comentario||'')}</textarea></label><div id="lp-edit-feedback" class="wide" aria-live="polite"></div><div class="lp-form-actions wide"><button id="lp-edit-cancel" class="lp-btn ghost" type="button">Cancelar cambios</button><button class="lp-btn primary" type="submit">Guardar cambios</button></div></form>`;}
 function hydrateManualDetailForm(p){const project=state.manual.selected.project,advisor=state.manual.selected.advisor,supervisor=state.manual.selected.supervisor;renderManualProjectSelect();bindManualProjectSelect();if($('lp-manual-advisor-search'))$('lp-manual-advisor-search').value=advisor?manualPickerLabel('advisor',advisor):'';if($('lp-manual-supervisor-search'))$('lp-manual-supervisor-search').value=supervisor?manualPickerLabel('supervisor',supervisor):'';renderManualSelectionMeta('project');renderManualSelectionMeta('advisor');renderManualSelectionMeta('supervisor');renderManualCatalogs();syncManualProjectFields(project||{pvo:p.fecha_pvo,fechas_visita:p.fechas_visita||p.fecha_visita,fechas_cubos:p.fechas_cubos||p.fecha_cubos,estatus:p.estatus_logistica});const prod=$('lp-manual-prod-status');if(prod)prod.value=p.id_estatus_produccion==null?'':String(p.id_estatus_produccion);['advisor','supervisor'].forEach(bindManualPicker);}
