@@ -146,19 +146,17 @@ async function projectOptions(q=''){
     filter+=' AND l.proyecto LIKE ?';
     params.push(`%${term}%`);
   }
-  const [rows]=await db.query(`
-    SELECT l.id_log_ops,l.proyecto,l.id_ppns,l.pvo,l.estatus,
-           fl.fechas_visita,fl.fechas_cubos,
-           EXISTS(
-             SELECT 1 FROM logistica_produccion p
-              WHERE p.id_log_ops=l.id_log_ops AND p.activo=1
-           ) AS ya_registrado
-      FROM log_ops l
-      LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(l.id_ppns)
-      ${filter}
-     ORDER BY l.proyecto,l.id_log_ops
-     LIMIT 200`,params);
-  return rows;
+ const [rows]=await db.query(`
+  SELECT l.id_log_ops,l.proyecto,l.id_ppns,l.pvo,l.estatus,
+         fl.fechas_visita,fl.fechas_cubos,
+         EXISTS(
+           SELECT 1 FROM logistica_produccion p
+            WHERE p.id_log_ops=l.id_log_ops AND p.activo=1
+         ) AS ya_registrado
+    FROM log_ops l
+    LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(l.id_ppns)
+    ${filter}
+   ORDER BY l.proyecto,l.id_log_ops`,params);
 }
 
 async function logSnapshotById(id,connection=db,forUpdate=false){
