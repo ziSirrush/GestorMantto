@@ -2,7 +2,7 @@
   // [Aster | 2026-09-03 | ASTER-MG | FASE 1 PVO-PRODUCCION NAVEGACION V001]
   const routeNames = {
     home:'Inicio', resumen:'Resumen del día', tickets:'Tickets', callcenter:'Dashboard Call Center',
-    operativo:'Dashboard Operativo', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio',
+    operativo:'Dashboard Operativo', informes:'Informes', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio',
     proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
@@ -340,6 +340,19 @@
     setActiveSide('operativo');
     updateContext('operativo','Dashboard Operativo · cumplimiento mensual, preventivos y Vo.Bo. desde Aiven');
     if(window.ManttoDashboardOperativo) window.ManttoDashboardOperativo.init();
+    return true;
+  }
+
+  function showInformes(){
+    const view=document.getElementById('view-informes');
+    if(!view) return false;
+    activateViewById('view-informes');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="inf-page"><section class="inf-card inf-head"><div><h1>Informes</h1><p>Inicializando módulo de informes...</p></div></section></div>';
+    }
+    setActiveSide('informes');
+    updateContext('informes','Informes ejecutivos de mantenimiento · alcance y actividad desde Aiven');
+    if(window.ManttoOperacionInformes) window.ManttoOperacionInformes.init();
     return true;
   }
 
@@ -885,6 +898,7 @@
     if(route==='proyectos' && showProyectos()) return;
     if(route==='callcenter' && showCallCenter()) return;
     if(route==='operativo' && showOperativo()) return;
+    if(route==='informes' && showInformes()) return;
     if(route==='movimientos' && showMovimientos()) return;
     if(route==='instalaciones-dashboard' && showInstalacionesDashboard_cor()) return;
     if(route==='instalaciones-proyectos' && showInstalacionesProyectos()) return;

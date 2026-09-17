@@ -914,6 +914,7 @@ module.exports = {
   ticketStatus_uni,
   equipmentFinalStatus_uni,
   isClosedTicketStatus_uni,
+  resolveTicketZoneId_uni,
   isFollowOnlyTicketEvent_uni,
   emitTicketEvent_uni,
   FOLLOW_ONLY_TICKET_EVENTS_UNI

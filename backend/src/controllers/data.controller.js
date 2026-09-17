@@ -8,6 +8,7 @@
  */
 const legacy = require('./data.controller.legacy');
 const criticalTicketNotifications = require('../services/notifications/ticket-critical-notifications_uni.service');
+const ticketSupervisorZoneNotifications = require('../services/notifications/ticket-supervisor-zone-notifications_uni.service');
 const portafolioNativeNotifications = require('../services/notifications/portafolio-native-notifications_uni.service');
 
 const requiredHandlers = [
@@ -49,22 +50,24 @@ for (const name of requiredHandlers) {
 }
 
 /**
- * Wrapper incremental para los eventos criticos y sus combinaciones de Tickets.
+ * Wrapper incremental para los eventos de Notificaciones derivados del sync de Tickets.
  *
  * El sync legacy sigue siendo la unica funcion que modifica tickets. Este
  * wrapper solo observa el estado antes/despues y, si el sync termino bien,
  * genera las notificaciones correspondientes. Un fallo del motor de
  * notificaciones nunca revierte ni bloquea la sincronizacion operativa.
  */
-async function syncTicketsWithCriticalNotifications_uni(req, res) {
+async function syncTicketsWithNotifications_uni(req, res) {
   let beforeContext = null;
   let notificationError = null;
+  let supervisorZoneNotificationError = null;
 
   try {
     beforeContext = await criticalTicketNotifications.captureBeforeSync_uni(req.body || {});
   } catch (error) {
-    notificationError = `No fue posible preparar las notificaciones criticas: ${error.message}`;
-    console.error('[tickets/sync][notificaciones-criticas] Preparacion omitida:', error.message);
+    notificationError = `No fue posible preparar el contexto previo de Notificaciones: ${error.message}`;
+    supervisorZoneNotificationError = notificationError;
+    console.error('[tickets/sync][notificaciones] Preparacion omitida:', error.message);
   }
 
   const originalJson = res.json.bind(res);
@@ -85,7 +88,8 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
     return originalJson({
       ok: false,
       message: 'El sincronizador de Tickets no devolvio una respuesta valida.',
-      notificaciones_criticas_error: notificationError
+      notificaciones_criticas_error: notificationError,
+      notificaciones_supervisores_zona_error: supervisorZoneNotificationError
     });
   }
 
@@ -109,6 +113,12 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
     ticket_responsabilidad_cambiada: 0,
     eventos: []
   };
+  let supervisorZoneNotificationSummary = {
+    affected_tickets: 0,
+    ticket_insertado: 0,
+    ticket_cerrado: 0,
+    eventos: []
+  };
 
   if (beforeContext) {
     try {
@@ -123,16 +133,31 @@ async function syncTicketsWithCriticalNotifications_uni(req, res) {
         error.message
       );
     }
+
+    try {
+      supervisorZoneNotificationSummary = await ticketSupervisorZoneNotifications.processAfterSync_uni(
+        beforeContext,
+        req.contextUser || req.user || null
+      );
+    } catch (error) {
+      supervisorZoneNotificationError = error.message;
+      console.error(
+        '[tickets/sync][notificaciones-supervisores-zona] Los tickets se conservaron; fallo solo la generacion de notificaciones:',
+        error.message
+      );
+    }
   }
 
   return originalJson({
     ...capturedPayload,
     notificaciones_criticas: notificationSummary,
-    notificaciones_criticas_error: notificationError
+    notificaciones_criticas_error: notificationError,
+    notificaciones_supervisores_zona: supervisorZoneNotificationSummary,
+    notificaciones_supervisores_zona_error: supervisorZoneNotificationError
   });
 }
 
-exportedHandlers.syncTickets = syncTicketsWithCriticalNotifications_uni;
+exportedHandlers.syncTickets = syncTicketsWithNotifications_uni;
 
 async function syncPortafolioWithNotifications_uni(req, res) {
   let beforeContext = null;

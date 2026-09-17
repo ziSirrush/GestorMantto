@@ -16,7 +16,7 @@
   // si DataSync no la marco dirty. Formularios/detalles transaccionales quedan fuera.
   const INIT_ARM_TTL_MS = 5000;
   const PERSISTENT_DATA_ROUTES = new Set([
-    'home','resumen','criticos','portafolio','proyectos','seguimiento-especial','callcenter','operativo','movimientos',
+    'home','resumen','criticos','portafolio','proyectos','seguimiento-especial','callcenter','operativo','informes','movimientos',
     'logistica-dashboard','logistica-reporte','logistica-produccion','logistica-pvo','logistica-documentos',
     'instalaciones-dashboard','instalaciones-proyectos','instalaciones-cerrados',
     'instalaciones-concentrado-cliente','instalaciones-reporte','instalaciones-ajuste',
@@ -195,6 +195,7 @@
     proyectos:{css:['./modules/proyectos/proyectos.css?v=20260706-v001'],js:['./modules/proyectos/proyectos.js?v=20260914-horarios-f2-v001']},
     callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260914-horarios-f2-v001']},
     operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260914-horarios-f2-v001']},
+    informes:{css:['./modules/operacion-informes/operacion-informes.css?v=20260917-fix-informes-integracion-v001'],js:['./modules/operacion-informes/operacion-informes.js?v=20260917-fix-informes-integracion-v001']},
     movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260830-corte-semanal-v004'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260830-corte-semanal-v004']},
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260830-responsive-v002'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260914-horarios-f2-v001']},

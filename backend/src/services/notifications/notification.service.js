@@ -677,14 +677,16 @@ function prepareEmit_gnral(eventInput) {
 
   const actorId = Number(input.actorUserId || input.actor_usuario_id || 0) || null;
   const candidateRecipients = normalizeRecipients(input.destinatarios || input.recipientUserIds);
-  const nativeExcludedRecipientIds = new Set(actorId ? [actorId] : []);
+  const excludeActor = input.excludeActor !== false && input.excluir_actor !== false;
+  const nativeExcludedRecipientIds = new Set(excludeActor && actorId ? [actorId] : []);
   const recipients = candidateRecipients.filter((id) => !nativeExcludedRecipientIds.has(id));
-  const actorExcluded = Boolean(actorId && candidateRecipients.includes(actorId));
+  const actorExcluded = Boolean(excludeActor && actorId && candidateRecipients.includes(actorId));
 
   return {
     input,
     codigoEvento,
     actorId,
+    excludeActor,
     candidateRecipients,
     recipients,
     normalRecipients: recipients.slice(),

@@ -9,6 +9,7 @@ router.use(require('./data/proyectos.routes'));
 router.use(require('./data/dashboard-operativo.routes'));
 router.use(require('./data/dashboard-callcenter.routes'));
 router.use(require('./data/criticos.routes'));
+router.use(require('./data/informes.routes'));
 router.use(require('./data/home.routes'));
 router.use(require('./data/pendientes.routes'));
 router.use(require('./data/notificaciones.routes'));
