@@ -345,6 +345,8 @@ async function getProyectos(req, res) {
         SUM(CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 1 ELSE 0 END) AS parados,
         SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
         SUM(COALESCE(blt.blt_365d, 0)) AS fallas_blt_365d,
+        SUM(COALESCE(resp_anio.llamadas_total_anio, 0)) AS llamadas_total_anio,
+        MAX(resp_anio.ultima_llamada) AS ultima_llamada,
         SUM(COALESCE(resp_anio.llamadas_blt_anio, 0)) AS llamadas_blt_anio,
         MAX(resp_anio.ultima_llamada_blt) AS ultima_llamada_blt,
         SUM(COALESCE(resp_anio.llamadas_cliente_anio, 0)) AS llamadas_cliente_anio,
@@ -381,6 +383,8 @@ async function getProyectos(req, res) {
       LEFT JOIN (
         SELECT
           codigo_equipo,
+          COUNT(*) AS llamadas_total_anio,
+          MAX(fecha_reporte) AS ultima_llamada,
           SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
           MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT' THEN fecha_reporte END) AS ultima_llamada_blt,
           SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
