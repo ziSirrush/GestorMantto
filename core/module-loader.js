@@ -192,7 +192,7 @@
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
     detalle:{css:[],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS]},
     'seguimiento-especial':{css:['./modules/seguimiento-especial/seguimiento-especial.css?v=20260908-seguimiento-especial-v002'],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS,'./modules/seguimiento-especial/seguimiento-especial.js?v=20260914-human-time-v001']},
-    proyectos:{css:['./modules/proyectos/proyectos.css?v=20260706-v001'],js:['./modules/proyectos/proyectos.js?v=20260921-proyectos-metricas-anuales-v006']},
+    proyectos:{css:['./modules/proyectos/proyectos.css?v=20260921-proyectos-layout-metricas-v007'],js:['./modules/proyectos/proyectos.js?v=20260921-proyectos-metricas-anuales-v006']},
     callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260914-horarios-f2-v001']},
     operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260914-horarios-f2-v001']},
     informes:{css:['./modules/operacion-informes/operacion-informes.css?v=20260917-fix-informes-integracion-v001'],js:['./modules/operacion-informes/operacion-informes.js?v=20260917-fix-informes-integracion-v001']},
