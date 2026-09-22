@@ -343,14 +343,14 @@ async function getProyectos(req, res) {
         MAX(p.supervisor_zona) AS supervisor,
         COUNT(*) AS equipos,
         SUM(CASE WHEN UPPER(COALESCE(lt.estatus_equipo_final,'')) LIKE '%NO FUNC%' THEN 1 ELSE 0 END) AS parados,
-        SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
-        SUM(COALESCE(blt.blt_365d, 0)) AS fallas_blt_365d,
         SUM(COALESCE(resp_anio.llamadas_total_anio, 0)) AS llamadas_total_anio,
         MAX(resp_anio.ultima_llamada) AS ultima_llamada,
         SUM(COALESCE(resp_anio.llamadas_blt_anio, 0)) AS llamadas_blt_anio,
         MAX(resp_anio.ultima_llamada_blt) AS ultima_llamada_blt,
         SUM(COALESCE(resp_anio.llamadas_cliente_anio, 0)) AS llamadas_cliente_anio,
         MAX(resp_anio.ultima_llamada_cliente) AS ultima_llamada_cliente,
+        SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
+        SUM(COALESCE(blt.blt_365d, 0)) AS fallas_blt_365d,
         CASE
           WHEN COUNT(*) > 0 THEN ROUND(AVG(
             CASE
@@ -391,7 +391,7 @@ async function getProyectos(req, res) {
           MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) = 'CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
         FROM tickets
         WHERE fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
-          AND fecha_reporte < MAKEDATE(YEAR(${sqlMexicoCityToday()}) + 1, 1)
+          AND fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
           AND codigo_equipo IS NOT NULL
           AND TRIM(codigo_equipo) <> ''
         GROUP BY codigo_equipo
