@@ -46,6 +46,7 @@ const experimentalEntregasRecientesRoutes = require('../modules/experimental-ent
 const experimentalEquiposCriticosRoutes = require('../modules/experimental-equipos-criticos/experimental-equipos-criticos.routes');
 const experimentalDashboardCallCenterRoutes = require('../modules/experimental-dashboard-call-center/experimental-dashboard-call-center.routes');
 const experimentalProyectosCriticosRoutes = require('../modules/experimental-proyectos-criticos/experimental-proyectos-criticos.routes');
+const logisticaDashboardRoutes = require('../modules/logistica-dashboard/logistica-dashboard.routes');
 const logisticaProduccionRoutes = require('../modules/logistica-produccion/logistica-produccion.routes');
 const logisticaCortesRoutes = require('../modules/logistica-cortes/logistica-cortes.routes');
 
@@ -57,6 +58,7 @@ router.use('/support', supportRoutes);
 router.use('/usuarios', usuariosRoutes);
 router.use('/catalogos', catalogosRoutes);
 router.use('/dev', devRoutes);
+router.use('/logistica/dashboard', logisticaDashboardRoutes);
 router.use('/logistica/produccion', logisticaProduccionRoutes);
 router.use('/logistica/cortes/semanales', logisticaCortesRoutes);
 router.use('/logistica', logisticaRoutes);

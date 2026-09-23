@@ -1,0 +1,21 @@
+FASE 1 - Dashboard Logistica Analitica V001
+Base: ziSirrush/GestorMantto main @ e82d048f360455351b3e50bf9339d97d31498b6b
+Fecha: 2026-09-23
+
+ARCHIVOS DE REPOSITORIO MODIFICADOS
+backend/src/controllers/logistica.controller.js
+backend/src/routes/index.js
+
+ARCHIVOS DE REPOSITORIO NUEVOS
+backend/src/modules/logistica-dashboard/logistica-dashboard.controller.js
+backend/src/modules/logistica-dashboard/logistica-dashboard.repository.js
+backend/src/modules/logistica-dashboard/logistica-dashboard.routes.js
+backend/src/modules/logistica-dashboard/logistica-dashboard.service.js
+sql/20260923_FASE_1_DASHBOARD_LOGISTICA_ANALITICA_V001.sql
+sql/20260923_FASE_1_DASHBOARD_LOGISTICA_ANALITICA_V001_ROLLBACK.sql
+tests/logistica_dashboard_fase1.test.js
+README_FASE_1_DASHBOARD_LOGISTICA_ANALITICA_V001.md
+
+METADATOS DEL ENTREGABLE
+MANIFEST_FASE_1_DASHBOARD_LOGISTICA_ANALITICA_V001.txt
+SHA256SUMS.txt

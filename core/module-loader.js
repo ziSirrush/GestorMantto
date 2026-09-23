@@ -198,7 +198,7 @@
     informes:{css:['./modules/operacion-informes/operacion-informes.css?v=20260917-fix-informes-integracion-v001'],js:['./modules/operacion-informes/operacion-informes.js?v=20260917-fix-informes-integracion-v001']},
     movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260830-corte-semanal-v004'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260830-corte-semanal-v004']},
 
-    'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260830-responsive-v002'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260914-horarios-f2-v001']},
+    'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-f3-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260923-dashboard-f3-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
     'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260914-human-time-v001']},
     'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260901-logprod-fix-ux-catalog-cancel-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260914-human-time-v001']},

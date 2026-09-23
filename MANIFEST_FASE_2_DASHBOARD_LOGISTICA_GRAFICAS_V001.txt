@@ -1,0 +1,24 @@
+FASE_2_DASHBOARD_LOGISTICA_GRAFICAS_V001
+Proyecto: Mantto Gestor
+Fecha: 2026-09-23
+Base GitHub: ziSirrush/GestorMantto main @ e82d048f360455351b3e50bf9339d97d31498b6b
+Prerrequisito: FASE_1_DASHBOARD_LOGISTICA_ANALITICA_V001
+
+ARCHIVOS MODIFICADOS
+- modules/dashboard-logistica/dashboard-logistica.js
+- modules/dashboard-logistica/dashboard-logistica.css
+- core/module-loader.js
+
+ARCHIVO NUEVO DE VALIDACION
+- tests/logistica_dashboard_fase2.test.js
+
+DOCUMENTACION DE ENTREGA
+- README_FASE_2_DASHBOARD_LOGISTICA_GRAFICAS_V001.md
+
+NO INCLUIDO / NO MODIFICADO
+- backend
+- sql
+- Aiven
+- Azure
+- Netlify
+- GitHub
