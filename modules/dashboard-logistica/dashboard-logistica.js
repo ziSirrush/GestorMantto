@@ -7,6 +7,8 @@
   // Todo consume el contrato agregado de GET /api/logistica/dashboard creado en FASE 1.
   // [Aster | 2026-09-23 | ASTER-MG | FIX CORTES HISTORICOS LOGISTICA V001]
   // Permite seleccionar y cargar cortes semanales ya guardados en logistica_cortes_semanales.
+  // [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
+  // Los promedios cargan por defecto el anio actual y permiten buscar todos los anios o un anio registrado.
 
   const state={
     rows:[],
@@ -18,6 +20,8 @@
     cutError:null,
     cutCatalogError:null,
     analytics:null,
+    averageFilterLoading:false,
+    averageFilterError:null,
     loaded:false
   };
 
@@ -76,6 +80,23 @@
         <div class="dl-chart-scroll"><div id="dl-chart-entregados" class="dl-column-chart dl-column-chart-years"></div></div>
       </article>
     </div>
+  </section>
+
+  <section class="dl-card dl-average-filter-card">
+    <div class="dl-average-filter-copy">
+      <p class="dl-eyebrow">Promedios logísticos</p>
+      <h2>Periodo de análisis</h2>
+      <p>El año se determina por la fecha de salida real. Por defecto se muestra el año actual.</p>
+    </div>
+    <form id="dl-average-filter-form" class="dl-average-filter-form">
+      <label for="dl-average-year-search">Buscar periodo</label>
+      <div class="dl-average-filter-controls">
+        <input id="dl-average-year-search" class="dl-average-year-search" type="search" list="dl-average-year-options" placeholder="Ej. 2026 o Todos los años" autocomplete="off">
+        <datalist id="dl-average-year-options"></datalist>
+        <button id="dl-average-year-apply" class="dl-btn" type="submit">Buscar</button>
+      </div>
+      <small id="dl-average-year-status">Año actual</small>
+    </form>
   </section>
 
   <section class="dl-grid dl-analytics-top">
@@ -208,8 +229,12 @@
     return Array.isArray(j.data)?j.data:[];
   }
 
-  async function fetchAnalytics(){
-    const j=await fetchJson(api()+'/api/logistica/dashboard','Error consultando analítica de Logística');
+  async function fetchAnalytics(averagePeriod){
+    let url=api()+'/api/logistica/dashboard';
+    if(averagePeriod!==undefined&&averagePeriod!==null&&String(averagePeriod).trim()!==''){
+      url+='?anio_promedios='+encodeURIComponent(String(averagePeriod));
+    }
+    const j=await fetchJson(url,'Error consultando analítica de Logística');
     if(!j.data||typeof j.data!=='object')throw new Error('Analítica de Logística sin payload válido.');
     return j.data;
   }
@@ -329,6 +354,112 @@
     return n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1})+' días';
   }
 
+  function averagePeriodMeta(){
+    const analytics=state.analytics||{};
+    const meta=analytics.promedios||{};
+    const currentYear=Number(analytics.anio_actual)||0;
+    const available=(Array.isArray(meta.anios_disponibles)?meta.anios_disponibles:[])
+      .map(Number)
+      .filter(year=>Number.isInteger(year)&&year>=1900&&year<=2200);
+    const years=[...new Set([currentYear,...available].filter(Boolean))].sort((a,b)=>b-a);
+    const period=meta.periodo==='all'?'all':Number(meta.periodo)||currentYear||'';
+    return {meta,currentYear,years,period};
+  }
+
+  function averagePeriodLabel(){
+    const info=averagePeriodMeta();
+    if(info.period==='all')return 'Todos los años';
+    if(info.period&&info.period===info.currentYear)return 'Año actual '+info.period;
+    return info.period?String(info.period):'Año actual';
+  }
+
+  function renderAverageFilter(){
+    const input=$('dl-average-year-search');
+    const options=$('dl-average-year-options');
+    const button=$('dl-average-year-apply');
+    if(!input||!options)return;
+
+    const info=averagePeriodMeta();
+    options.innerHTML='<option value="Todos los años"></option>'+info.years.map(year=>'<option value="'+year+'"></option>').join('');
+    input.value=info.period==='all'?'Todos los años':String(info.period||info.currentYear||'');
+    input.disabled=state.averageFilterLoading;
+    if(button)button.disabled=state.averageFilterLoading;
+
+    if(state.averageFilterLoading){
+      text('dl-average-year-status','Cargando periodo...');
+    }else if(state.averageFilterError){
+      text('dl-average-year-status',state.averageFilterError.message||'No fue posible cambiar el periodo.');
+    }else{
+      const registered=info.meta&&Array.isArray(info.meta.anios_disponibles)?info.meta.anios_disponibles.length:0;
+      text('dl-average-year-status',averagePeriodLabel()+' · '+registered+' años registrados');
+    }
+  }
+
+  function parseAveragePeriodSearch(value){
+    const raw=String(value==null?'':value).trim();
+    const normalized=norm(raw);
+    if(['TODOS','TODOS LOS ANOS','ALL'].includes(normalized))return 'all';
+
+    const year=Number(raw);
+    if(!Number.isInteger(year)||year<1900||year>2200){
+      throw new Error('Escribe “Todos los años” o selecciona un año registrado.');
+    }
+
+    const info=averagePeriodMeta();
+    if(!info.years.includes(year)){
+      throw new Error('El año '+year+' no aparece entre los años registrados.');
+    }
+    return year;
+  }
+
+  async function applyAveragePeriod(){
+    if(state.averageFilterLoading)return;
+    const input=$('dl-average-year-search');
+    if(!input)return;
+
+    let period;
+    try{
+      period=parseAveragePeriodSearch(input.value);
+    }catch(error){
+      state.averageFilterError=error;
+      renderAverageFilter();
+      return;
+    }
+
+    const current=averagePeriodMeta().period;
+    if(String(period)===String(current)){
+      state.averageFilterError=null;
+      renderAverageFilter();
+      return;
+    }
+
+    state.averageFilterLoading=true;
+    state.averageFilterError=null;
+    renderAverageFilter();
+
+    try{
+      state.analytics=await fetchAnalytics(period);
+      state.averageFilterError=null;
+      renderAnalytics();
+      renderAverageFilter();
+    }catch(error){
+      state.averageFilterError=error;
+      renderAverageFilter();
+    }finally{
+      state.averageFilterLoading=false;
+      renderAverageFilter();
+    }
+  }
+
+  function bindAverageFilter(){
+    const form=$('dl-average-filter-form');
+    if(!form)return;
+    form.onsubmit=event=>{
+      event.preventDefault();
+      applyAveragePeriod();
+    };
+  }
+
   function renderDepartureTable(items){
     const host=$('dl-departure-body');
     if(!host)return;
@@ -338,7 +469,7 @@
       <td>${num(row.operaciones)}</td>
       <td><span class="dl-average-value">${esc(formatAverageDays(row.promedio_dias_salida))}</span></td>
     </tr>`).join(''):'<tr><td colspan="3" class="dl-empty">Sin pares válidos de fecha EXW y salida real</td></tr>';
-    text('dl-departure-count',rows.length+' puertos');
+    text('dl-departure-count',rows.length+' puertos · '+averagePeriodLabel());
   }
 
   function renderTransitTable(items){
@@ -351,7 +482,7 @@
       <td>${num(row.operaciones)}</td>
       <td><span class="dl-average-value">${esc(formatAverageDays(row.promedio_dias_llegada))}</span></td>
     </tr>`).join(''):'<tr><td colspan="4" class="dl-empty">Sin pares válidos de salida real y llegada real</td></tr>';
-    text('dl-transit-count',rows.length+' combinaciones');
+    text('dl-transit-count',rows.length+' combinaciones · '+averagePeriodLabel());
   }
 
   function renderContainerMonths(items,year){
@@ -410,6 +541,7 @@
   function renderAnalytics(){
     const analytics=state.analytics||{};
     const tables=analytics.tablas||{};
+    renderAverageFilter();
     renderDepartureTable(tables.salida_por_puerto);
     renderContainersRing(analytics.contenedores||{});
     renderTransitTable(tables.llegada_por_modo_puerto);
@@ -538,6 +670,7 @@
 
     renderCharts();
     renderAnalytics();
+    bindAverageFilter();
 
     $('dl-sin-body').innerHTML=sin.length?sin.map(r=>`<tr data-id="${r.id_log_ops}"><td><button class="dl-link">${esc(r.proyecto)}</button></td><td><span class="dl-chip">${esc(r.estatus)}</span></td><td>${esc(r.marca)}</td></tr>`).join(''):'<tr><td colspan="3" class="dl-empty">Sin proyectos pendientes de PP NS</td></tr>';
     text('dl-sin-count',sin.length+' registros');
@@ -575,6 +708,7 @@
       state.cuts=results[2].data;
       state.cutCatalogError=results[2].error;
       state.analytics=results[3];
+      state.averageFilterError=null;
 
       if(!state.cut){
         const first=closedCuts()[0];
@@ -596,6 +730,7 @@
       setStatus('ok','Aiven conectado · '+state.rows.length+' registros');
     }catch(e){
       state.analytics=null;
+      state.averageFilterError=e;
       setStatus('error',e.message);
       renderChartsError(e.message);
       renderAnalyticsError(e.message);
@@ -608,7 +743,7 @@
 
     // El router coloca una tarjeta temporal de "Cargando módulo".
     // Si todavía no existe la estructura real del dashboard, la sustituimos.
-    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-first')||!view.querySelector('#dl-containers-months-second')||!view.querySelector('#dl-transit-body')||!view.querySelector('#dl-cut-select')){
+    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-average-year-search')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-first')||!view.querySelector('#dl-containers-months-second')||!view.querySelector('#dl-transit-body')||!view.querySelector('#dl-cut-select')){
       view.innerHTML=HTML;
     }
 
@@ -617,6 +752,7 @@
     const modalClose=$('dl-modal-close');
 
     if(refresh)refresh.onclick=load;
+    bindAverageFilter();
     if(modalClose&&modal)modalClose.onclick=()=>{modal.hidden=true;};
     if(modal){
       modal.onclick=e=>{if(e.target===modal)modal.hidden=true;};

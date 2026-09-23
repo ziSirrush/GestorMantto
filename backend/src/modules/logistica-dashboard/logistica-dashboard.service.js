@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-09-23 | ASTER-MG | FASE 1 DASHBOARD LOGISTICA ANALITICA V001]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
 
 const repository = require('./logistica-dashboard.repository');
 const { mexicoCityYear } = require('../../utils/temporal');
@@ -61,6 +62,50 @@ function normalizeDeliveredYears_cor(rows) {
     .map(row => ({ anio: Number(row.anio), total: toNumber(row.total) }))
     .filter(row => Number.isInteger(row.anio) && row.anio >= 1900 && row.anio <= 2200)
     .sort((a, b) => a.anio - b.anio);
+}
+
+function normalizeAverageYears_cor(rows) {
+  return [...new Set((rows || [])
+    .map(row => Number(row.anio))
+    .filter(year => Number.isInteger(year) && year >= 1900 && year <= 2200))]
+    .sort((a, b) => b - a);
+}
+
+function resolveAverageFilter_cor(requestedPeriod, currentYear) {
+  const raw = String(requestedPeriod == null ? '' : requestedPeriod).trim();
+  const normalized = normalizeText(raw);
+
+  if (!raw) {
+    return {
+      value: currentYear,
+      year: currentYear,
+      all: false,
+      label: `Año actual ${currentYear}`
+    };
+  }
+
+  if (['ALL', 'TODOS', 'TODOS LOS ANOS'].includes(normalized)) {
+    return {
+      value: 'all',
+      year: null,
+      all: true,
+      label: 'Todos los años'
+    };
+  }
+
+  const year = Number(raw);
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    const error = new Error('anio_promedios debe ser "all" o un año válido entre 1900 y 2200.');
+    error.status = 400;
+    throw error;
+  }
+
+  return {
+    value: year,
+    year,
+    all: false,
+    label: year === currentYear ? `Año actual ${year}` : String(year)
+  };
 }
 
 function normalizeDepartureTable_cor(rows) {
@@ -129,7 +174,7 @@ function normalizeContainerMonths_cor(rows) {
   });
 }
 
-async function analytics_cor() {
+async function analytics_cor(requestedPeriod) {
   const currentYear = mexicoCityYear();
   if (!Number.isInteger(currentYear)) {
     const error = new Error('No fue posible resolver el año actual de America/Mexico_City.');
@@ -137,17 +182,30 @@ async function analytics_cor() {
     throw error;
   }
 
-  const [statusRows, deliveredRows, departureRows, transitRows, containerRow, containerMonthRows] = await Promise.all([
+  const [statusRows, deliveredRows, averageYearRows, containerRow, containerMonthRows] = await Promise.all([
     repository.statusCounts_cor(),
     repository.deliveredByYear_cor(),
-    repository.averageDepartureByPort_cor(),
-    repository.averageTransitByPortMode_cor(),
+    repository.averageYears_cor(),
     repository.currentYearContainers_cor(currentYear),
     repository.currentYearContainersByMonth_cor(currentYear)
   ]);
 
+  const averageYears = normalizeAverageYears_cor(averageYearRows);
+  const averageFilter = resolveAverageFilter_cor(requestedPeriod, currentYear);
+
+  const [departureRows, transitRows] = await Promise.all([
+    repository.averageDepartureByPort_cor(averageFilter.year),
+    repository.averageTransitByPortMode_cor(averageFilter.year)
+  ]);
+
   return {
     anio_actual: currentYear,
+    promedios: {
+      periodo: averageFilter.value,
+      etiqueta: averageFilter.label,
+      criterio_anio: 'fecha_salida_real',
+      anios_disponibles: averageYears
+    },
     graficas: {
       ...buildStatusCharts_cor(statusRows),
       entregados_por_anio: normalizeDeliveredYears_cor(deliveredRows)
@@ -161,8 +219,11 @@ async function analytics_cor() {
       meses: normalizeContainerMonths_cor(containerMonthRows)
     },
     reglas_calculo: {
-      salida_por_puerto: 'AVG(fecha_salida_real - fecha_exw), solo pares de fechas validos y no negativos.',
-      llegada_por_modo_puerto: 'AVG(fecha_llegada_real - fecha_salida_real), agrupado por puerto_destino + ict, solo pares validos y no negativos.',
+      filtro_promedios: averageFilter.all
+        ? 'Todos los años con fecha_salida_real válida.'
+        : `Año ${averageFilter.year} según fecha_salida_real.`,
+      salida_por_puerto: 'AVG(fecha_salida_real - fecha_exw), solo pares de fechas válidos y no negativos. El año se determina por fecha_salida_real.',
+      llegada_por_modo_puerto: 'AVG(fecha_llegada_real - fecha_salida_real), agrupado por puerto_destino + ict, solo pares válidos y no negativos. El año se determina por fecha_salida_real.',
       entregados_por_anio: 'COUNT por año de fecha_entrega_real_obra para estatus ENTREGADO, orden ascendente.',
       contenedores_anio_actual: 'SUM de contenedores_20_dc y contenedores_40_hq cuando el año de fecha_salida_estimada (ETD) es el año actual CDMX.',
       contenedores_por_mes: 'SUM mensual de contenedores_20_dc y contenedores_40_hq para enero-diciembre del año actual, usando fecha_salida_estimada (ETD).'
@@ -175,6 +236,8 @@ module.exports = Object.freeze({
   normalizeText,
   buildStatusCharts_cor,
   normalizeDeliveredYears_cor,
+  normalizeAverageYears_cor,
+  resolveAverageFilter_cor,
   normalizeContainers_cor,
   normalizeContainerMonths_cor,
   analytics_cor

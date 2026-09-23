@@ -786,3 +786,109 @@
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 }
+
+/* [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
+   Barra de busqueda para el periodo de los dos promedios logisticos. */
+#view-logistica-dashboard .dl-average-filter-card,
+[data-view="logistica-dashboard"] .dl-average-filter-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:14px 18px;
+}
+#view-logistica-dashboard .dl-average-filter-copy,
+[data-view="logistica-dashboard"] .dl-average-filter-copy{
+  min-width:0;
+}
+#view-logistica-dashboard .dl-average-filter-copy .dl-eyebrow,
+[data-view="logistica-dashboard"] .dl-average-filter-copy .dl-eyebrow{
+  margin-bottom:3px;
+  font-size:10px;
+}
+#view-logistica-dashboard .dl-average-filter-copy h2,
+[data-view="logistica-dashboard"] .dl-average-filter-copy h2{
+  margin:0;
+  color:#102a56;
+  font-size:16px;
+}
+#view-logistica-dashboard .dl-average-filter-copy p:not(.dl-eyebrow),
+[data-view="logistica-dashboard"] .dl-average-filter-copy p:not(.dl-eyebrow){
+  margin:4px 0 0;
+  color:#64748b;
+  font-size:12px;
+}
+#view-logistica-dashboard .dl-average-filter-form,
+[data-view="logistica-dashboard"] .dl-average-filter-form{
+  flex:0 1 440px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+#view-logistica-dashboard .dl-average-filter-form label,
+[data-view="logistica-dashboard"] .dl-average-filter-form label{
+  color:#64748b;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+#view-logistica-dashboard .dl-average-filter-controls,
+[data-view="logistica-dashboard"] .dl-average-filter-controls{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+}
+#view-logistica-dashboard .dl-average-year-search,
+[data-view="logistica-dashboard"] .dl-average-year-search{
+  width:100%;
+  min-width:0;
+  min-height:38px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#12305f;
+  padding:8px 11px;
+  font-size:12px;
+  font-weight:800;
+  outline:none;
+}
+#view-logistica-dashboard .dl-average-year-search:focus,
+[data-view="logistica-dashboard"] .dl-average-year-search:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 3px rgba(37,99,235,.10);
+}
+#view-logistica-dashboard .dl-average-year-search:disabled,
+[data-view="logistica-dashboard"] .dl-average-year-search:disabled{
+  background:#f8fafc;
+  color:#94a3b8;
+}
+#view-logistica-dashboard .dl-average-filter-form small,
+[data-view="logistica-dashboard"] .dl-average-filter-form small{
+  color:#64748b;
+  font-size:10px;
+  font-weight:700;
+}
+#view-logistica-dashboard .dl-average-filter-form .dl-btn:disabled,
+[data-view="logistica-dashboard"] .dl-average-filter-form .dl-btn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+@media(max-width:780px){
+  #view-logistica-dashboard .dl-average-filter-card,
+  [data-view="logistica-dashboard"] .dl-average-filter-card{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  #view-logistica-dashboard .dl-average-filter-form,
+  [data-view="logistica-dashboard"] .dl-average-filter-form{
+    flex-basis:auto;
+    width:100%;
+  }
+}
+@media(max-width:480px){
+  #view-logistica-dashboard .dl-average-filter-controls,
+  [data-view="logistica-dashboard"] .dl-average-filter-controls{
+    grid-template-columns:1fr;
+  }
+}

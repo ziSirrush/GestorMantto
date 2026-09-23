@@ -6,7 +6,7 @@ const service = require('./logistica-dashboard.service');
 
 async function analytics_cor(req, res, next) {
   try {
-    const data = await service.analytics_cor();
+    const data = await service.analytics_cor(req.query && req.query.anio_promedios);
     return res.json({
       ok: true,
       source: 'aiven',

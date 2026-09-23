@@ -1,7 +1,7 @@
 'use strict';
 
 // [Aster | 2026-09-23 | ASTER-MG | FASE 1 DASHBOARD LOGISTICA ANALITICA V001]
-// Consultas agregadas para Dashboard Logistica.
+// [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
 // Aiven/log_ops se mantiene como unica fuente operativa.
 
 const db = require('../../config/db');
@@ -10,6 +10,17 @@ const DATE_PREFIX_RE = '^[0-9]{4}-[0-9]{2}-[0-9]{2}';
 
 function dateExpr(column) {
   return `STR_TO_DATE(LEFT(TRIM(${column}), 10), '%Y-%m-%d')`;
+}
+
+function averageYearFilter_cor(year) {
+  if (year === null || year === undefined) {
+    return { sql: '', params: [] };
+  }
+
+  return {
+    sql: `AND CAST(LEFT(TRIM(fecha_salida_real), 4) AS UNSIGNED) = ?`,
+    params: [Number(year)]
+  };
 }
 
 async function statusCounts_cor() {
@@ -41,9 +52,23 @@ async function deliveredByYear_cor() {
   return rows;
 }
 
-async function averageDepartureByPort_cor() {
+async function averageYears_cor() {
+  const [rows] = await db.query(
+    `SELECT DISTINCT
+       CAST(LEFT(TRIM(fecha_salida_real), 4) AS UNSIGNED) AS anio
+     FROM log_ops
+     WHERE TRIM(COALESCE(fecha_salida_real, '')) REGEXP ?
+       AND CAST(LEFT(TRIM(fecha_salida_real), 4) AS UNSIGNED) BETWEEN 1900 AND 2200
+     ORDER BY anio DESC`,
+    [DATE_PREFIX_RE]
+  );
+  return rows;
+}
+
+async function averageDepartureByPort_cor(year = null) {
   const exw = dateExpr('fecha_exw');
   const departure = dateExpr('fecha_salida_real');
+  const yearFilter = averageYearFilter_cor(year);
 
   const [rows] = await db.query(
     `SELECT
@@ -55,16 +80,18 @@ async function averageDepartureByPort_cor() {
        AND TRIM(COALESCE(fecha_exw, '')) REGEXP ?
        AND TRIM(COALESCE(fecha_salida_real, '')) REGEXP ?
        AND DATEDIFF(${departure}, ${exw}) >= 0
+       ${yearFilter.sql}
      GROUP BY UPPER(TRIM(puerto_origen))
      ORDER BY UPPER(TRIM(puerto_origen)) ASC`,
-    [DATE_PREFIX_RE, DATE_PREFIX_RE]
+    [DATE_PREFIX_RE, DATE_PREFIX_RE, ...yearFilter.params]
   );
   return rows;
 }
 
-async function averageTransitByPortMode_cor() {
+async function averageTransitByPortMode_cor(year = null) {
   const departure = dateExpr('fecha_salida_real');
   const arrival = dateExpr('fecha_llegada_real');
+  const yearFilter = averageYearFilter_cor(year);
 
   const [rows] = await db.query(
     `SELECT
@@ -78,9 +105,10 @@ async function averageTransitByPortMode_cor() {
        AND TRIM(COALESCE(fecha_salida_real, '')) REGEXP ?
        AND TRIM(COALESCE(fecha_llegada_real, '')) REGEXP ?
        AND DATEDIFF(${arrival}, ${departure}) >= 0
+       ${yearFilter.sql}
      GROUP BY UPPER(TRIM(puerto_destino)), UPPER(TRIM(ict))
      ORDER BY UPPER(TRIM(puerto_destino)) ASC, UPPER(TRIM(ict)) ASC`,
-    [DATE_PREFIX_RE, DATE_PREFIX_RE]
+    [DATE_PREFIX_RE, DATE_PREFIX_RE, ...yearFilter.params]
   );
   return rows;
 }
@@ -123,6 +151,7 @@ async function currentYearContainersByMonth_cor(year) {
 module.exports = Object.freeze({
   statusCounts_cor,
   deliveredByYear_cor,
+  averageYears_cor,
   averageDepartureByPort_cor,
   averageTransitByPortMode_cor,
   currentYearContainers_cor,
