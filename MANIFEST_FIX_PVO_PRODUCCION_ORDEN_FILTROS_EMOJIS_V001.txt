@@ -1,0 +1,8 @@
+README_FIX_PVO_PRODUCCION_ORDEN_FILTROS_EMOJIS_V001.md
+MANIFEST_FIX_PVO_PRODUCCION_ORDEN_FILTROS_EMOJIS_V001.txt
+SHA256SUMS.txt
+modules/logistica-produccion/logistica-produccion.js
+modules/logistica-produccion/logistica-produccion.css
+backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+core/module-loader.js
+tests/logistica_produccion_orden_filtros_emojis_v001.test.js

@@ -1,11 +1,13 @@
 'use strict';
 
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION FILTROS MAIN V001]
 // [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE SIN VENTAS V001]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION ORDEN FILTROS EMOJIS V001]
 // id_log_ops es la relacion operativa. Proyecto/PPNS/PVO/Estatus Logistica se leen de log_ops;
 // Fecha de Visita y Fecha entrega cubos se leen de ins_fl. Las columnas snapshot existentes
 // se conservan solo para compatibilidad con registros historicos sin id_log_ops.
@@ -83,24 +85,56 @@ async function list(filters={}){
   const where=['p.activo=1'];
   const params=[];
   const vista=String(filters.vista||'').trim().toLowerCase();
-  const sinPvo=vista==='sin_pvo'||String(filters.sin_fecha_pvo||'')==='1';
-  const sinDocumentos=vista==='sin_documentos'||String(filters.sin_documentos||'')==='1';
-  if(sinPvo){
+  const ppnsExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.id_ppns ELSE p.ppns END`;
+  const pvoExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.pvo ELSE p.fecha_pvo END`;
+  const projectExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.proyecto ELSE p.proyecto END`;
+  const pvoDateExpr=`STR_TO_DATE(LEFT(TRIM(COALESCE(${pvoExpr},'')),10),'%Y-%m-%d')`;
+
+  if(vista==='sin_pvo'||String(filters.sin_fecha_pvo||'')==='1'){
+    where.push(`TRIM(COALESCE(${pvoExpr},'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}'`);
+  }
+  if(vista==='falta_archivo_pvo')where.push('COALESCE(a.cpvo_count,0)=0');
+  if(vista==='sin_documentos'||String(filters.sin_documentos||'')==='1')where.push('COALESCE(a.archivos_count,0)=0');
+  if(vista==='falta_ppns'){
     where.push(`(
-      (p.id_log_ops IS NOT NULL AND NULLIF(TRIM(l.pvo),'') IS NULL)
-      OR (p.id_log_ops IS NULL AND p.fecha_pvo IS NULL)
+      NULLIF(TRIM(COALESCE(${ppnsExpr},'')),'') IS NULL
+      OR UPPER(TRIM(COALESCE(${ppnsExpr},''))) IN ('SIN PP NS','SIN PPNS','N/A')
     )`);
   }
-  if(sinDocumentos)where.push('COALESCE(a.archivos_count,0)=0');
+  if(vista==='sin_visita'){
+    where.push(`(
+      (p.id_log_ops IS NOT NULL AND TRIM(COALESCE(fl.fechas_visita,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+      OR (p.id_log_ops IS NULL AND TRIM(COALESCE(p.fecha_pvo_fl,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+    )`);
+  }
+  if(vista==='sin_cubos'){
+    where.push(`(
+      (p.id_log_ops IS NOT NULL AND TRIM(COALESCE(fl.fechas_cubos,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+      OR (p.id_log_ops IS NULL AND TRIM(COALESCE(p.fecha_cubos,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+    )`);
+  }
+  if(vista==='sin_asesor')where.push(`NULLIF(TRIM(COALESCE(ua.iniciales,'')),'') IS NULL`);
+  if(vista==='sin_supervisor')where.push(`NULLIF(TRIM(COALESCE(us.iniciales,'')),'') IS NULL`);
+  if(vista==='sin_estatus_produccion')where.push(`NULLIF(TRIM(COALESCE(cg.articulo,'')),'') IS NULL`);
+
   if(filters.q){
     where.push(`(
-      CASE WHEN p.id_log_ops IS NOT NULL THEN l.proyecto ELSE p.proyecto END LIKE ?
-      OR CASE WHEN p.id_log_ops IS NOT NULL THEN l.id_ppns ELSE p.ppns END LIKE ?
+      ${projectExpr} LIKE ?
+      OR ${ppnsExpr} LIKE ?
     )`);
     const q=`%${String(filters.q).trim()}%`;
     params.push(q,q);
   }
-  const [rows]=await db.query(`${BASE_SELECT} WHERE ${where.join(' AND ')} ORDER BY p.created_at DESC,p.id_produccion DESC`,params);
+
+  const [rows]=await db.query(`${BASE_SELECT}
+    WHERE ${where.join(' AND ')}
+    ORDER BY
+      COALESCE(p.anio_registro,0) DESC,
+      COALESCE(p.semana_registro,0) DESC,
+      CASE WHEN ${pvoDateExpr} IS NULL THEN 1 ELSE 0 END ASC,
+      ${pvoDateExpr} ASC,
+      UPPER(TRIM(COALESCE(${projectExpr},''))) ASC,
+      p.id_produccion DESC`,params);
   return rows;
 }
 
@@ -143,8 +177,9 @@ async function projectOptions(q=''){
   const params=[];
   let filter="WHERE l.proyecto IS NOT NULL AND TRIM(l.proyecto)<>''";
   if(term){
-    filter+=' AND l.proyecto LIKE ?';
-    params.push(`%${term}%`);
+    filter+=' AND (l.proyecto LIKE ? OR l.id_ppns LIKE ?)';
+    const like=`%${term}%`;
+    params.push(like,like);
   }
   const [rows]=await db.query(`
     SELECT l.id_log_ops,l.proyecto,l.id_ppns,l.pvo,l.estatus,

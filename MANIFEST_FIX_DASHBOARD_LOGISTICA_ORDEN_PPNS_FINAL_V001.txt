@@ -1,0 +1,6 @@
+README_FIX_DASHBOARD_LOGISTICA_ORDEN_PPNS_FINAL_V001.md
+MANIFEST_FIX_DASHBOARD_LOGISTICA_ORDEN_PPNS_FINAL_V001.txt
+SHA256SUMS.txt
+modules/dashboard-logistica/dashboard-logistica.js
+core/module-loader.js
+tests/logistica_dashboard_orden_ppns_final.test.js

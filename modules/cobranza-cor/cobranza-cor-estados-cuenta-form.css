@@ -1,0 +1,316 @@
+/* [Aster | 2026-09-23 | ASTER-MG | COBRANZA COR ESTADOS CUENTA FORM V001] */
+
+.ccor-ec-form-page{
+  gap:16px;
+  padding-bottom:24px;
+}
+
+.ccor-ec-form-hero{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:18px 20px;
+}
+
+.ccor-ec-form-hero h1{
+  margin:0;
+  color:var(--ccor-navy,#0b2b55);
+  font-size:25px;
+  line-height:1.15;
+}
+
+.ccor-ec-form-hero p:not(.ccor-ec-eyebrow){
+  margin:5px 0 0;
+  color:var(--ccor-muted,#66778a);
+  font-size:12px;
+}
+
+.ccor-ec-form-actions{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex:0 0 auto;
+}
+
+.ccor-ec-form-cancel{
+  border:1px solid #bfd0e2;
+  background:#fff;
+  color:#294d73;
+  padding:9px 14px;
+}
+
+.ccor-ec-form-cancel:hover{background:#f3f7fb}
+
+.ccor-ec-form-status{
+  display:none;
+  min-height:38px;
+  align-items:center;
+  border-radius:10px;
+  padding:9px 12px;
+  font-size:11px;
+  font-weight:750;
+}
+
+.ccor-ec-form-status.is-loading,
+.ccor-ec-form-status.is-error,
+.ccor-ec-form-status.is-ok{display:flex}
+.ccor-ec-form-status.is-loading{background:#edf6ff;color:#245d93;border:1px solid #c6ddf2}
+.ccor-ec-form-status.is-error{background:#fff0ee;color:#a62d24;border:1px solid #efc3bf}
+.ccor-ec-form-status.is-ok{background:#eaf8ef;color:#1c7b42;border:1px solid #c5e7d1}
+
+.ccor-ec-form-top-grid{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(250px,.8fr);
+  gap:14px;
+}
+
+.ccor-ec-form-general-card{padding:16px}
+
+.ccor-ec-form-section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:12px;
+}
+
+.ccor-ec-form-section-title>div{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.ccor-ec-form-section-title>b,
+.ccor-ec-form-section-title>div>b{
+  color:#153b65;
+  font-size:14px;
+}
+
+.ccor-ec-form-section-title>span,
+.ccor-ec-form-section-title>div>span,
+.ccor-ec-form-section-title small{
+  color:#718093;
+  font-size:10px;
+  font-weight:650;
+}
+
+.ccor-ec-form-fields{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+
+.ccor-ec-form-fields label{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  min-width:0;
+  color:#27476b;
+  font-size:10px;
+  font-weight:800;
+}
+
+.ccor-ec-form-fields input,
+.ccor-ec-form-fields select,
+.ccor-ec-form-equipment-table input,
+.ccor-ec-form-equipment-table select,
+.ccor-ec-form-hitos-table input,
+.ccor-ec-form-hitos-table select{
+  width:100%;
+  min-height:34px;
+  border:1px solid #bfd0e2;
+  border-radius:8px;
+  background:#fff;
+  color:#14304e;
+  padding:6px 8px;
+  font:inherit;
+  outline:none;
+}
+
+.ccor-ec-form-fields input:focus,
+.ccor-ec-form-fields select:focus,
+.ccor-ec-form-equipment-table input:focus,
+.ccor-ec-form-equipment-table select:focus,
+.ccor-ec-form-hitos-table input:focus,
+.ccor-ec-form-hitos-table select:focus{
+  border-color:#5795d5;
+  box-shadow:0 0 0 3px rgba(53,126,201,.12);
+}
+
+.ccor-ec-form-fields input[readonly]{
+  background:#f4f7fa;
+  color:#536a82;
+}
+
+.ccor-ec-form-people{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid #e4ebf2;
+}
+
+.ccor-ec-form-people span{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  color:#6a7b8f;
+  font-size:10px;
+}
+
+.ccor-ec-form-people b{color:#173958}
+
+.ccor-ec-form-kpis{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:12px;
+}
+
+.ccor-ec-form-kpi{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-height:106px;
+  padding:15px 17px;
+}
+
+.ccor-ec-form-kpi>span{
+  color:#65788d;
+  font-size:10px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+
+.ccor-ec-form-kpi>b{
+  margin-top:8px;
+  color:#14385d;
+  font-size:21px;
+}
+
+.ccor-ec-form-kpi.is-mxn{border-left:4px solid #d96705}
+.ccor-ec-form-kpi.is-foreign{border-left:4px solid #0b66c3}
+
+.ccor-ec-form-kpi.is-foreign #ccor-ec-form-total-foreign{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin-top:8px;
+}
+
+.ccor-ec-form-kpi.is-foreign #ccor-ec-form-total-foreign>div{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  font-size:11px;
+}
+
+.ccor-ec-form-kpi.is-foreign #ccor-ec-form-total-foreign span{color:#65788d;font-weight:800}
+.ccor-ec-form-kpi.is-foreign #ccor-ec-form-total-foreign b{color:#14385d;font-size:15px}
+
+.ccor-ec-form-section{
+  padding:14px;
+  overflow:hidden;
+}
+
+.ccor-ec-form-equipment-table{min-width:980px}
+.ccor-ec-form-hitos-table{min-width:2700px}
+
+.ccor-ec-form-equipment-table th,
+.ccor-ec-form-hitos-table th{
+  background:#17365d;
+  color:#fff;
+  text-align:center;
+  font-size:9.5px;
+}
+
+.ccor-ec-form-equipment-table td,
+.ccor-ec-form-hitos-table td{
+  padding:7px;
+  text-align:center;
+}
+
+.ccor-ec-form-equipment-table td:nth-child(2){text-align:left;min-width:180px}
+.ccor-ec-form-equipment-table td:nth-child(6){min-width:240px}
+.ccor-ec-form-equipment-table td:nth-child(7){min-width:180px}
+.ccor-ec-form-equipment-table input[type="checkbox"]{width:16px;min-height:16px}
+
+.ccor-ec-form-hitos-table td:nth-child(2){min-width:260px;text-align:left}
+.ccor-ec-form-hitos-table td:nth-child(3){min-width:88px}
+.ccor-ec-form-hitos-table td:nth-child(4){min-width:86px}
+.ccor-ec-form-hitos-table td:nth-child(5),
+.ccor-ec-form-hitos-table td:nth-child(6),
+.ccor-ec-form-hitos-table td:nth-child(7){min-width:120px}
+.ccor-ec-form-hitos-table td:nth-child(8),
+.ccor-ec-form-hitos-table td:nth-child(9){min-width:142px}
+.ccor-ec-form-hitos-table td:nth-child(10){min-width:126px}
+
+.ccor-ec-form-hitos-table input[readonly]{
+  background:#f4f7fa;
+  color:#4d647c;
+  font-weight:800;
+}
+
+.ccor-ec-form-order{
+  color:#153b65;
+  font-weight:900;
+}
+
+.ccor-ec-form-remove{
+  width:30px;
+  height:30px;
+  border:1px solid #efc5c1;
+  border-radius:8px;
+  background:#fff3f2;
+  color:#a62d24;
+  cursor:pointer;
+  font-size:18px;
+  font-weight:900;
+  line-height:1;
+}
+
+.ccor-ec-form-remove:hover{background:#ffe5e2}
+
+.ccor-ec-form-readonly{
+  padding:28px;
+  text-align:center;
+}
+.ccor-ec-form-readonly h2{margin:0 0 6px;color:#153b65}
+.ccor-ec-form-readonly p{margin:0;color:#718093}
+
+@media(max-width:1100px){
+  .ccor-ec-form-top-grid{grid-template-columns:1fr}
+  .ccor-ec-form-kpis{grid-template-columns:1fr 1fr}
+}
+
+@media(max-width:820px){
+  .ccor-ec-form-hero{align-items:flex-start;flex-direction:column}
+  .ccor-ec-form-actions{width:100%}
+  .ccor-ec-form-actions .ccor-ec-btn{flex:1}
+  .ccor-ec-form-fields{grid-template-columns:1fr 1fr}
+  .ccor-ec-form-people{grid-template-columns:1fr}
+}
+
+@media(max-width:560px){
+  .ccor-ec-form-fields,
+  .ccor-ec-form-kpis{grid-template-columns:1fr}
+  .ccor-ec-form-section-title{align-items:flex-start;flex-direction:column}
+}
+
+
+.ccor-ec-form-hitos-table td:nth-child(9),
+.ccor-ec-form-hitos-table td:nth-child(11),
+.ccor-ec-form-hitos-table td:nth-child(15),
+.ccor-ec-form-hitos-table td:nth-child(16),
+.ccor-ec-form-hitos-table td:nth-child(19){min-width:150px}
+
+.ccor-ec-form-hitos-table td:nth-child(12),
+.ccor-ec-form-hitos-table td:nth-child(13),
+.ccor-ec-form-hitos-table td:nth-child(17),
+.ccor-ec-form-hitos-table td:nth-child(18){min-width:145px}
+
+.ccor-ec-form-id{display:block;margin-top:3px;color:#7b8b9d;font-size:8px;font-weight:700}
+.ccor-ec-form-hitos-table input[type=number]{text-align:right}

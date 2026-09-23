@@ -1,0 +1,47 @@
+FIX_COBRANZA_COR_ESTADOS_CREAR_EDITAR_V002
+Fecha de preparación: 23/09/2026
+Base verificada: main @ fb587ff35bf14aabec681b5a2a6ec345fedd9f03
+
+VALIDACIÓN ESTÁTICA EJECUTADA
+
+1. node --check
+   OK backend/src/modules/cobranza-cor/cobranza-cor.repository.js
+   OK backend/src/modules/cobranza-cor/cobranza-cor.service.js
+   OK backend/src/modules/cobranza-cor/cobranza-cor.controller.js
+   OK backend/src/modules/cobranza-cor/cobranza-cor.routes.js
+   OK modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js
+   OK tests/cobranza-cor-estados-cuenta-crud-form.test.js
+
+2. Prueba de contrato específica
+   node --test tests/cobranza-cor-estados-cuenta-crud-form.test.js
+   Resultado de fixture de integración estática: 6 passed / 0 failed.
+
+3. Auditoría de arquitectura
+   - COBRANZA COR permanece en CORELLIAN.
+   - No usa Portafolio UNITED.
+   - Equipos: cobranza_equipos_cor -> ins_fl / log_ops.
+   - Hitos: cobranza_fuente_cor.
+   - Sin referencias a cobranza_indice_cor / id_indice_cor / idIndiceCor en los archivos runtime entregados.
+   - Reutiliza guard central de Estados de Cuenta y bloqueo del Visor para mutaciones.
+
+4. Persistencia
+   - Crear: transacción única para hitos + equipos.
+   - Editar: transacción única para actualizaciones/altas/bajas lógicas.
+   - Verifica pertenencia de IDs al PPNS.
+   - Rechaza id_ins_fl activo repetido en una misma mutación.
+
+NO EJECUTADO
+- No se hizo prueba contra Aiven live.
+- No se hizo POST/PUT real.
+- No se hizo despliegue a GitHub, Azure o Netlify.
+- No se hizo validación E2E en navegador.
+
+5. Precheck de transformaciones contra GitHub main
+   Blob Estados de Cuenta: 043a24ef62840fe8f9cc083f451019fceb58c82d
+   Blob module-loader: b68954cb81f5cbb2fc5f67513a3e5dcdfb7ba269
+   Blob index.html: 378628e8ba1caf242abd95b79900bafffd78cba0
+   Cada ancla de transformación comprobada aparece exactamente 1 vez en main.
+
+6. PowerShell
+   El aplicador fue revisado estáticamente.
+   No se ejecutó con PowerShell en este entorno porque pwsh/powershell no está instalado aquí.

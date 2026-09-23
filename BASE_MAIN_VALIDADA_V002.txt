@@ -1,0 +1,13 @@
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Commit base verificado: fb587ff35bf14aabec681b5a2a6ec345fedd9f03
+Fecha de preparación: 23/09/2026
+
+Blobs base verificados:
+17cdaeb143b2bb5b3121ae256e36b2df1c3bceba  backend/src/modules/cobranza-cor/cobranza-cor.repository.js
+8b397fb797d3fb91f8e62955fa0fa4720c9646d6  backend/src/modules/cobranza-cor/cobranza-cor.service.js
+8c75b5cde6fb59158c9caca9e4073504555ed13d  backend/src/modules/cobranza-cor/cobranza-cor.controller.js
+9f729a90707bd8a6707ecb0abc2c6201f3a159ac  backend/src/modules/cobranza-cor/cobranza-cor.routes.js
+043a24ef62840fe8f9cc083f451019fceb58c82d  modules/cobranza-cor/cobranza-cor-estados-cuenta.js
+b68954cb81f5cbb2fc5f67513a3e5dcdfb7ba269  core/module-loader.js
+378628e8ba1caf242abd95b79900bafffd78cba0  index.html

@@ -35,7 +35,7 @@ function rejectViewerMutation_cor(req, res, next) {
     return res.status(403).json({
       ok: false,
       code: 'VIEWER_READ_ONLY',
-      message: 'El Visor de usuarios es de solo lectura. Sal del visor para crear o editar Aditivas.'
+      message: 'El Visor de usuarios es de solo lectura. Sal del visor para realizar cambios en Cobranza.'
     });
   }
   return next();
@@ -45,6 +45,10 @@ router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFue
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
 
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
+router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, controller.catalogoCrearEstadoCuenta_cor);
+router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearEstadoCuenta_cor);
+router.get('/estados-cuenta/:ppns/formulario', ...requireEstadosCuentaCor, controller.formularioEstadoCuenta_cor);
+router.put('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.actualizarEstadoCuenta_cor);
 router.get('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
 
 router.get('/aditivas', ...requireAditivasCor, controller.aditivas_cor);

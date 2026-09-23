@@ -10,6 +10,10 @@ const ROUTES_COR = Object.freeze({
   carga_aditivas: '/api/cobranza-cor/carga/aditivas',
   estados_cuenta: '/api/cobranza-cor/estados-cuenta',
   estado_cuenta_detalle: '/api/cobranza-cor/estados-cuenta/:ppns',
+  estado_cuenta_crear_catalogo: '/api/cobranza-cor/estados-cuenta/crear-nuevo/catalogo',
+  estado_cuenta_formulario: '/api/cobranza-cor/estados-cuenta/:ppns/formulario',
+  estado_cuenta_crear: '/api/cobranza-cor/estados-cuenta',
+  estado_cuenta_actualizar: '/api/cobranza-cor/estados-cuenta/:ppns',
   aditivas: '/api/cobranza-cor/aditivas',
   aditiva_detalle: '/api/cobranza-cor/aditivas/:idAditivaCor',
   aditiva_crear: '/api/cobranza-cor/aditivas',
@@ -491,6 +495,10 @@ function serializeFuenteEstadoCuenta_cor(row) {
     dias_vencimiento: integerOrNull_cor(row?.dias_vencimiento),
     estimado_pago: cleanText_cor(row?.estimado_pago),
     estatus_vencimiento: cleanText_cor(row?.estatus_vencimiento),
+    orden_hito: integerOrNull_cor(row?.orden_hito),
+    fecha_programada: cleanText_cor(row?.fecha_programada),
+    fecha_notificada: cleanText_cor(row?.fecha_notificada),
+    estatus_hito: cleanText_cor(row?.estatus_hito),
     anio_proyecto: integerOrNull_cor(row?.anio_proyecto),
     es_pagado: pagado,
     pago_contabilizado: roundAmount_cor(pagoContabilizado),
@@ -604,6 +612,495 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       calidad: buildEstadoCuentaQuality_cor(detailRows),
       estado_cuenta: detailRows
     };
+  } finally {
+    connection.release();
+  }
+}
+
+const ESTATUS_HITO_COR = new Set(['PENDIENTE', 'PROGRAMADO', 'NOTIFICADO', 'CERRADO']);
+
+function serializeEstadoCuentaProyectoForm_cor(row) {
+  return {
+    ppns: cleanText_cor(row?.ppns),
+    proyecto: cleanText_cor(row?.proyecto),
+    cliente: cleanText_cor(row?.cliente),
+    contractual: cleanText_cor(row?.contractual),
+    supervisor: cleanText_cor(row?.supervisor_iniciales ?? row?.supervisor),
+    asesor: cleanText_cor(row?.asesor_iniciales ?? row?.asesor),
+    administrativo: cleanText_cor(row?.administrativo_iniciales ?? row?.administrativo),
+    equipos_total: integerOrNull_cor(row?.equipos_total) || 0,
+    anios: Array.isArray(row?.anios) ? row.anios : splitDashValues_cor(row?.anios).map(Number).filter(Number.isInteger)
+  };
+}
+
+function serializeEstadoCuentaEquipoDisponible_cor(row) {
+  return {
+    id_ins_fl: integerOrNull_cor(row?.id_ins_fl),
+    ppns: cleanText_cor(row?.ppns),
+    referencia_sitio: cleanText_cor(row?.referencia_sitio),
+    capacidad_kg: cleanText_cor(row?.capacidad_kg),
+    numero_desembarques: cleanText_cor(row?.numero_desembarques),
+    estatus: cleanText_cor(row?.estatus),
+    estatus_produccion: cleanText_cor(row?.estatus_produccion),
+    estatus_equipo_entrega: cleanText_cor(row?.estatus_equipo_entrega)
+  };
+}
+
+function serializeEstadoCuentaLogOps_cor(row) {
+  return {
+    id_log_ops: integerOrNull_cor(row?.id_log_ops),
+    ppns: cleanText_cor(row?.ppns),
+    ph_ns: cleanText_cor(row?.ph_ns),
+    no_control: cleanText_cor(row?.no_control),
+    marca: cleanText_cor(row?.marca),
+    estatus: cleanText_cor(row?.estatus),
+    cantidad: integerOrNull_cor(row?.cantidad)
+  };
+}
+
+function serializeEstadoCuentaEquipoRelacion_cor(row) {
+  return {
+    id_equipo_cor: integerOrNull_cor(row?.id_equipo_cor),
+    ppns: cleanText_cor(row?.ppns),
+    id_ins_fl: integerOrNull_cor(row?.id_ins_fl),
+    id_log_ops: integerOrNull_cor(row?.id_log_ops),
+    orden: integerOrNull_cor(row?.orden),
+    ubicacion_torre: cleanText_cor(row?.ubicacion_torre),
+    activo: Number(row?.activo) === 1,
+    referencia_sitio: cleanText_cor(row?.referencia_sitio),
+    capacidad_kg: cleanText_cor(row?.capacidad_kg),
+    numero_desembarques: cleanText_cor(row?.numero_desembarques),
+    estatus: cleanText_cor(row?.estatus_equipo_entrega ?? row?.ins_fl_estatus),
+    ph_ns: cleanText_cor(row?.ph_ns),
+    no_control: cleanText_cor(row?.no_control),
+    marca: cleanText_cor(row?.marca),
+    log_ops_estatus: cleanText_cor(row?.log_ops_estatus)
+  };
+}
+
+async function catalogoCrearEstadoCuenta_cor(query = {}, informationAccess) {
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const requestedPpns = cleanText_cor(query?.ppns, 100);
+  const connection = await repository.getConnection_cor();
+  try {
+    const projectRows = await repository.listCrearEstadoCuentaProyectos_cor(connection, visibleUserIds);
+    const proyectos = projectRows.map(serializeEstadoCuentaProyectoForm_cor);
+    if (!requestedPpns) {
+      return {
+        ok: true,
+        source: 'aiven',
+        domain: 'CORELLIAN',
+        route: ROUTES_COR.estado_cuenta_crear_catalogo,
+        scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+        proyectos
+      };
+    }
+
+    if (!await repository.canAccessPpns_cor(connection, requestedPpns, visibleUserIds)) {
+      throw httpError(403, 'El PPNS queda fuera de tu alcance autorizado.');
+    }
+    if (await repository.existeFuentePpns_cor(connection, requestedPpns)) {
+      throw httpError(409, 'El PPNS ya cuenta con un Estado de Cuenta activo.');
+    }
+
+    const selectedRows = await repository.listCrearEstadoCuentaProyectos_cor(connection, visibleUserIds, requestedPpns);
+    const project = selectedRows.length ? serializeEstadoCuentaProyectoForm_cor(selectedRows[0]) : null;
+    if (!project || !project.ppns) {
+      throw httpError(404, 'El PPNS no existe en Instalaciones o no está disponible para crear Estado de Cuenta.');
+    }
+
+    const [equipmentRows, logOpsRows] = await Promise.all([
+      repository.listCrearEstadoCuentaEquipos_cor(connection, requestedPpns),
+      repository.listCrearEstadoCuentaLogOps_cor(connection, requestedPpns)
+    ]);
+
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.estado_cuenta_crear_catalogo,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      proyectos,
+      seleccion: {
+        proyecto: project,
+        equipos: equipmentRows.map(serializeEstadoCuentaEquipoDisponible_cor),
+        log_ops: logOpsRows.map(serializeEstadoCuentaLogOps_cor)
+      }
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
+  const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+  try {
+    const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
+    if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
+
+    const [sourceRows, equipmentRows, logOpsRows, relationRows] = await Promise.all([
+      repository.listFuenteEstadoCuenta_cor(connection, ppns),
+      repository.listCrearEstadoCuentaEquipos_cor(connection, ppns),
+      repository.listCrearEstadoCuentaLogOps_cor(connection, ppns),
+      repository.listEquiposEstadoCuenta_cor(connection, ppns)
+    ]);
+    if (!sourceRows.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
+
+    const project = serializeEstadoCuentaMain_cor(row);
+    return {
+      ok: true,
+      source: 'aiven',
+      domain: 'CORELLIAN',
+      route: ROUTES_COR.estado_cuenta_formulario,
+      scope_aplicado: visibleUserIds === null ? 'DOMINIO_COMPLETO' : 'USUARIOS_VISIBLES',
+      ppns,
+      proyecto: {
+        ...project,
+        equipos_total: equipmentRows.length
+      },
+      hitos: sourceRows.map(serializeFuenteEstadoCuenta_cor),
+      equipos_disponibles: equipmentRows.map(serializeEstadoCuentaEquipoDisponible_cor),
+      equipos_relacionados: relationRows.map(serializeEstadoCuentaEquipoRelacion_cor),
+      log_ops: logOpsRows.map(serializeEstadoCuentaLogOps_cor)
+    };
+  } finally {
+    connection.release();
+  }
+}
+
+function optionalPositiveId_cor(value, fieldName) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  return positiveId_cor(value, fieldName);
+}
+
+function optionalYearForm_cor(value, fieldName) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  return year_cor(value, fieldName);
+}
+
+function normalizeEstadoCuentaMutation_cor(payload, mode) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw badRequest('El cuerpo del Estado de Cuenta debe ser un objeto JSON.');
+  }
+
+  const ppns = requiredText_cor(payload.ppns, 'PPNS', 100);
+  const proyecto = requiredText_cor(payload.proyecto, 'Proyecto', 255);
+  const cliente = cleanText_cor(payload.cliente, 500);
+  const contractual = cleanText_cor(payload.contractual, 150);
+  if (!Array.isArray(payload.hitos) || !payload.hitos.length) {
+    throw badRequest('Agrega al menos un hito de cobranza.');
+  }
+
+  const hitos = payload.hitos.map((raw, index) => {
+    const fila = index + 1;
+    const idFuenteCor = optionalPositiveId_cor(raw?.id_fuente_cor, `id_fuente_cor del hito ${fila}`);
+    const eliminar = raw?.eliminar === true || raw?.eliminar === 1 || String(raw?.eliminar || '').toLowerCase() === 'true';
+    if (eliminar) {
+      if (!idFuenteCor) throw badRequest(`El hito ${fila} no puede eliminarse porque no tiene id_fuente_cor.`);
+      return { id_fuente_cor: idFuenteCor, eliminar: true };
+    }
+
+    const porcentaje = percentage01_cor(raw?.porcentaje, `Porcentaje del hito ${fila}`);
+    const monedaRaw = cleanText_cor(raw?.moneda, 10);
+    const moneda = monedaRaw ? monedaRaw.toUpperCase() : null;
+    const subtotal = decimal_cor(raw?.subtotal, `Subtotal del hito ${fila}`);
+    const iva = decimal_cor(raw?.iva, `IVA del hito ${fila}`);
+    const totalEnviado = decimal_cor(raw?.total, `Total del hito ${fila}`);
+    let total = totalEnviado;
+    if (subtotal !== null || iva !== null) {
+      const calculado = roundAmount_cor((subtotal || 0) + (iva || 0));
+      if (totalEnviado !== null && Math.abs(roundAmount_cor(totalEnviado) - calculado) > 0.05) {
+        throw badRequest(`El total del hito ${fila} no coincide con Subtotal + IVA.`);
+      }
+      total = calculado;
+    }
+
+    const estatusHito = cleanText_cor(raw?.estatus_hito, 100);
+    if (estatusHito && !ESTATUS_HITO_COR.has(canonicalText_cor(estatusHito))) {
+      throw badRequest(`El estatus del hito ${fila} debe ser Pendiente, Programado, Notificado o Cerrado.`);
+    }
+
+    const condicion = cleanText_cor(raw?.condicion, 500);
+    if (mode === 'create' && !idFuenteCor && !condicion) {
+      throw badRequest(`Captura el nombre o condición del hito ${fila}.`);
+    }
+
+    return {
+      id_fuente_cor: idFuenteCor,
+      eliminar: false,
+      orden_hito: integer_cor(raw?.orden_hito ?? fila, `Orden del hito ${fila}`, { min: 1 }),
+      porcentaje,
+      condicion,
+      moneda,
+      subtotal,
+      iva,
+      total,
+      factura: cleanText_cor(raw?.factura, 150),
+      pago_total: decimal_cor(raw?.pago_total, `Pago total del hito ${fila}`),
+      estatus_factura: cleanText_cor(raw?.estatus_factura, 100),
+      fecha_pago: date_cor(raw?.fecha_pago, `Fecha de pago del hito ${fila}`),
+      fecha_vencimiento: date_cor(raw?.fecha_vencimiento, `Fecha de vencimiento del hito ${fila}`),
+      dias_vencimiento: integer_cor(raw?.dias_vencimiento, `Días de vencimiento del hito ${fila}`),
+      estimado_pago: cleanText_cor(raw?.estimado_pago, 100),
+      estatus_vencimiento: cleanText_cor(raw?.estatus_vencimiento, 100),
+      fecha_programada: date_cor(raw?.fecha_programada, `Fecha programada del hito ${fila}`),
+      fecha_notificada: date_cor(raw?.fecha_notificada, `Fecha notificada del hito ${fila}`),
+      estatus_hito: estatusHito,
+      anio_proyecto: optionalYearForm_cor(raw?.anio_proyecto, `Año del proyecto del hito ${fila}`)
+    };
+  });
+
+  if (!hitos.some((row) => row.eliminar !== true)) {
+    throw badRequest('El Estado de Cuenta debe conservar al menos un hito activo.');
+  }
+
+  const equiposRaw = Array.isArray(payload.equipos) ? payload.equipos : [];
+  const equipos = equiposRaw.map((raw, index) => {
+    const fila = index + 1;
+    const idEquipoCor = optionalPositiveId_cor(raw?.id_equipo_cor, `id_equipo_cor del equipo ${fila}`);
+    const idInsFl = optionalPositiveId_cor(raw?.id_ins_fl, `id_ins_fl del equipo ${fila}`);
+    const idLogOps = optionalPositiveId_cor(raw?.id_log_ops, `id_log_ops del equipo ${fila}`);
+    const activo = !(raw?.activo === false || raw?.activo === 0 || String(raw?.activo || '').toLowerCase() === 'false');
+    if (activo && !idInsFl) throw badRequest(`El equipo ${fila} activo requiere id_ins_fl.`);
+    return {
+      id_equipo_cor: idEquipoCor,
+      id_ins_fl: idInsFl,
+      id_log_ops: idLogOps,
+      orden: integer_cor(raw?.orden ?? fila, `Orden del equipo ${fila}`, { min: 1 }),
+      ubicacion_torre: cleanText_cor(raw?.ubicacion_torre, 255),
+      activo: activo ? 1 : 0
+    };
+  });
+
+  const activeInsFlIds = new Set();
+  equipos.forEach((equipment, index) => {
+    if (equipment.activo !== 1) return;
+    if (activeInsFlIds.has(equipment.id_ins_fl)) {
+      throw badRequest(`El id_ins_fl ${equipment.id_ins_fl} esta repetido entre los equipos activos.`);
+    }
+    activeInsFlIds.add(equipment.id_ins_fl);
+  });
+
+  return { ppns, proyecto, cliente, contractual, hitos, equipos };
+}
+
+function fuenteMutationRecord_cor(input, hito) {
+  return {
+    proyecto: input.proyecto,
+    cliente: input.cliente,
+    contractual: input.contractual,
+    porcentaje: hito.porcentaje,
+    condicion: hito.condicion,
+    moneda: hito.moneda,
+    subtotal: hito.subtotal,
+    iva: hito.iva,
+    total: hito.total,
+    factura: hito.factura,
+    pago_total: hito.pago_total,
+    estatus_factura: hito.estatus_factura,
+    fecha_pago: hito.fecha_pago,
+    fecha_vencimiento: hito.fecha_vencimiento,
+    dias_vencimiento: hito.dias_vencimiento,
+    estimado_pago: hito.estimado_pago,
+    estatus_vencimiento: hito.estatus_vencimiento,
+    orden_hito: hito.orden_hito,
+    fecha_programada: hito.fecha_programada,
+    fecha_notificada: hito.fecha_notificada,
+    estatus_hito: hito.estatus_hito,
+    anio_proyecto: hito.anio_proyecto,
+    activo: 1
+  };
+}
+
+async function validateEstadoCuentaEquipos_cor(connection, input) {
+  const equipmentRows = await repository.listCrearEstadoCuentaEquipos_cor(connection, input.ppns);
+  const validInsFl = new Set(equipmentRows.map((row) => Number(row.id_ins_fl)).filter(Number.isInteger));
+  const logOpsRows = await repository.listCrearEstadoCuentaLogOps_cor(connection, input.ppns);
+  const validLogOps = new Set(logOpsRows.map((row) => Number(row.id_log_ops)).filter(Number.isInteger));
+
+  input.equipos.forEach((equipment) => {
+    if (equipment.activo === 1 && !validInsFl.has(equipment.id_ins_fl)) {
+      throw badRequest(`El id_ins_fl ${equipment.id_ins_fl} no pertenece al PPNS seleccionado.`);
+    }
+    if (equipment.activo === 1 && equipment.id_log_ops !== null && !validLogOps.has(equipment.id_log_ops)) {
+      throw badRequest(`El id_log_ops ${equipment.id_log_ops} no pertenece al PPNS seleccionado.`);
+    }
+  });
+  return { equipmentRows, logOpsRows };
+}
+
+async function crearEstadoCuenta_cor(payload, informationAccess, actorUserIdValue) {
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const input = normalizeEstadoCuentaMutation_cor(payload, 'create');
+  const actorUserId = positiveId_cor(actorUserIdValue, 'actorUserId');
+  const connection = await repository.getConnection_cor();
+  try {
+    if (!await repository.canAccessPpns_cor(connection, input.ppns, visibleUserIds)) {
+      throw httpError(403, 'El PPNS queda fuera de tu alcance autorizado.');
+    }
+
+    await connection.beginTransaction();
+    try {
+      const locked = await repository.lockCrearEstadoCuentaPpns_cor(connection, input.ppns);
+      if (!locked.length) throw httpError(404, 'El PPNS no existe o no tiene equipos activos en Instalaciones.');
+      if (await repository.existeFuentePpns_cor(connection, input.ppns)) {
+        throw httpError(409, 'El PPNS ya cuenta con un Estado de Cuenta activo.');
+      }
+
+      const projectRows = await repository.listCrearEstadoCuentaProyectos_cor(connection, visibleUserIds, input.ppns);
+      if (!projectRows.length) throw httpError(404, 'No fue posible resolver los datos del PPNS en Instalaciones.');
+      const project = serializeEstadoCuentaProyectoForm_cor(projectRows[0]);
+      if (!project.proyecto) throw badRequest('El PPNS no tiene Proyecto disponible en Instalaciones.');
+
+      input.proyecto = project.proyecto;
+      input.cliente = project.cliente;
+      const validation = await validateEstadoCuentaEquipos_cor(connection, input);
+      if (validation.equipmentRows.length && !input.equipos.some((row) => row.activo === 1)) {
+        throw badRequest('Selecciona al menos un equipo del PPNS.');
+      }
+
+      for (const hito of input.hitos) {
+        if (hito.eliminar) continue;
+        await repository.insertRecord_cor(connection, repository.TABLES_COR.fuente, {
+          id_proyecto_origen: input.ppns,
+          ...fuenteMutationRecord_cor(input, hito)
+        });
+      }
+
+      for (const equipment of input.equipos) {
+        if (equipment.activo !== 1) continue;
+        await repository.insertRecord_cor(connection, repository.TABLES_COR.equipos, {
+          ppns: input.ppns,
+          id_ins_fl: equipment.id_ins_fl,
+          id_log_ops: equipment.id_log_ops,
+          orden: equipment.orden,
+          ubicacion_torre: equipment.ubicacion_torre,
+          activo: 1,
+          created_by: actorUserId,
+          updated_by: actorUserId
+        });
+      }
+
+      await connection.commit();
+      return {
+        ok: true,
+        source: 'aiven',
+        domain: 'CORELLIAN',
+        route: ROUTES_COR.estado_cuenta_crear,
+        ppns: input.ppns,
+        proyecto: input.proyecto,
+        hitos_creados: input.hitos.filter((row) => !row.eliminar).length,
+        equipos_relacionados: input.equipos.filter((row) => row.activo === 1).length
+      };
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
+  } finally {
+    connection.release();
+  }
+}
+
+async function actualizarEstadoCuenta_cor(ppnsValue, payload, informationAccess, actorUserIdValue) {
+  const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const input = normalizeEstadoCuentaMutation_cor({ ...(payload || {}), ppns }, 'edit');
+  const actorUserId = positiveId_cor(actorUserIdValue, 'actorUserId');
+  const connection = await repository.getConnection_cor();
+  try {
+    const current = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
+    if (!current) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
+
+    await connection.beginTransaction();
+    try {
+      const lockedFuente = await repository.lockFuenteEstadoCuentaPpns_cor(connection, ppns);
+      if (!lockedFuente.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
+      const validFuenteIds = new Set(lockedFuente.map((row) => Number(row.id_fuente_cor)).filter(Number.isInteger));
+
+      const lockedEquipos = await repository.lockEquiposEstadoCuentaPpns_cor(connection, ppns);
+      const validEquipoIds = new Set(lockedEquipos.map((row) => Number(row.id_equipo_cor)).filter(Number.isInteger));
+      await validateEstadoCuentaEquipos_cor(connection, input);
+
+      let hitosActualizados = 0;
+      let hitosCreados = 0;
+      let hitosDesactivados = 0;
+      for (const hito of input.hitos) {
+        if (hito.id_fuente_cor !== null) {
+          if (!validFuenteIds.has(hito.id_fuente_cor)) {
+            throw badRequest(`El id_fuente_cor ${hito.id_fuente_cor} no pertenece al Estado de Cuenta activo del PPNS.`);
+          }
+          if (hito.eliminar) {
+            await repository.updateFuenteEstadoCuenta_cor(connection, hito.id_fuente_cor, ppns, { activo: 0 });
+            hitosDesactivados += 1;
+          } else {
+            await repository.updateFuenteEstadoCuenta_cor(connection, hito.id_fuente_cor, ppns, fuenteMutationRecord_cor(input, hito));
+            hitosActualizados += 1;
+          }
+        } else if (!hito.eliminar) {
+          await repository.insertRecord_cor(connection, repository.TABLES_COR.fuente, {
+            id_proyecto_origen: ppns,
+            ...fuenteMutationRecord_cor(input, hito)
+          });
+          hitosCreados += 1;
+        }
+      }
+
+      let equiposActualizados = 0;
+      let equiposCreados = 0;
+      let equiposDesactivados = 0;
+      for (const equipment of input.equipos) {
+        if (equipment.id_equipo_cor !== null) {
+          if (!validEquipoIds.has(equipment.id_equipo_cor)) {
+            throw badRequest(`El id_equipo_cor ${equipment.id_equipo_cor} no pertenece al PPNS activo.`);
+          }
+          await repository.updateEquipoEstadoCuenta_cor(connection, equipment.id_equipo_cor, ppns, {
+            id_ins_fl: equipment.id_ins_fl,
+            id_log_ops: equipment.id_log_ops,
+            orden: equipment.orden,
+            ubicacion_torre: equipment.ubicacion_torre,
+            activo: equipment.activo,
+            updated_by: actorUserId
+          });
+          if (equipment.activo === 1) equiposActualizados += 1;
+          else equiposDesactivados += 1;
+        } else if (equipment.activo === 1) {
+          await repository.insertRecord_cor(connection, repository.TABLES_COR.equipos, {
+            ppns,
+            id_ins_fl: equipment.id_ins_fl,
+            id_log_ops: equipment.id_log_ops,
+            orden: equipment.orden,
+            ubicacion_torre: equipment.ubicacion_torre,
+            activo: 1,
+            created_by: actorUserId,
+            updated_by: actorUserId
+          });
+          equiposCreados += 1;
+        }
+      }
+
+      const remaining = lockedFuente.length - hitosDesactivados + hitosCreados;
+      if (remaining <= 0) throw badRequest('El Estado de Cuenta debe conservar al menos un hito activo.');
+
+      await connection.commit();
+      return {
+        ok: true,
+        source: 'aiven',
+        domain: 'CORELLIAN',
+        route: ROUTES_COR.estado_cuenta_actualizar,
+        ppns,
+        hitos_actualizados: hitosActualizados,
+        hitos_creados: hitosCreados,
+        hitos_desactivados: hitosDesactivados,
+        equipos_actualizados: equiposActualizados,
+        equipos_creados: equiposCreados,
+        equipos_desactivados: equiposDesactivados
+      };
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
   } finally {
     connection.release();
   }
@@ -902,6 +1399,10 @@ module.exports = {
   cargarAditivas_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
+  catalogoCrearEstadoCuenta_cor,
+  formularioEstadoCuenta_cor,
+  crearEstadoCuenta_cor,
+  actualizarEstadoCuenta_cor,
   listarAditivas_cor,
   detalleAditiva_cor,
   crearAditiva_cor,

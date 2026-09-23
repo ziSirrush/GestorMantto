@@ -1,0 +1,9 @@
+README_FIX_PVO_PRODUCCION_DETALLE_RESUMEN_PREVIEW_PDF_V001.md
+MANIFEST_FIX_PVO_PRODUCCION_DETALLE_RESUMEN_PREVIEW_PDF_V001.txt
+SHA256SUMS.txt
+modules/logistica-produccion/logistica-produccion.js
+modules/logistica-produccion/logistica-produccion.css
+backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+core/module-loader.js
+tests/logistica_produccion_orden_filtros_emojis_v001.test.js
+tests/logistica_produccion_detalle_resumen_preview_v001.test.js

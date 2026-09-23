@@ -1,0 +1,11 @@
+README_FIX_PVO_PRODUCCION_NUEVO_BUSQUEDA_CALENDARIO_V001.md
+SHA256SUMS.txt
+MANIFEST_FIX_PVO_PRODUCCION_NUEVO_BUSQUEDA_CALENDARIO_V001.txt
+backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+backend/src/modules/logistica-produccion/logistica-produccion.service.js
+modules/logistica-produccion/logistica-produccion.js
+modules/logistica-produccion/logistica-produccion.css
+core/module-loader.js
+tests/logistica_produccion_nuevo_busqueda_calendario_v001.test.js
+tests/logistica_produccion_detalle_resumen_preview_v001.test.js
+tests/logistica_produccion_orden_filtros_emojis_v001.test.js

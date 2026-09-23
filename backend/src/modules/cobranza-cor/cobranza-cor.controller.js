@@ -51,6 +51,55 @@ async function detalleEstadoCuenta_cor(req, res, next) {
   }
 }
 
+async function catalogoCrearEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.catalogoCrearEstadoCuenta_cor(req.query || {}, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function formularioEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.formularioEstadoCuenta_cor(req.params.ppns, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function crearEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(201).json(
+      await service.crearEstadoCuenta_cor(
+        req.body || {},
+        req.informationAccess,
+        req.actorUser && req.actorUser.id_SB
+      )
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function actualizarEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.actualizarEstadoCuenta_cor(
+        req.params.ppns,
+        req.body || {},
+        req.informationAccess,
+        req.actorUser && req.actorUser.id_SB
+      )
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function aditivas_cor(req, res, next) {
   try {
     return res.status(200).json(
@@ -112,6 +161,10 @@ module.exports = {
   cargarAditivas_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
+  catalogoCrearEstadoCuenta_cor,
+  formularioEstadoCuenta_cor,
+  crearEstadoCuenta_cor,
+  actualizarEstadoCuenta_cor,
   aditivas_cor,
   detalleAditiva_cor,
   crearAditiva_cor,

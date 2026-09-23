@@ -1,6 +1,7 @@
 (function(){
 'use strict';
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 // [Aster | 2026-09-04 | ASTER-MG | FIX FORMATO FECHAS DDMMYYYY V001]
 // [Aster | 2026-09-01 | ASTER-MG | FASE 1 LOGISTICA PRODUCCION SEMIAUTOMATICO V001]
 // [Aster | 2026-09-01 | ASTER-MG | FASE 3 LOGISTICA PRODUCCION AGREGAR MODO MANUAL V001]
@@ -13,9 +14,11 @@
 // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION MAIN FILTROS GUARDAR V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 4 PVO-PRODUCCION DETALLE EDITAR SELECTOR PROYECTO V001]
 // [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE EDITAR GUARDAR V001]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION DETALLE RESUMEN TABLA PREVIEW PDF V001]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION ORDEN FILTROS EMOJIS V001]
 const state={
   rows:[],options:[],statuses:[],detail:null,selectedOption:null,optionSearchTimer:null,optionSearchToken:0,
-  newMode:'MANUAL',newSaving:false,pickerDismissCleanup:null,
+  newMode:'MANUAL',newSaving:false,pickerDismissCleanup:null,mainSort:{key:'default',direction:'asc'},
   manual:{loaded:false,loading:null,catalogs:null,lists:{project:[],advisor:[],supervisor:[]},selected:{project:null,advisor:null,supervisor:null},timers:{},tokens:{}}
 };
 const $=id=>document.getElementById(id);
@@ -80,6 +83,7 @@ function bindOptionSearch(){const input=$('lp-option-search');if(!input)return;c
 
 const MANUAL_PROJECT=Object.freeze({endpoint:'/api/logistica/produccion/manual/proyectos',key:'id_log_ops'});
 const MANUAL_PICKERS=Object.freeze({
+  project:{input:'lp-manual-project-search',list:'lp-manual-project-list',endpoint:'/api/logistica/produccion/manual/proyectos',key:'id_log_ops'},
   advisor:{input:'lp-manual-advisor-search',list:'lp-manual-advisor-list',endpoint:'/api/logistica/produccion/manual/asesores',key:'id_SB'},
   supervisor:{input:'lp-manual-supervisor-search',list:'lp-manual-supervisor-list',endpoint:'/api/logistica/produccion/manual/supervisores',key:'id_SB'}
 });
@@ -88,7 +92,7 @@ function manualPickerLabel(kind,row){
   return raw(row.nombre)||raw(row.iniciales)||'Usuario';
 }
 function manualPickerSecondary(kind,row){
-  if(kind==='project')return '';
+  if(kind==='project')return [raw(row.id_ppns)||'SIN PPNS',raw(row.estatus)].filter(Boolean).join(' · ');
   return [raw(row.iniciales),raw(row.rol),raw(row.puesto)].filter(Boolean).join(' · ');
 }
 function setManualPickerOpen(kind,open){const cfg=MANUAL_PICKERS[kind],input=$(cfg.input),box=$(cfg.list);if(input)input.setAttribute('aria-expanded',open?'true':'false');if(box)box.hidden=!open;}
@@ -97,8 +101,8 @@ function closePickersExcept(activeKey){if(activeKey!=='semi')setOptionListOpen(f
 function pickerKeyFromTarget(target){const combo=target&&target.closest&&target.closest('.lp-combobox');if(!combo)return null;const input=combo.querySelector('[role="combobox"]');if(!input)return null;if(input.id==='lp-option-search')return 'semi';return Object.keys(MANUAL_PICKERS).find(kind=>MANUAL_PICKERS[kind].input===input.id)||null;}
 function releasePickerDismiss(){if(typeof state.pickerDismissCleanup==='function')state.pickerDismissCleanup();state.pickerDismissCleanup=null;}
 function bindPickerDismiss(view){releasePickerDismiss();const pointerHandler=event=>{if(!view.isConnected)return;closePickersExcept(pickerKeyFromTarget(event.target));};const focusHandler=event=>{if(!view.isConnected)return;closePickersExcept(pickerKeyFromTarget(event.target));};const keyHandler=event=>{if(event.key==='Escape')closeAllPickers();};document.addEventListener('pointerdown',pointerHandler,true);document.addEventListener('focusin',focusHandler,true);document.addEventListener('keydown',keyHandler,true);state.pickerDismissCleanup=()=>{document.removeEventListener('pointerdown',pointerHandler,true);document.removeEventListener('focusin',focusHandler,true);document.removeEventListener('keydown',keyHandler,true);};}
-function manualOptionHtml(kind,row){const cfg=MANUAL_PICKERS[kind],key=row[cfg.key],secondary=manualPickerSecondary(kind,row),used=kind==='project'&&Number(row.ya_registrado)===1;return `<button class="lp-picker-option${used?' is-used':''}" type="button" data-lp-manual-kind="${kind}" data-lp-manual-key="${escRaw(key)}"><strong>${esc(manualPickerLabel(kind,row))}</strong>${secondary?`<span>${esc(secondary)}</span>`:''}</button>`;}
-function renderManualPickerList(kind,rows,message='No se encontraron coincidencias.'){const cfg=MANUAL_PICKERS[kind],box=$(cfg.list);if(!box)return;const data=Array.isArray(rows)?rows:[];box.innerHTML=data.length?data.map(row=>manualOptionHtml(kind,row)).join(''):`<div class="lp-option-empty">${esc(message)}</div>`;setManualPickerOpen(kind,comboOwnsFocus(cfg.input));box.querySelectorAll('[data-lp-manual-key]').forEach(button=>button.onclick=()=>selectManualPicker(button.dataset.lpManualKind,button.dataset.lpManualKey));}
+function manualOptionHtml(kind,row){const cfg=MANUAL_PICKERS[kind],key=row[cfg.key],secondary=manualPickerSecondary(kind,row),used=kind==='project'&&Number(row.ya_registrado)===1;return `<button class="lp-picker-option${used?' is-used':''}" type="button" data-lp-manual-kind="${kind}" data-lp-manual-key="${escRaw(key)}"${used?' disabled aria-disabled="true"':''}><strong>${esc(manualPickerLabel(kind,row))}</strong>${secondary?`<span>${esc(secondary)}</span>`:''}${used?'<small>Ya registrado en PVO-Producción</small>':''}</button>`;}
+function renderManualPickerList(kind,rows,message='No se encontraron coincidencias.'){const cfg=MANUAL_PICKERS[kind],box=$(cfg.list);if(!box)return;const data=Array.isArray(rows)?rows:[];box.innerHTML=data.length?data.map(row=>manualOptionHtml(kind,row)).join(''):`<div class="lp-option-empty">${esc(message)}</div>`;setManualPickerOpen(kind,comboOwnsFocus(cfg.input));box.querySelectorAll('[data-lp-manual-key]:not(:disabled)').forEach(button=>button.onclick=()=>selectManualPicker(button.dataset.lpManualKind,button.dataset.lpManualKey));}
 async function fetchManualProjects(query=''){const suffix=raw(query)?'?q='+encodeURIComponent(raw(query)):'';const data=await req(MANUAL_PROJECT.endpoint+suffix);const rows=Array.isArray(data.data)?data.data:[];state.manual.lists.project=rows;return rows;}
 async function fetchManualPicker(kind,query=''){const cfg=MANUAL_PICKERS[kind],suffix=raw(query)?'?q='+encodeURIComponent(raw(query)):'';const data=await req(cfg.endpoint+suffix);const rows=Array.isArray(data.data)?data.data:[];state.manual.lists[kind]=rows;return rows;}
 function renderManualSelectionMeta(kind){const row=state.manual.selected[kind],host=$('lp-manual-'+kind+'-meta');if(!host)return;if(!row){host.textContent='Selecciona una opción válida de la lista.';host.className='lp-picker-meta';return;}host.className='lp-picker-meta selected';if(kind==='project')host.textContent=Number(row.ya_registrado)===1?'Este proyecto ya tiene seguimiento activo de PVO-Producción.':'Proyecto vinculado directamente a Logística.';else host.textContent=[row.iniciales,row.rol,row.puesto].filter(Boolean).join(' · ');}
@@ -109,18 +113,102 @@ function sourceText(value){const text=raw(value);return text||'—';}
 function sourceDateText(value){return fmtDisplayDate(value);}
 function setManualSourceField(inputId,noteId,value,source){const input=$(inputId),note=$(noteId);if(input){input.value=sourceText(value);input.readOnly=true;input.setAttribute('aria-readonly','true');}if(note){note.textContent=`Solo lectura · ${source}`;note.className='lp-source-note automatic';}}
 function syncManualProjectFields(fallback=null){const row=state.manual.selected.project||fallback||null;setManualSourceField('lp-manual-pvo','lp-manual-pvo-note',sourceDateText(row&&row.pvo),'log_ops.pvo');setManualSourceField('lp-manual-visita','lp-manual-visita-note',sourceDateText(row&&(row.fechas_visita||row.fecha_visita)),'ins_fl.fecha_visita');setManualSourceField('lp-manual-cubos','lp-manual-cubos-note',sourceDateText(row&&(row.fechas_cubos||row.fecha_cubos)),'ins_fl.fecha_posible_recepcion_cubo');setManualSourceField('lp-manual-log-status','lp-manual-log-status-note',row&&row.estatus,'log_ops.estatus');}
-function selectManualPicker(kind,key){const cfg=MANUAL_PICKERS[kind],row=state.manual.lists[kind].find(item=>String(item[cfg.key])===String(key));if(!row)return;state.manual.selected[kind]=row;const input=$(cfg.input);if(input)input.value=manualPickerLabel(kind,row);setManualPickerOpen(kind,false);renderManualSelectionMeta(kind);if(kind==='project')syncManualProjectFields();}
+function selectManualPicker(kind,key){const cfg=MANUAL_PICKERS[kind],row=state.manual.lists[kind].find(item=>String(item[cfg.key])===String(key));if(!row)return;if(kind==='project'&&Number(row.ya_registrado)===1)return;state.manual.selected[kind]=row;const input=$(cfg.input);if(input)input.value=manualPickerLabel(kind,row);setManualPickerOpen(kind,false);renderManualSelectionMeta(kind);if(kind==='project')syncManualProjectFields();}
 function clearManualSelection(kind){state.manual.selected[kind]=null;renderManualSelectionMeta(kind);if(kind==='project')syncManualProjectFields();}
-function bindManualPicker(kind){const cfg=MANUAL_PICKERS[kind],input=$(cfg.input);if(!input)return;const open=()=>{closePickersExcept(kind);renderManualPickerList(kind,state.manual.lists[kind],'Escribe para buscar.');};input.onfocus=open;input.onclick=open;input.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();closeAllPickers();return;}if(event.key==='Tab'){setManualPickerOpen(kind,false);return;}if(event.key==='ArrowDown'){const first=$(cfg.list)?.querySelector('[data-lp-manual-key]');if(first){event.preventDefault();first.focus();}}};input.oninput=()=>{if(state.manual.selected[kind])clearManualSelection(kind);const query=input.value.trim(),token=(state.manual.tokens[kind]||0)+1;state.manual.tokens[kind]=token;clearTimeout(state.manual.timers[kind]);state.manual.timers[kind]=setTimeout(async()=>{try{renderManualPickerList(kind,[],'Buscando...');const rows=await fetchManualPicker(kind,query);if(token!==state.manual.tokens[kind])return;renderManualPickerList(kind,rows,'No se encontraron opciones.');}catch(error){if(token!==state.manual.tokens[kind])return;renderManualPickerList(kind,[],error.message||'No fue posible consultar las opciones.');}},220);};}
+function bindManualPicker(kind){const cfg=MANUAL_PICKERS[kind],input=$(cfg.input);if(!input)return;const open=()=>{closePickersExcept(kind);renderManualPickerList(kind,state.manual.lists[kind],kind==='project'?'Escribe un Proyecto o PPNS para buscar.':'Escribe para buscar.');};input.onfocus=open;input.onclick=open;input.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();closeAllPickers();return;}if(event.key==='Tab'){setManualPickerOpen(kind,false);return;}if(event.key==='ArrowDown'){const first=$(cfg.list)?.querySelector('[data-lp-manual-key]:not(:disabled)');if(first){event.preventDefault();first.focus();}}};input.oninput=()=>{if(state.manual.selected[kind])clearManualSelection(kind);const query=input.value.trim(),token=(state.manual.tokens[kind]||0)+1;state.manual.tokens[kind]=token;clearTimeout(state.manual.timers[kind]);state.manual.timers[kind]=setTimeout(async()=>{try{renderManualPickerList(kind,[],'Buscando...');const rows=await fetchManualPicker(kind,query);if(token!==state.manual.tokens[kind])return;renderManualPickerList(kind,rows,kind==='project'?'No se encontraron Proyectos / PPNS.':'No se encontraron opciones.');}catch(error){if(token!==state.manual.tokens[kind])return;renderManualPickerList(kind,[],error.message||'No fue posible consultar las opciones.');}},220);};}
 function renderManualCatalogs(){const data=state.manual.catalogs||{},prod=Array.isArray(data.estatus_produccion)?data.estatus_produccion:[],source=data.catalogo_estatus_produccion||STATUS_CATALOG,label=`${raw(source.area)||STATUS_CATALOG.area} / ${raw(source.elemento)||STATUS_CATALOG.elemento}`,prodSelect=$('lp-manual-prod-status'),emptyLabel=`Sin estatus activos · ${label}`;if(prodSelect)prodSelect.innerHTML='<option value="">Sin estatus</option>'+prod.map(x=>`<option value="${escRaw(x.id_catalogo)}">${esc(x.articulo)}</option>`).join('')+(prod.length?'':`<option value="" disabled>${escRaw(emptyLabel)}</option>`);}
 async function ensureManualData(){if(state.manual.loaded){renderManualCatalogs();renderManualProjectSelect();return;}if(state.manual.loading)return state.manual.loading;state.manual.loading=(async()=>{const [catalogs,projects,advisors,supervisors]=await Promise.all([req('/api/logistica/produccion/manual/catalogos'),fetchManualProjects(''),fetchManualPicker('advisor',''),fetchManualPicker('supervisor','')]);state.manual.catalogs=catalogs.data||{};state.manual.lists.project=projects;state.manual.lists.advisor=advisors;state.manual.lists.supervisor=supervisors;state.manual.loaded=true;renderManualCatalogs();renderManualProjectSelect();})();try{await state.manual.loading;}finally{state.manual.loading=null;}}
 function resetManualNewState(){state.manual.loaded=false;state.manual.loading=null;state.manual.catalogs=null;state.manual.lists={project:[],advisor:[],supervisor:[]};state.manual.selected={project:null,advisor:null,supervisor:null};Object.values(state.manual.timers||{}).forEach(clearTimeout);state.manual.timers={};state.manual.tokens={};}
-function manualPayload(){const project=state.manual.selected.project,advisor=state.manual.selected.advisor,supervisor=state.manual.selected.supervisor;if(!project||!project.id_log_ops)throw new Error('Selecciona un Proyecto válido de Logística.');if(Number(project.ya_registrado)===1)throw new Error('El proyecto seleccionado ya tiene seguimiento activo de PVO-Producción.');if(!advisor)throw new Error('Selecciona un Asesor válido.');if(!supervisor)throw new Error('Selecciona un Supervisor válido.');return {modo_registro:'MANUAL',id_log_ops:project.id_log_ops,id_asesor:advisor.id_SB,id_supervisor:supervisor.id_SB,id_estatus_produccion:$('lp-manual-prod-status').value||null,comentario:$('lp-manual-comment').value};}
+function manualPayload(){const project=state.manual.selected.project,advisor=state.manual.selected.advisor,supervisor=state.manual.selected.supervisor;if(!project||!project.id_log_ops)throw new Error('Selecciona un Proyecto válido de Logística.');if(Number(project.ya_registrado)===1)throw new Error('El proyecto seleccionado ya tiene seguimiento activo de PVO-Producción.');if(!advisor)throw new Error('Selecciona un Asesor válido.');if(!supervisor)throw new Error('Selecciona un Supervisor válido.');return {modo_registro:'MANUAL',id_log_ops:project.id_log_ops,id_asesor:advisor.id_SB,id_supervisor:supervisor.id_SB,id_estatus_produccion:$('lp-manual-prod-status').value||null,fecha_envio_docs_fabrica:$('lp-new-doc-date')?.value||null,fecha_envio_pago_fabrica:$('lp-new-pay-date')?.value||null,comentario:$('lp-manual-comment').value};}
 function cancelNewCapture(){if(state.newSaving)return;state.optionSearchToken+=1;clearTimeout(state.optionSearchTimer);Object.values(state.manual.timers||{}).forEach(clearTimeout);Object.keys(state.manual.tokens||{}).forEach(kind=>{state.manual.tokens[kind]=(state.manual.tokens[kind]||0)+1;});closeAllPickers();go('logistica-produccion');}
 function setNewSaving(busy){state.newSaving=Boolean(busy);['lp-save','lp-manual-save','lp-cancel','lp-manual-cancel','lp-cancel-new-header'].forEach(id=>{const el=$(id);if(el)el.disabled=state.newSaving;});}
 
+const MAIN_SORT_KEYS=Object.freeze(['docs','proyecto','asesor','supervisor','fecha_pvo','fecha_visita','fecha_cubos','semana','comentario','estatus']);
+function mainDateSortValue(value){
+ const text=raw(value);
+ if(!text)return null;
+ const matches=text.match(/\d{4}-\d{2}-\d{2}/g)||[];
+ if(!matches.length)return null;
+ const times=matches.map(x=>Date.parse(x+'T00:00:00Z')).filter(Number.isFinite);
+ return times.length?Math.min(...times):null;
+}
+function mainSortValue(row,key){
+ switch(key){
+  case 'docs':return Array.isArray(row.indicadores)?row.indicadores.length:0;
+  case 'proyecto':return [raw(row.proyecto),raw(row.ppns)].filter(Boolean).join(' · ');
+  case 'asesor':return raw(row.asesores);
+  case 'supervisor':return raw(row.supervisores);
+  case 'fecha_pvo':return mainDateSortValue(row.fecha_pvo);
+  case 'fecha_visita':return mainDateSortValue(row.fechas_visita||row.fechas_pvo_fl);
+  case 'fecha_cubos':return mainDateSortValue(row.fechas_cubos);
+  case 'semana':{
+   const year=Number(row.anio_registro),week=Number(row.semana_registro);
+   return Number.isFinite(year)&&Number.isFinite(week)?(year*100+week):null;
+  }
+  case 'comentario':return raw(row.comentario);
+  case 'estatus':return raw(row.estatus_produccion);
+  default:return null;
+ }
+}
+function mainSortedRows(){
+ const rows=Array.isArray(state.rows)?state.rows:[];
+ const sort=state.mainSort||{key:'default',direction:'asc'};
+ if(!MAIN_SORT_KEYS.includes(sort.key))return rows.slice();
+ return rows.map((row,index)=>({row,index})).sort((a,b)=>{
+  const av=mainSortValue(a.row,sort.key),bv=mainSortValue(b.row,sort.key);
+  const aMissing=av===null||av===undefined||av==='';
+  const bMissing=bv===null||bv===undefined||bv==='';
+  if(aMissing!==bMissing)return aMissing?1:-1;
+  if(aMissing&&bMissing)return a.index-b.index;
+  let cmp=0;
+  if(typeof av==='number'&&typeof bv==='number')cmp=av-bv;
+  else cmp=String(av).localeCompare(String(bv),'es',{numeric:true,sensitivity:'base'});
+  if(cmp===0)return a.index-b.index;
+  return sort.direction==='desc'?-cmp:cmp;
+ }).map(item=>item.row);
+}
+function mainWeekLabel(row){
+ const year=Number(row&&row.anio_registro),week=Number(row&&row.semana_registro);
+ return Number.isInteger(year)&&Number.isInteger(week)?`S${String(week).padStart(2,'0')} / ${year}`:'—';
+}
+function updateMainSortHeaders(view){
+ const sort=state.mainSort||{key:'default',direction:'asc'};
+ view.querySelectorAll('[data-lp-sort]').forEach(button=>{
+  const active=button.dataset.lpSort===sort.key;
+  const th=button.closest('th');
+  if(th)th.setAttribute('aria-sort',active?(sort.direction==='asc'?'ascending':'descending'):'none');
+  const mark=button.querySelector('.lp-sort-dir');
+  if(mark)mark.textContent=active?(sort.direction==='asc'?'↑':'↓'):'↕';
+  button.classList.toggle('active',active);
+ });
+}
+function renderMainRows(view){
+ const rows=mainSortedRows();
+ const body=$('lp-main-body');
+ if(!body)return;
+ body.innerHTML=rows.length?rows.map(r=>`<tr data-detail="${r.id_produccion}"><td>${indicators(r)}</td><td><button class="lp-link" type="button">${esc(r.proyecto)}</button><small>${esc(r.ppns)}</small></td><td>${esc(r.asesores)}</td><td>${esc(r.supervisores)}</td><td>${fmtDisplayDate(r.fecha_pvo)}</td><td>${esc(fmtDisplayDate(r.fechas_visita||r.fechas_pvo_fl))}</td><td>${esc(fmtDisplayDate(r.fechas_cubos))}</td><td>${esc(mainWeekLabel(r))}</td><td>${esc(r.comentario)}</td><td>${esc(r.estatus_produccion)}</td></tr>`).join(''):empty(10,'No hay registros para la vista seleccionada.');
+ view.querySelectorAll('[data-detail]').forEach(el=>el.onclick=()=>go('logistica-produccion-detalle',{id:el.dataset.detail}));
+ updateMainSortHeaders(view);
+}
+function bindMainSort(view){
+ view.querySelectorAll('[data-lp-sort]').forEach(button=>{
+  button.onclick=event=>{
+   event.stopPropagation();
+   const key=button.dataset.lpSort;
+   if(!MAIN_SORT_KEYS.includes(key))return;
+   if(state.mainSort&&state.mainSort.key===key)state.mainSort.direction=state.mainSort.direction==='asc'?'desc':'asc';
+   else state.mainSort={key,direction:key==='semana'?'desc':'asc'};
+   renderMainRows(view);
+  };
+ });
+ updateMainSortHeaders(view);
+}
+
 async function loadMain(view){
- shell(view,'PVO-Producción','Seguimiento consolidado sin duplicar las fuentes operativas.',`<section class="lp-card lp-toolbar"><input id="lp-q" type="search" placeholder="Buscar proyecto o PPNS"><label>Vista<select id="lp-main-filter" aria-label="Filtrar registros de PVO-Producción"><option value="todos">Ver Todos</option><option value="sin_pvo">Ver sin PVO</option><option value="sin_documentos">Ver Sin Documentos</option></select></label></section><section class="lp-card"><div class="lp-table-wrap"><table class="lp-table"><thead><tr><th>Docs</th><th>Proyecto</th><th>Asesor</th><th>Supervisor</th><th>Fecha PVO</th><th>Fecha de Visita</th><th>Fecha entrega cubos</th><th>Semana/Año</th><th>Comentario</th><th>Estatus Producción</th></tr></thead><tbody id="lp-main-body"></tbody></table></div></section>`,`<button id="lp-add" class="lp-btn primary" type="button">＋ Agregar nuevo</button>`);
+ state.mainSort={key:'default',direction:'asc'};
+ const sortTh=(key,label)=>`<th aria-sort="none"><button class="lp-sort" type="button" data-lp-sort="${key}" title="Ordenar ${escRaw(label)}">${esc(label)} <span class="lp-sort-dir" aria-hidden="true">↕</span></button></th>`;
+ shell(view,'PVO-Producción','Seguimiento consolidado sin duplicar las fuentes operativas.',`<section class="lp-card lp-toolbar"><input id="lp-q" type="search" placeholder="Buscar proyecto o PPNS"><label>Faltantes<select id="lp-main-filter" aria-label="Filtrar registros de PVO-Producción por faltante"><option value="todos">Ver Todos</option><option value="falta_archivo_pvo">Falta Archivo PVO</option><option value="falta_ppns">Falta PPNS</option><option value="sin_documentos">Faltan Docs de Producción</option><option value="sin_pvo">Sin Fecha PVO</option><option value="sin_visita">Sin Fecha de Visita</option><option value="sin_cubos">Sin Fecha entrega cubos</option><option value="sin_asesor">Sin Asesor</option><option value="sin_supervisor">Sin Supervisor</option><option value="sin_estatus_produccion">Sin Estatus Producción</option></select></label></section><section class="lp-card lp-indicator-legend" aria-label="Significado de indicadores de PVO-Producción"><strong>Indicadores</strong><div><span><b>📍</b> Falta Archivo PVO</span><span><b>🥨</b> Falta PPNS</span><span><b>💾</b> Faltan Docs de Producción</span><span><b class="lp-legend-ok">✓</b> Sin faltantes detectados</span></div></section><section class="lp-card"><div class="lp-main-order-note"><strong>Orden inicial:</strong> semana de registro más reciente primero; dentro de cada semana, Fecha PVO más antigua primero. Los registros sin PVO quedan al final de su semana.</div><div class="lp-table-wrap"><table class="lp-table lp-main-table"><thead><tr>${sortTh('docs','Docs')}${sortTh('proyecto','Proyecto')}${sortTh('asesor','Asesor')}${sortTh('supervisor','Supervisor')}${sortTh('fecha_pvo','Fecha PVO')}${sortTh('fecha_visita','Fecha de Visita')}${sortTh('fecha_cubos','Fecha entrega cubos')}${sortTh('semana','Semana/Año')}${sortTh('comentario','Comentario')}${sortTh('estatus','Estatus Producción')}</tr></thead><tbody id="lp-main-body"></tbody></table></div></section>`,`<button id="lp-add" class="lp-btn primary" type="button">＋ Agregar nuevo</button>`);
+ bindMainSort(view);
  const load=async()=>{
   try{
    clearAlert();
@@ -129,9 +217,8 @@ async function loadMain(view){
    if(filter&&filter!=='todos')p.set('vista',filter);
    const suffix=p.toString()?'?'+p.toString():'';
    const data=await req('/api/logistica/produccion'+suffix);
-   state.rows=data.data||[];
-   $('lp-main-body').innerHTML=state.rows.length?state.rows.map(r=>`<tr data-detail="${r.id_produccion}"><td>${indicators(r)}</td><td><button class="lp-link" type="button">${esc(r.proyecto)}</button><small>${esc(r.ppns)}</small></td><td>${esc(r.asesores)}</td><td>${esc(r.supervisores)}</td><td>${fmtDisplayDate(r.fecha_pvo)}</td><td>${esc(fmtDisplayDate(r.fechas_visita||r.fechas_pvo_fl))}</td><td>${esc(fmtDisplayDate(r.fechas_cubos))}</td><td>S${String(r.semana_registro).padStart(2,'0')} / ${r.anio_registro}</td><td>${esc(r.comentario)}</td><td>${esc(r.estatus_produccion)}</td></tr>`).join(''):empty(10,'No hay registros para la vista seleccionada.');
-   view.querySelectorAll('[data-detail]').forEach(el=>el.onclick=()=>go('logistica-produccion-detalle',{id:el.dataset.detail}));
+   state.rows=Array.isArray(data.data)?data.data:[];
+   renderMainRows(view);
   }catch(e){alertMsg(e.message);}
  };
  $('lp-add').onclick=()=>go('logistica-produccion-nuevo');
@@ -144,13 +231,13 @@ async function loadMain(view){
 async function loadNew(view,resetMode=true){
  state.newMode='MANUAL';state.newSaving=false;state.selectedOption=null;state.options=[];state.statuses=[];state.optionSearchToken+=1;resetManualNewState();
  shell(view,'Agregar PVO-Producción','Captura manual. El Proyecto se relaciona directamente con Logística; PVO, Visita, Cubos y Estatus Logística son de solo lectura.',`<section id="lp-manual-form" class="lp-card lp-form"><div class="lp-form-heading wide"><div><h2>Manual</h2><p>Selecciona el Proyecto desde Logística. Los datos operativos se consultan desde su fuente y no se duplican en PVO-Producción.</p></div></div>
- <label class="wide">Proyecto *<select id="lp-manual-project-select"><option value="">Cargando proyectos...</option></select></label>
+ <label class="wide">Proyecto *<div class="lp-combobox lp-project-combobox"><input id="lp-manual-project-search" type="search" autocomplete="off" placeholder="Buscar proyecto o PPNS..." role="combobox" aria-autocomplete="list" aria-controls="lp-manual-project-list" aria-expanded="false"><div id="lp-manual-project-list" class="lp-options lp-picker-options lp-project-options" role="listbox" hidden></div></div><small id="lp-manual-project-meta" class="lp-picker-meta">Escribe para filtrar y selecciona un Proyecto disponible.</small></label>
  <label>Asesor *<div class="lp-combobox"><input id="lp-manual-advisor-search" type="search" autocomplete="off" placeholder="Buscar asesor, gerente o director" role="combobox" aria-autocomplete="list" aria-controls="lp-manual-advisor-list" aria-expanded="false"><div id="lp-manual-advisor-list" class="lp-options lp-picker-options" role="listbox" hidden></div></div><small id="lp-manual-advisor-meta" class="lp-picker-meta">Selecciona una opción válida de la lista.</small></label>
  <label>Supervisor *<div class="lp-combobox"><input id="lp-manual-supervisor-search" type="search" autocomplete="off" placeholder="Buscar supervisor o superintendente" role="combobox" aria-autocomplete="list" aria-controls="lp-manual-supervisor-list" aria-expanded="false"><div id="lp-manual-supervisor-list" class="lp-options lp-picker-options" role="listbox" hidden></div></div><small id="lp-manual-supervisor-meta" class="lp-picker-meta">Selecciona una opción válida de la lista.</small></label>
  <div class="lp-manual-source-grid wide"><label>Fecha PVO<input id="lp-manual-pvo" type="text" value="—" readonly><small id="lp-manual-pvo-note" class="lp-source-note">Solo lectura · log_ops.pvo</small></label><label>Fecha de Visita<input id="lp-manual-visita" type="text" value="—" readonly><small id="lp-manual-visita-note" class="lp-source-note">Solo lectura · ins_fl.fecha_visita</small></label><label>Fecha entrega cubos<input id="lp-manual-cubos" type="text" value="—" readonly><small id="lp-manual-cubos-note" class="lp-source-note">Solo lectura · ins_fl.fecha_posible_recepcion_cubo</small></label><label>Estatus Logística<input id="lp-manual-log-status" type="text" value="—" readonly><small id="lp-manual-log-status-note" class="lp-source-note">Solo lectura · log_ops.estatus</small></label></div>
- <label>Estatus Producción<select id="lp-manual-prod-status"><option value="">Cargando catálogo...</option></select></label><label class="wide">Comentario inicial<textarea id="lp-manual-comment" maxlength="5000" rows="4"></textarea></label><label>CPVO (máximo 2 · 25 MB por archivo)<input id="lp-manual-cpvo" type="file" multiple></label><label>GM (máximo 10 · 25 MB por archivo)<input id="lp-manual-gm" type="file" multiple></label><p class="lp-policy-note wide">Máximo total: 12 archivos activos. El límite de 25 MB se valida individualmente.</p><div class="lp-form-actions wide"><button id="lp-manual-cancel" class="lp-btn ghost" type="button" title="Descarta esta captura. No elimina, desactiva ni bloquea registros.">Cancelar registro</button><button id="lp-manual-save" class="lp-btn primary" type="button">Crear registro</button></div></section>`,`<button id="lp-cancel-new-header" class="lp-btn ghost" type="button" title="Descarta esta captura. No elimina, desactiva ni bloquea registros.">✕ Cancelar registro</button>`);
- ['advisor','supervisor'].forEach(bindManualPicker);bindManualProjectSelect();bindPickerDismiss(view);
- try{await ensureManualData();renderManualProjectSelect();bindManualProjectSelect();}catch(e){alertMsg(e.message||'No fue posible cargar la captura Manual.');}
+ <label>Estatus Producción<select id="lp-manual-prod-status"><option value="">Cargando catálogo...</option></select></label><label>Fecha envío Docs a Fábrica<input id="lp-new-doc-date" type="date"></label><label>Fecha envío Pago a Fábrica<input id="lp-new-pay-date" type="date"></label><label class="wide">Comentario inicial<textarea id="lp-manual-comment" maxlength="5000" rows="4"></textarea></label><label>CPVO (máximo 2 · 25 MB por archivo)<input id="lp-manual-cpvo" type="file" multiple></label><label>GM (máximo 10 · 25 MB por archivo)<input id="lp-manual-gm" type="file" multiple></label><p class="lp-policy-note wide">Máximo total: 12 archivos activos. El límite de 25 MB se valida individualmente.</p><div class="lp-form-actions wide"><button id="lp-manual-cancel" class="lp-btn ghost" type="button" title="Descarta esta captura. No elimina, desactiva ni bloquea registros.">Cancelar registro</button><button id="lp-manual-save" class="lp-btn primary" type="button">Crear registro</button></div></section>`,`<button id="lp-cancel-new-header" class="lp-btn ghost" type="button" title="Descarta esta captura. No elimina, desactiva ni bloquea registros.">✕ Cancelar registro</button>`);
+ ['project','advisor','supervisor'].forEach(bindManualPicker);bindPickerDismiss(view);
+ try{await ensureManualData();}catch(e){alertMsg(e.message||'No fue posible cargar la captura Manual.');}
  syncManualProjectFields();
  $('lp-manual-cancel').onclick=cancelNewCapture;$('lp-cancel-new-header').onclick=cancelNewCapture;
  $('lp-manual-save').onclick=async()=>{const cpvo=[...$('lp-manual-cpvo').files],gm=[...$('lp-manual-gm').files];if(cpvo.length>2||gm.length>10)return alertMsg('Solo se permiten 2 archivos CPVO y 10 GM.');let payload;try{payload=manualPayload();}catch(error){return alertMsg(error.message);}setNewSaving(true);let createdId=null;try{const out=await json('/api/logistica/produccion','POST',payload);createdId=out.data.produccion.id_produccion;markProductionDirty();await uploadInitial(createdId,'CPVO',cpvo);await uploadInitial(createdId,'GM',gm);markProductionDirty();go('logistica-produccion-detalle',{id:createdId});}catch(error){if(createdId){markProductionDirty();window.alert('El registro se creó, pero no todos los archivos pudieron cargarse: '+error.message);go('logistica-produccion-detalle',{id:createdId});}else alertMsg(error.message);}finally{setNewSaving(false);}};
@@ -252,8 +339,39 @@ async function loadDetail(view,id){
   renderDetail(view);
  }catch(e){shell(view,'Detalle de PVO-Producción','No fue posible abrir el registro','');alertMsg(e.message);}
 }
-function renderDetail(view){const d=state.detail,p=d.produccion,fl=d.instalaciones||{},files=d.archivos||[];const cpvo=files.filter(x=>x.tipo_archivo==='CPVO'),gm=files.filter(x=>x.tipo_archivo==='GM'),manual=String(p.modo_registro||'SEMI_AUTOMATICO')==='MANUAL';const summary=[fieldSource('Modo',modeName(p.modo_registro),'Origen del registro'),field('Proyecto',p.proyecto),field('Supervisor',(fl.supervisores||[]).join(', ')),field('Asesor',(fl.asesores||[]).join(', ')),field('Semana Registro','S'+String(p.semana_registro).padStart(2,'0')+' / '+p.anio_registro),field('Estatus Producción',p.estatus_produccion),field('PPNS',p.ppns),field('Fecha PVO',fmtDisplayDate(p.fecha_pvo)),field('Fecha de Visita',fmtDisplayDate(p.fechas_visita||p.fecha_visita)),field('Fecha entrega cubos',fmtDisplayDate(p.fechas_cubos||p.fecha_cubos)),field('Estatus Logística',p.estatus_logistica),field('Comentario',p.comentario)].join('');const editForm=manual?manualDetailEditForm(p):semiDetailEditForm(p);const canInstall=Boolean(raw(p.ppns));shell(view,p.proyecto||'Detalle',`PPNS ${p.ppns||'—'} · PVO-Producción · ${modeName(p.modo_registro)}`,`<section class="lp-card"><div class="lp-detail-title"><div><h2>Resumen</h2><span class="lp-mode-badge ${manual?'manual':'semi'}">${esc(modeName(p.modo_registro))}</span></div><button id="lp-edit" class="lp-btn" type="button">✏️ Editar</button></div><div class="lp-fields">${summary}</div>${editForm}</section><section class="lp-card"><div class="lp-detail-title"><div><h2>Zona de carga</h2><p>CPVO ${cpvo.length}/2 · GM ${gm.length}/10</p></div></div><div class="lp-upload-grid">${uploadBlock('CPVO',2,cpvo)}${uploadBlock('GM',10,gm)}</div></section>`,`<button id="lp-install" class="lp-btn" type="button" ${canInstall?'':'disabled title="El registro no tiene PPNS para abrir Instalaciones"'}>🏗️ Ver en Instalaciones</button>`);if(manual)hydrateManualDetailForm(p);bindDetail(view,p.id_produccion);}
-function uploadBlock(type,max,files){return `<div class="lp-upload"><h3>${type}</h3><div class="lp-file-list">${files.length?files.map(f=>`<div><span>${type} ${f.numero_archivo} · ${esc(f.nombre_original||f.nombre_archivo)}</span><span>${f.url_acceso?`<a href="${esc(f.url_acceso)}" target="_blank" rel="noopener">Abrir</a>`:''}<button data-file-delete="${f.id_archivo}" type="button">Eliminar</button></span></div>`).join(''):'<p>Sin archivos</p>'}</div><form data-upload="${type}"><label>Slot<select name="numero_archivo">${Array.from({length:max},(_,i)=>`<option value="${i+1}">${type} ${i+1}</option>`).join('')}</select></label><label>Archivo (máximo 25 MB por archivo)<input name="archivo" type="file" required></label><button class="lp-btn" type="submit">＋ Cargar / reemplazar</button></form></div>`;}
+function detailSummaryTable(p,fl){
+ const fields=[
+  ['Modo',modeName(p.modo_registro),'Origen del registro'],
+  ['Proyecto',p.proyecto],
+  ['Supervisor',(fl.supervisores||[]).join(', ')],
+  ['Asesor',(fl.asesores||[]).join(', ')],
+  ['Semana Registro','S'+String(p.semana_registro).padStart(2,'0')+' / '+p.anio_registro],
+  ['Estatus Producción',p.estatus_produccion],
+  ['PPNS',p.ppns],
+  ['Fecha PVO',fmtDisplayDate(p.fecha_pvo)],
+  ['Fecha de Visita',fmtDisplayDate(p.fechas_visita||p.fecha_visita)],
+  ['Fecha entrega cubos',fmtDisplayDate(p.fechas_cubos||p.fecha_cubos)],
+  ['Estatus Logística',p.estatus_logistica],
+  ['Comentario',p.comentario]
+ ];
+ const cell=item=>`<th scope="row" class="lp-summary-label">${esc(item[0])}</th><td class="lp-summary-value"><strong>${esc(item[1])}</strong>${item[2]?`<small>${esc(item[2])}</small>`:''}</td>`;
+ const rows=[];
+ for(let i=0;i<fields.length;i+=2)rows.push(`<tr>${cell(fields[i])}${fields[i+1]?cell(fields[i+1]):'<th></th><td></td>'}</tr>`);
+ return `<div class="lp-summary-table-wrap"><table class="lp-summary-table" aria-label="Resumen del registro de PVO-Producción"><tbody>${rows.join('')}</tbody></table></div>`;
+}
+function isPdfFile(file){const mime=norm(file&&file.mime_type),ext=norm(file&&file.extension),name=norm(file&&(file.nombre_original||file.nombre_archivo));return mime==='APPLICATION/PDF'||ext==='PDF'||name.endsWith('.PDF');}
+function pdfPreviewUrl(url){const value=raw(url);if(!value)return '';return value.split('#')[0]+'#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0';}
+function documentPreview(type,file){
+ const name=raw(file.nombre_original||file.nombre_archivo)||`${type} ${file.numero_archivo}`;
+ const url=raw(file.url_acceso);
+ const open=url?`<a href="${escRaw(url)}" target="_blank" rel="noopener noreferrer">Abrir PDF completo</a>`:'';
+ let preview='<div class="lp-doc-preview-empty">Vista previa no disponible.</div>';
+ if(url&&isPdfFile(file))preview=`<div class="lp-pdf-preview-window"><iframe src="${escRaw(pdfPreviewUrl(url))}" title="Hoja 1 de ${escRaw(name)}" loading="lazy" tabindex="-1" aria-hidden="true"></iframe><span>Hoja 1</span></div>`;
+ else if(url)preview='<div class="lp-doc-preview-empty">Vista previa disponible únicamente para archivos PDF.</div>';
+ return `<article class="lp-doc-preview"><div class="lp-doc-preview-head"><div><strong>${esc(type)} ${esc(file.numero_archivo)}</strong><small>${esc(name)}</small></div><button data-file-delete="${escRaw(file.id_archivo)}" type="button">Eliminar</button></div>${preview}<div class="lp-doc-preview-actions">${open||'<span>Sin enlace de lectura</span>'}<small>Vista previa fija de la primera hoja.</small></div></article>`;
+}
+function renderDetail(view){const d=state.detail,p=d.produccion,fl=d.instalaciones||{},files=d.archivos||[];const cpvo=files.filter(x=>x.tipo_archivo==='CPVO'),gm=files.filter(x=>x.tipo_archivo==='GM'),manual=String(p.modo_registro||'SEMI_AUTOMATICO')==='MANUAL';const summary=detailSummaryTable(p,fl);const editForm=manual?manualDetailEditForm(p):semiDetailEditForm(p);const canInstall=Boolean(raw(p.ppns));shell(view,p.proyecto||'Detalle',`PPNS ${p.ppns||'—'} · PVO-Producción · ${modeName(p.modo_registro)}`,`<section class="lp-card"><div class="lp-detail-title"><div><h2>Resumen</h2><span class="lp-mode-badge ${manual?'manual':'semi'}">${esc(modeName(p.modo_registro))}</span></div><button id="lp-edit" class="lp-btn" type="button">✏️ Editar</button></div>${summary}${editForm}</section><section class="lp-card"><div class="lp-detail-title"><div><h2>Zona de carga</h2><p>CPVO ${cpvo.length}/2 · GM ${gm.length}/10 · Vista previa: hoja 1 de cada PDF</p></div></div><div class="lp-upload-grid">${uploadBlock('CPVO',2,cpvo)}${uploadBlock('GM',10,gm)}</div></section>`,`<button id="lp-install" class="lp-btn" type="button" ${canInstall?'':'disabled title="El registro no tiene PPNS para abrir Instalaciones"'}>🏗️ Ver en Instalaciones</button>`);if(manual)hydrateManualDetailForm(p);bindDetail(view,p.id_produccion);}
+function uploadBlock(type,max,files){return `<div class="lp-upload"><h3>${type}</h3><div class="lp-doc-preview-grid">${files.length?files.map(f=>documentPreview(type,f)).join(''):'<div class="lp-doc-preview-empty">Sin archivos</div>'}</div><form data-upload="${type}"><label>Slot<select name="numero_archivo">${Array.from({length:max},(_,i)=>`<option value="${i+1}">${type} ${i+1}</option>`).join('')}</select></label><label>Archivo (máximo 25 MB por archivo)<input name="archivo" type="file" required></label><button class="lp-btn" type="submit">＋ Cargar / reemplazar</button></form></div>`;}
 function detailEditMsg(message,type='error'){const host=$('lp-edit-feedback');if(host){host.innerHTML=`<div class="lp-alert ${type}">${esc(message)}</div>`;return;}alertMsg(message,type);}
 function clearDetailEditMsg(){const host=$('lp-edit-feedback');if(host)host.innerHTML='';}
 function setDetailSaving(form,busy){

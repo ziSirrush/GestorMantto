@@ -4,8 +4,44 @@ const db = require('../../config/db');
 
 const TABLES_COR = Object.freeze({
   fuente: 'cobranza_fuente_cor',
-  aditivas: 'cobranza_aditivas_cor'
+  aditivas: 'cobranza_aditivas_cor',
+  equipos: 'cobranza_equipos_cor'
 });
+
+const FUENTE_MUTABLE_COLUMNS_COR = Object.freeze([
+  'proyecto',
+  'cliente',
+  'contractual',
+  'porcentaje',
+  'condicion',
+  'moneda',
+  'subtotal',
+  'iva',
+  'total',
+  'factura',
+  'pago_total',
+  'estatus_factura',
+  'fecha_pago',
+  'fecha_vencimiento',
+  'dias_vencimiento',
+  'estimado_pago',
+  'estatus_vencimiento',
+  'orden_hito',
+  'fecha_programada',
+  'fecha_notificada',
+  'estatus_hito',
+  'anio_proyecto',
+  'activo'
+]);
+
+const EQUIPO_MUTABLE_COLUMNS_COR = Object.freeze([
+  'id_ins_fl',
+  'id_log_ops',
+  'orden',
+  'ubicacion_torre',
+  'activo',
+  'updated_by'
+]);
 
 const ADITIVA_MUTABLE_COLUMNS_COR = Object.freeze([
   'anio_cot',
@@ -342,15 +378,232 @@ async function listFuenteEstadoCuenta_cor(connection, ppns) {
        f.dias_vencimiento,
        f.estimado_pago,
        f.estatus_vencimiento,
+       f.orden_hito,
+       DATE_FORMAT(f.fecha_programada, '%Y-%m-%d') AS fecha_programada,
+       DATE_FORMAT(f.fecha_notificada, '%Y-%m-%d') AS fecha_notificada,
+       f.estatus_hito,
        f.anio_proyecto
      FROM ${TABLES_COR.fuente} f
      WHERE f.activo = 1
        AND ${usablePpnsSql_cor('f.id_proyecto_origen')}
        AND ${normalizedKeySql_cor('f.id_proyecto_origen')} = ${normalizedKeySql_cor('?')}
-     ORDER BY f.id_fuente_cor ASC`,
+     ORDER BY COALESCE(f.orden_hito, 2147483647) ASC, f.id_fuente_cor ASC`,
     [ppns]
   );
   return rows;
+}
+
+async function listCrearEstadoCuentaProyectos_cor(connection, visibleUserIds = null, exactPpns = null) {
+  const scope = buildPpnsScope_cor('fl.id_proyecto', visibleUserIds);
+  const clauses = [
+    'fl.activo = 1',
+    usablePpnsSql_cor('fl.id_proyecto'),
+    `NOT EXISTS (
+       SELECT 1
+         FROM ${TABLES_COR.fuente} f_existing
+        WHERE f_existing.activo = 1
+          AND ${normalizedKeySql_cor('f_existing.id_proyecto_origen')} = ${normalizedKeySql_cor('fl.id_proyecto')}
+     )`
+  ];
+  const params = [];
+
+  if (exactPpns) {
+    clauses.push(`${normalizedKeySql_cor('fl.id_proyecto')} = ${normalizedKeySql_cor('?')}`);
+    params.push(exactPpns);
+  }
+  params.push(...scope.params);
+
+  const [rows] = await connection.query(
+    `SELECT
+       MAX(NULLIF(TRIM(fl.id_proyecto), '')) AS ppns,
+       GROUP_CONCAT(DISTINCT NULLIF(TRIM(fl.proyecto), '') ORDER BY NULLIF(TRIM(fl.proyecto), '') SEPARATOR ' - ') AS proyecto,
+       GROUP_CONCAT(DISTINCT NULLIF(TRIM(fl.cliente), '') ORDER BY NULLIF(TRIM(fl.cliente), '') SEPARATOR ' - ') AS cliente,
+       COUNT(DISTINCT fl.id_ins_fl) AS equipos_total,
+       GROUP_CONCAT(DISTINCT NULLIF(TRIM(u_sup.iniciales), '') ORDER BY NULLIF(TRIM(u_sup.iniciales), '') SEPARATOR '-') AS supervisor_iniciales,
+       GROUP_CONCAT(DISTINCT NULLIF(TRIM(u_asesor.iniciales), '') ORDER BY NULLIF(TRIM(u_asesor.iniciales), '') SEPARATOR '-') AS asesor_iniciales,
+       GROUP_CONCAT(DISTINCT NULLIF(TRIM(u_admin.iniciales), '') ORDER BY NULLIF(TRIM(u_admin.iniciales), '') SEPARATOR '-') AS administrativo_iniciales
+     FROM ins_fl fl
+     LEFT JOIN usuarios u_sup
+       ON u_sup.id_SB = fl.id_sup
+      AND u_sup.estado = 1
+     LEFT JOIN usuarios u_asesor
+       ON u_asesor.id_SB = fl.id_asesor
+      AND u_asesor.estado = 1
+     LEFT JOIN usuarios_rel_admin ura
+       ON ura.id_asesor = fl.id_asesor
+     LEFT JOIN usuarios u_admin
+       ON u_admin.id_SB = ura.id_admin
+      AND u_admin.estado = 1
+     WHERE ${clauses.join('\n       AND ')}${scope.sql}
+     GROUP BY ${normalizedKeySql_cor('fl.id_proyecto')}
+     ORDER BY proyecto ASC, ppns ASC`,
+    params
+  );
+  return rows;
+}
+
+async function listCrearEstadoCuentaEquipos_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT
+       fl.id_ins_fl,
+       fl.id_proyecto AS ppns,
+       fl.referencia_sitio,
+       fl.capacidad_kg,
+       fl.numero_desembarques,
+       fl.estatus,
+       fl.estatus_produccion,
+       fl.estatus_equipo_entrega
+     FROM ins_fl fl
+     WHERE fl.activo = 1
+       AND ${normalizedKeySql_cor('fl.id_proyecto')} = ${normalizedKeySql_cor('?')}
+     ORDER BY
+       CASE WHEN NULLIF(TRIM(fl.referencia_sitio), '') IS NULL THEN 1 ELSE 0 END,
+       fl.referencia_sitio ASC,
+       fl.id_ins_fl ASC`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function listCrearEstadoCuentaLogOps_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT
+       lo.id_log_ops,
+       lo.id_ppns AS ppns,
+       lo.ph_ns,
+       lo.no_control,
+       lo.marca,
+       lo.estatus,
+       lo.cantidad
+     FROM log_ops lo
+     WHERE ${normalizedKeySql_cor('lo.id_ppns')} = ${normalizedKeySql_cor('?')}
+     ORDER BY lo.id_log_ops ASC`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function listEquiposEstadoCuenta_cor(connection, ppns, options = {}) {
+  const includeInactive = options && options.includeInactive === true;
+  const [rows] = await connection.query(
+    `SELECT
+       ce.id_equipo_cor,
+       ce.ppns,
+       ce.id_ins_fl,
+       ce.id_log_ops,
+       ce.orden,
+       ce.ubicacion_torre,
+       ce.activo,
+       ce.created_by,
+       ce.updated_by,
+       fl.referencia_sitio,
+       fl.capacidad_kg,
+       fl.numero_desembarques,
+       fl.estatus AS ins_fl_estatus,
+       fl.estatus_produccion,
+       fl.estatus_equipo_entrega,
+       lo.ph_ns,
+       lo.no_control,
+       lo.marca,
+       lo.estatus AS log_ops_estatus
+     FROM ${TABLES_COR.equipos} ce
+     LEFT JOIN ins_fl fl
+       ON fl.id_ins_fl = ce.id_ins_fl
+     LEFT JOIN log_ops lo
+       ON lo.id_log_ops = ce.id_log_ops
+     WHERE ${normalizedKeySql_cor('ce.ppns')} = ${normalizedKeySql_cor('?')}
+       ${includeInactive ? '' : 'AND ce.activo = 1'}
+     ORDER BY COALESCE(ce.orden, 2147483647) ASC, ce.id_equipo_cor ASC`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function existeFuentePpns_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT 1 AS existe
+       FROM ${TABLES_COR.fuente} f
+      WHERE f.activo = 1
+        AND ${normalizedKeySql_cor('f.id_proyecto_origen')} = ${normalizedKeySql_cor('?')}
+      LIMIT 1`,
+    [ppns]
+  );
+  return rows.length > 0;
+}
+
+async function lockCrearEstadoCuentaPpns_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT fl.id_ins_fl
+       FROM ins_fl fl
+      WHERE fl.activo = 1
+        AND ${normalizedKeySql_cor('fl.id_proyecto')} = ${normalizedKeySql_cor('?')}
+      ORDER BY fl.id_ins_fl ASC
+      FOR UPDATE`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function lockFuenteEstadoCuentaPpns_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT f.id_fuente_cor
+       FROM ${TABLES_COR.fuente} f
+      WHERE f.activo = 1
+        AND ${normalizedKeySql_cor('f.id_proyecto_origen')} = ${normalizedKeySql_cor('?')}
+      ORDER BY f.id_fuente_cor ASC
+      FOR UPDATE`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function lockEquiposEstadoCuentaPpns_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT ce.id_equipo_cor
+       FROM ${TABLES_COR.equipos} ce
+      WHERE ce.activo = 1
+        AND ${normalizedKeySql_cor('ce.ppns')} = ${normalizedKeySql_cor('?')}
+      ORDER BY ce.id_equipo_cor ASC
+      FOR UPDATE`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function updateFuenteEstadoCuenta_cor(connection, idFuenteCor, ppns, record) {
+  const columns = FUENTE_MUTABLE_COLUMNS_COR.filter((column) =>
+    Object.prototype.hasOwnProperty.call(record || {}, column)
+  );
+  if (!columns.length) return { affectedRows: 0 };
+  const assignments = columns.map((column) => `${column} = ?`).join(', ');
+  const values = columns.map((column) => record[column]);
+  values.push(idFuenteCor, ppns);
+  const [result] = await connection.query(
+    `UPDATE ${TABLES_COR.fuente}
+        SET ${assignments}
+      WHERE id_fuente_cor = ?
+        AND ${normalizedKeySql_cor('id_proyecto_origen')} = ${normalizedKeySql_cor('?')}`,
+    values
+  );
+  return result;
+}
+
+async function updateEquipoEstadoCuenta_cor(connection, idEquipoCor, ppns, record) {
+  const columns = EQUIPO_MUTABLE_COLUMNS_COR.filter((column) =>
+    Object.prototype.hasOwnProperty.call(record || {}, column)
+  );
+  if (!columns.length) return { affectedRows: 0 };
+  const assignments = columns.map((column) => `${column} = ?`).join(', ');
+  const values = columns.map((column) => record[column]);
+  values.push(idEquipoCor, ppns);
+  const [result] = await connection.query(
+    `UPDATE ${TABLES_COR.equipos}
+        SET ${assignments}
+      WHERE id_equipo_cor = ?
+        AND ${normalizedKeySql_cor('ppns')} = ${normalizedKeySql_cor('?')}`,
+    values
+  );
+  return result;
 }
 
 function buildAditivaScope_cor(alias, visibleUserIds) {
@@ -508,6 +761,16 @@ module.exports = {
   listEstadosCuenta_cor,
   getEstadoCuentaByPpns_cor,
   listFuenteEstadoCuenta_cor,
+  listCrearEstadoCuentaProyectos_cor,
+  listCrearEstadoCuentaEquipos_cor,
+  listCrearEstadoCuentaLogOps_cor,
+  listEquiposEstadoCuenta_cor,
+  existeFuentePpns_cor,
+  lockCrearEstadoCuentaPpns_cor,
+  lockFuenteEstadoCuentaPpns_cor,
+  lockEquiposEstadoCuentaPpns_cor,
+  updateFuenteEstadoCuenta_cor,
+  updateEquipoEstadoCuenta_cor,
   listAditivas_cor,
   getAditiva_cor
 };

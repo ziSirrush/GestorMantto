@@ -7,6 +7,8 @@
   // Todo consume el contrato agregado de GET /api/logistica/dashboard creado en FASE 1.
   // [Aster | 2026-09-23 | ASTER-MG | FIX CORTES HISTORICOS LOGISTICA V001]
   // Permite seleccionar y cargar cortes semanales ya guardados en logistica_cortes_semanales.
+  // [Aster | 2026-09-23 | ASTER-MG | FIX ORDEN PPNS FINAL V001]
+  // Proyectos sin PP NS se mueve al cierre visual del Dashboard.
   // [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
   // Los promedios cargan por defecto el anio actual y permiten seleccionar todos los anios o un anio registrado.
   // [Aster | 2026-09-23 | ASTER-MG | FIX SELECTOR ESTANDAR PROMEDIOS V002]
@@ -167,27 +169,26 @@
     </div>
   </section>
 
-  <section class="dl-grid dl-two">
-    <article class="dl-card dl-section">
-      <div class="dl-section-head"><div><h2>Proyectos sin PP NS</h2><p>Registros con SIN PP NS / SIN CARPETA.</p></div><small id="dl-sin-count">—</small></div>
-      <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Proyecto</th><th>Estatus</th><th>Marca</th></tr></thead><tbody id="dl-sin-body"></tbody></table></div>
-    </article>
-    <article class="dl-card dl-section">
-      <div class="dl-section-head dl-mov-head">
-        <div><h2>Movimientos semanales</h2><p id="dl-mov-subtitle">Último corte autónomo cerrado.</p></div>
-        <div class="dl-cut-tools">
-          <label for="dl-cut-select">Corte guardado</label>
-          <select id="dl-cut-select" class="dl-cut-select" aria-label="Seleccionar corte semanal de Logística"><option value="">Cargando cortes...</option></select>
-        </div>
+  <section class="dl-card dl-section">
+    <div class="dl-section-head dl-mov-head">
+      <div><h2>Movimientos semanales</h2><p id="dl-mov-subtitle">Último corte autónomo cerrado.</p></div>
+      <div class="dl-cut-tools">
+        <label for="dl-cut-select">Corte guardado</label>
+        <select id="dl-cut-select" class="dl-cut-select" aria-label="Seleccionar corte semanal de Logística"><option value="">Cargando cortes...</option></select>
       </div>
-      <div class="dl-cut-kpis" aria-label="Resumen del corte semanal seleccionado">
-        <div class="dl-cut-kpi"><small>Movimientos</small><strong id="dl-mov-count">—</strong></div>
-        <div class="dl-cut-kpi"><small>Ingresos</small><strong id="dl-cut-ingresos">—</strong></div>
-        <div class="dl-cut-kpi"><small>Cambios estatus</small><strong id="dl-cut-cambios">—</strong></div>
-        <div class="dl-cut-kpi"><small>Registros corte</small><strong id="dl-cut-registros">—</strong></div>
-      </div>
-      <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Tipo</th><th>PP NS</th><th>Proyecto</th><th>Estatus</th></tr></thead><tbody id="dl-mov-body"></tbody></table></div>
-    </article>
+    </div>
+    <div class="dl-cut-kpis" aria-label="Resumen del corte semanal seleccionado">
+      <div class="dl-cut-kpi"><small>Movimientos</small><strong id="dl-mov-count">—</strong></div>
+      <div class="dl-cut-kpi"><small>Ingresos</small><strong id="dl-cut-ingresos">—</strong></div>
+      <div class="dl-cut-kpi"><small>Cambios estatus</small><strong id="dl-cut-cambios">—</strong></div>
+      <div class="dl-cut-kpi"><small>Registros corte</small><strong id="dl-cut-registros">—</strong></div>
+    </div>
+    <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Tipo</th><th>PP NS</th><th>Proyecto</th><th>Estatus</th></tr></thead><tbody id="dl-mov-body"></tbody></table></div>
+  </section>
+
+  <section class="dl-card dl-section dl-ppns-final">
+    <div class="dl-section-head"><div><h2>Proyectos sin PP NS</h2><p>Registros con SIN PP NS / SIN CARPETA.</p></div><small id="dl-sin-count">—</small></div>
+    <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Proyecto</th><th>Estatus</th><th>Marca</th></tr></thead><tbody id="dl-sin-body"></tbody></table></div>
   </section>
 
   <section id="dl-modal" class="dl-modal" hidden>

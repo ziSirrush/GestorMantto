@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+// [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
@@ -121,6 +122,8 @@ async function create(input,user){
   const userId=positive(user.id_SB||user.id,'usuario');
   const period=isoWeekAtMexico();
   const comentario=optionalText(input.comentario,'comentario',5000);
+  const fechaDocs=optionalDate(input.fecha_envio_docs_fabrica,'fecha_envio_docs_fabrica');
+  const fechaPago=optionalDate(input.fecha_envio_pago_fabrica,'fecha_envio_pago_fabrica');
   const idStatus=optionalPositive(input.id_estatus_produccion,'id_estatus_produccion');
   if(!(await repo.validStatus(idStatus)))throw error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');
 
@@ -147,8 +150,8 @@ async function create(input,user){
     estatus_logistica:null,
     id_estatus_produccion:idStatus,
     comentario,
-    fecha_envio_docs_fabrica:null,
-    fecha_envio_pago_fabrica:null,
+    fecha_envio_docs_fabrica:fechaDocs,
+    fecha_envio_pago_fabrica:fechaPago,
     semana:period.semana,
     anio:period.anio
   };
