@@ -1,0 +1,7 @@
+README_FIX_DASHBOARD_LOGISTICA_CORTES_HISTORICOS_V001.md
+MANIFEST_FIX_DASHBOARD_LOGISTICA_CORTES_HISTORICOS_V001.txt
+SHA256SUMS.txt
+core/module-loader.js
+modules/dashboard-logistica/dashboard-logistica.css
+modules/dashboard-logistica/dashboard-logistica.js
+tests/logistica_dashboard_cortes_historicos.test.js

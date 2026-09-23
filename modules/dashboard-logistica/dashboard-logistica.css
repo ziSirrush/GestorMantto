@@ -699,3 +699,90 @@
     grid-template-columns:1fr;
   }
 }
+
+/* [Aster | 2026-09-23 | ASTER-MG | FIX CORTES HISTORICOS LOGISTICA V001]
+   Selector de cortes cerrados ya guardados y resumen del corte elegido. */
+#view-logistica-dashboard .dl-mov-head,
+[data-view="logistica-dashboard"] .dl-mov-head{
+  align-items:flex-start;
+}
+#view-logistica-dashboard .dl-cut-tools,
+[data-view="logistica-dashboard"] .dl-cut-tools{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  min-width:210px;
+}
+#view-logistica-dashboard .dl-cut-tools label,
+[data-view="logistica-dashboard"] .dl-cut-tools label{
+  color:#64748b;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+#view-logistica-dashboard .dl-cut-select,
+[data-view="logistica-dashboard"] .dl-cut-select{
+  width:100%;
+  min-height:36px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  background:#fff;
+  color:#12305f;
+  padding:7px 30px 7px 10px;
+  font-size:12px;
+  font-weight:800;
+}
+#view-logistica-dashboard .dl-cut-select:disabled,
+[data-view="logistica-dashboard"] .dl-cut-select:disabled{
+  color:#94a3b8;
+  background:#f8fafc;
+}
+#view-logistica-dashboard .dl-cut-kpis,
+[data-view="logistica-dashboard"] .dl-cut-kpis{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin:0 0 10px;
+}
+#view-logistica-dashboard .dl-cut-kpi,
+[data-view="logistica-dashboard"] .dl-cut-kpi{
+  min-width:0;
+  padding:8px 10px;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fbfdff;
+}
+#view-logistica-dashboard .dl-cut-kpi small,
+[data-view="logistica-dashboard"] .dl-cut-kpi small{
+  display:block;
+  color:#64748b;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+}
+#view-logistica-dashboard .dl-cut-kpi strong,
+[data-view="logistica-dashboard"] .dl-cut-kpi strong{
+  display:block;
+  margin-top:3px;
+  color:#102a56;
+  font-size:16px;
+  font-variant-numeric:tabular-nums;
+}
+@media(max-width:700px){
+  #view-logistica-dashboard .dl-mov-head,
+  [data-view="logistica-dashboard"] .dl-mov-head{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  #view-logistica-dashboard .dl-cut-tools,
+  [data-view="logistica-dashboard"] .dl-cut-tools{
+    min-width:0;
+    width:100%;
+  }
+  #view-logistica-dashboard .dl-cut-kpis,
+  [data-view="logistica-dashboard"] .dl-cut-kpis{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}

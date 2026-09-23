@@ -5,12 +5,18 @@
   // Mantiene las graficas de FASE 2 y agrega las tres piezas analiticas acordadas:
   // tabla de salida por puerto, ring de contenedores del anio actual, desglose mensual enero-diciembre en dos tablas 7x3 y tabla de transito por modo.
   // Todo consume el contrato agregado de GET /api/logistica/dashboard creado en FASE 1.
+  // [Aster | 2026-09-23 | ASTER-MG | FIX CORTES HISTORICOS LOGISTICA V001]
+  // Permite seleccionar y cargar cortes semanales ya guardados en logistica_cortes_semanales.
 
   const state={
     rows:[],
     movements:[],
     cut:null,
+    cuts:[],
+    selectedCutKey:'',
+    cutLoading:false,
     cutError:null,
+    cutCatalogError:null,
     analytics:null,
     loaded:false
   };
@@ -143,7 +149,19 @@
       <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Proyecto</th><th>Estatus</th><th>Marca</th></tr></thead><tbody id="dl-sin-body"></tbody></table></div>
     </article>
     <article class="dl-card dl-section">
-      <div class="dl-section-head"><div><h2>Movimientos semanales</h2><p id="dl-mov-subtitle">Último corte autónomo cerrado.</p></div><small id="dl-mov-count">—</small></div>
+      <div class="dl-section-head dl-mov-head">
+        <div><h2>Movimientos semanales</h2><p id="dl-mov-subtitle">Último corte autónomo cerrado.</p></div>
+        <div class="dl-cut-tools">
+          <label for="dl-cut-select">Corte guardado</label>
+          <select id="dl-cut-select" class="dl-cut-select" aria-label="Seleccionar corte semanal de Logística"><option value="">Cargando cortes...</option></select>
+        </div>
+      </div>
+      <div class="dl-cut-kpis" aria-label="Resumen del corte semanal seleccionado">
+        <div class="dl-cut-kpi"><small>Movimientos</small><strong id="dl-mov-count">—</strong></div>
+        <div class="dl-cut-kpi"><small>Ingresos</small><strong id="dl-cut-ingresos">—</strong></div>
+        <div class="dl-cut-kpi"><small>Cambios estatus</small><strong id="dl-cut-cambios">—</strong></div>
+        <div class="dl-cut-kpi"><small>Registros corte</small><strong id="dl-cut-registros">—</strong></div>
+      </div>
       <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Tipo</th><th>PP NS</th><th>Proyecto</th><th>Estatus</th></tr></thead><tbody id="dl-mov-body"></tbody></table></div>
     </article>
   </section>
@@ -199,6 +217,29 @@
   async function fetchLatestCut(){
     const j=await fetchJson(api()+'/api/logistica/cortes/semanales/ultimo','Error consultando el corte semanal');
     return j.data||null;
+  }
+
+  async function fetchCutCatalog(){
+    const j=await fetchJson(api()+'/api/logistica/cortes/semanales','Error consultando el historial de cortes semanales');
+    return Array.isArray(j.data)?j.data:[];
+  }
+
+  async function fetchCutByWeek(anio,semana){
+    const year=encodeURIComponent(String(anio));
+    const week=encodeURIComponent(String(semana));
+    const j=await fetchJson(api()+'/api/logistica/cortes/semanales/'+year+'/'+week,'Error consultando el corte semanal seleccionado');
+    return j.data||null;
+  }
+
+  function cutKey(cut){
+    if(!cut)return '';
+    const year=Number(cut.anio_iso);
+    const week=Number(cut.semana_iso);
+    return Number.isInteger(year)&&Number.isInteger(week)?year+'|'+week:'';
+  }
+
+  function closedCuts(){
+    return (Array.isArray(state.cuts)?state.cuts:[]).filter(cut=>norm(cut&&cut.estado)==='CERRADO');
   }
 
   function totalOf(items){
@@ -380,18 +421,120 @@
     const transit=$('dl-transit-body');
     if(departure)departure.innerHTML='<tr><td colspan="3" class="dl-empty">'+msg+'</td></tr>';
     if(transit)transit.innerHTML='<tr><td colspan="4" class="dl-empty">'+msg+'</td></tr>';
-    const months=$('dl-containers-months-body');
-    if(months)months.innerHTML='<tr><td colspan="3" class="dl-empty">'+msg+'</td></tr>';
+    const monthsFirst=$('dl-containers-months-first');
+    const monthsSecond=$('dl-containers-months-second');
+    if(monthsFirst)monthsFirst.innerHTML='<tr><td colspan="3" class="dl-empty">'+msg+'</td></tr>';
+    if(monthsSecond)monthsSecond.innerHTML='<tr><td colspan="3" class="dl-empty">'+msg+'</td></tr>';
     ['dl-departure-count','dl-transit-count','dl-containers-year','dl-containers-total','dl-containers-20','dl-containers-40','dl-containers-20-pct','dl-containers-40-pct','dl-containers-months-period'].forEach(id=>text(id,'—'));
     text('dl-containers-note',message||'Analítica no disponible');
     const ring=$('dl-containers-ring');
     if(ring){ring.classList.add('is-empty');ring.style.setProperty('--dl-ring-20','0%');}
   }
 
+  function renderCutSelector(){
+    const select=$('dl-cut-select');
+    if(!select)return;
+    const cuts=closedCuts();
+    const currentKey=state.selectedCutKey||cutKey(state.cut);
+
+    if(!cuts.length){
+      if(state.cut){
+        const key=cutKey(state.cut);
+        select.innerHTML='<option value="'+esc(key)+'">Semana '+esc(state.cut.semana_iso)+' / '+esc(state.cut.anio_iso)+'</option>';
+        select.value=key;
+        select.disabled=true;
+      }else{
+        select.innerHTML='<option value="">'+(state.cutCatalogError?'Historial no disponible':'Sin cortes cerrados registrados')+'</option>';
+        select.disabled=true;
+      }
+      return;
+    }
+
+    select.innerHTML=cuts.map(cut=>{
+      const key=cutKey(cut);
+      const movements=Math.max(0,Number(cut&&cut.total_movimientos||0));
+      return '<option value="'+esc(key)+'">Semana '+esc(cut.semana_iso)+' / '+esc(cut.anio_iso)+' · '+num(movements)+' mov.</option>';
+    }).join('');
+
+    const valid=cuts.some(cut=>cutKey(cut)===currentKey);
+    select.value=valid?currentKey:cutKey(cuts[0]);
+    select.disabled=state.cutLoading;
+  }
+
+  function renderMovements(){
+    const host=$('dl-mov-body');
+    if(!host)return;
+    const mov=Array.isArray(state.movements)?state.movements:[];
+
+    if(state.cutLoading){
+      host.innerHTML='<tr><td colspan="4" class="dl-empty">Cargando corte semanal...</td></tr>';
+    }else if(mov.length){
+      host.innerHTML=mov.map(r=>`<tr data-id="${esc(r.id_log_ops)}"><td><span class="dl-chip">${esc(r.tipo)}</span></td><td>${esc(r.id_ppns)}</td><td><button class="dl-link">${esc(r.proyecto)}</button></td><td><span class="dl-chip" title="Anterior: ${esc(r.estatus_anterior)}">${esc(r.estatus_actual)}</span></td></tr>`).join('');
+    }else{
+      host.innerHTML='<tr><td colspan="4" class="dl-empty">'+(state.cutError?'No fue posible cargar el corte seleccionado':state.cut?'Sin movimientos en este corte':'Aún no existe un corte cerrado')+'</td></tr>';
+    }
+
+    const cut=state.cut;
+    text('dl-mov-count',num(cut&&cut.total_movimientos!=null?cut.total_movimientos:mov.length));
+    text('dl-cut-ingresos',num(cut&&cut.total_ingresos||0));
+    text('dl-cut-cambios',num(cut&&cut.total_cambios_estatus||0));
+    text('dl-cut-registros',num(cut&&cut.total_log_ops||0));
+
+    if(state.cutLoading){
+      text('dl-mov-subtitle','Cargando el corte seleccionado...');
+    }else if(state.cutError&&cut){
+      text('dl-mov-subtitle','No fue posible cargar otro corte. Se conserva Semana '+cut.semana_iso+' / '+cut.anio_iso+'.');
+    }else if(cut){
+      text('dl-mov-subtitle','Semana '+cut.semana_iso+' / '+cut.anio_iso+' · '+String(cut.fecha_corte||'').slice(0,16));
+    }else if(state.cutError){
+      text('dl-mov-subtitle','No fue posible consultar el corte semanal.');
+    }else{
+      text('dl-mov-subtitle','Aún no existe un corte autónomo cerrado.');
+    }
+
+    renderCutSelector();
+  }
+
+  async function loadCutByKey(key){
+    if(!key||state.cutLoading||key===state.selectedCutKey)return;
+    const parts=String(key).split('|');
+    const anio=Number(parts[0]);
+    const semana=Number(parts[1]);
+    if(!Number.isInteger(anio)||!Number.isInteger(semana))return;
+
+    const previousKey=state.selectedCutKey;
+    state.cutLoading=true;
+    state.cutError=null;
+    renderMovements();
+
+    try{
+      const cut=await fetchCutByWeek(anio,semana);
+      if(!cut)throw new Error('El corte seleccionado no existe.');
+      state.cut=cut;
+      state.movements=Array.isArray(cut.movimientos_json)?cut.movimientos_json:[];
+      state.selectedCutKey=cutKey(cut);
+      state.cutError=null;
+    }catch(error){
+      state.cutError=error;
+      state.selectedCutKey=previousKey;
+    }finally{
+      state.cutLoading=false;
+      renderMovements();
+      bindRows();
+      const select=$('dl-cut-select');
+      if(select)select.value=state.selectedCutKey||cutKey(state.cut);
+    }
+  }
+
+  function bindCutSelector(){
+    const select=$('dl-cut-select');
+    if(!select)return;
+    select.onchange=()=>loadCutByKey(select.value);
+  }
+
   function render(){
     const rows=state.rows;
     const sin=rows.filter(isSin);
-    const mov=state.movements;
 
     renderCharts();
     renderAnalytics();
@@ -399,10 +542,8 @@
     $('dl-sin-body').innerHTML=sin.length?sin.map(r=>`<tr data-id="${r.id_log_ops}"><td><button class="dl-link">${esc(r.proyecto)}</button></td><td><span class="dl-chip">${esc(r.estatus)}</span></td><td>${esc(r.marca)}</td></tr>`).join(''):'<tr><td colspan="3" class="dl-empty">Sin proyectos pendientes de PP NS</td></tr>';
     text('dl-sin-count',sin.length+' registros');
 
-    $('dl-mov-body').innerHTML=mov.length?mov.map(r=>`<tr data-id="${r.id_log_ops}"><td><span class="dl-chip">${esc(r.tipo)}</span></td><td>${esc(r.id_ppns)}</td><td><button class="dl-link">${esc(r.proyecto)}</button></td><td><span class="dl-chip" title="Anterior: ${esc(r.estatus_anterior)}">${esc(r.estatus_actual)}</span></td></tr>`).join(''):'<tr><td colspan="4" class="dl-empty">'+(state.cutError?'Corte semanal temporalmente no disponible':state.cut?'Sin movimientos en el último corte':'Aún no existe un corte cerrado')+'</td></tr>';
-    text('dl-mov-count',mov.length+' movimientos');
-    text('dl-mov-subtitle',state.cut?'Semana '+state.cut.semana_iso+' / '+state.cut.anio_iso+' · '+String(state.cut.fecha_corte||'').slice(0,16):state.cutError?'No fue posible consultar el corte autónomo.':'Aún no existe un corte autónomo cerrado.');
-
+    renderMovements();
+    bindCutSelector();
     bindRows();
   }
 
@@ -425,13 +566,30 @@
       const results=await Promise.all([
         fetchRows(),
         fetchLatestCut().then(data=>({data,error:null})).catch(error=>({data:null,error})),
+        fetchCutCatalog().then(data=>({data,error:null})).catch(error=>({data:[],error})),
         fetchAnalytics()
       ]);
       state.rows=results[0];
       state.cut=results[1].data;
       state.cutError=results[1].error;
+      state.cuts=results[2].data;
+      state.cutCatalogError=results[2].error;
+      state.analytics=results[3];
+
+      if(!state.cut){
+        const first=closedCuts()[0];
+        if(first){
+          try{
+            state.cut=await fetchCutByWeek(first.anio_iso,first.semana_iso);
+            state.cutError=null;
+          }catch(error){
+            state.cutError=error;
+          }
+        }
+      }
+
+      state.selectedCutKey=cutKey(state.cut);
       state.movements=state.cut&&Array.isArray(state.cut.movimientos_json)?state.cut.movimientos_json:[];
-      state.analytics=results[2];
       window.ManttoLogisticaStore={rows:state.rows,loadedAt:Date.now()};
       state.loaded=true;
       render();
@@ -450,7 +608,7 @@
 
     // El router coloca una tarjeta temporal de "Cargando módulo".
     // Si todavía no existe la estructura real del dashboard, la sustituimos.
-    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-body')||!view.querySelector('#dl-transit-body')){
+    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-first')||!view.querySelector('#dl-containers-months-second')||!view.querySelector('#dl-transit-body')||!view.querySelector('#dl-cut-select')){
       view.innerHTML=HTML;
     }
 
