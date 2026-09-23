@@ -8,7 +8,9 @@
   // [Aster | 2026-09-23 | ASTER-MG | FIX CORTES HISTORICOS LOGISTICA V001]
   // Permite seleccionar y cargar cortes semanales ya guardados en logistica_cortes_semanales.
   // [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
-  // Los promedios cargan por defecto el anio actual y permiten buscar todos los anios o un anio registrado.
+  // Los promedios cargan por defecto el anio actual y permiten seleccionar todos los anios o un anio registrado.
+  // [Aster | 2026-09-23 | ASTER-MG | FIX SELECTOR ESTANDAR PROMEDIOS V002]
+  // Reemplaza datalist del navegador por el select estandar usado en filtros del Gestor.
 
   const state={
     rows:[],
@@ -89,10 +91,11 @@
       <p>El año se determina por la fecha de salida real. Por defecto se muestra el año actual.</p>
     </div>
     <form id="dl-average-filter-form" class="dl-average-filter-form">
-      <label for="dl-average-year-search">Buscar periodo</label>
+      <label for="dl-average-year-select">Buscar periodo</label>
       <div class="dl-average-filter-controls">
-        <input id="dl-average-year-search" class="dl-average-year-search" type="search" list="dl-average-year-options" placeholder="Ej. 2026 o Todos los años" autocomplete="off">
-        <datalist id="dl-average-year-options"></datalist>
+        <select id="dl-average-year-select" class="dl-average-year-select" aria-label="Seleccionar periodo de promedios logísticos">
+          <option value="">Cargando periodos...</option>
+        </select>
         <button id="dl-average-year-apply" class="dl-btn" type="submit">Buscar</button>
       </div>
       <small id="dl-average-year-status">Año actual</small>
@@ -374,15 +377,17 @@
   }
 
   function renderAverageFilter(){
-    const input=$('dl-average-year-search');
-    const options=$('dl-average-year-options');
+    const select=$('dl-average-year-select');
     const button=$('dl-average-year-apply');
-    if(!input||!options)return;
+    if(!select)return;
 
     const info=averagePeriodMeta();
-    options.innerHTML='<option value="Todos los años"></option>'+info.years.map(year=>'<option value="'+year+'"></option>').join('');
-    input.value=info.period==='all'?'Todos los años':String(info.period||info.currentYear||'');
-    input.disabled=state.averageFilterLoading;
+    const selectedValue=info.period==='all'?'all':String(info.period||info.currentYear||'');
+    select.innerHTML='<option value="all">Todos los años</option>'+info.years.map(year=>
+      '<option value="'+year+'">'+year+'</option>'
+    ).join('');
+    select.value=selectedValue;
+    select.disabled=state.averageFilterLoading;
     if(button)button.disabled=state.averageFilterLoading;
 
     if(state.averageFilterLoading){
@@ -395,14 +400,13 @@
     }
   }
 
-  function parseAveragePeriodSearch(value){
+  function parseAveragePeriodSelection(value){
     const raw=String(value==null?'':value).trim();
-    const normalized=norm(raw);
-    if(['TODOS','TODOS LOS ANOS','ALL'].includes(normalized))return 'all';
+    if(raw==='all')return 'all';
 
     const year=Number(raw);
     if(!Number.isInteger(year)||year<1900||year>2200){
-      throw new Error('Escribe “Todos los años” o selecciona un año registrado.');
+      throw new Error('Selecciona “Todos los años” o un año registrado.');
     }
 
     const info=averagePeriodMeta();
@@ -414,12 +418,12 @@
 
   async function applyAveragePeriod(){
     if(state.averageFilterLoading)return;
-    const input=$('dl-average-year-search');
-    if(!input)return;
+    const select=$('dl-average-year-select');
+    if(!select)return;
 
     let period;
     try{
-      period=parseAveragePeriodSearch(input.value);
+      period=parseAveragePeriodSelection(select.value);
     }catch(error){
       state.averageFilterError=error;
       renderAverageFilter();
@@ -743,7 +747,7 @@
 
     // El router coloca una tarjeta temporal de "Cargando módulo".
     // Si todavía no existe la estructura real del dashboard, la sustituimos.
-    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-average-year-search')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-first')||!view.querySelector('#dl-containers-months-second')||!view.querySelector('#dl-transit-body')||!view.querySelector('#dl-cut-select')){
+    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-average-year-select')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-first')||!view.querySelector('#dl-containers-months-second')||!view.querySelector('#dl-transit-body')||!view.querySelector('#dl-cut-select')){
       view.innerHTML=HTML;
     }
 

@@ -788,7 +788,9 @@
 }
 
 /* [Aster | 2026-09-23 | ASTER-MG | FIX PROMEDIOS POR ANIO V001]
-   Barra de busqueda para el periodo de los dos promedios logisticos. */
+   Barra de busqueda para el periodo de los dos promedios logisticos.
+   [Aster | 2026-09-23 | ASTER-MG | FIX SELECTOR ESTANDAR PROMEDIOS V002]
+   Usa el mismo patron visual de select de los filtros reales del Gestor. */
 #view-logistica-dashboard .dl-average-filter-card,
 [data-view="logistica-dashboard"] .dl-average-filter-card{
   display:flex;
@@ -839,27 +841,33 @@
   grid-template-columns:minmax(0,1fr) auto;
   gap:8px;
 }
-#view-logistica-dashboard .dl-average-year-search,
-[data-view="logistica-dashboard"] .dl-average-year-search{
+#view-logistica-dashboard .dl-average-year-select,
+[data-view="logistica-dashboard"] .dl-average-year-select{
   width:100%;
   min-width:0;
-  min-height:38px;
-  border:1px solid #cbd5e1;
-  border-radius:10px;
+  height:40px;
+  border:1px solid #cfdbea;
+  border-radius:9px;
   background:#fff;
-  color:#12305f;
-  padding:8px 11px;
+  color:#1d2b43;
+  padding:9px 34px 9px 11px;
   font-size:12px;
   font-weight:800;
   outline:none;
+  color-scheme:light;
 }
-#view-logistica-dashboard .dl-average-year-search:focus,
-[data-view="logistica-dashboard"] .dl-average-year-search:focus{
-  border-color:#2563eb;
-  box-shadow:0 0 0 3px rgba(37,99,235,.10);
+#view-logistica-dashboard .dl-average-year-select option,
+[data-view="logistica-dashboard"] .dl-average-year-select option{
+  background:#fff;
+  color:#1d2b43;
 }
-#view-logistica-dashboard .dl-average-year-search:disabled,
-[data-view="logistica-dashboard"] .dl-average-year-search:disabled{
+#view-logistica-dashboard .dl-average-year-select:focus,
+[data-view="logistica-dashboard"] .dl-average-year-select:focus{
+  border-color:#3f7ce0;
+  box-shadow:0 0 0 3px rgba(63,124,224,.12);
+}
+#view-logistica-dashboard .dl-average-year-select:disabled,
+[data-view="logistica-dashboard"] .dl-average-year-select:disabled{
   background:#f8fafc;
   color:#94a3b8;
 }

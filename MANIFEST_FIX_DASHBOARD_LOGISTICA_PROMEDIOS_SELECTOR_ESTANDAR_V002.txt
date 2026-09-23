@@ -1,0 +1,7 @@
+README_FIX_DASHBOARD_LOGISTICA_PROMEDIOS_SELECTOR_ESTANDAR_V002.md
+MANIFEST_FIX_DASHBOARD_LOGISTICA_PROMEDIOS_SELECTOR_ESTANDAR_V002.txt
+SHA256SUMS.txt
+modules/dashboard-logistica/dashboard-logistica.js
+modules/dashboard-logistica/dashboard-logistica.css
+core/module-loader.js
+tests/logistica_dashboard_promedios_selector_v002.test.js
