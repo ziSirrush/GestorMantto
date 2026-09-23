@@ -104,10 +104,27 @@ async function currentYearContainers_cor(year) {
   };
 }
 
+async function currentYearContainersByMonth_cor(year) {
+  const [rows] = await db.query(
+    `SELECT
+       CAST(SUBSTRING(TRIM(fecha_salida_estimada), 6, 2) AS UNSIGNED) AS mes,
+       COALESCE(SUM(contenedores_20_dc), 0) AS contenedores_20_dc,
+       COALESCE(SUM(contenedores_40_hq), 0) AS contenedores_40_hq
+     FROM log_ops
+     WHERE CAST(LEFT(TRIM(COALESCE(fecha_salida_estimada, '')), 4) AS UNSIGNED) = ?
+       AND CAST(SUBSTRING(TRIM(COALESCE(fecha_salida_estimada, '')), 6, 2) AS UNSIGNED) BETWEEN 1 AND 12
+     GROUP BY CAST(SUBSTRING(TRIM(fecha_salida_estimada), 6, 2) AS UNSIGNED)
+     ORDER BY mes ASC`,
+    [Number(year)]
+  );
+  return rows;
+}
+
 module.exports = Object.freeze({
   statusCounts_cor,
   deliveredByYear_cor,
   averageDepartureByPort_cor,
   averageTransitByPortMode_cor,
-  currentYearContainers_cor
+  currentYearContainers_cor,
+  currentYearContainersByMonth_cor
 });

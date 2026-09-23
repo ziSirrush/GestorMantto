@@ -97,6 +97,38 @@ function normalizeContainers_cor(row, year) {
   };
 }
 
+const MONTH_NAMES = Object.freeze([
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre'
+]);
+
+function normalizeContainerMonths_cor(rows) {
+  const byMonth = new Map(
+    (rows || []).map(row => [Number(row.mes), row])
+  );
+
+  return MONTH_NAMES.map((nombre, index) => {
+    const mes = index + 1;
+    const row = byMonth.get(mes) || {};
+    return {
+      mes,
+      mes_nombre: nombre,
+      contenedores_20_dc: Math.max(0, toNumber(row.contenedores_20_dc)),
+      contenedores_40_hq: Math.max(0, toNumber(row.contenedores_40_hq))
+    };
+  });
+}
+
 async function analytics_cor() {
   const currentYear = mexicoCityYear();
   if (!Number.isInteger(currentYear)) {
@@ -105,12 +137,13 @@ async function analytics_cor() {
     throw error;
   }
 
-  const [statusRows, deliveredRows, departureRows, transitRows, containerRow] = await Promise.all([
+  const [statusRows, deliveredRows, departureRows, transitRows, containerRow, containerMonthRows] = await Promise.all([
     repository.statusCounts_cor(),
     repository.deliveredByYear_cor(),
     repository.averageDepartureByPort_cor(),
     repository.averageTransitByPortMode_cor(),
-    repository.currentYearContainers_cor(currentYear)
+    repository.currentYearContainers_cor(currentYear),
+    repository.currentYearContainersByMonth_cor(currentYear)
   ]);
 
   return {
@@ -123,12 +156,16 @@ async function analytics_cor() {
       salida_por_puerto: normalizeDepartureTable_cor(departureRows),
       llegada_por_modo_puerto: normalizeTransitTable_cor(transitRows)
     },
-    contenedores: normalizeContainers_cor(containerRow, currentYear),
+    contenedores: {
+      ...normalizeContainers_cor(containerRow, currentYear),
+      meses: normalizeContainerMonths_cor(containerMonthRows)
+    },
     reglas_calculo: {
       salida_por_puerto: 'AVG(fecha_salida_real - fecha_exw), solo pares de fechas validos y no negativos.',
       llegada_por_modo_puerto: 'AVG(fecha_llegada_real - fecha_salida_real), agrupado por puerto_destino + ict, solo pares validos y no negativos.',
       entregados_por_anio: 'COUNT por año de fecha_entrega_real_obra para estatus ENTREGADO, orden ascendente.',
-      contenedores_anio_actual: 'SUM de contenedores_20_dc y contenedores_40_hq cuando el año de fecha_salida_estimada (ETD) es el año actual CDMX.'
+      contenedores_anio_actual: 'SUM de contenedores_20_dc y contenedores_40_hq cuando el año de fecha_salida_estimada (ETD) es el año actual CDMX.',
+      contenedores_por_mes: 'SUM mensual de contenedores_20_dc y contenedores_40_hq para enero-diciembre del año actual, usando fecha_salida_estimada (ETD).'
     }
   };
 }
@@ -139,5 +176,6 @@ module.exports = Object.freeze({
   buildStatusCharts_cor,
   normalizeDeliveredYears_cor,
   normalizeContainers_cor,
+  normalizeContainerMonths_cor,
   analytics_cor
 });

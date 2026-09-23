@@ -1,0 +1,10 @@
+FIX_DASHBOARD_LOGISTICA_RING_TABLA_12_MESES_V002
+
+backend/src/modules/logistica-dashboard/logistica-dashboard.repository.js
+backend/src/modules/logistica-dashboard/logistica-dashboard.service.js
+core/module-loader.js
+modules/dashboard-logistica/dashboard-logistica.css
+modules/dashboard-logistica/dashboard-logistica.js
+tests/logistica_dashboard_ring_meses.test.js
+README_FIX_DASHBOARD_LOGISTICA_RING_TABLA_12_MESES_V002.md
+SHA256SUMS.txt

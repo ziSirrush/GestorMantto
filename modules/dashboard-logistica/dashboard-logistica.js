@@ -3,7 +3,7 @@
 
   // [Aster | 2026-09-23 | ASTER-MG | FASE 3 DASHBOARD LOGISTICA ANALITICA VISUAL V001]
   // Mantiene las graficas de FASE 2 y agrega las tres piezas analiticas acordadas:
-  // tabla de salida por puerto, ring de contenedores del anio actual y tabla de transito por modo.
+  // tabla de salida por puerto, ring de contenedores del anio actual, desglose mensual enero-diciembre en dos tablas 7x3 y tabla de transito por modo.
   // Todo consume el contrato agregado de GET /api/logistica/dashboard creado en FASE 1.
 
   const state={
@@ -101,6 +101,26 @@
         </div>
       </div>
       <p id="dl-containers-note" class="dl-analytics-note">—</p>
+      <div class="dl-container-months">
+        <div class="dl-container-months-head">
+          <strong>Contenedores por mes</strong>
+          <small id="dl-containers-months-period">Enero - Diciembre</small>
+        </div>
+        <div class="dl-container-months-grid">
+          <div class="dl-container-months-table-wrap">
+            <table class="dl-container-months-table" aria-label="Contenedores de enero a junio">
+              <thead><tr><th>Mes</th><th>20' DC</th><th>40' HQ</th></tr></thead>
+              <tbody id="dl-containers-months-first"></tbody>
+            </table>
+          </div>
+          <div class="dl-container-months-table-wrap">
+            <table class="dl-container-months-table" aria-label="Contenedores de julio a diciembre">
+              <thead><tr><th>Mes</th><th>20' DC</th><th>40' HQ</th></tr></thead>
+              <tbody id="dl-containers-months-second"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </article>
   </section>
 
@@ -293,6 +313,32 @@
     text('dl-transit-count',rows.length+' combinaciones');
   }
 
+  function renderContainerMonths(items,year){
+    const first=$('dl-containers-months-first');
+    const second=$('dl-containers-months-second');
+    if(!first||!second)return;
+    const fallback=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const source=Array.isArray(items)?items:[];
+    const byMonth=new Map(source.map(item=>[Number(item&&item.mes),item]));
+    const rows=fallback.map((name,index)=>{
+      const month=index+1;
+      const item=byMonth.get(month)||{};
+      return {
+        name:String(item.mes_nombre||name),
+        c20:Math.max(0,Number(item.contenedores_20_dc||0)),
+        c40:Math.max(0,Number(item.contenedores_40_hq||0))
+      };
+    });
+    const html=group=>group.map(row=>`<tr>
+      <td>${esc(row.name)}</td>
+      <td>${num(row.c20)}</td>
+      <td>${num(row.c40)}</td>
+    </tr>`).join('');
+    first.innerHTML=html(rows.slice(0,6));
+    second.innerHTML=html(rows.slice(6,12));
+    text('dl-containers-months-period',year?'ETD '+year:'Año actual');
+  }
+
   function renderContainersRing(data){
     const ring=$('dl-containers-ring');
     if(!ring)return;
@@ -317,6 +363,7 @@
     text('dl-containers-note',total
       ? num(ops)+' operaciones del año cuentan con dato de contenedores. Conteo físico, no TEU equivalente.'
       : "Sin contenedores registrados para el año actual. Verifica que la sincronización esté poblando 20' DC y 40' HQ.");
+    renderContainerMonths(data&&data.meses,year);
   }
 
   function renderAnalytics(){
@@ -333,7 +380,9 @@
     const transit=$('dl-transit-body');
     if(departure)departure.innerHTML='<tr><td colspan="3" class="dl-empty">'+msg+'</td></tr>';
     if(transit)transit.innerHTML='<tr><td colspan="4" class="dl-empty">'+msg+'</td></tr>';
-    ['dl-departure-count','dl-transit-count','dl-containers-year','dl-containers-total','dl-containers-20','dl-containers-40','dl-containers-20-pct','dl-containers-40-pct'].forEach(id=>text(id,'—'));
+    const months=$('dl-containers-months-body');
+    if(months)months.innerHTML='<tr><td colspan="3" class="dl-empty">'+msg+'</td></tr>';
+    ['dl-departure-count','dl-transit-count','dl-containers-year','dl-containers-total','dl-containers-20','dl-containers-40','dl-containers-20-pct','dl-containers-40-pct','dl-containers-months-period'].forEach(id=>text(id,'—'));
     text('dl-containers-note',message||'Analítica no disponible');
     const ring=$('dl-containers-ring');
     if(ring){ring.classList.add('is-empty');ring.style.setProperty('--dl-ring-20','0%');}
@@ -401,7 +450,7 @@
 
     // El router coloca una tarjeta temporal de "Cargando módulo".
     // Si todavía no existe la estructura real del dashboard, la sustituimos.
-    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-transit-body')){
+    if(!view.querySelector('#dl-refresh')||!view.querySelector('#dl-modal')||!view.querySelector('#dl-chart-sin-produccion')||!view.querySelector('#dl-departure-body')||!view.querySelector('#dl-containers-ring')||!view.querySelector('#dl-containers-months-body')||!view.querySelector('#dl-transit-body')){
       view.innerHTML=HTML;
     }
 

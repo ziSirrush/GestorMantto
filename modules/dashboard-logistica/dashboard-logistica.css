@@ -585,3 +585,117 @@
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 }
+
+
+/* [Aster | 2026-09-23 | ASTER-MG | FIX RING CONTENEDORES TABLA 12 MESES V002]
+   Dos tablas compactas 7x3 dentro de la tarjeta del ring: enero-junio y julio-diciembre. */
+#view-logistica-dashboard .dl-container-months,
+[data-view="logistica-dashboard"] .dl-container-months{
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid #e2e8f0;
+}
+#view-logistica-dashboard .dl-container-months-head,
+[data-view="logistica-dashboard"] .dl-container-months-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+#view-logistica-dashboard .dl-container-months-head strong,
+[data-view="logistica-dashboard"] .dl-container-months-head strong{
+  color:#102a56;
+  font-size:12px;
+}
+#view-logistica-dashboard .dl-container-months-head small,
+[data-view="logistica-dashboard"] .dl-container-months-head small{
+  color:#64748b;
+  font-size:10px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+#view-logistica-dashboard .dl-container-months-grid,
+[data-view="logistica-dashboard"] .dl-container-months-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  align-items:start;
+}
+#view-logistica-dashboard .dl-container-months-table-wrap,
+[data-view="logistica-dashboard"] .dl-container-months-table-wrap{
+  width:100%;
+  overflow:hidden;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+}
+#view-logistica-dashboard .dl-container-months-table,
+[data-view="logistica-dashboard"] .dl-container-months-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:11px;
+}
+#view-logistica-dashboard .dl-container-months-table th,
+[data-view="logistica-dashboard"] .dl-container-months-table th{
+  padding:7px 9px;
+  background:#f8fafc;
+  color:#475569;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+  border-bottom:1px solid #e2e8f0;
+}
+#view-logistica-dashboard .dl-container-months-table td,
+[data-view="logistica-dashboard"] .dl-container-months-table td{
+  padding:7px 9px;
+  color:#334155;
+  border-bottom:1px solid #eef2f7;
+}
+#view-logistica-dashboard .dl-container-months-table tbody tr:last-child td,
+[data-view="logistica-dashboard"] .dl-container-months-table tbody tr:last-child td{
+  border-bottom:0;
+}
+#view-logistica-dashboard .dl-container-months-table th:first-child,
+#view-logistica-dashboard .dl-container-months-table td:first-child,
+[data-view="logistica-dashboard"] .dl-container-months-table th:first-child,
+[data-view="logistica-dashboard"] .dl-container-months-table td:first-child{
+  width:48%;
+  text-align:left;
+}
+#view-logistica-dashboard .dl-container-months-table th:nth-child(2),
+#view-logistica-dashboard .dl-container-months-table th:nth-child(3),
+#view-logistica-dashboard .dl-container-months-table td:nth-child(2),
+#view-logistica-dashboard .dl-container-months-table td:nth-child(3),
+[data-view="logistica-dashboard"] .dl-container-months-table th:nth-child(2),
+[data-view="logistica-dashboard"] .dl-container-months-table th:nth-child(3),
+[data-view="logistica-dashboard"] .dl-container-months-table td:nth-child(2),
+[data-view="logistica-dashboard"] .dl-container-months-table td:nth-child(3){
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+#view-logistica-dashboard .dl-container-months-table td:nth-child(2),
+[data-view="logistica-dashboard"] .dl-container-months-table td:nth-child(2){
+  color:#2563eb;
+  font-weight:800;
+}
+#view-logistica-dashboard .dl-container-months-table td:nth-child(3),
+[data-view="logistica-dashboard"] .dl-container-months-table td:nth-child(3){
+  color:#b45309;
+  font-weight:800;
+}
+@media(max-width:560px){
+  #view-logistica-dashboard .dl-container-months-head,
+  [data-view="logistica-dashboard"] .dl-container-months-head{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:3px;
+  }
+  #view-logistica-dashboard .dl-container-months-grid,
+  [data-view="logistica-dashboard"] .dl-container-months-grid{
+    grid-template-columns:1fr;
+  }
+}
