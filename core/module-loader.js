@@ -200,11 +200,11 @@
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260923-dashboard-ppns-final-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-detalle-responsive-v004'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-detalle-responsive-v004'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-detalle-responsive-v004'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-detalle-responsive-v004'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-detalle-responsive-v004'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
 
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20260914-human-time-v001']},
     'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001']},

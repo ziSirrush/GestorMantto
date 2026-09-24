@@ -74,3 +74,125 @@
  .lp-doc-modal-page-chip{right:8px;bottom:8px}
 }
 
+
+/* [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DETALLE RESPONSIVE V004] */
+/* Cierre de overflow horizontal en Detalle: tarjetas, forms, carga y modal PDF. */
+#view-logistica-produccion-detalle,
+#view-logistica-produccion-detalle *,
+#view-logistica-produccion-detalle *::before,
+#view-logistica-produccion-detalle *::after,
+.lp-doc-modal,
+.lp-doc-modal *,
+.lp-doc-modal *::before,
+.lp-doc-modal *::after{box-sizing:border-box}
+
+#view-logistica-produccion-detalle{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+#view-logistica-produccion-detalle .lp-page,
+#view-logistica-produccion-detalle .lp-card,
+#view-logistica-produccion-detalle .lp-head,
+#view-logistica-produccion-detalle .lp-detail-title,
+#view-logistica-produccion-detalle .lp-actions,
+#view-logistica-produccion-detalle .lp-form,
+#view-logistica-produccion-detalle .lp-manual-source-grid,
+#view-logistica-produccion-detalle .lp-summary-table-wrap,
+#view-logistica-produccion-detalle .lp-upload-grid,
+#view-logistica-produccion-detalle .lp-upload,
+#view-logistica-produccion-detalle .lp-doc-preview-grid,
+#view-logistica-produccion-detalle .lp-doc-preview,
+#view-logistica-produccion-detalle .lp-doc-preview-head,
+#view-logistica-produccion-detalle .lp-doc-preview-actions{min-width:0;max-width:100%}
+
+#view-logistica-produccion-detalle .lp-page{width:100%;overflow-x:hidden}
+#view-logistica-produccion-detalle .lp-head>div,
+#view-logistica-produccion-detalle .lp-detail-title>div,
+#view-logistica-produccion-detalle .lp-doc-preview-head>div,
+#view-logistica-produccion-detalle .lp-form>label,
+#view-logistica-produccion-detalle .lp-manual-source-grid>label{min-width:0;max-width:100%}
+
+#view-logistica-produccion-detalle .lp-head h1,
+#view-logistica-produccion-detalle .lp-head p,
+#view-logistica-produccion-detalle .lp-detail-title h2,
+#view-logistica-produccion-detalle .lp-detail-title p,
+#view-logistica-produccion-detalle .lp-summary-value,
+#view-logistica-produccion-detalle .lp-summary-value strong,
+#view-logistica-produccion-detalle .lp-summary-value small,
+#view-logistica-produccion-detalle .lp-doc-preview-head strong,
+#view-logistica-produccion-detalle .lp-doc-preview-head small,
+#view-logistica-produccion-detalle .lp-source-note,
+#view-logistica-produccion-detalle .lp-picker-meta{overflow-wrap:anywhere;word-break:break-word}
+
+#view-logistica-produccion-detalle .lp-form input,
+#view-logistica-produccion-detalle .lp-form select,
+#view-logistica-produccion-detalle .lp-form textarea,
+#view-logistica-produccion-detalle .lp-upload input,
+#view-logistica-produccion-detalle .lp-upload select,
+#view-logistica-produccion-detalle .lp-upload button,
+#view-logistica-produccion-detalle .lp-combobox,
+#view-logistica-produccion-detalle .lp-options{width:100%;max-width:100%;min-width:0}
+
+#view-logistica-produccion-detalle .lp-upload input[type="file"]{display:block;overflow:hidden;font-size:12px}
+#view-logistica-produccion-detalle .lp-btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+#view-logistica-produccion-detalle .lp-summary-table{max-width:100%}
+
+/* El modal usa el viewport real y no suma borde/padding fuera del ancho disponible. */
+.lp-doc-modal{width:100%;max-width:100vw;max-height:100dvh;overflow:hidden}
+.lp-doc-modal-panel{max-width:100%;box-sizing:border-box}
+.lp-doc-modal-header,.lp-doc-modal-body,.lp-doc-modal-footer{width:100%;max-width:100%;min-width:0}
+.lp-doc-modal-header>div{max-width:100%}
+.lp-doc-modal-body,.lp-doc-modal-viewer,.lp-doc-modal-viewer iframe{min-width:0;max-width:100%}
+.lp-doc-modal-footer>span{min-width:0;overflow-wrap:anywhere}
+
+@media(max-width:760px){
+ #view-logistica-produccion-detalle .lp-page{padding:6px;gap:8px}
+ #view-logistica-produccion-detalle .lp-card{width:100%;padding:10px;border-radius:11px}
+ #view-logistica-produccion-detalle .lp-head,
+ #view-logistica-produccion-detalle .lp-detail-title{width:100%;align-items:stretch;flex-direction:column}
+ #view-logistica-produccion-detalle .lp-head .lp-actions{display:grid;grid-template-columns:1fr;width:100%;gap:8px}
+ #view-logistica-produccion-detalle .lp-head .lp-actions .lp-btn,
+ #view-logistica-produccion-detalle #lp-edit{width:100%;min-width:0}
+ #view-logistica-produccion-detalle .lp-form,
+ #view-logistica-produccion-detalle .lp-manual-source-grid,
+ #view-logistica-produccion-detalle .lp-upload-grid,
+ #view-logistica-produccion-detalle .lp-doc-preview-grid{width:100%;grid-template-columns:minmax(0,1fr)}
+ #view-logistica-produccion-detalle .lp-summary-table-wrap{width:100%;overflow:hidden}
+ #view-logistica-produccion-detalle .lp-summary-table{display:block;width:100%;min-width:0;table-layout:fixed}
+ #view-logistica-produccion-detalle .lp-summary-table tbody,
+ #view-logistica-produccion-detalle .lp-summary-table tr{display:block;width:100%;min-width:0}
+ #view-logistica-produccion-detalle .lp-summary-table th,
+ #view-logistica-produccion-detalle .lp-summary-table td{display:block;width:100%!important;max-width:100%;min-width:0;white-space:normal}
+ #view-logistica-produccion-detalle .lp-upload{width:100%;padding:9px;overflow:hidden}
+ #view-logistica-produccion-detalle .lp-doc-preview{width:100%;overflow:hidden}
+ #view-logistica-produccion-detalle .lp-doc-preview-head{width:100%;align-items:flex-start}
+ #view-logistica-produccion-detalle .lp-doc-preview-title{min-width:0;max-width:calc(100% - 62px)}
+ #view-logistica-produccion-detalle .lp-doc-preview-head>[data-file-delete]{flex:0 0 auto;max-width:58px;padding-inline:2px}
+ #view-logistica-produccion-detalle .lp-doc-preview-actions{width:100%;align-items:stretch}
+ #view-logistica-produccion-detalle .lp-doc-preview-actions>*{max-width:100%}
+ #view-logistica-produccion-detalle .lp-upload form{width:100%;min-width:0}
+
+ .lp-doc-modal{padding:4px;place-items:stretch}
+ .lp-doc-modal-panel{width:100%;height:calc(100dvh - 8px);max-width:100%;max-height:calc(100dvh - 8px);margin:0;border-radius:10px}
+ .lp-doc-modal-header{padding:9px 10px}
+ .lp-doc-modal-header>div{min-width:0;max-width:calc(100% - 46px)}
+ .lp-doc-modal-header h3{font-size:14px;line-height:1.25}
+ .lp-doc-modal-body{padding:4px;overflow:hidden}
+ .lp-doc-modal-viewer{width:100%;height:100%;max-width:100%;overflow:hidden}
+ .lp-doc-modal-viewer iframe{width:100%;height:100%;max-width:100%;min-width:0}
+ .lp-doc-modal-footer{padding:8px 10px;gap:8px}
+ .lp-doc-modal-actions{width:100%;min-width:0}
+}
+
+@media(max-width:480px){
+ #view-logistica-produccion-detalle .lp-page{padding:4px}
+ #view-logistica-produccion-detalle .lp-card{padding:9px}
+ #view-logistica-produccion-detalle .lp-summary-table th,
+ #view-logistica-produccion-detalle .lp-summary-table td{padding-left:8px;padding-right:8px}
+ #view-logistica-produccion-detalle .lp-upload{padding:8px}
+ #view-logistica-produccion-detalle .lp-pdf-preview-window{max-height:190px}
+
+ .lp-doc-modal{padding:0}
+ .lp-doc-modal-panel{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;border:0;border-radius:0}
+ .lp-doc-modal-header{padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 8px max(8px,env(safe-area-inset-left))}
+ .lp-doc-modal-body{padding:3px}
+ .lp-doc-modal-footer{padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+ .lp-doc-modal-actions{grid-template-columns:1fr}
+}

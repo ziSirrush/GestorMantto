@@ -1,0 +1,17 @@
+FIX_PVO_PRODUCCION_DETALLE_RESPONSIVE_V004
+Base GitHub main: 84fb3df50ebba929c83faea1875dc4f65ef1ab03
+
+MODIFICADOS:
+- modules/logistica-produccion/logistica-produccion.css
+- core/module-loader.js
+
+VALIDACION:
+- tests/logistica_produccion_detalle_responsive_v004.test.js
+
+DOCUMENTACION:
+- README_FIX_PVO_PRODUCCION_DETALLE_RESPONSIVE_V004.md
+
+NO CONTIENE:
+- archivos .patch
+- SQL
+- cambios backend
