@@ -13,7 +13,7 @@ test('Estados de Cuenta agrega Crear nuevo al Main y Editar al detalle',()=>{
   assert.match(frontend,/id="ccor-ec-create-new"/);
   assert.match(frontend,/id="ccor-ec-edit"/);
   assert.match(frontend,/\{mode:'create'\}/);
-  assert.match(frontend,/\{mode:'edit',ppns:normalized\}/);
+  assert.match(frontend,/\{mode:'edit',ppns:normalizedPpns\}/);
 });
 
 test('Formulario Crear Editar permanece dentro del mismo modulo de Estados de Cuenta',()=>{
@@ -69,9 +69,11 @@ test('Hitos y equipos se relacionan por PPNS sin reintroducir Indice',()=>{
   assert.doesNotMatch(files,/cobranza_indice_cor|id_indice_cor|idIndiceCor/);
 });
 
-test('Cache bust apunta a la version del formulario CRUD',()=>{
+test('Cache bust carga Estados de Cuenta y su formulario CRUD',()=>{
   const loader=read('core/module-loader.js');
   const index=read('index.html');
-  assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=20260923-estados-crud-v002/);
-  assert.match(index,/core\/module-loader\.js\?v=20260923-cobranza-cor-estados-crud-v002/);
+  assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=[A-Za-z0-9._-]+/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=[A-Za-z0-9._-]+/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=[A-Za-z0-9._-]+/);
+  assert.match(index,/core\/module-loader\.js\?v=[A-Za-z0-9._-]+/);
 });
