@@ -167,6 +167,7 @@
           </div>
           <div class="ccor-ec-hero-actions">
             <span id="ccor-ec-updated">Sin actualizar</span>
+            <button id="ccor-ec-create-new" class="ccor-ec-btn ccor-ec-btn-primary" type="button">+ Crear nuevo</button>
             <button id="ccor-ec-refresh" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Actualizar</button>
           </div>
         </section>
@@ -740,13 +741,16 @@
 
           </div>
 
-          <span
-            class="ccor-ec-badge ${statusClass_cor(project.contractual)}"
-          >
-            ${escapeHtml_cor(
-              text_cor(project.contractual)
-            )}
-          </span>
+          <div class="ccor-ec-hero-actions">
+            <button id="ccor-ec-edit" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Editar</button>
+            <span
+              class="ccor-ec-badge ${statusClass_cor(project.contractual)}"
+            >
+              ${escapeHtml_cor(
+                text_cor(project.contractual)
+              )}
+            </span>
+          </div>
 
         </section>
 
@@ -1129,6 +1133,27 @@
     loadDetail_cor(normalized,{force:true});
   }
 
+  function openForm_cor(mode,ppns){
+    const normalizedMode = String(mode || '').trim().toLowerCase() === 'edit' ? 'edit' : 'create';
+    const normalizedPpns = String(ppns || '').trim();
+    if(normalizedMode === 'edit' && !normalizedPpns) return false;
+
+    const payload = normalizedMode === 'edit'
+      ? {mode:'edit',ppns:normalizedPpns}
+      : {mode:'create'};
+
+    if(window.ManttoRouter && typeof window.ManttoRouter.go === 'function'){
+      window.ManttoRouter.go(ROUTE,payload,{navigationType:'open'});
+      return true;
+    }
+
+    if(window.ManttoCobranzaCorEstadoCuentaForm && typeof window.ManttoCobranzaCorEstadoCuentaForm.init === 'function'){
+      window.ManttoCobranzaCorEstadoCuentaForm.init(payload);
+      return true;
+    }
+    return false;
+  }
+
   function applyFilterAndReload_cor(){ state.view='list'; loadList_cor({force:true}); }
 
   function bindEvents_cor(){
@@ -1137,6 +1162,12 @@
     root.dataset.ccorEstadosCuentaBound='1';
 
     root.addEventListener('click',event=>{
+      if(event.target.closest('#ccor-ec-create-new')){ openForm_cor('create'); return; }
+      if(event.target.closest('#ccor-ec-edit')){
+        const ppns = state.detail && state.detail.proyecto ? state.detail.proyecto.ppns : state.selectedPpns;
+        openForm_cor('edit',ppns);
+        return;
+      }
       if(event.target.closest('#ccor-ec-refresh')){ loadList_cor({force:true}); return; }
       const row=event.target.closest('[data-ppns]');
       if(row) openDetailRoute_cor(row.dataset.ppns);
@@ -1176,7 +1207,19 @@
     ensureStyles_cor();
     bindEvents_cor();
     const payload=currentPayload_cor();
+    const requestedMode=String(payload && payload.mode || '').trim().toLowerCase();
     const requestedPpns=String(payload && payload.ppns || '').trim();
+
+    if(requestedMode === 'create' || requestedMode === 'edit'){
+      state.view='form';
+      if(window.ManttoCobranzaCorEstadoCuentaForm && typeof window.ManttoCobranzaCorEstadoCuentaForm.init === 'function'){
+        await window.ManttoCobranzaCorEstadoCuentaForm.init({mode:requestedMode,ppns:requestedPpns});
+        return true;
+      }
+      root.innerHTML='<div class="ccor-ec-page"><section class="ccor-ec-card ccor-ec-error-card"><div><h2>No fue posible abrir el formulario</h2><p>El recurso de Crear/Editar Estado de Cuenta no está disponible.</p></div></section></div>';
+      return false;
+    }
+
     if(requestedPpns){
       state.view='detail';
       await loadDetail_cor(requestedPpns,{force:true});
@@ -1192,7 +1235,14 @@
   function refresh_cor(){
     if(!isActive_cor()) return Promise.resolve(false);
     const payload=currentPayload_cor();
+    const requestedMode=String(payload && payload.mode || '').trim().toLowerCase();
     const requestedPpns=String(payload && payload.ppns || '').trim();
+    if(requestedMode === 'create' || requestedMode === 'edit'){
+      if(window.ManttoCobranzaCorEstadoCuentaForm && typeof window.ManttoCobranzaCorEstadoCuentaForm.init === 'function'){
+        return Promise.resolve(window.ManttoCobranzaCorEstadoCuentaForm.init({mode:requestedMode,ppns:requestedPpns}));
+      }
+      return Promise.resolve(false);
+    }
     return requestedPpns ? loadDetail_cor(requestedPpns,{force:true}) : loadList_cor({force:true});
   }
 
