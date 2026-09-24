@@ -1,4 +1,3 @@
-
 'use strict';
 
 const assert=require('node:assert/strict');
@@ -9,41 +8,46 @@ const test=require('node:test');
 const ROOT=path.resolve(__dirname,'..');
 const read=relative=>fs.readFileSync(path.join(ROOT,relative),'utf8');
 
-test('Main y detalle de Estados de Cuenta tienen modo movil sin tabla ancha',()=>{
+test('Main y detalle conservan tablas y solo sus wrappers hacen scroll horizontal en movil',()=>{
   const css=read('modules/cobranza-cor/cobranza-cor-estados-cuenta.css');
-  assert.match(css,/COBRANZA COR ESTADOS RESPONSIVE MOVIL V001/);
+  assert.match(css,/COBRANZA COR ESTADOS RESPONSIVE SCROLL V002/);
   assert.match(css,/@media \(max-width:760px\)/);
-  assert.match(css,/\.ccor-ec-projects-table\.ccor-ec-main-v001\{[\s\S]*?min-width:0!important/);
-  assert.match(css,/\.ccor-ec-main-v001 thead\{display:none\}/);
-  assert.match(css,/\.ccor-ec-detail-table\{[\s\S]*?min-width:0!important/);
-  assert.match(css,/\.ccor-ec-detail-table thead\{display:none\}/);
-  assert.match(css,/td:nth-child\(12\)::before\{content:'Contractual'\}/);
-  assert.match(css,/td:nth-child\(12\)::before\{content:'Por cobrar'\}/);
+  assert.match(css,/\.ccor-ec-table-wrap,[\s\S]*?overflow-x:auto!important/);
+  assert.match(css,/\.ccor-ec-projects-table\.ccor-ec-main-v001\{[\s\S]*?min-width:1480px!important/);
+  assert.match(css,/\.ccor-ec-detail-table\{[\s\S]*?min-width:1100px!important/);
+  assert.match(css,/\.ccor-ec-projects-table thead,[\s\S]*?display:table-header-group/);
+  assert.match(css,/\.ccor-ec-detail-table tbody\{display:table-row-group\}/);
+  assert.doesNotMatch(css,/\.ccor-ec-main-v001 thead\{display:none\}/);
+  assert.doesNotMatch(css,/\.ccor-ec-detail-table thead\{display:none\}/);
 });
 
-test('Crear Editar convierte Equipos e Hitos a tarjetas en movil',()=>{
+test('Crear Editar conserva Equipos e Hitos como tablas horizontales',()=>{
   const css=read('modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css');
-  assert.match(css,/COBRANZA COR FORM RESPONSIVE MOVIL V001/);
-  assert.match(css,/\.ccor-ec-form-equipment-table\{[\s\S]*?min-width:0!important/);
-  assert.match(css,/\.ccor-ec-form-equipment-table thead\{display:none\}/);
-  assert.match(css,/\.ccor-ec-form-hitos-table\{[\s\S]*?min-width:0!important/);
-  assert.match(css,/\.ccor-ec-form-hitos-table thead\{display:none\}/);
-  assert.match(css,/td:nth-child\(20\)::before\{content:'Acciones'\}/);
-  assert.match(css,/font-size:16px/);
-  assert.match(css,/min-height:44px/);
+  assert.match(css,/COBRANZA COR FORM RESPONSIVE SCROLL V002/);
+  assert.match(css,/\.ccor-ec-form-section \.ccor-ec-table-wrap\{[\s\S]*?overflow-x:auto!important/);
+  assert.match(css,/\.ccor-ec-form-equipment-table\{[\s\S]*?min-width:980px!important/);
+  assert.match(css,/\.ccor-ec-form-hitos-table\{[\s\S]*?min-width:2700px!important/);
+  assert.match(css,/\.ccor-ec-form-equipment-table thead,[\s\S]*?display:table-header-group/);
+  assert.doesNotMatch(css,/\.ccor-ec-form-equipment-table thead\{display:none\}/);
+  assert.doesNotMatch(css,/\.ccor-ec-form-hitos-table thead\{display:none\}/);
 });
 
-test('General y acciones se apilan para telefono',()=>{
-  const css=read('modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css');
-  assert.match(css,/\.ccor-ec-form-fields\{grid-template-columns:1fr\}/);
-  assert.match(css,/\.ccor-ec-form-kpis\{grid-template-columns:1fr\}/);
-  assert.match(css,/@media\(max-width:480px\)\{[\s\S]*?\.ccor-ec-form-actions\{grid-template-columns:1fr\}/);
+test('Controles y paneles permanecen contenidos en el viewport',()=>{
+  const main=read('modules/cobranza-cor/cobranza-cor-estados-cuenta.css');
+  const form=read('modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css');
+  assert.match(main,/\.ccor-ec-page\{[\s\S]*?overflow-x:hidden/);
+  assert.match(main,/\.ccor-ec-hero-actions\{[\s\S]*?flex-wrap:wrap/);
+  assert.match(form,/\.ccor-ec-form-page\{[\s\S]*?overflow-x:hidden/);
+  assert.match(form,/\.ccor-ec-form-fields\{grid-template-columns:1fr\}/);
+  assert.match(form,/min-height:44px/);
+  assert.match(form,/font-size:16px/);
 });
 
-test('Cache bust carga CSS responsive actual',()=>{
+test('Cache bust fuerza la version scroll V002',()=>{
   const loader=read('core/module-loader.js');
   const index=read('index.html');
-  assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20260924-estados-responsive-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260924-estados-responsive-v001/);
-  assert.match(index,/core\/module-loader\.js\?v=20260924-cobranza-estados-responsive-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20260924-estados-responsive-scroll-v002/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260924-estados-responsive-scroll-v002/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260924-fondo-garantia-general-v002/);
+  assert.match(index,/core\/module-loader\.js\?v=20260924-cobranza-estados-responsive-scroll-v002/);
 });

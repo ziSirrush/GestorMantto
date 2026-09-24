@@ -353,8 +353,9 @@
 .ccor-ec-form-fondo-warning[hidden]{display:none}
 
 
-/* [Aster | 2026-09-24 | ASTER-MG | COBRANZA COR FORM RESPONSIVE MOVIL V001]
-   Formularios de Crear/Editar optimizados para telefono sin scroll horizontal de tablas. */
+/* [Aster | 2026-09-24 | ASTER-MG | COBRANZA COR FORM RESPONSIVE SCROLL V002]
+   Norma Gestor: formulario, acciones y tarjetas quedan dentro del viewport;
+   Equipos e Hitos conservan formato tabla y solo su wrapper hace scroll horizontal. */
 @media(max-width:760px){
   .ccor-ec-form-page{
     width:100%;
@@ -362,6 +363,7 @@
     min-width:0;
     overflow-x:hidden;
   }
+
   .ccor-ec-form-hero,
   .ccor-ec-form-top-grid,
   .ccor-ec-form-general-card,
@@ -369,212 +371,107 @@
   .ccor-ec-form-section,
   .ccor-ec-form-section-title,
   .ccor-ec-form-fields,
-  .ccor-ec-form-people,
-  .ccor-ec-form-section .ccor-ec-table-wrap{
-    min-width:0;
+  .ccor-ec-form-people{
+    width:100%;
     max-width:100%;
+    min-width:0;
   }
+
   .ccor-ec-form-hero{padding:14px}
+
   .ccor-ec-form-actions{
     width:100%;
-    display:grid;
-    grid-template-columns:1fr 1fr;
+    max-width:100%;
+    flex-wrap:wrap;
     gap:8px;
   }
+
   .ccor-ec-form-actions .ccor-ec-btn{
-    width:100%;
     min-height:44px;
+    flex:1 1 140px;
   }
+
   .ccor-ec-form-fields{grid-template-columns:1fr}
   .ccor-ec-form-fields input,
   .ccor-ec-form-fields select{
     min-height:44px;
     font-size:16px;
   }
-  .ccor-ec-form-fondo-general-control{
-    min-height:44px;
-  }
-  .ccor-ec-form-people{grid-template-columns:1fr}
-  .ccor-ec-form-people span{
-    min-width:0;
-    overflow-wrap:anywhere;
-  }
-  .ccor-ec-form-kpis{grid-template-columns:1fr}
-  .ccor-ec-form-section{overflow:visible;padding:12px}
-  .ccor-ec-form-section-title{
-    align-items:stretch;
-    flex-direction:column;
-    gap:8px;
-  }
-  .ccor-ec-form-section-title .ccor-ec-btn{
-    width:100%;
-    min-height:44px;
-  }
-  .ccor-ec-form-section .ccor-ec-table-wrap{overflow:visible}
 
-  /* Equipos: tarjeta por equipo. */
-  .ccor-ec-form-equipment-table{
-    display:block;
-    width:100%;
-    min-width:0!important;
-  }
-  .ccor-ec-form-equipment-table thead{display:none}
-  .ccor-ec-form-equipment-table tbody{
-    display:grid;
-    width:100%;
-    gap:10px;
-  }
-  .ccor-ec-form-equipment-table tr[data-equipo-index]{
-    display:grid;
-    width:100%;
-    min-width:0;
-    border:1px solid #dce5ee;
-    border-radius:12px;
-    background:#fff;
+  .ccor-ec-form-fondo-general-control{min-height:44px}
+  .ccor-ec-form-people{grid-template-columns:1fr}
+  .ccor-ec-form-people span{min-width:0;overflow-wrap:anywhere}
+  .ccor-ec-form-kpis{grid-template-columns:1fr}
+
+  .ccor-ec-form-section{
+    padding:12px;
     overflow:hidden;
   }
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td{
-    display:grid;
-    grid-template-columns:minmax(112px,38%) minmax(0,1fr);
-    align-items:center;
-    gap:10px;
-    width:100%;
-    min-width:0!important;
-    padding:8px 9px;
-    border:0;
-    border-bottom:1px solid #edf1f5;
-    text-align:right!important;
-    white-space:normal;
-    overflow-wrap:anywhere;
-  }
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:last-child{border-bottom:0}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td::before{
-    color:#6c7d90;
-    font-size:10px;
-    font-weight:850;
-    text-align:left;
-    text-transform:uppercase;
-  }
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(1)::before{content:'Incluir'}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(2)::before{content:'Equipo / referencia'}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(3)::before{content:'Capacidad'}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(4)::before{content:'Desembarques'}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(5)::before{content:'Estatus'}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(6)::before{content:'Logistica'}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td:nth-child(7)::before{content:'Ubicacion / Torre'}
-  .ccor-ec-form-equipment-table input:not([type="checkbox"]),
-  .ccor-ec-form-equipment-table select{
-    width:100%;
+
+  .ccor-ec-form-section-title{
     min-width:0;
+    max-width:100%;
+  }
+
+  .ccor-ec-form-section-title .ccor-ec-btn{min-height:44px}
+
+  .ccor-ec-form-section .ccor-ec-table-wrap{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    overflow-x:auto!important;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-inline:contain;
+  }
+
+  /* Las tablas mantienen su estructura y encabezados. */
+  .ccor-ec-form-equipment-table{
+    display:table;
+    width:100%;
+    min-width:980px!important;
+  }
+
+  .ccor-ec-form-hitos-table{
+    display:table;
+    width:100%;
+    min-width:2700px!important;
+  }
+
+  .ccor-ec-form-equipment-table thead,
+  .ccor-ec-form-hitos-table thead{display:table-header-group}
+  .ccor-ec-form-equipment-table tbody,
+  .ccor-ec-form-hitos-table tbody{display:table-row-group}
+  .ccor-ec-form-equipment-table tr,
+  .ccor-ec-form-hitos-table tr{display:table-row}
+  .ccor-ec-form-equipment-table th,
+  .ccor-ec-form-equipment-table td,
+  .ccor-ec-form-hitos-table th,
+  .ccor-ec-form-hitos-table td{display:table-cell}
+
+  .ccor-ec-form-equipment-table input:not([type="checkbox"]),
+  .ccor-ec-form-equipment-table select,
+  .ccor-ec-form-hitos-table input,
+  .ccor-ec-form-hitos-table select{
     min-height:44px;
     font-size:16px;
   }
+
   .ccor-ec-form-equipment-table input[type="checkbox"]{
     width:22px;
     min-width:22px;
     min-height:22px;
-    justify-self:end;
   }
 
-  /* Hitos: tarjeta vertical por hito; conserva los 20 campos del formulario V002. */
-  .ccor-ec-form-hitos-table{
-    display:block;
-    width:100%;
-    min-width:0!important;
-  }
-  .ccor-ec-form-hitos-table thead{display:none}
-  .ccor-ec-form-hitos-table tbody{
-    display:grid;
-    width:100%;
-    gap:12px;
-  }
-  .ccor-ec-form-hitos-table tr[data-hito-index]{
-    display:grid;
-    width:100%;
-    min-width:0;
-    border:1px solid #dce5ee;
-    border-radius:12px;
-    background:#fff;
-    overflow:hidden;
-  }
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td{
-    display:grid;
-    grid-template-columns:minmax(112px,38%) minmax(0,1fr);
-    align-items:center;
-    gap:10px;
-    width:100%;
-    min-width:0!important;
-    padding:8px 9px;
-    border:0;
-    border-bottom:1px solid #edf1f5;
-    text-align:right!important;
-    white-space:normal;
-    overflow-wrap:anywhere;
-  }
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:last-child{border-bottom:0}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td::before{
-    color:#6c7d90;
-    font-size:10px;
-    font-weight:850;
-    text-align:left;
-    text-transform:uppercase;
-  }
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(1)::before{content:'#'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(2)::before{content:'Hito'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(3)::before{content:'%'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(4)::before{content:'Año'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(5)::before{content:'Moneda'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(6)::before{content:'Subtotal'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(7)::before{content:'IVA'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(8)::before{content:'Total'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(9)::before{content:'Factura'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(10)::before{content:'Pago total'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(11)::before{content:'Estatus factura'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(12)::before{content:'Fecha pago'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(13)::before{content:'Fecha venc.'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(14)::before{content:'Dias venc.'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(15)::before{content:'Estimado pago'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(16)::before{content:'Estatus venc.'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(17)::before{content:'Fecha programada'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(18)::before{content:'Fecha notificada'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(19)::before{content:'Estatus hito'}
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td:nth-child(20)::before{content:'Acciones'}
-  .ccor-ec-form-hitos-table input,
-  .ccor-ec-form-hitos-table select{
-    width:100%;
-    min-width:0;
-    min-height:44px;
-    font-size:16px;
-  }
-  .ccor-ec-form-hitos-table .ccor-ec-form-order{text-align:right!important}
   .ccor-ec-form-hitos-table .ccor-ec-form-remove{
     width:44px;
     min-width:44px;
     height:44px;
-    justify-self:end;
     font-size:20px;
-  }
-  .ccor-ec-form-equipment-table .ccor-ec-table-empty,
-  .ccor-ec-form-hitos-table .ccor-ec-table-empty{
-    display:block!important;
-    width:100%;
-    min-width:0!important;
-    padding:18px 10px!important;
-    text-align:center!important;
-    white-space:normal!important;
   }
 }
 
 @media(max-width:480px){
-  .ccor-ec-form-actions{grid-template-columns:1fr}
   .ccor-ec-form-general-card,
   .ccor-ec-form-section{padding:10px}
-  .ccor-ec-form-equipment-table tr[data-equipo-index]>td,
-  .ccor-ec-form-hitos-table tr[data-hito-index]>td{
-    grid-template-columns:1fr;
-    gap:5px;
-    text-align:left!important;
-  }
-  .ccor-ec-form-equipment-table input[type="checkbox"]{justify-self:start}
-  .ccor-ec-form-hitos-table .ccor-ec-form-remove{justify-self:start}
 }
