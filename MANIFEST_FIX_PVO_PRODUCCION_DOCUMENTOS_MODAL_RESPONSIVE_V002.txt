@@ -1,0 +1,15 @@
+FIX_PVO_PRODUCCION_DOCUMENTOS_MODAL_RESPONSIVE_V002
+
+Archivos a sustituir en el repositorio:
+- backend/src/modules/logistica-produccion/logistica-produccion.service.js
+- modules/logistica-produccion/logistica-produccion.js
+- modules/logistica-produccion/logistica-produccion.css
+- core/module-loader.js
+
+Validacion:
+- tests/logistica_produccion_documentos_modal_responsive_v002.test.js
+
+Documentacion:
+- README_FIX_PVO_PRODUCCION_DOCUMENTOS_MODAL_RESPONSIVE_V002.md
+
+REGLA: Este paquete NO contiene archivos .patch.

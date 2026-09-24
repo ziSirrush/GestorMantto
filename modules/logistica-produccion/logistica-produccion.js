@@ -1,5 +1,6 @@
 (function(){
 'use strict';
+// [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION PREVIEW HOJA 1 FIT SCROLL V003]
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS MODAL RESPONSIVE V002]
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS MODAL RESPONSIVE V001]
@@ -362,7 +363,7 @@ function detailSummaryTable(p,fl){
  return `<div class="lp-summary-table-wrap"><table class="lp-summary-table" aria-label="Resumen del registro de PVO-Producción"><tbody>${rows.join('')}</tbody></table></div>`;
 }
 function isPdfFile(file){const mime=norm(file&&file.mime_type),ext=norm(file&&file.extension),name=norm(file&&(file.nombre_original||file.nombre_archivo));return mime==='APPLICATION/PDF'||ext==='PDF'||name.endsWith('.PDF');}
-function pdfPreviewUrl(url){const value=raw(url);if(!value)return '';return value.split('#')[0]+'#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0';}
+function pdfPreviewUrl(url,mode='thumb'){const value=raw(url);if(!value)return '';const fragment=mode==='modal'?'#page=1&view=FitV&toolbar=0&navpanes=0&scrollbar=1':'#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0';return value.split('#')[0]+fragment;}
 function documentPreview(type,file){
  const name=raw(file.nombre_original||file.nombre_archivo)||`${type} ${file.numero_archivo}`;
  const url=raw(file.url_acceso),id=escRaw(file.id_archivo);
@@ -394,10 +395,10 @@ function openDocumentModal(file){
  if(title)title.textContent=name;
  if(kind)kind.textContent=`${raw(file.tipo_archivo)||'Documento'} ${file.numero_archivo||''}`.trim();
  if(body){
-  if(url&&isPdfFile(file))body.innerHTML=`<iframe src="${escRaw(pdfPreviewUrl(url))}" title="Vista previa hoja 1 de ${escRaw(name)}"></iframe>`;
+  if(url&&isPdfFile(file))body.innerHTML=`<div class="lp-doc-modal-viewer"><iframe src="${escRaw(pdfPreviewUrl(url,'modal'))}" title="Vista previa hoja 1 de ${escRaw(name)}" tabindex="0"></iframe><span class="lp-doc-modal-page-chip">Hoja 1</span></div>`;
   else body.innerHTML='<div class="lp-doc-modal-empty">La vista previa ampliada está disponible únicamente para archivos PDF.</div>';
  }
- if(note)note.textContent=url&&isPdfFile(file)?'Vista previa ampliada · primera hoja. Usa “Abrir documento” para consultar el PDF completo.':'Vista previa no disponible para este tipo de archivo.';
+ if(note)note.textContent=url&&isPdfFile(file)?'Hoja 1 ajustada al alto. Puedes desplazar o hacer zoom dentro del visor si el navegador lo requiere.':'Vista previa no disponible para este tipo de archivo.';
  if(download){download.hidden=!downloadUrl;if(downloadUrl){download.href=downloadUrl;download.setAttribute('download',name);}else{download.removeAttribute('href');download.removeAttribute('download');}}
  if(open){open.hidden=!url;if(url)open.href=url;else open.removeAttribute('href');}
  state.docPreviewLastFocus=document.activeElement;

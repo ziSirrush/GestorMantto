@@ -1,0 +1,7 @@
+README_FIX_PVO_PRODUCCION_DOCUMENTOS_MODAL_RESPONSIVE_V003.md
+MANIFEST_FIX_PVO_PRODUCCION_DOCUMENTOS_MODAL_RESPONSIVE_V003.txt
+SHA256SUMS.txt
+core/module-loader.js
+modules/logistica-produccion/logistica-produccion.js
+modules/logistica-produccion/logistica-produccion.css
+tests/logistica_produccion_documentos_modal_responsive_v003.test.js

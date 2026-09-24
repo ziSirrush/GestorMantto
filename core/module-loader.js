@@ -200,11 +200,11 @@
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260923-dashboard-ppns-final-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-doc-modal-responsive-v002'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-doc-modal-responsive-v002']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-doc-modal-responsive-v002'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-doc-modal-responsive-v002']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-doc-modal-responsive-v002'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-doc-modal-responsive-v002']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-doc-modal-responsive-v002'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-doc-modal-responsive-v002']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-doc-modal-responsive-v002'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-doc-modal-responsive-v002']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-preview-hoja1-v003'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003']},
 
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20260914-human-time-v001']},
     'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001']},
@@ -257,7 +257,7 @@
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
-    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260912-cobranza-cor-estados-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260923-fondo-garantia-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260923-estados-botones-v003','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20260923-fondo-garantia-v001']},
+    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260924-estados-responsive-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260924-estados-responsive-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260923-estados-botones-v003','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20260924-fondo-garantia-general-v002']},
     'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260914-horarios-f2-v001']},
 
     'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20260914-horarios-f2-v001']},
