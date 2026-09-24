@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-09-23 | ASTER-MG | COBRANZA COR FONDO GARANTIA V001]
+  // [Aster | 2026-09-24 | ASTER-MG | COBRANZA COR FONDO GARANTIA GENERAL V002]
   if(window.ManttoCobranzaCorEstadoCuentaForm) return;
 
   const ROUTE='cobranza-estados-cuenta';
@@ -19,6 +19,9 @@
     logOps:[],
     hitos:[],
     deletedHitos:[],
+    fondoGarantia:false,
+    porcentajeFondoGarantia:'0',
+    fondoGarantiaMixed:false,
     loading:false,
     saving:false,
     requestSequence:0,
@@ -96,7 +99,7 @@
   function emptyHito_cor(){
     return {
       id_fuente_cor:null,
-      condicion:'',porcentaje:'',fondo_garantia:false,porcentaje_fondo_garantia:'0',anio_proyecto:'',moneda:'MXN',
+      condicion:'',porcentaje:'',anio_proyecto:'',moneda:'MXN',
       subtotal:'',iva:'',total:'',factura:'',pago_total:'',estatus_factura:'',
       fecha_pago:'',fecha_vencimiento:'',dias_vencimiento:'',estimado_pago:'',estatus_vencimiento:'',
       fecha_programada:'',fecha_notificada:'',estatus_hito:'Pendiente'
@@ -109,13 +112,72 @@
     return String(Math.round(parsed*1000000)/10000);
   }
 
+  function applyFondoGarantiaFromRows_cor(rows){
+    const source=Array.isArray(rows)?rows:[];
+    if(!source.length){
+      state.fondoGarantia=false;
+      state.porcentajeFondoGarantia='0';
+      state.fondoGarantiaMixed=false;
+      return;
+    }
+    const configs=source.map(row=>{
+      const activo=Boolean(row&&row.fondo_garantia);
+      const porcentaje=activo?(number_cor(row&&row.porcentaje_fondo_garantia)||0):0;
+      return {activo,porcentaje};
+    });
+    const first=configs[0];
+    state.fondoGarantia=first.activo;
+    state.porcentajeFondoGarantia=percentDisplay_cor(first.porcentaje)||'0';
+    state.fondoGarantiaMixed=configs.some(row=>
+      row.activo!==first.activo || Math.abs(row.porcentaje-first.porcentaje)>0.0000005
+    );
+  }
+
+  function validateFondoGarantiaGeneral_cor(){
+    if(state.fondoGarantiaMixed){
+      return 'Los hitos actuales tienen configuraciones distintas de Fondo de Garantía. Selecciona una configuración general para unificarlos.';
+    }
+    if(!state.fondoGarantia) return '';
+    const porcentaje=Number(state.porcentajeFondoGarantia);
+    if(!Number.isFinite(porcentaje)||porcentaje<0){
+      return 'Revisa el porcentaje de Fondo de Garantía.';
+    }
+    if(porcentaje>10){
+      return 'El Fondo de Garantía supera el tope de 10%. Requiere autorización antes de guardar.';
+    }
+    return '';
+  }
+
+  function syncFondoGarantiaControls_cor(){
+    const checkbox=document.getElementById('ccor-ec-form-fondo-garantia');
+    const input=document.getElementById('ccor-ec-form-porcentaje-fondo-garantia');
+    const estado=document.getElementById('ccor-ec-form-fondo-estado');
+    const warning=document.getElementById('ccor-ec-form-fondo-warning');
+    if(checkbox){
+      checkbox.checked=Boolean(state.fondoGarantia);
+      checkbox.indeterminate=Boolean(state.fondoGarantiaMixed);
+      checkbox.setAttribute('aria-checked',state.fondoGarantiaMixed?'mixed':(state.fondoGarantia?'true':'false'));
+    }
+    if(input){
+      input.disabled=!state.fondoGarantia||state.fondoGarantiaMixed;
+      input.value=state.fondoGarantia?String(state.porcentajeFondoGarantia||'0'):'0';
+      const error=validateFondoGarantiaGeneral_cor();
+      input.setAttribute('aria-invalid',error&&state.fondoGarantia?'true':'false');
+    }
+    if(estado) estado.textContent=state.fondoGarantiaMixed?'Definir':(state.fondoGarantia?'Activado':'Desactivado');
+    if(warning){
+      warning.hidden=!state.fondoGarantiaMixed;
+      warning.textContent=state.fondoGarantiaMixed
+        ? 'Los hitos existentes tienen valores distintos. Define aquí una sola configuración; al guardar se aplicará por igual a todos los hitos activos.'
+        : '';
+    }
+  }
+
   function normalizeHitoFromApi_cor(row){
     return {
       id_fuente_cor:Number(row&&row.id_fuente_cor)||null,
       condicion:String(row&&row.condicion||''),
       porcentaje:percentDisplay_cor(row&&row.porcentaje),
-      fondo_garantia:Boolean(row&&row.fondo_garantia),
-      porcentaje_fondo_garantia:percentDisplay_cor(row&&row.porcentaje_fondo_garantia)||'0',
       anio_proyecto:row&&row.anio_proyecto!==null&&row.anio_proyecto!==undefined?String(row.anio_proyecto):'',
       moneda:String(row&&row.moneda||'').toUpperCase(),
       subtotal:row&&row.subtotal!==null&&row.subtotal!==undefined?String(row.subtotal):'',
@@ -145,6 +207,9 @@
     state.logOps=[];
     state.hitos=state.mode==='create'?[emptyHito_cor()]:[];
     state.deletedHitos=[];
+    state.fondoGarantia=false;
+    state.porcentajeFondoGarantia='0';
+    state.fondoGarantiaMixed=false;
   }
 
   function setContext_cor(){
@@ -223,9 +288,12 @@
               <label><span>Proyecto *</span><input id="ccor-ec-form-proyecto" maxlength="255" value="${escapeHtml_cor(project.proyecto||'')}"${readonlyProject}></label>
               <label><span>Cliente</span><input id="ccor-ec-form-cliente" maxlength="500" value="${escapeHtml_cor(project.cliente||'')}"${readonlyClient}></label>
               <label><span>Contractual</span><input id="ccor-ec-form-contractual" maxlength="150" value="${escapeHtml_cor(project.contractual||'')}" placeholder="Estatus contractual"></label>
+              <label class="ccor-ec-form-fondo-general"><span>Fondo de Garantía</span><span class="ccor-ec-form-fondo-general-control"><input id="ccor-ec-form-fondo-garantia" type="checkbox"${state.fondoGarantia?' checked':''}><b id="ccor-ec-form-fondo-estado">${state.fondoGarantia?'Activado':'Desactivado'}</b></span></label>
+              <label class="ccor-ec-form-fondo-porcentaje"><span>% Fondo de Garantía</span><input id="ccor-ec-form-porcentaje-fondo-garantia" type="number" min="0" max="10" step="0.01" value="${escapeHtml_cor(state.fondoGarantia?state.porcentajeFondoGarantia:'0')}"${state.fondoGarantia?'':' disabled'}><small>Aplica por igual a todos los hitos activos.</small></label>
               <label><span>Equipos relacionados</span><input id="ccor-ec-form-equipos-total" value="${escapeHtml_cor(state.equipos.filter(row=>row.incluir!==false).length)}" readonly></label>
               <label><span>Hitos activos</span><input id="ccor-ec-form-hitos-total" value="${escapeHtml_cor(state.hitos.length)}" readonly></label>
             </div>
+            <div id="ccor-ec-form-fondo-warning" class="ccor-ec-form-fondo-warning" hidden></div>
             <div class="ccor-ec-form-people">
               <span>Supervisor <b>${escapeHtml_cor(text_cor(project.supervisor))}</b></span>
               <span>Asesor <b>${escapeHtml_cor(text_cor(project.asesor))}</b></span>
@@ -264,7 +332,7 @@
           <div class="ccor-ec-table-wrap">
             <table class="ccor-ec-table ccor-ec-form-hitos-table">
               <thead><tr>
-                <th>#</th><th>Hito</th><th>%</th><th>Fondo garantía</th><th>% Fondo garantía</th><th>Año</th><th>Moneda</th><th>Subtotal</th><th>IVA</th><th>Total</th>
+                <th>#</th><th>Hito</th><th>%</th><th>Año</th><th>Moneda</th><th>Subtotal</th><th>IVA</th><th>Total</th>
                 <th>Factura</th><th>Pago total</th><th>Estatus factura</th><th>Fecha pago</th><th>Fecha venc.</th><th>Días venc.</th>
                 <th>Estimado pago</th><th>Estatus venc.</th><th>Fecha programada</th><th>Fecha notificada</th><th>Estatus hito</th><th>Acciones</th>
               </tr></thead>
@@ -279,6 +347,7 @@
     renderEquipos_cor();
     renderHitos_cor();
     renderTotals_cor();
+    syncFondoGarantiaControls_cor();
     setContext_cor();
   }
 
@@ -322,7 +391,7 @@
     const body=document.getElementById('ccor-ec-form-hitos-body');
     if(!body) return;
     if(!state.hitos.length){
-      body.innerHTML='<tr><td colspan="22" class="ccor-ec-table-empty">Agrega al menos un hito de cobranza.</td></tr>';
+      body.innerHTML='<tr><td colspan="20" class="ccor-ec-table-empty">Agrega al menos un hito de cobranza.</td></tr>';
       return;
     }
     body.innerHTML=state.hitos.map((row,index)=>`
@@ -330,8 +399,6 @@
         <td class="ccor-ec-form-order">${index+1}${row.id_fuente_cor?`<small class="ccor-ec-form-id">#${escapeHtml_cor(row.id_fuente_cor)}</small>`:''}</td>
         <td>${hitoInput_cor('text','condicion',row.condicion,'maxlength="500" placeholder="Condición / Hito"')}</td>
         <td>${hitoInput_cor('number','porcentaje',row.porcentaje,'min="0" max="100" step="0.01"')}</td>
-        <td class="ccor-ec-form-fondo-toggle"><input type="checkbox" data-hito-field="fondo_garantia"${row.fondo_garantia?' checked':''} aria-label="Fondo de garantía"></td>
-        <td>${hitoInput_cor('number','porcentaje_fondo_garantia',row.porcentaje_fondo_garantia,'min="0" max="10" step="0.01" '+(row.fondo_garantia?'':'disabled')+' aria-label="Porcentaje de fondo de garantía"')}</td>
         <td>${hitoInput_cor('number','anio_proyecto',row.anio_proyecto,'min="1900" max="2500" step="1"')}</td>
         <td>${hitoInput_cor('text','moneda',row.moneda,'maxlength="10" placeholder="MXN"')}</td>
         <td>${hitoInput_cor('number','subtotal',row.subtotal,'step="0.01"')}</td>
@@ -440,7 +507,9 @@
       state.logOps=Array.isArray(response&&response.log_ops)?response.log_ops:[];
       state.relaciones=Array.isArray(response&&response.equipos_relacionados)?response.equipos_relacionados:[];
       state.equipos=mergeEquipos_cor(Array.isArray(response&&response.equipos_disponibles)?response.equipos_disponibles:[]);
-      state.hitos=Array.isArray(response&&response.hitos)?response.hitos.map(normalizeHitoFromApi_cor):[];
+      const rawHitos=Array.isArray(response&&response.hitos)?response.hitos:[];
+      applyFondoGarantiaFromRows_cor(rawHitos);
+      state.hitos=rawHitos.map(normalizeHitoFromApi_cor);
       state.deletedHitos=[];
       renderShell_cor();
       setStatus_cor('','');
@@ -461,13 +530,9 @@
     if(!Number.isInteger(index)||!state.hitos[index]) return;
     const field=input.dataset.hitoField;
     if(!field) return;
-    let value=field==='fondo_garantia'?Boolean(input.checked):input.value;
+    let value=input.value;
     if(field==='moneda') value=String(value||'').toUpperCase();
     state.hitos[index][field]=value;
-    if(field==='fondo_garantia'){
-      if(!value) state.hitos[index].porcentaje_fondo_garantia='0';
-      renderHitos_cor();
-    }
     if(field==='subtotal'||field==='iva') syncTotalFromAmounts_cor(index);
     renderTotals_cor();
   }
@@ -486,16 +551,16 @@
     const proyecto=String(document.getElementById('ccor-ec-form-proyecto')?.value||'').trim();
     const cliente=String(document.getElementById('ccor-ec-form-cliente')?.value||'').trim();
     const contractual=String(document.getElementById('ccor-ec-form-contractual')?.value||'').trim();
+    const fondoGarantia=Boolean(state.fondoGarantia);
+    const porcentajeFondoGarantia=fondoGarantia
+      ? (String(state.porcentajeFondoGarantia??'').trim()===''?0:Number(state.porcentajeFondoGarantia)/100)
+      : 0;
 
     const hitos=state.hitos.map((row,index)=>({
       id_fuente_cor:row.id_fuente_cor||null,
       orden_hito:index+1,
       condicion:String(row.condicion||'').trim()||null,
       porcentaje:String(row.porcentaje??'').trim()===''?null:Number(row.porcentaje)/100,
-      fondo_garantia:Boolean(row.fondo_garantia),
-      porcentaje_fondo_garantia:Boolean(row.fondo_garantia)
-        ? (String(row.porcentaje_fondo_garantia??'').trim()===''?0:Number(row.porcentaje_fondo_garantia)/100)
-        : 0,
       anio_proyecto:String(row.anio_proyecto??'').trim()===''?null:Number(row.anio_proyecto),
       moneda:String(row.moneda||'').trim().toUpperCase()||null,
       subtotal:nullableNumber_cor(row.subtotal),
@@ -527,26 +592,33 @@
       });
     });
 
-    return {ppns,proyecto,cliente,contractual,hitos,equipos};
+    return {
+      ppns,proyecto,cliente,contractual,
+      fondo_garantia:fondoGarantia,
+      porcentaje_fondo_garantia:porcentajeFondoGarantia,
+      hitos,equipos
+    };
   }
 
   function validatePayload_cor(payload){
     if(!payload.ppns) return 'Selecciona un PPNS.';
     if(!payload.proyecto) return 'El Proyecto es obligatorio.';
+    const fondoError=validateFondoGarantiaGeneral_cor();
+    if(fondoError) return fondoError;
+    if(payload.fondo_garantia===true){
+      if(payload.porcentaje_fondo_garantia===null||!Number.isFinite(payload.porcentaje_fondo_garantia)||payload.porcentaje_fondo_garantia<0){
+        return 'Revisa el porcentaje de Fondo de Garantía.';
+      }
+      if(payload.porcentaje_fondo_garantia>0.10){
+        return 'El Fondo de Garantía supera el tope de 10%. Requiere autorización antes de guardar.';
+      }
+    }
     const activeHitos=(payload.hitos||[]).filter(row=>row.eliminar!==true);
     if(!activeHitos.length) return 'El Estado de Cuenta debe conservar al menos un hito.';
     for(let index=0;index<activeHitos.length;index+=1){
       const row=activeHitos[index];
       if(!row.id_fuente_cor&&!row.condicion) return `Captura el Hito de la fila ${index+1}.`;
       if(row.porcentaje!==null&&(!Number.isFinite(row.porcentaje)||row.porcentaje<0||row.porcentaje>1)) return `El porcentaje de la fila ${index+1} debe estar entre 0% y 100%.`;
-      if(row.fondo_garantia===true){
-        if(row.porcentaje_fondo_garantia===null||!Number.isFinite(row.porcentaje_fondo_garantia)||row.porcentaje_fondo_garantia<0){
-          return `Revisa el porcentaje de Fondo de Garantía de la fila ${index+1}.`;
-        }
-        if(row.porcentaje_fondo_garantia>0.10){
-          return `El Fondo de Garantía de la fila ${index+1} supera el tope de 10%. Requiere autorización antes de guardar.`;
-        }
-      }
       if(row.anio_proyecto!==null&&(!Number.isInteger(row.anio_proyecto)||row.anio_proyecto<1900||row.anio_proyecto>2500)) return `Revisa el año de la fila ${index+1}.`;
       for(const field of ['subtotal','iva','total','pago_total']){
         if(row[field]!==null&&!Number.isFinite(row[field])) return `Revisa ${field} de la fila ${index+1}.`;
@@ -632,10 +704,27 @@
     });
 
     state.root.addEventListener('change',event=>{
+      if(event.target.id==='ccor-ec-form-fondo-garantia'){
+        state.fondoGarantia=Boolean(event.target.checked);
+        state.fondoGarantiaMixed=false;
+        if(!state.fondoGarantia) state.porcentajeFondoGarantia='0';
+        syncFondoGarantiaControls_cor();
+        const error=validateFondoGarantiaGeneral_cor();
+        setStatus_cor(error,error?'error':'');
+        return;
+      }
+      if(event.target.id==='ccor-ec-form-porcentaje-fondo-garantia'){
+        state.porcentajeFondoGarantia=event.target.value;
+        syncFondoGarantiaControls_cor();
+        const error=validateFondoGarantiaGeneral_cor();
+        setStatus_cor(error,error?'error':'');
+        return;
+      }
       if(event.target.id==='ccor-ec-form-ppns'&&state.mode==='create'){
         const ppns=String(event.target.value||'').trim();
         state.ppns=ppns;
         state.proyecto=null;state.equipos=[];state.relaciones=[];state.logOps=[];
+        state.fondoGarantia=false;state.porcentajeFondoGarantia='0';state.fondoGarantiaMixed=false;
         if(ppns) loadCreateCatalog_cor(ppns); else renderShell_cor();
         return;
       }
@@ -653,6 +742,13 @@
     });
 
     state.root.addEventListener('input',event=>{
+      if(event.target.id==='ccor-ec-form-porcentaje-fondo-garantia'){
+        state.porcentajeFondoGarantia=event.target.value;
+        const error=validateFondoGarantiaGeneral_cor();
+        event.target.setAttribute('aria-invalid',error?'true':'false');
+        setStatus_cor(error,error?'error':'');
+        return;
+      }
       const equipmentRow=event.target.closest('[data-equipo-index]');
       if(equipmentRow&&event.target.matches('[data-equipo-ubicacion]')){
         const index=Number(equipmentRow.dataset.equipoIndex);

@@ -79,16 +79,22 @@ test('Cache bust carga Estados de Cuenta y su formulario CRUD',()=>{
 });
 
 
-test('Fondo de garantia se integra a FUENTE con default apagado y tope de 10%',()=>{
+test('Fondo de garantia vive en General y aplica una sola configuracion a todos los hitos',()=>{
   const frontend=read('modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js');
   const service=read('backend/src/modules/cobranza-cor/cobranza-cor.service.js');
   const repository=read('backend/src/modules/cobranza-cor/cobranza-cor.repository.js');
-  assert.match(frontend,/fondo_garantia:false/);
-  assert.match(frontend,/data-hito-field=\"fondo_garantia\"/);
-  assert.match(frontend,/'porcentaje_fondo_garantia'/);
+  assert.match(frontend,/id=\"ccor-ec-form-fondo-garantia\"/);
+  assert.match(frontend,/id=\"ccor-ec-form-porcentaje-fondo-garantia\"/);
+  assert.match(frontend,/Aplica por igual a todos los hitos activos/);
+  assert.doesNotMatch(frontend,/data-hito-field=\"fondo_garantia\"/);
+  assert.doesNotMatch(frontend,/data-hito-field=\"porcentaje_fondo_garantia\"/);
+  assert.match(frontend,/fondo_garantia:fondoGarantia/);
+  assert.match(frontend,/porcentaje_fondo_garantia:porcentajeFondoGarantia/);
   assert.match(frontend,/supera el tope de 10%/);
   assert.match(service,/FONDO_GARANTIA_AUTORIZACION_REQUERIDA/);
   assert.match(service,/porcentajeFondoGarantia > 0\.10/);
+  assert.match(service,/fondo_garantia: input\.fondo_garantia/);
+  assert.match(service,/porcentaje_fondo_garantia: input\.porcentaje_fondo_garantia/);
   assert.match(repository,/'fondo_garantia'/);
   assert.match(repository,/'porcentaje_fondo_garantia'/);
 });

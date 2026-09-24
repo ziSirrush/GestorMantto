@@ -1,6 +1,8 @@
 (function(){
 'use strict';
+// [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS MODAL RESPONSIVE V002]
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+// [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS MODAL RESPONSIVE V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 // [Aster | 2026-09-04 | ASTER-MG | FIX FORMATO FECHAS DDMMYYYY V001]
 // [Aster | 2026-09-01 | ASTER-MG | FASE 1 LOGISTICA PRODUCCION SEMIAUTOMATICO V001]
@@ -18,7 +20,7 @@
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION ORDEN FILTROS EMOJIS V001]
 const state={
   rows:[],options:[],statuses:[],detail:null,selectedOption:null,optionSearchTimer:null,optionSearchToken:0,
-  newMode:'MANUAL',newSaving:false,pickerDismissCleanup:null,mainSort:{key:'default',direction:'asc'},
+  newMode:'MANUAL',newSaving:false,pickerDismissCleanup:null,docPreviewKeyHandler:null,docPreviewLastFocus:null,mainSort:{key:'default',direction:'asc'},
   manual:{loaded:false,loading:null,catalogs:null,lists:{project:[],advisor:[],supervisor:[]},selected:{project:null,advisor:null,supervisor:null},timers:{},tokens:{}}
 };
 const $=id=>document.getElementById(id);
@@ -363,14 +365,52 @@ function isPdfFile(file){const mime=norm(file&&file.mime_type),ext=norm(file&&fi
 function pdfPreviewUrl(url){const value=raw(url);if(!value)return '';return value.split('#')[0]+'#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0';}
 function documentPreview(type,file){
  const name=raw(file.nombre_original||file.nombre_archivo)||`${type} ${file.numero_archivo}`;
- const url=raw(file.url_acceso);
- const open=url?`<a href="${escRaw(url)}" target="_blank" rel="noopener noreferrer">Abrir PDF completo</a>`:'';
+ const url=raw(file.url_acceso),id=escRaw(file.id_archivo);
  let preview='<div class="lp-doc-preview-empty">Vista previa no disponible.</div>';
  if(url&&isPdfFile(file))preview=`<div class="lp-pdf-preview-window"><iframe src="${escRaw(pdfPreviewUrl(url))}" title="Hoja 1 de ${escRaw(name)}" loading="lazy" tabindex="-1" aria-hidden="true"></iframe><span>Hoja 1</span></div>`;
  else if(url)preview='<div class="lp-doc-preview-empty">Vista previa disponible únicamente para archivos PDF.</div>';
- return `<article class="lp-doc-preview"><div class="lp-doc-preview-head"><div><strong>${esc(type)} ${esc(file.numero_archivo)}</strong><small>${esc(name)}</small></div><button data-file-delete="${escRaw(file.id_archivo)}" type="button">Eliminar</button></div>${preview}<div class="lp-doc-preview-actions">${open||'<span>Sin enlace de lectura</span>'}<small>Vista previa fija de la primera hoja.</small></div></article>`;
+ const hit=url?`<button class="lp-doc-preview-hitbox" data-doc-preview-id="${id}" type="button" aria-label="Ampliar vista previa de ${escRaw(name)}"></button>`:'';
+ const open=url?`<button class="lp-link lp-doc-preview-inline" data-doc-preview-id="${id}" type="button">Ampliar vista previa</button>`:'<span>Sin enlace de lectura</span>';
+ return `<article class="lp-doc-preview"><div class="lp-doc-preview-head"><button class="lp-doc-preview-title" data-doc-preview-id="${id}" type="button" ${url?'':'disabled'}><strong>${esc(type)} ${esc(file.numero_archivo)}</strong><small>${esc(name)}</small></button><button data-file-delete="${id}" type="button">Eliminar</button></div><div class="lp-doc-preview-clickable">${preview}${hit}</div><div class="lp-doc-preview-actions">${open}<small>Click para ampliar · hoja 1.</small></div></article>`;
 }
-function renderDetail(view){const d=state.detail,p=d.produccion,fl=d.instalaciones||{},files=d.archivos||[];const cpvo=files.filter(x=>x.tipo_archivo==='CPVO'),gm=files.filter(x=>x.tipo_archivo==='GM'),manual=String(p.modo_registro||'SEMI_AUTOMATICO')==='MANUAL';const summary=detailSummaryTable(p,fl);const editForm=manual?manualDetailEditForm(p):semiDetailEditForm(p);const canInstall=Boolean(raw(p.ppns));shell(view,p.proyecto||'Detalle',`PPNS ${p.ppns||'—'} · PVO-Producción · ${modeName(p.modo_registro)}`,`<section class="lp-card"><div class="lp-detail-title"><div><h2>Resumen</h2><span class="lp-mode-badge ${manual?'manual':'semi'}">${esc(modeName(p.modo_registro))}</span></div><button id="lp-edit" class="lp-btn" type="button">✏️ Editar</button></div>${summary}${editForm}</section><section class="lp-card"><div class="lp-detail-title"><div><h2>Zona de carga</h2><p>CPVO ${cpvo.length}/2 · GM ${gm.length}/10 · Vista previa: hoja 1 de cada PDF</p></div></div><div class="lp-upload-grid">${uploadBlock('CPVO',2,cpvo)}${uploadBlock('GM',10,gm)}</div></section>`,`<button id="lp-install" class="lp-btn" type="button" ${canInstall?'':'disabled title="El registro no tiene PPNS para abrir Instalaciones"'}>🏗️ Ver en Instalaciones</button>`);if(manual)hydrateManualDetailForm(p);bindDetail(view,p.id_produccion);}
+function documentModalShell(){return `<div id="lp-doc-modal" class="lp-doc-modal" hidden aria-hidden="true"><div class="lp-doc-modal-backdrop" data-doc-modal-close></div><section class="lp-doc-modal-panel" role="dialog" aria-modal="true" aria-labelledby="lp-doc-modal-title"><header class="lp-doc-modal-header"><div><small id="lp-doc-modal-kind">Documento</small><h3 id="lp-doc-modal-title">Vista previa</h3></div><button class="lp-doc-modal-close" data-doc-modal-close type="button" aria-label="Cerrar vista previa">×</button></header><div id="lp-doc-modal-body" class="lp-doc-modal-body"></div><footer class="lp-doc-modal-footer"><span id="lp-doc-modal-note">Vista previa fija de la primera hoja.</span><div class="lp-doc-modal-actions"><a id="lp-doc-modal-download" class="lp-btn ghost" href="#" hidden>⬇ Descargar</a><a id="lp-doc-modal-open" class="lp-btn primary" href="#" target="_blank" rel="noopener noreferrer" hidden>↗ Abrir documento</a></div></footer></section></div>`;}
+function closeDocumentModal(restoreFocus=true){
+ const modal=$('lp-doc-modal');
+ if(modal){
+  const frame=modal.querySelector('iframe');if(frame)frame.src='about:blank';
+  modal.hidden=true;modal.setAttribute('aria-hidden','true');
+ }
+ document.documentElement.classList.remove('lp-doc-preview-open');
+ if(state.docPreviewKeyHandler){document.removeEventListener('keydown',state.docPreviewKeyHandler);state.docPreviewKeyHandler=null;}
+ const last=state.docPreviewLastFocus;state.docPreviewLastFocus=null;
+ if(restoreFocus&&last&&typeof last.focus==='function'&&document.contains(last)){try{last.focus();}catch(_e){}}
+}
+function openDocumentModal(file){
+ const modal=$('lp-doc-modal');if(!modal||!file)return;
+ closeDocumentModal(false);
+ const name=raw(file.nombre_original||file.nombre_archivo)||'Documento';
+ const url=raw(file.url_acceso),downloadUrl=raw(file.url_descarga);
+ const title=$('lp-doc-modal-title'),kind=$('lp-doc-modal-kind'),body=$('lp-doc-modal-body'),note=$('lp-doc-modal-note'),download=$('lp-doc-modal-download'),open=$('lp-doc-modal-open');
+ if(title)title.textContent=name;
+ if(kind)kind.textContent=`${raw(file.tipo_archivo)||'Documento'} ${file.numero_archivo||''}`.trim();
+ if(body){
+  if(url&&isPdfFile(file))body.innerHTML=`<iframe src="${escRaw(pdfPreviewUrl(url))}" title="Vista previa hoja 1 de ${escRaw(name)}"></iframe>`;
+  else body.innerHTML='<div class="lp-doc-modal-empty">La vista previa ampliada está disponible únicamente para archivos PDF.</div>';
+ }
+ if(note)note.textContent=url&&isPdfFile(file)?'Vista previa ampliada · primera hoja. Usa “Abrir documento” para consultar el PDF completo.':'Vista previa no disponible para este tipo de archivo.';
+ if(download){download.hidden=!downloadUrl;if(downloadUrl){download.href=downloadUrl;download.setAttribute('download',name);}else{download.removeAttribute('href');download.removeAttribute('download');}}
+ if(open){open.hidden=!url;if(url)open.href=url;else open.removeAttribute('href');}
+ state.docPreviewLastFocus=document.activeElement;
+ modal.hidden=false;modal.setAttribute('aria-hidden','false');document.documentElement.classList.add('lp-doc-preview-open');
+ state.docPreviewKeyHandler=event=>{if(event.key==='Escape'){event.preventDefault();closeDocumentModal();}};
+ document.addEventListener('keydown',state.docPreviewKeyHandler);
+ const close=modal.querySelector('.lp-doc-modal-close');if(close)requestAnimationFrame(()=>close.focus());
+}
+function bindDocumentPreview(view){
+ view.querySelectorAll('[data-doc-preview-id]').forEach(control=>control.onclick=event=>{event.preventDefault();event.stopPropagation();const file=(state.detail&&state.detail.archivos||[]).find(item=>String(item.id_archivo)===String(control.dataset.docPreviewId));if(file)openDocumentModal(file);});
+ view.querySelectorAll('[data-doc-modal-close]').forEach(control=>control.onclick=event=>{event.preventDefault();closeDocumentModal();});
+}
+function renderDetail(view){closeDocumentModal(false);const d=state.detail,p=d.produccion,fl=d.instalaciones||{},files=d.archivos||[];const cpvo=files.filter(x=>x.tipo_archivo==='CPVO'),gm=files.filter(x=>x.tipo_archivo==='GM'),manual=String(p.modo_registro||'SEMI_AUTOMATICO')==='MANUAL';const summary=detailSummaryTable(p,fl);const editForm=manual?manualDetailEditForm(p):semiDetailEditForm(p);const canInstall=Boolean(raw(p.ppns));shell(view,p.proyecto||'Detalle',`PPNS ${p.ppns||'—'} · PVO-Producción · ${modeName(p.modo_registro)}`,`<section class="lp-card"><div class="lp-detail-title"><div><h2>Resumen</h2><span class="lp-mode-badge ${manual?'manual':'semi'}">${esc(modeName(p.modo_registro))}</span></div><button id="lp-edit" class="lp-btn" type="button">✏️ Editar</button></div>${summary}${editForm}</section><section class="lp-card"><div class="lp-detail-title"><div><h2>Zona de carga</h2><p>CPVO ${cpvo.length}/2 · GM ${gm.length}/10 · Click en un documento para ampliar la hoja 1</p></div></div><div class="lp-upload-grid">${uploadBlock('CPVO',2,cpvo)}${uploadBlock('GM',10,gm)}</div></section>${documentModalShell()}`,`<button id="lp-install" class="lp-btn" type="button" ${canInstall?'':'disabled title="El registro no tiene PPNS para abrir Instalaciones"'}>🏗️ Ver en Instalaciones</button>`);if(manual)hydrateManualDetailForm(p);bindDetail(view,p.id_produccion);}
 function uploadBlock(type,max,files){return `<div class="lp-upload"><h3>${type}</h3><div class="lp-doc-preview-grid">${files.length?files.map(f=>documentPreview(type,f)).join(''):'<div class="lp-doc-preview-empty">Sin archivos</div>'}</div><form data-upload="${type}"><label>Slot<select name="numero_archivo">${Array.from({length:max},(_,i)=>`<option value="${i+1}">${type} ${i+1}</option>`).join('')}</select></label><label>Archivo (máximo 25 MB por archivo)<input name="archivo" type="file" required></label><button class="lp-btn" type="submit">＋ Cargar / reemplazar</button></form></div>`;}
 function detailEditMsg(message,type='error'){const host=$('lp-edit-feedback');if(host){host.innerHTML=`<div class="lp-alert ${type}">${esc(message)}</div>`;return;}alertMsg(message,type);}
 function clearDetailEditMsg(){const host=$('lp-edit-feedback');if(host)host.innerHTML='';}
@@ -399,6 +439,7 @@ function bindDetail(view,id){
  $('lp-edit').onclick=()=>{clearAlert();clearDetailEditMsg();$('lp-edit-form').hidden=false;$('lp-edit').hidden=true;};
  $('lp-edit-cancel').onclick=()=>renderDetail(view);
  if(manual)bindPickerDismiss(view);
+ bindDocumentPreview(view);
  const editForm=$('lp-edit-form');
  editForm.onsubmit=async e=>{
   e.preventDefault();
@@ -429,6 +470,6 @@ function lpBindDetailActions(view){view.querySelectorAll('[data-detail]').forEac
 async function loadPvo(view){shell(view,'PVO','Control de integridad: CPVO + Fecha PVO + Fecha de Visita.',`<section class="lp-card"><h2>PVO completos</h2><div class="lp-table-wrap"><table class="lp-table"><thead><tr><th>Proyecto</th><th>PPNS</th><th>CPVO</th><th>Fecha PVO</th><th>Fecha de Visita</th><th>Supervisor</th><th>Asesor</th><th>Acción</th></tr></thead><tbody id="lp-pvo-ok"></tbody></table></div><div id="lp-pvo-ok-pager"></div></section><section class="lp-card"><h2>Faltan datos PVO</h2><div class="lp-table-wrap"><table class="lp-table"><thead><tr><th>Proyecto</th><th>PPNS</th><th>CPVO</th><th>Fecha PVO</th><th>Fecha de Visita</th><th>Falta</th><th>Acción</th></tr></thead><tbody id="lp-pvo-missing"></tbody></table></div><div id="lp-pvo-missing-pager"></div></section>`);let okRows=[],missingRows=[],okPage=1,missingPage=1;const render=()=>{const okInfo=lpPage(okRows,okPage);okPage=okInfo.page;$('lp-pvo-ok').innerHTML=okInfo.rows.length?okInfo.rows.map(pvoRow).join(''):empty(8,'Sin PVO completos.');okPage=lpRenderPager('lp-pvo-ok-pager',okRows,okPage,page=>{okPage=page;render();});const missingInfo=lpPage(missingRows,missingPage);missingPage=missingInfo.page;$('lp-pvo-missing').innerHTML=missingInfo.rows.length?missingInfo.rows.map(r=>{const faltan=[];if(!r.pvo.cpvo)faltan.push('CPVO');if(!r.pvo.pvo_log)faltan.push('PVO Log');if(!r.pvo.pvo_fl)faltan.push('Fecha de Visita');return `<tr><td>${esc(r.proyecto)}</td><td>${esc(r.ppns)}</td><td>${r.pvo.cpvo?'✅':'❌'}</td><td>${r.pvo.pvo_log?'✅':'❌'}</td><td>${r.pvo.pvo_fl?'✅':'❌'}</td><td>${esc(faltan.join(' / '))}</td><td><button class="lp-link" data-detail="${r.id_produccion}">Ver / Gestionar</button></td></tr>`;}).join(''):empty(7,'Sin faltantes PVO.');missingPage=lpRenderPager('lp-pvo-missing-pager',missingRows,missingPage,page=>{missingPage=page;render();});lpBindDetailActions(view);};const load=async()=>{try{const [ok,missing]=await Promise.all([req('/api/logistica/produccion/pvo/completos'),req('/api/logistica/produccion/pvo/faltantes')]);okRows=Array.isArray(ok.data)?ok.data:[];missingRows=Array.isArray(missing.data)?missing.data:[];okPage=1;missingPage=1;render();}catch(e){alertMsg(e.message);}};view.querySelector('[data-lp-refresh]').onclick=load;await load();}
 function pvoRow(r){return `<tr><td>${esc(r.proyecto)}</td><td>${esc(r.ppns)}</td><td>✅ ${r.cpvo_count}/2</td><td>✅ ${fmtDisplayDate(r.fecha_pvo)}</td><td>✅ ${esc(fmtDisplayDate(r.fechas_visita||r.fechas_pvo_fl))}</td><td>${esc(r.supervisores)}</td><td>${esc(r.asesores)}</td><td><button class="lp-link" data-detail="${r.id_produccion}">Ver / Gestionar</button></td></tr>`;}
 async function loadDocuments(view){shell(view,'Documentos de Producción','Consulta documental; la carga y manipulación se realiza en el Detalle de Producción.',`<section class="lp-card lp-toolbar"><input id="lp-doc-q" type="search" placeholder="Buscar Proyecto, PPNS, tipo o documento"></section><section class="lp-card"><h2>Documentos</h2><div class="lp-table-wrap"><table class="lp-table"><thead><tr><th>Proyecto</th><th>PPNS</th><th>Tipo</th><th>Documento</th><th>Fecha de carga</th><th>Usuario</th><th>Acción</th></tr></thead><tbody id="lp-docs"></tbody></table></div><div id="lp-docs-pager"></div></section><section class="lp-card"><h2>Faltan documentos <span class="lp-rule">regla provisional</span></h2><div class="lp-table-wrap"><table class="lp-table"><thead><tr><th>Proyecto</th><th>PPNS</th><th>CPVO</th><th>GM</th><th>Pendiente</th><th>Acción</th></tr></thead><tbody id="lp-docs-missing"></tbody></table></div><div id="lp-docs-missing-pager"></div></section>`);let docRows=[],missingRows=[],docPage=1,missingPage=1;const render=()=>{const docInfo=lpPage(docRows,docPage);docPage=docInfo.page;$('lp-docs').innerHTML=docInfo.rows.length?docInfo.rows.map(r=>`<tr><td>${esc(r.proyecto)}</td><td>${esc(r.ppns)}</td><td>${esc(r.tipo_archivo)} ${r.numero_archivo}</td><td>${esc(r.nombre_original||r.nombre_archivo)}</td><td>${fmtHumanDateTime(r.created_at)}</td><td>${esc(r.usuario_iniciales)}</td><td><button class="lp-link" data-detail="${r.id_produccion}">Ver / Gestionar</button></td></tr>`).join(''):empty(7,'Sin documentos.');docPage=lpRenderPager('lp-docs-pager',docRows,docPage,page=>{docPage=page;render();});const missingInfo=lpPage(missingRows,missingPage);missingPage=missingInfo.page;$('lp-docs-missing').innerHTML=missingInfo.rows.length?missingInfo.rows.map(r=>`<tr><td>${esc(r.proyecto)}</td><td>${esc(r.ppns)}</td><td>${r.cpvo_count}/2</td><td>${r.gm_count}/10</td><td>💾 Sin archivos activos</td><td><button class="lp-link" data-detail="${r.id_produccion}">Ver / Gestionar</button></td></tr>`).join(''):empty(6,'Sin faltantes documentales.');missingPage=lpRenderPager('lp-docs-missing-pager',missingRows,missingPage,page=>{missingPage=page;render();});lpBindDetailActions(view);};const load=async()=>{try{const q=$('lp-doc-q').value.trim(),suffix=q?'?q='+encodeURIComponent(q):'';const [docs,missing]=await Promise.all([req('/api/logistica/produccion/documentos'+suffix),req('/api/logistica/produccion/documentos/faltantes'+suffix)]);docRows=Array.isArray(docs.data)?docs.data:[];missingRows=Array.isArray(missing.data)?missing.data:[];docPage=1;missingPage=1;render();}catch(e){alertMsg(e.message);}};$('lp-doc-q').oninput=()=>{clearTimeout(state.searchTimer);state.searchTimer=setTimeout(load,250);};view.querySelector('[data-lp-refresh]').onclick=load;await load();}
-async function init(route,payload){releasePickerDismiss();const view=$('view-'+route);if(!view)return;try{if(route==='logistica-produccion')await loadMain(view);else if(route==='logistica-produccion-nuevo')await loadNew(view);else if(route==='logistica-produccion-detalle')await loadDetail(view,payload&&payload.id);else if(route==='logistica-pvo')await loadPvo(view);else if(route==='logistica-documentos')await loadDocuments(view);}catch(e){alertMsg(e.message);}}
+async function init(route,payload){closeDocumentModal(false);releasePickerDismiss();const view=$('view-'+route);if(!view)return;try{if(route==='logistica-produccion')await loadMain(view);else if(route==='logistica-produccion-nuevo')await loadNew(view);else if(route==='logistica-produccion-detalle')await loadDetail(view,payload&&payload.id);else if(route==='logistica-pvo')await loadPvo(view);else if(route==='logistica-documentos')await loadDocuments(view);}catch(e){alertMsg(e.message);}}
 window.ManttoLogisticaProduccion={init};
 })();

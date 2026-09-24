@@ -1,6 +1,8 @@
+// [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS MODAL RESPONSIVE V002]
 'use strict';
 
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
+// [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS DESCARGA SAS V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
@@ -231,12 +233,15 @@ async function update(id,input,user){
 async function listFiles(id){
   const rows=await repo.files(positive(id,'id'));
   return Promise.all(rows.map(async row=>{
-    if(row.storage_provider==='LEGACY_URL'||row.storage_provider==='LEGACY_REF')return {...row,url_acceso:row.storage_url||null};
-    if(!row.storage_blob_name)return {...row,url_acceso:null};
+    if(row.storage_provider==='LEGACY_URL'||row.storage_provider==='LEGACY_REF')return {...row,url_acceso:row.storage_url||null,url_descarga:null};
+    if(!row.storage_blob_name)return {...row,url_acceso:null,url_descarga:null};
     try{
-      const sas=await storage.createReadSas_gnral(row.storage_blob_name,{containerName:row.storage_container,fileName:row.nombre_original});
-      return {...row,url_acceso:sas.url,url_expira:sas.expires_at};
-    }catch(_e){return {...row,url_acceso:null,storage_no_disponible:true};}
+      const [sas,downloadSas]=await Promise.all([
+        storage.createReadSas_gnral(row.storage_blob_name,{containerName:row.storage_container,fileName:row.nombre_original}),
+        storage.createReadSas_gnral(row.storage_blob_name,{containerName:row.storage_container,fileName:row.nombre_original,download:true})
+      ]);
+      return {...row,url_acceso:sas.url,url_descarga:downloadSas.url,url_expira:sas.expires_at};
+    }catch(_e){return {...row,url_acceso:null,url_descarga:null,storage_no_disponible:true};}
   }));
 }
 function fileSlot(type,slot){const t=String(type||'').trim().toUpperCase();const n=positive(slot,'numero_archivo');if(!['CPVO','GM'].includes(t)||(t==='CPVO'&&n>2)||(t==='GM'&&n>10))throw error('Slot de archivo inválido. CPVO admite 1..2 y GM 1..10.');return {type:t,slot:n};}

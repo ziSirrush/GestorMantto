@@ -443,3 +443,257 @@
   .ccor-ec-summary-currency{grid-column:auto}
   .ccor-ec-info-card dl{grid-template-columns:1fr}
 }
+
+
+/* [Aster | 2026-09-24 | ASTER-MG | COBRANZA COR ESTADOS RESPONSIVE MOVIL V001]
+   En telefono, Main y Detalle cambian de tabla ancha a tarjetas verticales.
+   En escritorio se conserva la presentacion tabular existente. */
+@media (max-width:760px){
+  .ccor-ec-page{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    padding:10px;
+    overflow-x:hidden;
+  }
+  .ccor-ec-card,
+  .ccor-ec-hero,
+  .ccor-ec-filters,
+  .ccor-ec-projects-card,
+  .ccor-ec-project-header,
+  .ccor-ec-summary-grid,
+  .ccor-ec-account-section,
+  .ccor-ec-info-grid,
+  .ccor-ec-table-wrap{
+    min-width:0;
+    max-width:100%;
+  }
+  .ccor-ec-hero-actions{
+    width:100%;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+  .ccor-ec-hero-actions .ccor-ec-btn{
+    min-height:44px;
+    flex:1 1 140px;
+  }
+  .ccor-ec-detail-title{
+    flex-direction:column;
+    align-items:stretch;
+    gap:10px;
+  }
+  .ccor-ec-detail-toolbar{
+    gap:8px;
+  }
+  .ccor-ec-detail-toolbar>*{
+    max-width:100%;
+  }
+
+  /* Main: cada PPNS se presenta como tarjeta vertical en movil. */
+  .ccor-ec-projects-card{overflow:visible}
+  .ccor-ec-projects-wrap{overflow:visible}
+  .ccor-ec-projects-table.ccor-ec-main-v001{
+    display:block;
+    width:100%;
+    min-width:0!important;
+  }
+  .ccor-ec-main-v001 thead{display:none}
+  .ccor-ec-main-v001 tbody{
+    display:grid;
+    width:100%;
+    gap:10px;
+  }
+  .ccor-ec-main-v001 .ccor-ec-project-row{
+    display:grid;
+    width:100%;
+    min-width:0;
+    border:1px solid #dce5ee;
+    border-radius:12px;
+    background:#fff;
+    overflow:hidden;
+    box-shadow:0 2px 7px rgba(20,55,90,.05);
+  }
+  .ccor-ec-main-v001 .ccor-ec-project-row td{
+    display:grid;
+    grid-template-columns:minmax(108px,40%) minmax(0,1fr);
+    align-items:center;
+    gap:10px;
+    width:100%;
+    min-width:0!important;
+    max-width:none!important;
+    padding:9px 10px;
+    border:0;
+    border-bottom:1px solid #edf1f5;
+    text-align:right!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere;
+  }
+  .ccor-ec-main-v001 .ccor-ec-project-row td:last-child{border-bottom:0}
+  .ccor-ec-main-v001 .ccor-ec-project-row td::before{
+    color:#6c7d90;
+    font-size:10px;
+    font-weight:850;
+    line-height:1.2;
+    text-align:left;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+  }
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(1)::before{content:'PPNS'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(2)::before{content:'Proyecto'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(3)::before{content:'Cliente'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(4)::before{content:'Supervisor'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(5)::before{content:'Asesor'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(6)::before{content:'Administrativo'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(7)::before{content:'Hitos suministro'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(8)::before{content:'Hitos MXN'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(9)::before{content:'Aditivas'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(10)::before{content:'Monedas'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(11)::before{content:'Estado de cuenta'}
+  .ccor-ec-main-v001 .ccor-ec-project-row td:nth-child(12)::before{content:'Contractual'}
+  .ccor-ec-main-v001 .ccor-ec-project-row .ccor-ec-badge{justify-self:end}
+  .ccor-ec-main-v001 .ccor-ec-table-empty{
+    display:block;
+    width:100%;
+    padding:18px 12px;
+    text-align:center!important;
+    white-space:normal;
+  }
+
+  /* Detalle financiero: movimientos y totales se apilan sin scroll horizontal. */
+  .ccor-ec-detail-table-wrap{overflow:visible}
+  .ccor-ec-detail-table{
+    display:block;
+    width:100%;
+    min-width:0!important;
+  }
+  .ccor-ec-detail-table thead{display:none}
+  .ccor-ec-detail-table tbody{
+    display:grid;
+    width:100%;
+    gap:10px;
+  }
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row){
+    display:grid;
+    width:100%;
+    min-width:0;
+    border:1px solid #dce5ee;
+    border-radius:12px;
+    background:#fff;
+    overflow:hidden;
+  }
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td{
+    display:grid;
+    grid-template-columns:minmax(108px,40%) minmax(0,1fr);
+    align-items:center;
+    gap:10px;
+    min-width:0!important;
+    width:100%;
+    padding:8px 10px;
+    border:0;
+    border-bottom:1px solid #edf1f5;
+    text-align:right!important;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:last-child{border-bottom:0}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td::before{
+    color:#6c7d90;
+    font-size:10px;
+    font-weight:850;
+    line-height:1.2;
+    text-align:left;
+    text-transform:uppercase;
+  }
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(1)::before{content:'%'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(2)::before{content:'Condicion'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(3)::before{content:'Factura'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(4)::before{content:'Moneda'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(5)::before{content:'Subtotal'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(6)::before{content:'IVA'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(7)::before{content:'Total'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(8)::before{content:'Fecha pago'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(9)::before{content:'Pago M.E.'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(10)::before{content:'Pago MXN'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(11)::before{content:'Vencido'}
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td:nth-child(12)::before{content:'Por cobrar'}
+  .ccor-ec-detail-table .ccor-ec-condition{min-width:0!important;text-align:right!important}
+  .ccor-ec-detail-table .ccor-ec-table-empty{
+    display:block!important;
+    padding:18px 12px!important;
+    text-align:center!important;
+  }
+  .ccor-ec-detail-table .ccor-ec-table-empty::before{content:none!important}
+
+  .ccor-ec-detail-table .ccor-ec-total-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+    min-width:0;
+    border:1px solid #c7d8e8;
+    border-radius:12px;
+    background:#f7fafc;
+    overflow:hidden;
+  }
+  .ccor-ec-detail-table .ccor-ec-total-row>td{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    min-width:0;
+    padding:8px 10px;
+    border:0;
+    border-bottom:1px solid #e2eaf1;
+    text-align:right!important;
+    white-space:normal;
+  }
+  .ccor-ec-detail-table .ccor-ec-total-row>td:first-child{
+    grid-column:1/-1;
+    justify-content:flex-start;
+    background:#edf4fa;
+    color:#173958;
+    font-weight:900;
+  }
+  .ccor-ec-detail-table .ccor-ec-total-row>td:not(:first-child)::before{
+    color:#6c7d90;
+    font-size:9px;
+    font-weight:850;
+    text-transform:uppercase;
+    text-align:left;
+  }
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(2)::before{content:'Subtotal'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(3)::before{content:'IVA'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(4)::before{content:'Total'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(5)::before{content:'Fecha pago'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(6)::before{content:'Pago M.E.'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(7)::before{content:'Pago MXN'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(8)::before{content:'Vencido'}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:nth-child(9)::before{content:'Por cobrar'}
+
+  .ccor-ec-loading-card,
+  .ccor-ec-error-card{
+    min-height:140px;
+    padding:18px;
+    align-items:flex-start;
+  }
+}
+
+@media (max-width:480px){
+  .ccor-ec-page{padding:8px}
+  .ccor-ec-hero,
+  .ccor-ec-filters,
+  .ccor-ec-project-header,
+  .ccor-ec-info-card{padding-left:12px;padding-right:12px}
+  .ccor-ec-hero-actions{align-items:stretch}
+  .ccor-ec-hero-actions .ccor-ec-btn{flex-basis:100%}
+  .ccor-ec-main-v001 .ccor-ec-project-row td,
+  .ccor-ec-detail-table tbody>tr:not(.ccor-ec-total-row)>td{
+    grid-template-columns:1fr;
+    gap:4px;
+    text-align:left!important;
+  }
+  .ccor-ec-main-v001 .ccor-ec-project-row .ccor-ec-badge{justify-self:start}
+  .ccor-ec-detail-table .ccor-ec-total-row{grid-template-columns:1fr}
+  .ccor-ec-detail-table .ccor-ec-total-row>td:first-child{grid-column:auto}
+}

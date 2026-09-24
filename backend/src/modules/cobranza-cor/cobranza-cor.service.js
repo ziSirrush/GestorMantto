@@ -795,6 +795,36 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     throw badRequest('Agrega al menos un hito de cobranza.');
   }
 
+  const firstActiveRawHito = payload.hitos.find((raw) => !(
+    raw?.eliminar === true ||
+    raw?.eliminar === 1 ||
+    String(raw?.eliminar || '').toLowerCase() === 'true'
+  )) || null;
+  const fondoGarantiaRaw = payload.fondo_garantia !== undefined
+    ? payload.fondo_garantia
+    : firstActiveRawHito?.fondo_garantia;
+  const porcentajeFondoGarantiaRaw = payload.porcentaje_fondo_garantia !== undefined
+    ? payload.porcentaje_fondo_garantia
+    : firstActiveRawHito?.porcentaje_fondo_garantia;
+  const fondoGarantia = boolean_cor(fondoGarantiaRaw, 'Fondo de garantia', 0);
+  let porcentajeFondoGarantia = percentage01_cor(
+    porcentajeFondoGarantiaRaw,
+    'Porcentaje de fondo de garantia'
+  );
+  if (fondoGarantia !== 1) porcentajeFondoGarantia = 0;
+  if (fondoGarantia === 1 && porcentajeFondoGarantia === null) porcentajeFondoGarantia = 0;
+  if (fondoGarantia === 1 && porcentajeFondoGarantia > 0.10) {
+    throw httpError(
+      422,
+      'El Fondo de Garantia supera el tope de 10%. Requiere autorizacion antes de guardar.',
+      {
+        maximo_sin_autorizacion_pct: 10,
+        porcentaje_solicitado_pct: Math.round(porcentajeFondoGarantia * 10000) / 100
+      },
+      'FONDO_GARANTIA_AUTORIZACION_REQUERIDA'
+    );
+  }
+
   const hitos = payload.hitos.map((raw, index) => {
     const fila = index + 1;
     const idFuenteCor = optionalPositiveId_cor(raw?.id_fuente_cor, `id_fuente_cor del hito ${fila}`);
@@ -805,21 +835,6 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     }
 
     const porcentaje = percentage01_cor(raw?.porcentaje, `Porcentaje del hito ${fila}`);
-    const fondoGarantia = boolean_cor(raw?.fondo_garantia, `Fondo de garantia del hito ${fila}`, 0);
-    let porcentajeFondoGarantia = percentage01_cor(
-      raw?.porcentaje_fondo_garantia,
-      `Porcentaje de fondo de garantia del hito ${fila}`
-    );
-    if (fondoGarantia !== 1) porcentajeFondoGarantia = 0;
-    if (fondoGarantia === 1 && porcentajeFondoGarantia === null) porcentajeFondoGarantia = 0;
-    if (fondoGarantia === 1 && porcentajeFondoGarantia > 0.10) {
-      throw httpError(
-        422,
-        `El Fondo de Garantia del hito ${fila} supera el tope de 10%. Requiere autorizacion antes de guardar.`,
-        { fila, maximo_sin_autorizacion_pct: 10, porcentaje_solicitado_pct: Math.round(porcentajeFondoGarantia * 10000) / 100 },
-        'FONDO_GARANTIA_AUTORIZACION_REQUERIDA'
-      );
-    }
     const monedaRaw = cleanText_cor(raw?.moneda, 10);
     const moneda = monedaRaw ? monedaRaw.toUpperCase() : null;
     const subtotal = decimal_cor(raw?.subtotal, `Subtotal del hito ${fila}`);
@@ -849,8 +864,6 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
       eliminar: false,
       orden_hito: integer_cor(raw?.orden_hito ?? fila, `Orden del hito ${fila}`, { min: 1 }),
       porcentaje,
-      fondo_garantia: fondoGarantia,
-      porcentaje_fondo_garantia: porcentajeFondoGarantia,
       condicion,
       moneda,
       subtotal,
@@ -902,7 +915,16 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     activeInsFlIds.add(equipment.id_ins_fl);
   });
 
-  return { ppns, proyecto, cliente, contractual, hitos, equipos };
+  return {
+    ppns,
+    proyecto,
+    cliente,
+    contractual,
+    fondo_garantia: fondoGarantia,
+    porcentaje_fondo_garantia: porcentajeFondoGarantia,
+    hitos,
+    equipos
+  };
 }
 
 function fuenteMutationRecord_cor(input, hito) {
@@ -911,8 +933,8 @@ function fuenteMutationRecord_cor(input, hito) {
     cliente: input.cliente,
     contractual: input.contractual,
     porcentaje: hito.porcentaje,
-    fondo_garantia: hito.fondo_garantia,
-    porcentaje_fondo_garantia: hito.porcentaje_fondo_garantia,
+    fondo_garantia: input.fondo_garantia,
+    porcentaje_fondo_garantia: input.porcentaje_fondo_garantia,
     condicion: hito.condicion,
     moneda: hito.moneda,
     subtotal: hito.subtotal,
