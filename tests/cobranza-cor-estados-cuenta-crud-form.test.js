@@ -77,3 +77,18 @@ test('Cache bust carga Estados de Cuenta y su formulario CRUD',()=>{
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=[A-Za-z0-9._-]+/);
   assert.match(index,/core\/module-loader\.js\?v=[A-Za-z0-9._-]+/);
 });
+
+
+test('Fondo de garantia se integra a FUENTE con default apagado y tope de 10%',()=>{
+  const frontend=read('modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js');
+  const service=read('backend/src/modules/cobranza-cor/cobranza-cor.service.js');
+  const repository=read('backend/src/modules/cobranza-cor/cobranza-cor.repository.js');
+  assert.match(frontend,/fondo_garantia:false/);
+  assert.match(frontend,/data-hito-field=\"fondo_garantia\"/);
+  assert.match(frontend,/'porcentaje_fondo_garantia'/);
+  assert.match(frontend,/supera el tope de 10%/);
+  assert.match(service,/FONDO_GARANTIA_AUTORIZACION_REQUERIDA/);
+  assert.match(service,/porcentajeFondoGarantia > 0\.10/);
+  assert.match(repository,/'fondo_garantia'/);
+  assert.match(repository,/'porcentaje_fondo_garantia'/);
+});

@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-09-23 | ASTER-MG | COBRANZA COR ESTADOS CUENTA FORM V002]
+  // [Aster | 2026-09-23 | ASTER-MG | COBRANZA COR FONDO GARANTIA V001]
   if(window.ManttoCobranzaCorEstadoCuentaForm) return;
 
   const ROUTE='cobranza-estados-cuenta';
@@ -96,7 +96,7 @@
   function emptyHito_cor(){
     return {
       id_fuente_cor:null,
-      condicion:'',porcentaje:'',anio_proyecto:'',moneda:'MXN',
+      condicion:'',porcentaje:'',fondo_garantia:false,porcentaje_fondo_garantia:'0',anio_proyecto:'',moneda:'MXN',
       subtotal:'',iva:'',total:'',factura:'',pago_total:'',estatus_factura:'',
       fecha_pago:'',fecha_vencimiento:'',dias_vencimiento:'',estimado_pago:'',estatus_vencimiento:'',
       fecha_programada:'',fecha_notificada:'',estatus_hito:'Pendiente'
@@ -114,6 +114,8 @@
       id_fuente_cor:Number(row&&row.id_fuente_cor)||null,
       condicion:String(row&&row.condicion||''),
       porcentaje:percentDisplay_cor(row&&row.porcentaje),
+      fondo_garantia:Boolean(row&&row.fondo_garantia),
+      porcentaje_fondo_garantia:percentDisplay_cor(row&&row.porcentaje_fondo_garantia)||'0',
       anio_proyecto:row&&row.anio_proyecto!==null&&row.anio_proyecto!==undefined?String(row.anio_proyecto):'',
       moneda:String(row&&row.moneda||'').toUpperCase(),
       subtotal:row&&row.subtotal!==null&&row.subtotal!==undefined?String(row.subtotal):'',
@@ -262,7 +264,7 @@
           <div class="ccor-ec-table-wrap">
             <table class="ccor-ec-table ccor-ec-form-hitos-table">
               <thead><tr>
-                <th>#</th><th>Hito</th><th>%</th><th>Año</th><th>Moneda</th><th>Subtotal</th><th>IVA</th><th>Total</th>
+                <th>#</th><th>Hito</th><th>%</th><th>Fondo garantía</th><th>% Fondo garantía</th><th>Año</th><th>Moneda</th><th>Subtotal</th><th>IVA</th><th>Total</th>
                 <th>Factura</th><th>Pago total</th><th>Estatus factura</th><th>Fecha pago</th><th>Fecha venc.</th><th>Días venc.</th>
                 <th>Estimado pago</th><th>Estatus venc.</th><th>Fecha programada</th><th>Fecha notificada</th><th>Estatus hito</th><th>Acciones</th>
               </tr></thead>
@@ -320,7 +322,7 @@
     const body=document.getElementById('ccor-ec-form-hitos-body');
     if(!body) return;
     if(!state.hitos.length){
-      body.innerHTML='<tr><td colspan="20" class="ccor-ec-table-empty">Agrega al menos un hito de cobranza.</td></tr>';
+      body.innerHTML='<tr><td colspan="22" class="ccor-ec-table-empty">Agrega al menos un hito de cobranza.</td></tr>';
       return;
     }
     body.innerHTML=state.hitos.map((row,index)=>`
@@ -328,6 +330,8 @@
         <td class="ccor-ec-form-order">${index+1}${row.id_fuente_cor?`<small class="ccor-ec-form-id">#${escapeHtml_cor(row.id_fuente_cor)}</small>`:''}</td>
         <td>${hitoInput_cor('text','condicion',row.condicion,'maxlength="500" placeholder="Condición / Hito"')}</td>
         <td>${hitoInput_cor('number','porcentaje',row.porcentaje,'min="0" max="100" step="0.01"')}</td>
+        <td class="ccor-ec-form-fondo-toggle"><input type="checkbox" data-hito-field="fondo_garantia"${row.fondo_garantia?' checked':''} aria-label="Fondo de garantía"></td>
+        <td>${hitoInput_cor('number','porcentaje_fondo_garantia',row.porcentaje_fondo_garantia,'min="0" max="10" step="0.01" '+(row.fondo_garantia?'':'disabled')+' aria-label="Porcentaje de fondo de garantía"')}</td>
         <td>${hitoInput_cor('number','anio_proyecto',row.anio_proyecto,'min="1900" max="2500" step="1"')}</td>
         <td>${hitoInput_cor('text','moneda',row.moneda,'maxlength="10" placeholder="MXN"')}</td>
         <td>${hitoInput_cor('number','subtotal',row.subtotal,'step="0.01"')}</td>
@@ -457,9 +461,13 @@
     if(!Number.isInteger(index)||!state.hitos[index]) return;
     const field=input.dataset.hitoField;
     if(!field) return;
-    let value=input.value;
+    let value=field==='fondo_garantia'?Boolean(input.checked):input.value;
     if(field==='moneda') value=String(value||'').toUpperCase();
     state.hitos[index][field]=value;
+    if(field==='fondo_garantia'){
+      if(!value) state.hitos[index].porcentaje_fondo_garantia='0';
+      renderHitos_cor();
+    }
     if(field==='subtotal'||field==='iva') syncTotalFromAmounts_cor(index);
     renderTotals_cor();
   }
@@ -484,6 +492,10 @@
       orden_hito:index+1,
       condicion:String(row.condicion||'').trim()||null,
       porcentaje:String(row.porcentaje??'').trim()===''?null:Number(row.porcentaje)/100,
+      fondo_garantia:Boolean(row.fondo_garantia),
+      porcentaje_fondo_garantia:Boolean(row.fondo_garantia)
+        ? (String(row.porcentaje_fondo_garantia??'').trim()===''?0:Number(row.porcentaje_fondo_garantia)/100)
+        : 0,
       anio_proyecto:String(row.anio_proyecto??'').trim()===''?null:Number(row.anio_proyecto),
       moneda:String(row.moneda||'').trim().toUpperCase()||null,
       subtotal:nullableNumber_cor(row.subtotal),
@@ -527,6 +539,14 @@
       const row=activeHitos[index];
       if(!row.id_fuente_cor&&!row.condicion) return `Captura el Hito de la fila ${index+1}.`;
       if(row.porcentaje!==null&&(!Number.isFinite(row.porcentaje)||row.porcentaje<0||row.porcentaje>1)) return `El porcentaje de la fila ${index+1} debe estar entre 0% y 100%.`;
+      if(row.fondo_garantia===true){
+        if(row.porcentaje_fondo_garantia===null||!Number.isFinite(row.porcentaje_fondo_garantia)||row.porcentaje_fondo_garantia<0){
+          return `Revisa el porcentaje de Fondo de Garantía de la fila ${index+1}.`;
+        }
+        if(row.porcentaje_fondo_garantia>0.10){
+          return `El Fondo de Garantía de la fila ${index+1} supera el tope de 10%. Requiere autorización antes de guardar.`;
+        }
+      }
       if(row.anio_proyecto!==null&&(!Number.isInteger(row.anio_proyecto)||row.anio_proyecto<1900||row.anio_proyecto>2500)) return `Revisa el año de la fila ${index+1}.`;
       for(const field of ['subtotal','iva','total','pago_total']){
         if(row[field]!==null&&!Number.isFinite(row[field])) return `Revisa ${field} de la fila ${index+1}.`;

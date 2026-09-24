@@ -257,7 +257,7 @@
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
-    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260912-cobranza-cor-estados-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260923-estados-crud-v002'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260923-estados-botones-v003','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20260923-estados-crud-v002']},
+    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260912-cobranza-cor-estados-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260923-fondo-garantia-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260923-estados-botones-v003','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20260923-fondo-garantia-v001']},
     'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260914-horarios-f2-v001']},
 
     'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20260914-horarios-f2-v001']},

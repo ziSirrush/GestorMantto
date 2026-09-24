@@ -482,6 +482,8 @@ function serializeFuenteEstadoCuenta_cor(row) {
     cliente: cleanText_cor(row?.cliente),
     contractual: cleanText_cor(row?.contractual),
     porcentaje: numberOrNull_cor(row?.porcentaje),
+    fondo_garantia: Number(row?.fondo_garantia) === 1,
+    porcentaje_fondo_garantia: numberOrNull_cor(row?.porcentaje_fondo_garantia) ?? 0,
     condicion: cleanText_cor(row?.condicion),
     moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
     subtotal: numberOrNull_cor(row?.subtotal),
@@ -803,6 +805,21 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     }
 
     const porcentaje = percentage01_cor(raw?.porcentaje, `Porcentaje del hito ${fila}`);
+    const fondoGarantia = boolean_cor(raw?.fondo_garantia, `Fondo de garantia del hito ${fila}`, 0);
+    let porcentajeFondoGarantia = percentage01_cor(
+      raw?.porcentaje_fondo_garantia,
+      `Porcentaje de fondo de garantia del hito ${fila}`
+    );
+    if (fondoGarantia !== 1) porcentajeFondoGarantia = 0;
+    if (fondoGarantia === 1 && porcentajeFondoGarantia === null) porcentajeFondoGarantia = 0;
+    if (fondoGarantia === 1 && porcentajeFondoGarantia > 0.10) {
+      throw httpError(
+        422,
+        `El Fondo de Garantia del hito ${fila} supera el tope de 10%. Requiere autorizacion antes de guardar.`,
+        { fila, maximo_sin_autorizacion_pct: 10, porcentaje_solicitado_pct: Math.round(porcentajeFondoGarantia * 10000) / 100 },
+        'FONDO_GARANTIA_AUTORIZACION_REQUERIDA'
+      );
+    }
     const monedaRaw = cleanText_cor(raw?.moneda, 10);
     const moneda = monedaRaw ? monedaRaw.toUpperCase() : null;
     const subtotal = decimal_cor(raw?.subtotal, `Subtotal del hito ${fila}`);
@@ -832,6 +849,8 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
       eliminar: false,
       orden_hito: integer_cor(raw?.orden_hito ?? fila, `Orden del hito ${fila}`, { min: 1 }),
       porcentaje,
+      fondo_garantia: fondoGarantia,
+      porcentaje_fondo_garantia: porcentajeFondoGarantia,
       condicion,
       moneda,
       subtotal,
@@ -892,6 +911,8 @@ function fuenteMutationRecord_cor(input, hito) {
     cliente: input.cliente,
     contractual: input.contractual,
     porcentaje: hito.porcentaje,
+    fondo_garantia: hito.fondo_garantia,
+    porcentaje_fondo_garantia: hito.porcentaje_fondo_garantia,
     condicion: hito.condicion,
     moneda: hito.moneda,
     subtotal: hito.subtotal,
