@@ -1,0 +1,19 @@
+FIX: INSTALACIONES PVO-PRODUCCION PPNS DIRECTO V002
+BASE: 8c1ef3ddb4795cad89f50de23116cbe1cf4c384e | Version 092526.4
+
+ARCHIVOS MODIFICADOS
+- backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+- backend/src/modules/logistica-produccion/logistica-produccion.service.js
+
+ARCHIVOS NUEVOS DE SOPORTE
+- database/fixes/20260925_fix_logistica_produccion_ppns_directo_v002.sql
+- validation/fix_instalaciones_pvo_produccion_ppns_directo_v002.test.js
+- README_FIX_INSTALACIONES_PVO_PRODUCCION_PPNS_DIRECTO_V002.md
+- MANIFEST_FIX_INSTALACIONES_PVO_PRODUCCION_PPNS_DIRECTO_V002.txt
+- SHA256SUMS.txt
+
+RELACION FINAL
+ins_fl.id_proyecto = logistica_produccion.ppns
+
+NOTA
+El SQL es un backfill de datos existentes con ppns NULL/vacio. No crea ni altera tablas.

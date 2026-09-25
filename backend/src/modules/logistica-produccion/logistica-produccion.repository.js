@@ -4,15 +4,16 @@
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 // [Aster | 2026-09-25 | ASTER-MG | FASE 1 INSTALACIONES DETALLE PVO-PRODUCCION BACKEND V001]
 // [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO-PRODUCCION RELACION PPNS V001]
+// [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO-PRODUCCION PPNS DIRECTO V002]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION FILTROS MAIN V001]
 // [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE SIN VENTAS V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION ORDEN FILTROS EMOJIS V001]
-// id_log_ops es la relacion operativa. Proyecto/PPNS/PVO/Estatus Logistica se leen de log_ops;
-// Fecha de Visita y Fecha entrega cubos se leen de ins_fl. Las columnas snapshot existentes
-// se conservan solo para compatibilidad con registros historicos sin id_log_ops.
+// id_log_ops identifica el registro logistico y mantiene las fuentes operativas de log_ops.
+// La relacion con Instalaciones se hace por PPNS persistido: ins_fl.id_proyecto = logistica_produccion.ppns.
+// Fecha de Visita y Fecha entrega cubos se leen de ins_fl usando ese PPNS.
 
 const db = require('../../config/db');
 
@@ -68,7 +69,7 @@ const BASE_SELECT = `
          COALESCE(fl.cubos_count,0) AS cubos_count
     FROM logistica_produccion p
     LEFT JOIN log_ops l ON l.id_log_ops=p.id_log_ops
-    LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(l.id_ppns)
+    LEFT JOIN (${FL_AGG}) fl ON fl.id_proyecto=TRIM(p.ppns)
     LEFT JOIN catalogo_general cg ON cg.id_catalogo=p.id_estatus_produccion
     LEFT JOIN usuarios ua ON ua.id_SB=p.id_asesor
     LEFT JOIN usuarios us ON us.id_SB=p.id_supervisor
@@ -146,9 +147,9 @@ async function byId(id,connection=db){
 }
 
 async function byPpnsExact(idProyecto){
-  // Relacion entre modulos:
-  // ins_fl.id_proyecto (PPNS Instalaciones) = log_ops.id_ppns (PPNS PVO-Produccion).
-  // EXISTS evita duplicar registros cuando un proyecto tiene varios equipos en ins_fl.
+  // Relacion directa entre modulos:
+  // ins_fl.id_proyecto (PPNS Instalaciones) = logistica_produccion.ppns (PPNS PVO-Produccion).
+  // log_ops ya no decide a que proyecto pertenece el registro de PVO-Produccion.
   const [rows]=await db.query(`${BASE_SELECT}
     WHERE p.activo=1
       AND p.id_log_ops IS NOT NULL
@@ -157,9 +158,9 @@ async function byPpnsExact(idProyecto){
           FROM ins_fl ip
          WHERE ip.activo=1
            AND TRIM(ip.id_proyecto)=TRIM(?)
-           AND TRIM(l.id_ppns)=TRIM(ip.id_proyecto)
+           AND TRIM(p.ppns)=TRIM(ip.id_proyecto)
       )
-    ORDER BY l.id_log_ops ASC,p.id_produccion ASC`,[idProyecto]);
+    ORDER BY p.id_log_ops ASC,p.id_produccion ASC`,[idProyecto]);
   return rows;
 }
 

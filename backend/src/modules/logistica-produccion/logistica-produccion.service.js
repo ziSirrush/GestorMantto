@@ -5,6 +5,7 @@
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS DESCARGA SAS V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
 // [Aster | 2026-09-25 | ASTER-MG | FASE 1 INSTALACIONES DETALLE PVO-PRODUCCION BACKEND V001]
+// [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO-PRODUCCION PPNS DIRECTO V002]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
@@ -177,6 +178,7 @@ async function create(input,user){
   const idLog=positive(input.id_log_ops,'id_log_ops');
   const source=await repo.logSnapshotById(idLog);
   if(!source)throw error('El proyecto seleccionado ya no existe en Logística.',404);
+  const sourcePpns=requiredText(source.id_ppns,'PPNS del registro logístico',255);
   const advisor=positive(input.id_asesor,'id_asesor');
   const supervisor=positive(input.id_supervisor,'id_supervisor');
   if(!(await repo.manualUserValid(advisor,'ASESOR')))throw error('El asesor seleccionado no pertenece a los roles autorizados de Ventas.');
@@ -185,8 +187,8 @@ async function create(input,user){
   const payload={
     modo_registro:CREATION_MODE,
     id_log_ops:idLog,
-    // FASE 2: no duplicar fuentes operativas. Estos snapshots quedan NULL en altas nuevas.
-    ppns:null,
+    // El PPNS se persiste porque es la relación directa con ins_fl.id_proyecto.
+    ppns:sourcePpns,
     proyecto:null,
     id_cotizacion_venta:null,
     id_asesor:advisor,
@@ -252,7 +254,11 @@ async function update(id,input,user){
     if(Object.hasOwn(input,'id_log_ops')){
       const idLog=positive(input.id_log_ops,'id_log_ops');
       const changed=String(idLog)!==String(current.id_log_ops??'');
-      if(changed){const source=await repo.logSnapshotById(idLog);if(!source)throw error('El proyecto seleccionado ya no existe en Logística.',404);}
+      if(changed){
+        const source=await repo.logSnapshotById(idLog);
+        if(!source)throw error('El proyecto seleccionado ya no existe en Logística.',404);
+        next.ppns=requiredText(source.id_ppns,'PPNS del registro logístico',255);
+      }
       next.id_log_ops=idLog;
     }
     if(Object.hasOwn(input,'id_asesor')){
