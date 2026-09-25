@@ -25,7 +25,7 @@ test('Crear Editar conserva Equipos e Hitos como tablas horizontales',()=>{
   const css=read('modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css');
   assert.match(css,/COBRANZA COR FORM RESPONSIVE SCROLL V002/);
   assert.match(css,/\.ccor-ec-form-section \.ccor-ec-table-wrap\{[\s\S]*?overflow-x:auto!important/);
-  assert.match(css,/\.ccor-ec-form-equipment-table\{[\s\S]*?min-width:980px!important/);
+  assert.match(css,/\.ccor-ec-form-equipment-table\{[\s\S]*?min-width:1320px!important/);
   assert.match(css,/\.ccor-ec-form-hitos-table\{[\s\S]*?min-width:2700px!important/);
   assert.match(css,/\.ccor-ec-form-equipment-table thead,[\s\S]*?display:table-header-group/);
   assert.doesNotMatch(css,/\.ccor-ec-form-equipment-table thead\{display:none\}/);
@@ -47,7 +47,7 @@ test('Cache bust fuerza la version scroll V002',()=>{
   const loader=read('core/module-loader.js');
   const index=read('index.html');
   assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20260924-estados-responsive-scroll-v002/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260924-estados-responsive-scroll-v002/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260924-fondo-garantia-general-v002/);
-  assert.match(index,/core\/module-loader\.js\?v=20260924-cobranza-estados-responsive-scroll-v002/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260925-equipos-phns-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260925-equipos-phns-v001/);
+  assert.match(index,/core\/module-loader\.js\?v=20260925-cobranza-equipos-phns-v001/);
 });

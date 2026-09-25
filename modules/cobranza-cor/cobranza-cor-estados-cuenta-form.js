@@ -1,12 +1,13 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-09-24 | ASTER-MG | COBRANZA COR FONDO GARANTIA GENERAL V002]
+  // [Aster | 2026-09-25 | ASTER-MG | COBRANZA COR EQUIPOS PHNS ALINEACION V001]
   if(window.ManttoCobranzaCorEstadoCuentaForm) return;
 
   const ROUTE='cobranza-estados-cuenta';
   const API_BASE='/api/cobranza-cor/estados-cuenta';
   const API_CREATE_CATALOG=API_BASE+'/crear-nuevo/catalogo';
+  const EQUIPMENT_ALIGNMENT_REFRESH_MS=60000;
 
   const state={
     root:null,
@@ -16,7 +17,12 @@
     proyecto:null,
     equipos:[],
     relaciones:[],
+    insFlCatalog:[],
     logOps:[],
+    alignmentTimer:null,
+    alignmentInFlight:false,
+    alignmentLastCheck:null,
+    alignmentError:'',
     hitos:[],
     deletedHitos:[],
     fondoGarantia:false,
@@ -198,13 +204,18 @@
   }
 
   function resetState_cor(mode,ppns){
+    stopEquipmentAlignmentPolling_cor();
     state.mode=mode==='edit'?'edit':'create';
     state.ppns=String(ppns||'').trim();
     state.proyectos=[];
     state.proyecto=null;
     state.equipos=[];
     state.relaciones=[];
+    state.insFlCatalog=[];
     state.logOps=[];
+    state.alignmentInFlight=false;
+    state.alignmentLastCheck=null;
+    state.alignmentError='';
     state.hitos=state.mode==='create'?[emptyHito_cor()]:[];
     state.deletedHitos=[];
     state.fondoGarantia=false;
@@ -230,6 +241,91 @@
       })).join('');
   }
 
+  function normalizePhns_cor(value){
+    return String(value===null||value===undefined?'':value).trim().toUpperCase();
+  }
+
+  function splitLogOpsPhns_cor(value){
+    const seen=new Set();
+    return String(value===null||value===undefined?'':value)
+      .split(',')
+      .map(normalizePhns_cor)
+      .filter(token=>token&&!seen.has(token)&&seen.add(token));
+  }
+
+  function insFlById_cor(id){
+    const numeric=Number(id);
+    if(!Number.isInteger(numeric)||numeric<=0) return null;
+    return state.insFlCatalog.find(row=>Number(row&&row.id_ins_fl)===numeric)||null;
+  }
+
+  function logOpsById_cor(id){
+    const numeric=Number(id);
+    if(!Number.isInteger(numeric)||numeric<=0) return null;
+    return state.logOps.find(row=>Number(row&&row.id_log_ops)===numeric)||null;
+  }
+
+  function exactLogOpsIdForPhns_cor(phns){
+    const normalized=normalizePhns_cor(phns);
+    if(!normalized) return null;
+    const matches=state.logOps.filter(row=>splitLogOpsPhns_cor(row&&row.ph_ns).includes(normalized));
+    return matches.length===1?Number(matches[0].id_log_ops)||null:null;
+  }
+
+  function equipmentSourceFields_cor(row){
+    const source=insFlById_cor(row&&row.id_ins_fl);
+    return source||row||{};
+  }
+
+  function equipmentAlignment_cor(row){
+    if(row&&row.incluir===false) return {code:'excluded',label:'No incluido',detail:'No participa en la alineación.',className:'is-phns-excluded'};
+    const ins=insFlById_cor(row&&row.id_ins_fl);
+    if(!ins){
+      return {code:'missing-ins',label:'Falta Instalaciones',detail:'Selecciona un PHNS vigente de ins_fl.',className:'is-phns-incomplete'};
+    }
+    const phnsIns=normalizePhns_cor(ins.referencia_sitio);
+    if(!phnsIns){
+      return {code:'empty-ins',label:'Sin PHNS Instalaciones',detail:'ins_fl no tiene referencia_sitio para este equipo.',className:'is-phns-incomplete'};
+    }
+    const log=logOpsById_cor(row&&row.id_log_ops);
+    if(!log){
+      return {code:'missing-log',label:'Selecciona Logística',detail:'Relaciona el equipo con el registro de log_ops que contiene su PHNS.',className:'is-phns-incomplete'};
+    }
+    const phnsLog=splitLogOpsPhns_cor(log.ph_ns);
+    if(!phnsLog.length){
+      return {code:'empty-log',label:'Sin PHNS Logística',detail:'log_ops.ph_ns está vacío.',className:'is-phns-incomplete'};
+    }
+    if(phnsLog.includes(phnsIns)){
+      return {code:'aligned',label:'Alineado',detail:phnsIns+' existe en ambas fuentes.',className:'is-phns-aligned'};
+    }
+    return {code:'mismatch',label:'Revisar PHNS',detail:phnsIns+' no aparece dentro de '+phnsLog.join(', ')+'.',className:'is-phns-mismatch'};
+  }
+
+  function sourceAlignment_cor(){
+    const insSet=new Set(state.insFlCatalog.map(row=>normalizePhns_cor(row&&row.referencia_sitio)).filter(Boolean));
+    const logSet=new Set(state.logOps.flatMap(row=>splitLogOpsPhns_cor(row&&row.ph_ns)));
+    const missingInIns=[...logSet].filter(phns=>!insSet.has(phns)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true,sensitivity:'base'}));
+    const onlyInIns=[...insSet].filter(phns=>!logSet.has(phns)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true,sensitivity:'base'}));
+    const rowIssues=state.equipos.filter(row=>row&&row.incluir!==false&&equipmentAlignment_cor(row).code!=='aligned').length;
+    return {
+      ins:[...insSet],
+      log:[...logSet],
+      missingInIns,
+      onlyInIns,
+      rowIssues,
+      aligned:missingInIns.length===0&&onlyInIns.length===0&&rowIssues===0
+    };
+  }
+
+  function stopEquipmentAlignmentPolling_cor(){
+    if(state.alignmentTimer){window.clearInterval(state.alignmentTimer);state.alignmentTimer=null;}
+  }
+
+  function formatAlignmentCheckTime_cor(){
+    if(!(state.alignmentLastCheck instanceof Date)||Number.isNaN(state.alignmentLastCheck.getTime())) return 'sin revisión todavía';
+    return state.alignmentLastCheck.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  }
+
   function relationByInsFl_cor(){
     const map=new Map();
     state.relaciones.forEach(row=>{
@@ -239,19 +335,63 @@
     return map;
   }
 
-  function mergeEquipos_cor(baseRows){
+  function mergeEquipos_cor(baseRows,preserveSelections=false){
+    const sourceRows=Array.isArray(baseRows)?baseRows:[];
+    state.insFlCatalog=sourceRows.map(row=>({...row}));
     const relationMap=relationByInsFl_cor();
-    return (Array.isArray(baseRows)?baseRows:[]).map((row,index)=>{
-      const relation=relationMap.get(Number(row.id_ins_fl))||null;
+    const previous=preserveSelections?state.equipos.slice():[];
+    const previousByIns=new Map();
+    previous.forEach(row=>{
+      const id=Number(row&&row.id_ins_fl);
+      if(Number.isInteger(id)&&id>0&&!previousByIns.has(id)) previousByIns.set(id,row);
+    });
+    const sourceIds=new Set();
+    const result=sourceRows.map((row,index)=>{
+      const id=Number(row.id_ins_fl);
+      if(Number.isInteger(id)&&id>0) sourceIds.add(id);
+      const relation=relationMap.get(id)||null;
+      const current=previousByIns.get(id)||null;
+      const suggestedLogOps=exactLogOpsIdForPhns_cor(row.referencia_sitio);
       return {
         ...row,
-        id_equipo_cor:relation?Number(relation.id_equipo_cor)||null:null,
-        incluir:state.mode==='create'?true:Boolean(relation&&Number(relation.activo)!==0),
-        id_log_ops:relation&&relation.id_log_ops?Number(relation.id_log_ops):null,
-        ubicacion_torre:relation&&relation.ubicacion_torre?String(relation.ubicacion_torre):'',
-        orden:relation&&relation.orden?Number(relation.orden):index+1
+        id_equipo_cor:current?.id_equipo_cor||(relation?Number(relation.id_equipo_cor)||null:null),
+        incluir:current?current.incluir:(state.mode==='create'?true:Boolean(relation&&Number(relation.activo)!==0)),
+        id_log_ops:current&&current.id_log_ops!==undefined
+          ? current.id_log_ops
+          : (relation&&relation.id_log_ops?Number(relation.id_log_ops):(suggestedLogOps||null)),
+        ubicacion_torre:current&&current.ubicacion_torre!==undefined
+          ? String(current.ubicacion_torre||'')
+          : (relation&&relation.ubicacion_torre?String(relation.ubicacion_torre):''),
+        orden:current&&current.orden?Number(current.orden):(relation&&relation.orden?Number(relation.orden):index+1),
+        source_missing:false
       };
     });
+
+    previous.forEach(row=>{
+      const id=Number(row&&row.id_ins_fl);
+      if(Number.isInteger(id)&&id>0&&sourceIds.has(id)) return;
+      if(!row.id_equipo_cor&&row.incluir===false) return;
+      result.push({...row,source_missing:true});
+    });
+
+    state.relaciones.forEach(relation=>{
+      const id=Number(relation&&relation.id_ins_fl);
+      if(!Number.isInteger(id)||id<=0||sourceIds.has(id)||result.some(row=>Number(row.id_ins_fl)===id)) return;
+      result.push({
+        id_equipo_cor:Number(relation.id_equipo_cor)||null,
+        id_ins_fl:id,
+        id_log_ops:relation.id_log_ops?Number(relation.id_log_ops):null,
+        referencia_sitio:String(relation.referencia_sitio||''),
+        capacidad_kg:String(relation.capacidad_kg||''),
+        numero_desembarques:String(relation.numero_desembarques||''),
+        estatus_equipo_entrega:String(relation.estatus||''),
+        incluir:Number(relation.activo)!==0,
+        ubicacion_torre:String(relation.ubicacion_torre||''),
+        orden:Number(relation.orden)||result.length+1,
+        source_missing:true
+      });
+    });
+    return result;
   }
 
   function renderShell_cor(){
@@ -313,12 +453,16 @@
 
         <section class="ccor-ec-card ccor-ec-form-section">
           <div class="ccor-ec-form-section-title">
-            <div><b>Equipos del proyecto</b><span>Relación Cobranza COR ↔ ins_fl / log_ops</span></div>
-            <small>${editing?'Activa o desactiva relaciones sin borrar historial.':'Selecciona los equipos que formarán parte del Estado de Cuenta.'}</small>
+            <div><b>Equipos del proyecto</b><span>Alineación por PHNS: ins_fl.referencia_sitio ↔ log_ops.ph_ns</span></div>
+            <div class="ccor-ec-form-equipment-actions">
+              <small>${editing?'Las fuentes se revisan sin sobrescribir tus selecciones.':'Los PHNS coincidentes se sugieren automáticamente y puedes corregir la relación manualmente.'}</small>
+              <button type="button" class="ccor-ec-btn ccor-ec-form-cancel" id="ccor-ec-form-refresh-phns">↻ Revisar PHNS</button>
+            </div>
           </div>
+          <div id="ccor-ec-form-phns-status" class="ccor-ec-form-phns-status" aria-live="polite"></div>
           <div class="ccor-ec-table-wrap">
             <table class="ccor-ec-table ccor-ec-form-equipment-table">
-              <thead><tr><th>Incluir</th><th>Equipo / Referencia</th><th>Capacidad</th><th>Desembarques</th><th>Estatus</th><th>Logística</th><th>Ubicación / Torre</th></tr></thead>
+              <thead><tr><th>Incluir</th><th>PHNS Instalaciones / Referencia</th><th>PHNS Logística</th><th>Capacidad</th><th>Desembarques</th><th>Estatus</th><th>Alineación</th><th>Ubicación / Torre</th></tr></thead>
               <tbody id="ccor-ec-form-equipment-body"></tbody>
             </table>
           </div>
@@ -351,36 +495,124 @@
     setContext_cor();
   }
 
+  function insFlOptions_cor(selectedId){
+    const options=['<option value="">Selecciona PHNS de Instalaciones</option>'];
+    let found=false;
+    state.insFlCatalog.forEach(row=>{
+      const selected=Number(selectedId)===Number(row.id_ins_fl);
+      if(selected) found=true;
+      const label=[row.referencia_sitio,row.capacidad_kg?row.capacidad_kg+' kg':'',row.estatus_equipo_entrega||row.estatus]
+        .map(v=>String(v||'').trim()).filter(Boolean).join(' · ');
+      options.push(`<option value="${escapeHtml_cor(row.id_ins_fl)}"${selected?' selected':''}>${escapeHtml_cor(label||('Instalaciones '+row.id_ins_fl))}</option>`);
+    });
+    if(selectedId&&!found) options.push(`<option value="${escapeHtml_cor(selectedId)}" selected>PHNS anterior no disponible · ins_fl #${escapeHtml_cor(selectedId)}</option>`);
+    return options.join('');
+  }
+
   function logOpsOptions_cor(selectedId){
-    const options=['<option value="">Sin relación logística</option>'];
+    const options=['<option value="">Selecciona PHNS de Logística</option>'];
     let found=false;
     state.logOps.forEach(row=>{
       const selected=Number(selectedId)===Number(row.id_log_ops);
       if(selected) found=true;
-      const label=[row.ph_ns,row.no_control,row.marca,row.estatus].map(v=>String(v||'').trim()).filter(Boolean).join(' · ');
-      options.push(`<option value="${escapeHtml_cor(row.id_log_ops)}"${selected?' selected':''}>${escapeHtml_cor(label||('Log '+row.id_log_ops))}</option>`);
+      const phns=splitLogOpsPhns_cor(row.ph_ns).join(', ');
+      const label=[phns||row.ph_ns,row.no_control,row.marca,row.estatus].map(v=>String(v||'').trim()).filter(Boolean).join(' · ');
+      options.push(`<option value="${escapeHtml_cor(row.id_log_ops)}"${selected?' selected':''}>${escapeHtml_cor(label||('Logística '+row.id_log_ops))}</option>`);
     });
-    if(selectedId&&!found) options.push(`<option value="${escapeHtml_cor(selectedId)}" selected>Relación logística #${escapeHtml_cor(selectedId)}</option>`);
+    if(selectedId&&!found) options.push(`<option value="${escapeHtml_cor(selectedId)}" selected>PHNS anterior no disponible · log_ops #${escapeHtml_cor(selectedId)}</option>`);
     return options.join('');
+  }
+
+  function renderEquipmentAlignmentSummary_cor(){
+    const host=document.getElementById('ccor-ec-form-phns-status');
+    if(!host) return;
+    if(!state.ppns){host.className='ccor-ec-form-phns-status';host.innerHTML='Selecciona un PPNS para comparar PHNS.';return;}
+    if(state.alignmentError){
+      host.className='ccor-ec-form-phns-status is-error';
+      host.innerHTML=`<b>No fue posible actualizar PHNS.</b><span>${escapeHtml_cor(state.alignmentError)}</span>`;
+      return;
+    }
+    const alignment=sourceAlignment_cor();
+    const checked=`Revisión automática cada ${Math.round(EQUIPMENT_ALIGNMENT_REFRESH_MS/1000)} s · última ${escapeHtml_cor(formatAlignmentCheckTime_cor())}`;
+    if(alignment.aligned){
+      host.className='ccor-ec-form-phns-status is-ok';
+      host.innerHTML=`<b>✓ PHNS alineados</b><span>ins_fl y log_ops contienen el mismo conjunto de PHNS y las relaciones activas coinciden.</span><small>${checked}</small>`;
+      return;
+    }
+    const notes=[];
+    if(alignment.missingInIns.length) notes.push(`<span><strong>Instalaciones:</strong> faltan ${escapeHtml_cor(alignment.missingInIns.join(', '))}</span>`);
+    if(alignment.onlyInIns.length) notes.push(`<span><strong>Revisar posición:</strong> ${escapeHtml_cor(alignment.onlyInIns.join(', '))} existe en Instalaciones pero no en el listado PHNS actual de Logística.</span>`);
+    if(alignment.rowIssues) notes.push(`<span><strong>Relaciones manuales:</strong> ${escapeHtml_cor(alignment.rowIssues)} por revisar.</span>`);
+    host.className='ccor-ec-form-phns-status is-warning';
+    host.innerHTML=`<b>⚠ PHNS por alinear</b>${notes.join('')}<small>${checked}</small>`;
   }
 
   function renderEquipos_cor(){
     const body=document.getElementById('ccor-ec-form-equipment-body');
     if(!body) return;
+    renderEquipmentAlignmentSummary_cor();
     if(!state.equipos.length){
-      body.innerHTML='<tr><td colspan="7" class="ccor-ec-table-empty">No hay equipos activos de ins_fl para este PPNS.</td></tr>';
+      body.innerHTML='<tr><td colspan="8" class="ccor-ec-table-empty">No hay equipos activos de ins_fl para este PPNS. Revisa el panel de alineación PHNS.</td></tr>';
       return;
     }
-    body.innerHTML=state.equipos.map((row,index)=>`
-      <tr data-equipo-index="${index}">
+    body.innerHTML=state.equipos.map((row,index)=>{
+      const source=equipmentSourceFields_cor(row);
+      const alignment=equipmentAlignment_cor(row);
+      return `
+      <tr data-equipo-index="${index}" class="${escapeHtml_cor(alignment.className)}">
         <td><input type="checkbox" data-equipo-include ${row.incluir===false?'':'checked'}></td>
-        <td><b>${escapeHtml_cor(text_cor(row.referencia_sitio))}</b>${row.id_equipo_cor?`<small class="ccor-ec-form-id">Relación #${escapeHtml_cor(row.id_equipo_cor)}</small>`:''}</td>
-        <td>${escapeHtml_cor(text_cor(row.capacidad_kg))}</td>
-        <td>${escapeHtml_cor(text_cor(row.numero_desembarques))}</td>
-        <td>${escapeHtml_cor(text_cor(row.estatus_equipo_entrega||row.estatus))}</td>
+        <td><select data-equipo-insfl>${insFlOptions_cor(row.id_ins_fl)}</select>${row.id_equipo_cor?`<small class="ccor-ec-form-id">Relación #${escapeHtml_cor(row.id_equipo_cor)}</small>`:''}</td>
         <td><select data-equipo-logops>${logOpsOptions_cor(row.id_log_ops)}</select></td>
+        <td>${escapeHtml_cor(text_cor(source.capacidad_kg))}</td>
+        <td>${escapeHtml_cor(text_cor(source.numero_desembarques))}</td>
+        <td>${escapeHtml_cor(text_cor(source.estatus_equipo_entrega||source.estatus))}</td>
+        <td><span class="ccor-ec-form-phns-badge ${escapeHtml_cor(alignment.className)}">${escapeHtml_cor(alignment.label)}</span><small class="ccor-ec-form-phns-detail">${escapeHtml_cor(alignment.detail)}</small></td>
         <td><input type="text" maxlength="255" data-equipo-ubicacion value="${escapeHtml_cor(row.ubicacion_torre||'')}" placeholder="Ubicación / Torre"></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
+  }
+
+  async function refreshEquipmentSources_cor(options={}){
+    const ppns=String(state.ppns||document.getElementById('ccor-ec-form-ppns')?.value||'').trim();
+    if(!ppns||state.alignmentInFlight||state.loading||state.saving) return false;
+    state.alignmentInFlight=true;
+    if(!options.silent) setStatus_cor('Revisando PHNS contra Instalaciones y Logística...','loading');
+    try{
+      const path=state.mode==='edit'
+        ? API_BASE+'/'+encodeURIComponent(ppns)+'/formulario'
+        : API_CREATE_CATALOG+'?ppns='+encodeURIComponent(ppns);
+      const response=await apiGet_cor(path);
+      if(!isActive_cor()) return false;
+      const source=state.mode==='edit'?response:(response&&response.seleccion?response.seleccion:{});
+      const equipmentRows=state.mode==='edit'
+        ? (Array.isArray(response&&response.equipos_disponibles)?response.equipos_disponibles:[])
+        : (Array.isArray(source&&source.equipos)?source.equipos:[]);
+      const logOpsRows=Array.isArray(source&&source.log_ops)?source.log_ops:[];
+      state.logOps=logOpsRows;
+      state.equipos=mergeEquipos_cor(equipmentRows,true);
+      state.alignmentLastCheck=new Date();
+      state.alignmentError='';
+      renderEquipos_cor();
+      renderTotals_cor();
+      if(!options.silent) setStatus_cor('','');
+      return true;
+    }catch(error){
+      state.alignmentError=errorMessage_cor(error,'load');
+      renderEquipmentAlignmentSummary_cor();
+      if(!options.silent) setStatus_cor(state.alignmentError,'error');
+      return false;
+    }finally{
+      state.alignmentInFlight=false;
+    }
+  }
+
+  function startEquipmentAlignmentPolling_cor(){
+    stopEquipmentAlignmentPolling_cor();
+    if(!state.ppns) return;
+    state.alignmentTimer=window.setInterval(()=>{
+      if(!isActive_cor()){stopEquipmentAlignmentPolling_cor();return;}
+      refreshEquipmentSources_cor({silent:true});
+    },EQUIPMENT_ALIGNMENT_REFRESH_MS);
   }
 
   function hitoInput_cor(type,field,value,extra){
@@ -482,8 +714,11 @@
         state.relaciones=[];
         state.logOps=Array.isArray(selection&&selection.log_ops)?selection.log_ops:[];
         state.equipos=mergeEquipos_cor(Array.isArray(selection&&selection.equipos)?selection.equipos:[]);
+        state.alignmentLastCheck=new Date();
+        state.alignmentError='';
       }
       renderShell_cor();
+      if(ppns) startEquipmentAlignmentPolling_cor();
       setStatus_cor('','');
       return true;
     }catch(error){
@@ -507,11 +742,14 @@
       state.logOps=Array.isArray(response&&response.log_ops)?response.log_ops:[];
       state.relaciones=Array.isArray(response&&response.equipos_relacionados)?response.equipos_relacionados:[];
       state.equipos=mergeEquipos_cor(Array.isArray(response&&response.equipos_disponibles)?response.equipos_disponibles:[]);
+      state.alignmentLastCheck=new Date();
+      state.alignmentError='';
       const rawHitos=Array.isArray(response&&response.hitos)?response.hitos:[];
       applyFondoGarantiaFromRows_cor(rawHitos);
       state.hitos=rawHitos.map(normalizeHitoFromApi_cor);
       state.deletedHitos=[];
       renderShell_cor();
+      startEquipmentAlignmentPolling_cor();
       setStatus_cor('','');
       return true;
     }catch(error){
@@ -626,7 +864,15 @@
       if(row.dias_vencimiento!==null&&!Number.isInteger(row.dias_vencimiento)) return `Días de vencimiento de la fila ${index+1} debe ser entero.`;
       if((row.subtotal!==null||row.iva!==null||row.total!==null)&&!row.moneda) return `Captura la moneda de la fila ${index+1}.`;
     }
-    if(state.mode==='create'&&state.equipos.length&&!(payload.equipos||[]).some(row=>row.activo!==false)) return 'Selecciona al menos un equipo del proyecto.';
+    const activeEquipos=(payload.equipos||[]).filter(row=>row.activo!==false);
+    const usedInsFl=new Set();
+    for(let index=0;index<activeEquipos.length;index+=1){
+      const row=activeEquipos[index];
+      if(!row.id_ins_fl) return `Selecciona el PHNS de Instalaciones del equipo ${index+1}.`;
+      if(usedInsFl.has(row.id_ins_fl)) return `El PHNS de Instalaciones del equipo ${index+1} está repetido.`;
+      usedInsFl.add(row.id_ins_fl);
+    }
+    if(state.mode==='create'&&state.equipos.length&&!activeEquipos.length) return 'Selecciona al menos un equipo del proyecto.';
     return '';
   }
 
@@ -686,6 +932,7 @@
     state.root.addEventListener('click',event=>{
       if(event.target.closest('[data-ccor-form-cancel]')){cancel_cor();return;}
       if(event.target.closest('#ccor-ec-form-save')){save_cor();return;}
+      if(event.target.closest('#ccor-ec-form-refresh-phns')){refreshEquipmentSources_cor({silent:false});return;}
       if(event.target.closest('#ccor-ec-form-add-hito')){
         state.hitos.push(emptyHito_cor());
         renderHitos_cor();renderTotals_cor();return;
@@ -722,8 +969,10 @@
       }
       if(event.target.id==='ccor-ec-form-ppns'&&state.mode==='create'){
         const ppns=String(event.target.value||'').trim();
+        stopEquipmentAlignmentPolling_cor();
         state.ppns=ppns;
-        state.proyecto=null;state.equipos=[];state.relaciones=[];state.logOps=[];
+        state.proyecto=null;state.equipos=[];state.relaciones=[];state.insFlCatalog=[];state.logOps=[];
+        state.alignmentLastCheck=null;state.alignmentError='';
         state.fondoGarantia=false;state.porcentajeFondoGarantia='0';state.fondoGarantiaMixed=false;
         if(ppns) loadCreateCatalog_cor(ppns); else renderShell_cor();
         return;
@@ -734,8 +983,10 @@
         const equipment=state.equipos[index];
         if(!equipment) return;
         if(event.target.matches('[data-equipo-include]')) equipment.incluir=Boolean(event.target.checked);
+        if(event.target.matches('[data-equipo-insfl]')) equipment.id_ins_fl=event.target.value?Number(event.target.value):null;
         if(event.target.matches('[data-equipo-logops]')) equipment.id_log_ops=event.target.value?Number(event.target.value):null;
         if(event.target.matches('[data-equipo-ubicacion]')) equipment.ubicacion_torre=event.target.value;
+        renderEquipos_cor();
         renderTotals_cor();
       }
       if(event.target.matches('[data-hito-field]')) updateHitoFromInput_cor(event.target);
