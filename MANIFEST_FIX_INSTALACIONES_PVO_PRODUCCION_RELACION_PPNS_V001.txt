@@ -1,0 +1,9 @@
+FIX_INSTALACIONES_PVO_PRODUCCION_RELACION_PPNS_V001
+Base: c612c1022112a7915575de18393e5f999d1e781b | Version 092526.3
+
+ARCHIVOS
+backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+tests/instalaciones_pvo_produccion_relacion_ppns_v001.test.js
+README_FIX_INSTALACIONES_PVO_PRODUCCION_RELACION_PPNS_V001.md
+MANIFEST_FIX_INSTALACIONES_PVO_PRODUCCION_RELACION_PPNS_V001.txt
+SHA256SUMS.txt
