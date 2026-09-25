@@ -4,6 +4,7 @@
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS DESCARGA SAS V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION NUEVO BUSQUEDA PROYECTO CALENDARIO V001]
+// [Aster | 2026-09-25 | ASTER-MG | FASE 1 INSTALACIONES DETALLE PVO-PRODUCCION BACKEND V001]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
@@ -22,6 +23,7 @@ function optionalPositive(value,name){if(value===undefined||value===null||value=
 function hasDate(value){const s=String(value||'').trim();return /^\d{4}-\d{2}-\d{2}/.test(s)&&!Number.isNaN(Date.parse(s.slice(0,10)+'T00:00:00Z'));}
 function optionalDate(value,name){if(value===undefined||value===null||value==='')return null;if(!hasDate(value))throw error(`${name} debe ser una fecha válida.`);return String(value).slice(0,10);}
 function optionalText(value,name,max){const s=String(value==null?'':value).trim();if(!s)return null;if(s.length>max)throw error(`${name} excede ${max} caracteres.`);return s;}
+function requiredText(value,name,max){const s=String(value==null?'':value).trim();if(!s)throw error(`${name} es obligatorio.`);if(s.length>max)throw error(`${name} excede ${max} caracteres.`);return s;}
 function normalizeMode(value){const mode=String(value||CREATION_MODE).trim().toUpperCase().replace(/[ -]+/g,'_');if(!MODES.includes(mode))throw error('modo_registro debe ser SEMI_AUTOMATICO o MANUAL.');return mode;}
 function validPpns(value){const s=String(value||'').trim().toUpperCase();return Boolean(s&&!['SIN PP NS','SIN PPNS','N/A'].includes(s));}
 function isoWeekAtMexico(date=new Date()){
@@ -111,6 +113,49 @@ async function detail(id){
     indicadores:decorated.indicadores
   }};
 }
+
+async function listReadOnlyFiles(id){
+  const rows=await repo.files(positive(id,'id'));
+  return Promise.all(rows.map(async row=>{
+    const base={
+      id_archivo:row.id_archivo,
+      id_produccion:row.id_produccion,
+      tipo_archivo:row.tipo_archivo,
+      numero_archivo:row.numero_archivo,
+      nombre_archivo:row.nombre_archivo,
+      nombre_original:row.nombre_original,
+      extension:row.extension,
+      mime_type:row.mime_type
+    };
+    if(row.storage_provider==='LEGACY_URL'||row.storage_provider==='LEGACY_REF')return {...base,url_acceso:row.storage_url||null,url_expira:null};
+    if(!row.storage_blob_name)return {...base,url_acceso:null,url_expira:null};
+    try{
+      const sas=await storage.createReadSas_gnral(row.storage_blob_name,{containerName:row.storage_container,fileName:row.nombre_original});
+      return {...base,url_acceso:sas.url,url_expira:sas.expires_at};
+    }catch(_e){return {...base,url_acceso:null,url_expira:null,storage_no_disponible:true};}
+  }));
+}
+
+async function projectSummary(idProyecto){
+  const ppns=requiredText(idProyecto,'idProyecto',255);
+  const rows=await repo.byPpnsExact(ppns);
+  const registros=await Promise.all(rows.map(async row=>{
+    const decorated=decorate(row);
+    return {
+      id_log_ops:Number(row.id_log_ops),
+      id_produccion:Number(row.id_produccion),
+      proyecto:decorated.proyecto,
+      fecha_pvo:decorated.fecha_pvo,
+      fechas_visita:decorated.instalaciones.fechas_visita,
+      fechas_cubos:decorated.instalaciones.fechas_cubos,
+      fecha_envio_docs_fabrica:row.fecha_envio_docs_fabrica||null,
+      fecha_envio_pago_fabrica:row.fecha_envio_pago_fabrica||null,
+      archivos:await listReadOnlyFiles(row.id_produccion)
+    };
+  }));
+  return {ok:true,data:{id_proyecto:ppns,registros}};
+}
+
 async function options(query){const catalogo=repo.statusCatalogDefinition();return {ok:true,data:await repo.ppnsOptions(query.q),catalogo_estatus:await repo.statuses(),catalogo_estatus_produccion:catalogo};}
 async function manualCatalogs(){const statuses=await repo.statuses(),catalogo=repo.statusCatalogDefinition();return {ok:true,data:{catalogo_estatus_produccion:catalogo,modos:[{codigo:'MANUAL',nombre:'Manual'}],estatus_produccion:statuses}};}
 async function manualProjects(query){return {ok:true,data:await repo.projectOptions(query.q)};}
@@ -253,7 +298,7 @@ async function documents(query,missing=false){const rows=(await repo.list(query)
 async function pvo(query,missing=false){const rows=(await repo.list(query)).map(decorate);return {ok:true,data:rows.filter(r=>missing?!(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita):(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita))};}
 
 module.exports={
-  list,detail,options,manualCatalogs,manualProjects,manualAdvisors,manualSupervisors,manualPpns,
-  create,update,listFiles,upload,replaceFile,removeFile,documents,pvo,decorate,isoWeekAtMexico,fileSlot,
-  validateUploadPolicy,normalizeMode,singleSourceDate
+  list,detail,projectSummary,options,manualCatalogs,manualProjects,manualAdvisors,manualSupervisors,manualPpns,
+  create,update,listFiles,listReadOnlyFiles,upload,replaceFile,removeFile,documents,pvo,decorate,isoWeekAtMexico,fileSlot,
+  validateUploadPolicy,normalizeMode,singleSourceDate,requiredText
 };

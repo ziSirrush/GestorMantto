@@ -8,6 +8,8 @@
   let ticketChatRefreshDelay = TICKET_CHAT_REFRESH_ACTIVE_MS;
   let ticketChatComments = [];
   let ticketChatLastCommentId = 0;
+  let projectPvoPreviewKeyHandler = null;
+  let projectPvoPreviewLastFocus = null;
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
   const PROJECT_PHOTO_DOMAIN_COR = 'CORELLIAN';
@@ -202,6 +204,40 @@
         .mg-bitacora-truncado{font-size:10px;color:#B45309;background:#FFFBEB;border-top:1px solid #FDE68A;padding:6px 12px}
         .mg-bitacora-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-top:1px solid #E2E8F0;background:#F8FAFC;color:#64748B;font-size:10px;font-weight:700;flex-wrap:wrap}.mg-bitacora-page-actions{display:flex;align-items:center;gap:7px}.mg-bitacora-page-button{border:1px solid #CBD5E1;background:#fff;color:#0D2E6E;border-radius:7px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer}.mg-bitacora-page-button:disabled{opacity:.45;cursor:not-allowed}
         @media(max-width:720px){.mg-bitacora-table{display:block;overflow-x:auto}.mg-bitacora-head{align-items:flex-start}}
+
+        .mg-pvo-panel{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;overflow:hidden}
+        .mg-pvo-head{padding:10px 14px;background:#EFF6FF;color:#0D2E6E;font-size:13px;font-weight:900}
+        .mg-pvo-body{min-width:0}
+        .mg-pvo-table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+        .mg-pvo-table{width:100%;min-width:720px;border-collapse:collapse;table-layout:fixed}
+        .mg-pvo-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:10px;font-weight:850;padding:9px 10px;white-space:nowrap}
+        .mg-pvo-table td{font-size:11px;color:#334155;padding:9px 10px;border-bottom:1px solid #E2E8F0;vertical-align:top}
+        .mg-pvo-table tbody tr:last-child td{border-bottom:0}
+        .mg-pvo-date-list{display:grid;gap:2px}.mg-pvo-date-list span{white-space:nowrap}
+        .mg-pvo-documents{padding:12px 14px 14px;border-top:1px solid #E2E8F0;background:#fff}
+        .mg-pvo-documents-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+        .mg-pvo-documents-toolbar h4{margin:0;color:#0D2E6E;font-size:12px}
+        .mg-pvo-record-picker{display:grid;gap:4px;min-width:min(360px,100%)}
+        .mg-pvo-record-picker span{font-size:9px;font-weight:850;text-transform:uppercase;color:#64748B}
+        .mg-pvo-record-picker select{width:100%;max-width:420px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;color:#1E293B;padding:8px 32px 8px 10px;font:inherit;font-size:11px;font-weight:750}
+        .mg-pvo-documents-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+        .mg-pvo-doc-button{width:100%;min-width:0;border:1px solid #D8E2F0;border-radius:10px;background:#F8FAFC;color:#1E293B;padding:9px 10px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;text-align:left;cursor:pointer}
+        .mg-pvo-doc-button:hover,.mg-pvo-doc-button:focus-visible{border-color:#93C5FD;background:#EFF6FF;outline:0}
+        .mg-pvo-doc-icon{font-size:18px;line-height:1.15}.mg-pvo-doc-copy{min-width:0}.mg-pvo-doc-copy strong{display:block;color:#0D2E6E;font-size:11px}.mg-pvo-doc-copy small{display:block;margin-top:2px;color:#64748B;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .mg-pvo-doc-empty{padding:12px;border:1px dashed #CBD5E1;border-radius:10px;color:#64748B;background:#F8FAFC;text-align:center;font-size:11px}
+        .mg-pvo-doc-modal[hidden]{display:none!important}.mg-pvo-doc-modal{position:fixed;z-index:11000;inset:0;display:grid;place-items:center;padding:12px;box-sizing:border-box}
+        .mg-pvo-doc-modal,.mg-pvo-doc-modal *,.mg-pvo-doc-modal *::before,.mg-pvo-doc-modal *::after{box-sizing:border-box}
+        .mg-pvo-doc-modal-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.74);backdrop-filter:blur(3px)}
+        .mg-pvo-doc-modal-panel{position:relative;z-index:1;width:min(1120px,calc(100% - 12px));height:min(860px,calc(100dvh - 24px));max-width:100%;max-height:calc(100dvh - 24px);min-width:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.2);border-radius:16px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38)}
+        .mg-pvo-doc-modal-header{flex:0 0 auto;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #E2E8F0}.mg-pvo-doc-modal-header>div{min-width:0}.mg-pvo-doc-modal-header small{display:block;color:#64748B;font-size:9px;font-weight:850;text-transform:uppercase}.mg-pvo-doc-modal-header h3{margin:2px 0 0;color:#1E293B;font-size:16px;overflow-wrap:anywhere}
+        .mg-pvo-doc-modal-close{flex:0 0 auto;width:36px;height:36px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;color:#334155;font-size:24px;line-height:1;cursor:pointer}.mg-pvo-doc-modal-close:hover,.mg-pvo-doc-modal-close:focus-visible{background:#EFF6FF;color:#0D2E6E;outline:0}
+        .mg-pvo-doc-modal-body{flex:1 1 auto;min-width:0;min-height:0;padding:4px;background:#30343B;overflow:hidden}.mg-pvo-doc-modal-viewer{position:relative;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden;background:#30343B}.mg-pvo-doc-modal-viewer iframe{display:block;width:100%;height:100%;min-width:0;max-width:100%;border:0;background:#30343B;pointer-events:auto;touch-action:pan-y pinch-zoom}
+        .mg-pvo-doc-modal-page{position:absolute;right:8px;bottom:8px;border-radius:999px;padding:4px 8px;background:rgba(15,23,42,.82);color:#fff;font-size:9px;font-weight:850;pointer-events:none}
+        .mg-pvo-doc-modal-empty{display:grid;place-items:center;width:100%;height:100%;padding:22px;color:#475569;background:#F8FAFC;text-align:center;font-size:12px}
+        .mg-pvo-doc-modal-footer{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid #E2E8F0;background:#fff}.mg-pvo-doc-modal-footer span{min-width:0;color:#64748B;font-size:10px}.mg-pvo-doc-modal-open{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:9px;background:#0D2E6E;color:#fff;padding:8px 12px;font-size:11px;font-weight:850;text-decoration:none;white-space:nowrap}.mg-pvo-doc-modal-open[hidden]{display:none}
+        .mg-pvo-preview-open,.mg-pvo-preview-open body{overflow:hidden!important}
+        @media(max-width:720px){.mg-pvo-table{min-width:650px}.mg-pvo-documents{padding:10px}.mg-pvo-documents-toolbar{align-items:stretch;flex-direction:column}.mg-pvo-record-picker{min-width:0;width:100%}.mg-pvo-record-picker select{max-width:none}.mg-pvo-documents-list{grid-template-columns:1fr}.mg-pvo-doc-modal{padding:4px;place-items:stretch}.mg-pvo-doc-modal-panel{width:100%;height:calc(100dvh - 8px);max-width:100%;max-height:calc(100dvh - 8px);border-radius:10px}.mg-pvo-doc-modal-header{padding:9px 10px}.mg-pvo-doc-modal-header h3{font-size:14px}.mg-pvo-doc-modal-body{padding:0}.mg-pvo-doc-modal-footer{align-items:stretch;flex-direction:column;padding:8px 10px}.mg-pvo-doc-modal-open{width:100%;white-space:normal}}
+
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
         .mg-project-kpis{display:grid;gap:10px;margin-bottom:10px}.mg-project-kpis.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.mg-project-kpis.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.mg-project-kpi{min-height:104px;border:0;border-radius:15px;padding:13px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;color:#fff;box-shadow:0 9px 20px rgba(13,46,110,.14)}.mg-project-kpi-icon{font-size:22px;line-height:1}.mg-project-kpi span:not(.mg-project-kpi-icon){display:block;font-size:9px;text-transform:uppercase;font-weight:900;letter-spacing:.04em;color:rgba(255,255,255,.94)}.mg-project-kpi strong{display:block;color:#fff;font-size:28px;line-height:1}.mg-project-kpi small{font-size:9px;color:rgba(255,255,255,.76)}.mg-project-kpi-green{background:linear-gradient(135deg,#16A34A,#166534)}.mg-project-kpi-red{background:linear-gradient(135deg,#DC2626,#991B1B)}.mg-project-kpi-amber{background:linear-gradient(135deg,#D97706,#B45309)}.mg-project-kpi-blue{background:linear-gradient(135deg,#0891B2,#0E7490)}.mg-project-kpi-indigo{background:linear-gradient(135deg,#1B4FD8,#0D2E6E)}.mg-project-kpi-cyan{background:linear-gradient(135deg,#0284C7,#0369A1)}.mg-project-kpi-slate{background:linear-gradient(135deg,#64748B,#475569)}.mg-project-kpi-link{cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.mg-project-kpi-link:hover,.mg-project-kpi-link:focus-visible{transform:translateY(-2px);box-shadow:0 12px 28px rgba(15,23,42,.18);outline:2px solid rgba(27,79,216,.28);outline-offset:2px}.mg-project-dashboard{padding:14px}.mg-project-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.mg-project-ring-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff;min-width:0}.mg-project-ring-card h4{margin:0 0 10px;color:#0D2E6E;font-size:13px}.mg-project-ring-layout{display:flex;align-items:center;gap:14px}.mg-project-ring{width:132px;height:132px;border-radius:50%;position:relative;flex:0 0 132px;background:#E2E8F0}.mg-project-ring:after{content:'';position:absolute;inset:25px;border-radius:50%;background:#fff}.mg-project-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-size:18px;font-weight:900;color:#0D2E6E}.mg-project-ring-legend{display:grid;gap:6px;min-width:0}.mg-project-ring-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#475569}.mg-project-ring-dot{width:10px;height:10px;border-radius:50%}.mg-project-ring-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-project-ring-value{font-weight:800;color:#0D2E6E}.mg-project-equipment-empty{display:none}
@@ -875,11 +911,144 @@
     });
   });
 
+  // [Aster | 2026-09-25 | ASTER-MG | FASE 2 INSTALACIONES DETALLE PVO-PRODUCCION FRONTEND V001]
+  function projectPvoDateValues(value){
+    const source=Array.isArray(value)?value:String(value||'').split(',');
+    return Array.from(new Set(source.map(item=>String(item||'').trim()).filter(Boolean)));
+  }
+  function projectPvoDateCell(value){
+    const dates=projectPvoDateValues(value);
+    if(!dates.length)return '—';
+    return '<div class="mg-pvo-date-list">'+dates.map(date=>'<span>'+fmtDate(date)+'</span>').join('')+'</div>';
+  }
+  function projectPvoDocumentIcon(file){
+    const mime=String(file&&file.mime_type||'').toLowerCase();
+    if(mime.includes('pdf'))return '📕';
+    if(mime.startsWith('image/'))return '🖼️';
+    if(mime.includes('sheet')||mime.includes('excel'))return '📊';
+    if(mime.includes('word')||mime.includes('document'))return '📘';
+    return '📄';
+  }
+  function projectPvoIsPdf(file){
+    const mime=String(file&&file.mime_type||'').trim().toLowerCase();
+    const extension=String(file&&file.extension||'').trim().toLowerCase().replace(/^\./,'');
+    const name=String(file&&(file.nombre_original||file.nombre_archivo)||'').trim().toLowerCase();
+    return mime==='application/pdf'||extension==='pdf'||name.endsWith('.pdf');
+  }
+  function projectPvoPdfPreviewUrl(url){
+    const value=String(url||'').trim();
+    return value?value.split('#')[0]+'#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=1':'';
+  }
+  function projectPvoDocumentModalShell(){
+    return '<div id="mg-pvo-doc-modal" class="mg-pvo-doc-modal" hidden aria-hidden="true"><div class="mg-pvo-doc-modal-backdrop" data-pvo-modal-close></div><section class="mg-pvo-doc-modal-panel" role="dialog" aria-modal="true" aria-labelledby="mg-pvo-doc-modal-title"><header class="mg-pvo-doc-modal-header"><div><small id="mg-pvo-doc-modal-kind">Documento</small><h3 id="mg-pvo-doc-modal-title">Vista previa</h3></div><button type="button" class="mg-pvo-doc-modal-close" data-pvo-modal-close aria-label="Cerrar vista previa">×</button></header><div id="mg-pvo-doc-modal-body" class="mg-pvo-doc-modal-body"></div><footer class="mg-pvo-doc-modal-footer"><span id="mg-pvo-doc-modal-note">Vista previa de la primera hoja.</span><a id="mg-pvo-doc-modal-open" class="mg-pvo-doc-modal-open" href="#" target="_blank" rel="noopener noreferrer" hidden>↗ Abrir documento</a></footer></section></div>';
+  }
+  function closeProjectPvoDocumentModal(restoreFocus=true){
+    const modal=document.getElementById('mg-pvo-doc-modal');
+    if(modal){
+      const frame=modal.querySelector('iframe');
+      if(frame)frame.src='about:blank';
+      modal.hidden=true;
+      modal.setAttribute('aria-hidden','true');
+    }
+    document.documentElement.classList.remove('mg-pvo-preview-open');
+    if(projectPvoPreviewKeyHandler){
+      document.removeEventListener('keydown',projectPvoPreviewKeyHandler);
+      projectPvoPreviewKeyHandler=null;
+    }
+    const lastFocus=projectPvoPreviewLastFocus;
+    projectPvoPreviewLastFocus=null;
+    if(restoreFocus&&lastFocus&&typeof lastFocus.focus==='function'&&document.contains(lastFocus)){
+      try{lastFocus.focus();}catch(_error){}
+    }
+  }
+  function openProjectPvoDocumentModal(file){
+    const modal=document.getElementById('mg-pvo-doc-modal');
+    if(!modal||!file)return;
+    closeProjectPvoDocumentModal(false);
+    const name=String(file.nombre_original||file.nombre_archivo||'Documento').trim()||'Documento';
+    const type=String(file.tipo_archivo||'Documento').trim()||'Documento';
+    const slot=String(file.numero_archivo||'').trim();
+    const url=String(file.url_acceso||'').trim();
+    const title=modal.querySelector('#mg-pvo-doc-modal-title');
+    const kind=modal.querySelector('#mg-pvo-doc-modal-kind');
+    const body=modal.querySelector('#mg-pvo-doc-modal-body');
+    const note=modal.querySelector('#mg-pvo-doc-modal-note');
+    const open=modal.querySelector('#mg-pvo-doc-modal-open');
+    if(title)title.textContent=name;
+    if(kind)kind.textContent=[type,slot].filter(Boolean).join(' ');
+    if(body){
+      if(url&&projectPvoIsPdf(file))body.innerHTML='<div class="mg-pvo-doc-modal-viewer"><iframe src="'+esc(projectPvoPdfPreviewUrl(url))+'" title="Vista previa hoja 1 de '+esc(name)+'" tabindex="0"></iframe><span class="mg-pvo-doc-modal-page">Hoja 1</span></div>';
+      else body.innerHTML='<div class="mg-pvo-doc-modal-empty">La vista previa ampliada está disponible únicamente para archivos PDF.</div>';
+    }
+    if(note)note.textContent=url&&projectPvoIsPdf(file)?'Hoja 1. Puedes desplazar o hacer zoom dentro del visor.':'Vista previa no disponible para este tipo de archivo.';
+    if(open){
+      open.hidden=!url;
+      if(url)open.href=url;else open.removeAttribute('href');
+    }
+    projectPvoPreviewLastFocus=document.activeElement;
+    modal.hidden=false;
+    modal.setAttribute('aria-hidden','false');
+    document.documentElement.classList.add('mg-pvo-preview-open');
+    projectPvoPreviewKeyHandler=event=>{if(event.key==='Escape'){event.preventDefault();closeProjectPvoDocumentModal();}};
+    document.addEventListener('keydown',projectPvoPreviewKeyHandler);
+    const close=modal.querySelector('.mg-pvo-doc-modal-close');
+    if(close)window.requestAnimationFrame(()=>close.focus());
+  }
+  function projectPvoRecordById(panel,idLogOps){
+    const records=Array.isArray(panel&&panel._pvoRecords)?panel._pvoRecords:[];
+    return records.find(record=>String(record.id_log_ops)===String(idLogOps))||records[0]||null;
+  }
+  function renderProjectPvoDocuments(panel,idLogOps){
+    if(!panel)return;
+    const host=panel.querySelector('.mg-pvo-documents-list');
+    if(!host)return;
+    const record=projectPvoRecordById(panel,idLogOps);
+    const files=record&&Array.isArray(record.archivos)?record.archivos:[];
+    if(!files.length){
+      host.innerHTML='<div class="mg-pvo-doc-empty">Sin documentos CPVO / GM para este registro.</div>';
+      return;
+    }
+    host.innerHTML=files.map(file=>{
+      const id=String(file.id_archivo==null?'':file.id_archivo);
+      const type=String(file.tipo_archivo||'Documento').trim()||'Documento';
+      const slot=String(file.numero_archivo||'').trim();
+      const name=String(file.nombre_original||file.nombre_archivo||[type,slot].filter(Boolean).join(' ')).trim();
+      return '<button type="button" class="mg-pvo-doc-button" data-pvo-doc-id="'+esc(id)+'"><span class="mg-pvo-doc-icon">'+projectPvoDocumentIcon(file)+'</span><span class="mg-pvo-doc-copy"><strong>'+esc([type,slot].filter(Boolean).join(' '))+'</strong><small title="'+esc(name)+'">'+esc(name)+'</small></span></button>';
+    }).join('');
+    host.querySelectorAll('[data-pvo-doc-id]').forEach(button=>{
+      button.addEventListener('click',()=>{
+        const current=projectPvoRecordById(panel,panel.querySelector('.mg-pvo-record-select')?.value||idLogOps);
+        const file=current&&Array.isArray(current.archivos)?current.archivos.find(item=>String(item.id_archivo)===String(button.dataset.pvoDocId)):null;
+        if(file)openProjectPvoDocumentModal(file);
+      });
+    });
+  }
+  function projectPvoPanelHtml(projectId,records){
+    const rows=Array.isArray(records)?records:[];
+    const tableRows=rows.length?rows.map(record=>'<tr data-pvo-log-id="'+esc(record.id_log_ops)+'"><td>'+projectPvoDateCell(record.fecha_pvo)+'</td><td>'+projectPvoDateCell(record.fechas_visita)+'</td><td>'+projectPvoDateCell(record.fechas_cubos)+'</td><td>'+projectPvoDateCell(record.fecha_envio_docs_fabrica)+'</td><td>'+projectPvoDateCell(record.fecha_envio_pago_fabrica)+'</td></tr>').join(''):'<tr><td colspan="5" class="mg-empty">Sin información PVO-Producción registrada.</td></tr>';
+    const selector=rows.length>1?'<label class="mg-pvo-record-picker"><span>Registro logístico</span><select class="mg-pvo-record-select" aria-label="Registro logístico">'+rows.map((record,index)=>'<option value="'+esc(record.id_log_ops)+'">'+esc(String(record.proyecto||'').trim()||('Registro '+(index+1)))+'</option>').join('')+'</select></label>':'';
+    const documents=rows.length?'<section class="mg-pvo-documents"><div class="mg-pvo-documents-toolbar"><h4>Documentación</h4>'+selector+'</div><div class="mg-pvo-documents-list"></div></section>':'';
+    return '<section class="mg-pvo-panel" data-project-id="'+esc(projectId)+'" aria-label="PVO y Producción"><div class="mg-pvo-head">PVO y Producción</div><div class="mg-pvo-body"><div class="mg-pvo-table-wrap"><table class="mg-pvo-table"><thead><tr><th>Fecha PVO</th><th>Visita</th><th>Cubos</th><th>Docs Fábrica</th><th>Pago Fábrica</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>'+documents+'</div>'+projectPvoDocumentModalShell()+'</section>';
+  }
+  function initProjectPvoProduction(root,records){
+    const panel=root&&root.querySelector('.mg-pvo-panel');
+    if(!panel)return;
+    panel._pvoRecords=Array.isArray(records)?records:[];
+    const select=panel.querySelector('.mg-pvo-record-select');
+    if(select)select.addEventListener('change',()=>renderProjectPvoDocuments(panel,select.value));
+    panel.querySelectorAll('[data-pvo-modal-close]').forEach(control=>control.addEventListener('click',event=>{event.preventDefault();closeProjectPvoDocumentModal();}));
+    const first=panel._pvoRecords[0];
+    if(first)renderProjectPvoDocuments(panel,select?select.value:first.id_log_ops);
+  }
+  document.addEventListener('mantto:navigation',()=>closeProjectPvoDocumentModal(false));
+
   async function openUnifiedClientProject(proyecto, options){
     show('Proyecto',options.projectName||proyecto,'<div class="mg-empty">Preparando expediente unificado del cliente...</div>');
     const projectName=String(options.projectName||'').trim();
-    const [insResponse,unitedResponse,photoResponse]=await Promise.all([fetchJson('/api/ins-fl?limit=5000'),optionalJson('/api/portafolio/proyectos/detalle/'+encodeURIComponent(projectName||proyecto)),optionalJson('/api/ins-fl/proyectos/fotografias?id_ppns='+encodeURIComponent(proyecto)+'&limit=50')]);
+    const [insResponse,unitedResponse,photoResponse,pvoResponse]=await Promise.all([fetchJson('/api/ins-fl?limit=5000'),optionalJson('/api/portafolio/proyectos/detalle/'+encodeURIComponent(projectName||proyecto)),optionalJson('/api/ins-fl/proyectos/fotografias?id_ppns='+encodeURIComponent(proyecto)+'&limit=50'),optionalJson('/api/logistica/produccion/proyecto/'+encodeURIComponent(proyecto)+'/resumen')]);
     const allRows=Array.isArray(insResponse)?insResponse:(insResponse.data||insResponse.rows||[]);
+    const pvoRoot=pvoResponse&&(pvoResponse.data||pvoResponse);
+    const pvoRecords=pvoRoot&&Array.isArray(pvoRoot.registros)?pvoRoot.registros:[];
     const coreRows=allRows.filter(row=>{
       const rowId=String(valueOf(row,['id_proyecto','ID PROYECTO'])||'').trim().toUpperCase();
       const rowProject=String(valueOf(row,['proyecto','PROYECTO'])||'').trim().toUpperCase();
@@ -903,7 +1072,8 @@
     const stageBars='<section class="mg-stage-bars"><div class="mg-stage-row"><div class="mg-stage-meta"><span>Avance General</span><strong>'+generalPct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill general" style="width:'+generalPct+'%"></div></div></div>'+phaseBars.map((item,index)=>{const key=['oc','mo','aj'][index];const weight=['40%','40%','20%'][index];const pct=toPct(item.value);return '<div class="mg-stage-row"><div class="mg-stage-meta"><span>'+esc(item.label)+' ('+weight+')</span><strong>'+pct+'%</strong></div><div class="mg-stage-track"><div class="mg-stage-fill '+key+'" style="width:'+pct+'%"></div></div></div>';}).join('')+'</section>';
     const folderManager='<section class="mg-folder-manager" data-project-id="'+esc(proyecto)+'" aria-label="Gestor de la carpeta"><div class="mg-folder-manager-head"><span>Gestor de la carpeta</span><div class="mg-folder-manager-actions"><button type="button" class="mg-folder-oauth-btn mg-folder-oauth-connect" hidden>Conectar Google</button><button type="button" class="mg-folder-oauth-btn disconnect mg-folder-oauth-disconnect" hidden>Desconectar</button><button type="button" class="mg-folder-manager-open" hidden>Abrir en Drive</button></div></div><div class="mg-folder-manager-tabs" role="tablist" aria-label="Vistas de carpeta"><button type="button" class="mg-folder-manager-tab active" data-folder-tab="proyecto">Carpeta del proyecto</button><button type="button" class="mg-folder-manager-tab" data-folder-tab="raiz">Carpeta raíz</button></div><div class="mg-folder-manager-body"><div class="mg-folder-status">Preparando gestor...</div></div></section>';
     const bitacoraObra='<section class="mg-bitacora-panel" data-project-id="'+esc(proyecto)+'" aria-label="Bitácora de Obra" hidden><div class="mg-bitacora-head"><span>Bitácora de Obra</span><div class="mg-bitacora-actions"><span class="mg-bitacora-lastsync">Preparando bitácora...</span><button type="button" class="mg-bitacora-refresh" title="Actualizar bitácora" aria-label="Actualizar bitácora">Actualizar</button></div></div><div class="mg-bitacora-body"><div class="mg-folder-status">Preparando bitácora...</div></div></section>';
-    const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+bitacoraObra+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
+    const pvoProduction=projectPvoPanelHtml(proyecto,pvoRecords);
+    const coreHtml='<section class="mg-company-block corellian"><div class="mg-company-content mg-corellian-content">'+overview+stageBars+folderManager+bitacoraObra+pvoProduction+'<section class="mg-detail-section"><h3>Equipos del proyecto</h3><div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Referencia en sitio</th><th>Estatus</th><th>Fecha visita</th><th>Fin montaje real</th><th>Fin ajuste real</th><th>Avance</th></tr></thead><tbody>'+coreEquipmentRows+'</tbody></table></div></section><div class="mg-chart-grid"><article class="mg-chart-card"><h4>Avance individual por equipo</h4>'+barsHtml(equipmentBars)+'</article></div></div></section>';
     const unitedRoot=unitedResponse&&(unitedResponse.data||unitedResponse);
     const unitedSource=String(unitedResponse&&(unitedResponse.origen||unitedResponse.source)||'').trim().toUpperCase();
     const isUnitedPortafolio=unitedSource==='PORTAFOLIO'||unitedSource==='AIVEN-PORTAFOLIO';
@@ -919,6 +1089,7 @@
     bindProjectPhotoCover(detailRoot,{projectId:proyecto,projectName:resolvedName,photos,principalUrl,photoDomain:PROJECT_PHOTO_DOMAIN_COR});
     initProjectFolderManager(proyecto);
     initBitacoraObra(proyecto);
+    initProjectPvoProduction(detailRoot,pvoRecords);
   }
 
   async function openProyecto(proyecto, options){

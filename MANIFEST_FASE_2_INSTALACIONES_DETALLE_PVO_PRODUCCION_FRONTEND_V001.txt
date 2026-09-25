@@ -1,0 +1,24 @@
+FASE_2_INSTALACIONES_DETALLE_PVO_PRODUCCION_FRONTEND_V001
+Base: GitHub main 2539e83401afa97db9d23c15dfad7448e6edad5d (Version 092526.2)
+
+ARCHIVOS DE REEMPLAZO
+- core/details.js
+  Integra tabla única PVO-Producción, selector condicional por id_log_ops, lista de documentos y visor único de solo lectura.
+- index.html
+  Actualiza exclusivamente el cache-bust de core/details.js sobre el main vigente.
+
+VALIDACION
+- tests/instalaciones_detalle_pvo_produccion_frontend_v001.test.js
+  10 pruebas automatizadas de contrato visual/comportamiento.
+
+DOCUMENTACION
+- README_FASE_2_INSTALACIONES_DETALLE_PVO_PRODUCCION_FRONTEND_V001.md
+- MANIFEST_FASE_2_INSTALACIONES_DETALLE_PVO_PRODUCCION_FRONTEND_V001.txt
+- SHA256SUMS.txt
+
+NO INCLUYE
+- SQL
+- migraciones
+- archivos backend de Fase 1
+- .patch
+- despliegue

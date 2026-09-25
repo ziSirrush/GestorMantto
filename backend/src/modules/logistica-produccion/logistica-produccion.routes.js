@@ -2,6 +2,7 @@
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-01 | ASTER-MG | ENDPOINT SYNC M2M LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
+// [Aster | 2026-09-25 | ASTER-MG | FASE 1 INSTALACIONES DETALLE PVO-PRODUCCION BACKEND V001]
 const express=require('express');
 const controller=require('./logistica-produccion.controller');
 const {requireAuth}=require('../../middleware/auth.middleware');
@@ -28,6 +29,9 @@ router.get('/documentos/faltantes',controller.missingDocuments);
 router.get('/documentos',controller.documents);
 router.get('/pvo/completos',controller.pvoComplete);
 router.get('/pvo/faltantes',controller.pvoMissing);
+// Lectura exacta por PPNS para Detalle de Proyecto de Instalaciones.
+// Debe declararse antes de /:id para que "proyecto" no se interprete como id_produccion.
+router.get('/proyecto/:idProyecto/resumen',controller.projectSummary);
 router.get('/',controller.list);
 router.post('/',controller.create);
 router.get('/:id',controller.detail);

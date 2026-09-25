@@ -1,0 +1,22 @@
+FASE_1_INSTALACIONES_DETALLE_PVO_PRODUCCION_BACKEND_V001
+Base GitHub main: 2539e83401afa97db9d23c15dfad7448e6edad5d | Version 092526.2
+
+ARCHIVOS MODIFICADOS COMPLETOS
+backend/src/modules/logistica-produccion/logistica-produccion.routes.js
+backend/src/modules/logistica-produccion/logistica-produccion.controller.js
+backend/src/modules/logistica-produccion/logistica-produccion.service.js
+backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+
+PRUEBA NUEVA
+tests/instalaciones_detalle_pvo_produccion_backend_v001.test.js
+
+DOCUMENTACION
+README_FASE_1_INSTALACIONES_DETALLE_PVO_PRODUCCION_BACKEND_V001.md
+MANIFEST_FASE_1_INSTALACIONES_DETALLE_PVO_PRODUCCION_BACKEND_V001.txt
+SHA256SUMS.txt
+
+NO INCLUIDO
+No .patch
+No SQL
+No frontend
+No archivos no modificados del proyecto
