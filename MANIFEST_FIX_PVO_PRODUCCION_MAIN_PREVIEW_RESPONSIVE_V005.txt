@@ -1,0 +1,14 @@
+FIX_PVO_PRODUCCION_MAIN_PREVIEW_RESPONSIVE_V005
+Base: ziSirrush/GestorMantto main @ e2d3b8ba72b17335c19ae32e8a4ebf9cfcb0ba6f
+
+ARCHIVOS
+modules/logistica-produccion/logistica-produccion.js
+modules/logistica-produccion/logistica-produccion.css
+core/module-loader.js
+tests/logistica_produccion_main_preview_responsive_v005.test.js
+README_FIX_PVO_PRODUCCION_MAIN_PREVIEW_RESPONSIVE_V005.md
+SHA256SUMS.txt
+
+No incluye .patch
+No incluye SQL
+No incluye backend
