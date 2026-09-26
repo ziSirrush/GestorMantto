@@ -10,6 +10,7 @@
   let ticketChatLastCommentId = 0;
   let projectPvoPreviewKeyHandler = null;
   let projectPvoPreviewLastFocus = null;
+  // [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO DOCUMENTOS PREVIEW RESPONSIVE V001]
   const API = () => (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const ticketCache = new Map();
   const PROJECT_PHOTO_DOMAIN_COR = 'CORELLIAN';
@@ -220,10 +221,13 @@
         .mg-pvo-record-picker{display:grid;gap:4px;min-width:min(360px,100%)}
         .mg-pvo-record-picker span{font-size:9px;font-weight:850;text-transform:uppercase;color:#64748B}
         .mg-pvo-record-picker select{width:100%;max-width:420px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;color:#1E293B;padding:8px 32px 8px 10px;font:inherit;font-size:11px;font-weight:750}
-        .mg-pvo-documents-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
-        .mg-pvo-doc-button{width:100%;min-width:0;border:1px solid #D8E2F0;border-radius:10px;background:#F8FAFC;color:#1E293B;padding:9px 10px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;text-align:left;cursor:pointer}
-        .mg-pvo-doc-button:hover,.mg-pvo-doc-button:focus-visible{border-color:#93C5FD;background:#EFF6FF;outline:0}
-        .mg-pvo-doc-icon{font-size:18px;line-height:1.15}.mg-pvo-doc-copy{min-width:0}.mg-pvo-doc-copy strong{display:block;color:#0D2E6E;font-size:11px}.mg-pvo-doc-copy small{display:block;margin-top:2px;color:#64748B;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .mg-pvo-documents-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;min-width:0}
+        .mg-pvo-doc-card{min-width:0;max-width:100%;border:1px solid #D8E2F0;border-radius:11px;background:#F8FAFC;overflow:hidden}
+        .mg-pvo-doc-card-head{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border-bottom:1px solid #E2E8F0;background:#fff}
+        .mg-pvo-doc-icon{font-size:18px;line-height:1.15;flex:0 0 auto}.mg-pvo-doc-copy{min-width:0;flex:1}.mg-pvo-doc-copy strong{display:block;color:#0D2E6E;font-size:11px}.mg-pvo-doc-copy small{display:block;margin-top:2px;color:#64748B;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .mg-pvo-doc-title{min-width:0;max-width:100%;padding:0;border:0;background:transparent;text-align:left;font:inherit;cursor:zoom-in}.mg-pvo-doc-title:focus-visible,.mg-pvo-doc-preview-hitbox:focus-visible,.mg-pvo-doc-preview-action:focus-visible{outline:3px solid rgba(27,79,216,.22);outline-offset:2px;border-radius:6px}
+        .mg-pvo-doc-preview-wrap{position:relative;min-width:0;background:#EEF2F7}.mg-pvo-doc-preview-window{position:relative;width:100%;aspect-ratio:210/297;max-height:330px;overflow:hidden;background:#EEF2F7}.mg-pvo-doc-preview-window iframe{display:block;width:100%;height:100%;max-width:100%;border:0;background:#fff;pointer-events:none}.mg-pvo-doc-preview-page{position:absolute;right:8px;bottom:8px;z-index:1;border-radius:999px;padding:3px 8px;background:rgba(15,23,42,.82);color:#fff;font-size:9px;font-weight:850;pointer-events:none}.mg-pvo-doc-preview-hitbox{position:absolute;z-index:2;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:zoom-in}
+        .mg-pvo-doc-preview-empty{display:grid;place-items:center;min-height:170px;padding:16px;text-align:center;color:#64748B;background:#F8FAFC;font-size:11px}.mg-pvo-doc-card-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-top:1px solid #E2E8F0;background:#fff}.mg-pvo-doc-preview-action{border:0;background:transparent;color:#1B4FD8;padding:0;font:inherit;font-size:10px;font-weight:850;cursor:pointer}.mg-pvo-doc-card-actions small{color:#64748B;font-size:9px}
         .mg-pvo-doc-empty{padding:12px;border:1px dashed #CBD5E1;border-radius:10px;color:#64748B;background:#F8FAFC;text-align:center;font-size:11px}
         .mg-pvo-doc-modal[hidden]{display:none!important}.mg-pvo-doc-modal{position:fixed;z-index:11000;inset:0;display:grid;place-items:center;padding:12px;box-sizing:border-box}
         .mg-pvo-doc-modal,.mg-pvo-doc-modal *,.mg-pvo-doc-modal *::before,.mg-pvo-doc-modal *::after{box-sizing:border-box}
@@ -236,7 +240,9 @@
         .mg-pvo-doc-modal-empty{display:grid;place-items:center;width:100%;height:100%;padding:22px;color:#475569;background:#F8FAFC;text-align:center;font-size:12px}
         .mg-pvo-doc-modal-footer{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid #E2E8F0;background:#fff}.mg-pvo-doc-modal-footer span{min-width:0;color:#64748B;font-size:10px}.mg-pvo-doc-modal-open{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:9px;background:#0D2E6E;color:#fff;padding:8px 12px;font-size:11px;font-weight:850;text-decoration:none;white-space:nowrap}.mg-pvo-doc-modal-open[hidden]{display:none}
         .mg-pvo-preview-open,.mg-pvo-preview-open body{overflow:hidden!important}
-        @media(max-width:720px){.mg-pvo-table{min-width:650px}.mg-pvo-documents{padding:10px}.mg-pvo-documents-toolbar{align-items:stretch;flex-direction:column}.mg-pvo-record-picker{min-width:0;width:100%}.mg-pvo-record-picker select{max-width:none}.mg-pvo-documents-list{grid-template-columns:1fr}.mg-pvo-doc-modal{padding:4px;place-items:stretch}.mg-pvo-doc-modal-panel{width:100%;height:calc(100dvh - 8px);max-width:100%;max-height:calc(100dvh - 8px);border-radius:10px}.mg-pvo-doc-modal-header{padding:9px 10px}.mg-pvo-doc-modal-header h3{font-size:14px}.mg-pvo-doc-modal-body{padding:0}.mg-pvo-doc-modal-footer{align-items:stretch;flex-direction:column;padding:8px 10px}.mg-pvo-doc-modal-open{width:100%;white-space:normal}}
+        @media(max-width:980px){.mg-pvo-documents-list{grid-template-columns:repeat(2,minmax(0,1fr))}.mg-pvo-doc-preview-window{max-height:300px}}
+        @media(max-width:720px){.mg-pvo-table{min-width:650px}.mg-pvo-documents{padding:10px}.mg-pvo-documents-toolbar{align-items:stretch;flex-direction:column}.mg-pvo-record-picker{min-width:0;width:100%}.mg-pvo-record-picker select{max-width:none}.mg-pvo-documents-list{grid-template-columns:1fr}.mg-pvo-doc-card,.mg-pvo-doc-card-head,.mg-pvo-doc-card-actions{width:100%;max-width:100%;min-width:0}.mg-pvo-doc-preview-window{max-height:420px}.mg-pvo-doc-modal{padding:4px;place-items:stretch}.mg-pvo-doc-modal-panel{width:100%;height:calc(100dvh - 8px);max-width:100%;max-height:calc(100dvh - 8px);border-radius:10px}.mg-pvo-doc-modal-header{padding:9px 10px}.mg-pvo-doc-modal-header h3{font-size:14px}.mg-pvo-doc-modal-body{padding:0}.mg-pvo-doc-modal-footer{align-items:stretch;flex-direction:column;padding:8px 10px}.mg-pvo-doc-modal-open{width:100%;white-space:normal}}
+        @media(max-width:420px){.mg-pvo-doc-preview-window{max-height:360px}.mg-pvo-doc-card-actions{align-items:flex-start;flex-direction:column}}
 
         .mg-chart-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr);gap:14px}.mg-chart-card{border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#fff}.mg-chart-card h4{margin:0 0 12px;color:#0D2E6E;font-size:13px}
         .mg-bar-row{display:grid;grid-template-columns:minmax(90px,160px) 1fr 48px;gap:10px;align-items:center;margin:9px 0}.mg-bar-label{font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mg-bar-track{height:16px;border-radius:999px;background:#E9EFF8;overflow:hidden}.mg-bar-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#1B4FD8,#0D2E6E);min-width:0}.mg-bar-value{text-align:right;font-size:11px;font-weight:800;color:#0D2E6E}
@@ -935,9 +941,11 @@
     const name=String(file&&(file.nombre_original||file.nombre_archivo)||'').trim().toLowerCase();
     return mime==='application/pdf'||extension==='pdf'||name.endsWith('.pdf');
   }
-  function projectPvoPdfPreviewUrl(url){
+  function projectPvoPdfPreviewUrl(url,mode='modal'){
     const value=String(url||'').trim();
-    return value?value.split('#')[0]+'#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=1':'';
+    if(!value)return '';
+    const fragment=mode==='thumb'?'#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0':'#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=1';
+    return value.split('#')[0]+fragment;
   }
   function projectPvoDocumentModalShell(){
     return '<div id="mg-pvo-doc-modal" class="mg-pvo-doc-modal" hidden aria-hidden="true"><div class="mg-pvo-doc-modal-backdrop" data-pvo-modal-close></div><section class="mg-pvo-doc-modal-panel" role="dialog" aria-modal="true" aria-labelledby="mg-pvo-doc-modal-title"><header class="mg-pvo-doc-modal-header"><div><small id="mg-pvo-doc-modal-kind">Documento</small><h3 id="mg-pvo-doc-modal-title">Vista previa</h3></div><button type="button" class="mg-pvo-doc-modal-close" data-pvo-modal-close aria-label="Cerrar vista previa">×</button></header><div id="mg-pvo-doc-modal-body" class="mg-pvo-doc-modal-body"></div><footer class="mg-pvo-doc-modal-footer"><span id="mg-pvo-doc-modal-note">Vista previa de la primera hoja.</span><a id="mg-pvo-doc-modal-open" class="mg-pvo-doc-modal-open" href="#" target="_blank" rel="noopener noreferrer" hidden>↗ Abrir documento</a></footer></section></div>';
@@ -1013,7 +1021,14 @@
       const type=String(file.tipo_archivo||'Documento').trim()||'Documento';
       const slot=String(file.numero_archivo||'').trim();
       const name=String(file.nombre_original||file.nombre_archivo||[type,slot].filter(Boolean).join(' ')).trim();
-      return '<button type="button" class="mg-pvo-doc-button" data-pvo-doc-id="'+esc(id)+'"><span class="mg-pvo-doc-icon">'+projectPvoDocumentIcon(file)+'</span><span class="mg-pvo-doc-copy"><strong>'+esc([type,slot].filter(Boolean).join(' '))+'</strong><small title="'+esc(name)+'">'+esc(name)+'</small></span></button>';
+      const url=String(file.url_acceso||'').trim();
+      const label=[type,slot].filter(Boolean).join(' ');
+      let preview='<div class="mg-pvo-doc-preview-empty">Vista previa no disponible.</div>';
+      if(url&&projectPvoIsPdf(file))preview='<div class="mg-pvo-doc-preview-window"><iframe src="'+esc(projectPvoPdfPreviewUrl(url,'thumb'))+'" title="Hoja 1 de '+esc(name)+'" loading="lazy" tabindex="-1" aria-hidden="true"></iframe><span class="mg-pvo-doc-preview-page">Hoja 1</span></div>';
+      else if(url)preview='<div class="mg-pvo-doc-preview-empty">Vista previa disponible únicamente para archivos PDF.</div>';
+      const hit=url?'<button type="button" class="mg-pvo-doc-preview-hitbox" data-pvo-doc-id="'+esc(id)+'" aria-label="Ampliar vista previa de '+esc(name)+'"></button>':'';
+      const action=url?'<button type="button" class="mg-pvo-doc-preview-action" data-pvo-doc-id="'+esc(id)+'">Ampliar vista previa</button>':'<span class="mg-pvo-doc-preview-action">Sin enlace de lectura</span>';
+      return '<article class="mg-pvo-doc-card"><div class="mg-pvo-doc-card-head"><span class="mg-pvo-doc-icon">'+projectPvoDocumentIcon(file)+'</span><button type="button" class="mg-pvo-doc-title" data-pvo-doc-id="'+esc(id)+'" '+(url?'':'disabled')+'><span class="mg-pvo-doc-copy"><strong>'+esc(label)+'</strong><small title="'+esc(name)+'">'+esc(name)+'</small></span></button></div><div class="mg-pvo-doc-preview-wrap">'+preview+hit+'</div><div class="mg-pvo-doc-card-actions">'+action+'<small>Click para ampliar · hoja 1.</small></div></article>';
     }).join('');
     host.querySelectorAll('[data-pvo-doc-id]').forEach(button=>{
       button.addEventListener('click',()=>{

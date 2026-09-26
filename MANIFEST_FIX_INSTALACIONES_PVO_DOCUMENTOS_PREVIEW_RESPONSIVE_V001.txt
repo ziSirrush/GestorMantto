@@ -1,0 +1,25 @@
+FIX_INSTALACIONES_PVO_DOCUMENTOS_PREVIEW_RESPONSIVE_V001
+BASE: 2ecd07159013b061cbce50e8c6133b0b9efc6f47 | Version 092526.6
+
+ARCHIVOS MODIFICADOS COMPLETOS
+- core/details.js
+- index.html
+
+VALIDACION
+- tests/instalaciones_pvo_documentos_preview_responsive_v001.test.js
+
+DOCUMENTACION
+- README_FIX_INSTALACIONES_PVO_DOCUMENTOS_PREVIEW_RESPONSIVE_V001.md
+- MANIFEST_FIX_INSTALACIONES_PVO_DOCUMENTOS_PREVIEW_RESPONSIVE_V001.txt
+- SHA256SUMS.txt
+
+CAMBIO
+- Preview de primera hoja CPVO/GM visible en Detalle Proyecto.
+- Click abre visor ampliado con scroll/zoom interno.
+- Responsive: escritorio, tablet, movil/PWA.
+
+NO INCLUYE
+- Backend
+- SQL
+- .patch
+- Deploy
