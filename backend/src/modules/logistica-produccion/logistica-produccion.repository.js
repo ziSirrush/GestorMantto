@@ -5,6 +5,7 @@
 // [Aster | 2026-09-25 | ASTER-MG | FASE 1 INSTALACIONES DETALLE PVO-PRODUCCION BACKEND V001]
 // [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO-PRODUCCION RELACION PPNS V001]
 // [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO-PRODUCCION PPNS DIRECTO V002]
+// [Aster | 2026-09-25 | ASTER-MG | FIX INSTALACIONES PVO-PRODUCCION PPNS DIRECTO V003]
 
 // [Aster | 2026-09-01 | ASTER-MG | FIX REESTRUCTURACION LOGISTICA PRODUCCION V001]
 // [Aster | 2026-09-03 | ASTER-MG | FASE 2 PVO-PRODUCCION FUENTES LOG_OPS INS_FL V001]
@@ -149,10 +150,9 @@ async function byId(id,connection=db){
 async function byPpnsExact(idProyecto){
   // Relacion directa entre modulos:
   // ins_fl.id_proyecto (PPNS Instalaciones) = logistica_produccion.ppns (PPNS PVO-Produccion).
-  // log_ops ya no decide a que proyecto pertenece el registro de PVO-Produccion.
+  // id_log_ops no participa en esta conciliacion y puede ser NULL.
   const [rows]=await db.query(`${BASE_SELECT}
     WHERE p.activo=1
-      AND p.id_log_ops IS NOT NULL
       AND EXISTS (
         SELECT 1
           FROM ins_fl ip
@@ -160,7 +160,7 @@ async function byPpnsExact(idProyecto){
            AND TRIM(ip.id_proyecto)=TRIM(?)
            AND TRIM(p.ppns)=TRIM(ip.id_proyecto)
       )
-    ORDER BY p.id_log_ops ASC,p.id_produccion ASC`,[idProyecto]);
+    ORDER BY p.id_produccion ASC`,[idProyecto]);
   return rows;
 }
 

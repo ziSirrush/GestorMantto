@@ -1,0 +1,22 @@
+FIX: INSTALACIONES PVO-PRODUCCION PPNS DIRECTO V003
+BASE: 97305df5a234ded0a983febb19e1bcc5d44fd434 | Version 092526.5
+
+ARCHIVO MODIFICADO
+- backend/src/modules/logistica-produccion/logistica-produccion.repository.js
+
+ARCHIVOS NUEVOS DE SOPORTE
+- validation/fix_instalaciones_pvo_produccion_ppns_directo_v003.test.js
+- README_FIX_INSTALACIONES_PVO_PRODUCCION_PPNS_DIRECTO_V003.md
+- MANIFEST_FIX_INSTALACIONES_PVO_PRODUCCION_PPNS_DIRECTO_V003.txt
+- SHA256SUMS.txt
+
+RELACION FINAL
+ins_fl.id_proyecto = logistica_produccion.ppns
+
+ELIMINADO
+- Requisito p.id_log_ops IS NOT NULL en byPpnsExact().
+
+SIN CAMBIOS
+- Frontend
+- SQL
+- Estructura de BD
