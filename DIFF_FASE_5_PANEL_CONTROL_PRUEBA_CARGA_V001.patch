@@ -1,0 +1,889 @@
+diff --git a/backend/.env.example b/backend/.env.example
+index 8e179d3..e3c3d64 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -176,6 +176,7 @@ LOAD_TEST_ACTIVE_GRACE_SECONDS=120
+ # Fase 4: canal de control del runner, cierre y protecciones de Produccion.
+ LOAD_TEST_RUNNER_CONTROL_POLL_MS=1000
+ LOAD_TEST_FINALIZATION_TIMEOUT_SECONDS=20
++LOAD_TEST_SUMMARY_TIMEOUT_SECONDS=15
+ LOAD_TEST_DRAIN_TIMEOUT_SECONDS=5
+ LOAD_TEST_PROTECTION_MIN_REQUESTS=30
+ LOAD_TEST_PROTECTION_5XX_PERCENT=10
+diff --git a/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md b/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+index abacfe0..35b58ac 100644
+--- a/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
++++ b/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+@@ -62,3 +62,12 @@
+ - Integración con permisos efectivos existentes.
+ - Máximo de VUs configurable sin límite duro codificado.
+ - Sin persistencia de resultados.
++
++## Fase 5 - Reporte final efimero V001
++- Se agrega `runner-summary` autenticado con el token efimero del runner.
++- El summary se acepta una sola vez por sesion.
++- Se agrega timeout configurable `LOAD_TEST_SUMMARY_TIMEOUT_SECONDS`.
++- Si el summary no llega, la integridad pasa a `INCOMPLETO` y se genera reporte parcial claramente marcado.
++- Se agrega reporte final en texto, solo en RAM, sin BD/archivo/historial.
++- Se agrega endpoint autenticado de lectura del reporte.
++- Se agregan `handleSummary()` y metricas k6 de solo carga funcional, excluyendo trafico de control.
+diff --git a/backend/src/modules/panel-control-prueba-carga/README.md b/backend/src/modules/panel-control-prueba-carga/README.md
+index 8ad17e7..8e624e1 100644
+--- a/backend/src/modules/panel-control-prueba-carga/README.md
++++ b/backend/src/modules/panel-control-prueba-carga/README.md
+@@ -210,3 +210,11 @@ Fase 4 **no** implementa todavía:
+ - p95/latencias finales vistas por k6;
+ - reporte final `COMPLETA` / `INCOMPLETA`;
+ - botón `Copiar reporte` con contrato final.
++
++## Fase 5 - resumen y reporte
++
++La sesion terminal espera `handleSummary()` de k6 durante `LOAD_TEST_SUMMARY_TIMEOUT_SECONDS`.
++El runner envia el resumen mediante `X-Mantto-Load-Test-Token`; el backend conserva solo el hash del token.
++El resumen se acepta una sola vez. Al recibirse, la integridad queda `COMPLETO` y se construye el reporte de texto en RAM.
++Si no llega dentro del plazo, la integridad queda `INCOMPLETO` y el reporte usa solo las metricas realmente disponibles del backend, sin inventar valores k6.
++El reporte se elimina con la sesion por `Limpiar`, TTL o reinicio de proceso.
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+index 827bb6a..ccaec3b 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+@@ -48,6 +48,7 @@ function getLoadTestTelemetrySettings() {
+     active_grace_seconds: positiveInteger(process.env.LOAD_TEST_ACTIVE_GRACE_SECONDS, 120, 30, 3600),
+     runner_control_poll_ms: positiveInteger(process.env.LOAD_TEST_RUNNER_CONTROL_POLL_MS, 1000, 250, 10000),
+     finalization_timeout_seconds: positiveInteger(process.env.LOAD_TEST_FINALIZATION_TIMEOUT_SECONDS, 20, 5, 300),
++    summary_timeout_seconds: positiveInteger(process.env.LOAD_TEST_SUMMARY_TIMEOUT_SECONDS, 15, 5, 120),
+     drain_timeout_seconds: positiveInteger(process.env.LOAD_TEST_DRAIN_TIMEOUT_SECONDS, 5, 1, 60),
+     protection_min_requests: positiveInteger(process.env.LOAD_TEST_PROTECTION_MIN_REQUESTS, 30, 10, 100000),
+     protection_5xx_percent: positiveNumber(process.env.LOAD_TEST_PROTECTION_5XX_PERCENT, 10, 1, 100),
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+index f31194b..4f42415 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+@@ -147,6 +147,25 @@ async function postRunnerFinish(req, res, next) {
+   }
+ }
+ 
++
++async function postRunnerSummary(req, res, next) {
++  try {
++    const data = service.runnerSummary(req.params.id, assertRunnerToken(req), req.body || {});
++    return res.json({ ok: true, data });
++  } catch (error) {
++    return sendError(error, res, next, 'LOAD_TEST_RUNNER_SUMMARY_ERROR');
++  }
++}
++
++async function getReport(req, res, next) {
++  try {
++    const data = await service.getReport(actorUser(req), req.params.id);
++    return res.json({ ok: true, data });
++  } catch (error) {
++    return sendError(error, res, next, 'LOAD_TEST_REPORT_ERROR');
++  }
++}
++
+ async function deleteSession(req, res, next) {
+   try {
+     assertViewerWriteAllowed(req);
+@@ -169,5 +188,7 @@ module.exports = {
+   postRunnerStopAck,
+   postRunnerAbort,
+   postRunnerFinish,
++  postRunnerSummary,
++  getReport,
+   deleteSession
+ };
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+index 3554f45..f59feb5 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+@@ -3,6 +3,7 @@
+ const crypto = require('crypto');
+ const { EventEmitter } = require('events');
+ const { getLoadTestTelemetrySettings } = require('./panel-control-prueba-carga.constants');
++const { buildLoadTestReport } = require('./panel-control-prueba-carga.report');
+ 
+ function asIso(value) {
+   return value ? new Date(value).toISOString() : null;
+@@ -240,6 +241,12 @@ class LoadTestRegistry extends EventEmitter {
+       cancelSource: null,
+       finalizationDeadlineAt: null,
+       completionIntegrity: null,
++      summaryDeadlineAt: null,
++      runnerSummary: null,
++      summaryReceivedAt: null,
++      reportText: null,
++      reportGeneratedAt: null,
++      reportIncompleteReason: null,
+       settings,
+       telemetry: createTelemetry(settings)
+     };
+@@ -425,6 +432,16 @@ class LoadTestRegistry extends EventEmitter {
+     session.finalizationDeadlineAt = null;
+     session.retentionExpiresAt = stoppedAt + session.settings.result_ttl_seconds * 1000;
+     session.completionIntegrity = integrity || (nextState === 'ABORTADA_SIN_CONFIRMACION' ? 'INCOMPLETO' : 'PENDIENTE_RESUMEN');
++    session.summaryDeadlineAt = session.completionIntegrity === 'PENDIENTE_RESUMEN'
++      ? stoppedAt + session.settings.summary_timeout_seconds * 1000
++      : null;
++    if (session.completionIntegrity === 'INCOMPLETO' && !session.reportText) {
++      session.reportIncompleteReason = session.reportIncompleteReason || session.stopReason || 'RUNNER_SUMMARY_UNAVAILABLE';
++      session.reportGeneratedAt = stoppedAt;
++      session.telemetrySnapshot = this.telemetrySnapshot(session);
++      session.reportText = buildLoadTestReport(session);
++      delete session.telemetrySnapshot;
++    }
+     session.telemetry.runner.finished_at = stoppedAt;
+     session.telemetry.http.active = 0;
+     session.telemetry.sql.active = 0;
+@@ -441,6 +458,85 @@ class LoadTestRegistry extends EventEmitter {
+     return this.finalizeSession(id, { reason });
+   }
+ 
++  acceptRunnerSummary(id, token, summary) {
++    let session = this.validateRunnerToken(id, token, { requireRunning: false });
++    if (session.summaryReceivedAt || session.runnerSummary) {
++      const error = new Error('El resumen final del runner ya fue recibido para esta sesion.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_RUNNER_SUMMARY_ALREADY_RECEIVED';
++      throw error;
++    }
++
++    if (session.state === 'EJECUTANDO' || session.state === 'FINALIZANDO' || session.state === 'LISTA') {
++      this.finalizeSession(id, { reason: session.stopReason || 'RUNNER_SUMMARY_RECEIVED' });
++      session = this.requireSession(id);
++    }
++
++    const terminalStates = ['FINALIZADA', 'DETENIDA', 'ABORTADA_MANUAL', 'ABORTADA_AUTOMATICA', 'ABORTADA_RUNNER', 'ABORTADA_SIN_CONFIRMACION'];
++    if (!terminalStates.includes(session.state)) {
++      const error = new Error('La sesion no esta disponible para recibir el resumen final.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_RUNNER_SUMMARY_NOT_READY';
++      throw error;
++    }
++
++    const receivedAt = this.now();
++    session.runnerSummary = summary;
++    session.summaryReceivedAt = receivedAt;
++    session.summaryDeadlineAt = null;
++    session.completionIntegrity = 'COMPLETO';
++    session.reportIncompleteReason = null;
++    session.reportGeneratedAt = receivedAt;
++    session.telemetrySnapshot = this.telemetrySnapshot(session);
++    session.reportText = buildLoadTestReport(session);
++    delete session.telemetrySnapshot;
++    this.emit('runnerSummaryReceived', session);
++    return this.publicSession(session);
++  }
++
++  markSummaryIncomplete(id, reason = 'RUNNER_SUMMARY_TIMEOUT') {
++    const session = this.sessions.get(String(id || '').trim());
++    if (!session) {
++      const error = new Error('La sesion temporal de prueba no existe o ya expiro.');
++      error.status = 404;
++      error.code = 'LOAD_TEST_SESSION_NOT_FOUND';
++      throw error;
++    }
++    if (session.summaryReceivedAt || session.runnerSummary) return this.publicSession(session);
++    if (session.completionIntegrity !== 'PENDIENTE_RESUMEN' && session.completionIntegrity !== 'INCOMPLETO') {
++      return this.publicSession(session);
++    }
++    const at = this.now();
++    session.completionIntegrity = 'INCOMPLETO';
++    session.summaryDeadlineAt = null;
++    session.reportIncompleteReason = String(reason || 'RUNNER_SUMMARY_UNAVAILABLE').slice(0, 120);
++    if (!session.reportText) {
++      session.reportGeneratedAt = at;
++      session.telemetrySnapshot = this.telemetrySnapshot(session);
++      session.reportText = buildLoadTestReport(session);
++      delete session.telemetrySnapshot;
++    }
++    this.emit('runnerSummaryMissing', session);
++    return this.publicSession(session);
++  }
++
++  getReportText(id) {
++    const session = this.requireSession(id);
++    if (session.completionIntegrity === 'PENDIENTE_RESUMEN') {
++      const error = new Error('El reporte final aun espera el resumen de k6.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_REPORT_PENDING_SUMMARY';
++      throw error;
++    }
++    if (!session.reportText) {
++      const error = new Error('El reporte final todavia no esta disponible.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_REPORT_NOT_READY';
++      throw error;
++    }
++    return session.reportText;
++  }
++
+   stopSession(id, { actorUserId = null, reason = 'MANUAL', finalState = 'DETENIDA' } = {}) {
+     const session = this.requireSession(id);
+     if (!['EJECUTANDO', 'LISTA', 'FINALIZANDO'].includes(session.state)) return this.publicSession(session);
+@@ -718,6 +814,11 @@ class LoadTestRegistry extends EventEmitter {
+       cancel_reason: session.cancelReason,
+       cancel_source: session.cancelSource,
+       completion_integrity: session.completionIntegrity,
++      summary_deadline_at: asIso(session.summaryDeadlineAt),
++      summary_received_at: asIso(session.summaryReceivedAt),
++      report_available: Boolean(session.reportText),
++      report_generated_at: asIso(session.reportGeneratedAt),
++      report_incomplete_reason: session.reportIncompleteReason,
+       runner_claimed: Boolean(session.runnerClaimedAt),
+       runner_claimed_at: asIso(session.runnerClaimedAt),
+       expires_at: asIso(expiresAt),
+@@ -753,14 +854,25 @@ class LoadTestRegistry extends EventEmitter {
+         session.finalizationDeadlineAt = null;
+         session.retentionExpiresAt = current + session.settings.result_ttl_seconds * 1000;
+         session.completionIntegrity = 'INCOMPLETO';
++        session.summaryDeadlineAt = null;
++        session.reportIncompleteReason = session.stopReason || 'RUNNER_CONTROL_TIMEOUT';
++        session.reportGeneratedAt = current;
+         session.telemetry.runner.finished_at = current;
+         session.telemetry.http.active = 0;
+         session.telemetry.sql.active = 0;
+         session.telemetry.sql.pool.active_waits = 0;
++        session.telemetrySnapshot = this.telemetrySnapshot(session);
++        session.reportText = buildLoadTestReport(session);
++        delete session.telemetrySnapshot;
+         this.emit('sessionStopped', session);
+         continue;
+       }
+ 
++      if (session.completionIntegrity === 'PENDIENTE_RESUMEN'
++          && session.summaryDeadlineAt && current >= session.summaryDeadlineAt) {
++        this.markSummaryIncomplete(session.id, 'RUNNER_SUMMARY_TIMEOUT');
++      }
++
+       if (['FINALIZADA', 'DETENIDA', 'ABORTADA_MANUAL', 'ABORTADA_AUTOMATICA', 'ABORTADA_RUNNER', 'ABORTADA_SIN_CONFIRMACION'].includes(session.state)
+           && session.retentionExpiresAt && current >= session.retentionExpiresAt) {
+         this.sessions.delete(session.id);
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+index 43e3812..89f6234 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+@@ -13,6 +13,7 @@ router.get('/session/:id', requireAuth, controller.getSession);
+ router.post('/session/:id/runner-claim', requireAuth, controller.claimRunner);
+ router.post('/session/:id/start', requireAuth, controller.startSession);
+ router.post('/session/:id/stop', requireAuth, controller.stopSession);
++router.get('/session/:id/report', requireAuth, controller.getReport);
+ router.delete('/session/:id', requireAuth, controller.deleteSession);
+ 
+ // Canal efímero del runner: no usa JWT por request. Se autentica exclusivamente
+@@ -22,5 +23,6 @@ router.post('/session/:id/runner-sample', controller.postRunnerSample);
+ router.post('/session/:id/runner-stop-ack', controller.postRunnerStopAck);
+ router.post('/session/:id/runner-abort', controller.postRunnerAbort);
+ router.post('/session/:id/runner-finish', controller.postRunnerFinish);
++router.post('/session/:id/runner-summary', controller.postRunnerSummary);
+ 
+ module.exports = router;
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+index bbfc9a4..ba8d93f 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+@@ -89,6 +89,72 @@ function normalizedSessionConfig(payload = {}) {
+   return { vus, durationSeconds, scenario };
+ }
+ 
++
++function finiteNonNegative(value, fallback = 0) {
++  const parsed = Number(value);
++  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
++}
++
++function integerNonNegative(value, fallback = 0) {
++  return Math.max(0, Math.trunc(finiteNonNegative(value, fallback)));
++}
++
++function normalizeRunnerSummary(payload, session) {
++  const source = payload && typeof payload === 'object' ? payload : {};
++  if (String(source.session_id || '') !== String(session?.id || '')) {
++    throw loadTestError('El resumen final no pertenece a esta sesion.', 400, 'LOAD_TEST_RUNNER_SUMMARY_SESSION_MISMATCH');
++  }
++
++  const vusConfigured = integerNonNegative(source.vus_configured, 0);
++  const vusMax = integerNonNegative(source.vus_max, 0);
++  if (vusConfigured !== Number(session.vus)) {
++    throw loadTestError('Los VUs del resumen final no coinciden con la sesion.', 400, 'LOAD_TEST_RUNNER_SUMMARY_VUS_MISMATCH');
++  }
++  if (vusMax > Number(session.vus) || vusMax < 0) {
++    throw loadTestError('El maximo de VUs reportado por k6 no es valido.', 400, 'LOAD_TEST_RUNNER_SUMMARY_VUS_MAX_INVALID');
++  }
++
++  const latencySource = source.latency && typeof source.latency === 'object' ? source.latency : {};
++  const httpSource = source.http && typeof source.http === 'object' ? source.http : {};
++  const normalized = {
++    session_id: String(session.id),
++    vus_configured: vusConfigured,
++    vus_max: vusMax,
++    duration_ms: source.duration_ms == null ? null : finiteNonNegative(source.duration_ms, 0),
++    requests: integerNonNegative(source.requests, 0),
++    failed: integerNonNegative(source.failed, 0),
++    rps: finiteNonNegative(source.rps, 0),
++    latency: {
++      min: finiteNonNegative(latencySource.min, 0),
++      avg: finiteNonNegative(latencySource.avg, 0),
++      p50: finiteNonNegative(latencySource.p50, 0),
++      p90: finiteNonNegative(latencySource.p90, 0),
++      p95: finiteNonNegative(latencySource.p95, 0),
++      p99: finiteNonNegative(latencySource.p99, 0),
++      max: finiteNonNegative(latencySource.max, 0)
++    },
++    http: {
++      '2xx': integerNonNegative(httpSource['2xx'], 0),
++      '3xx': integerNonNegative(httpSource['3xx'], 0),
++      '4xx': integerNonNegative(httpSource['4xx'], 0),
++      '5xx': integerNonNegative(httpSource['5xx'], 0)
++    },
++    timeouts: integerNonNegative(source.timeouts, 0),
++    network_errors: integerNonNegative(source.network_errors, 0),
++    iterations_completed: integerNonNegative(source.iterations_completed, 0),
++    iterations_interrupted: source.iterations_interrupted == null ? null : integerNonNegative(source.iterations_interrupted, 0)
++  };
++
++  if (normalized.failed > normalized.requests) {
++    throw loadTestError('El resumen final reporta mas fallos que requests.', 400, 'LOAD_TEST_RUNNER_SUMMARY_FAILED_INVALID');
++  }
++  const statusTotal = Object.values(normalized.http).reduce((sum, value) => sum + Number(value || 0), 0);
++  if (statusTotal > normalized.requests) {
++    throw loadTestError('El resumen final contiene conteos HTTP incompatibles con requests.', 400, 'LOAD_TEST_RUNNER_SUMMARY_HTTP_INVALID');
++  }
++  return normalized;
++}
++
+ async function permissionSnapshot(userId) {
+   const [access, execute, stop] = await Promise.all([
+     hasEffectivePermission(userId, PERMISSIONS.ACCESS),
+@@ -125,7 +191,7 @@ async function getCapabilities(user) {
+   return {
+     module: 'panel-control-prueba-carga',
+     version: 'V001',
+-    phase: 4,
++    phase: 5,
+     execution_available: Boolean(runtime.ready),
+     telemetry_available: true,
+     session_api_available: true,
+@@ -133,6 +199,8 @@ async function getCapabilities(user) {
+     runner_claim_available: true,
+     stop_control_available: true,
+     live_runner_metrics_available: true,
++    runner_summary_available: true,
++    text_report_available: true,
+     persistence: 'NONE',
+     target_policy: 'MANTTO_GESTOR_ONLY',
+     permissions,
+@@ -283,6 +351,25 @@ async function runnerFinish(id, token, reason = 'RUNNER_TEARDOWN') {
+   return registry.finishRunner(id, token, { reason });
+ }
+ 
++
++function runnerSummary(id, token, payload) {
++  const session = registry.validateRunnerToken(id, token, { requireRunning: false });
++  const normalized = normalizeRunnerSummary(payload, session);
++  return registry.acceptRunnerSummary(id, token, normalized);
++}
++
++async function getReport(user, id) {
++  const userId = await requirePermission(user, PERMISSIONS.ACCESS, 'LOAD_TEST_ACCESS_DENIED');
++  const session = registry.getPublicSession(id);
++  assertOwner(session, userId);
++  return {
++    session_id: session.id,
++    state: session.state,
++    completion_integrity: session.completion_integrity,
++    report: registry.getReportText(id)
++  };
++}
++
+ async function deleteSession(user, id) {
+   const userId = await requirePermission(user, PERMISSIONS.EXECUTE, 'LOAD_TEST_EXECUTE_DENIED');
+   const session = registry.getPublicSession(id);
+@@ -303,8 +390,11 @@ module.exports = {
+   runnerAcknowledgeStop,
+   runnerSignalAbort,
+   runnerFinish,
++  runnerSummary,
++  getReport,
+   deleteSession,
+   requirePermission,
+   normalizedSessionConfig,
++  normalizeRunnerSummary,
+   _publicRunnerRuntime: publicRunnerRuntime
+ };
+diff --git a/core/module-loader.js b/core/module-loader.js
+index 8c8c5d0..d95d3b7 100644
+--- a/core/module-loader.js
++++ b/core/module-loader.js
+@@ -246,7 +246,7 @@
+     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002']},
+ 
+     usuarios:{css:['./modules/usuarios/usuarios.css?v=20260707-v001'],js:['./modules/usuarios/usuarios.js?v=20260707-v001']},
+-    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260928-auditoria-prueba-carga-fase4-control-vivo-v001']},
++    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260928-auditoria-prueba-carga-fase5-reporte-v001']},
+     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001']},
+ 
+     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
+diff --git a/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md b/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+index 3ab6eeb..e838b39 100644
+--- a/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
++++ b/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+@@ -1585,3 +1585,40 @@ docs/BACKEND_ARQUITECTURA/Catalogo/modules/panel-control.md
+ ---
+ 
+ **FIN DEL DOCUMENTO - MODULO PANEL DE CONTROL / PRUEBA DE CARGA V001**
++
++---
++
++## 58. Implementacion Fase 5 - Reporte final efimero
++
++La Fase 5 queda cerrada con estas reglas:
++
++1. `handleSummary(data, setupData)` envia al backend un resumen normalizado de k6 al terminar el ciclo de prueba.
++2. El envio usa el mismo token efimero del runner obtenido por `runner-claim`; la pantalla nunca recibe ese token.
++3. `POST /api/panel-control/prueba-carga/session/:id/runner-summary` acepta el resumen una sola vez y lo liga a la sesion.
++4. El backend valida `session_id`, VUs configurados y consistencia basica de los conteos antes de aceptar el summary.
++5. El summary se conserva solo en RAM y se transforma inmediatamente en reporte de texto.
++6. `GET /api/panel-control/prueba-carga/session/:id/report` requiere autenticacion normal, permiso de acceso y propiedad de la sesion.
++7. Si el summary no llega dentro de `LOAD_TEST_SUMMARY_TIMEOUT_SECONDS`, la sesion pasa de `PENDIENTE_RESUMEN` a `INCOMPLETO` y genera reporte parcial con motivo `RUNNER_SUMMARY_TIMEOUT`.
++8. Un reporte incompleto no sustituye metricas k6 faltantes con cifras del backend; esos campos se muestran como `N/D`.
++9. El reporte distingue latencia de k6 de latencia backend Express.
++10. El reporte conserva el estado tecnico real (`FINALIZADA`, `ABORTADA_MANUAL`, `ABORTADA_AUTOMATICA`, `ABORTADA_RUNNER`, `ABORTADA_SIN_CONFIRMACION`) y agrega por separado la integridad `COMPLETO` o `INCOMPLETO`.
++11. La interfaz presenta exclusivamente `Copiar reporte` y `Limpiar sesion`; no agrega Guardar, Historial, CSV, PDF ni persistencia.
++12. Mientras la sesion esta en `PENDIENTE_RESUMEN`, la UI continua consultando estado y no permite limpiar prematuramente la sesion.
++13. `LOAD_TEST_MAX_VUS` continua siendo el maximo operativo configurable; 200 VUs sigue siendo solo la meta inicial y no un limite duro.
++14. No se crean tablas ni se persisten resultados en MySQL, archivos, LocalStorage, SessionStorage o IndexedDB.
++
++### Endpoint Fase 5
++
++```text
++POST /api/panel-control/prueba-carga/session/:id/runner-summary
++GET  /api/panel-control/prueba-carga/session/:id/report
++```
++
++### Estado de integridad
++
++```text
++PENDIENTE_RESUMEN -> COMPLETO
++PENDIENTE_RESUMEN -> INCOMPLETO (timeout/perdida de summary)
++```
++
++Una ejecucion abortada puede tener integridad `COMPLETO` si k6 entrega correctamente su resumen final. El estado de ejecucion y la integridad del reporte no son equivalentes.
+diff --git a/index.html b/index.html
+index ed6d8e2..76ed699 100644
+--- a/index.html
++++ b/index.html
+@@ -730,7 +730,7 @@
+ <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
+ <script src="./core/data-sync.js?v=20260828-fase1-calls-v001"></script>
+ <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
+-<script src="./core/module-loader.js?v=20260928-auditoria-prueba-carga-fase4-control-vivo-v001"></script>
++<script src="./core/module-loader.js?v=20260928-auditoria-prueba-carga-fase5-reporte-v001"></script>
+ <script src="./core/router.js?v=20260914-human-time-v001"></script>
+ <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
+ <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
+diff --git a/modules/panel-control-prueba-carga/panel-control-prueba-carga.css b/modules/panel-control-prueba-carga/panel-control-prueba-carga.css
+index 037caf6..9d88129 100644
+--- a/modules/panel-control-prueba-carga/panel-control-prueba-carga.css
++++ b/modules/panel-control-prueba-carga/panel-control-prueba-carga.css
+@@ -15,3 +15,5 @@
+ @media(max-width:1000px){.pclt-telemetry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:900px){.pclt-grid{grid-template-columns:1fr}.pclt-head,.pclt-session-head{flex-direction:column}.pclt-phase{white-space:normal}.pclt-kv div{align-items:flex-start}.pclt-kv dd{max-width:48%}}
+ @media(max-width:560px){.pclt-telemetry-grid{grid-template-columns:1fr}.pclt-actions{display:grid}.pclt-btn{width:100%}}
++.pclt-report-wrap{display:grid;gap:10px;padding:14px;border:1px solid rgba(56,189,248,.22);border-radius:14px;background:rgba(2,6,23,.28)}
++.pclt-report{width:100%;min-height:440px;resize:vertical;box-sizing:border-box;padding:14px;border:1px solid rgba(148,163,184,.22);border-radius:10px;background:rgba(2,6,23,.66);color:inherit;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto}
+diff --git a/modules/panel-control-prueba-carga/panel-control-prueba-carga.js b/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+index 9e9cc70..451cf93 100644
+--- a/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
++++ b/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+@@ -1,7 +1,7 @@
+ (function(){
+   'use strict';
+ 
+-  const MODULE_VERSION='20260928-fase4-control-vivo-v001';
++  const MODULE_VERSION='20260928-fase5-reporte-v001';
+   const LIVE_REFRESH_MS=2000;
+   const state={
+     capabilities:null,
+@@ -9,6 +9,8 @@
+     recovered:false,
+     busy:false,
+     error:'',
++    report:'',
++    copyStatus:'',
+     liveTimer:null
+   };
+ 
+@@ -44,6 +46,8 @@
+   function clearLocalSession(){
+     clearLiveTimer();
+     state.session=null;
++    state.report='';
++    state.copyStatus='';
+     state.recovered=false;
+     if(state.capabilities&&typeof state.capabilities==='object'){
+       state.capabilities={...state.capabilities,active_session:null};
+@@ -144,13 +148,17 @@
+     return ['LISTA','EJECUTANDO','FINALIZANDO'].includes(String(session?.state||''));
+   }
+ 
++  function needsPolling(session){
++    return isActiveState(session)||String(session?.completion_integrity||'')==='PENDIENTE_RESUMEN';
++  }
++
+   function terminalMessage(session){
+     const stateName=String(session?.state||'');
+     if(stateName==='ABORTADA_MANUAL')return 'El runner confirmó la detención solicitada por el operador.';
+     if(stateName==='ABORTADA_AUTOMATICA')return `La protección automática detuvo la ejecución: ${esc(session?.stop_reason||'sin motivo')}.`;
+     if(stateName==='ABORTADA_RUNNER')return `El runner abortó la ejecución por seguridad: ${esc(session?.stop_reason||'sin motivo')}.`;
+-    if(stateName==='ABORTADA_SIN_CONFIRMACION')return 'El runner no confirmó el cierre dentro del plazo. Fase 5 deberá marcar el reporte como INCOMPLETO.';
+-    if(stateName==='FINALIZADA')return 'La ejecución terminó. El resumen definitivo de k6 se incorpora en Fase 5.';
++    if(stateName==='ABORTADA_SIN_CONFIRMACION')return 'El runner no confirmó el cierre dentro del plazo. El reporte queda marcado como INCOMPLETO.';
++    if(stateName==='FINALIZADA')return session?.completion_integrity==='PENDIENTE_RESUMEN'?'La ejecución terminó. Esperando el resumen final de k6.':'La ejecución terminó y el reporte final está disponible.';
+     return '';
+   }
+ 
+@@ -176,6 +184,7 @@
+     const sessionRunning=session?.state==='EJECUTANDO';
+     const sessionFinalizing=session?.state==='FINALIZANDO';
+     const sessionActive=isActiveState(session);
++    const sessionAwaitingSummary=String(session?.completion_integrity||'')==='PENDIENTE_RESUMEN';
+     const warning=runtimeWarning(runtime);
+     const finalMessage=terminalMessage(session);
+ 
+@@ -186,7 +195,7 @@
+           <h2>Prueba de Carga</h2>
+           <p>Prueba temporal de concurrencia contra Mantto Gestor con control real del runner y métricas en vivo separadas por origen.</p>
+         </div>
+-        <span class="pclt-phase">FASE 4 · CONTROL Y MÉTRICAS EN VIVO</span>
++        <span class="pclt-phase">FASE 5 · REPORTE FINAL EFÍMERO</span>
+       </div>
+ 
+       <div class="pclt-notice">
+@@ -211,7 +220,7 @@
+         </article>
+ 
+         <article class="pclt-card">
+-          <div class="pclt-card-head"><span>Capacidades</span><em>Fase 4</em></div>
++          <div class="pclt-card-head"><span>Capacidades</span><em>Fase 5</em></div>
+           <dl class="pclt-kv">
+             <div><dt>Acceso visual</dt><dd>${state.capabilities?.permissions?.access?'AUTORIZADO':'NO'}</dd></div>
+             <div><dt>Preparar / ejecutar</dt><dd>${canExecute?'AUTORIZADO':'BLOQUEADO'}</dd></div>
+@@ -221,6 +230,7 @@
+             <div><dt>Máximo operativo actual</dt><dd>${configuredMax.toLocaleString('es-MX')} VUs</dd></div>
+             <div><dt>Límite duro del código</dt><dd>${limits.hard_max_vus==null?'NINGUNO':esc(limits.hard_max_vus)}</dd></div>
+             <div><dt>Timeout finalización</dt><dd>${Number(telemetry.finalization_timeout_seconds||20)} s</dd></div>
++            <div><dt>Timeout resumen k6</dt><dd>${Number(telemetry.summary_timeout_seconds||15)} s</dd></div>
+             <div><dt>Persistencia</dt><dd>NINGUNA</dd></div>
+           </dl>
+         </article>
+@@ -238,15 +248,19 @@
+         ${finalMessage?`<div class="pclt-alert ${session.state==='FINALIZADA'?'ok':'warning'}"><b>${esc(session.state)}</b><span>${finalMessage}</span></div>`:''}
+         <div class="pclt-session-meta"><span>Creada: <b>${fmtDate(session.created_at)}</b></span><span>Inicio: <b>${fmtDate(session.started_at)}</b></span><span>Expira/vence: <b>${fmtDate(session.expires_at)}</b></span></div>
+         ${sessionTelemetryHtml(session)}
++        ${session.completion_integrity?`<div class="pclt-alert ${session.completion_integrity==='COMPLETO'?'ok':session.completion_integrity==='INCOMPLETO'?'warning':'warning'}"><b>Integridad: ${esc(session.completion_integrity)}</b><span>${session.completion_integrity==='PENDIENTE_RESUMEN'?'Esperando handleSummary() de k6.':session.completion_integrity==='INCOMPLETO'?`Reporte parcial disponible. Motivo: ${esc(session.report_incomplete_reason||session.stop_reason||'resumen k6 no disponible')}.`:'Resumen k6 recibido una sola vez y reporte construido en RAM.'}</span></div>`:''}
++        ${state.report?`<div class="pclt-report-wrap"><div class="pclt-card-head"><span>Reporte final</span><em>Texto temporal · no se guarda</em></div><textarea class="pclt-report" id="pclt-report" readonly>${esc(state.report)}</textarea></div>`:''}
+         <div class="pclt-actions">
+           <button type="button" class="pclt-btn" id="pclt-refresh" ${state.busy?'disabled':''}>Actualizar estado</button>
+           ${sessionRunning?`<button type="button" class="pclt-btn danger" id="pclt-stop" ${!canStop||state.busy?'disabled':''}>DETENER PRUEBA</button>`:''}
+-          <button type="button" class="pclt-btn ghost" id="pclt-clear" ${sessionActive||!state.capabilities?.permissions?.execute||state.busy?'disabled':''}>Limpiar sesión</button>
++          ${state.report?`<button type="button" class="pclt-btn primary" id="pclt-copy" ${state.busy?'disabled':''}>Copiar reporte</button>`:''}
++          <button type="button" class="pclt-btn ghost" id="pclt-clear" ${sessionActive||sessionAwaitingSummary||!state.capabilities?.permissions?.execute||state.busy?'disabled':''}>Limpiar sesión</button>
+         </div>
++        ${state.copyStatus?`<div class="pclt-alert ok"><b>${esc(state.copyStatus)}</b></div>`:''}
+         ${sessionRunning?'<div class="pclt-footer-note">VUs activos proviene del runner k6. Requests activos, RPS y p95 están calculados por el backend Express; no se presentan como métricas equivalentes.</div>':''}
+       </article>`:''}
+ 
+-      <div class="pclt-footer-note">Fase 4 incorpora canal de cancelación real, <code>exec.test.abort()</code>, VUs activos enviados por el runner y métricas backend etiquetadas por separado. El resumen final de k6 y el reporte definitivo pertenecen a Fase 5.</div>
++      <div class="pclt-footer-note">Fase 5 recibe <code>handleSummary()</code> una sola vez, construye el reporte en RAM y permite copiarlo. Si el resumen no llega, el reporte se marca INCOMPLETO. No existe historial ni persistencia.</div>
+     </section>`;
+ 
+     bind(container);
+@@ -267,6 +281,8 @@
+         body:JSON.stringify({scenario,vus,duration_seconds:duration})
+       });
+       state.session=response.data?.session||null;
++      state.report='';
++      state.copyStatus='';
+       state.recovered=false;
+       await reloadCapabilities();
+     }catch(error){
+@@ -276,11 +292,26 @@
+     }
+   }
+ 
++  async function fetchReport({silent=false}={}){
++    if(!state.session?.id||!state.session?.report_available)return false;
++    try{
++      const response=await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}/report?_=${Date.now()}`,{method:'GET',cache:'no-store'});
++      state.report=String(response?.data?.report||'');
++      return Boolean(state.report);
++    }catch(error){
++      if(errorStatus(error)===404){await recoverExpiredSession();return false;}
++      if(errorStatus(error)===409)return false;
++      if(!silent)state.error=error?.message||'No fue posible obtener el reporte final.';
++      return false;
++    }
++  }
++
+   async function readSession({silent=false}={}){
+     if(!state.session?.id)return false;
+     try{
+       const response=await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}?_=${Date.now()}`,{method:'GET',cache:'no-store'});
+       state.session=response.data||null;
++      if(state.session?.report_available&&!state.report)await fetchReport({silent:true});
+       return true;
+     }catch(error){
+       if(errorStatus(error)===404){
+@@ -336,7 +367,7 @@
+ 
+   function scheduleLiveRefresh(container){
+     clearLiveTimer();
+-    if(!isActiveState(state.session))return;
++    if(!needsPolling(state.session))return;
+     state.liveTimer=(window.setTimeout||setTimeout)(async()=>{
+       state.liveTimer=null;
+       if(!document.getElementById('pclt-root'))return;
+@@ -345,10 +376,30 @@
+     },LIVE_REFRESH_MS);
+   }
+ 
++  async function copyReport(container){
++    if(!state.report)return;
++    state.copyStatus='';
++    try{
++      if(navigator.clipboard?.writeText){
++        await navigator.clipboard.writeText(state.report);
++      }else{
++        const area=document.getElementById('pclt-report');
++        if(!area)throw new Error('No se encontró el reporte.');
++        area.focus();area.select();
++        if(!document.execCommand('copy'))throw new Error('El navegador no permitió copiar.');
++      }
++      state.copyStatus='Reporte copiado al portapapeles.';
++    }catch(error){
++      state.error=error?.message||'No fue posible copiar el reporte.';
++    }
++    rerender(container);
++  }
++
+   function bind(container){
+     document.getElementById('pclt-prepare')?.addEventListener('click',()=>prepare(container));
+     document.getElementById('pclt-refresh')?.addEventListener('click',()=>refresh(container));
+     document.getElementById('pclt-stop')?.addEventListener('click',()=>stop(container));
++    document.getElementById('pclt-copy')?.addEventListener('click',()=>copyReport(container));
+     document.getElementById('pclt-clear')?.addEventListener('click',()=>clear(container));
+   }
+ 
+diff --git a/modules/panel-control/panel-control.js b/modules/panel-control/panel-control.js
+index 784226f..b90dce4 100644
+--- a/modules/panel-control/panel-control.js
++++ b/modules/panel-control/panel-control.js
+@@ -88,7 +88,7 @@
+   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
+   const NOTIFICATION_KEY_SEPARATOR='\u0000';
+   const LOAD_TEST_TAB='load-test';
+-  const LOAD_TEST_ASSET_VERSION='20260928-fase4-control-vivo-v001';
++  const LOAD_TEST_ASSET_VERSION='20260928-fase5-reporte-v001';
+   const LOAD_TEST_JS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.js?v=${LOAD_TEST_ASSET_VERSION}`;
+   const LOAD_TEST_CSS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.css?v=${LOAD_TEST_ASSET_VERSION}`;
+   let saveStatusTimer=null;
+@@ -1326,8 +1326,8 @@
+     const rerender=()=>renderChangeAudit(box);
+     box.querySelector('#pc-audit-week')?.addEventListener('change',event=>{state.auditWeek=event.target.value;state.auditCompany='';state.auditModule='';state.auditType='';state.auditLayer='';rerender();});
+     for(const [id,key] of [['company','auditCompany'],['module','auditModule'],['type','auditType'],['layer','auditLayer']])box.querySelector(`#pc-audit-${id}`)?.addEventListener('change',event=>{state[key]=event.target.value;rerender();});
+-  }
+-
++  }
++
+   function filteredItems(){
+     const q=state.query.trim().toLowerCase();
+     const source=state.tab==='users'?state.users:state.roles;
+diff --git a/scripts/load-test/mantto-gestor-load-test.k6.js b/scripts/load-test/mantto-gestor-load-test.k6.js
+index 40c76ad..aaf8b75 100644
+--- a/scripts/load-test/mantto-gestor-load-test.k6.js
++++ b/scripts/load-test/mantto-gestor-load-test.k6.js
+@@ -1,6 +1,7 @@
+ import http from 'k6/http';
+ import { check, sleep } from 'k6';
+ import exec from 'k6/execution';
++import { Counter, Trend } from 'k6/metrics';
+ import { TRUSTED_ORIGIN, CATALOG_VERSION, SCENARIOS } from './mantto-gestor-load-test.config.js';
+ 
+ function clean(value) {
+@@ -50,9 +51,21 @@ export const options = {
+   vus: VUS,
+   duration: `${DURATION_SECONDS}s`,
+   discardResponseBodies: true,
+-  maxRedirects: 0
++  maxRedirects: 0,
++  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
++  handleSummaryTimeout: '30s'
+ };
+ 
++const loadRequests = new Counter('mantto_load_requests');
++const loadFailed = new Counter('mantto_load_failed');
++const loadDuration = new Trend('mantto_load_duration', true);
++const http2xx = new Counter('mantto_http_2xx');
++const http3xx = new Counter('mantto_http_3xx');
++const http4xx = new Counter('mantto_http_4xx');
++const http5xx = new Counter('mantto_http_5xx');
++const networkErrors = new Counter('mantto_network_errors');
++const timeouts = new Counter('mantto_timeouts');
++
+ let nextRunnerHeartbeatAt = 0;
+ let runnerControlFailures = 0;
+ let consecutiveNetworkFailures = 0;
+@@ -242,6 +255,50 @@ export function setup() {
+   };
+ }
+ 
++
++function metricValue(data, metricName, valueName, fallback = 0) {
++  const value = Number(data?.metrics?.[metricName]?.values?.[valueName]);
++  return Number.isFinite(value) ? value : fallback;
++}
++
++function metricCount(data, metricName) {
++  return Math.max(0, Math.trunc(metricValue(data, metricName, 'count', 0)));
++}
++
++function summaryPayload(data) {
++  const duration = data?.state?.testRunDurationMs ?? data?.state?.test_run_duration_ms ?? null;
++  return {
++    session_id: SESSION_ID,
++    vus_configured: VUS,
++    vus_max: Math.max(0, Math.trunc(metricValue(data, 'vus_max', 'max', VUS))),
++    duration_ms: duration == null ? null : Math.max(0, Number(duration) || 0),
++    requests: metricCount(data, 'mantto_load_requests'),
++    failed: metricCount(data, 'mantto_load_failed'),
++    rps: Math.max(0, metricValue(data, 'mantto_load_requests', 'rate', 0)),
++    latency: {
++      min: metricValue(data, 'mantto_load_duration', 'min', 0),
++      avg: metricValue(data, 'mantto_load_duration', 'avg', 0),
++      p50: metricValue(data, 'mantto_load_duration', 'med', 0),
++      p90: metricValue(data, 'mantto_load_duration', 'p(90)', 0),
++      p95: metricValue(data, 'mantto_load_duration', 'p(95)', 0),
++      p99: metricValue(data, 'mantto_load_duration', 'p(99)', 0),
++      max: metricValue(data, 'mantto_load_duration', 'max', 0)
++    },
++    http: {
++      '2xx': metricCount(data, 'mantto_http_2xx'),
++      '3xx': metricCount(data, 'mantto_http_3xx'),
++      '4xx': metricCount(data, 'mantto_http_4xx'),
++      '5xx': metricCount(data, 'mantto_http_5xx')
++    },
++    timeouts: metricCount(data, 'mantto_timeouts'),
++    network_errors: metricCount(data, 'mantto_network_errors'),
++    iterations_completed: Math.max(0, Math.trunc(metricValue(data, 'iterations', 'count', 0))),
++    // k6 no expone en el resumen final un contador equivalente a exec.instance.iterationsInterrupted.
++    // dropped_iterations tiene otra semantica; no se presenta como si fueran iteraciones interrumpidas.
++    iterations_interrupted: null
++  };
++}
++
+ export default function(data) {
+   runnerHeartbeat(data);
+ 
+@@ -276,6 +333,18 @@ export default function(data) {
+     }
+   );
+ 
++  loadRequests.add(1);
++  loadDuration.add(Math.max(0, Number(response?.timings?.duration || 0)));
++  const status = Number(response?.status || 0);
++  if (status >= 200 && status < 300) http2xx.add(1);
++  else if (status >= 300 && status < 400) http3xx.add(1);
++  else if (status >= 400 && status < 500) http4xx.add(1);
++  else if (status >= 500 && status < 600) http5xx.add(1);
++  if (status < 200 || status >= 300) loadFailed.add(1);
++  if (!response || status === 0) networkErrors.add(1);
++  const responseError = clean(response?.error).toLowerCase();
++  if (responseError.includes('timeout') || Number(response?.error_code) === 1050) timeouts.add(1);
++
+   if (response && response.status >= 300 && response.status < 400) {
+     abortRun(data, 'RUNNER_REDIRECT_REJECTED', `Redireccion rechazada en ${request.path}.`);
+   }
+@@ -308,10 +377,37 @@ export function teardown(data) {
+   try {
+     http.post(
+       `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-finish`,
+-      JSON.stringify({ reason: 'RUNNER_TEARDOWN_PHASE4' }),
++      JSON.stringify({ reason: 'RUNNER_TEARDOWN_PHASE5' }),
+       runnerParams(data.runnerToken, 'none', { 'Content-Type': 'application/json' })
+     );
+   } catch (_error) {
+-    // Si no puede confirmar cierre, el backend agotara su timeout y marcara la ejecucion como incompleta en Fase 5.
++    // Si no puede confirmar cierre, el backend agotara su timeout y marcara la ejecucion como incompleta.
++  }
++}
++
++
++export function handleSummary(data, setupData) {
++  const token = clean(setupData?.runnerToken);
++  if (!token) {
++    console.error('No se pudo enviar el resumen final: falta el token efimero del runner en setupData.');
++    return {};
+   }
++
++  const payload = summaryPayload(data);
++  try {
++    const response = http.post(
++      `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-summary`,
++      JSON.stringify(payload),
++      runnerParams(token, 'text', { 'Content-Type': 'application/json' })
++    );
++    abortIfRedirect(response, 'runner-summary');
++    if (!response || response.status < 200 || response.status >= 300) {
++      console.error(`No se pudo enviar el resumen final a Mantto Gestor. HTTP ${response ? response.status : 'N/D'}.`);
++    }
++  } catch (error) {
++    console.error(`No se pudo enviar el resumen final a Mantto Gestor: ${String(error || 'error desconocido')}`);
++  }
++
++  // No se escribe archivo local, no se imprime el resumen y no se expone ningun secreto.
++  return {};
+ }
+diff --git a/tests/panel-control-prueba-carga-fase3.test.js b/tests/panel-control-prueba-carga-fase3.test.js
+index 12be6a9..201bf07 100644
+--- a/tests/panel-control-prueba-carga-fase3.test.js
++++ b/tests/panel-control-prueba-carga-fase3.test.js
+@@ -262,7 +262,7 @@ test('Fase 3: runner k6 está cerrado a origen fijo, sin redirects y sin secreto
+   assert.match(runner, /runner-claim/);
+   assert.match(runner, /X-Mantto-Load-Test-Instance/);
+   assert.doesNotMatch(runner, /console\.log\([^\n]*(JWT|runnerToken|runner_token|TEST_JWT|OPERATOR_JWT)/i);
+-  assert.doesNotMatch(runner, /handleSummary\s*\(/, 'el resumen final corresponde a Fase 5');
++  assert.match(runner, /handleSummary\s*\(/, 'Fase 5 agrega el resumen final sin debilitar los controles de Fase 3');
+ });
+ 
+ test('Fase 3: launcher recibe JWT por prompt seguro y los pasa solo por memoria del proceso', () => {
+@@ -284,6 +284,6 @@ test('Fase 3/4: pantalla no recibe ni conserva runner_token y Fase 4 añade dete
+   assert.doesNotMatch(frontend, /response\.data\?\.runner_token/);
+   assert.doesNotMatch(frontend, /runner_token\s*:/);
+   assert.match(frontend, /claim de un solo uso/i);
+-  assert.match(frontend, /Fase 4/);
++  assert.match(frontend, /Fase 5/);
+   assert.match(frontend, /id="pclt-stop"/, 'Fase 4 añade el botón conectado al canal real de cancelación');
+ });
+diff --git a/tests/panel-control-prueba-carga-fase4.test.js b/tests/panel-control-prueba-carga-fase4.test.js
+index db0f53a..282dbbb 100644
+--- a/tests/panel-control-prueba-carga-fase4.test.js
++++ b/tests/panel-control-prueba-carga-fase4.test.js
+@@ -156,7 +156,7 @@ test('Fase 4: protección p95 backend sostenida solicita aborto automático', as
+   });
+ });
+ 
+-test('Fase 4: runner script implementa polling, VUs activos y aborto real sin handleSummary prematuro', () => {
++test('Fase 4: runner conserva polling, VUs activos y aborto real tras incorporar handleSummary en Fase 5', () => {
+   const source = fs.readFileSync(path.join(repoRoot, 'scripts', 'load-test', 'mantto-gestor-load-test.k6.js'), 'utf8');
+   assert.match(source, /exec\.test\.abort\(/);
+   assert.match(source, /exec\.instance\.vusActive/);
+@@ -167,7 +167,7 @@ test('Fase 4: runner script implementa polling, VUs activos y aborto real sin ha
+   assert.match(source, /runner-finish/);
+   assert.match(source, /maxRedirects:\s*0/);
+   assert.match(source, /redirects:\s*0/);
+-  assert.doesNotMatch(source, /handleSummary\s*\(/, 'handleSummary pertenece a Fase 5');
++  assert.match(source, /handleSummary\s*\(/, 'Fase 5 debe coexistir con el control real de Fase 4');
+ });
+ 
+ test('Fase 4: interfaz etiqueta por separado VUs k6, RPS/p95 backend y ofrece Detener prueba', () => {

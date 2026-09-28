@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/auth.middleware');
 const controller = require('../controllers/panel-control.controller');
 const notificationAdminController = require('../controllers/panel-control-notificaciones.controller');
 const informationScopeController = require('../controllers/panel-control-alcance.controller');
+const loadTestRoutes = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.routes');
 
 const router = express.Router();
 
@@ -12,6 +13,7 @@ router.get('/viewer-bootstrap', requireAuth, controller.getViewerBootstrap);
 router.post('/viewer-context', requireAuth, controller.postViewerContext);
 router.post('/viewer-close', requireAuth, controller.postViewerClose);
 router.get('/bootstrap', requireAuth, controller.getBootstrap);
+router.use('/prueba-carga', loadTestRoutes);
 router.get('/notificaciones/matriz', requireAuth, notificationAdminController.getNotificationMatrix_gnral);
 router.put('/notificaciones/matriz', requireAuth, notificationAdminController.saveNotificationMatrix_gnral);
 router.get('/roles/:id/permisos', requireAuth, controller.getRolePermissions);

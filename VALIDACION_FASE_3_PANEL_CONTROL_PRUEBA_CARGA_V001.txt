@@ -1,0 +1,88 @@
+FASE 3 - PANEL DE CONTROL / PRUEBA DE CARGA V001
+Fecha: 28/09/2026
+Base: Version Local.zip + FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001
+HEAD incluido en workspace: 37780b376465b8906823bc46fed571f3210eff4a (Version 092826.1)
+
+VALIDACIONES EJECUTADAS
+
+1) Sintaxis JavaScript
+PASS
+- node --check modules/panel-control/panel-control.js
+- node --check modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runtime.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.scenarios.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+- node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+- node --check scripts/load-test/mantto-gestor-load-test.k6.js
+- node --check scripts/load-test/mantto-gestor-load-test.config.js
+
+2) Pruebas Fase 2 + Fase 3 + Auditoria
+Comando:
+node --test tests/panel-control-prueba-carga-fase2.test.js tests/panel-control-prueba-carga-fase3.test.js tests/change-audit-generator.test.js
+Resultado: PASS 32/32
+- Auditoria: 5/5
+- Fase 2/hallazgos: 17/17
+- Fase 3: 10/10
+
+3) Backend estructura
+Comando: cd backend && npm run check
+Resultado: PASS
+
+4) Regresion backend
+Comando: cd backend && npm test
+Resultado: PASS 76/76
+
+5) Delta aislado de Fase 3
+Baseline: bytes exactos del workspace posterior al FIX de Fase 2.
+Comando: git diff --check
+Resultado: PASS
+
+6) Auditoria protegida
+Bloque comparado: desde const AUDIT_ZONE='America/Mexico_City'; hasta el cierre de renderChangeAudit(box).
+SHA-256 baseline: 6105afb623ccf720efbff57976432bac6ec996bd86ac57034211c9240e07501e
+SHA-256 Fase 3:  6105afb623ccf720efbff57976432bac6ec996bd86ac57034211c9240e07501e
+Resultado: PASS - identico byte a byte.
+
+7) Cache-bust compartido
+- modules/panel-control/panel-control.js: LOAD_TEST_ASSET_VERSION renovado a Fase 3.
+- core/module-loader.js: cache de panel-control renovado a Fase 3.
+- index.html: cache de core/module-loader.js renovado a Fase 3.
+Los tres cambios son de una sola linea respecto a la baseline Fase 2.
+Resultado: PASS
+
+8) Reglas de diseno validadas por tests
+PASS
+- runner-claim de un solo uso;
+- token plano solo se devuelve una vez y solo se almacena hash SHA-256;
+- pantalla no recibe runner_token;
+- actor propietario y permiso efectivo;
+- Visor bloqueado para operaciones;
+- una sola instancia confirmada por LOAD_TEST_SINGLE_INSTANCE=true + guard de Node cluster;
+- target exacto mediante LOAD_TEST_ALLOWED_ORIGIN;
+- target externo rechazado;
+- catalogo funcional fijo GET/HEAD;
+- redirecciones k6 desactivadas globalmente y por request;
+- process-instance mismatch bloqueado antes de negocio;
+- JWT operador y JWT identidad de prueba separados;
+- launcher no recibe secretos por parametros CLI ni los escribe a archivo;
+- LOAD_TEST_MAX_VUS=1000 aceptado sin cambio de codigo;
+- no existe tope duro de 200.
+
+NO EJECUTADO / NO CONFIRMADO
+- Ejecucion real de k6: NO (k6 no esta instalado en el entorno de generacion).
+- Ejecucion real del launcher PowerShell: NO (PowerShell/pwsh no esta instalado en el entorno de generacion).
+- Prueba contra Produccion: NO.
+- E2E navegador: NO.
+- Cambio de replicas/procesos del hosting: NO.
+- GitHub: NO modificado.
+- Aiven: NO modificado.
+- Azure: NO modificado.
+- GitHub Pages: NO desplegado.
+- Netlify: NO desplegado.
+- SQL: NO existe migracion en esta fase.
+
+NOTA OPERATIVA
+Fase 3 deliberadamente NO implementa detencion real del proceso k6 ni metricas k6 en vivo. No usar el boton/estado del backend como sustituto de una cancelacion de k6. Ese canal corresponde a Fase 4.

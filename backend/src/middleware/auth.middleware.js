@@ -55,7 +55,9 @@ function isSafeReadMethod(req) {
 
 function keepsActorIdentity(req) {
   const path = String(req.originalUrl || req.url || '').split('?')[0];
-  return path === '/api/auth/me' || path.startsWith('/api/device-permissions');
+  return path === '/api/auth/me'
+    || path.startsWith('/api/device-permissions')
+    || path.startsWith('/api/panel-control/prueba-carga');
 }
 
 function requestPath(req) {

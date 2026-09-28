@@ -8,6 +8,7 @@ const { notFoundHandler, errorHandler } = require('./middleware/error.middleware
 const { getCorsOptions } = require('./config/http.config');
 const { viewerReadOnlyGuard } = require('./middleware/viewer-readonly.middleware');
 const { interactionTrackingMiddleware_gnral } = require('./middleware/interaction-tracking.middleware');
+const { loadTestTelemetryMiddleware } = require('./modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry');
 
 function enabled(value, fallback = true) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -28,6 +29,7 @@ function createApp() {
     limit: process.env.JSON_LIMIT || '12mb',
     verify: captureRawBody
   }));
+  app.use(loadTestTelemetryMiddleware);
   app.use(viewerReadOnlyGuard);
   app.use(interactionTrackingMiddleware_gnral);
 

@@ -4,6 +4,8 @@
 // [Lumbre | 2026-08-28 | DB_OBSERVABILITY_GET_CONNECTION_GUARD_V001]
 const crypto = require('crypto');
 const mysql = require('mysql2/promise');
+const loadTestRegistry = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.registry');
+const { getCurrentLoadTestSessionId } = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.context');
 
 const requiredDbVariables = [
   'DB_HOST',
@@ -112,9 +114,12 @@ function installQueryObservability(target, label) {
 
     target[methodName] = async function observedDatabaseCall(...args) {
       const startedAt = process.hrtime.bigint();
+      const loadTestSessionId = getCurrentLoadTestSessionId();
+      if (loadTestSessionId) loadTestRegistry.beginSql(loadTestSessionId);
       try {
         const result = await original(...args);
         const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, result, null);
+        if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
         if (traceAll || telemetry.duration_ms >= slowQueryMs) {
           const eventName = telemetry.duration_ms >= slowQueryMs ? '[DB_SLOW_QUERY]' : '[DB_QUERY]';
           console.warn(eventName, JSON.stringify(telemetry));
@@ -122,6 +127,7 @@ function installQueryObservability(target, label) {
         return result;
       } catch (error) {
         const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, null, error);
+        if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
         console.error('[DB_QUERY_ERROR]', JSON.stringify(telemetry));
         throw error;
       }
@@ -183,8 +189,23 @@ installQueryObservability(pool, 'pool');
 if (typeof pool.getConnection === 'function') {
   const originalGetConnection = pool.getConnection.bind(pool);
   pool.getConnection = async function getObservedConnection(...args) {
-    const connection = await originalGetConnection(...args);
-    return installQueryObservability(connection, 'connection');
+    const loadTestSessionId = getCurrentLoadTestSessionId();
+    const startedAt = process.hrtime.bigint();
+    if (loadTestSessionId) loadTestRegistry.beginPoolAcquire(loadTestSessionId);
+    try {
+      const connection = await originalGetConnection(...args);
+      if (loadTestSessionId) {
+        const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+        loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, null);
+      }
+      return installQueryObservability(connection, 'connection');
+    } catch (error) {
+      if (loadTestSessionId) {
+        const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+        loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, error);
+      }
+      throw error;
+    }
   };
 }
 

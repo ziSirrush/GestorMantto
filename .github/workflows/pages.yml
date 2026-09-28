@@ -27,7 +27,9 @@ jobs:
           fetch-depth: 1
 
       - name: Generate deployed version metadata
-        run: node tools/generate-build-info.js
+        run: |
+          node tools/generate-build-info.js
+          node tools/generate-change-audit.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

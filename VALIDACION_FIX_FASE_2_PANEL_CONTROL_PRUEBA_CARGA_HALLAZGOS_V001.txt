@@ -1,0 +1,128 @@
+FIX FASE 2 - PANEL DE CONTROL / PRUEBA DE CARGA - HALLAZGOS V001
+Fecha: 28/09/2026
+Fuente integrada: Version Local.zip
+HEAD embebido en la copia local: 37780b376465b8906823bc46fed571f3210eff4a (Version 092826.1)
+
+ALCANCE
+Se corrigieron los cuatro hallazgos solicitados sobre los bytes de la versión local suministrada. No se restauraron archivos desde el commit antiguo y no se modificaron Aiven, Azure, GitHub, GitHub Pages ni Netlify.
+
+OK 1 - CARGA DEL PANEL
+Archivos:
+- modules/panel-control/panel-control.js
+- core/module-loader.js
+- index.html
+- tests/panel-control-prueba-carga-fase2.test.js
+Resultado:
+- loadBootstrap no espera capabilities.
+- capabilities usa AbortController y timeout oficial de 5000 ms.
+- 403/red/timeout no alimentan state.error y sólo ocultan Prueba de Carga.
+- Recargar datos reintenta capabilities.
+- Validación VM: respuesta lenta, 403, error de red, timeout y Auditoría disponible: PASS.
+- Validación VM: Prueba de Carga aparece con autorización y Permisos por usuario continúa cuando falla capabilities: PASS.
+
+OK 2 - SOLICITUDES DE SOLO LECTURA
+Archivos:
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+- tests/panel-control-prueba-carga-fase2.test.js
+Resultado:
+- X-Mantto-Load-Test valida token y después admite sólo GET/HEAD.
+- POST/PUT/PATCH/DELETE marcados: 405 LOAD_TEST_READ_ONLY antes de negocio.
+- Prueba con contador de mutación: 0 modificaciones para los cuatro métodos.
+- Solicitud normal sin cabecera: comportamiento previo conservado.
+
+OK 3 - IDENTIDAD Y PERMISOS
+Archivos:
+- backend/src/middleware/auth.middleware.js
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+- tests/panel-control-prueba-carga-fase2.test.js
+Resultado:
+- Rutas de Prueba de Carga conservan req.user como actor real.
+- controller no usa req.contextUser para permisos ni propiedad de sesión.
+- no existe fallback por texto de rol; se usan permisos efectivos.
+- test: actor autorizado PASS.
+- test: Programador United sin permiso efectivo -> 403 PASS.
+- test: Programador Corellian sin permiso efectivo -> 403 PASS.
+- test: Visor activo bloquea operación -> 403 VIEWER_READ_ONLY PASS.
+- stopSession valida propietario de sesión PASS.
+
+OK 4 - SESIÓN VENCIDA EN INTERFAZ
+Archivos:
+- modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+- tests/panel-control-prueba-carga-fase2.test.js
+Resultado:
+- Actualizar + 404: limpia sesión/token, reconsulta capabilities y deja preparar otra PASS.
+- Limpiar + 404: se considera limpieza completada PASS.
+- error de red distinto de 404: conserva sesión/token PASS.
+
+AUDITORÍA CONSERVADA
+- auditWeek: presente.
+- auditCompany: presente.
+- auditModule: presente.
+- auditType: presente.
+- auditLayer: presente.
+- rama renderMain de Auditoría antes de bootLoading/state.error: presente.
+- bloque exacto desde AUDIT_ZONE hasta cierre de renderChangeAudit: IDÉNTICO byte a byte frente a Version Local.zip (7955 bytes).
+- modules/panel-control/panel-control.css: IDÉNTICO.
+- core/change-audit.generated.js: IDÉNTICO.
+- core/build-info.generated.js: IDÉNTICO.
+- audit/changes/: lista y contenido IDÉNTICOS.
+- tools/generate-change-audit.js: IDÉNTICO.
+- tests/change-audit-generator.test.js: IDÉNTICO.
+- .github/workflows/pages.yml: IDÉNTICO.
+- docs/netlify.toml: IDÉNTICO.
+- implementacion/CODIGO_AUDITORIA_A_CONSERVAR_V001.md: IDÉNTICO y se incluye como referencia en el ZIP.
+
+CAPACIDAD
+- Meta inicial: 200 VUs.
+- Paso: 10 VUs.
+- LOAD_TEST_MAX_VUS sigue configurable.
+- Sin hard max de 200; prueba automatizada con LOAD_TEST_MAX_VUS=1000: PASS.
+- Sin tablas ni persistencia nueva.
+
+PRUEBAS EJECUTADAS
+1) node --test tests/panel-control-prueba-carga-fase2.test.js
+   RESULTADO: PASS 17/17
+
+2) node --test tests/change-audit-generator.test.js
+   RESULTADO: PASS 5/5
+
+3) cd backend && npm run check
+   RESULTADO: PASS - Estructura base validada correctamente.
+
+4) cd backend && npm test
+   RESULTADO: PASS 76/76 (regresión adicional)
+
+5) node --check modules/panel-control/panel-control.js
+   RESULTADO: PASS
+
+6) node --check modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+   RESULTADO: PASS
+
+7) node --check backend/src/middleware/auth.middleware.js
+   node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+   node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+   node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+   RESULTADO: PASS
+
+8) git diff --check
+   RESULTADO DEL DELTA DEL FIX: PASS.
+   Método: se creó un repositorio temporal con los bytes exactos de Version Local.zip como baseline, se superpusieron únicamente los archivos de este FIX y se ejecutó git diff --check (exit 0).
+
+NOTA SOBRE EL .git EMBEBIDO EN VERSION LOCAL.ZIP
+La copia local entregada ya contiene cambios no confirmados respecto de su HEAD 37780b3 y algunos archivos con finales CRLF que el HEAD histórico interpreta como diferencias de whitespace. Ejecutar git diff --check directamente contra ese HEAD reporta incidencias preexistentes ajenas a este FIX. No se normalizaron ni reemplazaron esos archivos para no destruir trabajo local. La validación del delta exacto del FIX contra Version Local.zip sí pasa git diff --check.
+
+VALIDACIÓN UI
+Se ejecutó validación local automatizada con VM/harness del frontend para:
+- Auditoría durante capabilities lenta/403/red/timeout.
+- Prueba de Carga visible y renderizable al autorizar capabilities.
+- Permisos por usuario operativo cuando capabilities falla.
+Esto NO equivale a una prueba E2E contra un despliegue real.
+
+NO EJECUTADO / NO MODIFICADO
+- Aiven: no modificado; sin SQL.
+- Azure: no modificado/desplegado.
+- GitHub: no commit/push.
+- GitHub Pages: no desplegado.
+- Netlify: no desplegado.
+- Fase 3/k6: no iniciada.

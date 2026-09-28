@@ -1,0 +1,33 @@
+MANIFEST FASE 4 - PANEL DE CONTROL / PRUEBA DE CARGA V001
+Fecha: 28/09/2026
+Base: workspace local vigente posterior a Fase 3 + Auditoria
+HEAD Git informativo: 37780b376465b8906823bc46fed571f3210eff4a
+
+NOTA:
+- Solo se entregan archivos modificados/nuevos de Fase 4, mas CODIGO_AUDITORIA_A_CONSERVAR_V001.md como referencia obligatoria sin modificar.
+- No existe SQL de Fase 4.
+- DIFF_FASE_4_PANEL_CONTROL_PRUEBA_CARGA_V001.patch se genera contra los bytes exactos del workspace inmediatamente anterior a Fase 4.
+
+SHA256  ARCHIVO
+f135faf7c925fdea76fbe5214c22a674039a9b29c70b2f9eaba6e5ab2a3ca48c  ./README_FASE_4_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+c34faed296d0e68c203c0398f290bc2aecd78d0da947d353df840fc3ced4a303  ./VALIDACION_FASE_4_PANEL_CONTROL_PRUEBA_CARGA_V001.txt
+a996b5d310130b9d8fd5a69840fd96177292614aab0ba1d4edfdfef01628c17c  ./backend/.env.example
+4b05d778fa0708841cf92336ab88f1dc1d08c0e6c19d69181fcffd2ad9f39ab4  ./backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+61f87eff6debaf23d24fab1ccda8fc4b274b62e3ddeca5f0de01bcea8f28b3ce  ./backend/src/modules/panel-control-prueba-carga/README.md
+1eef5d70bce306d871d8cf63eaf84d37da4b1a8fe3df588835fcced17ca7e5ca  ./backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+f40395cc84f68a936bfada4927d4aa03327baf3cf8e451fec5006ea552c44e6a  ./backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+eae90d67c1e8a036b9cb8c7224e33e8a880b69d7d1991447e8f5f8c1b80e651e  ./backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+1e3c266f4d991047fb6f36fcfc8aafaf81ed2fda15b0be82e40cc1e7c0f3abad  ./backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+341701ef32d3354acbf5255a04733e7deb678493255e411878122e3e68b061bd  ./backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+1c9335c5a309b2e53c7359b325a2bfdf94af450e148ab3752678ec84e944a61d  ./backend/src/routes/panel-control.routes.js
+56262680fe4ecb42800c385814c934b062032728c16671528e04696971d55707  ./core/module-loader.js
+a05fdb62e46e2432186ccb6a455ad2097254c2968a7d752d486e990cab8fe0c7  ./implementacion/CODIGO_AUDITORIA_A_CONSERVAR_V001.md
+b1c2c8d99cfc8d3ebc7c350c9a4998bda54ebac56933d6daf119c7095f916d9b  ./implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+43be33435380271811305d38d4a8704991db72db0ee40182f6032347dbf33ef4  ./index.html
+15b5990ffa982de7386181ca4b6be02606af4a66e3d5271ed2a62332a1fb1916  ./modules/panel-control/panel-control.js
+bdeb1c04f3e52542cadc40e8eb16d833fdee07fb4ba12978ebe97fcb6d0b0c28  ./modules/panel-control-prueba-carga/panel-control-prueba-carga.css
+8175780b0ee37a7549487907b3b3543fd09c8e6bf7a27e099c553f9473f9c685  ./modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+997658f61a4ed0a67250e594b45151ed30a85f63fba7d675de3d65b4349295c2  ./scripts/load-test/mantto-gestor-load-test.k6.js
+e24505c1f738f430d6367e41d576fc9bb613b7624f0b132e6dde3627e65c4e6d  ./tests/panel-control-prueba-carga-fase3.test.js
+7c027cd47c74daf2087c1a7c6e72d7e28b6c3a0347e98c5c74890559b179f664  ./tests/panel-control-prueba-carga-fase4.test.js
+15c9a5b2d294fbbfe05ffd4d9880f150edd3bead95da194948167237131de3af  ./DIFF_FASE_4_PANEL_CONTROL_PRUEBA_CARGA_V001.patch

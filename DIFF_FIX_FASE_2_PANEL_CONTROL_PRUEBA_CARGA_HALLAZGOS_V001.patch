@@ -1,0 +1,1135 @@
+diff --git a/README_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.md b/README_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.md
+new file mode 100644
+index 0000000..970a8c0
+--- /dev/null
++++ b/README_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.md
+@@ -0,0 +1,150 @@
++# FIX FASE 2 - PANEL DE CONTROL / PRUEBA DE CARGA - HALLAZGOS V001
++
++**Fecha:** 28/09/2026
++**Base de integración:** versión local entregada por Joseph (`Version Local.zip`)
++**Objetivo:** cerrar los cuatro hallazgos detectados en Fase 2 antes de iniciar Fase 3, fusionando sobre el trabajo local vigente y conservando Auditoría.
++
++## Resultado
++
++### OK 1 - Carga del Panel
++
++**Archivos modificados:**
++
++- `modules/panel-control/panel-control.js`
++- `core/module-loader.js`
++- `index.html`
++- `tests/panel-control-prueba-carga-fase2.test.js`
++
++Cambios:
++
++- `loadBootstrap()` ya no espera a `/api/panel-control/prueba-carga/capabilities`.
++- capacidades se consultan en paralelo mediante `AbortController` con timeout de 5 segundos;
++- `403`, error de red y timeout ocultan únicamente el tab `Prueba de Carga`;
++- el error de capacidades no alimenta `state.error` global;
++- `Recargar datos` vuelve a intentar capacidades;
++- Auditoría puede abrir aunque capacidades esté lenta, denegada, caída o en timeout;
++- el tab aparece únicamente cuando backend confirma `permissions.access=true`.
++
++### OK 2 - Solicitudes de solo lectura
++
++**Archivos modificados:**
++
++- `backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js`
++- `tests/panel-control-prueba-carga-fase2.test.js`
++
++Cambios:
++
++- una solicitud marcada con `X-Mantto-Load-Test` conserva la validación obligatoria del token efímero;
++- después de validar token, solamente `GET` y `HEAD` pueden continuar;
++- `POST`, `PUT`, `PATCH` y `DELETE` retornan `405 / LOAD_TEST_READ_ONLY` antes de cualquier ruta de negocio;
++- solicitudes normales sin la cabecera conservan su comportamiento previo.
++
++### OK 3 - Identidad y permisos
++
++**Archivos modificados:**
++
++- `backend/src/middleware/auth.middleware.js`
++- `backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js`
++- `backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js`
++- `tests/panel-control-prueba-carga-fase2.test.js`
++
++Cambios:
++
++- las rutas de Prueba de Carga mantienen identidad de actor para `req.user`, incluso con Visor activo;
++- controller usa `req.user`, no `req.contextUser`;
++- acceso/ejecución/detención siguen dependiendo de permisos efectivos existentes;
++- no existe fallback por nombre `Programador United` o `Programador Corellian`;
++- `stopSession()` ahora valida también propiedad de sesión antes de detener;
++- operaciones de crear/iniciar/detener/limpiar fallan cerrado con `VIEWER_READ_ONLY` si existe Visor activo.
++
++**Importante:** este FIX no ejecuta ni modifica permisos en Aiven. Usa como autoridad los permisos ya aplicados en el entorno.
++
++### OK 4 - Sesión vencida en interfaz
++
++**Archivos modificados:**
++
++- `modules/panel-control-prueba-carga/panel-control-prueba-carga.js`
++- `tests/panel-control-prueba-carga-fase2.test.js`
++
++Cambios:
++
++- `Actualizar estado` con `404` limpia sesión/token locales, reconsulta capacidades y deja preparar otra sesión sin recargar;
++- `Limpiar sesión` con `404` se trata como limpieza completada;
++- un error de red distinto de `404` conserva sesión y token locales;
++- se elimina también `active_session` del snapshot local al recuperar una expiración para impedir que la UI restaure una sesión ya vencida.
++
++## Auditoría conservada
++
++Se verificó contra la versión local original que permanecen sin cambios:
++
++- `auditWeek`, `auditCompany`, `auditModule`, `auditType`, `auditLayer`;
++- pestaña `Auditoría`;
++- rama de `renderMain()` para Auditoría antes de `bootLoading` y `state.error`;
++- bloque completo desde `const AUDIT_ZONE='America/Mexico_City';` hasta el cierre de `renderChangeAudit(box)`;
++- estilos `.pc-change-audit`;
++- `core/change-audit.generated.js`;
++- `core/build-info.generated.js`;
++- `audit/changes/`;
++- `tools/generate-change-audit.js`;
++- generación de Pages y Netlify;
++- `tests/change-audit-generator.test.js`.
++
++`implementacion/CODIGO_AUDITORIA_A_CONSERVAR_V001.md` se incluye en el paquete como referencia obligatoria para integraciones que partan de un commit antiguo. No debe usarse para sustituir a ciegas el archivo local fusionado.
++
++## Capacidad vigente
++
++- meta inicial: **200 VUs**;
++- pasos iniciales: **10 VUs**;
++- `LOAD_TEST_MAX_VUS` continúa siendo configurable;
++- **no existe tope duro de 200**;
++- duración sigue limitada por la configuración de Fase 2;
++- no se agregan tablas ni persistencia.
++
++## Cache bust actualizado
++
++- `core/module-loader.js` carga `modules/panel-control/panel-control.js` con versión `20260928-auditoria-prueba-carga-fase2-hallazgos-v001`.
++- `index.html` carga `core/module-loader.js` con la misma revisión.
++- `modules/panel-control/panel-control.js` carga los assets de Prueba de Carga con `20260928-fase2-hallazgos-v001`.
++- las referencias de `core/build-info.generated.js` y `core/change-audit.generated.js` conservan el SHA generado vigente y su orden original.
++
++## Validaciones ejecutadas
++
++```text
++node --test tests/panel-control-prueba-carga-fase2.test.js
++node --test tests/change-audit-generator.test.js
++cd backend && npm run check
++node --check modules/panel-control/panel-control.js
++node --check modules/panel-control-prueba-carga/panel-control-prueba-carga.js
++git diff --check
++```
++
++Resultados finales de esta entrega:
++
++- Pruebas Fase 2 / hallazgos: **17/17 PASS**.
++- Auditoría: **5/5 PASS**.
++- `backend/npm run check`: **PASS**.
++- `backend/npm test`: **76/76 PASS** (regresión adicional).
++- `node --check` en los JavaScript modificados: **PASS**.
++- `git diff --check` del delta contra los bytes exactos de `Version Local.zip`: **PASS**.
++
++Consultar `VALIDACION_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.txt` para resultados y alcance exactos.
++
++## No ejecutado / no modificado
++
++- Aiven: NO modificado.
++- Azure: NO desplegado ni modificado.
++- GitHub: NO commit/push.
++- GitHub Pages: NO desplegado.
++- Netlify: NO desplegado.
++- prueba real de carga: NO ejecutada.
++- k6 / Fase 3: NO iniciado.
++
++## Aplicación
++
++Copiar únicamente los archivos del ZIP respetando su estructura sobre la **versión local vigente**. No restaurar archivos completos desde una entrega de Fase 1/Fase 2 basada en un commit antiguo.
++
++Después de integrar, ejecutar nuevamente las validaciones indicadas arriba. La apertura de Auditoría, Prueba de Carga autorizada y la continuidad de las demás pestañas ante fallo de capacidades se validó localmente mediante el harness VM automatizado; no equivale a una prueba E2E contra el entorno desplegado.
++
++## Reversión
++
++Revertir únicamente los cambios listados en el diff de este FIX. No restaurar `panel-control.js`, `panel-control.css`, `core/module-loader.js` o `index.html` desde `main @ 37780b3`, porque eso eliminaría trabajo local posterior, incluida Auditoría.
+diff --git a/VALIDACION_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.txt b/VALIDACION_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.txt
+new file mode 100644
+index 0000000..b1e7b02
+--- /dev/null
++++ b/VALIDACION_FIX_FASE_2_PANEL_CONTROL_PRUEBA_CARGA_HALLAZGOS_V001.txt
+@@ -0,0 +1,128 @@
++FIX FASE 2 - PANEL DE CONTROL / PRUEBA DE CARGA - HALLAZGOS V001
++Fecha: 28/09/2026
++Fuente integrada: Version Local.zip
++HEAD embebido en la copia local: 37780b376465b8906823bc46fed571f3210eff4a (Version 092826.1)
++
++ALCANCE
++Se corrigieron los cuatro hallazgos solicitados sobre los bytes de la versión local suministrada. No se restauraron archivos desde el commit antiguo y no se modificaron Aiven, Azure, GitHub, GitHub Pages ni Netlify.
++
++OK 1 - CARGA DEL PANEL
++Archivos:
++- modules/panel-control/panel-control.js
++- core/module-loader.js
++- index.html
++- tests/panel-control-prueba-carga-fase2.test.js
++Resultado:
++- loadBootstrap no espera capabilities.
++- capabilities usa AbortController y timeout oficial de 5000 ms.
++- 403/red/timeout no alimentan state.error y sólo ocultan Prueba de Carga.
++- Recargar datos reintenta capabilities.
++- Validación VM: respuesta lenta, 403, error de red, timeout y Auditoría disponible: PASS.
++- Validación VM: Prueba de Carga aparece con autorización y Permisos por usuario continúa cuando falla capabilities: PASS.
++
++OK 2 - SOLICITUDES DE SOLO LECTURA
++Archivos:
++- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
++- tests/panel-control-prueba-carga-fase2.test.js
++Resultado:
++- X-Mantto-Load-Test valida token y después admite sólo GET/HEAD.
++- POST/PUT/PATCH/DELETE marcados: 405 LOAD_TEST_READ_ONLY antes de negocio.
++- Prueba con contador de mutación: 0 modificaciones para los cuatro métodos.
++- Solicitud normal sin cabecera: comportamiento previo conservado.
++
++OK 3 - IDENTIDAD Y PERMISOS
++Archivos:
++- backend/src/middleware/auth.middleware.js
++- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
++- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
++- tests/panel-control-prueba-carga-fase2.test.js
++Resultado:
++- Rutas de Prueba de Carga conservan req.user como actor real.
++- controller no usa req.contextUser para permisos ni propiedad de sesión.
++- no existe fallback por texto de rol; se usan permisos efectivos.
++- test: actor autorizado PASS.
++- test: Programador United sin permiso efectivo -> 403 PASS.
++- test: Programador Corellian sin permiso efectivo -> 403 PASS.
++- test: Visor activo bloquea operación -> 403 VIEWER_READ_ONLY PASS.
++- stopSession valida propietario de sesión PASS.
++
++OK 4 - SESIÓN VENCIDA EN INTERFAZ
++Archivos:
++- modules/panel-control-prueba-carga/panel-control-prueba-carga.js
++- tests/panel-control-prueba-carga-fase2.test.js
++Resultado:
++- Actualizar + 404: limpia sesión/token, reconsulta capabilities y deja preparar otra PASS.
++- Limpiar + 404: se considera limpieza completada PASS.
++- error de red distinto de 404: conserva sesión/token PASS.
++
++AUDITORÍA CONSERVADA
++- auditWeek: presente.
++- auditCompany: presente.
++- auditModule: presente.
++- auditType: presente.
++- auditLayer: presente.
++- rama renderMain de Auditoría antes de bootLoading/state.error: presente.
++- bloque exacto desde AUDIT_ZONE hasta cierre de renderChangeAudit: IDÉNTICO byte a byte frente a Version Local.zip (7955 bytes).
++- modules/panel-control/panel-control.css: IDÉNTICO.
++- core/change-audit.generated.js: IDÉNTICO.
++- core/build-info.generated.js: IDÉNTICO.
++- audit/changes/: lista y contenido IDÉNTICOS.
++- tools/generate-change-audit.js: IDÉNTICO.
++- tests/change-audit-generator.test.js: IDÉNTICO.
++- .github/workflows/pages.yml: IDÉNTICO.
++- docs/netlify.toml: IDÉNTICO.
++- implementacion/CODIGO_AUDITORIA_A_CONSERVAR_V001.md: IDÉNTICO y se incluye como referencia en el ZIP.
++
++CAPACIDAD
++- Meta inicial: 200 VUs.
++- Paso: 10 VUs.
++- LOAD_TEST_MAX_VUS sigue configurable.
++- Sin hard max de 200; prueba automatizada con LOAD_TEST_MAX_VUS=1000: PASS.
++- Sin tablas ni persistencia nueva.
++
++PRUEBAS EJECUTADAS
++1) node --test tests/panel-control-prueba-carga-fase2.test.js
++   RESULTADO: PASS 17/17
++
++2) node --test tests/change-audit-generator.test.js
++   RESULTADO: PASS 5/5
++
++3) cd backend && npm run check
++   RESULTADO: PASS - Estructura base validada correctamente.
++
++4) cd backend && npm test
++   RESULTADO: PASS 76/76 (regresión adicional)
++
++5) node --check modules/panel-control/panel-control.js
++   RESULTADO: PASS
++
++6) node --check modules/panel-control-prueba-carga/panel-control-prueba-carga.js
++   RESULTADO: PASS
++
++7) node --check backend/src/middleware/auth.middleware.js
++   node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
++   node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
++   node --check backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
++   RESULTADO: PASS
++
++8) git diff --check
++   RESULTADO DEL DELTA DEL FIX: PASS.
++   Método: se creó un repositorio temporal con los bytes exactos de Version Local.zip como baseline, se superpusieron únicamente los archivos de este FIX y se ejecutó git diff --check (exit 0).
++
++NOTA SOBRE EL .git EMBEBIDO EN VERSION LOCAL.ZIP
++La copia local entregada ya contiene cambios no confirmados respecto de su HEAD 37780b3 y algunos archivos con finales CRLF que el HEAD histórico interpreta como diferencias de whitespace. Ejecutar git diff --check directamente contra ese HEAD reporta incidencias preexistentes ajenas a este FIX. No se normalizaron ni reemplazaron esos archivos para no destruir trabajo local. La validación del delta exacto del FIX contra Version Local.zip sí pasa git diff --check.
++
++VALIDACIÓN UI
++Se ejecutó validación local automatizada con VM/harness del frontend para:
++- Auditoría durante capabilities lenta/403/red/timeout.
++- Prueba de Carga visible y renderizable al autorizar capabilities.
++- Permisos por usuario operativo cuando capabilities falla.
++Esto NO equivale a una prueba E2E contra un despliegue real.
++
++NO EJECUTADO / NO MODIFICADO
++- Aiven: no modificado; sin SQL.
++- Azure: no modificado/desplegado.
++- GitHub: no commit/push.
++- GitHub Pages: no desplegado.
++- Netlify: no desplegado.
++- Fase 3/k6: no iniciada.
+diff --git a/backend/src/middleware/auth.middleware.js b/backend/src/middleware/auth.middleware.js
+index 7bd41ba..012da47 100644
+--- a/backend/src/middleware/auth.middleware.js
++++ b/backend/src/middleware/auth.middleware.js
+@@ -55,7 +55,9 @@ function isSafeReadMethod(req) {
+ 
+ function keepsActorIdentity(req) {
+   const path = String(req.originalUrl || req.url || '').split('?')[0];
+-  return path === '/api/auth/me' || path.startsWith('/api/device-permissions');
++  return path === '/api/auth/me'
++    || path.startsWith('/api/device-permissions')
++    || path.startsWith('/api/panel-control/prueba-carga');
+ }
+ 
+ function requestPath(req) {
+diff --git a/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md b/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+index 72a7722..caf247e 100644
+--- a/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
++++ b/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+@@ -1,5 +1,14 @@
+ # CHANGELOG
+ 
++## V001.1 - Correcciones pre-Fase 3 - 2026-09-28
++
++- Capacidades desacopladas del bootstrap general del Panel de Control, con timeout de 5 s y fallo aislado.
++- Tráfico marcado limitado a `GET`/`HEAD`; mutaciones rechazadas antes de negocio.
++- Permisos y propiedad de sesión evaluados contra el actor autenticado; Visor mantiene bloqueo de operaciones.
++- Recuperación frontend de sesión vencida por TTL (`404`) sin recargar la página; errores de red conservan sesión/token locales.
++- Se conserva íntegra la Auditoría semanal de cambios existente.
++- Sin tablas ni persistencia nueva.
++
+ ## V001 - Fase 2 - 2026-09-28
+ 
+ - Sesiones efímeras en RAM con TTL.
+diff --git a/backend/src/modules/panel-control-prueba-carga/README.md b/backend/src/modules/panel-control-prueba-carga/README.md
+index f460604..dddc1cf 100644
+--- a/backend/src/modules/panel-control-prueba-carga/README.md
++++ b/backend/src/modules/panel-control-prueba-carga/README.md
+@@ -18,6 +18,9 @@ Incluye:
+ - fingerprints y `sql_shape` anonimizado reutilizando la observabilidad vigente;
+ - límites de memoria para muestras, endpoints y fingerprints;
+ - cero persistencia en MySQL, archivos o almacenamiento web.
++- tráfico marcado de prueba limitado estrictamente a `GET` / `HEAD`;
++- permisos y propiedad de sesión evaluados con el actor autenticado, no con el usuario observado del Visor;
++- recuperación en UI cuando una sesión efímera vence por TTL, sin borrar estado local ante errores de red distintos de `404`.
+ 
+ ## Endpoints disponibles
+ 
+@@ -32,6 +35,14 @@ DELETE /api/panel-control/prueba-carga/session/:id
+ 
+ `start` abre la ventana de telemetría, pero Fase 2 **no genera carga**. El runner k6 se agrega en Fase 3.
+ 
++## Seguridad previa a Fase 3
++
++- `X-Mantto-Load-Test` no habilita escrituras: `POST`, `PUT`, `PATCH`, `DELETE` y cualquier método distinto de `GET`/`HEAD` se rechazan antes de las rutas de negocio.
++- El token efímero sigue siendo obligatorio y se valida antes de aceptar tráfico de prueba.
++- La identidad usada por las rutas administrativas de Prueba de Carga es el actor autenticado (`req.user`).
++- El acceso no se concede por nombre de rol; se respetan exclusivamente los permisos efectivos ya configurados. Programador United y Programador Corellian no reciben acceso por defecto.
++- Las operaciones siguen bloqueadas cuando existe un contexto activo del Visor de usuarios.
++
+ ## Escalabilidad
+ 
+ `LOAD_TEST_MAX_VUS` define el máximo operativo autorizado para el entorno. El valor inicial recomendado sigue siendo `200`, pero no existe un máximo duro codificado. Puede elevarse a `1000` o más mediante configuración cuando la infraestructura lo autorice.
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+index 9976a68..2e5e59e 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+@@ -2,8 +2,16 @@
+ 
+ const service = require('./panel-control-prueba-carga.service');
+ 
+-function effectiveUser(req) {
+-  return req.contextUser || req.user;
++function actorUser(req) {
++  return req.user;
++}
++
++function assertViewerWriteAllowed(req) {
++  if (!req.viewerContext?.active) return;
++  const error = new Error('Acción no disponible en modo visor. La vista es únicamente de consulta.');
++  error.status = 403;
++  error.code = 'VIEWER_READ_ONLY';
++  throw error;
+ }
+ 
+ function sendError(error, res, next, fallbackCode) {
+@@ -19,7 +27,7 @@ function sendError(error, res, next, fallbackCode) {
+ 
+ async function getCapabilities(req, res, next) {
+   try {
+-    const data = await service.getCapabilities(effectiveUser(req));
++    const data = await service.getCapabilities(actorUser(req));
+     return res.json({ ok: true, data });
+   } catch (error) {
+     return sendError(error, res, next, 'LOAD_TEST_CAPABILITIES_ERROR');
+@@ -28,7 +36,8 @@ async function getCapabilities(req, res, next) {
+ 
+ async function createSession(req, res, next) {
+   try {
+-    const data = await service.createSession(effectiveUser(req), req.body || {});
++    assertViewerWriteAllowed(req);
++    const data = await service.createSession(actorUser(req), req.body || {});
+     return res.status(201).json({ ok: true, data });
+   } catch (error) {
+     return sendError(error, res, next, 'LOAD_TEST_SESSION_CREATE_ERROR');
+@@ -37,7 +46,7 @@ async function createSession(req, res, next) {
+ 
+ async function getSession(req, res, next) {
+   try {
+-    const data = await service.getSession(effectiveUser(req), req.params.id);
++    const data = await service.getSession(actorUser(req), req.params.id);
+     return res.json({ ok: true, data });
+   } catch (error) {
+     return sendError(error, res, next, 'LOAD_TEST_SESSION_READ_ERROR');
+@@ -46,7 +55,8 @@ async function getSession(req, res, next) {
+ 
+ async function startSession(req, res, next) {
+   try {
+-    const data = await service.startSession(effectiveUser(req), req.params.id);
++    assertViewerWriteAllowed(req);
++    const data = await service.startSession(actorUser(req), req.params.id);
+     return res.json({ ok: true, data });
+   } catch (error) {
+     return sendError(error, res, next, 'LOAD_TEST_SESSION_START_ERROR');
+@@ -56,7 +66,8 @@ async function startSession(req, res, next) {
+ async function stopSession(req, res, next) {
+   try {
+     const reason = String(req.body?.reason || 'MANUAL').slice(0, 80);
+-    const data = await service.stopSession(effectiveUser(req), req.params.id, reason);
++    assertViewerWriteAllowed(req);
++    const data = await service.stopSession(actorUser(req), req.params.id, reason);
+     return res.json({ ok: true, data });
+   } catch (error) {
+     return sendError(error, res, next, 'LOAD_TEST_SESSION_STOP_ERROR');
+@@ -65,7 +76,8 @@ async function stopSession(req, res, next) {
+ 
+ async function deleteSession(req, res, next) {
+   try {
+-    const data = await service.deleteSession(effectiveUser(req), req.params.id);
++    assertViewerWriteAllowed(req);
++    const data = await service.deleteSession(actorUser(req), req.params.id);
+     return res.json({ ok: true, data });
+   } catch (error) {
+     return sendError(error, res, next, 'LOAD_TEST_SESSION_DELETE_ERROR');
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+index 2a6e57e..17ce13b 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+@@ -151,6 +151,8 @@ async function startSession(user, id) {
+ 
+ async function stopSession(user, id, reason = 'MANUAL') {
+   const userId = await requirePermission(user, PERMISSIONS.STOP, 'LOAD_TEST_STOP_DENIED');
++  const session = registry.getPublicSession(id);
++  assertOwner(session, userId);
+   return registry.stopSession(id, { actorUserId: userId, reason });
+ }
+ 
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+index 40d5049..9fced8f 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+@@ -50,6 +50,15 @@ function loadTestTelemetryMiddleware(req, res, next) {
+     });
+   }
+ 
++  const method = String(req.method || 'GET').toUpperCase();
++  if (method !== 'GET' && method !== 'HEAD') {
++    return res.status(405).json({
++      ok: false,
++      code: 'LOAD_TEST_READ_ONLY',
++      message: 'Las solicitudes marcadas como Prueba de Carga son únicamente de lectura (GET/HEAD).'
++    });
++  }
++
+   const startedAt = process.hrtime.bigint();
+   registry.beginHttp(sessionId);
+   let finished = false;
+diff --git a/core/module-loader.js b/core/module-loader.js
+index 36c9b3d..abe507c 100644
+--- a/core/module-loader.js
++++ b/core/module-loader.js
+@@ -246,7 +246,7 @@
+     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002']},
+ 
+     usuarios:{css:['./modules/usuarios/usuarios.css?v=20260707-v001'],js:['./modules/usuarios/usuarios.js?v=20260707-v001']},
+-    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260928-auditoria-prueba-carga-fase2-v001']},
++    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260928-auditoria-prueba-carga-fase2-hallazgos-v001']},
+     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001']},
+ 
+     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
+diff --git a/index.html b/index.html
+index 7c23cf0..2b6e177 100644
+--- a/index.html
++++ b/index.html
+@@ -730,7 +730,7 @@
+ <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
+ <script src="./core/data-sync.js?v=20260828-fase1-calls-v001"></script>
+ <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
+-<script src="./core/module-loader.js?v=20260928-auditoria-prueba-carga-fase2-v001"></script>
++<script src="./core/module-loader.js?v=20260928-auditoria-prueba-carga-fase2-hallazgos-v001"></script>
+ <script src="./core/router.js?v=20260914-human-time-v001"></script>
+ <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
+ <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
+diff --git a/modules/panel-control-prueba-carga/panel-control-prueba-carga.js b/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+index 4c8cd39..2b3703d 100644
+--- a/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
++++ b/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+@@ -1,7 +1,7 @@
+ (function(){
+   'use strict';
+ 
+-  const MODULE_VERSION='20260928-fase2-v001';
++  const MODULE_VERSION='20260928-fase2-hallazgos-v001';
+   const state={
+     capabilities:null,
+     session:null,
+@@ -29,6 +29,30 @@
+     return api().api(path,options||{method:'GET'});
+   }
+ 
++  function errorStatus(error){
++    return Number(error?.status||error?.payload?.status||0);
++  }
++
++  function clearLocalSession(){
++    state.session=null;
++    state.runnerToken=null;
++    state.recovered=false;
++    if(state.capabilities&&typeof state.capabilities==='object'){
++      state.capabilities={...state.capabilities,active_session:null};
++    }
++  }
++
++  async function reloadCapabilities(){
++    const caps=await request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,{method:'GET',cache:'no-store'});
++    state.capabilities=caps.data||state.capabilities;
++    return state.capabilities;
++  }
++
++  async function recoverExpiredSession(){
++    clearLocalSession();
++    try{await reloadCapabilities();}catch(_error){/* La sesión local ya quedó liberada; capacidades se reintentan en la siguiente acción. */}
++  }
++
+   function scenarioOptions(capabilities){
+     const scenarios=Array.isArray(capabilities?.scenarios)?capabilities.scenarios:[];
+     return scenarios.map(item=>{
+@@ -185,8 +209,7 @@
+       state.session=response.data?.session||null;
+       state.runnerToken=response.data?.runner_token||null;
+       state.recovered=false;
+-      const caps=await request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,{method:'GET',cache:'no-store'});
+-      state.capabilities=caps.data||state.capabilities;
++      await reloadCapabilities();
+     }catch(error){
+       state.error=error?.message||'No fue posible preparar la sesión temporal.';
+     }finally{
+@@ -201,7 +224,11 @@
+       const response=await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}?_=${Date.now()}`,{method:'GET',cache:'no-store'});
+       state.session=response.data||null;
+     }catch(error){
+-      state.error=error?.message||'No fue posible actualizar la sesión.';
++      if(errorStatus(error)===404){
++        await recoverExpiredSession();
++      }else{
++        state.error=error?.message||'No fue posible actualizar la sesión.';
++      }
+     }finally{state.busy=false;rerender(container);}
+   }
+ 
+@@ -222,12 +249,15 @@
+     state.busy=true;state.error='';rerender(container);
+     try{
+       await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}`,{method:'DELETE'});
+-      state.session=null;
+-      state.runnerToken=null;
+-      state.recovered=false;
+-      const caps=await request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,{method:'GET',cache:'no-store'});
+-      state.capabilities=caps.data||state.capabilities;
+-    }catch(error){state.error=error?.message||'No fue posible limpiar la sesión.';}
++      clearLocalSession();
++      try{await reloadCapabilities();}catch(_error){/* La limpieza local queda completada aunque falle este refresco. */}
++    }catch(error){
++      if(errorStatus(error)===404){
++        await recoverExpiredSession();
++      }else{
++        state.error=error?.message||'No fue posible limpiar la sesión.';
++      }
++    }
+     finally{state.busy=false;rerender(container);}
+   }
+ 
+diff --git a/modules/panel-control/panel-control.js b/modules/panel-control/panel-control.js
+index 782fd91..884f0c2 100644
+--- a/modules/panel-control/panel-control.js
++++ b/modules/panel-control/panel-control.js
+@@ -88,12 +88,15 @@
+   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
+   const NOTIFICATION_KEY_SEPARATOR='\u0000';
+   const LOAD_TEST_TAB='load-test';
+-  const LOAD_TEST_ASSET_VERSION='20260928-fase2-v001';
++  const LOAD_TEST_ASSET_VERSION='20260928-fase2-hallazgos-v001';
+   const LOAD_TEST_JS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.js?v=${LOAD_TEST_ASSET_VERSION}`;
+   const LOAD_TEST_CSS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.css?v=${LOAD_TEST_ASSET_VERSION}`;
+   let saveStatusTimer=null;
+   let resetCredentialStatusTimer=null;
+   let loadTestAssetsPromise=null;
++  let loadTestCapabilityAbortController=null;
++  let loadTestCapabilityRequestSeq=0;
++  const LOAD_TEST_CAPABILITY_TIMEOUT_MS=5000;
+ 
+   function consumeSaveMessage(){
+     const message=sessionStorage.getItem('mantto:panel-control:save-message');
+@@ -112,20 +115,40 @@
+   }
+ 
+   async function loadLoadTestCapabilities({renderAfter=false}={}){
++    const requestSeq=++loadTestCapabilityRequestSeq;
++    if(loadTestCapabilityAbortController) loadTestCapabilityAbortController.abort();
++    const controller=typeof AbortController==='function'?new AbortController():null;
++    loadTestCapabilityAbortController=controller;
+     state.loadTestCapabilityLoading=true;
+     state.loadTestCapabilityError='';
++    let timedOut=false;
++    const timeoutId=window.setTimeout(()=>{
++      timedOut=true;
++      controller?.abort();
++    },LOAD_TEST_CAPABILITY_TIMEOUT_MS);
+     try{
+-      const json=await request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,{method:'GET',cache:'no-store'});
++      const options={method:'GET',cache:'no-store'};
++      if(controller) options.signal=controller.signal;
++      const json=await request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,options);
++      if(requestSeq!==loadTestCapabilityRequestSeq)return state.loadTestCapabilities;
+       state.loadTestCapabilities=json.data||null;
+     }catch(error){
++      if(requestSeq!==loadTestCapabilityRequestSeq)return state.loadTestCapabilities;
+       state.loadTestCapabilities=null;
+-      if(Number(error?.status||0)!==403){
+-        state.loadTestCapabilityError=error?.message||'No fue posible consultar las capacidades de Prueba de Carga.';
++      const status=Number(error?.status||0);
++      if(status!==403){
++        state.loadTestCapabilityError=timedOut
++          ?'La consulta de capacidades de Prueba de Carga excedió 5 segundos.'
++          :(error?.message||'No fue posible consultar las capacidades de Prueba de Carga.');
+       }
+       if(state.tab===LOAD_TEST_TAB) state.tab='users';
+     }finally{
+-      state.loadTestCapabilityLoading=false;
+-      if(renderAfter) render();
++      window.clearTimeout(timeoutId);
++      if(requestSeq===loadTestCapabilityRequestSeq){
++        loadTestCapabilityAbortController=null;
++        state.loadTestCapabilityLoading=false;
++        if(renderAfter) render();
++      }
+     }
+     return state.loadTestCapabilities;
+   }
+@@ -512,9 +535,8 @@
+     state.error='';
+     render();
+     try{
+-      const capabilityPromise=loadLoadTestCapabilities();
++      void loadLoadTestCapabilities({renderAfter:true});
+       const json=await request('/api/panel-control/bootstrap');
+-      await capabilityPromise;
+       const data=json.data||{};
+       state.roles=data.roles||[];
+       state.users=data.usuarios||[];
+diff --git a/tests/panel-control-prueba-carga-fase2.test.js b/tests/panel-control-prueba-carga-fase2.test.js
+index 1682804..290bcd1 100644
+--- a/tests/panel-control-prueba-carga-fase2.test.js
++++ b/tests/panel-control-prueba-carga-fase2.test.js
+@@ -127,3 +127,470 @@ test('LOAD_TEST_MAX_VUS sigue siendo configurable y sin límite duro fijo', () =
+   assert.equal(limits.hard_max_vus, null);
+   if (previous === undefined) delete process.env.LOAD_TEST_MAX_VUS; else process.env.LOAD_TEST_MAX_VUS = previous;
+ });
++
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++
++function capabilityData(overrides = {}) {
++  return {
++    permissions: { access: true, execute: true, stop: true },
++    limits: {
++      min_vus: 10,
++      max_vus_configured: 200,
++      step_vus: 10,
++      hard_max_vus: null,
++      duration_default_seconds: 120,
++      duration_max_seconds: 300
++    },
++    telemetry: { result_ttl_seconds: 900 },
++    scenarios: [{ code: 'SALUD', label: 'Salud' }],
++    active_session: null,
++    ...overrides
++  };
++}
++
++function auditRecord(id = 'MG-TEST') {
++  return {
++    schema_version: 1,
++    change_id: id,
++    title: 'Cambio de prueba',
++    module: 'Panel de Control',
++    company: 'GENERAL',
++    type: 'correction',
++    layer: ['FRONTEND'],
++    final_summary: 'Resultado vigente',
++    reason: 'Prueba',
++    user_impact: 'Sin bloqueo',
++    status: 'published',
++    finalized_at: '2026-09-28T09:00:00-06:00',
++    responsible: 'Programador',
++    validation: 'Automática',
++    references: { commit: 'a'.repeat(40), issue: null, pull_request: null }
++  };
++}
++
++function panelControlHarness(apiFn, { timeoutMs = 25 } = {}) {
++  const file = path.join(__dirname, '..', 'modules', 'panel-control', 'panel-control.js');
++  let source = fs.readFileSync(file, 'utf8');
++  source = source.replace('const LOAD_TEST_CAPABILITY_TIMEOUT_MS=5000;', `const LOAD_TEST_CAPABILITY_TIMEOUT_MS=${timeoutMs};`);
++  source = source.replace(
++    /window\.ManttoPanelControl=\{init\};\s*consumeSaveMessage\(\);\s*\}\)\(\);\s*$/,
++    "window.__pcLoadTest={loadLoadTestCapabilities,loadBootstrap,renderMain,state,loadTestHasAccess,shell};window.ManttoPanelControl={init};consumeSaveMessage();})();"
++  );
++
++  const box = { innerHTML: '', querySelector: () => null };
++  const windowObject = {
++    ManttoAuth: {
++      api: apiFn,
++      getUser: () => ({ rol: 'Programador', roles: ['Programador'] })
++    },
++    MANTTO_BUILD_INFO: { provider: 'LOCAL', commit: 'a'.repeat(40) },
++    MANTTO_CHANGE_AUDIT: {
++      schemaVersion: 1,
++      generatedAt: '2026-09-28T15:00:00.000Z',
++      buildCommit: 'a'.repeat(40),
++      changes: [auditRecord()]
++    },
++    setTimeout,
++    clearTimeout
++  };
++  const documentObject = {
++    getElementById(id) { return id === 'pc-content' ? box : null; },
++    querySelector: () => null,
++    head: { appendChild() {} }
++  };
++  const context = {
++    window: windowObject,
++    document: documentObject,
++    sessionStorage: { getItem: () => null, removeItem() {}, setItem() {} },
++    localStorage: { getItem: () => null, removeItem() {}, setItem() {} },
++    Intl,
++    Date,
++    URL,
++    AbortController,
++    setTimeout,
++    clearTimeout,
++    confirm: () => true,
++    console
++  };
++  vm.runInNewContext(source, context);
++  return { api: context.window.__pcLoadTest, box, context };
++}
++
++function deferredCapability({ rejectOnAbort = false } = {}) {
++  let resolvePromise;
++  let rejectPromise;
++  const promise = new Promise((resolve, reject) => {
++    resolvePromise = resolve;
++    rejectPromise = reject;
++  });
++  const api = (_path, options = {}) => {
++    if (rejectOnAbort && options.signal) {
++      options.signal.addEventListener('abort', () => {
++        const error = new Error('aborted');
++        error.name = 'AbortError';
++        rejectPromise(error);
++      }, { once: true });
++    }
++    return promise;
++  };
++  return { api, resolve: resolvePromise, reject: rejectPromise };
++}
++
++test('Hallazgo 1: capacidades son independientes del bootstrap y Auditoría abre con respuesta lenta', async () => {
++  const pending = deferredCapability();
++  const harness = panelControlHarness(pending.api);
++  harness.api.state.error = 'ERROR_GLOBAL_PREEXISTENTE';
++  harness.api.state.bootLoading = true;
++  harness.api.state.tab = 'audit';
++
++  const capabilityPromise = harness.api.loadLoadTestCapabilities();
++  harness.api.renderMain();
++  assert.match(harness.box.innerHTML, /Auditoría de cambios/);
++  assert.equal(harness.api.state.error, 'ERROR_GLOBAL_PREEXISTENTE');
++
++  pending.resolve({ ok: true, data: capabilityData() });
++  await capabilityPromise;
++  assert.equal(harness.api.loadTestHasAccess(), true);
++
++  const source = fs.readFileSync(path.join(__dirname, '..', 'modules', 'panel-control', 'panel-control.js'), 'utf8');
++  const bootstrapBlock = source.slice(source.indexOf('async function loadBootstrap()'), source.indexOf('async function loadRolePermissions'));
++  assert.match(bootstrapBlock, /void loadLoadTestCapabilities\(\{renderAfter:true\}\)/);
++  assert.doesNotMatch(bootstrapBlock, /await\s+loadLoadTestCapabilities/);
++  const auditBranch = source.indexOf("if(state.tab==='audit')");
++  assert.ok(auditBranch >= 0 && auditBranch < source.indexOf('if(state.bootLoading)', auditBranch));
++  assert.ok(auditBranch < source.indexOf('if(state.error)', auditBranch));
++});
++
++test('Hallazgo 1: 403, red y timeout ocultan solo Prueba de Carga y Auditoría sigue disponible; el reintento autoriza', async () => {
++  for (const mode of ['403', 'network', 'timeout']) {
++    const pending = deferredCapability({ rejectOnAbort: mode === 'timeout' });
++    const harness = panelControlHarness(pending.api, { timeoutMs: 20 });
++    harness.api.state.error = 'PANEL_OK';
++    harness.api.state.bootLoading = true;
++    harness.api.state.tab = 'audit';
++
++    const requestPromise = harness.api.loadLoadTestCapabilities();
++    harness.api.renderMain();
++    assert.match(harness.box.innerHTML, /Auditoría de cambios/, `Auditoría debe abrir durante ${mode}`);
++
++    if (mode === '403') {
++      const error = new Error('denegado');
++      error.status = 403;
++      pending.reject(error);
++    } else if (mode === 'network') {
++      pending.reject(new TypeError('network down'));
++    }
++
++    await requestPromise;
++    assert.equal(harness.api.state.loadTestCapabilities, null, `capabilities ocultas en ${mode}`);
++    assert.equal(harness.api.state.error, 'PANEL_OK', `error global intacto en ${mode}`);
++    assert.equal(harness.api.state.tab, 'audit', `Auditoría permanece activa en ${mode}`);
++
++    const authorized = capabilityData();
++    harness.context.window.ManttoAuth.api = async () => ({ ok: true, data: authorized });
++    await harness.api.loadLoadTestCapabilities();
++    assert.equal(harness.api.loadTestHasAccess(), true, `reintento autorizado en ${mode}`);
++  }
++});
++
++test('Hallazgo 1: Recargar datos conserva el reintento de capacidades y el timeout oficial es 5 s', () => {
++  const source = fs.readFileSync(path.join(__dirname, '..', 'modules', 'panel-control', 'panel-control.js'), 'utf8');
++  assert.match(source, /const LOAD_TEST_CAPABILITY_TIMEOUT_MS=5000;/);
++  assert.match(source, /id='pc-reload'|id="pc-reload"/);
++  assert.match(source, /await loadLoadTestCapabilities\(\{renderAfter:true\}\)/);
++  assert.match(source, /await loadBootstrap\(\)/);
++});
++
++
++test('Hallazgo 1: loadBootstrap finaliza aunque capabilities siga pendiente', async () => {
++  let resolveCapabilities;
++  const capabilitiesPending = new Promise(resolve => { resolveCapabilities = resolve; });
++  const apiFn = pathName => {
++    if (String(pathName).includes('/prueba-carga/capabilities')) return capabilitiesPending;
++    if (String(pathName).includes('/panel-control/bootstrap')) {
++      return Promise.resolve({ ok: true, data: { roles: [], usuarios: [], catalogo: [], totales: {} } });
++    }
++    throw new Error(`Ruta inesperada: ${pathName}`);
++  };
++  const harness = panelControlHarness(apiFn, { timeoutMs: 1000 });
++  let bootstrapDone = false;
++  const bootstrapPromise = harness.api.loadBootstrap().then(() => { bootstrapDone = true; });
++  await Promise.race([bootstrapPromise, new Promise(resolve => setTimeout(resolve, 30))]);
++  assert.equal(bootstrapDone, true, 'bootstrap general no debe esperar capabilities');
++  assert.equal(harness.api.state.loadTestCapabilityLoading, true, 'capabilities continúa independiente');
++  resolveCapabilities({ ok: true, data: capabilityData() });
++  await new Promise(resolve => setTimeout(resolve, 0));
++});
++
++test('Hallazgo 1: autorización muestra Prueba de Carga y un fallo de capabilities no rompe las demás pestañas', async () => {
++  const harness = panelControlHarness(async () => ({ ok: true, data: capabilityData() }));
++  harness.api.state.loadTestCapabilities = capabilityData();
++  assert.match(harness.api.shell(), /Prueba de Carga/);
++
++  harness.context.window.ManttoPanelControlPruebaCarga = {
++    render(target) { target.innerHTML = 'LOAD_TEST_OK'; }
++  };
++  harness.api.state.bootLoading = false;
++  harness.api.state.error = '';
++  harness.api.state.tab = 'load-test';
++  harness.api.renderMain();
++  await new Promise(resolve => setTimeout(resolve, 0));
++  assert.equal(harness.box.innerHTML, 'LOAD_TEST_OK');
++
++  const networkError = new TypeError('capabilities offline');
++  harness.context.window.ManttoAuth.api = async () => { throw networkError; };
++  harness.api.state.tab = 'users';
++  await harness.api.loadLoadTestCapabilities();
++  harness.api.renderMain();
++  assert.equal(harness.api.state.error, '', 'el fallo aislado no crea error global');
++  assert.match(harness.box.innerHTML, /pc-workspace/, 'Permisos por usuario sigue renderizando');
++  assert.doesNotMatch(harness.api.shell(), /Prueba de Carga/, 'solo se oculta la pestaña de carga');
++});
++
++function mockResponse() {
++  return {
++    statusCode: 200,
++    writableEnded: false,
++    body: null,
++    status(code) { this.statusCode = code; return this; },
++    json(value) { this.body = value; this.writableEnded = true; return value; },
++    once() { return this; }
++  };
++}
++
++test('Hallazgo 2: tráfico marcado sólo permite GET/HEAD; POST/PUT/PATCH/DELETE nunca llegan a negocio', () => {
++  process.env.DB_HOST ||= '127.0.0.1';
++  process.env.DB_PORT ||= '3306';
++  process.env.DB_USER ||= 'test';
++  process.env.DB_PASSWORD ||= 'test';
++  process.env.DB_NAME ||= 'test';
++  process.env.DB_SSL = 'false';
++
++  const registry = require('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry');
++  const active = registry.getActivePublicSession();
++  if (active) {
++    try { registry.stopSession(active.id, { actorUserId: active.actor_user_id, reason: 'TEST_CLEANUP' }); } catch (_error) {}
++    try { registry.deleteSession(active.id); } catch (_error) {}
++  }
++  const prepared = registry.createSession({ actorUserId: 77, vus: 10, durationSeconds: 30, scenario: 'SALUD' });
++  registry.startSession(prepared.session.id);
++  const { loadTestTelemetryMiddleware } = require('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry');
++
++  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
++    let businessMutations = 0;
++    const req = {
++      method,
++      originalUrl: '/api/negocio/registro/1',
++      get(name) {
++        if (String(name).toLowerCase() === 'x-mantto-load-test') return prepared.session.id;
++        if (String(name).toLowerCase() === 'x-mantto-load-test-token') return prepared.runner_token;
++        return '';
++      }
++    };
++    const res = mockResponse();
++    loadTestTelemetryMiddleware(req, res, () => { businessMutations += 1; });
++    assert.equal(res.statusCode, 405, `${method} debe rechazarse`);
++    assert.equal(res.body?.code, 'LOAD_TEST_READ_ONLY');
++    assert.equal(businessMutations, 0, `${method} no debe llegar a la ruta de negocio`);
++  }
++
++  for (const method of ['GET', 'HEAD']) {
++    let reads = 0;
++    const req = {
++      method,
++      originalUrl: '/api/health',
++      get(name) {
++        if (String(name).toLowerCase() === 'x-mantto-load-test') return prepared.session.id;
++        if (String(name).toLowerCase() === 'x-mantto-load-test-token') return prepared.runner_token;
++        return '';
++      }
++    };
++    const res = mockResponse();
++    loadTestTelemetryMiddleware(req, res, () => { reads += 1; });
++    assert.equal(reads, 1, `${method} debe continuar`);
++  }
++
++  let normalMutation = 0;
++  loadTestTelemetryMiddleware({ method: 'POST', get: () => '', originalUrl: '/api/negocio' }, mockResponse(), () => { normalMutation += 1; });
++  assert.equal(normalMutation, 1, 'una solicitud normal sin cabecera no cambia de comportamiento');
++
++  registry.stopSession(prepared.session.id, { actorUserId: 77, reason: 'TEST' });
++  registry.deleteSession(prepared.session.id);
++});
++
++function withPermissionStub(permissionFn, callback) {
++  const permissionPath = require.resolve('../backend/src/services/permissions/effective-permission.service');
++  const servicePath = require.resolve('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service');
++  const previousPermission = require.cache[permissionPath];
++  const previousService = require.cache[servicePath];
++  require.cache[permissionPath] = {
++    id: permissionPath,
++    filename: permissionPath,
++    loaded: true,
++    exports: { hasEffectivePermission: permissionFn }
++  };
++  delete require.cache[servicePath];
++  const service = require(servicePath);
++  return Promise.resolve()
++    .then(() => callback(service))
++    .finally(() => {
++      delete require.cache[servicePath];
++      if (previousService) require.cache[servicePath] = previousService;
++      if (previousPermission) require.cache[permissionPath] = previousPermission;
++      else delete require.cache[permissionPath];
++    });
++}
++
++test('Hallazgo 3: permisos dependen del actor y no existe acceso por nombre de Programador United/Corellian', async () => {
++  await withPermissionStub(async (userId) => Number(userId) === 501, async service => {
++    const general = { id_SB: 501, rol: 'Programador' };
++    const united = { id_SB: 502, rol: 'Programador United' };
++    const corellian = { id_SB: 503, rol: 'Programador Corellian' };
++
++    const caps = await service.getCapabilities(general);
++    assert.equal(caps.permissions.access, true);
++    await assert.rejects(() => service.getCapabilities(united), error => error?.status === 403 && error?.code === 'LOAD_TEST_ACCESS_DENIED');
++    await assert.rejects(() => service.getCapabilities(corellian), error => error?.status === 403 && error?.code === 'LOAD_TEST_ACCESS_DENIED');
++  });
++});
++
++test('Hallazgo 3: propiedad de sesión se comprueba también al detener', async () => {
++  await withPermissionStub(async () => true, async service => {
++    const owner = { id_SB: 601, rol: 'Programador' };
++    const other = { id_SB: 602, rol: 'Programador' };
++    const created = await service.createSession(owner, { scenario: 'SALUD', vus: 10, duration_seconds: 30 });
++    await assert.rejects(
++      () => service.stopSession(other, created.session.id, 'TEST'),
++      error => error?.status === 403 && error?.code === 'LOAD_TEST_SESSION_OWNER_REQUIRED'
++    );
++    await service.stopSession(owner, created.session.id, 'TEST');
++    await service.deleteSession(owner, created.session.id);
++  });
++});
++
++test('Hallazgo 3: controller usa req.user como actor aunque exista contextUser y bloquea operaciones en Visor', async () => {
++  const servicePath = require.resolve('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service');
++  const controllerPath = require.resolve('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller');
++  const service = require(servicePath);
++  const originalGet = service.getCapabilities;
++  const originalCreate = service.createSession;
++  let seenUser = null;
++  let createCalls = 0;
++  service.getCapabilities = async user => { seenUser = user; return capabilityData(); };
++  service.createSession = async () => { createCalls += 1; return {}; };
++  delete require.cache[controllerPath];
++  const controller = require(controllerPath);
++
++  const res = mockResponse();
++  await controller.getCapabilities({ user: { id_SB: 701 }, contextUser: { id_SB: 999 } }, res, error => { throw error; });
++  assert.equal(seenUser.id_SB, 701);
++
++  const viewerRes = mockResponse();
++  await controller.createSession(
++    { user: { id_SB: 701 }, contextUser: { id_SB: 999 }, viewerContext: { active: true }, body: {} },
++    viewerRes,
++    error => { throw error; }
++  );
++  assert.equal(viewerRes.statusCode, 403);
++  assert.equal(viewerRes.body?.code, 'VIEWER_READ_ONLY');
++  assert.equal(createCalls, 0);
++
++  service.getCapabilities = originalGet;
++  service.createSession = originalCreate;
++  delete require.cache[controllerPath];
++
++  const authSource = fs.readFileSync(path.join(__dirname, '..', 'backend', 'src', 'middleware', 'auth.middleware.js'), 'utf8');
++  assert.match(authSource, /path\.startsWith\('\/api\/panel-control\/prueba-carga'\)/);
++});
++
++function loadTestFrontendHarness(apiFn) {
++  const file = path.join(__dirname, '..', 'modules', 'panel-control-prueba-carga', 'panel-control-prueba-carga.js');
++  let source = fs.readFileSync(file, 'utf8');
++  source = source.replace(
++    /window\.ManttoPanelControlPruebaCarga=\{[\s\S]*?\n  \};\n\}\)\(\);\s*$/,
++    `window.ManttoPanelControlPruebaCarga={render,version:MODULE_VERSION,getPreparedSession(){return state.session&&state.runnerToken?{session:{...state.session},runner_token:state.runnerToken}:null;}};window.__pcltTest={state,refresh,clear,render,reloadCapabilities,recoverExpiredSession};})();`
++  );
++  const context = {
++    window: { ManttoAuth: { api: apiFn } },
++    document: { getElementById: () => null },
++    Date,
++    Intl,
++    setTimeout,
++    clearTimeout,
++    console
++  };
++  vm.runInNewContext(source, context);
++  const api = context.window.__pcltTest;
++  api.state.capabilities = capabilityData();
++  return { api, container: { innerHTML: '' }, context };
++}
++
++function seedFrontendSession(state) {
++  state.session = {
++    id: 'LOAD-EXPIRED',
++    scenario: 'SALUD',
++    vus: 10,
++    duration_seconds: 30,
++    state: 'LISTA',
++    created_at: '2026-09-28T15:00:00Z',
++    expires_at: '2026-09-28T15:01:00Z',
++    telemetry: {}
++  };
++  state.runnerToken = 'TOKEN_LOCAL';
++  state.capabilities = capabilityData({ active_session: { ...state.session } });
++}
++
++test('Hallazgo 4: Actualizar con 404 limpia sesión/token, refresca capacidades y permite preparar otra', async () => {
++  const calls = [];
++  const harness = loadTestFrontendHarness(async pathValue => {
++    calls.push(pathValue);
++    if (pathValue.includes('/session/')) {
++      const error = new Error('expirada');
++      error.status = 404;
++      throw error;
++    }
++    return { ok: true, data: capabilityData({ active_session: null }) };
++  });
++  seedFrontendSession(harness.api.state);
++  await harness.api.refresh(harness.container);
++  assert.equal(harness.api.state.session, null);
++  assert.equal(harness.api.state.runnerToken, null);
++  assert.equal(harness.api.state.error, '');
++  assert.equal(harness.api.state.capabilities.active_session, null);
++  assert.ok(calls.some(item => item.includes('/capabilities')));
++  assert.match(harness.container.innerHTML, /Preparar telemetría/);
++  assert.doesNotMatch(harness.container.innerHTML, /LOAD-EXPIRED/);
++});
++
++test('Hallazgo 4: Limpiar una sesión ya vencida (404) cuenta como completado', async () => {
++  const calls = [];
++  const harness = loadTestFrontendHarness(async (pathValue, options = {}) => {
++    calls.push([pathValue, options.method]);
++    if (options.method === 'DELETE') {
++      const error = new Error('ya venció');
++      error.status = 404;
++      throw error;
++    }
++    return { ok: true, data: capabilityData({ active_session: null }) };
++  });
++  seedFrontendSession(harness.api.state);
++  await harness.api.clear(harness.container);
++  assert.equal(harness.api.state.session, null);
++  assert.equal(harness.api.state.runnerToken, null);
++  assert.equal(harness.api.state.error, '');
++  assert.ok(calls.some(([item]) => item.includes('/capabilities')));
++  assert.match(harness.container.innerHTML, /Preparar telemetría/);
++});
++
++test('Hallazgo 4: errores de red distintos de 404 conservan sesión y token locales', async () => {
++  for (const action of ['refresh', 'clear']) {
++    const harness = loadTestFrontendHarness(async () => { throw new TypeError('red caída'); });
++    seedFrontendSession(harness.api.state);
++    await harness.api[action](harness.container);
++    assert.equal(harness.api.state.session?.id, 'LOAD-EXPIRED', `${action} conserva sesión`);
++    assert.equal(harness.api.state.runnerToken, 'TOKEN_LOCAL', `${action} conserva token`);
++    assert.match(harness.api.state.error, /red caída/);
++  }
++});

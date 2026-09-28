@@ -1,0 +1,154 @@
+VALIDACION - FASE 4 PANEL DE CONTROL / PRUEBA DE CARGA V001
+Fecha: 28/09/2026
+Workspace: version local vigente con Fases 1-3, correcciones pre-Fase 3 y Auditoria
+HEAD Git informativo del workspace: 37780b376465b8906823bc46fed571f3210eff4a (Version 092826.1)
+
+1. VALIDACION ESTATICA JAVASCRIPT
+PASS
+
+Archivos comprobados con node --check:
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+- backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+- backend/src/routes/panel-control.routes.js
+- modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+- modules/panel-control/panel-control.js
+- core/module-loader.js
+- scripts/load-test/mantto-gestor-load-test.k6.js
+- tests/panel-control-prueba-carga-fase3.test.js
+- tests/panel-control-prueba-carga-fase4.test.js
+
+2. PRUEBAS FASE 2 + FASE 3 + FASE 4 + AUDITORIA
+Comando:
+node --test tests/panel-control-prueba-carga-fase2.test.js tests/panel-control-prueba-carga-fase3.test.js tests/panel-control-prueba-carga-fase4.test.js tests/change-audit-generator.test.js
+
+Resultado: PASS - 42/42
+
+Cobertura especifica de Fase 4 confirmada:
+- DETENER cambia EJECUTANDO -> FINALIZANDO.
+- FINALIZANDO publica orden ABORT al runner.
+- runner-stop-ack confirma recepcion de la orden.
+- cierre confirmado termina ABORTADA_MANUAL para cancelacion manual.
+- FINALIZANDO bloquea una segunda prueba.
+- timeout sin confirmacion termina ABORTADA_SIN_CONFIRMACION / INCOMPLETO y libera el servidor.
+- VUs objetivo y VUs activos k6 se mantienen separados de requests activos backend.
+- runner reporta muestras temporales de VUs activos.
+- proteccion por HTTP 5xx puede solicitar aborto automatico.
+- proteccion por p95 backend puede solicitar aborto automatico.
+- runner incluye polling de control, ACK, exec.test.abort(), runner-abort y runner-finish.
+- runner Fase 4 NO incorpora handleSummary() prematuramente.
+- UI etiqueta RPS backend y p95 backend.
+- UI contiene boton real DETENER PRUEBA durante ejecucion autorizada.
+- endpoints administrativos conservan requireAuth.
+- endpoints runner usan token efimero propio en lugar de JWT por heartbeat.
+- 200 VUs permanece como configuracion inicial, no hard limit.
+
+3. AUDITORIA
+Prueba incluida en la corrida 42/42 y comprobada de forma especifica:
+node --test tests/change-audit-generator.test.js
+Resultado de esa suite: PASS - 5/5
+
+Bloque protegido comparado contra snapshot exacto inmediatamente anterior a Fase 4:
+const AUDIT_ZONE='America/Mexico_City'; ... antes de function filteredItems()
+Resultado: IDENTICO BYTE A BYTE
+Bytes: 7956
+SHA-256 base: 4f5356d9348fb1dfd3d8aab08826ea15c74e127f672b5e27e1ea7b148e776a31
+SHA-256 Fase 4: 4f5356d9348fb1dfd3d8aab08826ea15c74e127f672b5e27e1ea7b148e776a31
+
+Se conservan:
+- auditWeek
+- auditCompany
+- auditModule
+- auditType
+- auditLayer
+- tab Auditoria
+- rama renderMain() de Auditoria antes de bootLoading/error
+- .pc-change-audit
+- core/change-audit.generated.js
+- core/build-info.generated.js
+- audit/changes/
+- tools/generate-change-audit.js
+
+El diff de modules/panel-control/panel-control.js contiene unicamente la renovacion de LOAD_TEST_ASSET_VERSION.
+
+4. BACKEND
+Comando:
+cd backend && npm run check
+Resultado: PASS - Estructura base validada correctamente
+
+Comando:
+cd backend && npm test
+Resultado: PASS - 76/76
+
+5. DIFF CHECK DE FASE 4
+Baseline: bytes exactos del workspace inmediatamente anterior a Fase 4.
+Metodo: repositorio Git temporal creado desde phase4_base, sin reutilizar el .git local del usuario.
+Comando:
+git diff --check
+Resultado del delta aislado de Fase 4: PASS
+
+El .git original del workspace contiene cambios locales previos ajenos a Fase 4; no se usa como base para decidir que archivos entregar ni se normalizan archivos no relacionados.
+
+6. ARCHIVOS COMPARTIDOS
+modules/panel-control/panel-control.js:
+- solo cambia LOAD_TEST_ASSET_VERSION.
+
+core/module-loader.js:
+- solo cambia cache-bust de panel-control Fase 3 -> Fase 4.
+
+index.html:
+- solo cambia cache-bust de core/module-loader.js Fase 3 -> Fase 4.
+
+7. PERSISTENCIA / SQL
+PASS
+- No se agregan tablas.
+- No se agregan columnas.
+- No se agregan indices.
+- No existe migracion SQL para Fase 4.
+- Registry, token y telemetria siguen en RAM.
+- Fase 4 no guarda reportes ni historico.
+
+8. LIMITE DE VUS
+PASS
+- Autoridad: LOAD_TEST_MAX_VUS.
+- Paso: LOAD_TEST_VUS_STEP.
+- 200 es fallback/meta inicial, no hard limit.
+- El runner recibe MANTTO_MAX_VUS desde capabilities.
+- No existe Math.min(..., 200) ni rechazo fijo >200 en el modulo.
+
+9. CONTROL DE UNA SOLA PRUEBA
+PASS
+- LISTA bloquea otra sesion.
+- EJECUTANDO bloquea otra sesion.
+- FINALIZANDO bloquea otra sesion.
+- estado terminal libera la posibilidad de preparar otra.
+- timeout sin confirmacion evita bloqueo indefinido.
+
+10. UNA SOLA INSTANCIA / PROCESO
+Se conserva la condicion V001 de Fase 3:
+LOAD_TEST_SINGLE_INSTANCE=true
+
+La validacion real del numero de replicas del hosting NO se ejecuto en este entorno. Antes de una prueba real, la configuracion operativa debe mantener una sola replica y un solo proceso backend.
+
+11. VALIDACIONES NO EJECUTADAS
+- k6 real: NO ejecutado; k6 no esta instalado en este entorno.
+- PowerShell real: NO ejecutado; pwsh/powershell no esta instalado en este entorno.
+- prueba de carga contra Produccion: NO ejecutada.
+- navegador E2E real: NO ejecutado.
+- Azure Scale Out/recuento de replicas: NO consultado ni modificado.
+- GitHub: NO modificado, sin commit/push.
+- Aiven: NO modificado.
+- Azure: NO desplegado/modificado.
+- GitHub Pages: NO desplegado.
+- Netlify: NO desplegado/modificado.
+
+12. ALCANCE PENDIENTE
+Fase 4 NO implementa handleSummary(), resumen final k6 ni reporte final.
+Esos elementos corresponden a Fase 5.
+
+13. ESTADO DE FASE
+FASE 4: IMPLEMENTADA Y VALIDADA ESTATICAMENTE/UNITARIAMENTE.
+PRUEBA REAL k6 / PRODUCCION: NO VALIDADA.
+FASE 5: NO INICIADA.

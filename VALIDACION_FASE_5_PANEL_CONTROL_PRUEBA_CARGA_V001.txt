@@ -1,0 +1,47 @@
+VALIDACION - FASE 5 PANEL DE CONTROL / PRUEBA DE CARGA V001
+Fecha: 28/09/2026
+
+BASE
+- Workspace local vigente integrado con Fases 1-4 y Auditoria.
+- Fase 5 se fusiono sobre ese workspace; no se reconstruyo desde un commit historico.
+
+RESULTADOS
+[PASS] node --test Fases 2 + 3 + 4 + 5 + Auditoria: 49/49
+[PASS] tests/panel-control-prueba-carga-fase5.test.js: 7/7
+[PASS] backend npm run check
+[PASS] backend npm test: 76/76
+[PASS] node --check de archivos JavaScript modificados
+[PASS] parseo del runner k6 mediante copia .mjs + node --check
+[PASS] git diff --check del delta aislado: sin errores de whitespace
+[PASS] git apply --check del patch aislado contra baseline Fase 4
+[PASS] bloque protegido de Auditoria: identico byte a byte contra Fase 4
+[PASS] auditWeek, auditCompany, auditModule, auditType y auditLayer conservados
+[PASS] rama renderMain() de Auditoria conservada
+[PASS] LOAD_TEST_MAX_VUS continua configurable; test explicito con 1000 VUs permitido y 1010 rechazado
+[PASS] no se agregan tablas ni persistencia de resultados
+
+COBERTURA FASE 5
+[PASS] runner-summary autenticado con token efimero
+[PASS] summary aceptado una sola vez
+[PASS] summary ligado a session_id y VUs de la sesion
+[PASS] summary aceptable durante FINALIZANDO
+[PASS] timeout sin summary => INCOMPLETO
+[PASS] ABORTADA_SIN_CONFIRMACION => reporte INCOMPLETO
+[PASS] reporte temporal en RAM
+[PASS] metricas k6 separadas de metricas backend
+[PASS] datos k6 ausentes => N/D; no se inventan desde Express
+[PASS] endpoint autenticado para leer reporte
+[PASS] frontend muestra integridad y permite Copiar reporte
+[PASS] frontend sigue polling durante PENDIENTE_RESUMEN
+[PASS] Limpiar bloqueado mientras summary esta pendiente
+[PASS] handleSummary(data, setupData) reutiliza el token del setup sin escribirlo en archivo/reporte
+[PASS] runner devuelve {} desde handleSummary para no crear salida local de reporte
+
+LIMITACIONES DE VALIDACION
+- No se ejecuto una carga k6 real contra un despliegue del Gestor desde este entorno.
+- No se modifico GitHub, Aiven, Azure, GitHub Pages ni Netlify.
+- No se ejecuto SQL; Fase 5 no requiere SQL.
+
+CONCLUSION
+La implementacion y las regresiones automatizadas de Fase 5 pasan las validaciones anteriores.
+No puedo confirmar el comportamiento de una carga k6 real ni la capacidad concurrente del servidor hasta ejecutar la prueba controlada en el entorno autorizado.

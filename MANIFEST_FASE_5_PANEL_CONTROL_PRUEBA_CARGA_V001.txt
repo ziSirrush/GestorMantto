@@ -1,0 +1,33 @@
+FASE 5 - PANEL DE CONTROL / PRUEBA DE CARGA V001
+Entrega: archivos modificados/nuevos + referencia protegida de Auditoria + evidencias de validacion.
+
+ARCHIVOS DE IMPLEMENTACION:
+README_FASE_5_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+backend/.env.example
+backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+backend/src/modules/panel-control-prueba-carga/README.md
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.report.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+core/module-loader.js
+implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+index.html
+modules/panel-control-prueba-carga/panel-control-prueba-carga.css
+modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+modules/panel-control/panel-control.js
+scripts/load-test/mantto-gestor-load-test.k6.js
+tests/panel-control-prueba-carga-fase3.test.js
+tests/panel-control-prueba-carga-fase4.test.js
+tests/panel-control-prueba-carga-fase5.test.js
+
+ARCHIVO PROTEGIDO INCLUIDO SIN MODIFICAR:
+implementacion/CODIGO_AUDITORIA_A_CONSERVAR_V001.md
+
+EVIDENCIAS DE ENTREGA:
+VALIDACION_FASE_5_PANEL_CONTROL_PRUEBA_CARGA_V001.txt
+DIFF_FASE_5_PANEL_CONTROL_PRUEBA_CARGA_V001.patch
+
+SQL: NO APLICA. No se crean ni modifican tablas.

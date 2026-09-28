@@ -72,15 +72,31 @@
     informationScopeBulkSelected:new Set(),
     informationScopeBulkDraft:{dominios_completos:new Set(),agrupaciones:new Set(),ver_propio:true,ver_reporta_a:false,ver_rel_admin:false},
     savingInformationScope:false,
-    savingInformationScopeBulk:false
+    savingInformationScopeBulk:false,
+    loadTestCapabilities:null,
+    loadTestCapabilityError:'',
+    loadTestCapabilityLoading:false,
+    auditWeek:null,
+    auditCompany:'',
+    auditModule:'',
+    auditType:'',
+    auditLayer:''
   };
 
   const esc=(v)=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const api=()=>window.ManttoAuth;
   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
   const NOTIFICATION_KEY_SEPARATOR='\u0000';
+  const LOAD_TEST_TAB='load-test';
+  const LOAD_TEST_ASSET_VERSION='20260928-fase5-correcciones-v001';
+  const LOAD_TEST_JS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.js?v=${LOAD_TEST_ASSET_VERSION}`;
+  const LOAD_TEST_CSS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.css?v=${LOAD_TEST_ASSET_VERSION}`;
   let saveStatusTimer=null;
   let resetCredentialStatusTimer=null;
+  let loadTestAssetsPromise=null;
+  let loadTestCapabilityAbortController=null;
+  let loadTestCapabilityRequestSeq=0;
+  const LOAD_TEST_CAPABILITY_TIMEOUT_MS=5000;
 
   function consumeSaveMessage(){
     const message=sessionStorage.getItem('mantto:panel-control:save-message');
@@ -92,6 +108,113 @@
   async function request(path,options){
     if(!api()) throw new Error('No se encontró el servicio de autenticación.');
     return api().api(path,options||{method:'GET'});
+  }
+
+  function loadTestHasAccess(){
+    return Boolean(state.loadTestCapabilities?.permissions?.access);
+  }
+
+  async function loadLoadTestCapabilities({renderAfter=false}={}){
+    const requestSeq=++loadTestCapabilityRequestSeq;
+    if(loadTestCapabilityAbortController) loadTestCapabilityAbortController.abort();
+    const controller=typeof AbortController==='function'?new AbortController():null;
+    loadTestCapabilityAbortController=controller;
+    state.loadTestCapabilityLoading=true;
+    state.loadTestCapabilityError='';
+    let timedOut=false;
+    let timeoutId;
+    const timeoutPromise=new Promise((_,reject)=>{
+      timeoutId=window.setTimeout(()=>{
+        timedOut=true;
+        controller?.abort();
+        reject(new Error('La consulta de capacidades de Prueba de Carga excedió 5 segundos.'));
+      },LOAD_TEST_CAPABILITY_TIMEOUT_MS);
+    });
+    try{
+      const options={method:'GET',cache:'no-store'};
+      if(controller) options.signal=controller.signal;
+      const json=await Promise.race([
+        request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,options),
+        timeoutPromise
+      ]);
+      if(requestSeq!==loadTestCapabilityRequestSeq)return state.loadTestCapabilities;
+      state.loadTestCapabilities=json.data||null;
+    }catch(error){
+      if(requestSeq!==loadTestCapabilityRequestSeq)return state.loadTestCapabilities;
+      state.loadTestCapabilities=null;
+      const status=Number(error?.status||0);
+      if(status!==403){
+        state.loadTestCapabilityError=timedOut
+          ?'La consulta de capacidades de Prueba de Carga excedió 5 segundos.'
+          :(error?.message||'No fue posible consultar las capacidades de Prueba de Carga.');
+      }
+      if(state.tab===LOAD_TEST_TAB) state.tab='users';
+    }finally{
+      window.clearTimeout(timeoutId);
+      if(requestSeq===loadTestCapabilityRequestSeq){
+        loadTestCapabilityAbortController=null;
+        state.loadTestCapabilityLoading=false;
+        if(renderAfter) render();
+      }
+    }
+    return state.loadTestCapabilities;
+  }
+
+  function ensureLoadTestAssets(){
+    if(window.ManttoPanelControlPruebaCarga?.render) return Promise.resolve(true);
+    if(loadTestAssetsPromise) return loadTestAssetsPromise;
+    loadTestAssetsPromise=new Promise((resolve,reject)=>{
+      if(!document.querySelector(`link[data-mantto-load-test-css="${LOAD_TEST_ASSET_VERSION}"]`)){
+        const link=document.createElement('link');
+        link.rel='stylesheet';
+        link.href=LOAD_TEST_CSS;
+        link.dataset.manttoLoadTestCss=LOAD_TEST_ASSET_VERSION;
+        document.head.appendChild(link);
+      }
+      const existing=document.querySelector(`script[data-mantto-load-test-js="${LOAD_TEST_ASSET_VERSION}"]`);
+      if(existing){
+        if(window.ManttoPanelControlPruebaCarga?.render){resolve(true);return;}
+        existing.addEventListener('load',()=>resolve(true),{once:true});
+        existing.addEventListener('error',()=>reject(new Error('No fue posible cargar Prueba de Carga.')),{once:true});
+        return;
+      }
+      const script=document.createElement('script');
+      script.src=LOAD_TEST_JS;
+      script.async=true;
+      script.dataset.manttoLoadTestJs=LOAD_TEST_ASSET_VERSION;
+      script.addEventListener('load',()=>resolve(true),{once:true});
+      script.addEventListener('error',()=>reject(new Error('No fue posible cargar Prueba de Carga.')),{once:true});
+      document.head.appendChild(script);
+    }).catch(error=>{
+      loadTestAssetsPromise=null;
+      throw error;
+    });
+    return loadTestAssetsPromise;
+  }
+
+  async function renderLoadTestPanel(){
+    const box=document.getElementById('pc-content');
+    if(!box||state.tab!==LOAD_TEST_TAB)return;
+    updateSaveButton();
+    if(!loadTestHasAccess()){
+      box.innerHTML='<section class="pc-permissions"><div class="pc-empty large">No tienes permiso para abrir Prueba de Carga.</div></section>';
+      return;
+    }
+    box.innerHTML='<section class="pc-permissions"><div class="pc-empty large"><span class="pc-spinner"></span>Cargando Prueba de Carga...</div></section>';
+    try{
+      await ensureLoadTestAssets();
+      if(state.tab!==LOAD_TEST_TAB)return;
+      const target=document.getElementById('pc-content');
+      if(!target)return;
+      if(!window.ManttoPanelControlPruebaCarga?.render){
+        throw new Error('El submódulo Prueba de Carga no expuso su renderizador.');
+      }
+      window.ManttoPanelControlPruebaCarga.render(target,state.loadTestCapabilities);
+    }catch(error){
+      if(state.tab!==LOAD_TEST_TAB)return;
+      const target=document.getElementById('pc-content');
+      if(target) target.innerHTML=`<section class="pc-permissions"><div class="pc-empty large"><b>No fue posible abrir Prueba de Carga.</b><br>${esc(error.message||'Error de carga del submódulo.')}</div></section>`;
+    }
   }
 
   const informationScopePath=(id)=>`/api/panel-control/usuarios/${Number(id)}/alcance-informacion`;
@@ -419,6 +542,7 @@
     state.error='';
     render();
     try{
+      void loadLoadTestCapabilities({renderAfter:true});
       const json=await request('/api/panel-control/bootstrap');
       const data=json.data||{};
       state.roles=data.roles||[];
@@ -1039,7 +1163,7 @@
         <article><b>${esc(state.totals.permisos_disponibles||0)}</b><span>Permisos disponibles</span></article>
         <article><b>${esc(state.totals.personalizaciones_activas||0)}</b><span>Personalizaciones activas</span></article>
       </section>
-      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="information-scope" class="${state.tab==='information-scope'?'active':''}">Alcance de información</button><button data-tab="notifications" class="${state.tab==='notifications'?'active':''}">Notificaciones</button>${window.ManttoUserViewer?.allowed?.()?`<button data-tab="viewer" class="${state.tab==='viewer'?'active':''}">Visor de usuarios</button>`:''}<button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
+      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="information-scope" class="${state.tab==='information-scope'?'active':''}">Alcance de información</button><button data-tab="notifications" class="${state.tab==='notifications'?'active':''}">Notificaciones</button>${window.ManttoUserViewer?.allowed?.()?`<button data-tab="viewer" class="${state.tab==='viewer'?'active':''}">Visor de usuarios</button>`:''}${loadTestHasAccess()?`<button data-tab="${LOAD_TEST_TAB}" class="${state.tab===LOAD_TEST_TAB?'active':''}">Prueba de Carga</button>`:''}<button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
       <div id="pc-content"></div><div class="pc-toast" id="pc-toast"></div>
     </div>`;
   }
@@ -1049,6 +1173,10 @@
     if(!view)return;
     view.innerHTML=shell();
     document.getElementById('pc-reload')?.addEventListener('click',async()=>{
+      if(state.tab===LOAD_TEST_TAB){
+        await loadLoadTestCapabilities({renderAfter:true});
+        return;
+      }
       if(state.tab==='notifications'){
         await loadNotificationMatrix();
         return;
@@ -1094,22 +1222,117 @@
   function renderMain(){
     const box=document.getElementById('pc-content');
     if(!box)return;
+    if(state.tab==='audit'){
+      renderChangeAudit(box);
+      updateSaveButton();
+      return;
+    }
     if(state.bootLoading){box.innerHTML='<section class="pc-permissions"><div class="pc-empty large">Cargando información real desde Aiven...</div></section>';return;}
     if(state.error){box.innerHTML=`<section class="pc-permissions"><div class="pc-empty large"><b>No se pudo cargar el Panel de Control.</b><br>${esc(state.error)}</div></section>`;return;}
     if(state.tab==='admin-users'){ renderAdminUsers(); return; }
     if(state.tab==='admin-roles'){ renderAdminRoles(); return; }
     if(state.tab==='information-scope'){ renderInformationScope(); return; }
     if(state.tab==='notifications'){ renderNotificationPanel(); return; }
+    if(state.tab===LOAD_TEST_TAB){ renderLoadTestPanel(); return; }
     if(state.tab==='viewer'){ window.ManttoUserViewer?.renderPanel?.(box); updateSaveButton(); return; }
-    if(state.tab==='audit'){
-      box.innerHTML='<section class="pc-audit"><div class="pc-audit-head"><div><span class="pc-eyebrow">TRAZABILIDAD</span><h2>Auditoría</h2><p>La auditoría histórica completa se integrará en una tabla dedicada. Los campos created_by, updated_by, created_at y updated_at ya se actualizan al guardar.</p></div></div></section>';
-      updateSaveButton();
-      return;
-    }
     box.innerHTML='<div class="pc-workspace"><aside class="pc-selector"></aside><section class="pc-permissions" id="pc-permission-panel"></section></div>';
     renderSelectorShell();
     renderPermissionPanel();
     updateSaveButton();
+  }
+
+  const AUDIT_ZONE='America/Mexico_City';
+  const auditPartsFormatter=new Intl.DateTimeFormat('en-US',{timeZone:AUDIT_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  const auditTypeLabels={feature:'Función',correction:'Corrección',security:'Seguridad',configuration:'Configuración',data:'Datos',maintenance:'Mantenimiento'};
+
+  function auditLocalParts(date){
+    return Object.fromEntries(auditPartsFormatter.formatToParts(date).filter(part=>part.type!=='literal').map(part=>[part.type,Number(part.value)]));
+  }
+
+  function auditWeekKey(date){
+    const p=auditLocalParts(date);
+    const day=new Date(Date.UTC(p.year,p.month-1,p.day));
+    day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);
+    return day.toISOString().slice(0,10);
+  }
+
+  function auditDayLabel(date){
+    return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
+  }
+
+  function auditWeekLabel(key){
+    const monday=new Date(`${key}T00:00:00Z`);
+    const sunday=new Date(monday);
+    sunday.setUTCDate(sunday.getUTCDate()+6);
+    return `${auditDayLabel(monday)} - 00:00 a ${auditDayLabel(sunday)} - 23:59`;
+  }
+
+  function auditDateLabel(value){
+    const p=auditLocalParts(new Date(value));
+    return `${String(p.day).padStart(2,'0')}/${String(p.month).padStart(2,'0')}/${p.year} - ${String(p.hour).padStart(2,'0')}:${String(p.minute).padStart(2,'0')}`;
+  }
+
+  function auditCompaniesForUser(){
+    const user=api()?.getUser?.()||{};
+    const roles=[user.rol,...(Array.isArray(user.roles)?user.roles:[])].map(role=>typeof role==='string'?role:role?.rol).filter(Boolean);
+    if(roles.includes('Programador')||roles.includes('Director General'))return ['GENERAL','UNITED','CORELLIAN'];
+    const allowed=['GENERAL'];
+    if(roles.includes('Programador United'))allowed.push('UNITED');
+    if(roles.includes('Programador Corellian'))allowed.push('CORELLIAN');
+    return allowed.length>1?allowed:[];
+  }
+
+  function auditOptions(values,selected,allLabel){
+    return `<option value="">${esc(allLabel)}</option>${values.map(value=>`<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(auditTypeLabels[value]||value)}</option>`).join('')}`;
+  }
+
+  function auditReference(url,label){
+    if(typeof url!=='string')return '';
+    try{
+      const parsed=new URL(url);
+      if(parsed.protocol!=='https:'||parsed.hostname!=='github.com')return '';
+      return `<a href="${esc(parsed.href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
+    }catch(_){return '';}
+  }
+
+  function renderChangeAudit(box){
+    const artifact=window.MANTTO_CHANGE_AUDIT;
+    const build=window.MANTTO_BUILD_INFO||{};
+    const allowed=auditCompaniesForUser();
+    const auditAvailable=artifact?.schemaVersion===1&&Array.isArray(artifact.changes)&&(!build.commit||artifact.buildCommit===build.commit);
+    const records=auditAvailable?artifact.changes:[];
+    const scoped=records.filter(item=>allowed.includes(item.company)&&item.status==='published');
+    const today=auditWeekKey(new Date());
+    const weeks=[...new Set([today,...scoped.map(item=>auditWeekKey(new Date(item.finalized_at)))] )].sort().reverse();
+    if(!state.auditWeek)state.auditWeek=today;
+    if(!weeks.includes(state.auditWeek))state.auditWeek=today;
+    const weekRows=scoped.filter(item=>auditWeekKey(new Date(item.finalized_at))===state.auditWeek);
+    const modules=[...new Set(weekRows.map(item=>item.module))].sort((a,b)=>a.localeCompare(b,'es'));
+    const types=[...new Set(weekRows.map(item=>item.type))].sort();
+    const layers=[...new Set(weekRows.flatMap(item=>item.layer||[]))].sort();
+    const companies=[...new Set(weekRows.map(item=>item.company))].sort();
+    const visible=weekRows.filter(item=>(!state.auditCompany||item.company===state.auditCompany)&&(!state.auditModule||item.module===state.auditModule)&&(!state.auditType||item.type===state.auditType)&&(!state.auditLayer||item.layer?.includes(state.auditLayer)));
+    const moduleCount=new Set(visible.map(item=>item.module)).size;
+    const buildCommit=String(build.commit||artifact?.buildCommit||'');
+    const buildLabel=build.provider||build.environment||'DESCONOCIDO';
+    const updated=artifact?.generatedAt?auditDateLabel(artifact.generatedAt):'No disponible';
+    box.innerHTML=`<section class="pc-audit pc-change-audit">
+      <div class="pc-audit-head"><div><span class="pc-eyebrow">TRAZABILIDAD DEL SISTEMA</span><h2>Auditoría de cambios</h2><p>Semana: ${esc(auditWeekLabel(state.auditWeek))} · Ciudad de México</p></div><div class="pc-audit-deploy"><span>Entorno: ${esc(buildLabel)}</span><span>Commit: ${esc(buildCommit.slice(0,7)||'No disponible')}</span><span>Registro actualizado: ${esc(updated)}</span></div></div>
+      <div class="pc-audit-baseline">Historial disponible desde la activación de Auditoría de cambios. Los registros anteriores se incorporan únicamente cuando existe evidencia verificable.</div>
+      <div class="pc-audit-filters">
+        <label>Semana<select id="pc-audit-week">${weeks.map(week=>`<option value="${esc(week)}" ${week===state.auditWeek?'selected':''}>${esc(auditWeekLabel(week))}</option>`).join('')}</select></label>
+        <label>Empresa<select id="pc-audit-company">${auditOptions(companies,state.auditCompany,'Todas las empresas')}</select></label>
+        <label>Módulo<select id="pc-audit-module">${auditOptions(modules,state.auditModule,'Todos los módulos')}</select></label>
+        <label>Tipo<select id="pc-audit-type">${auditOptions(types,state.auditType,'Todos los tipos')}</select></label>
+        <label>Capa<select id="pc-audit-layer">${auditOptions(layers,state.auditLayer,'Todas las capas')}</select></label>
+      </div>
+      <div class="pc-audit-totals"><article><b>${visible.length}</b><span>Cambios lógicos</span></article><article><b>${moduleCount}</b><span>Módulos afectados</span></article></div>
+      <div class="pc-audit-cards">${visible.length?visible.map(item=>`<article class="pc-audit-card"><div class="pc-audit-card-top"><span class="pc-status ok">Vigente</span><span>${esc(auditTypeLabels[item.type]||item.type)}</span></div><h3>${esc(item.title)}</h3><p class="pc-audit-meta">${esc(item.company)} · ${esc(item.module)}</p><p>${esc(item.final_summary)}</p><p><b>Impacto:</b> ${esc(item.user_impact)}</p><div class="pc-audit-card-bottom"><span>${esc(auditDateLabel(item.finalized_at))}</span><span>Commit ${esc(item.references.commit.slice(0,7))}</span></div><p><b>Validación:</b> ${esc(item.validation)}</p><details><summary>Detalle técnico</summary><dl><dt>SHA completo</dt><dd>${esc(item.references.commit)}</dd><dt>Capa</dt><dd>${esc(item.layer.join(', '))}</dd><dt>Motivo</dt><dd>${esc(item.reason)}</dd><dt>Responsable</dt><dd>${esc(item.responsible)}</dd></dl><div class="pc-audit-links">${auditReference(`https://github.com/ziSirrush/GestorMantto/commit/${item.references.commit}`,'Ver commit')}${auditReference(item.references.issue,'Issue')}${auditReference(item.references.pull_request,'Pull request')}</div></details></article>`).join(''):`<div class="pc-empty large">${weekRows.length?'Sin cambios con los filtros seleccionados.':'Sin cambios publicados esta semana.'}</div>`}</div>
+      ${!auditAvailable?'<p class="pc-audit-error">No se pudo cargar el registro de Auditoría de esta versión. Recarga la página para obtener los metadatos actuales.</p>':''}
+    </section>`;
+    const rerender=()=>renderChangeAudit(box);
+    box.querySelector('#pc-audit-week')?.addEventListener('change',event=>{state.auditWeek=event.target.value;state.auditCompany='';state.auditModule='';state.auditType='';state.auditLayer='';rerender();});
+    for(const [id,key] of [['company','auditCompany'],['module','auditModule'],['type','auditType'],['layer','auditLayer']])box.querySelector(`#pc-audit-${id}`)?.addEventListener('change',event=>{state[key]=event.target.value;rerender();});
   }
 
   function filteredItems(){

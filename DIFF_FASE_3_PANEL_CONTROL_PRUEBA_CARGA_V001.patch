@@ -1,0 +1,2043 @@
+diff --git a/backend/.env.example b/backend/.env.example
+index f2d2927..555f9dd 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -160,6 +160,13 @@ LOAD_TEST_MIN_VUS=10
+ LOAD_TEST_VUS_STEP=10
+ LOAD_TEST_MAX_VUS=200
+ 
++# Fase 3 runner externo. V001 falla cerrado si estas dos variables no estan listas.
++# LOAD_TEST_SINGLE_INSTANCE=true es una confirmacion operativa del despliegue:
++# debe existir una sola replica / un solo proceso backend mientras corre la prueba.
++LOAD_TEST_SINGLE_INSTANCE=false
++# Origen exacto autorizado del backend Mantto Gestor. No incluir ruta, query ni fragmento.
++LOAD_TEST_ALLOWED_ORIGIN=https://mantto-gestor-api-a4hwfpgvbeb4gmgj.mexicocentral-01.azurewebsites.net
++
+ # Panel de Control -> Prueba de Carga -> Fase 2 telemetria efimera
+ # La sesion LISTA expira si no se inicia. Los resultados finalizados viven solo en RAM
+ # durante el TTL para permitir copiar el reporte; no se persisten en BD ni archivos.
+diff --git a/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md b/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+index caf247e..1581b9b 100644
+--- a/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
++++ b/backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+@@ -1,5 +1,22 @@
+ # CHANGELOG
+ 
++## V001.2 - Fase 3 runner seguro - 2026-09-28
++
++- Runner k6 externo con catálogo fijo de escenarios de lectura.
++- `runner-claim` de un solo uso: la pantalla ya no recibe el token efímero.
++- Token del runner almacenado únicamente como hash SHA-256 en RAM.
++- Claim/arranque ligados al actor autenticado propietario de la sesión.
++- `LOAD_TEST_SINGLE_INSTANCE=true` obligatorio y guard contra workers de Node cluster.
++- `LOAD_TEST_ALLOWED_ORIGIN` obligatorio; target externo rechazado.
++- Origen productivo versionado en el runner; `TARGET_URL` no puede sobreescribirlo.
++- Redirecciones k6 desactivadas globalmente y por request.
++- Header de process-instance para detectar tráfico que llegue a otro proceso.
++- Launcher PowerShell con captura segura de JWT y limpieza de variables de entorno.
++- Identidad operadora separada de identidad funcional de prueba.
++- Sin `handleSummary()` todavía; reporte final queda para Fase 5.
++- Sin canal de detención real todavía; queda para Fase 4.
++- Sin tablas ni persistencia.
++
+ ## V001.1 - Correcciones pre-Fase 3 - 2026-09-28
+ 
+ - Capacidades desacopladas del bootstrap general del Panel de Control, con timeout de 5 s y fallo aislado.
+diff --git a/backend/src/modules/panel-control-prueba-carga/README.md b/backend/src/modules/panel-control-prueba-carga/README.md
+index dddc1cf..35b7460 100644
+--- a/backend/src/modules/panel-control-prueba-carga/README.md
++++ b/backend/src/modules/panel-control-prueba-carga/README.md
+@@ -1,26 +1,27 @@
+ # Panel de Control - Prueba de Carga
+ 
+-## Fase 2
++## Fase 3
+ 
+-Fase 2 agrega la **sesión efímera de telemetría** al tab `Prueba de Carga` dentro de Panel de Control.
++Fase 3 agrega el **runner k6 externo seguro** sobre la telemetría efímera de Fase 2.
+ 
+ Incluye:
+ 
+ - registro temporal en RAM;
+ - una sola prueba `LISTA` / `EJECUTANDO` por servidor;
+-- `session-id` y token efímero;
+-- TTL de sesión preparada y TTL de resultados finalizados;
+-- middleware `X-Mantto-Load-Test` + `X-Mantto-Load-Test-Token`;
+-- métricas HTTP del backend;
+-- métricas Node.js y host;
+-- métricas MySQL disponibles mediante `SHOW GLOBAL STATUS`;
+-- instrumentación temporal de queries y espera explícita de `getConnection()`;
+-- fingerprints y `sql_shape` anonimizado reutilizando la observabilidad vigente;
+-- límites de memoria para muestras, endpoints y fingerprints;
++- `runner-claim` de un solo uso;
++- el navegador ya no recibe ni conserva el token del runner;
++- el backend guarda únicamente SHA-256 del token efímero;
++- claim ligado al actor autenticado propietario y al permiso efectivo de ejecución;
++- origen de carga cerrado mediante `LOAD_TEST_ALLOWED_ORIGIN`;
++- requisito fail-closed `LOAD_TEST_SINGLE_INSTANCE=true` para V001;
++- identificador efímero de proceso para detectar tráfico que llegue a otra instancia;
++- catálogo versionado de escenarios y rutas de solo lectura;
++- redirecciones desactivadas en k6;
++- launcher PowerShell que pide JWT del Programador general y JWT de identidad funcional de prueba mediante prompt seguro;
++- secretos transmitidos al proceso k6 únicamente por variables de entorno heredadas y eliminadas al finalizar;
+ - cero persistencia en MySQL, archivos o almacenamiento web.
+-- tráfico marcado de prueba limitado estrictamente a `GET` / `HEAD`;
+-- permisos y propiedad de sesión evaluados con el actor autenticado, no con el usuario observado del Visor;
+-- recuperación en UI cuando una sesión efímera vence por TTL, sin borrar estado local ante errores de red distintos de `404`.
++
++La identidad operadora y la identidad funcional de prueba son deliberadamente separadas. El Programador general reclama/inicia la sesión. Los GET de carga usan otra identidad existente con los permisos de lectura requeridos por el escenario.
+ 
+ ## Endpoints disponibles
+ 
+@@ -28,24 +29,103 @@ Incluye:
+ GET    /api/panel-control/prueba-carga/capabilities
+ POST   /api/panel-control/prueba-carga/session
+ GET    /api/panel-control/prueba-carga/session/:id
++POST   /api/panel-control/prueba-carga/session/:id/runner-claim
+ POST   /api/panel-control/prueba-carga/session/:id/start
+ POST   /api/panel-control/prueba-carga/session/:id/stop
+ DELETE /api/panel-control/prueba-carga/session/:id
+ ```
+ 
+-`start` abre la ventana de telemetría, pero Fase 2 **no genera carga**. El runner k6 se agrega en Fase 3.
++`runner-claim` solo se puede consumir una vez y únicamente mientras la sesión está `LISTA`. `start` exige que el claim ya haya ocurrido.
++
++## Runner
++
++Archivos:
++
++```text
++scripts/load-test/mantto-gestor-load-test.config.js
++scripts/load-test/mantto-gestor-load-test.k6.js
++scripts/load-test/iniciar-mantto-load-test.ps1
++```
++
++El launcher se invoca únicamente con el `session-id`, que no es un secreto:
++
++```powershell
++powershell -ExecutionPolicy Bypass -File .\scripts\load-test\iniciar-mantto-load-test.ps1 -SessionId "LOAD-..."
++```
++
++Los JWT se solicitan con `Read-Host -AsSecureString`; no forman parte de la línea de comandos, no se imprimen y no se escriben en archivos.
++
++## Target cerrado
++
++El runner tiene un origen de producción versionado y el backend exige el mismo origen mediante:
++
++```text
++LOAD_TEST_ALLOWED_ORIGIN
++```
++
++Una variable `TARGET_URL` externa no puede cambiar el destino: si existe y no coincide exactamente con el origen confiable, k6 se detiene antes del claim autenticado.
++
++Toda solicitud de carga lleva:
++
++```text
++X-Mantto-Load-Test
++X-Mantto-Load-Test-Token
++X-Mantto-Load-Test-Instance
++```
++
++El backend exige que `X-Mantto-Load-Test-Instance` corresponda al proceso que creó/reclamó la sesión.
++
++## Una sola instancia / proceso
++
++V001 exige una sola réplica y un solo proceso backend durante la prueba.
++
++La variable:
++
++```text
++LOAD_TEST_SINGLE_INSTANCE=true
++```
++
++es una confirmación operativa obligatoria del despliegue. Además, el módulo falla cerrado si detecta que Node está ejecutándose como worker de `cluster`.
++
++Sin coordinador compartido no existe forma de demostrar desde un solo proceso cuántas réplicas externas tiene una plataforma. Por ello, esta confirmación debe reflejar la configuración real del hosting antes de habilitar Fase 3.
++
++## Escenarios V001
+ 
+-## Seguridad previa a Fase 3
++Catálogo técnico `20260928-v001`:
+ 
+-- `X-Mantto-Load-Test` no habilita escrituras: `POST`, `PUT`, `PATCH`, `DELETE` y cualquier método distinto de `GET`/`HEAD` se rechazan antes de las rutas de negocio.
+-- El token efímero sigue siendo obligatorio y se valida antes de aceptar tráfico de prueba.
+-- La identidad usada por las rutas administrativas de Prueba de Carga es el actor autenticado (`req.user`).
+-- El acceso no se concede por nombre de rol; se respetan exclusivamente los permisos efectivos ya configurados. Programador United y Programador Corellian no reciben acceso por defecto.
+-- Las operaciones siguen bloqueadas cuando existe un contexto activo del Visor de usuarios.
++```text
++SALUD
++  GET /api/health
++
++HOME
++  GET /api/home/bootstrap
++
++CALL_CENTER
++  GET /api/operacion/dashboard-call-center/inicial
++
++MIXTO_LECTURA
++  GET /api/home/bootstrap
++  GET /api/home/snapshot
++  GET /api/operacion/dashboard-call-center/inicial
++  GET /api/health
++```
++
++No existen URLs libres ni métodos funcionales de escritura.
+ 
+ ## Escalabilidad
+ 
+-`LOAD_TEST_MAX_VUS` define el máximo operativo autorizado para el entorno. El valor inicial recomendado sigue siendo `200`, pero no existe un máximo duro codificado. Puede elevarse a `1000` o más mediante configuración cuando la infraestructura lo autorice.
++`LOAD_TEST_MAX_VUS` define el máximo operativo autorizado para el entorno. `200` sigue siendo la meta inicial, no un límite duro. Los VUs deben respetar `LOAD_TEST_MIN_VUS`, `LOAD_TEST_VUS_STEP` y `LOAD_TEST_MAX_VUS`.
++
++## Alcance todavía pendiente
++
++Fase 3 **no** implementa todavía:
++
++- botón de detención real de k6 / canal de cancelación (`FINALIZANDO`) — Fase 4;
++- VUs activos enviados por runner y métricas k6 en vivo — Fase 4;
++- `handleSummary()` y reporte final/incompleto — Fase 5;
++- matriz completa de cierres/fallos y aceptación final — Fase 6.
++
++Por eso la pantalla no muestra un botón de “Detener prueba” que solo cierre telemetría. El runner de Fase 3 libera la sesión desde `teardown()` al terminar; Fase 4 sustituirá ese cierre por el flujo de cancelación real.
+ 
+ ## Persistencia
+ 
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+index ce72b38..05662cb 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+@@ -1,17 +1,14 @@
+ 'use strict';
+ 
++const { publicScenarios } = require('./panel-control-prueba-carga.scenarios');
++
+ const PERMISSIONS = Object.freeze({
+   ACCESS: 'PANEL_CONTROL_PRUEBA_CARGA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+   EXECUTE: 'PANEL_CONTROL_PRUEBA_CARGA_EJECUCION.EJECUTAR',
+   STOP: 'PANEL_CONTROL_PRUEBA_CARGA_EJECUCION.DETENER'
+ });
+ 
+-const SCENARIOS = Object.freeze([
+-  Object.freeze({ code: 'SALUD', label: 'Salud' }),
+-  Object.freeze({ code: 'HOME', label: 'Home' }),
+-  Object.freeze({ code: 'CALL_CENTER', label: 'Call Center' }),
+-  Object.freeze({ code: 'MIXTO_LECTURA', label: 'Mixto lectura' })
+-]);
++const SCENARIOS = Object.freeze(publicScenarios().map(item => Object.freeze(item)));
+ 
+ function positiveInteger(value, fallback, minimum = 1, maximum = Number.MAX_SAFE_INTEGER) {
+   const parsed = Number(value);
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+index 2e5e59e..8b0dc08 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+@@ -53,6 +53,17 @@ async function getSession(req, res, next) {
+   }
+ }
+ 
++
++async function claimRunner(req, res, next) {
++  try {
++    assertViewerWriteAllowed(req);
++    const data = await service.claimRunner(actorUser(req), req.params.id);
++    return res.json({ ok: true, data });
++  } catch (error) {
++    return sendError(error, res, next, 'LOAD_TEST_RUNNER_CLAIM_ERROR');
++  }
++}
++
+ async function startSession(req, res, next) {
+   try {
+     assertViewerWriteAllowed(req);
+@@ -88,6 +99,7 @@ module.exports = {
+   getCapabilities,
+   createSession,
+   getSession,
++  claimRunner,
+   startSession,
+   stopSession,
+   deleteSession
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+index b791fd5..d6329b1 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+@@ -205,7 +205,6 @@ class LoadTestRegistry extends EventEmitter {
+ 
+     const settings = getLoadTestTelemetrySettings();
+     const createdAt = this.now();
+-    const token = this.randomBytes(32).toString('base64url');
+     const id = `LOAD-${createdAt.toString(36).toUpperCase()}-${this.randomBytes(4).toString('hex').toUpperCase()}`;
+ 
+     const session = {
+@@ -223,7 +222,10 @@ class LoadTestRegistry extends EventEmitter {
+       readyExpiresAt: createdAt + settings.ready_ttl_seconds * 1000,
+       executionDeadlineAt: null,
+       retentionExpiresAt: null,
+-      runnerTokenHash: hashToken(token),
++      runnerTokenHash: null,
++      runnerClaimedAt: null,
++      runnerClaimedBy: null,
++      runnerClaimCount: 0,
+       settings,
+       telemetry: createTelemetry(settings)
+     };
+@@ -231,6 +233,33 @@ class LoadTestRegistry extends EventEmitter {
+     this.sessions.set(id, session);
+     this.emit('sessionCreated', session);
+ 
++    return {
++      session: this.publicSession(session)
++    };
++  }
++
++  claimRunner(id, { actorUserId } = {}) {
++    const session = this.requireSession(id);
++    if (session.state !== 'LISTA') {
++      const error = new Error('El runner solo puede reclamar una sesión preparada y todavía no iniciada.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_RUNNER_CLAIM_NOT_READY';
++      throw error;
++    }
++    if (session.runnerClaimedAt || session.runnerTokenHash || session.runnerClaimCount > 0) {
++      const error = new Error('El claim del runner ya fue consumido. Prepara una nueva sesión para obtener otro token.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_RUNNER_ALREADY_CLAIMED';
++      throw error;
++    }
++
++    const token = this.randomBytes(32).toString('base64url');
++    session.runnerTokenHash = hashToken(token);
++    session.runnerClaimedAt = this.now();
++    session.runnerClaimedBy = Number.isInteger(Number(actorUserId)) ? Number(actorUserId) : null;
++    session.runnerClaimCount = 1;
++    this.emit('runnerClaimed', session);
++
+     return {
+       session: this.publicSession(session),
+       runner_token: token
+@@ -280,6 +309,13 @@ class LoadTestRegistry extends EventEmitter {
+       throw error;
+     }
+ 
++    if (!session.runnerTokenHash || !session.runnerClaimedAt) {
++      const error = new Error('El runner debe reclamar la sesión antes de iniciar la ejecución.');
++      error.status = 409;
++      error.code = 'LOAD_TEST_RUNNER_CLAIM_REQUIRED';
++      throw error;
++    }
++
+     const startedAt = this.now();
+     session.state = 'EJECUTANDO';
+     session.startedAt = startedAt;
+@@ -325,7 +361,7 @@ class LoadTestRegistry extends EventEmitter {
+ 
+   validateRunnerToken(id, token, { requireRunning = true } = {}) {
+     const session = this.requireSession(id);
+-    if (!safeTokenEquals(session.runnerTokenHash, token)) {
++    if (!session.runnerTokenHash || !safeTokenEquals(session.runnerTokenHash, token)) {
+       const error = new Error('Token efímero de prueba inválido.');
+       error.status = 401;
+       error.code = 'LOAD_TEST_TOKEN_INVALID';
+@@ -542,6 +578,8 @@ class LoadTestRegistry extends EventEmitter {
+       stopped_at: asIso(session.stoppedAt),
+       stopped_by: session.stoppedBy,
+       stop_reason: session.stopReason,
++      runner_claimed: Boolean(session.runnerClaimedAt),
++      runner_claimed_at: asIso(session.runnerClaimedAt),
+       expires_at: asIso(expiresAt),
+       telemetry: this.telemetrySnapshot(session)
+     };
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+index aea90d4..9ea1123 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+@@ -8,6 +8,7 @@ const router = express.Router();
+ router.get('/capabilities', controller.getCapabilities);
+ router.post('/session', controller.createSession);
+ router.get('/session/:id', controller.getSession);
++router.post('/session/:id/runner-claim', controller.claimRunner);
+ router.post('/session/:id/start', controller.startSession);
+ router.post('/session/:id/stop', controller.stopSession);
+ router.delete('/session/:id', controller.deleteSession);
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runtime.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runtime.js
+new file mode 100644
+index 0000000..fd2ff74
+--- /dev/null
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runtime.js
+@@ -0,0 +1,89 @@
++'use strict';
++
++const crypto = require('crypto');
++const cluster = require('cluster');
++
++const PROCESS_INSTANCE_ID = `PCLT-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
++
++function enabled(value, fallback = false) {
++  if (value === undefined || value === null || value === '') return fallback;
++  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
++}
++
++function normalizeOrigin(value) {
++  const raw = String(value || '').trim();
++  if (!raw) return null;
++
++  let parsed;
++  try {
++    parsed = new URL(raw);
++  } catch (_error) {
++    return null;
++  }
++
++  if (!['http:', 'https:'].includes(parsed.protocol)) return null;
++  if (parsed.username || parsed.password) return null;
++  if (parsed.pathname && parsed.pathname !== '/') return null;
++  if (parsed.search || parsed.hash) return null;
++
++  return parsed.origin;
++}
++
++function runtimeSingleProcessGuard() {
++  const clusterWorker = Boolean(cluster.isWorker || process.env.NODE_UNIQUE_ID);
++  const deploymentConfirmed = enabled(process.env.LOAD_TEST_SINGLE_INSTANCE, false);
++
++  return {
++    required: true,
++    deployment_confirmed: deploymentConfirmed,
++    cluster_worker_detected: clusterWorker,
++    ready: deploymentConfirmed && !clusterWorker,
++    verification_mode: 'DEPLOYMENT_CONFIRMATION_PLUS_NODE_CLUSTER_GUARD'
++  };
++}
++
++function getLoadTestRunnerRuntime() {
++  const singleInstance = runtimeSingleProcessGuard();
++  const allowedOrigin = normalizeOrigin(process.env.LOAD_TEST_ALLOWED_ORIGIN);
++  const targetConfigured = Boolean(allowedOrigin);
++
++  return Object.freeze({
++    process_instance_id: PROCESS_INSTANCE_ID,
++    single_instance: singleInstance,
++    target_origin: allowedOrigin,
++    target_configured: targetConfigured,
++    redirects_allowed: false,
++    ready: Boolean(singleInstance.ready && targetConfigured)
++  });
++}
++
++function runtimeError(message, code) {
++  const error = new Error(message);
++  error.status = 503;
++  error.code = code;
++  return error;
++}
++
++function assertLoadTestRunnerRuntimeReady() {
++  const runtime = getLoadTestRunnerRuntime();
++  if (!runtime.single_instance.ready) {
++    throw runtimeError(
++      'Prueba de Carga V001 requiere confirmar un solo proceso/replica backend mediante LOAD_TEST_SINGLE_INSTANCE=true y no admite workers de cluster.',
++      'LOAD_TEST_SINGLE_INSTANCE_REQUIRED'
++    );
++  }
++  if (!runtime.target_configured) {
++    throw runtimeError(
++      'Prueba de Carga no tiene un origen autorizado valido. Configura LOAD_TEST_ALLOWED_ORIGIN con el origen exacto de Mantto Gestor.',
++      'LOAD_TEST_ALLOWED_ORIGIN_REQUIRED'
++    );
++  }
++  return runtime;
++}
++
++module.exports = {
++  PROCESS_INSTANCE_ID,
++  normalizeOrigin,
++  getLoadTestRunnerRuntime,
++  assertLoadTestRunnerRuntimeReady
++};
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.scenarios.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.scenarios.js
+new file mode 100644
+index 0000000..1ae2f20
+--- /dev/null
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.scenarios.js
+@@ -0,0 +1,68 @@
++'use strict';
++
++const CATALOG_VERSION = '20260928-v001';
++
++const SCENARIO_CATALOG = Object.freeze({
++  SALUD: Object.freeze({
++    code: 'SALUD',
++    label: 'Salud',
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/health', think_seconds: 1 })
++    ])
++  }),
++  HOME: Object.freeze({
++    code: 'HOME',
++    label: 'Home',
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/home/bootstrap', think_seconds: 2 })
++    ])
++  }),
++  CALL_CENTER: Object.freeze({
++    code: 'CALL_CENTER',
++    label: 'Call Center',
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/operacion/dashboard-call-center/inicial', think_seconds: 2 })
++    ])
++  }),
++  MIXTO_LECTURA: Object.freeze({
++    code: 'MIXTO_LECTURA',
++    label: 'Mixto lectura',
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/home/bootstrap', think_seconds: 2 }),
++      Object.freeze({ method: 'GET', path: '/api/home/snapshot', think_seconds: 2 }),
++      Object.freeze({ method: 'GET', path: '/api/operacion/dashboard-call-center/inicial', think_seconds: 3 }),
++      Object.freeze({ method: 'GET', path: '/api/health', think_seconds: 1 })
++    ])
++  })
++});
++
++function publicScenarios() {
++  return Object.values(SCENARIO_CATALOG).map(item => ({
++    code: item.code,
++    label: item.label
++  }));
++}
++
++function runnerScenario(code) {
++  const normalized = String(code || '').trim().toUpperCase();
++  const item = SCENARIO_CATALOG[normalized];
++  if (!item) return null;
++  return {
++    code: item.code,
++    label: item.label,
++    catalog_version: CATALOG_VERSION,
++    requests: item.requests.map(request => ({ ...request }))
++  };
++}
++
++function scenarioExists(code) {
++  return Boolean(runnerScenario(code));
++}
++
++module.exports = {
++  CATALOG_VERSION,
++  SCENARIO_CATALOG,
++  publicScenarios,
++  runnerScenario,
++  scenarioExists
++};
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+index 17ce13b..3077c61 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+@@ -8,6 +8,15 @@ const {
+   getLoadTestLimits,
+   getLoadTestTelemetrySettings
+ } = require('./panel-control-prueba-carga.constants');
++const {
++  CATALOG_VERSION,
++  runnerScenario,
++  scenarioExists
++} = require('./panel-control-prueba-carga.scenarios');
++const {
++  getLoadTestRunnerRuntime,
++  assertLoadTestRunnerRuntimeReady
++} = require('./panel-control-prueba-carga.runtime');
+ 
+ function validUserId(user) {
+   const id = Number(user?.id_SB || user?.id || user?.user_id);
+@@ -73,7 +82,7 @@ function normalizedSessionConfig(payload = {}) {
+     );
+   }
+ 
+-  if (!SCENARIOS.some((item) => item.code === scenario)) {
++  if (!scenarioExists(scenario)) {
+     throw loadTestError('El escenario solicitado no está autorizado.', 400, 'LOAD_TEST_SCENARIO_INVALID');
+   }
+ 
+@@ -89,6 +98,18 @@ async function permissionSnapshot(userId) {
+   return { access, execute, stop };
+ }
+ 
++function publicRunnerRuntime(runtime) {
++  return {
++    ready: Boolean(runtime?.ready),
++    single_instance_required: true,
++    single_instance_confirmed: Boolean(runtime?.single_instance?.ready),
++    single_instance_verification: runtime?.single_instance?.verification_mode || null,
++    target_configured: Boolean(runtime?.target_configured),
++    redirects_allowed: false,
++    process_instance_id: runtime?.process_instance_id || null
++  };
++}
++
+ async function getCapabilities(user) {
+   const userId = assertUser(user);
+   const permissions = await permissionSnapshot(userId);
+@@ -97,22 +118,27 @@ async function getCapabilities(user) {
+     throw loadTestError('No tienes permiso para abrir Prueba de Carga.', 403, 'LOAD_TEST_ACCESS_DENIED');
+   }
+ 
++  const runtime = getLoadTestRunnerRuntime();
+   const active = registry.getActivePublicSession();
+   const ownActive = active && Number(active.actor_user_id) === userId;
+ 
+   return {
+     module: 'panel-control-prueba-carga',
+     version: 'V001',
+-    phase: 2,
+-    execution_available: false,
++    phase: 3,
++    execution_available: Boolean(runtime.ready),
+     telemetry_available: true,
+     session_api_available: true,
+     runner_required: true,
++    runner_claim_available: true,
++    stop_control_available: false,
+     persistence: 'NONE',
+     target_policy: 'MANTTO_GESTOR_ONLY',
+     permissions,
+     limits: getLoadTestLimits(),
+     telemetry: getLoadTestTelemetrySettings(),
++    runner_runtime: publicRunnerRuntime(runtime),
++    scenario_catalog_version: CATALOG_VERSION,
+     scenarios: SCENARIOS,
+     active_session: active
+       ? (ownActive ? active : { state: 'BUSY', owned_by_current_user: false })
+@@ -131,6 +157,7 @@ async function requirePermission(user, permissionCode, deniedCode) {
+ 
+ async function createSession(user, payload) {
+   const userId = await requirePermission(user, PERMISSIONS.EXECUTE, 'LOAD_TEST_EXECUTE_DENIED');
++  assertLoadTestRunnerRuntimeReady();
+   const config = normalizedSessionConfig(payload);
+   return registry.createSession({ actorUserId: userId, ...config });
+ }
+@@ -142,8 +169,35 @@ async function getSession(user, id) {
+   return session;
+ }
+ 
++async function claimRunner(user, id) {
++  const userId = await requirePermission(user, PERMISSIONS.EXECUTE, 'LOAD_TEST_EXECUTE_DENIED');
++  const runtime = assertLoadTestRunnerRuntimeReady();
++  const session = registry.getPublicSession(id);
++  assertOwner(session, userId);
++
++  const claim = registry.claimRunner(id, { actorUserId: userId });
++  const scenario = runnerScenario(claim.session.scenario);
++  if (!scenario) {
++    throw loadTestError('El escenario de la sesión ya no existe en el catálogo técnico.', 409, 'LOAD_TEST_SCENARIO_CATALOG_MISMATCH');
++  }
++
++  return {
++    session_id: claim.session.id,
++    runner_token: claim.runner_token,
++    process_instance_id: runtime.process_instance_id,
++    target_origin: runtime.target_origin,
++    redirects_allowed: false,
++    scenario_catalog_version: CATALOG_VERSION,
++    scenario,
++    vus: claim.session.vus,
++    duration_seconds: claim.session.duration_seconds,
++    limits: getLoadTestLimits()
++  };
++}
++
+ async function startSession(user, id) {
+   const userId = await requirePermission(user, PERMISSIONS.EXECUTE, 'LOAD_TEST_EXECUTE_DENIED');
++  assertLoadTestRunnerRuntimeReady();
+   const session = registry.getPublicSession(id);
+   assertOwner(session, userId);
+   return registry.startSession(id);
+@@ -168,9 +222,11 @@ module.exports = {
+   getCapabilities,
+   createSession,
+   getSession,
++  claimRunner,
+   startSession,
+   stopSession,
+   deleteSession,
+   requirePermission,
+-  normalizedSessionConfig
++  normalizedSessionConfig,
++  _publicRunnerRuntime: publicRunnerRuntime
+ };
+diff --git a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+index 9fced8f..5b75a7d 100644
+--- a/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
++++ b/backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry.js
+@@ -5,6 +5,7 @@ const { monitorEventLoopDelay } = require('perf_hooks');
+ const registry = require('./panel-control-prueba-carga.registry');
+ const { runWithLoadTestContext } = require('./panel-control-prueba-carga.context');
+ const { collectMySqlMetrics } = require('./panel-control-prueba-carga.mysql-metrics');
++const { PROCESS_INSTANCE_ID } = require('./panel-control-prueba-carga.runtime');
+ 
+ const samplers = new Map();
+ 
+@@ -31,6 +32,19 @@ function loadTestTelemetryMiddleware(req, res, next) {
+   const sessionId = String(req.get('X-Mantto-Load-Test') || '').trim();
+   if (!sessionId) return next();
+ 
++  if (typeof res.setHeader === 'function') {
++    res.setHeader('X-Mantto-Load-Test-Instance', PROCESS_INSTANCE_ID);
++  }
++
++  const expectedInstance = String(req.get('X-Mantto-Load-Test-Instance') || '').trim();
++  if (!expectedInstance || expectedInstance !== PROCESS_INSTANCE_ID) {
++    return res.status(421).json({
++      ok: false,
++      code: 'LOAD_TEST_INSTANCE_MISMATCH',
++      message: 'La solicitud de prueba no corresponde al proceso backend que reclamó la sesión.'
++    });
++  }
++
+   const runnerToken = String(req.get('X-Mantto-Load-Test-Token') || '').trim();
+   if (!runnerToken) {
+     return res.status(401).json({
+diff --git a/core/module-loader.js b/core/module-loader.js
+index abe507c..c5ccf18 100644
+--- a/core/module-loader.js
++++ b/core/module-loader.js
+@@ -246,7 +246,7 @@
+     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002']},
+ 
+     usuarios:{css:['./modules/usuarios/usuarios.css?v=20260707-v001'],js:['./modules/usuarios/usuarios.js?v=20260707-v001']},
+-    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260928-auditoria-prueba-carga-fase2-hallazgos-v001']},
++    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260928-auditoria-prueba-carga-fase3-runner-seguro-v001']},
+     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001']},
+ 
+     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
+diff --git a/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md b/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+index f46445c..008a90b 100644
+--- a/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
++++ b/implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+@@ -5,7 +5,7 @@
+ **Ubicacion funcional:** Panel de Control  
+ **Nombre visible propuesto:** `Prueba de Carga`  
+ **Nombre tecnico propuesto:** `panel-control-prueba-carga`  
+-**Estado:** Diseno / pendiente de implementacion  
++**Estado:** Implementacion incremental - Fase 3
+ **Persistencia de resultados:** Ninguna  
+ **Objetivo maximo inicial:** 200 usuarios concurrentes  
+ 
+@@ -17,6 +17,19 @@ Estas decisiones del propietario del proyecto prevalecen sobre cualquier frase a
+ - El acceso administrativo a Prueba de Carga corresponde al **Programador general** mediante los permisos del catalogo ya aplicados en Aiven. No se concede por defecto a Programador United ni a Programador Corellian. La comprobacion del permiso debe referirse al actor autenticado, tambien cuando este activo el Visor de usuarios.
+ - La Auditoria semanal de cambios ya existe en el mismo Panel de Control. Su implementacion y sus artefactos deben preservarse en todas las fases posteriores.
+ 
++### Decisiones cerradas para Fases 3 a 6
++
++- **Runner externo:** k6 se ejecuta en otra PC, nunca dentro del proceso Node medido.
++- **Credenciales:** la pantalla no recibe el token del runner. El runner hace un `runner-claim` de un solo uso autenticandose como el Programador general propietario. El backend genera el token efimero en ese momento, almacena unicamente su hash y lo entrega una sola vez al runner.
++- **Identidad funcional separada:** los GET de carga usan otra identidad existente de prueba con permisos de lectura. El launcher recibe ambos JWT mediante prompt seguro y los mantiene solo en memoria del proceso.
++- **Target cerrado:** el backend obtiene el origen permitido de `LOAD_TEST_ALLOWED_ORIGIN`; el runner mantiene un origen confiable versionado y rechaza cualquier `TARGET_URL` que no coincida exactamente en protocolo, host y puerto. Las redirecciones se desactivan globalmente y por request.
++- **Una sola instancia/proceso:** V001 exige una sola replica y un solo proceso backend. `LOAD_TEST_SINGLE_INSTANCE=true` es una confirmacion operativa obligatoria y el runtime bloquea workers de Node `cluster`. Si no puede confirmarse esta condicion, no se prepara ni inicia la prueba.
++- **Una sola prueba activa:** mientras exista una sesion `LISTA`, `EJECUTANDO` o, desde Fase 4, `FINALIZANDO`, no se permite otra. Al cerrarse, abortarse, fallar o expirar, puede prepararse una nueva.
++- **Detencion real (Fase 4):** el boton Detener debe llevar la sesion a `FINALIZANDO`, publicar una orden al runner y lograr que k6 aborte la ejecucion; cambiar solo el Map no es suficiente.
++- **Metricas en vivo (Fase 4):** distinguir VUs objetivo, VUs activos del runner, solicitudes HTTP activas del backend, RPS backend y p95 backend. No presentar conexiones/requests activas como VUs.
++- **Reporte (Fase 5):** aceptar el resumen final del runner una sola vez. Si no llega, el reporte debe quedar marcado `INCOMPLETO` con motivo; nunca presentar datos parciales como prueba completa.
++- **Cierre (Fase 6):** validar terminacion normal, detencion manual, aborto automatico, perdida del runner, TTL, summary duplicado, tokens, target, redirects y maximo configurado.
++
+ ### Regla obligatoria de integracion: conservar la Auditoria semanal
+ 
+ **Las fases de Prueba de Carga parten de una version anterior a la Auditoria semanal, porque esta ultima aun no esta en un commit del repositorio.** Por eso, un archivo completo tomado de `main` o de una entrega de fase no contiene el codigo de Auditoria. Antes de integrar cada fase, tomar como referencia obligatoria el codigo local actual de este workspace. Revisar `git status --short` y el diff, y fusionar los cambios sobre esa version; **no reemplazar archivos completos con copias de `main`, de la base `37780b3` o de entregas anteriores**.
+@@ -62,7 +75,7 @@ En particular, al modificar `modules/panel-control/panel-control.js`, `modules/p
+ 
+ Al revertir una fase de Prueba de Carga, revertir solamente sus cambios. No restaurar los archivos compartidos completos a un commit anterior porque se perderia la Auditoria semanal.
+ 
+-### Correccion de carga del Panel pendiente antes de Fase 2
++### Correccion de carga del Panel aplicada antes de Fase 3
+ 
+ La consulta `GET /api/panel-control/prueba-carga/capabilities` no debe bloquear `loadBootstrap()` ni la carga de las pestañas existentes. Primero debe terminar el bootstrap normal del Panel; despues se consulta `capabilities` de forma independiente, se actualiza la visibilidad del tab al recibir la respuesta y se vuelve a renderizar. No usar `await` de esa consulta en el camino critico del bootstrap.
+ 
+@@ -107,7 +120,7 @@ El modulo **no debe**:
+ - modificar datos operativos para generar carga;
+ - crear usuarios ficticios automaticamente;
+ - ejecutar pruebas contra URLs arbitrarias;
+-- escalar automaticamente de 10 hasta 200 usuarios;
++- escalar automaticamente entre grupos de VUs hasta el maximo configurado;
+ - generar tablas nuevas de MySQL;
+ - sustituir las herramientas normales de monitoreo del servidor.
+ 
+@@ -203,72 +216,63 @@ El script de carga puede formar parte permanente del repositorio. Lo que no se c
+ 
+ ## 6. Generador de carga
+ 
+-### Tecnologia propuesta
++### Tecnologia
+ 
+ Usar **k6** como generador de carga externo.
+ 
+-Archivo propuesto:
++Archivos V001:
+ 
+ ```text
++scripts/load-test/mantto-gestor-load-test.config.js
+ scripts/load-test/mantto-gestor-load-test.k6.js
++scripts/load-test/iniciar-mantto-load-test.ps1
+ ```
+ 
+-El script debe recibir su configuracion mediante variables de entorno o argumentos y no contener credenciales fijas.
+-
+-Ejemplo conceptual:
++El launcher recibe solamente un `session-id` no secreto por linea de comandos. Los JWT del Programador general y de la identidad funcional de prueba se capturan con prompt seguro, se pasan al proceso k6 mediante variables de entorno heredadas y se eliminan al finalizar. No se escriben en archivos ni se imprimen.
+ 
+-```text
+-TARGET_URL
+-LOAD_TEST_SESSION
+-LOAD_TEST_TOKEN
+-VUS
+-DURATION
+-SCENARIO
+-ACCESS_TOKEN
+-```
++El token efimero de runner **no** se entrega a la pantalla ni se pasa desde PowerShell. k6 lo obtiene mediante `runner-claim` de un solo uso y lo conserva unicamente en memoria durante la ejecucion.
+ 
+-Ningun token o credencial debe aparecer en el reporte final.
++El runner no acepta un target arbitrario. Su origen de Mantto Gestor esta versionado y debe coincidir con `LOAD_TEST_ALLOWED_ORIGIN` devuelto por el backend. Si existe `TARGET_URL` y apunta a otro origen, la ejecucion se rechaza antes de enviar autenticacion.
+ 
+----
++Las redirecciones HTTP quedan desactivadas globalmente y por solicitud. Un `3xx` no debe sacar la prueba del origen autorizado.
+ 
+ ## 7. Grupos permitidos
+ 
+-La interfaz debe ofrecer exclusivamente los siguientes grupos iniciales:
++La interfaz debe construir los grupos a partir de la configuracion efectiva del entorno. La meta inicial de validacion usa 10, 20, 30, ... hasta 200 VUs, pero si `LOAD_TEST_MAX_VUS` aumenta en el futuro, la misma interfaz y el runner deben permitir los nuevos grupos sin cambiar codigo.
++
++Ejemplo inicial:
+ 
+ ```text
+ 10
+ 20
+ 30
+-40
+-50
+-60
+-70
+-80
+-90
+-100
+-110
+-120
+-130
+-140
+-150
+-160
+-170
+-180
++...
+ 190
+ 200
+ ```
+ 
+-El backend debe imponer tambien el limite, independientemente del frontend.
++Ejemplo futuro con `LOAD_TEST_MAX_VUS=1000`:
++
++```text
++10
++20
++30
++...
++990
++1000
++```
++
++El backend debe imponer siempre el maximo configurado, independientemente del frontend.
+ 
+ ### Regla dura
+ 
+ ```text
+-VUS_MIN = 10
+-VUS_MAX = NO LIMITS
+-VUS_STEP = 10
++VUS_MIN = LOAD_TEST_MIN_VUS
++VUS_MAX = LOAD_TEST_MAX_VUS
++VUS_STEP = LOAD_TEST_VUS_STEP
+ ```
+ 
+-No se aceptan valores mayores a 200 en V001.
++No existe un tope fijo de 200 en V001. Se rechaza cualquier valor mayor al `LOAD_TEST_MAX_VUS` vigente o que no respete el paso configurado.
+ 
+ No debe existir una opcion como `Ilimitado` o `Maximo posible`.
+ 
+@@ -385,25 +389,33 @@ No debe ejecutar todos los endpoints en un bucle sin pausa, salvo que se selecci
+ 
+ ## 12. Autenticacion de la prueba
+ 
+-El runner debe utilizar una identidad autorizada de prueba o un conjunto de identidades de prueba ya existentes.
++La prueba utiliza **dos identidades distintas**:
+ 
+-El modulo **no debe crear usuarios automaticamente**.
++1. **Programador general propietario de la sesion:** autentica `runner-claim` e inicio/cierre administrativo.
++2. **Identidad funcional de prueba:** realiza exclusivamente los GET/HEAD del escenario y debe tener los permisos de lectura necesarios.
+ 
+-Las credenciales no se guardan.
++El modulo no crea usuarios automaticamente ni guarda credenciales.
+ 
+-### V001
++### runner-claim de un solo uso
+ 
+-Puede soportar:
++Flujo V001:
+ 
+ ```text
+-1 token de prueba temporal reutilizado por los VUs
++Pantalla prepara sesion -> LISTA
++PC externa inicia launcher
++launcher solicita JWT operador + JWT prueba mediante prompt seguro
++k6 -> POST runner-claim autenticado como propietario
++backend valida actor + permiso + propiedad + single-instance
++backend genera token efimero
++backend guarda solo SHA-256(token)
++backend devuelve token una sola vez a k6
++k6 -> POST start
++k6 genera GET/HEAD con JWT funcional + headers de prueba
+ ```
+ 
+-### Evolucion futura
++Si el claim ya fue consumido, no se emite un segundo token. Debe limpiarse la sesion y prepararse otra.
+ 
+-Podra agregarse un pool de identidades de prueba para simular permisos/alcances distintos, manteniendo los tokens unicamente en memoria.
+-
+----
++Ningun token debe aparecer en comandos impresos, logs propios del modulo o reportes.
+ 
+ ## 13. Cabecera de identificacion de trafico
+ 
+@@ -413,12 +425,15 @@ Toda solicitud generada por la herramienta debe incluir una cabecera tecnica, po
+ X-Mantto-Load-Test: <session-id>
+ ```
+ 
+-Opcionalmente:
++Ademas, V001 exige:
+ 
+ ```http
+ X-Mantto-Load-Test-Token: <token-efimero>
++X-Mantto-Load-Test-Instance: <process-instance-id>
+ ```
+ 
++El backend valida token e instancia antes de permitir que la solicitud marcada alcance una ruta de negocio. Esto permite detectar trafico que haya llegado a otro proceso cuando V001 exige single-instance.
++
+ Esto permite que el backend distinga trafico de prueba del trafico humano sin cambiar el contrato de los endpoints operativos.
+ 
+ La cabecera no concede permisos funcionales. La autenticacion normal del Gestor sigue aplicando.
+@@ -695,10 +710,10 @@ si la ruta de prueba llegara a utilizar detalles.
+ 
+ Aunque el modulo se utiliza para encontrar limites, V001 debe incluir protecciones para evitar una ejecucion claramente destructiva.
+ 
+-### Limites duros
++### Limites operativos
+ 
+ ```text
+-maximo 200 VUs
++maximo LOAD_TEST_MAX_VUS del entorno
+ maximo 300 s
+ una prueba simultanea
+ solo escenarios registrados
+@@ -707,6 +722,8 @@ sin URLs externas arbitrarias
+ sin escritura operativa
+ ```
+ 
++`200 VUs` es la meta inicial de validacion, no un limite duro del codigo.
++
+ ### Boton de emergencia
+ 
+ Debe existir siempre:
+@@ -1275,39 +1292,45 @@ La integracion debe ser minima y delegar al nuevo modulo.
+ 
+ ---
+ 
+-## 48. Script k6 propuesto
++## 48. Script k6 V001
+ 
+-Archivo:
++Archivos:
+ 
+ ```text
++scripts/load-test/mantto-gestor-load-test.config.js
+ scripts/load-test/mantto-gestor-load-test.k6.js
++scripts/load-test/iniciar-mantto-load-test.ps1
+ ```
+ 
+-Responsabilidades:
++Responsabilidades de Fase 3:
+ 
+ ```text
+-leer configuracion
+-validar VUs <= 200
+-validar escenario recibido
+-usar target Mantto autorizado
+-inyectar headers de prueba
+-generar VUs
++leer VUs/duracion/escenario obtenidos por el launcher desde la sesion preparada
++validar VUs <= LOAD_TEST_MAX_VUS recibido desde capabilities
++validar pasos de LOAD_TEST_VUS_STEP
++reclamar token efimero una sola vez
++usar identidad operadora solo para control
++usar identidad de prueba separada para GET/HEAD funcionales
++validar catalogo runner/backend
++usar target Mantto versionado
++rechazar TARGET_URL externo
++desactivar redirecciones globalmente y por request
++inyectar session-id, token e instance-id
+ respetar duracion
+-medir metricas
+-emitir resumen final al modulo
+-imprimir resumen local de respaldo
++liberar la sesion al terminar Fase 3
+ ```
+ 
+-El script no debe contener:
++El script no debe contener ni persistir:
+ 
+ ```text
+ passwords
+ JWT permanentes
+ API keys permanentes
+-URLs de terceros
++token efimero del runner
++URLs arbitrarias de terceros
+ ```
+ 
+----
++`handleSummary()` y el envio del resumen definitivo pertenecen a Fase 5. El canal de cancelacion real pertenece a Fase 4.
+ 
+ ## 49. Contrato del resumen del runner
+ 
+@@ -1349,7 +1372,7 @@ Este JSON solo viaja en memoria/HTTP para construir el reporte y no se persiste.
+ El modulo debe incluir tests que validen como minimo:
+ 
+ ```text
+-no permite VUs > 200
++rechaza VUs superiores a LOAD_TEST_MAX_VUS
+ no permite VUs no multiplos de 10
+ no permite dos pruebas simultaneas
+ no permite escenarios desconocidos
+@@ -1371,7 +1394,7 @@ rechaza runner token invalido
+ El modulo se considera funcional cuando:
+ 
+ 1. aparece en Panel de Control solo para usuarios autorizados;
+-2. permite seleccionar de 10 a 200 usuarios en pasos de 10;
++2. permite seleccionar VUs dentro de LOAD_TEST_MIN_VUS / LOAD_TEST_MAX_VUS respetando LOAD_TEST_VUS_STEP;
+ 3. ejecuta solamente un grupo por prueba;
+ 4. no escala automaticamente;
+ 5. utiliza un runner externo;
+@@ -1385,7 +1408,7 @@ El modulo se considera funcional cuando:
+ 13. no guarda resultados en MySQL;
+ 14. no guarda resultados en archivos;
+ 15. no utiliza almacenamiento web persistente;
+-16. limita estrictamente el maximo a 200 VUs;
++16. limita estrictamente al maximo configurado por LOAD_TEST_MAX_VUS, sin tope fijo de 200;
+ 17. no puede utilizarse contra un host externo arbitrario;
+ 18. las credenciales nunca aparecen en el reporte;
+ 19. al limpiar/expirar desaparecen los datos temporales;
+diff --git a/index.html b/index.html
+index 2b6e177..10d41eb 100644
+--- a/index.html
++++ b/index.html
+@@ -730,7 +730,7 @@
+ <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
+ <script src="./core/data-sync.js?v=20260828-fase1-calls-v001"></script>
+ <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
+-<script src="./core/module-loader.js?v=20260928-auditoria-prueba-carga-fase2-hallazgos-v001"></script>
++<script src="./core/module-loader.js?v=20260928-auditoria-prueba-carga-fase3-runner-seguro-v001"></script>
+ <script src="./core/router.js?v=20260914-human-time-v001"></script>
+ <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
+ <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
+diff --git a/modules/panel-control-prueba-carga/panel-control-prueba-carga.js b/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+index 2b3703d..6a0ebbb 100644
+--- a/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
++++ b/modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+@@ -1,19 +1,18 @@
+ (function(){
+   'use strict';
+ 
+-  const MODULE_VERSION='20260928-fase2-hallazgos-v001';
++  const MODULE_VERSION='20260928-fase3-runner-seguro-v001';
+   const state={
+     capabilities:null,
+     session:null,
+-    runnerToken:null,
+     recovered:false,
+     busy:false,
+     error:''
+   };
+ 
+   function esc(value){
+-    return String(value??'').replace(/[&<>\"']/g,char=>({
+-      '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'
++    return String(value??'').replace(/[&<>"']/g,char=>({
++      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+     }[char]));
+   }
+ 
+@@ -35,7 +34,6 @@
+ 
+   function clearLocalSession(){
+     state.session=null;
+-    state.runnerToken=null;
+     state.recovered=false;
+     if(state.capabilities&&typeof state.capabilities==='object'){
+       state.capabilities={...state.capabilities,active_session:null};
+@@ -103,11 +101,23 @@
+     if(state.session)return;
+     if(active&&active.id){
+       state.session=active;
+-      state.runnerToken=null;
+       state.recovered=true;
+     }
+   }
+ 
++  function runtimeWarning(runtime){
++    if(runtime?.ready)return '';
++    const messages=[];
++    if(!runtime?.single_instance_confirmed)messages.push('V001 requiere confirmar una sola réplica / un solo proceso backend.');
++    if(!runtime?.target_configured)messages.push('Falta configurar el origen autorizado del backend para el runner.');
++    return messages.join(' ');
++  }
++
++  function runnerCommand(session){
++    if(!session?.id)return '';
++    return `powershell -ExecutionPolicy Bypass -File .\\scripts\\load-test\\iniciar-mantto-load-test.ps1 -SessionId "${String(session.id).replace(/"/g,'')}"`;
++  }
++
+   function render(container,capabilities){
+     if(!container)return false;
+     state.capabilities=capabilities||state.capabilities||{};
+@@ -115,26 +125,27 @@
+ 
+     const limits=state.capabilities?.limits||{};
+     const telemetry=state.capabilities?.telemetry||{};
++    const runtime=state.capabilities?.runner_runtime||{};
+     const minVus=Math.max(1,number(limits.min_vus,10));
+     const stepVus=Math.max(1,number(limits.step_vus,10));
+     const configuredMax=Math.max(minVus,number(limits.max_vus_configured,200));
+     const defaultDuration=Math.max(1,number(limits.duration_default_seconds,120));
+     const maxDuration=Math.max(defaultDuration,number(limits.duration_max_seconds,300));
+-    const canExecute=Boolean(state.capabilities?.permissions?.execute);
+-    const canStop=Boolean(state.capabilities?.permissions?.stop);
++    const canExecute=Boolean(state.capabilities?.permissions?.execute&&state.capabilities?.execution_available);
+     const active=state.capabilities?.active_session;
+     const busyByOther=Boolean(active&&active.state==='BUSY');
+     const session=state.session;
+     const sessionRunning=session?.state==='EJECUTANDO';
++    const warning=runtimeWarning(runtime);
+ 
+     container.innerHTML=`<section class="pclt-page" data-module-version="${MODULE_VERSION}">
+       <div class="pclt-head">
+         <div>
+           <span class="pclt-eyebrow">DIAGNÓSTICO · PANEL DE CONTROL</span>
+           <h2>Prueba de Carga</h2>
+-          <p>Prepara una sesión efímera de telemetría para medir concurrencia de Mantto Gestor. Ningún resultado se persiste.</p>
++          <p>Prepara una sesión efímera y ejecútala con el runner k6 externo. Los secretos permanecen fuera de la pantalla y los resultados no se persisten.</p>
+         </div>
+-        <span class="pclt-phase">FASE 2 · TELEMETRÍA EFÍMERA</span>
++        <span class="pclt-phase">FASE 3 · RUNNER SEGURO</span>
+       </div>
+ 
+       <div class="pclt-notice">
+@@ -142,6 +153,7 @@
+         <span>Máximo operativo actual: ${configuredMax.toLocaleString('es-MX')} VUs. Es configuración del entorno, no un límite duro del código.</span>
+       </div>
+ 
++      ${warning?`<div class="pclt-alert warning"><b>Runner bloqueado por configuración.</b><span>${esc(warning)}</span></div>`:''}
+       ${state.error?`<div class="pclt-alert error"><b>No se pudo completar la acción.</b><span>${esc(state.error)}</span></div>`:''}
+       ${busyByOther?'<div class="pclt-alert warning"><b>Servidor ocupado</b><span>Otro operador tiene una sesión de prueba preparada o en ejecución. V001 permite una sola prueba activa por servidor.</span></div>':''}
+ 
+@@ -153,16 +165,18 @@
+           <label>Duración<select id="pclt-duration" ${session||busyByOther?'disabled':''}>
+             ${[30,60,120,180,300].filter(v=>v<=maxDuration).map(v=>`<option value="${v}" ${v===defaultDuration?'selected':''}>${v} s</option>`).join('')}
+           </select></label>
+-          <button type="button" class="pclt-btn primary" id="pclt-prepare" ${!canExecute||session||busyByOther||state.busy?'disabled':''}>${state.busy?'Procesando...':'Preparar telemetría'}</button>
+-          <small>Preparar crea un session-id y token efímero únicamente en memoria. La carga real y k6 se integran en Fase 3.</small>
++          <button type="button" class="pclt-btn primary" id="pclt-prepare" ${!canExecute||session||busyByOther||state.busy?'disabled':''}>${state.busy?'Procesando...':'Preparar prueba'}</button>
++          <small>El backend ya no entrega el token del runner a esta pantalla. El claim de un solo uso ocurre desde k6 con la identidad del Programador general propietario.</small>
+         </article>
+ 
+         <article class="pclt-card">
+-          <div class="pclt-card-head"><span>Capacidades</span><em>Fase 2</em></div>
++          <div class="pclt-card-head"><span>Capacidades</span><em>Fase 3</em></div>
+           <dl class="pclt-kv">
+             <div><dt>Acceso visual</dt><dd>${state.capabilities?.permissions?.access?'AUTORIZADO':'NO'}</dd></div>
+-            <div><dt>Preparar / ejecutar</dt><dd>${canExecute?'AUTORIZADO':'NO'}</dd></div>
+-            <div><dt>Detener</dt><dd>${canStop?'AUTORIZADO':'NO'}</dd></div>
++            <div><dt>Preparar / ejecutar</dt><dd>${canExecute?'AUTORIZADO':'BLOQUEADO'}</dd></div>
++            <div><dt>Una sola instancia</dt><dd>${runtime?.single_instance_confirmed?'CONFIRMADA':'NO CONFIRMADA'}</dd></div>
++            <div><dt>Target autorizado</dt><dd>${runtime?.target_configured?'CONFIGURADO':'NO CONFIGURADO'}</dd></div>
++            <div><dt>Redirecciones del runner</dt><dd>DESACTIVADAS</dd></div>
+             <div><dt>Máximo operativo actual</dt><dd>${configuredMax.toLocaleString('es-MX')} VUs</dd></div>
+             <div><dt>Límite duro del código</dt><dd>${limits.hard_max_vus==null?'NINGUNO':esc(limits.hard_max_vus)}</dd></div>
+             <div><dt>TTL reporte en RAM</dt><dd>${Number(telemetry.result_ttl_seconds||900)} s</dd></div>
+@@ -176,18 +190,19 @@
+           <div><span class="pclt-eyebrow">SESIÓN TEMPORAL</span><h3>${esc(session.id)}</h3><p>${esc(session.scenario)} · ${Number(session.vus||0).toLocaleString('es-MX')} VUs · ${Number(session.duration_seconds||0)} s</p></div>
+           <span class="pclt-state ${String(session.state||'').toLowerCase()}">${esc(session.state||'N/D')}</span>
+         </div>
+-        ${state.recovered?'<div class="pclt-alert warning"><b>Sesión recuperada después de recargar.</b><span>El token efímero no se recupera por diseño. Limpia esta sesión y prepara una nueva antes de usar el runner.</span></div>':''}
+-        ${state.runnerToken?'<div class="pclt-alert ok"><b>Token efímero generado.</b><span>Se conserva solamente en memoria de esta pantalla y no se muestra ni se guarda.</span></div>':''}
++        ${state.recovered?'<div class="pclt-alert warning"><b>Sesión recuperada después de recargar.</b><span>La sesión sigue en RAM del backend. El token del runner nunca estuvo en la pantalla.</span></div>':''}
++        <div class="pclt-alert ${session.runner_claimed?'ok':'warning'}"><b>Runner claim: ${session.runner_claimed?'CONSUMIDO':'PENDIENTE'}</b><span>${session.runner_claimed?'El token efímero fue entregado una sola vez al runner y el backend conserva únicamente su hash.':'Ejecuta el launcher externo para reclamar la sesión.'}</span></div>
++        <div class="pclt-alert ok"><b>Comando sin secretos</b><span><code>${esc(runnerCommand(session))}</code></span></div>
+         <div class="pclt-session-meta"><span>Creada: <b>${fmtDate(session.created_at)}</b></span><span>Expira: <b>${fmtDate(session.expires_at)}</b></span></div>
+         ${sessionTelemetryHtml(session)}
+         <div class="pclt-actions">
+           <button type="button" class="pclt-btn" id="pclt-refresh" ${state.busy?'disabled':''}>Actualizar estado</button>
+-          ${sessionRunning&&canStop?'<button type="button" class="pclt-btn danger" id="pclt-stop" '+(state.busy?'disabled':'')+'>Detener telemetría</button>':''}
+-          <button type="button" class="pclt-btn ghost" id="pclt-clear" ${sessionRunning||!canExecute||state.busy?'disabled':''}>Limpiar sesión</button>
++          <button type="button" class="pclt-btn ghost" id="pclt-clear" ${sessionRunning||!state.capabilities?.permissions?.execute||state.busy?'disabled':''}>Limpiar sesión</button>
+         </div>
++        ${sessionRunning?'<div class="pclt-footer-note">La detención real del proceso k6 se incorpora en Fase 4. En Fase 3 la pantalla no ofrece un botón que solo cierre telemetría mientras k6 continúa.</div>':''}
+       </article>`:''}
+ 
+-      <div class="pclt-footer-note">Fase 2 instrumenta HTTP, Node, host, MySQL y pool SQL únicamente durante solicitudes marcadas por una sesión válida. No genera carga todavía.</div>
++      <div class="pclt-footer-note">Fase 3 añade runner k6 externo, claim de un solo uso, target cerrado, redirecciones desactivadas y requisito de una sola instancia backend. El canal de detención real y las métricas k6 en vivo se integran en Fase 4.</div>
+     </section>`;
+ 
+     bind(container);
+@@ -207,7 +222,6 @@
+         body:JSON.stringify({scenario,vus,duration_seconds:duration})
+       });
+       state.session=response.data?.session||null;
+-      state.runnerToken=response.data?.runner_token||null;
+       state.recovered=false;
+       await reloadCapabilities();
+     }catch(error){
+@@ -232,18 +246,6 @@
+     }finally{state.busy=false;rerender(container);}
+   }
+ 
+-  async function stop(container){
+-    if(!state.session?.id)return;
+-    state.busy=true;state.error='';rerender(container);
+-    try{
+-      const response=await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}/stop`,{
+-        method:'POST',body:JSON.stringify({reason:'MANUAL_UI'})
+-      });
+-      state.session=response.data||state.session;
+-    }catch(error){state.error=error?.message||'No fue posible detener la telemetría.';}
+-    finally{state.busy=false;rerender(container);}
+-  }
+-
+   async function clear(container){
+     if(!state.session?.id)return;
+     state.busy=true;state.error='';rerender(container);
+@@ -264,15 +266,12 @@
+   function bind(container){
+     document.getElementById('pclt-prepare')?.addEventListener('click',()=>prepare(container));
+     document.getElementById('pclt-refresh')?.addEventListener('click',()=>refresh(container));
+-    document.getElementById('pclt-stop')?.addEventListener('click',()=>stop(container));
+     document.getElementById('pclt-clear')?.addEventListener('click',()=>clear(container));
+   }
+ 
+   window.ManttoPanelControlPruebaCarga={
+     render,
+     version:MODULE_VERSION,
+-    getPreparedSession(){
+-      return state.session&&state.runnerToken?{session:{...state.session},runner_token:state.runnerToken}:null;
+-    }
++    getPreparedSession(){return state.session?{session:{...state.session}}:null;}
+   };
+ })();
+diff --git a/modules/panel-control/panel-control.js b/modules/panel-control/panel-control.js
+index 884f0c2..ac6d9ba 100644
+--- a/modules/panel-control/panel-control.js
++++ b/modules/panel-control/panel-control.js
+@@ -88,7 +88,7 @@
+   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
+   const NOTIFICATION_KEY_SEPARATOR='\u0000';
+   const LOAD_TEST_TAB='load-test';
+-  const LOAD_TEST_ASSET_VERSION='20260928-fase2-hallazgos-v001';
++  const LOAD_TEST_ASSET_VERSION='20260928-fase3-runner-seguro-v001';
+   const LOAD_TEST_JS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.js?v=${LOAD_TEST_ASSET_VERSION}`;
+   const LOAD_TEST_CSS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.css?v=${LOAD_TEST_ASSET_VERSION}`;
+   let saveStatusTimer=null;
+diff --git a/scripts/load-test/iniciar-mantto-load-test.ps1 b/scripts/load-test/iniciar-mantto-load-test.ps1
+new file mode 100644
+index 0000000..e80e1ef
+--- /dev/null
++++ b/scripts/load-test/iniciar-mantto-load-test.ps1
+@@ -0,0 +1,102 @@
++param(
++  [Parameter(Mandatory = $true)]
++  [ValidatePattern('^LOAD-[A-Z0-9-]+$')]
++  [string]$SessionId,
++
++  [string]$K6Path = 'k6'
++)
++
++$ErrorActionPreference = 'Stop'
++$TrustedOrigin = 'https://mantto-gestor-api-a4hwfpgvbeb4gmgj.mexicocentral-01.azurewebsites.net'
++$ScriptPath = Join-Path $PSScriptRoot 'mantto-gestor-load-test.k6.js'
++
++function ConvertTo-PlainText {
++  param([Security.SecureString]$SecureValue)
++  return ([System.Net.NetworkCredential]::new('', $SecureValue)).Password
++}
++
++function Invoke-ManttoGetJson {
++  param(
++    [string]$Path,
++    [string]$BearerToken
++  )
++
++  $headers = @{
++    'Accept' = 'application/json'
++    'Authorization' = "Bearer $BearerToken"
++  }
++
++  $requestArgs = @{
++    Uri = ($TrustedOrigin + $Path)
++    Headers = $headers
++    Method = 'GET'
++    MaximumRedirection = 0
++    UseBasicParsing = $true
++  }
++  $response = Invoke-WebRequest @requestArgs
++
++  return ($response.Content | ConvertFrom-Json)
++}
++
++if (-not (Get-Command $K6Path -ErrorAction SilentlyContinue)) {
++  throw "No se encontro k6 en '$K6Path'. Instala k6 o indica -K6Path con la ruta correcta."
++}
++
++if (-not (Test-Path $ScriptPath)) {
++  throw "No existe el runner: $ScriptPath"
++}
++
++$operatorSecure = Read-Host 'JWT del Programador general propietario de la sesion' -AsSecureString
++$testSecure = Read-Host 'JWT de la identidad de prueba de SOLO LECTURA' -AsSecureString
++$operatorJwt = ConvertTo-PlainText $operatorSecure
++$testJwt = ConvertTo-PlainText $testSecure
++
++if ([string]::IsNullOrWhiteSpace($operatorJwt)) { throw 'El JWT del operador esta vacio.' }
++if ([string]::IsNullOrWhiteSpace($testJwt)) { throw 'El JWT de prueba esta vacio.' }
++if ($operatorJwt -eq $testJwt) { throw 'La identidad operadora y la identidad funcional de prueba deben ser distintas.' }
++
++$runnerExitCode = 0
++
++try {
++  $capabilities = Invoke-ManttoGetJson -Path '/api/panel-control/prueba-carga/capabilities' -BearerToken $operatorJwt
++  if (-not $capabilities.ok) { throw 'No se pudieron validar capacidades.' }
++  if (-not $capabilities.data.execution_available) {
++    throw 'Prueba de Carga no esta habilitada: confirma una sola instancia backend y LOAD_TEST_ALLOWED_ORIGIN.'
++  }
++
++  $session = Invoke-ManttoGetJson -Path ("/api/panel-control/prueba-carga/session/" + [uri]::EscapeDataString($SessionId)) -BearerToken $operatorJwt
++  if (-not $session.ok) { throw 'No se pudo leer la sesion preparada.' }
++  if ($session.data.state -ne 'LISTA') { throw "La sesion debe estar LISTA. Estado actual: $($session.data.state)" }
++  if ($session.data.runner_claimed) { throw 'El runner-claim de esta sesion ya fue consumido. Limpia la sesion y prepara una nueva.' }
++
++  $env:MANTTO_LOAD_TEST_SESSION = $SessionId
++  $env:MANTTO_OPERATOR_JWT = $operatorJwt
++  $env:MANTTO_TEST_JWT = $testJwt
++  $env:MANTTO_VUS = [string]$session.data.vus
++  $env:MANTTO_DURATION_SECONDS = [string]$session.data.duration_seconds
++  $env:MANTTO_SCENARIO = [string]$session.data.scenario
++  $env:MANTTO_MIN_VUS = [string]$capabilities.data.limits.min_vus
++  $env:MANTTO_MAX_VUS = [string]$capabilities.data.limits.max_vus_configured
++  $env:MANTTO_VUS_STEP = [string]$capabilities.data.limits.step_vus
++
++  & $K6Path run $ScriptPath
++  $runnerExitCode = if ($null -eq $LASTEXITCODE) { 1 } else { [int]$LASTEXITCODE }
++}
++finally {
++  Remove-Item Env:MANTTO_LOAD_TEST_SESSION -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_OPERATOR_JWT -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_TEST_JWT -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_VUS -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_DURATION_SECONDS -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_SCENARIO -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_MIN_VUS -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_MAX_VUS -ErrorAction SilentlyContinue
++  Remove-Item Env:MANTTO_VUS_STEP -ErrorAction SilentlyContinue
++  $operatorJwt = $null
++  $testJwt = $null
++  $operatorSecure = $null
++  $testSecure = $null
++}
++if ($runnerExitCode -ne 0) {
++  exit $runnerExitCode
++}
+diff --git a/scripts/load-test/mantto-gestor-load-test.config.js b/scripts/load-test/mantto-gestor-load-test.config.js
+new file mode 100644
+index 0000000..8e1e533
+--- /dev/null
++++ b/scripts/load-test/mantto-gestor-load-test.config.js
+@@ -0,0 +1,31 @@
++// Configuracion versionada del runner V001.
++// El origen es publico pero NO puede sustituirse por una URL arbitraria en tiempo de ejecucion.
++// Si el backend productivo cambia de origen, este archivo y LOAD_TEST_ALLOWED_ORIGIN deben actualizarse juntos.
++export const TRUSTED_ORIGIN = 'https://mantto-gestor-api-a4hwfpgvbeb4gmgj.mexicocentral-01.azurewebsites.net';
++export const CATALOG_VERSION = '20260928-v001';
++
++export const SCENARIOS = Object.freeze({
++  SALUD: Object.freeze({
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/health', think_seconds: 1 })
++    ])
++  }),
++  HOME: Object.freeze({
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/home/bootstrap', think_seconds: 2 })
++    ])
++  }),
++  CALL_CENTER: Object.freeze({
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/operacion/dashboard-call-center/inicial', think_seconds: 2 })
++    ])
++  }),
++  MIXTO_LECTURA: Object.freeze({
++    requests: Object.freeze([
++      Object.freeze({ method: 'GET', path: '/api/home/bootstrap', think_seconds: 2 }),
++      Object.freeze({ method: 'GET', path: '/api/home/snapshot', think_seconds: 2 }),
++      Object.freeze({ method: 'GET', path: '/api/operacion/dashboard-call-center/inicial', think_seconds: 3 }),
++      Object.freeze({ method: 'GET', path: '/api/health', think_seconds: 1 })
++    ])
++  })
++});
+diff --git a/scripts/load-test/mantto-gestor-load-test.k6.js b/scripts/load-test/mantto-gestor-load-test.k6.js
+new file mode 100644
+index 0000000..bd37cc7
+--- /dev/null
++++ b/scripts/load-test/mantto-gestor-load-test.k6.js
+@@ -0,0 +1,195 @@
++import http from 'k6/http';
++import { check, sleep } from 'k6';
++import exec from 'k6/execution';
++import { TRUSTED_ORIGIN, CATALOG_VERSION, SCENARIOS } from './mantto-gestor-load-test.config.js';
++
++function clean(value) {
++  return String(value || '').trim();
++}
++
++function normalizeOrigin(value) {
++  const raw = clean(value).replace(/\/+$/, '');
++  const match = raw.match(/^(https?):\/\/([A-Za-z0-9.-]+)(:\d+)?$/);
++  if (!match) return null;
++  return `${match[1].toLowerCase()}://${match[2].toLowerCase()}${match[3] || ''}`;
++}
++
++function positiveInteger(name) {
++  const value = Number(__ENV[name]);
++  if (!Number.isInteger(value) || value <= 0) throw new Error(`${name} no es un entero positivo valido.`);
++  return value;
++}
++
++const trustedOrigin = normalizeOrigin(TRUSTED_ORIGIN);
++const targetOverride = clean(__ENV.TARGET_URL);
++if (!trustedOrigin) throw new Error('TRUSTED_ORIGIN del runner no es valido.');
++if (targetOverride && normalizeOrigin(targetOverride) !== trustedOrigin) {
++  throw new Error('TARGET_URL fue rechazado: el runner solo puede operar contra el origen versionado de Mantto Gestor.');
++}
++
++const SESSION_ID = clean(__ENV.MANTTO_LOAD_TEST_SESSION);
++const OPERATOR_JWT = clean(__ENV.MANTTO_OPERATOR_JWT);
++const TEST_JWT = clean(__ENV.MANTTO_TEST_JWT);
++const VUS = positiveInteger('MANTTO_VUS');
++const DURATION_SECONDS = positiveInteger('MANTTO_DURATION_SECONDS');
++const MIN_VUS = positiveInteger('MANTTO_MIN_VUS');
++const MAX_VUS = positiveInteger('MANTTO_MAX_VUS');
++const VUS_STEP = positiveInteger('MANTTO_VUS_STEP');
++const SCENARIO = clean(__ENV.MANTTO_SCENARIO).toUpperCase();
++
++if (!/^LOAD-[A-Z0-9-]+$/.test(SESSION_ID)) throw new Error('MANTTO_LOAD_TEST_SESSION no tiene formato valido.');
++if (!OPERATOR_JWT) throw new Error('Falta la autenticacion del Programador general.');
++if (!TEST_JWT) throw new Error('Falta la identidad de prueba de solo lectura.');
++if (OPERATOR_JWT === TEST_JWT) throw new Error('La identidad operadora y la identidad funcional de prueba deben ser distintas.');
++if (!SCENARIOS[SCENARIO]) throw new Error('El escenario recibido no existe en el catalogo versionado del runner.');
++if (VUS < MIN_VUS || VUS > MAX_VUS || ((VUS - MIN_VUS) % VUS_STEP) !== 0) {
++  throw new Error(`VUs fuera del rango configurado ${MIN_VUS}-${MAX_VUS} o fuera del paso ${VUS_STEP}.`);
++}
++
++export const options = {
++  vus: VUS,
++  duration: `${DURATION_SECONDS}s`,
++  discardResponseBodies: true,
++  maxRedirects: 0
++};
++
++function adminParams(responseType = 'text', extraHeaders = {}) {
++  return {
++    redirects: 0,
++    responseType,
++    headers: {
++      Accept: 'application/json',
++      Authorization: `Bearer ${OPERATOR_JWT}`,
++      ...extraHeaders
++    },
++    tags: { traffic: 'load-test-control' }
++  };
++}
++
++function responseHeader(response, name) {
++  const target = clean(name).toLowerCase();
++  const headers = response && response.headers ? response.headers : {};
++  for (const [key, value] of Object.entries(headers)) {
++    if (String(key || '').toLowerCase() === target) return clean(value);
++  }
++  return '';
++}
++
++function abortIfRedirect(response, context) {
++  if (response && response.status >= 300 && response.status < 400) {
++    exec.test.abort(`Redireccion rechazada durante ${context}. El runner no sigue redirecciones.`);
++  }
++}
++
++function parseJsonResponse(response, context) {
++  abortIfRedirect(response, context);
++  if (!response || response.status < 200 || response.status >= 300) {
++    exec.test.abort(`${context} fallo con HTTP ${response ? response.status : 'N/D'}.`);
++  }
++  try {
++    return response.json();
++  } catch (_error) {
++    exec.test.abort(`${context} devolvio una respuesta no JSON.`);
++  }
++  return null;
++}
++
++function assertClaim(claim) {
++  if (!claim || claim.ok !== true || !claim.data) exec.test.abort('runner-claim no devolvio un contrato valido.');
++  const data = claim.data;
++  if (data.session_id !== SESSION_ID) exec.test.abort('runner-claim devolvio otra sesion.');
++  if (normalizeOrigin(data.target_origin) !== trustedOrigin) exec.test.abort('El origen autorizado por backend no coincide con el origen versionado del runner.');
++  if (data.redirects_allowed !== false) exec.test.abort('El backend no confirmo la politica de redirecciones desactivadas.');
++  if (data.scenario_catalog_version !== CATALOG_VERSION) exec.test.abort('Version de catalogo runner/backend incompatible.');
++  if (String(data.scenario?.code || '').toUpperCase() !== SCENARIO) exec.test.abort('El escenario reclamado no coincide con la sesion preparada.');
++  if (Number(data.vus) !== VUS || Number(data.duration_seconds) !== DURATION_SECONDS) exec.test.abort('La configuracion del runner no coincide con la sesion preparada.');
++  if (!clean(data.runner_token) || !clean(data.process_instance_id)) exec.test.abort('runner-claim no entrego token/instancia validos.');
++
++  const localRequests = SCENARIOS[SCENARIO].requests;
++  const remoteRequests = Array.isArray(data.scenario?.requests) ? data.scenario.requests : [];
++  const sameCatalog = JSON.stringify(remoteRequests) === JSON.stringify(localRequests);
++  if (!sameCatalog) exec.test.abort('El catalogo de endpoints del backend no coincide con el runner versionado.');
++
++  return data;
++}
++
++export function setup() {
++  const claimResponse = http.post(
++    `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-claim`,
++    null,
++    adminParams('text')
++  );
++  const claim = assertClaim(parseJsonResponse(claimResponse, 'runner-claim'));
++
++  const startResponse = http.post(
++    `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/start`,
++    null,
++    adminParams('text')
++  );
++  const started = parseJsonResponse(startResponse, 'inicio de sesion');
++  if (!started || started.ok !== true || started.data?.state !== 'EJECUTANDO') {
++    exec.test.abort('El backend no confirmo el inicio de la sesion de carga.');
++  }
++
++  return {
++    runnerToken: claim.runner_token,
++    processInstanceId: claim.process_instance_id
++  };
++}
++
++export default function(data) {
++  const requests = SCENARIOS[SCENARIO].requests;
++  const index = exec.scenario.iterationInInstance % requests.length;
++  const request = requests[index];
++
++  if (!request || !['GET', 'HEAD'].includes(request.method)) {
++    exec.test.abort('El catalogo local contiene un metodo no permitido para carga funcional.');
++  }
++
++  const response = http.request(
++    request.method,
++    `${trustedOrigin}${request.path}`,
++    null,
++    {
++      redirects: 0,
++      responseType: 'none',
++      headers: {
++        Accept: 'application/json',
++        Authorization: `Bearer ${TEST_JWT}`,
++        'X-Mantto-Load-Test': SESSION_ID,
++        'X-Mantto-Load-Test-Token': data.runnerToken,
++        'X-Mantto-Load-Test-Instance': data.processInstanceId,
++        'User-Agent': 'Mantto-Gestor-Load-Test-V001'
++      },
++      tags: {
++        traffic: 'load-test-readonly',
++        scenario: SCENARIO,
++        endpoint: request.path
++      }
++    }
++  );
++
++  abortIfRedirect(response, request.path);
++  const returnedInstance = responseHeader(response, 'X-Mantto-Load-Test-Instance');
++  if (returnedInstance && returnedInstance !== data.processInstanceId) {
++    exec.test.abort('La solicitud llego a otro proceso backend. V001 exige una sola instancia/proceso.');
++  }
++
++  check(response, {
++    'HTTP 2xx': r => r.status >= 200 && r.status < 300,
++    'misma instancia backend': r => responseHeader(r, 'X-Mantto-Load-Test-Instance') === data.processInstanceId
++  });
++
++  sleep(Number(request.think_seconds || 1));
++}
++
++export function teardown() {
++  // Fase 3 libera la sesion al salir del runner para permitir otra prueba.
++  // La detencion real durante una ejecucion y el estado FINALIZANDO se implementan en Fase 4.
++  const response = http.post(
++    `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/stop`,
++    JSON.stringify({ reason: 'RUNNER_TEARDOWN_PHASE3' }),
++    adminParams('none', { 'Content-Type': 'application/json' })
++  );
++  abortIfRedirect(response, 'liberacion de sesion');
++}
+diff --git a/tests/panel-control-prueba-carga-fase2.test.js b/tests/panel-control-prueba-carga-fase2.test.js
+index 290bcd1..cd83bf7 100644
+--- a/tests/panel-control-prueba-carga-fase2.test.js
++++ b/tests/panel-control-prueba-carga-fase2.test.js
+@@ -15,7 +15,7 @@ test('Fase 2 crea una sola sesión efímera y nunca expone el hash/token almacen
+   const registry = new LoadTestRegistry({ now: () => clock, autoCleanup: false });
+   const first = registry.createSession({ actorUserId: 7, vus: 10, durationSeconds: 60, scenario: 'SALUD' });
+ 
+-  assert.match(first.runner_token, /^[A-Za-z0-9_-]+$/);
++  assert.equal(first.runner_token, undefined);
+   assert.equal(first.session.state, 'LISTA');
+   assert.equal('runnerTokenHash' in first.session, false);
+   assert.equal('runner_token' in first.session, false);
+@@ -30,14 +30,15 @@ test('Fase 2 asocia HTTP, SQL, pool y sistema únicamente a una sesión EJECUTAN
+   const registry = new LoadTestRegistry({ autoCleanup: false });
+   const prepared = registry.createSession({ actorUserId: 9, vus: 20, durationSeconds: 60, scenario: 'HOME' });
+   const id = prepared.session.id;
++  const claim = registry.claimRunner(id, { actorUserId: 9 });
+ 
+   assert.throws(
+-    () => registry.validateRunnerToken(id, prepared.runner_token, { requireRunning: true }),
++    () => registry.validateRunnerToken(id, claim.runner_token, { requireRunning: true }),
+     error => error && error.code === 'LOAD_TEST_SESSION_NOT_RUNNING'
+   );
+ 
+   registry.startSession(id);
+-  assert.doesNotThrow(() => registry.validateRunnerToken(id, prepared.runner_token, { requireRunning: true }));
++  assert.doesNotThrow(() => registry.validateRunnerToken(id, claim.runner_token, { requireRunning: true }));
+   assert.throws(
+     () => registry.validateRunnerToken(id, 'token-invalido', { requireRunning: true }),
+     error => error && error.code === 'LOAD_TEST_TOKEN_INVALID'
+@@ -98,6 +99,7 @@ test('Fase 2 elimina sesiones LISTA al vencer TTL y conserva finalizadas sólo d
+   assert.throws(() => registry.getPublicSession(prepared.session.id), error => error && error.code === 'LOAD_TEST_SESSION_NOT_FOUND');
+ 
+   const second = registry.createSession({ actorUserId: 10, vus: 10, durationSeconds: 30, scenario: 'SALUD' });
++  registry.claimRunner(second.session.id, { actorUserId: 10 });
+   registry.startSession(second.session.id);
+   registry.stopSession(second.session.id, { actorUserId: 10, reason: 'TEST', finalState: 'FINALIZADA' });
+   assert.equal(registry.getPublicSession(second.session.id).state, 'FINALIZADA');
+@@ -144,6 +146,8 @@ function capabilityData(overrides = {}) {
+       duration_max_seconds: 300
+     },
+     telemetry: { result_ttl_seconds: 900 },
++    execution_available: true,
++    runner_runtime: { ready: true, single_instance_confirmed: true, target_configured: true },
+     scenarios: [{ code: 'SALUD', label: 'Salud' }],
+     active_session: null,
+     ...overrides
+@@ -375,6 +379,7 @@ test('Hallazgo 2: tráfico marcado sólo permite GET/HEAD; POST/PUT/PATCH/DELETE
+     try { registry.deleteSession(active.id); } catch (_error) {}
+   }
+   const prepared = registry.createSession({ actorUserId: 77, vus: 10, durationSeconds: 30, scenario: 'SALUD' });
++  const claim = registry.claimRunner(prepared.session.id, { actorUserId: 77 });
+   registry.startSession(prepared.session.id);
+   const { loadTestTelemetryMiddleware } = require('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry');
+ 
+@@ -385,7 +390,8 @@ test('Hallazgo 2: tráfico marcado sólo permite GET/HEAD; POST/PUT/PATCH/DELETE
+       originalUrl: '/api/negocio/registro/1',
+       get(name) {
+         if (String(name).toLowerCase() === 'x-mantto-load-test') return prepared.session.id;
+-        if (String(name).toLowerCase() === 'x-mantto-load-test-token') return prepared.runner_token;
++        if (String(name).toLowerCase() === 'x-mantto-load-test-token') return claim.runner_token;
++        if (String(name).toLowerCase() === 'x-mantto-load-test-instance') return require('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runtime').PROCESS_INSTANCE_ID;
+         return '';
+       }
+     };
+@@ -403,7 +409,8 @@ test('Hallazgo 2: tráfico marcado sólo permite GET/HEAD; POST/PUT/PATCH/DELETE
+       originalUrl: '/api/health',
+       get(name) {
+         if (String(name).toLowerCase() === 'x-mantto-load-test') return prepared.session.id;
+-        if (String(name).toLowerCase() === 'x-mantto-load-test-token') return prepared.runner_token;
++        if (String(name).toLowerCase() === 'x-mantto-load-test-token') return claim.runner_token;
++        if (String(name).toLowerCase() === 'x-mantto-load-test-instance') return require('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runtime').PROCESS_INSTANCE_ID;
+         return '';
+       }
+     };
+@@ -421,6 +428,10 @@ test('Hallazgo 2: tráfico marcado sólo permite GET/HEAD; POST/PUT/PATCH/DELETE
+ });
+ 
+ function withPermissionStub(permissionFn, callback) {
++  const previousSingleInstance = process.env.LOAD_TEST_SINGLE_INSTANCE;
++  const previousAllowedOrigin = process.env.LOAD_TEST_ALLOWED_ORIGIN;
++  process.env.LOAD_TEST_SINGLE_INSTANCE = 'true';
++  process.env.LOAD_TEST_ALLOWED_ORIGIN = 'https://mantto-gestor-api-a4hwfpgvbeb4gmgj.mexicocentral-01.azurewebsites.net';
+   const permissionPath = require.resolve('../backend/src/services/permissions/effective-permission.service');
+   const servicePath = require.resolve('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service');
+   const previousPermission = require.cache[permissionPath];
+@@ -440,6 +451,8 @@ function withPermissionStub(permissionFn, callback) {
+       if (previousService) require.cache[servicePath] = previousService;
+       if (previousPermission) require.cache[permissionPath] = previousPermission;
+       else delete require.cache[permissionPath];
++      if (previousSingleInstance === undefined) delete process.env.LOAD_TEST_SINGLE_INSTANCE; else process.env.LOAD_TEST_SINGLE_INSTANCE = previousSingleInstance;
++      if (previousAllowedOrigin === undefined) delete process.env.LOAD_TEST_ALLOWED_ORIGIN; else process.env.LOAD_TEST_ALLOWED_ORIGIN = previousAllowedOrigin;
+     });
+ }
+ 
+@@ -510,7 +523,7 @@ function loadTestFrontendHarness(apiFn) {
+   let source = fs.readFileSync(file, 'utf8');
+   source = source.replace(
+     /window\.ManttoPanelControlPruebaCarga=\{[\s\S]*?\n  \};\n\}\)\(\);\s*$/,
+-    `window.ManttoPanelControlPruebaCarga={render,version:MODULE_VERSION,getPreparedSession(){return state.session&&state.runnerToken?{session:{...state.session},runner_token:state.runnerToken}:null;}};window.__pcltTest={state,refresh,clear,render,reloadCapabilities,recoverExpiredSession};})();`
++    `window.ManttoPanelControlPruebaCarga={render,version:MODULE_VERSION,getPreparedSession(){return state.session?{session:{...state.session}}:null;}};window.__pcltTest={state,refresh,clear,render,reloadCapabilities,recoverExpiredSession};})();`
+   );
+   const context = {
+     window: { ManttoAuth: { api: apiFn } },
+@@ -538,11 +551,10 @@ function seedFrontendSession(state) {
+     expires_at: '2026-09-28T15:01:00Z',
+     telemetry: {}
+   };
+-  state.runnerToken = 'TOKEN_LOCAL';
+   state.capabilities = capabilityData({ active_session: { ...state.session } });
+ }
+ 
+-test('Hallazgo 4: Actualizar con 404 limpia sesión/token, refresca capacidades y permite preparar otra', async () => {
++test('Hallazgo 4: Actualizar con 404 limpia sesión, refresca capacidades y permite preparar otra', async () => {
+   const calls = [];
+   const harness = loadTestFrontendHarness(async pathValue => {
+     calls.push(pathValue);
+@@ -556,11 +568,10 @@ test('Hallazgo 4: Actualizar con 404 limpia sesión/token, refresca capacidades
+   seedFrontendSession(harness.api.state);
+   await harness.api.refresh(harness.container);
+   assert.equal(harness.api.state.session, null);
+-  assert.equal(harness.api.state.runnerToken, null);
+   assert.equal(harness.api.state.error, '');
+   assert.equal(harness.api.state.capabilities.active_session, null);
+   assert.ok(calls.some(item => item.includes('/capabilities')));
+-  assert.match(harness.container.innerHTML, /Preparar telemetría/);
++  assert.match(harness.container.innerHTML, /Preparar prueba/);
+   assert.doesNotMatch(harness.container.innerHTML, /LOAD-EXPIRED/);
+ });
+ 
+@@ -578,19 +589,17 @@ test('Hallazgo 4: Limpiar una sesión ya vencida (404) cuenta como completado',
+   seedFrontendSession(harness.api.state);
+   await harness.api.clear(harness.container);
+   assert.equal(harness.api.state.session, null);
+-  assert.equal(harness.api.state.runnerToken, null);
+   assert.equal(harness.api.state.error, '');
+   assert.ok(calls.some(([item]) => item.includes('/capabilities')));
+-  assert.match(harness.container.innerHTML, /Preparar telemetría/);
++  assert.match(harness.container.innerHTML, /Preparar prueba/);
+ });
+ 
+-test('Hallazgo 4: errores de red distintos de 404 conservan sesión y token locales', async () => {
++test('Hallazgo 4: errores de red distintos de 404 conservan la sesión local', async () => {
+   for (const action of ['refresh', 'clear']) {
+     const harness = loadTestFrontendHarness(async () => { throw new TypeError('red caída'); });
+     seedFrontendSession(harness.api.state);
+     await harness.api[action](harness.container);
+     assert.equal(harness.api.state.session?.id, 'LOAD-EXPIRED', `${action} conserva sesión`);
+-    assert.equal(harness.api.state.runnerToken, 'TOKEN_LOCAL', `${action} conserva token`);
+     assert.match(harness.api.state.error, /red caída/);
+   }
+ });
+diff --git a/tests/panel-control-prueba-carga-fase3.test.js b/tests/panel-control-prueba-carga-fase3.test.js
+new file mode 100644
+index 0000000..8f67147
+--- /dev/null
++++ b/tests/panel-control-prueba-carga-fase3.test.js
+@@ -0,0 +1,287 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('fs');
++const path = require('path');
++
++const repoRoot = path.join(__dirname, '..');
++const loadTestRoot = path.join(repoRoot, 'backend', 'src', 'modules', 'panel-control-prueba-carga');
++const registryModule = require(path.join(loadTestRoot, 'panel-control-prueba-carga.registry.js'));
++const { LoadTestRegistry } = registryModule;
++const runtime = require(path.join(loadTestRoot, 'panel-control-prueba-carga.runtime.js'));
++const scenarios = require(path.join(loadTestRoot, 'panel-control-prueba-carga.scenarios.js'));
++
++const PROD_ORIGIN = 'https://mantto-gestor-api-a4hwfpgvbeb4gmgj.mexicocentral-01.azurewebsites.net';
++
++function withEnv(values, callback) {
++  const previous = {};
++  for (const [key, value] of Object.entries(values)) {
++    previous[key] = process.env[key];
++    if (value === undefined) delete process.env[key];
++    else process.env[key] = String(value);
++  }
++  return Promise.resolve()
++    .then(callback)
++    .finally(() => {
++      for (const [key, value] of Object.entries(previous)) {
++        if (value === undefined) delete process.env[key];
++        else process.env[key] = value;
++      }
++    });
++}
++
++function cleanupSingletonRegistry() {
++  const active = registryModule.getActivePublicSession();
++  if (!active) return;
++  try { registryModule.stopSession(active.id, { actorUserId: active.actor_user_id, reason: 'TEST_CLEANUP' }); } catch (_error) {}
++  try { registryModule.deleteSession(active.id); } catch (_error) {}
++}
++
++function withPermissionStub(permissionFn, callback) {
++  const permissionPath = require.resolve('../backend/src/services/permissions/effective-permission.service');
++  const servicePath = require.resolve('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service');
++  const previousPermission = require.cache[permissionPath];
++  const previousService = require.cache[servicePath];
++
++  require.cache[permissionPath] = {
++    id: permissionPath,
++    filename: permissionPath,
++    loaded: true,
++    exports: { hasEffectivePermission: permissionFn }
++  };
++  delete require.cache[servicePath];
++  const service = require(servicePath);
++
++  return Promise.resolve()
++    .then(() => callback(service))
++    .finally(() => {
++      cleanupSingletonRegistry();
++      delete require.cache[servicePath];
++      if (previousService) require.cache[servicePath] = previousService;
++      if (previousPermission) require.cache[permissionPath] = previousPermission;
++      else delete require.cache[permissionPath];
++    });
++}
++
++test('Fase 3: crear sesión ya no entrega token al navegador y start exige runner-claim', () => {
++  const registry = new LoadTestRegistry({ autoCleanup: false });
++  const created = registry.createSession({ actorUserId: 10, vus: 10, durationSeconds: 30, scenario: 'SALUD' });
++  assert.deepEqual(Object.keys(created), ['session']);
++  assert.equal(created.session.runner_claimed, false);
++  assert.equal('runner_token' in created, false);
++  assert.throws(
++    () => registry.startSession(created.session.id),
++    error => error?.code === 'LOAD_TEST_RUNNER_CLAIM_REQUIRED' && error?.status === 409
++  );
++  registry.close();
++});
++
++test('Fase 3: runner-claim es de un solo uso, devuelve token una vez y conserva solo hash', () => {
++  const registry = new LoadTestRegistry({ autoCleanup: false });
++  const created = registry.createSession({ actorUserId: 20, vus: 20, durationSeconds: 60, scenario: 'HOME' });
++  const claim = registry.claimRunner(created.session.id, { actorUserId: 20 });
++  assert.match(claim.runner_token, /^[A-Za-z0-9_-]+$/);
++  assert.equal(claim.session.runner_claimed, true);
++
++  const internal = registry.getSessionInternal(created.session.id);
++  assert.ok(Buffer.isBuffer(internal.runnerTokenHash));
++  assert.equal(internal.runnerTokenHash.length, 32);
++  assert.equal(Object.values(internal).includes(claim.runner_token), false, 'el token plano no queda almacenado en la sesión');
++  assert.equal(internal.runnerClaimCount, 1);
++
++  assert.throws(
++    () => registry.claimRunner(created.session.id, { actorUserId: 20 }),
++    error => error?.code === 'LOAD_TEST_RUNNER_ALREADY_CLAIMED' && error?.status === 409
++  );
++
++  registry.startSession(created.session.id);
++  assert.doesNotThrow(() => registry.validateRunnerToken(created.session.id, claim.runner_token, { requireRunning: true }));
++  registry.stopSession(created.session.id, { actorUserId: 20, reason: 'TEST' });
++  registry.deleteSession(created.session.id);
++  registry.close();
++});
++
++test('Fase 3: backend falla cerrado si no se confirma una sola instancia o falta target autorizado', async () => {
++  await withPermissionStub(async () => true, async service => {
++    await withEnv({ LOAD_TEST_SINGLE_INSTANCE: 'false', LOAD_TEST_ALLOWED_ORIGIN: PROD_ORIGIN }, async () => {
++      const caps = await service.getCapabilities({ id_SB: 30 });
++      assert.equal(caps.execution_available, false);
++      assert.equal(caps.runner_runtime.single_instance_confirmed, false);
++      await assert.rejects(
++        () => service.createSession({ id_SB: 30 }, { scenario: 'SALUD', vus: 10, duration_seconds: 30 }),
++        error => error?.code === 'LOAD_TEST_SINGLE_INSTANCE_REQUIRED' && error?.status === 503
++      );
++    });
++
++    await withEnv({ LOAD_TEST_SINGLE_INSTANCE: 'true', LOAD_TEST_ALLOWED_ORIGIN: '' }, async () => {
++      const caps = await service.getCapabilities({ id_SB: 30 });
++      assert.equal(caps.execution_available, false);
++      assert.equal(caps.runner_runtime.target_configured, false);
++      await assert.rejects(
++        () => service.createSession({ id_SB: 30 }, { scenario: 'SALUD', vus: 10, duration_seconds: 30 }),
++        error => error?.code === 'LOAD_TEST_ALLOWED_ORIGIN_REQUIRED' && error?.status === 503
++      );
++    });
++  });
++});
++
++test('Fase 3: claim valida actor propietario y devuelve únicamente catálogo/target confiables', async () => {
++  await withEnv({
++    LOAD_TEST_SINGLE_INSTANCE: 'true',
++    LOAD_TEST_ALLOWED_ORIGIN: PROD_ORIGIN,
++    LOAD_TEST_MAX_VUS: '1000'
++  }, async () => withPermissionStub(async () => true, async service => {
++    const owner = { id_SB: 41 };
++    const other = { id_SB: 42 };
++    const created = await service.createSession(owner, { scenario: 'MIXTO_LECTURA', vus: 1000, duration_seconds: 30 });
++    assert.equal(created.runner_token, undefined);
++
++    await assert.rejects(
++      () => service.claimRunner(other, created.session.id),
++      error => error?.code === 'LOAD_TEST_SESSION_OWNER_REQUIRED' && error?.status === 403
++    );
++
++    const claim = await service.claimRunner(owner, created.session.id);
++    assert.equal(claim.target_origin, PROD_ORIGIN);
++    assert.equal(claim.redirects_allowed, false);
++    assert.equal(claim.scenario_catalog_version, scenarios.CATALOG_VERSION);
++    assert.equal(claim.scenario.code, 'MIXTO_LECTURA');
++    assert.equal(claim.vus, 1000, '200 no es un tope duro');
++    assert.ok(claim.scenario.requests.every(item => item.method === 'GET'));
++    assert.ok(claim.scenario.requests.every(item => item.path.startsWith('/api/')));
++    assert.match(claim.runner_token, /^[A-Za-z0-9_-]+$/);
++
++    await assert.rejects(
++      () => service.claimRunner(owner, created.session.id),
++      error => error?.code === 'LOAD_TEST_RUNNER_ALREADY_CLAIMED'
++    );
++
++    await service.startSession(owner, created.session.id);
++    await service.stopSession(owner, created.session.id, 'TEST');
++    await service.deleteSession(owner, created.session.id);
++  }));
++});
++
++test('Fase 3: target de sesión sigue cerrado y origen exige solo http(s) sin ruta/query/credenciales', async () => {
++  assert.equal(runtime.normalizeOrigin(PROD_ORIGIN + '/'), PROD_ORIGIN);
++  assert.equal(runtime.normalizeOrigin(PROD_ORIGIN + '/api'), null);
++  assert.equal(runtime.normalizeOrigin(PROD_ORIGIN + '?x=1'), null);
++  assert.equal(runtime.normalizeOrigin('ftp://example.com'), null);
++  assert.equal(runtime.normalizeOrigin('https://user:pass@example.com'), null);
++
++  await withEnv({ LOAD_TEST_SINGLE_INSTANCE: 'true', LOAD_TEST_ALLOWED_ORIGIN: PROD_ORIGIN }, async () => {
++    await withPermissionStub(async () => true, async service => {
++      await assert.rejects(
++        () => service.createSession({ id_SB: 50 }, {
++          scenario: 'SALUD', vus: 10, duration_seconds: 30, target: 'https://example.com'
++        }),
++        error => error?.code === 'LOAD_TEST_TARGET_NOT_ALLOWED'
++      );
++    });
++  });
++});
++
++test('Fase 3: catálogo backend contiene únicamente rutas fijas GET/HEAD y coincide con endpoints confirmados', () => {
++  const allowed = new Set([
++    '/api/health',
++    '/api/home/bootstrap',
++    '/api/home/snapshot',
++    '/api/operacion/dashboard-call-center/inicial'
++  ]);
++  for (const item of Object.values(scenarios.SCENARIO_CATALOG)) {
++    assert.ok(item.requests.length > 0);
++    for (const request of item.requests) {
++      assert.ok(['GET', 'HEAD'].includes(request.method));
++      assert.ok(allowed.has(request.path), `${request.path} debe estar en el catálogo confirmado`);
++      assert.equal(/^https?:\/\//i.test(request.path), false);
++    }
++  }
++});
++
++test('Fase 3: tráfico marcado exige el process-instance reclamado antes de entrar a negocio', () => {
++  process.env.DB_HOST ||= '127.0.0.1';
++  process.env.DB_PORT ||= '3306';
++  process.env.DB_USER ||= 'test';
++  process.env.DB_PASSWORD ||= 'test';
++  process.env.DB_NAME ||= 'test';
++  process.env.DB_SSL = 'false';
++
++  cleanupSingletonRegistry();
++  const created = registryModule.createSession({ actorUserId: 60, vus: 10, durationSeconds: 30, scenario: 'SALUD' });
++  const claim = registryModule.claimRunner(created.session.id, { actorUserId: 60 });
++  registryModule.startSession(created.session.id);
++
++  const { loadTestTelemetryMiddleware } = require('../backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry');
++  let reachedBusiness = 0;
++  const req = {
++    method: 'GET',
++    originalUrl: '/api/health',
++    get(name) {
++      const key = String(name).toLowerCase();
++      if (key === 'x-mantto-load-test') return created.session.id;
++      if (key === 'x-mantto-load-test-token') return claim.runner_token;
++      if (key === 'x-mantto-load-test-instance') return 'OTRO-PROCESO';
++      return '';
++    }
++  };
++  const headers = {};
++  const res = {
++    statusCode: 200,
++    body: null,
++    setHeader(name, value) { headers[name] = value; },
++    status(code) { this.statusCode = code; return this; },
++    json(value) { this.body = value; return value; }
++  };
++
++  loadTestTelemetryMiddleware(req, res, () => { reachedBusiness += 1; });
++  assert.equal(res.statusCode, 421);
++  assert.equal(res.body?.code, 'LOAD_TEST_INSTANCE_MISMATCH');
++  assert.equal(reachedBusiness, 0);
++  assert.equal(headers['X-Mantto-Load-Test-Instance'], runtime.PROCESS_INSTANCE_ID);
++
++  registryModule.stopSession(created.session.id, { actorUserId: 60, reason: 'TEST' });
++  registryModule.deleteSession(created.session.id);
++});
++
++test('Fase 3: runner k6 está cerrado a origen fijo, sin redirects y sin secretos impresos', () => {
++  const runner = fs.readFileSync(path.join(repoRoot, 'scripts', 'load-test', 'mantto-gestor-load-test.k6.js'), 'utf8');
++  const config = fs.readFileSync(path.join(repoRoot, 'scripts', 'load-test', 'mantto-gestor-load-test.config.js'), 'utf8');
++  const coreConfig = fs.readFileSync(path.join(repoRoot, 'core', 'config.js'), 'utf8');
++
++  assert.match(config, new RegExp(PROD_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
++  assert.match(coreConfig, new RegExp(PROD_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
++  assert.match(runner, /TARGET_URL fue rechazado/);
++  assert.match(runner, /maxRedirects:\s*0/);
++  assert.ok((runner.match(/redirects:\s*0/g) || []).length >= 2);
++  assert.match(runner, /MANTTO_OPERATOR_JWT/);
++  assert.match(runner, /MANTTO_TEST_JWT/);
++  assert.match(runner, /OPERATOR_JWT === TEST_JWT/);
++  assert.match(runner, /runner-claim/);
++  assert.match(runner, /X-Mantto-Load-Test-Instance/);
++  assert.doesNotMatch(runner, /console\.log\([^\n]*(JWT|runnerToken|runner_token|TEST_JWT|OPERATOR_JWT)/i);
++  assert.doesNotMatch(runner, /handleSummary\s*\(/, 'el resumen final corresponde a Fase 5');
++});
++
++test('Fase 3: launcher recibe JWT por prompt seguro y los pasa solo por memoria del proceso', () => {
++  const launcher = fs.readFileSync(path.join(repoRoot, 'scripts', 'load-test', 'iniciar-mantto-load-test.ps1'), 'utf8');
++  assert.match(launcher, /Read-Host[^\n]+-AsSecureString/);
++  assert.match(launcher, /MaximumRedirection\s*=\s*0/);
++  assert.match(launcher, /\$env:MANTTO_OPERATOR_JWT\s*=\s*\$operatorJwt/);
++  assert.match(launcher, /\$env:MANTTO_TEST_JWT\s*=\s*\$testJwt/);
++  assert.match(launcher, /Remove-Item Env:MANTTO_OPERATOR_JWT/);
++  assert.match(launcher, /Remove-Item Env:MANTTO_TEST_JWT/);
++  const cliParamBlock = launcher.split('$ErrorActionPreference')[0];
++  assert.doesNotMatch(cliParamBlock, /OperatorJwt|TestJwt|BearerToken/i, 'los secretos no son argumentos de línea de comandos');
++  assert.doesNotMatch(launcher, /Set-Content|Out-File|Add-Content/, 'los secretos no se escriben a archivos');
++});
++
++test('Fase 3: pantalla no recibe ni conserva runner_token', () => {
++  const frontend = fs.readFileSync(path.join(repoRoot, 'modules', 'panel-control-prueba-carga', 'panel-control-prueba-carga.js'), 'utf8');
++  assert.doesNotMatch(frontend, /state\.runnerToken/);
++  assert.doesNotMatch(frontend, /response\.data\?\.runner_token/);
++  assert.doesNotMatch(frontend, /runner_token\s*:/);
++  assert.match(frontend, /claim de un solo uso/i);
++  assert.match(frontend, /Fase 4/);
++  assert.doesNotMatch(frontend, /id="pclt-stop"/, 'no se muestra un falso botón de detener k6 antes de Fase 4');
++});
