@@ -88,7 +88,7 @@
   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
   const NOTIFICATION_KEY_SEPARATOR='\u0000';
   const LOAD_TEST_TAB='load-test';
-  const LOAD_TEST_ASSET_VERSION='20260928-fase5-correcciones-v001';
+  const LOAD_TEST_ASSET_VERSION='20260928-fase5-monitoreo-v001';
   const LOAD_TEST_JS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.js?v=${LOAD_TEST_ASSET_VERSION}`;
   const LOAD_TEST_CSS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.css?v=${LOAD_TEST_ASSET_VERSION}`;
   let saveStatusTimer=null;

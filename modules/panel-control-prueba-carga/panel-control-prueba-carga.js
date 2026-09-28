@@ -1,8 +1,9 @@
 (function(){
   'use strict';
 
-  const MODULE_VERSION='20260928-fase5-correcciones-v001';
+  const MODULE_VERSION='20260928-fase5-monitoreo-v001';
   const LIVE_REFRESH_MS=2000;
+  const MAX_CONSOLE_EVENTS=50;
   const state={
     capabilities:null,
     session:null,
@@ -11,7 +12,12 @@
     error:'',
     report:'',
     copyStatus:'',
-    liveTimer:null
+    liveTimer:null,
+    clockTimer:null,
+    consoleSessionId:null,
+    consoleEvents:[],
+    consoleSnapshot:null,
+    consoleError:''
   };
 
   function esc(value){
@@ -43,12 +49,24 @@
     }
   }
 
+  function clearClockTimer(){
+    if(state.clockTimer){
+      (window.clearTimeout||clearTimeout)(state.clockTimer);
+      state.clockTimer=null;
+    }
+  }
+
   function clearLocalSession(){
     clearLiveTimer();
     state.session=null;
     state.report='';
     state.copyStatus='';
     state.recovered=false;
+    state.consoleSessionId=null;
+    state.consoleEvents=[];
+    state.consoleSnapshot=null;
+    state.consoleError='';
+    clearClockTimer();
     if(state.capabilities&&typeof state.capabilities==='object'){
       state.capabilities={...state.capabilities,active_session:null};
     }
@@ -91,6 +109,133 @@
     const parsed=Number(value);
     if(!Number.isFinite(parsed))return 'N/D';
     return parsed.toLocaleString('es-MX',{minimumFractionDigits:digits,maximumFractionDigits:digits});
+  }
+
+  function fmtClock(seconds){
+    if(!Number.isFinite(seconds))return 'N/D';
+    const total=Math.max(0,Math.floor(seconds));
+    const hours=Math.floor(total/3600);
+    const minutes=Math.floor((total%3600)/60);
+    const rest=total%60;
+    const two=value=>String(value).padStart(2,'0');
+    return hours?`${two(hours)}:${two(minutes)}:${two(rest)}`:`${two(minutes)}:${two(rest)}`;
+  }
+
+  function progressSnapshot(session,at=Date.now()){
+    const phase=String(session?.state||'');
+    const configured=Math.max(1,number(session?.duration_seconds,1));
+    const started=Date.parse(session?.started_at||'');
+    const stopped=Date.parse(session?.stopped_at||'');
+    const end=Number.isFinite(stopped)?stopped:at;
+    const elapsed=Number.isFinite(started)?Math.max(0,(end-started)/1000):0;
+    const percent=phase==='LISTA'?0:Math.max(0,Math.min(100,Math.floor(elapsed/configured*100)));
+    const expires=Date.parse(session?.expires_at||'');
+    if(phase==='LISTA')return {
+      percent,elapsed:'00:00',remaining:fmtClock(Number.isFinite(expires)?(expires-at)/1000:NaN),
+      remainingLabel:'Tiempo para iniciar',status:'Esperando el comando externo de k6'
+    };
+    const status=phase==='EJECUTANDO'
+      ?(elapsed>=configured?'Duración cumplida; esperando cierre del runner':'Prueba en ejecución')
+      :phase==='FINALIZANDO'?'Deteniendo y esperando confirmación del runner'
+      :session?.completion_integrity==='PENDIENTE_RESUMEN'?'Esperando el resumen final de k6'
+      :`Estado final: ${phase||'N/D'}`;
+    return {
+      percent,elapsed:fmtClock(elapsed),
+      remaining:['EJECUTANDO','FINALIZANDO'].includes(phase)?fmtClock(Math.max(0,configured-elapsed)):'—',
+      remainingLabel:'Tiempo restante',status
+    };
+  }
+
+  function progressHtml(session){
+    const progress=progressSnapshot(session);
+    return `<section class="pclt-progress" aria-label="Tiempo de la prueba">
+      <div class="pclt-progress-head"><strong>Tiempo de prueba</strong><b id="pclt-progress-value">${progress.percent} %</b></div>
+      <div class="pclt-progress-track" id="pclt-progress-bar" role="progressbar" aria-label="Porcentaje del tiempo configurado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}"><span id="pclt-progress-fill" style="width:${progress.percent}%"></span></div>
+      <div class="pclt-progress-times"><span>Transcurrido <b id="pclt-progress-elapsed">${progress.elapsed}</b></span><span><span id="pclt-progress-remaining-label">${progress.remainingLabel}</span> <b id="pclt-progress-remaining">${progress.remaining}</b></span></div>
+      <small id="pclt-progress-status">${esc(progress.status)}</small>
+    </section>`;
+  }
+
+  function updateProgressClock(){
+    if(!state.session)return;
+    const progress=progressSnapshot(state.session);
+    const value=document.getElementById('pclt-progress-value');
+    const bar=document.getElementById('pclt-progress-bar');
+    const fill=document.getElementById('pclt-progress-fill');
+    const elapsed=document.getElementById('pclt-progress-elapsed');
+    const remaining=document.getElementById('pclt-progress-remaining');
+    const status=document.getElementById('pclt-progress-status');
+    if(value)value.textContent=`${progress.percent} %`;
+    if(bar)bar.setAttribute('aria-valuenow',String(progress.percent));
+    if(fill)fill.style.width=`${progress.percent}%`;
+    if(elapsed)elapsed.textContent=progress.elapsed;
+    if(remaining)remaining.textContent=progress.remaining;
+    if(status)status.textContent=progress.status;
+  }
+
+  function scheduleClockRefresh(){
+    clearClockTimer();
+    if(!needsPolling(state.session))return;
+    state.clockTimer=(window.setTimeout||setTimeout)(()=>{
+      state.clockTimer=null;
+      if(!document.getElementById('pclt-root'))return;
+      updateProgressClock();
+      scheduleClockRefresh();
+    },1000);
+  }
+
+  function addConsoleEvent(message,tone='info'){
+    state.consoleEvents.push({at:Date.now(),message:String(message),tone});
+    if(state.consoleEvents.length>MAX_CONSOLE_EVENTS)state.consoleEvents.splice(0,state.consoleEvents.length-MAX_CONSOLE_EVENTS);
+  }
+
+  function observeSession(session){
+    if(!session?.id)return;
+    if(state.consoleSessionId!==session.id){
+      state.consoleSessionId=session.id;
+      state.consoleEvents=[];
+      state.consoleSnapshot=null;
+      state.consoleError='';
+      addConsoleEvent(state.recovered?'Sesión temporal recuperada del backend.':'Sesión preparada en RAM.');
+    }
+    const previous=state.consoleSnapshot;
+    const http=session.telemetry?.http||{};
+    const sql=session.telemetry?.sql||{};
+    const current={
+      phase:String(session.state||''),claimed:Boolean(session.runner_claimed),
+      completed:Math.max(0,number(http.completed,0)),
+      httpErrors:Math.max(0,number(http.errors,0)),
+      sqlErrors:Math.max(0,number(sql.errors,0)),
+      integrity:String(session.completion_integrity||''),
+      stopReason:String(session.cancel_reason||session.stop_reason||'')
+    };
+    if(!previous){
+      if(current.phase==='LISTA')addConsoleEvent('Esperando el launcher externo de k6. El comando aparece arriba de esta consola.');
+      else addConsoleEvent(`Estado actual: ${current.phase||'N/D'}.`);
+      if(current.claimed)addConsoleEvent('Runner conectado; claim de un solo uso consumido.');
+    }else{
+      if(current.claimed&&!previous.claimed)addConsoleEvent('Runner conectado; claim de un solo uso consumido.');
+      if(current.phase!==previous.phase)addConsoleEvent(`Estado: ${previous.phase} → ${current.phase}.`,current.phase.startsWith('ABORTADA')?'error':'info');
+      if(current.completed>previous.completed){
+        const delta=current.completed-previous.completed;
+        addConsoleEvent(`Tráfico: +${delta} HTTP; total ${current.completed}; RPS backend ${fmtNumber(http.rps_backend,2)}.`);
+      }
+      if(current.httpErrors>previous.httpErrors)addConsoleEvent(`Errores HTTP backend: +${current.httpErrors-previous.httpErrors}; total ${current.httpErrors}.`,'error');
+      if(current.sqlErrors>previous.sqlErrors)addConsoleEvent(`Errores SQL: +${current.sqlErrors-previous.sqlErrors}; total ${current.sqlErrors}.`,'error');
+      if(current.stopReason&&current.stopReason!==previous.stopReason)addConsoleEvent(`Motivo de detención: ${current.stopReason}.`,'warning');
+      if(current.integrity&&current.integrity!==previous.integrity)addConsoleEvent(`Reporte: ${current.integrity}.`,current.integrity==='INCOMPLETO'?'warning':'info');
+    }
+    if(state.error&&state.error!==state.consoleError)addConsoleEvent(`Error de acción: ${state.error}`,'error');
+    state.consoleError=state.error;
+    state.consoleSnapshot=current;
+  }
+
+  function consoleHtml(){
+    const lines=state.consoleEvents.map(event=>{
+      const time=new Date(event.at).toLocaleTimeString('es-MX',{hour12:false});
+      return `<div class="pclt-console-line ${event.tone}"><time>${esc(time)}</time><span>${esc(event.message)}</span></div>`;
+    }).join('');
+    return `<section class="pclt-console-panel"><div class="pclt-console-head"><strong>Eventos en vivo</strong><span>Hasta ${MAX_CONSOLE_EVENTS} eventos · solo RAM</span></div><div class="pclt-console" id="pclt-console" aria-label="Eventos temporales de la prueba">${lines}</div><small>Se muestran cambios de estado y contadores del backend. Los errores detallados de k6 permanecen en PowerShell.</small></section>`;
   }
 
   function sessionTelemetryHtml(session){
@@ -167,6 +312,10 @@
   function render(container,capabilities){
     if(!container)return false;
     clearLiveTimer();
+    clearClockTimer();
+    const oldConsole=document.getElementById('pclt-console');
+    const oldConsoleScroll=oldConsole?.scrollTop||0;
+    const consoleAtBottom=!oldConsole||oldConsole.scrollHeight-oldConsole.scrollTop-oldConsole.clientHeight<24;
     state.capabilities=capabilities||state.capabilities||{};
     syncRecoveredSession(state.capabilities);
 
@@ -189,6 +338,7 @@
     const sessionAwaitingSummary=String(session?.completion_integrity||'')==='PENDIENTE_RESUMEN';
     const warning=runtimeWarning(runtime);
     const finalMessage=terminalMessage(session);
+    observeSession(session);
 
     container.innerHTML=`<section class="pclt-page" id="pclt-root" data-module-version="${MODULE_VERSION}">
       <div class="pclt-head">
@@ -244,12 +394,14 @@
           <span class="pclt-state ${String(session.state||'').toLowerCase()}">${esc(session.state||'N/D')}</span>
         </div>
         ${state.recovered?'<div class="pclt-alert warning"><b>Sesión recuperada después de recargar.</b><span>La sesión sigue en RAM del backend. El token del runner nunca estuvo en la pantalla.</span></div>':''}
-        <div class="pclt-alert ${session.runner_claimed?'ok':'warning'}"><b>Runner claim: ${session.runner_claimed?'CONSUMIDO':'PENDIENTE'}</b><span>${session.runner_claimed?'El claim de un solo uso fue consumido y el backend conserva únicamente el hash del token efímero.':'Ejecuta el launcher externo para consumir el claim de un solo uso.'}</span></div>
-        ${session.state==='LISTA'?`<div class="pclt-alert ok"><b>Comando sin secretos</b><span><code>${esc(runnerCommand(session))}</code></span></div>`:''}
+        ${session.state==='LISTA'?`<div class="pclt-launch"><div><b>Siguiente paso: iniciar k6 en PowerShell</b><p>Desde la raíz del repositorio, con k6 instalado. El launcher pedirá dos JWT distintos y no los muestra aquí.</p></div><code id="pclt-runner-command">${esc(runnerCommand(session))}</code><button type="button" class="pclt-btn primary" id="pclt-copy-command">Copiar comando</button></div>`:''}
+        <div class="pclt-alert ${session.runner_claimed?'ok':'warning'}"><b>Runner claim: ${session.runner_claimed?'CONSUMIDO':'PENDIENTE'}</b><span>${session.runner_claimed?'El claim de un solo uso fue consumido y el backend conserva únicamente el hash del token efímero.':'El runner aún no inició esta sesión.'}</span></div>
         ${sessionFinalizing?'<div class="pclt-alert warning"><b>Detención solicitada</b><span>El backend ordenó al runner abortar. Se esperan las solicitudes ya iniciadas y la confirmación del cierre.</span></div>':''}
         ${finalMessage?`<div class="pclt-alert ${session.state==='FINALIZADA'?'ok':'warning'}"><b>${esc(session.state)}</b><span>${finalMessage}</span></div>`:''}
         <div class="pclt-session-meta"><span>Creada: <b>${fmtDate(session.created_at)}</b></span><span>Inicio: <b>${fmtDate(session.started_at)}</b></span><span>Expira/vence: <b>${fmtDate(session.expires_at)}</b></span></div>
+        ${progressHtml(session)}
         ${sessionTelemetryHtml(session)}
+        ${consoleHtml()}
         ${session.completion_integrity?`<div class="pclt-alert ${session.completion_integrity==='COMPLETO'?'ok':session.completion_integrity==='INCOMPLETO'?'warning':'warning'}"><b>Integridad: ${esc(session.completion_integrity)}</b><span>${session.completion_integrity==='PENDIENTE_RESUMEN'?'Esperando handleSummary() de k6.':session.completion_integrity==='INCOMPLETO'?`Reporte parcial disponible. Motivo: ${esc(session.report_incomplete_reason||session.stop_reason||'resumen k6 no disponible')}.`:'Resumen k6 recibido una sola vez y reporte construido en RAM.'}</span></div>`:''}
         ${state.report?`<div class="pclt-report-wrap"><div class="pclt-card-head"><span>Reporte final</span><em>Texto temporal · no se guarda</em></div><textarea class="pclt-report" id="pclt-report" readonly>${esc(state.report)}</textarea></div>`:''}
         <div class="pclt-actions">
@@ -265,8 +417,11 @@
       <div class="pclt-footer-note">Fase 5 recibe <code>handleSummary()</code> una sola vez, construye el reporte en RAM y permite copiarlo. Si el resumen no llega, el reporte se marca INCOMPLETO. No existe historial ni persistencia.</div>
     </section>`;
 
+    const newConsole=document.getElementById('pclt-console');
+    if(newConsole)newConsole.scrollTop=consoleAtBottom?newConsole.scrollHeight:oldConsoleScroll;
     bind(container);
     scheduleLiveRefresh(container);
+    scheduleClockRefresh();
     return true;
   }
 
@@ -397,8 +552,35 @@
     rerender(container);
   }
 
+  async function copyCommand(container){
+    const command=runnerCommand(state.session);
+    if(!command||state.session?.state!=='LISTA')return;
+    state.copyStatus='';
+    try{
+      if(navigator.clipboard?.writeText){
+        await navigator.clipboard.writeText(command);
+      }else{
+        const area=document.createElement('textarea');
+        area.value=command;
+        area.setAttribute('readonly','');
+        area.style.position='fixed';
+        area.style.opacity='0';
+        document.body.appendChild(area);
+        area.select();
+        const copied=document.execCommand('copy');
+        area.remove();
+        if(!copied)throw new Error('El navegador no permitió copiar el comando.');
+      }
+      state.copyStatus='Comando copiado. Ejecútalo desde la raíz del repositorio.';
+    }catch(error){
+      state.error=error?.message||'No fue posible copiar el comando.';
+    }
+    rerender(container);
+  }
+
   function bind(container){
     document.getElementById('pclt-prepare')?.addEventListener('click',()=>prepare(container));
+    document.getElementById('pclt-copy-command')?.addEventListener('click',()=>copyCommand(container));
     document.getElementById('pclt-refresh')?.addEventListener('click',()=>refresh(container));
     document.getElementById('pclt-stop')?.addEventListener('click',()=>stop(container));
     document.getElementById('pclt-copy')?.addEventListener('click',()=>copyReport(container));

@@ -1,4 +1,4 @@
-.pclt-page{
+<!doctype html><html lang="es"><meta charset="utf-8"><style>body{margin:0;background:#f3f6fa;font:14px Arial,sans-serif}.pc-page{padding:18px;max-width:1500px;margin:auto}.pclt-page{
   --pclt-ink:#17202a;
   --pclt-muted:#526274;
   --pclt-border:#dce5ee;
@@ -118,3 +118,97 @@
 @media(max-width:1000px){.pclt-telemetry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.pclt-grid{grid-template-columns:1fr}.pclt-head,.pclt-session-head{flex-direction:column}.pclt-phase{white-space:normal}.pclt-kv div{align-items:flex-start}.pclt-kv dd{max-width:48%}}
 @media(max-width:560px){.pclt-telemetry-grid{grid-template-columns:1fr}.pclt-actions{display:grid}.pclt-actions .pclt-btn{width:100%}.pclt-progress-times{align-items:flex-start;flex-direction:column}.pclt-console-head{align-items:flex-start;flex-direction:column}.pclt-console-line{grid-template-columns:65px minmax(0,1fr)}}
+</style><main class="pc-page"><section class="pclt-page" id="pclt-root" data-module-version="20260928-fase5-monitoreo-v001">
+      <div class="pclt-head">
+        <div>
+          <span class="pclt-eyebrow">DIAGNÓSTICO · PANEL DE CONTROL</span>
+          <h2>Prueba de Carga</h2>
+          <p>Prueba temporal de concurrencia contra Mantto Gestor con control real del runner y métricas en vivo separadas por origen.</p>
+        </div>
+        <span class="pclt-phase">FASE 5 · REPORTE FINAL EFÍMERO</span>
+      </div>
+
+      <div class="pclt-notice">
+        <b>Escalabilidad abierta</b>
+        <span>Máximo operativo actual: 200 VUs. Es configuración del entorno, no un límite duro del código.</span>
+      </div>
+
+      
+      
+      
+
+      <div class="pclt-grid">
+        <article class="pclt-card">
+          <div class="pclt-card-head"><span>Preparar sesión</span><em>Solo RAM</em></div>
+          <label>Escenario<select id="pclt-scenario" disabled><option value="SALUD">Salud</option></select></label>
+          <label>Usuarios concurrentes<input id="pclt-vus" type="number" min="10" max="200" step="10" value="10" disabled></label>
+          <label>Duración<select id="pclt-duration" disabled>
+            <option value="30" >30 s</option><option value="60" >60 s</option><option value="120" selected>120 s</option><option value="180" >180 s</option><option value="300" >300 s</option>
+          </select></label>
+          <button type="button" class="pclt-btn primary" id="pclt-prepare" disabled>Preparar prueba</button>
+          <small>La carga funcional sigue siendo exclusivamente GET/HEAD. El token del runner no llega a la pantalla ni se persiste.</small>
+        </article>
+
+        <article class="pclt-card">
+          <div class="pclt-card-head"><span>Capacidades</span><em>Fase 5</em></div>
+          <dl class="pclt-kv">
+            <div><dt>Acceso visual</dt><dd>AUTORIZADO</dd></div>
+            <div><dt>Preparar / ejecutar</dt><dd>AUTORIZADO</dd></div>
+            <div><dt>Detención real k6</dt><dd>DISPONIBLE</dd></div>
+            <div><dt>Una sola instancia</dt><dd>CONFIRMADA</dd></div>
+            <div><dt>Target autorizado</dt><dd>CONFIGURADO</dd></div>
+            <div><dt>Máximo operativo actual</dt><dd>200 VUs</dd></div>
+            <div><dt>Límite duro del código</dt><dd>NINGUNO</dd></div>
+            <div><dt>Timeout finalización</dt><dd>20 s</dd></div>
+            <div><dt>Timeout resumen k6</dt><dd>15 s</dd></div>
+            <div><dt>Persistencia</dt><dd>NINGUNA</dd></div>
+          </dl>
+        </article>
+      </div>
+
+      <article class="pclt-session-card">
+        <div class="pclt-session-head">
+          <div><span class="pclt-eyebrow">SESIÓN TEMPORAL</span><h3>LOAD-VISTA-PREVIA</h3><p>SALUD · 10 VUs objetivo · 120 s</p></div>
+          <span class="pclt-state ejecutando">EJECUTANDO</span>
+        </div>
+        <div class="pclt-alert warning"><b>Sesión recuperada después de recargar.</b><span>La sesión sigue en RAM del backend. El token del runner nunca estuvo en la pantalla.</span></div>
+        
+        <div class="pclt-alert ok"><b>Runner claim: CONSUMIDO</b><span>El claim de un solo uso fue consumido y el backend conserva únicamente el hash del token efímero.</span></div>
+        
+        
+        <div class="pclt-session-meta"><span>Creada: <b>28/09/26, 4:18:47 p.m.</b></span><span>Inicio: <b>28/09/26, 4:18:55 p.m.</b></span><span>Expira/vence: <b>28/09/26, 4:20:55 p.m.</b></span></div>
+        <section class="pclt-progress" aria-label="Tiempo de la prueba">
+      <div class="pclt-progress-head"><strong>Tiempo de prueba</strong><b id="pclt-progress-value">56 %</b></div>
+      <div class="pclt-progress-track" id="pclt-progress-bar" role="progressbar" aria-label="Porcentaje del tiempo configurado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="56"><span id="pclt-progress-fill" style="width:56%"></span></div>
+      <div class="pclt-progress-times"><span>Transcurrido <b id="pclt-progress-elapsed">01:08</b></span><span><span id="pclt-progress-remaining-label">Tiempo restante</span> <b id="pclt-progress-remaining">00:51</b></span></div>
+      <small id="pclt-progress-status">Prueba en ejecución</small>
+    </section>
+        <div class="pclt-telemetry-grid">
+      <div><span>VUs objetivo</span><b>10</b></div>
+      <div><span>VUs activos k6</span><b>10</b></div>
+      <div><span>Máx. VUs activos k6</span><b>10</b></div>
+      <div><span>Requests activos backend</span><b>3</b></div>
+      <div><span>RPS backend (10 s)</span><b>6.30</b></div>
+      <div><span>p95 backend (10 s)</span><b>180 ms</b></div>
+      <div><span>HTTP terminados</span><b>124</b></div>
+      <div><span>Errores HTTP backend</span><b>2</b></div>
+      <div><span>Queries</span><b>12</b></div>
+      <div><span>Queries lentas</span><b>1</b></div>
+      <div><span>CPU Node</span><b>27 %</b></div>
+      <div><span>MySQL running</span><b>2</b></div>
+    </div>
+        <section class="pclt-console-panel"><div class="pclt-console-head"><strong>Eventos en vivo</strong><span>Hasta 50 eventos · solo RAM</span></div><div class="pclt-console" id="pclt-console" aria-label="Eventos temporales de la prueba"><div class="pclt-console-line info"><time>16:20:03</time><span>Sesión temporal recuperada del backend.</span></div><div class="pclt-console-line info"><time>16:20:03</time><span>Estado actual: EJECUTANDO.</span></div><div class="pclt-console-line info"><time>16:20:03</time><span>Runner conectado; claim de un solo uso consumido.</span></div></div><small>Se muestran cambios de estado y contadores del backend. Los errores detallados de k6 permanecen en PowerShell.</small></section>
+        
+        
+        <div class="pclt-actions">
+          <button type="button" class="pclt-btn" id="pclt-refresh" >Actualizar estado</button>
+          <button type="button" class="pclt-btn danger" id="pclt-stop" >DETENER PRUEBA</button>
+          
+          <button type="button" class="pclt-btn ghost" id="pclt-clear" disabled>Limpiar sesión</button>
+        </div>
+        
+        <div class="pclt-footer-note">VUs activos proviene del runner k6. Requests activos, RPS y p95 están calculados por el backend Express; no se presentan como métricas equivalentes.</div>
+      </article>
+
+      <div class="pclt-footer-note">Fase 5 recibe <code>handleSummary()</code> una sola vez, construye el reporte en RAM y permite copiarlo. Si el resumen no llega, el reporte se marca INCOMPLETO. No existe historial ni persistencia.</div>
+    </section></main></html>
