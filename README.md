@@ -1,71 +1,130 @@
-# FIX_COBRANZA_COR_BOTONES_CI_V004
+# FIX_PORTAFOLIO_REINICIO_SEMANAL_V001
 
-Fecha: 23/09/2026
-Base verificada: `main` @ `a89f94b249cfb181ce9750ff8b88ff81320fa61e`
-Dominio: CORELLIAN
-Agrupacion: Cobranza
-Modulo: Estados de Cuenta
+## Objetivo
 
-## Causa confirmada
+Corregir `Portafolio > Movimientos de Portafolio > Histórico semanal` para que cada corte semanal cierre la semana anterior y el corte recién generado se convierta inmediatamente en la nueva línea base.
 
-El FIX V003 de botones si quedo aplicado en `main` y GitHub Pages desplego correctamente.
-El fallo ocurrio en el workflow de Azure durante `npm test`.
+Después del corte:
 
-La prueba `validation/seguimiento-especial-notificaciones.test.js` conservaba una asercion obsoleta que exigia exactamente:
+- la semana cerrada permanece disponible como histórico;
+- la semana siguiente inicia con 0 movimientos si no hubo cambios posteriores al corte;
+- los movimientos de la semana en curso se calculan exclusivamente contra el último snapshot semanal cerrado;
+- la nueva semana queda disponible como `EN_CURSO`;
+- la interfaz NO selecciona ni consulta automáticamente la nueva semana: el usuario debe elegir Año + Semana y pulsar `Consultar`;
+- al ejecutar un corte manual, la selección semanal se limpia y se muestra el mensaje de semana reiniciada;
+- al volver a abrir el panel semanal se actualiza el catálogo para detectar cortes automáticos recientes.
 
-`core/module-loader.js?v=20260921-proyectos-layout-metricas-v007`
+## Causa corregida
 
-El V003 cambio correctamente ese cache-bust a la version de Cobranza, por lo que la prueba fallo aunque el archivo cargado era valido.
+El `main` vigente sólo exponía filas con `estado = 'CERRADO'` en el catálogo y en la consulta semanal. Después de un corte no existía una representación consultable de la nueva semana en curso. Además, el frontend seleccionaba automáticamente el corte más reciente y, después de un corte manual, volvía a cargar el corte recién cerrado.
 
-Adicionalmente, la prueba especifica de Cobranza COR tambien tenia dos expectativas obsoletas:
+## Implementación
 
-- esperaba `ppns:normalized` aunque la implementacion vigente usa `ppns:normalizedPpns`;
-- esperaba cache-bust exacto de V002 aunque `main` ya usa V003.
+No se crea una tabla ni un registro `EN_CURSO` en Aiven.
 
-## Reparacion
+El último corte `CERRADO` sigue siendo la única línea base persistida. El backend construye de forma temporal la metadata de la siguiente semana y, únicamente cuando el usuario la consulta, compara el snapshot del último corte cerrado contra el estado actual de `portafolio`.
 
-Se ajustan unicamente las pruebas afectadas. No se modifica codigo funcional, frontend, backend, BD, permisos ni rutas.
-
-### validation/seguimiento-especial-notificaciones.test.js
-
-La validacion de `core/module-loader.js` ahora comprueba que exista un cache-bust valido, sin acoplarse a una version de otro modulo.
-
-### tests/cobranza-cor-estados-cuenta-crud-form.test.js
-
-- valida el nombre real `normalizedPpns` usado por el flujo Editar;
-- valida que Estados de Cuenta y el formulario CRUD esten registrados con cache-bust valido;
-- valida JS y CSS del formulario sin depender de un numero de version fijo.
+Esto conserva el histórico existente y evita una segunda fuente de verdad.
 
 ## Archivos modificados
 
-- `validation/seguimiento-especial-notificaciones.test.js`
-- `tests/cobranza-cor-estados-cuenta-crud-form.test.js`
+1. `backend/src/modules/portafolio/portafolio-movimientos_uni.js`
+   - agrega la semana abierta derivada del último corte cerrado;
+   - calcula en lectura los movimientos posteriores al corte;
+   - conserva los filtros de alcance UNITED / `usuario_zop` existentes;
+   - no modifica el job, rutas, permisos ni esquema.
 
-## Validacion realizada
+2. `modules/movimientos-portafolio/movimientos-portafolio.js`
+   - versión de módulo: `20260928-reinicio-semanal-v005`;
+   - deja Año/Semana sin selección automática;
+   - identifica la semana abierta como `EN CURSO`;
+   - después de corte manual limpia la selección y no muestra ninguna semana hasta que el usuario la seleccione;
+   - refresca el catálogo al abrir el panel semanal.
 
-Sobre snapshot del `main` indicado arriba:
+## Base exacta utilizada
 
-- `node --check validation/seguimiento-especial-notificaciones.test.js`: OK
-- `node --check tests/cobranza-cor-estados-cuenta-crud-form.test.js`: OK
-- `node --test tests/cobranza-cor-estados-cuenta-crud-form.test.js`: 6/6 OK
-- `backend/npm run check`: OK
-- `backend/npm test`: 76/76 OK
+Repositorio: `ziSirrush/GestorMantto`
 
-Para reproducir `npm test` localmente se repuso en el snapshot de GitHub Pages el workflow `.github/workflows/main_mantto-gestor-api.yml`, porque los artifacts de Pages no incluyen `.github`.
+Rama: `main`
 
-## Sistemas modificados por esta entrega
+HEAD verificado al preparar esta entrega:
 
-Ninguno. Este ZIP solo contiene archivos completos para aplicar en una copia local del repositorio.
+`962c5d0cdba46586c98d6fae1eb4d883afc46ed1` — `Version 092526.7`
 
-- GitHub: sin cambios
-- Aiven: sin cambios
-- Azure: sin cambios
-- Netlify: sin cambios
+Blobs base de los archivos modificados:
 
-## Nota
+- `backend/src/modules/portafolio/portafolio-movimientos_uni.js`: `e12d03a2fd7d3218bdfbaf2ce0b2ad699ba039a3`
+- `modules/movimientos-portafolio/movimientos-portafolio.js`: `58fb5f6c018d01a402e06f50bba9eae09b5f1729`
 
-El error reparado era de CI/validacion, no de la implementacion de los botones. En `main` ya existen:
+Si cualquiera de esos dos archivos cambió en `main` antes de aplicar el fix, NO se debe sobreescribir a ciegas: hay que rebasar/reintegrar el cambio sobre el nuevo `main`.
 
-- `+ Crear nuevo` en Estados de Cuenta;
-- `Editar` dentro del detalle;
-- carga de `cobranza-cor-estados-cuenta-form.js` y `.css` desde `core/module-loader.js`.
+## Validaciones realizadas
+
+### Validación estática — PASS
+
+Ejecutado sobre ambos archivos modificados:
+
+```text
+node --check backend/src/modules/portafolio/portafolio-movimientos_uni.js
+node --check modules/movimientos-portafolio/movimientos-portafolio.js
+```
+
+Resultado: PASS.
+
+### Prueba local de comportamiento con DB simulada — PASS
+
+Se ejercitó el handler activo con un último corte cerrado de semana 39:
+
+1. semana 40 inmediatamente después del corte, sin cambios -> `0 movimientos`;
+2. cambio posterior de `En Servicio` a `No en Servicio` -> `1 DEGRADADO` en semana 40;
+3. semana 39 continúa disponible con `estado = CERRADO`.
+
+Resultado:
+
+```text
+PASS reinicio semanal: semana 40 inicia en 0, acumula solo cambios posteriores y semana 39 permanece CERRADA.
+```
+
+La prueba fue local con dependencias/DB simuladas. No equivale a una prueba contra Aiven ni a validación E2E.
+
+## No ejecutado / no modificado
+
+- Aiven MySQL: NO modificado; NO se ejecutó migración SQL.
+- GitHub: NO modificado; no se hizo commit ni push.
+- Azure: NO desplegado ni modificado.
+- GitHub Pages: NO desplegado.
+- Netlify: NO desplegado ni modificado.
+- Prueba E2E contra producción: NO ejecutada.
+
+## Aplicación
+
+Copiar los dos archivos del paquete respetando exactamente su estructura de carpetas sobre una copia actualizada del repositorio.
+
+Después de copiar:
+
+```powershell
+Set-Location "C:\RUTA\AL\GestorMantto"
+
+node --check ".\backend\src\modules\portafolio\portafolio-movimientos_uni.js"
+node --check ".\modules\movimientos-portafolio\movimientos-portafolio.js"
+
+git diff --check
+git diff -- backend/src/modules/portafolio/portafolio-movimientos_uni.js modules/movimientos-portafolio/movimientos-portafolio.js
+```
+
+No requiere ejecutar SQL.
+
+## Comportamiento esperado para validación
+
+1. Antes del corte, seleccionar la semana en curso y registrar sus movimientos visibles.
+2. Ejecutar/esperar el corte semanal.
+3. Confirmar que el corte anterior queda disponible en Histórico semanal.
+4. Confirmar que la interfaz no selecciona automáticamente la nueva semana después del corte manual.
+5. Seleccionar explícitamente la nueva semana `EN CURSO`.
+6. Sin cambios posteriores al corte debe mostrar `SIN MOVIMIENTOS ESTA SEMANA` y KPIs en 0.
+7. Provocar/validar un cambio real autorizado posterior al corte.
+8. Volver a consultar la semana `EN CURSO`; sólo ese cambio posterior debe aparecer.
+
+## Reversión
+
+Restaurar los dos archivos a sus versiones anteriores o revertir el commit que aplique este fix. No existe reversión de BD porque este fix no cambia esquema ni datos persistidos.

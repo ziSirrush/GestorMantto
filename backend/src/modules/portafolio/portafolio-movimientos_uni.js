@@ -9,7 +9,8 @@
 const db = require('../../config/db');
 const {
   latestDueSunday,
-  runWeeklyClose
+  runWeeklyClose,
+  isoWeekInfoFromYmd
 } = require('../../jobs/portafolioCierreSemanal.job');
 const {
   hasUnrestrictedUnitedScope_gnral,
@@ -55,6 +56,161 @@ function equipmentCodeFromJson_uni(row) {
 
 function equipmentKey_uni(value) {
   return normalizeUpper_uni(value);
+}
+
+function normalizeStatus_uni(value) {
+  return normalizeText_uni(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isServiceStatus_uni(value) {
+  const status = normalizeStatus_uni(value);
+  return status === 'en servicio' || status === 'servicio';
+}
+
+function movementTypeFromStatuses_uni(previous, current) {
+  if (isServiceStatus_uni(previous) && !isServiceStatus_uni(current)) return 'DEGRADADO';
+  if (!isServiceStatus_uni(previous) && isServiceStatus_uni(current)) return 'RECUPERADO';
+  return 'CAMBIO';
+}
+
+function dateYmdParts_uni(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return {
+      year: value.getUTCFullYear(),
+      month: value.getUTCMonth() + 1,
+      day: value.getUTCDate()
+    };
+  }
+  const match = normalizeText_uni(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+function shiftYmd_uni(parts, deltaDays) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  date.setUTCDate(date.getUTCDate() + deltaDays);
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate()
+  };
+}
+
+function openWeekMetaFromClosedCut_uni(cut) {
+  if (!cut) return null;
+  const closedSunday = dateYmdParts_uni(cut.fecha_fin);
+  if (!closedSunday) return null;
+  const nextSunday = shiftYmd_uni(closedSunday, 7);
+  const iso = isoWeekInfoFromYmd(nextSunday.year, nextSunday.month, nextSunday.day);
+  return {
+    id_corte: null,
+    ...iso,
+    fecha_corte: null,
+    fecha_base: cut.fecha_corte || cut.fecha_fin || null,
+    id_corte_anterior: cut.id_corte || null,
+    estado: 'EN_CURSO',
+    periodo_abierto: true
+  };
+}
+
+function mexicoCityTimestamp_uni(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).formatToParts(date).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+async function loadCurrentWeeklySnapshot_uni() {
+  const [rows] = await db.query(`
+    SELECT
+      p.numero_equipo,
+      p.proyecto AS proyecto_codigo,
+      COALESCE(NULLIF(TRIM(p.proyecto_cc_x_port), ''), p.proyecto) AS proyecto,
+      p.zona_id,
+      z.zona AS zona,
+      p.zona_operativa AS zona_legacy,
+      p.supervisor_zona AS supervisor,
+      p.estatus_servicio AS estatus,
+      p.estatus_ul_mes
+    FROM portafolio p
+    INNER JOIN z_op z
+      ON z.id_zona = p.zona_id
+     AND z.estado = 1
+    WHERE p.estado_registro = 1
+      AND (p.inactivo IS NULL OR UPPER(p.inactivo) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
+      AND p.numero_equipo IS NOT NULL
+      AND TRIM(p.numero_equipo) <> ''
+  `);
+
+  return rows.map(row => ({
+    equipo: row.numero_equipo,
+    estatus: row.estatus || '',
+    proyecto_codigo: row.proyecto_codigo || '',
+    proyecto: row.proyecto || row.proyecto_codigo || '',
+    zona_id: Number(row.zona_id) || null,
+    zona: row.zona || '',
+    zona_legacy: row.zona_legacy || '',
+    supervisor: row.supervisor || '',
+    estatus_ul_mes: row.estatus_ul_mes || ''
+  }));
+}
+
+function buildOpenWeekMovements_uni(previousSnapshot, currentSnapshot, timestamp) {
+  const previousMap = new Map(
+    (previousSnapshot || []).map(row => [equipmentKey_uni(equipmentCodeFromJson_uni(row)), row])
+  );
+  const movements = [];
+
+  for (const current of currentSnapshot || []) {
+    const previous = previousMap.get(equipmentKey_uni(current.equipo));
+    if (!previous) {
+      if (normalizeStatus_uni(current.estatus_ul_mes) || !isServiceStatus_uni(current.estatus)) continue;
+      movements.push({
+        tipo: 'NUEVO_INGRESO',
+        equipo: current.equipo,
+        proyecto_codigo: current.proyecto_codigo,
+        proyecto: current.proyecto,
+        zona_id: current.zona_id,
+        zona: current.zona,
+        zona_legacy: current.zona_legacy,
+        estatus_anterior: current.estatus_ul_mes || '',
+        estatus_actual: current.estatus,
+        supervisor: current.supervisor,
+        fecha_movimiento: timestamp
+      });
+      continue;
+    }
+
+    if (normalizeStatus_uni(previous.estatus) === normalizeStatus_uni(current.estatus)) continue;
+    movements.push({
+      tipo: movementTypeFromStatuses_uni(previous.estatus, current.estatus),
+      equipo: current.equipo,
+      proyecto_codigo: current.proyecto_codigo,
+      proyecto: current.proyecto,
+      zona_id: current.zona_id,
+      zona: current.zona,
+      zona_legacy: current.zona_legacy,
+      estatus_anterior: previous.estatus,
+      estatus_actual: current.estatus,
+      supervisor: current.supervisor,
+      fecha_movimiento: timestamp
+    });
+  }
+
+  return movements;
 }
 
 async function latestWeeklySnapshotEquipmentKeys_uni() {
@@ -459,12 +615,15 @@ async function getPortafolioSemanasDisponibles_uni(req, res) {
       ORDER BY anio_iso DESC, semana_iso DESC
     `);
 
+    const openWeek = rows.length ? openWeekMetaFromClosedCut_uni(rows[0]) : null;
+    const data = openWeek ? [openWeek, ...rows] : rows;
+
     return res.json({
       ok: true,
       source: 'aiven',
       alcance,
-      total: rows.length,
-      data: rows
+      total: data.length,
+      data
     });
   } catch (error) {
     return res.status(500).json({
@@ -516,8 +675,58 @@ async function getPortafolioMovimientosSemanales_uni(req, res) {
       LIMIT 1
     `, [anio, semana]);
 
-    if (!rows.length) {
-      return res.status(404).json({ ok: false, message: 'No existe un corte semanal cerrado para el periodo solicitado.' });
+    let rawCut = rows[0] || null;
+
+    if (!rawCut) {
+      const [latestRows] = await db.query(`
+        SELECT
+          id_corte,
+          anio_iso,
+          semana_iso,
+          fecha_inicio,
+          fecha_fin,
+          fecha_corte,
+          snapshot_json,
+          estado
+        FROM portafolio_cortes_semanales FORCE INDEX (uq_portafolio_semana)
+        WHERE estado = 'CERRADO'
+        ORDER BY anio_iso DESC, semana_iso DESC
+        LIMIT 1
+      `);
+
+      const latestCut = latestRows[0] || null;
+      const openWeek = openWeekMetaFromClosedCut_uni(latestCut);
+      const requestedOpenWeek = openWeek
+        && Number(openWeek.anio_iso) === anio
+        && Number(openWeek.semana_iso) === semana;
+
+      if (!requestedOpenWeek) {
+        return res.status(404).json({ ok: false, message: 'No existe un corte semanal ni una semana en curso para el periodo solicitado.' });
+      }
+
+      const previousSnapshot = parseJsonArray_uni(latestCut.snapshot_json);
+      const currentSnapshot = await loadCurrentWeeklySnapshot_uni();
+      const liveMovements = buildOpenWeekMovements_uni(
+        previousSnapshot,
+        currentSnapshot,
+        mexicoCityTimestamp_uni()
+      );
+
+      rawCut = {
+        ...openWeek,
+        total_portafolio: currentSnapshot.length,
+        total_movimientos: liveMovements.length,
+        total_salidas: 0,
+        total_regresos: 0,
+        total_cambios: 0,
+        total_ingresos: 0,
+        snapshot_json: currentSnapshot,
+        movimientos_json: liveMovements,
+        hash_contenido: null,
+        generado_por: null,
+        created_at: null,
+        updated_at: null
+      };
     }
 
     const authorizedEquipmentMap = await authorizedEquipmentMap_uni(req);
@@ -526,7 +735,6 @@ async function getPortafolioMovimientosSemanales_uni(req, res) {
       authorizedZoneRows.map(row => [Number(row.id_zona), normalizeText_uni(row.zona)])
     );
     const alcance = alcanceFromZoneRows_uni(authorizedZoneRows);
-    const rawCut = rows[0];
     const allScoped = parseJsonArray_uni(rawCut.movimientos_json)
       .map(row => canonicalizeWeeklyMovement_uni(row, authorizedEquipmentMap, authorizedZoneMap))
       .filter(Boolean);

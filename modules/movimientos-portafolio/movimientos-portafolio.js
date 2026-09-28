@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const MODULE_VERSION = '20260830-corte-semanal-v004';
+  const MODULE_VERSION = '20260928-reinicio-semanal-v005';
   const state = {
     loaded:false,
     rows:[],
@@ -418,37 +418,60 @@
     content.hidden=!open;
     panel.classList.toggle('is-open',open);
     button.setAttribute('aria-expanded',open?'true':'false');
-    if(open&&name==='weekly'&&!state.weeklyCatalog.length)loadWeeklyCatalog();
+    if(open&&name==='weekly')loadWeeklyCatalog(false);
   }
 
-  async function loadWeeklyCatalog(){
+  async function loadWeeklyCatalog(resetSelection){
     const year=$('mov-week-year'),week=$('mov-week-number');
+    const selectedYear=resetSelection?'':(year?year.value:'');
+    const selectedWeek=resetSelection?'':(week?week.value:'');
     try{
       const data=await fetchJson('/api/portafolio/movimientos-semanales/catalogo');
       state.weeklyCatalog=Array.isArray(data.data)?data.data:[];
       const years=[...new Set(state.weeklyCatalog.map(row=>String(row.anio_iso)))];
       if(year)year.innerHTML='<option value="">Selecciona</option>'+years.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
-      if(years.length){year.value=years[0];fillWeeksForYear(years[0]);}
-      else if(week)week.innerHTML='<option value="">Sin cortes disponibles</option>';
+
+      if(selectedYear&&years.includes(String(selectedYear))){
+        if(year)year.value=String(selectedYear);
+        fillWeeksForYear(selectedYear,selectedWeek);
+      }else{
+        if(year)year.value='';
+        if(week)week.innerHTML=years.length
+          ? '<option value="">Selecciona un año</option>'
+          : '<option value="">Sin cortes disponibles</option>';
+      }
     }catch(error){
       if(week)week.innerHTML='<option value="">Error al cargar</option>';
       text('mov-week-count',error.message);
     }
   }
 
-  function fillWeeksForYear(value){
+  function fillWeeksForYear(value,selectedValue){
     const week=$('mov-week-number');
     if(!week)return;
+    if(!value){
+      week.innerHTML='<option value="">Selecciona un año</option>';
+      return;
+    }
     const rows=state.weeklyCatalog.filter(row=>String(row.anio_iso)===String(value));
-    week.innerHTML='<option value="">Selecciona</option>'+rows.map(row=>'<option value="'+esc(row.semana_iso)+'">Semana '+esc(row.semana_iso)+' · '+fmtDate(row.fecha_inicio)+' al '+fmtDate(row.fecha_fin)+'</option>').join('');
-    if(rows.length)week.value=String(rows[0].semana_iso);
+    week.innerHTML='<option value="">Selecciona</option>'+rows.map(row=>{
+      const open=String(row.estado||'').toUpperCase()==='EN_CURSO';
+      const label=open
+        ? 'Semana '+esc(row.semana_iso)+' · EN CURSO'
+        : 'Semana '+esc(row.semana_iso)+' · '+fmtDate(row.fecha_inicio)+' al '+fmtDate(row.fecha_fin);
+      return '<option value="'+esc(row.semana_iso)+'">'+label+'</option>';
+    }).join('');
+    if(selectedValue&&rows.some(row=>String(row.semana_iso)===String(selectedValue))){
+      week.value=String(selectedValue);
+    }
   }
 
   function clearWeeklyFilters(){
-    const year=$('mov-week-year'),search=$('mov-week-search'),type=$('mov-week-type');
+    const year=$('mov-week-year'),week=$('mov-week-number'),search=$('mov-week-search'),type=$('mov-week-type');
     if(search)search.value='';
     if(type)type.value='';
-    if(year&&state.weeklyCatalog.length){year.value=String(state.weeklyCatalog[0].anio_iso);fillWeeksForYear(year.value);}
+    if(year)year.value='';
+    if(week)week.innerHTML='<option value="">Selecciona un año</option>';
     state.weeklyRows=[];
     state.weeklyCut=null;
     renderWeeklyEmpty('Selecciona un año y una semana');
@@ -475,9 +498,15 @@
       state.weeklyCut=data.corte||{};
       const cut=state.weeklyCut;
       const noMovements=Number(cut.total_movimientos||0)===0;
-      text('mov-week-title','Semana '+cut.semana_iso+' de '+cut.anio_iso);
+      const open=String(cut.estado||'').toUpperCase()==='EN_CURSO';
+      text('mov-week-title','Semana '+cut.semana_iso+' de '+cut.anio_iso+(open?' · EN CURSO':''));
       text('mov-week-count',noMovements?'SIN MOVIMIENTOS ESTA SEMANA':int(data.total_filtrado)+' movimientos mostrados');
-      text('mov-week-range','Del '+fmtDate(cut.fecha_inicio)+' al '+fmtDate(cut.fecha_fin)+' · Corte: '+fmtDate(cut.fecha_corte));
+      text(
+        'mov-week-range',
+        open
+          ? 'Semana en curso · Base: corte '+fmtDate(cut.fecha_base)
+          : 'Del '+fmtDate(cut.fecha_inicio)+' al '+fmtDate(cut.fecha_fin)+' · Corte: '+fmtDate(cut.fecha_corte)
+      );
       text('mov-week-total',int(cut.total_movimientos));
       text('mov-week-outs',int(cut.total_salidas));
       text('mov-week-returns',int(cut.total_regresos));
@@ -498,19 +527,13 @@
     setStatus('loading','Generando corte semanal...');
     try{
       const data=await fetchJson('/api/portafolio/movimientos-semanales/corte',{method:'POST'});
-      const cut=data.corte||{};
       state.weeklyCatalog=[];
-      await loadWeeklyCatalog();
-
-      const year=$('mov-week-year'),week=$('mov-week-number');
-      if(year&&cut.anio_iso){
-        year.value=String(cut.anio_iso);
-        fillWeeksForYear(year.value);
-      }
-      if(week&&cut.semana_iso)week.value=String(cut.semana_iso);
-      if(cut.anio_iso&&cut.semana_iso)await loadWeekly();
+      state.weeklyRows=[];
+      state.weeklyCut=null;
+      await loadWeeklyCatalog(true);
+      renderWeeklyEmpty('Semana reiniciada. Selecciona la nueva semana para consultarla.');
       await refresh();
-      setStatus('ok',data.message||'Corte semanal generado correctamente');
+      setStatus('ok',(data.message||'Corte semanal generado correctamente')+' Semana reiniciada.');
     }catch(error){
       setStatus('error',error.message);
     }finally{
