@@ -82,9 +82,21 @@
     return local===true||backendAccessConfirmed===true;
   }
 
-  function canManage(){
+  function localManageState(){
     if(isViewingAs())return false;
-    return permissionEffective(MANAGE_PERMISSION);
+    if(!window.ManttoPermissions||typeof window.ManttoPermissions.state!=='function')return null;
+    const state=window.ManttoPermissions.state(MANAGE_PERMISSION);
+    if(!state||state.exists!==true)return null;
+    return state.efectivo===true;
+  }
+
+  function canManage(){
+    return localManageState()===true;
+  }
+
+  function canAttemptManage(){
+    if(isViewingAs())return false;
+    return localManageState()!==false;
   }
 
   async function request(path,options={}){
@@ -119,7 +131,7 @@
       .mg-detail-head{flex-wrap:wrap}
       .mg-se-detail-card{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-left:auto;min-width:270px;max-width:370px;background:#fff;border:1px solid rgba(255,255,255,.72);border-radius:10px;padding:8px 10px;box-shadow:0 5px 14px rgba(0,0,0,.16);color:#0D2E6E;flex:0 0 auto}
       .mg-se-detail-copy{min-width:0}.mg-se-detail-copy strong{display:block;color:#0D2E6E;font-size:12px;line-height:1.15}.mg-se-detail-copy strong .estado-visual-gnral{display:inline-block;margin:0 .22rem 0 0}.mg-se-detail-copy span{display:block;margin-top:2px;color:#64748B;font-size:9px;line-height:1.25;max-width:230px}
-      .mg-se-detail-toggle{display:inline-flex;align-items:center;gap:6px;color:#0D2E6E;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer}.mg-se-detail-toggle input{width:17px;height:17px;accent-color:#1455d9;cursor:pointer}.mg-se-detail-toggle input:disabled{cursor:wait;opacity:.65}
+      .mg-se-detail-toggle{display:inline-flex;align-items:center;gap:6px;color:#0D2E6E;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer}.mg-se-detail-toggle input{width:17px;height:17px;accent-color:#1455d9;cursor:pointer}.mg-se-detail-toggle input:disabled{opacity:.65}.mg-se-detail-toggle:not(.readonly) input:disabled{cursor:wait}.mg-se-detail-toggle.readonly{cursor:default;color:#64748B}.mg-se-detail-toggle.readonly input{cursor:not-allowed}
       .mg-se-detail-card.error{border-color:#fecaca}.mg-se-detail-card.error .mg-se-detail-copy span{color:#991b1b}
       @media(max-width:820px){.mg-se-detail-card{width:100%;max-width:none;margin-left:0}.mg-se-detail-copy span{max-width:none}}
       @media(max-width:520px){.mg-se-detail-card{align-items:flex-start;flex-direction:column}.mg-se-detail-toggle{width:100%;justify-content:flex-start}}
@@ -398,6 +410,9 @@
           resumen:Object.assign({},portafolioData.resumen||{},ticketsData.resumen||{})
         });
         document.dispatchEvent(new CustomEvent('mantto:seguimiento-especial-refreshed',{detail:getSnapshot()}));
+        // Si el detalle abrió antes de que terminara el snapshot de permisos,
+        // el GET exitoso recupera el montaje sin depender de otro evento.
+        remountCurrentDetail(20);
         return getSnapshot();
       }catch(error){
         if(error.status===401||error.status===403){
@@ -427,7 +442,7 @@
   }
 
   async function setProject(project,active){
-    if(!canManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
+    if(!canAttemptManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
     const ref=String(project||'').trim();
     if(!ref)throw new Error('Proyecto requerido.');
     const json=await putJson('/api/proyectos/'+encodeURIComponent(ref)+'/seguimiento-especial',{activo:Boolean(active)});
@@ -437,7 +452,7 @@
   }
 
   async function setEquipment(code,active){
-    if(!canManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
+    if(!canAttemptManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
     const ref=String(code||'').trim();
     if(!ref)throw new Error('Equipo requerido.');
     const json=await putJson('/api/equipos/'+encodeURIComponent(ref)+'/seguimiento-especial',{activo:Boolean(active)});
@@ -455,7 +470,7 @@
   }
 
   async function setTicket(ticket,active){
-    if(!canManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
+    if(!canAttemptManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
     const ref=String(ticket||'').trim();
     if(!ref)throw new Error('Ticket requerido.');
     const json=await putJson('/api/tickets/'+encodeURIComponent(ref)+'/seguimiento-especial',{activo:Boolean(active)});
@@ -541,16 +556,30 @@
     },Math.max(0,Number(delay)||0));
   }
 
+  function remountCurrentDetail(delay){
+    const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
+    if(!current||current.route!=='detalle'||!current.payload||!authenticated()||isViewingAs()||!isManttoTarget(current.payload))return false;
+    scheduleDetailMount(current.payload,delay==null?40:delay);
+    return true;
+  }
+
   async function mountDetailControl(payload,generation){
     const mountGeneration=Number.isFinite(Number(generation))?Number(generation):++detailMountGeneration;
     const targetKey=detailTargetKey(payload);
     clearDetailControl();
-    if(!targetKey||!canManage()||!isManttoTarget(payload))return;
+    // El GET de detalle es la autoridad de lectura. No se debe ocultar el
+    // control solo porque el snapshot local de permisos todavía no cargó o
+    // porque el usuario tenga acceso de lectura sin facultad de edición.
+    if(!targetKey||!authenticated()||isViewingAs()||!isManttoTarget(payload))return;
     const endpoint=detailEndpoint(payload);
     if(!endpoint)return;
     try{
       const json=await request(endpoint);
       if(mountGeneration!==detailMountGeneration||currentDetailTargetKey()!==targetKey)return;
+      // Un GET exitoso confirma que el backend autorizó la lectura aunque el
+      // snapshot local aún estuviera incompleto.
+      backendAccessConfirmed=true;
+      syncPermissionUi();
       let data=json.data||{};
       if(String(payload.type||'').toLowerCase()==='ticket'){
         syncTicketTrackedState(data.ticket||payload.id,Boolean(data.activo));
@@ -586,12 +615,26 @@
       checkbox.checked=Boolean(data.activo);
       checkbox.indeterminate=Boolean(data.parcial);
       checkbox.setAttribute('aria-label','Seguimiento Especial');
+      const manageState=localManageState();
+      const editable=manageState!==false;
+      checkbox.disabled=!editable;
+      if(!editable){
+        label.classList.add('readonly');
+        label.setAttribute('aria-disabled','true');
+        description.textContent=detailCopy(payload,data)+' Puedes consultarlo, pero no modificarlo con tus permisos actuales.';
+      }
       const state=document.createElement('span');
-      state.textContent=data.parcial?'Activo · con excepciones':(data.activo?'Activo':'Inactivo');
+      const stateText=()=>data.parcial?'Activo · con excepciones':(data.activo?'Activo':'Inactivo');
+      state.textContent=stateText()+(editable?'':' · Solo lectura');
       label.append(checkbox,state);
       root.append(copy,label);
 
       checkbox.addEventListener('change',async()=>{
+        if(label.classList.contains('readonly')){
+          checkbox.checked=Boolean(data.activo);
+          checkbox.indeterminate=Boolean(data.parcial);
+          return;
+        }
         const requested=checkbox.checked;
         const previous={checked:!requested,indeterminate:Boolean(data.parcial)};
         checkbox.indeterminate=false;
@@ -608,16 +651,23 @@
           checkbox.checked=Boolean(data.activo);
           checkbox.indeterminate=Boolean(data.parcial);
           description.textContent=detailCopy(payload,data);
-          state.textContent=data.parcial?'Activo · con excepciones':(data.activo?'Activo':'Inactivo');
+          state.textContent=stateText();
           root.classList.remove('error');
         }catch(error){
           checkbox.checked=previous.checked;
           checkbox.indeterminate=previous.indeterminate;
           state.textContent=previous.indeterminate?'Activo · con excepciones':(previous.checked?'Activo':'Inactivo');
           root.classList.add('error');
-          description.textContent=error.message||'No fue posible actualizar Seguimiento Especial.';
+          if(error&&error.status===403){
+            label.classList.add('readonly');
+            label.setAttribute('aria-disabled','true');
+            state.textContent=state.textContent+' · Solo lectura';
+            description.textContent=detailCopy(payload,data)+' Puedes consultarlo, pero no modificarlo con tus permisos actuales.';
+          }else{
+            description.textContent=error.message||'No fue posible actualizar Seguimiento Especial.';
+          }
         }finally{
-          checkbox.disabled=false;
+          checkbox.disabled=label.classList.contains('readonly');
         }
       });
 
@@ -638,7 +688,7 @@
       if(!hasAdded)return;
 
       const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
-      if(current&&current.route==='detalle'&&current.payload&&canManage()&&isManttoTarget(current.payload)){
+      if(current&&current.route==='detalle'&&current.payload&&authenticated()&&!isViewingAs()&&isManttoTarget(current.payload)){
         const head=document.querySelector('#view-detalle .mg-detail-head');
         const controls=document.querySelectorAll('[id="'+DETAIL_CONTROL_ID+'"]');
         if(head&&controls.length!==1)scheduleDetailMount(current.payload,40);
@@ -679,8 +729,7 @@
       backendAccessConfirmed=null;
       syncPermissionUi();
       refresh(true).catch(()=>{});
-      const current=window.ManttoRouter&&window.ManttoRouter.getCurrent?window.ManttoRouter.getCurrent():null;
-      if(current&&current.route==='detalle')scheduleDetailMount(current.payload||{},40);
+      remountCurrentDetail(20);
     });
     document.addEventListener('mantto:view-user-changed',()=>{
       backendAccessConfirmed=null;

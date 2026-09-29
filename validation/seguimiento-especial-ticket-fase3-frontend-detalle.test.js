@@ -88,14 +88,34 @@ test('Fase 4 puede consumir el listado general sin reemplazar el endpoint de det
   assert.match(globalModule, /\/api\/tickets\/.*\/seguimiento-especial/);
 });
 
-test('Visor y permiso de gestion siguen cerrando el control personal', () => {
-  const manageSlice = functionSlice(globalModule, 'canManage', 'request');
-  assert.match(manageSlice, /isViewingAs\(\)/);
-  assert.match(manageSlice, /permissionEffective\(MANAGE_PERMISSION\)/);
+test('gestion local distingue permiso conocido de estado aun no cargado', () => {
+  const manageSlice = functionSlice(globalModule, 'localManageState', 'request');
+  assert.match(manageSlice, /state\(MANAGE_PERMISSION\)/);
+  assert.match(manageSlice, /state\.exists!==true/);
+  assert.match(manageSlice, /function canManage\(\)/);
+  assert.match(manageSlice, /function canAttemptManage\(\)/);
+});
+
+test('Detalle no se oculta por canManage y usa GET como autoridad de lectura', () => {
+  const slice = functionSlice(globalModule, 'mountDetailControl', 'bindObserver');
+  assert.doesNotMatch(slice, /!canManage\(\)/);
+  assert.match(slice, /await request\(endpoint\)/);
+  assert.match(slice, /backendAccessConfirmed=true/);
+  assert.match(slice, /const manageState=localManageState\(\)/);
+  assert.match(slice, /Solo lectura/);
+  assert.match(slice, /checkbox\.disabled=!editable/);
+});
+
+test('Detalle se remonta cuando el backend confirma acceso despues del arranque', () => {
+  const refreshSlice = functionSlice(globalModule, 'refresh', 'getSnapshot');
+  const helperSlice = functionSlice(globalModule, 'remountCurrentDetail', 'mountDetailControl');
+  assert.match(refreshSlice, /remountCurrentDetail\(20\)/);
+  assert.match(helperSlice, /route!==['"]detalle['"]/);
+  assert.match(helperSlice, /scheduleDetailMount\(current\.payload/);
 });
 
 test('module-loader conserva el global de detalle con cache-bust actualizado por Fase 4', () => {
-  assert.match(loader, /seguimiento-especial-global\.js\?v=20260929-seguimiento-especial-ticket-listado-fase4-v001/);
+  assert.match(loader, /seguimiento-especial-global\.js\?v=20260929-fix-seguimiento-ticket-detalle-permisos-v001/);
   assert.doesNotMatch(loader, /seguimiento-especial-control-unico-v006/);
 });
 
@@ -110,18 +130,53 @@ test('suite oficial registra la prueba dirigida de Fase 3', () => {
 function createRuntime(options = {}) {
   const requests = [];
   const events = [];
+  const elements = [];
   const viewingAs = options.viewingAs === true;
+  const manageExists = options.manageExists !== false;
+  const manageEffective = options.manageEffective !== false;
   let active = options.initialActive === true;
 
-  function elementStub() {
-    return {
-      id: '', className: '', hidden: false, style: {}, dataset: {},
-      classList: { toggle() {}, add() {}, remove() {}, contains() { return false; } },
-      setAttribute() {}, appendChild() {}, append() {}, addEventListener() {},
-      querySelector() { return null; }, querySelectorAll() { return []; }, closest() { return null; }
+  function elementStub(tagName = 'DIV') {
+    const classes = new Set();
+    const attrs = new Map();
+    const listeners = new Map();
+    const element = {
+      tagName: String(tagName || 'DIV').toUpperCase(),
+      id: '', className: '', hidden: false, disabled: false, checked: false, indeterminate: false,
+      style: {}, dataset: {}, children: [], parentElement: null, removed: false,
+      classList: {
+        toggle(name, force) {
+          const enabled = force === undefined ? !classes.has(name) : Boolean(force);
+          if(enabled) classes.add(name); else classes.delete(name);
+          return enabled;
+        },
+        add(name) { classes.add(name); },
+        remove(name) { classes.delete(name); },
+        contains(name) { return classes.has(name); }
+      },
+      setAttribute(name, value) { attrs.set(String(name), String(value)); },
+      getAttribute(name) { return attrs.get(String(name)) || null; },
+      appendChild(child) {
+        if(child && typeof child === 'object') child.parentElement = element;
+        element.children.push(child);
+        return child;
+      },
+      append(...children) { children.forEach(child => element.appendChild(child)); },
+      addEventListener(type, handler) { listeners.set(type, handler); },
+      querySelector() { return null; }, querySelectorAll() { return []; }, closest() { return null; },
+      remove() {
+        element.removed = true;
+        if(element.parentElement && Array.isArray(element.parentElement.children)) {
+          element.parentElement.children = element.parentElement.children.filter(child => child !== element);
+        }
+      }
     };
+    elements.push(element);
+    return element;
   }
 
+  const detailHead = elementStub('DIV');
+  const currentPayload = options.currentPayload || { type:'ticket', id:'254013' };
   const window = {
     MANTTO_API_BASE: 'https://api.example.test',
     ManttoAuth: {
@@ -130,7 +185,13 @@ function createRuntime(options = {}) {
       getUser() { return { id_SB: 7 }; }
     },
     ManttoPermissions: {
-      state() { return { exists: true, efectivo: true }; }
+      state(code) {
+        if(String(code).includes('GESTIONAR_SEGUIMIENTO')) return { exists: manageExists, efectivo: manageExists && manageEffective };
+        return { exists: true, efectivo: true };
+      }
+    },
+    ManttoRouter: {
+      getCurrent() { return { route:'detalle', payload:currentPayload }; }
     },
     setTimeout() { return 1; },
     clearTimeout() {}
@@ -139,12 +200,20 @@ function createRuntime(options = {}) {
   const document = {
     readyState: 'loading',
     head: { appendChild() {} },
-    body: elementStub(),
-    createElement() { return elementStub(); },
-    createTextNode(value) { return { nodeValue: value }; },
+    body: elementStub('BODY'),
+    createElement(tagName) { return elementStub(tagName); },
+    createTextNode(value) { return { nodeValue: value, parentElement: null }; },
     getElementById() { return null; },
-    querySelector() { return null; },
-    querySelectorAll() { return []; },
+    querySelector(selector) {
+      if(selector === '#view-detalle .mg-detail-head' || selector === '.mg-detail-head') return detailHead;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if(selector === '[id="mg-seguimiento-especial-control"]') {
+        return elements.filter(element => element.id === 'mg-seguimiento-especial-control' && !element.removed);
+      }
+      return [];
+    },
     addEventListener() {},
     dispatchEvent(event) { events.push(event); }
   };
@@ -185,8 +254,33 @@ function createRuntime(options = {}) {
   window.window = window;
   const context = vm.createContext({ window, document, fetch, CustomEvent, console });
   vm.runInContext(globalModule, context, { filename: 'seguimiento-especial-global.js' });
-  return { api: window.ManttoSeguimientoEspecial, requests, events };
+  return { api: window.ManttoSeguimientoEspecial, requests, events, elements, detailHead };
 }
+
+
+test('runtime detalle con acceso de lectura y sin gestion SI monta control en solo lectura', async () => {
+  const runtime = createRuntime({ manageEffective: false, initialActive: true });
+  await runtime.api.mountDetailControl({ type:'ticket', id:'254013' });
+
+  assert.equal(runtime.requests.length, 1);
+  assert.equal(runtime.requests[0].url, 'https://api.example.test/api/tickets/254013/seguimiento-especial');
+  assert.equal(runtime.requests[0].options.method, undefined);
+
+  const root = runtime.elements.find(element => element.id === 'mg-seguimiento-especial-control' && !element.removed);
+  const checkbox = runtime.elements.find(element => element.tagName === 'INPUT');
+  assert.ok(root, 'El control debe existir aunque no haya permiso de gestion.');
+  assert.ok(checkbox, 'El control debe conservar el checkbox visible.');
+  assert.equal(checkbox.checked, true);
+  assert.equal(checkbox.disabled, true);
+  assert.equal(checkbox.parentElement.classList.contains('readonly'), true);
+});
+
+test('runtime permiso de gestion aun no cargado deja al backend decidir el PUT', async () => {
+  const runtime = createRuntime({ manageExists: false });
+  const activated = await runtime.api.setTicket('254013', true);
+  assert.equal(activated.activo, true);
+  assert.equal(runtime.requests[0].options.method, 'PUT');
+});
 
 test('runtime setTicket activa y desactiva la suscripcion exacta y conserva el detalle Fase 3', async () => {
   const runtime = createRuntime();

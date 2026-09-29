@@ -1,0 +1,29 @@
+FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001 - VALIDACIONES
+
+BASE REMOTA VERIFICADA
+main = 30ffa976c96857f04aba46a6ba6f8fb278c94a83
+Backend Run #407 del mismo commit = SUCCESS
+
+GIT BLOB BASELINE ANTES DEL FIX
+2d102b8ad63a39de2e9d4758239a550b60cb3314  modules/seguimiento-especial/seguimiento-especial-global.js
+613f0f91f721c0fc9c57b854251d33e8c2863d2d  core/module-loader.js
+9b1913a81e861becc19d45fceb7c499590e2612f  validation/seguimiento-especial-ticket-fase3-frontend-detalle.test.js
+560f8db4de5db455b65fecb0b8e720174445d01c  validation/seguimiento-especial-ticket-fase4-listado-frontend.test.js
+e45a45744a7f2b650ad34a3e18e6434eb2c554a8  validation/seguimiento-especial-notificaciones.test.js
+
+VALIDACIONES EJECUTADAS
+1. node --check modules/seguimiento-especial/seguimiento-especial-global.js: PASS
+2. node --check core/module-loader.js: PASS
+3. node --check validation/seguimiento-especial-ticket-fase3-frontend-detalle.test.js: PASS
+4. node --check validation/seguimiento-especial-ticket-fase4-listado-frontend.test.js: PASS
+5. node --check validation/seguimiento-especial-notificaciones.test.js: PASS
+6. node --test Fase 3 + Fase 4 sobre montaje integrado: 36/36 PASS
+7. Runtime: lectura=true, gestion=false -> control visible + checkbox disabled: PASS
+8. Runtime: permiso gestion aun no cargado -> PUT llega a backend: PASS
+9. Cache-bust global actualizado a 20260929-fix-seguimiento-ticket-detalle-permisos-v001: PASS
+10. No SQL / no backend productivo / no package.json: CONFIRMADO
+
+LIMITES
+- Suite completa del repo no ejecutada localmente porque el entorno de trabajo es un montaje incremental, no un clone completo de main.
+- No se consulto Aiven para verificar permisos del usuario real.
+- No se realizo deploy ni push.

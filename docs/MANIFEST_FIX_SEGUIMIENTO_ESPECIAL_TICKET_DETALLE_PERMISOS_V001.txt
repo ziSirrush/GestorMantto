@@ -1,0 +1,33 @@
+FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001
+
+BASE
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Commit: 30ffa976c96857f04aba46a6ba6f8fb278c94a83
+Version visible: GITHUB_PAGES · Version 092926.1 · 30ffa97
+
+MODIFICADOS PRODUCTIVOS
+modules/seguimiento-especial/seguimiento-especial-global.js
+core/module-loader.js
+
+MODIFICADOS VALIDACION
+validation/seguimiento-especial-ticket-fase3-frontend-detalle.test.js
+validation/seguimiento-especial-ticket-fase4-listado-frontend.test.js
+validation/seguimiento-especial-notificaciones.test.js
+
+DOCUMENTACION
+
+docs/ADR_20260929_FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001.md
+docs/README_FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001.md
+docs/MANIFEST_FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001.txt
+docs/VALIDACIONES_FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001.txt
+docs/CHECKSUMS_FIX_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_PERMISOS_V001_SHA256.txt
+
+NO INCLUYE
+SQL
+backend productivo
+backend/package.json
+Aiven
+Azure
+GitHub write
+.patch

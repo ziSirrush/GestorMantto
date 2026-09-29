@@ -109,7 +109,7 @@ test('CSS soporta tercer KPI y estado cerrado sin reemplazar estilos existentes'
 });
 
 test('module-loader invalida cache de global pantalla y CSS para Fase 4', () => {
-  assert.match(loader, /seguimiento-especial-global\.js\?v=20260929-seguimiento-especial-ticket-listado-fase4-v001/);
+  assert.match(loader, /seguimiento-especial-global\.js\?v=20260929-fix-seguimiento-ticket-detalle-permisos-v001/);
   assert.match(loader, /seguimiento-especial\.css\?v=20260929-seguimiento-especial-ticket-listado-fase4-v001/);
   assert.match(loader, /seguimiento-especial\.js\?v=20260929-seguimiento-especial-ticket-listado-fase4-v001/);
 });
