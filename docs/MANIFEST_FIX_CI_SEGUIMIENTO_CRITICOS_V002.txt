@@ -1,0 +1,19 @@
+FIX_CI_SEGUIMIENTO_CRITICOS_V002
+BASE: ziSirrush/GestorMantto main e947a3b4d9e7e67e70c2d9b24c9e17b3da61903c
+ORIGEN: GitHub Actions backend Run #406
+
+MODIFICADO:
+validation/equipo-sale-critico-fase2.test.js
+
+DOCUMENTACION:
+docs/README_FIX_CI_SEGUIMIENTO_CRITICOS_V002.md
+docs/MANIFEST_FIX_CI_SEGUIMIENTO_CRITICOS_V002.txt
+docs/VALIDACIONES_FIX_CI_SEGUIMIENTO_CRITICOS_V002.txt
+docs/CHECKSUMS_FIX_CI_SEGUIMIENTO_CRITICOS_V002_SHA256.txt
+
+NO INCLUYE:
+SQL
+backend productivo
+frontend productivo
+package.json
+.patch

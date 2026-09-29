@@ -1,0 +1,28 @@
+FIX_CI_SEGUIMIENTO_CRITICOS_V002 - VALIDACIONES
+
+Fuente verificada:
+- Repo: ziSirrush/GestorMantto
+- Rama: main
+- Commit: e947a3b4d9e7e67e70c2d9b24c9e17b3da61903c
+- Workflow backend: Run #406
+
+Fallo remoto confirmado:
+- validation/equipo-sale-critico-fase2.test.js:217
+- Subtest: fase 2 no toca la logica del sync de Fase 1
+- Error: true !== false
+- Suite remota: 159 total / 158 PASS / 1 FAIL
+
+Validaciones del FIX:
+1. node --check validation/equipo-sale-critico-fase2.test.js: PASS
+2. Montaje integrado Fase 1 + Fase 2: 13/13 PASS
+3. Git blob baseline reconstruido: PASS
+   esperado: c5b3752c7d649b5d012b5ee2d9ec0240fe39e4ef
+   obtenido: c5b3752c7d649b5d012b5ee2d9ec0240fe39e4ef
+4. No se modifica package.json: CONFIRMADO
+5. No se modifica codigo productivo: CONFIRMADO
+6. No se modifica SQL: CONFIRMADO
+
+Pendiente de confirmacion real:
+- Aplicar ZIP al repo.
+- Push a main.
+- Ejecucion completa de GitHub Actions.

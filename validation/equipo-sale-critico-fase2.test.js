@@ -214,6 +214,15 @@ test('bootstrap inicia y detiene el job nuevo', () => {
   assert.match(source, /stopEquiposCriticosSalidaU35Job\(\)/);
 });
 
-test('fase 2 no toca la logica del sync de Fase 1', () => {
-  assert.equal(fs.existsSync(path.join(ROOT, 'backend/src/services/notifications/ticket-critical-notifications_uni.service.js')), false);
+test('fase 2 convive con la logica del sync de Fase 1 sin reemplazarla', () => {
+  const phase1Path = path.join(ROOT, 'backend/src/services/notifications/ticket-critical-notifications_uni.service.js');
+  assert.equal(fs.existsSync(phase1Path), true);
+
+  const phase1 = read('backend/src/services/notifications/ticket-critical-notifications_uni.service.js');
+  const phase2 = read('backend/src/jobs/equiposCriticosSalidaU35.job.js');
+
+  assert.match(phase1, /EVENT_EQUIPO_SALE_DE_CRITICO_UNI\s*=\s*'EQUIPO_SALE_DE_CRITICO'/);
+  assert.match(phase1, /processAfterSync_uni/);
+  assert.match(phase2, /listTimeExpiredTransitions/);
+  assert.doesNotMatch(phase2, /processAfterSync_uni/);
 });
