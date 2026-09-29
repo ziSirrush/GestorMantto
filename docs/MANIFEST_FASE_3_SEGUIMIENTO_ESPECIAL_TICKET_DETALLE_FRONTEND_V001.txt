@@ -1,0 +1,49 @@
+FASE_3_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_FRONTEND_V001
+Fecha: 2026-09-29
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Base GitHub main: f69aa5d40796c5976cf8d59eb6f6f99dbd930299
+Base version: Version 092826.3
+Dependencias: FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001 + FASE_2_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001
+
+ARCHIVOS MODIFICADOS
+- modules/seguimiento-especial/seguimiento-especial-global.js
+- core/module-loader.js
+- backend/package.json
+
+ARCHIVOS NUEVOS
+- validation/seguimiento-especial-ticket-fase3-frontend-detalle.test.js
+- docs/ADR_20260929_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_FRONTEND_V001.md
+- docs/README_FASE_3_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_FRONTEND_V001.md
+- docs/MANIFEST_FASE_3_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_FRONTEND_V001.txt
+- docs/CHECKSUMS_FASE_3_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_FRONTEND_V001_SHA256.txt
+
+CAMBIO FUNCIONAL
+- Detalle TICKET acepta el control personal de Seguimiento Especial.
+- GET: /api/tickets/:ticket/seguimiento-especial.
+- PUT: /api/tickets/:ticket/seguimiento-especial.
+- Activar/desactivar Ticket afecta exclusivamente ese Ticket.
+- El encabezado del Detalle Ticket conserva el indicador de Seguimiento Especial mediante estado local de la sesión.
+- setTicket usa actualización selectiva y no refresca Portafolio completo.
+- Se conserva Proyecto/Equipo sin cambio funcional.
+- Cache-bust del global actualizado para cargar Fase 3.
+
+FUERA DE ALCANCE
+- Listado/pestaña Tickets en módulo Seguimiento Especial: Fase 4.
+- Decoración textual general de números de Ticket: no implementada.
+- SQL: ninguno.
+- Tablas: sin cambios.
+- Backend funcional: sin cambios.
+- Notificaciones: sin cambios.
+- Permisos: sin cambios.
+- portafolio_interes: sin cambios.
+
+VALIDACION
+- JS syntax: PASS.
+- backend/package.json parse: PASS.
+- Fase 3 dirigida: 16/16 PASS.
+- Fases 1+2+3 dirigidas combinadas: 40/40 PASS.
+- Suite completa repositorio: NO EJECUTADA en este entorno.
+- E2E navegador real: NO EJECUTADO.
+- Aiven: NO CONSULTADO / NO MODIFICADO.
+- GitHub/Azure/Netlify: NO MODIFICADOS / NO DESPLEGADOS.

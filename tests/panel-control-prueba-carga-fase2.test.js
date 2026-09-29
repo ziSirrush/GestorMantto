@@ -585,7 +585,7 @@ test('Hallazgo 4: Actualizar con 404 limpia sesión, refresca capacidades y perm
   assert.equal(harness.api.state.error, '');
   assert.equal(harness.api.state.capabilities.active_session, null);
   assert.ok(calls.some(item => item.includes('/capabilities')));
-  assert.match(harness.container.innerHTML, /Preparar prueba/);
+  assert.match(harness.container.innerHTML, /PREPARAR Y EJECUTAR/);
   assert.doesNotMatch(harness.container.innerHTML, /LOAD-EXPIRED/);
 });
 
@@ -605,7 +605,7 @@ test('Hallazgo 4: Limpiar una sesión ya vencida (404) cuenta como completado', 
   assert.equal(harness.api.state.session, null);
   assert.equal(harness.api.state.error, '');
   assert.ok(calls.some(([item]) => item.includes('/capabilities')));
-  assert.match(harness.container.innerHTML, /Preparar prueba/);
+  assert.match(harness.container.innerHTML, /PREPARAR Y EJECUTAR/);
 });
 
 test('Hallazgo 4: errores de red distintos de 404 conservan la sesión local', async () => {

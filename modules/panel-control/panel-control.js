@@ -88,7 +88,7 @@
   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
   const NOTIFICATION_KEY_SEPARATOR='\u0000';
   const LOAD_TEST_TAB='load-test';
-  const LOAD_TEST_ASSET_VERSION='20260928-fase5-monitoreo-v001';
+  const LOAD_TEST_ASSET_VERSION='20260929-runner-central-desktop-v001';
   const LOAD_TEST_JS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.js?v=${LOAD_TEST_ASSET_VERSION}`;
   const LOAD_TEST_CSS=`./modules/panel-control-prueba-carga/panel-control-prueba-carga.css?v=${LOAD_TEST_ASSET_VERSION}`;
   let saveStatusTimer=null;
@@ -110,11 +110,31 @@
     return api().api(path,options||{method:'GET'});
   }
 
+  function isLoadTestDesktopEligible(){
+    const nav=window.navigator||globalThis.navigator||{};
+    const ua=String(nav.userAgent||'');
+    if(nav.userAgentData?.mobile===true)return false;
+    if(/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle|PlayBook|IEMobile|Opera Mini/i.test(ua))return false;
+    if(/Macintosh/i.test(ua)&&Number(nav.maxTouchPoints||0)>1)return false;
+    const match=typeof window.matchMedia==='function'?query=>window.matchMedia(query).matches:()=>false;
+    if(match('(pointer: coarse)')&&!match('(pointer: fine)')&&match('(hover: none)'))return false;
+    return true;
+  }
+  window.ManttoLoadTestDesktopEligible=isLoadTestDesktopEligible;
+
   function loadTestHasAccess(){
-    return Boolean(state.loadTestCapabilities?.permissions?.access);
+    return isLoadTestDesktopEligible()&&Boolean(state.loadTestCapabilities?.permissions?.access);
   }
 
   async function loadLoadTestCapabilities({renderAfter=false}={}){
+    if(!isLoadTestDesktopEligible()){
+      loadTestCapabilityAbortController?.abort();
+      state.loadTestCapabilities=null;
+      state.loadTestCapabilityError='';
+      if(state.tab===LOAD_TEST_TAB)state.tab='users';
+      if(renderAfter)render();
+      return null;
+    }
     const requestSeq=++loadTestCapabilityRequestSeq;
     if(loadTestCapabilityAbortController) loadTestCapabilityAbortController.abort();
     const controller=typeof AbortController==='function'?new AbortController():null;
@@ -195,6 +215,10 @@
   async function renderLoadTestPanel(){
     const box=document.getElementById('pc-content');
     if(!box||state.tab!==LOAD_TEST_TAB)return;
+    if(!isLoadTestDesktopEligible()){
+      box.innerHTML='<section class="pc-permissions"><div class="pc-empty large">Prueba de Carga está disponible únicamente desde una PC de escritorio o laptop.</div></section>';
+      return;
+    }
     updateSaveButton();
     if(!loadTestHasAccess()){
       box.innerHTML='<section class="pc-permissions"><div class="pc-empty large">No tienes permiso para abrir Prueba de Carga.</div></section>';

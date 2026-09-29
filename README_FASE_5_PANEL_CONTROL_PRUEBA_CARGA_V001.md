@@ -30,7 +30,7 @@ Se agrega el endpoint efímero:
 POST /api/panel-control/prueba-carga/session/:id/runner-summary
 ```
 
-El runner lo invoca desde `handleSummary(data, setupData)`.
+El runner lo invoca desde `handleSummary(data)`.
 
 La llamada utiliza:
 
@@ -38,13 +38,13 @@ La llamada utiliza:
 X-Mantto-Load-Test-Token
 ```
 
-El token es el mismo secreto efímero que Fase 3 entregó al runner mediante `runner-claim`. El backend conserva únicamente su hash en RAM.
+El token efímero se entrega al runner central mediante `runner/lease`. El backend conserva únicamente su hash en RAM.
 
 El navegador no recibe este token y el reporte tampoco lo contiene.
 
 ## 2. Entrega del token a handleSummary
 
-`setup()` devuelve al contexto interno de k6 los datos necesarios del runner. `handleSummary(data, setupData)` reutiliza el `runnerToken` recibido por `setup()` para enviar el resumen al backend.
+`setup()` devuelve al contexto interno de k6 solo datos no secretos. `handleSummary(data)` lee el token efímero inyectado en `MANTTO_LOAD_TEST_RUNNER_TOKEN` antes de iniciar k6.
 
 No se coloca el token en:
 
@@ -384,7 +384,7 @@ https://grafana.com/docs/k6/latest/results-output/end-of-test/custom-summary/
 
 La documentación oficial establece que `handleSummary()` se ejecuta al final de la prueba y permite producir/enviar salidas personalizadas.
 
-La compatibilidad de `setupData` con `handleSummary()` fue añadida por k6 desde v0.34.0 y forma parte del diseño utilizado para reutilizar en memoria el token efímero obtenido en `setup()`.
+FIX pre Fase 6: k6 documenta `handleSummary(data)` con un solo argumento; el retorno de `setup()` no se entrega a ese hook. El token se inyecta en el entorno del proceso hijo y no aparece en argumentos, archivos ni reportes.
 
 ## 19. No realizado por esta entrega
 

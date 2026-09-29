@@ -1,0 +1,58 @@
+FASE_4_SEGUIMIENTO_ESPECIAL_TICKET_LISTADO_FRONTEND_V001
+Fecha: 2026-09-29
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Base GitHub main: f69aa5d40796c5976cf8d59eb6f6f99dbd930299
+Base version: Version 092826.3
+Dependencias: FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001 + FASE_2_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001 + FASE_3_SEGUIMIENTO_ESPECIAL_TICKET_DETALLE_FRONTEND_V001
+
+ARCHIVOS MODIFICADOS
+- modules/seguimiento-especial/seguimiento-especial-global.js
+- modules/seguimiento-especial/seguimiento-especial.js
+- modules/seguimiento-especial/seguimiento-especial.css
+- core/module-loader.js
+- backend/package.json
+- validation/seguimiento-especial-ticket-fase3-frontend-detalle.test.js
+
+ARCHIVOS NUEVOS
+- validation/seguimiento-especial-ticket-fase4-listado-frontend.test.js
+- docs/ADR_20260929_SEGUIMIENTO_ESPECIAL_TICKET_LISTADO_FRONTEND_V001.md
+- docs/README_FASE_4_SEGUIMIENTO_ESPECIAL_TICKET_LISTADO_FRONTEND_V001.md
+- docs/MANIFEST_FASE_4_SEGUIMIENTO_ESPECIAL_TICKET_LISTADO_FRONTEND_V001.txt
+- docs/CHECKSUMS_FASE_4_SEGUIMIENTO_ESPECIAL_TICKET_LISTADO_FRONTEND_V001_SHA256.txt
+
+CAMBIO FUNCIONAL
+- El snapshot global combina Proyecto/Equipo de Portafolio y Tickets de seguimiento_especial.
+- El módulo Seguimiento Especial muestra Proyectos, Equipos y Tickets.
+- Se agrega KPI Tickets.
+- El buscador también filtra Tickets.
+- Abrir Ticket navega a Detalle Ticket.
+- Quitar Ticket desactiva exclusivamente ese Ticket.
+- Las referencias de Ticket pueden mostrar el indicador semántico SEGUIMIENTO_ESPECIAL.
+- Proyecto/Equipo mantienen su comportamiento y persistencia actuales.
+- Cache-bust actualizado para global, pantalla y CSS.
+
+AJUSTE DE PRUEBAS PREVIAS
+- La prueba de Fase 3 elimina aserciones temporales que exigían la ausencia de Fase 4.
+- Se conservan y vuelven a validar todos los contratos funcionales de Detalle Ticket.
+
+FUERA DE ALCANCE
+- SQL: ninguno.
+- Tablas: sin cambios.
+- Backend funcional: sin cambios.
+- Notificaciones: sin cambios.
+- Permisos: sin cambios.
+- portafolio_interes: sin cambios.
+- seguimiento_especial: sin cambio de estructura.
+- Nuevos tipos de entidad general: no implementados.
+
+VALIDACION
+- JS syntax: PASS.
+- backend/package.json parse: PASS.
+- Fase 4 dirigida: 16/16 PASS.
+- Fase 3 + Fase 4: 32/32 PASS.
+- Fases 1+2+3+4 dirigidas combinadas: 56/56 PASS.
+- Suite completa repositorio: NO EJECUTADA en este entorno.
+- E2E navegador real: NO EJECUTADO.
+- Aiven: NO CONSULTADO / NO MODIFICADO.
+- GitHub/Azure/Netlify: NO MODIFICADOS / NO DESPLEGADOS.

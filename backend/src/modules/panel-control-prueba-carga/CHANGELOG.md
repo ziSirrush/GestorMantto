@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## V001.5 - FIX pre Fase 6: runner central y desktop only - 2026-09-29
+
+- `handleSummary(data)` lee el token efímero del entorno de k6.
+- `dispatch`, `runner/heartbeat`, `runner/lease` y `runner-start` conectan la UI con un runner externo sin JWT del operador.
+- Servicio externo separado del backend medido, con k6 como proceso hijo, secretos en `env` y sin archivos de resultados.
+- Identidad funcional validada contra el login real y permisos efectivos de solo lectura; si falta, el runner no se declara listo.
+- Guardas de celular/tablet en UI y rutas humanas; el canal de servicio no recibe ese guard.
+- Despacho vencido termina `ABORTADA_SIN_CONFIRMACION` / `INCOMPLETO` con motivo `RUNNER_NO_INICIO`.
+- Fases anteriores se conservan como historial; el contrato vigente está en `README.md` y `README_FIX_FASE_5_RUNNER_CENTRAL_DESKTOP_ONLY_PRE_FASE_6_V001.md`.
+
 ## V001.3 - Fase 4 control real y metricas vivas - 2026-09-28
 
 - Estado `FINALIZANDO` incorporado al ciclo de ejecución y al bloqueo de prueba simultánea.

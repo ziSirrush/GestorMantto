@@ -1,0 +1,55 @@
+MANTTO GESTOR
+FASE 2 · EQUIPO SALE DE CRITICO · U35 AUTOMATICO V001
+
+BASE
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Commit: f69aa5d40796c5976cf8d59eb6f6f99dbd930299
+Mensaje: Version 092826.3
+Prerrequisito: FASE_1_EQUIPO_SALE_DE_CRITICO_NOTIFICACIONES_V001 aplicada
+
+ALCANCE
+- Detecta salida de crítico por vencimiento natural de la ventana U35.
+- Compara estado anclado ayer vs hoy con la misma regla 3 BLT / 35 días.
+- Job diario 00:10 America/Mexico_City por default.
+- Recuperación al reiniciar y deduplicación persistente.
+- Reutiliza EQUIPO_SALE_DE_CRITICO.
+- Sin tablas nuevas.
+- Sin frontend.
+- Sin Roles hardcodeados.
+
+MODIFICADO
+backend/src/bootstrap.js
+
+NUEVOS
+backend/src/jobs/equiposCriticosSalidaU35.job.js
+sql/PRECHECK_EQUIPO_SALE_DE_CRITICO_FASE_2_V001.sql
+sql/APLICAR_EQUIPO_SALE_DE_CRITICO_FASE_2_V001.sql
+sql/VALIDAR_EQUIPO_SALE_DE_CRITICO_FASE_2_V001.sql
+sql/ROLLBACK_EQUIPO_SALE_DE_CRITICO_FASE_2_V001.sql
+validation/equipo-sale-critico-fase2.test.js
+docs/ADR_20260929_EQUIPO_SALE_DE_CRITICO_FASE_2_V001.md
+docs/README_FASE_2_EQUIPO_SALE_DE_CRITICO_U35_AUTOMATICO_V001.md
+docs/MANIFEST_FASE_2_EQUIPO_SALE_DE_CRITICO_U35_AUTOMATICO_V001.txt
+docs/CHECKSUMS_FASE_2_EQUIPO_SALE_DE_CRITICO_U35_AUTOMATICO_V001_SHA256.txt
+
+NO MODIFICADO
+- backend/src/services/notifications/ticket-critical-notifications_uni.service.js
+- NUEVO_EQUIPO_CRITICO
+- FALLA_EQUIPO_CRITICO
+- PERSONA_ATRAPADA
+- frontend
+- esquema de tablas
+- notificacion_evento_roles
+
+VALIDACION LOCAL
+Fase 1: 14/14 PASS
+Fase 2: 13/13 PASS
+Cadena: 27/27 PASS
+bootstrap baseline Git blob SHA: PASS
+
+ESTADO
+SQL en Aiven: NO
+Deploy backend: NO
+Push real: NO
+E2E: NO

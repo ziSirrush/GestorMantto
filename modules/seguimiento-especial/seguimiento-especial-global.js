@@ -14,7 +14,11 @@
 
   let trackedProjects=new Set();
   let trackedEquipment=new Set();
-  let lastData={proyectos:[],equipos:[],resumen:{proyectos:0,equipos:0}};
+  // FASE 3: TICKET pertenece a la capa general de Seguimiento Especial. En
+  // esta fase solo se conserva el estado del detalle consultado; el listado
+  // completo de Tickets corresponde a Fase 4.
+  let trackedTickets=new Set();
+  let lastData={proyectos:[],equipos:[],tickets:[],resumen:{proyectos:0,equipos:0,tickets:0}};
   let refreshPromise=null;
   let scanTimer=null;
   let observer=null;
@@ -225,7 +229,7 @@
     const title=document.getElementById('app-context-title');
     const subtitle=document.getElementById('app-context-subtitle');
     if(title)title.textContent='Seguimiento Especial';
-    if(subtitle)subtitle.textContent='Portafolio · proyectos y equipos que requieren tu seguimiento personal';
+    if(subtitle)subtitle.textContent='Proyectos, equipos y tickets que requieren tu seguimiento personal';
     return view;
   }
 
@@ -239,7 +243,8 @@
 
   function isProjectTracked(value){return trackedProjects.has(normalize(value));}
   function isEquipmentTracked(value){return trackedEquipment.has(normalize(value));}
-  function isReferenceTracked(value){const key=normalize(value);return trackedProjects.has(key)||trackedEquipment.has(key);}
+  function isTicketTracked(value){return trackedTickets.has(normalize(value));}
+  function isReferenceTracked(value){const key=normalize(value);return trackedProjects.has(key)||trackedEquipment.has(key)||trackedTickets.has(key);}
 
   function isManttoView(){
     const current=window.ManttoRouter&&typeof window.ManttoRouter.getCurrent==='function'?window.ManttoRouter.getCurrent():null;
@@ -273,7 +278,7 @@
   }
 
   function decorateTextNodes(root){
-    if(isViewingAs()||!isManttoView()||(!trackedProjects.size&&!trackedEquipment.size))return;
+    if(isViewingAs()||!isManttoView()||(!trackedProjects.size&&!trackedEquipment.size&&!trackedTickets.size))return;
     const base=root&&root.nodeType===1?root:document.querySelector('.main-content');
     if(!base)return;
     const walker=document.createTreeWalker(base,NodeFilter.SHOW_TEXT,{
@@ -301,7 +306,11 @@
     if(!current||current.route!=='detalle'||!current.payload)return;
     const type=String(current.payload.type||'').toLowerCase();
     const id=String(current.payload.id||'').trim();
-    const tracked=type==='proyecto'?isProjectTracked(id):(type==='equipo'?isEquipmentTracked(id):false);
+    const tracked=type==='proyecto'
+      ? isProjectTracked(id)
+      : (type==='equipo'
+        ? isEquipmentTracked(id)
+        : (type==='ticket'?isTicketTracked(id):false));
     const head=document.querySelector('#view-detalle .mg-detail-head h2');
     if(!head)return;
     const old=head.querySelector('.mg-se-star-generated');
@@ -332,12 +341,15 @@
     const payload=data&&typeof data==='object'?data:{};
     const projects=Array.isArray(payload.proyectos)?payload.proyectos:[];
     const equipments=Array.isArray(payload.equipos)?payload.equipos:[];
+    const tickets=Array.isArray(payload.tickets)?payload.tickets:[];
     trackedProjects=new Set(projects.map(row=>normalize(row.proyecto)).filter(Boolean));
     trackedEquipment=new Set(equipments.flatMap(row=>[normalize(row.numero_equipo),normalize(row.identificacion_sitio)]).filter(Boolean));
+    trackedTickets=new Set(tickets.flatMap(row=>[normalize(row.ticket),normalize(row.id_ticket)]).filter(Boolean));
     lastData={
       proyectos:projects.map(row=>Object.assign({},row)),
       equipos:equipments.map(row=>Object.assign({},row)),
-      resumen:Object.assign({proyectos:projects.length,equipos:equipments.length},payload.resumen||{})
+      tickets:tickets.map(row=>Object.assign({},row)),
+      resumen:Object.assign({proyectos:projects.length,equipos:equipments.length,tickets:tickets.length},payload.resumen||{})
     };
     scheduleDecorate();
   }
@@ -345,7 +357,8 @@
   function clearSnapshot(){
     trackedProjects=new Set();
     trackedEquipment=new Set();
-    lastData={proyectos:[],equipos:[],resumen:{proyectos:0,equipos:0}};
+    trackedTickets=new Set();
+    lastData={proyectos:[],equipos:[],tickets:[],resumen:{proyectos:0,equipos:0,tickets:0}};
     decorateAll();
   }
 
@@ -370,10 +383,20 @@
       try{
         // El GET del módulo es la validación autoritativa de acceso cuando el
         // snapshot de permisos todavía no terminó de cargar en frontend.
-        const json=await request('/api/portafolio/seguimiento-especial');
+        const [portafolioJson,ticketsJson]=await Promise.all([
+          request('/api/portafolio/seguimiento-especial'),
+          request('/api/seguimiento-especial/tickets')
+        ]);
         backendAccessConfirmed=true;
         syncPermissionUi();
-        applySnapshot(json.data||{});
+        const portafolioData=portafolioJson.data||{};
+        const ticketsData=ticketsJson.data||{};
+        applySnapshot({
+          proyectos:Array.isArray(portafolioData.proyectos)?portafolioData.proyectos:[],
+          equipos:Array.isArray(portafolioData.equipos)?portafolioData.equipos:[],
+          tickets:Array.isArray(ticketsData.tickets)?ticketsData.tickets:[],
+          resumen:Object.assign({},portafolioData.resumen||{},ticketsData.resumen||{})
+        });
         document.dispatchEvent(new CustomEvent('mantto:seguimiento-especial-refreshed',{detail:getSnapshot()}));
         return getSnapshot();
       }catch(error){
@@ -395,9 +418,11 @@
     return {
       proyectos:lastData.proyectos.map(row=>Object.assign({},row)),
       equipos:lastData.equipos.map(row=>Object.assign({},row)),
+      tickets:lastData.tickets.map(row=>Object.assign({},row)),
       resumen:Object.assign({},lastData.resumen),
       proyectosSet:new Set(trackedProjects),
-      equiposSet:new Set(trackedEquipment)
+      equiposSet:new Set(trackedEquipment),
+      ticketsSet:new Set(trackedTickets)
     };
   }
 
@@ -421,11 +446,31 @@
     return json.data||{};
   }
 
+  function syncTicketTrackedState(ticket,active){
+    const key=normalize(ticket);
+    if(!key)return;
+    if(active)trackedTickets.add(key);
+    else trackedTickets.delete(key);
+    scheduleDecorate();
+  }
+
+  async function setTicket(ticket,active){
+    if(!canManage())throw new Error('No tienes permiso para gestionar Seguimiento Especial.');
+    const ref=String(ticket||'').trim();
+    if(!ref)throw new Error('Ticket requerido.');
+    const json=await putJson('/api/tickets/'+encodeURIComponent(ref)+'/seguimiento-especial',{activo:Boolean(active)});
+    const data=json.data||{};
+    syncTicketTrackedState(data.ticket||ref,Boolean(data.activo));
+    await refresh(true);
+    document.dispatchEvent(new CustomEvent('mantto:seguimiento-especial-actualizado',{detail:{tipo:'TICKET',referencia:ref,activo:Boolean(data.activo),data}}));
+    return data;
+  }
+
   function isManttoTarget(payload){
     const source=payload&&typeof payload==='object'?payload:{};
     const type=String(source.type||'').trim().toLowerCase();
     const id=String(source.id||'').trim();
-    if(!['proyecto','equipo'].includes(type)||!id||id.includes('|||'))return false;
+    if(!['proyecto','equipo','ticket'].includes(type)||!id||id.includes('|||'))return false;
     const marker=[source.source,source.template,source.origen].filter(Boolean).join(' ').toLowerCase();
     return !marker.includes('instalacion')&&!marker.includes('corellian')&&!marker.includes('cliente-unificado');
   }
@@ -435,6 +480,7 @@
     const id=String(payload&&payload.id||'').trim();
     if(type==='proyecto')return '/api/proyectos/'+encodeURIComponent(id)+'/seguimiento-especial';
     if(type==='equipo')return '/api/equipos/'+encodeURIComponent(id)+'/seguimiento-especial';
+    if(type==='ticket')return '/api/tickets/'+encodeURIComponent(id)+'/seguimiento-especial';
     return null;
   }
 
@@ -473,6 +519,11 @@
           ? `Los ${total} equipos visibles del proyecto están en tu Seguimiento Especial.`
           : `Actívalo para incluir los ${total} equipos visibles del proyecto.`;
     }
+    if(type==='ticket'){
+      return data&&data.activo
+        ? 'Este Ticket está en tu Seguimiento Especial. Su actividad se seguirá de forma exclusiva para este Ticket.'
+        : 'Actívalo para seguir únicamente este Ticket, sin agregar su Proyecto, Equipo ni otros Tickets.';
+    }
     return data&&data.activo
       ? 'Este equipo está en tu Seguimiento Especial y mostrará su indicador visual personal.'
       : 'Actívalo para seguir únicamente este equipo y recibir sus notificaciones.';
@@ -501,6 +552,9 @@
       const json=await request(endpoint);
       if(mountGeneration!==detailMountGeneration||currentDetailTargetKey()!==targetKey)return;
       let data=json.data||{};
+      if(String(payload.type||'').toLowerCase()==='ticket'){
+        syncTicketTrackedState(data.ticket||payload.id,Boolean(data.activo));
+      }
       const head=document.querySelector('#view-detalle .mg-detail-head')||document.querySelector('.mg-detail-head');
       if(!head){
         if(mountGeneration===detailMountGeneration&&currentDetailTargetKey()===targetKey) scheduleDetailMount(payload,90);
@@ -544,9 +598,12 @@
         checkbox.disabled=true;
         state.textContent='Guardando...';
         try{
-          const next=String(payload.type||'').toLowerCase()==='proyecto'
+          const detailType=String(payload.type||'').toLowerCase();
+          const next=detailType==='proyecto'
             ? await setProject(payload.id,requested)
-            : await setEquipment(payload.id,requested);
+            : (detailType==='equipo'
+              ? await setEquipment(payload.id,requested)
+              : await setTicket(payload.id,requested));
           data=next||{};
           checkbox.checked=Boolean(data.activo);
           checkbox.indeterminate=Boolean(data.parcial);
@@ -587,7 +644,7 @@
         if(head&&controls.length!==1)scheduleDetailMount(current.payload,40);
       }
 
-      if(trackedProjects.size||trackedEquipment.size)scheduleDecorate();
+      if(trackedProjects.size||trackedEquipment.size||trackedTickets.size)scheduleDecorate();
     });
     observer.observe(root,{childList:true,subtree:true});
   }
@@ -649,9 +706,11 @@
     refresh,
     setProject,
     setEquipment,
+    setTicket,
     getSnapshot,
     isProjectTracked,
     isEquipmentTracked,
+    isTicketTracked,
     canAccess,
     canManage,
     activateModuleView,

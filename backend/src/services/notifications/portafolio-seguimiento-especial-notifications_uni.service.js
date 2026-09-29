@@ -7,6 +7,8 @@ const {
 const MANAGE_PERMISSION =
   'PORTAFOLIO_SEGUIMIENTO_ESPECIAL_SEGUIMIENTO_PROYECTO_EQUIPO.GESTIONAR_SEGUIMIENTO';
 const VISUAL_CODE = 'SEGUIMIENTO_ESPECIAL';
+const GENERAL_ORIGIN_UNITED = 'UNITED';
+const GENERAL_ENTITY_TICKET = 'TICKET';
 
 function cleanText(value, max = 500) {
   const text = String(value == null ? '' : value).trim();
@@ -18,6 +20,15 @@ function positiveId(value) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function followerOriginPriority(origin) {
+  const normalized = cleanText(origin, 40)?.toUpperCase() || '';
+  if (normalized === 'TICKET') return 400;
+  if (normalized === 'EQUIPO') return 300;
+  if (normalized === 'PROYECTO') return 200;
+  if (normalized === 'PROYECTO_HEREDADO') return 100;
+  return 200;
+}
+
 function uniqueFollowers(values) {
   const byUser = new Map();
   for (const value of Array.isArray(values) ? values : []) {
@@ -25,7 +36,7 @@ function uniqueFollowers(values) {
     if (!idUsuario) continue;
     const origin = cleanText(value?.origen_seguimiento, 40) || 'EQUIPO';
     const current = byUser.get(idUsuario);
-    if (!current || current.origen_seguimiento === 'PROYECTO_HEREDADO') {
+    if (!current || followerOriginPriority(origin) > followerOriginPriority(current.origen_seguimiento)) {
       byUser.set(idUsuario, {
         id_usuario: idUsuario,
         origen_seguimiento: origin,
@@ -121,7 +132,10 @@ async function resolveContext(executor, contextoNegocio) {
   const context = normalizeContext(contextoNegocio);
   if (context.dominio !== 'UNITED') return { applicable: false, context, equipmentRow: null };
 
-  if ((!context.numero_equipo || !context.proyecto) && (context.id_ticket || context.ticket)) {
+  if (
+    (context.id_ticket || context.ticket)
+    && (!context.id_ticket || !context.ticket || !context.numero_equipo || !context.proyecto)
+  ) {
     const ticketRow = await findTicketContext(executor, context);
     if (ticketRow) {
       context.id_ticket = context.id_ticket || positiveId(ticketRow.id_ticket);
@@ -182,6 +196,28 @@ function currentUnitedScopeSql(userAlias, zoneSql) {
       )
     )
   )`;
+}
+
+async function recipientsForTicket(executor, context) {
+  const type = cleanText(context?.tipo, 40)?.toUpperCase();
+  const idTicket = positiveId(context?.id_ticket);
+  const zoneId = positiveId(context?.zona_id);
+  if (type !== GENERAL_ENTITY_TICKET || !idTicket || !zoneId) return [];
+
+  const [rows] = await executor.query(`
+    SELECT DISTINCT se.id_usuario, 'TICKET' AS origen_seguimiento
+    FROM seguimiento_especial se
+    INNER JOIN usuarios u_interest
+      ON u_interest.id_SB = se.id_usuario
+     AND u_interest.estado = 1
+    WHERE se.origen = ?
+      AND se.entidad_tipo = ?
+      AND se.entidad_id = ?
+      AND se.activo = 1
+      AND ${currentUnitedScopeSql('se.id_usuario', '?')}
+  `, [GENERAL_ORIGIN_UNITED, GENERAL_ENTITY_TICKET, idTicket, zoneId, zoneId]);
+
+  return uniqueFollowers(rows);
 }
 
 async function recipientsForEquipment(executor, equipment) {
@@ -290,11 +326,21 @@ async function resolveSeguimientoRecipients_uni({
     };
   }
 
-  const rawFollowers = resolved.context.followers_snapshot.length
+  const ticketFollowers = resolved.context.tipo === GENERAL_ENTITY_TICKET
+    ? await recipientsForTicket(executor, resolved.context)
+    : [];
+
+  const portafolioFollowers = resolved.context.followers_snapshot.length
     ? resolved.context.followers_snapshot
     : (resolved.context.id_portafolio
       ? await recipientsForEquipment(executor, resolved.context)
       : await recipientsForProject(executor, resolved.context.proyecto, resolved.context.zona_id));
+
+  // TICKET es una suscripcion puntual adicional. No sustituye ni modifica la
+  // herencia Proyecto/Equipo de portafolio_interes. Si un usuario llega por
+  // ambos caminos se conserva una sola entrega y TICKET prevalece como origen.
+  const rawFollowers = uniqueFollowers([...ticketFollowers, ...portafolioFollowers]);
+
   // Seguimiento Especial resuelve autorizacion y alcance, no politica nativa
   // de destinatarios. Exclusiones como la del actor pertenecen al emisor nativo.
   const followers = await filterByPermission(executor, rawFollowers);
@@ -304,7 +350,7 @@ async function resolveSeguimientoRecipients_uni({
     context: resolved.context,
     followers,
     visual_codes: followers.length ? [VISUAL_CODE] : [],
-    follow_candidate_count: uniqueFollowers(rawFollowers).length,
+    follow_candidate_count: rawFollowers.length,
     follow_authorized_count: followers.length,
     codigo_evento_nativo: cleanText(codigoEventoNativo, 120)
   };
@@ -313,8 +359,11 @@ async function resolveSeguimientoRecipients_uni({
 module.exports = {
   MANAGE_PERMISSION,
   VISUAL_CODE,
+  GENERAL_ORIGIN_UNITED,
+  GENERAL_ENTITY_TICKET,
   normalizeContext,
   resolveContext,
+  recipientsForTicket,
   recipientsForEquipment,
   recipientsForProject,
   filterByPermission,

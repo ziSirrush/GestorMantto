@@ -1,5 +1,19 @@
 # Panel de Control - Prueba de Carga
 
+## Contrato vigente: FIX Fase 5 pre Fase 6 (2026-09-29)
+
+El usuario autorizado en PC selecciona escenario, VUs y duración y pulsa **PREPARAR Y EJECUTAR**. La pantalla crea una sesión en RAM y llama `POST /session/:id/dispatch` con su sesión normal. El backend valida `req.user`, permiso `EJECUTAR`, propiedad, modo Visor, instancia única, origen y disponibilidad del runner.
+
+Un proceso **externo** al backend medido ejecuta `scripts/load-test/mantto-load-test-runner.service.js`. Usa `POST /runner/heartbeat` y `POST /runner/lease` con secreto de servicio SHA-256; lease entrega una vez el token efímero y conserva solo su hash. k6 recibe ese token y el JWT de una identidad de prueba de solo lectura en el entorno del proceso hijo. `setup()` llama `POST /session/:id/runner-start` con token efímero; `handleSummary(data)` utiliza el mismo token del entorno para `runner-summary`. El JWT del operador no sale del flujo navegador/backend.
+
+Las rutas humanas tienen `desktopOnly` y `requireAuth`; móviles y tablets detectados reciben 403 `LOAD_TEST_DESKTOP_ONLY`. El canal del runner no tiene guard de dispositivo. Un despacho que no inicia antes de `LOAD_TEST_RUNNER_DISPATCH_TIMEOUT_SECONDS` termina `ABORTADA_SIN_CONFIRMACION`, `INCOMPLETO`, `RUNNER_NO_INICIO` y libera la única plaza activa.
+
+Configuración backend: `LOAD_TEST_SINGLE_INSTANCE=true`, `LOAD_TEST_ALLOWED_ORIGIN`, `LOAD_TEST_RUNNER_SERVICE_TOKEN_SHA256`, `LOAD_TEST_READ_ONLY_USER_ID`, `LOAD_TEST_RUNNER_HEARTBEAT_TTL_SECONDS=15`, `LOAD_TEST_RUNNER_DISPATCH_TIMEOUT_SECONDS=30`. Si el ingress HTTPS está tras un proxy confiable que sobrescribe `X-Forwarded-Proto`, configurar `LOAD_TEST_TRUST_PROXY_HTTPS=true`. Configuración secreta del host runner: `MANTTO_RUNNER_SERVICE_TOKEN` (32 bytes aleatorios en hex o base64url), `MANTTO_TEST_EMAIL`, `MANTTO_TEST_PASSWORD`; opcionales `MANTTO_RUNNER_ID`, `MANTTO_K6_PATH`. El usuario de prueba debe existir previamente y no tener permisos efectivos de escritura. No se crean usuarios, tablas ni archivos de resultados.
+
+**RUNNER EXTERNO PENDIENTE DE DESPLIEGUE.** Ninguna prueba real de carga contra Producción forma parte de este FIX. La detección de dispositivo es defensa operacional; autenticación y permisos siguen siendo obligatorios.
+
+### Historial de Fases 2–4 (contratos anteriores sustituidos)
+
 ## Fase 4
 
 Fase 4 agrega **control real de ejecución y métricas vivas del runner** sobre la sesión efímera de Fases 2–3.

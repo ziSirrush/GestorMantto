@@ -1,0 +1,55 @@
+MANTTO GESTOR
+FASE 1 · EQUIPO SALE DE CRITICO · NOTIFICACIONES V001
+
+BASE
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Commit: f69aa5d40796c5976cf8d59eb6f6f99dbd930299
+Mensaje: Version 092826.3
+
+ALCANCE
+- Evento general nuevo: EQUIPO_SALE_DE_CRITICO.
+- Deteccion por transicion real del equipo: >=3 BLT U35 -> <3 BLT U35.
+- Solo cambios provocados por sync/modificacion de Tickets.
+- Sin scheduler ni vencimiento automatico por paso del tiempo; eso corresponde a Fase 2.
+- Sin frontend.
+- Sin tablas nuevas.
+- Sin relaciones Evento -> Rol hardcodeadas.
+
+MODIFICADO
+backend/src/services/notifications/ticket-critical-notifications_uni.service.js
+
+NUEVOS
+sql/PRECHECK_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.sql
+sql/APLICAR_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.sql
+sql/VALIDAR_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.sql
+sql/ROLLBACK_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.sql
+validation/equipo-sale-critico-fase1.test.js
+docs/ADR_20260929_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.md
+docs/README_FASE_1_EQUIPO_SALE_DE_CRITICO_NOTIFICACIONES_V001.md
+docs/MANIFEST_FASE_1_EQUIPO_SALE_DE_CRITICO_NOTIFICACIONES_V001.txt
+docs/CHECKSUMS_FASE_1_EQUIPO_SALE_DE_CRITICO_NOTIFICACIONES_V001_SHA256.txt
+
+NO MODIFICADO
+- frontend
+- core/router.js
+- notification-policy.js
+- notification.service.js
+- notificacion_evento_roles por SQL de instalacion
+- esquema de tablas
+- logica NUEVO_EQUIPO_CRITICO
+- logica FALLA_EQUIPO_CRITICO
+- logica PERSONA_ATRAPADA
+
+VALIDACION LOCAL
+node --check backend/src/services/notifications/ticket-critical-notifications_uni.service.js
+node --check validation/equipo-sale-critico-fase1.test.js
+node --test validation/equipo-sale-critico-fase1.test.js
+Resultado: 14/14 PASS
+
+ESTADO
+Validacion estatica/local: SI
+SQL en Aiven: NO
+Deploy backend: NO
+Push real: NO
+E2E: NO

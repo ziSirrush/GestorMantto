@@ -1,6 +1,7 @@
 'use strict';
 
 const service = require('./panel-control-prueba-carga.service');
+const runnerService = require('./panel-control-prueba-carga.runner-service');
 
 function actorUser(req) {
   return req.user;
@@ -65,6 +66,40 @@ async function getSession(req, res, next) {
   } catch (error) {
     return sendError(error, res, next, 'LOAD_TEST_SESSION_READ_ERROR');
   }
+}
+
+async function dispatchSession(req, res, next) {
+  try {
+    assertViewerWriteAllowed(req);
+    return res.json({ ok: true, data: await service.dispatchSession(actorUser(req), req.params.id) });
+  } catch (error) { return sendError(error, res, next, 'LOAD_TEST_DISPATCH_ERROR'); }
+}
+
+function runnerHeartbeat(req, res, next) {
+  try {
+    runnerService.authenticate(req);
+    return res.json({ ok: true, data: service.runnerHeartbeat(req.body || {}) });
+  } catch (error) { return sendError(error, res, next, 'LOAD_TEST_RUNNER_HEARTBEAT_ERROR'); }
+}
+
+function runnerLease(req, res, next) {
+  try {
+    runnerService.authenticate(req);
+    const data = service.runnerLease(String(req.body?.runner_id || ''), req.body?.session_id || null);
+    return data ? res.json({ ok: true, data }) : res.status(204).end();
+  } catch (error) { return sendError(error, res, next, 'LOAD_TEST_RUNNER_LEASE_ERROR'); }
+}
+
+function runnerStart(req, res, next) {
+  try {
+    return res.json({ ok: true, data: service.runnerStart(req.params.id, assertRunnerToken(req), req.body || {}) });
+  } catch (error) { return sendError(error, res, next, 'LOAD_TEST_RUNNER_START_ERROR'); }
+}
+
+async function validateTestIdentity(req, res, next) {
+  try {
+    return res.json({ ok: true, data: await service.validateTestIdentity(actorUser(req)) });
+  } catch (error) { return sendError(error, res, next, 'LOAD_TEST_TEST_IDENTITY_ERROR'); }
 }
 
 
@@ -180,6 +215,11 @@ module.exports = {
   getCapabilities,
   createSession,
   getSession,
+  dispatchSession,
+  runnerHeartbeat,
+  runnerLease,
+  runnerStart,
+  validateTestIdentity,
   claimRunner,
   startSession,
   stopSession,

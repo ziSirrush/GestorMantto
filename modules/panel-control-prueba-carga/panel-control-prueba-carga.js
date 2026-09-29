@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const MODULE_VERSION='20260928-fase5-monitoreo-v001';
+  const MODULE_VERSION='20260929-runner-central-desktop-v001';
   const LIVE_REFRESH_MS=2000;
   const MAX_CONSOLE_EVENTS=50;
   const state={
@@ -15,6 +15,9 @@
     liveTimer:null,
     clockTimer:null,
     consoleSessionId:null,
+    draftScenario:null,
+    draftVus:null,
+    draftDuration:null,
     consoleEvents:[],
     consoleSnapshot:null,
     consoleError:''
@@ -33,7 +36,18 @@
 
   function api(){return window.ManttoAuth;}
 
+  function desktopEligible(){
+    if(typeof window.ManttoLoadTestDesktopEligible==='function')return window.ManttoLoadTestDesktopEligible();
+    const nav=window.navigator||globalThis.navigator||{};
+    const ua=String(nav.userAgent||'');
+    if(nav.userAgentData?.mobile===true||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle|PlayBook|IEMobile|Opera Mini/i.test(ua))return false;
+    if(/Macintosh/i.test(ua)&&Number(nav.maxTouchPoints||0)>1)return false;
+    const match=typeof window.matchMedia==='function'?query=>window.matchMedia(query).matches:()=>false;
+    return !(match('(pointer: coarse)')&&!match('(pointer: fine)')&&match('(hover: none)'));
+  }
+
   async function request(path,options){
+    if(!desktopEligible())throw new Error('Prueba de Carga está disponible únicamente desde una PC de escritorio o laptop.');
     if(!api())throw new Error('No se encontró el servicio de autenticación.');
     return api().api(path,options||{method:'GET'});
   }
@@ -73,6 +87,7 @@
   }
 
   async function reloadCapabilities(){
+    if(!desktopEligible())return null;
     const caps=await request(`/api/panel-control/prueba-carga/capabilities?_=${Date.now()}`,{method:'GET',cache:'no-store'});
     state.capabilities=caps.data||state.capabilities;
     return state.capabilities;
@@ -88,7 +103,7 @@
     return scenarios.map(item=>{
       const code=typeof item==='string'?item:String(item?.code||'');
       const label=typeof item==='string'?item:String(item?.label||item?.code||'');
-      return `<option value="${esc(code)}">${esc(label)}</option>`;
+      return `<option value="${esc(code)}" ${state.draftScenario===code?'selected':''}>${esc(label)}</option>`;
     }).join('');
   }
 
@@ -202,7 +217,7 @@
     const http=session.telemetry?.http||{};
     const sql=session.telemetry?.sql||{};
     const current={
-      phase:String(session.state||''),claimed:Boolean(session.runner_claimed),
+      phase:String(session.state||''),claimed:Boolean(session.runner_claimed),dispatched:Boolean(session.dispatch_requested_at),
       completed:Math.max(0,number(http.completed,0)),
       httpErrors:Math.max(0,number(http.errors,0)),
       sqlErrors:Math.max(0,number(sql.errors,0)),
@@ -210,11 +225,12 @@
       stopReason:String(session.cancel_reason||session.stop_reason||'')
     };
     if(!previous){
-      if(current.phase==='LISTA')addConsoleEvent('Esperando el launcher externo de k6. El comando aparece arriba de esta consola.');
+      if(current.phase==='LISTA')addConsoleEvent(session.dispatch_requested_at?'Trabajo entregado al runner externo.':'Sesión preparada; esperando despacho.');
       else addConsoleEvent(`Estado actual: ${current.phase||'N/D'}.`);
       if(current.claimed)addConsoleEvent('Runner conectado; claim de un solo uso consumido.');
     }else{
-      if(current.claimed&&!previous.claimed)addConsoleEvent('Runner conectado; claim de un solo uso consumido.');
+      if(current.claimed&&!previous.claimed)addConsoleEvent('Runner externo reclamó el trabajo.');
+      if(session.dispatch_requested_at&&!previous.dispatched)addConsoleEvent('Trabajo entregado al runner externo.');
       if(current.phase!==previous.phase)addConsoleEvent(`Estado: ${previous.phase} → ${current.phase}.`,current.phase.startsWith('ABORTADA')?'error':'info');
       if(current.completed>previous.completed){
         const delta=current.completed-previous.completed;
@@ -235,7 +251,7 @@
       const time=new Date(event.at).toLocaleTimeString('es-MX',{hour12:false});
       return `<div class="pclt-console-line ${event.tone}"><time>${esc(time)}</time><span>${esc(event.message)}</span></div>`;
     }).join('');
-    return `<section class="pclt-console-panel"><div class="pclt-console-head"><strong>Eventos en vivo</strong><span>Hasta ${MAX_CONSOLE_EVENTS} eventos · solo RAM</span></div><div class="pclt-console" id="pclt-console" aria-label="Eventos temporales de la prueba">${lines}</div><small>Se muestran cambios de estado y contadores del backend. Los errores detallados de k6 permanecen en PowerShell.</small></section>`;
+    return `<section class="pclt-console-panel"><div class="pclt-console-head"><strong>Eventos en vivo</strong><span>Hasta ${MAX_CONSOLE_EVENTS} eventos · solo RAM</span></div><div class="pclt-console" id="pclt-console" aria-label="Eventos temporales de la prueba">${lines}</div><small>Se muestran cambios de estado y contadores del backend.</small></section>`;
   }
 
   function sessionTelemetryHtml(session){
@@ -286,11 +302,6 @@
     return messages.join(' ');
   }
 
-  function runnerCommand(session){
-    if(!session?.id)return '';
-    return `powershell -ExecutionPolicy Bypass -File .\\scripts\\load-test\\iniciar-mantto-load-test.ps1 -SessionId "${String(session.id).replace(/"/g,'')}"`;
-  }
-
   function isActiveState(session){
     return ['LISTA','EJECUTANDO','FINALIZANDO'].includes(String(session?.state||''));
   }
@@ -313,6 +324,10 @@
     if(!container)return false;
     clearLiveTimer();
     clearClockTimer();
+    if(!desktopEligible()){
+      container.innerHTML='<section class="pclt-page"><div class="pclt-alert warning">Prueba de Carga está disponible únicamente desde una PC de escritorio o laptop.</div></section>';
+      return false;
+    }
     const oldConsole=document.getElementById('pclt-console');
     const oldConsoleScroll=oldConsole?.scrollTop||0;
     const consoleAtBottom=!oldConsole||oldConsole.scrollHeight-oldConsole.scrollTop-oldConsole.clientHeight<24;
@@ -327,6 +342,7 @@
     const configuredMax=Math.max(minVus,number(limits.max_vus_configured,200));
     const defaultDuration=Math.max(1,number(limits.duration_default_seconds,120));
     const maxDuration=Math.max(defaultDuration,number(limits.duration_max_seconds,300));
+    const runnerService=state.capabilities?.runner_service||{};
     const canExecute=Boolean(state.capabilities?.permissions?.execute&&state.capabilities?.execution_available);
     const canStop=Boolean(state.capabilities?.permissions?.stop&&state.capabilities?.stop_control_available);
     const active=state.capabilities?.active_session;
@@ -356,6 +372,7 @@
       </div>
 
       ${warning?`<div class="pclt-alert warning"><b>Runner bloqueado por configuración.</b><span>${esc(warning)}</span></div>`:''}
+      ${!runnerService.available?'<div class="pclt-alert warning"><b>Runner externo: NO DISPONIBLE</b><span>No se puede iniciar una prueba hasta recuperar el runner externo.</span></div>':''}
       ${state.error?`<div class="pclt-alert error"><b>No se pudo completar la acción.</b><span>${esc(state.error)}</span></div>`:''}
       ${busyByOther?'<div class="pclt-alert warning"><b>Servidor ocupado</b><span>Otro operador tiene una sesión preparada, ejecutándose o finalizando. V001 permite una sola prueba activa.</span></div>':''}
 
@@ -363,11 +380,11 @@
         <article class="pclt-card">
           <div class="pclt-card-head"><span>Preparar sesión</span><em>Solo RAM</em></div>
           <label>Escenario<select id="pclt-scenario" ${session||busyByOther?'disabled':''}>${scenarioOptions(state.capabilities)}</select></label>
-          <label>Usuarios concurrentes<input id="pclt-vus" type="number" min="${minVus}" max="${configuredMax}" step="${stepVus}" value="${minVus}" ${session||busyByOther?'disabled':''}></label>
+          <label>Usuarios concurrentes<input id="pclt-vus" type="number" min="${minVus}" max="${configuredMax}" step="${stepVus}" value="${state.draftVus??minVus}" ${session||busyByOther?'disabled':''}></label>
           <label>Duración<select id="pclt-duration" ${session||busyByOther?'disabled':''}>
-            ${[30,60,120,180,300].filter(v=>v<=maxDuration).map(v=>`<option value="${v}" ${v===defaultDuration?'selected':''}>${v} s</option>`).join('')}
+            ${[30,60,120,180,300].filter(v=>v<=maxDuration).map(v=>`<option value="${v}" ${v===(state.draftDuration??defaultDuration)?'selected':''}>${v} s</option>`).join('')}
           </select></label>
-          <button type="button" class="pclt-btn primary" id="pclt-prepare" ${!canExecute||session||busyByOther||state.busy?'disabled':''}>${state.busy?'Procesando...':'Preparar prueba'}</button>
+          <button type="button" class="pclt-btn primary" id="pclt-prepare" ${!canExecute||session||busyByOther||state.busy?'disabled':''}>${state.busy?'Procesando...':'PREPARAR Y EJECUTAR'}</button>
           <small>La carga funcional sigue siendo exclusivamente GET/HEAD. El token del runner no llega a la pantalla ni se persiste.</small>
         </article>
 
@@ -377,6 +394,9 @@
             <div><dt>Acceso visual</dt><dd>${state.capabilities?.permissions?.access?'AUTORIZADO':'NO'}</dd></div>
             <div><dt>Preparar / ejecutar</dt><dd>${canExecute?'AUTORIZADO':'BLOQUEADO'}</dd></div>
             <div><dt>Detención real k6</dt><dd>${canStop?'DISPONIBLE':'BLOQUEADA'}</dd></div>
+            <div><dt>Runner externo</dt><dd>${runnerService.available?'DISPONIBLE':'NO DISPONIBLE'}</dd></div>
+            <div><dt>k6</dt><dd>${runnerService.k6_ready?'LISTO':'NO DISPONIBLE'}</dd></div>
+            <div><dt>Identidad solo lectura</dt><dd>${runnerService.test_identity_ready?'LISTA':'NO DISPONIBLE'}</dd></div>
             <div><dt>Una sola instancia</dt><dd>${runtime?.single_instance_confirmed?'CONFIRMADA':'NO CONFIRMADA'}</dd></div>
             <div><dt>Target autorizado</dt><dd>${runtime?.target_configured?'CONFIGURADO':'NO CONFIGURADO'}</dd></div>
             <div><dt>Máximo operativo actual</dt><dd>${configuredMax.toLocaleString('es-MX')} VUs</dd></div>
@@ -394,7 +414,7 @@
           <span class="pclt-state ${String(session.state||'').toLowerCase()}">${esc(session.state||'N/D')}</span>
         </div>
         ${state.recovered?'<div class="pclt-alert warning"><b>Sesión recuperada después de recargar.</b><span>La sesión sigue en RAM del backend. El token del runner nunca estuvo en la pantalla.</span></div>':''}
-        ${session.state==='LISTA'?`<div class="pclt-launch"><div><b>Siguiente paso: iniciar k6 en PowerShell</b><p>Desde la raíz del repositorio, con k6 instalado. El launcher pedirá dos JWT distintos y no los muestra aquí.</p></div><code id="pclt-runner-command">${esc(runnerCommand(session))}</code><button type="button" class="pclt-btn primary" id="pclt-copy-command">Copiar comando</button></div>`:''}
+        ${session.state==='LISTA'?`<div class="pclt-alert ${session.dispatch_requested_at?'ok':'warning'}"><b>${session.dispatch_requested_at?'Trabajo entregado al runner externo':'Pendiente de despacho'}</b><span>${session.dispatch_requested_at?'k6 iniciará automáticamente en el runner externo.':'Puedes reintentar el despacho desde esta pantalla.'}</span>${!session.dispatch_requested_at?'<button type="button" class="pclt-btn primary" id="pclt-dispatch">Reintentar despacho</button>':''}</div>`:''}
         <div class="pclt-alert ${session.runner_claimed?'ok':'warning'}"><b>Runner claim: ${session.runner_claimed?'CONSUMIDO':'PENDIENTE'}</b><span>${session.runner_claimed?'El claim de un solo uso fue consumido y el backend conserva únicamente el hash del token efímero.':'El runner aún no inició esta sesión.'}</span></div>
         ${sessionFinalizing?'<div class="pclt-alert warning"><b>Detención solicitada</b><span>El backend ordenó al runner abortar. Se esperan las solicitudes ya iniciadas y la confirmación del cierre.</span></div>':''}
         ${finalMessage?`<div class="pclt-alert ${session.state==='FINALIZADA'?'ok':'warning'}"><b>${esc(session.state)}</b><span>${finalMessage}</span></div>`:''}
@@ -408,7 +428,7 @@
           <button type="button" class="pclt-btn" id="pclt-refresh" ${state.busy?'disabled':''}>Actualizar estado</button>
           ${sessionRunning?`<button type="button" class="pclt-btn danger" id="pclt-stop" ${!canStop||state.busy?'disabled':''}>DETENER PRUEBA</button>`:''}
           ${state.report?`<button type="button" class="pclt-btn primary" id="pclt-copy" ${state.busy?'disabled':''}>Copiar reporte</button>`:''}
-          <button type="button" class="pclt-btn ghost" id="pclt-clear" ${sessionActive||sessionAwaitingSummary||!state.capabilities?.permissions?.execute||state.busy?'disabled':''}>Limpiar sesión</button>
+          <button type="button" class="pclt-btn ghost" id="pclt-clear" ${(sessionActive&&!(session.state==='LISTA'&&!session.dispatch_requested_at))||sessionAwaitingSummary||!state.capabilities?.permissions?.execute||state.busy?'disabled':''}>Limpiar sesión</button>
         </div>
         ${state.copyStatus?`<div class="pclt-alert ok"><b>${esc(state.copyStatus)}</b></div>`:''}
         ${sessionRunning?'<div class="pclt-footer-note">VUs activos proviene del runner k6. Requests activos, RPS y p95 están calculados por el backend Express; no se presentan como métricas equivalentes.</div>':''}
@@ -438,6 +458,10 @@
         body:JSON.stringify({scenario,vus,duration_seconds:duration})
       });
       state.session=response.data?.session||null;
+      if(state.session?.id){
+        const dispatched=await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}/dispatch`,{method:'POST'});
+        state.session=dispatched.data||state.session;
+      }
       state.report='';
       state.copyStatus='';
       state.recovered=false;
@@ -447,6 +471,17 @@
     }finally{
       state.busy=false;rerender(container);
     }
+  }
+
+  async function dispatch(container){
+    if(!desktopEligible()||!state.session?.id||state.session.state!=='LISTA'||state.session.dispatch_requested_at)return;
+    state.busy=true;state.error='';rerender(container);
+    try{
+      const response=await request(`/api/panel-control/prueba-carga/session/${encodeURIComponent(state.session.id)}/dispatch`,{method:'POST'});
+      state.session=response.data||state.session;
+      await reloadCapabilities();
+    }catch(error){state.error=error?.message||'No fue posible entregar el trabajo al runner externo.';}
+    finally{state.busy=false;rerender(container);}
   }
 
   async function fetchReport({silent=false}={}){
@@ -524,13 +559,14 @@
 
   function scheduleLiveRefresh(container){
     clearLiveTimer();
-    if(!needsPolling(state.session))return;
+    if(!desktopEligible())return;
     state.liveTimer=(window.setTimeout||setTimeout)(async()=>{
       state.liveTimer=null;
       if(!document.getElementById('pclt-root'))return;
-      await readSession({silent:true});
+      if(needsPolling(state.session))await readSession({silent:true});
+      try{await reloadCapabilities();}catch(_error){/* La pestaña sigue disponible. */}
       if(document.getElementById('pclt-root'))rerender(container);
-    },LIVE_REFRESH_MS);
+    },needsPolling(state.session)?LIVE_REFRESH_MS:5000);
   }
 
   async function copyReport(container){
@@ -552,35 +588,12 @@
     rerender(container);
   }
 
-  async function copyCommand(container){
-    const command=runnerCommand(state.session);
-    if(!command||state.session?.state!=='LISTA')return;
-    state.copyStatus='';
-    try{
-      if(navigator.clipboard?.writeText){
-        await navigator.clipboard.writeText(command);
-      }else{
-        const area=document.createElement('textarea');
-        area.value=command;
-        area.setAttribute('readonly','');
-        area.style.position='fixed';
-        area.style.opacity='0';
-        document.body.appendChild(area);
-        area.select();
-        const copied=document.execCommand('copy');
-        area.remove();
-        if(!copied)throw new Error('El navegador no permitió copiar el comando.');
-      }
-      state.copyStatus='Comando copiado. Ejecútalo desde la raíz del repositorio.';
-    }catch(error){
-      state.error=error?.message||'No fue posible copiar el comando.';
-    }
-    rerender(container);
-  }
-
   function bind(container){
+    document.getElementById('pclt-scenario')?.addEventListener('change',event=>{state.draftScenario=event.target.value;});
+    document.getElementById('pclt-vus')?.addEventListener('input',event=>{state.draftVus=event.target.value;});
+    document.getElementById('pclt-duration')?.addEventListener('change',event=>{state.draftDuration=Number(event.target.value);});
     document.getElementById('pclt-prepare')?.addEventListener('click',()=>prepare(container));
-    document.getElementById('pclt-copy-command')?.addEventListener('click',()=>copyCommand(container));
+    document.getElementById('pclt-dispatch')?.addEventListener('click',()=>dispatch(container));
     document.getElementById('pclt-refresh')?.addEventListener('click',()=>refresh(container));
     document.getElementById('pclt-stop')?.addEventListener('click',()=>stop(container));
     document.getElementById('pclt-copy')?.addEventListener('click',()=>copyReport(container));

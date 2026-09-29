@@ -256,23 +256,20 @@ test('Fase 3: runner k6 está cerrado a origen fijo, sin redirects y sin secreto
   assert.match(runner, /TARGET_URL fue rechazado/);
   assert.match(runner, /maxRedirects:\s*0/);
   assert.ok((runner.match(/redirects:\s*0/g) || []).length >= 2);
-  assert.match(runner, /MANTTO_OPERATOR_JWT/);
+  assert.doesNotMatch(runner, /MANTTO_OPERATOR_JWT/);
   assert.match(runner, /MANTTO_TEST_JWT/);
-  assert.match(runner, /OPERATOR_JWT === TEST_JWT/);
-  assert.match(runner, /runner-claim/);
+  assert.match(runner, /MANTTO_LOAD_TEST_RUNNER_TOKEN/);
+  assert.match(runner, /runner-start/);
   assert.match(runner, /X-Mantto-Load-Test-Instance/);
   assert.doesNotMatch(runner, /console\.log\([^\n]*(JWT|runnerToken|runner_token|TEST_JWT|OPERATOR_JWT)/i);
   assert.match(runner, /handleSummary\s*\(/, 'Fase 5 agrega el resumen final sin debilitar los controles de Fase 3');
 });
 
-test('Fase 3: launcher recibe JWT por prompt seguro y los pasa solo por memoria del proceso', () => {
+test('FIX Fase 5: launcher técnico solo recibe SessionId y usa el servicio externo', () => {
   const launcher = fs.readFileSync(path.join(repoRoot, 'scripts', 'load-test', 'iniciar-mantto-load-test.ps1'), 'utf8');
-  assert.match(launcher, /Read-Host[^\n]+-AsSecureString/);
-  assert.match(launcher, /MaximumRedirection\s*=\s*0/);
-  assert.match(launcher, /\$env:MANTTO_OPERATOR_JWT\s*=\s*\$operatorJwt/);
-  assert.match(launcher, /\$env:MANTTO_TEST_JWT\s*=\s*\$testJwt/);
-  assert.match(launcher, /Remove-Item Env:MANTTO_OPERATOR_JWT/);
-  assert.match(launcher, /Remove-Item Env:MANTTO_TEST_JWT/);
+  assert.match(launcher, /mantto-load-test-runner\.service\.js/);
+  assert.match(launcher, /--session-id \$SessionId/);
+  assert.doesNotMatch(launcher, /Read-Host|MANTTO_OPERATOR_JWT/);
   const cliParamBlock = launcher.split('$ErrorActionPreference')[0];
   assert.doesNotMatch(cliParamBlock, /OperatorJwt|TestJwt|BearerToken/i, 'los secretos no son argumentos de línea de comandos');
   assert.doesNotMatch(launcher, /Set-Content|Out-File|Add-Content/, 'los secretos no se escriben a archivos');

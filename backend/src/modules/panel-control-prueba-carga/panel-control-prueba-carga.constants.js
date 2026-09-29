@@ -44,6 +44,8 @@ function getLoadTestLimits() {
 function getLoadTestTelemetrySettings() {
   return Object.freeze({
     ready_ttl_seconds: positiveInteger(process.env.LOAD_TEST_READY_TTL_SECONDS, 900, 60, 86400),
+    runner_heartbeat_ttl_seconds: positiveInteger(process.env.LOAD_TEST_RUNNER_HEARTBEAT_TTL_SECONDS, 15, 5, 120),
+    runner_dispatch_timeout_seconds: positiveInteger(process.env.LOAD_TEST_RUNNER_DISPATCH_TIMEOUT_SECONDS, 30, 5, 300),
     result_ttl_seconds: positiveInteger(process.env.LOAD_TEST_RESULT_TTL_SECONDS, 900, 60, 86400),
     active_grace_seconds: positiveInteger(process.env.LOAD_TEST_ACTIVE_GRACE_SECONDS, 120, 30, 3600),
     runner_control_poll_ms: positiveInteger(process.env.LOAD_TEST_RUNNER_CONTROL_POLL_MS, 1000, 250, 10000),

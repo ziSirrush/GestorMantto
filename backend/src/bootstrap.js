@@ -10,6 +10,7 @@ const { startLogisticaCierreSemanalJob, stopLogisticaCierreSemanalJob } = requir
 const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/pushNotifications.job');
 const { startStorageOperationsJob, stopStorageOperationsJob } = require('./jobs/storageOperations.job');
 const { startAlmacenCierreIncorrectoJob, stopAlmacenCierreIncorrectoJob } = require('./jobs/almacenCierreIncorrecto.job');
+const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = require('./jobs/equiposCriticosSalidaU35.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -49,6 +50,7 @@ function startScheduledJobs(databaseReady) {
   if (!databaseReady) {
     logger.warn('Jobs de Portafolio no iniciados porque MySQL no está disponible.');
     logger.warn('Job global de notificaciones push no iniciado porque MySQL no está disponible.');
+    logger.warn('Job salida automática de Equipos Críticos U35 no iniciado porque MySQL no está disponible.');
     logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
     return;
   }
@@ -61,6 +63,12 @@ function startScheduledJobs(databaseReady) {
     logger.info('Jobs de Portafolio inicializados.');
   } catch (error) {
     logger.error('La API inicio, pero los jobs de Portafolio no pudieron inicializarse.', error);
+  }
+
+  try {
+    startEquiposCriticosSalidaU35Job();
+  } catch (error) {
+    logger.error('La API inicio, pero el job de salida automática de Equipos Críticos U35 no pudo inicializarse.', error);
   }
 
   try {
@@ -118,6 +126,7 @@ function registerShutdownHandlers() {
       stopStorageOperationsJob();
       stopLogisticaCierreSemanalJob();
       stopAlmacenCierreIncorrectoJob();
+      stopEquiposCriticosSalidaU35Job();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);

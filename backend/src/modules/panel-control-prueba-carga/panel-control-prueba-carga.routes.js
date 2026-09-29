@@ -3,18 +3,23 @@
 const express = require('express');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const controller = require('./panel-control-prueba-carga.controller');
+const { desktopOnly } = require('./panel-control-prueba-carga.desktop');
 
 const router = express.Router();
 
 // Operación administrativa desde Panel de Control: siempre exige sesión autenticada.
-router.get('/capabilities', requireAuth, controller.getCapabilities);
-router.post('/session', requireAuth, controller.createSession);
-router.get('/session/:id', requireAuth, controller.getSession);
-router.post('/session/:id/runner-claim', requireAuth, controller.claimRunner);
-router.post('/session/:id/start', requireAuth, controller.startSession);
-router.post('/session/:id/stop', requireAuth, controller.stopSession);
-router.get('/session/:id/report', requireAuth, controller.getReport);
-router.delete('/session/:id', requireAuth, controller.deleteSession);
+router.get('/capabilities', desktopOnly, requireAuth, controller.getCapabilities);
+router.post('/session', desktopOnly, requireAuth, controller.createSession);
+router.get('/session/:id', desktopOnly, requireAuth, controller.getSession);
+router.post('/session/:id/dispatch', desktopOnly, requireAuth, controller.dispatchSession);
+router.post('/session/:id/stop', desktopOnly, requireAuth, controller.stopSession);
+router.get('/session/:id/report', desktopOnly, requireAuth, controller.getReport);
+router.delete('/session/:id', desktopOnly, requireAuth, controller.deleteSession);
+
+router.post('/runner/heartbeat', controller.runnerHeartbeat);
+router.post('/runner/lease', controller.runnerLease);
+router.get('/runner/test-identity', requireAuth, controller.validateTestIdentity);
+router.post('/session/:id/runner-start', controller.runnerStart);
 
 // Canal efímero del runner: no usa JWT por request. Se autentica exclusivamente
 // con el token aleatorio de 256 bits reclamado una sola vez y almacenado como hash.

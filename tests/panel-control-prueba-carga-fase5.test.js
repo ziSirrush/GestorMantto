@@ -147,10 +147,11 @@ test('Fase 5: normalizador rechaza summary de otra sesion o VUs incompatibles', 
   );
 });
 
-test('Fase 5: runner usa handleSummary con setupData, token efimero y no escribe archivos', () => {
+test('FIX Fase 5: runner usa handleSummary(data), token de entorno y no escribe archivos', () => {
   const source = fs.readFileSync(path.join(repoRoot, 'scripts', 'load-test', 'mantto-gestor-load-test.k6.js'), 'utf8');
-  assert.match(source, /export function handleSummary\s*\(data,\s*setupData\)/);
-  assert.match(source, /setupData\?\.runnerToken/);
+  assert.match(source, /export function handleSummary\s*\(data\)/);
+  assert.match(source, /const RUNNER_TOKEN = clean\(__ENV\.MANTTO_LOAD_TEST_RUNNER_TOKEN\)/);
+  assert.doesNotMatch(source, /setupData/);
   assert.match(source, /runner-summary/);
   assert.match(source, /X-Mantto-Load-Test-Token/);
   assert.match(source, /return \{\};/);

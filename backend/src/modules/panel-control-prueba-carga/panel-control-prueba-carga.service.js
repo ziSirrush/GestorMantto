@@ -1,6 +1,7 @@
 'use strict';
 
 const registry = require('./panel-control-prueba-carga.registry');
+const runnerService = require('./panel-control-prueba-carga.runner-service');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 const {
   PERMISSIONS,
@@ -99,6 +100,13 @@ function integerNonNegative(value, fallback = 0) {
   return Math.max(0, Math.trunc(finiteNonNegative(value, fallback)));
 }
 
+function optionalNonNegative(value, integer = false) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return integer ? Math.trunc(parsed) : parsed;
+}
+
 function normalizeRunnerSummary(payload, session) {
   const source = payload && typeof payload === 'object' ? payload : {};
   if (String(source.session_id || '') !== String(session?.id || '')) {
@@ -106,11 +114,11 @@ function normalizeRunnerSummary(payload, session) {
   }
 
   const vusConfigured = integerNonNegative(source.vus_configured, 0);
-  const vusMax = integerNonNegative(source.vus_max, 0);
+  const vusMax = optionalNonNegative(source.vus_max, true);
   if (vusConfigured !== Number(session.vus)) {
     throw loadTestError('Los VUs del resumen final no coinciden con la sesion.', 400, 'LOAD_TEST_RUNNER_SUMMARY_VUS_MISMATCH');
   }
-  if (vusMax > Number(session.vus) || vusMax < 0) {
+  if (vusMax !== null && vusMax > Number(session.vus)) {
     throw loadTestError('El maximo de VUs reportado por k6 no es valido.', 400, 'LOAD_TEST_RUNNER_SUMMARY_VUS_MAX_INVALID');
   }
 
@@ -120,36 +128,36 @@ function normalizeRunnerSummary(payload, session) {
     session_id: String(session.id),
     vus_configured: vusConfigured,
     vus_max: vusMax,
-    duration_ms: source.duration_ms == null ? null : finiteNonNegative(source.duration_ms, 0),
-    requests: integerNonNegative(source.requests, 0),
-    failed: integerNonNegative(source.failed, 0),
-    rps: finiteNonNegative(source.rps, 0),
+    duration_ms: optionalNonNegative(source.duration_ms),
+    requests: optionalNonNegative(source.requests, true),
+    failed: optionalNonNegative(source.failed, true),
+    rps: optionalNonNegative(source.rps),
     latency: {
-      min: finiteNonNegative(latencySource.min, 0),
-      avg: finiteNonNegative(latencySource.avg, 0),
-      p50: finiteNonNegative(latencySource.p50, 0),
-      p90: finiteNonNegative(latencySource.p90, 0),
-      p95: finiteNonNegative(latencySource.p95, 0),
-      p99: finiteNonNegative(latencySource.p99, 0),
-      max: finiteNonNegative(latencySource.max, 0)
+      min: optionalNonNegative(latencySource.min),
+      avg: optionalNonNegative(latencySource.avg),
+      p50: optionalNonNegative(latencySource.p50),
+      p90: optionalNonNegative(latencySource.p90),
+      p95: optionalNonNegative(latencySource.p95),
+      p99: optionalNonNegative(latencySource.p99),
+      max: optionalNonNegative(latencySource.max)
     },
     http: {
-      '2xx': integerNonNegative(httpSource['2xx'], 0),
-      '3xx': integerNonNegative(httpSource['3xx'], 0),
-      '4xx': integerNonNegative(httpSource['4xx'], 0),
-      '5xx': integerNonNegative(httpSource['5xx'], 0)
+      '2xx': optionalNonNegative(httpSource['2xx'], true),
+      '3xx': optionalNonNegative(httpSource['3xx'], true),
+      '4xx': optionalNonNegative(httpSource['4xx'], true),
+      '5xx': optionalNonNegative(httpSource['5xx'], true)
     },
-    timeouts: integerNonNegative(source.timeouts, 0),
-    network_errors: integerNonNegative(source.network_errors, 0),
-    iterations_completed: integerNonNegative(source.iterations_completed, 0),
-    iterations_interrupted: source.iterations_interrupted == null ? null : integerNonNegative(source.iterations_interrupted, 0)
+    timeouts: optionalNonNegative(source.timeouts, true),
+    network_errors: optionalNonNegative(source.network_errors, true),
+    iterations_completed: optionalNonNegative(source.iterations_completed, true),
+    iterations_interrupted: optionalNonNegative(source.iterations_interrupted, true)
   };
 
-  if (normalized.failed > normalized.requests) {
+  if (normalized.failed !== null && normalized.requests !== null && normalized.failed > normalized.requests) {
     throw loadTestError('El resumen final reporta mas fallos que requests.', 400, 'LOAD_TEST_RUNNER_SUMMARY_FAILED_INVALID');
   }
   const statusTotal = Object.values(normalized.http).reduce((sum, value) => sum + Number(value || 0), 0);
-  if (statusTotal > normalized.requests) {
+  if (normalized.requests !== null && statusTotal > normalized.requests) {
     throw loadTestError('El resumen final contiene conteos HTTP incompatibles con requests.', 400, 'LOAD_TEST_RUNNER_SUMMARY_HTTP_INVALID');
   }
   return normalized;
@@ -192,11 +200,12 @@ async function getCapabilities(user) {
     module: 'panel-control-prueba-carga',
     version: 'V001',
     phase: 5,
-    execution_available: Boolean(runtime.ready),
+    execution_available: Boolean(runtime.ready && runnerService.snapshot().available),
     telemetry_available: true,
     session_api_available: true,
     runner_required: true,
-    runner_claim_available: true,
+    runner_claim_available: false,
+    runner_dispatch_available: true,
     stop_control_available: true,
     live_runner_metrics_available: true,
     runner_summary_available: true,
@@ -207,6 +216,7 @@ async function getCapabilities(user) {
     limits: getLoadTestLimits(),
     telemetry: getLoadTestTelemetrySettings(),
     runner_runtime: publicRunnerRuntime(runtime),
+    runner_service: runnerService.snapshot(),
     scenario_catalog_version: CATALOG_VERSION,
     scenarios: SCENARIOS,
     active_session: active
@@ -229,6 +239,87 @@ async function createSession(user, payload) {
   assertLoadTestRunnerRuntimeReady();
   const config = normalizedSessionConfig(payload);
   return registry.createSession({ actorUserId: userId, ...config });
+}
+
+async function dispatchSession(user, id) {
+  const userId = await requirePermission(user, PERMISSIONS.EXECUTE, 'LOAD_TEST_EXECUTE_DENIED');
+  assertLoadTestRunnerRuntimeReady();
+  if (!runnerService.snapshot().available) throw loadTestError('El runner externo o la identidad de prueba no están listos.', 503, 'LOAD_TEST_RUNNER_UNAVAILABLE');
+  const session = registry.getPublicSession(id);
+  assertOwner(session, userId);
+  return registry.dispatchSession(id);
+}
+
+function runnerHeartbeat(payload) {
+  return runnerService.recordHeartbeat(payload);
+}
+
+function runnerLease(runnerId, requestedId = null) {
+  const health = runnerService.snapshot();
+  if (!health.available || health.runner_id !== runnerId) {
+    throw loadTestError('Runner no disponible para reclamar trabajo.', 503, 'LOAD_TEST_RUNNER_UNAVAILABLE');
+  }
+  const runtime = assertLoadTestRunnerRuntimeReady();
+  const claim = registry.leaseNext(runnerId, requestedId);
+  if (!claim) return null;
+  const scenario = runnerScenario(claim.session.scenario);
+  if (!scenario) throw loadTestError('Catálogo incompatible.', 409, 'LOAD_TEST_SCENARIO_CATALOG_MISMATCH');
+  return {
+    session_id: claim.session.id,
+    runner_token: claim.runner_token,
+    process_instance_id: runtime.process_instance_id,
+    target_origin: runtime.target_origin,
+    redirects_allowed: false,
+    scenario_catalog_version: CATALOG_VERSION,
+    scenario,
+    vus: claim.session.vus,
+    duration_seconds: claim.session.duration_seconds,
+    limits: getLoadTestLimits(),
+    control: { poll_ms: getLoadTestTelemetrySettings().runner_control_poll_ms }
+  };
+}
+
+function runnerStart(id, token, payload = {}) {
+  const runtime = assertLoadTestRunnerRuntimeReady();
+  const session = registry.validateRunnerToken(id, token, { requireRunning: false });
+  if (!session.runnerLeaseAt || !session.dispatchRequestedAt || session.state !== 'LISTA') {
+    throw loadTestError('El trabajo no está reclamado o ya inició.', 409, 'LOAD_TEST_RUNNER_START_NOT_READY');
+  }
+  if (payload.process_instance_id !== runtime.process_instance_id
+      || payload.target_origin !== runtime.target_origin
+      || payload.scenario_catalog_version !== CATALOG_VERSION
+      || payload.scenario !== session.scenario
+      || Number(payload.vus) !== Number(session.vus)
+      || Number(payload.duration_seconds) !== Number(session.durationSeconds)) {
+    throw loadTestError('Instancia, origen o catálogo incompatibles.', 409, 'LOAD_TEST_RUNNER_CONTRACT_MISMATCH');
+  }
+  return {
+    ...registry.startSession(id),
+    session_id: session.id,
+    scenario: runnerScenario(session.scenario),
+    process_instance_id: runtime.process_instance_id,
+    target_origin: runtime.target_origin,
+    scenario_catalog_version: CATALOG_VERSION,
+    redirects_allowed: false,
+    control: { poll_ms: getLoadTestTelemetrySettings().runner_control_poll_ms }
+  };
+}
+
+async function validateTestIdentity(user) {
+  const db = require('../../config/db');
+  const id = assertUser(user);
+  const expected = Number(process.env.LOAD_TEST_READ_ONLY_USER_ID);
+  if (!Number.isInteger(expected) || expected <= 0 || id !== expected) {
+    throw loadTestError('Identidad funcional no autorizada.', 403, 'LOAD_TEST_TEST_IDENTITY_INVALID');
+  }
+  const [rows] = await db.query('SELECT codigo_permiso FROM perm_subelemento_acciones WHERE activo = 1');
+  const codes = rows.map(row => String(row.codigo_permiso || ''));
+  const effective = await Promise.all(codes.map(code => hasEffectivePermission(id, code)));
+  const allowedRead = /(?:ACCESO_VISUAL|CONSULTAR|LECTURA|LEER|LISTAR|VER)$/i;
+  if (codes.some((code, index) => effective[index] && !allowedRead.test(code))) {
+    throw loadTestError('La identidad funcional tiene permisos de escritura.', 403, 'LOAD_TEST_TEST_IDENTITY_NOT_READ_ONLY');
+  }
+  return { ready: true, user_id: id };
 }
 
 async function getSession(user, id) {
@@ -381,6 +472,11 @@ async function deleteSession(user, id) {
 module.exports = {
   getCapabilities,
   createSession,
+  dispatchSession,
+  runnerHeartbeat,
+  runnerLease,
+  runnerStart,
+  validateTestIdentity,
   getSession,
   claimRunner,
   startSession,

@@ -7,6 +7,7 @@ function number(value, fallback = null) {
 }
 
 function integer(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback;
 }
@@ -99,10 +100,10 @@ function buildLoadTestReport(session) {
     : null;
   const durationMs = number(k6?.duration_ms, backendDurationMs);
 
-  const k6Requests = k6 ? integer(k6.requests, 0) : null;
-  const k6Failed = k6 ? integer(k6.failed, 0) : null;
+  const k6Requests = k6 ? integer(k6.requests, null) : null;
+  const k6Failed = k6 ? integer(k6.failed, null) : null;
   const k6Success = k6Requests === null || k6Failed === null ? null : Math.max(0, k6Requests - k6Failed);
-  const errorRate = k6Requests === null ? null : (k6Requests > 0 ? (k6Failed / k6Requests) * 100 : 0);
+  const errorRate = k6Requests === null || k6Failed === null ? null : (k6Requests > 0 ? (k6Failed / k6Requests) * 100 : 0);
   const k6Http = k6?.http || {};
 
   const endpoints = (Array.isArray(http.endpoints) ? http.endpoints : [])

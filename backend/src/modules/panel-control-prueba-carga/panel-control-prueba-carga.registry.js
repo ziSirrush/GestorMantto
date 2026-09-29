@@ -289,6 +289,10 @@ class LoadTestRegistry extends EventEmitter {
       runnerClaimedAt: null,
       runnerClaimedBy: null,
       runnerClaimCount: 0,
+      dispatchRequestedAt: null,
+      dispatchDeadlineAt: null,
+      runnerLeaseAt: null,
+      runnerServiceId: null,
       cancelRequestedAt: null,
       cancelRequestedBy: null,
       cancelReason: null,
@@ -333,12 +337,48 @@ class LoadTestRegistry extends EventEmitter {
     session.runnerClaimedAt = this.now();
     session.runnerClaimedBy = Number.isInteger(Number(actorUserId)) ? Number(actorUserId) : null;
     session.runnerClaimCount = 1;
+    // Compatibilidad interna de Fases 2-5; la ruta HTTP humana ya no existe.
+    session.dispatchRequestedAt = this.now();
+    session.dispatchDeadlineAt = session.dispatchRequestedAt + session.settings.runner_dispatch_timeout_seconds * 1000;
+    session.runnerLeaseAt = this.now();
+    session.runnerServiceId = 'legacy-internal';
     this.emit('runnerClaimed', session);
 
     return {
       session: this.publicSession(session),
       runner_token: token
     };
+  }
+
+  dispatchSession(id) {
+    const session = this.requireSession(id);
+    if (session.state !== 'LISTA' || session.dispatchRequestedAt) {
+      const error = new Error('La sesión ya no está disponible para despacho.');
+      error.status = 409;
+      error.code = 'LOAD_TEST_DISPATCH_NOT_READY';
+      throw error;
+    }
+    session.dispatchRequestedAt = this.now();
+    session.dispatchDeadlineAt = session.dispatchRequestedAt + session.settings.runner_dispatch_timeout_seconds * 1000;
+    this.emit('sessionDispatched', session);
+    return this.publicSession(session);
+  }
+
+  leaseNext(runnerId, requestedId = null) {
+    this.cleanupExpired();
+    // This synchronous block is atomic within the single Node process required by V001.
+    const session = [...this.sessions.values()].find(item => item.state === 'LISTA'
+      && item.dispatchRequestedAt && !item.runnerLeaseAt && !item.runnerTokenHash
+      && (!requestedId || item.id === requestedId));
+    if (!session) return null;
+    const token = this.randomBytes(32).toString('base64url');
+    session.runnerTokenHash = hashToken(token);
+    session.runnerClaimedAt = this.now();
+    session.runnerClaimCount = 1;
+    session.runnerLeaseAt = this.now();
+    session.runnerServiceId = runnerId;
+    this.emit('runnerClaimed', session);
+    return { session: this.publicSession(session), runner_token: token };
   }
 
   getSessionInternal(id) {
@@ -388,6 +428,13 @@ class LoadTestRegistry extends EventEmitter {
       const error = new Error('El runner debe reclamar la sesión antes de iniciar la ejecución.');
       error.status = 409;
       error.code = 'LOAD_TEST_RUNNER_CLAIM_REQUIRED';
+      throw error;
+    }
+
+    if (!session.dispatchRequestedAt || !session.runnerLeaseAt || !session.runnerServiceId) {
+      const error = new Error('El runner central debe reclamar un trabajo despachado.');
+      error.status = 409;
+      error.code = 'LOAD_TEST_RUNNER_LEASE_REQUIRED';
       throw error;
     }
 
@@ -506,6 +553,12 @@ class LoadTestRegistry extends EventEmitter {
 
   finishRunner(id, token, { reason = 'RUNNER_TEARDOWN' } = {}) {
     const session = this.validateRunnerToken(id, token, { requireRunning: false });
+    if (!session.startedAt) {
+      const error = new Error('El runner no confirmó el inicio.');
+      error.status = 409;
+      error.code = 'LOAD_TEST_RUNNER_NEVER_STARTED';
+      throw error;
+    }
     if (['FINALIZADA', 'DETENIDA', 'ABORTADA_MANUAL', 'ABORTADA_AUTOMATICA', 'ABORTADA_RUNNER', 'ABORTADA_SIN_CONFIRMACION'].includes(session.state)) {
       return this.publicSession(session);
     }
@@ -514,6 +567,12 @@ class LoadTestRegistry extends EventEmitter {
 
   acceptRunnerSummary(id, token, summary) {
     let session = this.validateRunnerToken(id, token, { requireRunning: false });
+    if (!session.startedAt) {
+      const error = new Error('No se acepta resumen de una prueba que no inició.');
+      error.status = 409;
+      error.code = 'LOAD_TEST_RUNNER_NEVER_STARTED';
+      throw error;
+    }
     if (session.summaryReceivedAt || session.runnerSummary) {
       const error = new Error('El resumen final del runner ya fue recibido para esta sesion.');
       error.status = 409;
@@ -521,7 +580,7 @@ class LoadTestRegistry extends EventEmitter {
       throw error;
     }
 
-    if (session.state === 'EJECUTANDO' || session.state === 'FINALIZANDO' || session.state === 'LISTA') {
+    if (session.state === 'EJECUTANDO' || session.state === 'FINALIZANDO') {
       this.finalizeSession(id, { reason: session.stopReason || 'RUNNER_SUMMARY_RECEIVED' });
       session = this.requireSession(id);
     }
@@ -599,7 +658,7 @@ class LoadTestRegistry extends EventEmitter {
 
   deleteSession(id) {
     const session = this.requireSession(id);
-    if (session.state === 'EJECUTANDO' || session.state === 'FINALIZANDO') {
+    if (session.state === 'EJECUTANDO' || session.state === 'FINALIZANDO' || (session.state === 'LISTA' && session.dispatchRequestedAt)) {
       const error = new Error('Detén y finaliza la prueba antes de limpiar la sesión.');
       error.status = 409;
       error.code = 'LOAD_TEST_STOP_REQUIRED';
@@ -861,7 +920,7 @@ class LoadTestRegistry extends EventEmitter {
   publicSession(session) {
     if (!session) return null;
     const expiresAt = session.state === 'LISTA'
-      ? session.readyExpiresAt
+      ? (session.dispatchDeadlineAt || session.readyExpiresAt)
       : session.state === 'EJECUTANDO'
         ? session.executionDeadlineAt
         : session.state === 'FINALIZANDO'
@@ -891,6 +950,10 @@ class LoadTestRegistry extends EventEmitter {
       report_incomplete_reason: session.reportIncompleteReason,
       runner_claimed: Boolean(session.runnerClaimedAt),
       runner_claimed_at: asIso(session.runnerClaimedAt),
+      dispatch_requested_at: asIso(session.dispatchRequestedAt),
+      dispatch_deadline_at: asIso(session.dispatchDeadlineAt),
+      runner_lease_at: asIso(session.runnerLeaseAt),
+      runner_service_id: session.runnerServiceId,
       expires_at: asIso(expiresAt),
       telemetry: this.telemetrySnapshot(session)
     };
@@ -899,6 +962,22 @@ class LoadTestRegistry extends EventEmitter {
   cleanupExpired() {
     const current = this.now();
     for (const session of [...this.sessions.values()]) {
+      if (session.state === 'LISTA' && session.dispatchDeadlineAt && current >= session.dispatchDeadlineAt) {
+        session.state = 'ABORTADA_SIN_CONFIRMACION';
+        session.stoppedAt = current;
+        session.stopReason = 'RUNNER_NO_INICIO';
+        session.reportIncompleteReason = 'RUNNER_NO_INICIO';
+        session.completionIntegrity = 'INCOMPLETO';
+        session.readyExpiresAt = null;
+        session.dispatchDeadlineAt = null;
+        session.retentionExpiresAt = current + session.settings.result_ttl_seconds * 1000;
+        session.reportGeneratedAt = current;
+        session.telemetrySnapshot = this.telemetrySnapshot(session);
+        session.reportText = buildLoadTestReport(session);
+        delete session.telemetrySnapshot;
+        this.emit('sessionStopped', session);
+        continue;
+      }
       if (session.state === 'LISTA' && session.readyExpiresAt && current >= session.readyExpiresAt) {
         this.sessions.delete(session.id);
         this.emit('sessionExpired', session);

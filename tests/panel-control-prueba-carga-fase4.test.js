@@ -304,9 +304,10 @@ test('Fase 4: rutas administrativas conservan requireAuth y canal runner usa tok
   const routeSource = fs.readFileSync(path.join(repoRoot, 'backend', 'src', 'modules', 'panel-control-prueba-carga', 'panel-control-prueba-carga.routes.js'), 'utf8');
   const parentSource = fs.readFileSync(path.join(repoRoot, 'backend', 'src', 'routes', 'panel-control.routes.js'), 'utf8');
   assert.match(parentSource, /router\.use\('\/prueba-carga',\s*loadTestRoutes\)/);
-  for (const route of ['capabilities', "'/session'", 'runner-claim', "'/session/:id/start'", "'/session/:id/stop'"]) {
+  for (const route of ['capabilities', "'/session'", "'/session/:id/dispatch'", "'/session/:id/stop'"]) {
     assert.match(routeSource, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "[^\\n]*requireAuth|requireAuth[^\\n]*" + route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+  assert.doesNotMatch(routeSource, /router\.post\('\/session\/:id\/runner-claim'/);
   assert.match(routeSource, /runner-control',\s*controller\.getRunnerControl/);
   assert.match(routeSource, /runner-sample',\s*controller\.postRunnerSample/);
   const controllerSource = fs.readFileSync(path.join(repoRoot, 'backend', 'src', 'modules', 'panel-control-prueba-carga', 'panel-control-prueba-carga.controller.js'), 'utf8');

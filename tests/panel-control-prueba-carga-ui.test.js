@@ -70,17 +70,17 @@ test('UI: temporizador distingue espera, ejecución y cierre anticipado', () => 
   assert.equal(stopped.remaining, '—');
 });
 
-test('UI: sesión LISTA muestra comando, temporizador y consola legibles', () => {
+test('UI: sesión LISTA muestra despacho externo, temporizador y consola legibles', () => {
   const ui = harness();
   const box = { innerHTML: '' };
   const prepared = session();
   ui.render(box, capabilities(prepared));
-  assert.match(box.innerHTML, /Siguiente paso: iniciar k6 en PowerShell/);
-  assert.match(box.innerHTML, /iniciar-mantto-load-test\.ps1/);
-  assert.match(box.innerHTML, /Copiar comando/);
+  assert.match(box.innerHTML, /Pendiente de despacho/);
+  assert.match(box.innerHTML, /Reintentar despacho/);
+  assert.doesNotMatch(box.innerHTML, /PowerShell|Copiar comando/);
   assert.match(box.innerHTML, /role="progressbar"/);
   assert.match(box.innerHTML, /Eventos en vivo/);
-  assert.match(box.innerHTML, /Esperando el launcher externo/);
+  assert.match(box.innerHTML, /esperando despacho/i);
 });
 
 test('UI: consola temporal marca tráfico, errores y transición sin exponer token', () => {
@@ -95,7 +95,7 @@ test('UI: consola temporal marca tráfico, errores y transición sin exponer tok
   });
   ui.state.session = running;
   ui.render(box, capabilities(running));
-  assert.match(box.innerHTML, /Runner conectado/);
+  assert.match(box.innerHTML, /Runner externo reclamó el trabajo/);
   assert.match(box.innerHTML, /LISTA → EJECUTANDO/);
   assert.match(box.innerHTML, /Tráfico: \+12 HTTP/);
   assert.match(box.innerHTML, /Errores HTTP backend: \+2/);

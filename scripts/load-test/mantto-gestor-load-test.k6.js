@@ -29,7 +29,7 @@ if (targetOverride && normalizeOrigin(targetOverride) !== trustedOrigin) {
 }
 
 const SESSION_ID = clean(__ENV.MANTTO_LOAD_TEST_SESSION);
-const OPERATOR_JWT = clean(__ENV.MANTTO_OPERATOR_JWT);
+const RUNNER_TOKEN = clean(__ENV.MANTTO_LOAD_TEST_RUNNER_TOKEN);
 const TEST_JWT = clean(__ENV.MANTTO_TEST_JWT);
 const VUS = positiveInteger('MANTTO_VUS');
 const DURATION_SECONDS = positiveInteger('MANTTO_DURATION_SECONDS');
@@ -39,9 +39,7 @@ const VUS_STEP = positiveInteger('MANTTO_VUS_STEP');
 const SCENARIO = clean(__ENV.MANTTO_SCENARIO).toUpperCase();
 
 if (!/^LOAD-[A-Z0-9-]+$/.test(SESSION_ID)) throw new Error('MANTTO_LOAD_TEST_SESSION no tiene formato valido.');
-if (!OPERATOR_JWT) throw new Error('Falta la autenticacion del Programador general.');
 if (!TEST_JWT) throw new Error('Falta la identidad de prueba de solo lectura.');
-if (OPERATOR_JWT === TEST_JWT) throw new Error('La identidad operadora y la identidad funcional de prueba deben ser distintas.');
 if (!SCENARIOS[SCENARIO]) throw new Error('El escenario recibido no existe en el catalogo versionado del runner.');
 if (VUS < MIN_VUS || VUS > MAX_VUS || ((VUS - MIN_VUS) % VUS_STEP) !== 0) {
   throw new Error(`VUs fuera del rango configurado ${MIN_VUS}-${MAX_VUS} o fuera del paso ${VUS_STEP}.`);
@@ -69,19 +67,6 @@ const timeouts = new Counter('mantto_timeouts');
 let nextRunnerHeartbeatAt = 0;
 let runnerControlFailures = 0;
 let consecutiveNetworkFailures = 0;
-
-function adminParams(responseType = 'text', extraHeaders = {}) {
-  return {
-    redirects: 0,
-    responseType,
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${OPERATOR_JWT}`,
-      ...extraHeaders
-    },
-    tags: { traffic: 'load-test-control' }
-  };
-}
 
 function runnerParams(token, responseType = 'text', extraHeaders = {}) {
   return {
@@ -125,16 +110,14 @@ function parseJsonResponse(response, context) {
   return null;
 }
 
-function assertClaim(claim) {
-  if (!claim || claim.ok !== true || !claim.data) exec.test.abort('runner-claim no devolvio un contrato valido.');
-  const data = claim.data;
-  if (data.session_id !== SESSION_ID) exec.test.abort('runner-claim devolvio otra sesion.');
+function assertClaim(data) {
+  if (!data || data.session_id !== SESSION_ID) exec.test.abort('El contrato de runner no coincide con la sesion.');
   if (normalizeOrigin(data.target_origin) !== trustedOrigin) exec.test.abort('El origen autorizado por backend no coincide con el origen versionado del runner.');
   if (data.redirects_allowed !== false) exec.test.abort('El backend no confirmo la politica de redirecciones desactivadas.');
   if (data.scenario_catalog_version !== CATALOG_VERSION) exec.test.abort('Version de catalogo runner/backend incompatible.');
   if (String(data.scenario?.code || '').toUpperCase() !== SCENARIO) exec.test.abort('El escenario reclamado no coincide con la sesion preparada.');
   if (Number(data.vus) !== VUS || Number(data.duration_seconds) !== DURATION_SECONDS) exec.test.abort('La configuracion del runner no coincide con la sesion preparada.');
-  if (!clean(data.runner_token) || !clean(data.process_instance_id)) exec.test.abort('runner-claim no entrego token/instancia validos.');
+  if (!clean(data.process_instance_id)) exec.test.abort('El contrato no incluye la instancia backend.');
 
   const localRequests = SCENARIOS[SCENARIO].requests;
   const remoteRequests = Array.isArray(data.scenario?.requests) ? data.scenario.requests : [];
@@ -146,12 +129,12 @@ function assertClaim(claim) {
 }
 
 function signalRunnerAbort(data, reason) {
-  if (!data?.runnerToken) return;
+  if (!RUNNER_TOKEN) return;
   try {
     http.post(
       `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-abort`,
       JSON.stringify({ reason: clean(reason).slice(0, 120) || 'RUNNER_ABORT' }),
-      runnerParams(data.runnerToken, 'none', { 'Content-Type': 'application/json' })
+      runnerParams(RUNNER_TOKEN, 'none', { 'Content-Type': 'application/json' })
     );
   } catch (_error) {
     // Si el backend ya no responde, el aborto local sigue siendo prioritario.
@@ -164,7 +147,7 @@ function abortRun(data, reason, message) {
 }
 
 function runnerHeartbeat(data, { force = false } = {}) {
-  if (exec.vu.idInTest !== 1 || !data?.runnerToken) return;
+  if (exec.vu.idInTest !== 1 || !RUNNER_TOKEN) return;
   const now = Date.now();
   if (!force && now < nextRunnerHeartbeatAt) return;
 
@@ -182,7 +165,7 @@ function runnerHeartbeat(data, { force = false } = {}) {
     response = http.post(
       `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-sample`,
       JSON.stringify(sample),
-      runnerParams(data.runnerToken, 'text', { 'Content-Type': 'application/json' })
+      runnerParams(RUNNER_TOKEN, 'text', { 'Content-Type': 'application/json' })
     );
   } catch (_error) {
     runnerControlFailures += 1;
@@ -208,7 +191,7 @@ function runnerHeartbeat(data, { force = false } = {}) {
       http.post(
         `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-stop-ack`,
         null,
-        runnerParams(data.runnerToken, 'none')
+        runnerParams(RUNNER_TOKEN, 'none')
       );
     } catch (_error) {
       // El aborto local no depende del ACK.
@@ -232,38 +215,43 @@ function controlledSleep(seconds, data) {
 }
 
 export function setup() {
-  const claimResponse = http.post(
-    `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-claim`,
-    null,
-    adminParams('text')
-  );
-  const claim = assertClaim(parseJsonResponse(claimResponse, 'runner-claim'));
+  if (!RUNNER_TOKEN) exec.test.abort('Falta el token efimero del runner en el entorno del proceso.');
 
   const startResponse = http.post(
-    `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/start`,
-    null,
-    adminParams('text')
+    `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-start`,
+    JSON.stringify({
+      process_instance_id: clean(__ENV.MANTTO_PROCESS_INSTANCE_ID),
+      target_origin: trustedOrigin,
+      scenario_catalog_version: CATALOG_VERSION,
+      scenario: SCENARIO,
+      vus: VUS,
+      duration_seconds: DURATION_SECONDS
+    }),
+    runnerParams(RUNNER_TOKEN, 'text', { 'Content-Type': 'application/json' })
   );
   const started = parseJsonResponse(startResponse, 'inicio de sesion');
   if (!started || started.ok !== true || started.data?.state !== 'EJECUTANDO') {
     exec.test.abort('El backend no confirmo el inicio de la sesion de carga.');
   }
+  const claim = assertClaim(started.data);
 
   return {
-    runnerToken: claim.runner_token,
     processInstanceId: claim.process_instance_id,
     controlPollMs: Math.max(250, Number(claim.control?.poll_ms || 1000))
   };
 }
 
 
-function metricValue(data, metricName, valueName, fallback = 0) {
-  const value = Number(data?.metrics?.[metricName]?.values?.[valueName]);
-  return Number.isFinite(value) ? value : fallback;
+function metricValue(data, metricName, valueName) {
+  const raw = data?.metrics?.[metricName]?.values?.[valueName];
+  if (raw == null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
 
 function metricCount(data, metricName) {
-  return Math.max(0, Math.trunc(metricValue(data, metricName, 'count', 0)));
+  const value = metricValue(data, metricName, 'count');
+  return value == null ? null : Math.max(0, Math.trunc(value));
 }
 
 function summaryPayload(data) {
@@ -271,19 +259,19 @@ function summaryPayload(data) {
   return {
     session_id: SESSION_ID,
     vus_configured: VUS,
-    vus_max: Math.max(0, Math.trunc(metricValue(data, 'vus_max', 'max', VUS))),
+    vus_max: metricValue(data, 'vus_max', 'max'),
     duration_ms: duration == null ? null : Math.max(0, Number(duration) || 0),
     requests: metricCount(data, 'mantto_load_requests'),
     failed: metricCount(data, 'mantto_load_failed'),
-    rps: Math.max(0, metricValue(data, 'mantto_load_requests', 'rate', 0)),
+    rps: metricValue(data, 'mantto_load_requests', 'rate'),
     latency: {
-      min: metricValue(data, 'mantto_load_duration', 'min', 0),
-      avg: metricValue(data, 'mantto_load_duration', 'avg', 0),
-      p50: metricValue(data, 'mantto_load_duration', 'med', 0),
-      p90: metricValue(data, 'mantto_load_duration', 'p(90)', 0),
-      p95: metricValue(data, 'mantto_load_duration', 'p(95)', 0),
-      p99: metricValue(data, 'mantto_load_duration', 'p(99)', 0),
-      max: metricValue(data, 'mantto_load_duration', 'max', 0)
+      min: metricValue(data, 'mantto_load_duration', 'min'),
+      avg: metricValue(data, 'mantto_load_duration', 'avg'),
+      p50: metricValue(data, 'mantto_load_duration', 'med'),
+      p90: metricValue(data, 'mantto_load_duration', 'p(90)'),
+      p95: metricValue(data, 'mantto_load_duration', 'p(95)'),
+      p99: metricValue(data, 'mantto_load_duration', 'p(99)'),
+      max: metricValue(data, 'mantto_load_duration', 'max')
     },
     http: {
       '2xx': metricCount(data, 'mantto_http_2xx'),
@@ -293,7 +281,7 @@ function summaryPayload(data) {
     },
     timeouts: metricCount(data, 'mantto_timeouts'),
     network_errors: metricCount(data, 'mantto_network_errors'),
-    iterations_completed: Math.max(0, Math.trunc(metricValue(data, 'iterations', 'count', 0))),
+    iterations_completed: metricCount(data, 'iterations'),
     // k6 no expone en el resumen final un contador equivalente a exec.instance.iterationsInterrupted.
     // dropped_iterations tiene otra semantica; no se presenta como si fueran iteraciones interrumpidas.
     iterations_interrupted: null
@@ -323,7 +311,7 @@ export default function(data) {
         Accept: 'application/json',
         Authorization: `Bearer ${TEST_JWT}`,
         'X-Mantto-Load-Test': SESSION_ID,
-        'X-Mantto-Load-Test-Token': data.runnerToken,
+        'X-Mantto-Load-Test-Token': RUNNER_TOKEN,
         'X-Mantto-Load-Test-Instance': data.processInstanceId,
         'User-Agent': 'Mantto-Gestor-Load-Test-V001'
       },
@@ -381,12 +369,12 @@ export default function(data) {
 }
 
 export function teardown(data) {
-  if (!data?.runnerToken) return;
+  if (!RUNNER_TOKEN) return;
   try {
     http.post(
       `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-finish`,
       JSON.stringify({ reason: 'RUNNER_TEARDOWN_PHASE5' }),
-      runnerParams(data.runnerToken, 'none', { 'Content-Type': 'application/json' })
+      runnerParams(RUNNER_TOKEN, 'none', { 'Content-Type': 'application/json' })
     );
   } catch (_error) {
     // Si no puede confirmar cierre, el backend agotara su timeout y marcara la ejecucion como incompleta.
@@ -394,10 +382,9 @@ export function teardown(data) {
 }
 
 
-export function handleSummary(data, setupData) {
-  const token = clean(setupData?.runnerToken);
-  if (!token) {
-    console.error('No se pudo enviar el resumen final: falta el token efimero del runner en setupData.');
+export function handleSummary(data) {
+  if (!RUNNER_TOKEN) {
+    console.error('No se pudo enviar el resumen final: falta el token efimero del runner.');
     return {};
   }
 
@@ -406,14 +393,14 @@ export function handleSummary(data, setupData) {
     const response = http.post(
       `${trustedOrigin}/api/panel-control/prueba-carga/session/${encodeURIComponent(SESSION_ID)}/runner-summary`,
       JSON.stringify(payload),
-      { ...runnerParams(token, 'text', { 'Content-Type': 'application/json' }), timeout: '10s' }
+      { ...runnerParams(RUNNER_TOKEN, 'text', { 'Content-Type': 'application/json' }), timeout: '10s' }
     );
     abortIfRedirect(response, 'runner-summary');
     if (!response || response.status < 200 || response.status >= 300) {
       console.error(`No se pudo enviar el resumen final a Mantto Gestor. HTTP ${response ? response.status : 'N/D'}.`);
     }
-  } catch (error) {
-    console.error(`No se pudo enviar el resumen final a Mantto Gestor: ${String(error || 'error desconocido')}`);
+  } catch (_error) {
+    console.error('No se pudo enviar el resumen final a Mantto Gestor por error de red.');
   }
 
   // No se escribe archivo local, no se imprime el resumen y no se expone ningun secreto.

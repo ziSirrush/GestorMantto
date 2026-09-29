@@ -5,7 +5,7 @@
 **Ubicacion funcional:** Panel de Control  
 **Nombre visible propuesto:** `Prueba de Carga`  
 **Nombre tecnico propuesto:** `panel-control-prueba-carga`  
-**Estado:** Implementacion incremental - Fase 4
+**Estado:** Fases 1-5 integradas; FIX runner central/desktop only pre Fase 6 aplicado localmente. Las secciones de Fases 3-4 conservan contexto histórico; el contrato vigente está en `README_FIX_FASE_5_RUNNER_CENTRAL_DESKTOP_ONLY_PRE_FASE_6_V001.md`.
 **Persistencia de resultados:** Ninguna  
 **Objetivo maximo inicial:** 200 usuarios concurrentes  
 
@@ -20,8 +20,8 @@ Estas decisiones del propietario del proyecto prevalecen sobre cualquier frase a
 ### Decisiones cerradas para Fases 3 a 6
 
 - **Runner externo:** k6 se ejecuta en otra PC, nunca dentro del proceso Node medido.
-- **Credenciales:** la pantalla no recibe el token del runner. El runner hace un `runner-claim` de un solo uso autenticandose como el Programador general propietario. El backend genera el token efimero en ese momento, almacena unicamente su hash y lo entrega una sola vez al runner.
-- **Identidad funcional separada:** los GET de carga usan otra identidad existente de prueba con permisos de lectura. El launcher recibe ambos JWT mediante prompt seguro y los mantiene solo en memoria del proceso.
+- **Credenciales vigentes:** la pantalla no recibe el token del runner. El navegador usa la sesión normal; el runner central se autentica con un secreto de servicio y reclama el trabajo mediante `runner/lease`. El backend conserva solo el hash del token efímero.
+- **Identidad funcional separada:** los GET de carga usan otra identidad existente de prueba con permisos exclusivamente de lectura. El runner central obtiene su JWT mediante el login real y lo inyecta solo en el entorno de k6. El JWT del operador nunca llega al runner.
 - **Target cerrado:** el backend obtiene el origen permitido de `LOAD_TEST_ALLOWED_ORIGIN`; el runner mantiene un origen confiable versionado y rechaza cualquier `TARGET_URL` que no coincida exactamente en protocolo, host y puerto. Las redirecciones se desactivan globalmente y por request.
 - **Una sola instancia/proceso:** V001 exige una sola replica y un solo proceso backend. `LOAD_TEST_SINGLE_INSTANCE=true` es una confirmacion operativa obligatoria y el runtime bloquea workers de Node `cluster`. Si no puede confirmarse esta condicion, no se prepara ni inicia la prueba.
 - **Una sola prueba activa:** mientras exista una sesion `LISTA`, `EJECUTANDO` o `FINALIZANDO`, no se permite otra. Al cerrarse, abortarse, fallar o expirar, puede prepararse una nueva.
@@ -228,9 +228,9 @@ scripts/load-test/mantto-gestor-load-test.k6.js
 scripts/load-test/iniciar-mantto-load-test.ps1
 ```
 
-El launcher recibe solamente un `session-id` no secreto por linea de comandos. Los JWT del Programador general y de la identidad funcional de prueba se capturan con prompt seguro, se pasan al proceso k6 mediante variables de entorno heredadas y se eliminan al finalizar. No se escriben en archivos ni se imprimen.
+El launcher técnico recibe solamente un `session-id` no secreto por linea de comandos. El runner central usa credenciales de host para la identidad funcional, obtiene su JWT por el login real y lo inyecta solo en el entorno de k6. No solicita ni recibe JWT del Programador general.
 
-El token efimero de runner **no** se entrega a la pantalla ni se pasa desde PowerShell. k6 lo obtiene mediante `runner-claim` de un solo uso y lo conserva unicamente en memoria durante la ejecucion.
+El token efimero de runner **no** se entrega a la pantalla ni por argumentos de PowerShell. El runner central lo obtiene mediante `runner/lease` y lo inyecta en el entorno del proceso k6.
 
 El runner no acepta un target arbitrario. Su origen de Mantto Gestor esta versionado y debe coincidir con `LOAD_TEST_ALLOWED_ORIGIN` devuelto por el backend. Si existe `TARGET_URL` y apunta a otro origen, la ejecucion se rechaza antes de enviar autenticacion.
 
@@ -1592,8 +1592,8 @@ docs/BACKEND_ARQUITECTURA/Catalogo/modules/panel-control.md
 
 La Fase 5 queda cerrada con estas reglas:
 
-1. `handleSummary(data, setupData)` envia al backend un resumen normalizado de k6 al terminar el ciclo de prueba.
-2. El envio usa el mismo token efimero del runner obtenido por `runner-claim`; la pantalla nunca recibe ese token.
+1. `handleSummary(data)` envia al backend un resumen normalizado de k6 al terminar el ciclo de prueba.
+2. El envio usa `MANTTO_LOAD_TEST_RUNNER_TOKEN` inyectado en el entorno de k6 por el runner central tras `runner/lease`; la pantalla nunca recibe ese token.
 3. `POST /api/panel-control/prueba-carga/session/:id/runner-summary` acepta el resumen una sola vez y lo liga a la sesion.
 4. El backend valida `session_id`, VUs configurados y consistencia basica de los conteos antes de aceptar el summary.
 5. El summary se conserva solo en RAM y se transforma inmediatamente en reporte de texto.

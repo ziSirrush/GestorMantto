@@ -1,0 +1,32 @@
+FIX_FASE_5_RUNNER_CENTRAL_DESKTOP_ONLY_PRE_FASE_6_V001
+
+Archivos completos del FIX:
+README_FIX_FASE_5_RUNNER_CENTRAL_DESKTOP_ONLY_PRE_FASE_6_V001.md
+README_FASE_5_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+backend/src/modules/panel-control-prueba-carga/CHANGELOG.md
+backend/src/modules/panel-control-prueba-carga/README.md
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.controller.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.desktop.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.report.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.routes.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.runner-service.js
+backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js
+core/module-loader.js
+implementacion/MODULO_PANEL_CONTROL_PRUEBA_CARGA_V001.md
+index.html
+modules/panel-control-prueba-carga/panel-control-prueba-carga.js
+modules/panel-control/panel-control.js
+scripts/load-test/iniciar-mantto-load-test.ps1
+scripts/load-test/mantto-gestor-load-test.k6.js
+scripts/load-test/mantto-load-test-runner.service.js
+tests/panel-control-prueba-carga-fase2.test.js
+tests/panel-control-prueba-carga-fase3.test.js
+tests/panel-control-prueba-carga-fase4.test.js
+tests/panel-control-prueba-carga-fase5.test.js
+tests/panel-control-prueba-carga-ui.test.js
+tests/panel-control-prueba-carga-runner-central.test.js
+
+core/module-loader.js conserva cambios preexistentes de Seguimiento Especial.
+RUNNER EXTERNO PENDIENTE DE DESPLIEGUE.

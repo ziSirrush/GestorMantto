@@ -40,6 +40,7 @@ const pushNotificationsRoutes = require('../modules/push-notifications/push-noti
 const devicePermissionsRoutes = require('../modules/device-permissions/device-permissions.routes');
 const catalogoGeneralRoutes = require('../modules/catalogo-general/catalogo-general.routes');
 const azureStorageRoutes = require('../modules/azure-storage/azure-storage.routes');
+const seguimientoEspecialRoutes = require('../modules/seguimiento-especial/seguimiento-especial.routes');
 const experimentalAtencionPrioritariaRoutes = require('../modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.routes');
 const experimentalResumenDiaRoutes = require('../modules/experimental-resumen-dia/experimental-resumen-dia.routes');
 const experimentalEntregasRecientesRoutes = require('../modules/experimental-entregas-recientes/experimental-entregas-recientes.routes');
@@ -94,6 +95,7 @@ router.use('/push', pushNotificationsRoutes);
 router.use('/device-permissions', devicePermissionsRoutes);
 router.use('/catalogo-general', catalogoGeneralRoutes);
 router.use('/azure-storage', azureStorageRoutes);
+router.use(seguimientoEspecialRoutes);
 router.use('/experimental', experimentalAtencionPrioritariaRoutes);
 router.use('/experimental', experimentalResumenDiaRoutes);
 router.use('/experimental', experimentalEntregasRecientesRoutes);

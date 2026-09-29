@@ -1,0 +1,65 @@
+FASE_2_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001
+Fecha: 2026-09-29
+Repositorio fuente: ziSirrush/GestorMantto
+Rama: main
+Base GitHub main: f69aa5d40796c5976cf8d59eb6f6f99dbd930299
+Version base: Version 092826.3
+Dependencia: FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001
+
+OBJETIVO
+- Integrar las suscripciones puntuales UNITED/TICKET de seguimiento_especial al motor transversal de Notificaciones existente.
+- Mantener separada e intacta la persistencia Proyecto/Equipo de portafolio_interes.
+
+ARCHIVOS MODIFICADOS
+- backend/src/services/notifications/portafolio-seguimiento-especial-notifications_uni.service.js
+- backend/package.json
+
+ARCHIVOS NUEVOS
+- validation/seguimiento-especial-ticket-fase2-notificaciones.test.js
+- docs/ADR_20260929_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001.md
+- docs/README_FASE_2_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001.md
+- docs/MANIFEST_FASE_2_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001.txt
+- docs/CHECKSUMS_FASE_2_SEGUIMIENTO_ESPECIAL_TICKET_NOTIFICACIONES_V001_SHA256.txt
+
+CAMBIO FUNCIONAL
+- TICKET se resuelve directamente desde seguimiento_especial por id de tickets.
+- El seguimiento directo del Ticket no se hereda a Proyecto, Equipo ni otros Tickets.
+- Los followers TICKET se fusionan con followers existentes de Proyecto/Equipo.
+- La deduplicacion conserva una sola entrega por usuario.
+- TICKET tiene prioridad de origen cuando el mismo usuario llega por varios caminos.
+- followers_snapshot de Portafolio se combina con TICKET directo; no lo sustituye.
+- Usuario activo, permiso efectivo y alcance UNITED/ZOP siguen siendo obligatorios.
+- No se altera la exclusion nativa del actor.
+
+EVENTOS NATIVOS APROVECHADOS
+- TICKET_CREADO
+- TICKET_ESTATUS_CAMBIADO
+- TICKET_PRIORIDAD_CAMBIADA
+- TICKET_ASIGNACION_CAMBIADA
+- TICKET_RESPONSABILIDAD_CAMBIADA
+- tickets.comentario.creado
+- tickets.vobo.actualizado
+- Eventos criticos de Ticket que ya entregan contextoSeguimiento.
+
+SIN CAMBIOS
+- SQL/Aiven: ninguno.
+- portafolio_interes: sin escritura ni migracion.
+- Schema seguimiento_especial: sin cambios.
+- notification.service.js: sin cambios.
+- Productores de eventos Ticket: sin cambios.
+- Frontend: sin cambios.
+- Permisos: sin cambios.
+- GitHub/Azure/Netlify/Aiven: no se escribio ni desplego nada.
+
+VALIDACION LOCAL DEL PAQUETE
+- node --check resolver: PASS
+- node --check test dirigido: PASS
+- backend/package.json parse JSON: PASS
+- node --test validation/seguimiento-especial-ticket-fase2-notificaciones.test.js: PASS 13/13
+- Checksums internos: generar/verificar antes de empaquetar.
+
+NO EJECUTADO
+- Suite completa del repositorio.
+- E2E contra Aiven.
+- Campana/Push reales.
+- Deploy.

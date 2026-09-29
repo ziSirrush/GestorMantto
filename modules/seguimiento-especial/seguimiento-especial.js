@@ -32,9 +32,9 @@
     return `<div class="se-page" id="se-page">
       <section class="se-head se-card">
         <div>
-          <p class="se-eyebrow">Portafolio · Seguimiento personal</p>
+          <p class="se-eyebrow">Seguimiento personal · Mantto Gestor</p>
           <h1>${visualMarkup('se-visual')} Seguimiento Especial</h1>
-          <p>Proyectos y equipos que requieren tu atención. El indicador visual solo corresponde a tu usuario y no amplía tu alcance UNITED.</p>
+          <p>Proyectos, equipos y tickets que requieren tu atención. El indicador visual es personal y nunca amplía tu alcance de información.</p>
         </div>
         <button class="se-btn" id="se-refresh" type="button">↻ Actualizar</button>
       </section>
@@ -42,11 +42,12 @@
       <section class="se-summary">
         <article class="se-kpi se-card"><span>Proyectos</span><strong id="se-total-projects">0</strong><small>Proyectos marcados de forma completa.</small></article>
         <article class="se-kpi se-card"><span>Equipos</span><strong id="se-total-equipment">0</strong><small>Equipos actualmente activos en tu seguimiento.</small></article>
-        <article class="se-help se-card"><strong>${visualMarkup('se-visual')} Indicador personal</strong><span>El indicador identifica estos proyectos/equipos en las vistas de Mantto para tu usuario.</span></article>
+        <article class="se-kpi se-card"><span>Tickets</span><strong id="se-total-tickets">0</strong><small>Tickets seguidos de forma puntual e independiente.</small></article>
+        <article class="se-help se-card"><strong>${visualMarkup('se-visual')} Indicador personal</strong><span>El indicador identifica proyectos, equipos y tickets en Seguimiento Especial para tu usuario.</span></article>
       </section>
 
       <section class="se-toolbar se-card">
-        <label class="se-search"><span>Buscar</span><input id="se-search" type="search" autocomplete="off" placeholder="Proyecto, equipo, ciudad, estado, zona..."></label>
+        <label class="se-search"><span>Buscar</span><input id="se-search" type="search" autocomplete="off" placeholder="Proyecto, equipo, ticket, estado, prioridad..."></label>
         <div class="se-status" id="se-status" aria-live="polite">Listo para consultar.</div>
       </section>
 
@@ -58,6 +59,11 @@
       <section class="se-workspace se-card">
         <div class="se-section-head"><div><h2>Equipos</h2><p>Incluye equipos agregados desde proyecto completo y equipos seleccionados individualmente.</p></div></div>
         <div class="se-table-wrap"><table class="se-table"><thead><tr><th>Equipo</th><th>Proyecto</th><th>Identificación</th><th>Ubicación</th><th>Origen</th><th>Estatus servicio</th><th>Último cambio</th><th>Acciones</th></tr></thead><tbody id="se-equipment-body"></tbody></table></div>
+      </section>
+
+      <section class="se-workspace se-card">
+        <div class="se-section-head"><div><h2>Tickets</h2><p>Cada seguimiento es puntual: seguir un Ticket no agrega su Proyecto, su Equipo ni otros Tickets relacionados.</p></div></div>
+        <div class="se-table-wrap"><table class="se-table se-ticket-table"><thead><tr><th>Ticket</th><th>Proyecto</th><th>Equipo</th><th>Estado</th><th>Prioridad</th><th>Responsabilidad</th><th>Último cambio</th><th>Acciones</th></tr></thead><tbody id="se-tickets-body"></tbody></table></div>
       </section>
     </div>`;
   }
@@ -118,18 +124,39 @@
     </tr>`;
   }
 
+  function ticketRow(row,manage){
+    const ticket=String(row.ticket||row.id_ticket||'').trim();
+    const project=String(row.proyecto||row.proyecto_padre||'').trim();
+    const equipment=String(row.codigo_equipo||row.equipo||'').trim();
+    const status=String(row.estado_ticket||row.estado||'—').trim()||'—';
+    const closed=/cerrad/i.test(status);
+    return `<tr>
+      <td><button class="se-link" type="button" data-open-ticket="${esc(ticket)}">${visualMarkup('se-visual')} ${esc(ticket||'—')}</button></td>
+      <td>${project?`<button class="se-link" type="button" data-open-project="${esc(project)}">${esc(project)}</button>`:'—'}</td>
+      <td>${esc(equipment||'—')}</td>
+      <td><span class="se-pill ${closed?'closed':'active'}">${esc(status)}</span></td>
+      <td>${esc(row.prioridad||'—')}</td>
+      <td>${esc(row.responsabilidad||'—')}</td>
+      <td>${fmtDateTime(row.updated_at)}</td>
+      <td class="se-actions"><button class="se-open" type="button" data-open-ticket="${esc(ticket)}">Abrir</button>${manage?`<button class="se-remove" type="button" data-remove-ticket="${esc(ticket)}">Quitar</button>`:''}</td>
+    </tr>`;
+  }
+
   function render(){
     const service=api();
     if(!service)return;
     const snapshot=service.getSnapshot();
     const projects=snapshot.proyectos.filter(matchesSearch);
     const equipment=snapshot.equipos.filter(matchesSearch);
+    const tickets=(Array.isArray(snapshot.tickets)?snapshot.tickets:[]).filter(matchesSearch);
     const manage=service.canManage();
 
     const totalProjects=$('#se-total-projects');
     const totalEquipment=$('#se-total-equipment');
+    const totalTickets=$('#se-total-tickets');
     if(totalProjects)totalProjects.textContent=Number(snapshot.resumen.proyectos||snapshot.proyectos.length).toLocaleString('es-MX');
     if(totalEquipment)totalEquipment.textContent=Number(snapshot.resumen.equipos||snapshot.equipos.length).toLocaleString('es-MX');
+    if(totalTickets)totalTickets.textContent=Number(snapshot.resumen.tickets||snapshot.tickets.length).toLocaleString('es-MX');
 
     const pbody=$('#se-projects-body');
     if(pbody)pbody.innerHTML=projects.length
@@ -141,8 +168,13 @@
       ?equipment.map(row=>equipmentRow(row,manage)).join('')
       :'<tr class="se-empty"><td colspan="8">No hay equipos en Seguimiento Especial para esta búsqueda.</td></tr>';
 
+    const tbody=$('#se-tickets-body');
+    if(tbody)tbody.innerHTML=tickets.length
+      ?tickets.map(row=>ticketRow(row,manage)).join('')
+      :'<tr class="se-empty"><td colspan="8">No hay tickets en Seguimiento Especial para esta búsqueda.</td></tr>';
+
     applyVisuals($('#view-seguimiento-especial'));
-    setStatus(`${snapshot.proyectos.length.toLocaleString('es-MX')} proyecto${snapshot.proyectos.length===1?'':'s'} · ${snapshot.equipos.length.toLocaleString('es-MX')} equipo${snapshot.equipos.length===1?'':'s'}.`);
+    setStatus(`${snapshot.proyectos.length.toLocaleString('es-MX')} proyecto${snapshot.proyectos.length===1?'':'s'} · ${snapshot.equipos.length.toLocaleString('es-MX')} equipo${snapshot.equipos.length===1?'':'s'} · ${snapshot.tickets.length.toLocaleString('es-MX')} ticket${snapshot.tickets.length===1?'':'s'}.`);
   }
 
   function openDetail(type,id){
@@ -159,7 +191,8 @@
     button.textContent='Quitando...';
     try{
       if(type==='PROYECTO')await service.setProject(id,false);
-      else await service.setEquipment(id,false);
+      else if(type==='EQUIPO')await service.setEquipment(id,false);
+      else if(type==='TICKET')await service.setTicket(id,false);
       render();
     }catch(error){
       setStatus(error.message||'No fue posible actualizar Seguimiento Especial.',true);
@@ -180,10 +213,14 @@
       if(project){openDetail('proyecto',project.dataset.openProject);return;}
       const equipment=event.target.closest('[data-open-equipment]');
       if(equipment){openDetail('equipo',equipment.dataset.openEquipment);return;}
+      const ticket=event.target.closest('[data-open-ticket]');
+      if(ticket){openDetail('ticket',ticket.dataset.openTicket);return;}
       const removeProject=event.target.closest('[data-remove-project]');
       if(removeProject){removeTarget('PROYECTO',removeProject.dataset.removeProject,removeProject);return;}
       const removeEquipment=event.target.closest('[data-remove-equipment]');
-      if(removeEquipment)removeTarget('EQUIPO',removeEquipment.dataset.removeEquipment,removeEquipment);
+      if(removeEquipment){removeTarget('EQUIPO',removeEquipment.dataset.removeEquipment,removeEquipment);return;}
+      const removeTicket=event.target.closest('[data-remove-ticket]');
+      if(removeTicket)removeTarget('TICKET',removeTicket.dataset.removeTicket,removeTicket);
     });
     const search=$('#se-search');
     if(search)search.addEventListener('input',()=>{state.search=search.value.trim();render();});
@@ -212,8 +249,10 @@
     if(!ensureMarkup())return;
     const pbody=$('#se-projects-body');
     const ebody=$('#se-equipment-body');
+    const tbody=$('#se-tickets-body');
     if(pbody)pbody.innerHTML='<tr class="se-empty"><td colspan="6">No tienes permiso para consultar Seguimiento Especial.</td></tr>';
     if(ebody)ebody.innerHTML='<tr class="se-empty"><td colspan="8">No tienes permiso para consultar Seguimiento Especial.</td></tr>';
+    if(tbody)tbody.innerHTML='<tr class="se-empty"><td colspan="8">No tienes permiso para consultar Seguimiento Especial.</td></tr>';
     setStatus('Acceso no autorizado.',true);
   }
 

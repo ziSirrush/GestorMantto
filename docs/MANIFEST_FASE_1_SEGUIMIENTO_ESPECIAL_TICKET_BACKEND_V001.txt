@@ -1,0 +1,55 @@
+FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001
+Fecha: 2026-09-29
+Repositorio fuente: ziSirrush/GestorMantto
+Rama: main
+Base GitHub main: f69aa5d40796c5976cf8d59eb6f6f99dbd930299
+Version base: Version 092826.3
+
+ARCHIVOS MODIFICADOS
+- backend/src/routes/index.js
+- backend/package.json
+
+ARCHIVOS NUEVOS
+- backend/src/modules/seguimiento-especial/seguimiento-especial.repository.js
+- backend/src/modules/seguimiento-especial/seguimiento-especial.service.js
+- backend/src/modules/seguimiento-especial/seguimiento-especial.controller.js
+- backend/src/modules/seguimiento-especial/seguimiento-especial.routes.js
+- validation/seguimiento-especial-ticket-fase1-api.test.js
+- docs/ADR_20260929_SEGUIMIENTO_ESPECIAL_GENERAL_TICKET_V001.md
+- docs/README_FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001.md
+- docs/MANIFEST_FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001.txt
+- docs/CHECKSUMS_FASE_1_SEGUIMIENTO_ESPECIAL_TICKET_BACKEND_V001_SHA256.txt
+
+CAMBIO FUNCIONAL
+- Agrega persistencia/API backend para Seguimiento Especial directo a TICKET.
+- Persistencia canonica: origen=UNITED, entidad_tipo=TICKET, entidad_id=tickets.id, entidad_clave=tickets.ticket.
+- Listado personal de Tickets seguidos dentro del alcance UNITED actual.
+- Alta/baja idempotente mediante activo.
+- Seguimiento TICKET no hereda a Proyecto, Equipo ni otros Tickets.
+- Cierre del Ticket no desactiva la suscripcion.
+
+PERMISOS
+- Se reutilizan los permisos vigentes de Seguimiento Especial.
+- No se crea ni renombra ningun permiso.
+
+PRERREQUISITO BD
+- La tabla seguimiento_especial ya existe.
+- Este paquete NO contiene SQL.
+
+SIN CAMBIOS
+- portafolio_interes: sin cambios.
+- Notificaciones: sin cambios (Fase 2).
+- Frontend: sin cambios (Fases 3 y 4).
+- Sync Tickets: sin cambios.
+- Aiven: no modificado por este paquete.
+- GitHub: no modificado por este paquete.
+- Azure: no desplegado.
+- Netlify: no desplegado.
+
+VALIDACION
+- Node --check: PASS en JS nuevos/modificados incluidos en la fase.
+- backend/package.json parse JSON: PASS.
+- Prueba dirigida: 11/11 PASS.
+- Suite completa: no ejecutada en este entorno.
+- Aiven: no probado.
+- E2E: no probado.

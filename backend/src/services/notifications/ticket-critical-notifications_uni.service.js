@@ -1,5 +1,8 @@
 'use strict';
 
+// [Aster | 2026-09-29 | ASTER-MG | FASE_1_SALIDA_EQUIPO_CRITICO_NOTIFICACIONES_V001]
+// Detecta salida de condicion critica causada por cambios sincronizados de Tickets.
+// El vencimiento automatico por transcurso de U35 queda reservado para Fase 2.
 // [Aster | 2026-09-07 | ASTER-MG | FASE_1_NOTIFICACIONES_CRITICOS_PERSONA_ATRAPADA_V001]
 // Persona atrapada en equipo ya critico se evalua por la transicion de persona atrapada,
 // independiente de la responsabilidad del Ticket. BLT solo conserva la regla de criticidad 3/35.
@@ -21,6 +24,7 @@ const {
 const EVENT_FALLA_EQUIPO_CRITICO_UNI = 'FALLA_EQUIPO_CRITICO';
 const EVENT_PERSONA_ATRAPADA_UNI = 'PERSONA_ATRAPADA';
 const EVENT_NUEVO_EQUIPO_CRITICO_UNI = 'NUEVO_EQUIPO_CRITICO';
+const EVENT_EQUIPO_SALE_DE_CRITICO_UNI = 'EQUIPO_SALE_DE_CRITICO';
 const EVENT_PERSONA_ATRAPADA_EQUIPO_CRITICO_UNI = 'PERSONA_ATRAPADA_EQUIPO_CRITICO';
 const EVENT_PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO_UNI = 'PERSONA_ATRAPADA_NUEVO_EQUIPO_CRITICO';
 const EVENT_TICKET_CREADO_UNI = 'TICKET_CREADO';
@@ -367,6 +371,161 @@ function evaluateCandidateTransitions_uni(candidateRows, beforeContext, currentP
   });
 }
 
+
+function detectCriticalExitTransitions_uni(beforeState, afterState) {
+  const before = beforeState instanceof Map ? beforeState : new Map();
+  const after = afterState instanceof Map ? afterState : new Map();
+  const transitions = [];
+
+  for (const [equipmentRaw, stateBefore] of before.entries()) {
+    const equipment = String(equipmentRaw || '').trim();
+    if (!equipment) continue;
+    const beforeCount = Number(stateBefore?.fallas || 0);
+    const afterCount = Number(after.get(equipment)?.fallas || 0);
+    if (
+      beforeCount >= CRITICOS_MIN_FALLAS_BLT_UNI &&
+      afterCount < CRITICOS_MIN_FALLAS_BLT_UNI
+    ) {
+      transitions.push({
+        equipment,
+        beforeCount,
+        afterCount,
+        transition: 'CRITICO_A_NO_CRITICO'
+      });
+    }
+  }
+
+  return transitions.sort((a, b) => a.equipment.localeCompare(b.equipment, 'es-MX'));
+}
+
+function criticalExitTrigger_uni(transition, affectedRows, beforeTickets, currentPeriodBltIds) {
+  const equipment = String(transition?.equipment || '').trim();
+  if (!equipment) return null;
+  const beforeMap = beforeTickets instanceof Map ? beforeTickets : new Map();
+  const afterBltIds = currentPeriodBltIds instanceof Set ? currentPeriodBltIds : new Set();
+
+  for (const row of Array.isArray(affectedRows) ? affectedRows : []) {
+    const ticketId = Number(row?.id || 0);
+    const beforeRow = beforeMap.get(ticketId) || null;
+    if (!beforeRow) continue;
+
+    const beforeEquipment = String(beforeRow.codigo_equipo || '').trim();
+    const afterEquipment = String(row?.codigo_equipo || '').trim();
+    const qualifiedBefore = beforeEquipment === equipment && Number(beforeRow.calificaba_blt_periodo) === 1;
+    const qualifiedAfterSameEquipment = afterEquipment === equipment && afterBltIds.has(ticketId) && isBlt_uni(row);
+
+    if (qualifiedBefore && !qualifiedAfterSameEquipment) {
+      return { row, beforeRow };
+    }
+  }
+
+  return null;
+}
+
+async function emitCriticalExitEvent_uni({
+  transition,
+  trigger,
+  actorUserId,
+  activeUserIds
+}) {
+  const equipment = String(transition?.equipment || '').trim();
+  const row = trigger?.row || null;
+  const beforeRow = trigger?.beforeRow || null;
+  const ticketId = Number(row?.id || beforeRow?.id || 0) || null;
+  const ticketRef = String(row?.ticket || beforeRow?.ticket || ticketId || '').trim();
+
+  if (!equipment || !ticketId) {
+    return {
+      ok: true,
+      created: 0,
+      skipped: Array.isArray(activeUserIds) ? activeUserIds.length : 0,
+      recipients: [],
+      bell_recipients: [],
+      push_recipients: [],
+      decisions: [],
+      reason: 'DISPARADOR_SALIDA_CRITICO_NO_RESUELTO',
+      zona_id: null,
+      event_instance_key: null
+    };
+  }
+
+  // La zona corresponde al equipo que DEJO de ser critico, incluso si el
+  // Ticket disparador fue movido a otro equipo durante el mismo sync.
+  const zoneId = await resolveTicketZoneId_uni(db, { codigo_equipo: equipment });
+  if (!zoneId) {
+    logger.warn('[NOTIFICATION_CRITICAL_EXIT_SKIPPED]', {
+      codigo_evento: EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
+      ticket_id: ticketId,
+      ticket: ticketRef || null,
+      codigo_equipo: equipment,
+      reason: 'ZONA_OPERATIVA_NO_RESUELTA'
+    });
+    return {
+      ok: true,
+      created: 0,
+      skipped: Array.isArray(activeUserIds) ? activeUserIds.length : 0,
+      recipients: [],
+      bell_recipients: [],
+      push_recipients: [],
+      decisions: [],
+      reason: 'ZONA_OPERATIVA_NO_RESUELTA',
+      zona_id: null,
+      event_instance_key: null
+    };
+  }
+
+  const siteSource = beforeRow || row || {};
+  const site = siteLabel_gnral(siteSource);
+  const beforeCount = Number(transition?.beforeCount || 0);
+  const afterCount = Number(transition?.afterCount || 0);
+  const eventInstanceKey = [
+    'critical-exit',
+    equipment,
+    `ticket-id:${ticketId}`,
+    `from:${beforeCount}`,
+    `to:${afterCount}`,
+    `before-resp:${normalizeText_uni(beforeRow?.responsabilidad)}`,
+    `after-resp:${normalizeText_uni(row?.responsabilidad)}`,
+    `before-date:${dateKey_uni(beforeRow?.fecha_reporte)}`,
+    `after-date:${dateKey_uni(row?.fecha_reporte)}`
+  ].join(':');
+
+  const result = await emitBusinessEventSafe_gnral({
+    codigoEvento: EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
+    destinatarios: activeUserIds || [],
+    actorUserId: Number(actorUserId) || null,
+    zonaOperativaId: zoneId,
+    requireRoleMatrix: true,
+    allowMissingEvent: true,
+    titulo: 'Equipo dejó de ser crítico',
+    mensaje: `Se generó salida de condición crítica · ${site}. Actualmente registra ${afterCount} fallas BLT en los últimos ${CRITICOS_DIAS_UNI} días.`,
+    icono: '✅',
+    accion: 'ABRIR_TICKET',
+    idReferencia: ticketId,
+    ruta: ticketRef ? `detalle:ticket:${ticketRef}` : null,
+    eventInstanceKey,
+    contextoSeguimiento: {
+      dominio: 'UNITED',
+      tipo: 'TICKET',
+      id_ticket: ticketId,
+      ticket: ticketRef || null,
+      numero_equipo: equipment,
+      proyecto: beforeRow?.proyecto || beforeRow?.proyecto_padre || row?.proyecto || row?.proyecto_padre || null,
+      zona_id: zoneId,
+      identificador_operacion: eventInstanceKey
+    }
+  }, {
+    label: `tickets-critical:${EVENT_EQUIPO_SALE_DE_CRITICO_UNI}`
+  });
+
+  return {
+    ...result,
+    reason: primaryReason_uni(result),
+    zona_id: zoneId,
+    event_instance_key: eventInstanceKey
+  };
+}
+
 function comparableText_uni(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -650,6 +809,7 @@ function emptySummary_uni() {
     falla_equipo_critico: 0,
     persona_atrapada: 0,
     nuevo_equipo_critico: 0,
+    equipo_sale_de_critico: 0,
     ticket_creado: 0,
     ticket_estatus_cambiado: 0,
     ticket_prioridad_cambiada: 0,
@@ -736,6 +896,11 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     beforeContext,
     currentPeriodBltIds
   );
+  const criticalBefore = beforeContext?.criticalBefore instanceof Map
+    ? beforeContext.criticalBefore
+    : new Map();
+  const criticalAfter = await listCriticalState_uni(db, [...criticalBefore.keys()]);
+  const criticalExitTransitions = detectCriticalExitTransitions_uni(criticalBefore, criticalAfter);
   const nativeWinnerTicketIds = new Set();
 
   for (const evaluation of evaluations) {
@@ -846,6 +1011,82 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     traceEvaluation_uni(evaluation, event.eventCode, result, 'ERROR_EMISION');
   }
 
+  for (const transition of criticalExitTransitions) {
+    const trigger = criticalExitTrigger_uni(
+      transition,
+      affectedRows,
+      beforeTickets,
+      currentPeriodBltIds
+    );
+
+    if (!trigger) {
+      logger.warn('[NOTIFICATION_CRITICAL_EXIT_SKIPPED]', {
+        codigo_evento: EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
+        codigo_equipo: transition.equipment,
+        fallas_blt_35d_antes: transition.beforeCount,
+        fallas_blt_35d_despues: transition.afterCount,
+        reason: 'DISPARADOR_SALIDA_CRITICO_NO_RESUELTO'
+      });
+      continue;
+    }
+
+    const triggerTicketId = Number(trigger.row?.id || trigger.beforeRow?.id || 0) || null;
+    if (triggerTicketId) nativeWinnerTicketIds.add(triggerTicketId);
+
+    let result;
+    try {
+      result = await emitCriticalExitEvent_uni({
+        transition,
+        trigger,
+        actorUserId: actorId,
+        activeUserIds
+      });
+    } catch (error) {
+      logger.error('[NOTIFICATION_CRITICAL_EXIT_EMIT_FAILED]', {
+        ticket_id: triggerTicketId,
+        ticket: trigger.row?.ticket || trigger.beforeRow?.ticket || null,
+        codigo_equipo: transition.equipment,
+        codigo_evento: EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
+        error: error.message
+      });
+      result = {
+        created: 0,
+        skipped: activeUserIds.length,
+        reason: 'ERROR_EMISION',
+        trace_id: null,
+        event_instance_key: null,
+        zona_id: null
+      };
+    }
+
+    appendEventResult_uni(
+      summary,
+      EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
+      trigger.row || trigger.beforeRow,
+      result,
+      'equipo_sale_de_critico',
+      {
+        numero_equipo: transition.equipment,
+        transicion: transition.transition,
+        fallas_blt_35d_antes: transition.beforeCount,
+        fallas_blt_35d_despues: transition.afterCount
+      }
+    );
+
+    logger.info('[NOTIFICATION_CRITICAL_EXIT_EVALUATED]', {
+      ticket_id: triggerTicketId,
+      numero_ticket: trigger.row?.ticket || trigger.beforeRow?.ticket || null,
+      codigo_equipo: transition.equipment,
+      fallas_blt_35d_antes: transition.beforeCount,
+      fallas_blt_35d_despues: transition.afterCount,
+      evento_resultante: EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
+      motivo: Number(result?.created || 0) > 0
+        ? 'NOTIFICACION_CREADA'
+        : (result?.reason || 'NINGUNO'),
+      trace_id: result?.trace_id || null
+    });
+  }
+
   for (const row of receivedRows) {
     const ticketId = Number(row.id);
     if (nativeWinnerTicketIds.has(ticketId)) continue;
@@ -917,5 +1158,9 @@ module.exports = {
   resolveTicketZoneId_uni,
   isFollowOnlyTicketEvent_uni,
   emitTicketEvent_uni,
+  emitCriticalExitEvent_uni,
+  detectCriticalExitTransitions_uni,
+  criticalExitTrigger_uni,
+  EVENT_EQUIPO_SALE_DE_CRITICO_UNI,
   FOLLOW_ONLY_TICKET_EVENTS_UNI
 };
