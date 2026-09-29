@@ -1,0 +1,20 @@
+FIX_CI_SEGUIMIENTO_CRITICOS_V001
+Base: ziSirrush/GestorMantto main @ b3bc6ca6aa5f2b3fb9871e5a3a07e234337eeffc
+
+MODIFICADOS
+backend/package.json
+validation/seguimiento-especial-notificaciones.test.js
+
+NUEVOS DOCUMENTACION
+README_FIX_CI_SEGUIMIENTO_CRITICOS_V001.md
+MANIFEST_FIX_CI_SEGUIMIENTO_CRITICOS_V001.txt
+VALIDACIONES_FIX_CI_SEGUIMIENTO_CRITICOS_V001.txt
+CHECKSUMS_FIX_CI_SEGUIMIENTO_CRITICOS_V001_SHA256.txt
+
+NO INCLUIDO
+SQL
+backend funcional
+frontend funcional
+jobs
+migraciones
+patch

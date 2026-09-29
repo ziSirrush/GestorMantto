@@ -1,0 +1,30 @@
+FIX CI SEGUIMIENTO + CRITICOS V001
+
+BASE VERIFICADA
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Commit: b3bc6ca6aa5f2b3fb9871e5a3a07e234337eeffc
+Workflow Run: 36601357046 / #405
+Fallo confirmado: validation/seguimiento-especial-notificaciones.test.js:727
+
+RESULTADOS ENTREGA
+[PASS] node --check validation/seguimiento-especial-notificaciones.test.js
+[PASS] backend/package.json JSON válido
+[PASS] cache-bust global Seguimiento = 20260929-seguimiento-especial-ticket-listado-fase4-v001
+[PASS] cache-bust pantalla Seguimiento = 20260929-seguimiento-especial-ticket-listado-fase4-v001
+[PASS] expectativa obsoleta 20260909-seguimiento-especial-control-unico-v006 retirada
+[PASS] expectativa obsoleta seguimiento-especial.js?v=20260914-human-time-v001 retirada
+[PASS] validation/equipo-sale-critico-fase1.test.js registrado en scripts.test
+[PASS] validation/equipo-sale-critico-fase2.test.js registrado en scripts.test
+[PASS] pruebas históricas existentes conservadas en scripts.test
+[PASS] no hay archivos SQL en el FIX
+[PASS] no hay archivos productivos modificados
+
+NO EJECUTADO
+[NO] npm test completo: requiere árbol completo del repositorio
+[NO] npm run check completo: requiere árbol completo del repositorio
+[NO] push GitHub
+[NO] deploy Azure
+[NO] cambios Aiven
+[PASS] baseline exacto validation test: Git blob d3b5936e52a23a7bd351ad0ceaf8cb3bc09af244 al revertir solo cambios del FIX
+[PASS] baseline exacto backend/package.json: Git blob 718b71721b9bc1f8f5bbfbe0535a423f05a419db al revertir solo cambios del FIX

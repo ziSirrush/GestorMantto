@@ -724,8 +724,8 @@ test('pantalla Notificaciones renderiza codigos_visuales mediante catalogo centr
 test('cache bust de cierre apunta a los archivos frontend corregidos', () => {
   const loader = read('core/module-loader.js');
   const index = read('index.html');
-  assert.match(loader, /seguimiento-especial-global\.js\?v=20260909-seguimiento-especial-control-unico-v006/);
-  assert.match(loader, /seguimiento-especial\.js\?v=20260914-human-time-v001/);
+  assert.match(loader, /seguimiento-especial-global\.js\?v=20260929-seguimiento-especial-ticket-listado-fase4-v001/);
+  assert.match(loader, /seguimiento-especial\.js\?v=20260929-seguimiento-especial-ticket-listado-fase4-v001/);
   assert.match(index, /core\/module-loader\.js\?v=[A-Za-z0-9._-]+/);
   assert.match(index, /core\/router\.js\?v=20260914-human-time-v001/);
 });
@@ -757,6 +757,8 @@ test('npm test queda conectado al workflow existente y admite validaciones incre
     '../validation/seguimiento-especial-notificaciones.test.js',
     '../validation/seguimiento-especial-fase1-sin-rol.test.js',
     '../validation/seguimiento-especial-fase2-cobertura-united.test.js',
+    '../validation/equipo-sale-critico-fase1.test.js',
+    '../validation/equipo-sale-critico-fase2.test.js',
     '../tests/instalaciones-bitacora-sync.test.js',
     '../tests/notificaciones-marcar-todas.test.js'
   ]) {
