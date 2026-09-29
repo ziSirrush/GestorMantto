@@ -14,9 +14,34 @@ const SERVICE_TOKEN = process.env.MANTTO_RUNNER_SERVICE_TOKEN || '';
 const TEST_EMAIL = process.env.MANTTO_TEST_EMAIL || '';
 const TEST_PASSWORD = process.env.MANTTO_TEST_PASSWORD || '';
 
+const IDENTITY_RETRY_DELAYS_MS = Object.freeze([30000, 60000, 120000, 300000]);
+const IDENTITY_429_FALLBACK_MS = 300000;
+const IDENTITY_REVALIDATE_MS = 30000;
+
 function provisioned() {
   return /^(?:[a-f0-9]{64}|[A-Za-z0-9_-]{43,})$/i.test(SERVICE_TOKEN)
     && /^[A-Za-z0-9_-]{1,64}$/.test(RUNNER_ID);
+}
+
+function httpError(message, response) {
+  const result = new Error(message);
+  result.status = Number(response?.status || 0) || null;
+  const retryAfter = String(response?.headers?.get?.('retry-after') || '').trim();
+  if (/^\d+$/.test(retryAfter)) result.retryAfterMs = Number(retryAfter) * 1000;
+  else if (retryAfter) {
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) result.retryAfterMs = Math.max(0, retryAt - Date.now());
+  }
+  return result;
+}
+
+function identityRetryDelay(error, failureCount) {
+  if (Number(error?.status) === 429) {
+    const fromHeader = Number(error?.retryAfterMs);
+    return Number.isFinite(fromHeader) && fromHeader > 0 ? fromHeader : IDENTITY_429_FALLBACK_MS;
+  }
+  const index = Math.max(0, Math.min(IDENTITY_RETRY_DELAYS_MS.length - 1, Number(failureCount || 1) - 1));
+  return IDENTITY_RETRY_DELAYS_MS[index];
 }
 
 async function request(route, { method = 'GET', body, token, runnerToken, service = false } = {}) {
@@ -30,7 +55,7 @@ async function request(route, { method = 'GET', body, token, runnerToken, servic
     redirect: 'manual', signal: AbortSignal.timeout(10000)
   });
   if (response.status === 204) return null;
-  if (!response.ok || response.status >= 300) throw new Error(`Contrato HTTP ${response.status} en ${route}.`);
+  if (!response.ok || response.status >= 300) throw httpError(`Contrato HTTP ${response.status} en ${route}.`, response);
   const payload = await response.json();
   if (!payload.ok) throw new Error(`Contrato no disponible en ${route}.`);
   return payload.data;
@@ -47,7 +72,7 @@ async function loginAndValidate() {
     body: JSON.stringify({ correo: TEST_EMAIL, pass: TEST_PASSWORD }),
     redirect: 'manual', signal: AbortSignal.timeout(10000)
   });
-  if (response.status !== 200) throw new Error('La identidad funcional no pudo iniciar sesión.');
+  if (response.status !== 200) throw httpError('La identidad funcional no pudo iniciar sesión.', response);
   const login = await response.json();
   if (!login.ok || !login.token || login.must_change_password) throw new Error('La identidad funcional no está lista.');
   const identity = await request('/api/panel-control/prueba-carga/runner/test-identity', { token: login.token });
@@ -82,27 +107,61 @@ function runK6(job, jwt, spawnProcess = spawn) {
   });
 }
 
+function logIdentityBackoff(error, delayMs) {
+  const status = Number(error?.status || 0);
+  const label = status ? `HTTP ${status}` : 'ERROR';
+  console.warn(`[ManttoLoadTestRunner] Identidad no lista (${label}). Reintento en ${Math.ceil(delayMs / 1000)} s.`);
+}
+
 async function main() {
   const onlySession = process.argv[2] === '--session-id' ? String(process.argv[3] || '') : null;
   if (onlySession && !/^LOAD-[A-Z0-9-]+$/.test(onlySession)) throw new Error('SessionId inválido.');
   if (!provisioned()) throw new Error('Este equipo no está provisionado como runner de Prueba de Carga.');
+
   let jwt = null;
   let identityValidatedAt = 0;
+  let identityFailureCount = 0;
+  let nextIdentityAttemptAt = 0;
   let job = null;
+
   while (true) {
     let version = '';
     try { version = await k6Version(); } catch (_error) { /* fail closed */ }
-    if (version && TEST_EMAIL && TEST_PASSWORD && !jwt) {
-      try { jwt = await loginAndValidate(); identityValidatedAt = Date.now(); }
-      catch (_error) { jwt = null; }
+
+    const now = Date.now();
+    const identityConfigured = Boolean(TEST_EMAIL && TEST_PASSWORD);
+
+    if (version && identityConfigured && !jwt && now >= nextIdentityAttemptAt) {
+      try {
+        jwt = await loginAndValidate();
+        identityValidatedAt = Date.now();
+        identityFailureCount = 0;
+        nextIdentityAttemptAt = 0;
+      } catch (error) {
+        jwt = null;
+        identityValidatedAt = 0;
+        identityFailureCount += 1;
+        const delay = identityRetryDelay(error, identityFailureCount);
+        nextIdentityAttemptAt = Date.now() + delay;
+        logIdentityBackoff(error, delay);
+      }
     }
-    if (version && jwt && Date.now() - identityValidatedAt > 30000) {
+
+    if (version && jwt && Date.now() - identityValidatedAt > IDENTITY_REVALIDATE_MS) {
       try {
         const identity = await request('/api/panel-control/prueba-carga/runner/test-identity', { token: jwt });
         if (!identity.ready) throw new Error('Identidad no disponible.');
         identityValidatedAt = Date.now();
-      } catch (_error) { jwt = null; }
+      } catch (error) {
+        jwt = null;
+        identityValidatedAt = 0;
+        identityFailureCount += 1;
+        const delay = identityRetryDelay(error, identityFailureCount);
+        nextIdentityAttemptAt = Date.now() + delay;
+        logIdentityBackoff(error, delay);
+      }
     }
+
     try {
       await request('/api/panel-control/prueba-carga/runner/heartbeat', {
         method: 'POST', service: true,
@@ -141,6 +200,8 @@ async function main() {
         job = null;
         jwt = null;
         identityValidatedAt = 0;
+        identityFailureCount = 0;
+        nextIdentityAttemptAt = 0;
         if (onlySession) return;
       }
     } catch (_error) {
@@ -152,4 +213,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { provisioned, request, runK6, loginAndValidate, main };
+module.exports = { provisioned, request, runK6, loginAndValidate, identityRetryDelay, main };
