@@ -14,6 +14,7 @@ const ROUTES_COR = Object.freeze({
   estado_cuenta_formulario: '/api/cobranza-cor/estados-cuenta/:ppns/formulario',
   estado_cuenta_crear: '/api/cobranza-cor/estados-cuenta',
   estado_cuenta_actualizar: '/api/cobranza-cor/estados-cuenta/:ppns',
+  factura_crear: '/api/cobranza-cor/estados-cuenta/:ppns/facturas',
   aditivas: '/api/cobranza-cor/aditivas',
   aditiva_detalle: '/api/cobranza-cor/aditivas/:idAditivaCor',
   aditiva_crear: '/api/cobranza-cor/aditivas',
@@ -393,6 +394,7 @@ function numberOrNull_cor(value) {
 }
 
 function integerOrNull_cor(value) {
+  if (value === undefined || value === null || value === '') return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) ? parsed : null;
 }
@@ -406,6 +408,23 @@ function positiveId_cor(value, fieldName = 'id') {
 function roundAmount_cor(value) {
   const number = Number(value || 0);
   return Math.round((number + Number.EPSILON) * 100) / 100;
+}
+
+const IVA_GENERAL_ALLOWED_COR = Object.freeze([0, 0.08, 0.16]);
+const PARTIDA_CURRENCIES_COR = new Set(['MXN', 'USD', 'EUR']);
+
+function normalizeIvaGeneralPct_cor(value, fieldName = 'IVA general') {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  let parsed;
+  if (typeof value === 'string' && value.trim().endsWith('%')) {
+    parsed = decimal_cor(value.trim().slice(0, -1), fieldName);
+    parsed = parsed === null ? null : parsed / 100;
+  } else {
+    parsed = decimal_cor(value, fieldName);
+  }
+  const matched = IVA_GENERAL_ALLOWED_COR.find((candidate) => Math.abs(candidate - parsed) < 0.0000005);
+  if (matched === undefined) throw badRequest(`${fieldName} debe ser 0%, 8% o 16%.`);
+  return matched;
 }
 
 function canonicalText_cor(value) {
@@ -484,6 +503,7 @@ function serializeFuenteEstadoCuenta_cor(row) {
     porcentaje: numberOrNull_cor(row?.porcentaje),
     fondo_garantia: Number(row?.fondo_garantia) === 1,
     porcentaje_fondo_garantia: numberOrNull_cor(row?.porcentaje_fondo_garantia) ?? 0,
+    iva_general_pct: numberOrNull_cor(row?.iva_general_pct),
     condicion: cleanText_cor(row?.condicion),
     moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
     subtotal: numberOrNull_cor(row?.subtotal),
@@ -506,6 +526,28 @@ function serializeFuenteEstadoCuenta_cor(row) {
     pago_contabilizado: roundAmount_cor(pagoContabilizado),
     pendiente_calculado: pendiente
   };
+}
+
+function serializeEstadoCuentaPartida_cor(row) {
+  return {
+    id_partida_cor: integerOrNull_cor(row?.id_partida_cor),
+    ppns: cleanText_cor(row?.ppns),
+    orden: integerOrNull_cor(row?.orden),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    monto_base: numberOrNull_cor(row?.monto_base),
+    activo: Number(row?.activo) === 1
+  };
+}
+
+function resolveIvaGeneralFromRows_cor(rows) {
+  const tokens = (Array.isArray(rows) ? rows : []).map((row) => {
+    const value = numberOrNull_cor(row?.iva_general_pct);
+    return value === null ? 'NULL' : String(Math.round(value * 1000000) / 1000000);
+  });
+  const unique = [...new Set(tokens)];
+  if (!unique.length || (unique.length === 1 && unique[0] === 'NULL')) return { value: null, mixed: false };
+  if (unique.length === 1) return { value: Number(unique[0]), mixed: false };
+  return { value: null, mixed: true };
 }
 
 function buildEstadoCuentaSummary_cor(rows) {
@@ -568,6 +610,126 @@ function buildEstadoCuentaQuality_cor(rows) {
   };
 }
 
+function normalizeEstatusFacturaRegistro_cor(value) {
+  const normalized = canonicalText_cor(value);
+  if (!normalized || normalized === 'NULL') return null;
+  if (normalized === 'NO PAGADO') return 'No pagado';
+  if (normalized === 'PAGADO') return 'Pagado';
+  throw badRequest('Estatus factura debe ser No pagado, Pagado o quedar vacio.');
+}
+
+function serializeFacturaEstadoCuenta_cor(row) {
+  const tipo = cleanText_cor(row?.tipo_concepto)?.toUpperCase() || null;
+  let concepto = null;
+  if (tipo === 'HITO') {
+    const orden = integerOrNull_cor(row?.orden_hito);
+    const condicion = cleanText_cor(row?.hito_condicion);
+    concepto = [orden ? `Hito ${orden}` : 'Hito', condicion].filter(Boolean).join(' · ');
+  } else if (tipo === 'ADITIVA') {
+    const noCot = cleanText_cor(row?.aditiva_no_cot);
+    const descripcion = cleanText_cor(row?.aditiva_descripcion);
+    concepto = [noCot ? `Aditiva ${noCot}` : 'Aditiva', descripcion].filter(Boolean).join(' · ');
+  }
+  return {
+    id_factura_cor: integerOrNull_cor(row?.id_factura_cor),
+    ppns: cleanText_cor(row?.ppns),
+    tipo_concepto: tipo,
+    id_fuente_cor: integerOrNull_cor(row?.id_fuente_cor),
+    id_aditiva_cor: integerOrNull_cor(row?.id_aditiva_cor),
+    factura: cleanText_cor(row?.factura),
+    fecha_factura: cleanText_cor(row?.fecha_factura),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    subtotal: numberOrNull_cor(row?.subtotal),
+    iva: numberOrNull_cor(row?.iva),
+    total: numberOrNull_cor(row?.total),
+    estatus_factura: cleanText_cor(row?.estatus_factura),
+    fecha_vencimiento: cleanText_cor(row?.fecha_vencimiento),
+    estatus_cobranza: cleanText_cor(row?.estatus_cobranza),
+    origen_registro: cleanText_cor(row?.origen_registro),
+    concepto
+  };
+}
+
+function serializeFacturaHitoCatalogo_cor(row) {
+  const orden = integerOrNull_cor(row?.orden_hito);
+  const condicion = cleanText_cor(row?.condicion);
+  return {
+    tipo_concepto: 'HITO',
+    id_concepto: integerOrNull_cor(row?.id_fuente_cor),
+    label: [orden ? `Hito ${orden}` : 'Hito', condicion].filter(Boolean).join(' · '),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    subtotal: numberOrNull_cor(row?.subtotal),
+    iva: numberOrNull_cor(row?.iva),
+    total: numberOrNull_cor(row?.total)
+  };
+}
+
+function serializeFacturaAditivaCatalogo_cor(row) {
+  const noCot = cleanText_cor(row?.no_cot);
+  const descripcion = cleanText_cor(row?.descripcion);
+  return {
+    tipo_concepto: 'ADITIVA',
+    id_concepto: integerOrNull_cor(row?.id_aditiva_cor),
+    label: [noCot ? `Aditiva ${noCot}` : 'Aditiva', descripcion].filter(Boolean).join(' · '),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    subtotal: numberOrNull_cor(row?.monto_subtotal),
+    iva: numberOrNull_cor(row?.monto_iva),
+    total: numberOrNull_cor(row?.monto_total)
+  };
+}
+
+function attachFacturaRefsToHitos_cor(hitos, facturas) {
+  const byHito = new Map();
+  (Array.isArray(facturas) ? facturas : []).forEach((row) => {
+    const factura = serializeFacturaEstadoCuenta_cor(row);
+    if (factura.tipo_concepto !== 'HITO' || !factura.id_fuente_cor || !factura.factura) return;
+    if (!byHito.has(factura.id_fuente_cor)) byHito.set(factura.id_fuente_cor, []);
+    const bucket = byHito.get(factura.id_fuente_cor);
+    if (!bucket.includes(factura.factura)) bucket.push(factura.factura);
+  });
+  return (Array.isArray(hitos) ? hitos : []).map((row) => {
+    const refs = byHito.get(row.id_fuente_cor) || [];
+    return refs.length ? { ...row, factura: refs.join(', ') } : row;
+  });
+}
+
+function normalizeFacturaMutation_cor(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw badRequest('El cuerpo de la Factura debe ser un objeto JSON.');
+  }
+  const tipo = canonicalText_cor(payload.tipo_concepto);
+  if (!['HITO', 'ADITIVA'].includes(tipo)) throw badRequest('Selecciona si la Factura corresponde a un Hito o una Aditiva.');
+  const idConcepto = positiveId_cor(payload.id_concepto ?? (tipo === 'HITO' ? payload.id_fuente_cor : payload.id_aditiva_cor), 'id_concepto');
+  const factura = requiredText_cor(payload.factura, 'Factura', 150);
+  const fechaFactura = date_cor(payload.fecha_factura, 'Fecha factura');
+  const fechaVencimiento = date_cor(payload.fecha_vencimiento, 'Fecha vencimiento');
+  const subtotal = decimal_cor(payload.subtotal, 'Subtotal factura');
+  const iva = decimal_cor(payload.iva, 'IVA factura');
+  const totalEnviado = decimal_cor(payload.total, 'Total factura');
+  for (const [label, value] of [['Subtotal', subtotal], ['IVA', iva], ['Total', totalEnviado]]) {
+    if (value !== null && value < 0) throw badRequest(`${label} factura no puede ser negativo.`);
+  }
+  let total = totalEnviado;
+  if (subtotal !== null || iva !== null) {
+    const calculado = roundAmount_cor((subtotal || 0) + (iva || 0));
+    if (totalEnviado !== null && Math.abs(roundAmount_cor(totalEnviado) - calculado) > 0.05) {
+      throw badRequest('El Total de la Factura no coincide con Subtotal + IVA.');
+    }
+    total = calculado;
+  }
+  return {
+    tipo_concepto: tipo,
+    id_concepto: idConcepto,
+    factura,
+    fecha_factura: fechaFactura,
+    subtotal,
+    iva,
+    total,
+    estatus_factura: normalizeEstatusFacturaRegistro_cor(payload.estatus_factura),
+    fecha_vencimiento: fechaVencimiento
+  };
+}
+
 async function listarEstadosCuenta_cor(query = {}, informationAccess) {
   const filters = normalizeEstadosCuentaFilters_cor(query);
   const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
@@ -599,9 +761,14 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
   try {
     const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
-    const sourceRows = await repository.listFuenteEstadoCuenta_cor(connection, ppns);
+    const [sourceRows, facturaRows, aditivaRows] = await Promise.all([
+      repository.listFuenteEstadoCuenta_cor(connection, ppns),
+      repository.listFacturasEstadoCuenta_cor(connection, ppns),
+      repository.listAditivasEstadoCuentaFacturables_cor(connection, ppns)
+    ]);
     const project = serializeEstadoCuentaMain_cor(row);
-    const detailRows = sourceRows.map(serializeFuenteEstadoCuenta_cor);
+    const facturas = facturaRows.map(serializeFacturaEstadoCuenta_cor);
+    const detailRows = attachFacturaRefsToHitos_cor(sourceRows.map(serializeFuenteEstadoCuenta_cor), facturaRows);
     const summary = buildEstadoCuentaSummary_cor(detailRows);
     return {
       ok: true,
@@ -612,14 +779,19 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       proyecto: project,
       resumen: summary,
       calidad: buildEstadoCuentaQuality_cor(detailRows),
-      estado_cuenta: detailRows
+      estado_cuenta: detailRows,
+      facturas,
+      facturacion_catalogo: {
+        hitos: detailRows.map(serializeFacturaHitoCatalogo_cor),
+        aditivas: aditivaRows.map(serializeFacturaAditivaCatalogo_cor)
+      }
     };
   } finally {
     connection.release();
   }
 }
 
-const ESTATUS_HITO_COR = new Set(['PENDIENTE', 'PROGRAMADO', 'NOTIFICADO', 'CERRADO']);
+/* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 3 CONSOLIDACION CREAR EDITAR V001] */
 
 function serializeEstadoCuentaProyectoForm_cor(row) {
   return {
@@ -742,15 +914,18 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
     const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
 
-    const [sourceRows, equipmentRows, logOpsRows, relationRows] = await Promise.all([
+    const [sourceRows, equipmentRows, logOpsRows, relationRows, partidaRows, facturaRows] = await Promise.all([
       repository.listFuenteEstadoCuenta_cor(connection, ppns),
       repository.listCrearEstadoCuentaEquipos_cor(connection, ppns),
       repository.listCrearEstadoCuentaLogOps_cor(connection, ppns),
-      repository.listEquiposEstadoCuenta_cor(connection, ppns)
+      repository.listEquiposEstadoCuenta_cor(connection, ppns),
+      repository.listPartidasEstadoCuenta_cor(connection, ppns),
+      repository.listFacturasEstadoCuenta_cor(connection, ppns)
     ]);
     if (!sourceRows.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
 
     const project = serializeEstadoCuentaMain_cor(row);
+    const ivaGeneral = resolveIvaGeneralFromRows_cor(sourceRows);
     return {
       ok: true,
       source: 'aiven',
@@ -762,7 +937,10 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
         ...project,
         equipos_total: equipmentRows.length
       },
-      hitos: sourceRows.map(serializeFuenteEstadoCuenta_cor),
+      hitos: attachFacturaRefsToHitos_cor(sourceRows.map(serializeFuenteEstadoCuenta_cor), facturaRows),
+      iva_general_pct: ivaGeneral.value,
+      iva_general_mixed: ivaGeneral.mixed,
+      partidas: partidaRows.map(serializeEstadoCuentaPartida_cor),
       equipos_disponibles: equipmentRows.map(serializeEstadoCuentaEquipoDisponible_cor),
       equipos_relacionados: relationRows.map(serializeEstadoCuentaEquipoRelacion_cor),
       log_ops: logOpsRows.map(serializeEstadoCuentaLogOps_cor)
@@ -782,14 +960,74 @@ function optionalYearForm_cor(value, fieldName) {
   return year_cor(value, fieldName);
 }
 
+function activePartidaTotals_cor(partidas) {
+  const totals = new Map();
+  (Array.isArray(partidas) ? partidas : []).forEach((partida) => {
+    if (!partida || partida.eliminar === true) return;
+    const currency = String(partida.moneda || '').trim().toUpperCase();
+    const amount = numberOrNull_cor(partida.monto_base);
+    if (!currency || amount === null) return;
+    totals.set(currency, roundAmount_cor((totals.get(currency) || 0) + amount));
+  });
+  return totals;
+}
+
+function applyHitoFinancialRules_cor(input) {
+  if (!input || input.partidas_presentes !== true) return input;
+  const totals = activePartidaTotals_cor(input.partidas);
+  const percentageByCurrency = new Map([...totals.keys()].map((currency) => [currency, 0]));
+
+  input.hitos.forEach((hito, index) => {
+    if (!hito || hito.eliminar === true) return;
+    const fila = index + 1;
+    const currency = String(hito.moneda || '').trim().toUpperCase() || null;
+    if (!currency) {
+      if (hito.porcentaje !== null) throw badRequest(`Selecciona la moneda del hito ${fila} para aplicar su porcentaje.`);
+      hito.subtotal = null;
+      hito.iva = null;
+      hito.total = null;
+      return;
+    }
+    if (!totals.has(currency)) {
+      throw badRequest(`La moneda ${currency} del hito ${fila} no existe entre las Partidas de General.`);
+    }
+    if (hito.porcentaje === null) {
+      hito.subtotal = null;
+      hito.iva = null;
+      hito.total = null;
+      return;
+    }
+
+    percentageByCurrency.set(currency, (percentageByCurrency.get(currency) || 0) + hito.porcentaje);
+    const subtotal = roundAmount_cor(totals.get(currency) * hito.porcentaje);
+    hito.subtotal = subtotal;
+    if (input.iva_general_pct_present === true && input.iva_general_pct !== null) {
+      hito.iva = roundAmount_cor(subtotal * input.iva_general_pct);
+      hito.total = roundAmount_cor(subtotal + hito.iva);
+    } else {
+      hito.iva = null;
+      hito.total = null;
+    }
+  });
+
+  for (const [currency] of totals) {
+    const totalPct = percentageByCurrency.get(currency) || 0;
+    if (Math.abs(totalPct - 1) > 0.000001) {
+      const display = Math.round(totalPct * 1000000) / 10000;
+      throw badRequest(`Los porcentajes de los hitos en ${currency} deben sumar exactamente 100%. Actualmente suman ${display}%.`);
+    }
+  }
+  return input;
+}
+
 function normalizeEstadoCuentaMutation_cor(payload, mode) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw badRequest('El cuerpo del Estado de Cuenta debe ser un objeto JSON.');
   }
 
   const ppns = requiredText_cor(payload.ppns, 'PPNS', 100);
-  const proyecto = requiredText_cor(payload.proyecto, 'Proyecto', 255);
-  const cliente = cleanText_cor(payload.cliente, 500);
+  const proyecto = cleanText_cor(payload.proyecto, 255) || '';
+  const cliente = cleanText_cor(payload.cliente, 500) || '';
   const contractual = cleanText_cor(payload.contractual, 150);
   if (!Array.isArray(payload.hitos) || !payload.hitos.length) {
     throw badRequest('Agrega al menos un hito de cobranza.');
@@ -825,6 +1063,11 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     );
   }
 
+  const ivaGeneralPresent = Object.prototype.hasOwnProperty.call(payload, 'iva_general_pct');
+  const ivaGeneralPct = ivaGeneralPresent
+    ? normalizeIvaGeneralPct_cor(payload.iva_general_pct, 'IVA general')
+    : undefined;
+
   const hitos = payload.hitos.map((raw, index) => {
     const fila = index + 1;
     const idFuenteCor = optionalPositiveId_cor(raw?.id_fuente_cor, `id_fuente_cor del hito ${fila}`);
@@ -839,25 +1082,9 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     const moneda = monedaRaw ? monedaRaw.toUpperCase() : null;
     const subtotal = decimal_cor(raw?.subtotal, `Subtotal del hito ${fila}`);
     const iva = decimal_cor(raw?.iva, `IVA del hito ${fila}`);
-    const totalEnviado = decimal_cor(raw?.total, `Total del hito ${fila}`);
-    let total = totalEnviado;
-    if (subtotal !== null || iva !== null) {
-      const calculado = roundAmount_cor((subtotal || 0) + (iva || 0));
-      if (totalEnviado !== null && Math.abs(roundAmount_cor(totalEnviado) - calculado) > 0.05) {
-        throw badRequest(`El total del hito ${fila} no coincide con Subtotal + IVA.`);
-      }
-      total = calculado;
-    }
-
-    const estatusHito = cleanText_cor(raw?.estatus_hito, 100);
-    if (estatusHito && !ESTATUS_HITO_COR.has(canonicalText_cor(estatusHito))) {
-      throw badRequest(`El estatus del hito ${fila} debe ser Pendiente, Programado, Notificado o Cerrado.`);
-    }
+    const total = decimal_cor(raw?.total, `Total del hito ${fila}`);
 
     const condicion = cleanText_cor(raw?.condicion, 500);
-    if (mode === 'create' && !idFuenteCor && !condicion) {
-      throw badRequest(`Captura el nombre o condición del hito ${fila}.`);
-    }
 
     return {
       id_fuente_cor: idFuenteCor,
@@ -869,17 +1096,11 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
       subtotal,
       iva,
       total,
-      factura: cleanText_cor(raw?.factura, 150),
-      pago_total: decimal_cor(raw?.pago_total, `Pago total del hito ${fila}`),
-      estatus_factura: cleanText_cor(raw?.estatus_factura, 100),
-      fecha_pago: date_cor(raw?.fecha_pago, `Fecha de pago del hito ${fila}`),
       fecha_vencimiento: date_cor(raw?.fecha_vencimiento, `Fecha de vencimiento del hito ${fila}`),
       dias_vencimiento: integer_cor(raw?.dias_vencimiento, `Días de vencimiento del hito ${fila}`),
       estimado_pago: cleanText_cor(raw?.estimado_pago, 100),
-      estatus_vencimiento: cleanText_cor(raw?.estatus_vencimiento, 100),
       fecha_programada: date_cor(raw?.fecha_programada, `Fecha programada del hito ${fila}`),
       fecha_notificada: date_cor(raw?.fecha_notificada, `Fecha notificada del hito ${fila}`),
-      estatus_hito: estatusHito,
       anio_proyecto: optionalYearForm_cor(raw?.anio_proyecto, `Año del proyecto del hito ${fila}`)
     };
   });
@@ -887,6 +1108,33 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
   if (!hitos.some((row) => row.eliminar !== true)) {
     throw badRequest('El Estado de Cuenta debe conservar al menos un hito activo.');
   }
+
+  const partidasPresentes = Array.isArray(payload.partidas);
+  const partidasRaw = partidasPresentes ? payload.partidas : [];
+  const partidas = partidasRaw.map((raw, index) => {
+    const fila = index + 1;
+    const idPartidaCor = optionalPositiveId_cor(raw?.id_partida_cor, `id_partida_cor de la partida ${fila}`);
+    const eliminar = raw?.eliminar === true || raw?.eliminar === 1 || String(raw?.eliminar || '').toLowerCase() === 'true';
+    if (eliminar) {
+      if (!idPartidaCor) throw badRequest(`La partida ${fila} no puede eliminarse porque no tiene id_partida_cor.`);
+      return { id_partida_cor: idPartidaCor, eliminar: true };
+    }
+    const moneda = cleanText_cor(raw?.moneda, 3)?.toUpperCase() || null;
+    if (!moneda || !PARTIDA_CURRENCIES_COR.has(moneda)) {
+      throw badRequest(`La moneda de la partida ${fila} debe ser MXN, USD o EUR.`);
+    }
+    const montoBase = decimal_cor(raw?.monto_base, `Monto base de la partida ${fila}`);
+    if (montoBase === null || montoBase < 0) {
+      throw badRequest(`El monto base de la partida ${fila} debe ser numerico y mayor o igual a 0.`);
+    }
+    return {
+      id_partida_cor: idPartidaCor,
+      eliminar: false,
+      orden: integer_cor(raw?.orden ?? fila, `Orden de la partida ${fila}`, { min: 1 }),
+      moneda,
+      monto_base: roundAmount_cor(montoBase)
+    };
+  });
 
   const equiposRaw = Array.isArray(payload.equipos) ? payload.equipos : [];
   const equipos = equiposRaw.map((raw, index) => {
@@ -915,20 +1163,25 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
     activeInsFlIds.add(equipment.id_ins_fl);
   });
 
-  return {
+  const normalized = {
     ppns,
     proyecto,
     cliente,
     contractual,
     fondo_garantia: fondoGarantia,
     porcentaje_fondo_garantia: porcentajeFondoGarantia,
+    iva_general_pct_present: ivaGeneralPresent,
+    iva_general_pct: ivaGeneralPct,
+    partidas_presentes: partidasPresentes,
+    partidas,
     hitos,
     equipos
   };
+  return applyHitoFinancialRules_cor(normalized);
 }
 
 function fuenteMutationRecord_cor(input, hito) {
-  return {
+  const record = {
     proyecto: input.proyecto,
     cliente: input.cliente,
     contractual: input.contractual,
@@ -940,22 +1193,19 @@ function fuenteMutationRecord_cor(input, hito) {
     subtotal: hito.subtotal,
     iva: hito.iva,
     total: hito.total,
-    factura: hito.factura,
-    pago_total: hito.pago_total,
-    estatus_factura: hito.estatus_factura,
-    fecha_pago: hito.fecha_pago,
     fecha_vencimiento: hito.fecha_vencimiento,
     dias_vencimiento: hito.dias_vencimiento,
     estimado_pago: hito.estimado_pago,
-    estatus_vencimiento: hito.estatus_vencimiento,
     orden_hito: hito.orden_hito,
     fecha_programada: hito.fecha_programada,
     fecha_notificada: hito.fecha_notificada,
-    estatus_hito: hito.estatus_hito,
     anio_proyecto: hito.anio_proyecto,
     activo: 1
   };
+  if (input.iva_general_pct_present === true) record.iva_general_pct = input.iva_general_pct;
+  return record;
 }
+
 
 async function validateEstadoCuentaEquipos_cor(connection, input) {
   const equipmentRows = await repository.listCrearEstadoCuentaEquipos_cor(connection, input.ppns);
@@ -994,15 +1244,7 @@ async function crearEstadoCuenta_cor(payload, informationAccess, actorUserIdValu
 
       const projectRows = await repository.listCrearEstadoCuentaProyectos_cor(connection, visibleUserIds, input.ppns);
       if (!projectRows.length) throw httpError(404, 'No fue posible resolver los datos del PPNS en Instalaciones.');
-      const project = serializeEstadoCuentaProyectoForm_cor(projectRows[0]);
-      if (!project.proyecto) throw badRequest('El PPNS no tiene Proyecto disponible en Instalaciones.');
-
-      input.proyecto = project.proyecto;
-      input.cliente = project.cliente;
-      const validation = await validateEstadoCuentaEquipos_cor(connection, input);
-      if (validation.equipmentRows.length && !input.equipos.some((row) => row.activo === 1)) {
-        throw badRequest('Selecciona al menos un equipo del PPNS.');
-      }
+      if (input.equipos.length) await validateEstadoCuentaEquipos_cor(connection, input);
 
       for (const hito of input.hitos) {
         if (hito.eliminar) continue;
@@ -1010,6 +1252,21 @@ async function crearEstadoCuenta_cor(payload, informationAccess, actorUserIdValu
           id_proyecto_origen: input.ppns,
           ...fuenteMutationRecord_cor(input, hito)
         });
+      }
+
+      if (input.partidas_presentes) {
+        for (const partida of input.partidas) {
+          if (partida.eliminar) continue;
+          await repository.insertRecord_cor(connection, repository.TABLES_COR.partidas, {
+            ppns: input.ppns,
+            orden: partida.orden,
+            moneda: partida.moneda,
+            monto_base: partida.monto_base,
+            activo: 1,
+            created_by: actorUserId,
+            updated_by: actorUserId
+          });
+        }
       }
 
       for (const equipment of input.equipos) {
@@ -1035,6 +1292,7 @@ async function crearEstadoCuenta_cor(payload, informationAccess, actorUserIdValu
         ppns: input.ppns,
         proyecto: input.proyecto,
         hitos_creados: input.hitos.filter((row) => !row.eliminar).length,
+        partidas_creadas: input.partidas_presentes ? input.partidas.filter((row) => !row.eliminar).length : 0,
         equipos_relacionados: input.equipos.filter((row) => row.activo === 1).length
       };
     } catch (error) {
@@ -1064,7 +1322,11 @@ async function actualizarEstadoCuenta_cor(ppnsValue, payload, informationAccess,
 
       const lockedEquipos = await repository.lockEquiposEstadoCuentaPpns_cor(connection, ppns);
       const validEquipoIds = new Set(lockedEquipos.map((row) => Number(row.id_equipo_cor)).filter(Number.isInteger));
-      await validateEstadoCuentaEquipos_cor(connection, input);
+      const lockedPartidas = input.partidas_presentes
+        ? await repository.lockPartidasEstadoCuentaPpns_cor(connection, ppns)
+        : [];
+      const validPartidaIds = new Set(lockedPartidas.map((row) => Number(row.id_partida_cor)).filter(Number.isInteger));
+      if (input.equipos.length) await validateEstadoCuentaEquipos_cor(connection, input);
 
       let hitosActualizados = 0;
       let hitosCreados = 0;
@@ -1087,6 +1349,43 @@ async function actualizarEstadoCuenta_cor(ppnsValue, payload, informationAccess,
             ...fuenteMutationRecord_cor(input, hito)
           });
           hitosCreados += 1;
+        }
+      }
+
+      let partidasActualizadas = 0;
+      let partidasCreadas = 0;
+      let partidasDesactivadas = 0;
+      if (input.partidas_presentes) {
+        for (const partida of input.partidas) {
+          if (partida.id_partida_cor !== null) {
+            if (!validPartidaIds.has(partida.id_partida_cor)) {
+              throw badRequest(`El id_partida_cor ${partida.id_partida_cor} no pertenece al Estado de Cuenta activo del PPNS.`);
+            }
+            if (partida.eliminar) {
+              await repository.updatePartidaEstadoCuenta_cor(connection, partida.id_partida_cor, ppns, { activo: 0, updated_by: actorUserId });
+              partidasDesactivadas += 1;
+            } else {
+              await repository.updatePartidaEstadoCuenta_cor(connection, partida.id_partida_cor, ppns, {
+                orden: partida.orden,
+                moneda: partida.moneda,
+                monto_base: partida.monto_base,
+                activo: 1,
+                updated_by: actorUserId
+              });
+              partidasActualizadas += 1;
+            }
+          } else if (!partida.eliminar) {
+            await repository.insertRecord_cor(connection, repository.TABLES_COR.partidas, {
+              ppns,
+              orden: partida.orden,
+              moneda: partida.moneda,
+              monto_base: partida.monto_base,
+              activo: 1,
+              created_by: actorUserId,
+              updated_by: actorUserId
+            });
+            partidasCreadas += 1;
+          }
         }
       }
 
@@ -1136,9 +1435,81 @@ async function actualizarEstadoCuenta_cor(ppnsValue, payload, informationAccess,
         hitos_actualizados: hitosActualizados,
         hitos_creados: hitosCreados,
         hitos_desactivados: hitosDesactivados,
+        partidas_actualizadas: partidasActualizadas,
+        partidas_creadas: partidasCreadas,
+        partidas_desactivadas: partidasDesactivadas,
         equipos_actualizados: equiposActualizados,
         equipos_creados: equiposCreados,
         equipos_desactivados: equiposDesactivados
+      };
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
+  } finally {
+    connection.release();
+  }
+}
+
+async function crearFacturaEstadoCuenta_cor(ppnsValue, payload, informationAccess, actorUserIdValue) {
+  const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const actorUserId = positiveId_cor(actorUserIdValue, 'actorUserId');
+  const input = normalizeFacturaMutation_cor(payload);
+  const connection = await repository.getConnection_cor();
+  try {
+    const estado = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
+    if (!estado) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
+
+    await connection.beginTransaction();
+    try {
+      const concepto = input.tipo_concepto === 'HITO'
+        ? await repository.getHitoFacturable_cor(connection, ppns, input.id_concepto)
+        : await repository.getAditivaFacturable_cor(connection, ppns, input.id_concepto);
+      if (!concepto) throw badRequest(`${input.tipo_concepto === 'HITO' ? 'Hito' : 'Aditiva'} no pertenece al Estado de Cuenta activo del PPNS.`);
+
+      const duplicate = await repository.findFacturaDuplicada_cor(
+        connection,
+        ppns,
+        input.tipo_concepto,
+        input.id_concepto,
+        input.factura
+      );
+      if (duplicate) throw httpError(409, 'La Factura ya está relacionada con este concepto.');
+
+      const moneda = cleanText_cor(concepto?.moneda, 10)?.toUpperCase() || null;
+      const record = {
+        ppns,
+        tipo_concepto: input.tipo_concepto,
+        id_fuente_cor: input.tipo_concepto === 'HITO' ? input.id_concepto : null,
+        id_aditiva_cor: input.tipo_concepto === 'ADITIVA' ? input.id_concepto : null,
+        factura: input.factura,
+        fecha_factura: input.fecha_factura,
+        moneda,
+        subtotal: input.subtotal,
+        iva: input.iva,
+        total: input.total,
+        estatus_factura: input.estatus_factura,
+        fecha_vencimiento: input.fecha_vencimiento,
+        estatus_cobranza: null,
+        origen_registro: 'MANUAL',
+        activo: 1,
+        created_by: actorUserId,
+        updated_by: actorUserId
+      };
+      const result = await repository.insertRecord_cor(connection, repository.TABLES_COR.facturas, record);
+      const idFacturaCor = Number(result.insertId);
+      if (!Number.isInteger(idFacturaCor) || idFacturaCor <= 0) throw new Error('No fue posible obtener el identificador de la Factura creada.');
+      await connection.commit();
+      const created = await repository.getFacturaEstadoCuentaById_cor(connection, ppns, idFacturaCor);
+      if (!created) throw httpError(500, 'La Factura fue creada, pero no pudo recuperarse para confirmar el resultado.');
+      return {
+        ok: true,
+        source: 'aiven',
+        domain: 'CORELLIAN',
+        route: ROUTES_COR.factura_crear,
+        ppns,
+        factura: serializeFacturaEstadoCuenta_cor(created)
       };
     } catch (error) {
       try { await connection.rollback(); } catch (_rollbackError) {}
@@ -1446,6 +1817,7 @@ module.exports = {
   formularioEstadoCuenta_cor,
   crearEstadoCuenta_cor,
   actualizarEstadoCuenta_cor,
+  crearFacturaEstadoCuenta_cor,
   listarAditivas_cor,
   detalleAditiva_cor,
   crearAditiva_cor,

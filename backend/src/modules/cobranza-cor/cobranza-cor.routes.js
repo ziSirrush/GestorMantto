@@ -49,6 +49,7 @@ router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, c
 router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearEstadoCuenta_cor);
 router.get('/estados-cuenta/:ppns/formulario', ...requireEstadosCuentaCor, controller.formularioEstadoCuenta_cor);
 router.put('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.actualizarEstadoCuenta_cor);
+router.post('/estados-cuenta/:ppns/facturas', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearFacturaEstadoCuenta_cor);
 router.get('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
 
 router.get('/aditivas', ...requireAditivasCor, controller.aditivas_cor);

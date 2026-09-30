@@ -15,6 +15,7 @@
     catalogContractual:[],
     selectedPpns:null,
     detail:null,
+    invoiceSaving:false,
     filters:{ q:'', anio:'', contractual:'' },
     listSequence:0,
     detailSequence:0,
@@ -105,6 +106,22 @@
       return Promise.reject(new Error('Cliente HTTP central no disponible.'));
     }
     return window.ManttoHttp.get(path,options || {});
+  }
+
+  function apiRequest_cor(path,options){
+    if(!window.ManttoHttp || typeof window.ManttoHttp.request !== 'function'){
+      return Promise.reject(new Error('Cliente HTTP central no disponible.'));
+    }
+    return window.ManttoHttp.request(path,options || {});
+  }
+
+  function isViewerReadonly_cor(){
+    const auth=window.ManttoAuth;
+    if(auth&&typeof auth.getViewUser==='function'){
+      try{return Boolean(auth.getViewUser());}catch(_error){}
+    }
+    const banner=document.getElementById('user-viewer-banner');
+    return Boolean(banner&&!banner.hidden);
   }
 
   function ensureStyles_cor(){
@@ -641,6 +658,168 @@
       </section>`;
   }
 
+  function getFacturas_cor(detail){
+    return Array.isArray(detail&&detail.facturas)?detail.facturas:[];
+  }
+
+  function getFacturaCatalog_cor(type){
+    const catalog=state.detail&&state.detail.facturacion_catalogo?state.detail.facturacion_catalogo:{};
+    return type==='ADITIVA'
+      ? (Array.isArray(catalog.aditivas)?catalog.aditivas:[])
+      : (Array.isArray(catalog.hitos)?catalog.hitos:[]);
+  }
+
+  function nullableNumberFromInput_cor(value){
+    const raw=String(value===null||value===undefined?'':value).trim();
+    if(!raw) return null;
+    const parsed=Number(raw);
+    return Number.isFinite(parsed)?parsed:null;
+  }
+
+  function renderFacturasRows_cor(rows){
+    if(!rows.length) return '<tr><td colspan="11" class="ccor-ec-table-empty">No hay Facturas relacionadas a este Estado de Cuenta.</td></tr>';
+    return rows.map(row=>`
+      <tr>
+        <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
+        <td>${escapeHtml_cor(text_cor(row.tipo_concepto))}</td>
+        <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.concepto))}</td>
+        <td>${escapeHtml_cor(formatDate_cor(row.fecha_factura))}</td>
+        <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.subtotal))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.iva))}</td>
+        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(row.total))}</b></td>
+        <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_factura)}">${escapeHtml_cor(text_cor(row.estatus_factura))}</span></td>
+        <td>${escapeHtml_cor(formatDate_cor(row.fecha_vencimiento))}</td>
+        <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_cobranza)}">${escapeHtml_cor(text_cor(row.estatus_cobranza))}</span></td>
+      </tr>`).join('');
+  }
+
+  function renderFacturasSection_cor(detail){
+    const rows=getFacturas_cor(detail);
+    const readonly=isViewerReadonly_cor();
+    return `
+      <section class="ccor-ec-card ccor-ec-facturas-section">
+        <div class="ccor-ec-facturas-head">
+          <div><b>Facturas</b><span>Relación común para Hitos y Aditivas del Estado de Cuenta.</span></div>
+          ${readonly?'':`<button id="ccor-ec-factura-nueva" class="ccor-ec-btn ccor-ec-btn-primary" type="button">+ Nueva factura</button>`}
+        </div>
+        <div id="ccor-ec-factura-status" class="ccor-ec-inline-status" aria-live="polite"></div>
+        <div id="ccor-ec-factura-form" class="ccor-ec-factura-form" hidden>
+          <label><span>Tipo</span><select id="ccor-ec-factura-tipo"><option value="HITO">Hito</option><option value="ADITIVA">Aditiva</option></select></label>
+          <label class="is-wide"><span>Concepto</span><select id="ccor-ec-factura-concepto"></select></label>
+          <label><span>Factura *</span><input id="ccor-ec-factura-folio" maxlength="150" autocomplete="off"></label>
+          <label><span>Fecha factura</span><input id="ccor-ec-factura-fecha" type="date"></label>
+          <label><span>Moneda</span><input id="ccor-ec-factura-moneda" maxlength="3" readonly></label>
+          <label><span>Subtotal</span><input id="ccor-ec-factura-subtotal" type="number" step="0.01"></label>
+          <label><span>IVA</span><input id="ccor-ec-factura-iva" type="number" step="0.01"></label>
+          <label><span>Total</span><input id="ccor-ec-factura-total" type="number" step="0.01" readonly></label>
+          <label><span>Estatus factura</span><select id="ccor-ec-factura-estatus"><option value="">Sin estatus</option><option value="No pagado">No pagado</option><option value="Pagado">Pagado</option></select></label>
+          <label><span>Fecha vencimiento</span><input id="ccor-ec-factura-vencimiento" type="date"></label>
+          <div class="ccor-ec-factura-form-actions"><button id="ccor-ec-factura-cancelar" class="ccor-ec-btn" type="button">Cancelar</button><button id="ccor-ec-factura-guardar" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Guardar factura</button></div>
+          <small class="ccor-ec-factura-note">Estatus de cobranza queda reservado para la integración de Pagos; esta fase no inventa ni calcula Pagos.</small>
+        </div>
+        <div class="ccor-ec-table-wrap ccor-ec-facturas-wrap">
+          <table class="ccor-ec-table ccor-ec-facturas-table">
+            <thead><tr><th>Factura</th><th>Tipo</th><th>Concepto</th><th>Fecha</th><th>Mon</th><th>Subtotal</th><th>IVA</th><th>Total</th><th>Estatus factura</th><th>Vencimiento</th><th>Estatus cobranza</th></tr></thead>
+            <tbody>${renderFacturasRows_cor(rows)}</tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function setFacturaStatus_cor(message,kind){
+    const node=document.getElementById('ccor-ec-factura-status');
+    if(!node) return;
+    node.className='ccor-ec-inline-status'+(kind?' is-'+kind:'');
+    node.textContent=message||'';
+  }
+
+  function selectedFacturaConcept_cor(){
+    const type=String(document.getElementById('ccor-ec-factura-tipo')?.value||'HITO').toUpperCase();
+    const id=Number(document.getElementById('ccor-ec-factura-concepto')?.value);
+    return getFacturaCatalog_cor(type).find(row=>Number(row&&row.id_concepto)===id)||null;
+  }
+
+  function syncFacturaTotal_cor(){
+    const subtotal=nullableNumberFromInput_cor(document.getElementById('ccor-ec-factura-subtotal')?.value);
+    const iva=nullableNumberFromInput_cor(document.getElementById('ccor-ec-factura-iva')?.value);
+    const total=document.getElementById('ccor-ec-factura-total');
+    if(!total) return;
+    total.value=subtotal===null&&iva===null?'':String(Math.round((((subtotal||0)+(iva||0))+Number.EPSILON)*100)/100);
+  }
+
+  function prefillFacturaConcept_cor(){
+    const concept=selectedFacturaConcept_cor();
+    const moneda=document.getElementById('ccor-ec-factura-moneda');
+    const subtotal=document.getElementById('ccor-ec-factura-subtotal');
+    const iva=document.getElementById('ccor-ec-factura-iva');
+    if(moneda) moneda.value=String(concept&&concept.moneda||'');
+    if(subtotal) subtotal.value=concept&&concept.subtotal!==null&&concept.subtotal!==undefined?String(concept.subtotal):'';
+    if(iva) iva.value=concept&&concept.iva!==null&&concept.iva!==undefined?String(concept.iva):'';
+    syncFacturaTotal_cor();
+  }
+
+  function syncFacturaConceptOptions_cor(){
+    const type=String(document.getElementById('ccor-ec-factura-tipo')?.value||'HITO').toUpperCase();
+    const select=document.getElementById('ccor-ec-factura-concepto');
+    if(!select) return;
+    const rows=getFacturaCatalog_cor(type);
+    select.innerHTML='<option value="">Selecciona...</option>'+rows.map(row=>`<option value="${escapeHtml_cor(row.id_concepto)}">${escapeHtml_cor(text_cor(row.label))}</option>`).join('');
+    prefillFacturaConcept_cor();
+  }
+
+  function openFacturaForm_cor(){
+    const form=document.getElementById('ccor-ec-factura-form');
+    if(!form||isViewerReadonly_cor()) return;
+    form.hidden=false;
+    setFacturaStatus_cor('','');
+    syncFacturaConceptOptions_cor();
+  }
+
+  function closeFacturaForm_cor(){
+    const form=document.getElementById('ccor-ec-factura-form');
+    if(form) form.hidden=true;
+    setFacturaStatus_cor('','');
+  }
+
+  async function saveFactura_cor(){
+    if(state.invoiceSaving||isViewerReadonly_cor()) return false;
+    const type=String(document.getElementById('ccor-ec-factura-tipo')?.value||'').toUpperCase();
+    const idConcepto=Number(document.getElementById('ccor-ec-factura-concepto')?.value);
+    const factura=String(document.getElementById('ccor-ec-factura-folio')?.value||'').trim();
+    if(!['HITO','ADITIVA'].includes(type)){setFacturaStatus_cor('Selecciona Hito o Aditiva.','error');return false;}
+    if(!Number.isInteger(idConcepto)||idConcepto<=0){setFacturaStatus_cor('Selecciona el concepto relacionado.','error');return false;}
+    if(!factura){setFacturaStatus_cor('Captura la Factura.','error');return false;}
+    const payload={
+      tipo_concepto:type,
+      id_concepto:idConcepto,
+      factura,
+      fecha_factura:String(document.getElementById('ccor-ec-factura-fecha')?.value||'').trim()||null,
+      subtotal:nullableNumberFromInput_cor(document.getElementById('ccor-ec-factura-subtotal')?.value),
+      iva:nullableNumberFromInput_cor(document.getElementById('ccor-ec-factura-iva')?.value),
+      total:nullableNumberFromInput_cor(document.getElementById('ccor-ec-factura-total')?.value),
+      estatus_factura:String(document.getElementById('ccor-ec-factura-estatus')?.value||'').trim()||null,
+      fecha_vencimiento:String(document.getElementById('ccor-ec-factura-vencimiento')?.value||'').trim()||null
+    };
+    state.invoiceSaving=true;
+    const button=document.getElementById('ccor-ec-factura-guardar');
+    if(button){button.disabled=true;button.textContent='Guardando...';}
+    setFacturaStatus_cor('Guardando Factura...','loading');
+    try{
+      const ppns=String(state.detail&&state.detail.proyecto&&state.detail.proyecto.ppns||state.selectedPpns||'').trim();
+      await apiRequest_cor(LIST_PATH+'/'+encodeURIComponent(ppns)+'/facturas',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload),dedupe:false});
+      if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function') window.ManttoHttp.invalidate(LIST_PATH+'/'+encodeURIComponent(ppns));
+      await loadDetail_cor(ppns,{force:true});
+      return true;
+    }catch(error){
+      setFacturaStatus_cor(text_cor(error&&error.message,'No fue posible guardar la Factura.'),'error');
+      return false;
+    }finally{
+      state.invoiceSaving=false;
+      if(button){button.disabled=false;button.textContent='Guardar factura';}
+    }
+  }
+
   function renderDetail_cor(){
     const root = state.root;
     const detail = state.detail;
@@ -877,6 +1056,7 @@
           unknownRows
         )}
 
+        ${renderFacturasSection_cor(detail)}
 
         <section class="ccor-ec-info-grid">
 
@@ -1162,6 +1342,9 @@
     root.dataset.ccorEstadosCuentaBound='1';
 
     root.addEventListener('click',event=>{
+      if(event.target.closest('#ccor-ec-factura-nueva')){ openFacturaForm_cor(); return; }
+      if(event.target.closest('#ccor-ec-factura-cancelar')){ closeFacturaForm_cor(); return; }
+      if(event.target.closest('#ccor-ec-factura-guardar')){ saveFactura_cor(); return; }
       if(event.target.closest('#ccor-ec-create-new')){ openForm_cor('create'); return; }
       if(event.target.closest('#ccor-ec-edit')){
         const ppns = state.detail && state.detail.proyecto ? state.detail.proyecto.ppns : state.selectedPpns;
@@ -1182,6 +1365,8 @@
     });
 
     root.addEventListener('change',event=>{
+      if(event.target.id === 'ccor-ec-factura-tipo'){ syncFacturaConceptOptions_cor(); return; }
+      if(event.target.id === 'ccor-ec-factura-concepto'){ prefillFacturaConcept_cor(); return; }
       if(event.target.id === 'ccor-ec-year'){
         state.filters.anio=String(event.target.value || '');
         applyFilterAndReload_cor();
@@ -1192,6 +1377,7 @@
     });
 
     root.addEventListener('input',event=>{
+      if(event.target.id === 'ccor-ec-factura-subtotal' || event.target.id === 'ccor-ec-factura-iva'){ syncFacturaTotal_cor(); return; }
       if(event.target.id !== 'ccor-ec-search') return;
       state.filters.q=String(event.target.value || '').trim();
       if(state.searchTimer) window.clearTimeout(state.searchTimer);
@@ -1248,3 +1434,5 @@
 
   window.ManttoCobranzaCorEstadosCuenta=Object.freeze({init:init_cor,refresh:refresh_cor});
 })();
+
+/* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 4 DETALLE FACTURAS V001] */

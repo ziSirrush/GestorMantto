@@ -25,6 +25,10 @@
     alignmentError:'',
     hitos:[],
     deletedHitos:[],
+    partidas:[],
+    deletedPartidas:[],
+    ivaGeneralPct:'',
+    ivaGeneralMixed:false,
     fondoGarantia:false,
     porcentajeFondoGarantia:'0',
     fondoGarantiaMixed:false,
@@ -105,11 +109,32 @@
   function emptyHito_cor(){
     return {
       id_fuente_cor:null,
-      condicion:'',porcentaje:'',anio_proyecto:'',moneda:'MXN',
-      subtotal:'',iva:'',total:'',factura:'',pago_total:'',estatus_factura:'',
-      fecha_pago:'',fecha_vencimiento:'',dias_vencimiento:'',estimado_pago:'',estatus_vencimiento:'',
-      fecha_programada:'',fecha_notificada:'',estatus_hito:'Pendiente'
+      orden_hito:'',condicion:'',porcentaje:'',anio_proyecto:'',moneda:'',
+      subtotal:'',iva:'',total:'',factura:'',
+      fecha_vencimiento:'',dias_vencimiento:'',estimado_pago:'',
+      fecha_programada:'',fecha_notificada:''
     };
+  }
+
+  function emptyPartida_cor(){
+    return {id_partida_cor:null,moneda:'MXN',monto_base:''};
+  }
+
+  function normalizePartidaFromApi_cor(row){
+    return {
+      id_partida_cor:Number(row&&row.id_partida_cor)||null,
+      orden:Number(row&&row.orden)||null,
+      moneda:String(row&&row.moneda||'').trim().toUpperCase(),
+      monto_base:row&&row.monto_base!==null&&row.monto_base!==undefined?String(row.monto_base):''
+    };
+  }
+
+  function ivaGeneralValue_cor(value){
+    const parsed=number_cor(value);
+    if(parsed===null) return '';
+    const allowed=[0,0.08,0.16];
+    const matched=allowed.find(candidate=>Math.abs(candidate-parsed)<0.0000005);
+    return matched===undefined?'':String(matched);
   }
 
   function percentDisplay_cor(value){
@@ -182,6 +207,7 @@
   function normalizeHitoFromApi_cor(row){
     return {
       id_fuente_cor:Number(row&&row.id_fuente_cor)||null,
+      orden_hito:row&&row.orden_hito!==null&&row.orden_hito!==undefined?String(row.orden_hito):'',
       condicion:String(row&&row.condicion||''),
       porcentaje:percentDisplay_cor(row&&row.porcentaje),
       anio_proyecto:row&&row.anio_proyecto!==null&&row.anio_proyecto!==undefined?String(row.anio_proyecto):'',
@@ -190,16 +216,11 @@
       iva:row&&row.iva!==null&&row.iva!==undefined?String(row.iva):'',
       total:row&&row.total!==null&&row.total!==undefined?String(row.total):'',
       factura:String(row&&row.factura||''),
-      pago_total:row&&row.pago_total!==null&&row.pago_total!==undefined?String(row.pago_total):'',
-      estatus_factura:String(row&&row.estatus_factura||''),
-      fecha_pago:String(row&&row.fecha_pago||''),
       fecha_vencimiento:String(row&&row.fecha_vencimiento||''),
       dias_vencimiento:row&&row.dias_vencimiento!==null&&row.dias_vencimiento!==undefined?String(row.dias_vencimiento):'',
       estimado_pago:String(row&&row.estimado_pago||''),
-      estatus_vencimiento:String(row&&row.estatus_vencimiento||''),
       fecha_programada:String(row&&row.fecha_programada||''),
-      fecha_notificada:String(row&&row.fecha_notificada||''),
-      estatus_hito:String(row&&row.estatus_hito||'Pendiente')
+      fecha_notificada:String(row&&row.fecha_notificada||'')
     };
   }
 
@@ -218,6 +239,10 @@
     state.alignmentError='';
     state.hitos=state.mode==='create'?[emptyHito_cor()]:[];
     state.deletedHitos=[];
+    state.partidas=[];
+    state.deletedPartidas=[];
+    state.ivaGeneralPct='';
+    state.ivaGeneralMixed=false;
     state.fondoGarantia=false;
     state.porcentajeFondoGarantia='0';
     state.fondoGarantiaMixed=false;
@@ -399,8 +424,7 @@
     const editing=state.mode==='edit';
     const project=state.proyecto||{};
     const ppnsValue=editing?state.ppns:String(project.ppns||state.ppns||'');
-    const readonlyProject=editing?'':' readonly';
-    const readonlyClient=editing?'':' readonly';
+    /* Fase 3: Proyecto, Cliente y Contractual son datos funcionales editables; PPNS conserva la identidad. */
 
     state.root.innerHTML=`
       <div class="ccor-ec-page ccor-ec-form-page">
@@ -408,7 +432,7 @@
           <div>
             <p class="ccor-ec-eyebrow">Cobranza · Corellian</p>
             <h1>${editing?'Editar':'Crear'} Estado de Cuenta</h1>
-            <p>${editing?'Se cargó la información actual del PPNS. Los cambios se guardan sobre FUENTE y la relación de equipos de Cobranza COR.':'Alta manual por PPNS. Los hitos se guardan en FUENTE y los equipos quedan relacionados con Instalaciones y Logística.'}</p>
+            <p>${editing?'Actualiza General, Partidas y Hitos del Estado de Cuenta. Facturación y pagos se administrarán desde el Detalle.':'Alta por PPNS. General, Partidas y Hitos forman la base del Estado de Cuenta; Facturación y pagos se gestionarán después desde el Detalle.'}</p>
           </div>
           <div class="ccor-ec-form-actions">
             <button type="button" class="ccor-ec-btn ccor-ec-form-cancel" data-ccor-form-cancel>Cancelar</button>
@@ -425,13 +449,32 @@
               ${editing
                 ? `<label><span>PPNS</span><input id="ccor-ec-form-ppns" value="${escapeHtml_cor(ppnsValue)}" readonly></label>`
                 : `<label><span>PPNS *</span><select id="ccor-ec-form-ppns">${projectOptions_cor()}</select></label>`}
-              <label><span>Proyecto *</span><input id="ccor-ec-form-proyecto" maxlength="255" value="${escapeHtml_cor(project.proyecto||'')}"${readonlyProject}></label>
-              <label><span>Cliente</span><input id="ccor-ec-form-cliente" maxlength="500" value="${escapeHtml_cor(project.cliente||'')}"${readonlyClient}></label>
+              <label><span>Proyecto</span><input id="ccor-ec-form-proyecto" maxlength="255" value="${escapeHtml_cor(project.proyecto||'')}"></label>
+              <label><span>Cliente</span><input id="ccor-ec-form-cliente" maxlength="500" value="${escapeHtml_cor(project.cliente||'')}"></label>
               <label><span>Contractual</span><input id="ccor-ec-form-contractual" maxlength="150" value="${escapeHtml_cor(project.contractual||'')}" placeholder="Estatus contractual"></label>
+              <label><span>IVA general</span><select id="ccor-ec-form-iva-general"${state.ivaGeneralMixed?' aria-invalid="true"':''}>
+                <option value=""${state.ivaGeneralPct===''?' selected':''}>Sin definir</option>
+                <option value="0"${state.ivaGeneralPct==='0'?' selected':''}>0%</option>
+                <option value="0.08"${state.ivaGeneralPct==='0.08'?' selected':''}>8%</option>
+                <option value="0.16"${state.ivaGeneralPct==='0.16'?' selected':''}>16%</option>
+              </select></label>
               <label class="ccor-ec-form-fondo-general"><span>Fondo de Garantía</span><span class="ccor-ec-form-fondo-general-control"><input id="ccor-ec-form-fondo-garantia" type="checkbox"${state.fondoGarantia?' checked':''}><b id="ccor-ec-form-fondo-estado">${state.fondoGarantia?'Activado':'Desactivado'}</b></span></label>
               <label class="ccor-ec-form-fondo-porcentaje"><span>% Fondo de Garantía</span><input id="ccor-ec-form-porcentaje-fondo-garantia" type="number" min="0" max="10" step="0.01" value="${escapeHtml_cor(state.fondoGarantia?state.porcentajeFondoGarantia:'0')}"${state.fondoGarantia?'':' disabled'}><small>Aplica por igual a todos los hitos activos.</small></label>
-              <label><span>Equipos relacionados</span><input id="ccor-ec-form-equipos-total" value="${escapeHtml_cor(state.equipos.filter(row=>row.incluir!==false).length)}" readonly></label>
+              <label><span>Equipos logísticos</span><input id="ccor-ec-form-equipos-total" value="${escapeHtml_cor(logOpsEquipmentIds_cor().length)}" readonly></label>
               <label><span>Hitos activos</span><input id="ccor-ec-form-hitos-total" value="${escapeHtml_cor(state.hitos.length)}" readonly></label>
+            </div>
+            <div class="ccor-ec-form-partidas-block">
+              <div class="ccor-ec-form-partidas-head">
+                <div><b>Partidas monetarias</b><span>Cada importe es base antes de IVA. Varias partidas de la misma moneda se suman para formar su 100%.</span></div>
+                <button type="button" class="ccor-ec-btn ccor-ec-btn-primary" id="ccor-ec-form-add-partida">+ Agregar partida</button>
+              </div>
+              <div id="ccor-ec-form-iva-warning" class="ccor-ec-form-fondo-warning"${state.ivaGeneralMixed?'':' hidden'}>${state.ivaGeneralMixed?'Los hitos existentes tienen valores distintos de IVA general. Selecciona 0%, 8% o 16% para unificarlos al guardar.':''}</div>
+              <div class="ccor-ec-table-wrap ccor-ec-form-partidas-wrap">
+                <table class="ccor-ec-table ccor-ec-form-partidas-table">
+                  <thead><tr><th>#</th><th>Moneda</th><th>Monto base (100% antes de IVA)</th><th>Acciones</th></tr></thead>
+                  <tbody id="ccor-ec-form-partidas-body"></tbody>
+                </table>
+              </div>
             </div>
             <div id="ccor-ec-form-fondo-warning" class="ccor-ec-form-fondo-warning" hidden></div>
             <div class="ccor-ec-form-people">
@@ -443,42 +486,31 @@
 
           <aside class="ccor-ec-form-kpis">
             <article class="ccor-ec-card ccor-ec-form-kpi is-mxn">
-              <span>Total MXN</span><b id="ccor-ec-form-total-mxn">$0.00 MXN</b>
+              <span>Base 100% MXN</span><b id="ccor-ec-form-total-mxn">$0.00 MXN</b>
             </article>
             <article class="ccor-ec-card ccor-ec-form-kpi is-foreign">
-              <span>Total Moneda Extranjera</span><div id="ccor-ec-form-total-foreign"><b>Sin hitos</b></div>
+              <span>Base 100% Moneda Extranjera</span><div id="ccor-ec-form-total-foreign"><b>Sin partidas</b></div>
             </article>
           </aside>
         </section>
 
         <section class="ccor-ec-card ccor-ec-form-section">
           <div class="ccor-ec-form-section-title">
-            <div><b>Equipos del proyecto</b><span>Alineación por PHNS: ins_fl.referencia_sitio ↔ log_ops.ph_ns</span></div>
-            <div class="ccor-ec-form-equipment-actions">
-              <small>${editing?'Las fuentes se revisan sin sobrescribir tus selecciones.':'Los PHNS coincidentes se sugieren automáticamente y puedes corregir la relación manualmente.'}</small>
-              <button type="button" class="ccor-ec-btn ccor-ec-form-cancel" id="ccor-ec-form-refresh-phns">↻ Revisar PHNS</button>
-            </div>
+            <div><b>Equipos del proyecto</b><span>Fuente: log_ops.ph_ns · IDs únicos, normalizados y sin duplicados.</span></div>
           </div>
-          <div id="ccor-ec-form-phns-status" class="ccor-ec-form-phns-status" aria-live="polite"></div>
-          <div class="ccor-ec-table-wrap">
-            <table class="ccor-ec-table ccor-ec-form-equipment-table">
-              <thead><tr><th>Incluir</th><th>PHNS Instalaciones / Referencia</th><th>PHNS Logística</th><th>Capacidad</th><th>Desembarques</th><th>Estatus</th><th>Alineación</th><th>Ubicación / Torre</th></tr></thead>
-              <tbody id="ccor-ec-form-equipment-body"></tbody>
-            </table>
-          </div>
+          <div id="ccor-ec-form-equipment-ids" class="ccor-ec-form-equipment-ids"></div>
         </section>
 
         <section class="ccor-ec-card ccor-ec-form-section">
           <div class="ccor-ec-form-section-title">
-            <div><b>Hitos de cobranza</b><span>Edición completa de la información almacenada en FUENTE.</span></div>
+            <div><b>Hitos de cobranza</b><span>Captura del Hito. Facturación, pagos y sus estatus quedan fuera de Crear/Editar.</span></div>
             <button type="button" class="ccor-ec-btn ccor-ec-btn-primary" id="ccor-ec-form-add-hito">+ Agregar hito</button>
           </div>
           <div class="ccor-ec-table-wrap">
             <table class="ccor-ec-table ccor-ec-form-hitos-table">
               <thead><tr>
-                <th>#</th><th>Hito</th><th>%</th><th>Año</th><th>Moneda</th><th>Subtotal</th><th>IVA</th><th>Total</th>
-                <th>Factura</th><th>Pago total</th><th>Estatus factura</th><th>Fecha pago</th><th>Fecha venc.</th><th>Días venc.</th>
-                <th>Estimado pago</th><th>Estatus venc.</th><th>Fecha programada</th><th>Fecha notificada</th><th>Estatus hito</th><th>Acciones</th>
+                <th>#</th><th>Hito / Condición</th><th>%</th><th>Año</th><th>Moneda</th><th>Subtotal</th><th>IVA</th><th>Total</th>
+                <th>Factura</th><th>Fecha venc.</th><th>Días venc.</th><th>Estimado pago</th><th>Fecha programada</th><th>Fecha notificada</th><th>Base General</th><th>Acciones</th>
               </tr></thead>
               <tbody id="ccor-ec-form-hitos-body"></tbody>
             </table>
@@ -489,10 +521,32 @@
     const ppnsSelect=document.getElementById('ccor-ec-form-ppns');
     if(!editing&&ppnsSelect&&ppnsValue) ppnsSelect.value=ppnsValue;
     renderEquipos_cor();
+    renderPartidas_cor();
     renderHitos_cor();
     renderTotals_cor();
     syncFondoGarantiaControls_cor();
     setContext_cor();
+  }
+
+  function partidaCurrencyOptions_cor(selected){
+    const value=String(selected||'').toUpperCase();
+    return ['MXN','USD','EUR'].map(currency=>`<option value="${currency}"${value===currency?' selected':''}>${currency}</option>`).join('');
+  }
+
+  function renderPartidas_cor(){
+    const body=document.getElementById('ccor-ec-form-partidas-body');
+    if(!body) return;
+    if(!state.partidas.length){
+      body.innerHTML='<tr><td colspan="4" class="ccor-ec-table-empty">Sin partidas monetarias. Puedes agregar MXN, USD o EUR; se permiten varias filas de la misma moneda.</td></tr>';
+      return;
+    }
+    body.innerHTML=state.partidas.map((row,index)=>`
+      <tr data-partida-index="${index}">
+        <td class="ccor-ec-form-order">${index+1}${row.id_partida_cor?`<small class="ccor-ec-form-id">#${escapeHtml_cor(row.id_partida_cor)}</small>`:''}</td>
+        <td><select data-partida-field="moneda">${partidaCurrencyOptions_cor(row.moneda)}</select></td>
+        <td><input type="number" min="0" step="0.01" data-partida-field="monto_base" value="${escapeHtml_cor(row.monto_base)}" placeholder="0.00"></td>
+        <td><button type="button" class="ccor-ec-form-remove" data-partida-remove title="Quitar partida">×</button></td>
+      </tr>`).join('');
   }
 
   function insFlOptions_cor(selectedId){
@@ -547,29 +601,26 @@
     host.innerHTML=`<b>⚠ PHNS por alinear</b>${notes.join('')}<small>${checked}</small>`;
   }
 
+  function logOpsEquipmentIds_cor(){
+    const ids=[];
+    const seen=new Set();
+    (Array.isArray(state.logOps)?state.logOps:[]).forEach(row=>{
+      String(row&&row.ph_ns||'').split(',').forEach(raw=>{
+        const id=String(raw||'').trim().toUpperCase();
+        if(!/^P\d+$/.test(id)||seen.has(id)) return;
+        seen.add(id);ids.push(id);
+      });
+    });
+    return ids;
+  }
+
   function renderEquipos_cor(){
-    const body=document.getElementById('ccor-ec-form-equipment-body');
-    if(!body) return;
-    renderEquipmentAlignmentSummary_cor();
-    if(!state.equipos.length){
-      body.innerHTML='<tr><td colspan="8" class="ccor-ec-table-empty">No hay equipos activos de ins_fl para este PPNS. Revisa el panel de alineación PHNS.</td></tr>';
-      return;
-    }
-    body.innerHTML=state.equipos.map((row,index)=>{
-      const source=equipmentSourceFields_cor(row);
-      const alignment=equipmentAlignment_cor(row);
-      return `
-      <tr data-equipo-index="${index}" class="${escapeHtml_cor(alignment.className)}">
-        <td><input type="checkbox" data-equipo-include ${row.incluir===false?'':'checked'}></td>
-        <td><select data-equipo-insfl>${insFlOptions_cor(row.id_ins_fl)}</select>${row.id_equipo_cor?`<small class="ccor-ec-form-id">Relación #${escapeHtml_cor(row.id_equipo_cor)}</small>`:''}</td>
-        <td><select data-equipo-logops>${logOpsOptions_cor(row.id_log_ops)}</select></td>
-        <td>${escapeHtml_cor(text_cor(source.capacidad_kg))}</td>
-        <td>${escapeHtml_cor(text_cor(source.numero_desembarques))}</td>
-        <td>${escapeHtml_cor(text_cor(source.estatus_equipo_entrega||source.estatus))}</td>
-        <td><span class="ccor-ec-form-phns-badge ${escapeHtml_cor(alignment.className)}">${escapeHtml_cor(alignment.label)}</span><small class="ccor-ec-form-phns-detail">${escapeHtml_cor(alignment.detail)}</small></td>
-        <td><input type="text" maxlength="255" data-equipo-ubicacion value="${escapeHtml_cor(row.ubicacion_torre||'')}" placeholder="Ubicación / Torre"></td>
-      </tr>`;
-    }).join('');
+    const host=document.getElementById('ccor-ec-form-equipment-ids');
+    if(!host) return;
+    const ids=logOpsEquipmentIds_cor();
+    host.innerHTML=ids.length
+      ? `<div class="ccor-ec-form-equipment-id-list">${ids.map(id=>`<span>${escapeHtml_cor(id)}</span>`).join('')}</div><small>${escapeHtml_cor(ids.join(', '))}</small>`
+      : '<div class="ccor-ec-table-empty">Sin IDs Pxxxxx disponibles en log_ops.ph_ns para este PPNS.</div>';
   }
 
   async function refreshEquipmentSources_cor(options={}){
@@ -608,12 +659,59 @@
 
   function startEquipmentAlignmentPolling_cor(){
     stopEquipmentAlignmentPolling_cor();
-    if(!state.ppns) return;
-    state.alignmentTimer=window.setInterval(()=>{
-      if(!isActive_cor()){stopEquipmentAlignmentPolling_cor();return;}
-      refreshEquipmentSources_cor({silent:true});
-    },EQUIPMENT_ALIGNMENT_REFRESH_MS);
   }
+
+  function activeGeneralCurrencies_cor(){
+    const seen=new Set();
+    const result=[];
+    state.partidas.forEach(row=>{
+      const currency=String(row&&row.moneda||'').trim().toUpperCase();
+      if(!['MXN','USD','EUR'].includes(currency)||seen.has(currency)) return;
+      seen.add(currency);result.push(currency);
+    });
+    return result;
+  }
+
+  function generalBaseByCurrency_cor(currency){
+    const target=String(currency||'').trim().toUpperCase();
+    return Math.round((state.partidas.reduce((sum,row)=>{
+      if(String(row&&row.moneda||'').trim().toUpperCase()!==target) return sum;
+      const amount=Number(row&&row.monto_base);
+      return sum+(Number.isFinite(amount)?amount:0);
+    },0)+Number.EPSILON)*100)/100;
+  }
+
+  function hitoCurrencyOptions_cor(selected){
+    const value=String(selected||'').trim().toUpperCase();
+    const currencies=activeGeneralCurrencies_cor();
+    const options=['<option value="">Sin moneda</option>'];
+    if(value&&!currencies.includes(value)) options.push(`<option value="${escapeHtml_cor(value)}" selected>${escapeHtml_cor(value)} · sin partida en General</option>`);
+    currencies.forEach(currency=>options.push(`<option value="${currency}"${currency===value?' selected':''}>${currency}</option>`));
+    return options.join('');
+  }
+
+  function recalculateHitoFinancials_cor(row){
+    if(!row) return;
+    const currency=String(row.moneda||'').trim().toUpperCase();
+    const pctRaw=String(row.porcentaje??'').trim();
+    const pct=Number(pctRaw);
+    if(!currency||pctRaw===''||!Number.isFinite(pct)||pct<0){
+      row.subtotal='';row.iva='';row.total='';return;
+    }
+    const base=generalBaseByCurrency_cor(currency);
+    const subtotal=Math.round((base*(pct/100)+Number.EPSILON)*100)/100;
+    row.subtotal=subtotal.toFixed(2);
+    const ivaPct=state.ivaGeneralPct===''?null:Number(state.ivaGeneralPct);
+    if(ivaPct===null||!Number.isFinite(ivaPct)){
+      row.iva='';row.total='';return;
+    }
+    const iva=Math.round((subtotal*ivaPct+Number.EPSILON)*100)/100;
+    row.iva=iva.toFixed(2);
+    row.total=(Math.round((subtotal+iva+Number.EPSILON)*100)/100).toFixed(2);
+  }
+
+  function recalculateAllHitos_cor(){ state.hitos.forEach(recalculateHitoFinancials_cor); }
+
 
   function hitoInput_cor(type,field,value,extra){
     return `<input type="${type}" data-hito-field="${field}" value="${escapeHtml_cor(value===null||value===undefined?'':value)}" ${extra||''}>`;
@@ -623,33 +721,27 @@
     const body=document.getElementById('ccor-ec-form-hitos-body');
     if(!body) return;
     if(!state.hitos.length){
-      body.innerHTML='<tr><td colspan="20" class="ccor-ec-table-empty">Agrega al menos un hito de cobranza.</td></tr>';
+      body.innerHTML='<tr><td colspan="16" class="ccor-ec-table-empty">Sin hitos de cobranza. Agrega los que correspondan.</td></tr>';
       return;
     }
+    recalculateAllHitos_cor();
     body.innerHTML=state.hitos.map((row,index)=>`
       <tr data-hito-index="${index}">
-        <td class="ccor-ec-form-order">${index+1}${row.id_fuente_cor?`<small class="ccor-ec-form-id">#${escapeHtml_cor(row.id_fuente_cor)}</small>`:''}</td>
+        <td>${hitoInput_cor('number','orden_hito',row.orden_hito,'min="1" step="1" placeholder="Orden"')}${row.id_fuente_cor?`<small class="ccor-ec-form-id">#${escapeHtml_cor(row.id_fuente_cor)}</small>`:''}</td>
         <td>${hitoInput_cor('text','condicion',row.condicion,'maxlength="500" placeholder="Condición / Hito"')}</td>
         <td>${hitoInput_cor('number','porcentaje',row.porcentaje,'min="0" max="100" step="0.01"')}</td>
         <td>${hitoInput_cor('number','anio_proyecto',row.anio_proyecto,'min="1900" max="2500" step="1"')}</td>
-        <td>${hitoInput_cor('text','moneda',row.moneda,'maxlength="10" placeholder="MXN"')}</td>
-        <td>${hitoInput_cor('number','subtotal',row.subtotal,'step="0.01"')}</td>
-        <td>${hitoInput_cor('number','iva',row.iva,'step="0.01"')}</td>
-        <td>${hitoInput_cor('number','total',row.total,'step="0.01"')}</td>
-        <td>${hitoInput_cor('text','factura',row.factura,'maxlength="150"')}</td>
-        <td>${hitoInput_cor('number','pago_total',row.pago_total,'step="0.01"')}</td>
-        <td>${hitoInput_cor('text','estatus_factura',row.estatus_factura,'maxlength="100"')}</td>
-        <td>${hitoInput_cor('date','fecha_pago',row.fecha_pago,'')}</td>
+        <td><select data-hito-field="moneda">${hitoCurrencyOptions_cor(row.moneda)}</select></td>
+        <td>${hitoInput_cor('number','subtotal',row.subtotal,'step="0.01" readonly tabindex="-1"')}</td>
+        <td>${hitoInput_cor('number','iva',row.iva,'step="0.01" readonly tabindex="-1"')}</td>
+        <td>${hitoInput_cor('number','total',row.total,'step="0.01" readonly tabindex="-1"')}</td>
+        <td>${hitoInput_cor('text','factura',row.factura,'maxlength="150" readonly tabindex="-1" placeholder="Se llenará desde Facturas relacionadas"')}</td>
         <td>${hitoInput_cor('date','fecha_vencimiento',row.fecha_vencimiento,'')}</td>
         <td>${hitoInput_cor('number','dias_vencimiento',row.dias_vencimiento,'step="1"')}</td>
         <td>${hitoInput_cor('text','estimado_pago',row.estimado_pago,'maxlength="100"')}</td>
-        <td>${hitoInput_cor('text','estatus_vencimiento',row.estatus_vencimiento,'maxlength="100"')}</td>
         <td>${hitoInput_cor('date','fecha_programada',row.fecha_programada,'')}</td>
         <td>${hitoInput_cor('date','fecha_notificada',row.fecha_notificada,'')}</td>
-        <td><select data-hito-field="estatus_hito">
-          <option value=""${row.estatus_hito?'':' selected'}>Sin estatus</option>
-          ${['Pendiente','Programado','Notificado','Cerrado'].map(status=>`<option value="${status}"${String(row.estatus_hito||'')===status?' selected':''}>${status}</option>`).join('')}
-        </select></td>
+        <td class="ccor-ec-form-hito-source"><small>Base ${escapeHtml_cor(String(row.moneda||'').toUpperCase()||'—')}: ${escapeHtml_cor(formatAmount_cor(generalBaseByCurrency_cor(row.moneda)))}</small></td>
         <td><button type="button" class="ccor-ec-form-remove" data-hito-remove title="Quitar hito">×</button></td>
       </tr>`).join('');
   }
@@ -657,24 +749,16 @@
   function syncTotalFromAmounts_cor(index){
     const row=state.hitos[index];
     if(!row) return;
-    const hasSubtotal=String(row.subtotal??'').trim()!=='';
-    const hasIva=String(row.iva??'').trim()!=='';
-    if(!hasSubtotal&&!hasIva) return;
-    const subtotal=Number(row.subtotal||0);
-    const iva=Number(row.iva||0);
-    if(!Number.isFinite(subtotal)||!Number.isFinite(iva)) return;
-    row.total=Math.round((subtotal+iva+Number.EPSILON)*100)/100;
-    const input=document.querySelector(`[data-hito-index="${index}"] [data-hito-field="total"]`);
-    if(input) input.value=row.total.toFixed(2);
+    recalculateHitoFinancials_cor(row);
   }
 
   function renderTotals_cor(){
     const totals=new Map();
-    state.hitos.forEach(row=>{
+    state.partidas.forEach(row=>{
       const currency=String(row.moneda||'').trim().toUpperCase();
-      const total=Number(row.total||0);
-      if(!currency||!Number.isFinite(total)) return;
-      totals.set(currency,(totals.get(currency)||0)+total);
+      const amount=Number(row.monto_base||0);
+      if(!currency||!Number.isFinite(amount)) return;
+      totals.set(currency,(totals.get(currency)||0)+amount);
     });
     const mxn=document.getElementById('ccor-ec-form-total-mxn');
     if(mxn) mxn.textContent=formatMoney_cor(totals.get('MXN')||0,'MXN');
@@ -683,12 +767,12 @@
       const rows=[...totals.entries()].filter(([currency])=>currency!=='MXN').sort((a,b)=>a[0].localeCompare(b[0]));
       foreign.innerHTML=rows.length
         ? rows.map(([currency,total])=>`<div><span>${escapeHtml_cor(currency)}</span><b>${escapeHtml_cor(formatMoney_cor(total,currency))}</b></div>`).join('')
-        : '<b>Sin hitos</b>';
+        : '<b>Sin partidas</b>';
     }
     const hitosTotal=document.getElementById('ccor-ec-form-hitos-total');
     if(hitosTotal) hitosTotal.value=String(state.hitos.length);
     const equiposTotal=document.getElementById('ccor-ec-form-equipos-total');
-    if(equiposTotal) equiposTotal.value=String(state.equipos.filter(row=>row.incluir!==false).length);
+    if(equiposTotal) equiposTotal.value=String(logOpsEquipmentIds_cor().length);
   }
 
   function setStatus_cor(message,kind){
@@ -748,6 +832,11 @@
       applyFondoGarantiaFromRows_cor(rawHitos);
       state.hitos=rawHitos.map(normalizeHitoFromApi_cor);
       state.deletedHitos=[];
+      state.partidas=Array.isArray(response&&response.partidas)?response.partidas.map(normalizePartidaFromApi_cor):[];
+      state.deletedPartidas=[];
+      state.ivaGeneralPct=ivaGeneralValue_cor(response&&response.iva_general_pct);
+      state.ivaGeneralMixed=Boolean(response&&response.iva_general_mixed);
+      recalculateAllHitos_cor();
       renderShell_cor();
       startEquipmentAlignmentPolling_cor();
       setStatus_cor('','');
@@ -771,7 +860,10 @@
     let value=input.value;
     if(field==='moneda') value=String(value||'').toUpperCase();
     state.hitos[index][field]=value;
-    if(field==='subtotal'||field==='iva') syncTotalFromAmounts_cor(index);
+    if(field==='porcentaje'||field==='moneda'){
+      recalculateHitoFinancials_cor(state.hitos[index]);
+      renderHitos_cor();
+    }
     renderTotals_cor();
   }
 
@@ -790,13 +882,22 @@
     const cliente=String(document.getElementById('ccor-ec-form-cliente')?.value||'').trim();
     const contractual=String(document.getElementById('ccor-ec-form-contractual')?.value||'').trim();
     const fondoGarantia=Boolean(state.fondoGarantia);
+    const ivaGeneralPct=state.ivaGeneralPct===''?null:Number(state.ivaGeneralPct);
     const porcentajeFondoGarantia=fondoGarantia
       ? (String(state.porcentajeFondoGarantia??'').trim()===''?0:Number(state.porcentajeFondoGarantia)/100)
       : 0;
 
+    const partidas=state.partidas.map((row,index)=>({
+      id_partida_cor:row.id_partida_cor||null,
+      orden:index+1,
+      moneda:String(row.moneda||'').trim().toUpperCase()||null,
+      monto_base:nullableNumber_cor(row.monto_base)
+    })).concat(state.deletedPartidas.map(row=>({id_partida_cor:Number(row.id_partida_cor),eliminar:true})));
+
+    recalculateAllHitos_cor();
     const hitos=state.hitos.map((row,index)=>({
       id_fuente_cor:row.id_fuente_cor||null,
-      orden_hito:index+1,
+      orden_hito:String(row.orden_hito??'').trim()===''?null:Number(row.orden_hito),
       condicion:String(row.condicion||'').trim()||null,
       porcentaje:String(row.porcentaje??'').trim()===''?null:Number(row.porcentaje)/100,
       anio_proyecto:String(row.anio_proyecto??'').trim()===''?null:Number(row.anio_proyecto),
@@ -804,75 +905,66 @@
       subtotal:nullableNumber_cor(row.subtotal),
       iva:nullableNumber_cor(row.iva),
       total:nullableNumber_cor(row.total),
-      factura:String(row.factura||'').trim()||null,
-      pago_total:nullableNumber_cor(row.pago_total),
-      estatus_factura:String(row.estatus_factura||'').trim()||null,
-      fecha_pago:String(row.fecha_pago||'').trim()||null,
       fecha_vencimiento:String(row.fecha_vencimiento||'').trim()||null,
       dias_vencimiento:String(row.dias_vencimiento??'').trim()===''?null:Number(row.dias_vencimiento),
       estimado_pago:String(row.estimado_pago||'').trim()||null,
-      estatus_vencimiento:String(row.estatus_vencimiento||'').trim()||null,
       fecha_programada:String(row.fecha_programada||'').trim()||null,
-      fecha_notificada:String(row.fecha_notificada||'').trim()||null,
-      estatus_hito:String(row.estatus_hito||'').trim()||null
+      fecha_notificada:String(row.fecha_notificada||'').trim()||null
     })).concat(state.deletedHitos.map(row=>({id_fuente_cor:Number(row.id_fuente_cor),eliminar:true})));
 
     const equipos=[];
-    state.equipos.forEach((row,index)=>{
-      if(!row.id_equipo_cor&&row.incluir===false) return;
-      equipos.push({
-        id_equipo_cor:row.id_equipo_cor||null,
-        id_ins_fl:Number(row.id_ins_fl)||null,
-        id_log_ops:row.id_log_ops?Number(row.id_log_ops):null,
-        orden:index+1,
-        ubicacion_torre:String(row.ubicacion_torre||'').trim()||null,
-        activo:row.incluir!==false
-      });
-    });
 
     return {
       ppns,proyecto,cliente,contractual,
       fondo_garantia:fondoGarantia,
       porcentaje_fondo_garantia:porcentajeFondoGarantia,
-      hitos,equipos
+      iva_general_pct:ivaGeneralPct,
+      partidas,hitos,equipos
     };
   }
 
   function validatePayload_cor(payload){
     if(!payload.ppns) return 'Selecciona un PPNS.';
-    if(!payload.proyecto) return 'El Proyecto es obligatorio.';
     const fondoError=validateFondoGarantiaGeneral_cor();
     if(fondoError) return fondoError;
+    if(state.ivaGeneralMixed) return 'Selecciona un IVA general de 0%, 8% o 16% para unificar los datos existentes.';
+    if(payload.iva_general_pct!==null&&![0,0.08,0.16].some(value=>Math.abs(value-payload.iva_general_pct)<0.0000005)) return 'El IVA general debe ser 0%, 8% o 16%.';
     if(payload.fondo_garantia===true){
-      if(payload.porcentaje_fondo_garantia===null||!Number.isFinite(payload.porcentaje_fondo_garantia)||payload.porcentaje_fondo_garantia<0){
-        return 'Revisa el porcentaje de Fondo de Garantía.';
-      }
-      if(payload.porcentaje_fondo_garantia>0.10){
-        return 'El Fondo de Garantía supera el tope de 10%. Requiere autorización antes de guardar.';
-      }
+      if(payload.porcentaje_fondo_garantia===null||!Number.isFinite(payload.porcentaje_fondo_garantia)||payload.porcentaje_fondo_garantia<0) return 'Revisa el porcentaje de Fondo de Garantía.';
+      if(payload.porcentaje_fondo_garantia>0.10) return 'El Fondo de Garantía supera el tope de 10%. Requiere autorización antes de guardar.';
     }
+
+    const activePartidas=(payload.partidas||[]).filter(row=>row.eliminar!==true);
+    const currencies=[];
+    const currencySet=new Set();
+    for(let index=0;index<activePartidas.length;index+=1){
+      const row=activePartidas[index];
+      const currency=String(row.moneda||'').toUpperCase();
+      if(!['MXN','USD','EUR'].includes(currency)) return `Revisa la moneda de la partida ${index+1}.`;
+      if(row.monto_base===null||!Number.isFinite(row.monto_base)||row.monto_base<0) return `Revisa el monto base de la partida ${index+1}.`;
+      if(!currencySet.has(currency)){currencySet.add(currency);currencies.push(currency);}
+    }
+
     const activeHitos=(payload.hitos||[]).filter(row=>row.eliminar!==true);
     if(!activeHitos.length) return 'El Estado de Cuenta debe conservar al menos un hito.';
+    const pctByCurrency=new Map(currencies.map(currency=>[currency,0]));
     for(let index=0;index<activeHitos.length;index+=1){
       const row=activeHitos[index];
-      if(!row.id_fuente_cor&&!row.condicion) return `Captura el Hito de la fila ${index+1}.`;
+      if(row.orden_hito!==null&&(!Number.isInteger(row.orden_hito)||row.orden_hito<1)) return `Revisa el orden del hito de la fila ${index+1}.`;
       if(row.porcentaje!==null&&(!Number.isFinite(row.porcentaje)||row.porcentaje<0||row.porcentaje>1)) return `El porcentaje de la fila ${index+1} debe estar entre 0% y 100%.`;
       if(row.anio_proyecto!==null&&(!Number.isInteger(row.anio_proyecto)||row.anio_proyecto<1900||row.anio_proyecto>2500)) return `Revisa el año de la fila ${index+1}.`;
-      for(const field of ['subtotal','iva','total','pago_total']){
-        if(row[field]!==null&&!Number.isFinite(row[field])) return `Revisa ${field} de la fila ${index+1}.`;
-      }
+      if(row.moneda&&!currencySet.has(row.moneda)) return `La moneda ${row.moneda} de la fila ${index+1} no existe en General.`;
+      if(row.porcentaje!==null&&!row.moneda) return `Selecciona la moneda de la fila ${index+1} para aplicar su porcentaje.`;
+      if(row.moneda&&row.porcentaje!==null) pctByCurrency.set(row.moneda,(pctByCurrency.get(row.moneda)||0)+row.porcentaje);
       if(row.dias_vencimiento!==null&&!Number.isInteger(row.dias_vencimiento)) return `Días de vencimiento de la fila ${index+1} debe ser entero.`;
-      if((row.subtotal!==null||row.iva!==null||row.total!==null)&&!row.moneda) return `Captura la moneda de la fila ${index+1}.`;
     }
-    const activeEquipos=(payload.equipos||[]).filter(row=>row.activo!==false);
-    const usedInsFl=new Set();
-    for(let index=0;index<activeEquipos.length;index+=1){
-      const row=activeEquipos[index];
-      if(!row.id_ins_fl) return `Selecciona el PHNS de Instalaciones del equipo ${index+1}.`;
-      if(usedInsFl.has(row.id_ins_fl)) return `El PHNS de Instalaciones del equipo ${index+1} está repetido.`;
-      usedInsFl.add(row.id_ins_fl);
+    for(const currency of currencies){
+      const pct=pctByCurrency.get(currency)||0;
+      if(Math.abs(pct-1)>0.000001){
+        const display=Math.round(pct*1000000)/10000;
+        return `Los porcentajes de ${currency} deben sumar exactamente 100%. Actualmente suman ${display}%.`;
+      }
     }
-    if(state.mode==='create'&&state.equipos.length&&!activeEquipos.length) return 'Selecciona al menos un equipo del proyecto.';
     return '';
   }
 
@@ -933,8 +1025,26 @@
       if(event.target.closest('[data-ccor-form-cancel]')){cancel_cor();return;}
       if(event.target.closest('#ccor-ec-form-save')){save_cor();return;}
       if(event.target.closest('#ccor-ec-form-refresh-phns')){refreshEquipmentSources_cor({silent:false});return;}
+      if(event.target.closest('#ccor-ec-form-add-partida')){
+        state.partidas.push(emptyPartida_cor());
+        renderPartidas_cor();renderTotals_cor();return;
+      }
+      const removePartida=event.target.closest('[data-partida-remove]');
+      if(removePartida){
+        const tr=removePartida.closest('[data-partida-index]');
+        const index=Number(tr&&tr.dataset.partidaIndex);
+        if(Number.isInteger(index)&&index>=0&&state.partidas[index]){
+          const current=state.partidas[index];
+          if(current.id_partida_cor) state.deletedPartidas.push({id_partida_cor:current.id_partida_cor});
+          state.partidas.splice(index,1);
+          renderPartidas_cor();renderTotals_cor();
+        }
+        return;
+      }
       if(event.target.closest('#ccor-ec-form-add-hito')){
-        state.hitos.push(emptyHito_cor());
+        const row=emptyHito_cor();
+        row.orden_hito=String(state.hitos.length+1);
+        state.hitos.push(row);
         renderHitos_cor();renderTotals_cor();return;
       }
       const remove=event.target.closest('[data-hito-remove]');
@@ -951,6 +1061,26 @@
     });
 
     state.root.addEventListener('change',event=>{
+      if(event.target.id==='ccor-ec-form-iva-general'){
+        state.ivaGeneralPct=String(event.target.value||'');
+        state.ivaGeneralMixed=false;
+        const warning=document.getElementById('ccor-ec-form-iva-warning');
+        if(warning){warning.hidden=true;warning.textContent='';}
+        event.target.removeAttribute('aria-invalid');
+        recalculateAllHitos_cor();renderHitos_cor();
+        return;
+      }
+      if(event.target.matches('[data-partida-field]')){
+        const tr=event.target.closest('[data-partida-index]');
+        const index=Number(tr&&tr.dataset.partidaIndex);
+        if(Number.isInteger(index)&&state.partidas[index]){
+          state.partidas[index][event.target.dataset.partidaField]=event.target.dataset.partidaField==='moneda'
+            ? String(event.target.value||'').toUpperCase()
+            : event.target.value;
+          recalculateAllHitos_cor();renderHitos_cor();renderTotals_cor();
+        }
+        return;
+      }
       if(event.target.id==='ccor-ec-form-fondo-garantia'){
         state.fondoGarantia=Boolean(event.target.checked);
         state.fondoGarantiaMixed=false;
@@ -973,6 +1103,7 @@
         state.ppns=ppns;
         state.proyecto=null;state.equipos=[];state.relaciones=[];state.insFlCatalog=[];state.logOps=[];
         state.alignmentLastCheck=null;state.alignmentError='';
+        state.partidas=[];state.deletedPartidas=[];state.ivaGeneralPct='';state.ivaGeneralMixed=false;
         state.fondoGarantia=false;state.porcentajeFondoGarantia='0';state.fondoGarantiaMixed=false;
         if(ppns) loadCreateCatalog_cor(ppns); else renderShell_cor();
         return;
@@ -993,6 +1124,15 @@
     });
 
     state.root.addEventListener('input',event=>{
+      if(event.target.matches('[data-partida-field="monto_base"]')){
+        const tr=event.target.closest('[data-partida-index]');
+        const index=Number(tr&&tr.dataset.partidaIndex);
+        if(Number.isInteger(index)&&state.partidas[index]){
+          state.partidas[index].monto_base=event.target.value;
+          recalculateAllHitos_cor();renderHitos_cor();renderTotals_cor();
+        }
+        return;
+      }
       if(event.target.id==='ccor-ec-form-porcentaje-fondo-garantia'){
         state.porcentajeFondoGarantia=event.target.value;
         const error=validateFondoGarantiaGeneral_cor();
@@ -1040,3 +1180,6 @@
 
   window.ManttoCobranzaCorEstadoCuentaForm=Object.freeze({init:init_cor});
 })();
+
+
+/* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 3 CONSOLIDACION CREAR EDITAR V001] */

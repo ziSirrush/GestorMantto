@@ -542,3 +542,38 @@
   .ccor-ec-project-header,
   .ccor-ec-info-card{padding-left:12px;padding-right:12px}
 }
+
+
+/* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 4 DETALLE FACTURAS V001] */
+.ccor-ec-facturas-section{overflow:hidden}
+.ccor-ec-facturas-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid #e1e8ef}
+.ccor-ec-facturas-head>div{display:flex;flex-direction:column;gap:3px}
+.ccor-ec-facturas-head b{color:#173b62;font-size:14px}
+.ccor-ec-facturas-head span{color:#718194;font-size:10px}
+.ccor-ec-factura-form{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;padding:12px 14px;background:#f8fbfe;border-bottom:1px solid #dce6f0}
+.ccor-ec-factura-form[hidden]{display:none!important}
+.ccor-ec-factura-form label{display:flex;flex-direction:column;gap:5px;color:#2a4a6b;font-size:9.5px;font-weight:800;min-width:0}
+.ccor-ec-factura-form label.is-wide{grid-column:span 2}
+.ccor-ec-factura-form input,.ccor-ec-factura-form select{width:100%;min-height:36px;border:1px solid #bfd0e2;border-radius:8px;background:#fff;color:#15334f;padding:6px 9px;font:inherit;outline:none}
+.ccor-ec-factura-form input:focus,.ccor-ec-factura-form select:focus{border-color:#5795d5;box-shadow:0 0 0 3px rgba(53,126,201,.12)}
+.ccor-ec-factura-form input[readonly]{background:#f0f4f8;color:#536a81}
+.ccor-ec-factura-form-actions{display:flex;align-items:end;justify-content:flex-end;gap:8px;grid-column:span 2}
+.ccor-ec-factura-form-actions .ccor-ec-btn:not(.ccor-ec-btn-primary){padding:9px 14px;background:#e9eef4;color:#294866}
+.ccor-ec-factura-note{grid-column:1/-1;color:#6f7f90;font-size:9.5px;line-height:1.35}
+.ccor-ec-facturas-table{min-width:1450px}
+.ccor-ec-facturas-table .ccor-ec-condition{min-width:250px;text-align:left}
+.ccor-ec-facturas-table th,.ccor-ec-facturas-table td{white-space:nowrap}
+@media(max-width:1100px){.ccor-ec-factura-form{grid-template-columns:repeat(3,minmax(130px,1fr))}}
+@media(max-width:760px){
+  .ccor-ec-facturas-section{width:100%;max-width:100%;min-width:0}
+  .ccor-ec-facturas-head{align-items:flex-start;flex-direction:column}
+  .ccor-ec-factura-form{grid-template-columns:1fr 1fr}
+  .ccor-ec-factura-form label.is-wide,.ccor-ec-factura-form-actions{grid-column:1/-1}
+  .ccor-ec-facturas-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto!important;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+  .ccor-ec-facturas-table{display:table;width:100%;min-width:1450px!important}
+  .ccor-ec-facturas-table thead{display:table-header-group}
+  .ccor-ec-facturas-table tbody{display:table-row-group}
+  .ccor-ec-facturas-table tr{display:table-row}
+  .ccor-ec-facturas-table th,.ccor-ec-facturas-table td{display:table-cell}
+}
+@media(max-width:520px){.ccor-ec-factura-form{grid-template-columns:1fr}.ccor-ec-factura-form label.is-wide,.ccor-ec-factura-form-actions{grid-column:auto}}

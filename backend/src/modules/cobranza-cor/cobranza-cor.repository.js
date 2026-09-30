@@ -5,7 +5,9 @@ const db = require('../../config/db');
 const TABLES_COR = Object.freeze({
   fuente: 'cobranza_fuente_cor',
   aditivas: 'cobranza_aditivas_cor',
-  equipos: 'cobranza_equipos_cor'
+  equipos: 'cobranza_equipos_cor',
+  partidas: 'cobranza_partidas_cor',
+  facturas: 'cobranza_facturas_cor'
 });
 
 const FUENTE_MUTABLE_COLUMNS_COR = Object.freeze([
@@ -15,6 +17,7 @@ const FUENTE_MUTABLE_COLUMNS_COR = Object.freeze([
   'porcentaje',
   'fondo_garantia',
   'porcentaje_fondo_garantia',
+  'iva_general_pct',
   'condicion',
   'moneda',
   'subtotal',
@@ -41,6 +44,14 @@ const EQUIPO_MUTABLE_COLUMNS_COR = Object.freeze([
   'id_log_ops',
   'orden',
   'ubicacion_torre',
+  'activo',
+  'updated_by'
+]);
+
+const PARTIDA_MUTABLE_COLUMNS_COR = Object.freeze([
+  'orden',
+  'moneda',
+  'monto_base',
   'activo',
   'updated_by'
 ]);
@@ -369,6 +380,7 @@ async function listFuenteEstadoCuenta_cor(connection, ppns) {
        f.porcentaje,
        f.fondo_garantia,
        f.porcentaje_fondo_garantia,
+       f.iva_general_pct,
        f.condicion,
        f.moneda,
        f.subtotal,
@@ -523,6 +535,182 @@ async function listEquiposEstadoCuenta_cor(connection, ppns, options = {}) {
   return rows;
 }
 
+async function listPartidasEstadoCuenta_cor(connection, ppns, options = {}) {
+  const includeInactive = options && options.includeInactive === true;
+  const [rows] = await connection.query(
+    `SELECT
+       cp.id_partida_cor,
+       cp.ppns,
+       cp.orden,
+       cp.moneda,
+       cp.monto_base,
+       cp.activo,
+       cp.created_by,
+       cp.updated_by,
+       cp.created_at,
+       cp.updated_at
+     FROM ${TABLES_COR.partidas} cp
+     WHERE ${normalizedKeySql_cor('cp.ppns')} = ${normalizedKeySql_cor('?')}
+       ${includeInactive ? '' : 'AND cp.activo = 1'}
+     ORDER BY COALESCE(cp.orden, 2147483647) ASC, cp.id_partida_cor ASC`,
+    [ppns]
+  );
+  return rows;
+}
+
+function facturaSelectSql_cor() {
+  return `
+       cf.id_factura_cor,
+       cf.ppns,
+       cf.tipo_concepto,
+       cf.id_fuente_cor,
+       cf.id_aditiva_cor,
+       cf.factura,
+       DATE_FORMAT(cf.fecha_factura, '%Y-%m-%d') AS fecha_factura,
+       cf.moneda,
+       cf.subtotal,
+       cf.iva,
+       cf.total,
+       cf.estatus_factura,
+       DATE_FORMAT(cf.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
+       cf.estatus_cobranza,
+       cf.origen_registro,
+       cf.activo,
+       cf.created_by,
+       cf.updated_by,
+       cf.created_at,
+       cf.updated_at,
+       f.orden_hito,
+       f.condicion AS hito_condicion,
+       f.porcentaje AS hito_porcentaje,
+       a.no_cot AS aditiva_no_cot,
+       a.descripcion AS aditiva_descripcion
+  `;
+}
+
+async function listFacturasEstadoCuenta_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT${facturaSelectSql_cor()}
+       FROM ${TABLES_COR.facturas} cf
+       LEFT JOIN ${TABLES_COR.fuente} f
+         ON cf.tipo_concepto = 'HITO'
+        AND f.id_fuente_cor = cf.id_fuente_cor
+       LEFT JOIN ${TABLES_COR.aditivas} a
+         ON cf.tipo_concepto = 'ADITIVA'
+        AND a.id_aditiva_cor = cf.id_aditiva_cor
+      WHERE cf.activo = 1
+        AND ${normalizedKeySql_cor('cf.ppns')} = ${normalizedKeySql_cor('?')}
+      ORDER BY
+        CASE cf.tipo_concepto WHEN 'HITO' THEN 1 WHEN 'ADITIVA' THEN 2 ELSE 9 END,
+        COALESCE(f.orden_hito, 2147483647) ASC,
+        cf.id_factura_cor ASC`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function getFacturaEstadoCuentaById_cor(connection, ppns, idFacturaCor) {
+  const [rows] = await connection.query(
+    `SELECT${facturaSelectSql_cor()}
+       FROM ${TABLES_COR.facturas} cf
+       LEFT JOIN ${TABLES_COR.fuente} f
+         ON cf.tipo_concepto = 'HITO'
+        AND f.id_fuente_cor = cf.id_fuente_cor
+       LEFT JOIN ${TABLES_COR.aditivas} a
+         ON cf.tipo_concepto = 'ADITIVA'
+        AND a.id_aditiva_cor = cf.id_aditiva_cor
+      WHERE cf.id_factura_cor = ?
+        AND cf.activo = 1
+        AND ${normalizedKeySql_cor('cf.ppns')} = ${normalizedKeySql_cor('?')}
+      LIMIT 1`,
+    [idFacturaCor, ppns]
+  );
+  return rows[0] || null;
+}
+
+async function findFacturaDuplicada_cor(connection, ppns, tipoConcepto, idConcepto, factura) {
+  const relationSql = tipoConcepto === 'HITO'
+    ? 'cf.id_fuente_cor = ? AND cf.id_aditiva_cor IS NULL'
+    : 'cf.id_aditiva_cor = ? AND cf.id_fuente_cor IS NULL';
+  const [rows] = await connection.query(
+    `SELECT cf.id_factura_cor
+       FROM ${TABLES_COR.facturas} cf
+      WHERE cf.activo = 1
+        AND ${normalizedKeySql_cor('cf.ppns')} = ${normalizedKeySql_cor('?')}
+        AND cf.tipo_concepto = ?
+        AND ${relationSql}
+        AND UPPER(TRIM(cf.factura)) = UPPER(TRIM(?))
+      LIMIT 1`,
+    [ppns, tipoConcepto, idConcepto, factura]
+  );
+  return rows[0] || null;
+}
+
+async function getHitoFacturable_cor(connection, ppns, idFuenteCor) {
+  const [rows] = await connection.query(
+    `SELECT
+       f.id_fuente_cor,
+       f.id_proyecto_origen AS ppns,
+       f.orden_hito,
+       f.condicion,
+       f.porcentaje,
+       f.moneda,
+       f.subtotal,
+       f.iva,
+       f.total
+     FROM ${TABLES_COR.fuente} f
+    WHERE f.id_fuente_cor = ?
+      AND f.activo = 1
+      AND ${normalizedKeySql_cor('f.id_proyecto_origen')} = ${normalizedKeySql_cor('?')}
+    LIMIT 1`,
+    [idFuenteCor, ppns]
+  );
+  return rows[0] || null;
+}
+
+async function listAditivasEstadoCuentaFacturables_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT
+       a.id_aditiva_cor,
+       a.pp_ns AS ppns,
+       a.no_cot,
+       a.descripcion,
+       a.moneda,
+       a.monto_subtotal,
+       a.monto_iva,
+       a.monto_total
+     FROM ${TABLES_COR.aditivas} a
+    WHERE a.activo = 1
+      AND ${usablePpnsSql_cor('a.pp_ns')}
+      AND ${normalizedKeySql_cor('a.pp_ns')} = ${normalizedKeySql_cor('?')}
+    ORDER BY a.id_aditiva_cor ASC`,
+    [ppns]
+  );
+  return rows;
+}
+
+async function getAditivaFacturable_cor(connection, ppns, idAditivaCor) {
+  const [rows] = await connection.query(
+    `SELECT
+       a.id_aditiva_cor,
+       a.pp_ns AS ppns,
+       a.no_cot,
+       a.descripcion,
+       a.moneda,
+       a.monto_subtotal,
+       a.monto_iva,
+       a.monto_total
+     FROM ${TABLES_COR.aditivas} a
+    WHERE a.id_aditiva_cor = ?
+      AND a.activo = 1
+      AND ${usablePpnsSql_cor('a.pp_ns')}
+      AND ${normalizedKeySql_cor('a.pp_ns')} = ${normalizedKeySql_cor('?')}
+    LIMIT 1`,
+    [idAditivaCor, ppns]
+  );
+  return rows[0] || null;
+}
+
 async function existeFuentePpns_cor(connection, ppns) {
   const [rows] = await connection.query(
     `SELECT 1 AS existe
@@ -574,6 +762,19 @@ async function lockEquiposEstadoCuentaPpns_cor(connection, ppns) {
   return rows;
 }
 
+async function lockPartidasEstadoCuentaPpns_cor(connection, ppns) {
+  const [rows] = await connection.query(
+    `SELECT cp.id_partida_cor
+       FROM ${TABLES_COR.partidas} cp
+      WHERE cp.activo = 1
+        AND ${normalizedKeySql_cor('cp.ppns')} = ${normalizedKeySql_cor('?')}
+      ORDER BY cp.id_partida_cor ASC
+      FOR UPDATE`,
+    [ppns]
+  );
+  return rows;
+}
+
 async function updateFuenteEstadoCuenta_cor(connection, idFuenteCor, ppns, record) {
   const columns = FUENTE_MUTABLE_COLUMNS_COR.filter((column) =>
     Object.prototype.hasOwnProperty.call(record || {}, column)
@@ -604,6 +805,24 @@ async function updateEquipoEstadoCuenta_cor(connection, idEquipoCor, ppns, recor
     `UPDATE ${TABLES_COR.equipos}
         SET ${assignments}
       WHERE id_equipo_cor = ?
+        AND ${normalizedKeySql_cor('ppns')} = ${normalizedKeySql_cor('?')}`,
+    values
+  );
+  return result;
+}
+
+async function updatePartidaEstadoCuenta_cor(connection, idPartidaCor, ppns, record) {
+  const columns = PARTIDA_MUTABLE_COLUMNS_COR.filter((column) =>
+    Object.prototype.hasOwnProperty.call(record || {}, column)
+  );
+  if (!columns.length) return { affectedRows: 0 };
+  const assignments = columns.map((column) => `${column} = ?`).join(', ');
+  const values = columns.map((column) => record[column]);
+  values.push(idPartidaCor, ppns);
+  const [result] = await connection.query(
+    `UPDATE ${TABLES_COR.partidas}
+        SET ${assignments}
+      WHERE id_partida_cor = ?
         AND ${normalizedKeySql_cor('ppns')} = ${normalizedKeySql_cor('?')}`,
     values
   );
@@ -769,12 +988,21 @@ module.exports = {
   listCrearEstadoCuentaEquipos_cor,
   listCrearEstadoCuentaLogOps_cor,
   listEquiposEstadoCuenta_cor,
+  listPartidasEstadoCuenta_cor,
+  listFacturasEstadoCuenta_cor,
+  getFacturaEstadoCuentaById_cor,
+  findFacturaDuplicada_cor,
+  getHitoFacturable_cor,
+  listAditivasEstadoCuentaFacturables_cor,
+  getAditivaFacturable_cor,
   existeFuentePpns_cor,
   lockCrearEstadoCuentaPpns_cor,
   lockFuenteEstadoCuentaPpns_cor,
   lockEquiposEstadoCuentaPpns_cor,
+  lockPartidasEstadoCuentaPpns_cor,
   updateFuenteEstadoCuenta_cor,
   updateEquipoEstadoCuenta_cor,
+  updatePartidaEstadoCuenta_cor,
   listAditivas_cor,
   getAditiva_cor
 };

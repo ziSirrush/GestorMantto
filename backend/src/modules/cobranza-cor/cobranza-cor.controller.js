@@ -100,6 +100,21 @@ async function actualizarEstadoCuenta_cor(req, res, next) {
   }
 }
 
+async function crearFacturaEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(201).json(
+      await service.crearFacturaEstadoCuenta_cor(
+        req.params.ppns,
+        req.body || {},
+        req.informationAccess,
+        req.actorUser && req.actorUser.id_SB
+      )
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function aditivas_cor(req, res, next) {
   try {
     return res.status(200).json(
@@ -165,6 +180,7 @@ module.exports = {
   formularioEstadoCuenta_cor,
   crearEstadoCuenta_cor,
   actualizarEstadoCuenta_cor,
+  crearFacturaEstadoCuenta_cor,
   aditivas_cor,
   detalleAditiva_cor,
   crearAditiva_cor,
