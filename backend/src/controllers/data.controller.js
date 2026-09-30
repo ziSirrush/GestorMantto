@@ -111,6 +111,7 @@ async function syncTicketsWithNotifications_uni(req, res) {
     ticket_prioridad_cambiada: 0,
     ticket_asignacion_cambiada: 0,
     ticket_responsabilidad_cambiada: 0,
+    ticket_actualizado: 0,
     eventos: []
   };
   let supervisorZoneNotificationSummary = {

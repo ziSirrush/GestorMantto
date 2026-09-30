@@ -37,9 +37,9 @@ function loadTicketNotifications() {
   });
 }
 
-function loadTicketProducerHarness() {
+function loadTicketProducerHarness(databaseOverride = null) {
   const emitted = [];
-  const database = {
+  const database = databaseOverride || {
     async query(sql) {
       if (/FROM portafolio p/i.test(String(sql))) {
         return [[{
@@ -148,6 +148,74 @@ test('Update posterior de Ticket ya Cerrado no vuelve a anunciar Ticket cerrado'
   assert.match(presentation.message, /No Funcionando a Funcionando/);
 });
 
+test('varios campos generales cambiados producen un solo evento de actualización por Ticket', () => {
+  const service = loadTicketNotifications();
+  const before = {
+    id: 901,
+    ticket: '254027',
+    proyecto: 'Neuchatel',
+    referencia_en_zona_operativa: 'Equipo',
+    estado_ticket: 'Abierto',
+    descripcion: 'Falla inicial',
+    causa: 'Pendiente'
+  };
+  const after = { ...before, descripcion: 'Falla revisada', causa: 'Sensor' };
+  const transition = service.nativeTicketTransition_uni(before, after);
+  const presentation = service.ticketTransitionPresentation_uni(transition, before, after);
+
+  assert.equal(transition.eventCode, 'TICKET_ACTUALIZADO');
+  assert.deepEqual(transition.fields, ['descripcion', 'causa']);
+  assert.equal(presentation.title, 'Ticket actualizado');
+  assert.match(presentation.message, /Se actualizó la información del ticket 254027/);
+  assert.equal(service.nativeTicketTransition_uni(before, { ...before }), null);
+  assert.equal(
+    service.nativeTicketTransition_uni({ ...before, descripcion: null }, { ...before, descripcion: '' }).eventCode,
+    'TICKET_ACTUALIZADO'
+  );
+});
+
+test('estatus y datos generales cambiados juntos conservan una sola notificación de estatus', () => {
+  const service = loadTicketNotifications();
+  const before = { id: 901, ticket: '254027', estado_ticket: 'Abierto', descripcion: 'Inicial' };
+  const after = { ...before, estado_ticket: 'En proceso', descripcion: 'Revisado' };
+
+  assert.equal(service.nativeTicketTransition_uni(before, after).eventCode, 'TICKET_ESTATUS_CAMBIADO');
+});
+
+test('el sync emite una actualización general por Ticket y distingue operaciones posteriores', async () => {
+  const before = { id: 901, ticket: '254027', codigo_equipo: 'EQ-901', descripcion: 'Inicial', causa: 'Pendiente' };
+  const after = { ...before, descripcion: 'Revisada', causa: 'Sensor' };
+  const database = {
+    async query(sql) {
+      const text = String(sql);
+      if (/SELECT \*\s+FROM tickets\s+WHERE id IN/i.test(text)) return [[after]];
+      if (/SELECT u\.id_SB\s+FROM usuarios/i.test(text)) return [[{ id_SB: 10 }]];
+      if (/COUNT\(\*\) AS total[\s\S]*FROM portafolio/i.test(text)) {
+        return [[{ total: 1, zonas_nulas: 0, zonas_distintas: 1, zona_id: 7 }]];
+      }
+      throw new Error(`Consulta inesperada: ${text}`);
+    }
+  };
+  const { service, emitted } = loadTicketProducerHarness(database);
+  const context = {
+    candidateIds: [],
+    receivedCandidateIds: [901],
+    beforeTickets: new Map([[901, before]]),
+    criticalBefore: new Map()
+  };
+
+  const first = await service.processAfterSync_uni({ ...context, notificationBatchId: 'sync-1' }, { id_SB: 99 });
+  const second = await service.processAfterSync_uni({ ...context, notificationBatchId: 'sync-2' }, { id_SB: 99 });
+
+  assert.equal(first.eventos.length, 1);
+  assert.equal(second.eventos.length, 1);
+  assert.equal(first.eventos[0].codigo_evento, 'TICKET_ACTUALIZADO');
+  assert.equal(emitted.length, 2);
+  assert.equal(emitted.every((item) => item.codigoEvento === 'TICKET_ACTUALIZADO'), true);
+  assert.equal(emitted.every((item) => item.destinatarios.length === 0), true);
+  assert.notEqual(emitted[0].eventInstanceKey, emitted[1].eventInstanceKey);
+});
+
 test('Portafolio En Servicio -> No en Servicio genera PORTAFOLIO_EQUIPO_CAMBIO explicito', () => {
   const service = loadPortafolioNotifications();
   const before = {
@@ -216,7 +284,7 @@ test('Comentario y Vo.Bo. de Ticket conservan eventos nativos y contexto UNITED 
   assert.match(writes, /destinatarios:\s*candidateIds/);
 });
 
-test('productor de Tickets envia cero candidatos nativos para los cinco eventos follow-only', async () => {
+test('productor de Tickets envia cero candidatos nativos para los seis eventos follow-only', async () => {
   const { service, emitted } = loadTicketProducerHarness();
   const activeUserIds = [10, 20, 30];
   const ticketRow = {
@@ -239,7 +307,7 @@ test('productor de Tickets envia cero candidatos nativos para los cinco eventos 
     });
   }
 
-  assert.equal(emitted.length, 5);
+  assert.equal(emitted.length, 6);
   assert.equal(emitted.every((item) => item.destinatarios.length === 0), true);
   assert.equal(emitted.every((item) => item.requireRoleMatrix === true), true);
 });
@@ -292,6 +360,7 @@ test('Todos los productores UNITED actuales Proyecto/Equipo entregan contexto Se
     'TICKET_PRIORIDAD_CAMBIADA',
     'TICKET_ASIGNACION_CAMBIADA',
     'TICKET_RESPONSABILIDAD_CAMBIADA',
+    'TICKET_ACTUALIZADO',
     'FALLA_EQUIPO_CRITICO',
     'PERSONA_ATRAPADA',
     'NUEVO_EQUIPO_CRITICO',

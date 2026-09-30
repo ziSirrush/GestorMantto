@@ -13,10 +13,11 @@ const EXPECTED_FOLLOW_ONLY = [
   'TICKET_ESTATUS_CAMBIADO',
   'TICKET_PRIORIDAD_CAMBIADA',
   'TICKET_ASIGNACION_CAMBIADA',
-  'TICKET_RESPONSABILIDAD_CAMBIADA'
+  'TICKET_RESPONSABILIDAD_CAMBIADA',
+  'TICKET_ACTUALIZADO'
 ];
 
-test('politica de lectura reconoce los ocho eventos follow-only', () => {
+test('politica de lectura reconoce los nueve eventos follow-only', () => {
   assert.deepEqual(policy.FOLLOW_ONLY_EVENT_CODES_GNRAL, EXPECTED_FOLLOW_ONLY);
   const sql = policy.followOnlyEventSql_gnral('n');
   for (const code of EXPECTED_FOLLOW_ONLY) {

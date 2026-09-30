@@ -32,12 +32,29 @@ const EVENT_TICKET_ESTATUS_CAMBIADO_UNI = 'TICKET_ESTATUS_CAMBIADO';
 const EVENT_TICKET_PRIORIDAD_CAMBIADA_UNI = 'TICKET_PRIORIDAD_CAMBIADA';
 const EVENT_TICKET_ASIGNACION_CAMBIADA_UNI = 'TICKET_ASIGNACION_CAMBIADA';
 const EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI = 'TICKET_RESPONSABILIDAD_CAMBIADA';
+const EVENT_TICKET_ACTUALIZADO_UNI = 'TICKET_ACTUALIZADO';
 const FOLLOW_ONLY_TICKET_EVENTS_UNI = new Set([
   EVENT_TICKET_CREADO_UNI,
   EVENT_TICKET_ESTATUS_CAMBIADO_UNI,
   EVENT_TICKET_PRIORIDAD_CAMBIADA_UNI,
   EVENT_TICKET_ASIGNACION_CAMBIADA_UNI,
-  EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI
+  EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI,
+  EVENT_TICKET_ACTUALIZADO_UNI
+]);
+// Campos que el sync de Tickets persiste. Un lote puede cambiar varios a la
+// vez; el motor emite un solo evento por Ticket, con precedencia para los
+// eventos criticos y los cambios de estatus, prioridad o asignacion.
+const TICKET_SYNC_FIELDS_UNI = Object.freeze([
+  'ticket', 'id_interno', 'folio', 'estado_ticket', 'estado', 'ciudad',
+  'proyecto', 'codigo_equipo', 'referencia_en_zona_operativa', 'zona',
+  'descripcion', 'fecha_reporte', 'h_reporte', 'estatus_equipo_ir',
+  'fecha_llegada', 'h_llegada', 'persona_que_atiende', 'fecha_cierre',
+  'h_solucion', 'tecnico', 'estatus_equipo_final', 'causa',
+  'accion_en_cierre', 'responsabilidad', 'causa_falla', 'tiempo_llegada',
+  'tiempo_solucion', 'tipo_equipo', 'prioridad', 'ejecutivo_call',
+  'tiempo_llegada_ii', 'tiempo_solucion_ii', 'blt_empleado',
+  'ticket_excede', 'zona_administrativa', 'zona_de_falla',
+  'mes_reporte', 'proyecto_padre'
 ]);
 const CRITICOS_DIAS_UNI = 35;
 const CRITICOS_MIN_FALLAS_BLT_UNI = 3;
@@ -149,6 +166,7 @@ async function captureBeforeSync_uni(body) {
 
   if (!candidateIds.length) {
     return {
+      notificationBatchId: crypto.randomUUID(),
       candidateIds: [],
       receivedCandidateIds: [],
       candidateOrder: new Map(),
@@ -185,6 +203,7 @@ async function captureBeforeSync_uni(body) {
   ].filter(Boolean));
 
   return {
+    notificationBatchId: crypto.randomUUID(),
     candidateIds: evaluationIds,
     receivedCandidateIds: candidateIds,
     candidateOrder: new Map(candidates.map((row, index) => [Number(row.id), index])),
@@ -530,6 +549,12 @@ function comparableText_uni(value) {
   return String(value == null ? '' : value).trim();
 }
 
+function storedValue_uni(value) {
+  if (value instanceof Date) return value.getTime();
+  if (value == null) return null;
+  return String(value);
+}
+
 function anyChanged_uni(before, after, fields) {
   return fields.some((field) => comparableText_uni(before?.[field]) !== comparableText_uni(after?.[field]));
 }
@@ -580,6 +605,16 @@ function nativeTicketTransition_uni(before, after) {
       eventCode: EVENT_TICKET_ASIGNACION_CAMBIADA_UNI,
       kind: 'ASIGNACION',
       fields: ['tecnico', 'supervisor', 'persona_que_atiende', 'blt_empleado', 'ejecutivo_call']
+    };
+  }
+  const changedFields = TICKET_SYNC_FIELDS_UNI.filter((field) =>
+    storedValue_uni(before?.[field]) !== storedValue_uni(after?.[field])
+  );
+  if (changedFields.length) {
+    return {
+      eventCode: EVENT_TICKET_ACTUALIZADO_UNI,
+      kind: 'ACTUALIZACION',
+      fields: changedFields
     };
   }
   return null;
@@ -663,6 +698,13 @@ function ticketTransitionPresentation_uni(transition, before, after) {
       title: 'Responsabilidad de Ticket actualizada',
       message: `Se generó cambio de responsabilidad del ticket ${ticket} de ${before?.responsabilidad || 'Sin definir'} a ${after?.responsabilidad || 'Sin definir'} · ${site}.`,
       icon: '🔁'
+    };
+  }
+  if (transition.kind === 'ACTUALIZACION') {
+    return {
+      title: 'Ticket actualizado',
+      message: `Se actualizó la información del ticket ${ticket} · ${site}.`,
+      icon: '🔄'
     };
   }
   return {
@@ -815,6 +857,7 @@ function emptySummary_uni() {
     ticket_prioridad_cambiada: 0,
     ticket_asignacion_cambiada: 0,
     ticket_responsabilidad_cambiada: 0,
+    ticket_actualizado: 0,
     eventos: []
   };
 }
@@ -902,6 +945,10 @@ async function processAfterSync_uni(beforeContext, actorUser) {
   const criticalAfter = await listCriticalState_uni(db, [...criticalBefore.keys()]);
   const criticalExitTransitions = detectCriticalExitTransitions_uni(criticalBefore, criticalAfter);
   const nativeWinnerTicketIds = new Set();
+  // La identidad de una actualización general corresponde a este sync y al
+  // Ticket, no a cada campo. Así un cambio posterior con los mismos valores
+  // sigue siendo una actividad nueva para quien lo sigue.
+  const updateBatchId = beforeContext?.notificationBatchId || crypto.randomUUID();
 
   for (const evaluation of evaluations) {
     const row = evaluation.row;
@@ -1096,13 +1143,16 @@ async function processAfterSync_uni(beforeContext, actorUser) {
     if (!transition) continue;
 
     const presentation = ticketTransitionPresentation_uni(transition, beforeRow, row);
-    const eventInstanceKey = `ticket-native:${transition.eventCode}:${ticketTransitionIdentity_uni(beforeRow, row, transition)}`;
+    const eventInstanceKey = transition.eventCode === EVENT_TICKET_ACTUALIZADO_UNI
+      ? `ticket-native:${transition.eventCode}:ticket-id:${ticketId}:sync:${updateBatchId}`
+      : `ticket-native:${transition.eventCode}:${ticketTransitionIdentity_uni(beforeRow, row, transition)}`;
     const counterFieldByEvent = {
       [EVENT_TICKET_CREADO_UNI]: 'ticket_creado',
       [EVENT_TICKET_ESTATUS_CAMBIADO_UNI]: 'ticket_estatus_cambiado',
       [EVENT_TICKET_PRIORIDAD_CAMBIADA_UNI]: 'ticket_prioridad_cambiada',
       [EVENT_TICKET_ASIGNACION_CAMBIADA_UNI]: 'ticket_asignacion_cambiada',
-      [EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI]: 'ticket_responsabilidad_cambiada'
+      [EVENT_TICKET_RESPONSABILIDAD_CAMBIADA_UNI]: 'ticket_responsabilidad_cambiada',
+      [EVENT_TICKET_ACTUALIZADO_UNI]: 'ticket_actualizado'
     };
 
     let result;
