@@ -419,6 +419,29 @@
     return result;
   }
 
+  function ensureEquiposValidationStyles_cor(){
+    if(document.getElementById('ccor-ec-equipos-validation-v001-style')) return;
+    const style=document.createElement('style');
+    style.id='ccor-ec-equipos-validation-v001-style';
+    style.textContent=`
+      .ccor-ec-form-equipment-manual{display:grid;grid-template-columns:minmax(240px,1.2fr) minmax(220px,1fr) auto;gap:10px;align-items:end;margin:12px 0;padding:12px;border:1px solid #d9e5f2;border-radius:10px;background:#f8fbff}
+      .ccor-ec-form-equipment-manual label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:800;color:#27476b}
+      .ccor-ec-form-equipment-manual input,.ccor-ec-form-equipment-manual select{width:100%;min-height:36px;border:1px solid #bfd0e2;border-radius:8px;background:#fff;padding:6px 9px;color:#14304e}
+      .ccor-ec-form-equipment-table{min-width:760px!important}
+      .ccor-ec-form-equipment-table td{vertical-align:middle}
+      .ccor-ec-form-equipment-ref b{display:block;color:#173e68;font-size:11px}
+      .ccor-ec-form-equipment-ref small{display:block;margin-top:2px;color:#718093;font-size:9px}
+      .ccor-ec-form-percentage-validation{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 0;padding:10px 12px;border:1px solid #d9e5f2;border-radius:10px;background:#f8fbff}
+      .ccor-ec-form-percentage-validation>strong{font-size:10px;color:#27476b;margin-right:2px}
+      .ccor-ec-form-pct-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:850;background:#eef2f6;color:#5f6f80;border:1px solid #d7e0e8}
+      .ccor-ec-form-pct-badge.is-ok{background:#e7f7ed;color:#1c7b42;border-color:#b7e1c5}
+      .ccor-ec-form-pct-badge.is-error{background:#ffe9e7;color:#a62d24;border-color:#f1bbb5}
+      .ccor-ec-form-pct-note{width:100%;font-size:9.5px;color:#687b8e}
+      @media(max-width:760px){.ccor-ec-form-equipment-manual{grid-template-columns:1fr}.ccor-ec-form-equipment-manual .ccor-ec-btn{min-height:44px}.ccor-ec-form-equipment-table{min-width:760px!important}}
+    `;
+    document.head.appendChild(style);
+  }
+
   function renderShell_cor(){
     if(!state.root) return;
     const editing=state.mode==='edit';
@@ -460,7 +483,7 @@
               </select></label>
               <label class="ccor-ec-form-fondo-general"><span>Fondo de Garantía</span><span class="ccor-ec-form-fondo-general-control"><input id="ccor-ec-form-fondo-garantia" type="checkbox"${state.fondoGarantia?' checked':''}><b id="ccor-ec-form-fondo-estado">${state.fondoGarantia?'Activado':'Desactivado'}</b></span></label>
               <label class="ccor-ec-form-fondo-porcentaje"><span>% Fondo de Garantía</span><input id="ccor-ec-form-porcentaje-fondo-garantia" type="number" min="0" max="10" step="0.01" value="${escapeHtml_cor(state.fondoGarantia?state.porcentajeFondoGarantia:'0')}"${state.fondoGarantia?'':' disabled'}><small>Aplica por igual a todos los hitos activos.</small></label>
-              <label><span>Equipos logísticos</span><input id="ccor-ec-form-equipos-total" value="${escapeHtml_cor(logOpsEquipmentIds_cor().length)}" readonly></label>
+              <label><span>Equipos relacionados</span><input id="ccor-ec-form-equipos-total" value="${escapeHtml_cor(state.equipos.filter(row=>row.incluir!==false).length)}" readonly></label>
               <label><span>Hitos activos</span><input id="ccor-ec-form-hitos-total" value="${escapeHtml_cor(state.hitos.length)}" readonly></label>
             </div>
             <div class="ccor-ec-form-partidas-block">
@@ -496,9 +519,20 @@
 
         <section class="ccor-ec-card ccor-ec-form-section">
           <div class="ccor-ec-form-section-title">
-            <div><b>Equipos del proyecto</b><span>Fuente: log_ops.ph_ns · IDs únicos, normalizados y sin duplicados.</span></div>
+            <div><b>Equipos del proyecto</b><span>Los equipos se leen de ins_fl. A cada referencia puedes relacionarle el PHNS disponible en log_ops.ph_ns.</span></div>
           </div>
-          <div id="ccor-ec-form-equipment-ids" class="ccor-ec-form-equipment-ids"></div>
+          <div class="ccor-ec-form-equipment-manual">
+            <label><span>Ref en sitio / identificador</span><input id="ccor-ec-form-manual-ref" list="ccor-ec-form-manual-ref-list" placeholder="Referencia o id_ins_fl"><datalist id="ccor-ec-form-manual-ref-list">${manualEquipmentReferenceOptions_cor()}</datalist></label>
+            <label><span>PHNS</span><select id="ccor-ec-form-manual-phns">${logOpsOptions_cor(null,'Selecciona PHNS...')}</select></label>
+            <button type="button" class="ccor-ec-btn ccor-ec-btn-primary" id="ccor-ec-form-manual-apply">Aplicar relación</button>
+          </div>
+          <div id="ccor-ec-form-equipment-status" class="ccor-ec-form-phns-status" aria-live="polite"></div>
+          <div class="ccor-ec-table-wrap">
+            <table class="ccor-ec-table ccor-ec-form-equipment-table">
+              <thead><tr><th>Incluir</th><th>Ref en sitio / identificador</th><th>PHNS</th><th>Origen</th></tr></thead>
+              <tbody id="ccor-ec-form-equipment-body"></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="ccor-ec-card ccor-ec-form-section">
@@ -506,6 +540,7 @@
             <div><b>Hitos de cobranza</b><span>Captura del Hito. Facturación, pagos y sus estatus quedan fuera de Crear/Editar.</span></div>
             <button type="button" class="ccor-ec-btn ccor-ec-btn-primary" id="ccor-ec-form-add-hito">+ Agregar hito</button>
           </div>
+          <div id="ccor-ec-form-percentage-validation" class="ccor-ec-form-percentage-validation" aria-live="polite"></div>
           <div class="ccor-ec-table-wrap">
             <table class="ccor-ec-table ccor-ec-form-hitos-table">
               <thead><tr>
@@ -524,6 +559,7 @@
     renderPartidas_cor();
     renderHitos_cor();
     renderTotals_cor();
+    renderCurrencyValidation_cor();
     syncFondoGarantiaControls_cor();
     setContext_cor();
   }
@@ -563,64 +599,131 @@
     return options.join('');
   }
 
-  function logOpsOptions_cor(selectedId){
-    const options=['<option value="">Selecciona PHNS de Logística</option>'];
-    let found=false;
-    state.logOps.forEach(row=>{
-      const selected=Number(selectedId)===Number(row.id_log_ops);
-      if(selected) found=true;
-      const phns=splitLogOpsPhns_cor(row.ph_ns).join(', ');
-      const label=[phns||row.ph_ns,row.no_control,row.marca,row.estatus].map(v=>String(v||'').trim()).filter(Boolean).join(' · ');
-      options.push(`<option value="${escapeHtml_cor(row.id_log_ops)}"${selected?' selected':''}>${escapeHtml_cor(label||('Logística '+row.id_log_ops))}</option>`);
-    });
-    if(selectedId&&!found) options.push(`<option value="${escapeHtml_cor(selectedId)}" selected>PHNS anterior no disponible · log_ops #${escapeHtml_cor(selectedId)}</option>`);
-    return options.join('');
-  }
-
-  function renderEquipmentAlignmentSummary_cor(){
-    const host=document.getElementById('ccor-ec-form-phns-status');
-    if(!host) return;
-    if(!state.ppns){host.className='ccor-ec-form-phns-status';host.innerHTML='Selecciona un PPNS para comparar PHNS.';return;}
-    if(state.alignmentError){
-      host.className='ccor-ec-form-phns-status is-error';
-      host.innerHTML=`<b>No fue posible actualizar PHNS.</b><span>${escapeHtml_cor(state.alignmentError)}</span>`;
-      return;
-    }
-    const alignment=sourceAlignment_cor();
-    const checked=`Revisión automática cada ${Math.round(EQUIPMENT_ALIGNMENT_REFRESH_MS/1000)} s · última ${escapeHtml_cor(formatAlignmentCheckTime_cor())}`;
-    if(alignment.aligned){
-      host.className='ccor-ec-form-phns-status is-ok';
-      host.innerHTML=`<b>✓ PHNS alineados</b><span>ins_fl y log_ops contienen el mismo conjunto de PHNS y las relaciones activas coinciden.</span><small>${checked}</small>`;
-      return;
-    }
-    const notes=[];
-    if(alignment.missingInIns.length) notes.push(`<span><strong>Instalaciones:</strong> faltan ${escapeHtml_cor(alignment.missingInIns.join(', '))}</span>`);
-    if(alignment.onlyInIns.length) notes.push(`<span><strong>Revisar posición:</strong> ${escapeHtml_cor(alignment.onlyInIns.join(', '))} existe en Instalaciones pero no en el listado PHNS actual de Logística.</span>`);
-    if(alignment.rowIssues) notes.push(`<span><strong>Relaciones manuales:</strong> ${escapeHtml_cor(alignment.rowIssues)} por revisar.</span>`);
-    host.className='ccor-ec-form-phns-status is-warning';
-    host.innerHTML=`<b>⚠ PHNS por alinear</b>${notes.join('')}<small>${checked}</small>`;
+  function normalizedLogOpsPhns_cor(row){
+    const seen=new Set();
+    return splitLogOpsPhns_cor(row&&row.ph_ns)
+      .filter(id=>/^P\d+$/.test(id)&&!seen.has(id)&&seen.add(id));
   }
 
   function logOpsEquipmentIds_cor(){
     const ids=[];
     const seen=new Set();
     (Array.isArray(state.logOps)?state.logOps:[]).forEach(row=>{
-      String(row&&row.ph_ns||'').split(',').forEach(raw=>{
-        const id=String(raw||'').trim().toUpperCase();
-        if(!/^P\d+$/.test(id)||seen.has(id)) return;
-        seen.add(id);ids.push(id);
+      normalizedLogOpsPhns_cor(row).forEach(id=>{
+        if(seen.has(id)) return;
+        seen.add(id);
+        ids.push(id);
       });
     });
     return ids;
   }
 
+  function logOpsOptions_cor(selectedId,emptyLabel='Sin PHNS relacionado'){
+    const options=[`<option value="">${escapeHtml_cor(emptyLabel)}</option>`];
+    const seenLabels=new Set();
+    let selectedFound=false;
+    (Array.isArray(state.logOps)?state.logOps:[]).forEach(row=>{
+      const ids=normalizedLogOpsPhns_cor(row);
+      if(!ids.length) return;
+      const label=ids.join(', ');
+      const canonical=label.toUpperCase();
+      const id=Number(row&&row.id_log_ops);
+      if(!Number.isInteger(id)||id<=0) return;
+      if(seenLabels.has(canonical)&&Number(selectedId)!==id) return;
+      seenLabels.add(canonical);
+      const selected=Number(selectedId)===id;
+      if(selected) selectedFound=true;
+      options.push(`<option value="${escapeHtml_cor(id)}"${selected?' selected':''}>${escapeHtml_cor(label)}</option>`);
+    });
+    if(selectedId&&!selectedFound){
+      const previous=logOpsById_cor(selectedId);
+      const ids=normalizedLogOpsPhns_cor(previous);
+      options.push(`<option value="${escapeHtml_cor(selectedId)}" selected>${escapeHtml_cor(ids.length?ids.join(', '):('log_ops #'+selectedId+' · PHNS no disponible'))}</option>`);
+    }
+    return options.join('');
+  }
+
+  function equipmentReference_cor(row){
+    const ref=String(row&&row.referencia_sitio||'').trim();
+    if(ref) return ref;
+    const id=Number(row&&row.id_ins_fl);
+    return Number.isInteger(id)&&id>0?'ins_fl #'+id:'Sin referencia';
+  }
+
+  function manualEquipmentReferenceOptions_cor(){
+    return (Array.isArray(state.insFlCatalog)?state.insFlCatalog:[]).map(row=>{
+      const id=Number(row&&row.id_ins_fl);
+      const ref=String(row&&row.referencia_sitio||'').trim();
+      const value=ref||String(id||'');
+      const label=ref&&id?`${ref} · ins_fl #${id}`:(ref||(`ins_fl #${id}`));
+      return `<option value="${escapeHtml_cor(value)}">${escapeHtml_cor(label)}</option>`;
+    }).join('');
+  }
+
+  function findEquipmentIndexByReference_cor(value){
+    const raw=String(value||'').trim();
+    if(!raw) return -1;
+    const numeric=Number(raw.replace(/^#?/,''));
+    const normalized=normalizePhns_cor(raw);
+    return state.equipos.findIndex(row=>{
+      const id=Number(row&&row.id_ins_fl);
+      const ref=normalizePhns_cor(row&&row.referencia_sitio);
+      if(Number.isInteger(numeric)&&numeric>0&&id===numeric) return true;
+      if(normalized===normalizePhns_cor('ins_fl #'+id)) return true;
+      return Boolean(ref&&ref===normalized);
+    });
+  }
+
+  function applyManualEquipmentRelation_cor(){
+    const refInput=document.getElementById('ccor-ec-form-manual-ref');
+    const phnsSelect=document.getElementById('ccor-ec-form-manual-phns');
+    const reference=String(refInput&&refInput.value||'').trim();
+    const idLogOps=Number(phnsSelect&&phnsSelect.value||0);
+    if(!reference){setStatus_cor('Captura la Ref en sitio o identificador del equipo.','error');return false;}
+    const index=findEquipmentIndexByReference_cor(reference);
+    if(index<0){
+      setStatus_cor('La referencia manual debe corresponder a un equipo existente en ins_fl para este PPNS. No se crean equipos fuera de Instalaciones.','error');
+      return false;
+    }
+    if(!Number.isInteger(idLogOps)||idLogOps<=0){setStatus_cor('Selecciona el PHNS que se relacionará con el equipo.','error');return false;}
+    const duplicate=state.equipos.findIndex((row,rowIndex)=>rowIndex!==index&&row.incluir!==false&&Number(row.id_log_ops)===idLogOps);
+    if(duplicate>=0){
+      setStatus_cor('Ese registro PHNS ya está relacionado con otro equipo incluido. Revisa la relación antes de continuar.','error');
+      return false;
+    }
+    state.equipos[index].incluir=true;
+    state.equipos[index].id_log_ops=idLogOps;
+    if(refInput) refInput.value='';
+    if(phnsSelect) phnsSelect.value='';
+    renderEquipos_cor();
+    renderTotals_cor();
+    setStatus_cor('Relación manual aplicada. Se guardará junto con el Estado de Cuenta.','');
+    return true;
+  }
+
   function renderEquipos_cor(){
-    const host=document.getElementById('ccor-ec-form-equipment-ids');
-    if(!host) return;
-    const ids=logOpsEquipmentIds_cor();
-    host.innerHTML=ids.length
-      ? `<div class="ccor-ec-form-equipment-id-list">${ids.map(id=>`<span>${escapeHtml_cor(id)}</span>`).join('')}</div><small>${escapeHtml_cor(ids.join(', '))}</small>`
-      : '<div class="ccor-ec-table-empty">Sin IDs Pxxxxx disponibles en log_ops.ph_ns para este PPNS.</div>';
+    const body=document.getElementById('ccor-ec-form-equipment-body');
+    const status=document.getElementById('ccor-ec-form-equipment-status');
+    if(!body) return;
+    if(!state.equipos.length){
+      body.innerHTML='<tr><td colspan="4" class="ccor-ec-table-empty">No hay equipos activos registrados en ins_fl para este PPNS.</td></tr>';
+      if(status){status.className='ccor-ec-form-phns-status is-warning';status.textContent='No se recibieron equipos desde ins_fl.';}
+      return;
+    }
+    const availableLogOps=(Array.isArray(state.logOps)?state.logOps:[]).filter(row=>normalizedLogOpsPhns_cor(row).length);
+    body.innerHTML=state.equipos.map((row,index)=>`
+      <tr data-equipo-index="${index}">
+        <td><input type="checkbox" data-equipo-include ${row.incluir===false?'':'checked'}></td>
+        <td class="ccor-ec-form-equipment-ref"><b>${escapeHtml_cor(equipmentReference_cor(row))}</b><small>id_ins_fl: ${escapeHtml_cor(row.id_ins_fl||'—')}</small></td>
+        <td><select data-equipo-logops>${logOpsOptions_cor(row.id_log_ops)}</select></td>
+        <td>${escapeHtml_cor(row.source_missing?'Relación histórica':'Instalaciones')}</td>
+      </tr>`).join('');
+    if(status){
+      status.className='ccor-ec-form-phns-status'+(availableLogOps.length?' is-ok':' is-warning');
+      status.textContent=availableLogOps.length
+        ? `${state.equipos.length} equipo(s) de ins_fl cargados · ${logOpsEquipmentIds_cor().length} PHNS únicos disponibles en log_ops.ph_ns.`
+        : `${state.equipos.length} equipo(s) de ins_fl cargados · sin PHNS Pxxxxx disponibles en log_ops.ph_ns.`;
+    }
   }
 
   async function refreshEquipmentSources_cor(options={}){
@@ -649,7 +752,7 @@
       return true;
     }catch(error){
       state.alignmentError=errorMessage_cor(error,'load');
-      renderEquipmentAlignmentSummary_cor();
+      renderEquipos_cor();
       if(!options.silent) setStatus_cor(state.alignmentError,'error');
       return false;
     }finally{
@@ -752,6 +855,48 @@
     recalculateHitoFinancials_cor(row);
   }
 
+  function currencyCoverage_cor(){
+    const currencies=activeGeneralCurrencies_cor();
+    const result=new Map(currencies.map(currency=>[currency,0]));
+    state.hitos.forEach(row=>{
+      const currency=String(row&&row.moneda||'').trim().toUpperCase();
+      const raw=String((row&&row.porcentaje)??'').trim();
+      const value=Number(raw);
+      if(!result.has(currency)||raw===''||!Number.isFinite(value)) return;
+      result.set(currency,(result.get(currency)||0)+value);
+    });
+    return result;
+  }
+
+  function currencyValidationOk_cor(){
+    const coverage=currencyCoverage_cor();
+    if(!coverage.size) return true;
+    return [...coverage.values()].every(value=>Math.abs(value-100)<=0.0001);
+  }
+
+  function renderCurrencyValidation_cor(){
+    const host=document.getElementById('ccor-ec-form-percentage-validation');
+    const button=document.getElementById('ccor-ec-form-save');
+    const coverage=currencyCoverage_cor();
+    const allOk=currencyValidationOk_cor();
+    if(host){
+      if(!coverage.size){
+        host.innerHTML='<strong>Validación 100% por moneda</strong><span class="ccor-ec-form-pct-badge">Sin monedas en General</span><span class="ccor-ec-form-pct-note">Al agregar partidas, cada moneda deberá distribuirse exactamente al 100% entre sus Hitos.</span>';
+      }else{
+        const badges=[...coverage.entries()].map(([currency,value])=>{
+          const rounded=Math.round((value+Number.EPSILON)*100)/100;
+          const ok=Math.abs(value-100)<=0.0001;
+          const delta=Math.round((100-value+Number.EPSILON)*100)/100;
+          const detail=ok?'Correcto':(delta>0?`Falta ${delta}%`:`Excede ${Math.abs(delta)}%`);
+          return `<span class="ccor-ec-form-pct-badge ${ok?'is-ok':'is-error'}">${escapeHtml_cor(currency)} ${escapeHtml_cor(rounded)}% / 100% · ${escapeHtml_cor(detail)}</span>`;
+        }).join('');
+        host.innerHTML=`<strong>Validación 100% por moneda</strong>${badges}<span class="ccor-ec-form-pct-note">No se permite guardar mientras alguna moneda de General sea distinta de 100%.</span>`;
+      }
+    }
+    if(button) button.disabled=Boolean(state.saving)||!allOk;
+    return allOk;
+  }
+
   function renderTotals_cor(){
     const totals=new Map();
     state.partidas.forEach(row=>{
@@ -772,7 +917,8 @@
     const hitosTotal=document.getElementById('ccor-ec-form-hitos-total');
     if(hitosTotal) hitosTotal.value=String(state.hitos.length);
     const equiposTotal=document.getElementById('ccor-ec-form-equipos-total');
-    if(equiposTotal) equiposTotal.value=String(logOpsEquipmentIds_cor().length);
+    if(equiposTotal) equiposTotal.value=String(state.equipos.filter(row=>row.incluir!==false).length);
+    renderCurrencyValidation_cor();
   }
 
   function setStatus_cor(message,kind){
@@ -865,6 +1011,7 @@
       renderHitos_cor();
     }
     renderTotals_cor();
+    renderCurrencyValidation_cor();
   }
 
   function nullableNumber_cor(value){
@@ -913,6 +1060,17 @@
     })).concat(state.deletedHitos.map(row=>({id_fuente_cor:Number(row.id_fuente_cor),eliminar:true})));
 
     const equipos=[];
+    state.equipos.forEach((row,index)=>{
+      if(!row.id_equipo_cor&&row.incluir===false) return;
+      equipos.push({
+        id_equipo_cor:row.id_equipo_cor||null,
+        id_ins_fl:Number(row.id_ins_fl)||null,
+        id_log_ops:row.id_log_ops?Number(row.id_log_ops):null,
+        orden:index+1,
+        ubicacion_torre:null,
+        activo:row.incluir!==false
+      });
+    });
 
     return {
       ppns,proyecto,cliente,contractual,
@@ -965,11 +1123,20 @@
         return `Los porcentajes de ${currency} deben sumar exactamente 100%. Actualmente suman ${display}%.`;
       }
     }
+    const activeEquipos=(payload.equipos||[]).filter(row=>row.activo!==false);
+    const usedInsFl=new Set();
+    for(let index=0;index<activeEquipos.length;index+=1){
+      const row=activeEquipos[index];
+      if(!row.id_ins_fl) return `El equipo ${index+1} no tiene un id_ins_fl válido.`;
+      if(usedInsFl.has(row.id_ins_fl)) return `El equipo ins_fl #${row.id_ins_fl} está repetido.`;
+      usedInsFl.add(row.id_ins_fl);
+    }
     return '';
   }
 
   async function save_cor(){
     if(state.saving||state.loading||isViewerReadonly_cor()) return false;
+    if(!renderCurrencyValidation_cor()){setStatus_cor('No puedes guardar: cada moneda de General debe sumar exactamente 100% entre sus Hitos.','error');return false;}
     const payload=collectPayload_cor();
     const validation=validatePayload_cor(payload);
     if(validation){setStatus_cor(validation,'error');return false;}
@@ -1024,6 +1191,7 @@
     state.root.addEventListener('click',event=>{
       if(event.target.closest('[data-ccor-form-cancel]')){cancel_cor();return;}
       if(event.target.closest('#ccor-ec-form-save')){save_cor();return;}
+      if(event.target.closest('#ccor-ec-form-manual-apply')){applyManualEquipmentRelation_cor();return;}
       if(event.target.closest('#ccor-ec-form-refresh-phns')){refreshEquipmentSources_cor({silent:false});return;}
       if(event.target.closest('#ccor-ec-form-add-partida')){
         state.partidas.push(emptyPartida_cor());
@@ -1045,7 +1213,7 @@
         const row=emptyHito_cor();
         row.orden_hito=String(state.hitos.length+1);
         state.hitos.push(row);
-        renderHitos_cor();renderTotals_cor();return;
+        renderHitos_cor();renderTotals_cor();renderCurrencyValidation_cor();return;
       }
       const remove=event.target.closest('[data-hito-remove]');
       if(remove){
@@ -1055,7 +1223,7 @@
           const current=state.hitos[index];
           if(current.id_fuente_cor) state.deletedHitos.push({id_fuente_cor:current.id_fuente_cor});
           state.hitos.splice(index,1);
-          renderHitos_cor();renderTotals_cor();
+          renderHitos_cor();renderTotals_cor();renderCurrencyValidation_cor();
         }
       }
     });
@@ -1114,9 +1282,10 @@
         const equipment=state.equipos[index];
         if(!equipment) return;
         if(event.target.matches('[data-equipo-include]')) equipment.incluir=Boolean(event.target.checked);
-        if(event.target.matches('[data-equipo-insfl]')) equipment.id_ins_fl=event.target.value?Number(event.target.value):null;
-        if(event.target.matches('[data-equipo-logops]')) equipment.id_log_ops=event.target.value?Number(event.target.value):null;
-        if(event.target.matches('[data-equipo-ubicacion]')) equipment.ubicacion_torre=event.target.value;
+        if(event.target.matches('[data-equipo-logops]')){
+          equipment.id_log_ops=event.target.value?Number(event.target.value):null;
+          if(equipment.id_log_ops) equipment.incluir=true;
+        }
         renderEquipos_cor();
         renderTotals_cor();
       }
@@ -1140,11 +1309,6 @@
         setStatus_cor(error,error?'error':'');
         return;
       }
-      const equipmentRow=event.target.closest('[data-equipo-index]');
-      if(equipmentRow&&event.target.matches('[data-equipo-ubicacion]')){
-        const index=Number(equipmentRow.dataset.equipoIndex);
-        if(state.equipos[index]) state.equipos[index].ubicacion_torre=event.target.value;
-      }
       if(event.target.matches('[data-hito-field]')) updateHitoFromInput_cor(event.target);
     });
   }
@@ -1154,6 +1318,7 @@
     const root=document.getElementById('view-placeholder');
     if(!root) return false;
     state.root=root;
+    ensureEquiposValidationStyles_cor();
     bindEvents_cor();
 
     if(isViewerReadonly_cor()){
