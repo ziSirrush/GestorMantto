@@ -1,6 +1,7 @@
 'use strict';
 
 const repository = require('./cobranza-cor.repository');
+const pagosRepository = require('./cobranza-cor-pagos.repository');
 
 const BATCH_SIZE = 300;
 const MAX_RECORDS = 5000;
@@ -15,6 +16,7 @@ const ROUTES_COR = Object.freeze({
   estado_cuenta_crear: '/api/cobranza-cor/estados-cuenta',
   estado_cuenta_actualizar: '/api/cobranza-cor/estados-cuenta/:ppns',
   factura_crear: '/api/cobranza-cor/estados-cuenta/:ppns/facturas',
+  pago_facturas: '/api/cobranza-cor/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor',
   aditivas: '/api/cobranza-cor/aditivas',
   aditiva_detalle: '/api/cobranza-cor/aditivas/:idAditivaCor',
   aditiva_crear: '/api/cobranza-cor/aditivas',
@@ -678,6 +680,37 @@ function serializeFacturaAditivaCatalogo_cor(row) {
   };
 }
 
+function serializeAditivaEstadoCuenta_cor(row) {
+  return {
+    no_cot: cleanText_cor(row?.no_cot),
+    fecha_cot: cleanText_cor(row?.fecha_cot),
+    departamento: cleanText_cor(row?.departamento),
+    equipo: cleanText_cor(row?.equipo),
+    descripcion: cleanText_cor(row?.descripcion),
+    estatus_trabajos: cleanText_cor(row?.estatus_trabajos),
+    moneda: cleanText_cor(row?.moneda)?.toUpperCase() || null,
+    monto_total: numberOrNull_cor(row?.monto_total),
+    monto_pagado: numberOrNull_cor(row?.monto_pagado),
+    pendiente_pago: numberOrNull_cor(row?.pendiente_pago)
+  };
+}
+
+function serializePagoEstadoCuenta_cor(row, relaciones) {
+  const facturas = relaciones.filter((item) => Number(item.id_pago_cor) === Number(row.id_pago_cor));
+  return {
+    id_pago_cor: integerOrNull_cor(row?.id_pago_cor),
+    no_factura: cleanText_cor(row?.no_factura),
+    complemento_pago: cleanText_cor(row?.complemento_pago),
+    fecha_pago: cleanText_cor(row?.fecha_pago),
+    importe_complemento_pago: numberOrNull_cor(row?.importe_complemento_pago),
+    facturas: facturas.map((item) => ({
+      id_factura_cor: integerOrNull_cor(item.id_factura_cor),
+      importe_aplicado: numberOrNull_cor(item.importe_aplicado)
+    })),
+    estado: facturas.length ? 'Alineado' : 'Pendiente'
+  };
+}
+
 function attachFacturaRefsToHitos_cor(hitos, facturas) {
   const byHito = new Map();
   (Array.isArray(facturas) ? facturas : []).forEach((row) => {
@@ -761,12 +794,14 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
   try {
     const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
-    const [sourceRows, facturaRows, aditivaRows] = await Promise.all([
+    const project = serializeEstadoCuentaMain_cor(row);
+    const [sourceRows, facturaRows, aditivaRows, pagoRows, relacionPagoRows] = await Promise.all([
       repository.listFuenteEstadoCuenta_cor(connection, ppns),
       repository.listFacturasEstadoCuenta_cor(connection, ppns),
-      repository.listAditivasEstadoCuentaFacturables_cor(connection, ppns)
+      repository.listAditivasEstadoCuenta_cor(connection, project.ppns),
+      pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
+      pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
     ]);
-    const project = serializeEstadoCuentaMain_cor(row);
     const facturas = facturaRows.map(serializeFacturaEstadoCuenta_cor);
     const detailRows = attachFacturaRefsToHitos_cor(sourceRows.map(serializeFuenteEstadoCuenta_cor), facturaRows);
     const summary = buildEstadoCuentaSummary_cor(detailRows);
@@ -780,7 +815,14 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       resumen: summary,
       calidad: buildEstadoCuentaQuality_cor(detailRows),
       estado_cuenta: detailRows,
+      aditivas: aditivaRows.map(serializeAditivaEstadoCuenta_cor),
       facturas,
+      pagos: pagoRows.map((item) => serializePagoEstadoCuenta_cor(item, relacionPagoRows)),
+      relaciones_pagos: relacionPagoRows.map((item) => ({
+        id_factura_cor: integerOrNull_cor(item.id_factura_cor),
+        id_pago_cor: integerOrNull_cor(item.id_pago_cor),
+        importe_aplicado: numberOrNull_cor(item.importe_aplicado)
+      })),
       facturacion_catalogo: {
         hitos: detailRows.map(serializeFacturaHitoCatalogo_cor),
         aditivas: aditivaRows.map(serializeFacturaAditivaCatalogo_cor)
@@ -1520,6 +1562,95 @@ async function crearFacturaEstadoCuenta_cor(ppnsValue, payload, informationAcces
   }
 }
 
+function importeAplicadoCentavos_cor(value) {
+  const raw = String(value ?? '').trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) throw badRequest('Importe aplicado debe ser positivo y tener hasta dos decimales.');
+  const cents = Math.round(Number(raw) * 100);
+  if (!Number.isSafeInteger(cents) || cents <= 0) throw badRequest('Importe aplicado está fuera del rango permitido.');
+  return cents;
+}
+
+async function guardarRelacionPagoFacturaEstadoCuenta_cor(ppnsValue, idPagoValue, idFacturaValue, payload, informationAccess) {
+  const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
+  const idPagoCor = positiveId_cor(idPagoValue, 'idPagoCor');
+  const idFacturaCor = positiveId_cor(idFacturaValue, 'idFacturaCor');
+  const cents = importeAplicadoCentavos_cor(payload?.importe_aplicado);
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+  try {
+    const estado = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
+    if (!estado) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
+    const ppnsFuente = serializeEstadoCuentaMain_cor(estado).ppns;
+    await connection.beginTransaction();
+    try {
+      const pago = await pagosRepository.lockPagoEstadoCuenta_cor(connection, idPagoCor, ppnsFuente);
+      const factura = await pagosRepository.lockFacturaEstadoCuenta_cor(connection, idFacturaCor, ppnsFuente);
+      if (!pago || !factura) throw httpError(404, 'Pago o Factura no pertenece a este Estado de Cuenta.');
+
+      const relacionesPago = await pagosRepository.listRelacionesPagoForUpdate_cor(connection, idPagoCor);
+      const relacionesFactura = await pagosRepository.listRelacionesFacturaForUpdate_cor(connection, idFacturaCor);
+      if (relacionesPago.some((item) => String(item.ppns || '').trim().toUpperCase() !== ppnsFuente.toUpperCase())) {
+        throw httpError(409, 'El Pago ya está relacionado con otro Estado de Cuenta.');
+      }
+      if (relacionesFactura.some((item) => Number(item.id_pago_cor) !== idPagoCor)) {
+        throw httpError(409, 'La Factura ya está seleccionada en otro Pago.');
+      }
+
+      const importePago = numberOrNull_cor(pago.importe_complemento_pago);
+      if (importePago === null || importePago === 0) throw badRequest('El Pago necesita un importe para asignar Facturas.');
+      const disponibleCentavos = Math.round(Math.abs(importePago) * 100);
+      const otrosCentavos = relacionesPago
+        .filter((item) => Number(item.id_factura_cor) !== idFacturaCor)
+        .reduce((sum, item) => sum + Math.round(Number(item.importe_aplicado || 0) * 100), 0);
+      if (otrosCentavos + cents > disponibleCentavos) {
+        throw badRequest('La suma de importes aplicados supera el importe del Pago.');
+      }
+
+      await pagosRepository.guardarRelacionPagoFactura_cor(
+        connection, idPagoCor, idFacturaCor, cents / 100, relacionesFactura.length > 0
+      );
+      await connection.commit();
+      return { ok: true, ppns: ppnsFuente, id_pago_cor: idPagoCor, id_factura_cor: idFacturaCor, importe_aplicado: cents / 100 };
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
+  } finally {
+    connection.release();
+  }
+}
+
+async function quitarRelacionPagoFacturaEstadoCuenta_cor(ppnsValue, idPagoValue, idFacturaValue, informationAccess) {
+  const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
+  const idPagoCor = positiveId_cor(idPagoValue, 'idPagoCor');
+  const idFacturaCor = positiveId_cor(idFacturaValue, 'idFacturaCor');
+  const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
+  const connection = await repository.getConnection_cor();
+  try {
+    const estado = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
+    if (!estado) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
+    const ppnsFuente = serializeEstadoCuentaMain_cor(estado).ppns;
+    await connection.beginTransaction();
+    try {
+      const pago = await pagosRepository.lockPagoEstadoCuenta_cor(connection, idPagoCor, ppnsFuente);
+      const factura = await pagosRepository.lockFacturaEstadoCuenta_cor(connection, idFacturaCor, ppnsFuente);
+      if (!pago || !factura) throw httpError(404, 'Pago o Factura no pertenece a este Estado de Cuenta.');
+      const relacionesFactura = await pagosRepository.listRelacionesFacturaForUpdate_cor(connection, idFacturaCor);
+      if (!relacionesFactura.some((item) => Number(item.id_pago_cor) === idPagoCor)) {
+        throw httpError(404, 'La Factura no está asignada a este Pago.');
+      }
+      await pagosRepository.quitarRelacionPagoFactura_cor(connection, idPagoCor, idFacturaCor);
+      await connection.commit();
+      return { ok: true, ppns: ppnsFuente, id_pago_cor: idPagoCor, id_factura_cor: idFacturaCor };
+    } catch (error) {
+      try { await connection.rollback(); } catch (_rollbackError) {}
+      throw error;
+    }
+  } finally {
+    connection.release();
+  }
+}
+
 function booleanQuery_cor(value, fieldName, fallback = false) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
   const normalized = canonicalText_cor(value);
@@ -1818,6 +1949,8 @@ module.exports = {
   crearEstadoCuenta_cor,
   actualizarEstadoCuenta_cor,
   crearFacturaEstadoCuenta_cor,
+  guardarRelacionPagoFacturaEstadoCuenta_cor,
+  quitarRelacionPagoFacturaEstadoCuenta_cor,
   listarAditivas_cor,
   detalleAditiva_cor,
   crearAditiva_cor,

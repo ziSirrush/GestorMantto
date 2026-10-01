@@ -2,6 +2,7 @@
 
 const express = require('express');
 const controller = require('./cobranza-cor.controller');
+const pagosController = require('./cobranza-cor-pagos.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
@@ -44,12 +45,17 @@ function rejectViewerMutation_cor(req, res, next) {
 router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
 
+// Carga de Pagos desde Hoja SB: autentica la integracion y persiste por id_pago.
+router.post('/carga/pagos', requireCobranzaCorIntegration, pagosController.cargarPagos_cor);
+
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
 router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, controller.catalogoCrearEstadoCuenta_cor);
 router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearEstadoCuenta_cor);
 router.get('/estados-cuenta/:ppns/formulario', ...requireEstadosCuentaCor, controller.formularioEstadoCuenta_cor);
 router.put('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.actualizarEstadoCuenta_cor);
 router.post('/estados-cuenta/:ppns/facturas', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearFacturaEstadoCuenta_cor);
+router.put('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.guardarRelacionPagoFacturaEstadoCuenta_cor);
+router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.quitarRelacionPagoFacturaEstadoCuenta_cor);
 router.get('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
 
 router.get('/aditivas', ...requireAditivasCor, controller.aditivas_cor);

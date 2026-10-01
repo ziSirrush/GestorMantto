@@ -45,23 +45,23 @@ test('Estatus de Factura usa catalogo cerrado y estatus de cobranza queda reserv
   assert.match(frontend,/Pagado/);
   assert.match(service,/normalizeEstatusFacturaRegistro_cor/);
   assert.match(service,/estatus_cobranza: null/);
-  assert.match(frontend,/Estatus de cobranza queda reservado para la integración de Pagos/);
+  assert.match(frontend,/El estatus de cobranza no se calcula automáticamente desde las asignaciones de Pagos/);
 });
 
-test('Fase 4 no crea ni inventa tabla de Pagos',()=>{
+test('Pagos se mantiene separado del CRUD de Facturas',()=>{
   const repository=read('backend/src/modules/cobranza-cor/cobranza-cor.repository.js');
   const service=read('backend/src/modules/cobranza-cor/cobranza-cor.service.js');
   const frontend=read('modules/cobranza-cor/cobranza-cor-estados-cuenta.js');
   assert.doesNotMatch(repository,/cobranza_pagos_cor/);
   assert.doesNotMatch(service,/cobranza_pagos_cor/);
-  assert.doesNotMatch(frontend,/ccor-ec-pagos-table/);
+  assert.match(frontend,/ccor-ec-pagos-table/);
 });
 
-test('Cache F4 solo fuerza los assets de Detalle y conserva formulario F3',()=>{
+test('Cache actualiza Detalle y conserva formulario F3',()=>{
   const loader=read('core/module-loader.js');
   const index=read('index.html');
-  assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20260930-cobranza-facturas-f4-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=20260930-cobranza-facturas-f4-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-cobranza-consolidacion-f3-v001/);
-  assert.match(index,/core\/module-loader\.js\?v=20260930-cobranza-facturas-f4-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20261001-cobranza-pagos-detalle-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=20261001-cobranza-pagos-detalle-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-equipos-validacion100-v001/);
+  assert.match(index,/core\/module-loader\.js\?v=20261001-cobranza-pagos-detalle-v001/);
 });

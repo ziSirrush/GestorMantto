@@ -115,6 +115,28 @@ async function crearFacturaEstadoCuenta_cor(req, res, next) {
   }
 }
 
+async function guardarRelacionPagoFacturaEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(await service.guardarRelacionPagoFacturaEstadoCuenta_cor(
+      req.params.ppns, req.params.idPagoCor, req.params.idFacturaCor,
+      req.body || {}, req.informationAccess
+    ));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function quitarRelacionPagoFacturaEstadoCuenta_cor(req, res, next) {
+  try {
+    return res.status(200).json(await service.quitarRelacionPagoFacturaEstadoCuenta_cor(
+      req.params.ppns, req.params.idPagoCor, req.params.idFacturaCor,
+      req.informationAccess
+    ));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function aditivas_cor(req, res, next) {
   try {
     return res.status(200).json(
@@ -181,6 +203,8 @@ module.exports = {
   crearEstadoCuenta_cor,
   actualizarEstadoCuenta_cor,
   crearFacturaEstadoCuenta_cor,
+  guardarRelacionPagoFacturaEstadoCuenta_cor,
+  quitarRelacionPagoFacturaEstadoCuenta_cor,
   aditivas_cor,
   detalleAditiva_cor,
   crearAditiva_cor,

@@ -338,13 +338,17 @@
 }
 .ccor-ec-account-section.is-supply .ccor-ec-account-title{background:linear-gradient(90deg,#0866b7,#0c77c8)}
 .ccor-ec-account-section.is-installation .ccor-ec-account-title{background:linear-gradient(90deg,#d75b00,#e5740b)}
+.ccor-ec-account-section.is-aditivas .ccor-ec-account-title{background:linear-gradient(90deg,#637d20,#8ca82e)}
 
 .ccor-ec-detail-table{min-width:1100px}
 .ccor-ec-detail-table th{text-align:center;background:#f4f7fa}
 .ccor-ec-account-section.is-supply .ccor-ec-detail-table th{background:#0f72bd;color:#fff;border-bottom-color:#0b5d9b}
 .ccor-ec-account-section.is-installation .ccor-ec-detail-table th{background:#df6807;color:#fff;border-bottom-color:#b95503}
+.ccor-ec-account-section.is-aditivas .ccor-ec-detail-table th{background:#78952a;color:#fff;border-bottom-color:#5f7920}
 .ccor-ec-detail-table td{text-align:center;padding:7px 8px}
 .ccor-ec-detail-table .ccor-ec-condition{text-align:left;min-width:180px}
+.ccor-ec-aditivas-table{min-width:1250px}
+.ccor-ec-aditivas-table .ccor-ec-aditivas-description{text-align:left;min-width:260px;white-space:normal}
 .ccor-ec-num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right!important}
 .ccor-ec-detail-table .is-pending{font-weight:850;color:#9f2f28}
 
@@ -516,6 +520,8 @@
     min-width:1100px!important;
   }
 
+  .ccor-ec-aditivas-table{min-width:1250px!important}
+
   .ccor-ec-projects-table thead,
   .ccor-ec-detail-table thead{display:table-header-group}
   .ccor-ec-projects-table tbody,
@@ -577,3 +583,25 @@
   .ccor-ec-facturas-table th,.ccor-ec-facturas-table td{display:table-cell}
 }
 @media(max-width:520px){.ccor-ec-factura-form{grid-template-columns:1fr}.ccor-ec-factura-form label.is-wide,.ccor-ec-factura-form-actions{grid-column:auto}}
+
+.ccor-ec-pagos-section{overflow:hidden}
+.ccor-ec-pagos-table{min-width:1120px}
+.ccor-ec-pagos-table th{background:#eaf1f8;color:#234969}
+.ccor-ec-pagos-table th,.ccor-ec-pagos-table td{vertical-align:top}
+.ccor-ec-pago-facturas{text-align:left!important;min-width:490px}
+.ccor-ec-pago-links{display:flex;flex-direction:column;gap:6px}
+.ccor-ec-pago-link,.ccor-ec-pago-add{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.ccor-ec-pago-link{padding:6px 8px;border-radius:7px;background:#f0f6ec;color:#3c5c28}
+.ccor-ec-pago-link span{min-width:150px;font-weight:700}
+.ccor-ec-pago-add{margin-top:7px}
+.ccor-ec-pago-facturas select,.ccor-ec-pago-facturas input{min-height:34px;border:1px solid #c1ceda;border-radius:7px;background:#fff;color:#173b62;padding:5px 8px;font:inherit}
+.ccor-ec-pago-facturas select{min-width:185px;max-width:290px;flex:1 1 185px}
+.ccor-ec-pago-facturas input{width:116px;font-variant-numeric:tabular-nums}
+.ccor-ec-pago-facturas button{min-height:34px;border:0;border-radius:7px;background:#dce9f5;color:#184b76;padding:5px 9px;font:inherit;font-weight:800;cursor:pointer}
+.ccor-ec-pago-add button{background:#206ca4;color:#fff}
+.ccor-ec-pago-facturas button:disabled,.ccor-ec-pago-facturas select:disabled{opacity:.55;cursor:default}
+@media(max-width:760px){
+  .ccor-ec-pagos-section{width:100%;max-width:100%;min-width:0}
+  .ccor-ec-pagos-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  .ccor-ec-pagos-table{display:table;width:100%;min-width:1120px!important}
+}

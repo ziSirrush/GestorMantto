@@ -16,6 +16,7 @@
     selectedPpns:null,
     detail:null,
     invoiceSaving:false,
+    paymentSaving:false,
     filters:{ q:'', anio:'', contractual:'' },
     listSequence:0,
     detailSequence:0,
@@ -634,6 +635,47 @@
       </section>`;
   }
 
+  function renderAditivasSection_cor(detail){
+    const rows = Array.isArray(detail && detail.aditivas) ? detail.aditivas : [];
+    const body = rows.length ? rows.map(row => `
+      <tr>
+        <td>${escapeHtml_cor(text_cor(row.no_cot))}</td>
+        <td>${escapeHtml_cor(formatDate_cor(row.fecha_cot))}</td>
+        <td>${escapeHtml_cor(text_cor(row.departamento))}</td>
+        <td>${escapeHtml_cor(text_cor(row.equipo))}</td>
+        <td class="ccor-ec-aditivas-description">${escapeHtml_cor(text_cor(row.descripcion))}</td>
+        <td>${escapeHtml_cor(text_cor(row.estatus_trabajos))}</td>
+        <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.monto_total))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.monto_pagado))}</td>
+        <td class="ccor-ec-num is-pending">${escapeHtml_cor(formatAmount_cor(row.pendiente_pago))}</td>
+      </tr>`).join('') : '<tr><td colspan="10" class="ccor-ec-table-empty">Sin aditivas para este PPNS.</td></tr>';
+
+    return `
+      <section class="ccor-ec-account-section is-aditivas">
+        <div class="ccor-ec-account-title">ADITIVAS</div>
+        <div class="ccor-ec-table-wrap ccor-ec-detail-table-wrap">
+          <table class="ccor-ec-table ccor-ec-detail-table ccor-ec-aditivas-table">
+            <thead>
+              <tr>
+                <th>Cotización</th>
+                <th>Fecha Cot</th>
+                <th>Departamento</th>
+                <th>Equipo</th>
+                <th>Descripción</th>
+                <th>Estatus trabajos</th>
+                <th>Moneda</th>
+                <th>Total</th>
+                <th>Pagado</th>
+                <th>Pendiente</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
   function renderUnknownCurrency_cor(rows){
     if(!rows.length){
       return '';
@@ -660,6 +702,10 @@
 
   function getFacturas_cor(detail){
     return Array.isArray(detail&&detail.facturas)?detail.facturas:[];
+  }
+
+  function getPagos_cor(detail){
+    return Array.isArray(detail&&detail.pagos)?detail.pagos:[];
   }
 
   function getFacturaCatalog_cor(type){
@@ -716,7 +762,7 @@
           <label><span>Estatus factura</span><select id="ccor-ec-factura-estatus"><option value="">Sin estatus</option><option value="No pagado">No pagado</option><option value="Pagado">Pagado</option></select></label>
           <label><span>Fecha vencimiento</span><input id="ccor-ec-factura-vencimiento" type="date"></label>
           <div class="ccor-ec-factura-form-actions"><button id="ccor-ec-factura-cancelar" class="ccor-ec-btn" type="button">Cancelar</button><button id="ccor-ec-factura-guardar" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Guardar factura</button></div>
-          <small class="ccor-ec-factura-note">Estatus de cobranza queda reservado para la integración de Pagos; esta fase no inventa ni calcula Pagos.</small>
+          <small class="ccor-ec-factura-note">El estatus de cobranza no se calcula automáticamente desde las asignaciones de Pagos.</small>
         </div>
         <div class="ccor-ec-table-wrap ccor-ec-facturas-wrap">
           <table class="ccor-ec-table ccor-ec-facturas-table">
@@ -725,6 +771,89 @@
           </table>
         </div>
       </section>`;
+  }
+
+  function renderPagosSection_cor(detail){
+    const pagos=getPagos_cor(detail);
+    const facturas=getFacturas_cor(detail);
+    const ocupadas=new Set((Array.isArray(detail&&detail.relaciones_pagos)?detail.relaciones_pagos:[])
+      .map(row=>Number(row&&row.id_factura_cor)));
+    const readonly=isViewerReadonly_cor();
+    const facturasById=new Map(facturas.map(row=>[Number(row.id_factura_cor),row]));
+    const disponibles=facturas.filter(row=>!ocupadas.has(Number(row.id_factura_cor)));
+    const body=pagos.length?pagos.map(pago=>{
+      const idPago=Number(pago.id_pago_cor);
+      const asignadas=Array.isArray(pago.facturas)?pago.facturas:[];
+      const links=asignadas.map(relacion=>{
+        const idFactura=Number(relacion.id_factura_cor);
+        const factura=facturasById.get(idFactura);
+        const label=factura?`${text_cor(factura.factura)} · ${text_cor(factura.tipo_concepto)}`:`Factura #${idFactura}`;
+        return `<div class="ccor-ec-pago-link" data-pago-link="${idFactura}">
+          <span>${escapeHtml_cor(label)}</span>
+          ${readonly?`<b>${escapeHtml_cor(formatAmount_cor(relacion.importe_aplicado))}</b>`:`
+            <input type="number" min="0.01" step="0.01" value="${escapeHtml_cor(relacion.importe_aplicado)}" data-pago-importe="${idFactura}" aria-label="Importe aplicado a ${escapeHtml_cor(label)}">
+            <button type="button" data-pago-guardar="${idFactura}" aria-label="Guardar importe de ${escapeHtml_cor(label)}">Guardar</button>
+            <button type="button" data-pago-quitar="${idFactura}" aria-label="Quitar ${escapeHtml_cor(label)}">Quitar</button>`}
+        </div>`;
+      }).join('');
+      const options=disponibles.map(factura=>`<option value="${escapeHtml_cor(factura.id_factura_cor)}">${escapeHtml_cor(text_cor(factura.factura))} · ${escapeHtml_cor(text_cor(factura.tipo_concepto))} · ${escapeHtml_cor(text_cor(factura.concepto))}</option>`).join('');
+      return `<tr data-pago-id="${idPago}">
+        <td><b>${escapeHtml_cor(idPago)}</b></td>
+        <td>${escapeHtml_cor(text_cor(pago.complemento_pago))}</td>
+        <td>${escapeHtml_cor(formatDate_cor(pago.fecha_pago))}</td>
+        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(pago.importe_complemento_pago===null?null:Math.abs(Number(pago.importe_complemento_pago))))}</td>
+        <td class="ccor-ec-pago-facturas">
+          <div class="ccor-ec-pago-links">${links}</div>
+          ${readonly?'':`<div class="ccor-ec-pago-add">
+            <select data-pago-factura aria-label="Elegir Factura para Pago ${idPago}" ${disponibles.length?'':'disabled'}><option value="">Elegir factura...</option>${options}</select>
+            <input type="number" min="0.01" step="0.01" data-pago-nuevo-importe placeholder="Importe aplicado" aria-label="Importe aplicado para Pago ${idPago}" ${disponibles.length?'':'disabled'}>
+            <button type="button" data-pago-agregar ${disponibles.length?'':'disabled'}>Agregar</button>
+          </div>`}
+        </td>
+        <td><span class="ccor-ec-badge ${asignadas.length?'is-ok':'is-warn'}">${asignadas.length?'Alineado':'Pendiente'}</span></td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="6" class="ccor-ec-table-empty">No hay Pagos para este PPNS. Aparecerán cuando la carga contenga números de factura coincidentes.</td></tr>';
+    return `<section class="ccor-ec-card ccor-ec-pagos-section">
+      <div class="ccor-ec-facturas-head"><div><b>PAGOS</b><span>Un Pago puede tener varias Facturas; cada Factura se asigna a un solo Pago.</span></div></div>
+      <div id="ccor-ec-pago-status" class="ccor-ec-inline-status" aria-live="polite"></div>
+      <div class="ccor-ec-table-wrap ccor-ec-pagos-wrap"><table class="ccor-ec-table ccor-ec-pagos-table">
+        <thead><tr><th>ID Pago</th><th>Complemento Pago</th><th>Fecha Pago</th><th>Importe</th><th>Factura</th><th>Estado</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+    </section>`;
+  }
+
+  function setPagoStatus_cor(message,kind){
+    const node=document.getElementById('ccor-ec-pago-status');
+    if(!node) return;
+    node.className='ccor-ec-inline-status'+(kind?' is-'+kind:'');
+    node.textContent=message||'';
+  }
+
+  async function savePagoFactura_cor(idPago,idFactura,importe,method){
+    if(state.paymentSaving||isViewerReadonly_cor()) return false;
+    if(!Number.isInteger(idPago)||idPago<=0||!Number.isInteger(idFactura)||idFactura<=0) return false;
+    const amount=String(importe===null||importe===undefined?'':importe).trim();
+    if(method!=='DELETE'&&(!/^\d+(?:\.\d{1,2})?$/.test(amount)||Number(amount)<=0)){
+      setPagoStatus_cor('Captura un importe aplicado positivo, con hasta dos decimales.','error');
+      return false;
+    }
+    const ppns=String(state.detail&&state.detail.proyecto&&state.detail.proyecto.ppns||state.selectedPpns||'').trim();
+    const path=LIST_PATH+'/'+encodeURIComponent(ppns)+'/pagos/'+idPago+'/facturas/'+idFactura;
+    state.paymentSaving=true;
+    setPagoStatus_cor('Guardando asignación...','loading');
+    try{
+      await apiRequest_cor(path,{method,headers:{'Content-Type':'application/json','Accept':'application/json'},
+        ...(method==='DELETE'?{}:{body:JSON.stringify({importe_aplicado:Number(amount)})}),dedupe:false});
+      if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function') window.ManttoHttp.invalidate(LIST_PATH+'/'+encodeURIComponent(ppns));
+      await loadDetail_cor(ppns,{force:true});
+      return true;
+    }catch(error){
+      setPagoStatus_cor(text_cor(error&&error.message,'No fue posible guardar la asignación.'),'error');
+      return false;
+    }finally{
+      state.paymentSaving=false;
+    }
   }
 
   function setFacturaStatus_cor(message,kind){
@@ -1052,11 +1181,15 @@
         )}
 
 
+        ${renderAditivasSection_cor(detail)}
+
         ${renderUnknownCurrency_cor(
           unknownRows
         )}
 
         ${renderFacturasSection_cor(detail)}
+
+        ${renderPagosSection_cor(detail)}
 
         <section class="ccor-ec-info-grid">
 
@@ -1342,6 +1475,30 @@
     root.dataset.ccorEstadosCuentaBound='1';
 
     root.addEventListener('click',event=>{
+      const pagoAgregar=event.target.closest('[data-pago-agregar]');
+      if(pagoAgregar){
+        const row=pagoAgregar.closest('[data-pago-id]');
+        const idPago=Number(row&&row.dataset.pagoId);
+        const idFactura=Number(row&&row.querySelector('[data-pago-factura]')?.value);
+        const importe=row&&row.querySelector('[data-pago-nuevo-importe]')?.value;
+        if(!idFactura){setPagoStatus_cor('Elige una Factura para el Pago.','error');return;}
+        savePagoFactura_cor(idPago,idFactura,importe,'PUT');
+        return;
+      }
+      const pagoGuardar=event.target.closest('[data-pago-guardar]');
+      if(pagoGuardar){
+        const row=pagoGuardar.closest('[data-pago-id]');
+        const link=pagoGuardar.closest('[data-pago-link]');
+        savePagoFactura_cor(Number(row&&row.dataset.pagoId),Number(link&&link.dataset.pagoLink),link&&link.querySelector('[data-pago-importe]')?.value,'PUT');
+        return;
+      }
+      const pagoQuitar=event.target.closest('[data-pago-quitar]');
+      if(pagoQuitar){
+        const row=pagoQuitar.closest('[data-pago-id]');
+        const link=pagoQuitar.closest('[data-pago-link]');
+        savePagoFactura_cor(Number(row&&row.dataset.pagoId),Number(link&&link.dataset.pagoLink),null,'DELETE');
+        return;
+      }
       if(event.target.closest('#ccor-ec-factura-nueva')){ openFacturaForm_cor(); return; }
       if(event.target.closest('#ccor-ec-factura-cancelar')){ closeFacturaForm_cor(); return; }
       if(event.target.closest('#ccor-ec-factura-guardar')){ saveFactura_cor(); return; }

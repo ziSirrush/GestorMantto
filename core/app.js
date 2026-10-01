@@ -49,7 +49,7 @@
       if(!style){
         style = document.createElement('link');
         style.rel = 'stylesheet';
-        style.href = './modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20260911-fase4-estados-cuenta-v001';
+        style.href = './modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001';
         style.dataset.manttoCobranzaCorEstadosCuenta = '1';
         document.head.appendChild(style);
       }
@@ -66,7 +66,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20260911-fase4-estados-cuenta-v001';
+      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261001-cobranza-pagos-detalle-v001';
       script.async = true;
       script.dataset.manttoCobranzaCorEstadosCuenta = '1';
       script.addEventListener('load', () => resolve(window.ManttoCobranzaCorEstadosCuenta || null), { once:true });

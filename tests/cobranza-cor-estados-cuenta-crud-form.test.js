@@ -47,9 +47,9 @@ test('Hitos y equipos se relacionan por PPNS sin reintroducir Indice',()=>{
 test('Cache bust carga Estados de Cuenta y formulario consolidado F3',()=>{
   const loader=read('core/module-loader.js');const index=read('index.html');
   assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=[A-Za-z0-9._-]+/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-cobranza-consolidacion-f3-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-equipos-validacion100-v001/);
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260930-cobranza-consolidacion-f3-v001/);
-  assert.match(index,/core\/module-loader\.js\?v=20260930-cobranza-facturas-f4-v001/);
+  assert.match(index,/core\/module-loader\.js\?v=20261001-cobranza-pagos-detalle-v001/);
 });
 
 test('Fondo de garantia vive en General y aplica una sola configuracion a todos los hitos',()=>{

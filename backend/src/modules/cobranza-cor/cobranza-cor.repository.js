@@ -668,17 +668,23 @@ async function getHitoFacturable_cor(connection, ppns, idFuenteCor) {
   return rows[0] || null;
 }
 
-async function listAditivasEstadoCuentaFacturables_cor(connection, ppns) {
+async function listAditivasEstadoCuenta_cor(connection, ppns) {
   const [rows] = await connection.query(
     `SELECT
        a.id_aditiva_cor,
        a.pp_ns AS ppns,
        a.no_cot,
+       DATE_FORMAT(a.fecha_cot, '%Y-%m-%d') AS fecha_cot,
+       a.departamento,
+       a.equipo,
        a.descripcion,
+       a.estatus_trabajos,
        a.moneda,
        a.monto_subtotal,
        a.monto_iva,
-       a.monto_total
+       a.monto_total,
+       a.monto_pagado,
+       a.pendiente_pago
      FROM ${TABLES_COR.aditivas} a
     WHERE a.activo = 1
       AND ${usablePpnsSql_cor('a.pp_ns')}
@@ -993,7 +999,7 @@ module.exports = {
   getFacturaEstadoCuentaById_cor,
   findFacturaDuplicada_cor,
   getHitoFacturable_cor,
-  listAditivasEstadoCuentaFacturables_cor,
+  listAditivasEstadoCuenta_cor,
   getAditivaFacturable_cor,
   existeFuentePpns_cor,
   lockCrearEstadoCuentaPpns_cor,
