@@ -9,6 +9,7 @@ const MAX_RECORDS = 5000;
 const ROUTES_COR = Object.freeze({
   carga_fuente: '/api/cobranza-cor/carga/fuente',
   carga_aditivas: '/api/cobranza-cor/carga/aditivas',
+  carga_facturas: '/api/cobranza-cor/carga/facturas',
   estados_cuenta: '/api/cobranza-cor/estados-cuenta',
   estado_cuenta_detalle: '/api/cobranza-cor/estados-cuenta/:ppns',
   estado_cuenta_crear_catalogo: '/api/cobranza-cor/estados-cuenta/crear-nuevo/catalogo',
@@ -229,13 +230,14 @@ function normalizeFuente_cor(row) {
     subtotal: decimal_cor(field_cor(map, 'SUBTOTAL', 'subtotal'), 'SUBTOTAL'),
     iva: decimal_cor(field_cor(map, 'IVA', 'iva'), 'IVA'),
     total: decimal_cor(field_cor(map, 'TOTAL', 'total'), 'TOTAL'),
-    factura: cleanText_cor(field_cor(map, 'FACTURA', 'factura'), 150),
     pago_total: decimal_cor(field_cor(map, 'PAGO_TOTAL', 'pago_total'), 'PAGO (TOTAL)'),
-    estatus_factura: cleanText_cor(field_cor(map, 'ESTATUS_DE_FACTURA', 'estatus_factura'), 100),
-    fecha_pago: date_cor(field_cor(map, 'FECHA_DE_PAGO', 'fecha_pago'), 'FECHA DE PAGO'),
-    fecha_vencimiento: date_cor(field_cor(map, 'FECHA_DE_VENCIMIENTO', 'fecha_vencimiento'), 'FECHA DE VENCIMIENTO'),
+    fecha_vencimiento: date_cor(field_cor(map, 'FECHA_DE_VENCIMIENTO_HITO', 'FECHA_DE_VENCIMIENTO', 'fecha_vencimiento'), 'FECHA DE VENCIMIENTO'),
+    condiciones_pago_dias: integer_cor(
+      field_cor(map, 'CONDICIONES', 'CONDICIONES_PAGO_DIAS', 'condiciones_pago_dias'),
+      'CONDICIONES', { min: 0 }
+    ),
     dias_vencimiento: integer_cor(
-      field_cor(map, 'DIAS_DE_VENCIMEINTO', 'DIAS_DE_VENCIMIENTO', 'dias_vencimiento'),
+      field_cor(map, 'DIAS_DE_VENCIDO', 'DIAS_DE_VENCIMEINTO', 'DIAS_DE_VENCIMIENTO', 'dias_vencimiento'),
       'DIAS DE VENCIMIENTO'
     ),
     estimado_pago: cleanText_cor(field_cor(map, 'ESTIMADO_DE_PAGO', 'estimado_pago'), 100),
@@ -389,6 +391,163 @@ async function cargarAditivas_cor(payload) {
   });
 }
 
+function facturaCargaText_cor(value, fieldName, maxLength, required = false) {
+  const text = cleanText_cor(value);
+  if (required && !text) throw new Error(`${fieldName} es obligatorio.`);
+  if (text && text.length > maxLength) throw new Error(`${fieldName} excede ${maxLength} caracteres.`);
+  return text;
+}
+
+function normalizeFacturaCarga_cor(row) {
+  const ppns = facturaCargaText_cor(row.ppns, 'ppns', 100, true);
+  const factura = facturaCargaText_cor(row.factura, 'factura', 150, true);
+  const moneda = facturaCargaText_cor(row.moneda, 'moneda', 3)?.toUpperCase() || null;
+  const subtotal = decimal_cor(row.subtotal, 'subtotal');
+  const iva = decimal_cor(row.iva, 'iva');
+  const total = decimal_cor(row.total, 'total');
+  for (const [field, value] of [['subtotal', subtotal], ['iva', iva], ['total', total]]) {
+    if (value !== null && value < 0) throw new Error(`${field} no puede ser negativo.`);
+  }
+  if (subtotal !== null && iva !== null && total !== null && Math.abs(total - (subtotal + iva)) > 0.05) {
+    throw new Error('total no coincide con subtotal + iva.');
+  }
+  if (row.tipo_concepto !== undefined && canonicalText_cor(row.tipo_concepto) !== 'HITO') {
+    throw new Error('tipo_concepto debe ser HITO.');
+  }
+  if (row.origen_registro !== undefined && canonicalText_cor(row.origen_registro) !== 'LEGACY_HITO') {
+    throw new Error('origen_registro debe ser LEGACY_HITO.');
+  }
+  if (row.activo !== undefined && row.activo !== true && row.activo !== 1 &&
+      !['1', 'TRUE'].includes(String(row.activo).trim().toUpperCase())) {
+    throw new Error('activo debe ser 1 o true.');
+  }
+  return {
+    ppns,
+    porcentaje: percentage01_cor(row.porcentaje, 'porcentaje'),
+    condicion: facturaCargaText_cor(row.condicion, 'condicion', 500),
+    moneda,
+    subtotal,
+    iva,
+    total,
+    factura,
+    estatus_factura_origen: cleanText_cor(row.estatus_factura_origen)
+  };
+}
+
+async function cargarFacturas_cor(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Array.isArray(payload.registros)) {
+    throw badRequest('El cuerpo debe contener registros: [...].');
+  }
+  const input = payload.registros;
+  if (!input.length) throw badRequest('No se recibieron registros para cargar.');
+  if (input.length > MAX_RECORDS) throw badRequest(`La peticion excede el maximo de ${MAX_RECORDS} registros.`);
+
+  const normalized = normalizeRows_cor(input, normalizeFacturaCarga_cor);
+  const rejected = normalized.rejected.map((error) => ({
+    ...error,
+    ppns: cleanText_cor(input[error.fila - 2]?.ppns),
+    factura: cleanText_cor(input[error.fila - 2]?.factura),
+    code: 'COBRANZA_FACTURA_REGISTRO_INVALIDO',
+    detalles: null
+  }));
+  let inserted = 0;
+  let sinVinculoHito = 0;
+  let vinculoHitoAmbiguo = 0;
+  let processedBatches = 0;
+  const connection = await repository.getConnection_cor();
+  try {
+    for (const batch of splitBatches_cor(normalized.valid)) {
+      await connection.beginTransaction();
+      try {
+        for (let position = 0; position < batch.length; position += 1) {
+          const item = batch[position];
+          const savepoint = `cob_cor_facturas_${position}`;
+          await connection.query(`SAVEPOINT ${savepoint}`);
+          try {
+            const hitos = await repository.findHitosFacturaCarga_cor(connection, item.record);
+            if (hitos.length !== 1) {
+              const code = hitos.length ? 'COBRANZA_FACTURA_HITO_AMBIGUO' : 'COBRANZA_FACTURA_HITO_NO_ENCONTRADO';
+              const error = new Error(hitos.length ? 'Mas de un Hito coincide con la Factura.' : 'No se encontro un Hito para la Factura.');
+              error.code = code;
+              if (hitos.length) error.detalles = { id_fuente_cor_candidatos: hitos.map((hito) => hito.id_fuente_cor) };
+              throw error;
+            }
+            const hito = hitos[0];
+            const duplicate = await repository.findFacturaDuplicada_cor(
+              connection, item.record.ppns, 'HITO', hito.id_fuente_cor, item.record.factura
+            );
+            if (duplicate) {
+              const error = new Error('La Factura ya esta relacionada con este Hito.');
+              error.code = 'COBRANZA_FACTURA_DUPLICADA';
+              error.detalles = { id_fuente_cor: hito.id_fuente_cor, id_factura_cor: duplicate.id_factura_cor };
+              throw error;
+            }
+            await repository.insertRecord_cor(connection, repository.TABLES_COR.facturas, {
+              ppns: item.record.ppns,
+              tipo_concepto: 'HITO',
+              id_fuente_cor: hito.id_fuente_cor,
+              id_aditiva_cor: null,
+              factura: item.record.factura,
+              fecha_factura: null,
+              moneda: cleanText_cor(hito.moneda, 3)?.toUpperCase() || null,
+              subtotal: hito.subtotal,
+              iva: hito.iva,
+              total: hito.total,
+              estatus_factura: 'No pagado',
+              fecha_vencimiento: null,
+              estatus_cobranza: canonicalText_cor(item.record.estatus_factura_origen) === 'EN COBRANZA' ? 'En Cobranza' : null,
+              origen_registro: 'LEGACY_HITO',
+              activo: 1,
+              created_by: null,
+              updated_by: null
+            });
+            await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+            inserted += 1;
+          } catch (rowError) {
+            await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+            if (rowError.code === 'COBRANZA_FACTURA_HITO_NO_ENCONTRADO') sinVinculoHito += 1;
+            if (rowError.code === 'COBRANZA_FACTURA_HITO_AMBIGUO') vinculoHitoAmbiguo += 1;
+            rejected.push({
+              fila: item.fila,
+              ppns: item.record.ppns,
+              factura: item.record.factura,
+              motivo: rowError.message,
+              code: rowError.code || 'COBRANZA_FACTURA_INSERCION_FALLIDA',
+              detalles: rowError.detalles || null
+            });
+          }
+        }
+        await connection.commit();
+        processedBatches += 1;
+      } catch (error) {
+        await connection.rollback();
+        error.message = `Fallo estructuralmente el bloque ${processedBatches + 1}: ${error.message}`;
+        throw error;
+      }
+    }
+  } finally {
+    connection.release();
+  }
+  return {
+    ok: true,
+    source: 'aiven',
+    domain: 'CORELLIAN',
+    tabla: repository.TABLES_COR.facturas,
+    modo: 'insert_only',
+    relacion_main: 'HITO',
+    total_recibidos: input.length,
+    insertados: inserted,
+    rechazados: rejected.length,
+    vinculados_hito: inserted,
+    sin_vinculo_hito: sinVinculoHito,
+    vinculo_hito_ambiguo: vinculoHitoAmbiguo,
+    bloques_procesados: processedBatches,
+    tamano_bloque: BATCH_SIZE,
+    errores: rejected
+  };
+}
+
 function numberOrNull_cor(value) {
   if (value === undefined || value === null || value === '') return null;
   const parsed = Number(value);
@@ -516,6 +675,7 @@ function serializeFuenteEstadoCuenta_cor(row) {
     estatus_factura: cleanText_cor(row?.estatus_factura),
     fecha_pago: cleanText_cor(row?.fecha_pago),
     fecha_vencimiento: cleanText_cor(row?.fecha_vencimiento),
+    condiciones_pago_dias: integerOrNull_cor(row?.condiciones_pago_dias),
     dias_vencimiento: integerOrNull_cor(row?.dias_vencimiento),
     estimado_pago: cleanText_cor(row?.estimado_pago),
     estatus_vencimiento: cleanText_cor(row?.estatus_vencimiento),
@@ -1139,6 +1299,7 @@ function normalizeEstadoCuentaMutation_cor(payload, mode) {
       iva,
       total,
       fecha_vencimiento: date_cor(raw?.fecha_vencimiento, `Fecha de vencimiento del hito ${fila}`),
+      condiciones_pago_dias: integer_cor(raw?.condiciones_pago_dias, `Condiciones de pago del hito ${fila}`, { min: 0 }),
       dias_vencimiento: integer_cor(raw?.dias_vencimiento, `Días de vencimiento del hito ${fila}`),
       estimado_pago: cleanText_cor(raw?.estimado_pago, 100),
       fecha_programada: date_cor(raw?.fecha_programada, `Fecha programada del hito ${fila}`),
@@ -1236,6 +1397,7 @@ function fuenteMutationRecord_cor(input, hito) {
     iva: hito.iva,
     total: hito.total,
     fecha_vencimiento: hito.fecha_vencimiento,
+    condiciones_pago_dias: hito.condiciones_pago_dias,
     dias_vencimiento: hito.dias_vencimiento,
     estimado_pago: hito.estimado_pago,
     orden_hito: hito.orden_hito,
@@ -1942,6 +2104,7 @@ module.exports = {
   ROUTES_COR,
   cargarFuente_cor,
   cargarAditivas_cor,
+  cargarFacturas_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
   catalogoCrearEstadoCuenta_cor,

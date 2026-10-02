@@ -44,6 +44,7 @@ function rejectViewerMutation_cor(req, res, next) {
 
 router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
+router.post('/carga/facturas', requireCobranzaCorIntegration, controller.cargarFacturas_cor);
 
 // Carga de Pagos desde Hoja SB: autentica la integracion y persiste por id_pago.
 router.post('/carga/pagos', requireCobranzaCorIntegration, pagosController.cargarPagos_cor);

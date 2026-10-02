@@ -115,6 +115,14 @@ async function crearFacturaEstadoCuenta_cor(req, res, next) {
   }
 }
 
+async function cargarFacturas_cor(req, res, next) {
+  try {
+    return res.status(200).json(await service.cargarFacturas_cor(req.body || {}));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function guardarRelacionPagoFacturaEstadoCuenta_cor(req, res, next) {
   try {
     return res.status(200).json(await service.guardarRelacionPagoFacturaEstadoCuenta_cor(
@@ -196,6 +204,7 @@ async function adeudosContractuales_cor(_req, res, next) {
 module.exports = {
   cargarFuente_cor,
   cargarAditivas_cor,
+  cargarFacturas_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
   catalogoCrearEstadoCuenta_cor,

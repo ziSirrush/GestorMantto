@@ -28,6 +28,7 @@ const FUENTE_MUTABLE_COLUMNS_COR = Object.freeze([
   'estatus_factura',
   'fecha_pago',
   'fecha_vencimiento',
+  'condiciones_pago_dias',
   'dias_vencimiento',
   'estimado_pago',
   'estatus_vencimiento',
@@ -391,6 +392,7 @@ async function listFuenteEstadoCuenta_cor(connection, ppns) {
        f.estatus_factura,
        DATE_FORMAT(f.fecha_pago, '%Y-%m-%d') AS fecha_pago,
        DATE_FORMAT(f.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
+       f.condiciones_pago_dias,
        f.dias_vencimiento,
        f.estimado_pago,
        f.estatus_vencimiento,
@@ -644,6 +646,35 @@ async function findFacturaDuplicada_cor(connection, ppns, tipoConcepto, idConcep
     [ppns, tipoConcepto, idConcepto, factura]
   );
   return rows[0] || null;
+}
+
+async function findHitosFacturaCarga_cor(connection, input) {
+  const textEquals = (column) =>
+    `NULLIF(UPPER(TRIM(${column})), '') <=> NULLIF(UPPER(TRIM(?)), '')`;
+  const numberEquals = (column, tolerance) =>
+    `((${column} IS NULL AND ? IS NULL) OR (${column} IS NOT NULL AND ? IS NOT NULL AND ABS(${column} - ?) <= ${tolerance}))`;
+  const [rows] = await connection.query(
+    `SELECT f.id_fuente_cor, f.moneda, f.subtotal, f.iva, f.total
+       FROM ${TABLES_COR.fuente} f
+      WHERE f.activo = 1
+        AND ${textEquals('f.id_proyecto_origen')}
+        AND ${numberEquals('f.porcentaje', '0.000001')}
+        AND ${textEquals('f.condicion')}
+        AND ${textEquals('f.moneda')}
+        AND ${numberEquals('f.subtotal', '0.005')}
+        AND ${numberEquals('f.iva', '0.005')}
+        AND ${numberEquals('f.total', '0.005')}
+      ORDER BY f.id_fuente_cor ASC`,
+    [
+      input.ppns,
+      input.porcentaje, input.porcentaje, input.porcentaje,
+      input.condicion, input.moneda,
+      input.subtotal, input.subtotal, input.subtotal,
+      input.iva, input.iva, input.iva,
+      input.total, input.total, input.total
+    ]
+  );
+  return rows;
 }
 
 async function getHitoFacturable_cor(connection, ppns, idFuenteCor) {
@@ -998,6 +1029,7 @@ module.exports = {
   listFacturasEstadoCuenta_cor,
   getFacturaEstadoCuentaById_cor,
   findFacturaDuplicada_cor,
+  findHitosFacturaCarga_cor,
   getHitoFacturable_cor,
   listAditivasEstadoCuenta_cor,
   getAditivaFacturable_cor,
