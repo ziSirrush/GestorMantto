@@ -14,15 +14,10 @@ const {
 
 const router = express.Router();
 
-// Cobranza COR reuses the same M2M credentials already approved for Ventas.
-// No new integration id/secret is introduced by this FIX.
 const requireCobranzaCorIntegration = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID', {
   whenDisabled: [requireAuth, requireHistoricalSyncEnabled]
 });
 
-// CORELLIAN / COBRANZA keeps the existing central functional + information guard.
-// Repository-level filtering now resolves each PPNS through ins_fl.id_proyecto and
-// checks SUP/ASESOR against the centrally-resolved visible user set.
 const requireEstadosCuentaCor = humanInformationGuard_gnral({
   permissionCode: 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
   domain: 'CORELLIAN',
@@ -35,9 +30,6 @@ const requireAditivasCor = humanInformationGuard_gnral({
   groupingCode: 'COBRANZA'
 });
 
-// FASE 2 / Modulo Pagos: mientras Pago -> PPNS no este resuelto, la lectura
-// humana del universo crudo de pagos solo se permite con alcance completo de
-// CORELLIAN. Esto evita exponer filas sin una llave de alcance resoluble.
 const requirePagosCor = humanInformationGuard_gnral({
   permissionCode: 'COBRANZA_PAGOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
   domain: 'CORELLIAN',
@@ -59,15 +51,12 @@ function rejectViewerMutation_cor(req, res, next) {
 router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
 router.post('/carga/facturas', requireCobranzaCorIntegration, controller.cargarFacturas_cor);
-
-// Carga de Pagos desde Hoja SB: autentica la integracion y persiste por id_pago.
 router.post('/carga/pagos', requireCobranzaCorIntegration, pagosController.cargarPagos_cor);
 
-// Modulo Pagos: lectura general + relacion manual Pago -> Proyecto/PPNS.
-// La bandeja general conserva alcance completo porque tambien contiene pagos aun sin proyecto.
+// Modulo Pagos: toda la operacion se realiza desde la tabla main.
 router.get('/pagos', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.listarPagos_cor);
 router.get('/pagos/proyectos', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.listarProyectos_cor);
-router.get('/pagos/:idPagoCor', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.detallePago_cor);
+router.put('/pagos/proyecto/masivo', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.asignarProyectoMasivo_cor);
 router.put('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.asignarProyecto_cor);
 router.delete('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.quitarProyecto_cor);
 

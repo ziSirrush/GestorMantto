@@ -1,0 +1,32 @@
+FIX COBRANZA COR PAGOS MAIN + ASIGNACION MASIVA V001
+Fecha: 2026-10-02
+Base: 8addea56c10a85f417e9aab2f941e6412c1077af
+
+VALIDACIONES
+- node --check repository: PASS
+- node --check service: PASS
+- node --check controller: PASS
+- node --check routes: PASS
+- node --check frontend Pagos: PASS
+- node --check module-loader: PASS
+- pruebas dirigidas: 7/7 PASS
+- detalle Pago en frontend: ELIMINADO
+- GET /pagos/:idPagoCor: ELIMINADO
+- list de proyectos: FUENTE AGRUPADA
+- origen: cobranza_fuente_cor
+- agrupacion: id_proyecto_origen / PPNS
+- asignacion individual desde tabla main: IMPLEMENTADA
+- asignacion masiva: IMPLEMENTADA
+- limite masivo: 100 Pagos
+- transaccion all-or-nothing: IMPLEMENTADA
+- viewer read-only: CONSERVADO
+- SQL: 0
+- .patch: 0
+- cambios de esquema: 0
+
+NO EJECUTADO
+- push GitHub
+- deploy Azure
+- deploy frontend
+- escritura directa Aiven
+- E2E desplegado

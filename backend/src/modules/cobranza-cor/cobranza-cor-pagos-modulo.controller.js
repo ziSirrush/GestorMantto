@@ -25,16 +25,6 @@ async function listarPagos_cor(req, res, next) {
   }
 }
 
-async function detallePago_cor(req, res, next) {
-  try {
-    return res.status(200).json(
-      await service.detallePago_cor(req.params?.idPagoCor, req.informationAccess)
-    );
-  } catch (error) {
-    return sendKnownError(error, res, next);
-  }
-}
-
 async function listarProyectos_cor(req, res, next) {
   try {
     return res.status(200).json(
@@ -55,6 +45,16 @@ async function asignarProyecto_cor(req, res, next) {
   }
 }
 
+async function asignarProyectoMasivo_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await service.asignarProyectoMasivo_cor(req.body || {}, req.informationAccess)
+    );
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
 async function quitarProyecto_cor(req, res, next) {
   try {
     return res.status(200).json(
@@ -67,8 +67,8 @@ async function quitarProyecto_cor(req, res, next) {
 
 module.exports = {
   listarPagos_cor,
-  detallePago_cor,
   listarProyectos_cor,
   asignarProyecto_cor,
+  asignarProyectoMasivo_cor,
   quitarProyecto_cor
 };
