@@ -12,6 +12,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma aplicada', async () => {
   const relations = [];
   const calls = [];
+  const statusUpdates = [];
   const connection = {
     beginTransaction: async () => calls.push('begin'),
     commit: async () => calls.push('commit'),
@@ -20,7 +21,11 @@ test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma apli
   };
   const repository = {
     getConnection_cor: async () => connection,
-    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'FUENTE-123', registros_estado_cuenta: 1 })
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'FUENTE-123', registros_estado_cuenta: 1 }),
+    updateFacturaEstatus_cor: async (_connection, id, ppns, status) => {
+      calls.push('status');
+      statusUpdates.push({ id, ppns, status });
+    }
   };
   const pagosRepository = {
     lockPagoEstadoCuenta_cor: async (_connection, id, ppns) => {
@@ -29,7 +34,7 @@ test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma apli
     },
     lockFacturaEstadoCuenta_cor: async (_connection, id, ppns) => {
       assert.equal(ppns, 'FUENTE-123');
-      return [1, 2, 3].includes(id) ? { id_factura_cor: id } : null;
+      return [1, 2, 3].includes(id) ? { id_factura_cor: id, total: { 1: 40, 2: 60, 3: 100 }[id] } : null;
     },
     listRelacionesPagoForUpdate_cor: async (_connection, id) => relations.filter((row) => row.id_pago_cor === id),
     listRelacionesFacturaForUpdate_cor: async (_connection, id) => relations.filter((row) => row.id_factura_cor === id),
@@ -68,6 +73,15 @@ test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma apli
   assert.equal(relations.find((row) => row.id_factura_cor === 1).id_pago_cor, 1002);
   assert.equal(calls.filter((call) => call === 'commit').length, 4);
   assert.equal(calls.filter((call) => call === 'rollback').length, 2);
+  assert.deepEqual(statusUpdates.map((item) => [item.id, item.ppns, item.status]), [
+    [1, 'FUENTE-123', 'Pagado'],
+    [2, 'FUENTE-123', 'Pagado'],
+    [1, 'FUENTE-123', 'No pagado'],
+    [1, 'FUENTE-123', 'No pagado']
+  ]);
+  for (const index of calls.flatMap((item, position) => item === 'status' ? [position] : [])) {
+    assert.equal(calls[index + 1], 'commit');
+  }
 });
 
 test('la tabla de Pagos muestra el diseño pedido y omite Facturas ya asignadas del selector', async () => {

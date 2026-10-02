@@ -473,15 +473,6 @@ async function cargarFacturas_cor(payload) {
               throw error;
             }
             const hito = hitos[0];
-            const duplicate = await repository.findFacturaDuplicada_cor(
-              connection, item.record.ppns, 'HITO', hito.id_fuente_cor, item.record.factura
-            );
-            if (duplicate) {
-              const error = new Error('La Factura ya esta relacionada con este Hito.');
-              error.code = 'COBRANZA_FACTURA_DUPLICADA';
-              error.detalles = { id_fuente_cor: hito.id_fuente_cor, id_factura_cor: duplicate.id_factura_cor };
-              throw error;
-            }
             await repository.insertRecord_cor(connection, repository.TABLES_COR.facturas, {
               ppns: item.record.ppns,
               tipo_concepto: 'HITO',
@@ -571,6 +562,20 @@ function roundAmount_cor(value) {
   return Math.round((number + Number.EPSILON) * 100) / 100;
 }
 
+const PAYMENT_TOLERANCE_COR = 0.005;
+
+function facturaPaymentState_cor(totalValue, appliedValue) {
+  const total = numberOrNull_cor(totalValue);
+  const applied = numberOrNull_cor(appliedValue) ?? 0;
+  const paid = applied > 0 && total !== null && applied >= total - PAYMENT_TOLERANCE_COR;
+  return {
+    importe_pagado: roundAmount_cor(applied),
+    saldo: total === null ? null : Math.max(roundAmount_cor(total - applied), 0),
+    estatus_factura: paid ? 'Pagado' : 'No pagado',
+    es_pagado: paid
+  };
+}
+
 const IVA_GENERAL_ALLOWED_COR = Object.freeze([0, 0.08, 0.16]);
 const PARTIDA_CURRENCIES_COR = new Set(['MXN', 'USD', 'EUR']);
 
@@ -590,13 +595,6 @@ function normalizeIvaGeneralPct_cor(value, fieldName = 'IVA general') {
 
 function canonicalText_cor(value) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase().replace(/\s+/g, ' ');
-}
-
-function isPaidStatus_cor(value) {
-  const status = canonicalText_cor(value);
-  if (!status) return false;
-  if (status.startsWith('NO PAGAD') || status.startsWith('NO COBRAD') || status.startsWith('NO LIQUIDAD')) return false;
-  return ['PAGADO', 'PAGADA', 'COBRADO', 'COBRADA', 'LIQUIDADO', 'LIQUIDADA'].includes(status);
 }
 
 function resolveVisibleUserIds_cor(informationAccess) {
@@ -648,12 +646,9 @@ function serializeEstadoCuentaMain_cor(row) {
   };
 }
 
-function serializeFuenteEstadoCuenta_cor(row) {
+function serializeFuenteEstadoCuenta_cor(row, applied = 0) {
   const total = numberOrNull_cor(row?.total);
-  const pagoTotal = numberOrNull_cor(row?.pago_total);
-  const pagado = isPaidStatus_cor(row?.estatus_factura);
-  const pagoContabilizado = pagado ? (pagoTotal !== null ? pagoTotal : (total !== null ? total : 0)) : 0;
-  const pendiente = total === null ? null : Math.max(roundAmount_cor(total - pagoContabilizado), 0);
+  const payment = facturaPaymentState_cor(total, applied);
 
   return {
     id_fuente_cor: integerOrNull_cor(row?.id_fuente_cor),
@@ -671,8 +666,8 @@ function serializeFuenteEstadoCuenta_cor(row) {
     iva: numberOrNull_cor(row?.iva),
     total,
     factura: cleanText_cor(row?.factura),
-    pago_total: pagoTotal,
-    estatus_factura: cleanText_cor(row?.estatus_factura),
+    pago_total: payment.importe_pagado,
+    estatus_factura: payment.estatus_factura,
     fecha_pago: cleanText_cor(row?.fecha_pago),
     fecha_vencimiento: cleanText_cor(row?.fecha_vencimiento),
     condiciones_pago_dias: integerOrNull_cor(row?.condiciones_pago_dias),
@@ -684,9 +679,9 @@ function serializeFuenteEstadoCuenta_cor(row) {
     fecha_notificada: cleanText_cor(row?.fecha_notificada),
     estatus_hito: cleanText_cor(row?.estatus_hito),
     anio_proyecto: integerOrNull_cor(row?.anio_proyecto),
-    es_pagado: pagado,
-    pago_contabilizado: roundAmount_cor(pagoContabilizado),
-    pendiente_calculado: pendiente
+    es_pagado: payment.es_pagado,
+    pago_contabilizado: payment.importe_pagado,
+    pendiente_calculado: payment.saldo
   };
 }
 
@@ -774,14 +769,38 @@ function buildEstadoCuentaQuality_cor(rows) {
 
 function normalizeEstatusFacturaRegistro_cor(value) {
   const normalized = canonicalText_cor(value);
-  if (!normalized || normalized === 'NULL') return null;
+  if (!normalized || normalized === 'NULL') return 'No pagado';
   if (normalized === 'NO PAGADO') return 'No pagado';
-  if (normalized === 'PAGADO') return 'Pagado';
-  throw badRequest('Estatus factura debe ser No pagado, Pagado o quedar vacio.');
+  if (normalized === 'PAGADO') {
+    throw badRequest('El estatus Pagado se determina automaticamente a partir de los Pagos aplicados a la Factura.');
+  }
+  throw badRequest('Estatus factura debe ser No pagado o quedar vacio.');
 }
 
-function serializeFacturaEstadoCuenta_cor(row) {
+function buildPaymentMaps_cor(facturaRows, relacionPagoRows) {
+  const facturaPorId = new Map();
+  for (const row of facturaRows) {
+    const id = integerOrNull_cor(row?.id_factura_cor);
+    if (id !== null) facturaPorId.set(id, row);
+  }
+  const aplicadoPorFactura = new Map();
+  for (const row of relacionPagoRows) {
+    const id = integerOrNull_cor(row?.id_factura_cor);
+    if (id === null || !facturaPorId.has(id)) continue;
+    aplicadoPorFactura.set(id, (aplicadoPorFactura.get(id) || 0) + (numberOrNull_cor(row?.importe_aplicado) ?? 0));
+  }
+  const aplicadoPorHito = new Map();
+  for (const [idFactura, factura] of facturaPorId) {
+    const idHito = integerOrNull_cor(factura?.id_fuente_cor);
+    if (canonicalText_cor(factura?.tipo_concepto) !== 'HITO' || idHito === null) continue;
+    aplicadoPorHito.set(idHito, (aplicadoPorHito.get(idHito) || 0) + (aplicadoPorFactura.get(idFactura) || 0));
+  }
+  return { aplicadoPorFactura, aplicadoPorHito };
+}
+
+function serializeFacturaEstadoCuenta_cor(row, applied = 0) {
   const tipo = cleanText_cor(row?.tipo_concepto)?.toUpperCase() || null;
+  const payment = facturaPaymentState_cor(row?.total, applied);
   let concepto = null;
   if (tipo === 'HITO') {
     const orden = integerOrNull_cor(row?.orden_hito);
@@ -804,7 +823,9 @@ function serializeFacturaEstadoCuenta_cor(row) {
     subtotal: numberOrNull_cor(row?.subtotal),
     iva: numberOrNull_cor(row?.iva),
     total: numberOrNull_cor(row?.total),
-    estatus_factura: cleanText_cor(row?.estatus_factura),
+    importe_pagado: payment.importe_pagado,
+    saldo: payment.saldo,
+    estatus_factura: payment.estatus_factura,
     fecha_vencimiento: cleanText_cor(row?.fecha_vencimiento),
     estatus_cobranza: cleanText_cor(row?.estatus_cobranza),
     origen_registro: cleanText_cor(row?.origen_registro),
@@ -874,11 +895,11 @@ function serializePagoEstadoCuenta_cor(row, relaciones) {
 function attachFacturaRefsToHitos_cor(hitos, facturas) {
   const byHito = new Map();
   (Array.isArray(facturas) ? facturas : []).forEach((row) => {
-    const factura = serializeFacturaEstadoCuenta_cor(row);
-    if (factura.tipo_concepto !== 'HITO' || !factura.id_fuente_cor || !factura.factura) return;
-    if (!byHito.has(factura.id_fuente_cor)) byHito.set(factura.id_fuente_cor, []);
-    const bucket = byHito.get(factura.id_fuente_cor);
-    if (!bucket.includes(factura.factura)) bucket.push(factura.factura);
+    const idHito = integerOrNull_cor(row?.id_fuente_cor);
+    const folio = cleanText_cor(row?.factura);
+    if (canonicalText_cor(row?.tipo_concepto) !== 'HITO' || idHito === null || !folio) return;
+    if (!byHito.has(idHito)) byHito.set(idHito, []);
+    byHito.get(idHito).push(folio);
   });
   return (Array.isArray(hitos) ? hitos : []).map((row) => {
     const refs = byHito.get(row.id_fuente_cor) || [];
@@ -962,8 +983,13 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
       pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
     ]);
-    const facturas = facturaRows.map(serializeFacturaEstadoCuenta_cor);
-    const detailRows = attachFacturaRefsToHitos_cor(sourceRows.map(serializeFuenteEstadoCuenta_cor), facturaRows);
+    const { aplicadoPorFactura, aplicadoPorHito } = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
+    const facturas = facturaRows.map((item) => serializeFacturaEstadoCuenta_cor(
+      item, aplicadoPorFactura.get(integerOrNull_cor(item.id_factura_cor)) || 0
+    ));
+    const detailRows = attachFacturaRefsToHitos_cor(sourceRows.map((item) => serializeFuenteEstadoCuenta_cor(
+      item, aplicadoPorHito.get(integerOrNull_cor(item.id_fuente_cor)) || 0
+    )), facturaRows);
     const summary = buildEstadoCuentaSummary_cor(detailRows);
     return {
       ok: true,
@@ -1116,18 +1142,20 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
     const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
 
-    const [sourceRows, equipmentRows, logOpsRows, relationRows, partidaRows, facturaRows] = await Promise.all([
+    const [sourceRows, equipmentRows, logOpsRows, relationRows, partidaRows, facturaRows, relacionPagoRows] = await Promise.all([
       repository.listFuenteEstadoCuenta_cor(connection, ppns),
       repository.listCrearEstadoCuentaEquipos_cor(connection, ppns),
       repository.listCrearEstadoCuentaLogOps_cor(connection, ppns),
       repository.listEquiposEstadoCuenta_cor(connection, ppns),
       repository.listPartidasEstadoCuenta_cor(connection, ppns),
-      repository.listFacturasEstadoCuenta_cor(connection, ppns)
+      repository.listFacturasEstadoCuenta_cor(connection, ppns),
+      pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
     ]);
     if (!sourceRows.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
 
     const project = serializeEstadoCuentaMain_cor(row);
     const ivaGeneral = resolveIvaGeneralFromRows_cor(sourceRows);
+    const { aplicadoPorHito } = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
     return {
       ok: true,
       source: 'aiven',
@@ -1139,7 +1167,9 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
         ...project,
         equipos_total: equipmentRows.length
       },
-      hitos: attachFacturaRefsToHitos_cor(sourceRows.map(serializeFuenteEstadoCuenta_cor), facturaRows),
+      hitos: attachFacturaRefsToHitos_cor(sourceRows.map((item) => serializeFuenteEstadoCuenta_cor(
+        item, aplicadoPorHito.get(integerOrNull_cor(item.id_fuente_cor)) || 0
+      )), facturaRows),
       iva_general_pct: ivaGeneral.value,
       iva_general_mixed: ivaGeneral.mixed,
       partidas: partidaRows.map(serializeEstadoCuentaPartida_cor),
@@ -1693,7 +1723,7 @@ async function crearFacturaEstadoCuenta_cor(ppnsValue, payload, informationAcces
         subtotal: input.subtotal,
         iva: input.iva,
         total: input.total,
-        estatus_factura: input.estatus_factura,
+        estatus_factura: 'No pagado',
         fecha_vencimiento: input.fecha_vencimiento,
         estatus_cobranza: null,
         origen_registro: 'MANUAL',
@@ -1730,6 +1760,13 @@ function importeAplicadoCentavos_cor(value) {
   const cents = Math.round(Number(raw) * 100);
   if (!Number.isSafeInteger(cents) || cents <= 0) throw badRequest('Importe aplicado está fuera del rango permitido.');
   return cents;
+}
+
+async function syncFacturaEstatus_cor(connection, idFacturaCor, ppns, total) {
+  const relaciones = await pagosRepository.listRelacionesFacturaForUpdate_cor(connection, idFacturaCor);
+  const aplicado = relaciones.reduce((sum, item) => sum + (numberOrNull_cor(item.importe_aplicado) ?? 0), 0);
+  const { estatus_factura } = facturaPaymentState_cor(total, aplicado);
+  await repository.updateFacturaEstatus_cor(connection, idFacturaCor, ppns, estatus_factura);
 }
 
 async function guardarRelacionPagoFacturaEstadoCuenta_cor(ppnsValue, idPagoValue, idFacturaValue, payload, informationAccess) {
@@ -1771,6 +1808,7 @@ async function guardarRelacionPagoFacturaEstadoCuenta_cor(ppnsValue, idPagoValue
       await pagosRepository.guardarRelacionPagoFactura_cor(
         connection, idPagoCor, idFacturaCor, cents / 100, relacionesFactura.length > 0
       );
+      await syncFacturaEstatus_cor(connection, idFacturaCor, ppnsFuente, factura.total);
       await connection.commit();
       return { ok: true, ppns: ppnsFuente, id_pago_cor: idPagoCor, id_factura_cor: idFacturaCor, importe_aplicado: cents / 100 };
     } catch (error) {
@@ -1802,6 +1840,7 @@ async function quitarRelacionPagoFacturaEstadoCuenta_cor(ppnsValue, idPagoValue,
         throw httpError(404, 'La Factura no está asignada a este Pago.');
       }
       await pagosRepository.quitarRelacionPagoFactura_cor(connection, idPagoCor, idFacturaCor);
+      await syncFacturaEstatus_cor(connection, idFacturaCor, ppnsFuente, factura.total);
       await connection.commit();
       return { ok: true, ppns: ppnsFuente, id_pago_cor: idPagoCor, id_factura_cor: idFacturaCor };
     } catch (error) {

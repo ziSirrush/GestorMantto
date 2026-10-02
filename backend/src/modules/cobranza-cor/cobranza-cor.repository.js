@@ -648,6 +648,17 @@ async function findFacturaDuplicada_cor(connection, ppns, tipoConcepto, idConcep
   return rows[0] || null;
 }
 
+async function updateFacturaEstatus_cor(connection, idFacturaCor, ppns, estatus) {
+  await connection.query(
+    `UPDATE ${TABLES_COR.facturas}
+        SET estatus_factura = ?
+      WHERE id_factura_cor = ?
+        AND activo = 1
+        AND ${normalizedKeySql_cor('ppns')} = ${normalizedKeySql_cor('?')}`,
+    [estatus, idFacturaCor, ppns]
+  );
+}
+
 async function findHitosFacturaCarga_cor(connection, input) {
   const textEquals = (column) =>
     `NULLIF(UPPER(TRIM(${column})), '') <=> NULLIF(UPPER(TRIM(?)), '')`;
@@ -1029,6 +1040,7 @@ module.exports = {
   listFacturasEstadoCuenta_cor,
   getFacturaEstadoCuentaById_cor,
   findFacturaDuplicada_cor,
+  updateFacturaEstatus_cor,
   findHitosFacturaCarga_cor,
   getHitoFacturable_cor,
   listAditivasEstadoCuenta_cor,

@@ -14,18 +14,19 @@ require.cache[dbPath] = {
 };
 
 const repository = require('../backend/src/modules/cobranza-cor/cobranza-cor.repository');
+const pagosRepository = require('../backend/src/modules/cobranza-cor/cobranza-cor-pagos.repository');
 const service = require('../backend/src/modules/cobranza-cor/cobranza-cor.service');
 const controller = require('../backend/src/modules/cobranza-cor/cobranza-cor.controller');
 const { requireIntegrationAuthFor } = require('../backend/src/middleware/integration-auth.middleware');
 
-function withRepositoryStub(stubs, run) {
+function withRepositoryStub(stubs, run, target = repository) {
   const originals = new Map();
   for (const [name, implementation] of Object.entries(stubs)) {
-    originals.set(name, repository[name]);
-    repository[name] = implementation;
+    originals.set(name, target[name]);
+    target[name] = implementation;
   }
   return Promise.resolve().then(run).finally(() => {
-    for (const [name, implementation] of originals) repository[name] = implementation;
+    for (const [name, implementation] of originals) target[name] = implementation;
   });
 }
 
@@ -111,7 +112,7 @@ test('Crear y editar Estado de Cuenta guardan condiciones de pago y rechazan val
   assert.equal(updated[0].record.condiciones_pago_dias, 0);
 });
 
-test('Factura M2M vincula por Hito, rechaza faltantes/ambiguos/duplicados y permite mismo folio en otro Hito', async () => {
+test('Factura M2M vincula por Hito, conserva duplicados y rechaza solo faltantes o ambiguos', async () => {
   const connection = fakeConnection();
   const inserted = [];
   const hits = {
@@ -122,9 +123,7 @@ test('Factura M2M vincula por Hito, rechaza faltantes/ambiguos/duplicados y perm
   await withRepositoryStub({
     getConnection_cor: async () => connection,
     findHitosFacturaCarga_cor: async (_connection, record) => hits[record.condicion] || [],
-    findFacturaDuplicada_cor: async (_connection, _ppns, _tipo, id, factura) =>
-      inserted.find((row) => row.id_fuente_cor === id && row.factura === factura)
-        ? { id_factura_cor: 99 } : null,
+    findFacturaDuplicada_cor: async () => assert.fail('M2M no debe buscar duplicados.'),
     insertRecord_cor: async (_connection, table, record) => {
       assert.equal(table, repository.TABLES_COR.facturas);
       inserted.push(record);
@@ -139,17 +138,16 @@ test('Factura M2M vincula por Hito, rechaza faltantes/ambiguos/duplicados y perm
       { ...facturaBase, condicion: 'Segunda etapa' }
     ] });
     assert.equal(response.total_recibidos, 6);
-    assert.equal(response.insertados, 3);
-    assert.equal(response.rechazados, 3);
-    assert.equal(response.vinculados_hito, 3);
+    assert.equal(response.insertados, 4);
+    assert.equal(response.rechazados, 2);
+    assert.equal(response.vinculados_hito, 4);
     assert.equal(response.sin_vinculo_hito, 1);
     assert.equal(response.vinculo_hito_ambiguo, 1);
     assert.equal(response.bloques_procesados, 1);
     assert.equal(response.tamano_bloque, 300);
     assert.deepEqual(response.errores.map((item) => item.code), [
       'COBRANZA_FACTURA_HITO_NO_ENCONTRADO',
-      'COBRANZA_FACTURA_HITO_AMBIGUO',
-      'COBRANZA_FACTURA_DUPLICADA'
+      'COBRANZA_FACTURA_HITO_AMBIGUO'
     ]);
     assert.deepEqual(response.errores[1].detalles.id_fuente_cor_candidatos, [13, 14]);
     assert.equal(response.errores[0].fila, 4);
@@ -161,10 +159,184 @@ test('Factura M2M vincula por Hito, rechaza faltantes/ambiguos/duplicados y perm
   assert.equal(inserted[0].origen_registro, 'LEGACY_HITO');
   assert.equal(inserted[1].estatus_factura, 'No pagado');
   assert.equal(inserted[1].estatus_cobranza, null);
-  assert.equal(inserted[2].id_fuente_cor, 12);
+  assert.equal(inserted[2].id_fuente_cor, 11);
   assert.equal(inserted[2].factura, inserted[0].factura);
-  assert.equal(connection.events.filter((event) => event.startsWith('ROLLBACK TO SAVEPOINT')).length, 3);
+  assert.equal(inserted[3].id_fuente_cor, 12);
+  assert.equal(inserted[3].factura, inserted[0].factura);
+  assert.equal(connection.events.filter((event) => event.startsWith('ROLLBACK TO SAVEPOINT')).length, 2);
   assert.equal(connection.events.at(-1), 'RELEASE');
+});
+
+test('Un Hito admite tres Facturas con folios distintos', async () => {
+  const inserted = [];
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    findHitosFacturaCarga_cor: async () => [{ id_fuente_cor: 11, moneda: 'USD', subtotal: 20549, iva: 3287.84, total: 23836.84 }],
+    findFacturaDuplicada_cor: async () => assert.fail('M2M no debe buscar duplicados.'),
+    insertRecord_cor: async (_connection, _table, record) => inserted.push(record)
+  }, async () => {
+    const response = await service.cargarFacturas_cor({ registros: ['CFV-100', 'CFV-101', 'CFV-102']
+      .map((factura) => ({ ...facturaBase, factura })) });
+    assert.equal(response.insertados, 3);
+    assert.equal(response.rechazados, 0);
+  });
+  assert.deepEqual(inserted.map((row) => row.factura), ['CFV-100', 'CFV-101', 'CFV-102']);
+  assert.ok(inserted.every((row) => row.id_fuente_cor === 11));
+});
+
+test('Dos filas historicas identicas insertan dos Facturas del mismo Hito', async () => {
+  const inserted = [];
+  const row = { ...facturaBase, ppns: 'P10583', factura: 'CFV-6925' };
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    findHitosFacturaCarga_cor: async () => [{ id_fuente_cor: 11, moneda: 'USD', subtotal: 20549, iva: 3287.84, total: 23836.84 }],
+    findFacturaDuplicada_cor: async () => assert.fail('M2M no debe buscar duplicados.'),
+    insertRecord_cor: async (_connection, _table, record) => inserted.push(record)
+  }, async () => {
+    const payload = { registros: [row] };
+    const first = await service.cargarFacturas_cor(payload);
+    const second = await service.cargarFacturas_cor(payload);
+    assert.equal(first.insertados, 1);
+    assert.equal(second.insertados, 1);
+    assert.equal(first.rechazados + second.rechazados, 0);
+  });
+  assert.deepEqual(inserted.map((item) => [item.ppns, item.id_fuente_cor, item.factura]), [
+    ['P10583', 11, 'CFV-6925'], ['P10583', 11, 'CFV-6925']
+  ]);
+});
+
+test('Factura manual rechaza Pagado y guarda No pagado aunque el campo venga vacio', async () => {
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  await assert.rejects(service.crearFacturaEstadoCuenta_cor('P14302', {
+    tipo_concepto: 'HITO', id_concepto: 11, factura: 'CFV-100', total: 100,
+    estatus_factura: 'Pagado'
+  }, access, 1), (error) => error.statusCode === 400 && /Pagos aplicados/.test(error.message));
+
+  const connection = fakeConnection();
+  let inserted;
+  let duplicate = false;
+  await withRepositoryStub({
+    getConnection_cor: async () => connection,
+    getEstadoCuentaByPpns_cor: async () => ({}),
+    getHitoFacturable_cor: async () => ({ id_fuente_cor: 11, moneda: 'USD' }),
+    findFacturaDuplicada_cor: async () => duplicate ? { id_factura_cor: 501 } : null,
+    insertRecord_cor: async (_connection, _table, record) => {
+      inserted = record;
+      return { insertId: 501 };
+    },
+    getFacturaEstadoCuentaById_cor: async () => ({
+      id_factura_cor: 501, ppns: 'P14302', tipo_concepto: 'HITO',
+      id_fuente_cor: 11, factura: 'CFV-100', total: 100, estatus_factura: 'Pagado'
+    })
+  }, async () => {
+    const response = await service.crearFacturaEstadoCuenta_cor('P14302', {
+      tipo_concepto: 'HITO', id_concepto: 11, factura: 'CFV-100', total: 100
+    }, access, 1);
+    assert.equal(response.factura.estatus_factura, 'No pagado');
+    duplicate = true;
+    await assert.rejects(service.crearFacturaEstadoCuenta_cor('P14302', {
+      tipo_concepto: 'HITO', id_concepto: 11, factura: 'CFV-100', total: 100
+    }, access, 1), (error) => error.statusCode === 409);
+  });
+  assert.equal(inserted.estatus_factura, 'No pagado');
+});
+
+test('Detalle deriva pago parcial/completo y revierte al quitar Pago; conserva folios repetidos', async () => {
+  const connection = fakeConnection();
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  const sourceRows = [{
+    id_fuente_cor: 11, id_proyecto_origen: 'P14302', moneda: 'USD',
+    subtotal: 100, iva: 0, total: 100, pago_total: 999,
+    estatus_factura: 'Pagado', fecha_pago: '2026-10-01'
+  }];
+  const facturaRows = [
+    { id_factura_cor: 501, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 11,
+      factura: 'CFV-6925', moneda: 'USD', total: 100, estatus_factura: 'Pagado' },
+    { id_factura_cor: 502, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 11,
+      factura: 'CFV-6925', moneda: 'USD', total: null, estatus_factura: 'Pagado' }
+  ];
+  let relations = [{ id_factura_cor: 501, id_pago_cor: 1001, importe_aplicado: 40 }];
+  const statusUpdates = [];
+  await withRepositoryStub({
+    getConnection_cor: async () => connection,
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'P14302', registros_estado_cuenta: 1 }),
+    listFuenteEstadoCuenta_cor: async () => sourceRows,
+    listFacturasEstadoCuenta_cor: async () => facturaRows,
+    listAditivasEstadoCuenta_cor: async () => [],
+    updateFacturaEstatus_cor: async (_connection, id, ppns, status) => statusUpdates.push({ id, ppns, status })
+  }, () => withRepositoryStub({
+    listPagosEstadoCuenta_cor: async () => [],
+    listRelacionesEstadoCuenta_cor: async () => relations,
+    lockPagoEstadoCuenta_cor: async () => ({ id_pago_cor: 1001 }),
+    lockFacturaEstadoCuenta_cor: async () => ({ id_factura_cor: 501, total: 100 }),
+    listRelacionesFacturaForUpdate_cor: async () => relations,
+    quitarRelacionPagoFactura_cor: async () => {
+      relations = [];
+      return 1;
+    }
+  }, async () => {
+    const partial = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.equal(partial.facturas.length, 2);
+    assert.equal(partial.facturas[0].importe_pagado, 40);
+    assert.equal(partial.facturas[0].saldo, 60);
+    assert.equal(partial.facturas[0].estatus_factura, 'No pagado');
+    assert.equal(partial.facturas[1].saldo, null);
+    assert.equal(partial.facturas[1].estatus_factura, 'No pagado');
+    assert.equal(partial.estado_cuenta[0].factura, 'CFV-6925, CFV-6925');
+    assert.equal(partial.estado_cuenta[0].pago_total, 40);
+    assert.equal(partial.estado_cuenta[0].pago_contabilizado, 40);
+    assert.equal(partial.estado_cuenta[0].pendiente_calculado, 60);
+    assert.equal(partial.estado_cuenta[0].es_pagado, false);
+    assert.equal(partial.resumen.monedas[0].cobrado, 40);
+    assert.equal(partial.resumen.monedas[0].pendiente, 60);
+
+    relations = [{ id_factura_cor: 501, id_pago_cor: 1001, importe_aplicado: 100 }];
+    const complete = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.equal(complete.facturas[0].importe_pagado, 100);
+    assert.equal(complete.facturas[0].saldo, 0);
+    assert.equal(complete.facturas[0].estatus_factura, 'Pagado');
+    assert.equal(complete.estado_cuenta[0].pago_total, 100);
+    assert.equal(complete.estado_cuenta[0].pendiente_calculado, 0);
+    assert.equal(complete.estado_cuenta[0].es_pagado, true);
+    assert.equal(complete.estado_cuenta[0].estatus_factura, 'Pagado');
+    assert.equal(complete.resumen.monedas[0].porcentaje_cobrado_calculado, 1);
+
+    await service.quitarRelacionPagoFacturaEstadoCuenta_cor('P14302', 1001, 501, access);
+    const withoutPayment = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.equal(withoutPayment.facturas[0].importe_pagado, 0);
+    assert.equal(withoutPayment.facturas[0].saldo, 100);
+    assert.equal(withoutPayment.facturas[0].estatus_factura, 'No pagado');
+    assert.equal(withoutPayment.estado_cuenta[0].pago_total, 0);
+    assert.equal(withoutPayment.estado_cuenta[0].pendiente_calculado, 100);
+    assert.equal(withoutPayment.estado_cuenta[0].es_pagado, false);
+    assert.deepEqual(statusUpdates, [{ id: 501, ppns: 'P14302', status: 'No pagado' }]);
+  }, pagosRepository));
+});
+
+test('Formulario de Estado de Cuenta tambien usa importes aplicados para sus Hitos', async () => {
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'P14302', registros_estado_cuenta: 1 }),
+    listFuenteEstadoCuenta_cor: async () => [{
+      id_fuente_cor: 11, id_proyecto_origen: 'P14302', total: 100,
+      pago_total: 100, estatus_factura: 'Pagado'
+    }],
+    listCrearEstadoCuentaEquipos_cor: async () => [],
+    listCrearEstadoCuentaLogOps_cor: async () => [],
+    listEquiposEstadoCuenta_cor: async () => [],
+    listPartidasEstadoCuenta_cor: async () => [],
+    listFacturasEstadoCuenta_cor: async () => [{
+      id_factura_cor: 501, tipo_concepto: 'HITO', id_fuente_cor: 11, factura: 'CFV-100', total: 100
+    }]
+  }, () => withRepositoryStub({
+    listRelacionesEstadoCuenta_cor: async () => [{ id_factura_cor: 501, importe_aplicado: 40 }]
+  }, async () => {
+    const form = await service.formularioEstadoCuenta_cor('P14302', access);
+    assert.equal(form.hitos[0].pago_total, 40);
+    assert.equal(form.hitos[0].pendiente_calculado, 60);
+    assert.equal(form.hitos[0].estatus_factura, 'No pagado');
+  }, pagosRepository));
 });
 
 test('Validaciones de carga rechazan filas sin abrir transaccion y payload estructural excedido', async () => {
@@ -229,6 +401,18 @@ test('Busqueda SQL exige las siete claves, tolerancias exactas, NULL y Hito acti
   assert.match(sql, /IS NULL AND \? IS NULL/);
   assert.match(sql, /NULLIF\(UPPER\(TRIM\(f\.condicion\)\), ''\) <=>/);
   assert.equal(params.length, 15);
+});
+
+test('Sincronizacion SQL de estatus queda acotada por id de Factura y PPNS', async () => {
+  let sql;
+  let params;
+  await repository.updateFacturaEstatus_cor({
+    async query(query, values) { sql = query; params = values; return [{ affectedRows: 1 }]; }
+  }, 501, 'P14302', 'Pagado');
+  assert.match(sql, /UPDATE cobranza_facturas_cor/);
+  assert.match(sql, /WHERE id_factura_cor = \?/);
+  assert.match(sql, /UPPER\(TRIM\(COALESCE\(ppns, ''\)\)\) = UPPER\(TRIM\(COALESCE\(\?, ''\)\)\)/);
+  assert.deepEqual(params, ['Pagado', 501, 'P14302']);
 });
 
 test('Ruta nueva comparte HMAC y firma invalida responde 401', async () => {
