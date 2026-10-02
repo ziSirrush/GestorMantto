@@ -708,6 +708,12 @@
     return Array.isArray(detail&&detail.pagos)?detail.pagos:[];
   }
 
+  function paymentMatchKey_cor(value){
+    return String(value===null||value===undefined?'':value)
+      .trim().toUpperCase().replace(/\s+/g,' ')
+      .replace(/[\s_-]*MXN$/,'').trim();
+  }
+
   function getFacturaCatalog_cor(type){
     const catalog=state.detail&&state.detail.facturacion_catalogo?state.detail.facturacion_catalogo:{};
     return type==='ADITIVA'
@@ -796,7 +802,9 @@
             <button type="button" data-pago-quitar="${idFactura}" aria-label="Quitar ${escapeHtml_cor(label)}">Quitar</button>`}
         </div>`;
       }).join('');
-      const options=disponibles.map(factura=>`<option value="${escapeHtml_cor(factura.id_factura_cor)}">${escapeHtml_cor(text_cor(factura.factura))} · ${escapeHtml_cor(text_cor(factura.tipo_concepto))} · ${escapeHtml_cor(text_cor(factura.concepto))}</option>`).join('');
+      const facturaOrigenKey=paymentMatchKey_cor(pago.no_factura);
+      const disponiblesPago=disponibles.filter(factura=>facturaOrigenKey&&paymentMatchKey_cor(factura.factura)===facturaOrigenKey);
+      const options=disponiblesPago.map(factura=>`<option value="${escapeHtml_cor(factura.id_factura_cor)}">${escapeHtml_cor(text_cor(factura.factura))} · ${escapeHtml_cor(text_cor(factura.tipo_concepto))} · ${escapeHtml_cor(text_cor(factura.concepto))}</option>`).join('');
       return `<tr data-pago-id="${idPago}">
         <td><b>${escapeHtml_cor(idPago)}</b></td>
         <td>${escapeHtml_cor(text_cor(pago.complemento_pago))}</td>
@@ -805,9 +813,9 @@
         <td class="ccor-ec-pago-facturas">
           <div class="ccor-ec-pago-links">${links}</div>
           ${readonly?'':`<div class="ccor-ec-pago-add">
-            <select data-pago-factura aria-label="Elegir Factura para Pago ${idPago}" ${disponibles.length?'':'disabled'}><option value="">Elegir factura...</option>${options}</select>
-            <input type="number" min="0.01" step="0.01" data-pago-nuevo-importe placeholder="Importe aplicado" aria-label="Importe aplicado para Pago ${idPago}" ${disponibles.length?'':'disabled'}>
-            <button type="button" data-pago-agregar ${disponibles.length?'':'disabled'}>Agregar</button>
+            <select data-pago-factura aria-label="Elegir Factura para Pago ${idPago}" ${disponiblesPago.length?'':'disabled'}><option value="">${disponiblesPago.length?'Elegir factura...':'Sin factura coincidente'}</option>${options}</select>
+            <input type="number" min="0.01" step="0.01" data-pago-nuevo-importe placeholder="Importe aplicado" aria-label="Importe aplicado para Pago ${idPago}" ${disponiblesPago.length?'':'disabled'}>
+            <button type="button" data-pago-agregar ${disponiblesPago.length?'':'disabled'}>Agregar</button>
           </div>`}
         </td>
         <td><span class="ccor-ec-badge ${asignadas.length?'is-ok':'is-warn'}">${asignadas.length?'Alineado':'Pendiente'}</span></td>

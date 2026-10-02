@@ -4,7 +4,8 @@
  * FASE 3 - Cobranza COR / Pagos
  *
  * Alcance:
- * - conserva la validacion/normalizacion de los 21 campos canonicos de Hoja SB;
+ * - conserva la validacion/normalizacion de los campos canonicos de Hoja SB;
+ * - recibe id_pp desde Hoja SB y lo persiste como relacion del Pago con el proyecto;
  * - agrega id_pago como identidad tecnica obligatoria de sincronizacion;
  * - mapea id_pago -> cobranza_pagos_cor.id_pago_cor;
  * - hace INSERT / UPDATE / UNCHANGED de forma idempotente por id_pago;
@@ -43,7 +44,8 @@ const RECORD_FIELDS_PAGOS_COR = Object.freeze([
   'fecha_creacion_ov',
   'complemento_pago',
   'fecha_complemento_pago',
-  'importe_complemento_pago'
+  'importe_complemento_pago',
+  'id_pp'
 ]);
 
 const INPUT_FIELDS_PAGOS_COR = Object.freeze([
@@ -55,7 +57,6 @@ const RECORD_FIELD_SET_PAGOS_COR = new Set(INPUT_FIELDS_PAGOS_COR);
 
 const FORBIDDEN_RECORD_FIELDS_COR = new Set([
   'id_pago_cor',
-  'id_pp',
   'id_factura_cor',
   'id_rel_pago',
   'importe_aplicado',
@@ -73,7 +74,8 @@ const TEXT_FIELDS_PAGOS_COR = Object.freeze({
   subsidiaria: 255,
   clase: 150,
   creado_desde: 255,
-  complemento_pago: 255
+  complemento_pago: 255,
+  id_pp: 100
 });
 
 const DECIMAL_FIELDS_PAGOS_COR = new Set([
@@ -488,7 +490,7 @@ function validateRecordShape_cor(record, index) {
     (field) => !Object.prototype.hasOwnProperty.call(record, field)
   );
   if (missing.length > 0) {
-    throw badRequest('El registro no contiene id_pago + los 21 campos canonicos esperados.', {
+    throw badRequest('El registro no contiene id_pago + los 22 campos canonicos esperados.', {
       field: `registros[${index}]`,
       campos_faltantes: missing
     }, 'COBRANZA_PAGOS_CAMPOS_INVALIDOS');

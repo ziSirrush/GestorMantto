@@ -8,6 +8,40 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
+const pagosRepositoryModule = { exports: {} };
+vm.runInNewContext(read('backend/src/modules/cobranza-cor/cobranza-cor-pagos.repository.js'), {
+  module: pagosRepositoryModule,
+  require: (name) => name === '../../config/db' ? {} : require(name)
+});
+const pagosRepositoryReal = pagosRepositoryModule.exports;
+
+test('Pagos del detalle exige id_pp y Factura, ignorando el sufijo final MXN', async () => {
+  const queries = [];
+  const connection = {
+    async query(sql, params) {
+      queries.push({ sql, params });
+      return [[], []];
+    }
+  };
+
+  await pagosRepositoryReal.listPagosEstadoCuenta_cor(connection, 'P14302');
+  await pagosRepositoryReal.listRelacionesEstadoCuenta_cor(connection, 'P14302');
+  await pagosRepositoryReal.lockPagoEstadoCuenta_cor(connection, 1001, 'P14302');
+
+  assert.equal(queries.length, 3);
+  for (const query of queries) {
+    assert.match(query.sql, /p\.id_pp/);
+    assert.match(query.sql, /p\.no_factura/);
+    assert.match(query.sql, /f\.factura/);
+    assert.match(query.sql, /REGEXP_REPLACE/);
+    assert.match(query.sql, /MXN\$/);
+  }
+  assert.doesNotMatch(queries[0].sql, /\)\s+OR EXISTS/i);
+  assert.doesNotMatch(queries[2].sql, /\)\s+OR EXISTS/i);
+  assert.deepEqual(Array.from(queries[0].params), ['P14302', 'P14302']);
+  assert.deepEqual(Array.from(queries[1].params), ['P14302', 'P14302']);
+  assert.deepEqual(Array.from(queries[2].params), [1001, 'P14302', 'P14302']);
+});
 
 test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma aplicada', async () => {
   const relations = [];
@@ -30,11 +64,15 @@ test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma apli
   const pagosRepository = {
     lockPagoEstadoCuenta_cor: async (_connection, id, ppns) => {
       assert.equal(ppns, 'FUENTE-123');
-      return [1001, 1002].includes(id) ? { id_pago_cor: id, importe_complemento_pago: -100 } : null;
+      return [1001, 1002].includes(id) ? { id_pago_cor: id, no_factura: 'CFV-100 MXN', id_pp: ppns, importe_complemento_pago: -100 } : null;
     },
     lockFacturaEstadoCuenta_cor: async (_connection, id, ppns) => {
       assert.equal(ppns, 'FUENTE-123');
-      return [1, 2, 3].includes(id) ? { id_factura_cor: id, total: { 1: 40, 2: 60, 3: 100 }[id] } : null;
+      return [1, 2, 3, 4].includes(id) ? {
+        id_factura_cor: id,
+        factura: id === 4 ? 'CFV-OTRA' : 'CFV-100',
+        total: { 1: 40, 2: 60, 3: 100, 4: 10 }[id]
+      } : null;
     },
     listRelacionesPagoForUpdate_cor: async (_connection, id) => relations.filter((row) => row.id_pago_cor === id),
     listRelacionesFacturaForUpdate_cor: async (_connection, id) => relations.filter((row) => row.id_factura_cor === id),
@@ -67,12 +105,16 @@ test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma apli
     service.guardarRelacionPagoFacturaEstadoCuenta_cor('FUENTE-123', 1001, 3, { importe_aplicado: 1 }, scope),
     (error) => error.statusCode === 400
   );
+  await assert.rejects(
+    service.guardarRelacionPagoFacturaEstadoCuenta_cor('FUENTE-123', 1001, 4, { importe_aplicado: 1 }, scope),
+    (error) => error.statusCode === 400 && /no coincide/.test(error.message)
+  );
   assert.equal(relations.length, 2);
   await service.quitarRelacionPagoFacturaEstadoCuenta_cor('FUENTE-123', 1001, 1, scope);
   await service.guardarRelacionPagoFacturaEstadoCuenta_cor('FUENTE-123', 1002, 1, { importe_aplicado: 10 }, scope);
   assert.equal(relations.find((row) => row.id_factura_cor === 1).id_pago_cor, 1002);
   assert.equal(calls.filter((call) => call === 'commit').length, 4);
-  assert.equal(calls.filter((call) => call === 'rollback').length, 2);
+  assert.equal(calls.filter((call) => call === 'rollback').length, 3);
   assert.deepEqual(statusUpdates.map((item) => [item.id, item.ppns, item.status]), [
     [1, 'FUENTE-123', 'Pagado'],
     [2, 'FUENTE-123', 'Pagado'],
@@ -97,8 +139,8 @@ test('la tabla de Pagos muestra el diseño pedido y omite Facturas ya asignadas 
     ],
     relaciones_pagos: [{ id_factura_cor: 1, id_pago_cor: 1001, importe_aplicado: 50 }],
     pagos: [
-      { id_pago_cor: 1001, complemento_pago: 'Pago #CP24897', fecha_pago: '2026-11-01', importe_complemento_pago: -50, facturas: [{ id_factura_cor: 1, importe_aplicado: 50 }] },
-      { id_pago_cor: 1002, complemento_pago: 'Pago #CP13577', fecha_pago: '2026-10-15', importe_complemento_pago: -40, facturas: [] }
+      { id_pago_cor: 1001, no_factura: 'CFV-2392 MXN', id_pp: 'FUENTE-123', complemento_pago: 'Pago #CP24897', fecha_pago: '2026-11-01', importe_complemento_pago: -50, facturas: [{ id_factura_cor: 1, importe_aplicado: 50 }] },
+      { id_pago_cor: 1002, no_factura: 'CFV-2393-MXN', id_pp: 'FUENTE-123', complemento_pago: 'Pago #CP13577', fecha_pago: '2026-10-15', importe_complemento_pago: -40, facturas: [] }
     ]
   };
   const window = {
@@ -127,7 +169,8 @@ test('la tabla de Pagos muestra el diseño pedido y omite Facturas ya asignadas 
   assert.match(section, /50\.00/);
   assert.match(section, /Alineado/);
   assert.match(section, /Pendiente/);
-  const selector = section.match(/<select data-pago-factura[^>]*>(.*?)<\/select>/s)?.[1] || '';
+  const secondPayment = section.split('data-pago-id="1002"')[1] || '';
+  const selector = secondPayment.match(/<select data-pago-factura[^>]*>(.*?)<\/select>/s)?.[1] || '';
   assert.doesNotMatch(selector, /value="1"/);
   assert.match(selector, /value="2"/);
 

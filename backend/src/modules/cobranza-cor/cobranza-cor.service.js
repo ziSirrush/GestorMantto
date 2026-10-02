@@ -597,6 +597,10 @@ function canonicalText_cor(value) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase().replace(/\s+/g, ' ');
 }
 
+function businessReferenceKey_cor(value) {
+  return canonicalText_cor(value).replace(/[\s_-]*MXN$/, '').trim();
+}
+
 function resolveVisibleUserIds_cor(informationAccess) {
   const context = informationAccess || null;
   if (!context) throw httpError(403, 'No fue posible resolver el alcance de informacion de CORELLIAN.');
@@ -881,6 +885,7 @@ function serializePagoEstadoCuenta_cor(row, relaciones) {
   return {
     id_pago_cor: integerOrNull_cor(row?.id_pago_cor),
     no_factura: cleanText_cor(row?.no_factura),
+    id_pp: cleanText_cor(row?.id_pp),
     complemento_pago: cleanText_cor(row?.complemento_pago),
     fecha_pago: cleanText_cor(row?.fecha_pago),
     importe_complemento_pago: numberOrNull_cor(row?.importe_complemento_pago),
@@ -1785,6 +1790,12 @@ async function guardarRelacionPagoFacturaEstadoCuenta_cor(ppnsValue, idPagoValue
       const pago = await pagosRepository.lockPagoEstadoCuenta_cor(connection, idPagoCor, ppnsFuente);
       const factura = await pagosRepository.lockFacturaEstadoCuenta_cor(connection, idFacturaCor, ppnsFuente);
       if (!pago || !factura) throw httpError(404, 'Pago o Factura no pertenece a este Estado de Cuenta.');
+      if (
+        !businessReferenceKey_cor(pago.no_factura) ||
+        businessReferenceKey_cor(pago.no_factura) !== businessReferenceKey_cor(factura.factura)
+      ) {
+        throw badRequest('La Factura seleccionada no coincide con la Factura de origen del Pago.');
+      }
 
       const relacionesPago = await pagosRepository.listRelacionesPagoForUpdate_cor(connection, idPagoCor);
       const relacionesFactura = await pagosRepository.listRelacionesFacturaForUpdate_cor(connection, idFacturaCor);

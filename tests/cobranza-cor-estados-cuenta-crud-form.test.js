@@ -49,7 +49,7 @@ test('Cache bust carga Estados de Cuenta y formulario consolidado F3',()=>{
   assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=[A-Za-z0-9._-]+/);
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20261002-foco-hitos-v001/);
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260930-cobranza-consolidacion-f3-v001/);
-  assert.match(index,/core\/module-loader\.js\?v=20261002-foco-hitos-v001/);
+  assert.match(index,/core\/module-loader\.js\?v=20261002-pagos-idpp-factura-v001/);
 });
 
 test('Fondo de garantia vive en General y aplica una sola configuracion a todos los hitos',()=>{

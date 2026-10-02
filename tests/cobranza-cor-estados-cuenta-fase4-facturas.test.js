@@ -61,7 +61,7 @@ test('Cache actualiza Detalle y conserva formulario F3',()=>{
   const loader=read('core/module-loader.js');
   const index=read('index.html');
   assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20261001-cobranza-pagos-detalle-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=20261001-cobranza-pagos-detalle-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=20261002-pagos-idpp-factura-v001/);
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20261002-foco-hitos-v001/);
-  assert.match(index,/core\/module-loader\.js\?v=20261002-foco-hitos-v001/);
+  assert.match(index,/core\/module-loader\.js\?v=20261002-pagos-idpp-factura-v001/);
 });

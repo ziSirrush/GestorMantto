@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const Module = require('node:module');
 
@@ -27,6 +29,12 @@ const repository = require('../backend/src/modules/cobranza-cor/cobranza-cor-pag
 const service = require('../backend/src/modules/cobranza-cor/cobranza-cor-pagos.service');
 Module._load = originalLoad;
 
+test('el emisor de Sheets lee id_pp desde la columna W', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../COBRANZA_PAGOS_SHEETS_AIVEN_V002.gs'), 'utf8');
+  assert.match(source, /'id_pago',\s*'id_pp'/);
+  assert.match(source, /record\.id_pp\s*=\s*COBRANZA_PAGOS_NormalizarValor_\('id_pp', row\[22\]\)/);
+});
+
 function record(overrides = {}) {
   return {
     id_pago: 101,
@@ -51,6 +59,7 @@ function record(overrides = {}) {
     complemento_pago: 'Pago #CP9001',
     fecha_complemento_pago: '2026-10-01',
     importe_complemento_pago: -10000,
+    id_pp: 'P14302',
     ...overrides
   };
 }
@@ -97,23 +106,23 @@ function replaceRepository(stubs) {
   };
 }
 
-test('Fase 3 conserva 21 campos de negocio y agrega id_pago como identidad tecnica', () => {
-  assert.equal(service.RECORD_FIELDS_PAGOS_COR.length, 21);
+test('la carga conserva 22 campos de negocio, incluido id_pp, y usa id_pago como identidad tecnica', () => {
+  assert.equal(service.RECORD_FIELDS_PAGOS_COR.length, 22);
   assert.equal(service.ID_FIELD_PAGOS_COR, 'id_pago');
-  assert.equal(service.INPUT_FIELDS_PAGOS_COR.length, 22);
+  assert.equal(service.INPUT_FIELDS_PAGOS_COR.length, 23);
   assert.equal(service.INPUT_FIELDS_PAGOS_COR[0], 'id_pago');
-  assert.equal(service.RECORD_FIELDS_PAGOS_COR.includes('id_pp'), false);
+  assert.equal(service.RECORD_FIELDS_PAGOS_COR.includes('id_pp'), true);
   assert.equal(repository.TABLE_PAGOS_COR, 'cobranza_pagos_cor');
 });
 
-test('normaliza id_pago positivo y los 21 campos canonicos', () => {
+test('normaliza id_pago positivo, id_pp y los campos canonicos', () => {
   const normalized = service.normalizarRegistroPago_cor(record({ id_pago: '42' }), 0);
   assert.equal(normalized.id_pago, 42);
-  assert.equal(Object.keys(normalized).length, 22);
+  assert.equal(Object.keys(normalized).length, 23);
   assert.equal(normalized.no_factura, 'CFV-1001');
   assert.equal(normalized.fecha_creacion_ov, '2026-08-30 11:22:33');
   assert.equal(Object.hasOwn(normalized, 'id_pago_cor'), false);
-  assert.equal(Object.hasOwn(normalized, 'id_pp'), false);
+  assert.equal(normalized.id_pp, 'P14302');
 });
 
 test('rechaza id_pago ausente, cero, negativo, decimal o fuera de entero seguro', () => {
@@ -132,15 +141,12 @@ test('rechaza id_pago ausente, cero, negativo, decimal o fuera de entero seguro'
   }
 });
 
-test('rechaza id_pago_cor e id_pp enviados desde la integracion', () => {
+test('rechaza id_pago_cor y acepta id_pp enviado desde la integracion', () => {
   expect400(
     () => service.normalizarRegistroPago_cor(record({ id_pago_cor: 9 }), 0),
     'COBRANZA_PAGOS_CAMPO_TECNICO_PROHIBIDO'
   );
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ id_pp: 'PP-77' }), 0),
-    'COBRANZA_PAGOS_CAMPO_TECNICO_PROHIBIDO'
-  );
+  assert.equal(service.normalizarRegistroPago_cor(record({ id_pp: ' PP-77 ' }), 0).id_pp, 'PP-77');
 });
 
 test('key_fields debe ser exclusivamente id_pago', () => {
@@ -281,7 +287,7 @@ test('un fallo de persistencia revierte el lote y responde error 500 controlado'
   }
 });
 
-test('repository inserta id_pago directamente en id_pago_cor y no toca id_pp', async () => {
+test('repository inserta id_pago en id_pago_cor y persiste id_pp recibido', async () => {
   const queries = [];
   const connection = {
     async query(sql, params) {
@@ -293,8 +299,9 @@ test('repository inserta id_pago directamente en id_pago_cor y no toca id_pp', a
   await repository.insertPago_cor(connection, 77, record({ id_pago: 77 }));
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /INSERT INTO cobranza_pagos_cor \(id_pago_cor,/);
-  assert.doesNotMatch(queries[0].sql, /id_pp/);
+  assert.match(queries[0].sql, /id_pp/);
   assert.equal(queries[0].params[0], 77);
+  assert.equal(queries[0].params[queries[0].params.length - 1], 'P14302');
 });
 
 test('repository UPDATE solo afecta fila si algun campo canonico cambio', async () => {
@@ -313,6 +320,6 @@ test('repository UPDATE solo afecta fila si algun campo canonico cambio', async 
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /WHERE id_pago_cor = \?/);
   assert.match(queries[0].sql, /NOT \(no_factura <=> \?\)/);
-  assert.doesNotMatch(queries[0].sql, /id_pp/);
+  assert.match(queries[0].sql, /NOT \(id_pp <=> \?\)/);
   assert.equal(queries[0].params[repository.PAGO_COLUMNS_COR.length], 88);
 });

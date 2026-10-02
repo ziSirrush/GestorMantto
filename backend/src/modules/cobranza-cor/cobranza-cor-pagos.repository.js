@@ -27,8 +27,13 @@ const PAGO_COLUMNS_COR = Object.freeze([
   'fecha_creacion_ov',
   'complemento_pago',
   'fecha_complemento_pago',
-  'importe_complemento_pago'
+  'importe_complemento_pago',
+  'id_pp'
 ]);
+
+function normalizedBusinessKeySql_cor(expression) {
+  return `REGEXP_REPLACE(UPPER(TRIM(COALESCE(${expression}, ''))), '[[:space:]_-]*MXN$', '')`;
+}
 
 function valuesFromRecord_cor(record) {
   return PAGO_COLUMNS_COR.map((column) => (
@@ -105,21 +110,17 @@ async function listPagosEstadoCuenta_cor(connection, ppns) {
   const [rows] = await connection.query(
     `SELECT p.id_pago_cor,
             p.no_factura,
+            NULLIF(TRIM(p.id_pp), '') AS id_pp,
             p.complemento_pago,
             DATE_FORMAT(p.fecha_complemento_pago, '%Y-%m-%d') AS fecha_pago,
             p.importe_complemento_pago
        FROM ${TABLE_PAGOS_COR} p
-      WHERE EXISTS (
+      WHERE ${normalizedBusinessKeySql_cor('p.id_pp')} = ${normalizedBusinessKeySql_cor('?')}
+        AND EXISTS (
         SELECT 1 FROM ${TABLE_FACTURAS_COR} f
          WHERE f.activo = 1
            AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-           AND UPPER(TRIM(f.factura)) = UPPER(TRIM(p.no_factura))
-      ) OR EXISTS (
-        SELECT 1 FROM ${TABLE_REL_PAGOS_COR} r
-        JOIN ${TABLE_FACTURAS_COR} f ON f.id_factura_cor = r.id_factura_cor
-         WHERE r.id_pago_cor = p.id_pago_cor
-           AND f.activo = 1
-           AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
+           AND ${normalizedBusinessKeySql_cor('f.factura')} = ${normalizedBusinessKeySql_cor('p.no_factura')}
       )
       ORDER BY p.id_pago_cor ASC`,
     [ppns, ppns]
@@ -132,31 +133,30 @@ async function listRelacionesEstadoCuenta_cor(connection, ppns) {
     `SELECT r.id_factura_cor, r.id_pago_cor, r.importe_aplicado
        FROM ${TABLE_REL_PAGOS_COR} r
        JOIN ${TABLE_FACTURAS_COR} f ON f.id_factura_cor = r.id_factura_cor
+       JOIN ${TABLE_PAGOS_COR} p ON p.id_pago_cor = r.id_pago_cor
       WHERE f.activo = 1
         AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
+        AND ${normalizedBusinessKeySql_cor('p.id_pp')} = ${normalizedBusinessKeySql_cor('?')}
+        AND ${normalizedBusinessKeySql_cor('f.factura')} = ${normalizedBusinessKeySql_cor('p.no_factura')}
       ORDER BY r.id_pago_cor, r.id_factura_cor`,
-    [ppns]
+    [ppns, ppns]
   );
   return rows;
 }
 
 async function lockPagoEstadoCuenta_cor(connection, idPagoCor, ppns) {
   const [rows] = await connection.query(
-    `SELECT p.id_pago_cor, p.importe_complemento_pago
+    `SELECT p.id_pago_cor, p.no_factura, NULLIF(TRIM(p.id_pp), '') AS id_pp,
+            p.importe_complemento_pago
        FROM ${TABLE_PAGOS_COR} p
       WHERE p.id_pago_cor = ?
-        AND (EXISTS (
+        AND ${normalizedBusinessKeySql_cor('p.id_pp')} = ${normalizedBusinessKeySql_cor('?')}
+        AND EXISTS (
           SELECT 1 FROM ${TABLE_FACTURAS_COR} f
            WHERE f.activo = 1
              AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-             AND UPPER(TRIM(f.factura)) = UPPER(TRIM(p.no_factura))
-        ) OR EXISTS (
-          SELECT 1 FROM ${TABLE_REL_PAGOS_COR} r
-          JOIN ${TABLE_FACTURAS_COR} f ON f.id_factura_cor = r.id_factura_cor
-           WHERE r.id_pago_cor = p.id_pago_cor
-             AND f.activo = 1
-             AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-        ))
+             AND ${normalizedBusinessKeySql_cor('f.factura')} = ${normalizedBusinessKeySql_cor('p.no_factura')}
+        )
       FOR UPDATE`,
     [idPagoCor, ppns, ppns]
   );

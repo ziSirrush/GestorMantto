@@ -10,6 +10,7 @@
  * - Lee Hoja SB, no PagosNs.
  * - A:U = 21 campos canonicos de cobranza_pagos_cor.
  * - V = id_pago, identidad tecnica de UPSERT.
+ * - W = id_pp, relacion del Pago con el Estado de Cuenta.
  * - id_pago se envia al backend y se mapea a id_pago_cor.
  * - key_fields = ["id_pago"].
  * - NO crea ni modifica cobranza_rel_pagos.
@@ -82,7 +83,8 @@ const COBRANZA_PAGOS_SOURCE_HEADERS = Object.freeze([
   'complemento_pago',
   'fecha_complemento_pago',
   'importe_complemento_pago',
-  'id_pago'
+  'id_pago',
+  'id_pp'
 ]);
 
 const COBRANZA_PAGOS_BUSINESS_FIELDS = Object.freeze([
@@ -234,7 +236,7 @@ function COBRANZA_PAGOS_EnviarAiven() {
 }
 
 /**
- * Lee Hoja SB A:V. A:U son negocio; V es id_pago.
+ * Lee Hoja SB A:W. A:U son negocio; V es id_pago y W es id_pp.
  */
 function COBRANZA_PAGOS_LeerOrigen_() {
   const ss = SpreadsheetApp.openById(COBRANZA_PAGOS_CONFIG.SPREADSHEET_ID);
@@ -284,6 +286,7 @@ function COBRANZA_PAGOS_LeerOrigen_() {
     }
 
     record.id_pago = COBRANZA_PAGOS_NormalizarIdPago_(row[21], filaSheet);
+    record.id_pp = COBRANZA_PAGOS_NormalizarValor_('id_pp', row[22]);
 
     if (record.no_factura === null || record.no_factura === '') {
       throw new Error(
