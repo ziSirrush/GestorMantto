@@ -1,0 +1,19 @@
+FIX COBRANZA COR PAGOS CATALOGO BUSCABLE V003
+Fecha: 2026-10-02
+Base GitHub: 8addea56c10a85f417e9aab2f941e6412c1077af
+
+VALIDACIONES
+- Campo buscable asignacion individual: PASS
+- Campo buscable asignacion masiva: PASS
+- Un solo catalogo compartido de proyectos: PASS
+- Busqueda visual por PPNS / Proyecto / Cliente: PASS
+- Resolucion final al PPNS real: PASS
+- Proyecto inexistente no puede guardarse: PASS
+- Catalogo sigue sin parametro limit: PASS
+- Cache-bust JS/CSS: PASS
+- Pruebas dirigidas: 5/5 PASS
+- node --check JS: PASS
+- node --check module-loader: PASS
+- Archivos .patch: 0
+- Archivos SQL: 0
+- Archivos backend modificados: 0

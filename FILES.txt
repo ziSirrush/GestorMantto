@@ -1,14 +1,10 @@
-FIX_COBRANZA_COR_PAGOS_MAIN_ASIGNACION_MASIVA_V001
+FIX_COBRANZA_COR_PAGOS_CATALOGO_BUSCABLE_V003
 
 core/module-loader.js
 modules/cobranza-cor/cobranza-cor-pagos.js
 modules/cobranza-cor/cobranza-cor-pagos.css
-backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.repository.js
-backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.service.js
-backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.controller.js
-backend/src/modules/cobranza-cor/cobranza-cor.routes.js
-tests/cobranza-cor-pagos-main-asignacion-masiva.test.js
-docs/README_FIX_COBRANZA_COR_PAGOS_MAIN_ASIGNACION_MASIVA_V001.md
-docs/VALIDACIONES_FIX_COBRANZA_COR_PAGOS_MAIN_ASIGNACION_MASIVA_V001.txt
-docs/CHECKSUMS_FIX_COBRANZA_COR_PAGOS_MAIN_ASIGNACION_MASIVA_V001.sha256
+tests/cobranza-cor-pagos-catalogo-buscable-v003.test.js
+docs/README_FIX_COBRANZA_COR_PAGOS_CATALOGO_BUSCABLE_V003.md
+docs/VALIDACIONES_FIX_COBRANZA_COR_PAGOS_CATALOGO_BUSCABLE_V003.txt
+docs/CHECKSUMS_FIX_COBRANZA_COR_PAGOS_CATALOGO_BUSCABLE_V003.sha256
 FILES.txt

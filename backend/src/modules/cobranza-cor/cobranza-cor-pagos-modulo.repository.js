@@ -152,7 +152,7 @@ async function getPagoModulo_cor(connection, idPagoCor) {
   return rows[0] || null;
 }
 
-async function listProyectosPagos_cor(connection, buscar = null, limit = 2000) {
+async function listProyectosPagos_cor(connection, buscar = null) {
   const params = [];
   let where = '';
   if (buscar) {
@@ -160,13 +160,11 @@ async function listProyectosPagos_cor(connection, buscar = null, limit = 2000) {
     where = `WHERE p.ppns LIKE ? OR p.proyecto LIKE ? OR p.cliente LIKE ?`;
     params.push(like, like, like);
   }
-  params.push(Number(limit));
   const [rows] = await connection.query(
     `SELECT p.ppns, p.proyecto, p.cliente
        FROM (${PROJECTS_SQL_COR}) p
        ${where}
-      ORDER BY COALESCE(p.proyecto, ''), p.ppns
-      LIMIT ?`,
+      ORDER BY COALESCE(p.proyecto, ''), p.ppns`,
     params
   );
   return rows;

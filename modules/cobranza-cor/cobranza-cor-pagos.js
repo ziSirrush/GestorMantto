@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-10-02 | ASTER-MG | FIX PAGOS MAIN + FUENTE AGRUPADA + ASIGNACION MASIVA V001]
+  // [Aster | 2026-10-02 | ASTER-MG | FIX PAGOS CATALOGO BUSCABLE V003]
   if(window.ManttoCobranzaCorPagos) return;
 
   const ROUTE='cobranza-pagos';
@@ -15,6 +15,7 @@
     records:[],
     projects:[],
     projectMap:new Map(),
+    projectInputMap:new Map(),
     projectsLoaded:false,
     summary:{registros:0,con_proyecto:0,sin_proyecto:0},
     pagination:{page:1,pageSize:PAGE_SIZE,totalRecords:0,totalPages:1},
@@ -135,19 +136,50 @@
     return {page,pageSize,totalRecords,totalPages};
   }
 
+  function canonicalProjectInput_cor(value){
+    return String(value===null||value===undefined?'':value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g,' ');
+  }
   function projectLabel_cor(project){
     if(!project) return '';
     const parts=[text_cor(project.ppns,''),text_cor(project.proyecto,''),text_cor(project.cliente,'')].filter(Boolean);
     return parts.join(' · ');
   }
-  function projectOptions_cor(selectedPpns,includeBlank=true){
-    const selected=String(selectedPpns||'').trim().toUpperCase();
-    const blank=includeBlank?'<option value="">Sin proyecto</option>':'';
-    return blank+state.projects.map(project=>{
-      const value=String(project.ppns||'').trim();
-      const isSelected=value.toUpperCase()===selected;
-      return `<option value="${escapeHtml_cor(value)}"${isSelected?' selected':''}>${escapeHtml_cor(projectLabel_cor(project))}</option>`;
+  function rebuildProjectMaps_cor(){
+    state.projectMap=new Map();
+    state.projectInputMap=new Map();
+    state.projects.forEach(project=>{
+      const ppns=String(project&&project.ppns||'').trim();
+      if(!ppns) return;
+      const label=projectLabel_cor(project);
+      state.projectMap.set(canonicalProjectInput_cor(ppns),project);
+      state.projectInputMap.set(canonicalProjectInput_cor(ppns),project);
+      state.projectInputMap.set(canonicalProjectInput_cor(label),project);
+    });
+  }
+  function projectDatalistOptions_cor(){
+    return state.projects.map(project=>{
+      const label=projectLabel_cor(project);
+      if(!label) return '';
+      return `<option value="${escapeHtml_cor(label)}"></option>`;
     }).join('');
+  }
+  function projectInputValue_cor(ppns){
+    const raw=String(ppns||'').trim();
+    if(!raw) return '';
+    const project=state.projectMap.get(canonicalProjectInput_cor(raw));
+    return project?projectLabel_cor(project):raw;
+  }
+  function resolveProjectInput_cor(value){
+    const raw=String(value||'').trim();
+    if(!raw) return {valid:true,ppns:'',project:null};
+    const project=state.projectInputMap.get(canonicalProjectInput_cor(raw))||null;
+    if(!project) return {valid:false,ppns:'',project:null};
+    return {valid:true,ppns:String(project.ppns||'').trim(),project};
   }
 
   function renderShell_cor(){
@@ -188,7 +220,8 @@
             <strong>Asignación masiva</strong>
             <span id="ccor-pg-selected-count">0 seleccionados</span>
           </div>
-          <label class="ccor-pg-field ccor-pg-bulk-project"><span>Proyecto de Fuente</span><select id="ccor-pg-bulk-project" ${readonly?'disabled':''}><option value="">Selecciona proyecto...</option>${projectOptions_cor(state.bulkProject,false)}</select></label>
+          <label class="ccor-pg-field ccor-pg-bulk-project"><span>Proyecto de Fuente</span><input id="ccor-pg-bulk-project" type="search" list="ccor-pg-project-options" autocomplete="off" placeholder="Escribe PPNS, proyecto o cliente..." value="${escapeHtml_cor(projectInputValue_cor(state.bulkProject))}" ${readonly?'disabled':''}><small class="ccor-pg-project-hint">Escribe para acotar las opciones.</small></label>
+          <datalist id="ccor-pg-project-options">${projectDatalistOptions_cor()}</datalist>
           <button class="ccor-pg-btn ccor-pg-btn-primary" data-ccor-pg-bulk-save type="button" ${readonly?'disabled':''}>Asignar seleccionados</button>
         </section>
 
@@ -233,7 +266,7 @@
         <td data-label="Cliente">${escapeHtml_cor(text_cor(row.cliente))}</td>
         <td data-label="Proyecto origen">${escapeHtml_cor(text_cor(row.proyecto))}</td>
         <td data-label="Proyecto relacionado" class="ccor-pg-project-cell">
-          <select class="ccor-pg-row-project" data-ccor-pg-row-project data-pago-id="${safeId}" ${readonly||state.saving?'disabled':''}>${projectOptions_cor(draft,true)}</select>
+          <input type="search" class="ccor-pg-row-project" data-ccor-pg-row-project data-pago-id="${safeId}" list="ccor-pg-project-options" autocomplete="off" placeholder="Escribe para buscar..." value="${escapeHtml_cor(projectInputValue_cor(draft))}" ${readonly||state.saving?'disabled':''}>
           ${current?`<small>${escapeHtml_cor(current)}</small>`:'<small>Sin relación</small>'}
         </td>
         <td data-label="Complemento Pago">${escapeHtml_cor(text_cor(row.complemento_pago))}</td>
@@ -287,15 +320,16 @@
     if(state.projectsLoaded) return true;
     const sequence=++state.projectsSequence;
     try{
-      const response=await apiGet_cor(API_PATH+'/proyectos?limit=2000');
+      const response=await apiGet_cor(API_PATH+'/proyectos');
       if(sequence!==state.projectsSequence) return false;
       state.projects=Array.isArray(response&&response.data)?response.data:[];
-      state.projectMap=new Map(state.projects.map(item=>[String(item.ppns||'').trim().toUpperCase(),item]));
+      rebuildProjectMaps_cor();
       state.projectsLoaded=true;
       return true;
     }catch(error){
       state.projects=[];
       state.projectMap=new Map();
+      state.projectInputMap=new Map();
       state.projectsLoaded=false;
       throw error;
     }
@@ -315,8 +349,10 @@
         renderShell_cor();
         bindEvents_cor();
       }else{
-        const bulkSelect=state.root.querySelector('#ccor-pg-bulk-project');
-        if(bulkSelect) bulkSelect.innerHTML='<option value="">Selecciona proyecto...</option>'+projectOptions_cor(state.bulkProject,false);
+        const datalist=state.root.querySelector('#ccor-pg-project-options');
+        if(datalist) datalist.innerHTML=projectDatalistOptions_cor();
+        const bulkInput=state.root.querySelector('#ccor-pg-bulk-project');
+        if(bulkInput&&document.activeElement!==bulkInput) bulkInput.value=projectInputValue_cor(state.bulkProject);
       }
       applyResponse_cor(response||{});
       setText_cor('ccor-pg-message','');
@@ -337,8 +373,16 @@
     if(!Number.isInteger(id)||id<=0||state.saving||isViewerReadonly_cor()) return false;
     const row=state.records.find(item=>Number(item.id_pago_cor)===id);
     if(!row) return false;
-    const select=state.root&&state.root.querySelector(`[data-ccor-pg-row-project][data-pago-id="${id}"]`);
-    const ppns=String(select?select.value:(state.rowDrafts.get(id)||'')).trim();
+    const input=state.root&&state.root.querySelector(`[data-ccor-pg-row-project][data-pago-id="${id}"]`);
+    const inputValue=String(input?input.value:projectInputValue_cor(state.rowDrafts.get(id)||'')).trim();
+    const resolved=resolveProjectInput_cor(inputValue);
+    if(!resolved.valid){
+      setText_cor('ccor-pg-message','Selecciona un proyecto válido del listado.');
+      if(input) input.setAttribute('aria-invalid','true');
+      return false;
+    }
+    if(input) input.removeAttribute('aria-invalid');
+    const ppns=resolved.ppns;
     const current=String(row.ppns_relacionado||'').trim();
     state.saving=true;
     setText_cor('ccor-pg-message',ppns?'Guardando relación...':'Quitando relación...');
@@ -366,8 +410,11 @@
   async function saveBulkProject_cor(){
     if(state.saving||isViewerReadonly_cor()) return false;
     const ids=[...state.selectedIds].filter(id=>Number.isInteger(id)&&id>0);
-    const ppns=String(state.bulkProject||'').trim();
+    const bulkInput=state.root&&state.root.querySelector('#ccor-pg-bulk-project');
+    const resolved=resolveProjectInput_cor(bulkInput?bulkInput.value:projectInputValue_cor(state.bulkProject));
+    const ppns=resolved.valid?resolved.ppns:'';
     if(!ids.length){setText_cor('ccor-pg-message','Selecciona al menos un Pago.');return false;}
+    if(!resolved.valid){setText_cor('ccor-pg-message','Selecciona un proyecto válido del listado para la asignación masiva.');return false;}
     if(!ppns){setText_cor('ccor-pg-message','Selecciona el proyecto para la asignación masiva.');return false;}
     state.saving=true;
     syncSelectionUi_cor();
@@ -415,13 +462,28 @@
     });
 
     root.addEventListener('input',event=>{
-      if(event.target.id!=='ccor-pg-search') return;
-      window.clearTimeout(state.searchTimer);
-      state.searchTimer=window.setTimeout(()=>{
-        state.filters.q=event.target.value||'';
-        state.selectedIds.clear();
-        refresh_cor({resetPage:true});
-      },SEARCH_DELAY_MS);
+      if(event.target.id==='ccor-pg-search'){
+        window.clearTimeout(state.searchTimer);
+        state.searchTimer=window.setTimeout(()=>{
+          state.filters.q=event.target.value||'';
+          state.selectedIds.clear();
+          refresh_cor({resetPage:true});
+        },SEARCH_DELAY_MS);
+        return;
+      }
+      if(event.target.matches('[data-ccor-pg-row-project]')){
+        const id=Number(event.target.dataset.pagoId);
+        const resolved=resolveProjectInput_cor(event.target.value);
+        if(Number.isInteger(id)&&resolved.valid) state.rowDrafts.set(id,resolved.ppns);
+        event.target.setAttribute('aria-invalid',resolved.valid?'false':'true');
+        return;
+      }
+      if(event.target.id==='ccor-pg-bulk-project'){
+        const resolved=resolveProjectInput_cor(event.target.value);
+        state.bulkProject=resolved.valid?resolved.ppns:'';
+        event.target.setAttribute('aria-invalid',resolved.valid?'false':'true');
+        syncSelectionUi_cor();
+      }
     });
 
     root.addEventListener('change',event=>{
@@ -455,11 +517,26 @@
       }
       if(event.target.matches('[data-ccor-pg-row-project]')){
         const id=Number(event.target.dataset.pagoId);
-        if(Number.isInteger(id)) state.rowDrafts.set(id,event.target.value||'');
+        const resolved=resolveProjectInput_cor(event.target.value);
+        if(resolved.valid){
+          if(Number.isInteger(id)) state.rowDrafts.set(id,resolved.ppns);
+          event.target.value=projectInputValue_cor(resolved.ppns);
+          event.target.setAttribute('aria-invalid','false');
+        }else{
+          event.target.setAttribute('aria-invalid','true');
+        }
         return;
       }
       if(event.target.id==='ccor-pg-bulk-project'){
-        state.bulkProject=event.target.value||'';
+        const resolved=resolveProjectInput_cor(event.target.value);
+        if(resolved.valid){
+          state.bulkProject=resolved.ppns;
+          event.target.value=projectInputValue_cor(resolved.ppns);
+          event.target.setAttribute('aria-invalid','false');
+        }else{
+          state.bulkProject='';
+          event.target.setAttribute('aria-invalid','true');
+        }
         syncSelectionUi_cor();
       }
     });
@@ -494,6 +571,7 @@
     state.records=[];
     state.projects=[];
     state.projectMap=new Map();
+    state.projectInputMap=new Map();
     state.projectsLoaded=false;
     state.pagination={page:1,pageSize:PAGE_SIZE,totalRecords:0,totalPages:1};
     state.selectedIds.clear();

@@ -1,0 +1,28 @@
+FIX COBRANZA COR PAGOS CATALOGO FUENTE AGRUPADA V002
+Fecha: 2026-10-02
+Base main revisada: 8addea56c10a85f417e9aab2f941e6412c1077af
+
+VALIDACIONES
+- node --check frontend: PASS
+- node --check service: PASS
+- node --check repository: PASS
+- pruebas dirigidas: 4/4 PASS
+- origen del list: cobranza_fuente_cor
+- agrupacion: UPPER(TRIM(id_proyecto_origen))
+- referencia FROM ins_fl en catalogo: 0
+- LIMIT artificial en listProyectosPagos_cor: 0
+- ?limit= en llamada frontend de proyectos: 0
+- SQL de migracion: 0
+- .patch: 0
+
+ALCANCE CONSERVADO
+- detalle Pago permanece eliminado
+- asignacion desde tabla main se conserva
+- asignacion individual se conserva
+- asignacion masiva se conserva
+
+NO EJECUTADO
+- deploy Azure
+- deploy Netlify
+- push GitHub
+- escritura Aiven

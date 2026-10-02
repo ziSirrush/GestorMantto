@@ -1,4 +1,4 @@
-/* [Aster | 2026-10-02 | ASTER-MG | FIX PAGOS MAIN + FUENTE AGRUPADA + ASIGNACION MASIVA V001] */
+/* [Aster | 2026-10-02 | ASTER-MG | FIX PAGOS CATALOGO BUSCABLE V003] */
 .ccor-pg-page{padding:18px;display:grid;gap:16px;color:#172033}
 .ccor-pg-page *{box-sizing:border-box}
 .ccor-pg-hero,.ccor-pg-card{background:#fff;border:1px solid #dfe5ef;border-radius:16px;box-shadow:0 8px 24px rgba(19,35,58,.06)}
@@ -74,3 +74,8 @@
   .ccor-pg-empty::before{display:none}
   .ccor-pg-pagination{justify-content:space-between}
 }
+
+/* FIX V003: catalogo buscable por PPNS, proyecto o cliente. */
+.ccor-pg-project-hint{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:500}
+.ccor-pg-row-project[aria-invalid="true"],.ccor-pg-bulk-project input[aria-invalid="true"]{border-color:#d92d20;box-shadow:0 0 0 3px rgba(217,45,32,.08)}
+.ccor-pg-row-project::placeholder,.ccor-pg-bulk-project input::placeholder{color:#98a2b3}

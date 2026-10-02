@@ -187,10 +187,9 @@ async function listarPagos_cor(query = {}, informationAccess) {
 async function listarProyectos_cor(query = {}, informationAccess) {
   assertCompleteCorellianScope_cor(informationAccess);
   const buscar = cleanText_cor(query.q ?? query.buscar, 200);
-  const limit = integer_cor(query.limit ?? query.limite, 'limit', { min: 1, max: 2000 }) || 2000;
   const connection = await repository.getConnection_cor();
   try {
-    const rows = await repository.listProyectosPagos_cor(connection, buscar, limit);
+    const rows = await repository.listProyectosPagos_cor(connection, buscar);
     return {
       ok: true,
       source: 'aiven',
@@ -198,6 +197,7 @@ async function listarProyectos_cor(query = {}, informationAccess) {
       grouped_by: 'id_proyecto_origen',
       domain: 'CORELLIAN',
       route: ROUTES_PAGOS_COR.proyectos,
+      total_proyectos: rows.length,
       data: rows.map(serializeProyecto_cor)
     };
   } finally {
