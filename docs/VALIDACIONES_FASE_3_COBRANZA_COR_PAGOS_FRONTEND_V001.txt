@@ -1,0 +1,30 @@
+FASE 3 COBRANZA COR PAGOS FRONTEND V001
+Fecha: 2026-10-02
+Base: bb1294520882e02e12bf8d82cb5387ad244b16d9 - Version 100226.3
+
+VALIDACIONES
+- Blob base core/module-loader.js: ff1a0795aac096f3c5c37745b681e3293494198d MATCH
+- node --check core/module-loader.js: PASS
+- node --check cobranza-cor-pagos.js: PASS
+- node --check test Fase 3: PASS
+- pruebas Fase 3: 6/6 PASS
+- pruebas Fase 2 de contrato previo: 7/7 PASS
+- .patch en entrega: 0
+- SQL en entrega: 0
+- mutaciones HTTP frontend Fase 3: 0
+- referencias cobranza_rel_pagos frontend Fase 3: 0
+
+ALCANCE
+- Frontend listado y detalle: IMPLEMENTADO
+- Busqueda/filtros/paginacion: IMPLEMENTADO
+- Responsive: IMPLEMENTADO
+- Pago -> Proyecto: NO, corresponde a Fase 4
+- Pago -> Factura: NO, corresponde a Fase 5
+- Editar/Eliminar: NO, corresponde a Fase 6
+
+NO EJECUTADO
+- E2E desplegado
+- escritura Aiven
+- push GitHub
+- deploy Azure
+- deploy Netlify

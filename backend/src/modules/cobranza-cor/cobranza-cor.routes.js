@@ -3,10 +3,14 @@
 const express = require('express');
 const controller = require('./cobranza-cor.controller');
 const pagosController = require('./cobranza-cor-pagos.controller');
+const pagosModuloController = require('./cobranza-cor-pagos-modulo.controller');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
-const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
+const {
+  humanInformationGuard_gnral,
+  requireCompleteInformationDomain_gnral
+} = require('../../middleware/information-access-gnral.middleware');
 
 const router = express.Router();
 
@@ -31,6 +35,16 @@ const requireAditivasCor = humanInformationGuard_gnral({
   groupingCode: 'COBRANZA'
 });
 
+// FASE 2 / Modulo Pagos: mientras Pago -> PPNS no este resuelto, la lectura
+// humana del universo crudo de pagos solo se permite con alcance completo de
+// CORELLIAN. Esto evita exponer filas sin una llave de alcance resoluble.
+const requirePagosCor = humanInformationGuard_gnral({
+  permissionCode: 'COBRANZA_PAGOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  domain: 'CORELLIAN',
+  groupingCode: 'COBRANZA'
+});
+const requirePagosCorCompleteDomain = requireCompleteInformationDomain_gnral('CORELLIAN');
+
 function rejectViewerMutation_cor(req, res, next) {
   if (req.viewerContext && req.viewerContext.active && req.viewerContext.readOnly) {
     return res.status(403).json({
@@ -48,6 +62,14 @@ router.post('/carga/facturas', requireCobranzaCorIntegration, controller.cargarF
 
 // Carga de Pagos desde Hoja SB: autentica la integracion y persiste por id_pago.
 router.post('/carga/pagos', requireCobranzaCorIntegration, pagosController.cargarPagos_cor);
+
+// Modulo Pagos: lectura general + relacion manual Pago -> Proyecto/PPNS.
+// La bandeja general conserva alcance completo porque tambien contiene pagos aun sin proyecto.
+router.get('/pagos', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.listarPagos_cor);
+router.get('/pagos/proyectos', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.listarProyectos_cor);
+router.get('/pagos/:idPagoCor', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.detallePago_cor);
+router.put('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.asignarProyecto_cor);
+router.delete('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.quitarProyecto_cor);
 
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
 router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, controller.catalogoCrearEstadoCuenta_cor);

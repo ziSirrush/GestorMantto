@@ -1,0 +1,95 @@
+FASE 4 COBRANZA COR PAGOS PROYECTO V001 - VALIDACIONES
+Fecha: 2026-10-02
+
+[1] node --check
+PASS  backend/src/modules/cobranza-cor/cobranza-cor.routes.js
+PASS  backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.controller.js
+PASS  backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.service.js
+PASS  backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.repository.js
+PASS  modules/cobranza-cor/cobranza-cor-pagos.js
+PASS  core/module-loader.js
+PASS  tests/cobranza-cor-pagos-modulo-fase4.test.js
+
+[2] pruebas dirigidas
+TAP version 13
+# Subtest: serializa relacion PPNS sin cambiar datos de origen
+ok 1 - serializa relacion PPNS sin cambiar datos de origen
+  ---
+  duration_ms: 0.921048
+  type: 'test'
+  ...
+# Subtest: asigna proyecto valido y conserva coherencia con Facturas relacionadas
+ok 2 - asigna proyecto valido y conserva coherencia con Facturas relacionadas
+  ---
+  duration_ms: 1.176573
+  type: 'test'
+  ...
+# Subtest: rechaza cambiar a proyecto distinto de Facturas ya relacionadas
+ok 3 - rechaza cambiar a proyecto distinto de Facturas ya relacionadas
+  ---
+  duration_ms: 1.509085
+  type: 'test'
+  ...
+# Subtest: rechaza proyecto inexistente o inactivo
+ok 4 - rechaza proyecto inexistente o inactivo
+  ---
+  duration_ms: 0.221704
+  type: 'test'
+  ...
+# Subtest: no permite quitar proyecto si existen relaciones con Facturas
+ok 5 - no permite quitar proyecto si existen relaciones con Facturas
+  ---
+  duration_ms: 0.395346
+  type: 'test'
+  ...
+# Subtest: quita proyecto cuando Pago no tiene Facturas relacionadas
+ok 6 - quita proyecto cuando Pago no tiene Facturas relacionadas
+  ---
+  duration_ms: 0.291158
+  type: 'test'
+  ...
+# Subtest: catalogo de proyectos permanece bajo alcance completo
+ok 7 - catalogo de proyectos permanece bajo alcance completo
+  ---
+  duration_ms: 0.317449
+  type: 'test'
+  ...
+# Subtest: rutas de mutacion usan viewer guard y catalogo va antes del parametro dinamico
+ok 8 - rutas de mutacion usan viewer guard y catalogo va antes del parametro dinamico
+  ---
+  duration_ms: 0.267984
+  type: 'test'
+  ...
+# Subtest: frontend edita relacion dentro de pantalla y no usa modal/ventana flotante
+ok 9 - frontend edita relacion dentro de pantalla y no usa modal/ventana flotante
+  ---
+  duration_ms: 0.769399
+  type: 'test'
+  ...
+# Subtest: repositorio usa id_pp existente y no altera esquema
+ok 10 - repositorio usa id_pp existente y no altera esquema
+  ---
+  duration_ms: 0.449467
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 61.618336
+
+[3] esquema existente
+PASS  cobranza_pagos_cor.id_pp existe en dump revisado
+
+[4] sin cambios de esquema
+PASS  sin CREATE/ALTER/DROP/TRUNCATE
+
+[5] frontend en misma pantalla
+PASS  sin modal, window.open ni window.confirm
+
+[6] diff check respecto a fases previas
+PASS  git diff --check

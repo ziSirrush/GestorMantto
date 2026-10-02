@@ -1,0 +1,57 @@
+FASE 2 COBRANZA COR / PAGOS - LECTURA BACKEND V001
+Fecha: 2026-10-02
+Base GitHub verificada: bb1294520882e02e12bf8d82cb5387ad244b16d9 (Version 100226.3)
+Blob original backend/src/modules/cobranza-cor/cobranza-cor.routes.js: bb128ffab4b6004eb52df4a93641421180a7590f
+
+VALIDACIONES EJECUTADAS LOCALMENTE SOBRE LA ENTREGA
+
+1. node --check
+   - cobranza-cor.routes.js: PASS
+   - cobranza-cor-pagos-modulo.controller.js: PASS
+   - cobranza-cor-pagos-modulo.service.js: PASS
+   - cobranza-cor-pagos-modulo.repository.js: PASS
+   - cobranza-cor-pagos-modulo-fase2.test.js: PASS
+
+2. node --test tests/cobranza-cor-pagos-modulo-fase2.test.js
+   - 7 pruebas
+   - 7 PASS
+   - 0 FAIL
+
+3. Preservacion de archivo base
+   - Se eliminaron mecanicamente solo las adiciones Fase 2 del routes entregado.
+   - git hash-object del archivo reconstruido: bb128ffab4b6004eb52df4a93641421180a7590f
+   - Coincide exactamente con el blob GitHub main esperado: PASS
+
+4. Esquema de lectura
+   - Todos los campos usados por el SELECT existen en el dump cargado mydb_cobranza_pagos_cor.sql: PASS
+   - Este chequeo de dump NO equivale a una consulta contra Aiven vivo.
+
+5. Solo lectura
+   - Repository nuevo sin INSERT/UPDATE/DELETE/REPLACE: PASS
+   - Sin CREATE/ALTER/DROP/TRUNCATE: PASS
+   - Rutas humanas nuevas solo GET: PASS
+
+6. Seguridad
+   - Permiso funcional: COBRANZA_PAGOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+   - Guard General CORELLIAN / COBRANZA: presente
+   - requireCompleteInformationDomain_gnral('CORELLIAN'): presente
+   - Defensa adicional en service para exigir acceso_dominio_completo=true: presente
+
+7. Forma de entrega
+   - Archivos completos: SI
+   - Archivos .patch: 0
+   - SQL/migraciones: 0
+   - Espacios finales detectados: 0
+
+NO EJECUTADO
+
+- consultas contra Aiven real
+- npm test completo del repositorio
+- prueba E2E con sesion real
+- Azure
+- GitHub Pages
+- Netlify
+- commit/push/deploy
+
+Resultado: ENTREGA VALIDADA ESTATICAMENTE Y CON PRUEBAS UNITARIAS AISLADAS.
+No debe describirse como desplegada ni validada contra Produccion.

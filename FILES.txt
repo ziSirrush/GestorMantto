@@ -1,0 +1,15 @@
+FASE_6_COBRANZA_COR_EDITAR_ELIMINAR_V001
+
+backend/src/routes/index.js
+backend/src/modules/cobranza-cor/cobranza-cor-registros.routes.js
+backend/src/modules/cobranza-cor/cobranza-cor-registros.controller.js
+backend/src/modules/cobranza-cor/cobranza-cor-registros.service.js
+backend/src/modules/cobranza-cor/cobranza-cor-registros.repository.js
+core/module-loader.js
+modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js
+modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css
+tests/cobranza-cor-registros-fase6.test.js
+docs/README_FASE_6_COBRANZA_COR_EDITAR_ELIMINAR_V001.md
+docs/VALIDACIONES_FASE_6_COBRANZA_COR_EDITAR_ELIMINAR_V001.txt
+docs/CHECKSUMS_FASE_6_COBRANZA_COR_EDITAR_ELIMINAR_V001.sha256
+FILES.txt

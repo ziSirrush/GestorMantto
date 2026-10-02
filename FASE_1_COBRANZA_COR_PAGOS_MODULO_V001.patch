@@ -1,0 +1,34 @@
+diff --git a/core/router.js b/core/router.js
+index 1edc2e3..16171f2 100644
+--- a/core/router.js
++++ b/core/router.js
+@@ -7,7 +7,7 @@
+     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', control:'Centro de Control',
+     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
+     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
+-    'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-aditivas':'Aditivas',
++    'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-pagos':'Pagos', 'cobranza-aditivas':'Aditivas',
+     'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'PVO-Producción', 'logistica-produccion-nuevo':'Agregar PVO-Producción', 'logistica-produccion-detalle':'Detalle de PVO-Producción', 'logistica-documentos':'Documentos de Producción',
+     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
+     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
+diff --git a/index.html b/index.html
+index 58874cd..7901e66 100644
+--- a/index.html
++++ b/index.html
+@@ -9,6 +9,7 @@
+ <div class="side-group-items" id="side-group-cobranza">
+ <button class="side-item" data-permission="cobranza_dashboard" data-route="cobranza-dashboard" type="button"><span>📊</span><b>Dashboard Cobranza</b></button>
+ <button class="side-item" data-permission="cobranza_estados_cuenta" data-route="cobranza-estados-cuenta" type="button"><span>🧾</span><b>Estados de Cuenta</b></button>
++<button class="side-item" data-permission="cobranza_pagos" data-permission-code="COBRANZA_PAGOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="cobranza-pagos" type="button"><span>💳</span><b>Pagos</b></button>
+ <button class="side-item" data-permission="cobranza_aditivas" data-route="cobranza-aditivas" type="button"><span>➕</span><b>Aditivas</b></button>
+ </div>
+ </section>
+@@ -19,7 +20,7 @@
+ <script src="./core/data-sync.js?v=20260828-fase1-calls-v001"></script>
+ <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
+ <script src="./core/module-loader.js?v=20261001-cobranza-pagos-detalle-v001"></script>
+-<script src="./core/router.js?v=20260914-human-time-v001"></script>
++<script src="./core/router.js?v=20261002-cobranza-pagos-modulo-f1-v001"></script>
+ <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
+ <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
+ <script src="./core/rich-text.js?v=20260913-rich-text-v001"></script>

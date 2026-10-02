@@ -1,0 +1,12 @@
+a9c03708883f89d1351034e721f0555fd1e4842490c0ee73445587a7d5de0467  ./FILES.txt
+2e10b62c041f67c1bfe6615d4e7f8b66d6337064f35342ddaf162ba127b1313a  ./backend/src/modules/cobranza-cor/cobranza-cor-registros.controller.js
+cd43bbe34c33b330f82960fce934d408b372f3cd487279ad1db9c920f8acee99  ./backend/src/modules/cobranza-cor/cobranza-cor-registros.repository.js
+77723836c06a9c714534bd93aa48339c42a14908b12ce4d1c3db5da963e34ccc  ./backend/src/modules/cobranza-cor/cobranza-cor-registros.routes.js
+6f3e644949ef9ea62077180af601f9fead6a3ea4d870be7bc6a78a52d3a4ec22  ./backend/src/modules/cobranza-cor/cobranza-cor-registros.service.js
+deb16d4d9f8b610592ae21a0c330834ff60eaec9275a005170c60e06c0ba5fcc  ./backend/src/routes/index.js
+04242f631a93f1b6f52a792eac01a019a2dbda7885a5cd9a9810deb7f3dae53d  ./core/module-loader.js
+6e17b21bd1bcd9f4d7b4c8eb2cc0bfd4c44e8d095c1f5611fe4ddf3eb504c44e  ./docs/README_FASE_6_COBRANZA_COR_EDITAR_ELIMINAR_V001.md
+480317f6a35a309454bddf2eae65a18985d73b67e9234c5212ebbdfeca5ce96f  ./docs/VALIDACIONES_FASE_6_COBRANZA_COR_EDITAR_ELIMINAR_V001.txt
+a170149bbc4a1c4d5b24b4970fe73839c02c4d37cf391e0d187c43a319939b01  ./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css
+aa84c2c127b25768744a86403f090bc9c77f4a6d661401e250db7b9d851a1d12  ./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js
+48c71da4006e65307f77040a38dc42cffef9b38a253bb1e41c5f9be33a71da6b  ./tests/cobranza-cor-registros-fase6.test.js

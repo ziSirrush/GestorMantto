@@ -1,0 +1,34 @@
+FASE 5 COBRANZA COR PAGO -> FACTURA V001
+Fecha: 2026-10-02
+Base GitHub main: bb1294520882e02e12bf8d82cb5387ad244b16d9
+Version: 100226.3
+
+RESULTADO: FASE 5 YA PRESENTE EN MAIN - SIN CAMBIOS DE CODIGO REQUERIDOS
+
+VALIDADO POR INSPECCION DEL CODIGO VIGENTE
+- Tabla existente reutilizada: cobranza_rel_pagos
+- Un Pago admite varias Facturas: SI
+- Una Factura no puede reutilizarse en otro Pago: SI
+- Facturas ocupadas excluidas del selector: SI
+- Importe aplicado editable: SI
+- Relacion removible: SI
+- Tope por importe del Pago: SI
+- Pago/Factura deben pertenecer al mismo Estado de Cuenta: SI
+- Sincronizacion de estatus de Factura: SI
+- Transaccion / rollback: SI
+- Viewer solo lectura: SI
+- Refresco selectivo despues de mutacion: SI
+- CREATE TABLE: 0
+- ALTER TABLE: 0
+- Tabla nueva: 0
+
+PRUEBA EXISTENTE EN MAIN
+- tests/cobranza-cor-estados-cuenta-pagos-detalle.test.js
+- Cubre varias Facturas por Pago, exclusividad de Factura, limite de importe y selector sin Facturas ocupadas.
+
+NO EJECUTADO EN ESTA GENERACION
+- Prueba E2E contra Azure/Aiven
+- Escritura en Aiven
+- Push GitHub
+- Deploy Azure
+- Deploy Netlify

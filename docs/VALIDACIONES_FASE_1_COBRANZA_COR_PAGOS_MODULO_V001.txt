@@ -1,0 +1,44 @@
+FASE 1 - COBRANZA COR / MODULO PAGOS V001
+VALIDACIONES DE GENERACION
+Fecha: 2026-10-02
+Base revisada: bb1294520882e02e12bf8d82cb5387ad244b16d9 (Version 100226.3)
+
+ALCANCE VALIDADO
+- Nuevo modulo de catalogo: COBRANZA_PAGOS
+- Ruta: cobranza-pagos
+- Permiso visual: COBRANZA_PAGOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+- Orden: Dashboard 10 / Estados de Cuenta 20 / Pagos 30 / Aditivas 40
+- Sin asignacion automatica a roles o usuarios
+- Sin backend funcional nuevo en esta fase
+- Sin lectura/escritura de cobranza_pagos_cor en esta fase
+
+VALIDACION ESTATICA
+- Patch toca unicamente index.html y core/router.js: PASS
+- git apply --check sobre fixture con anclas exactas verificadas de main: PASS
+- git apply sobre ese fixture: PASS
+- git diff --check posterior: PASS
+- Hunk de sidebar verificado contra GitHub main: PASS
+- Hunk de routeNames verificado contra GitHub main: PASS
+- Ruta sin entrada en module-loader usa el placeholder generico actual: CONFIRMADO EN CODIGO
+- SQL APPLY escribe solo catalogo perm_* autorizado: PASS
+- CREATE TABLE en SQL de Fase 1: 0
+- ALTER TABLE en SQL de Fase 1: 0
+- DROP TABLE en SQL de Fase 1: 0
+- TRUNCATE en SQL de Fase 1: 0
+- Escrituras a cobranza_pagos_cor: 0
+- Escrituras a cobranza_facturas_cor: 0
+- Escrituras a cobranza_rel_pagos: 0
+- Escrituras a cobranza_fuente_cor: 0
+- Escrituras a ins_fl: 0
+- Nombre de tabla de excepciones por usuario no inferido/inventado: PASS
+
+NO EJECUTADO
+- SQL en Aiven
+- git apply sobre la copia local del usuario
+- GitHub Pages
+- Netlify
+- Azure
+- E2E de permisos
+
+SISTEMAS EXTERNOS MODIFICADOS DURANTE LA GENERACION
+- Ninguno
