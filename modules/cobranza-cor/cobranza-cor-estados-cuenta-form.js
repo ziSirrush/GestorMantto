@@ -1008,7 +1008,17 @@
     state.hitos[index][field]=value;
     if(field==='porcentaje'||field==='moneda'){
       recalculateHitoFinancials_cor(state.hitos[index]);
-      renderHitos_cor();
+      // Actualizar solo los valores calculados: recrear la fila en cada tecla
+      // elimina el input activo y obliga a volver a seleccionarlo.
+      ['subtotal','iva','total'].forEach(computedField=>{
+        const computedInput=tr.querySelector(`[data-hito-field="${computedField}"]`);
+        if(computedInput) computedInput.value=state.hitos[index][computedField];
+      });
+      const source=tr.querySelector('.ccor-ec-form-hito-source small');
+      if(source){
+        const currency=String(state.hitos[index].moneda||'').toUpperCase();
+        source.textContent=`Base ${currency||'—'}: ${formatAmount_cor(generalBaseByCurrency_cor(currency))}`;
+      }
     }
     renderTotals_cor();
     renderCurrencyValidation_cor();

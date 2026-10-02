@@ -30,6 +30,6 @@ test('Cache bust fuerza consolidacion F3',()=>{
   assert.match(loader,/cobranza-cor-estados-cuenta\.css\?v=20261001-cobranza-pagos-detalle-v001/);
   assert.match(loader,/cobranza-cor-estados-cuenta\.js\?v=20261001-cobranza-pagos-detalle-v001/);
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260930-cobranza-consolidacion-f3-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-equipos-validacion100-v001/);
-  assert.match(index,/core\/module-loader\.js\?v=20261001-cobranza-pagos-detalle-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20261002-foco-hitos-v001/);
+  assert.match(index,/core\/module-loader\.js\?v=20261002-foco-hitos-v001/);
 });

@@ -26,5 +26,5 @@ test('Plantilla muestra equipos de ins_fl y permite relacion PHNS sin reintroduc
 test('Cache bust usa FIX equipos validacion 100 V001 sin tocar el CSS consolidado',()=>{
   const loader=read('core/module-loader.js');
   assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260930-cobranza-consolidacion-f3-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-equipos-validacion100-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20261002-foco-hitos-v001/);
 });

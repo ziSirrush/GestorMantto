@@ -59,5 +59,5 @@ test('Validacion del 100 por moneda es visible y bloquea Guardar en tiempo real'
 
 test('Loader fuerza la version del FIX V001',()=>{
   const loader=read('core/module-loader.js');
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260930-equipos-validacion100-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20261002-foco-hitos-v001/);
 });

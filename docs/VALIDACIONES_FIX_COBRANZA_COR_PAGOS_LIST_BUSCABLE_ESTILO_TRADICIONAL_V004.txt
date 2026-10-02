@@ -1,0 +1,17 @@
+FIX COBRANZA COR PAGOS LIST BUSCABLE ESTILO TRADICIONAL V004
+Fecha: 2026-10-02
+Base GitHub: 8addea56c10a85f417e9aab2f941e6412c1077af
+Base funcional: FIX_COBRANZA_COR_PAGOS_CATALOGO_BUSCABLE_V003
+
+VALIDACIONES
+- node --check cobranza-cor-pagos.js: PASS
+- node --check module-loader.js: PASS
+- pruebas dirigidas V004: 7/7 PASS
+- datalist nativo: 0
+- atributo list nativo del catalogo: 0
+- parametro limit en /pagos/proyectos: 0
+- asignacion individual: CONSERVADA
+- asignacion masiva: CONSERVADA
+- backend modificado: NO
+- SQL: 0
+- patch: 0

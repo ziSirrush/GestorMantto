@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  // [Aster | 2026-10-02 | ASTER-MG | FIX PAGOS CATALOGO BUSCABLE V003]
+  // [Aster | 2026-10-02 | ASTER-MG | FIX PAGOS LIST BUSCABLE ESTILO TRADICIONAL V004]
   if(window.ManttoCobranzaCorPagos) return;
 
   const ROUTE='cobranza-pagos';
@@ -28,7 +28,11 @@
     searchTimer:null,
     loading:false,
     saving:false,
-    boundRoot:null
+    boundRoot:null,
+    activeProjectInput:null,
+    activeProjectResults:[],
+    activeProjectIndex:-1,
+    globalComboEventsBound:false
   };
 
   function currentNavigation_cor(){
@@ -161,12 +165,86 @@
       state.projectInputMap.set(canonicalProjectInput_cor(label),project);
     });
   }
-  function projectDatalistOptions_cor(){
-    return state.projects.map(project=>{
-      const label=projectLabel_cor(project);
-      if(!label) return '';
-      return `<option value="${escapeHtml_cor(label)}"></option>`;
+  function projectMainLabel_cor(project){
+    if(!project) return '';
+    return [text_cor(project.ppns,''),text_cor(project.proyecto,'')].filter(Boolean).join(' · ');
+  }
+  function filterProjects_cor(query){
+    const key=canonicalProjectInput_cor(query);
+    if(!key) return state.projects.slice();
+    return state.projects.filter(project=>canonicalProjectInput_cor(projectLabel_cor(project)).includes(key));
+  }
+  function projectDropdownOptionsHtml_cor(){
+    if(!state.activeProjectResults.length){
+      return '<div class="ccor-pg-project-dropdown-empty">Sin coincidencias</div>';
+    }
+    return state.activeProjectResults.map((project,index)=>{
+      const active=index===state.activeProjectIndex;
+      const ppns=String(project&&project.ppns||'').trim();
+      const client=text_cor(project&&project.cliente,'');
+      return `<button type="button" class="ccor-pg-project-option${active?' is-active':''}" data-ccor-pg-project-option data-index="${index}" data-ppns="${escapeHtml_cor(ppns)}" role="option" aria-selected="${active?'true':'false'}"><span class="ccor-pg-project-option-main">${escapeHtml_cor(projectMainLabel_cor(project))}</span>${client?`<small>${escapeHtml_cor(client)}</small>`:''}</button>`;
     }).join('');
+  }
+  function closeProjectDropdown_cor(){
+    const dropdown=state.root&&state.root.querySelector('#ccor-pg-project-dropdown');
+    if(dropdown){dropdown.hidden=true;dropdown.innerHTML='';}
+    if(state.activeProjectInput&&state.activeProjectInput.setAttribute) state.activeProjectInput.setAttribute('aria-expanded','false');
+    state.activeProjectInput=null;
+    state.activeProjectResults=[];
+    state.activeProjectIndex=-1;
+  }
+  function positionProjectDropdown_cor(input,dropdown){
+    if(!input||!dropdown||typeof input.getBoundingClientRect!=='function') return;
+    const rect=input.getBoundingClientRect();
+    const viewportWidth=(document.documentElement&&document.documentElement.clientWidth)||window.innerWidth||1024;
+    const width=Math.min(Math.max(rect.width,280),Math.max(220,viewportWidth-24));
+    const left=Math.max(12,Math.min(rect.left,viewportWidth-width-12));
+    dropdown.style.left=left+'px';
+    dropdown.style.top=(rect.bottom+4)+'px';
+    dropdown.style.width=width+'px';
+  }
+  function renderProjectDropdown_cor(input,query){
+    if(!state.root||!input||input.disabled) return;
+    const dropdown=state.root.querySelector('#ccor-pg-project-dropdown');
+    if(!dropdown) return;
+    if(state.activeProjectInput!==input) state.activeProjectIndex=-1;
+    state.activeProjectInput=input;
+    state.activeProjectResults=filterProjects_cor(query);
+    if(state.activeProjectIndex>=state.activeProjectResults.length) state.activeProjectIndex=-1;
+    dropdown.innerHTML=projectDropdownOptionsHtml_cor();
+    dropdown.hidden=false;
+    input.setAttribute('aria-expanded','true');
+    positionProjectDropdown_cor(input,dropdown);
+  }
+  function selectProjectOption_cor(index){
+    const input=state.activeProjectInput;
+    const project=state.activeProjectResults[Number(index)];
+    if(!input||!project) return false;
+    const ppns=String(project.ppns||'').trim();
+    input.value=projectLabel_cor(project);
+    input.setAttribute('aria-invalid','false');
+    if(input.id==='ccor-pg-bulk-project'){
+      state.bulkProject=ppns;
+    }else if(input.matches('[data-ccor-pg-row-project]')){
+      const id=Number(input.dataset.pagoId);
+      if(Number.isInteger(id)) state.rowDrafts.set(id,ppns);
+    }
+    closeProjectDropdown_cor();
+    syncSelectionUi_cor();
+    return true;
+  }
+  function moveProjectDropdown_cor(delta){
+    if(!state.activeProjectInput) return;
+    const total=state.activeProjectResults.length;
+    if(!total) return;
+    if(state.activeProjectIndex<0) state.activeProjectIndex=delta>0?0:total-1;
+    else state.activeProjectIndex=(state.activeProjectIndex+delta+total)%total;
+    const dropdown=state.root&&state.root.querySelector('#ccor-pg-project-dropdown');
+    if(dropdown){
+      dropdown.innerHTML=projectDropdownOptionsHtml_cor();
+      const active=dropdown.querySelector('.ccor-pg-project-option.is-active');
+      if(active&&typeof active.scrollIntoView==='function') active.scrollIntoView({block:'nearest'});
+    }
   }
   function projectInputValue_cor(ppns){
     const raw=String(ppns||'').trim();
@@ -220,8 +298,7 @@
             <strong>Asignación masiva</strong>
             <span id="ccor-pg-selected-count">0 seleccionados</span>
           </div>
-          <label class="ccor-pg-field ccor-pg-bulk-project"><span>Proyecto de Fuente</span><input id="ccor-pg-bulk-project" type="search" list="ccor-pg-project-options" autocomplete="off" placeholder="Escribe PPNS, proyecto o cliente..." value="${escapeHtml_cor(projectInputValue_cor(state.bulkProject))}" ${readonly?'disabled':''}><small class="ccor-pg-project-hint">Escribe para acotar las opciones.</small></label>
-          <datalist id="ccor-pg-project-options">${projectDatalistOptions_cor()}</datalist>
+          <label class="ccor-pg-field ccor-pg-bulk-project"><span>Proyecto de Fuente</span><div class="ccor-pg-project-combo"><input id="ccor-pg-bulk-project" type="text" data-ccor-pg-project-combo autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ccor-pg-project-dropdown" placeholder="Escribe PPNS, proyecto o cliente..." value="${escapeHtml_cor(projectInputValue_cor(state.bulkProject))}" ${readonly?'disabled':''}><span class="ccor-pg-project-combo-arrow" aria-hidden="true">▾</span></div><small class="ccor-pg-project-hint">Escribe para acotar las opciones.</small></label>
           <button class="ccor-pg-btn ccor-pg-btn-primary" data-ccor-pg-bulk-save type="button" ${readonly?'disabled':''}>Asignar seleccionados</button>
         </section>
 
@@ -240,11 +317,13 @@
           </div>
           <div class="ccor-pg-pagination"><button class="ccor-pg-btn" data-ccor-pg-prev type="button">← Anterior</button><span id="ccor-pg-page-label">Página 1 de 1</span><button class="ccor-pg-btn" data-ccor-pg-next type="button">Siguiente →</button></div>
         </section>
+        <div id="ccor-pg-project-dropdown" class="ccor-pg-project-dropdown" role="listbox" hidden></div>
       </div>`;
   }
 
   function renderRows_cor(){
     if(!state.root) return;
+    closeProjectDropdown_cor();
     const tbody=state.root.querySelector('#ccor-pg-tbody');
     if(!tbody) return;
     const readonly=isViewerReadonly_cor();
@@ -266,7 +345,7 @@
         <td data-label="Cliente">${escapeHtml_cor(text_cor(row.cliente))}</td>
         <td data-label="Proyecto origen">${escapeHtml_cor(text_cor(row.proyecto))}</td>
         <td data-label="Proyecto relacionado" class="ccor-pg-project-cell">
-          <input type="search" class="ccor-pg-row-project" data-ccor-pg-row-project data-pago-id="${safeId}" list="ccor-pg-project-options" autocomplete="off" placeholder="Escribe para buscar..." value="${escapeHtml_cor(projectInputValue_cor(draft))}" ${readonly||state.saving?'disabled':''}>
+          <div class="ccor-pg-project-combo ccor-pg-project-combo-row"><input type="text" class="ccor-pg-row-project" data-ccor-pg-row-project data-ccor-pg-project-combo data-pago-id="${safeId}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ccor-pg-project-dropdown" placeholder="Escribe para buscar..." value="${escapeHtml_cor(projectInputValue_cor(draft))}" ${readonly||state.saving?'disabled':''}><span class="ccor-pg-project-combo-arrow" aria-hidden="true">▾</span></div>
           ${current?`<small>${escapeHtml_cor(current)}</small>`:'<small>Sin relación</small>'}
         </td>
         <td data-label="Complemento Pago">${escapeHtml_cor(text_cor(row.complemento_pago))}</td>
@@ -331,6 +410,7 @@
       state.projectMap=new Map();
       state.projectInputMap=new Map();
       state.projectsLoaded=false;
+      closeProjectDropdown_cor();
       throw error;
     }
   }
@@ -349,8 +429,6 @@
         renderShell_cor();
         bindEvents_cor();
       }else{
-        const datalist=state.root.querySelector('#ccor-pg-project-options');
-        if(datalist) datalist.innerHTML=projectDatalistOptions_cor();
         const bulkInput=state.root.querySelector('#ccor-pg-bulk-project');
         if(bulkInput&&document.activeElement!==bulkInput) bulkInput.value=projectInputValue_cor(state.bulkProject);
       }
@@ -452,6 +530,10 @@
     state.boundRoot=root;
 
     root.addEventListener('click',event=>{
+      const option=event.target.closest('[data-ccor-pg-project-option]');
+      if(option){selectProjectOption_cor(option.dataset.index);return;}
+      const comboInput=event.target.closest('[data-ccor-pg-project-combo]');
+      if(comboInput){renderProjectDropdown_cor(comboInput,comboInput.value);return;}
       if(event.target.closest('[data-ccor-pg-refresh]')){refresh_cor();return;}
       if(event.target.closest('[data-ccor-pg-clear]')){clearFilters_cor();return;}
       if(event.target.closest('[data-ccor-pg-prev]')){if(state.pagination.page>1){state.pagination.page-=1;state.selectedIds.clear();refresh_cor();}return;}
@@ -475,15 +557,32 @@
         const id=Number(event.target.dataset.pagoId);
         const resolved=resolveProjectInput_cor(event.target.value);
         if(Number.isInteger(id)&&resolved.valid) state.rowDrafts.set(id,resolved.ppns);
-        event.target.setAttribute('aria-invalid',resolved.valid?'false':'true');
+        event.target.setAttribute('aria-invalid','false');
+        renderProjectDropdown_cor(event.target,event.target.value);
         return;
       }
       if(event.target.id==='ccor-pg-bulk-project'){
         const resolved=resolveProjectInput_cor(event.target.value);
         state.bulkProject=resolved.valid?resolved.ppns:'';
-        event.target.setAttribute('aria-invalid',resolved.valid?'false':'true');
+        event.target.setAttribute('aria-invalid','false');
+        renderProjectDropdown_cor(event.target,event.target.value);
         syncSelectionUi_cor();
       }
+    });
+
+    root.addEventListener('focusin',event=>{
+      if(event.target.matches&&event.target.matches('[data-ccor-pg-project-combo]')){
+        renderProjectDropdown_cor(event.target,event.target.value);
+      }
+    });
+
+    root.addEventListener('keydown',event=>{
+      if(!event.target.matches||!event.target.matches('[data-ccor-pg-project-combo]')) return;
+      if(event.key==='ArrowDown'){event.preventDefault();if(state.activeProjectInput!==event.target) renderProjectDropdown_cor(event.target,event.target.value);moveProjectDropdown_cor(1);return;}
+      if(event.key==='ArrowUp'){event.preventDefault();if(state.activeProjectInput!==event.target) renderProjectDropdown_cor(event.target,event.target.value);moveProjectDropdown_cor(-1);return;}
+      if(event.key==='Enter'&&state.activeProjectInput===event.target&&state.activeProjectIndex>=0){event.preventDefault();selectProjectOption_cor(state.activeProjectIndex);return;}
+      if(event.key==='Escape'){closeProjectDropdown_cor();return;}
+      if(event.key==='Tab') closeProjectDropdown_cor();
     });
 
     root.addEventListener('change',event=>{
@@ -525,6 +624,7 @@
         }else{
           event.target.setAttribute('aria-invalid','true');
         }
+        closeProjectDropdown_cor();
         return;
       }
       if(event.target.id==='ccor-pg-bulk-project'){
@@ -538,8 +638,21 @@
           event.target.setAttribute('aria-invalid','true');
         }
         syncSelectionUi_cor();
+        closeProjectDropdown_cor();
       }
     });
+
+    if(!state.globalComboEventsBound){
+      document.addEventListener('pointerdown',event=>{
+        if(!state.activeProjectInput) return;
+        const dropdown=state.root&&state.root.querySelector('#ccor-pg-project-dropdown');
+        const insideDropdown=dropdown&&dropdown.contains&&dropdown.contains(event.target);
+        const insideCombo=event.target&&event.target.closest&&event.target.closest('.ccor-pg-project-combo');
+        if(!insideDropdown&&!insideCombo) closeProjectDropdown_cor();
+      });
+      if(window.addEventListener) window.addEventListener('resize',closeProjectDropdown_cor);
+      state.globalComboEventsBound=true;
+    }
   }
 
   async function init_cor(rootArg){
@@ -573,6 +686,7 @@
     state.projectMap=new Map();
     state.projectInputMap=new Map();
     state.projectsLoaded=false;
+    closeProjectDropdown_cor();
     state.pagination={page:1,pageSize:PAGE_SIZE,totalRecords:0,totalPages:1};
     state.selectedIds.clear();
     state.rowDrafts.clear();
