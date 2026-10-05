@@ -12,9 +12,10 @@
 // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION FILTROS MAIN V001]
 // [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE SIN VENTAS V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION ORDEN FILTROS EMOJIS V001]
+// [Aster | 2026-10-05 | ASTER-MG | FASE 2 PVO-PRODUCCION SEPARACION FECHAS FUENTES V001]
 // id_log_ops identifica el registro logistico y mantiene las fuentes operativas de log_ops.
 // La relacion con Instalaciones se hace por PPNS persistido: ins_fl.id_proyecto = logistica_produccion.ppns.
-// Fecha de Visita y Fecha entrega cubos se leen de ins_fl usando ese PPNS.
+// PVO, Visita y Cubos se leen de logistica_produccion; log_ops / ins_fl quedan como fuentes comparativas.
 
 const db = require('../../config/db');
 
@@ -90,7 +91,7 @@ async function list(filters={}){
   const params=[];
   const vista=String(filters.vista||'').trim().toLowerCase();
   const ppnsExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.id_ppns ELSE p.ppns END`;
-  const pvoExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.pvo ELSE p.fecha_pvo END`;
+  const pvoExpr=`p.fecha_pvo`;
   const projectExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.proyecto ELSE p.proyecto END`;
   const pvoDateExpr=`STR_TO_DATE(LEFT(TRIM(COALESCE(${pvoExpr},'')),10),'%Y-%m-%d')`;
 
@@ -106,16 +107,10 @@ async function list(filters={}){
     )`);
   }
   if(vista==='sin_visita'){
-    where.push(`(
-      (p.id_log_ops IS NOT NULL AND TRIM(COALESCE(fl.fechas_visita,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
-      OR (p.id_log_ops IS NULL AND TRIM(COALESCE(p.fecha_pvo_fl,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
-    )`);
+    where.push(`TRIM(COALESCE(p.fecha_pvo_fl,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}'`);
   }
   if(vista==='sin_cubos'){
-    where.push(`(
-      (p.id_log_ops IS NOT NULL AND TRIM(COALESCE(fl.fechas_cubos,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
-      OR (p.id_log_ops IS NULL AND TRIM(COALESCE(p.fecha_cubos,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}')
-    )`);
+    where.push(`TRIM(COALESCE(p.fecha_cubos,'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}'`);
   }
   if(vista==='sin_asesor')where.push(`NULLIF(TRIM(COALESCE(ua.iniciales,'')),'') IS NULL`);
   if(vista==='sin_supervisor')where.push(`NULLIF(TRIM(COALESCE(us.iniciales,'')),'') IS NULL`);

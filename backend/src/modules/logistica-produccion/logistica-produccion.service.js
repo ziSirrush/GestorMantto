@@ -1,5 +1,8 @@
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS MODAL RESPONSIVE V002]
 'use strict';
+// [Aster | 2026-10-05 | ASTER-MG | FASE 1 PVO-PRODUCCION CAPTURA MANUAL FECHAS V001]
+// [Aster | 2026-10-05 | ASTER-MG | FASE 2 PVO-PRODUCCION SEPARACION FECHAS FUENTES V001]
+// [Aster | 2026-10-05 | ASTER-MG | FASE 3 PVO-PRODUCCION COMPARACION FECHAS DETALLE V001]
 
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS DESCARGA SAS V001]
@@ -37,16 +40,41 @@ function singleSourceDate(value){
   const dates=[...new Set(split(value).map(v=>String(v).slice(0,10)).filter(hasDate))];
   return dates.length===1?dates[0]:null;
 }
+function comparisonDate(value){
+  const text=String(value||'').trim();
+  return hasDate(text)?text.slice(0,10):null;
+}
+function buildDateComparison({captured,source,sourceRaw,sourceName,linked=true}){
+  const capturada=comparisonDate(captured);
+  const rawSource=String(sourceRaw||source||'').trim();
+  const fuentes=[...new Set(split(rawSource).map(comparisonDate).filter(Boolean))];
+  const fuente=fuentes.length===1?fuentes[0]:null;
+  let estado='SIN_DATOS';
+  let coincide=null;
+  if(!linked)estado='SIN_VINCULO';
+  else if(!capturada&&!fuentes.length)estado='SIN_DATOS';
+  else if(!capturada)estado='SIN_CAPTURA';
+  else if(!fuentes.length)estado='SIN_FUENTE';
+  else if(fuentes.length>1)estado='FUENTE_MULTIPLE';
+  else if(capturada===fuente){estado='COINCIDE';coincide=true;}
+  else{estado='DIFERENTE';coincide=false;}
+  return {capturada,fuente,fuentes,fuente_origen:sourceName||null,estado,coincide};
+}
 
 function decorate(row){
   const sourceBound=row.id_log_ops!==null&&row.id_log_ops!==undefined&&row.id_log_ops!=='';
   const ppns=sourceBound?String(row.ppns_logistica||'').trim():String(row.ppns||'').trim();
   const proyecto=sourceBound?String(row.proyecto_logistica||'').trim():String(row.proyecto||'').trim();
-  const fechaPvo=sourceBound?(row.fecha_pvo_logistica||null):(row.fecha_pvo||null);
-  const fechaVisitaRaw=sourceBound?(row.fechas_visita||''):(row.fecha_pvo_fl||'');
-  const fechaCubosRaw=sourceBound?(row.fechas_cubos_fuente||''):(row.fecha_cubos||'');
-  const fechaVisita=singleSourceDate(fechaVisitaRaw);
-  const fechaCubos=singleSourceDate(fechaCubosRaw);
+  // Las fechas propias de PVO-Produccion son la autoridad del modulo.
+  // log_ops / ins_fl se conservan separadas como fuentes comparativas para Detalle.
+  const fechaPvo=row.fecha_pvo||null;
+  const fechaVisita=row.fecha_pvo_fl||null;
+  const fechaCubos=row.fecha_cubos||null;
+  const fechaPvoFuente=sourceBound?(row.fecha_pvo_logistica||null):null;
+  const fechaVisitaFuenteRaw=sourceBound?(row.fechas_pvo_fl_fuente||row.fechas_visita||''):'';
+  const fechaCubosFuenteRaw=sourceBound?(row.fechas_cubos_fuente||''):'';
+  const fechaVisitaFuente=singleSourceDate(fechaVisitaFuenteRaw);
+  const fechaCubosFuente=singleSourceDate(fechaCubosFuenteRaw);
   const estatusLogistica=sourceBound?(row.estatus_logistica_fuente||null):(row.estatus_logistica||null);
   const indicators=[];
   if(Number(row.cpvo_count)===0)indicators.push({codigo:'FALTA_ARCHIVO_PVO',emoji:'📍',nombre:'Falta Archivo PVO'});
@@ -59,20 +87,25 @@ function decorate(row){
     proyecto,
     fecha_pvo:fechaPvo,
     fecha_visita:fechaVisita,
-    fechas_visita:String(fechaVisitaRaw||''),
+    fechas_visita:String(fechaVisita||''),
     fecha_pvo_fl:fechaVisita,
-    fechas_pvo_fl:String(fechaVisitaRaw||''),
+    fechas_pvo_fl:String(fechaVisita||''),
     fecha_cubos:fechaCubos,
-    fechas_cubos:String(fechaCubosRaw||''),
+    fechas_cubos:String(fechaCubos||''),
+    fecha_pvo_fuente:fechaPvoFuente,
+    fecha_visita_fuente:fechaVisitaFuente,
+    fechas_visita_fuente:String(fechaVisitaFuenteRaw||''),
+    fecha_cubos_fuente:fechaCubosFuente,
+    fechas_cubos_fuente:String(fechaCubosFuenteRaw||''),
     estatus_logistica:estatusLogistica,
     fuente_operativa:sourceBound?'LOG_OPS_INS_FL':'SNAPSHOT_HISTORICO',
     indicadores:indicators,
     instalaciones:{
       supervisores:split(row.supervisores),
       asesores:split(row.asesores),
-      fechas_visita:split(fechaVisitaRaw),
-      fechas_pvo_fl:split(fechaVisitaRaw),
-      fechas_cubos:split(fechaCubosRaw),
+      fechas_visita:split(fechaVisitaFuenteRaw),
+      fechas_pvo_fl:split(fechaVisitaFuenteRaw),
+      fechas_cubos:split(fechaCubosFuenteRaw),
       origen:sourceBound?'LOG_OPS_INS_FL':'LOGISTICA_PRODUCCION_HISTORICO',
       conflictos:{
         supervisor:false,
@@ -96,17 +129,44 @@ async function detail(id){
   const row=await repo.byId(positive(id,'id'));
   if(!row)throw error('Registro de PVO-Producción no encontrado.',404);
   const decorated=decorate(row);
+  const sourceBound=row.id_log_ops!==null&&row.id_log_ops!==undefined&&row.id_log_ops!=='';
+  const comparacionFechas={
+    fecha_pvo:buildDateComparison({
+      captured:decorated.fecha_pvo,
+      source:decorated.fecha_pvo_fuente,
+      sourceRaw:decorated.fecha_pvo_fuente,
+      sourceName:'log_ops.pvo',
+      linked:sourceBound
+    }),
+    fecha_visita:buildDateComparison({
+      captured:decorated.fecha_pvo_fl,
+      source:decorated.fecha_visita_fuente,
+      sourceRaw:decorated.fechas_visita_fuente,
+      sourceName:'ins_fl.fecha_visita',
+      linked:sourceBound
+    }),
+    fecha_cubos:buildDateComparison({
+      captured:decorated.fecha_cubos,
+      source:decorated.fecha_cubos_fuente,
+      sourceRaw:decorated.fechas_cubos_fuente,
+      sourceName:'ins_fl.fecha_posible_recepcion_cubo',
+      linked:sourceBound
+    })
+  };
   return {ok:true,data:{
     produccion:decorated,
+    comparacion_fechas:comparacionFechas,
     logistica:{
       id_log_ops:row.id_log_ops,
       relacionada:Boolean(row.id_log_ops),
       modo_registro:decorated.modo_registro,
       ppns:decorated.ppns,
       proyecto:decorated.proyecto,
-      fecha_pvo:decorated.fecha_pvo,
-      fecha_visita:decorated.fecha_visita,
-      fecha_entrega_cubos:decorated.fecha_cubos,
+      fecha_pvo:decorated.fecha_pvo_fuente,
+      fecha_visita:decorated.fecha_visita_fuente,
+      fecha_entrega_cubos:decorated.fecha_cubos_fuente,
+      fechas_visita:decorated.fechas_visita_fuente,
+      fechas_cubos:decorated.fechas_cubos_fuente,
       estatus:decorated.estatus_logistica
     },
     instalaciones:decorated.instalaciones,
@@ -147,8 +207,8 @@ async function projectSummary(idProyecto){
       id_produccion:Number(row.id_produccion),
       proyecto:decorated.proyecto,
       fecha_pvo:decorated.fecha_pvo,
-      fechas_visita:decorated.instalaciones.fechas_visita,
-      fechas_cubos:decorated.instalaciones.fechas_cubos,
+      fechas_visita:decorated.fecha_visita?[decorated.fecha_visita]:[],
+      fechas_cubos:decorated.fecha_cubos?[decorated.fecha_cubos]:[],
       fecha_envio_docs_fabrica:row.fecha_envio_docs_fabrica||null,
       fecha_envio_pago_fabrica:row.fecha_envio_pago_fabrica||null,
       archivos:await listReadOnlyFiles(row.id_produccion)
@@ -170,6 +230,9 @@ async function create(input,user){
   const userId=positive(user.id_SB||user.id,'usuario');
   const period=isoWeekAtMexico();
   const comentario=optionalText(input.comentario,'comentario',5000);
+  const fechaPvo=optionalDate(input.fecha_pvo,'fecha_pvo');
+  const fechaVisita=optionalDate(input.fecha_pvo_fl,'fecha_pvo_fl');
+  const fechaCubos=optionalDate(input.fecha_cubos,'fecha_cubos');
   const fechaDocs=optionalDate(input.fecha_envio_docs_fabrica,'fecha_envio_docs_fabrica');
   const fechaPago=optionalDate(input.fecha_envio_pago_fabrica,'fecha_envio_pago_fabrica');
   const idStatus=optionalPositive(input.id_estatus_produccion,'id_estatus_produccion');
@@ -193,9 +256,9 @@ async function create(input,user){
     id_cotizacion_venta:null,
     id_asesor:advisor,
     id_supervisor:supervisor,
-    fecha_pvo:null,
-    fecha_pvo_fl:null,
-    fecha_cubos:null,
+    fecha_pvo:fechaPvo,
+    fecha_pvo_fl:fechaVisita,
+    fecha_cubos:fechaCubos,
     estatus_logistica:null,
     id_estatus_produccion:idStatus,
     comentario,
@@ -217,7 +280,7 @@ async function update(id,input,user){
   const mode=normalizeMode(current.modo_registro||'SEMI_AUTOMATICO');
 
   const commonAllowed=['id_estatus_produccion','comentario','fecha_envio_docs_fabrica','fecha_envio_pago_fabrica'];
-  const manualAllowed=[...commonAllowed,'id_log_ops','id_asesor','id_supervisor'];
+  const manualAllowed=[...commonAllowed,'id_log_ops','id_asesor','id_supervisor','fecha_pvo','fecha_pvo_fl','fecha_cubos'];
   const allowed=mode==='MANUAL'?manualAllowed:commonAllowed;
   const unknown=Object.keys(input).filter(k=>!allowed.includes(k));
   if(unknown.length)throw error(`Campos no editables: ${unknown.join(', ')}.`);
@@ -251,6 +314,9 @@ async function update(id,input,user){
   if(Object.hasOwn(input,'fecha_envio_pago_fabrica'))next.fecha_envio_pago_fabrica=optionalDate(input.fecha_envio_pago_fabrica,'fecha_envio_pago_fabrica');
 
   if(mode==='MANUAL'){
+    if(Object.hasOwn(input,'fecha_pvo'))next.fecha_pvo=optionalDate(input.fecha_pvo,'fecha_pvo');
+    if(Object.hasOwn(input,'fecha_pvo_fl'))next.fecha_pvo_fl=optionalDate(input.fecha_pvo_fl,'fecha_pvo_fl');
+    if(Object.hasOwn(input,'fecha_cubos'))next.fecha_cubos=optionalDate(input.fecha_cubos,'fecha_cubos');
     if(Object.hasOwn(input,'id_log_ops')){
       const idLog=positive(input.id_log_ops,'id_log_ops');
       const changed=String(idLog)!==String(current.id_log_ops??'');
@@ -306,5 +372,5 @@ async function pvo(query,missing=false){const rows=(await repo.list(query)).map(
 module.exports={
   list,detail,projectSummary,options,manualCatalogs,manualProjects,manualAdvisors,manualSupervisors,manualPpns,
   create,update,listFiles,listReadOnlyFiles,upload,replaceFile,removeFile,documents,pvo,decorate,isoWeekAtMexico,fileSlot,
-  validateUploadPolicy,normalizeMode,singleSourceDate,requiredText
+  validateUploadPolicy,normalizeMode,singleSourceDate,buildDateComparison,requiredText
 };

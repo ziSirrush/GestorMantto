@@ -32,29 +32,40 @@ test('Proyectos ya registrados se muestran pero no pueden seleccionarse',()=>{
 });
 
 test('Fechas capturables en Crear nuevo usan calendario nativo',()=>{
+  assert.match(js,/id="lp-pvo-date" type="date"/);
+  assert.match(js,/id="lp-visit-date" type="date"/);
+  assert.match(js,/id="lp-cubes-date" type="date"/);
   assert.match(js,/id="lp-new-doc-date" type="date"/);
   assert.match(js,/id="lp-new-pay-date" type="date"/);
+  assert.match(js,/fecha_pvo:\$\('lp-pvo-date'\)\?\.value\|\|null/);
+  assert.match(js,/fecha_pvo_fl:\$\('lp-visit-date'\)\?\.value\|\|null/);
+  assert.match(js,/fecha_cubos:\$\('lp-cubes-date'\)\?\.value\|\|null/);
   assert.match(js,/fecha_envio_docs_fabrica:\$\('lp-new-doc-date'\)\?\.value\|\|null/);
   assert.match(js,/fecha_envio_pago_fabrica:\$\('lp-new-pay-date'\)\?\.value\|\|null/);
   assert.match(css,/input\[type="date"\]/);
 });
 
-test('Backend valida y guarda las fechas opcionales al crear',()=>{
+test('Backend valida y guarda las cinco fechas opcionales al crear',()=>{
+  assert.match(service,/optionalDate\(input\.fecha_pvo,'fecha_pvo'\)/);
+  assert.match(service,/optionalDate\(input\.fecha_pvo_fl,'fecha_pvo_fl'\)/);
+  assert.match(service,/optionalDate\(input\.fecha_cubos,'fecha_cubos'\)/);
   assert.match(service,/optionalDate\(input\.fecha_envio_docs_fabrica,'fecha_envio_docs_fabrica'\)/);
   assert.match(service,/optionalDate\(input\.fecha_envio_pago_fabrica,'fecha_envio_pago_fabrica'\)/);
+  assert.match(service,/fecha_pvo:fechaPvo/);
+  assert.match(service,/fecha_pvo_fl:fechaVisita/);
+  assert.match(service,/fecha_cubos:fechaCubos/);
   assert.match(service,/fecha_envio_docs_fabrica:fechaDocs/);
   assert.match(service,/fecha_envio_pago_fabrica:fechaPago/);
 });
 
-test('PVO Visita y Cubos siguen siendo datos de solo lectura de sus fuentes',()=>{
-  assert.match(js,/Fecha PVO<input id="lp-manual-pvo" type="text" value="—" readonly>/);
-  assert.match(js,/Fecha de Visita<input id="lp-manual-visita" type="text" value="—" readonly>/);
-  assert.match(js,/Fecha entrega cubos<input id="lp-manual-cubos" type="text" value="—" readonly>/);
-  assert.match(js,/Solo lectura · log_ops\.pvo/);
-  assert.match(js,/Solo lectura · ins_fl\.fecha_visita/);
+test('PVO Visita y Cubos dejan de ser solo lectura en Crear nuevo',()=>{
+  assert.doesNotMatch(js,/Fecha PVO<input id="lp-manual-pvo" type="text" value="—" readonly>/);
+  assert.doesNotMatch(js,/Fecha de Visita<input id="lp-manual-visita" type="text" value="—" readonly>/);
+  assert.doesNotMatch(js,/Fecha entrega cubos<input id="lp-manual-cubos" type="text" value="—" readonly>/);
+  assert.match(js,/Estatus Logística<input id="lp-manual-log-status" type="text" value="—" readonly>/);
 });
 
-test('Cache bust compartido se actualiza en todas las rutas PVO-Produccion',()=>{
-  const matches=loader.match(/20260923-pvo-nuevo-busqueda-calendario-v001/g)||[];
+test('Cache bust final Fase 4 se actualiza en todas las rutas PVO-Produccion',()=>{
+  const matches=loader.match(/20261005-pvo-cierre-fase4-v001/g)||[];
   assert.equal(matches.length,10);
 });

@@ -11,6 +11,7 @@
   // [Aster | 2026-09-01 | ASTER-MG | FASE 3 SYNC SELECTIVO + DEPENDENCIAS CRUZADAS V001]
   // [Aster | 2026-09-03 | ASTER-MG | FASE 1 PVO-PRODUCCION NAVEGACION V001]
   // [Aster | 2026-09-03 | ASTER-MG | FASE 3 PVO-PRODUCCION MAIN FILTROS GUARDAR V001]
+  // [Aster | 2026-10-05 | ASTER-MG | FASE 3 PVO-PRODUCCION COMPARACION FECHAS DETALLE V001]
   // Compatibilidad central para modulos legacy: el router puede seguir invocando init(),
   // pero una vista de datos ya inicializada NO vuelve a ejecutar su carga al regresar
   // si DataSync no la marco dirty. Formularios/detalles transaccionales quedan fuera.
@@ -201,11 +202,11 @@
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20260923-dashboard-ppns-final-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-main-preview-responsive-v005'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-main-preview-responsive-v005']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-main-preview-responsive-v005'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-main-preview-responsive-v005']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-main-preview-responsive-v005'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-main-preview-responsive-v005']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-main-preview-responsive-v005'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-main-preview-responsive-v005']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20260924-pvo-main-preview-responsive-v005'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20260924-pvo-main-preview-responsive-v005']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
 
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20260914-human-time-v001']},
     'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001']},

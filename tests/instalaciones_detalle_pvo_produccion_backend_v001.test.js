@@ -31,18 +31,18 @@ test('controller delega a projectSummary por idProyecto',()=>{
 });
 
 test('repository relaciona exactamente PPNS y conserva una fila por id_log_ops',()=>{
-  assert.ok(repository.includes('async function byPpnsExact(ppns)'));
-  assert.ok(repository.includes('AND p.id_log_ops IS NOT NULL'));
-  assert.ok(repository.includes('AND TRIM(l.id_ppns)=TRIM(?)'));
-  assert.ok(repository.includes('ORDER BY l.id_log_ops ASC,p.id_produccion ASC'));
+  assert.ok(repository.includes('async function byPpnsExact(idProyecto)'));
+  assert.ok(repository.includes('AND TRIM(ip.id_proyecto)=TRIM(?)'));
+  assert.ok(repository.includes('AND TRIM(p.ppns)=TRIM(ip.id_proyecto)'));
+  assert.ok(repository.includes('ORDER BY p.id_produccion ASC'));
 });
 
 test('respuesta del detalle contiene solamente fechas, identificadores, etiqueta y archivos',()=>{
   assert.ok(service.includes('id_log_ops:Number(row.id_log_ops)'));
   assert.ok(service.includes('proyecto:decorated.proyecto'));
   assert.ok(service.includes('fecha_pvo:decorated.fecha_pvo'));
-  assert.ok(service.includes('fechas_visita:decorated.instalaciones.fechas_visita'));
-  assert.ok(service.includes('fechas_cubos:decorated.instalaciones.fechas_cubos'));
+  assert.ok(service.includes('fechas_visita:decorated.fecha_visita?[decorated.fecha_visita]:[]'));
+  assert.ok(service.includes('fechas_cubos:decorated.fecha_cubos?[decorated.fecha_cubos]:[]'));
   assert.ok(service.includes('fecha_envio_docs_fabrica:row.fecha_envio_docs_fabrica||null'));
   assert.ok(service.includes('fecha_envio_pago_fabrica:row.fecha_envio_pago_fabrica||null'));
 });

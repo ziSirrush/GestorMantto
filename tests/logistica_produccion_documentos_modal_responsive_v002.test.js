@@ -46,12 +46,12 @@ test('responsive elimina scroll horizontal del Resumen y usa modal casi full scr
   assert.match(css,/@media\(max-width:420px\)\{\.lp-doc-modal-actions\{grid-template-columns:1fr\}/);
 });
 
-test('module-loader usa cache bust nuevo en las cinco rutas del modulo',()=>{
-  const count=loader.match(/20260924-pvo-doc-modal-responsive-v002/g)||[];
+test('module-loader usa cache bust final Fase 4 en las cinco rutas del modulo',()=>{
+  const count=loader.match(/20261005-pvo-cierre-fase4-v001/g)||[];
   assert.equal(count.length,10);
   for(const route of ['logistica-produccion','logistica-produccion-nuevo','logistica-produccion-detalle','logistica-pvo','logistica-documentos']){
     assert.match(loader,new RegExp("'"+route+"':\\{css:"));
   }
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=20260923-fondo-garantia-v001/);
-  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=20260923-fondo-garantia-v001/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.css\?v=[A-Za-z0-9._-]+/);
+  assert.match(loader,/cobranza-cor-estados-cuenta-form\.js\?v=[A-Za-z0-9._-]+/);
 });

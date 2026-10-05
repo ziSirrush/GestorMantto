@@ -23,12 +23,12 @@ test('modal movil cabe en viewport real',()=>{
   ok(css.includes('.lp-doc-modal-panel{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;border:0;border-radius:0}'),'Falta modal fullscreen <=480');
   ok(css.includes('.lp-doc-modal-panel{width:100%;height:calc(100dvh - 8px);max-width:100%;max-height:calc(100dvh - 8px);margin:0;border-radius:10px}'),'Falta modal <=760 con border-box');
 });
-test('cache bust solo CSS PVO V004',()=>{
+test('cache bust final Fase 4 cubre CSS y JS PVO',()=>{
   const routes=['logistica-produccion','logistica-produccion-nuevo','logistica-produccion-detalle','logistica-pvo','logistica-documentos'];
   for(const route of routes){
     const line=loader.split('\n').find(x=>x.includes(`'${route}':`));
-    ok(line&&line.includes('logistica-produccion.css?v=20260924-pvo-detalle-responsive-v004'),`Cache CSS faltante en ${route}`);
-    ok(line&&line.includes('logistica-produccion.js?v=20260924-pvo-preview-hoja1-v003'),`JS V003 debe conservarse en ${route}`);
+    ok(line&&line.includes('logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'),`Cache CSS final faltante en ${route}`);
+    ok(line&&line.includes('logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001'),`Cache JS final faltante en ${route}`);
   }
 });
 console.log(`RESULT ${passed}/5 OK`);

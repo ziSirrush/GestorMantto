@@ -41,6 +41,6 @@ test('el orden inicial es semana reciente y PVO ascendente con vacios al final',
 test('estilos y cache bust del modulo quedan actualizados sin revertir dashboard logistica',()=>{
   assert.match(css,/\.lp-indicator-legend/);
   assert.match(css,/\.lp-sort/);
-  assert.match(loader,/20260923-pvo-nuevo-busqueda-calendario-v001/);
+  assert.match(loader,/20261005-pvo-cierre-fase4-v001/);
   assert.match(loader,/20260923-dashboard-ppns-final-v001/);
 });

@@ -1,0 +1,55 @@
+FASE 2 PVO-PRODUCCION SEPARACION FECHAS FUENTES V001
+Fecha: 2026-10-05
+Repositorio base verificado: main 4d49d6b25c2395b9cec472af9d02fe1c221a591c (Version 100526.1)
+Base funcional acumulada: Fase 1 PVO-Produccion Captura Manual Fechas V001
+
+VALIDACION ESTATICA
+- node --check modules/logistica-produccion/logistica-produccion.js: PASS
+- node --check backend/src/modules/logistica-produccion/logistica-produccion.service.js: PASS
+- node --check backend/src/modules/logistica-produccion/logistica-produccion.repository.js: PASS
+- node --check core/module-loader.js: PASS
+- node --check test Fase 2: PASS
+- git diff --check: PASS
+
+PRUEBAS DIRIGIDAS PVO
+- Fase 1 calendario/busqueda: PASS
+- Orden/filtros/emojis: PASS
+- Fase 2 separacion/captura/edicion: PASS
+- Total dirigido: 18/18 PASS
+
+PRUEBA RUNTIME AISLADA DEL SERVICE
+- Fecha capturada prevalece sobre log_ops / ins_fl: PASS
+- Fuentes externas quedan disponibles por separado: PASS
+- detail() separa produccion vs fuente: PASS
+- update() MANUAL persiste fecha_pvo / fecha_pvo_fl / fecha_cubos: PASS
+- Fecha invalida rechazada: PASS
+- Registro SEMI_AUTOMATICO no puede editar esas fechas: PASS
+
+BACKEND
+- npm run check: PASS
+- npm test oficial: 166/166 PASS
+  Nota: el artifact de GitHub Pages no contiene `.github`; para reproducir la suite se repuso en el arbol local el workflow exacto de `main` verificado en GitHub. No se modifico el workflow ni se incluye en el entregable.
+
+SUITE HISTORICA tests/logistica_produccion_*.test.js
+- Fase 2: 34/43 PASS; 9 fallos historicos.
+- Baseline Fase 1 en el mismo entorno: 23/32 PASS; 9 fallos historicos.
+- Los 9 fallos son preexistentes respecto a esta fase (tests antiguos de versiones/cache-bust y un contrato v003 ya desfasado). No se presentan como regresiones de Fase 2.
+
+CACHE BUST
+- 10 referencias a 20261005-pvo-separacion-fechas-fuentes-fase2-v001: PASS
+
+BASE DE DATOS
+- Tablas nuevas: NINGUNA
+- Columnas nuevas: NINGUNA
+- SQL ejecutado: NINGUNO
+- Prueba contra Aiven real: NO EJECUTADA
+
+NO EJECUTADO
+- GitHub commit/push
+- Azure deploy
+- GitHub Pages/Netlify deploy
+- E2E con sesion real
+- Escrituras en Aiven
+
+ALCANCE PENDIENTE
+- La comparacion visual Coincide/Diferente con log_ops / ins_fl no se implementa en esta fase. Corresponde a Fase 3 y solo debe mostrarse en Detalle.

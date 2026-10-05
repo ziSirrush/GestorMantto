@@ -38,11 +38,14 @@ test('el límite de 25 MB se aplica por cada archivo',()=>{
  assert.match(sql,/tamanio_bytes` <= 26214400/);
 });
 
-test('expone indicadores y ambiguedades sin elegir datos silenciosamente',()=>{
- const row=decorate({id_ppns:'',cpvo_count:0,gm_count:0,archivos_count:0,fechas_venta:'2026-01-02, 2026-02-03',supervisores:'AA, BB',asesores:'CC',fechas_pvo_fl:'',fechas_cubos:'',supervisores_count:2,asesores_count:1,pvo_fl_count:0,cubos_count:0});
+test('expone indicadores y conserva snapshots historicos sin seleccionar fuentes externas',()=>{
+ const row=decorate({id_log_ops:null,id_ppns:'',ppns:'',proyecto:'Historico',cpvo_count:0,gm_count:0,archivos_count:0,fecha_pvo:null,fecha_pvo_fl:null,fecha_cubos:null,supervisores:'AA, BB',asesores:'CC',fechas_pvo_fl_fuente:'2026-01-02, 2026-02-03',fechas_cubos_fuente:'2026-03-01, 2026-03-02',visita_count:2,cubos_count:2});
  assert.deepEqual(row.indicadores.map(x=>x.codigo),['FALTA_ARCHIVO_PVO','FALTA_PPNS','FALTAN_DOCS_PROD']);
- assert.equal(row.venta.estado,'AMBIGUO');
- assert.equal(row.instalaciones.conflictos.supervisor,true);
+ assert.equal(row.fuente_operativa,'SNAPSHOT_HISTORICO');
+ assert.equal(row.fecha_visita_fuente,null);
+ assert.equal(row.fecha_cubos_fuente,null);
+ assert.deepEqual(row.instalaciones.fechas_visita,[]);
+ assert.deepEqual(row.instalaciones.fechas_cubos,[]);
 });
 
 test('semana de registro se calcula en backend',()=>{

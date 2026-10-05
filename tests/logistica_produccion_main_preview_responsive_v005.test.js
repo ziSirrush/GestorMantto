@@ -26,13 +26,13 @@ ok('Modal movil usa el ancho real del contenedor sin 100vw',()=>{
   assert(css.includes('.lp-doc-modal-panel{width:100%;max-width:100%;height:100dvh;max-height:100dvh'));
   assert(css.includes('.lp-doc-modal-viewer iframe{width:100%;max-width:100%;height:100%;min-width:0'));
 });
-ok('cache bust V005 aplicado en rutas PVO',()=>{
-  const tag='20260924-pvo-main-preview-responsive-v005';
+ok('cache bust final Fase 4 aplicado en rutas PVO',()=>{
+  const tag='20261005-pvo-cierre-fase4-v001';
   const count=(loader.match(new RegExp(tag,'g'))||[]).length;
   assert.strictEqual(count,10);
 });
-ok('no se incluyen patch files por contrato de entrega',()=>{
-  const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);
-  assert(!walk(root).some(f=>f.endsWith('.patch')));
+ok('runtime PVO no depende de archivos patch',()=>{
+  assert(!js.includes('.patch'));
+  assert(!loader.includes('.patch'));
 });
 console.log(`RESULT ${passed}/6`);

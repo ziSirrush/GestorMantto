@@ -1,0 +1,43 @@
+FASE 1 PVO-PRODUCCION CAPTURA MANUAL FECHAS V001
+Fecha: 2026-10-05
+Base: main 4d49d6b25c2395b9cec472af9d02fe1c221a591c (Version 100526.1)
+
+BASE FILE BLOBS VERIFICADOS
+modules/logistica-produccion/logistica-produccion.js = de8b7a97bbeab4ae22b9be74507ca99bac603054
+backend/src/modules/logistica-produccion/logistica-produccion.service.js = d41859ec950c03edc4031f81bdb67c79e4be3818
+core/module-loader.js = cebf69b8c463cde05f5a3b8ef47e3908735a56b7
+tests/logistica_produccion_nuevo_busqueda_calendario_v001.test.js = 6d729039f3f10c86c4ad6cd2145449ca65c23d3c
+tests/logistica_produccion_orden_filtros_emojis_v001.test.js = e4f0ef298c41b434d04564174e451258e7e9c22a
+
+VALIDACIONES
+node --check modules/logistica-produccion/logistica-produccion.js: PASS
+node --check backend/src/modules/logistica-produccion/logistica-produccion.service.js: PASS
+node --check core/module-loader.js: PASS
+Pruebas dirigidas PVO: 12/12 PASS
+Runtime aislado create() con 5 fechas: PASS
+Rechazo de fecha_pvo invalida: PASS
+git diff --check: PASS
+Cache bust nuevo: 10 referencias PASS
+Estatus Produccion mantiene catalogo Logistica / Estatus Produccion: SIN CAMBIO
+SQL / tablas nuevas: NINGUNO
+
+DIFF
+5 files changed
+36 insertions(+)
+20 deletions(-)
+
+LIMITES
+- No se habilita edicion posterior de fecha_pvo / fecha_pvo_fl / fecha_cubos.
+- No se cambia todavia la autoridad de lectura de listado/detalle cuando existe id_log_ops.
+- No se implementa todavia comparacion visual con log_ops / ins_fl.
+- Comparacion visual sigue reservada para Detalle en Fase 3.
+
+SUITE AMPLIA
+No se marca npm test completo como PASS en el entorno de generacion: los artifacts descargados no contienen todos los archivos auxiliares (SQL/styles/etc.) que consume la suite. Baseline y fase modificada presentan los mismos 8 fallos sinteticos de ese entorno. La suite oficial debe ejecutarse en el repositorio completo antes del push.
+
+NO EJECUTADO
+- Aiven runtime
+- Azure deploy
+- GitHub push
+- Netlify deploy
+- E2E con sesion real

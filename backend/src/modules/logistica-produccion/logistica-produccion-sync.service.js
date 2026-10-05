@@ -11,7 +11,7 @@ const db = require('../../config/db');
 
 const BATCH_SIZE = 300;
 const STATUS_CATALOG = Object.freeze({ area: 'Logistica', elemento: 'Estatus Produccion' });
-const MODES = new Set(['SEMI_AUTOMATICO', 'MANUAL']);
+const MODES = new Set(['MANUAL']);
 const ORIGINS = new Set(['GESTOR', 'MIGRACION_SHEETS']);
 const FILE_TYPES = new Set(['CPVO', 'GM']);
 const FILE_ORIGINS = new Set(['NUEVO', 'LEGACY']);
@@ -81,7 +81,7 @@ function strictDateTime(value, field) {
 
 function normalizeMode(value) {
   const mode = String(value || 'MANUAL').trim().toUpperCase();
-  if (!MODES.has(mode)) throw httpError(400, `modo_registro inválido: ${mode}`);
+  if (!MODES.has(mode)) throw httpError(400, `modo_registro inválido: ${mode}. PVO-Producción solo admite MANUAL.`);
   return mode;
 }
 
