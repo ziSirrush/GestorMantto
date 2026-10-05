@@ -1,0 +1,33 @@
+FASE 3 MOVIMIENTOS CRITICOS - FRONTEND V001
+
+NUEVOS
+modules/movimientos-criticos/movimientos-criticos.html
+modules/movimientos-criticos/movimientos-criticos.css
+modules/movimientos-criticos/movimientos-criticos.js
+
+DOCUMENTACION
+
+docs/BACKEND_ARQUITECTURA/Catalogo/modules/movimientos-criticos.md
+docs/README_FASE_3_MOVIMIENTOS_CRITICOS_FRONTEND_V001.md
+docs/VALIDACION_FASE_3_MOVIMIENTOS_CRITICOS_FRONTEND_V001.txt
+docs/MANIFEST_FASE_3_MOVIMIENTOS_CRITICOS_FRONTEND_V001.txt
+docs/CHECKSUMS_FASE_3_MOVIMIENTOS_CRITICOS_FRONTEND_V001_SHA256.txt
+
+NO MODIFICADO
+index.html
+core/router.js
+core/module-loader.js
+core/data-sync.js
+core/user-viewer.js
+backend/
+sql/
+modules/movimientos-portafolio/
+modules/equipos-criticos/
+
+DEPENDENCIAS
+Tabla criticos_cortes_semanales
+Backend V001 Movimientos Criticos
+Fase 2 Permisos/Catalogo
+
+SIGUIENTE
+Fase 4 - Navegacion e integracion Core

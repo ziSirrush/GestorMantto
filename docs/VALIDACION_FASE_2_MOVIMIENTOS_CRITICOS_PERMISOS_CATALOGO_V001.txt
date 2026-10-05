@@ -1,0 +1,60 @@
+VALIDACION FASE 2 - MOVIMIENTOS CRITICOS - PERMISOS Y CATALOGO V001
+Fecha: 2026-10-03
+Base revisada: ziSirrush/GestorMantto main
+Commit: e5d0d3f5b7ab4bf85a3ed7d89557ee9566068a0c (Version 100226.9)
+
+VALIDACIONES EJECUTADAS
+
+1. JS
+   node --check backend/src/modules/movimientos-criticos/movimientos-criticos.routes.js
+   RESULTADO: PASS
+
+2. Puerta propia
+   Presente:
+   OPERACION_MOVIMIENTOS_CRITICOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+   RESULTADO: PASS
+
+3. Puerta temporal Fase 1
+   Ausente:
+   OPERACION_EQUIPOS_CRITICOS_EQUIPOS_CRITICOS_EQUIPOS_CRITICOS.VER
+   RESULTADO: PASS
+
+4. Aislamiento
+   domain: UNITED
+   groupingCode: OPERACION
+   No se introduce motor de alcance propio.
+   RESULTADO: PASS
+
+5. SQL APLICAR - revision estatica
+   Usa tablas existentes:
+   - perm_agrupaciones
+   - perm_modulos
+   - perm_acciones
+   - perm_elementos
+   - perm_subelementos
+   - perm_subelemento_acciones
+   No contiene CREATE TABLE / DROP TABLE.
+   No contiene INSERT a rol_permisos / usuario_permisos.
+   RESULTADO: PASS
+
+6. Rollback - revision estatica
+   Elimina solo catalogo OPERACION_MOVIMIENTOS_CRITICOS.
+   No elimina perm_acciones.ACCESO_VISUAL.
+   Las FK RESTRICT existentes protegen asignaciones administrativas.
+   RESULTADO: PASS
+
+7. Estructura de esquema contrastada contra SABANA270826.sql de referencia.
+   Tablas/columnas usadas por scripts identificadas en el dump.
+   RESULTADO: PASS DOCUMENTAL
+
+NO EJECUTADO / NO AFIRMADO
+
+- No se ejecuto SQL contra Aiven.
+- No se probo el permiso mediante login real.
+- No se hizo prueba E2E.
+- No se hizo push a GitHub.
+- No se hizo deploy en Azure.
+- No se creo frontend.
+
+NOTA
+La sintaxis SQL fue revisada estaticamente contra el patron MySQL vigente del repositorio y el dump disponible. El entorno local de generacion no dispone de cliente/servidor MySQL, por lo que la prueba real de ejecucion corresponde a PRECHECK -> APLICAR -> VALIDAR en el entorno autorizado.

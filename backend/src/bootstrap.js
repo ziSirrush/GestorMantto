@@ -11,6 +11,7 @@ const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/
 const { startStorageOperationsJob, stopStorageOperationsJob } = require('./jobs/storageOperations.job');
 const { startAlmacenCierreIncorrectoJob, stopAlmacenCierreIncorrectoJob } = require('./jobs/almacenCierreIncorrecto.job');
 const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = require('./jobs/equiposCriticosSalidaU35.job');
+const { startMovimientosCriticosCierreSemanalJob, stopMovimientosCriticosCierreSemanalJob } = require('./jobs/movimientosCriticosCierreSemanal.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -51,6 +52,7 @@ function startScheduledJobs(databaseReady) {
     logger.warn('Jobs de Portafolio no iniciados porque MySQL no está disponible.');
     logger.warn('Job global de notificaciones push no iniciado porque MySQL no está disponible.');
     logger.warn('Job salida automática de Equipos Críticos U35 no iniciado porque MySQL no está disponible.');
+    logger.warn('Job semanal de Movimientos Críticos no iniciado porque MySQL no está disponible.');
     logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
     return;
   }
@@ -69,6 +71,12 @@ function startScheduledJobs(databaseReady) {
     startEquiposCriticosSalidaU35Job();
   } catch (error) {
     logger.error('La API inicio, pero el job de salida automática de Equipos Críticos U35 no pudo inicializarse.', error);
+  }
+
+  try {
+    startMovimientosCriticosCierreSemanalJob();
+  } catch (error) {
+    logger.error('La API inicio, pero el job semanal de Movimientos Críticos no pudo inicializarse.', error);
   }
 
   try {
@@ -127,6 +135,7 @@ function registerShutdownHandlers() {
       stopLogisticaCierreSemanalJob();
       stopAlmacenCierreIncorrectoJob();
       stopEquiposCriticosSalidaU35Job();
+      stopMovimientosCriticosCierreSemanalJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);

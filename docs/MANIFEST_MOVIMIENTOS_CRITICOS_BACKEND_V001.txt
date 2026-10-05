@@ -1,0 +1,9 @@
+backend/src/bootstrap.js
+backend/src/jobs/movimientosCriticosCierreSemanal.job.js
+backend/src/modules/movimientos-criticos/movimientos-criticos.controller.js
+backend/src/modules/movimientos-criticos/movimientos-criticos.routes.js
+backend/src/modules/movimientos-criticos/movimientos-criticos.service.js
+backend/src/routes/index.js
+docs/MANIFEST_MOVIMIENTOS_CRITICOS_BACKEND_V001.txt
+docs/README_MOVIMIENTOS_CRITICOS_BACKEND_V001.md
+docs/VALIDACION_MOVIMIENTOS_CRITICOS_BACKEND_V001.txt

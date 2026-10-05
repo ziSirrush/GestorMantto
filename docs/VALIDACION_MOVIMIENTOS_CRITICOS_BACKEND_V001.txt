@@ -1,0 +1,26 @@
+MOVIMIENTOS CRITICOS - BACKEND V001
+Fecha: 2026-10-03
+Base: main e5d0d3f5b7ab4bf85a3ed7d89557ee9566068a0c
+
+VALIDACION ESTATICA
+- node --check job: PASS
+- node --check service: PASS
+- node --check controller: PASS
+- node --check routes: PASS
+- node --check bootstrap: PASS
+- node --check routes/index: PASS
+
+PRUEBAS DE LOGICA AISLADA
+- Domingo 11:59 CDMX -> ultimo domingo vencido anterior: PASS
+- Domingo 12:00 CDMX -> corte del domingo actual: PASS
+- ISO week 2026-10-04 -> semana 40: PASS
+- 2 -> 3 fallas BLT U35 => ENTRA_CRITICO: PASS
+- 3 -> 2 fallas BLT U35 => SALE_CRITICO: PASS
+- 4 -> 3 => sin movimiento: PASS
+- 1 -> 2 => sin movimiento: PASS
+- Equipo sin snapshot anterior => no inventa entrada: PASS
+
+LIMITES DE VALIDACION
+- No se probo contra Aiven real en esta sesion.
+- No se ejecuto E2E HTTP porque no se desplego backend.
+- Se asume existente la tabla criticos_cortes_semanales acordada.

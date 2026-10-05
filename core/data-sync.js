@@ -31,6 +31,7 @@
     home:'ManttoHome',
     resumen:'ManttoResumenDia',
     criticos:'ManttoEquiposCriticos',
+    'movimientos-criticos':'ManttoMovimientosCriticos',
     portafolio:'ManttoPortafolio',
     proyectos:'ManttoProyectos',
     callcenter:'ManttoCallCenter',
@@ -192,6 +193,7 @@
     { match:value=>value.includes('/api/cx/'), routes:ROUTE_GROUPS.cx },
     { match:value=>value.includes('/api/legal/'), routes:ROUTE_GROUPS.legal },
 
+    { match:value=>value.includes('/api/movimientos-criticos'), routes:Object.freeze(['movimientos-criticos']) },
     { match:value=>value.includes('/api/portafolio') || value.includes('/api/movimientos-portafolio'), routes:ROUTE_GROUPS.portafolio },
     { match:value=>value.includes('/api/tickets'), routes:ROUTE_GROUPS.tickets },
     { match:value=>value.includes('/api/pendientes') || value.includes('/api/tareas'), routes:ROUTE_GROUPS.tareas },

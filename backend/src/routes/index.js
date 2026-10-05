@@ -51,6 +51,7 @@ const experimentalProyectosCriticosRoutes = require('../modules/experimental-pro
 const logisticaDashboardRoutes = require('../modules/logistica-dashboard/logistica-dashboard.routes');
 const logisticaProduccionRoutes = require('../modules/logistica-produccion/logistica-produccion.routes');
 const logisticaCortesRoutes = require('../modules/logistica-cortes/logistica-cortes.routes');
+const movimientosCriticosRoutes = require('../modules/movimientos-criticos/movimientos-criticos.routes');
 
 const router = express.Router();
 
@@ -104,6 +105,7 @@ router.use('/experimental', experimentalEntregasRecientesRoutes);
 router.use('/experimental', experimentalEquiposCriticosRoutes);
 router.use('/experimental', experimentalDashboardCallCenterRoutes);
 router.use('/experimental', experimentalProyectosCriticosRoutes);
+router.use('/movimientos-criticos', movimientosCriticosRoutes);
 router.use(dataRoutes);
 
 module.exports = router;

@@ -1,0 +1,43 @@
+MANTTO GESTOR - FASE 4 MOVIMIENTOS CRITICOS V002
+VALIDACION ESTATICA / LOCAL
+
+Fuente GitHub:
+repo: ziSirrush/GestorMantto
+rama: main
+commit base: e5d0d3f5b7ab4bf85a3ed7d89557ee9566068a0c
+mensaje: Version 100226.9
+
+Git blob SHA base verificados:
+PASS index.html = 531f490509d2439958eb383a8340fa1267cc9c1f
+PASS core/module-loader.js = 53f3cb8bdfc7af4af101cbdbd456ba63a589272e
+PASS core/router.js = 0ffd02829c74d7f11adae7e6fe7adf65717fe60d
+PASS core/data-sync.js = fa8b20f31d2f692ce49539e574c27d8dd3175d05
+
+Diff esperado contra base:
+4 files changed, 24 insertions(+), 5 deletions(-)
+
+PASS git diff --check
+PASS node --check core/module-loader.js
+PASS node --check core/router.js
+PASS node --check core/data-sync.js
+PASS node --check modules/movimientos-criticos/movimientos-criticos.js de Fase 3
+PASS sidebar movimientos-criticos unico
+PASS permiso exacto Fase 2 unico
+PASS view-movimientos-criticos unico
+PASS cache-busting Fase 4 V002
+PASS ruta persistente registrada
+PASS CSS/JS Fase 3 registrados en ModuleLoader
+PASS etiqueta y presenter registrados en Router
+PASS dispatcher de ruta registrado
+PASS ManttoMovimientosCriticos registrado en DataSync
+PASS mutacion /api/movimientos-criticos aislada de Portafolio
+PASS sin IDs duplicados nuevos en index.html
+
+NO EJECUTADO:
+- Aiven
+- Azure
+- GitHub Pages
+- Netlify
+- E2E con sesion real
+
+La V001 de Fase 4 queda sustituida por esta V002.

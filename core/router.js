@@ -2,7 +2,7 @@
   // [Aster | 2026-09-03 | ASTER-MG | FASE 1 PVO-PRODUCCION NAVEGACION V001]
   const routeNames = {
     home:'Inicio', resumen:'Resumen del día', tickets:'Tickets', callcenter:'Dashboard Call Center',
-    operativo:'Dashboard Operativo', informes:'Informes', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio',
+    operativo:'Dashboard Operativo', informes:'Informes', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio', 'movimientos-criticos':'Movimientos Críticos',
     proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
@@ -277,6 +277,19 @@
     setActiveSide('criticos');
     updateContext('criticos','Equipos y proyectos críticos · criterios configurables por usuario');
     if(window.ManttoEquiposCriticos) window.ManttoEquiposCriticos.init();
+    return true;
+  }
+
+  function showMovimientosCriticos(){
+    const view=document.getElementById('view-movimientos-criticos');
+    if(!view) return false;
+    activateViewById('view-movimientos-criticos');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="mc-page"><section class="mc-card mc-head"><div><p class="mc-eyebrow">Cargando módulo</p><h1>Movimientos Críticos</h1><p>Inicializando histórico semanal...</p></div></section></div>';
+    }
+    setActiveSide('movimientos-criticos');
+    updateContext('movimientos-criticos','Movimientos Críticos · entradas y salidas semanales de criticidad corporativa 3 BLT / U35');
+    if(window.ManttoMovimientosCriticos) window.ManttoMovimientosCriticos.init();
     return true;
   }
 
@@ -894,6 +907,7 @@
     if(COBRANZA_ROUTES_UNI.has(route) && showCobranza_uni(route)) return;
     if(route==='resumen' && showResumen()) return;
     if(route==='criticos' && showCriticos()) return;
+    if(route==='movimientos-criticos' && showMovimientosCriticos()) return;
     if(route==='portafolio' && showPortafolio()) return;
     if(route==='proyectos' && showProyectos()) return;
     if(route==='callcenter' && showCallCenter()) return;

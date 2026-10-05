@@ -1,0 +1,87 @@
+<div class="mc-page" data-mc-root>
+  <section class="mc-card mc-head">
+    <div>
+      <p class="mc-eyebrow">Aiven · Operación</p>
+      <h1>Movimientos Críticos</h1>
+      <p>Histórico semanal independiente de equipos que entran o salen de la condición crítica corporativa.</p>
+      <div class="mc-rule" aria-label="Criterio corporativo">Regla corporativa: <b>3 fallas BLT / U35</b></div>
+    </div>
+    <div class="mc-head-actions">
+      <span class="mc-status loading" id="mc-status"><span class="mc-dot"></span><span>Cargando Aiven...</span></span>
+      <button type="button" class="mc-btn mc-btn-primary" data-mc-action="refresh">↻ Actualizar</button>
+    </div>
+  </section>
+
+  <section class="mc-card mc-filters" aria-label="Filtros de movimientos críticos">
+    <label>Año
+      <select id="mc-year"><option value="">Cargando...</option></select>
+    </label>
+    <label>Semana
+      <select id="mc-week"><option value="">Selecciona un año</option></select>
+    </label>
+    <label>Zona
+      <select id="mc-zone"><option value="">Todas</option></select>
+    </label>
+    <label>Tipo de movimiento
+      <select id="mc-type">
+        <option value="">Todos</option>
+        <option value="ENTRA_CRITICO">Entra a crítico</option>
+        <option value="SALE_CRITICO">Sale de crítico</option>
+      </select>
+    </label>
+    <label class="mc-search-label">Buscar
+      <input id="mc-search" type="search" placeholder="Equipo, proyecto, zona, supervisor..." autocomplete="off" />
+    </label>
+    <div class="mc-filter-actions">
+      <button type="button" class="mc-btn" data-mc-action="clear">Limpiar</button>
+      <button type="button" class="mc-btn mc-btn-primary" data-mc-action="apply">Aplicar</button>
+      <button type="button" class="mc-btn mc-btn-danger" id="mc-manual-cut" data-mc-action="cut" hidden>Hacer corte semanal</button>
+    </div>
+  </section>
+
+  <section class="mc-grid mc-kpis" aria-label="Indicadores del corte semanal">
+    <article class="mc-kpi mc-kpi-blue"><i class="mc-led blue"></i><strong id="mc-kpi-total">—</strong><b>Movimientos</b><small>según filtros</small></article>
+    <article class="mc-kpi mc-kpi-red"><i class="mc-led red"></i><strong id="mc-kpi-in">—</strong><b>Entran a crítico</b><small>cruzan a ≥ 3 BLT</small></article>
+    <article class="mc-kpi mc-kpi-green"><i class="mc-led green"></i><strong id="mc-kpi-out">—</strong><b>Salen de crítico</b><small>cruzan a &lt; 3 BLT</small></article>
+    <article class="mc-kpi mc-kpi-critical"><i class="mc-led critical"></i><strong id="mc-kpi-critical">—</strong><b>Críticos al corte</b><small>alcance visible</small></article>
+    <article class="mc-kpi mc-kpi-slate"><i class="mc-led slate"></i><strong id="mc-kpi-evaluated">—</strong><b>Equipos evaluados</b><small>alcance visible</small></article>
+  </section>
+
+  <section class="mc-card mc-table-card">
+    <div class="mc-section-head">
+      <div>
+        <h2 id="mc-title">Semana sin seleccionar</h2>
+        <p id="mc-count">Selecciona un corte semanal</p>
+      </div>
+      <div class="mc-cut-meta">
+        <span id="mc-range">Período: —</span>
+        <span id="mc-cut-date">Corte: —</span>
+        <span class="mc-baseline" id="mc-baseline" hidden>CORTE BASE</span>
+      </div>
+    </div>
+
+    <div class="mc-table-wrap">
+      <table class="mc-table">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Fecha movimiento</th>
+            <th>Equipo</th>
+            <th>Proyecto</th>
+            <th>Zona</th>
+            <th>Fallas anterior</th>
+            <th>Fallas actual</th>
+            <th>Supervisor</th>
+          </tr>
+        </thead>
+        <tbody id="mc-body">
+          <tr><td colspan="8" class="mc-empty">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mc-footnote">
+      Solo se registra movimiento cuando el equipo cruza la frontera corporativa: <b>&lt; 3 → ≥ 3</b> o <b>≥ 3 → &lt; 3</b> fallas BLT dentro de U35.
+    </div>
+  </section>
+</div>

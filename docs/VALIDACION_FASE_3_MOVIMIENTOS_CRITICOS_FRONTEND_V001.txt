@@ -1,0 +1,67 @@
+VALIDACION FASE 3 - MOVIMIENTOS CRITICOS - FRONTEND V001
+Fecha: 2026-10-03
+Repositorio revisado: ziSirrush/GestorMantto
+Rama: main
+Commit base revisado: e5d0d3f5b7ab4bf85a3ed7d89557ee9566068a0c (Version 100226.9)
+
+VALIDACIONES EJECUTADAS
+
+1. JavaScript
+   node --check modules/movimientos-criticos/movimientos-criticos.js
+   RESULTADO: PASS
+
+2. Contrato HTML / JS
+   Se extrajeron los ids referenciados con $('...') y se compararon contra los ids del HTML.
+   Excepcion esperada: view-movimientos-criticos pertenece al Core y se agregara en Fase 4.
+   RESULTADO: PASS
+
+3. Contrato de endpoints
+   Presentes exclusivamente:
+   - /api/movimientos-criticos/semanas
+   - /api/movimientos-criticos?anio=...&semana=...
+   - /api/movimientos-criticos/snapshot?anio=...&semana=...
+   - /api/movimientos-criticos/corte
+   RESULTADO: PASS
+
+4. Independencia frente a Movimientos Portafolio
+   Ausentes:
+   - /api/portafolio
+   - ManttoMovimientosPortafolio
+   RESULTADO: PASS
+
+5. Semantica funcional
+   Presentes:
+   - ENTRA_CRITICO
+   - SALE_CRITICO
+   - CORTE BASE · SIN MOVIMIENTOS COMPARABLES
+   - SIN MOVIMIENTOS ESTA SEMANA
+   RESULTADO: PASS
+
+6. Export modular
+   window.ManttoMovimientosCriticos
+   Metodos: init, refresh, backgroundSync
+   RESULTADO: PASS
+
+7. Frontera incremental Fase 3
+   El paquete no contiene archivos bajo:
+   - core/
+   - backend/
+   - sql/
+   RESULTADO: PASS
+
+8. Permiso
+   Fase 3 no crea ni modifica permisos. Presupone aplicado el permiso propio de Fase 2:
+   OPERACION_MOVIMIENTOS_CRITICOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+   RESULTADO: RESPETADO
+
+NO EJECUTADO / NO AFIRMADO
+
+- No se consulto Aiven desde este entorno.
+- No se probo login real ni alcance ZOP E2E.
+- No se ejecuto POST /corte contra Azure.
+- No se probo navegacion Core porque corresponde a Fase 4.
+- No se hizo push a GitHub.
+- No se hizo deploy en GitHub Pages/Netlify/Azure.
+
+NOTA DE QA VISUAL
+Se preparo una previsualizacion local para inspeccion, pero el Chromium headless disponible en el entorno no completo el render por limitaciones del servicio grafico/DBus. No se declara una validacion visual automatizada como aprobada. La estructura responsive fue revisada estaticamente en CSS y debera verificarse E2E en Fase 4 al integrarse al shell real.
