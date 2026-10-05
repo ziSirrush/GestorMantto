@@ -292,7 +292,7 @@ async function runWeeklyClose(date = new Date(), generatedBy = null, targetDate 
 
   const snapshotJson = JSON.stringify(currentSnapshot);
   const movementsJson = JSON.stringify(movements);
-  const hash = crypto.createHash('sha256').update(snapshotJson + '|' + movimientosJson).digest('hex');
+  const hash = crypto.createHash('sha256').update(snapshotJson + '|' + movementsJson).digest('hex');
 
   const values = [
     iso.anio_iso,
@@ -309,7 +309,7 @@ async function runWeeklyClose(date = new Date(), generatedBy = null, targetDate 
     CRITICOS_MIN_FALLAS,
     CRITICOS_DIAS,
     snapshotJson,
-    movimientosJson,
+    movementsJson,
     'CERRADO',
     hash,
     generatedBy

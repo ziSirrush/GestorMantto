@@ -1,0 +1,29 @@
+FIX_MOVIMIENTOS_CRITICOS_COMMIT_V001
+Fecha: 05/10/2026
+Base: 8aa46df85ccd8d87c10af74f8a58064c1c7cd9f7 - Version 100526.1
+
+VALIDACION DE ORIGEN
+PASS  job reconstruido antes del cambio == blob GitHub 5d974ce03be8138990896549cb53baff68bf27a9
+PASS  test reconstruido antes del cambio == blob GitHub fe55421010e881b13b9ca96f25928401620dbdf8
+
+CAMBIOS FUNCIONALES
+PASS  movimientosJson -> movementsJson en hash SHA-256
+PASS  movimientosJson -> movementsJson en values de INSERT
+PASS  test router cache-bust deja de fijar version historica y exige una version no vacia valida
+
+VALIDACION ESTATICA
+PASS  node --check backend/src/jobs/movimientosCriticosCierreSemanal.job.js
+PASS  node --check validation/seguimiento-especial-notificaciones.test.js
+PASS  diff limitado a 3 lineas funcionales
+
+PRUEBA LOCAL DIRIGIDA
+PASS  runWeeklyClose linea base con BD simulada
+PASS  runWeeklyClose 2 -> 3 genera ENTRA_CRITICO
+PASS  movementsJson llega al INSERT sin ReferenceError
+
+NO CONFIRMADO EN ESTE ENTORNO
+- Suite completa npm run test del repositorio completo.
+- GitHub Actions despues de aplicar el fix.
+- Deploy de Azure.
+- Prueba contra Aiven.
+- E2E.
