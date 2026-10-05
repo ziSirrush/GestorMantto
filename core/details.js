@@ -387,8 +387,24 @@
     const n=Number(String(value == null ? '' : value).replace('%','').trim());
     return Number.isFinite(n) ? Math.max(0,Math.min(100,n)) : 0;
   }
+  // [Aster | 2026-10-05 | ASTER-MG | FIX DETALLE PROYECTO PORCENTAJES NORMALIZACION V001]
+  // Los avances de Instalaciones pueden llegar como fraccion (0..1) o porcentaje (0..100).
+  // Mantener separada esta conversion evita volver a multiplicar valores ya normalizados (ej. 1%).
+  function normalizeProgressPct(value){
+    const raw=String(value == null ? '' : value).trim();
+    if(!raw) return 0;
+    const hasPercent=raw.includes('%');
+    const n=Number(raw.replace('%','').replace(',','.').trim());
+    if(!Number.isFinite(n)) return 0;
+    const pct=hasPercent ? n : (n >= 0 && n <= 1 ? n*100 : n);
+    return Math.max(0,Math.min(100,pct));
+  }
   function average(values){
     const nums=(values||[]).map(toPct);
+    return nums.length ? Math.round(nums.reduce((sum,n)=>sum+n,0)/nums.length) : 0;
+  }
+  function averageProgress(values){
+    const nums=(values||[]).map(normalizeProgressPct);
     return nums.length ? Math.round(nums.reduce((sum,n)=>sum+n,0)/nums.length) : 0;
   }
   function valueOf(row, keys){
@@ -405,7 +421,7 @@
     }).join('') || '<div class="mg-empty">Sin avances disponibles.</div>';
   }
   function equipmentProgress(row){
-    return average([valueOf(row,['avance_oc','OC']),valueOf(row,['avance_mo','MO']),valueOf(row,['avance_aj','AJ','avance_ajuste'])]);
+    return averageProgress([valueOf(row,['avance_oc','OC']),valueOf(row,['avance_mo','MO']),valueOf(row,['avance_aj','AJ','avance_ajuste'])]);
   }
   function projectGeneral(coreRows, options){
     const first=coreRows[0]||{};
@@ -1075,7 +1091,7 @@
     const photoRow=photoRows.find(row=>String(valueOf(row,['ID Proyecto','id_ppns','id_proyecto'])||'').trim().toUpperCase()===String(proyecto).trim().toUpperCase())||photoRows[0]||{};
     const photos=projectPhotos(photoRow,{photoDomain:PROJECT_PHOTO_DOMAIN_COR});
     const principalUrl=projectPrincipalUrl(photoRow,photos);
-    const phaseBars=[{label:'Obra Civil',value:average(coreRows.map(r=>valueOf(r,['avance_oc','OC'])))},{label:'Montaje',value:average(coreRows.map(r=>valueOf(r,['avance_mo','MO'])))},{label:'Ajuste',value:average(coreRows.map(r=>valueOf(r,['avance_aj','AJ','avance_ajuste'])))}];
+    const phaseBars=[{label:'Obra Civil',value:averageProgress(coreRows.map(r=>valueOf(r,['avance_oc','OC'])))},{label:'Montaje',value:averageProgress(coreRows.map(r=>valueOf(r,['avance_mo','MO'])))},{label:'Ajuste',value:averageProgress(coreRows.map(r=>valueOf(r,['avance_aj','AJ','avance_ajuste'])))}];
     const equipmentBars=coreRows.map(row=>({label:valueOf(row,['referencia_sitio','REFERENCIA EN SITIO'])||'Equipo',value:equipmentProgress(row)}));
     const overall=average(equipmentBars.map(item=>item.value));
     const closed=coreRows.filter(row=>String(valueOf(row,['estatus','ESTATUS'])).trim().toUpperCase()==='08-T').length;
@@ -1491,9 +1507,9 @@
       const ref=i.referencia_sitio || codigo;
       const project=i.proyecto || i.id_proyecto || 'Proyecto sin identificar';
       const status=i.estatus || 'Sin estatus';
-      const oc=toPct(i.avance_oc);
-      const mo=toPct(i.avance_mo);
-      const aj=toPct(i.avance_aj);
+      const oc=normalizeProgressPct(i.avance_oc);
+      const mo=normalizeProgressPct(i.avance_mo);
+      const aj=normalizeProgressPct(i.avance_aj);
       const overall=Math.round((oc*0.4)+(mo*0.4)+(aj*0.2));
 
       const ocItems = oc >= 100
