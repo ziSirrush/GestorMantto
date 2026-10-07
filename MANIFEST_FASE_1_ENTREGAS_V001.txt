@@ -1,0 +1,29 @@
+FASE 1 ENTREGAS V001 · ENTREGA CORREGIDA
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Base: 578913484440865e56044601b8e85ab62367f9c9 (Version 100726.1)
+Fecha: 2026-10-07
+
+ARCHIVOS NUEVOS COMPLETOS
+backend/src/modules/entregas-control/entregas-control.controller.js
+backend/src/modules/entregas-control/entregas-control.repository.js
+backend/src/modules/entregas-control/entregas-control.routes.js
+backend/src/modules/entregas-control/entregas-control.service.js
+modules/entregas-control/entregas-control.css
+modules/entregas-control/entregas-control.js
+
+ARCHIVOS MODIFICADOS COMPLETOS
+backend/src/routes/index.js
+core/app.js
+core/router.js
+index.html
+
+DOCUMENTACION DE ENTREGA
+README_FASE_1_ENTREGAS_V001.md
+MANIFEST_FASE_1_ENTREGAS_V001.txt
+VALIDACION_FASE_1_ENTREGAS_V001.txt
+CHECKSUMS_FASE_1_ENTREGAS_V001_SHA256.txt
+
+TOTAL ARCHIVOS DE PROYECTO: 10
+PATCHES INCLUIDOS: 0
+SQL INCLUIDO: 0

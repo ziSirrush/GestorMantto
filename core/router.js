@@ -17,7 +17,7 @@
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
     'almacen-dashboard':'Dashboard Almacén', 'almacen-inventario':'Inventario', 'almacen-stock':'Stock',
     'almacen-prestamos':'Préstamos', 'almacen-resguardos':'Resguardos', 'almacen-auditoria':'Auditoría', 'almacen-carga':'Carga de Información',
-    'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas',
+    'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas', 'entregas-control':'Control de Entregas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
     'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte',
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',

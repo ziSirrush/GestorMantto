@@ -1,0 +1,13 @@
+9ca8f55ee73be0ad7e012fe87fc32c6c9d23d284ca290d7ebff39f575c5b6978  ./MANIFEST_FASE_1_ENTREGAS_V001.txt
+9038e915a9a3edef8e3fd87b80488b3c2ed6b8c628d0fce6f2f8b0db6869e7b5  ./README_FASE_1_ENTREGAS_V001.md
+bcea8afdc7593cecb1c5cbcb4989af1ed6be789c69a0dcaefd27c25c772e660c  ./VALIDACION_FASE_1_ENTREGAS_V001.txt
+381c1c63ca04ff0d8ffe6bad732ea111966a8c6e89f32013d0bdb4411ad690e8  ./backend/src/modules/entregas-control/entregas-control.controller.js
+1c01d23b451b5bd131bdff2c7ba65d8a7d6b1e5f31861773f5ed5202a8419627  ./backend/src/modules/entregas-control/entregas-control.repository.js
+eaab85198476f0a06f1b8c018d3d04b6cb90999ab2f6f20f698c5401ac02f280  ./backend/src/modules/entregas-control/entregas-control.routes.js
+b2df028469d4c520b08ac1b10dedc53ede3a1886db032c86aff655d0ac3ae8d5  ./backend/src/modules/entregas-control/entregas-control.service.js
+efc538b3b7677772a0045857e657704360f940631671529102849c1ecd5b63ad  ./backend/src/routes/index.js
+bc2d2f8a8274bedb932f1892aa6fb3b01d4691dc343fb6eae022c201b9e02ea2  ./core/app.js
+524dbaa6072a14d46a9e43acc67e7e84f760e703624a2a4d86f77bb64791ae02  ./core/router.js
+3021b173aba5ff1b9e529721acd14126c428e88a8da796d89db46d0187d56d2c  ./index.html
+8808af823843f64f56fa18a62c31c21ee587c3023b8cfb66f8440bfa87184547  ./modules/entregas-control/entregas-control.css
+25efb71cc742194e74f855e7f64c07bb26b9c8626d0efea68626ad4988420f22  ./modules/entregas-control/entregas-control.js

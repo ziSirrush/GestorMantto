@@ -1,0 +1,49 @@
+VALIDACION PREPARACION FASE 2 ENTREGAS V001
+Fecha: 2026-10-07
+
+BASE LIVE GITHUB
+PASS ziSirrush/GestorMantto main = 578913484440865e56044601b8e85ab62367f9c9 (Version 100726.1)
+
+CONTRATO LOCAL SOBRE ESTADO POST-FASE-1 SINTETICO
+PASS archivos Fase 1 presentes
+PASS node --check archivos JS
+PASS registro backend /api/entregas
+PASS carga dinámica frontend
+PASS ruta frontend registrada
+PASS sidebar Entregas con permiso nativo
+PASS frontend 4 pestañas + refresco selectivo
+PASS responsive/PWA CSS
+PASS Aiven/Azure/horario productivo sin almacenamiento LAB
+PASS recurrencia + estados
+PASS alta programada transaccional + horizonte 12
+PASS detalle fail-closed por responsable
+PASS Azure upload/persist/cleanup contract
+PASS carga fail-closed por colaborador
+PASS SAS autorizado solo responsable/colaborador
+PASS validación solo responsable
+PASS 11 rutas + guards GENERAL/ENTREGAS + upload policy
+
+RESULTADO LOCAL: PASS (17 bloques)
+
+CONTRATO FASE 0 -> FASE 1
+PASS entregas_programadas: todas las columnas usadas por Fase 1 existen en SQL Fase 0
+PASS entregas_instancias: todas las columnas usadas por Fase 1 existen en SQL Fase 0
+PASS permisos funcionales usados por Fase 1 existen en SQL Fase 0
+
+ARQUITECTURA
+PASS Fase 2 no crea tablas ni columnas
+PASS Fase 2 no modifica codigo productivo
+PASS smoke Aiven incluido es SOLO LECTURA
+PASS smoke API incluido es SOLO LECTURA
+PASS E2E mutante queda como checklist manual para entorno autorizado
+
+NO EJECUTADO / NO AFIRMAR COMO PASS
+- Fase 0 aplicada en Aiven real
+- Fase 1 aplicada/desplegada
+- consultas de Fase 2 contra Aiven real
+- endpoints Entregas contra backend desplegado
+- carga Azure Blob real / SAS real
+- navegador E2E real
+- responsive visual real
+- deploy Azure/Netlify
+- commit/push GitHub

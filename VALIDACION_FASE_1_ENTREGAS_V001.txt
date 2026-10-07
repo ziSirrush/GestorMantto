@@ -1,0 +1,95 @@
+VALIDACION FASE 1 ENTREGAS V001 · ENTREGA CORREGIDA
+Fecha: 2026-10-07
+
+BASE LIVE GITHUB VERIFICADA
+PASS repo = ziSirrush/GestorMantto
+PASS branch = main
+PASS HEAD = 578913484440865e56044601b8e85ab62367f9c9
+PASS version = Version 100726.1
+
+BLOBS BASE VERIFICADOS ANTES DE INTEGRAR
+PASS backend/src/routes/index.js = 269b40f7f5f0872387cd24bbb115a6a3651de2b5
+PASS core/app.js = 019dc55413e1e44de56d08e9a0045a7f17b6dd9e
+PASS core/router.js = 0379e92a22ef66d3a3504b242560238ae50dc1ef
+PASS index.html = ea741efbe4fdc0ad0f41ebd7eee35d5e28353c08
+
+ARCHIVOS POST-INTEGRACION — GIT BLOB HASH
+PASS backend/src/modules/entregas-control/entregas-control.controller.js = 44d45d81320b58854ae1cb3542fddd03fe756876
+PASS backend/src/modules/entregas-control/entregas-control.repository.js = de6d52cde0df42aeec5061c966e5aa5b753a8f93
+PASS backend/src/modules/entregas-control/entregas-control.routes.js = 5d3988beb8e8ef7bd9267ca24d62cbab89d8ca6e
+PASS backend/src/modules/entregas-control/entregas-control.service.js = 0c0104643623f3c81ece7340abb2ab3461dea809
+PASS backend/src/routes/index.js = ca98bb05c1262eb54eed6cf30e1c22116bd1963d
+PASS core/app.js = 7163262b839003acd201e0c6803e4fc64a825b7f
+PASS core/router.js = eaa651e49ba827a57b13030b4d0cb9efa28bc07c
+PASS index.html = 38531e5e7df00219cd13e927e9ec59eff0bbb376
+PASS modules/entregas-control/entregas-control.css = 857cf95eac7af1c942b1c0b753758d4c79dc424a
+PASS modules/entregas-control/entregas-control.js = cda7afc83db5b91c0022bf8b431bf49a5aeb29cf
+
+SINTAXIS / ESTATICA
+PASS node --check entregas-control.controller.js
+PASS node --check entregas-control.repository.js
+PASS node --check entregas-control.routes.js
+PASS node --check entregas-control.service.js
+PASS node --check modules/entregas-control/entregas-control.js
+PASS node --check backend/src/routes/index.js
+PASS node --check core/app.js
+PASS node --check core/router.js
+PASS git diff --check
+
+CONTRATO ENTREGAS
+PASS 11 declaraciones de ruta API
+PASS 4 pestañas: Programadas, Mis Entregas, Validacion, Indicadores
+PASS recurrencias UNICA / SEMANAL / QUINCENAL / MENSUAL
+PASS horizonte inicial recurrente = 12
+PASS Azure Blob privado reutiliza servicios existentes
+PASS cero referencias a ManttoLabBlobStore/IndexedDB en el modulo productivo
+PASS cero referencias a Supabase
+PASS cero referencias a Railway
+PASS Fase 1 no contiene SQL
+
+PERMISOS CONTRA FASE 0
+PASS ENTREGAS_CONTROL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+PASS ENTREGAS_CONTROL_PROGRAMADAS_LISTADO.VER
+PASS ENTREGAS_CONTROL_PROGRAMADAS_LISTADO.CREAR
+PASS ENTREGAS_CONTROL_PROGRAMADAS_LISTADO.EDITAR
+PASS ENTREGAS_CONTROL_PROGRAMADAS_LISTADO.DESACTIVAR
+PASS ENTREGAS_CONTROL_MIS_ENTREGAS_LISTADO.VER
+PASS ENTREGAS_CONTROL_MIS_ENTREGAS_LISTADO.ADJUNTAR_ARCHIVO
+PASS ENTREGAS_CONTROL_VALIDACION_LISTADO.VER
+PASS ENTREGAS_CONTROL_VALIDACION_LISTADO.VALIDAR
+PASS ENTREGAS_CONTROL_INDICADORES_PANEL.VER
+
+PRUEBAS AISLADAS DE LOGICA EJECUTADAS
+PASS semanal +7 dias
+PASS quincenal +15 dias
+PASS mensual 31/01/2026 -> 28/02/2026
+PASS mensual 31/01/2024 -> 29/02/2024
+PASS UNICA conserva fecha base
+PASS A_TIEMPO
+PASS TARDE
+PASS NO_ENTREGADO
+PASS PENDIENTE
+PASS VALIDO
+PASS RECHAZADO
+PASS SIN_REVISAR
+PASS NO_APLICA
+PASS porcentajes 33 / 67 / 33 en caso controlado
+PASS horizonte = 12
+
+FORMA DE ENTREGA
+PASS 10 archivos de proyecto completos
+PASS estructura relativa del repositorio conservada
+PASS no depende de fragmentos para desplegar
+PASS no contiene archivo .patch
+PASS README incluido
+PASS manifest incluido
+PASS checksums SHA-256 incluidos
+
+NO EJECUTADO / NO PRESENTAR COMO EJECUTADO
+- aplicacion de Fase 0 en Aiven
+- prueba contra Aiven real
+- escritura/carga real en Azure Blob
+- navegador E2E real
+- deploy backend Azure
+- deploy frontend Netlify
+- commit/push GitHub

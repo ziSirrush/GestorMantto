@@ -274,6 +274,84 @@
     activateCustomerExperienceEncuestas_cor();
   }
 
+  // [Aster | 2026-10-07 | ASTER-MG | FASE 1 ENTREGAS V001]
+  const ENTREGAS_CONTROL_ROUTE_GNRAL = 'entregas-control';
+  let entregasControlPromise_gnral = null;
+
+  function ensureEntregasControl_gnral(){
+    if(window.ManttoEntregasControl) return Promise.resolve(window.ManttoEntregasControl);
+    if(entregasControlPromise_gnral) return entregasControlPromise_gnral;
+
+    entregasControlPromise_gnral = new Promise((resolve, reject) => {
+      let style = document.querySelector('link[data-mantto-entregas-control="1"]');
+      if(!style){
+        style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = './modules/entregas-control/entregas-control.css?v=20261007-fase1-v001';
+        style.dataset.manttoEntregasControl = '1';
+        document.head.appendChild(style);
+      }
+
+      const existing = document.querySelector('script[data-mantto-entregas-control="1"]');
+      if(existing){
+        if(window.ManttoEntregasControl){
+          resolve(window.ManttoEntregasControl);
+          return;
+        }
+        existing.addEventListener('load', () => resolve(window.ManttoEntregasControl || null), { once:true });
+        existing.addEventListener('error', reject, { once:true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = './modules/entregas-control/entregas-control.js?v=20261007-fase1-v001';
+      script.async = true;
+      script.dataset.manttoEntregasControl = '1';
+      script.addEventListener('load', () => resolve(window.ManttoEntregasControl || null), { once:true });
+      script.addEventListener('error', reject, { once:true });
+      document.head.appendChild(script);
+    }).catch(error => {
+      entregasControlPromise_gnral = null;
+      throw error;
+    });
+
+    return entregasControlPromise_gnral;
+  }
+
+  function activateEntregasControl_gnral(){
+    if(currentAppRoute_cor() !== ENTREGAS_CONTROL_ROUTE_GNRAL) return Promise.resolve(false);
+    const view = document.getElementById('view-placeholder');
+    if(view) view.innerHTML = '<div class="ec-status card">Cargando Control de Entregas...</div>';
+
+    return ensureEntregasControl_gnral()
+      .then(module => {
+        if(currentAppRoute_cor() !== ENTREGAS_CONTROL_ROUTE_GNRAL) return false;
+        if(!module || typeof module.init !== 'function') throw new Error('Modulo Control de Entregas no disponible.');
+        return module.init();
+      })
+      .catch(error => {
+        console.error('No fue posible inicializar Entregas · Control de Entregas.', error);
+        if(currentAppRoute_cor() !== ENTREGAS_CONTROL_ROUTE_GNRAL) return false;
+        const target = document.getElementById('view-placeholder');
+        if(target){
+          target.innerHTML = '<div class="placeholder"><div class="card placeholder-card construction-card">' +
+            '<div class="construction-icon">⚠️</div><h1>Control de Entregas</h1>' +
+            '<h2>No fue posible cargar el modulo</h2><p>Recarga la pantalla. Si el problema continua, informa a Soporte.</p></div></div>';
+        }
+        return false;
+      });
+  }
+
+  function bindEntregasControl_gnral(){
+    if(window.__MANTTO_ENTREGAS_CONTROL_BOUND__) return;
+    window.__MANTTO_ENTREGAS_CONTROL_BOUND__ = true;
+    document.addEventListener('mantto:navigation', event => {
+      const route = String(event && event.detail && event.detail.route || '');
+      if(route === ENTREGAS_CONTROL_ROUTE_GNRAL) activateEntregasControl_gnral();
+    });
+    activateEntregasControl_gnral();
+  }
+
 
   function formatDate(date){
     if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'){
@@ -647,6 +725,7 @@
     bindCobranzaCorEstadosCuenta_cor();
     bindCustomerExperienceDashboard_cor();
     bindCustomerExperienceEncuestas_cor();
+    bindEntregasControl_gnral();
     ensureInteractionsModule_gnral()
       .then(module => {
         if(module && typeof module.init === 'function') module.init();
