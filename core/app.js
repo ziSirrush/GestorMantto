@@ -112,6 +112,169 @@
   }
 
 
+  // [Aster | 2026-10-07 | ASTER-MG | FASE 1 CUSTOMER EXPERIENCE DASHBOARD V001]
+  const CUSTOMER_EXPERIENCE_DASHBOARD_ROUTE_COR = 'cx-dashboard';
+  let customerExperienceDashboardPromise_cor = null;
+
+  function ensureCustomerExperienceDashboard_cor(){
+    if(window.ManttoCustomerExperienceDashboard){
+      return Promise.resolve(window.ManttoCustomerExperienceDashboard);
+    }
+    if(customerExperienceDashboardPromise_cor) return customerExperienceDashboardPromise_cor;
+
+    customerExperienceDashboardPromise_cor = new Promise((resolve, reject) => {
+      let style = document.querySelector('link[data-mantto-cx-dashboard="1"]');
+      if(!style){
+        style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = './modules/customer-experience-dashboard/customer-experience-dashboard.css?v=20261007-fase1-v001';
+        style.dataset.manttoCxDashboard = '1';
+        document.head.appendChild(style);
+      }
+
+      const existing = document.querySelector('script[data-mantto-cx-dashboard="1"]');
+      if(existing){
+        if(window.ManttoCustomerExperienceDashboard){
+          resolve(window.ManttoCustomerExperienceDashboard);
+          return;
+        }
+        existing.addEventListener('load', () => resolve(window.ManttoCustomerExperienceDashboard || null), { once:true });
+        existing.addEventListener('error', reject, { once:true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = './modules/customer-experience-dashboard/customer-experience-dashboard.js?v=20261007-fase1-v001';
+      script.async = true;
+      script.dataset.manttoCxDashboard = '1';
+      script.addEventListener('load', () => resolve(window.ManttoCustomerExperienceDashboard || null), { once:true });
+      script.addEventListener('error', reject, { once:true });
+      document.head.appendChild(script);
+    }).catch(error => {
+      customerExperienceDashboardPromise_cor = null;
+      throw error;
+    });
+
+    return customerExperienceDashboardPromise_cor;
+  }
+
+  function activateCustomerExperienceDashboard_cor(){
+    if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_DASHBOARD_ROUTE_COR) return Promise.resolve(false);
+    const view = document.getElementById('view-placeholder');
+    if(view){
+      view.innerHTML = '<div class="cxd-loading card">Cargando Dashboard Customer Experience...</div>';
+    }
+    return ensureCustomerExperienceDashboard_cor()
+      .then(module => {
+        if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_DASHBOARD_ROUTE_COR) return false;
+        if(!module || typeof module.init !== 'function') throw new Error('Modulo Dashboard Customer Experience no disponible.');
+        return module.init();
+      })
+      .catch(error => {
+        console.error('No fue posible inicializar Customer Experience · Dashboard.', error);
+        if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_DASHBOARD_ROUTE_COR) return false;
+        const target = document.getElementById('view-placeholder');
+        if(target){
+          target.innerHTML = '<div class="placeholder"><div class="card placeholder-card construction-card">' +
+            '<div class="construction-icon">⚠️</div><h1>Dashboard CX</h1>' +
+            '<h2>No fue posible cargar el modulo</h2><p>Recarga la pantalla. Si el problema continua, informa a Soporte.</p></div></div>';
+        }
+        return false;
+      });
+  }
+
+  function bindCustomerExperienceDashboard_cor(){
+    if(window.__MANTTO_CUSTOMER_EXPERIENCE_DASHBOARD_BOUND__) return;
+    window.__MANTTO_CUSTOMER_EXPERIENCE_DASHBOARD_BOUND__ = true;
+    document.addEventListener('mantto:navigation', event => {
+      const route = String(event && event.detail && event.detail.route || '');
+      if(route === CUSTOMER_EXPERIENCE_DASHBOARD_ROUTE_COR) activateCustomerExperienceDashboard_cor();
+    });
+    activateCustomerExperienceDashboard_cor();
+  }
+
+  // [Aster | 2026-10-07 | ASTER-MG | FASE 2 CUSTOMER EXPERIENCE ENCUESTAS V001]
+  const CUSTOMER_EXPERIENCE_ENCUESTAS_ROUTE_COR = 'cx-encuestas';
+  let customerExperienceEncuestasPromise_cor = null;
+
+  function ensureCustomerExperienceEncuestas_cor(){
+    if(window.ManttoCustomerExperienceEncuestas){
+      return Promise.resolve(window.ManttoCustomerExperienceEncuestas);
+    }
+    if(customerExperienceEncuestasPromise_cor) return customerExperienceEncuestasPromise_cor;
+
+    customerExperienceEncuestasPromise_cor = new Promise((resolve, reject) => {
+      let style = document.querySelector('link[data-mantto-cx-encuestas="1"]');
+      if(!style){
+        style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = './modules/customer-experience-encuestas/customer-experience-encuestas.css?v=20261007-fase2-v001';
+        style.dataset.manttoCxEncuestas = '1';
+        document.head.appendChild(style);
+      }
+
+      const existing = document.querySelector('script[data-mantto-cx-encuestas="1"]');
+      if(existing){
+        if(window.ManttoCustomerExperienceEncuestas){
+          resolve(window.ManttoCustomerExperienceEncuestas);
+          return;
+        }
+        existing.addEventListener('load', () => resolve(window.ManttoCustomerExperienceEncuestas || null), { once:true });
+        existing.addEventListener('error', reject, { once:true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = './modules/customer-experience-encuestas/customer-experience-encuestas.js?v=20261007-fase2-v001';
+      script.async = true;
+      script.dataset.manttoCxEncuestas = '1';
+      script.addEventListener('load', () => resolve(window.ManttoCustomerExperienceEncuestas || null), { once:true });
+      script.addEventListener('error', reject, { once:true });
+      document.head.appendChild(script);
+    }).catch(error => {
+      customerExperienceEncuestasPromise_cor = null;
+      throw error;
+    });
+
+    return customerExperienceEncuestasPromise_cor;
+  }
+
+  function activateCustomerExperienceEncuestas_cor(){
+    if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_ENCUESTAS_ROUTE_COR) return Promise.resolve(false);
+    const view = document.getElementById('view-placeholder');
+    if(view){
+      view.innerHTML = '<div class="ce-status card">Cargando Customer Experience · Encuestas...</div>';
+    }
+    return ensureCustomerExperienceEncuestas_cor()
+      .then(module => {
+        if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_ENCUESTAS_ROUTE_COR) return false;
+        if(!module || typeof module.init !== 'function') throw new Error('Modulo Customer Experience · Encuestas no disponible.');
+        return module.init();
+      })
+      .catch(error => {
+        console.error('No fue posible inicializar Customer Experience · Encuestas.', error);
+        if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_ENCUESTAS_ROUTE_COR) return false;
+        const target = document.getElementById('view-placeholder');
+        if(target){
+          target.innerHTML = '<div class="placeholder"><div class="card placeholder-card construction-card">' +
+            '<div class="construction-icon">⚠️</div><h1>Encuestas</h1>' +
+            '<h2>No fue posible cargar el modulo</h2><p>Recarga la pantalla. Si el problema continua, informa a Soporte.</p></div></div>';
+        }
+        return false;
+      });
+  }
+
+  function bindCustomerExperienceEncuestas_cor(){
+    if(window.__MANTTO_CUSTOMER_EXPERIENCE_ENCUESTAS_BOUND__) return;
+    window.__MANTTO_CUSTOMER_EXPERIENCE_ENCUESTAS_BOUND__ = true;
+    document.addEventListener('mantto:navigation', event => {
+      const route = String(event && event.detail && event.detail.route || '');
+      if(route === CUSTOMER_EXPERIENCE_ENCUESTAS_ROUTE_COR) activateCustomerExperienceEncuestas_cor();
+    });
+    activateCustomerExperienceEncuestas_cor();
+  }
+
+
   function formatDate(date){
     if(window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'){
       return window.ManttoHumanTime.formatMexicoCityDate(date,{dateOptions:{weekday:'long',day:'2-digit',month:'long',year:'numeric'}});
@@ -138,7 +301,9 @@
   }
 
   const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({
-    home:true
+    home:true,
+    cx_dashboard:true,
+    cx_encuestas:true
   });
 
   function applyTemporarySidebarPermissions(){
@@ -480,6 +645,8 @@
     if(window.ManttoHome) window.ManttoHome.init({loadData:activeRoute==='home'});
     bindHomeHoyPermission_gnral();
     bindCobranzaCorEstadosCuenta_cor();
+    bindCustomerExperienceDashboard_cor();
+    bindCustomerExperienceEncuestas_cor();
     ensureInteractionsModule_gnral()
       .then(module => {
         if(module && typeof module.init === 'function') module.init();
