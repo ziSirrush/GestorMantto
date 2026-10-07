@@ -381,7 +381,8 @@
   const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({
     home:true,
     cx_dashboard:true,
-    cx_encuestas:true
+    cx_encuestas:true,
+    entregas_control:true
   });
 
   function applyTemporarySidebarPermissions(){

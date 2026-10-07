@@ -1,0 +1,14 @@
+VALIDACION FIX FASE 1 ENTREGAS VISIBILIDAD V002
+
+PASS | core/app.js | node --check
+PASS | index.html Fase 1 | contiene data-group="entregas"
+PASS | index.html Fase 1 | contiene data-permission="entregas_control"
+PASS | index.html Fase 1 | permiso ENTREGAS_CONTROL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+PASS | Fase 0 | crea ENTREGAS_CONTROL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL
+PASS | core/app.js | TEMP_SIDEBAR_PERMISSIONS contiene entregas_control:true
+PASS | alcance del cambio | solo core/app.js modificado
+
+NO EJECUTADO | Aiven real
+NO EJECUTADO | Azure real
+NO EJECUTADO | E2E navegador
+NO EJECUTADO | GitHub/Netlify deploy
