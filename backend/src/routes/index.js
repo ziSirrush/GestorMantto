@@ -29,6 +29,7 @@ const instalacionesDashboardRoutes = require('../modules/instalaciones-dashboard
 const instalacionesCarpetasRoutes = require('../modules/instalaciones-carpetas/instalaciones-carpetas.routes');
 const instalacionesDocumentacionRoutes = require('../modules/instalaciones-documentacion/instalaciones-documentacion.routes');
 const instalacionesPmmRoutes = require('../modules/instalaciones-pmm/instalaciones-pmm.routes');
+const instalacionesAdministracionRoutes = require('../modules/instalaciones-administracion/instalaciones-administracion.routes');
 const ventasDashboardRoutes = require('../modules/ventas-dashboard/ventas-dashboard.routes');
 const ventasFotosMapaRoutes = require('../modules/ventas-fotos-mapa/ventas-fotos-mapa.routes');
 const ventasCotizacionesRoutes = require('../modules/ventas-cotizaciones/ventas-cotizaciones.routes');
@@ -88,6 +89,7 @@ router.use('/instalaciones', instalacionesDashboardRoutes);
 router.use('/instalaciones', instalacionesCarpetasRoutes);
 router.use('/instalaciones', instalacionesDocumentacionRoutes);
 router.use('/instalaciones', instalacionesPmmRoutes);
+router.use('/instalaciones', instalacionesAdministracionRoutes);
 router.use('/ventas', ventasDashboardRoutes);
 router.use('/ventas', ventasFotosMapaRoutes);
 router.use('/ventas', ventasCotizacionesHistorialRoutes);

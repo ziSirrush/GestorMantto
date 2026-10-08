@@ -11,7 +11,7 @@
     'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'PVO-Producción', 'logistica-produccion-nuevo':'Agregar PVO-Producción', 'logistica-produccion-detalle':'Detalle de PVO-Producción', 'logistica-documentos':'Documentos de Producción',
     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
-    'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados',
+    'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados', 'instalaciones-administracion':'Administración',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-editar':'Editar cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
@@ -654,6 +654,19 @@
     return true;
   }
 
+  function showInstalacionesAdministracion_cor(){
+    const view=document.getElementById('view-instalaciones-administracion');
+    if(!view) return false;
+    activateViewById('view-instalaciones-administracion');
+    if(!view.innerHTML.trim()){
+      view.innerHTML = '<div class="iadm-cor-page"><section class="iadm-cor-card iadm-cor-head"><div><p class="iadm-cor-eyebrow">Cargando módulo</p><h1>Administración de Instalaciones</h1><p>Inicializando consulta estructurada de ins_fl...</p></div></section></div>';
+    }
+    setActiveSide('instalaciones-administracion');
+    updateContext('instalaciones-administracion','Administración de Instalaciones · consulta estructurada de ins_fl');
+    if(window.ManttoInstalacionesAdministracion_cor) window.ManttoInstalacionesAdministracion_cor.init(currentPayload || null);
+    return true;
+  }
+
   function showInstalacionesCarpetas_cor(){
     const view=document.getElementById('view-instalaciones-carpetas');
     if(!view) return false;
@@ -941,6 +954,7 @@
     if(route==='instalaciones-concentrado-cliente' && showInstalacionesConcentradoCliente()) return;
     if(route==='instalaciones-reporte' && showInstalacionesReporte_cor()) return;
     if(route==='instalaciones-ajuste' && showInstalacionesAjuste_cor()) return;
+    if(route==='instalaciones-administracion' && showInstalacionesAdministracion_cor()) return;
     if(route==='instalaciones-carpetas' && showInstalacionesCarpetas_cor()) return;
     if(route==='instalaciones-documentacion' && showInstalacionesDocumentacion_cor()) return;
     if(route==='instalaciones-pmm' && showInstalacionesPmm_cor()) return;

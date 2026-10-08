@@ -21,7 +21,7 @@
     'logistica-dashboard','logistica-reporte','logistica-produccion','logistica-pvo','logistica-documentos',
     'instalaciones-dashboard','instalaciones-proyectos','instalaciones-cerrados',
     'instalaciones-concentrado-cliente','instalaciones-reporte','instalaciones-ajuste',
-    'instalaciones-carpetas','instalaciones-documentacion','instalaciones-pmm',
+    'instalaciones-carpetas','instalaciones-documentacion','instalaciones-pmm','instalaciones-administracion',
     'ventas-dashboard','ventas-fotos-mapa','ventas-clientes','ventas-cotizaciones','ventas-vendidos',
     'ventas-proyeccion','ventas-proyectos-interes','ventas-perdidos','ventas-prospeccion',
     'ventas-mapa-prospeccion','ventas-asignacion-redes',
@@ -217,6 +217,7 @@
     'instalaciones-carpetas':{css:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.css?v=20260821-carpetas-disponibles-v002'],js:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-documentacion':{css:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.css?v=20260818-documentacion-fase2-v001'],js:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.js?v=20260821-pendientes-supervisor-v001']},
     'instalaciones-pmm':{css:['./modules/instalaciones-pmm/instalaciones-pmm_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-pmm/instalaciones-pmm_cor.js?v=20260914-horarios-f2-v001']},
+    'instalaciones-administracion':{css:['./modules/instalaciones-administracion/instalaciones-administracion_cor.css?v=20261008-instalaciones-administracion-fase3-v001'],js:['./modules/instalaciones-administracion/instalaciones-administracion_cor.js?v=20261008-instalaciones-administracion-fase3-v001']},
 
     'ventas-dashboard':{css:['./modules/ventas-dashboard/ventas-dashboard.css?v=20260831-anio-seccion-v003'],js:['./modules/ventas-dashboard/ventas-dashboard-pdf.js?v=20260914-horarios-f2-v001','./modules/ventas-dashboard/ventas-dashboard.js?v=20260914-horarios-f2-v001']},
     'ventas-fotos-mapa':{css:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.css?v=20260726-fix-tabs-estados-v002'],js:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.js?v=20261008-fotografias-notificacion-direccion-v001']},

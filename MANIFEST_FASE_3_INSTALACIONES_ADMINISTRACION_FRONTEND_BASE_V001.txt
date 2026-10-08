@@ -1,0 +1,23 @@
+FASE_3_INSTALACIONES_ADMINISTRACION_FRONTEND_BASE_V001
+BASE: d19fc8d575c7fe9d2a91c7630ea676180487c18e | Version 100826.2
+
+MODIFICADOS:
+index.html
+core/module-loader.js
+core/router.js
+
+NUEVOS:
+modules/instalaciones-administracion/instalaciones-administracion_cor.html
+modules/instalaciones-administracion/instalaciones-administracion_cor.css
+modules/instalaciones-administracion/instalaciones-administracion_cor.js
+tests/instalaciones-administracion-fase3-frontend-base.test.js
+BASE_MAIN_VALIDADA_FASE_3_INSTALACIONES_ADMINISTRACION_V001.txt
+README_FASE_3_INSTALACIONES_ADMINISTRACION_FRONTEND_BASE_V001.md
+MANIFEST_FASE_3_INSTALACIONES_ADMINISTRACION_FRONTEND_BASE_V001.txt
+SHA256SUMS.txt
+
+NO INCLUIDO:
+- SQL nuevo
+- cambios backend
+- asignaciones de permisos
+- despliegue

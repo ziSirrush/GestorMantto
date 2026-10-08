@@ -1,0 +1,69 @@
+<div class="iadm-cor-page" data-iadm-root>
+  <section class="iadm-cor-card iadm-cor-head">
+    <div>
+      <p class="iadm-cor-eyebrow">Instalaciones · Administración</p>
+      <h1>Administración de Instalaciones</h1>
+      <p>Consulta la información de <code>ins_fl</code> por proyecto/equipo y revísala por grupos funcionales.</p>
+    </div>
+    <div class="iadm-cor-head-actions">
+      <button class="iadm-cor-btn" id="iadm-cor-refresh" type="button">↻ Actualizar</button>
+      <span class="iadm-cor-status" id="iadm-cor-status" data-type="ready">Listo</span>
+    </div>
+  </section>
+
+  <section class="iadm-cor-card iadm-cor-search-card" aria-labelledby="iadm-cor-search-title">
+    <div class="iadm-cor-section-title">
+      <div>
+        <h2 id="iadm-cor-search-title">Buscar proyecto o equipo</h2>
+        <p>Busca por proyecto, PP NS, referencia en sitio, número de fábrica o cliente.</p>
+      </div>
+    </div>
+    <form class="iadm-cor-search" id="iadm-cor-search-form" autocomplete="off">
+      <label class="iadm-cor-search-field" for="iadm-cor-search-input">
+        <span>Proyecto / equipo</span>
+        <input id="iadm-cor-search-input" maxlength="255" placeholder="Ej. P2184, ZIRAHUEN, referencia o cliente" type="search" />
+      </label>
+      <button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-search-btn" type="submit">Buscar</button>
+      <button class="iadm-cor-btn" id="iadm-cor-clear" type="button">Limpiar</button>
+    </form>
+    <p class="iadm-cor-search-meta" id="iadm-cor-search-meta">Cargando contrato del módulo…</p>
+    <div class="iadm-cor-results" id="iadm-cor-results" aria-live="polite"></div>
+  </section>
+
+  <section class="iadm-cor-selected" id="iadm-cor-selected" hidden>
+    <section class="iadm-cor-card iadm-cor-record-head">
+      <div class="iadm-cor-record-main">
+        <p class="iadm-cor-eyebrow">Registro seleccionado</p>
+        <h2 id="iadm-cor-record-title">—</h2>
+        <div class="iadm-cor-record-tags" id="iadm-cor-record-tags"></div>
+      </div>
+      <button class="iadm-cor-btn" id="iadm-cor-change-record" type="button">Cambiar registro</button>
+    </section>
+
+    <section class="iadm-cor-card iadm-cor-groups-card">
+      <div class="iadm-cor-section-title">
+        <div>
+          <h2>¿Qué información deseas revisar?</h2>
+          <p>Selecciona un grupo. Solo se muestran los grupos permitidos para tu usuario.</p>
+        </div>
+      </div>
+      <div class="iadm-cor-group-picker" id="iadm-cor-group-picker"></div>
+      <div class="iadm-cor-groups" id="iadm-cor-groups"></div>
+    </section>
+
+    <section class="iadm-cor-card iadm-cor-system-card">
+      <details>
+        <summary>Información del sistema · solo lectura</summary>
+        <div class="iadm-cor-system-grid" id="iadm-cor-system-grid"></div>
+      </details>
+    </section>
+  </section>
+
+  <section class="iadm-cor-card iadm-cor-empty" id="iadm-cor-empty">
+    <span aria-hidden="true">🏗️</span>
+    <div>
+      <strong>Selecciona un proyecto o equipo</strong>
+      <p>La información se mostrará por acordeones; en esta Fase 3 la vista es de consulta. La edición se conecta en Fase 4.</p>
+    </div>
+  </section>
+</div>

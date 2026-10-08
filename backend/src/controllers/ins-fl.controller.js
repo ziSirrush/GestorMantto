@@ -110,13 +110,10 @@ const DB_FIELDS = [
 
 // [Aster | 2026-08-31 | ASTER-MG | FIX: INS_FL_COPIA_FIEL_MARCADORES_V001]
 // [Aster | 2026-10-08 | ASTER-MG | FASE_1_INS_FL_CONTRATO_30_CAMPOS_V001]
-// [Aster | 2026-10-08 | ASTER-MG | FASE_2_INS_FL_CARGA_INICIAL_POR_ID_V001]
-// La sabana FL_Res_VS puede transportar id_admin como referencia, pero se conserva
-// la proteccion historica: id_admin NO se escribe por /sync. No existe autorizacion
-// expresa para sustituir ese dato operativo durante esta carga inicial.
-// id_ins_fl se acepta en Fase 2 solamente como selector/validador de identidad;
-// nunca forma parte de INSERT/UPDATE. created_at, updated_at e id_script tampoco
-// forman parte de DB_FIELDS/SYNC_FIELDS.
+// La sabana FL_Res_VS ya puede contener id_admin, pero esta Fase 1 conserva
+// deliberadamente la proteccion historica: id_admin NO se escribe por /sync.
+// La politica de id_ins_fl/id_admin para la carga inicial se cierra en Fase 2.
+// created_at, updated_at e id_script tampoco forman parte de DB_FIELDS/SYNC_FIELDS.
 const SYNC_FIELDS = DB_FIELDS.filter(field => field !== 'id_admin');
 
 const REQUIRED_FIELDS = ['proyecto', 'id_proyecto', 'referencia_sitio'];
@@ -313,23 +310,8 @@ function normalizeActive(value) {
   return 1;
 }
 
-function normalizeIdInsFlSelector(value) {
-  const cleaned = cleanValue(value);
-  if (cleaned === null) return null;
-
-  const raw = String(cleaned).trim();
-  if (!/^\d+$/.test(raw)) return Number.NaN;
-
-  const numeric = Number(raw);
-  if (!Number.isSafeInteger(numeric) || numeric <= 0) return Number.NaN;
-  return numeric;
-}
-
 function normalizeIncomingRow(row) {
-  const incoming = {
-    // Fase 2: selector de carga inicial. No se persiste como campo editable.
-    id_ins_fl: normalizeIdInsFlSelector(row.id_ins_fl)
-  };
+  const incoming = {};
 
   for (const field of SYNC_FIELDS) {
     if (field === 'activo') {
@@ -386,8 +368,6 @@ async function syncInsFl(req, res) {
     updated: 0,
     unchanged: 0,
     rejected: 0,
-    resolved_by_id: 0,
-    resolved_by_key: 0,
     errors: []
   };
 
@@ -398,28 +378,13 @@ async function syncInsFl(req, res) {
       const incoming = normalizeIncomingRow(rows[index] || {});
       const savepoint = `ins_fl_row_${index}`;
 
-      if (Number.isNaN(incoming.id_ins_fl)) {
-        summary.rejected += 1;
-        summary.errors.push({
-          index,
-          id_ins_fl: rows[index]?.id_ins_fl ?? null,
-          id_proyecto: incoming.id_proyecto,
-          referencia_sitio: incoming.referencia_sitio,
-          code: 'INVALID_ID_INS_FL',
-          message: 'id_ins_fl debe ser un entero positivo o venir vacio.'
-        });
-        continue;
-      }
-
       const missing = REQUIRED_FIELDS.filter(field => !incoming[field]);
       if (missing.length) {
         summary.rejected += 1;
         summary.errors.push({
           index,
-          id_ins_fl: incoming.id_ins_fl,
           id_proyecto: incoming.id_proyecto,
           referencia_sitio: incoming.referencia_sitio,
-          code: 'MISSING_REQUIRED_FIELDS',
           message: `Faltan campos obligatorios: ${missing.join(', ')}`
         });
         continue;
@@ -428,50 +393,14 @@ async function syncInsFl(req, res) {
       try {
         await conn.query(`SAVEPOINT ${savepoint}`);
 
-        let existingRows;
-
-        if (incoming.id_ins_fl !== null) {
-          [existingRows] = await conn.query(
-            `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
-             FROM ins_fl
-             WHERE id_ins_fl = ?
-             LIMIT 1`,
-            [incoming.id_ins_fl]
-          );
-
-          if (!existingRows.length) {
-            const error = new Error(`id_ins_fl ${incoming.id_ins_fl} no existe en ins_fl.`);
-            error.code = 'ID_INS_FL_NOT_FOUND';
-            throw error;
-          }
-
-          const existing = existingRows[0];
-          const idProyectoMatches = comparable(existing.id_proyecto) === comparable(incoming.id_proyecto);
-          const referenciaMatches = comparable(existing.referencia_sitio) === comparable(incoming.referencia_sitio);
-
-          if (!idProyectoMatches || !referenciaMatches) {
-            const error = new Error(
-              `id_ins_fl ${incoming.id_ins_fl} no corresponde a id_proyecto + referencia_sitio recibidos.`
-            );
-            error.code = 'ID_INS_FL_KEY_MISMATCH';
-            throw error;
-          }
-
-          summary.resolved_by_id += 1;
-        } else {
-          [existingRows] = await conn.query(
-            `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
-             FROM ins_fl
-             WHERE id_proyecto = ?
-               AND referencia_sitio = ?
-             LIMIT 1`,
-            [incoming.id_proyecto, incoming.referencia_sitio]
-          );
-
-          if (existingRows.length) {
-            summary.resolved_by_key += 1;
-          }
-        }
+        const [existingRows] = await conn.query(
+          `SELECT id_ins_fl, ${DB_FIELDS.join(', ')}
+           FROM ins_fl
+           WHERE id_proyecto = ?
+             AND referencia_sitio = ?
+           LIMIT 1`,
+          [incoming.id_proyecto, incoming.referencia_sitio]
+        );
 
         if (!existingRows.length) {
           const placeholders = SYNC_FIELDS.map(() => '?').join(', ');
@@ -515,10 +444,8 @@ async function syncInsFl(req, res) {
         summary.rejected += 1;
         summary.errors.push({
           index,
-          id_ins_fl: incoming.id_ins_fl,
           id_proyecto: incoming.id_proyecto,
           referencia_sitio: incoming.referencia_sitio,
-          code: rowError.code || 'ROW_SYNC_ERROR',
           message: rowError.message
         });
       }

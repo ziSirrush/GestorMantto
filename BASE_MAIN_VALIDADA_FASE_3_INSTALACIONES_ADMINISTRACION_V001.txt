@@ -1,0 +1,15 @@
+FASE 3 - INSTALACIONES ADMINISTRACION - FRONTEND BASE V001
+
+Repositorio: ziSirrush/GestorMantto
+Rama: main
+Commit verificado: d19fc8d575c7fe9d2a91c7630ea676180487c18e
+Version: Version 100826.2
+Fecha commit: 2026-10-08T18:03:38Z
+Fecha de preparacion: 2026-10-08
+
+Blobs base verificados antes de modificar:
+index.html             a51345463ee992863ba7cb3b6f48322b7f20c74d
+core/module-loader.js  fd8ef910c63ee52df390f65c39a151ff95dd1f77
+core/router.js         d0fc270eeb3f097a3342ef255c162e014e6f0996
+
+Los tres archivos fueron reconstruidos/contrastados contra el main indicado antes de aplicar la integracion de Fase 3.
