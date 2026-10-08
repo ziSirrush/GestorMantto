@@ -62,6 +62,13 @@ router.post(
   uploadProjectPhoto,
   insFlController.uploadInsFlProjectPhoto
 );
+router.delete(
+  '/proyectos/fotografias/:id_ppns/:campo',
+  ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
+  requireCorellianProjectPhotoScope_gnral,
+  requireProjectPhotoManager_gnral,
+  insFlController.deleteInsFlProjectPhoto
+);
 router.patch(
   '/proyectos/fotografias/:id_ppns/principal',
   ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),

@@ -2,6 +2,11 @@
 
 const db = require('../../config/db');
 const azureStorage = require('../../services/storage/azure-storage.service');
+const logger = require('../../shared/logger');
+const {
+  notifyProjectPhotoUploaded_gnral,
+  notifyProjectPhotoDeleted_gnral
+} = require('../../services/notifications/project-photo-notification.service');
 
 const PROJECT_PHOTO_FIELDS_UNI = Object.freeze([
   'foto_1', 'foto_2', 'foto_3', 'foto_4', 'foto_5', 'foto_6', 'foto_7'
@@ -146,6 +151,7 @@ async function uploadPortafolioProyectoFotografia_uni(req, res) {
   let uploaded = null;
   let conn = null;
   let transactionStarted = false;
+  let committed = false;
 
   try {
     if (!requestedProject) {
@@ -257,10 +263,19 @@ async function uploadPortafolioProyectoFotografia_uni(req, res) {
 
     await conn.commit();
     transactionStarted = false;
+    committed = true;
 
     const used = PROJECT_PHOTO_FIELDS_UNI
       .filter((field) => String(row[field] || '').trim())
       .length + 1;
+    const notificationResult = await notifyProjectPhotoUploaded_gnral({
+      domain: 'UNITED',
+      projectId: canonicalProject,
+      photoRecordId: row.id_photo,
+      slot: freeField,
+      storageUrl: uploaded.storage_url,
+      actionContext: req
+    });
 
     return res.status(201).json({
       ok: true,
@@ -271,7 +286,8 @@ async function uploadPortafolioProyectoFotografia_uni(req, res) {
         storage_url: uploaded.storage_url,
         foto_principal: principal,
         total_fotos: used,
-        max_fotos: MAX_PROJECT_PHOTOS_UNI
+        max_fotos: MAX_PROJECT_PHOTOS_UNI,
+        notificaciones_director_general: Number(notificationResult.created || 0)
       }
     });
   } catch (error) {
@@ -279,7 +295,7 @@ async function uploadPortafolioProyectoFotografia_uni(req, res) {
       try { await conn.rollback(); } catch (_rollbackError) {}
     }
 
-    if (uploaded && uploaded.storage_blob_name) {
+    if (!committed && uploaded && uploaded.storage_blob_name) {
       try {
         await azureStorage.deleteBlob_gnral(uploaded.storage_blob_name, {
           queueOnFailure: true,
@@ -297,6 +313,145 @@ async function uploadPortafolioProyectoFotografia_uni(req, res) {
     return res.status(statusFromError_uni(error)).json({
       ok: false,
       message: error.message || 'No fue posible agregar la fotografía del proyecto.'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function deletePortafolioProyectoFotografia_uni(req, res) {
+  const requestedProject = normalizeProject_uni(req.params && req.params.proyecto);
+  const field = String(req.params && req.params.campo || '').trim();
+  const deletedBy = actorId_uni(req);
+  let conn = null;
+  let transactionStarted = false;
+
+  if (!requestedProject) {
+    return res.status(400).json({ ok: false, message: 'Proyecto requerido.' });
+  }
+  if (!PROJECT_PHOTO_FIELDS_SET_UNI.has(field)) {
+    return res.status(400).json({ ok: false, message: 'La fotografía seleccionada no es válida.' });
+  }
+
+  try {
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+    transactionStarted = true;
+
+    const [rows] = await conn.query(
+      `SELECT
+         id_photo,
+         proyecto,
+         foto_1, foto_2, foto_3, foto_4, foto_5, foto_6, foto_7,
+         foto_principal
+       FROM portafolio_proyecto_fotos
+       WHERE LOWER(TRIM(proyecto)) = LOWER(TRIM(?))
+         AND activo = 1
+       LIMIT 1
+       FOR UPDATE`,
+      [requestedProject]
+    );
+
+    const row = rows[0] || null;
+    if (!row) {
+      await conn.rollback();
+      transactionStarted = false;
+      return res.status(404).json({
+        ok: false,
+        message: 'No se encontró el registro fotográfico del proyecto.'
+      });
+    }
+
+    const removedUrl = String(row[field] || '').trim();
+    if (!removedUrl) {
+      await conn.rollback();
+      transactionStarted = false;
+      return res.status(404).json({ ok: false, message: 'La fotografía seleccionada ya no existe.' });
+    }
+
+    const remainingFields = PROJECT_PHOTO_FIELDS_UNI.filter(
+      (item) => item !== field && String(row[item] || '').trim()
+    );
+    const currentPrincipal = String(row.foto_principal || '').trim();
+    const principal = currentPrincipal === field || !PROJECT_PHOTO_FIELDS_SET_UNI.has(currentPrincipal)
+      ? (remainingFields[0] || null)
+      : currentPrincipal;
+
+    await conn.query(
+      `UPDATE portafolio_proyecto_fotos
+       SET ${field} = NULL,
+           foto_principal = ?,
+           updated_by = ?
+       WHERE id_photo = ?`,
+      [principal, deletedBy, row.id_photo]
+    );
+
+    await conn.commit();
+    transactionStarted = false;
+
+    let storageCleanup = { deleted: false, queued: false, skipped: true };
+    const blobName = azureBlobNameFromStableUrl_uni(removedUrl);
+    if (blobName) {
+      try {
+        storageCleanup = await azureStorage.deleteBlob_gnral(blobName, {
+          queueOnFailure: true,
+          queueContext: {
+            modulo: 'portafolio',
+            entidadTipo: 'proyecto',
+            entidadId: row.proyecto || requestedProject,
+            solicitadoPor: deletedBy,
+            motivo: 'Limpieza posterior a la eliminación de una fotografía United.'
+          }
+        });
+      } catch (error) {
+        storageCleanup = {
+          deleted: false,
+          queued: Boolean(error.queue_operation_id),
+          skipped: false,
+          error_code: error.code || null
+        };
+        logger.error('[PROJECT_PHOTO_STORAGE_DELETE_FAILED]', {
+          dominio: 'UNITED',
+          proyecto: row.proyecto || requestedProject,
+          campo: field,
+          queued_operation_id: error.queue_operation_id || null,
+          error_code: error.code || null,
+          error: error.message
+        });
+      }
+    }
+
+    const canonicalProject = normalizeProject_uni(row.proyecto) || requestedProject;
+    const notificationResult = await notifyProjectPhotoDeleted_gnral({
+      domain: 'UNITED',
+      projectId: canonicalProject,
+      photoRecordId: row.id_photo,
+      slot: field,
+      storageUrl: removedUrl,
+      actionContext: req
+    });
+    const principalUrl = principal ? await presentProjectPhotoUrl_uni(row[principal]) : null;
+
+    return res.json({
+      ok: true,
+      data: {
+        proyecto: canonicalProject,
+        campo: field,
+        foto_principal: principal,
+        foto_portada: principalUrl,
+        total_fotos: remainingFields.length,
+        max_fotos: MAX_PROJECT_PHOTOS_UNI,
+        storage_cleanup: storageCleanup,
+        notificaciones_director_general: Number(notificationResult.created || 0)
+      }
+    });
+  } catch (error) {
+    if (transactionStarted && conn) {
+      try { await conn.rollback(); } catch (_rollbackError) {}
+    }
+    return res.status(statusFromError_uni(error)).json({
+      ok: false,
+      message: error.message || 'No fue posible eliminar la fotografía del proyecto.'
     });
   } finally {
     if (conn) conn.release();
@@ -371,5 +526,6 @@ module.exports = {
   MAX_PROJECT_PHOTOS_UNI,
   getPortafolioProyectoFotografias_uni,
   uploadPortafolioProyectoFotografia_uni,
+  deletePortafolioProyectoFotografia_uni,
   updatePortafolioProyectoFotoPrincipal_uni
 };

@@ -87,7 +87,7 @@ test('el frontend conserva un solo motor visual para CORELLIAN y UNITED', () => 
   assert.ok(frontend.includes("btn.style.display=allowed?'inline-block':'none'"));
 });
 
-test('POST y PATCH de ambos dominios exigen alcance y rol de gestor', () => {
+test('POST, DELETE y PATCH de ambos dominios exigen alcance y rol de gestor', () => {
   const corRoutes = read('backend/src/routes/ins-fl.routes.js');
   const uniRoutes = read('backend/src/modules/portafolio/portafolio.routes.js');
 
@@ -97,7 +97,9 @@ test('POST y PATCH de ambos dominios exigen alcance y rol de gestor', () => {
   assert.ok(occurrences(uniRoutes, 'requireProjectPhotoManager_gnral') >= 3);
   assert.ok(corRoutes.indexOf('requireCorellianProjectPhotoScope_gnral') < corRoutes.lastIndexOf('requireProjectPhotoManager_gnral'));
   assert.ok(uniRoutes.includes("'/portafolio/proyectos/:proyecto/fotografias'"));
+  assert.ok(uniRoutes.includes("'/portafolio/proyectos/:proyecto/fotografias/:campo'"));
   assert.ok(uniRoutes.includes("'/portafolio/proyectos/:proyecto/fotografias/principal'"));
+  assert.ok(corRoutes.includes("'/proyectos/fotografias/:id_ppns/:campo'"));
 });
 
 test('United usa portafolio_proyecto_fotos, siete slots y primera foto principal', () => {
@@ -117,7 +119,7 @@ test('United usa portafolio_proyecto_fotos, siete slots y primera foto principal
   assert.ok(uniPhotos.includes('[uploaded.storage_url, principal'));
 });
 
-test('no se agrega DELETE, tabla nueva ni id de rol hardcodeado', () => {
+test('DELETE usa las rutas existentes sin tabla nueva ni id de rol hardcodeado', () => {
   const files = [
     read('core/details.js'),
     read('backend/src/middleware/project-photo.middleware.js'),
@@ -128,7 +130,8 @@ test('no se agrega DELETE, tabla nueva ni id de rol hardcodeado', () => {
   const combined = files.join('\n');
 
   assert.ok(!combined.includes('id_rol = 63'));
-  assert.ok(!combined.includes("router.delete('/proyectos/fotografias"));
-  assert.ok(!combined.includes("router.delete('/portafolio/proyectos"));
+  assert.ok(combined.includes("'/proyectos/fotografias/:id_ppns/:campo'"));
+  assert.ok(combined.includes("'/portafolio/proyectos/:proyecto/fotografias/:campo'"));
+  assert.ok(combined.includes('deleteProjectPhoto'));
   assert.ok(!/CREATE\s+TABLE/i.test(combined));
 });

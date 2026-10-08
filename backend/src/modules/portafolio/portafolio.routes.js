@@ -277,6 +277,13 @@ router.post(
   uploadProjectPhoto_uni,
   portafolioController.uploadPortafolioProyectoFotografia
 );
+router.delete(
+  '/portafolio/proyectos/:proyecto/fotografias/:campo',
+  ...portafolioDetailGuard,
+  requirePortafolioProjectScope_gnral,
+  requireProjectPhotoManager_gnral,
+  portafolioController.deletePortafolioProyectoFotografia
+);
 router.patch(
   '/portafolio/proyectos/:proyecto/fotografias/principal',
   ...portafolioDetailGuard,

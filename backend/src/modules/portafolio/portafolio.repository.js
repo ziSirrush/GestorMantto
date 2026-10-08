@@ -39,6 +39,7 @@ const handlers = Object.freeze({
   getPortafolioProyectoDetalle: portafolioConsultasUni.getPortafolioProyectoDetalle_uni,
   getPortafolioProyectoFotografias: portafolioProyectoFotosUni.getPortafolioProyectoFotografias_uni,
   uploadPortafolioProyectoFotografia: portafolioProyectoFotosUni.uploadPortafolioProyectoFotografia_uni,
+  deletePortafolioProyectoFotografia: portafolioProyectoFotosUni.deletePortafolioProyectoFotografia_uni,
   updatePortafolioProyectoFotoPrincipal: portafolioProyectoFotosUni.updatePortafolioProyectoFotoPrincipal_uni,
   getPortafolio: portafolioConsultasUni.getPortafolio_uni,
   syncPortafolio: legacyController.syncPortafolio,

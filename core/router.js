@@ -834,14 +834,16 @@
             focus:focusChat ? 'chat' : null
           });
         }
-        else if(ruta.startsWith('detalle:ticket:') || el.dataset.action === 'ABRIR_TICKET'){
+        else if(/^detalle:(ticket|proyecto|equipo):/i.test(ruta) || el.dataset.action === 'ABRIR_TICKET'){
           const focusChat = isCommentNotification({
             action:el.dataset.action,
             tipo_notificacion:el.dataset.tipo,
             titulo_notificacion:el.dataset.title,
             mensaje_notificacion:el.dataset.message
           });
-          window.ManttoRouter.go('detalle', { type:'ticket', id:ruta.split(':').slice(2).join(':') || ref, focus:focusChat ? 'chat' : null });
+          const detailParts=ruta.split(':');
+          const detailType=/^detalle:(ticket|proyecto|equipo):/i.test(ruta)?String(detailParts[1]||'ticket').toLowerCase():'ticket';
+          window.ManttoRouter.go('detalle', { type:detailType, id:detailParts.slice(2).join(':') || ref, focus:focusChat ? 'chat' : null });
         }
         else if(ruta === 'soporte-solicitudes' || el.dataset.action === 'ABRIR_SOLICITUD') window.ManttoRouter.go('soporte-solicitudes', { id: ref });
         else if(ruta && document.getElementById('view-' + ruta)) window.ManttoRouter.go(ruta, { id: ref });

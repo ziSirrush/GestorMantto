@@ -180,10 +180,11 @@ function openPhotoCarousel(p){
         const row=coreRows(p)[0]||null;
         if(row&&item&&item.manageable!==false&&item.campo&&item.url){
           const ui=Object.keys(dbMap).find(key=>dbMap[key]===item.campo);
-          if(ui)row[ui]=item.url;
-          if(change.type==='principal'||change.principalUrl===item.url)row.foto_principal=item.campo;
+          if(ui)row[ui]=change.type==='deleted'?'':item.url;
+          if(change.type==='deleted')row.foto_principal=change.principalField||'';
+          else if(change.type==='principal'||change.principalUrl===item.url)row.foto_principal=item.campo;
         }
-        if(row&&change&&change.principalUrl)row.foto_portada=change.principalUrl;
+        if(row&&change)row.foto_portada=change.principalUrl||'';
         render();
       },
       allowAdd:p.coreManaged!==false,

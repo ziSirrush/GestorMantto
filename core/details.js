@@ -17,7 +17,7 @@
   const PROJECT_PHOTO_DOMAIN_UNI = 'UNITED';
   const BITACORA_VIEW_PERMISSION = 'INSTALACIONES_PROYECTOS_DETALLE_PROYECTO_BITACORA.VER';
   const BITACORA_PAGE_SIZE = 15;
-  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7, photoDomain:PROJECT_PHOTO_DOMAIN_COR };
+  const projectPhotoState = { photos:[], index:0, projectId:'', projectName:'', principalUrl:'', uploading:false, deleting:false, showProjectLink:false, projectOptions:null, onPhotoChange:null, allowAdd:true, allowSetPrincipal:true, managedPhotoLimit:7, photoDomain:PROJECT_PHOTO_DOMAIN_COR };
   function ticketKey(v){ return String(v || '').trim(); }
   function registerTickets(rows){
     (rows || []).forEach(t => {
@@ -141,6 +141,15 @@
     if(!r.ok||data.ok===false)throw new Error(data.message||data.error||'No fue posible agregar la fotografía');
     return data;
   }
+  async function deleteJson(path){
+    if(window.ManttoHttp&&typeof window.ManttoHttp.request==='function')return window.ManttoHttp.request(path,{method:'DELETE'});
+    const headers=Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
+    const r=await fetch(API()+path,{method:'DELETE',headers,cache:'no-store'});
+    const text=await r.text();let data=null;
+    try{data=text?JSON.parse(text):{};}catch(e){throw new Error('Respuesta inválida del backend.');}
+    if(!r.ok||data.ok===false)throw new Error(data.message||data.error||'No fue posible eliminar la fotografía');
+    return data;
+  }
   function currentDetailMatches(type, id){
     if(!window.ManttoRouter || !window.ManttoRouter.getCurrent) return false;
     const current = window.ManttoRouter.getCurrent();
@@ -254,7 +263,7 @@
         .mg-compact-table{width:100%;border-collapse:collapse}.mg-compact-table th{background:#0D2E6E;color:#fff;text-align:left;font-size:10px;padding:8px;white-space:nowrap}.mg-compact-table td{font-size:11px;color:#334155;padding:9px 8px;border-bottom:1px solid #E2E8F0;vertical-align:top}.mg-compact-table tr:last-child td{border-bottom:0}.mg-compact-table-wrap{overflow:auto}.mg-section-hidden{display:none!important}
         .mg-project-overview{display:grid;grid-template-columns:minmax(250px,36%) 1fr;gap:14px;margin-bottom:14px}.mg-project-overview.no-photo{grid-template-columns:1fr}.mg-project-cover{display:block;width:100%;height:260px;border:0;border-radius:12px;overflow:hidden;padding:0;background:#E2E8F0;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.08)}.mg-project-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}.mg-project-cover-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed #93C5FD;background:#EFF6FF;color:#0D2E6E;font-weight:900}.mg-project-cover-empty strong{font-size:28px;line-height:1}.mg-project-cover-empty span{font-size:12px}.mg-project-overview .mg-detail-section{margin-bottom:0}
         .mg-stage-bars{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:12px;padding:14px;margin-bottom:14px}.mg-stage-row{margin:11px 0}.mg-stage-row:first-child{margin-top:0}.mg-stage-row:last-child{margin-bottom:0}.mg-stage-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;font-size:11px;font-weight:800;color:#334155}.mg-stage-track{height:9px;border-radius:999px;background:#E2E8F0;overflow:hidden}.mg-stage-fill{height:100%;border-radius:inherit}.mg-stage-fill.general{background:#1B4FD8}.mg-stage-fill.oc{background:#C83B3B}.mg-stage-fill.mo{background:#D7A514}.mg-stage-fill.aj{background:#238B45}
-        .mg-photo-lightbox{position:fixed;inset:0;z-index:10050;background:rgba(2,6,23,.92);display:grid;place-items:center;padding:28px}.mg-photo-lightbox[hidden]{display:none}.mg-photo-lightbox figure{margin:0;max-width:min(1120px,88vw);text-align:center}.mg-photo-lightbox img{display:block;max-width:100%;max-height:76vh;margin:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}.mg-photo-lightbox figcaption{color:#fff;margin-top:10px;font-size:12px}.mg-photo-close,.mg-photo-nav{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.mg-photo-close{top:18px;right:22px;width:44px;height:44px;border-radius:50%;font-size:30px}.mg-photo-nav{top:50%;transform:translateY(-50%);width:50px;height:70px;border-radius:12px;font-size:46px}.mg-photo-nav.prev{left:18px}.mg-photo-nav.next{right:18px}.mg-photo-actions{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}.mg-photo-current,.mg-photo-principal,.mg-photo-add,.mg-photo-project{border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0D2E6E;color:#fff;padding:10px 15px;font-weight:800}.mg-photo-current{background:#475569;cursor:default}.mg-photo-principal,.mg-photo-add,.mg-photo-project{cursor:pointer}.mg-photo-add{background:#166534}.mg-photo-project{background:#1B4FD8}.mg-photo-principal:disabled,.mg-photo-add:disabled,.mg-photo-project:disabled{background:#475569;cursor:default;opacity:.9}
+        .mg-photo-lightbox{position:fixed;inset:0;z-index:10050;background:rgba(2,6,23,.92);display:grid;place-items:center;padding:28px}.mg-photo-lightbox[hidden]{display:none}.mg-photo-lightbox figure{margin:0;max-width:min(1120px,88vw);text-align:center}.mg-photo-lightbox img{display:block;max-width:100%;max-height:76vh;margin:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45)}.mg-photo-lightbox figcaption{color:#fff;margin-top:10px;font-size:12px}.mg-photo-close,.mg-photo-nav{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.mg-photo-close{top:18px;right:22px;width:44px;height:44px;border-radius:50%;font-size:30px}.mg-photo-nav{top:50%;transform:translateY(-50%);width:50px;height:70px;border-radius:12px;font-size:46px}.mg-photo-nav.prev{left:18px}.mg-photo-nav.next{right:18px}.mg-photo-actions{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}.mg-photo-current,.mg-photo-principal,.mg-photo-add,.mg-photo-delete,.mg-photo-project{border:1px solid rgba(255,255,255,.45);border-radius:10px;background:#0D2E6E;color:#fff;padding:10px 15px;font-weight:800}.mg-photo-current{background:#475569;cursor:default}.mg-photo-principal,.mg-photo-add,.mg-photo-delete,.mg-photo-project{cursor:pointer}.mg-photo-add{background:#166534}.mg-photo-delete{background:#B91C1C}.mg-photo-project{background:#1B4FD8}.mg-photo-principal:disabled,.mg-photo-add:disabled,.mg-photo-delete:disabled,.mg-photo-project:disabled{background:#475569;cursor:default;opacity:.9}
         .mg-ticket-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;height:calc(100vh - 205px);min-height:560px}.mg-ticket-main{min-width:0;overflow-y:auto;padding-right:3px}.mg-ticket-side{min-width:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:12px;overflow:hidden}.mg-ticket-chat,.mg-ticket-validation{background:#fff;border:1px solid rgba(13,46,110,.18);border-radius:14px;overflow:hidden}.mg-ticket-panel-title{margin:0;padding:10px 13px;background:#EFF6FF;color:#0D2E6E;font-size:12px;font-weight:900}.mg-ticket-chat{display:flex;flex-direction:column;min-height:0}.mg-ticket-chat-list{flex:1;min-height:0;overflow-y:auto;padding:10px;background:#F8FAFC}.mg-ticket-message{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:9px 10px;margin-bottom:8px;box-shadow:0 2px 7px rgba(15,23,42,.04)}.mg-ticket-message.mine{border-color:#93C5FD;background:#EFF6FF}.mg-ticket-message-meta{display:flex;justify-content:space-between;gap:8px;color:#64748B;font-size:9px;font-weight:800;margin-bottom:4px}.mg-ticket-message-text{white-space:pre-wrap;color:#1E293B;font-size:12px;line-height:1.42}.mg-ticket-chat-form{display:flex;gap:7px;padding:9px;border-top:1px solid #E2E8F0;background:#fff}.mg-ticket-chat-form textarea{flex:1;min-width:0;min-height:44px;max-height:100px;resize:vertical;border:1px solid #CBD5E1;border-radius:10px;padding:9px;font:inherit;font-size:12px}.mg-ticket-chat-form button,.mg-ticket-validation button{border:0;border-radius:10px;background:#1B4FD8;color:#fff;font-weight:900;cursor:pointer;padding:0 13px}.mg-ticket-chat-form button:disabled,.mg-ticket-validation button:disabled{opacity:.55;cursor:wait}.mg-ticket-validation-body{padding:11px}.mg-ticket-validation-status{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #E2E8F0;border-radius:10px;padding:9px 10px;margin-bottom:9px}.mg-ticket-validation-status strong{font-size:12px;color:#0D2E6E}.mg-ticket-validation-status span{font-size:10px;font-weight:900;border-radius:999px;padding:4px 8px;background:#F1F5F9;color:#475569}.mg-ticket-validation label{display:block;font-size:9px;text-transform:uppercase;font-weight:900;color:#64748B;margin:8px 0 4px}.mg-ticket-validation select,.mg-ticket-validation textarea{width:100%;border:1px solid #CBD5E1;border-radius:10px;padding:8px 9px;font:inherit;font-size:11px;background:#fff}.mg-ticket-validation textarea{min-height:64px;resize:vertical}.mg-ticket-validation-actions{display:flex;justify-content:flex-end;margin-top:9px}.mg-ticket-validation-actions button{height:36px}.mg-ticket-validation-meta{margin-top:8px;color:#64748B;font-size:9px;line-height:1.45}.mg-ticket-empty{padding:16px;text-align:center;color:#64748B;font-size:11px}
         @media(max-width:1100px){.mg-ticket-layout{grid-template-columns:minmax(0,1fr) 290px}}
         @media(max-width:900px){.mg-ticket-layout{grid-template-columns:1fr;height:auto}.mg-ticket-main{overflow:visible}.mg-ticket-side{grid-template-rows:360px auto;overflow:visible}}
@@ -271,7 +280,7 @@
       lightbox.id='mg-photo-lightbox';
       lightbox.className='mg-photo-lightbox';
       lightbox.hidden=true;
-      lightbox.innerHTML='<button type="button" class="mg-photo-close" aria-label="Cerrar">×</button><button type="button" class="mg-photo-nav prev" aria-label="Anterior">‹</button><figure><img alt="Fotografía del proyecto"><figcaption></figcaption><div class="mg-photo-actions"><span class="mg-photo-current">Foto Principal Actual</span><button type="button" class="mg-photo-principal">Seleccionar Foto Principal</button><button type="button" class="mg-photo-add">Agregar Foto</button><button type="button" class="mg-photo-project" id="mg-photo-project">Ir a Proyecto</button></div><input type="file" class="mg-photo-input" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden></figure><button type="button" class="mg-photo-nav next" aria-label="Siguiente">›</button>';
+      lightbox.innerHTML='<button type="button" class="mg-photo-close" aria-label="Cerrar">×</button><button type="button" class="mg-photo-nav prev" aria-label="Anterior">‹</button><figure><img alt="Fotografía del proyecto"><figcaption></figcaption><div class="mg-photo-actions"><span class="mg-photo-current">Foto Principal Actual</span><button type="button" class="mg-photo-principal">Seleccionar Foto Principal</button><button type="button" class="mg-photo-add">Agregar Foto</button><button type="button" class="mg-photo-delete">Eliminar Foto</button><button type="button" class="mg-photo-project" id="mg-photo-project">Ir a Proyecto</button></div><input type="file" class="mg-photo-input" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden></figure><button type="button" class="mg-photo-nav next" aria-label="Siguiente">›</button>';
       document.body.appendChild(lightbox);
       lightbox.querySelector('.mg-photo-close').addEventListener('click',closeProjectPhotoLightbox);
       lightbox.querySelector('.mg-photo-add').addEventListener('click',()=>openProjectPhotoUploader());
@@ -279,6 +288,7 @@
       lightbox.querySelector('.mg-photo-nav.prev').addEventListener('click',()=>moveProjectPhoto(-1));
       lightbox.querySelector('.mg-photo-nav.next').addEventListener('click',()=>moveProjectPhoto(1));
       lightbox.querySelector('.mg-photo-principal').addEventListener('click',selectProjectPrincipalPhoto);
+      lightbox.querySelector('.mg-photo-delete').addEventListener('click',deleteProjectPhoto);
       lightbox.querySelector('.mg-photo-project').addEventListener('click',goToPhotoProject);
       lightbox.addEventListener('click',e=>{if(e.target===lightbox)closeProjectPhotoLightbox();});
     }
@@ -438,11 +448,13 @@
     if(normalizeProjectPhotoDomain(domain)===PROJECT_PHOTO_DOMAIN_UNI){
       return {
         upload:'/api/portafolio/proyectos/'+id+'/fotografias',
+        remove:'/api/portafolio/proyectos/'+id+'/fotografias/',
         principal:'/api/portafolio/proyectos/'+id+'/fotografias/principal'
       };
     }
     return {
       upload:'/api/ins-fl/proyectos/fotografias/'+id,
+      remove:'/api/ins-fl/proyectos/fotografias/'+id+'/',
       principal:'/api/ins-fl/proyectos/fotografias/'+id+'/principal'
     };
   }
@@ -523,6 +535,12 @@
     addBtn.disabled=!canAdd||projectPhotoState.uploading;
     addBtn.textContent=projectPhotoState.uploading?'Subiendo...':'Agregar Foto';
     addBtn.title=!canManage?PROJECT_PHOTO_MANAGER_TITLE:(!projectPhotoState.allowAdd?'Este origen conserva su administración de fotografías':(managedCount>=projectPhotoState.managedPhotoLimit?'El proyecto ya tiene el máximo de 7 fotografías':'Agregar una fotografía al proyecto'));
+    const deleteBtn=lightbox.querySelector('.mg-photo-delete');
+    const canDelete=canManage&&item.manageable!==false;
+    deleteBtn.style.display=canDelete?'inline-block':'none';
+    deleteBtn.disabled=!canDelete||projectPhotoState.deleting||projectPhotoState.uploading;
+    deleteBtn.textContent=projectPhotoState.deleting?'Eliminando...':'Eliminar Foto';
+    deleteBtn.title=!canManage?PROJECT_PHOTO_MANAGER_TITLE:'Eliminar esta fotografía del proyecto';
     const projectBtn=lightbox.querySelector('.mg-photo-project');
     if(projectBtn){
       projectBtn.style.display=projectPhotoState.showProjectLink?'inline-block':'none';
@@ -604,6 +622,43 @@
     projectPhotoState.index=(projectPhotoState.index+delta+total)%total;renderProjectPhotoLightbox();
   }
   function closeProjectPhotoLightbox(){const el=document.getElementById('mg-photo-lightbox');if(el)el.hidden=true;}
+  async function deleteProjectPhoto(){
+    if(!canManageProjectPhotos()||projectPhotoState.deleting||projectPhotoState.uploading)return;
+    const item=projectPhotoState.photos[projectPhotoState.index];
+    if(!item||!item.campo||item.manageable===false||!projectPhotoState.projectId)return;
+    if(!window.confirm('¿Eliminar esta fotografía del proyecto? Esta acción no se puede deshacer.'))return;
+    projectPhotoState.deleting=true;renderProjectPhotoLightbox();
+    try{
+      const endpoints=projectPhotoEndpoints(projectPhotoState.projectId,projectPhotoState.photoDomain);
+      const response=await deleteJson(endpoints.remove+encodeURIComponent(item.campo));
+      const data=response&&response.data?response.data:{};
+      projectPhotoState.photos.splice(projectPhotoState.index,1);
+      const principalItem=projectPhotoState.photos.find(photo=>photo.campo===String(data.foto_principal||''));
+      projectPhotoState.principalUrl=principalItem?principalItem.url:'';
+      projectPhotoState.index=Math.max(0,Math.min(projectPhotoState.index,projectPhotoState.photos.length-1));
+
+      if(!projectPhotoState.showProjectLink){
+        const cover=document.querySelector('[data-project-photo-open],[data-project-photo-add]');
+        if(cover&&projectPhotoState.photos.length){
+          cover.classList.remove('mg-project-cover-empty');
+          cover.removeAttribute('data-project-photo-add');
+          cover.setAttribute('data-project-photo-open','');
+          cover.innerHTML='<img id="mg-project-cover-image" src="'+esc(projectPhotoState.principalUrl)+'" alt="Foto principal del proyecto">';
+        }else if(cover){
+          cover.classList.add('mg-project-cover-empty');
+          cover.removeAttribute('data-project-photo-open');
+          cover.setAttribute('data-project-photo-add','');
+          cover.innerHTML='<strong>+</strong><span>Agregar foto</span>';
+          cover.addEventListener('click',()=>openProjectPhotoUploader());
+        }
+      }
+
+      notifyProjectPhotoChange({type:'deleted',item,principalField:String(data.foto_principal||'')});
+      if(!projectPhotoState.photos.length)closeProjectPhotoLightbox();
+      else renderProjectPhotoLightbox();
+    }catch(error){window.alert(error.message||'No fue posible eliminar la fotografía.');}
+    finally{projectPhotoState.deleting=false;if(projectPhotoState.photos.length)renderProjectPhotoLightbox();}
+  }
   function goToPhotoProject(){
     const id=String(projectPhotoState.projectId||'').trim();
     if(!id)return;
