@@ -1,0 +1,21 @@
+FIX_BACKEND_CX_MANTENIMIENTO_SYNC_V001
+Base: ziSirrush/GestorMantto main @ 9a744173990386cc0c64f6e1225ab9b07cf273cb (Version 100826.3)
+
+PROJECT FILES (4)
+M backend/src/modules/customer-experience/customer-experience.routes.js
+M backend/src/modules/customer-experience/customer-experience.controller.js
+A backend/src/modules/customer-experience/customer-experience-sync.service.js
+A backend/src/modules/customer-experience/customer-experience-sync.repository.js
+
+DOCUMENTATION
+README_FIX_BACKEND_CX_MANTENIMIENTO_SYNC_V001.md
+MANIFEST_FIX_BACKEND_CX_MANTENIMIENTO_SYNC_V001.txt
+VALIDACION_FIX_BACKEND_CX_MANTENIMIENTO_SYNC_V001.txt
+CHECKSUMS_FIX_BACKEND_CX_MANTENIMIENTO_SYNC_V001_SHA256.txt
+
+NOT INCLUDED
+- .patch
+- SQL/migrations
+- frontend files
+- secrets
+- deployment scripts

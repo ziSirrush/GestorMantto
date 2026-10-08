@@ -1,0 +1,29 @@
+Mantto Gestor | FASE_6_INSTALACIONES_ADMINISTRACION_AISLAMIENTO_SESION_V001
+Fecha: 2026-10-08
+Repositorio: ziSirrush/GestorMantto
+Rama de referencia: main
+SHA remoto verificado: 9a744173990386cc0c64f6e1225ab9b07cf273cb
+PRECONDICIONES: instalar Fase 4 y Fase 5 en ese orden, incluyendo sus scripts de cache bust.
+BASE EXACTA DEL FRONTEND F5 (SHA256): 64503a4714f9713b49c2af19fff005383e54aa9ff88a3122bac100cb61b4a0f2
+
+ARCHIVOS MODIFICADOS (completos):
+  modules/instalaciones-administracion/instalaciones-administracion_cor.js
+
+ARCHIVOS NUEVOS:
+  tests/instalaciones-administracion-fase6-aislamiento-sesion.test.js
+  ACTUALIZAR_CACHE_BUST_FASE_6.ps1
+  EJECUTAR_QA_FASE_6.ps1
+  README_FASE_6_INSTALACIONES_ADMINISTRACION_AISLAMIENTO_SESION_V001.md
+  MANIFEST_FASE_6_INSTALACIONES_ADMINISTRACION_AISLAMIENTO_SESION_V001.txt
+  SHA256SUMS_FASE_6_INSTALACIONES_ADMINISTRACION_AISLAMIENTO_SESION_V001.txt
+
+ARCHIVOS EXISTENTES QUE EL SCRIPT CACHE-BUST MODIFICA LOCALMENTE (NO INCLUIDOS EN ZIP):
+  core/module-loader.js  (solo token de version del JS F5 -> F6)
+  index.html            (solo token de version de module-loader F5 -> F6)
+
+SIN CAMBIOS:
+  Backend Node / endpoints; SQL / estructura BD; Aiven / Azure / Netlify / GAS;
+  motores scope CORELLIAN / UNITED; catalogo de permisos.
+
+VALIDACION REAL: 6/6 pruebas JS VM DOM/API simulada, Node --check PASS.
+PENDIENTE: suite F1-F6 en checkout completo y E2E con identidad real y Azure/Aiven.

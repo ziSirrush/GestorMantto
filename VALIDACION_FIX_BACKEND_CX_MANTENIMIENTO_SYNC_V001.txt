@@ -1,0 +1,65 @@
+FIX BACKEND CX MANTENIMIENTO SYNC V001 - VALIDACION
+
+BASE GITHUB
+PASS repo: ziSirrush/GestorMantto
+PASS branch: main
+PASS commit final verificado durante preparacion: 9a744173990386cc0c64f6e1225ab9b07cf273cb
+PASS message: Version 100826.3
+
+BASE BLOBS MODIFICADOS
+PASS routes.js      7079d495ee103109cb63968f516dca90f33cb97b
+PASS controller.js  c3d634eaccce11aee83905a8bed88ca44fbf2682
+
+SINTAXIS / DIFF
+PASS node --check customer-experience.routes.js
+PASS node --check customer-experience.controller.js
+PASS node --check customer-experience-sync.service.js
+PASS node --check customer-experience-sync.repository.js
+PASS git diff --check
+
+DIFF STAT
+4 files changed, 421 insertions(+), 1 deletion(-)
+
+CONTRATO
+PASS endpoint: POST /api/customer-experience/mantenimiento/sync
+PASS guard: requireIntegrationAuthFor('INTEGRATION_VENTAS_ID')
+PASS max batch: 300
+PASS key: id_de_encuesta
+PASS mode: FULL_ROW_UPSERT
+PASS table: cx_mantenimiento_encuestas
+PASS source: CX_MANTENIMIENTO_SHEETS
+PASS 58 fields exactos
+PASS Paso 2 == SEND == backend, 58/58 y mismo orden
+PASS no id AUTO_INCREMENT en payload
+PASS no Temas puntuales en payload
+
+LOGICA AISLADA CON DB MOCK
+PASS INSERT de llave nueva
+PASS SIN CAMBIOS al repetir exactamente la misma fila
+PASS UPDATE al cambiar un campo
+PASS rechazo de llave duplicada dentro del bloque
+PASS rechazo de fila con contrato de columnas incompleto
+PASS rechazo de bloque >300 con HTTP/statusCode 413
+PASS rechazo de metadatos de contrato incorrectos
+
+PERSISTENCIA
+PASS transaccion por request/bloque
+PASS SAVEPOINT por registro
+PASS duplicado existente en BD se rechaza sin elegir fila arbitraria
+PASS errores estructurales DB revierten el bloque
+
+POST-INTEGRATION GIT BLOB HASHES
+customer-experience-sync.repository.js  40b0c7d2c576b6c0faf88467547f25c4ac5b5b23
+customer-experience-sync.service.js     ded4461c96a600cac8942a51ec90a32008dc89ae
+customer-experience.controller.js       3a40f3a4d3300fdddadc5bdb889da36da744bff6
+customer-experience.routes.js           ad7ff1a6aff42364109ec61503a2a2387b4ac646
+
+NO EJECUTADO / NO MODIFICADO
+NO Aiven live test
+NO Aiven writes
+NO GitHub write
+NO Azure deploy
+NO Apps Script -> Azure -> Aiven E2E
+NO frontend change
+NO SQL/schema change
+NO secret incluido

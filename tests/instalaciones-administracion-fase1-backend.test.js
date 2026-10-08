@@ -74,17 +74,15 @@ test('contrato publico marca campos bloqueados sin eliminarlos del grupo', () =>
   assert.ok(proyecto.fields.includes('id_proyecto'));
   assert.ok(proyecto.pending_policy_fields.includes('id_proyecto'));
   assert.equal(proyecto.editable_fields.includes('id_proyecto'), false);
-
   const seguimiento = contract.find(item => item.key === 'seguimiento');
   assert.ok(seguimiento.pending_policy_fields.includes('dias_sin_visita'));
 });
 
-test('rutas Fase 1 quedan montadas pero cerradas hasta Fase 2', () => {
+test('rutas de Fase 1 estan montadas y activadas mediante el Guard de Fase 2', () => {
   const routeFile = fs.readFileSync(path.join(MODULE_DIR, 'instalaciones-administracion.routes.js'), 'utf8');
   const indexFile = fs.readFileSync(path.join(ROOT, 'backend', 'src', 'routes', 'index.js'), 'utf8');
-
-  assert.match(routeFile, /INSTALACIONES_ADMINISTRACION_PENDING_SECURITY/);
-  assert.match(routeFile, /requirePhase2Security_cor/);
+  assert.doesNotMatch(routeFile, /INSTALACIONES_ADMINISTRACION_PENDING_SECURITY/);
+  assert.match(routeFile, /humanInformationGuard_gnral/);
   assert.match(routeFile, /router\.patch\(/);
   assert.match(indexFile, /instalacionesAdministracionRoutes/);
   assert.match(indexFile, /router\.use\('\/instalaciones', instalacionesAdministracionRoutes\)/);

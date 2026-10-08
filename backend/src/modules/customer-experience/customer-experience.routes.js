@@ -1,10 +1,12 @@
 'use strict';
 
 // [Aster | 2026-10-07 | ASTER-MG | FASE 2 CUSTOMER EXPERIENCE ENCUESTAS V001]
+// [Aster | 2026-10-08 | ASTER-MG | FIX CX MANTENIMIENTO SYNC V001]
 
 const express = require('express');
 const controller = require('./customer-experience.controller');
 const service = require('./customer-experience.service');
+const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const {
   humanInformationGuard_gnral,
   requireCompleteInformationDomain_gnral
@@ -12,6 +14,7 @@ const {
 
 const router = express.Router();
 const completeCorellian_cor = requireCompleteInformationDomain_gnral('CORELLIAN');
+const requireVentasIntegration_cor = requireIntegrationAuthFor('INTEGRATION_VENTAS_ID');
 
 const dashboardGuard_cor = humanInformationGuard_gnral({
   permissionCode: service.PERMISSIONS_COR.dashboard_acceso_visual,
@@ -46,5 +49,9 @@ router.get('/mantenimiento/analisis-preguntas', ...encuestasGuard_cor, completeC
 router.get('/mantenimiento/analisis-preguntas/detalle', ...encuestasGuard_cor, completeCorellian_cor, controller.closedQuestionDetail_cor);
 router.get('/mantenimiento/analisis-temas', ...encuestasGuard_cor, completeCorellian_cor, controller.themesAnalysis_cor);
 router.get('/mantenimiento/analisis-temas/detalle', ...encuestasGuard_cor, completeCorellian_cor, controller.themeDetail_cor);
+
+// Sync M2M Google Sheets -> Backend Azure -> Aiven.
+// Reutiliza la identidad de integracion de Ventas acordada para CX.
+router.post('/mantenimiento/sync', requireVentasIntegration_cor, controller.syncMantenimiento_cor);
 
 module.exports = router;

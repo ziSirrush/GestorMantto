@@ -41,6 +41,15 @@ async function detail_cor(req, res, next) {
   }
 }
 
+async function users_cor(req, res, next) {
+  try {
+    const result = await service.getResponsibleOptions_cor(req);
+    return res.json({ ok: true, source: 'aiven', ...result });
+  } catch (error) {
+    return sendKnownError_cor(error, res, next);
+  }
+}
+
 async function updateGroup_cor(req, res, next) {
   try {
     const result = await service.updateGroup_cor(
@@ -59,5 +68,6 @@ module.exports = {
   contract_cor,
   search_cor,
   detail_cor,
+  users_cor,
   updateGroup_cor
 };

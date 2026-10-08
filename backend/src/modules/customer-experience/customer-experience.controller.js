@@ -1,8 +1,10 @@
 'use strict';
 
 // [Aster | 2026-10-07 | ASTER-MG | FASE 2 CUSTOMER EXPERIENCE ENCUESTAS V001]
+// [Aster | 2026-10-08 | ASTER-MG | FIX CX MANTENIMIENTO SYNC V001]
 
 const service = require('./customer-experience.service');
+const syncService = require('./customer-experience-sync.service');
 
 function ok_cor(res, data, spread = false) {
   return res.json(spread ? {
@@ -58,6 +60,14 @@ async function themeDetail_cor(req, res, next) {
   catch (error) { return next(error); }
 }
 
+async function syncMantenimiento_cor(req, res, next) {
+  try {
+    return res.json(await syncService.syncMantenimiento_cor(req.body || {}));
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = Object.freeze({
   options_cor,
   dashboard_cor,
@@ -66,5 +76,6 @@ module.exports = Object.freeze({
   closedQuestionsAnalysis_cor,
   closedQuestionDetail_cor,
   themesAnalysis_cor,
-  themeDetail_cor
+  themeDetail_cor,
+  syncMantenimiento_cor
 });

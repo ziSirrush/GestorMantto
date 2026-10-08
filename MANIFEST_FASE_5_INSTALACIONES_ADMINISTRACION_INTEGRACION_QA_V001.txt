@@ -1,0 +1,39 @@
+FASE_5_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001
+FECHA: 2026-10-08
+REPOSITORIO: ziSirrush/GestorMantto (main)
+BASE REMOTA VERIFICADA: 9a744173990386cc0c64f6e1225ab9b07cf273cb / Version 100826.3
+PREDECESORA OBLIGATORIA: FASE_4_INSTALACIONES_ADMINISTRACION_FORMULARIOS_GUARDADO_V001
+
+MODIFICADOS RESPECTO FASE 4 (ARCHIVO COMPLETO):
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.audit-service.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+modules/instalaciones-administracion/instalaciones-administracion_cor.js
+
+NUEVOS (ARCHIVO COMPLETO):
+tests/instalaciones-administracion-fase5-integracion-qa.test.js
+validation/instalaciones-administracion-fase5-readonly-smoke.js
+database/QA_FASE_5_INSTALACIONES_ADMINISTRACION_SOLO_LECTURA_V001.sql
+ACTUALIZAR_CACHE_BUST_FASE_5.ps1
+EJECUTAR_QA_FASE_5.ps1
+MATRIZ_QA_FASE_5_INSTALACIONES_ADMINISTRACION_V001.md
+README_FASE_5_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001.md
+MANIFEST_FASE_5_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001.txt
+SHA256SUMS_FASE_5_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001.txt
+
+HUELLAS SHA-256 ESPERADAS DE FASE 4, PREVIAS A FASE 5:
+d07d4d3fe7bc15df215e077fbfc00d74b32194483a4c0301b7d57ec15905d68e  backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+e3a910b4ea3fbaeb97457ed6ead729bb863bbfbd4047986781d5e5604e758476  backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+29dc9a512b951ad74c47c7190cd04e96f8222e3979617c31a6da3aa7d69f0b9d  modules/instalaciones-administracion/instalaciones-administracion_cor.js
+
+CAMBIOS LOCALES ADICIONALES AL EJECUTAR CACHE BUST F5:
+core/module-loader.js - token version JS F4 -> F5
+index.html - token version module-loader.js F4 -> F5
+
+SQL DE MUTACION: NINGUNO
+NUEVAS TABLAS/COLUMNAS: NINGUNA
+CAMBIOS EN GAS: NINGUNO
+GITHUB/AIVEN/AZURE/NETLIFY MODIFICADOS: NO
+VALIDACION LOCAL: 22/22 pruebas F4+F5 simuladas PASS; JS node --check PASS
+E2E AZURE/AIVEN / WIN POWERSHELL / DATOS GAS: PENDIENTES
+RELEASE P0: BLOQUEADO HASTA COMPLETAR MATRIZ QA

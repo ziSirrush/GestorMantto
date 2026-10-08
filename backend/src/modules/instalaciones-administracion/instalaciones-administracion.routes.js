@@ -37,7 +37,7 @@ async function requireGroupEdit_cor(req, res, next) {
 
     const userId = effectiveUserId_cor(req);
     const allowed = userId && await hasEffectivePermission(userId, codes.edit);
-    if (!allowed) {
+    if (!allowed || req.viewerContext?.active === true) {
       return res.status(403).json({
         ok: false,
         code: 'INSTALACIONES_ADMINISTRACION_EDICION_DENEGADA',
@@ -61,6 +61,13 @@ router.get(
   '/administracion/registros',
   ...accessGuard_cor,
   controller.search_cor
+);
+
+// The user catalog is protected again in the service by RESPONSABLES.EDITAR.
+router.get(
+  '/administracion/usuarios',
+  ...accessGuard_cor,
+  controller.users_cor
 );
 
 router.get(

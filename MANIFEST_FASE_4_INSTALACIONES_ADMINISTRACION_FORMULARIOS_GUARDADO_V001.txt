@@ -1,0 +1,36 @@
+FASE_4_INSTALACIONES_ADMINISTRACION_FORMULARIOS_GUARDADO_V001
+REPO: ziSirrush/GestorMantto
+RAMA: main
+BASE: 9a744173990386cc0c64f6e1225ab9b07cf273cb - Version 100826.3
+
+MODIFICADOS (COMPLETOS):
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.controller.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.routes.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+modules/instalaciones-administracion/instalaciones-administracion_cor.html
+modules/instalaciones-administracion/instalaciones-administracion_cor.js
+tests/instalaciones-administracion-fase1-backend.test.js
+tests/instalaciones-administracion-fase3-frontend-base.test.js
+
+NUEVOS:
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.field-policy.js
+modules/instalaciones-administracion/instalaciones-administracion-form_cor.css
+tests/instalaciones-administracion-fase4-formularios-guardado.test.js
+ACTUALIZAR_CACHE_BUST_FASE_4.ps1
+README_FASE_4_INSTALACIONES_ADMINISTRACION_FORMULARIOS_GUARDADO_V001.md
+MANIFEST_FASE_4_INSTALACIONES_ADMINISTRACION_FORMULARIOS_GUARDADO_V001.txt
+SHA256SUMS_FASE_4_INSTALACIONES_ADMINISTRACION_FORMULARIOS_GUARDADO_V001.txt
+
+MODIFICACIONES LOCALES DEL SCRIPT DE CACHE BUST (SE APLICAN SOLO AL EJECUTARLO):
+core/module-loader.js    (un token de version)
+index.html               (un token de version)
+
+SQL NUEVO: NO
+TABLAS NUEVAS: NO
+BACKEND REMOTO ESCRITO: NO
+AIVEN ESCRITO: NO
+GITHUB ESCRITO: NO
+AZURE/NETLIFY DESPLEGADO: NO
+VALIDACION: Node JS estatico + tests 11/11 mock PASS
+PENDIENTE: FASE 5 - Integracion y QA

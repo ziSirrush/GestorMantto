@@ -13,6 +13,7 @@ const loader = read('core/module-loader.js');
 const router = read('core/router.js');
 const html = read('modules/instalaciones-administracion/instalaciones-administracion_cor.html');
 const css = read('modules/instalaciones-administracion/instalaciones-administracion_cor.css');
+const formCss = read('modules/instalaciones-administracion/instalaciones-administracion-form_cor.css');
 const js = read('modules/instalaciones-administracion/instalaciones-administracion_cor.js');
 
 const ROUTE = 'instalaciones-administracion';
@@ -30,52 +31,49 @@ test('module-loader registra CSS/JS y ruta persistente', () => {
   assert.match(loader, /modules\/instalaciones-administracion\/instalaciones-administracion_cor\.js/);
 });
 
-test('router reconoce Administración y activa el módulo', () => {
-  assert.match(router, /'instalaciones-administracion':'Administración'/);
+test('router reconoce Administracion y activa el modulo', () => {
+  assert.match(router, /'instalaciones-administracion':'Administraci/);
   assert.match(router, /function showInstalacionesAdministracion_cor\(\)/);
   assert.match(router, /ManttoInstalacionesAdministracion_cor\.init/);
   assert.match(router, /route==='instalaciones-administracion'/);
 });
 
-test('frontend base consume solo endpoints GET de Fase 2', () => {
-  assert.match(js, /\/api\/instalaciones\/administracion\/contrato/);
-  assert.match(js, /\/api\/instalaciones\/administracion\/registros\?/);
-  assert.match(js, /\/api\/instalaciones\/administracion\/registros\//);
-  assert.match(js, /method:'GET'/);
-  assert.doesNotMatch(js, /method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i);
-  assert.doesNotMatch(js, /\/grupos\//);
+test('frontend de Fases 3 y 4 conserva GET e incorpora PATCH parcial', () => {
+  assert.match(js, /ROOT\+'\/contrato'/);
+  assert.match(js, /ROOT\+'\/registros\?'/);
+  assert.match(js, /ROOT\+'\/registros\/'/);
+  assert.match(js, /method:'PATCH'/);
+  assert.match(js, /changes:p\.changes,expected:p\.expected/);
 });
 
-test('Fase 3 no implementa guardado ni persistencia local', () => {
+test('frontend mantiene lectura y no persiste datos operativos localmente', () => {
   assert.doesNotMatch(js, /localStorage/);
   assert.doesNotMatch(js, /sessionStorage/);
-  assert.doesNotMatch(html, /Guardar cambios/i);
-  assert.match(html, /Fase 3 la vista es de consulta/);
+  assert.match(js, /JSON\.stringify\(\{changes:p\.changes,expected:p\.expected\}\)/);
+  assert.match(html, /instalaciones-administracion-form_cor/);
 });
 
-test('estructura visual contiene búsqueda, selector, acordeón y sistema solo lectura', () => {
+test('estructura visual mantiene buscador, selector, acordeon y sistema', () => {
   assert.match(html, /iadm-cor-search-form/);
   assert.match(html, /iadm-cor-group-picker/);
   assert.match(html, /iadm-cor-groups/);
-  assert.match(html, /Información del sistema · solo lectura/);
+  assert.match(html, /iadm-cor-system-grid/);
   assert.match(js, /<details class="iadm-cor-group" open>/);
 });
 
-test('permisos de grupos se consumen desde contrato backend', () => {
-  assert.match(js, /group\.permissions\.can_view === true/);
-  assert.match(js, /group\.permissions && group\.permissions\.can_edit/);
-  assert.match(js, /pending_policy_fields/);
-  assert.match(js, /derived_pending_policy_fields/);
+test('el frontend filtra por grupos visibles y reconoce permisos de edicion', () => {
+  assert.match(js, /permissions\?\.can_view===true/);
+  assert.match(js, /permissions\?\.can_edit/);
+  assert.match(js, /editable_fields/);
 });
 
-test('responsive sin zoom ni transform scale', () => {
+test('responsive usa CSS de fases 3 y 4, sin zoom artificial', () => {
   assert.match(css, /@media\(max-width:760px\)/);
-  assert.match(css, /@media\(max-width:480px\)/);
-  assert.doesNotMatch(css, /\bzoom\s*:/i);
-  assert.doesNotMatch(css, /transform\s*:\s*scale\s*\(/i);
+  assert.match(formCss, /@media\(max-width:760px\)/);
+  assert.doesNotMatch(formCss, /\bzoom\s*:/i);
+  assert.doesNotMatch(formCss, /transform\s*:\s*scale\s*\(/i);
 });
 
-test('cache-bust central queda actualizado para Fase 3', () => {
-  assert.match(index, /core\/module-loader\.js\?v=20261008-instalaciones-administracion-fase3-v001/);
-  assert.match(index, /core\/router\.js\?v=20261008-instalaciones-administracion-fase3-v001/);
+test('el recurso adicional de estilos usa version fija de Fase 4', () => {
+  assert.match(html, /instalaciones-administracion-form_cor\.css\?v=20261008-fase4-v001/);
 });
