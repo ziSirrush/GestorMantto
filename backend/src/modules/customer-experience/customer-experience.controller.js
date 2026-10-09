@@ -2,9 +2,11 @@
 
 // [Aster | 2026-10-07 | ASTER-MG | FASE 2 CUSTOMER EXPERIENCE ENCUESTAS V001]
 // [Aster | 2026-10-08 | ASTER-MG | FIX CX MANTENIMIENTO SYNC V001]
+// [Aster | 2026-10-09 | ASTER-MG | FIX CX VI BACKEND SYNC V001]
 
 const service = require('./customer-experience.service');
 const syncService = require('./customer-experience-sync.service');
+const viSyncService = require('./customer-experience-vi-sync.service');
 
 function ok_cor(res, data, spread = false) {
   return res.json(spread ? {
@@ -68,6 +70,16 @@ async function syncMantenimiento_cor(req, res, next) {
   }
 }
 
+async function validarVentaInstalacionSync_cor(req, res, next) {
+  try { return res.json(viSyncService.validarVentaInstalacion_cor(req.body || {})); }
+  catch (error) { return next(error); }
+}
+
+async function syncVentaInstalacion_cor(req, res, next) {
+  try { return res.json(await viSyncService.syncVentaInstalacion_cor(req.body || {})); }
+  catch (error) { return next(error); }
+}
+
 module.exports = Object.freeze({
   options_cor,
   dashboard_cor,
@@ -77,5 +89,7 @@ module.exports = Object.freeze({
   closedQuestionDetail_cor,
   themesAnalysis_cor,
   themeDetail_cor,
-  syncMantenimiento_cor
+  syncMantenimiento_cor,
+  validarVentaInstalacionSync_cor,
+  syncVentaInstalacion_cor
 });
