@@ -171,10 +171,10 @@ async function getMtbcProyectos(req, res) {
       SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END) AS fallas_blt_anio,
       SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END) AS fallas_blt_365,
       CASE WHEN SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END) = 0 THEN NULL
-        ELSE ROUND(((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) * COUNT(DISTINCT p.numero_equipo)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END),0),1)
+        ELSE ROUND(((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END),0),1)
       END AS mtbc_anio,
       CASE WHEN SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END) = 0 THEN NULL
-        ELSE ROUND((365 * COUNT(DISTINCT p.numero_equipo)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END),0),1)
+        ELSE ROUND((365 * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END),0),1)
       END AS mtbc_365,
       MAX(t.fecha_reporte) AS ultimo_blt
     FROM portafolio p
