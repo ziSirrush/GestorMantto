@@ -291,7 +291,7 @@ async function listProjects_cor({ scope, search, estatus, supervisor, visibleFie
         COUNT(*) AS equipos
        ${fromWhere}
        GROUP BY project_key
-       ORDER BY COALESCE(proyecto, '') ASC, project_key ASC
+       ORDER BY COALESCE(MIN(NULLIF(TRIM(f.proyecto), '')), '') ASC, project_key ASC
        LIMIT ? OFFSET ?`, [...built.params,limit,offset]
   );
   return {data: rows.map(row => ({

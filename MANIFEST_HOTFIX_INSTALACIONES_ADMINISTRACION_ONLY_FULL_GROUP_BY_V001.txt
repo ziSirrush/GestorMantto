@@ -1,0 +1,3 @@
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+tests/instalaciones-administracion-hotfix-only-full-group-by.test.js
+README_HOTFIX_INSTALACIONES_ADMINISTRACION_ONLY_FULL_GROUP_BY_V001.md
