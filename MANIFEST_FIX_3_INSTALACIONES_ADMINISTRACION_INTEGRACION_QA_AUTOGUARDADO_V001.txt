@@ -1,0 +1,27 @@
+# Mantto Gestor - Integracion QA autoguardado V001 - MANIFEST
+Fecha: 09/10/2026
+Repositorio base: ziSirrush/GestorMantto main 2e516699c42f870b730bbee712b437e72e9f4d8d
+Prerequisitos: FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001 + FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001
+Unica fuente operativa: Aiven MySQL / ins_fl, sin escrituras ni cambios de esquema.
+Total codigo aplicativo modificado: 1 archivo (frontend JS, completo).
+Tests modificados: 4; tests nuevos: 2; smoke nuevo: 1; SQL de QA solo lectura: 1; matriz: 1.
+Scripts PS1: cache local y pruebas solamente (no deploy).
+QA local: 146/146 pruebas offline con mocks y fixtures acotadas a core.
+NO E2E real / NO Azure / NO Aiven / NO GitHub writes / NO Netlify.
+
+ARCHIVOS DEL PAQUETE (rutas relativas a raiz repo):
+modules/instalaciones-administracion/instalaciones-administracion_cor.js | bytes=70720 | sha256=7734c8ef20492601bfde865e229da2f77eff3cd35f7b1c838f20e7bbf8408f01
+tests/instalaciones-administracion-fase3-frontend-base.test.js | bytes=4059 | sha256=9b352bbf75dcf3fe008941a08690954db725d8da09a453c90f0c581355e14218
+tests/instalaciones-administracion-fase4-formularios-guardado.test.js | bytes=8683 | sha256=dd2798167177aafb36d375091c2409f38f6359830f89f35b5d11a82b69ea724c
+tests/instalaciones-administracion-fase5-integracion-qa.test.js | bytes=12374 | sha256=9f7fc7ee0bb92c8687e560eb678c1f0a3d2512c23bf786a90e97ebe7355807f7
+tests/instalaciones-administracion-edicion-fantasma-v001.test.js | bytes=12756 | sha256=918128e80db4cf14a1534cda09d0bb77ecb84691dd299f88d2081dd37da6cf9d
+tests/instalaciones-administracion-fix3-autoguardado-integracion-v001.test.js | bytes=12815 | sha256=3a97c674e39a77371600a529fa38328f3d09bb7761ef89989372601b61e4fd26
+tests/instalaciones-administracion-fix3-readonly-qa-v001.test.js | bytes=3888 | sha256=410af0b87d86dacd81fbc357eadd8374023d31267cce3eb3afe2c0067dd00d43
+validation/instalaciones-administracion-fix3-autoguardado-readonly.js | bytes=6686 | sha256=978e4b1553b3dd6ae37056dcf49c772adaa769376dd4b2eede6b66b79f4117cb
+database/QA_FIX_3_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_SOLO_LECTURA_V001.sql | bytes=1965 | sha256=9d0ac9ed2e9c7adb2b883085940f589c62ca1a7ea604aa71d48886bf1f95a08f
+docs/MATRIZ_QA_FIX_3_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.md | bytes=4288 | sha256=33550d46388561aa21fd0c726dee1bfe615fc56a047cecc4e62d9fdba3c477b8
+ACTUALIZAR_CACHE_FIX_3_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.ps1 | bytes=3075 | sha256=3e29d8ea8be7ee4afce51e7c674171b284227f626d7ccc1444057ec939795a07
+EJECUTAR_QA_FIX_3_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.ps1 | bytes=3014 | sha256=c17685accdaafd4753c8c70c3ecc4592e872d235b498d8e69dcdf5177c28b181
+README_FIX_3_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_AUTOGUARDADO_V001.md | bytes=7630 | sha256=7454baf938ada362a6c51b21792d7160b5021ef711c00327a126b9e1421ab3d1
+MANIFEST_FIX_3_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_AUTOGUARDADO_V001.txt
+SHA256SUMS_FIX_3_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_AUTOGUARDADO_V001.txt

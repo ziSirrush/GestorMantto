@@ -239,10 +239,10 @@ test('smoke detecta un campo restringido filtrado incorrectamente',async()=>{
 
 test('frontend distingue guardado confirmado de error de recarga',()=>{
   const front=read('modules/instalaciones-administracion/instalaciones-administracion_cor.js');
-  assert.match(front,/const listReloaded=await search\(/);
-  assert.match(front,/if\(!detailReloaded\|\|!listReloaded\)/);
-  assert.match(front,/Guardado confirmado; recarga pendiente/);
+  assert.match(front,/const fresh=await api\(ROOT\+'\/registros\/'\+encodeURIComponent\(recordId\)\)/);
+  assert.match(front,/if\(committed\|\|forbidden\|\|conflict\)/);
+  assert.match(front,/Guardado pendiente de confirmar en lectura/);
   assert.match(front,/st\.detailSeq\+\+/);
   assert.doesNotMatch(front,/Consultando Aiven/);
-  assert.match(front,/VERSION_COR='20261009-fix3-v001'/);
+  assert.match(front,/VERSION_COR='20261009-autoguardado-fix3-qa-v001'/);
 });

@@ -1,7 +1,7 @@
 'use strict';
 // [Aster | 2026-10-08 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001]
 // [Aster | 2026-10-08 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001]
-// Actualiza el contrato de UI de Fase 3: el listado legado fue reemplazado por
+// Contrato UI actualizado en FIX3: un PATCH por campo y relectura sin fuga.
 // un navegador paginado de proyectos y sus equipos (sin modificar permisos).
 const fs = require('fs');
 const path = require('path');
@@ -40,7 +40,7 @@ test('frontend FIX1 + FIX2 conserva filtros y agrega PATCH atomico por equipo', 
   assert.match(js, /'\/equipos\?'/);
   assert.match(js, /ROOT\+'\/registros\/'/);
   assert.match(js, /method:'PATCH'/);
-  assert.match(js, /JSON\.stringify\(\{groups:p\.groups\}\)/);
+  assert.match(js, /JSON\.stringify\(\{changes:\{\[field\]:job\.value\},expected:\{\[field\]:before\}\}\)/);
   assert.doesNotMatch(js, /localStorage|sessionStorage/);
 });
 test('jerarquia visual de proyectos, equipos, detalle y filtros', () => {
@@ -54,13 +54,13 @@ test('jerarquia visual de proyectos, equipos, detalle y filtros', () => {
   assert.match(html, /iadm-cor-system-grid/);
   assert.match(html, /instalaciones-administracion-form_cor/);
   assert.match(js, /iadm-cor-detail-section/);
-  assert.match(html,/iadm-cor-detail-edit-btn/);
+  assert.match(js,/st\.autoQueue/);
 });
 test('F6 permisos de grupo y formularios no se relajan', () => {
   assert.match(js, /permissions\?\.can_view===true/);
   assert.match(js, /permissions\?\.can_edit/);
   assert.match(js, /editable_fields/);
-  assert.match(js, /JSON\.stringify\(\{groups:p\.groups\}\)/);
+  assert.match(js, /JSON\.stringify\(\{changes:\{\[field\]:job\.value\},expected:\{\[field\]:before\}\}\)/);
   assert.match(js, /mantto:session-expired/);
 });
 test('responsive, sin zoom artificial', () => {
@@ -71,5 +71,5 @@ test('responsive, sin zoom artificial', () => {
   assert.doesNotMatch(formCss, /transform\s*:\s*scale\s*\(/i);
 });
 test('recurso adicional de estilos lleva cache bust de FIX 2', () => {
-  assert.match(html, /instalaciones-administracion-form_cor\.css\?v=20261008-fix2-v001/);
+  assert.match(html, /instalaciones-administracion-form_cor\.css\?v=20261009-autoguardado-fix2-v001/);
 });

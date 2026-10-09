@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="./modules/instalaciones-administracion/instalaciones-administracion-form_cor.css?v=20261009-fix3-v001">
+<link rel="stylesheet" href="./modules/instalaciones-administracion/instalaciones-administracion-form_cor.css?v=20261009-autoguardado-fix2-v001">
 <div class="iadm-cor-page" data-iadm-root>
   <section class="iadm-cor-card iadm-cor-head">
     <div>
@@ -14,7 +14,7 @@
 
   <div id="iadm-cor-alert" class="iadm-cor-global-alert" role="alert" hidden></div>
 
-  <!-- FIX 1-3: proyectos -> equipos -> ficha individual o edicion multiple del mismo PP NS. -->
+  <!-- FIX 1-4 + edicion fantasma y autoguardado: seleccion por proyecto, edicion directa individual y edicion multiple solo en el mismo PP NS. -->
   <section class="iadm-cor-card iadm-cor-search-card" id="iadm-cor-projects" aria-labelledby="iadm-cor-search-title">
     <div class="iadm-cor-section-title">
       <div>
@@ -94,10 +94,7 @@
       <div class="iadm-cor-section-title">
         <div>
           <h2>Ficha del equipo</h2>
-          <p id="iadm-cor-detail-hint">Consulta cada secci&oacute;n del equipo. Modifica varias y guarda una sola vez.</p>
-        </div>
-        <div class="iadm-cor-detail-head-actions">
-          <button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-detail-edit-btn" data-action="start-edit" type="button" hidden>Editar ficha</button>
+          <p id="iadm-cor-detail-hint">Los campos autorizados se editan directamente. El cambio se guarda automaticamente al salir del campo.</p>
         </div>
       </div>
       <div class="iadm-cor-group-picker" id="iadm-cor-group-picker"></div>

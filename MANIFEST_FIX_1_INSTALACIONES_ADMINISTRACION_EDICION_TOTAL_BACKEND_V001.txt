@@ -1,0 +1,28 @@
+GESTOR MANTTO | FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001
+FECHA: 2026-10-09
+RAMA: ziSirrush/GestorMantto main
+BASE_COMMIT: 2e516699c42f870b730bbee712b437e72e9f4d8d (Version 100926.4)
+ESTADO: generado, no aplicado a GitHub/Aiven/Azure/Netlify
+REQUIERE: SQL de registro manual y asignacion manual de EDITAR en Panel de Control
+VALIDACION: 85/85 casos offline con mocks (ver README); E2E pendiente
+NO INCLUYE: autofix frontend, autoguardado, migracion DDL ni permisos por rol
+BASE SHA (archivos que el FIX reemplaza):
+  d01d757c6dbf2d40ed635ceaf178068302b39673 backend/src/modules/instalaciones-administracion/instalaciones-administracion.constants.js
+  5c343e796be690b74f442a637eb98f6414527aab backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+  2a16f04683835389cf4a93b48d2f752f54bcff40 backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+CONTENIDO:
+  backend/src/modules/instalaciones-administracion/instalaciones-administracion.constants.js
+  backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+  backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+  database/FIX_1_INSTALACIONES_ADMINISTRACION_PERMISO_TOTAL_V001.sql
+  database/QA_FIX_1_INSTALACIONES_ADMINISTRACION_PERMISOS_SOLO_LECTURA_V001.sql
+  docs/ADR_20261009_INSTALACIONES_ADMINISTRACION_PERMISO_TOTAL_V001.md
+  tests/instalaciones-administracion-fase1-backend.test.js
+  tests/instalaciones-administracion-fase2-permisos-auditoria.test.js
+  tests/instalaciones-administracion-fix2-detalle-equipo.test.js
+  tests/instalaciones-administracion-fix3-edicion-multiple.test.js
+  tests/instalaciones-administracion-fix1-edicion-total-backend.test.js
+  EJECUTAR_QA_FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_V001.ps1
+  README_FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001.md
+  MANIFEST_FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001.txt
+  SHA256SUMS_FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001.txt

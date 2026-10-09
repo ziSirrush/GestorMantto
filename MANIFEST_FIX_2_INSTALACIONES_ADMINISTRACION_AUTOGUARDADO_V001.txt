@@ -1,0 +1,25 @@
+Mantto Gestor | FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001
+Fecha: 2026-10-09
+Base GitHub main: 2e516699c42f870b730bbee712b437e72e9f4d8d
+Serie: FIX1 Backend/permisos -> FIX2 Autoguardado -> FIX3 QA
+Precondicion: FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001
+Categoria: Correccion puntual; NO despliegue de produccion.
+Sistemas remotos modificados: NINGUNO
+Pruebas offline: 90 aprobadas / 90 ejecutadas; Node 22.16, mocks; NO E2E.
+Cambios de codigo: 3 archivos frontend completos.
+Pruebas: 2 pruebas adaptadas + 1 prueba nueva.
+Herramientas locales: 2 scripts PS1; NO ejecutados en Windows durante la generacion.
+Documentacion: README, MANIFEST, SHA256SUMS.
+
+Archivos incluidos:
+modules/instalaciones-administracion/instalaciones-administracion_cor.js
+modules/instalaciones-administracion/instalaciones-administracion_cor.html
+modules/instalaciones-administracion/instalaciones-administracion-form_cor.css
+tests/instalaciones-administracion-fix2-detalle-equipo.test.js
+tests/instalaciones-administracion-edicion-fantasma-v001.test.js
+tests/instalaciones-administracion-fix2-autoguardado-v001.test.js
+ACTUALIZAR_CACHE_FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.ps1
+EJECUTAR_QA_FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.ps1
+README_FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.md
+MANIFEST_FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.txt
+SHA256SUMS_FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001.txt

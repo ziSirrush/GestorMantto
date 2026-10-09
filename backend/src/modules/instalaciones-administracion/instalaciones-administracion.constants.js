@@ -2,6 +2,7 @@
 
 // [Aster | 2026-10-08 | ASTER-MG | FASE_1_INSTALACIONES_ADMINISTRACION_BACKEND_V001]
 // [Aster | 2026-10-08 | ASTER-MG | FASE_2_INSTALACIONES_ADMINISTRACION_PERMISOS_AUDITORIA_V001]
+// [Aster | 2026-10-09 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001]
 // Contrato funcional de grupos para administrar ins_fl desde Mantto Gestor.
 
 const GROUPS_COR = Object.freeze({
@@ -109,15 +110,11 @@ const SYSTEM_READONLY_FIELDS_COR = Object.freeze([
   'id_ins_fl', 'created_at', 'updated_at'
 ]);
 
-// Politica aun no cerrada en el contexto V001. Se mantiene fail-closed.
-const POLICY_PENDING_FIELDS_COR = Object.freeze([
-  'id_proyecto', 'referencia_sitio'
-]);
-
-const DERIVED_POLICY_PENDING_FIELDS_COR = Object.freeze([
-  'dias_restantes', 'dias_sin_visita', 'dias_sin_ccnr',
-  'meses_garantia_restantes'
-]);
+// Regla aprobada: 93 campos operativos editables en ficha individual.
+// Se conservan las validaciones de tipo, tamano, FK y unicidad en MySQL.
+// Los identificadores tecnicos permanecen protegidos.
+const POLICY_PENDING_FIELDS_COR = Object.freeze([]);
+const DERIVED_POLICY_PENDING_FIELDS_COR = Object.freeze([]);
 
 const RESPONSIBLE_ID_FIELDS_COR = Object.freeze([
   'id_sup', 'id_asesor', 'id_admin'
@@ -130,15 +127,29 @@ const ALL_OPERATIONAL_FIELDS_COR = Object.freeze(
 const ACCESS_PERMISSION_COR =
   'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 
+// EDITAR es un permiso explicito adicional: acceso visual NO concede escritura.
+// Sin rol hardcodeado y sin llaves maestras implicitas. Debe asignarse desde
+// Panel de Control una vez registrado el codigo en perm_subelemento_acciones.
+const FULL_EDIT_PERMISSION_COR =
+  'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.EDITAR';
+
+// Conservar la visibilidad historica de usuarios SIN EDITAR global.
+// Los permisos antiguos no conceden escritura, pero si la lectura autorizada
+// por grupo que existia antes de esta migracion (no ampliar lectura por error).
+const LEGACY_GROUP_PERMISSIONS_COR = Object.freeze(
+  Object.fromEntries(Object.entries(GROUPS_COR).map(([key, group]) => {
+    const base = `INSTALACIONES_ADMINISTRACION_GRUPOS_${group.permission_segment}`;
+    return [key, Object.freeze({view: `${base}.VER`, edit: `${base}.EDITAR`})];
+  }))
+);
+
+// La escritura requiere el mismo permiso total en las 11 secciones.
 const GROUP_PERMISSIONS_COR = Object.freeze(
   Object.fromEntries(
-    Object.entries(GROUPS_COR).map(([key, group]) => {
-      const base = `INSTALACIONES_ADMINISTRACION_GRUPOS_${group.permission_segment}`;
-      return [key, Object.freeze({
-        view: `${base}.VER`,
-        edit: `${base}.EDITAR`
-      })];
-    })
+    Object.keys(GROUPS_COR).map(key => [key, Object.freeze({
+      view: ACCESS_PERMISSION_COR,
+      edit: FULL_EDIT_PERMISSION_COR
+    })])
   )
 );
 
@@ -154,6 +165,8 @@ module.exports = {
   RESPONSIBLE_ID_FIELDS_COR,
   ALL_OPERATIONAL_FIELDS_COR,
   ACCESS_PERMISSION_COR,
+  FULL_EDIT_PERMISSION_COR,
+  LEGACY_GROUP_PERMISSIONS_COR,
   GROUP_PERMISSIONS_COR,
   groupPermission_cor
 };

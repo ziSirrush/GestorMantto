@@ -91,7 +91,7 @@ test('FIX2: exige groups, cambios parciales y valores originales por grupo',()=>
   assert.throws(()=>service.normalizeDetailUpdate_cor({groups:[]}),{statusCode:400});
   assert.throws(()=>service.normalizeDetailUpdate_cor({groups:{inexistente:{changes:{a:1},expected:{a:1}}}}),{statusCode:404});
   assert.throws(()=>service.normalizeDetailUpdate_cor({groups:{proyecto:{changes:{estatus:'N'}}}}),{statusCode:400});
-  assert.throws(()=>service.normalizeDetailUpdate_cor({groups:{proyecto:{changes:{id_proyecto:'OTRO'},expected:{id_proyecto:'P200'}}}}),{statusCode:409});
+  assert.equal(service.normalizeDetailUpdate_cor({groups:{proyecto:{changes:{id_proyecto:'OTRO'},expected:{id_proyecto:'P200'}}}}).changes.id_proyecto,'OTRO');
   assert.throws(()=>service.normalizeDetailUpdate_cor({groups:{costos:{changes:{ciudad:'OTRA'},expected:{ciudad:'X'}}}}),{statusCode:400});
   assert.throws(()=>service.normalizeDetailUpdate_cor({groups:{seguimiento:{changes:{comentarios_fl:'X'},expected:{comentarios_fl:'Y'},extra:1}}}),{statusCode:400});
   assert.throws(()=>service.normalizeDetailUpdate_cor({groups:{proyecto:{changes:{estatus:'X'},expected:{estatus:'E'}}},id_ins_fl:8}),{statusCode:400});
@@ -121,8 +121,8 @@ test('FIX2: una transaccion y un UPDATE para 3 campos en 2 grupos; audita ambos'
   assert.ok(queries.indexOf('COMMIT')>queries.findIndex(x=>/UPDATE ins_fl/.test(x)));
 });
 
-test('FIX2: permisos EDITAR necesarios por cada grupo (sin permiso no escribe)',async()=>{
-  configure();authAllow=code=>!code.includes('SEGUIMIENTO');
+test('FIX1 backend: sin EDITAR global no permite actualizar detalle',async()=>{
+  configure();authAllow=code=>!code.endsWith('.EDITAR');
   await assert.rejects(()=>service.updateDetail_cor(req,7,payload()),{statusCode:403});
   assert.equal(sqlScenario.stats().updates,0);
   assert.equal(sqlScenario.stats().commits,0);
@@ -210,10 +210,10 @@ function domHarness({onPatch}={}){
       if(url.endsWith('/filtros'))return {permisos:{estatus:true,supervisor:false},estatus:['En proceso'],supervisores:[]};
       if(url.includes('/proyectos?'))return {data:[],total:0};
       if(url.endsWith('/registros/7'))return {data:{...row}};
-      if(url.endsWith('/registros/7/detalle')){
+      if(/\/registros\/7\/grupos\/[^/]+$/.test(url)){
         if(onPatch)return onPatch(url,options);
         const p=JSON.parse(options.body);
-        for(const group of Object.values(p.groups))Object.assign(row,group.changes);
+        Object.assign(row,p.changes);
         return {ok:true,changed:true};
       }
       throw new Error('URL inesperada '+url);
@@ -236,42 +236,50 @@ function domHarness({onPatch}={}){
     view.emit('input',{target:{dataset:{fieldControl:field}}});
   };
   const send=()=>view.emit('submit',{target:{id:'iadm-cor-edit-form'},preventDefault(){}});
-  return {nodes,calls,view,window,action,input,send,
+  const finish=(field)=>view.emit('focusout',{target:{dataset:{fieldControl:field}}});
+  return {nodes,calls,view,window,action,input,send,finish,
     init:()=>window.ManttoInstalacionesAdministracion_cor.init({id:7})};
 }
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
-test('FIX2: ficha muestra todas las secciones y un unico formulario de equipo',async()=>{
-  const h=domHarness();await h.init();h.action('start-edit');await tick();
+// [Aster | 2026-10-09 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001]
+// Contrato de pantalla actualizado: un campo por PATCH, no guardar toda la ficha.
+test('FIX2: ficha abre con secciones editables sin segundo clic ni boton Guardar',async()=>{
+  const h=domHarness();await h.init();
   const markup=h.nodes['iadm-cor-groups'].innerHTML;
   assert.equal((markup.match(/<details class="iadm-cor-group/g)||[]).length,3);
   assert.equal((markup.match(/<form id="iadm-cor-edit-form"/g)||[]).length,1);
   assert.match(markup,/data-detail-group="proyecto"/);
   assert.match(markup,/data-detail-group="seguimiento"/);
   assert.match(markup,/data-detail-group="costos"/);
-  assert.match(markup,/Guardar cambios del equipo/);
+  assert.match(markup,/data-autosave-state="estatus"/);
+  assert.doesNotMatch(markup,/Guardar cambios del equipo|id="iadm-cor-save-btn"/);
   assert.match(markup,/data-locked="true"/);
 });
 
-test('FIX2: UI envia dos grupos en UN PATCH al ID del equipo, sin campo readonly',async()=>{
-  const h=domHarness();await h.init();h.action('start-edit');await tick();
+test('FIX2: UI envia dos PATCH independientes por campo al salir, con expected',async()=>{
+  const h=domHarness();await h.init();
   h.input('estatus','Terminado');h.input('comentarios_fl','Despues');
-  h.send();await tick();await tick();
-  const patch=h.calls.filter(c=>c.options.method==='PATCH');
-  assert.equal(patch.length,1);
-  assert.match(patch[0].url,/\/registros\/7\/detalle$/);
-  const data=JSON.parse(patch[0].options.body);
-  assert.deepEqual(Object.keys(data.groups),['proyecto','seguimiento']);
-  assert.deepEqual(data.groups.proyecto,{changes:{estatus:'Terminado'},expected:{estatus:'En proceso'}});
-  assert.deepEqual(data.groups.seguimiento,{changes:{comentarios_fl:'Despues'},expected:{comentarios_fl:'Antes'}});
-  assert.equal(h.nodes['iadm-cor-status'].textContent,'Equipo guardado y auditado');
-  assert.equal(h.calls.filter(c=>c.options.method==='PATCH'&&c.url.includes('/grupos/')).length,0);
+  assert.equal(h.calls.filter(c=>c.options.method==='PATCH').length,0);
+  h.finish('estatus');await tick();await tick();
+  h.finish('comentarios_fl');await tick();await tick();
+  const patches=h.calls.filter(c=>c.options.method==='PATCH');
+  assert.equal(patches.length,2);
+  assert.match(patches[0].url,/\/registros\/7\/grupos\/proyecto$/);
+  assert.match(patches[1].url,/\/registros\/7\/grupos\/seguimiento$/);
+  const p1=JSON.parse(patches[0].options.body);
+  const p2=JSON.parse(patches[1].options.body);
+  assert.deepEqual(p1,{changes:{estatus:'Terminado'},expected:{estatus:'En proceso'}});
+  assert.deepEqual(p2,{changes:{comentarios_fl:'Despues'},expected:{comentarios_fl:'Antes'}});
+  assert.ok(h.calls.filter(c=>c.url.endsWith('/registros/7')).length>=3);
+  h.send();await tick();
+  assert.equal(h.calls.filter(c=>c.options.method==='PATCH').length,2,'Enter no ejecuta guardado de ficha completo');
 });
 
-test('FIX2: error 409 evita segundo guardado automatico y conserva formulario',async()=>{
+test('FIX2: error 409 bloquea un segundo autoguardado sin renovar expected',async()=>{
   const h=domHarness({onPatch:async()=>{const e=new Error('Cambio externo');e.status=409;e.code='INSTALACIONES_ADMINISTRACION_CONFLICTO_CONCURRENCIA';throw e;}});
-  await h.init();h.action('start-edit');await tick();h.input('estatus','Terminado');h.send();await tick();
-  assert.match(h.nodes['iadm-cor-status'].textContent,/Cambio externo/);
+  await h.init();h.input('estatus','Terminado');h.finish('estatus');await tick();
+  assert.match(h.nodes['iadm-cor-status'].textContent,/Conflicto 409/);
   assert.match(h.nodes['iadm-cor-groups'].innerHTML,/iadm-cor-edit-form/);
-  h.send();await tick();
+  h.finish('estatus');await tick();
   assert.equal(h.calls.filter(c=>c.options.method==='PATCH').length,1);
 });

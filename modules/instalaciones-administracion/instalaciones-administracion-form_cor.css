@@ -103,3 +103,68 @@
 @media(max-width:1100px){.iadm-cor-equipment-row[data-multi="true"]{grid-template-columns:auto minmax(0,1.5fr) minmax(0,1fr) auto}}
 @media(max-width:760px){.iadm-cor-bulk-bar{align-items:stretch;flex-direction:column}.iadm-cor-bulk-bar-actions{width:100%}.iadm-cor-bulk-bar-actions>.iadm-cor-btn{flex:1}.iadm-cor-equipment-row[data-multi="true"]{grid-template-columns:auto minmax(0,1fr) auto}.iadm-cor-equipment-row[data-multi="true"] .iadm-cor-equipment-check{grid-row:1 / span 2}.iadm-cor-equipment-row[data-multi="true"] .iadm-cor-btn{grid-column:3;grid-row:1 / span 2}.iadm-cor-bulk-section .iadm-cor-form-actions .iadm-cor-btn{flex:1}}
 @media(max-width:480px){.iadm-cor-equipment-row[data-multi="true"]{grid-template-columns:auto minmax(0,1fr)}.iadm-cor-equipment-row[data-multi="true"] .iadm-cor-btn{grid-column:1 / -1;grid-row:auto}.iadm-cor-bulk-bar-actions{flex-direction:column}.iadm-cor-bulk-picks{display:grid;grid-template-columns:1fr 1fr}}
+
+/* [Aster | 2026-10-09 | ASTER-MG | FIX_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001] */
+/* Solo ficha individual: controles discretos siempre disponibles, sin modo Editar. */
+.iadm-cor-ghost-detail .iadm-cor-form-field:not([data-locked="true"]) :is(input,select,textarea){
+  background:transparent;
+  border-color:transparent;
+  box-shadow:inset 0 -1px rgba(71,85,105,.35);
+  border-radius:6px;
+  transition:background-color .15s ease,border-color .15s ease;
+}
+.iadm-cor-ghost-detail .iadm-cor-form-field:not([data-locked="true"])>label:after{
+  content:'  \270E';
+  opacity:.55;
+  font-weight:400;
+}
+.iadm-cor-ghost-detail .iadm-cor-form-field:not([data-locked="true"]) :is(input,select,textarea):hover{
+  background:#f8fafc;
+  border-color:#cbd5e1;
+  box-shadow:none;
+}
+.iadm-cor-ghost-detail .iadm-cor-form-field:not([data-locked="true"]) :is(input,select,textarea):focus-visible{
+  background:#fff;
+  border-color:var(--primary,#3157d5);
+  box-shadow:0 0 0 2px rgba(49,87,213,.16);
+  outline:0;
+}
+.iadm-cor-ghost-detail .iadm-cor-form-field[data-changed="true"] :is(input,select,textarea){
+  background:#eff6ff;
+  border-color:rgba(37,99,235,.35);
+}
+.iadm-cor-ghost-detail .iadm-cor-form-field[data-invalid="true"] :is(input,select,textarea){
+  background:#fff;
+  border-color:#dc2626;
+}
+.iadm-cor-ghost-detail .iadm-cor-form-field :is(input,select,textarea):disabled{
+  background:#f1f5f9;
+  color:#475569;
+  cursor:wait;
+}
+@media(max-width:760px){
+  .iadm-cor-ghost-detail .iadm-cor-form-field:not([data-locked="true"]) :is(input,select,textarea){
+    min-height:44px;
+    border-color:rgba(71,85,105,.22);
+  }
+}
+
+
+/* [Aster | 2026-10-09 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001] */
+/* Indicadores funcionales por campo, no semaforos tecnicos de conectividad. */
+.iadm-cor-autosave .iadm-cor-autosave-feedback{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:18px;font-size:.75rem;font-weight:700}
+.iadm-cor-autosave [data-autosave-state][data-stage="saving"],
+.iadm-cor-autosave [data-autosave-state][data-stage="pending"]{color:#475569}
+.iadm-cor-autosave [data-autosave-state][data-stage="saved"]{color:#027a48}
+.iadm-cor-autosave [data-autosave-state][data-stage="error"],
+.iadm-cor-autosave [data-autosave-state][data-stage="conflict"],
+.iadm-cor-autosave [data-autosave-state][data-stage="verify"]{color:#b42318}
+.iadm-cor-autosave .iadm-cor-form-field[data-save-state="saved"]{box-shadow:inset 3px 0 #027a48}
+.iadm-cor-autosave .iadm-cor-form-field[data-save-state="saving"]{box-shadow:inset 3px 0 #64748b}
+.iadm-cor-autosave .iadm-cor-form-field[data-save-state="error"],
+.iadm-cor-autosave .iadm-cor-form-field[data-save-state="conflict"],
+.iadm-cor-autosave .iadm-cor-form-field[data-save-state="verify"]{background:#fef2f2}
+.iadm-cor-autosave-footer{position:static;box-shadow:none;min-height:46px}
+.iadm-cor-autosave-feedback [data-autosave-retry]{margin-top:3px}
+.iadm-cor-autosave-feedback [hidden]{display:none!important}
+@media(max-width:760px){.iadm-cor-autosave .iadm-cor-autosave-feedback{min-height:28px}.iadm-cor-autosave-feedback [data-autosave-retry]{min-height:40px}}

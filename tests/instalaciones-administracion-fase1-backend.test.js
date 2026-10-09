@@ -36,15 +36,10 @@ test('campos de sistema no forman parte de captura operativa', () => {
   }
 });
 
-test('identidad y derivados pendientes fallan cerrado', () => {
-  assert.throws(
-    () => validation.normalizeGroupUpdate_cor('proyecto', { changes: { id_proyecto: 'P100' } }),
-    error => error && error.code === 'INSTALACIONES_ADMINISTRACION_POLITICA_PENDIENTE' && error.statusCode === 409
-  );
-  assert.throws(
-    () => validation.normalizeGroupUpdate_cor('montaje', { changes: { dias_restantes: '10' } }),
-    error => error && error.code === 'INSTALACIONES_ADMINISTRACION_DERIVADO_PENDIENTE' && error.statusCode === 409
-  );
+test('FIX1 backend: identidad y derivados editables en ficha individual', () => {
+  assert.equal(validation.normalizeGroupUpdate_cor('proyecto', {changes:{id_proyecto:'P100'}}).id_proyecto, 'P100');
+  assert.equal(validation.normalizeGroupUpdate_cor('proyecto', {changes:{referencia_sitio:'Elevador 1'}}).referencia_sitio, 'Elevador 1');
+  assert.equal(validation.normalizeGroupUpdate_cor('montaje', {changes:{dias_restantes:'10'}}).dias_restantes, '10');
 });
 
 test('rechaza campos fuera del grupo', () => {
@@ -67,15 +62,15 @@ test('normaliza activo e IDs responsables sin perder marcadores de negocio', () 
   assert.equal(responsables.supervisor_fl, '-');
 });
 
-test('contrato publico marca campos bloqueados sin eliminarlos del grupo', () => {
+test('FIX1 backend: contrato expone los 93 campos operativos editables', () => {
   const contract = validation.publicContract_cor();
   const proyecto = contract.find(item => item.key === 'proyecto');
-  assert.ok(proyecto);
-  assert.ok(proyecto.fields.includes('id_proyecto'));
-  assert.ok(proyecto.pending_policy_fields.includes('id_proyecto'));
-  assert.equal(proyecto.editable_fields.includes('id_proyecto'), false);
+  assert.ok(proyecto.editable_fields.includes('id_proyecto'));
+  assert.ok(proyecto.editable_fields.includes('referencia_sitio'));
   const seguimiento = contract.find(item => item.key === 'seguimiento');
-  assert.ok(seguimiento.pending_policy_fields.includes('dias_sin_visita'));
+  assert.ok(seguimiento.editable_fields.includes('dias_sin_visita'));
+  assert.ok(contract.every(item=>item.pending_policy_fields.length===0));
+  assert.equal(contract.reduce((total,item)=>total+item.editable_fields.length,0),93);
 });
 
 test('rutas de Fase 1 estan montadas y activadas mediante el Guard de Fase 2', () => {

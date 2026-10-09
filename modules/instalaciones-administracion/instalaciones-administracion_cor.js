@@ -6,7 +6,10 @@
   // [Aster | 2026-10-08 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001]
   // [Aster | 2026-10-08 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001]
   // [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001]
-  const VERSION_COR='20261009-fix3-v001';
+  // [Aster | 2026-10-09 | ASTER-MG | FIX_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001]
+  // [Aster | 2026-10-09 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001]
+  // [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_AUTOGUARDADO_V001]
+  const VERSION_COR='20261009-autoguardado-fix3-qa-v001';
   const ROOT='/api/instalaciones/administracion';
   const USER_IDS=new Set(['id_sup','id_asesor','id_admin']);
   const LABELS={
@@ -24,9 +27,10 @@
   const st={ready:false,bound:false,loading:false,saving:false,contract:null,records:[],projects:[],
     selectedProject:null,projectsTotal:0,projectRecordsTotal:0,projectsOffset:0,equipmentOffset:0,
     filtersLoaded:false,filterOptions:null,projectsSeq:0,equipmentSeq:0,page:'projects',
-    selectedRecord:null,selectedSummary:null,activeGroup:null,editingGroup:null,editingDetail:false,touched:new Set(),users:null,
+    selectedRecord:null,selectedSummary:null,activeGroup:null,editingGroup:null,editingDetail:false,touched:new Set(),users:null,usersLoadingPromise:null,
     seq:0,detailSeq:0,conflict:false,contextEpoch:0,contextKey:null,
-    bulkSelected:new Map(),bulkSnapshots:new Map(),bulkTouched:new Set(),bulkSeq:0,bulkConflict:false};
+    bulkSelected:new Map(),bulkSnapshots:new Map(),bulkTouched:new Set(),bulkSeq:0,bulkConflict:false,
+    autoQueue:new Map(),autoStates:new Map(),autoOriginal:new Map(),autoSeq:0,autoRunning:false,autoActiveField:null,autoBlocked:false,listStale:false};
   const $=id=>document.getElementById(id);
   const raw=value=>value==null?'':String(value).trim();
   const esc=value=>String(value==null?'':value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -57,11 +61,12 @@
     st.equipmentSeq++;
     st.bulkSeq++;
     st.bulkSelected.clear();st.bulkSnapshots.clear();st.bulkTouched.clear();st.bulkConflict=false;
+    invalidateAutoSave_cor();st.listStale=false;
     st.contextKey=currentContext_cor();
     st.contract=null;st.records=[];st.projects=[];st.projectsTotal=0;st.projectRecordsTotal=0;
     st.selectedProject=null;st.projectsOffset=0;st.equipmentOffset=0;st.page='projects';
     st.filterOptions=null;st.filtersLoaded=false;st.selectedRecord=null;st.selectedSummary=null;
-    st.activeGroup=null;st.editingGroup=null;st.editingDetail=false;st.users=null;st.touched.clear();st.conflict=false;
+    st.activeGroup=null;st.editingGroup=null;st.editingDetail=false;st.users=null;st.usersLoadingPromise=null;st.touched.clear();st.conflict=false;
     st.loading=false;st.saving=false;
     // Mantener el esqueleto HTML y los listeners delegados ya registrados.
     // Vaciar solo nodos que pudieron contener informacion de otro contexto.
@@ -98,7 +103,7 @@
   function alertMessage(message){const n=$('iadm-cor-alert');if(n){n.textContent=message||'';n.hidden=!message;}}
   function busy(flag){st.loading=Boolean(flag);for(const id of [
     'iadm-cor-refresh','iadm-cor-search-btn','iadm-cor-clear','iadm-cor-change-record',
-    'iadm-cor-back-projects','iadm-cor-detail-edit-btn',
+    'iadm-cor-back-projects',
     'iadm-cor-bulk-open','iadm-cor-bulk-clear','iadm-cor-bulk-back','iadm-cor-bulk-save']){const n=$(id);if(n)n.disabled=st.loading||st.saving;}}
   async function api(path,opt={}){
     if(!window.ManttoAuth?.api)throw new Error('La sesion autenticada no esta disponible.');
@@ -268,7 +273,8 @@
     const project=st.projects.find(item=>item.project_key===key);if(!project)return false;
     clearBulkSelection_cor();
     st.selectedProject=project;st.equipmentOffset=0;
-    st.detailSeq++;st.selectedRecord=null;st.selectedSummary=null;st.editingGroup=null;st.editingDetail=false;st.touched.clear();
+    st.detailSeq++;invalidateAutoSave_cor();st.listStale=false;
+    st.selectedRecord=null;st.selectedSummary=null;st.editingGroup=null;st.editingDetail=false;st.touched.clear();
     showPage_cor('equipos');return loadTeams_cor();
   }
   // Compatibilidad: tras PATCH se siguen recargando inmediatamente los datos
@@ -322,7 +328,13 @@
     if(!editable)return '<div class="iadm-cor-form-field" data-locked="true"><label>'+esc(label(f))+'</label><span class="iadm-cor-static">'+esc(display(f,original))+'</span><small class="iadm-cor-help">Campo bloqueado por politica.</small></div>';
     const id='iadm-cor-input-'+f,attr=' id="'+id+'" name="'+esc(f)+'" data-field-control="'+esc(f)+'"';
     let control='',help='',legacy='';
-    if(kind==='user')control='<select'+attr+'>'+userOptions(original)+'</select>';
+    if(kind==='user'){
+      // El detalle aparece de inmediato: responsables se cargan en segundo plano.
+      // No permitir un cambio accidental a "Sin asignar" antes del catalogo.
+      const ready=Array.isArray(st.users);
+      control='<select'+attr+(ready?'':' disabled aria-busy="true"')+'>'+userOptions(original)+'</select>';
+      help=ready?'Selecciona un usuario activo.':'Cargando usuarios autorizados...';
+    }
     else if(kind==='boolean')control='<select'+attr+'><option value="1"'+(Number(original)!==0?' selected':'')+'>Activo</option><option value="0"'+(Number(original)===0?' selected':'')+'>Inactivo</option></select>';
     else if(kind==='date'){
       const iso=isoDate(original);
@@ -341,10 +353,14 @@
     }
     return '<div class="iadm-cor-form-field" data-field-wrap="'+esc(f)+'" data-changed="false">'+
       '<label for="'+id+'">'+esc(label(f))+'</label>'+control+
-      (help?'<small class="iadm-cor-help">'+esc(help)+'</small>':'')+
+      (help?'<small class="iadm-cor-help"'+(kind==='user'?' data-user-hint="'+esc(f)+'"':'')+'>'+esc(help)+'</small>':'')+
       (legacy?'<small class="iadm-cor-help iadm-cor-legacy">Valor legado: '+esc(legacy)+'</small>':'')+
       (kind!=='boolean'?'<span class="iadm-cor-inline-actions"><button type="button" class="iadm-cor-btn iadm-cor-btn-compact" data-clear-field="'+esc(f)+'">Vaciar campo</button></span>':'')+
-      '<small class="iadm-cor-help" data-field-error="'+esc(f)+'" data-error="true" hidden></small></div>';
+      '<small class="iadm-cor-help" data-field-error="'+esc(f)+'" data-error="true" hidden></small>'+
+      '<div class="iadm-cor-autosave-feedback" role="status" aria-live="polite">'+
+      '<small data-autosave-state="'+esc(f)+'" hidden></small>'+
+      '<button class="iadm-cor-btn iadm-cor-btn-compact" type="button" data-autosave-retry="'+esc(f)+'" hidden>Reintentar guardado</button>'+
+      '</div></div>';
   }
   // FIX 2: detalle por equipo con secciones y un unico formulario para
   // todos los grupos EDITAR autorizados (un solo registro ins_fl).
@@ -354,14 +370,14 @@
     const content=editable
       ? '<div class="iadm-cor-form-fields">'+(g.fields||[]).map(f=>formField(f,allowed.has(f))).join('')+'</div>'
       : staticFields(g);
-    const mode=canEdit(g)?(st.editingDetail?'Editable':'Edicion autorizada'):'Solo lectura';
+    const mode=editable?'Autoguardado':'Solo lectura';
     return '<details class="iadm-cor-group iadm-cor-detail-section" data-detail-group="'+esc(g.key)+'"'+(first?' open':'')+'>'+
       '<summary><span>'+esc(g.label||g.key)+'</span>'+
       '<small class="iadm-cor-group-badge" data-edit="'+(canEdit(g)?'1':'0')+'">'+mode+'</small>'+
       '<small class="iadm-cor-changes-badge" data-group-dirty="'+esc(g.key)+'" hidden></small></summary>'+
       '<div class="iadm-cor-detail-group-description">'+
-        (editable?'Puedes modificar varios campos de esta seccion; se guardaran junto con los de otras secciones.':
-          (st.editingDetail?'Esta seccion permanece de solo lectura.':'Datos autorizados del equipo.'))+
+        (editable?'Cada campo se guarda automaticamente al salir o cambiar su valor.':
+          'Esta seccion es de solo lectura.')+
       '</div>'+content+'</details>';
   }
   function groupPicker(){
@@ -380,31 +396,42 @@
     if(!visible.length){host.innerHTML='<div class="iadm-cor-empty-state">Tu usuario no tiene secciones visibles.</div>';return;}
     const sections=visible.map((g,index)=>detailGroup_cor(g,index===0)).join('');
     if(!st.editingDetail){host.innerHTML='<div class="iadm-cor-detail-groups">'+sections+'</div>';return;}
-    host.innerHTML='<form id="iadm-cor-edit-form" class="iadm-cor-form iadm-cor-detail-form" novalidate>'+
-      '<div id="iadm-cor-conflict" class="iadm-cor-form-hint"'+(st.conflict?'':' hidden')+'>'+
-      (st.conflict?'Otro proceso modifico el equipo. Actualiza antes de volver a guardar.':'')+'</div>'+
-      '<div class="iadm-cor-detail-groups">'+sections+'</div>'+
-      '<div class="iadm-cor-form-footer iadm-cor-detail-footer">'+
-      '<span class="iadm-cor-form-count" id="iadm-cor-form-count">Sin cambios pendientes</span>'+
-      '<div class="iadm-cor-form-actions">'+
-      '<button class="iadm-cor-btn" type="button" data-action="cancel-edit">Cancelar edicion</button>'+
-      '<button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-save-btn" type="submit" disabled>Guardar cambios del equipo</button>'+
-      '</div></div></form>';
+    // Sin boton Editar ni Guardar. El formulario evita un submit implicito
+    // por Enter, y el evento delegado controla commits individuales.
+    host.innerHTML='<form id="iadm-cor-edit-form" class="iadm-cor-form iadm-cor-detail-form iadm-cor-ghost-detail iadm-cor-autosave" novalidate>'+ 
+      '<div id="iadm-cor-conflict" class="iadm-cor-form-hint"'+(st.conflict?'':' hidden')+'>'+ 
+      (st.conflict?'Conflicto de datos. Revisa y utiliza Actualizar antes de continuar.':'')+'</div>'+ 
+      '<div class="iadm-cor-detail-groups">'+sections+'</div>'+ 
+      '<div class="iadm-cor-form-footer iadm-cor-autosave-footer">'+
+      '<span class="iadm-cor-form-count" id="iadm-cor-form-count" aria-live="polite">Al salir de un campo se guarda automaticamente</span>'+ 
+      '</div></form>';
     updateDirtyUi();
   }
+  // Edicion fantasma: al abrir el detalle, los campos editables se presentan
+  // directamente. La autorizacion real sigue siendo la del backend por grupo.
+  function ghostEditable_cor(){
+    return Boolean(st.selectedRecord)&&groups().some(g=>canEdit(g)&&(g.editable_fields||[]).length>0);
+  }
   function renderRecord(){
+    st.editingDetail=ghostEditable_cor();
+    // Baseline visual independiente: una relectura tras otro PATCH no puede
+    // reemplazar expected de campos que el usuario aun ve/captura.
+    st.autoOriginal.clear();
+    if(st.editingDetail){
+      for(const g of groups())for(const f of (canEdit(g)?g.editable_fields||[]:[])){
+        if(has(st.selectedRecord,f))st.autoOriginal.set(f,st.selectedRecord[f]);
+      }
+    }
     showPage_cor('detalle');
     header();groupPicker();renderGroups_cor();systemFields();
-    const action=$('iadm-cor-detail-edit-btn');
-    if(action){
-      action.hidden=st.editingDetail||!groups().some(g=>canEdit(g));
-      action.disabled=st.loading||st.saving;
-    }
     const hint=$('iadm-cor-detail-hint');
     if(hint)hint.textContent=st.editingDetail
-      ? 'Editando un solo equipo. Los cambios de todas las secciones se guardan juntos.'
-      : 'Abre las secciones para consultar los datos; selecciona Editar ficha para modificar varios campos a la vez.';
+      ? 'Edicion directa: al salir de un campo se guarda automaticamente. Los selectores se guardan al elegir una opcion.'
+      : 'Ficha de solo lectura: tu usuario no tiene edicion autorizada para este equipo.';
     if(window.ManttoPermissions?.apply)window.ManttoPermissions.apply(view()||document);
+    if(st.editingDetail){
+      loadEditableUsersWithoutBlocking_cor(ensureContext_cor(),st.detailSeq,Number(st.selectedRecord?.id_ins_fl));
+    }
   }
   function readControl(f,inputPrefix='iadm-cor-input-'){
     const input=$(inputPrefix+f);if(!input)return {ok:false,error:'Falta el campo.'};
@@ -454,36 +481,50 @@
     }
     return {groups:groupPayload,errors};
   }
+  function invalidateAutoSave_cor(){
+    // Desacopla las respuestas de una ficha/sesion previa de la actual.
+    st.autoSeq++;
+    st.autoQueue.clear();st.autoStates.clear();st.autoOriginal.clear();
+    st.autoRunning=false;st.autoActiveField=null;st.autoBlocked=false;st.saving=false;
+  }
+  function editableGroupOfField_cor(field){
+    if(!st.editingDetail||st.page!=='detalle'||!st.selectedRecord||window.ManttoAuth?.isViewingAs?.())return null;
+    return groups().find(g=>canEdit(g)&&(g.editable_fields||[]).includes(field))||null;
+  }
+  function setAutoState_cor(field,stage,message,allowRetry=false){
+    st.autoStates.set(field,{stage,message});
+    const wrap=view()?.querySelector('[data-field-wrap="'+field+'"]');
+    if(wrap){wrap.dataset.saveState=stage;wrap.dataset.invalid=stage==='error'||stage==='conflict'||stage==='verify'?'true':'false';}
+    const output=view()?.querySelector('[data-autosave-state="'+field+'"]');
+    if(output){output.textContent=message||'';output.hidden=!message;output.dataset.stage=stage;}
+    const retry=view()?.querySelector('[data-autosave-retry="'+field+'"]');
+    if(retry)retry.hidden=!allowRetry||st.autoBlocked;
+  }
   function updateDirtyUi(){
     if(!st.editingDetail)return;
-    const payload=changedPayload(),invalid=Object.keys(payload.errors);
-    const edits=Object.values(payload.groups).reduce((n,g)=>n+Object.keys(g.changes).length,0);
     const count=$('iadm-cor-form-count');
-    if(count)count.textContent=invalid.length?invalid.length+' campo(s) con error':
-      edits?edits+' campo(s) en '+Object.keys(payload.groups).length+' seccion(es)':'Sin cambios pendientes';
-    const save=$('iadm-cor-save-btn');
-    if(save)save.disabled=Boolean(!edits||invalid.length||st.loading||st.saving||st.conflict);
-    for(const g of groups()){
-      const changed=payload.groups[g.key]?.changes||{};
-      const badge=view()?.querySelector('[data-group-dirty="'+g.key+'"]');
-      if(badge){const total=Object.keys(changed).length;badge.textContent=total+' cambio(s)';badge.hidden=!total;}
-      for(const f of g.fields||[]){
-        const wrap=view()?.querySelector('[data-field-wrap="'+f+'"]');
-        if(wrap){wrap.dataset.changed=has(changed,f)?'true':'false';wrap.dataset.invalid=has(payload.errors,f)?'true':'false';}
-        const err=view()?.querySelector('[data-field-error="'+f+'"]');
-        if(err){err.textContent=payload.errors[f]||'';err.hidden=!has(payload.errors,f);}
-      }
-    }
+    if(!count)return;
+    if(st.autoBlocked||st.conflict)count.textContent='Revision requerida: actualiza el equipo antes de editar de nuevo.';
+    else if(st.autoRunning||st.autoQueue.size)count.textContent='Guardando cambios pendientes...';
+    else if(st.touched.size)count.textContent=st.touched.size+' campo(s) pendientes de confirmar o corregir.';
+    else count.textContent='Todos los cambios confirmados; guardado automatico activo.';
   }
   function hasUnsaved(){
-    const p=changedPayload();
-    return Object.keys(p.groups).length>0||Object.keys(p.errors).length>0||
-      (st.page==='multiple'&&st.bulkTouched.size>0);
+    if(st.page==='multiple')return st.bulkTouched.size>0;
+    if(st.autoRunning||st.autoQueue.size||st.autoBlocked)return true;
+    // Un input date/number vacio puede representar un valor legado ilegible:
+    // jamas tomarlo como cambio antes de un evento real de edicion.
+    if(st.editingDetail)return st.touched.size>0;
+    const payload=changedPayload();
+    return Object.keys(payload.groups).length>0||Object.keys(payload.errors).length>0;
   }
-  function confirmLeave(){return !st.saving&&(!hasUnsaved()||window.confirm('Hay cambios sin guardar. Deseas descartarlos?'));}
+  function confirmLeave(){
+    if(st.saving||st.autoRunning){status('Espera a que termine el guardado del campo.','loading');return false;}
+    return !hasUnsaved()||window.confirm('Hay cambios pendientes o sin confirmar. Deseas salir sin guardarlos?');
+  }
   function clearSelection(){
-    // Invalida GET anteriores y descarta cualquier formulario parcial.
     st.detailSeq++;
+    invalidateAutoSave_cor();
     st.editingGroup=null;st.editingDetail=false;st.touched.clear();st.conflict=false;
     st.selectedRecord=null;st.selectedSummary=null;st.activeGroup=null;
     showPage_cor(st.selectedProject?'equipos':'projects');
@@ -491,6 +532,7 @@
   async function openRecord(id){
     const numeric=Number(id);if(!Number.isSafeInteger(numeric)||numeric<=0)return;
     const epoch=ensureContext_cor(),seq=++st.detailSeq;
+    invalidateAutoSave_cor();st.touched.clear();st.conflict=false;
     st.selectedSummary=st.records.find(r=>Number(r.id_ins_fl)===numeric)||{};
     busy(true);status('Cargando registro...','loading');alertMessage('');
     try{
@@ -498,7 +540,7 @@
       if(!isCurrentContext_cor(epoch)||seq!==st.detailSeq)return false;
       st.selectedRecord=response.data||{};
       st.selectedSummary=Object.assign({},st.selectedSummary,st.selectedRecord);
-      st.editingGroup=null;st.editingDetail=false;st.touched.clear();st.conflict=false;
+      st.editingGroup=null;st.editingDetail=false;
       if(!groups().some(g=>g.key===st.activeGroup))st.activeGroup=groups()[0]?.key||null;
       renderRecord();status('Registro cargado','ready');
       return true;
@@ -508,82 +550,247 @@
   async function loadContract(){const epoch=ensureContext_cor();const contract=await api(ROOT+'/contrato');if(!isCurrentContext_cor(epoch))return false;st.contract=contract;return true;}
   async function loadUsers(){
     if(Array.isArray(st.users))return st.users;
-    const epoch=ensureContext_cor(),response=await api(ROOT+'/usuarios');
-    if(!isCurrentContext_cor(epoch))throw contextChangedError_cor();
-    st.users=Array.isArray(response.data)?response.data:[];
-    return st.users;
-  }
-  async function startEdit(){
+    if(st.usersLoadingPromise)return st.usersLoadingPromise;
     const epoch=ensureContext_cor();
-    if(st.saving||st.loading||!st.selectedRecord||st.editingDetail)return;
-    const id=Number(st.selectedRecord.id_ins_fl);
-    const editable=groups().filter(g=>canEdit(g));
-    if(!editable.length)return;
-    status('Preparando ficha...','loading');
-    try{
-      if(editable.some(g=>(g.editable_fields||[]).some(f=>USER_IDS.has(f))))await loadUsers();
-      if(!isCurrentContext_cor(epoch)||Number(st.selectedRecord?.id_ins_fl)!==id)return;
-      st.editingDetail=true;st.editingGroup=null;st.touched.clear();st.conflict=false;
-      alertMessage('');renderRecord();status('Editando ficha de equipo','ready');
-    }catch(e){if(isCurrentContext_cor(epoch)){status(e.message,'error');alertMessage(e.message);}}
+    const pending=(async()=>{
+      const response=await api(ROOT+'/usuarios');
+      if(!isCurrentContext_cor(epoch))throw contextChangedError_cor();
+      st.users=Array.isArray(response.data)?response.data:[];
+      return st.users;
+    })();
+    st.usersLoadingPromise=pending;
+    try{return await pending;}
+    finally{if(st.usersLoadingPromise===pending)st.usersLoadingPromise=null;}
   }
-  async function save(){
+  function loadEditableUsersWithoutBlocking_cor(epoch,detailSeq,recordId){
+    const fields=new Set(groups().filter(g=>canEdit(g)).flatMap(g=>
+      (g.editable_fields||[]).filter(f=>USER_IDS.has(f))));
+    if(!fields.size||Array.isArray(st.users))return;
+    loadUsers().then(()=>{
+      if(!isCurrentContext_cor(epoch)||detailSeq!==st.detailSeq||
+          Number(st.selectedRecord?.id_ins_fl)!==recordId||st.page!=='detalle'||!st.editingDetail)return;
+      for(const field of fields){
+        const input=$('iadm-cor-input-'+field);
+        if(!input||input.disabled!==true)continue;
+        const before=input.value;
+        input.innerHTML=userOptions(before);
+        input.value=before;
+        input.disabled=false;
+        input.removeAttribute?.('aria-busy');
+        const help=view()?.querySelector('[data-user-hint="'+field+'"]');
+        if(help)help.textContent='Selecciona un usuario activo.';
+      }
+    }).catch(()=>{
+      if(!isCurrentContext_cor(epoch)||detailSeq!==st.detailSeq||
+          Number(st.selectedRecord?.id_ins_fl)!==recordId||st.page!=='detalle')return;
+      for(const field of fields){
+        const help=view()?.querySelector('[data-user-hint="'+field+'"]');
+        if(help)help.textContent='No se pudo cargar el catalogo: campo no editable por ahora.';
+      }
+      alertMessage('No se pudieron cargar los usuarios autorizados. Los otros campos siguen disponibles.');
+    });
+  }
+  function autoInputValue_cor(field,value){
+    const kind=meta(field).kind||'text';
+    if(kind==='date')return isoDate(value)||'';
+    if(kind==='percent'||kind==='money')return previewNumber(value,kind);
+    if(kind==='boolean')return Number(value)===0?'0':'1';
+    return value==null?'':String(value);
+  }
+  function syncAutoRead_cor(row,savedField){
+    for(const g of groups()){
+      if(!canEdit(g))continue;
+      for(const field of g.editable_fields||[]){
+        if(!has(row,field))continue;
+        if(field===savedField){
+          st.autoOriginal.set(field,row[field]);
+          continue;
+        }
+        if(!st.autoOriginal.has(field))continue;
+        const original=st.autoOriginal.get(field);
+        if(canonicalCompare(field,original)===canonicalCompare(field,row[field]))continue;
+        const input=$('iadm-cor-input-'+field);
+        if(!input)continue;
+        if(st.touched.has(field)||st.autoQueue.has(field)||st.autoActiveField===field||
+           document.activeElement===input){
+          // El formulario puede contener una captura contra una version vieja.
+          // No sustituirla ni adelantar expected al dato nuevo del servidor.
+          setAutoState_cor(field,'stale','Actualizado en servidor: revisa tu cambio.');
+          continue;
+        }
+        // Sin cambios locales, mantener el formulario sincronizado con el GET.
+        input.value=autoInputValue_cor(field,row[field]);
+        st.autoOriginal.set(field,row[field]);
+        setAutoState_cor(field,'saved','Actualizado desde servidor');
+      }
+    }
+  }
+  function queueAutoSave_cor(field){
+    const group=editableGroupOfField_cor(field),input=$('iadm-cor-input-'+field);
+    if(!group||!input||input.disabled)return;
+    // focusout sin input/change NO es intencion de escritura. Especialmente
+    // importante con fechas/numeros historicos que el browser no representa.
+    if(!st.touched.has(field)){
+      if(st.autoOriginal.has(field) && has(st.selectedRecord,field) &&
+         canonicalCompare(field,st.autoOriginal.get(field))!==canonicalCompare(field,st.selectedRecord[field])){
+        input.value=autoInputValue_cor(field,st.selectedRecord[field]);
+        st.autoOriginal.set(field,st.selectedRecord[field]);
+        setAutoState_cor(field,'saved','Actualizado desde servidor');
+      }
+      return;
+    }
     const epoch=ensureContext_cor();
-    if(!st.editingDetail||!st.selectedRecord||st.saving)return;
-    const id=Number(st.selectedRecord.id_ins_fl),p=changedPayload();
-    if(!Object.keys(p.groups).length||Object.keys(p.errors).length||st.conflict){updateDirtyUi();return;}
-    st.saving=true;busy(true);status('Guardando equipo...','loading');alertMessage('');updateDirtyUi();
-    let committed=false;
+    if(!isCurrentContext_cor(epoch))return;
+    st.touched.add(field);
+    if(st.autoBlocked||st.conflict){
+      setAutoState_cor(field,'conflict','Revision necesaria. Pulsa Actualizar; no se guardo este cambio.');
+      updateDirtyUi();return;
+    }
+    if(!has(st.selectedRecord,field)){
+      setAutoState_cor(field,'error','El campo no esta disponible en la lectura autorizada. Actualiza.');
+      updateDirtyUi();return;
+    }
+    const result=readControl(field);
+    if(!result.ok){
+      st.autoQueue.delete(field);
+      setAutoState_cor(field,'error',result.error,true);
+      updateDirtyUi();return;
+    }
+    const before=st.autoOriginal.has(field)?st.autoOriginal.get(field):st.selectedRecord[field];
+    // Si ya hay una peticion enviada para el mismo campo, encolar aun si
+    // ahora coincide con el snapshot anterior: puede ser una reversion.
+    if(st.autoActiveField!==field&&canonicalCompare(field,before)===canonicalCompare(field,result.value)){
+      st.autoQueue.delete(field);st.touched.delete(field);
+      setAutoState_cor(field,'idle','');updateDirtyUi();return;
+    }
+    st.autoQueue.set(field,{field,group:group.key,value:result.value,recordId:Number(st.selectedRecord.id_ins_fl)});
+    setAutoState_cor(field,'pending','Pendiente de enviar...');
+    updateDirtyUi();
+    void drainAutoSave_cor();
+  }
+  async function drainAutoSave_cor(){
+    if(st.autoRunning||st.autoBlocked||!st.autoQueue.size)return;
+    const epoch=ensureContext_cor(),detailSeq=st.detailSeq,autoSeq=st.autoSeq,
+      recordId=Number(st.selectedRecord?.id_ins_fl);
+    st.autoRunning=true;st.saving=true;updateDirtyUi();
+    const current=()=>isCurrentContext_cor(epoch)&&st.detailSeq===detailSeq&&
+      st.autoSeq===autoSeq&&st.page==='detalle'&&Number(st.selectedRecord?.id_ins_fl)===recordId;
     try{
-      // UNA solicitud a UN registro; todos los grupos se verifican y se
-      // auditan en UNA transaccion backend. No es un guardado masivo.
-      const response=await api(ROOT+'/registros/'+encodeURIComponent(id)+'/detalle',{
-        method:'PATCH',body:JSON.stringify({groups:p.groups})
-      });
-      if(!isCurrentContext_cor(epoch))return;
-      committed=true;
-      clearBulkSelection_cor();
-      st.editingDetail=false;st.editingGroup=null;st.touched.clear();st.conflict=false;
-      let detailReloaded=true;
-      try{
-        const fresh=await api(ROOT+'/registros/'+encodeURIComponent(id));
-        if(!isCurrentContext_cor(epoch))return;
-        st.selectedRecord=fresh.data||{};
-        st.selectedSummary={...st.selectedRecord};
-        renderRecord();
-      }catch(e){
-        if(!isCurrentContext_cor(epoch))return;
-        detailReloaded=false;clearSelection();
-        alertMessage('Guardado confirmado, pero no fue posible recargar el equipo. Vuelve a buscarlo. '+e.message);
+      while(current()&&st.autoQueue.size&&!st.autoBlocked){
+        const [field,job]=st.autoQueue.entries().next().value;
+        st.autoQueue.delete(field);
+        const group=editableGroupOfField_cor(field),before=st.autoOriginal.has(field)
+          ?st.autoOriginal.get(field):st.selectedRecord?.[field];
+        if(!group||job.group!==group.key||!has(st.selectedRecord,field)||job.recordId!==recordId){
+          st.autoBlocked=true;
+          setAutoState_cor(field,'error','Permiso o ficha diferente. Actualiza antes de continuar.');
+          break;
+        }
+        if(canonicalCompare(field,before)===canonicalCompare(field,job.value)){
+          const active=readControl(field);
+          if(active.ok&&canonicalCompare(field,active.value)===canonicalCompare(field,before)){
+            st.touched.delete(field);setAutoState_cor(field,'idle','');
+          }
+          continue;
+        }
+        st.autoActiveField=field;
+        setAutoState_cor(field,'saving','Guardando...');
+        updateDirtyUi();
+        let committed=false;
+        try{
+          const response=await api(ROOT+'/registros/'+encodeURIComponent(recordId)+
+            '/grupos/'+encodeURIComponent(group.key),{
+              method:'PATCH',body:JSON.stringify({changes:{[field]:job.value},expected:{[field]:before}})
+            });
+          if(!current())return;
+          if(response?.ok===false)throw new Error(response.message||'El servidor no confirmo la escritura.');
+          committed=true;
+          // Regla constitucional: recargar inmediatamente el registro afectado.
+          // NO se recrea el DOM del formulario para preservar otras capturas.
+          const fresh=await api(ROOT+'/registros/'+encodeURIComponent(recordId));
+          if(!current())return;
+          if(!fresh?.data||Number(fresh.data.id_ins_fl)!==recordId||!has(fresh.data,field)){
+            throw new Error('No fue posible confirmar la lectura del campo actualizado.');
+          }
+          const saved=canonicalCompare(field,fresh.data[field])===canonicalCompare(field,job.value);
+          st.selectedRecord={...fresh.data};st.selectedSummary={...st.selectedSummary,...fresh.data};
+          // Sincronizar solo controles ajenos al campo en curso que no tengan
+          // ediciones locales ni foco. Los otros conservan su expected anterior
+          // y obtendran 409 si alguien los modifico entre lecturas.
+          syncAutoRead_cor(fresh.data,field);
+          st.listStale=true;header();systemFields();
+          if(!saved)throw new Error('La lectura del servidor difiere del valor enviado; revisa antes de continuar.');
+          const active=readControl(field);
+          if(active.ok&&canonicalCompare(field,active.value)===canonicalCompare(field,job.value)&&
+             !st.autoQueue.has(field)){
+            st.touched.delete(field);
+            setAutoState_cor(field,'saved','Guardado');
+          }else{
+            setAutoState_cor(field,'pending','Cambio nuevo sin confirmar; termina el campo para enviarlo.');
+          }
+          status('Campo '+label(field)+' guardado y auditado.','ready');
+          alertMessage('');
+        }catch(error){
+          if(!current())return;
+          const forbidden=Number(error?.status)===403||Number(error?.status)===404;
+          const conflict=Number(error?.status)===409;
+          if(committed||forbidden||conflict){
+            st.autoBlocked=true;st.conflict=true;st.autoQueue.clear();
+          }
+          if(forbidden){
+            // Cambiar responsables puede revocar el alcance DESPUES del PATCH.
+            // No dejar una ficha sensible montada si la relectura fue denegada.
+            st.records=[];st.projects=[];st.selectedProject=null;
+            clearSelection();
+            for(const id of ['iadm-cor-group-picker','iadm-cor-groups',
+              'iadm-cor-record-title','iadm-cor-record-tags','iadm-cor-system-grid']){
+              const element=$(id);if(element){element.textContent='';element.innerHTML='';}
+            }
+            const notice=committed
+              ? 'El cambio se envio, pero el equipo ya no esta disponible con tus permisos. Consulta tus proyectos.'
+              : 'El cambio no se confirmo; el equipo ya no esta autorizado. Consulta tus proyectos.';
+            status('El equipo ya no esta dentro de tu acceso autorizado.','error');
+            alertMessage(notice);
+            // El refresco puede limpiar su propio aviso: restaurar el mensaje
+            // de seguridad tras terminar el listado, sin reabrir la ficha.
+            void loadProjects_cor().finally(()=>{
+              if(isCurrentContext_cor(epoch)&&st.page==='projects'){
+                status('El equipo ya no esta dentro de tu acceso autorizado.','error');
+                alertMessage(notice);
+              }
+            });
+            return;
+          }else if(committed){
+            setAutoState_cor(field,'verify',
+              'Cambio enviado, pero no se pudo comprobar. Usa Actualizar; no se reintentara automaticamente.');
+            status('Guardado pendiente de confirmar en lectura.','error');
+            alertMessage('Es necesario actualizar para confirmar el dato. Las capturas siguientes NO se enviaron.');
+          }else if(conflict){
+            setAutoState_cor(field,'conflict','Otro usuario modifico el dato o la identidad del equipo. Actualiza.');
+            status('Conflicto 409: no se guardo este campo.','error');
+            alertMessage('Conflicto de datos. No se reintenta automaticamente. Usa Actualizar.');
+          }else{
+            setAutoState_cor(field,'error',error?.message||'No se pudo guardar. Revisa y reintenta.',true);
+            status('Error al guardar '+label(field)+'.','error');
+          }
+        }finally{
+          if(current())st.autoActiveField=null;
+        }
+        updateDirtyUi();
       }
-      await loadFilterOptions_cor();
-      if(!isCurrentContext_cor(epoch))return;
-      const listReloaded=await search(raw($('iadm-cor-search-input')?.value));
-      if(!isCurrentContext_cor(epoch))return;
-      if(!detailReloaded||!listReloaded){
-        status('Guardado confirmado; recarga pendiente','error');
-        if(detailReloaded)alertMessage('Los datos se guardaron, pero la lista no se pudo actualizar. Intenta Actualizar.');
-        return;
+    }finally{
+      if(current()){
+        st.autoRunning=false;st.autoActiveField=null;st.saving=false;
+        updateDirtyUi();
       }
-      status(response.changed?'Equipo guardado y auditado':'Sin diferencias nuevas','ready');
-    }catch(e){
-      if(!isCurrentContext_cor(epoch))return;
-      if(committed){status('Guardado; consulta pendiente','ready');return;}
-      if(e.status===409&&e.code==='INSTALACIONES_ADMINISTRACION_CONFLICTO_CONCURRENCIA'){
-        st.conflict=true;
-        const msg=$('iadm-cor-conflict');
-        if(msg){msg.hidden=false;msg.textContent=e.message+' Usa Actualizar para recuperar el equipo.';}
-      }
-      if(e.status===404)clearSelection();
-      status(e.message,'error');alertMessage(e.message);
-    }finally{if(isCurrentContext_cor(epoch)){st.saving=false;busy(false);updateDirtyUi();}}
+    }
   }
   async function refresh(options={}){
     const epoch=ensureContext_cor();
     if(st.saving||st.loading)return;
     if(!options.force&&!confirmLeave())return;
     const recordId=st.selectedRecord?.id_ins_fl||options.recordId;
-    st.editingGroup=null;st.editingDetail=false;st.touched.clear();st.conflict=false;
+    invalidateAutoSave_cor();st.editingGroup=null;st.editingDetail=false;st.touched.clear();st.conflict=false;
     clearBulkSelection_cor();
     busy(true);status('Actualizando...','loading');alertMessage('');
     try{
@@ -598,7 +805,7 @@
         const detailReloaded=await openRecord(recordId);
         if(!isCurrentContext_cor(epoch)||!detailReloaded)return;
       }
-      status('Actualizado','ready');
+      st.listStale=false;status('Actualizado','ready');
     }catch(e){if(isCurrentContext_cor(epoch)){status(e.message,'error');alertMessage(e.message);}}
     finally{if(isCurrentContext_cor(epoch))busy(false);}
   }
@@ -606,6 +813,7 @@
     clearBulkSelection_cor();
     st.selectedProject=null;st.records=[];st.projectRecordsTotal=0;st.equipmentOffset=0;
     st.equipmentSeq++;clearSelection();showPage_cor('projects');
+    if(st.listStale){st.listStale=false;void loadProjects_cor();}
   }
   function applyFilters_cor(){
     if(!confirmLeave())return;
@@ -839,7 +1047,10 @@
     $('iadm-cor-bulk-back')?.addEventListener('click',()=>{if(confirmLeave()){st.bulkSeq++;st.bulkSnapshots.clear();st.bulkTouched.clear();st.bulkConflict=false;
         for(const id of ['iadm-cor-bulk-editor','iadm-cor-bulk-summary']){const n=$(id);if(n)n.textContent='';}
         showPage_cor('equipos');equipmentRows_cor();}});
-    $('iadm-cor-change-record')?.addEventListener('click',()=>{if(confirmLeave())clearSelection();});
+    $('iadm-cor-change-record')?.addEventListener('click',()=>{if(confirmLeave()){
+      const reload=st.listStale;clearSelection();
+      if(reload){st.listStale=false;void (st.selectedProject?loadTeams_cor():loadProjects_cor());}
+    }});
     view()?.addEventListener('click',e=>{
       const bulkAction=e.target.closest('[data-bulk-action]')?.dataset?.bulkAction;
       if(bulkAction==='cancel'&&confirmLeave()){st.bulkSeq++;st.bulkSnapshots.clear();st.bulkTouched.clear();st.bulkConflict=false;
@@ -877,18 +1088,21 @@
       const clear=e.target.closest('[data-clear-field]');
       if(clear){
         const field=clear.dataset.clearField,input=$('iadm-cor-input-'+field);
-        if(input&&st.editingDetail){input.value='';st.touched.add(field);updateDirtyUi();}return;
+        if(input&&st.editingDetail&&!input.disabled){input.value='';st.touched.add(field);queueAutoSave_cor(field);}return;
       }
       const action=e.target.closest('[data-action]')?.dataset.action;
-      if(action==='start-edit')startEdit();
-      if(action==='cancel-edit'&&confirmLeave()){
-        st.editingDetail=false;st.touched.clear();st.conflict=false;
-        renderRecord();status('Edicion cancelada','ready');
-      }
+      const retry=e.target.closest('[data-autosave-retry]');
+      if(retry&&st.editingDetail&&!st.autoBlocked)queueAutoSave_cor(retry.dataset.autosaveRetry);
     });
     for(const type of ['input','change'])view()?.addEventListener(type,e=>{
       const field=e.target?.dataset?.fieldControl;
-      if(field&&st.editingDetail){st.touched.add(field);updateDirtyUi();}
+      if(field&&editableGroupOfField_cor(field)){
+        st.touched.add(field);
+        // Seleccion, fecha y cambio discreto: guardar al cambiar.
+        // Texto y textarea: guardar SOLO al perder el foco, no por tecla.
+        if(type==='change'&&['user','boolean','date'].includes(meta(field).kind))queueAutoSave_cor(field);
+        else{setAutoState_cor(field,'editing','Pendiente: sal del campo para guardar.');updateDirtyUi();}
+      }
       if(type==='change'&&e.target?.dataset?.bulkRecordId){
         const id=e.target.dataset.bulkRecordId;
         if(!toggleBulkSelection_cor(id,Boolean(e.target.checked)))e.target.checked=st.bulkSelected.has(Number(id));
@@ -901,8 +1115,24 @@
       }
       if(e.target?.dataset?.bulkControl&&st.page==='multiple')updateBulkDirtyUi_cor();
     });
+    // Evita un blur intermedio al pulsar Vaciar campo con puntero.
+    view()?.addEventListener('pointerdown',e=>{
+      if(e.target?.closest?.('[data-clear-field]'))e.preventDefault();
+    });
+    view()?.addEventListener('focusout',e=>{
+      const field=e.target?.dataset?.fieldControl;
+      if(field&&editableGroupOfField_cor(field))queueAutoSave_cor(field);
+    });
+    view()?.addEventListener('keydown',e=>{
+      const field=e.target?.dataset?.fieldControl;
+      if(e.key==='Enter'&&field&&meta(field).kind!=='textarea'&&editableGroupOfField_cor(field)){
+        e.preventDefault();
+        if(typeof e.target.blur==='function')e.target.blur();
+        else queueAutoSave_cor(field);
+      }
+    });
     view()?.addEventListener('submit',e=>{
-      if(e.target?.id==='iadm-cor-edit-form'){e.preventDefault();save();}
+      if(e.target?.id==='iadm-cor-edit-form'){e.preventDefault();return;}
       if(e.target?.id==='iadm-cor-bulk-form'){e.preventDefault();saveBulk_cor();}
     });
   }

@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-10-08 | ASTER-MG | FASE_5_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001]
+// [Aster | 2026-10-09 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001]
 
 const db = require('../../config/db');
 const { ALL_OPERATIONAL_FIELDS_COR } = require('./instalaciones-administracion.constants');
@@ -128,6 +129,24 @@ async function listActiveUsers_cor() {
   return rows;
 }
 
+function mapDatabaseIdentityError_cor(error) {
+  // ins_fl tiene UNIQUE (id_proyecto, referencia_sitio) e IDs FK a usuarios.
+  // Nunca exponer SQL/valores internos en la respuesta HTTP.
+  if (error?.code === 'ER_DUP_ENTRY') {
+    const conflict = new Error('La referencia de equipo ya esta registrada para ese proyecto.');
+    conflict.statusCode = 409;
+    conflict.code = 'INSTALACIONES_ADMINISTRACION_REFERENCIA_DUPLICADA';
+    return conflict;
+  }
+  if (error?.code === 'ER_NO_REFERENCED_ROW_2' || error?.code === 'ER_ROW_IS_REFERENCED_2') {
+    const conflict = new Error('La relacion con usuarios no es valida. Actualiza y revisa el registro.');
+    conflict.statusCode = 409;
+    conflict.code = 'INSTALACIONES_ADMINISTRACION_RELACION_INVALIDA';
+    return conflict;
+  }
+  return error;
+}
+
 function concurrencyError_cor(fields) {
   const error = new Error('El registro fue modificado desde tu ultima lectura. Recarga y revisa los valores antes de guardar.');
   error.statusCode = 409;
@@ -181,12 +200,17 @@ async function updateRecordById_cor({ id, scope, changes, expected, beforeCommit
     const assignments = Object.keys(actualChanges).map(field => `\`${field}\` = ?`).join(', ');
     const values = [...Object.values(actualChanges), id];
 
-    await conn.query(
-      `UPDATE ins_fl
-          SET ${assignments}
-        WHERE id_ins_fl = ?`,
-      values
-    );
+    try {
+      await conn.query(
+        `UPDATE ins_fl
+            SET ${assignments}
+          WHERE id_ins_fl = ?`,
+        values
+      );
+    } catch (error) {
+      // Solo traducir un error de UPDATE ins_fl, no un fallo de auditoria.
+      throw mapDatabaseIdentityError_cor(error);
+    }
 
     // The update can change id_sup/id_asesor/id_admin and therefore the
     // record scope. Read after-image by locked primary key for audit only.
@@ -407,8 +431,12 @@ async function updateProjectBatch_cor({ projectKey, ids, scope, changes, expecte
         continue;
       }
       const assignments = Object.keys(effective).map(field => `\`${field}\` = ?`).join(', ');
-      await conn.query(`UPDATE ins_fl SET ${assignments} WHERE id_ins_fl = ?`,
-        [...Object.values(effective), id]);
+      try {
+        await conn.query(`UPDATE ins_fl SET ${assignments} WHERE id_ins_fl = ?`,
+          [...Object.values(effective), id]);
+      } catch (error) {
+        throw mapDatabaseIdentityError_cor(error);
+      }
       // Relectura por PK solo para auditoria, no se envia al frontend.
       const after = await getRecordById_cor({
         id, scope: { mode: 'ALL' }, connection: conn, forUpdate: false

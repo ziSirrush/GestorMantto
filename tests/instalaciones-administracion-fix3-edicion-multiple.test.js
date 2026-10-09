@@ -33,14 +33,15 @@ const GROUPS = {
 const constants = {
   GROUPS_COR: GROUPS,
   SYSTEM_READONLY_FIELDS_COR: ['id_ins_fl', 'created_at', 'updated_at'],
-  POLICY_PENDING_FIELDS_COR: ['id_proyecto', 'referencia_sitio'],
+  POLICY_PENDING_FIELDS_COR: [],
   DERIVED_POLICY_PENDING_FIELDS_COR: [],
   RESPONSIBLE_ID_FIELDS_COR: ['id_sup', 'id_asesor', 'id_admin'],
   ALL_OPERATIONAL_FIELDS_COR: [...new Set(Object.values(GROUPS).flatMap(g => g.fields))],
   ACCESS_PERMISSION_COR: 'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  FULL_EDIT_PERMISSION_COR: 'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.EDITAR',
   GROUP_PERMISSIONS_COR: Object.fromEntries(Object.keys(GROUPS).map(g => [g, {
-    view: `INSTALACIONES_ADMINISTRACION_GRUPOS_${g.toUpperCase()}.VER`,
-    edit: `INSTALACIONES_ADMINISTRACION_GRUPOS_${g.toUpperCase()}.EDITAR`
+    view: 'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+    edit: 'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.EDITAR'
   }]))
 };
 function error(statusCode, code, message) {
@@ -194,14 +195,14 @@ test('FIX3: exige 2-20 IDs unicos, expected completo, y campos permitidos',()=>{
   assert.throws(()=>service.normalizeMultiUpdate_cor('P:P200',{...payload(),extra:'colision'}),{statusCode:400});
 });
 
-test('FIX3: sin permiso EDITAR de un grupo no crea transaccion ni auditorias',async()=>{
-  configure();canPermission=code=>!code.includes('SEGUIMIENTO');
+test('FIX1 backend: sin EDITAR global no crea transaccion ni auditorias',async()=>{
+  configure();canPermission=code=>!code.endsWith('.EDITAR');
   await assert.rejects(()=>service.updateMulti_cor(req,'P:P200',payload()),{statusCode:403});
   assert.equal(current.stats().updates,0);assert.equal(current.stats().commits,0);
 });
 
-test('FIX3: sin PROYECTO.VER ni PROYECTO.EDITAR no admite agrupacion por URL',async()=>{
-  configure();canPermission=code=>!code.includes('PROYECTO');
+test('FIX1 backend: sin ACCESO_VISUAL no admite agrupacion por URL, aunque tenga EDITAR',async()=>{
+  configure();canPermission=code=>!code.endsWith('.ACCESO_VISUAL');
   const body={ids:[7,8],groups:{seguimiento:{changes:{comentarios_fl:'Masivo'}}},
     expected:{7:{comentarios_fl:'Antes 7'},8:{comentarios_fl:'Antes 8'}}};
   await assert.rejects(()=>service.updateMulti_cor(req,'P:P200',body),{statusCode:403});

@@ -6,6 +6,7 @@
 
 const db = require('../../config/db');
 const visibilityService = require('../ventas/ventas-visibility.service');
+// [Aster | 2026-10-09 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001]
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 const repository = require('./instalaciones-administracion.repository');
 const auditService = require('./instalaciones-administracion.audit-service');
@@ -16,6 +17,8 @@ const {
   DERIVED_POLICY_PENDING_FIELDS_COR,
   RESPONSIBLE_ID_FIELDS_COR,
   ACCESS_PERMISSION_COR,
+  FULL_EDIT_PERMISSION_COR,
+  LEGACY_GROUP_PERMISSIONS_COR,
   GROUP_PERMISSIONS_COR
 } = require('./instalaciones-administracion.constants');
 const {
@@ -43,49 +46,79 @@ function effectiveUserId_cor(req) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-async function resolveGroupPermissions_cor(req) {
+async function resolveModulePermission_cor(req) {
   const userId = effectiveUserId_cor(req);
   if (!userId) {
     throw knownError_cor(401, 'INSTALACIONES_ADMINISTRACION_SESION_REQUERIDA', 'Sesion requerida.');
   }
+  // Una consulta por permiso en lugar de 22 consultas por los once grupos.
+  // La puerta de informacion y el record scope siguen en Guard + repositorio.
+  const [view, edit] = await Promise.all([
+    hasEffectivePermission(userId, ACCESS_PERMISSION_COR),
+    hasEffectivePermission(userId, FULL_EDIT_PERMISSION_COR)
+  ]);
+  if (!view) {
+    throw knownError_cor(403, 'INSTALACIONES_ADMINISTRACION_ACCESO_DENEGADO',
+      'No tienes permiso de acceso a Instalaciones Administracion.');
+  }
+  return {
+    can_view: true,
+    has_full_edit_permission: Boolean(edit),
+    can_edit: Boolean(edit) && req?.viewerContext?.active !== true
+  };
+}
 
-  const viewerReadonly = req?.viewerContext?.active === true;
-  const entries = Object.entries(GROUP_PERMISSIONS_COR);
-  const resolved = await Promise.all(entries.map(async ([groupKey, codes]) => {
+async function resolveGroupPermissions_cor(req) {
+  const moduleAccess = await resolveModulePermission_cor(req);
+  if (moduleAccess.has_full_edit_permission) {
+    // Acceso EDITAR completo: 2 comprobaciones y los 93 campos visibles.
+    // En modo Visor se mantienen visibles pero SIEMPRE de solo lectura.
+    return Object.fromEntries(Object.entries(GROUP_PERMISSIONS_COR).map(([groupKey, codes]) => [
+      groupKey, {
+        can_view: true,
+        can_edit: moduleAccess.can_edit,
+        view_code: codes.view,
+        edit_code: codes.edit
+      }
+    ]));
+  }
+  // Usuarios ACCESO_VISUAL sin EDITAR conservan el alcance de lectura por
+  // grupo que tenian antes del FIX. No exponer grupos por el simple permiso
+  // visual del modulo. Los permisos viejos ya NO habilitan escritura.
+  const entries = Object.entries(LEGACY_GROUP_PERMISSIONS_COR || {});
+  const resolved = await Promise.all(entries.map(async ([groupKey, oldCodes]) => {
     const [view, edit] = await Promise.all([
-      hasEffectivePermission(userId, codes.view),
-      hasEffectivePermission(userId, codes.edit)
+      hasEffectivePermission(effectiveUserId_cor(req), oldCodes.view),
+      hasEffectivePermission(effectiveUserId_cor(req), oldCodes.edit)
     ]);
     return [groupKey, {
       can_view: Boolean(view || edit),
-      can_edit: Boolean(edit) && !viewerReadonly,
-      view_code: codes.view,
-      edit_code: codes.edit
+      can_edit: false,
+      view_code: oldCodes.view,
+      edit_code: FULL_EDIT_PERMISSION_COR
     }];
   }));
-
   return Object.fromEntries(resolved);
 }
 
-async function ensureGroupEditPermission_cor(req, groupKey) {
-  const codes = GROUP_PERMISSIONS_COR[groupKey];
-  if (!codes) {
-    throw knownError_cor(404, 'INSTALACIONES_ADMINISTRACION_GRUPO_NO_EXISTE', 'El grupo solicitado no existe.', {
-      group: groupKey
-    });
-  }
-
+async function ensureFullEditPermission_cor(req) {
   if (req?.viewerContext?.active === true) {
-    throw knownError_cor(403, 'INSTALACIONES_ADMINISTRACION_VISOR_SOLO_LECTURA', 'El Visor de Usuarios no permite editar.');
+    throw knownError_cor(403, 'INSTALACIONES_ADMINISTRACION_VISOR_SOLO_LECTURA',
+      'El Visor de Usuarios no permite editar.');
   }
+  const moduleAccess = await resolveModulePermission_cor(req);
+  if (!moduleAccess.can_edit) {
+    throw knownError_cor(403, 'INSTALACIONES_ADMINISTRACION_EDICION_DENEGADA',
+      'Necesitas el permiso EDITAR de Instalaciones Administracion.');
+  }
+}
 
-  const userId = effectiveUserId_cor(req);
-  const allowed = userId && await hasEffectivePermission(userId, codes.edit);
-  if (!allowed) {
-    throw knownError_cor(403, 'INSTALACIONES_ADMINISTRACION_EDICION_DENEGADA', 'No tienes permiso para editar este grupo.', {
-      group: groupKey
-    });
+async function ensureGroupEditPermission_cor(req, groupKey) {
+  if (!Object.prototype.hasOwnProperty.call(GROUPS_COR, groupKey)) {
+    throw knownError_cor(404, 'INSTALACIONES_ADMINISTRACION_GRUPO_NO_EXISTE',
+      'El grupo solicitado no existe.', { group: groupKey });
   }
+  await ensureFullEditPermission_cor(req);
 }
 
 function normalizeSearch_cor(query = {}) {
@@ -146,6 +179,8 @@ async function getContract_cor(req) {
     source: 'ins_fl',
     phase: 5,
     access_permission: ACCESS_PERMISSION_COR,
+    full_edit_permission: FULL_EDIT_PERMISSION_COR,
+    full_edit_required: true,
     groups,
     field_meta: fieldMeta,
     system_readonly_fields: [...SYSTEM_READONLY_FIELDS_COR],
@@ -243,7 +278,7 @@ async function updateGroup_cor(req, idValue, groupKey, body = {}) {
     throw knownError_cor(404, 'INSTALACIONES_ADMINISTRACION_GRUPO_NO_EXISTE', 'El grupo solicitado no existe.', { group: groupKey });
   }
 
-  // Defence in depth: route also checks EDITAR and Viewer write prohibition.
+  // Defensa en profundidad: Guard + EDITAR global + alcance CORELLIAN.
   await ensureGroupEditPermission_cor(req, groupKey);
 
   const initialChanges = normalizeGroupUpdate_cor(groupKey, body);
@@ -342,11 +377,9 @@ async function updateDetail_cor(req, idValue, body = {}) {
   const payload = normalizeDetailUpdate_cor(body);
   const groupKeys = Object.keys(payload.selected);
 
-  // Verifica EDITAR por CADA grupo antes de abrir la transaccion.
-  // Nunca se confia en el frontend ni en un permiso de solo lectura.
-  for (const groupKey of groupKeys) {
-    await ensureGroupEditPermission_cor(req, groupKey);
-  }
+  // El mismo permiso EDITAR gobierna los once grupos. Una verificacion por
+  // peticion; nunca basta ACCESO_VISUAL ni la declaracion del frontend.
+  await ensureFullEditPermission_cor(req);
   await validateResponsibleIds_cor(payload.changes);
   const scope = await resolveScope_cor(req);
 
@@ -500,6 +533,13 @@ function normalizeMultiUpdate_cor(projectKey, body = {}) {
       normalizeGroupUpdate_cor(groupKey, { changes: groupInput.changes })
     );
     for (const field of Object.keys(normalized)) {
+      // No reasignar todos los equipos hacia otro PP NS ni generar claves de
+      // referencia duplicadas mediante edicion multiple. Ambos son editables
+      // en la ficha INDIVIDUAL y se auditan con expected + UNIQUE de MySQL.
+      if (field === 'id_proyecto' || field === 'referencia_sitio') {
+        throw knownError_cor(409, 'INSTALACIONES_ADMINISTRACION_IDENTIDAD_INDIVIDUAL',
+          'Los identificadores de proyecto y referencia solo se editan por equipo, no en lote.', { field });
+      }
       if (Object.prototype.hasOwnProperty.call(changes, field)) {
         throw knownError_cor(400, 'INSTALACIONES_ADMINISTRACION_CAMPO_DUPLICADO',
           'Un campo no se puede incluir en mas de un grupo.');
@@ -541,10 +581,9 @@ async function updateMulti_cor(req, projectKey, body = {}) {
     throw knownError_cor(403, 'INSTALACIONES_ADMINISTRACION_PROYECTOS_DENEGADOS',
       'No tienes autorizacion para seleccionar equipos por proyecto.');
   }
-  // Defensa en profundidad: no basta el permiso visual ni un rol privilegiado.
-  for (const groupKey of Object.keys(payload.selected)) {
-    await ensureGroupEditPermission_cor(req, groupKey);
-  }
+  // Defensa en profundidad: EDITAR explicito global; rol no confiere acceso.
+  // Verificacion unica por lote, tras validar los grupos y campos.
+  await ensureFullEditPermission_cor(req);
   await validateResponsibleIds_cor(payload.changes);
   const scope = await resolveScope_cor(req);
   const results = await repository.updateProjectBatch_cor({
@@ -596,6 +635,7 @@ module.exports = {
   normalizeSearch_cor,
   resolveGroupPermissions_cor,
   ensureGroupEditPermission_cor,
+  ensureFullEditPermission_cor,
   visibleRecord_cor,
   expectedValues_cor,
   normalizeBrowse_cor,

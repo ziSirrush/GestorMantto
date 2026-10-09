@@ -1,5 +1,6 @@
 'use strict';
-
+// [Aster | 2026-10-09 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001]
+// Se actualizan aserciones de permisos segun la regla posterior aprobada.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -24,32 +25,27 @@ const EXPECTED_GROUPS = [
   'responsables'
 ];
 
-test('Fase 2 conserva 11 grupos y 93 campos operativos unicos', () => {
+test('Fase 2 + FIX1 conserva 11 grupos y 93 campos operativos unicos', () => {
   assert.deepEqual(Object.keys(constants.GROUPS_COR), EXPECTED_GROUPS);
   assert.equal(constants.ALL_OPERATIONAL_FIELDS_COR.length, 93);
   assert.equal(new Set(constants.ALL_OPERATIONAL_FIELDS_COR).size, 93);
 });
 
-test('catalogo de permisos contiene acceso visual + VER/EDITAR por cada grupo', () => {
-  assert.equal(
-    constants.ACCESS_PERMISSION_COR,
-    'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'
-  );
+test('FIX1: catalogo operativo exige dos permisos explicitos sin inferir privilegios del rol', () => {
+  assert.equal(constants.ACCESS_PERMISSION_COR,
+    'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL');
+  assert.equal(constants.FULL_EDIT_PERMISSION_COR,
+    'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO.EDITAR');
   assert.equal(Object.keys(constants.GROUP_PERMISSIONS_COR).length, 11);
-
-  const codes = [constants.ACCESS_PERMISSION_COR];
   for (const group of EXPECTED_GROUPS) {
     const pair = constants.GROUP_PERMISSIONS_COR[group];
-    assert.ok(pair.view.endsWith('.VER'));
-    assert.ok(pair.edit.endsWith('.EDITAR'));
-    codes.push(pair.view, pair.edit);
+    assert.equal(pair.view, constants.ACCESS_PERMISSION_COR);
+    assert.equal(pair.edit, constants.FULL_EDIT_PERMISSION_COR);
   }
-
-  assert.equal(codes.length, 23);
-  assert.equal(new Set(codes).size, 23);
+  assert.notEqual(constants.ACCESS_PERMISSION_COR,constants.FULL_EDIT_PERMISSION_COR);
 });
 
-test('rutas activan Guard General CORELLIAN y permiso EDITAR por grupo', () => {
+test('rutas activan Guard General CORELLIAN y permiso EDITAR global', () => {
   const source = fs.readFileSync(path.join(MODULE_DIR, 'instalaciones-administracion.routes.js'), 'utf8');
   assert.doesNotMatch(source, /INSTALACIONES_ADMINISTRACION_PENDING_SECURITY/);
   assert.match(source, /humanInformationGuard_gnral/);
@@ -59,15 +55,16 @@ test('rutas activan Guard General CORELLIAN y permiso EDITAR por grupo', () => {
   assert.match(source, /hasEffectivePermission\(userId, codes\.edit\)/);
 });
 
-test('identidad y derivados pendientes siguen fallando cerrado', () => {
-  assert.throws(
-    () => validation.normalizeGroupUpdate_cor('proyecto', { changes: { id_proyecto: 'P100' } }),
-    error => error?.code === 'INSTALACIONES_ADMINISTRACION_POLITICA_PENDIENTE' && error?.statusCode === 409
-  );
-  assert.throws(
-    () => validation.normalizeGroupUpdate_cor('seguimiento', { changes: { dias_sin_visita: '2' } }),
-    error => error?.code === 'INSTALACIONES_ADMINISTRACION_DERIVADO_PENDIENTE' && error?.statusCode === 409
-  );
+test('FIX1: identidad y derivados se pueden capturar individualmente, sistema inmutable', () => {
+  assert.equal(validation.normalizeGroupUpdate_cor('proyecto', {
+    changes: { id_proyecto: 'P100' }
+  }).id_proyecto, 'P100');
+  assert.equal(validation.normalizeGroupUpdate_cor('seguimiento', {
+    changes: { dias_sin_visita: '2' }
+  }).dias_sin_visita, '2');
+  assert.throws(() => validation.normalizeGroupUpdate_cor('proyecto', {
+    changes: { id_ins_fl: 7 }
+  }), {statusCode:400,code:'INSTALACIONES_ADMINISTRACION_CAMPO_SOLO_LECTURA'});
 });
 
 test('auditoria detallada reutiliza usuario_interacciones y conserva before/after', () => {
@@ -87,11 +84,8 @@ test('auditoria se ejecuta antes del COMMIT para rollback atomico si falla', () 
   assert.ok(commit > callback);
 });
 
-test('SQL de permisos es idempotente, no crea estructura y no asigna usuarios/roles', () => {
-  const source = fs.readFileSync(
-    path.join(ROOT, 'database', 'FASE_2_INSTALACIONES_ADMINISTRACION_PERMISOS_V001.sql'),
-    'utf8'
-  );
+test('SQL de Fase 2 permanece idempotente, no crea estructura ni asigna usuarios/roles', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'database', 'FASE_2_INSTALACIONES_ADMINISTRACION_PERMISOS_V001.sql'), 'utf8');
   assert.doesNotMatch(source, /CREATE\s+TABLE/i);
   assert.doesNotMatch(source, /ALTER\s+TABLE/i);
   assert.doesNotMatch(source, /INSERT\s+INTO\s+usuario_permisos/i);
@@ -102,9 +96,12 @@ test('SQL de permisos es idempotente, no crea estructura y no asigna usuarios/ro
   assert.match(source, /INSTALACIONES_ADMINISTRACION_GRUPOS_RESPONSABLES/);
 });
 
-test('respuesta de detalle se filtra por permisos de grupo', () => {
+test('detalle filtra por autorizacion de modulo y mantiene validacion de alcance', () => {
   const source = fs.readFileSync(path.join(MODULE_DIR, 'instalaciones-administracion.service.js'), 'utf8');
   assert.match(source, /if \(!permissions\?\.\[groupKey\]\?\.can_view\) continue/);
-  assert.match(source, /can_view:\s*Boolean\(view \|\| edit\)/);
+  assert.match(source, /moduleAccess\.has_full_edit_permission/);
+  assert.match(source, /LEGACY_GROUP_PERMISSIONS_COR/);
+  assert.match(source, /can_edit:\s*moduleAccess\.can_edit/);
   assert.match(source, /ensureGroupEditPermission_cor/);
+  assert.match(source, /resolveScope_cor\(req\)/);
 });
