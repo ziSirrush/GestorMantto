@@ -1,0 +1,23 @@
+MANTTO GESTOR | FIX_4_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001
+Fecha: 2026-10-09
+Fuente GitHub: ziSirrush/GestorMantto | main | ab0081d6bba66a2583674aab9f077e1cf3482092 | Version 100826.4
+Base funcional: ZIP FIX 1 + ZIP FIX 2 + ZIP FIX 3, instalados en orden. NO asumir aplicados en main.
+Tipo: FIX incremental de seguridad post-PATCH y herramientas de integracion/QA.
+Frontend/caches: SIN CAMBIOS; se requiere cache FIX 3 ya aplicado.
+BD: solo SQL SELECT opcional. NO migracion / NO nuevas tablas/columnas/permisos.
+Pruebas ejecutadas: node --check (3 JS) y 42/42 tests locales aislados (F6, FIX1, FIX3, FIX4).
+No ejecutado: suite completa en clon GitHub, tests E2E, Windows PS1, Azure, Aiven, GAS, GitHub Pages/Netlify.
+No escrituras remotas efectuadas.
+
+ARCHIVOS INCREMENTALES ENTREGADOS (completos):
+EJECUTAR_QA_FIX_4.ps1
+README_FIX_4_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001.md
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+database/QA_FIX_4_INSTALACIONES_ADMINISTRACION_SOLO_LECTURA_V001.sql
+docs/MATRIZ_QA_FIX_4_INSTALACIONES_ADMINISTRACION_V001.md
+tests/instalaciones-administracion-fix4-integracion-qa.test.js
+validation/instalaciones-administracion-fix4-readonly-smoke.js
+MANIFEST_FIX_4_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001.txt
+SHA256SUMS_FIX_4_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001.txt
+
+Check SHA256SUMS con certutil o Get-FileHash antes de instalar.

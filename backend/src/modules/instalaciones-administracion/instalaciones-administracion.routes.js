@@ -57,6 +57,22 @@ router.get(
   controller.contract_cor
 );
 
+
+// [Aster | 2026-10-08 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001]
+router.get('/administracion/filtros',...accessGuard_cor,controller.browseFilters_cor);
+router.get('/administracion/proyectos',...accessGuard_cor,controller.projects_cor);
+router.get('/administracion/proyectos/:projectKey/equipos',...accessGuard_cor,controller.projectEquipments_cor);
+
+
+// [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001]
+// Todas las operaciones vuelven a validar proyecto, equipos, permisos,
+// alcance y concurrencia dentro del servicio/repositorio. No confiar en UI.
+router.patch(
+  '/administracion/proyectos/:projectKey/equipos/edicion-multiple',
+  ...accessGuard_cor,
+  controller.updateMulti_cor
+);
+
 router.get(
   '/administracion/registros',
   ...accessGuard_cor,
@@ -74,6 +90,15 @@ router.get(
   '/administracion/registros/:id',
   ...accessGuard_cor,
   controller.detail_cor
+);
+
+// [Aster | 2026-10-08 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001]
+// La ruta recibe un unico ID ins_fl. El servicio valida EDITAR por grupo
+// y el Guard valida sesion + permiso de modulo + puerta/scope CORELLIAN.
+router.patch(
+  '/administracion/registros/:id/detalle',
+  ...accessGuard_cor,
+  controller.updateDetail_cor
 );
 
 router.patch(

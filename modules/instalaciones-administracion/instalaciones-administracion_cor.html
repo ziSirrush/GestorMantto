@@ -1,10 +1,10 @@
-<link rel="stylesheet" href="./modules/instalaciones-administracion/instalaciones-administracion-form_cor.css?v=20261008-fase4-v001">
+<link rel="stylesheet" href="./modules/instalaciones-administracion/instalaciones-administracion-form_cor.css?v=20261009-fix3-v001">
 <div class="iadm-cor-page" data-iadm-root>
   <section class="iadm-cor-card iadm-cor-head">
     <div>
       <p class="iadm-cor-eyebrow">Instalaciones &middot; Administraci&oacute;n</p>
       <h1>Administraci&oacute;n de Instalaciones</h1>
-      <p>Consulta y administra los datos de proyectos/equipos seg&uacute;n tus permisos de grupo.</p>
+      <p>Selecciona un proyecto y despu&eacute;s el equipo. Cada registro conserva sus permisos y su auditor&iacute;a.</p>
     </div>
     <div class="iadm-cor-head-actions">
       <button class="iadm-cor-btn" id="iadm-cor-refresh" type="button">&#8635; Actualizar</button>
@@ -14,40 +14,90 @@
 
   <div id="iadm-cor-alert" class="iadm-cor-global-alert" role="alert" hidden></div>
 
-  <section class="iadm-cor-card iadm-cor-search-card" aria-labelledby="iadm-cor-search-title">
+  <!-- FIX 1-3: proyectos -> equipos -> ficha individual o edicion multiple del mismo PP NS. -->
+  <section class="iadm-cor-card iadm-cor-search-card" id="iadm-cor-projects" aria-labelledby="iadm-cor-search-title">
     <div class="iadm-cor-section-title">
       <div>
-        <h2 id="iadm-cor-search-title">Buscar proyecto o equipo</h2>
-        <p>Busca por proyecto, PP NS, referencia en sitio, n&uacute;mero de f&aacute;brica o cliente. Los criterios dependen de tus permisos.</p>
+        <p class="iadm-cor-eyebrow">01 / Proyectos</p>
+        <h2 id="iadm-cor-search-title">Selecciona un proyecto</h2>
+        <p>Busca proyectos o equipos. Los filtros trabajan sobre los registros autorizados para tu usuario.</p>
       </div>
     </div>
-    <form class="iadm-cor-search" id="iadm-cor-search-form" autocomplete="off">
+    <form class="iadm-cor-search iadm-cor-browse-filters" id="iadm-cor-search-form" autocomplete="off">
       <label class="iadm-cor-search-field" for="iadm-cor-search-input">
-        <span>Proyecto / equipo</span>
-        <input id="iadm-cor-search-input" maxlength="255" placeholder="Proyecto, PP NS, referencia, cliente o ID" type="search" />
+        <span>Proyecto o equipo</span>
+        <input id="iadm-cor-search-input" maxlength="255" placeholder="Nombre, PP NS, referencia o No. de fabrica" type="search" />
       </label>
-      <button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-search-btn" type="submit">Buscar</button>
-      <button class="iadm-cor-btn" id="iadm-cor-clear" type="button">Limpiar</button>
+      <label class="iadm-cor-search-field" for="iadm-cor-filter-status">
+        <span>Estatus</span>
+        <select id="iadm-cor-filter-status" aria-label="Filtrar por estatus"><option value="">Todos los estatus</option></select>
+      </label>
+      <label class="iadm-cor-search-field" for="iadm-cor-filter-supervisor">
+        <span>Supervisor</span>
+        <select id="iadm-cor-filter-supervisor" aria-label="Filtrar por supervisor"><option value="">Todos los supervisores</option></select>
+      </label>
+      <div class="iadm-cor-filter-actions">
+        <button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-search-btn" type="submit">Aplicar filtros</button>
+        <button class="iadm-cor-btn" id="iadm-cor-clear" type="button">Limpiar</button>
+      </div>
     </form>
-    <p class="iadm-cor-search-meta" id="iadm-cor-search-meta">Cargando contrato del m&oacute;dulo...</p>
-    <div class="iadm-cor-results" id="iadm-cor-results" aria-live="polite"></div>
+    <p class="iadm-cor-search-meta" id="iadm-cor-search-meta" aria-live="polite">Cargando proyectos...</p>
+    <div class="iadm-cor-results iadm-cor-project-list" id="iadm-cor-results" aria-live="polite"></div>
+    <div class="iadm-cor-pagination" id="iadm-cor-project-pagination" aria-label="Paginacion de proyectos"></div>
+  </section>
+
+  <section class="iadm-cor-card iadm-cor-equipment-section" id="iadm-cor-project" hidden aria-label="Equipos del proyecto">
+    <div class="iadm-cor-section-title">
+      <div>
+        <p class="iadm-cor-eyebrow">02 / Equipos del proyecto</p>
+        <h2 id="iadm-cor-project-title">&mdash;</h2>
+        <p id="iadm-cor-project-meta">Selecciona un equipo para consultar su detalle.</p>
+      </div>
+      <button class="iadm-cor-btn" id="iadm-cor-back-projects" type="button">&larr; Volver a proyectos</button>
+    </div>
+    <div class="iadm-cor-bulk-bar" id="iadm-cor-bulk-bar" hidden>
+      <span id="iadm-cor-bulk-count" aria-live="polite">0 equipos seleccionados</span>
+      <div class="iadm-cor-bulk-bar-actions">
+        <button class="iadm-cor-btn" type="button" id="iadm-cor-bulk-clear">Limpiar seleccion</button>
+        <button class="iadm-cor-btn iadm-cor-btn-primary" type="button" id="iadm-cor-bulk-open" disabled>Editar seleccionados</button>
+      </div>
+      <small>Solo equipos de este proyecto (PP NS). Maximo 20 por operacion.</small>
+    </div>
+    <div class="iadm-cor-equipment-list" id="iadm-cor-equipment-list" aria-live="polite"></div>
+    <div class="iadm-cor-pagination" id="iadm-cor-equipment-pagination" aria-label="Paginacion de equipos"></div>
+  </section>
+
+  <section class="iadm-cor-card iadm-cor-bulk-section" id="iadm-cor-bulk" hidden aria-labelledby="iadm-cor-bulk-title">
+    <div class="iadm-cor-section-title">
+      <div>
+        <p class="iadm-cor-eyebrow">03 / Edicion multiple</p>
+        <h2 id="iadm-cor-bulk-title">Editar equipos del mismo proyecto</h2>
+        <p>Selecciona los campos a aplicar a todos. Los demas valores permanecen intactos.</p>
+      </div>
+      <button class="iadm-cor-btn" id="iadm-cor-bulk-back" type="button">&larr; Regresar a equipos</button>
+    </div>
+    <div class="iadm-cor-bulk-summary" id="iadm-cor-bulk-summary"></div>
+    <div id="iadm-cor-bulk-editor"></div>
   </section>
 
   <section class="iadm-cor-selected" id="iadm-cor-selected" hidden>
     <section class="iadm-cor-card iadm-cor-record-head">
       <div class="iadm-cor-record-main">
-        <p class="iadm-cor-eyebrow">Registro seleccionado</p>
+        <p class="iadm-cor-eyebrow">03 / Detalle del equipo</p>
         <h2 id="iadm-cor-record-title">&mdash;</h2>
         <div class="iadm-cor-record-tags" id="iadm-cor-record-tags"></div>
       </div>
-      <button class="iadm-cor-btn" id="iadm-cor-change-record" type="button">Cambiar registro</button>
+      <button class="iadm-cor-btn" id="iadm-cor-change-record" type="button">&larr; Regresar a equipos</button>
     </section>
 
     <section class="iadm-cor-card iadm-cor-groups-card">
       <div class="iadm-cor-section-title">
         <div>
-          <h2>&iquest;Qu&eacute; informaci&oacute;n deseas revisar?</h2>
-          <p>Cada grupo se edita y guarda de forma independiente. Solo se muestran los grupos autorizados.</p>
+          <h2>Ficha del equipo</h2>
+          <p id="iadm-cor-detail-hint">Consulta cada secci&oacute;n del equipo. Modifica varias y guarda una sola vez.</p>
+        </div>
+        <div class="iadm-cor-detail-head-actions">
+          <button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-detail-edit-btn" data-action="start-edit" type="button" hidden>Editar ficha</button>
         </div>
       </div>
       <div class="iadm-cor-group-picker" id="iadm-cor-group-picker"></div>
@@ -62,11 +112,7 @@
     </section>
   </section>
 
-  <section class="iadm-cor-card iadm-cor-empty" id="iadm-cor-empty">
-    <span aria-hidden="true">&#127959;</span>
-    <div>
-      <strong>Selecciona un proyecto o equipo</strong>
-      <p>Los datos se consultan por acordeones. Si tienes autorizaci&oacute;n de edici&oacute;n, podr&aacute;s modificar y guardar solamente los campos seleccionados.</p>
-    </div>
+  <section class="iadm-cor-card iadm-cor-empty" id="iadm-cor-empty" hidden>
+    <div><strong>Selecciona un proyecto para ver sus equipos.</strong><p>Puedes abrir el detalle de un equipo o seleccionar varios del mismo proyecto para editar campos comunes.</p></div>
   </section>
 </div>

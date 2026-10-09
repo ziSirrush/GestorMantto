@@ -35,3 +35,71 @@
 .iadm-cor-inline-error{color:#b42318;font-size:.8rem;font-weight:700}
 .iadm-cor-form-field[data-changed="true"]>label:after{content:' *';color:#2563eb}
 @media(max-width:760px){.iadm-cor-form-fields{grid-template-columns:1fr}.iadm-cor-form-head,.iadm-cor-form-footer{align-items:stretch;flex-direction:column}.iadm-cor-form-commands,.iadm-cor-form-actions{width:100%}.iadm-cor-form-commands button,.iadm-cor-form-actions button{flex:1}}
+
+/* [Aster | 2026-10-08 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001] */
+/* Navegacion por proyecto; los estilos existentes de detalle y formulario se conservan. */
+.iadm-cor-page [hidden]{display:none!important}
+.iadm-cor-browse-filters{grid-template-columns:minmax(220px,1.3fr) minmax(150px,.8fr) minmax(175px,.9fr) auto}
+.iadm-cor-search-field select{width:100%;box-sizing:border-box;min-height:42px;border:1px solid rgba(15,23,42,.16);border-radius:10px;background:var(--card,#fff);color:var(--text,#172033);padding:0 12px;font:inherit}
+.iadm-cor-search-field select:focus-visible{outline:2px solid var(--primary,#3157d5);outline-offset:2px}
+.iadm-cor-filter-actions{display:flex;align-items:stretch;gap:8px;min-height:42px}
+.iadm-cor-project-card{display:flex;gap:15px;align-items:center;justify-content:space-between;width:100%;text-align:left;background:var(--card,#fff);border:1px solid rgba(15,23,42,.12);border-radius:13px;padding:14px 16px;font:inherit;color:var(--text,#172033);cursor:pointer}
+.iadm-cor-project-card:hover,.iadm-cor-project-card:focus-visible{border-color:var(--primary,#3157d5);background:rgba(49,87,213,.045);outline:0}
+.iadm-cor-project-main{display:grid;gap:4px;min-width:0}
+.iadm-cor-project-main strong{font-size:1rem;overflow-wrap:anywhere}
+.iadm-cor-project-main small{color:var(--muted,#64748b);font-size:.78rem;overflow-wrap:anywhere}
+.iadm-cor-project-count{display:inline-flex;align-items:center;gap:8px;flex:none;font-weight:700;color:var(--primary,#3157d5);font-size:.82rem}
+.iadm-cor-equipment-list{display:grid;gap:9px;margin-top:16px}
+.iadm-cor-equipment-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr)) auto;gap:15px;align-items:center;border:1px solid rgba(15,23,42,.1);border-radius:12px;padding:13px 15px}
+.iadm-cor-equipment-main{display:grid;gap:3px;min-width:0}
+.iadm-cor-equipment-main strong{overflow-wrap:anywhere}
+.iadm-cor-equipment-main small,.iadm-cor-equipment-meta small{display:block;color:var(--muted,#64748b);font-size:.73rem}
+.iadm-cor-equipment-meta{font-size:.84rem;min-width:0;overflow-wrap:anywhere}
+.iadm-cor-pagination{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:12px}
+.iadm-cor-pagination .iadm-cor-page-caption{font-size:.78rem;font-weight:700;color:var(--muted,#64748b)}
+.iadm-cor-pagination .iadm-cor-btn{font-size:.82rem;padding:7px 11px}
+.iadm-cor-record-head{align-items:center}
+.iadm-cor-results.iadm-cor-project-list{gap:9px}
+@media(max-width:1100px){.iadm-cor-browse-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.iadm-cor-filter-actions{grid-column:1 / -1}.iadm-cor-equipment-row{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto}.iadm-cor-equipment-meta:nth-of-type(3){display:none}}
+@media(max-width:760px){.iadm-cor-browse-filters{grid-template-columns:1fr}.iadm-cor-filter-actions{grid-column:auto}.iadm-cor-filter-actions .iadm-cor-btn{flex:1}.iadm-cor-project-card{align-items:flex-start}.iadm-cor-equipment-row{grid-template-columns:1fr auto}.iadm-cor-equipment-meta{grid-column:1}.iadm-cor-equipment-row .iadm-cor-btn{grid-column:2;grid-row:1 / span 2}.iadm-cor-pagination{justify-content:center}}
+@media(max-width:480px){.iadm-cor-filter-actions{flex-direction:column}.iadm-cor-project-card{display:grid}.iadm-cor-project-count{justify-content:space-between}.iadm-cor-equipment-row{grid-template-columns:1fr}.iadm-cor-equipment-row .iadm-cor-btn{grid-column:1;grid-row:auto;width:100%}.iadm-cor-pagination .iadm-cor-btn{flex:1}}
+
+/* [Aster | 2026-10-08 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001] */
+/* Formulario de equipo: una edicion, multiples secciones y un guardado atomico. */
+.iadm-cor-detail-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.iadm-cor-detail-groups{display:grid;gap:13px;margin-top:14px}
+.iadm-cor-detail-section{scroll-margin-top:95px;background:var(--card,#fff)}
+.iadm-cor-detail-section>summary{gap:10px;flex-wrap:wrap;min-height:50px}
+.iadm-cor-detail-group-description{color:var(--muted,#64748b);font-size:.8rem;line-height:1.5;padding:10px 16px}
+.iadm-cor-detail-section .iadm-cor-form-fields{border-bottom:1px solid #e2e8f0}
+.iadm-cor-detail-form{display:block}
+.iadm-cor-changes-badge{border-radius:999px;background:#eaf3ff;color:#1d4ed8;font-size:.7rem;font-weight:800;padding:4px 8px;white-space:nowrap}
+.iadm-cor-detail-footer{position:sticky;bottom:0;z-index:2;border:1px solid #cbd5e1;border-radius:0 0 12px 12px;background:var(--card,#fff);box-shadow:0 -8px 20px rgba(15,23,42,.08)}
+.iadm-cor-detail-form .iadm-cor-form-field[data-changed="true"]{box-shadow:inset 3px 0 #2563eb}
+.iadm-cor-detail-form .iadm-cor-form-field[data-invalid="true"]{background:#fef2f2}
+@media(max-width:760px){.iadm-cor-detail-head-actions{width:100%}.iadm-cor-detail-head-actions .iadm-cor-btn{width:100%}.iadm-cor-detail-footer{position:static;box-shadow:none}.iadm-cor-detail-section>summary{align-items:flex-start}}
+@media(max-width:480px){.iadm-cor-detail-section .iadm-cor-form-fields{grid-template-columns:1fr}.iadm-cor-detail-footer .iadm-cor-form-actions{flex-direction:column}}
+
+/* [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001] */
+/* Sin colores/semanticas tecnicas nuevos: reutiliza los controles oficiales. */
+.iadm-cor-bulk-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;padding:12px 14px;margin-top:16px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
+.iadm-cor-bulk-bar>span{font-size:.84rem;font-weight:800;color:#334155}
+.iadm-cor-bulk-bar>small{width:100%;color:#64748b;font-size:.75rem}
+.iadm-cor-bulk-bar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.iadm-cor-equipment-check{display:flex;align-items:center;justify-content:center;min-width:32px;min-height:44px;cursor:pointer}
+.iadm-cor-equipment-check input{width:19px;height:19px;accent-color:var(--primary,#3157d5);cursor:pointer}
+.iadm-cor-equipment-check input:focus-visible{outline:2px solid var(--primary,#3157d5);outline-offset:3px}
+.iadm-cor-bulk-summary{margin-top:15px;padding:14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.iadm-cor-bulk-summary p{margin:8px 0;color:#475569;font-size:.84rem}
+.iadm-cor-bulk-picks{display:flex;gap:7px;flex-wrap:wrap;list-style:none;padding:0;margin:12px 0 0}
+.iadm-cor-bulk-picks li{border-radius:20px;padding:6px 10px;background:#e2e8f0;font-size:.76rem;color:#334155;font-weight:700}
+.iadm-cor-bulk-section .iadm-cor-detail-section{margin-top:12px}
+.iadm-cor-bulk-apply{display:flex!important;align-items:center;gap:8px;text-transform:none!important;letter-spacing:0!important;color:#334155!important;cursor:pointer}
+.iadm-cor-bulk-apply input{width:18px!important;height:18px!important;min-height:auto!important;accent-color:var(--primary,#3157d5);flex:none}
+.iadm-cor-bulk-field[data-changed="true"]{box-shadow:inset 3px 0 var(--primary,#3157d5);background:#eff6ff}
+.iadm-cor-bulk-field :is(input,select,textarea):disabled{opacity:.55;cursor:not-allowed;background:#f8fafc}
+.iadm-cor-bulk-field .iadm-cor-bulk-apply input:disabled{opacity:1}
+.iadm-cor-bulk-field[data-invalid="true"]{background:#fef2f2}
+@media(max-width:1100px){.iadm-cor-equipment-row[data-multi="true"]{grid-template-columns:auto minmax(0,1.5fr) minmax(0,1fr) auto}}
+@media(max-width:760px){.iadm-cor-bulk-bar{align-items:stretch;flex-direction:column}.iadm-cor-bulk-bar-actions{width:100%}.iadm-cor-bulk-bar-actions>.iadm-cor-btn{flex:1}.iadm-cor-equipment-row[data-multi="true"]{grid-template-columns:auto minmax(0,1fr) auto}.iadm-cor-equipment-row[data-multi="true"] .iadm-cor-equipment-check{grid-row:1 / span 2}.iadm-cor-equipment-row[data-multi="true"] .iadm-cor-btn{grid-column:3;grid-row:1 / span 2}.iadm-cor-bulk-section .iadm-cor-form-actions .iadm-cor-btn{flex:1}}
+@media(max-width:480px){.iadm-cor-equipment-row[data-multi="true"]{grid-template-columns:auto minmax(0,1fr)}.iadm-cor-equipment-row[data-multi="true"] .iadm-cor-btn{grid-column:1 / -1;grid-row:auto}.iadm-cor-bulk-bar-actions{flex-direction:column}.iadm-cor-bulk-picks{display:grid;grid-template-columns:1fr 1fr}}

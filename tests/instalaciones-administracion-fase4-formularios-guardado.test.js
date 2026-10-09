@@ -155,12 +155,13 @@ test('si auditoria falla, rollback de UPDATE en la misma conexion',async()=>{
   assert.ok(!conn.calls.includes('COMMIT'));
 });
 
-test('frontend usa PATCH solo changed+expected, y recarga desde backend',()=>{
+test('frontend FIX2 manda solo changes+expected por grupo en un PATCH atomico',()=>{
   const js=read('modules/instalaciones-administracion/instalaciones-administracion_cor.js');
   const html=read('modules/instalaciones-administracion/instalaciones-administracion_cor.html');
   const css=read('modules/instalaciones-administracion/instalaciones-administracion-form_cor.css');
   assert.match(js,/method:'PATCH'/);
-  assert.match(js,/JSON\.stringify\(\{changes:p\.changes,expected:p\.expected\}\)/);
+  assert.match(js,/JSON\.stringify\(\{groups:p\.groups\}\)/);
+  assert.match(js,/ROOT\+'\/registros\/'\+encodeURIComponent\(id\)\+'\/detalle'/);
   assert.match(js,/window\.ManttoAuth\.api/);
   assert.match(js,/st\.touched\.add\(field\)/);
   assert.match(js,/ROOT\+'\/registros\/'\+encodeURIComponent\(id\)/);

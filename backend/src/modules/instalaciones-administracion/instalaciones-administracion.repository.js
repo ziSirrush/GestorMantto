@@ -212,6 +212,225 @@ async function updateRecordById_cor({ id, scope, changes, expected, beforeCommit
   }
 }
 
+
+// [Aster | 2026-10-08 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001]
+// Navegacion paginada por proyecto. Todas las consultas son SELECT y aplican
+// el mismo alcance CORELLIAN y las mismas columnas visibles que el detalle.
+const BROWSE_SUMMARY_FIELDS_COR = Object.freeze([
+  ...SUMMARY_FIELDS_COR, 'id_sup'
+]);
+const PROJECT_KEY_SQL_COR = `CASE
+    WHEN NULLIF(TRIM(f.id_proyecto), '') IS NOT NULL THEN CONCAT('P:', f.id_proyecto)
+    ELSE CONCAT('R:', f.id_ins_fl)
+  END`;
+
+function parseProjectKey_cor(value) {
+  const key = String(value || '');
+  if (key.startsWith('P:') && key.length <= 102 && key.length > 2 && key.slice(2).trim()) {
+    return { key, sql: 'f.id_proyecto = ?', params: [key.slice(2)] };
+  }
+  if (/^R:[1-9]\d{0,14}$/.test(key) && Number.isSafeInteger(Number(key.slice(2)))) {
+    return { key, sql: 'f.id_ins_fl = ? AND NULLIF(TRIM(f.id_proyecto), \'\') IS NULL', params: [Number(key.slice(2))] };
+  }
+  const error = new Error('Identificador de proyecto invalido.');
+  error.statusCode = 400;
+  error.code = 'INSTALACIONES_ADMINISTRACION_PROYECTO_INVALIDO';
+  throw error;
+}
+
+function buildBrowseWhere_cor({ scope, search = '', estatus = '', supervisor = '', visibleFields = [], projectKey = null }) {
+  const allowed = new Set(safeOperationalColumns_cor(visibleFields));
+  const conditions = ['1 = 1'];
+  const params = [];
+  if (projectKey != null) {
+    const project = parseProjectKey_cor(projectKey);
+    conditions.push(project.sql);
+    params.push(...project.params);
+  }
+  if (search) {
+    const searchFields = SEARCHABLE_FIELDS_COR.filter(field => allowed.has(field));
+    const matching = searchFields.map(field => `f.\`${field}\` LIKE ?`);
+    params.push(...searchFields.map(() => `%${search}%`));
+    if (Number.isSafeInteger(Number(search)) && Number(search) > 0) {
+      matching.push('f.id_ins_fl = ?');
+      params.push(Number(search));
+    }
+    conditions.push(matching.length ? `(${matching.join(' OR ')})` : '1 = 0');
+  }
+  if (estatus) {
+    if (!allowed.has('estatus')) throw new Error('Filtro estatus sin permiso.');
+    conditions.push('TRIM(f.estatus) = ?');
+    params.push(estatus);
+  }
+  if (supervisor) {
+    if (!allowed.has('id_sup')) throw new Error('Filtro supervisor sin permiso.');
+    if (supervisor === 'SIN_ASIGNAR') conditions.push('f.id_sup IS NULL');
+    else {
+      conditions.push('f.id_sup = ?');
+      params.push(Number(supervisor));
+    }
+  }
+  const scoped = scopeClause_cor(scope, 'f');
+  params.push(...scoped.params);
+  return {sql: `WHERE ${conditions.join(' AND ')}${scoped.sql}`, params, allowed};
+}
+
+async function listProjects_cor({ scope, search, estatus, supervisor, visibleFields, limit = 20, offset = 0 }) {
+  const built = buildBrowseWhere_cor({scope,search,estatus,supervisor,visibleFields});
+  const fromWhere = `FROM ins_fl f ${built.sql}`;
+  const [totalRows] = await db.query(
+    `SELECT COUNT(*) AS total FROM (
+       SELECT ${PROJECT_KEY_SQL_COR} AS project_key ${fromWhere}
+       GROUP BY project_key
+     ) grouped`, built.params
+  );
+  const [rows] = await db.query(
+    `SELECT ${PROJECT_KEY_SQL_COR} AS project_key,
+        MAX(f.id_proyecto) AS id_proyecto,
+        MIN(NULLIF(TRIM(f.proyecto), '')) AS proyecto,
+        COUNT(*) AS equipos
+       ${fromWhere}
+       GROUP BY project_key
+       ORDER BY COALESCE(proyecto, '') ASC, project_key ASC
+       LIMIT ? OFFSET ?`, [...built.params,limit,offset]
+  );
+  return {data: rows.map(row => ({
+    project_key: row.project_key,
+    id_proyecto: row.id_proyecto,
+    proyecto: row.proyecto,
+    equipos: Number(row.equipos)
+  })),total:Number(totalRows[0]?.total||0),limit,offset};
+}
+
+async function listProjectEquipments_cor({ scope, projectKey, search, estatus, supervisor,
+  visibleFields, limit = 30, offset = 0 }) {
+  const built = buildBrowseWhere_cor({scope,projectKey,search,estatus,supervisor,visibleFields});
+  const columns = BROWSE_SUMMARY_FIELDS_COR.filter(field => built.allowed.has(field));
+  const canSeeSupervisor = built.allowed.has('id_sup');
+  const fromWhere = `FROM ins_fl f ${canSeeSupervisor ? 'LEFT JOIN usuarios u ON u.id_SB = f.id_sup' : ''} ${built.sql}`;
+  const [totalRows] = await db.query(`SELECT COUNT(*) AS total ${fromWhere}`,built.params);
+  // Nunca ordenar por un campo sin permiso de lectura, ni devolverlo oculto.
+  const orderBy = built.allowed.has('referencia_sitio')
+    ? "COALESCE(f.referencia_sitio,'') ASC, f.id_ins_fl ASC" : 'f.id_ins_fl ASC';
+  const select = ['f.id_ins_fl',...columns.map(field => `f.\`${field}\``),
+    ...(canSeeSupervisor?['u.nombre AS supervisor_display']:[]),'f.updated_at'];
+  const [rows] = await db.query(
+    `SELECT ${select.join(', ')} ${fromWhere} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+    [...built.params,limit,offset]
+  );
+  return {data:rows,total:Number(totalRows[0]?.total||0),limit,offset};
+}
+
+async function listBrowseFilters_cor({scope,canViewStatus,canViewSupervisor}) {
+  const scoped = scopeClause_cor(scope,'f');
+  let estatus = [], supervisores = [];
+  let unassigned = false;
+  if (canViewStatus) {
+    const [rows] = await db.query(
+      `SELECT DISTINCT TRIM(f.estatus) AS value FROM ins_fl f
+       WHERE NULLIF(TRIM(f.estatus),'') IS NOT NULL ${scoped.sql}
+       ORDER BY value ASC LIMIT 251`,scoped.params
+    );
+    estatus = rows.slice(0,250).map(row => row.value);
+  }
+  if (canViewSupervisor) {
+    const [rows] = await db.query(
+      `SELECT f.id_sup AS id, MAX(u.nombre) AS nombre
+         FROM ins_fl f LEFT JOIN usuarios u ON u.id_SB = f.id_sup
+        WHERE f.id_sup IS NOT NULL ${scoped.sql}
+        GROUP BY f.id_sup ORDER BY nombre ASC, id ASC LIMIT 501`,scoped.params
+    );
+    supervisores = rows.slice(0,500).map(row => ({id:Number(row.id),nombre:row.nombre||`Usuario #${row.id}`}));
+    const [missing] = await db.query(
+      `SELECT EXISTS(SELECT 1 FROM ins_fl f WHERE f.id_sup IS NULL ${scoped.sql} LIMIT 1) AS hay_sin_asignar`,scoped.params
+    );
+    unassigned = Number(missing[0]?.hay_sin_asignar||0)===1;
+  }
+  return {estatus,supervisores,sin_supervisor:unassigned,
+    permisos:{estatus:Boolean(canViewStatus),supervisor:Boolean(canViewSupervisor)}};
+}
+
+
+// [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001]
+// Se bloquean y validan TODOS los equipos autorizados antes del primer UPDATE.
+// Una unica transaccion engloba datos + auditorias, o revierte todo.
+async function updateProjectBatch_cor({ projectKey, ids, scope, changes, expectedById, beforeCommit }) {
+  const project = parseProjectKey_cor(projectKey);
+  if (!project.key.startsWith('P:')) {
+    const error = new Error('La edicion multiple requiere un proyecto con PP NS valido.');
+    error.statusCode = 400;
+    error.code = 'INSTALACIONES_ADMINISTRACION_PROYECTO_NO_AGRUPABLE';
+    throw error;
+  }
+  const expectedProjectId = project.params[0];
+  const conn = await db.getConnection();
+  let started = false;
+  try {
+    await conn.beginTransaction();
+    started = true;
+    const originals = new Map();
+    const sortedIds = [...ids].sort((a, b) => a - b);
+
+    // Orden total de locks, evita operaciones parciales y reduce deadlocks.
+    for (const id of sortedIds) {
+      const row = await getRecordById_cor({ id, scope, connection: conn, forUpdate: true });
+      if (!row) {
+        const error = new Error('Uno o mas equipos ya no estan dentro de tu alcance. Actualiza el proyecto.');
+        error.statusCode = 404;
+        error.code = 'INSTALACIONES_ADMINISTRACION_EQUIPO_NO_DISPONIBLE';
+        throw error;
+      }
+      // Comparacion estricta por FK logica id_proyecto, NUNCA nombre o etiqueta.
+      if (String(row.id_proyecto ?? '') !== expectedProjectId) {
+        const error = new Error('La seleccion contiene un equipo de otro proyecto o un PP NS modificado.');
+        error.statusCode = 409;
+        error.code = 'INSTALACIONES_ADMINISTRACION_PROYECTO_DISTINTO';
+        throw error;
+      }
+      const conflicts = Object.keys(changes).filter(field => (
+        comparable_cor(row[field]) !== comparable_cor(expectedById[id][field])
+      ));
+      if (conflicts.length) throw concurrencyError_cor(conflicts);
+      originals.set(id, row);
+    }
+
+    const entries = [];
+    let modified = 0;
+    for (const id of sortedIds) {
+      const before = originals.get(id);
+      const effective = {};
+      for (const [field, value] of Object.entries(changes)) {
+        if (comparable_cor(before[field]) !== comparable_cor(value)) effective[field] = value;
+      }
+      if (!Object.keys(effective).length) {
+        entries.push({ id_ins_fl: id, changed: false, changed_fields: [] });
+        continue;
+      }
+      const assignments = Object.keys(effective).map(field => `\`${field}\` = ?`).join(', ');
+      await conn.query(`UPDATE ins_fl SET ${assignments} WHERE id_ins_fl = ?`,
+        [...Object.values(effective), id]);
+      // Relectura por PK solo para auditoria, no se envia al frontend.
+      const after = await getRecordById_cor({
+        id, scope: { mode: 'ALL' }, connection: conn, forUpdate: false
+      });
+      if (!after) throw new Error('No fue posible verificar el cambio antes de confirmar.');
+      if (typeof beforeCommit === 'function') {
+        await beforeCommit({ connection: conn, id, before, after, changes: effective });
+      }
+      modified++;
+      entries.push({ id_ins_fl: id, changed: true, changed_fields: Object.keys(effective) });
+    }
+    await conn.commit();
+    started = false;
+    return { affected: ids.length, changed: modified, records: entries };
+  } catch (error) {
+    if (started) { try { await conn.rollback(); } catch (_rollbackError) {} }
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   scopeClause_cor,
   comparable_cor,
@@ -219,5 +438,11 @@ module.exports = {
   getRecordById_cor,
   listExistingActiveUsers_cor,
   listActiveUsers_cor,
-  updateRecordById_cor
+  updateRecordById_cor,
+  updateProjectBatch_cor,
+  parseProjectKey_cor,
+  buildBrowseWhere_cor,
+  listProjects_cor,
+  listProjectEquipments_cor,
+  listBrowseFilters_cor
 };

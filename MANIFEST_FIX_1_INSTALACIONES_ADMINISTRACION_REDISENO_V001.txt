@@ -1,0 +1,33 @@
+MANTTO GESTOR - FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001
+Fecha: 2026-10-08
+Base: ziSirrush/GestorMantto main @ ab0081d6bba66a2583674aab9f077e1cf3482092
+Entorno: archivo ZIP incremental, no desplegado
+
+Archivos completos modificados del repo:
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.controller.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.repository.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.routes.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+modules/instalaciones-administracion/instalaciones-administracion_cor.js
+modules/instalaciones-administracion/instalaciones-administracion_cor.html
+modules/instalaciones-administracion/instalaciones-administracion-form_cor.css
+tests/instalaciones-administracion-fase3-frontend-base.test.js
+tests/instalaciones-administracion-fase5-integracion-qa.test.js
+tests/instalaciones-administracion-fase6-aislamiento-sesion.test.js
+
+Archivo nuevo de pruebas:
+tests/instalaciones-administracion-fix1-redisenio-filtros.test.js
+
+Auxiliar sin escrituras remotas:
+ACTUALIZAR_CACHE_BUST_FIX_1.ps1
+
+Documentacion:
+README_FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001.md
+MANIFEST_FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001.txt
+SHA256SUMS_FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001.txt
+
+SQL nuevos: ninguno
+Permisos nuevos: ninguno
+Tablas / columnas nuevas: ninguna
+Operaciones de backend nuevas: 3 GET
+QA simulado: 37/37, sin E2E / Aiven / Azure.

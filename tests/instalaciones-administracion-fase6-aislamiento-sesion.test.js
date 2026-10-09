@@ -33,7 +33,11 @@ function createHarness(config = {}) {
     'iadm-cor-change-record', 'iadm-cor-search-input', 'iadm-cor-search-form',
     'iadm-cor-results', 'iadm-cor-search-meta', 'iadm-cor-record-title',
     'iadm-cor-record-tags', 'iadm-cor-group-picker', 'iadm-cor-groups',
-    'iadm-cor-system-grid', 'iadm-cor-selected', 'iadm-cor-empty'
+    'iadm-cor-system-grid', 'iadm-cor-selected', 'iadm-cor-empty',
+    'iadm-cor-projects', 'iadm-cor-project','iadm-cor-project-title',
+    'iadm-cor-project-meta','iadm-cor-project-pagination',
+    'iadm-cor-equipment-list','iadm-cor-equipment-pagination',
+    'iadm-cor-filter-status','iadm-cor-filter-supervisor','iadm-cor-back-projects'
   ];
   const nodes = Object.fromEntries(ids.map(id => [id,el(id)]));
   nodes['iadm-cor-selected'].hidden = true;
@@ -71,9 +75,14 @@ function createHarness(config = {}) {
         if (intercepted !== undefined) return intercepted;
       }
       if (url.endsWith('/contrato')) return contract;
-      if (url.includes('/registros?')) return {ok:true,data:[{
+      if (url.endsWith('/filtros')) return {ok:true,estatus:[],supervisores:[],sin_supervisor:false,
+        permisos:{estatus:true,supervisor:false}};
+      if (url.includes('/proyectos?')) return {ok:true,data:[{
+        project_key:'P:'+scope,id_proyecto:String(scope),proyecto:users[scope],equipos:1
+      }],total:1,limit:20,offset:0};
+      if (url.includes('/equipos?')) return {ok:true,data:[{
         id_ins_fl:scope,proyecto:users[scope]
-      }]};
+      }],total:1,limit:30,offset:0};
       if (/\/registros\/\d+$/.test(url)) return {ok:true,data:{
         id_ins_fl:Number(url.split('/').at(-1)),proyecto:users[scope]
       }};
@@ -126,7 +135,7 @@ test('F6: respuesta de busqueda iniciada por usuario anterior se descarta', asyn
   const held=deferred();
   let holding=true;
   const h=createHarness({intercept:call => {
-    if (holding && call.url.includes('/registros?') && call.scope===1) {
+    if (holding && call.url.includes('/proyectos?') && call.scope===1) {
       holding=false;
       return held.promise;
     }
@@ -161,7 +170,7 @@ test('F6: cambio de usuario efectivo en visor borra datos y revalida', async () 
 test('F6: caducidad de sesion purga toda la vista sensible', async () => {
   const h=createHarness();
   await h.init({id:1});
-  assert.match(h.nodes['iadm-cor-record-title'].textContent,/Cuenta A/);
+  assert.match(h.nodes['iadm-cor-record-tags'].innerHTML,/Cuenta A/);
   assert.equal(h.nodes['iadm-cor-selected'].hidden,false);
   h.setToken('');
   h.emit('mantto:session-expired');

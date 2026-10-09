@@ -244,5 +244,5 @@ test('frontend distingue guardado confirmado de error de recarga',()=>{
   assert.match(front,/Guardado confirmado; recarga pendiente/);
   assert.match(front,/st\.detailSeq\+\+/);
   assert.doesNotMatch(front,/Consultando Aiven/);
-  assert.match(front,/VERSION_COR='20261008-fase5-v001'/);
+  assert.match(front,/VERSION_COR='20261009-fix3-v001'/);
 });

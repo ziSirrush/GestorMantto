@@ -1,0 +1,46 @@
+MANTTO GESTOR - FIX 2 - INSTALACIONES / ADMINISTRACION
+Version: V001
+Fecha: 2026-10-08
+Base oficial revisada GitHub main: ab0081d6bba66a2583674aab9f077e1cf3482092 (Version 100826.4)
+DEPENDENCIA INDISPENSABLE: FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001 (aplicado)
+Alcance: FICHA INDIVIDUAL - un solo id_ins_fl; multi-grupo, multi-campo y un commit.
+No hay mutacion masiva de varios equipos. No hay SQL ni permisos nuevos.
+
+ARCHIVOS DE CODIGO MODIFICADOS (COMPLETOS):
+ - backend/src/modules/instalaciones-administracion/instalaciones-administracion.routes.js
+ - backend/src/modules/instalaciones-administracion/instalaciones-administracion.controller.js
+ - backend/src/modules/instalaciones-administracion/instalaciones-administracion.service.js
+ - modules/instalaciones-administracion/instalaciones-administracion_cor.js
+ - modules/instalaciones-administracion/instalaciones-administracion_cor.html
+ - modules/instalaciones-administracion/instalaciones-administracion-form_cor.css
+
+PRUEBAS NUEVAS / ACTUALIZADAS:
+ - tests/instalaciones-administracion-fix2-detalle-equipo.test.js
+ - tests/instalaciones-administracion-fase3-frontend-base.test.js
+ - tests/instalaciones-administracion-fase4-formularios-guardado.test.js
+ - tests/instalaciones-administracion-fase5-integracion-qa.test.js
+
+DOCUMENTACION / HERRAMIENTAS:
+ - README_FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001.md
+ - ACTUALIZAR_CACHE_BUST_FIX_2.ps1
+ - EJECUTAR_QA_FIX_2.ps1
+
+ - SHA256SUMS_FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001.txt
+ - MANIFEST_FIX_2_INSTALACIONES_ADMINISTRACION_DETALLE_EQUIPO_V001.txt
+
+FUNCIONALIDAD:
+ - PATCH /api/instalaciones/administracion/registros/:id/detalle
+ - Verifica EDITAR por grupo y scope CORELLIAN
+ - Un UPDATE por un equipo y varias auditorias en la misma transaccion
+ - Control de concurrencia expected por campo; ante fallo ROLLBACK total
+ - Mantiene ruta PATCH anterior /registros/:id/grupos/:grupo
+ - Mantiene filtros FIX1 por estatus y supervisor
+
+VERIFICACIONES LOCALES:
+ - node --check: JS de backend y frontend
+ - 48/48 pruebas de FIX1+FIX2+regresion F4-F6 con dobles
+ - Suite F3 historica actualizada pero no corrida por falta repo completo local
+ - No E2E, ni acceso SQL real a Aiven / despliegue Azure / Netlify
+
+APLICACION: manual en raiz de repositorio. Ver README.
+SIN ESCRITURAS: GitHub, Aiven, Azure y Netlify.
