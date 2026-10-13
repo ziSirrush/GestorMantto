@@ -73,3 +73,12 @@ test('el MTBC de proyecto cuenta solo equipos activos con falla BLT', () => {
   assert.match(portfolio, /activeWithFaultsYear/);
   assert.match(portfolio, /activeWithFaults365/);
 });
+
+test('el detalle de proyecto presenta los KPI MTBC en una fila 3-4-3-2', () => {
+  const detail = read('core/details.js');
+
+  assert.match(detail, /\.mg-project-kpis\.cols-2\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(detail, /kpi\('MTBC Año Actual',fmtMtbc\(p\.mtbc_anio\)/);
+  assert.match(detail, /kpi\('MTBC U365',fmtMtbc\(p\.mtbc_365\)/);
+  assert.match(detail, /equipmentKpis\+callKpis\+debtKpis\+mtbcKpis\+rings/);
+});
