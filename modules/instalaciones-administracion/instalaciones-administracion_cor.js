@@ -9,7 +9,7 @@
   // [Aster | 2026-10-09 | ASTER-MG | FIX_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001]
   // [Aster | 2026-10-09 | ASTER-MG | FIX_2_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_V001]
   // [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_AUTOGUARDADO_V001]
-  const VERSION_COR='20261009-autoguardado-fix3-qa-v001';
+  const VERSION_COR='20261013-admin-integral-fix-v001';
   const ROOT='/api/instalaciones/administracion';
   const USER_IDS=new Set(['id_sup','id_asesor','id_admin']);
   const LABELS={
@@ -25,7 +25,7 @@
     created_at:'Creado',updated_at:'Ultima actualizacion',id_ins_fl:'ID ins_fl'
   };
   const st={ready:false,bound:false,loading:false,saving:false,contract:null,records:[],projects:[],
-    selectedProject:null,projectsTotal:0,projectRecordsTotal:0,projectsOffset:0,equipmentOffset:0,
+    selectedProject:null,projectsTotal:0,projectRecordsTotal:0,projectsOffset:0,equipmentOffset:0,tableColumns:[],
     filtersLoaded:false,filterOptions:null,projectsSeq:0,equipmentSeq:0,page:'projects',
     selectedRecord:null,selectedSummary:null,activeGroup:null,editingGroup:null,editingDetail:false,touched:new Set(),users:null,usersLoadingPromise:null,
     seq:0,detailSeq:0,conflict:false,contextEpoch:0,contextKey:null,
@@ -41,6 +41,19 @@
   const groups=()=>Array.isArray(st.contract?.groups)?st.contract.groups.filter(g=>g?.permissions?.can_view===true):[];
   const canEdit=g=>Boolean(g?.permissions?.can_edit)&&!Boolean(window.ManttoAuth?.isViewingAs?.());
   const pending=()=>new Set([...(st.contract?.pending_policy_fields||[]),...(st.contract?.derived_pending_policy_fields||[])]);
+  // [Aster | 2026-10-13 | ASTER-MG | FASE_3_INSTALACIONES_ADMINISTRACION_GUARDADO_AUDITORIA_V001]
+  const saveEngine=window.ManttoInstalacionesSave_cor;
+  if(!saveEngine)throw new Error('Motor de guardado de Instalaciones no cargado.');
+  // [Aster | 2026-10-13 | ASTER-MG | FASE_2_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001]
+  // Inyeccion local: el helper no escribe; toma exclusivamente el contrato de lectura actual.
+  const ghost=window.ManttoInstalacionesGhost_cor?.create({
+    st,$,view,groups,canEdit,esc,label,meta,display,isoDate,previewNumber,canonicalCompare,
+    userOptions,loadUsers,pager:pager_cor,
+    isViewingAs:()=>Boolean(window.ManttoAuth?.isViewingAs?.()),
+    currentContext:currentContext_cor,
+    announce:status,onSave:saveTableDrafts_cor
+  });
+  if(!ghost)throw new Error('Editor fantasma no cargado: revisa core/module-loader.js.');
   // No es un motor de permisos: solo invalida datos ya renderizados cuando
   // cambia la identidad. El backend sigue siendo autoridad de acceso.
   function identity_cor(user){return String(user&&(user.id_SB||user.id||user.correo||user.email)||'anon');}
@@ -61,10 +74,11 @@
     st.equipmentSeq++;
     st.bulkSeq++;
     st.bulkSelected.clear();st.bulkSnapshots.clear();st.bulkTouched.clear();st.bulkConflict=false;
+    ghost.clear(); // revocar borradores al cambiar actor, visor o permisos.
     invalidateAutoSave_cor();st.listStale=false;
     st.contextKey=currentContext_cor();
     st.contract=null;st.records=[];st.projects=[];st.projectsTotal=0;st.projectRecordsTotal=0;
-    st.selectedProject=null;st.projectsOffset=0;st.equipmentOffset=0;st.page='projects';
+    st.selectedProject=null;st.projectsOffset=0;st.equipmentOffset=0;st.page='projects';st.tableColumns=[];
     st.filterOptions=null;st.filtersLoaded=false;st.selectedRecord=null;st.selectedSummary=null;
     st.activeGroup=null;st.editingGroup=null;st.editingDetail=false;st.users=null;st.usersLoadingPromise=null;st.touched.clear();st.conflict=false;
     st.loading=false;st.saving=false;
@@ -179,29 +193,106 @@
     ).join(''):'<div class="iadm-cor-empty-state">No hay proyectos que coincidan con estos filtros.</div>';
     pager_cor('iadm-cor-project-pagination',st.projectsOffset,PROJECTS_PAGE_SIZE_COR,st.projectsTotal,'projects');
   }
-  function equipmentRows_cor(){
-    const host=$('iadm-cor-equipment-list');if(!host)return;
-    if($('iadm-cor-project-title'))$('iadm-cor-project-title').textContent=st.selectedProject?.proyecto||'Proyecto sin nombre';
-    if($('iadm-cor-project-meta'))$('iadm-cor-project-meta').textContent=
-      (st.selectedProject?.id_proyecto?'PP NS '+st.selectedProject.id_proyecto+' · ':'')+
-      st.projectRecordsTotal+' equipo(s) coincidentes. Selecciona uno para abrir su detalle.';
-    const multiple=canMultiSelect_cor();
-    host.innerHTML=st.records.length?st.records.map(r=>
-      '<article class="iadm-cor-equipment-row" data-team-row="'+esc(r.id_ins_fl)+'"'+
-      (multiple?' data-multi="true"':'')+'>'+
-      (multiple?'<label class="iadm-cor-equipment-check" title="Seleccionar equipo para edicion multiple">'+
-        '<input type="checkbox" data-bulk-record-id="'+esc(r.id_ins_fl)+'"'+
-        (st.bulkSelected.has(Number(r.id_ins_fl))?' checked':'')+' aria-label="Seleccionar equipo '+esc(r.numero_equipo_fabrica||r.referencia_sitio||r.id_ins_fl)+'">'+
-        '</label>':'')+
-      '<div class="iadm-cor-equipment-main"><small>Equipo / referencia</small><strong>'+esc(r.numero_equipo_fabrica||r.referencia_sitio||'Equipo #'+r.id_ins_fl)+'</strong>'+
-      '<small>'+(r.referencia_sitio?'Referencia: '+esc(r.referencia_sitio):'Registro #'+esc(r.id_ins_fl))+'</small></div>'+
-      '<div class="iadm-cor-equipment-meta"><small>Tipo de equipo</small>'+esc(r.tipo_equipo||'--')+'</div>'+
-      '<div class="iadm-cor-equipment-meta"><small>Estatus'+(has(r,'supervisor_display')?' / supervisor':'')+'</small>'+esc(r.estatus||'--')+
-      (has(r,'supervisor_display')?'<br>'+esc(r.supervisor_display||(r.id_sup?'Usuario #'+r.id_sup:'Sin asignar')):'')+'</div>'+
-      '<button type="button" class="iadm-cor-btn iadm-cor-btn-primary" data-record-id="'+esc(r.id_ins_fl)+'">Abrir detalle</button></article>'
-    ).join(''):'<div class="iadm-cor-empty-state">Este proyecto no tiene equipos coincidentes con los filtros seleccionados.</div>';
-    pager_cor('iadm-cor-equipment-pagination',st.equipmentOffset,EQUIPMENTS_PAGE_SIZE_COR,st.projectRecordsTotal,'equipos');
-    updateBulkSelectionUi_cor();
+  // [Aster | 2026-10-12 | ASTER-MG | FASE_1_INSTALACIONES_ADMINISTRACION_TABLA_V001]
+  // Vista secundaria: tabla de TODAS las columnas visibles por permiso.
+  // Fase 1 es SOLO LECTURA. Edicion fantasma y guardado quedan fuera de alcance.
+  function equipmentRows_cor(){return ghost.render();}
+  // FASE 3: guardado EXPLICITO. Una transaccion por equipo y auditoria atomica.
+  // Tras cada PATCH se relee el mismo registro con Guard y scope en backend.
+  // Si un equipo falla, los ya confirmados permanecen y los otros NO se envian.
+  async function saveTableDrafts_cor(){
+    if(st.saving||st.loading||st.page!=='equipos'||!st.selectedProject)return false;
+    if(!ghost.readyToSave())return false;
+    const epoch=ensureContext_cor(),projectKey=String(st.selectedProject.project_key||'');
+    let all;
+    try{
+      all=saveEngine.buildPlan(ghost.listDrafts(),{
+        projectKey,groups:groups(),visibleFields:st.tableColumns,
+        canEdit,isViewingAs:Boolean(window.ManttoAuth?.isViewingAs?.())
+      });
+    }catch(error){status(error.message,'error');alertMessage(error.message);return false;}
+    if(!all.length)return false;
+    const selected=all.slice(0,saveEngine.MAX_EQUIPMENTS_PER_SAVE);
+    const nDrafts=selected.reduce((n,item)=>n+item.drafts.length,0);
+    if(!window.confirm('Guardar '+nDrafts+' cambio(s) de '+selected.length+
+        ' equipo(s) en el sistema? Se validaran permisos, concurrencia y auditoria. '+
+        'Una operacion fallida detendra los siguientes equipos; los anteriores confirmados permaneceran guardados.'))return false;
+    const current=()=>isCurrentContext_cor(epoch)&&st.page==='equipos'&&
+      st.selectedProject?.project_key===projectKey&&
+      window.ManttoRouter?.getCurrent?.()?.route==='instalaciones-administracion';
+    st.saving=true;ghost.setSaving(true);busy(true);alertMessage('');
+    let confirmed=0;
+    try{
+      const result=await saveEngine.savePlan(selected,{
+        projectKey,api,current,
+        canonicalCompare,
+        onProgress:({verified,total})=>{
+          if(current()){
+            status('Guardando equipo '+(verified+1)+' de '+total+'...','loading');
+            ghost.setSaveMessage('Guardando '+(verified+1)+' de '+total+' equipos...');
+          }
+        },
+        onConfirmed:async(record,fresh)=>{
+          if(!current())throw new Error('La sesion o el proyecto cambio.');
+          // Un equipo se confirma solo despues de GET autorizado y comparacion.
+          ghost.ackSaved(record.drafts);
+          confirmed++;st.listStale=true;
+          const belongs=projectKey.startsWith('P:')
+            ?String(fresh.id_proyecto??'')===projectKey.slice(2)
+            :Number(fresh.id_ins_fl)===Number(projectKey.slice(2))&&!raw(fresh.id_proyecto);
+          if(belongs){
+            st.records=st.records.map(row=>Number(row.id_ins_fl)===record.id
+              ? {...row,...Object.fromEntries(st.tableColumns
+                  .filter(field=>Object.prototype.hasOwnProperty.call(fresh,field))
+                  .map(field=>[field,fresh[field]]))} : row);
+          }else{
+            st.records=st.records.filter(row=>Number(row.id_ins_fl)!==record.id);
+          }
+          equipmentRows_cor();
+          status('Confirmado equipo '+confirmed+' de '+selected.length+'.','ready');
+        }
+      });
+      if(!current())return false;
+      const updated=await loadTeams_cor();
+      if(!current())return false;
+      const rest=ghost.pendingCount();
+      if(!updated){
+        const note=result.verified+' equipo(s) confirmados, pero no se pudo refrescar la tabla. Usa Actualizar.';
+        status(note,'error');alertMessage(note);return false;
+      }
+      const notice=result.verified+' equipo(s) confirmados y auditados. '+
+        (rest?rest+' borrador(es) aun pendientes.':'Sin borradores pendientes.');
+      status('Guardado confirmado','ready');alertMessage(notice);
+      return true;
+    }catch(error){
+      if(!current())return false;
+      const sent=Number(error.verified??confirmed);
+      if([401,403,404].includes(Number(error.status))){
+        // Los cambios de responsables pueden revocar alcance inmediatamente.
+        // No continuar ni dejar informacion sensible montada.
+        ghost.clear();st.records=[];st.tableColumns=[];st.projectRecordsTotal=0;
+        st.selectedProject=null;st.equipmentOffset=0;showPage_cor('projects');
+        try{await loadProjects_cor();}catch(_reloadError){}
+        const note='Se confirmaron '+sent+' equipo(s). El acceso fue revocado o el equipo ya no esta autorizado.'+
+          (error.committed?' El ultimo PATCH fue aceptado pero NO se pudo verificar por GET.':'')+
+          ' No se enviaron mas cambios. Consulta tus permisos y recarga.';
+        status(note,'error');alertMessage(note);return false;
+      }
+      // Un 409 conserva los borradores; el GET paginado marca los conflictos.
+      try{await loadTeams_cor();}catch(_reloadError){}
+      if(!current())return false;
+      const note='Guardado interrumpido: '+sent+' equipo(s) confirmados, equipo '+
+        (error.failedId||'?')+' sin confirmacion. '+
+        (error.committed?'El PATCH fue aceptado, pero no pudo verificarse. No se reintentara automaticamente. ': '')+
+        (Number(error.status)===409?'Conflicto 409: los valores actuales son distintos. ':'')+
+        String(error.message||'Error al guardar.')+' Borradores no confirmados conservados.';
+      status('Guardado parcial / revision requerida','error');alertMessage(note);
+      return false;
+    }finally{
+      if(isCurrentContext_cor(epoch)){
+        st.saving=false;ghost.setSaveMessage('');ghost.setSaving(false);busy(false);
+      }
+    }
   }
   async function loadFilterOptions_cor(){
     const epoch=ensureContext_cor();
@@ -258,19 +349,22 @@
     const epoch=ensureContext_cor(),seq=++st.equipmentSeq,key=st.selectedProject.project_key;
     busy(true);status('Cargando equipos...','loading');alertMessage('');
     try{
-      const data=await api(ROOT+'/proyectos/'+encodeURIComponent(key)+'/equipos?'+
-        queryFilters_cor(st.equipmentOffset,EQUIPMENTS_PAGE_SIZE_COR));
+      const matrixQuery=new URLSearchParams({limit:String(EQUIPMENTS_PAGE_SIZE_COR),offset:String(st.equipmentOffset)});
+      const data=await api(ROOT+'/proyectos/'+encodeURIComponent(key)+'/equipos/tabla?'+matrixQuery.toString());
       if(!isCurrentContext_cor(epoch)||seq!==st.equipmentSeq||st.selectedProject?.project_key!==key)return false;
       st.records=Array.isArray(data.data)?data.data:[];
+      st.tableColumns=Array.isArray(data.columns)?data.columns:[];
       st.projectRecordsTotal=Number(data.total||0);equipmentRows_cor();status('Equipos actualizados','ready');
       return true;
     }catch(e){
       if(!isCurrentContext_cor(epoch)||seq!==st.equipmentSeq)return false;
-      st.records=[];st.projectRecordsTotal=0;equipmentRows_cor();status(e.message,'error');alertMessage(e.message);return false;
+      if([401,403,404].includes(Number(e?.status)))ghost.clear();
+      st.records=[];st.tableColumns=[];st.projectRecordsTotal=0;equipmentRows_cor();status(e.message,'error');alertMessage(e.message);return false;
     }finally{if(isCurrentContext_cor(epoch)&&seq===st.equipmentSeq)busy(false);}
   }
   async function openProject_cor(key){
     const project=st.projects.find(item=>item.project_key===key);if(!project)return false;
+    ghost.clear(); // nuevo proyecto: invalidar borradores anteriores.
     clearBulkSelection_cor();
     st.selectedProject=project;st.equipmentOffset=0;
     st.detailSeq++;invalidateAutoSave_cor();st.listStale=false;
@@ -510,6 +604,7 @@
     else count.textContent='Todos los cambios confirmados; guardado automatico activo.';
   }
   function hasUnsaved(){
+    if(st.page==='equipos'&&ghost.hasPending())return true;
     if(st.page==='multiple')return st.bulkTouched.size>0;
     if(st.autoRunning||st.autoQueue.size||st.autoBlocked)return true;
     // Un input date/number vacio puede representar un valor legado ilegible:
@@ -790,6 +885,7 @@
     if(st.saving||st.loading)return;
     if(!options.force&&!confirmLeave())return;
     const recordId=st.selectedRecord?.id_ins_fl||options.recordId;
+    ghost.clear(); // Actualizar nunca envia ni conserva borradores no confirmados.
     invalidateAutoSave_cor();st.editingGroup=null;st.editingDetail=false;st.touched.clear();st.conflict=false;
     clearBulkSelection_cor();
     busy(true);status('Actualizando...','loading');alertMessage('');
@@ -810,8 +906,9 @@
     finally{if(isCurrentContext_cor(epoch))busy(false);}
   }
   function backToProjects_cor(){
+    ghost.clear();
     clearBulkSelection_cor();
-    st.selectedProject=null;st.records=[];st.projectRecordsTotal=0;st.equipmentOffset=0;
+    st.selectedProject=null;st.records=[];st.tableColumns=[];st.projectRecordsTotal=0;st.equipmentOffset=0;
     st.equipmentSeq++;clearSelection();showPage_cor('projects');
     if(st.listStale){st.listStale=false;void loadProjects_cor();}
   }
@@ -838,7 +935,7 @@
   function updateBulkSelectionUi_cor(){
     const bar=$('iadm-cor-bulk-bar'),count=$('iadm-cor-bulk-count'),button=$('iadm-cor-bulk-open');
     const allow=canMultiSelect_cor();
-    if(bar)bar.hidden=!allow;
+    if(bar)bar.hidden=true; // La matriz sustituye a la edicion multiple tradicional.
     if(count)count.textContent=st.bulkSelected.size+' de '+MAX_BULK_COR+' equipos seleccionados (solo este proyecto).';
     if(button)button.disabled=!allow||st.bulkSelected.size<2||st.loading||st.saving;
   }
@@ -1028,6 +1125,7 @@
 
   function bind(){
     if(st.bound)return;st.bound=true;
+    ghost.bind(view());
     $('iadm-cor-search-form')?.addEventListener('submit',e=>{e.preventDefault();applyFilters_cor();});
     for(const id of ['iadm-cor-filter-status','iadm-cor-filter-supervisor']){
       $(id)?.addEventListener('change',()=>applyFilters_cor());
@@ -1061,7 +1159,7 @@
       const project=e.target.closest('[data-project-key]');
       if(project){if(confirmLeave())openProject_cor(project.dataset.projectKey);return;}
       const pager=e.target.closest('[data-page-kind][data-page-direction]');
-      if(pager&&!pager.disabled&&confirmLeave()){
+      if(pager&&!pager.disabled&&(pager.dataset.pageKind==='equipos'?ghost.changeEquipmentPage():confirmLeave())){
         const dir=pager.dataset.pageDirection==='next'?1:-1;
         if(pager.dataset.pageKind==='projects'){
           st.projectsOffset=Math.max(0,st.projectsOffset+dir*PROJECTS_PAGE_SIZE_COR);
@@ -1159,7 +1257,7 @@
   }
   document.addEventListener('mantto:navigation',e=>{
     const d=e?.detail||{};
-    if(d.route!=='instalaciones-administracion')return;
+    if(d.route!=='instalaciones-administracion'){ghost.clear();return;}
     ensureContext_cor();
     if(!st.ready)return;
     const id=Number(d.payload?.id);

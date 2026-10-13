@@ -372,10 +372,20 @@ function normalizeDetailUpdate_cor(body = {}) {
   return {selected, changes, expected};
 }
 
-async function updateDetail_cor(req, idValue, body = {}) {
+async function updateDetail_cor(req, idValue, body = {}, options = {}) {
   const id = positiveId_cor(idValue);
   const payload = normalizeDetailUpdate_cor(body);
   const groupKeys = Object.keys(payload.selected);
+  let projectKey=null;
+  if(options && Object.prototype.hasOwnProperty.call(options,'projectKey')){
+    // La tabla requiere permiso de lectura del padre y pertenencia a proyecto.
+    // Esto NO amplia permisos, se mantiene la verificacion posterior de EDITAR.
+    const visible=await resolveGroupPermissions_cor(req);
+    if(!visible?.proyecto?.can_view)throw knownError_cor(403,
+      'INSTALACIONES_ADMINISTRACION_PROYECTOS_DENEGADOS',
+      'No tienes autorizacion para modificar equipos dentro de este proyecto.');
+    projectKey=repository.parseProjectKey_cor(options.projectKey).key;
+  }
 
   // El mismo permiso EDITAR gobierna los once grupos. Una verificacion por
   // peticion; nunca basta ACCESO_VISUAL ni la declaracion del frontend.
@@ -384,7 +394,7 @@ async function updateDetail_cor(req, idValue, body = {}) {
   const scope = await resolveScope_cor(req);
 
   const result = await repository.updateRecordById_cor({
-    id, scope, changes: payload.changes, expected: payload.expected,
+    id, scope, projectKey, changes: payload.changes, expected: payload.expected,
     beforeCommit: async ({connection, before, after, changes: actualChanges}) => {
       // INSERTs de auditoria en la MISMA conexion que UPDATE. Si cualquiera
       // falla, el repositorio ejecuta ROLLBACK de datos y auditorias.

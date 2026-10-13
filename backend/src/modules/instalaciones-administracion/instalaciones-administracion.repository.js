@@ -92,15 +92,17 @@ async function searchRecords_cor({ scope, search, limit = 25, visibleFields = []
   return rows;
 }
 
-async function getRecordById_cor({ id, scope, connection = db, forUpdate = false }) {
+async function getRecordById_cor({ id, scope, connection = db, forUpdate = false, projectKey = null }) {
   const scoped = scopeClause_cor(scope, 'f');
+  const project = projectKey == null ? null : parseProjectKey_cor(projectKey);
   const [rows] = await connection.query(
     `SELECT f.*
        FROM ins_fl f
       WHERE f.id_ins_fl = ?
+      ${project ? 'AND '+project.sql : ''}
       ${scoped.sql}
       LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
-    [id, ...scoped.params]
+    [id, ...(project ? project.params : []), ...scoped.params]
   );
   return rows[0] || null;
 }
@@ -155,7 +157,7 @@ function concurrencyError_cor(fields) {
   return error;
 }
 
-async function updateRecordById_cor({ id, scope, changes, expected, beforeCommit }) {
+async function updateRecordById_cor({ id, scope, changes, expected, beforeCommit, projectKey = null }) {
   const conn = await db.getConnection();
   let transactionStarted = false;
 
@@ -166,6 +168,7 @@ async function updateRecordById_cor({ id, scope, changes, expected, beforeCommit
     const before = await getRecordById_cor({
       id,
       scope,
+      projectKey, // Fase 3: validar pertenencia DENTRO de la fila bloqueada.
       connection: conn,
       forUpdate: true
     });

@@ -102,7 +102,7 @@
           '<small class="iadm-cor-ghost-affordance">Editar borrador</small></button>';
         if (draft) inner+='<div class="iadm-cor-ghost-change">'+
           '<span class="iadm-cor-ghost-original">Original: '+esc(display(field,draft.original))+'</span>'+ 
-          (conflict?'<span class="iadm-cor-ghost-warning">El servidor cambio este valor. Revisa antes de guardar en una fase posterior.</span>':'')+
+          (conflict?'<span class="iadm-cor-ghost-warning">El servidor cambio este valor. Descarta el borrador y revisa los valores antes de guardar.</span>':'')+
           '<button type="button" class="iadm-cor-ghost-revert" data-iadm-ghost-action="revert"'+
           ' data-iadm-ghost-id="'+esc(id)+'" data-iadm-ghost-field="'+esc(field)+'">Revertir borrador</button></div>';
       } else {

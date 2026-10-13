@@ -75,6 +75,15 @@ async function updateDetail_cor(req, res, next) {
   }
 }
 
+// [Aster | 2026-10-13 | ASTER-MG | FASE_3_INSTALACIONES_ADMINISTRACION_GUARDADO_AUDITORIA_V001]
+async function updateTableEquipment_cor(req,res,next){
+  try {
+    const result=await service.updateDetail_cor(req,req.params.id,req.body||{},
+      {projectKey:req.params.projectKey});
+    return res.json({ok:true,source:'aiven',...result});
+  } catch(error){return sendKnownError_cor(error,res,next);}
+}
+
 // [Aster | 2026-10-08 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_REDISENO_V001]
 async function projects_cor(req,res,next) {
   try { return res.json({ok:true,...await service.listProjects_cor(req,req.query||{})}); }
@@ -107,6 +116,7 @@ module.exports = {
   users_cor,
   updateGroup_cor,
   updateDetail_cor,
+  updateTableEquipment_cor,
   updateMulti_cor,
   projects_cor,
   projectEquipments_cor,

@@ -2,6 +2,7 @@
 
 const express = require('express');
 const controller = require('./instalaciones-administracion.controller');
+const tableService = require('./instalaciones-administracion.tabla-service');
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 const {
@@ -63,10 +64,31 @@ router.get('/administracion/filtros',...accessGuard_cor,controller.browseFilters
 router.get('/administracion/proyectos',...accessGuard_cor,controller.projects_cor);
 router.get('/administracion/proyectos/:projectKey/equipos',...accessGuard_cor,controller.projectEquipments_cor);
 
+// [Aster | 2026-10-13 | ASTER-MG | FASE_1_CORRECTIVA_INSTALACIONES_TABLA_EXCEL_V001]
+router.get('/administracion/proyectos/:projectKey/equipos/tabla',...accessGuard_cor,async(req,res,next)=>{
+  try {
+    const result=await tableService.projectEquipmentTable_cor(req,req.params.projectKey,req.query||{});
+    return res.json({ok:true,source:'aiven',...result});
+  } catch(error) {
+    if(error?.statusCode)return res.status(error.statusCode).json({
+      ok:false,code:error.code||'INSTALACIONES_ADMINISTRACION_TABLA_ERROR',message:error.message
+    });
+    return next(error);
+  }
+});
+
 
 // [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001]
 // Todas las operaciones vuelven a validar proyecto, equipos, permisos,
 // alcance y concurrencia dentro del servicio/repositorio. No confiar en UI.
+// [Aster | 2026-10-13 | ASTER-MG | FASE_3_INSTALACIONES_ADMINISTRACION_GUARDADO_AUDITORIA_V001]
+// Un equipo, un proyecto verificado dentro de la transaccion y un Guard CORELLIAN.
+router.patch(
+  '/administracion/proyectos/:projectKey/equipos/:id/tabla',
+  ...accessGuard_cor,
+  controller.updateTableEquipment_cor
+);
+
 router.patch(
   '/administracion/proyectos/:projectKey/equipos/edicion-multiple',
   ...accessGuard_cor,
