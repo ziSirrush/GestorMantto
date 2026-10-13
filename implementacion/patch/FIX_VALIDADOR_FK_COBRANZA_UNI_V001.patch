@@ -1,0 +1,679 @@
+diff --git a/backend/src/controllers/pc.controller.js b/backend/src/controllers/pc.controller.js
+--- a/backend/src/controllers/pc.controller.js
++++ b/backend/src/controllers/pc.controller.js
+@@ -1,4 +1,5 @@
+ // [Aster | 2026-08-12 | ASTER-MG | FASE: PC_BACKEND_V001]
+ const db = require('../config/db');
++const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
+ 
+ const TABLE_NAME = 'pc';
+@@ -255,4 +256,9 @@
+     await conn.commit();
++
++    // Reconciliar solo registros aceptados, sin cambiar el resultado del sync.
++    await fkValidatorUni.validarDespuesSync({
++      tabla: TABLE_NAME, rows, summary, connection: conn
++    });
+ 
+     return res.json({
+       ok: true,
+diff --git a/backend/src/controllers/cobranza-uni.controller.js b/backend/src/controllers/cobranza-uni.controller.js
+--- a/backend/src/controllers/cobranza-uni.controller.js
++++ b/backend/src/controllers/cobranza-uni.controller.js
+@@ -1,4 +1,5 @@
+ // [Aster | 2026-08-13 | ASTER-MG | FASE: COBRANZA_UNI_GESTION_CREDITO_1A_V001]
+ const db = require('../config/db');
++const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
+ 
+ const TABLE_NAME = 'gestion_credito';
+@@ -428,4 +429,9 @@
+     await conn.commit();
++
++    // Reconciliar solo registros aceptados, sin cambiar el resultado del sync.
++    await fkValidatorUni.validarDespuesSync({
++      tabla: TABLE_NAME, rows, summary, connection: conn
++    });
+ 
+     return res.json({
+       ok: true,
+diff --git a/backend/src/controllers/detalle-mp-2026.controller.js b/backend/src/controllers/detalle-mp-2026.controller.js
+--- a/backend/src/controllers/detalle-mp-2026.controller.js
++++ b/backend/src/controllers/detalle-mp-2026.controller.js
+@@ -1,4 +1,5 @@
+ // [Aster | 2026-08-12 | ASTER-MG | FASE: DETALLE_MP_2026_BACKEND_V001]
+ const db = require('../config/db');
++const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
+ 
+ const TABLE_NAME = 'detalle_mp_2026';
+@@ -423,4 +424,9 @@
+     await conn.commit();
++
++    // Reconciliar solo registros aceptados, sin cambiar el resultado del sync.
++    await fkValidatorUni.validarDespuesSync({
++      tabla: TABLE_NAME, rows, summary, connection: conn
++    });
+ 
+     return res.json({
+       ok: true,
+diff --git a/backend/src/bootstrap.js b/backend/src/bootstrap.js
+--- a/backend/src/bootstrap.js
++++ b/backend/src/bootstrap.js
+@@ -16,3 +16,4 @@
++const { startCobranzaUniFkValidatorJob, stopCobranzaUniFkValidatorJob } = require('./jobs/cobranzaUniFkValidator.job');
+ const storageSchema = require('./services/storage/storage-schema.service');
+ 
+ let server = null;
+@@ -124,5 +125,11 @@
+   logger.info(`Mantto Gestor API escuchando en http://localhost:${port}`);
+   startScheduledJobs(databaseReady);
++  // Reintenta aunque Aiven no estuviera disponible durante el arranque.
++  try {
++    startCobranzaUniFkValidatorJob();
++  } catch (error) {
++    logger.error('No fue posible iniciar validador FK Cobranza United.', error);
++  }
+   registerShutdownHandlers();
+ 
+   return server;
+@@ -146,5 +152,6 @@
+       stopEquiposCriticosSalidaU35Job();
+       stopMovimientosCriticosCierreSemanalJob();
+       stopInstalacionesAdministracionCalculadosJob();
++      stopCobranzaUniFkValidatorJob();
+       await db.close();
+       logger.info('Servidor y pool MySQL cerrados correctamente.');
+diff --git a/backend/src/services/cobranza-uni/fk-validator.service.js b/backend/src/services/cobranza-uni/fk-validator.service.js
+new file mode 100644
+--- /dev/null
++++ b/backend/src/services/cobranza-uni/fk-validator.service.js
+@@ -0,0 +1,265 @@
++'use strict';
++
++// [Mantto Gestor | 2026-10-13 | COBRANZA_UNI_FK_VALIDADOR_V001]
++// Motor 2 UNITED: repara EXCLUSIVAMENTE el FK de registros financieros.
++// Autoridad: proyectos_mantto.cobranza -> cobranza_proyectos.id_proyecto_cobranza.
++// Misma regla de equivalencia estricta del SQL V003 aplicado manualmente.
++// Nunca crea proyectos, modifica importes, nombres, IDs primarios ni Portafolio.
++
++const defaultLogger = require('../../shared/logger');
++
++const TABLES_UNI = Object.freeze({
++  gestion_credito: Object.freeze({ pk: 'id_gc', label: 'GC', lock: 'mg_uni_fk_gc_v001' }),
++  detalle_mp_2026: Object.freeze({ pk: 'id_dmp', label: 'MP', lock: 'mg_uni_fk_mp_v001' }),
++  pc: Object.freeze({ pk: 'id_pc', label: 'VA', lock: 'mg_uni_fk_pc_v001' })
++});
++
++const CHUNK_SIZE_UNI = 300;
++
++// Requiere mapeo univoco tanto por nombre como por ID.
++// La equivalencia entre los dos catalogos SI es binaria (texto EXACTO).
++// La comparacion de la fuente ignora solo espacios exteriores y mayusculas,
++// preservando acentos: utf8mb4_0900_as_ci.
++const UNIQUE_MAPPING_UNI = `
++  JOIN proyectos_mantto AS pm
++    ON TRIM(src.proyecto) COLLATE utf8mb4_0900_as_ci
++     = TRIM(pm.proyecto) COLLATE utf8mb4_0900_as_ci
++  JOIN cobranza_proyectos AS cp
++    ON cp.id_proyecto_cobranza = pm.cobranza
++   AND pm.proyecto COLLATE utf8mb4_0900_bin
++     = cp.proyecto COLLATE utf8mb4_0900_bin
++  JOIN (
++    SELECT TRIM(proyecto) COLLATE utf8mb4_0900_as_ci AS clave
++    FROM proyectos_mantto
++    GROUP BY TRIM(proyecto) COLLATE utf8mb4_0900_as_ci
++    HAVING COUNT(*) = 1
++  ) AS unicos_nombre
++    ON unicos_nombre.clave = TRIM(pm.proyecto) COLLATE utf8mb4_0900_as_ci
++  JOIN (
++    SELECT cobranza
++    FROM proyectos_mantto
++    WHERE cobranza IS NOT NULL
++    GROUP BY cobranza
++    HAVING COUNT(*) = 1
++  ) AS unicos_id
++    ON unicos_id.cobranza = pm.cobranza
++`;
++
++const MISALIGNED_UNI = `
++  src.proyecto IS NOT NULL
++  AND TRIM(src.proyecto) <> ''
++  AND (src.id_proyecto_cobranza IS NULL
++       OR src.id_proyecto_cobranza <> pm.cobranza)
++`;
++
++function normalizeId_uni(value) {
++  const text = String(value == null ? '' : value).trim();
++  if (!/^\d+$/.test(text) || /^0+$/.test(text) || text.length > 20) return null;
++  // IDs de MySQL BIGINT: no convertir a Number para evitar perdida de precision.
++  const normalized = text.replace(/^0+/, '');
++  if (!normalized || BigInt(normalized) > 9223372036854775807n) return null;
++  return normalized;
++}
++
++function chunk_uni(array, size = CHUNK_SIZE_UNI) {
++  const result = [];
++  for (let index = 0; index < array.length; index += size) {
++    result.push(array.slice(index, index + size));
++  }
++  return result;
++}
++
++function sqlFor_uni(table, pk, ids) {
++  // table y pk provienen UNICAMENTE de TABLES_UNI (lista cerrada).
++  const idFilter = ids === null
++    ? ''
++    : ` AND src.${pk} IN (${ids.map(() => '?').join(', ')})`;
++  const from = `FROM ${table} AS src ${UNIQUE_MAPPING_UNI}`;
++  const condition = `WHERE ${MISALIGNED_UNI} ${idFilter}`;
++  return {
++    count: `SELECT COUNT(*) AS pendientes ${from} ${condition}`,
++    examples: `SELECT src.${pk} AS id_registro, src.id_proyecto_cobranza AS id_anterior,
++                     pm.cobranza AS id_nuevo ${from} ${condition}
++               ORDER BY src.${pk} ASC LIMIT 10`,
++    update: `UPDATE ${table} AS src ${UNIQUE_MAPPING_UNI}
++             SET src.id_proyecto_cobranza = pm.cobranza
++             ${condition}`,
++    audit: `SELECT COUNT(*) AS registros_revisados,
++                SUM(src.id_proyecto_cobranza IS NULL) AS sin_id,
++                SUM(src.id_proyecto_cobranza IS NOT NULL
++                    AND cp_audit.id_proyecto_cobranza IS NULL) AS id_sin_catalogo,
++                SUM(src.id_proyecto_cobranza IS NOT NULL
++                    AND cp_audit.id_proyecto_cobranza IS NOT NULL
++                    AND (src.proyecto IS NULL OR
++                         TRIM(src.proyecto) COLLATE utf8mb4_0900_as_ci
++                           <> TRIM(cp_audit.proyecto) COLLATE utf8mb4_0900_as_ci)) AS nombre_distinto
++            FROM ${table} AS src
++            LEFT JOIN cobranza_proyectos AS cp_audit
++              ON cp_audit.id_proyecto_cobranza = src.id_proyecto_cobranza
++            ${ids === null ? '' : `WHERE src.${pk} IN (${ids.map(() => '?').join(', ')})`}`,
++    params: ids === null ? [] : ids
++  };
++}
++
++function crearValidadorUni({
++  obtenerConexion = () => require('../../config/db').getConnection(),
++  logger = defaultLogger
++} = {}) {
++  async function comprobarPuente_uni(conn) {
++    // Previene ejecutar sobre la V001 antigua donde cobranza era TINYINT(1).
++    const [rows] = await conn.query(`
++      SELECT DATA_TYPE, COLUMN_TYPE
++      FROM INFORMATION_SCHEMA.COLUMNS
++      WHERE TABLE_SCHEMA = DATABASE()
++        AND TABLE_NAME = 'proyectos_mantto'
++        AND COLUMN_NAME = 'cobranza'
++      LIMIT 1
++    `);
++    if (!rows.length || String(rows[0].DATA_TYPE).toLowerCase() !== 'bigint'
++        || !String(rows[0].COLUMN_TYPE).toLowerCase().includes('unsigned')) {
++      throw new Error('El catalogo proyectos_mantto.cobranza no es BIGINT UNSIGNED; validacion bloqueada.');
++    }
++  }
++
++  async function reconciliar({ tabla, ids = null, connection = null, origen = 'programado' } = {}) {
++    const spec = TABLES_UNI[tabla];
++    if (!Object.prototype.hasOwnProperty.call(TABLES_UNI, tabla) || !spec) {
++      throw new Error('Tabla fuera de la lista permitida de Cobranza United.');
++    }
++
++    // null significa auditoria completa. [] significa ningun registro por procesar.
++    const uniqueIds = ids === null ? null : [...new Set(
++      (Array.isArray(ids) ? ids : []).map(normalizeId_uni).filter(Boolean)
++    )];
++    if (uniqueIds !== null && !uniqueIds.length) {
++      return { modulo: spec.label, corregidos: 0, detectados: 0, omitido: 'sin_ids_validos' };
++    }
++
++    const ownedConnection = !connection;
++    const conn = connection || await obtenerConexion();
++    let lockAcquired = false;
++    let transactionStarted = false;
++    let previousSafeUpdates = null;
++    let detected = 0;
++    let corrected = 0;
++    const examples = [];
++    const pendingAudit = {
++      revisados: 0, sin_id: 0, id_sin_catalogo: 0, nombre_distinto: 0
++    };
++
++    try {
++      const [locks] = await conn.query('SELECT GET_LOCK(?, 0) AS adquirido', [spec.lock]);
++      if (Number(locks[0] && locks[0].adquirido) !== 1) {
++        // Otra instancia o sincronizacion ya trabaja sobre esta tabla.
++        return { modulo: spec.label, corregidos: 0, detectados: 0, omitido: 'ocupado' };
++      }
++      lockAcquired = true;
++
++      await comprobarPuente_uni(conn);
++      const [safeRows] = await conn.query('SELECT @@SESSION.SQL_SAFE_UPDATES AS valor');
++      previousSafeUpdates = Number(safeRows[0].valor);
++      if (previousSafeUpdates !== 0) await conn.query('SET SESSION SQL_SAFE_UPDATES = 0');
++
++      await conn.beginTransaction();
++      transactionStarted = true;
++
++      const chunks = uniqueIds === null ? [null] : chunk_uni(uniqueIds);
++      for (const batch of chunks) {
++        const sql = sqlFor_uni(tabla, spec.pk, batch);
++        const [countRows] = await conn.query(sql.count, sql.params);
++        const pending = Number(countRows[0] && countRows[0].pendientes || 0);
++        if (!Number.isSafeInteger(pending) || pending < 0) {
++          throw new Error(`Conteo invalido de desalineados en ${spec.label}.`);
++        }
++        detected += pending;
++        if (pending === 0) continue;
++
++        if (examples.length < 10) {
++          const [sample] = await conn.query(sql.examples, sql.params);
++          examples.push(...sample.slice(0, 10 - examples.length));
++        }
++        const [result] = await conn.query(sql.update, sql.params);
++        corrected += Number(result.affectedRows || 0);
++      }
++
++      // Auditoria residual incluso si no habia correcciones automaticas.
++      // Las diferencias de nombre pueden ser alias legitimos: solo se reportan.
++      for (const batch of chunks) {
++        const sql = sqlFor_uni(tabla, spec.pk, batch);
++        const [auditRows] = await conn.query(sql.audit, sql.params);
++        const audit = auditRows[0] || {};
++        for (const key of Object.keys(pendingAudit)) {
++          pendingAudit[key] += Number(audit[key] || 0);
++        }
++      }
++
++      await conn.commit();
++      transactionStarted = false;
++      const report = {
++        modulo: spec.label,
++        origen,
++        detectados: detected,
++        corregidos: corrected,
++        pendientes: pendingAudit,
++        // Una muestra para auditoria tecnica; sin datos financieros.
++        muestra: examples
++      };
++      if (corrected > 0 || detected !== corrected) {
++        logger.info('[COBRANZA_UNI_FK] Reconciliacion', report);
++      }
++      if (origen === 'programado' &&
++          (pendingAudit.sin_id || pendingAudit.id_sin_catalogo || pendingAudit.nombre_distinto)) {
++        logger.warn(`[COBRANZA_UNI_FK] ${spec.label}: excepciones para revision manual`, pendingAudit);
++      }
++      return report;
++    } catch (error) {
++      if (transactionStarted) {
++        try { await conn.rollback(); } catch (rollbackError) {
++          logger.error('[COBRANZA_UNI_FK] Error de ROLLBACK', rollbackError.message);
++        }
++      }
++      logger.error(`[COBRANZA_UNI_FK] ${spec.label}: no fue posible validar`, error.message);
++      throw error;
++    } finally {
++      // La conexion puede ser prestada por el controlador de sync.
++      // Restaurar su modo y liberar un lock local de MySQL antes de devolverla.
++      if (previousSafeUpdates !== null && previousSafeUpdates !== 0) {
++        try { await conn.query('SET SESSION SQL_SAFE_UPDATES = 1'); }
++        catch (restoreError) { logger.error('[COBRANZA_UNI_FK] Error restaurando SQL_SAFE_UPDATES', restoreError.message); }
++      }
++      if (lockAcquired) {
++        try { await conn.query('SELECT RELEASE_LOCK(?) AS liberado', [spec.lock]); }
++        catch (unlockError) { logger.error('[COBRANZA_UNI_FK] Error liberando lock', unlockError.message); }
++      }
++      if (ownedConnection) conn.release();
++    }
++  }
++
++  async function validarDespuesSync({ tabla, rows, summary, connection } = {}) {
++    const spec = TABLES_UNI[tabla];
++    if (!spec) return { omitido: 'tabla_no_permitida' };
++    const errors = new Set((summary && summary.errors || []).map(item => item.index));
++    const ids = (Array.isArray(rows) ? rows : [])
++      .filter((row, index) => !errors.has(index))
++      .map(row => row && row[spec.pk]);
++    try {
++      return await reconciliar({ tabla, ids, connection, origen: 'post_sync' });
++    } catch (error) {
++      // La carga de datos YA HIZO COMMIT; un error en la relacion
++      // no debe presentar la sincronizacion exitosa como fallida ni reintentar el lote.
++      logger.warn(`[COBRANZA_UNI_FK] ${spec.label} pendiente para ciclo programado`, error.message);
++      return { modulo: spec.label, corregidos: 0, omitido: 'error', error: error.message };
++    }
++  }
++
++  return { reconciliar, validarDespuesSync };
++}
++
++const instance = crearValidadorUni();
++
++module.exports = {
++  TABLES_UNI,
++  crearValidadorUni,
++  reconciliar: instance.reconciliar,
++  validarDespuesSync: instance.validarDespuesSync
++};
+diff --git a/backend/src/jobs/cobranzaUniFkValidator.job.js b/backend/src/jobs/cobranzaUniFkValidator.job.js
+new file mode 100644
+--- /dev/null
++++ b/backend/src/jobs/cobranzaUniFkValidator.job.js
+@@ -0,0 +1,68 @@
++'use strict';
++
++// [Mantto Gestor | 2026-10-13 | COBRANZA_UNI_FK_VALIDADOR_V001]
++// Segunda linea de defensa: revalida las tres tablas, incluso si un dato
++// se modifico fuera de los endpoints de sincronizacion conocidos.
++
++const validator = require('../services/cobranza-uni/fk-validator.service');
++const logger = require('../shared/logger');
++
++const INTERVAL_MS = 15 * 60 * 1000;
++const FIRST_RUN_DELAY_MS = 60 * 1000;
++let timer = null;
++let firstRun = null;
++let running = false;
++
++async function runCobranzaUniFkValidatorJob() {
++  if (running) return { omitido: 'ejecucion_en_curso' };
++  running = true;
++  const results = [];
++  try {
++    // Fallos aislados por tabla. El lock tambien protege contra varias
++    // instancias de Azure ejecutando el mismo trabajo a la vez.
++    for (const tabla of Object.keys(validator.TABLES_UNI)) {
++      try {
++        results.push(await validator.reconciliar({ tabla, origen: 'programado' }));
++      } catch (error) {
++        logger.error(`[COBRANZA_UNI_FK] Fallo periodico en ${tabla}`, error.message);
++        results.push({ tabla, error: error.message });
++      }
++    }
++    return { resultados: results };
++  } finally {
++    running = false;
++  }
++}
++
++function startCobranzaUniFkValidatorJob() {
++  if (timer) return timer;
++  firstRun = setTimeout(() => {
++    firstRun = null;
++    runCobranzaUniFkValidatorJob().catch(error =>
++      logger.error('[COBRANZA_UNI_FK] Error en inicio diferido', error.message)
++    );
++  }, FIRST_RUN_DELAY_MS);
++  firstRun.unref?.();
++
++  timer = setInterval(() => {
++    runCobranzaUniFkValidatorJob().catch(error =>
++      logger.error('[COBRANZA_UNI_FK] Error en ciclo automatico', error.message)
++    );
++  }, INTERVAL_MS);
++  timer.unref?.();
++  logger.info('[COBRANZA_UNI_FK] Validador activo: post-sync y respaldo cada 15 minutos.');
++  return timer;
++}
++
++function stopCobranzaUniFkValidatorJob() {
++  if (firstRun) clearTimeout(firstRun);
++  if (timer) clearInterval(timer);
++  firstRun = null;
++  timer = null;
++}
++
++module.exports = {
++  startCobranzaUniFkValidatorJob,
++  stopCobranzaUniFkValidatorJob,
++  runCobranzaUniFkValidatorJob
++};
+diff --git a/tests/cobranza-uni-fk-validator.test.js b/tests/cobranza-uni-fk-validator.test.js
+new file mode 100644
+--- /dev/null
++++ b/tests/cobranza-uni-fk-validator.test.js
+@@ -0,0 +1,173 @@
++'use strict';
++
++// Pruebas aisladas: simula respuestas MySQL; no requiere acceso a Aiven.
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const validatorModule = require('../backend/src/services/cobranza-uni/fk-validator.service');
++
++function createHarness({ pendientes = 0, lock = 1, safeUpdates = 1, schemaOk = true, failUpdate = false, sinId = 0 } = {}) {
++  const calls = [];
++  const logs = [];
++  const connection = {
++    released: false,
++    began: 0,
++    committed: 0,
++    rolledBack: 0,
++    async query(sql, params = []) {
++      calls.push({ sql, params });
++      if (/SELECT GET_LOCK\(/.test(sql)) return [[{ adquirido: lock }]];
++      if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) return [schemaOk ? [{ DATA_TYPE: 'bigint', COLUMN_TYPE: 'bigint unsigned' }] : [{ DATA_TYPE: 'tinyint', COLUMN_TYPE: 'tinyint(1)' }]];
++      if (/SELECT @@SESSION.SQL_SAFE_UPDATES/.test(sql)) return [[{ valor: safeUpdates }]];
++      if (/SELECT COUNT\(\*\) AS pendientes/.test(sql)) return [[{ pendientes }]];
++      if (/registros_revisados/.test(sql)) return [[{
++        registros_revisados: 10, sin_id: sinId, id_sin_catalogo: 0, nombre_distinto: 0
++      }]];
++      if (/AS id_registro/.test(sql)) return [[{ id_registro: 53, id_anterior: 625, id_nuevo: 80 }]];
++      if (/^UPDATE\s+(gestion_credito|detalle_mp_2026|pc)/.test(sql)) {
++        if (failUpdate) throw new Error('error SQL simulado');
++        return [{ affectedRows: pendientes }];
++      }
++      if (/RELEASE_LOCK\(/.test(sql)) return [[{ liberado: 1 }]];
++      return [[]];
++    },
++    async beginTransaction() { calls.push({ sql: 'BEGIN', params: [] }); this.began++; },
++    async commit() { calls.push({ sql: 'COMMIT', params: [] }); this.committed++; },
++    async rollback() { calls.push({ sql: 'ROLLBACK', params: [] }); this.rolledBack++; },
++    release() { this.released = true; }
++  };
++  const logger = {
++    info: (...a) => logs.push(['info', ...a]),
++    warn: (...a) => logs.push(['warn', ...a]),
++    error: (...a) => logs.push(['error', ...a])
++  };
++  return {
++    calls,
++    logs,
++    connection,
++    service: validatorModule.crearValidadorUni({ obtenerConexion: async () => connection, logger })
++  };
++}
++
++test('identifica y corrige un FK desplazado; solo cambia la FK y deja auditoria', async () => {
++  const h = createHarness({ pendientes: 2 });
++  const report = await h.service.reconciliar({ tabla: 'detalle_mp_2026', ids: ['53', '54'], origen: 'post_sync' });
++  assert.equal(report.detectados, 2);
++  assert.equal(report.corregidos, 2);
++  assert.equal(report.muestra[0].id_anterior, 625);
++  assert.equal(h.connection.began, 1);
++  assert.equal(h.connection.committed, 1);
++  assert.equal(h.connection.rolledBack, 0);
++  assert.equal(h.connection.released, true);
++  const update = h.calls.find(x => /^UPDATE\s+detalle_mp_2026/.test(x.sql));
++  assert.ok(update);
++  assert.match(update.sql, /SET src\.id_proyecto_cobranza = pm\.cobranza/);
++  assert.match(update.sql, /src\.id_dmp IN \(\?, \?\)/);
++  assert.match(update.sql, /utf8mb4_0900_as_ci/);
++  assert.match(update.sql, /utf8mb4_0900_bin/);
++  assert.match(update.sql, /HAVING COUNT\(\*\) = 1/);
++  assert.deepEqual(update.params, ['53', '54']);
++  assert.ok(!/SET\s+src\.(proyecto|adeudo|pendiente|monto_anual|venta_total)\b/.test(update.sql));
++  assert.ok(h.calls.some(x => /RELEASE_LOCK/.test(x.sql)));
++  assert.ok(h.calls.some(x => /SET SESSION SQL_SAFE_UPDATES = 1/.test(x.sql)));
++  assert.ok(h.logs.some(l => l[0] === 'info' && /Reconciliacion/.test(l[1])));
++});
++
++test('no emite UPDATE cuando los IDs ya estan alineados', async () => {
++  const h = createHarness({ pendientes: 0, safeUpdates: 0 });
++  const report = await h.service.reconciliar({ tabla: 'gestion_credito' });
++  assert.equal(report.corregidos, 0);
++  assert.equal(h.calls.filter(x => /^UPDATE/.test(x.sql)).length, 0);
++  assert.equal(h.connection.committed, 1);
++});
++
++test('evita ejecuciones superpuestas entre instancias', async () => {
++  const h = createHarness({ pendientes: 2, lock: 0 });
++  const report = await h.service.reconciliar({ tabla: 'pc' });
++  assert.equal(report.omitido, 'ocupado');
++  assert.equal(h.connection.began, 0);
++  assert.equal(h.connection.released, true);
++});
++
++test('bloquea escrituras si la columna cobranza no es BIGINT UNSIGNED', async () => {
++  const h = createHarness({ schemaOk: false });
++  await assert.rejects(h.service.reconciliar({ tabla: 'pc' }), /BIGINT UNSIGNED/);
++  assert.equal(h.connection.began, 0);
++  assert.ok(!h.calls.some(x => /^UPDATE/.test(x.sql)));
++  assert.ok(h.calls.some(x => /RELEASE_LOCK/.test(x.sql)));
++});
++
++test('hace rollback de un intento que falla y restaura el modo de sesion', async () => {
++  const h = createHarness({ pendientes: 2, failUpdate: true });
++  await assert.rejects(h.service.reconciliar({ tabla: 'pc' }), /error SQL simulado/);
++  assert.equal(h.connection.rolledBack, 1);
++  assert.equal(h.connection.committed, 0);
++  assert.ok(h.calls.some(x => /SET SESSION SQL_SAFE_UPDATES = 1/.test(x.sql)));
++  assert.ok(h.calls.some(x => /RELEASE_LOCK/.test(x.sql)));
++});
++
++test('rechaza tablas no autorizadas y IDs no validos sin consultas', async () => {
++  const h = createHarness({ pendientes: 1 });
++  await assert.rejects(h.service.reconciliar({ tabla: 'portafolio' }), /fuera de la lista/);
++  const result = await h.service.reconciliar({ tabla: 'pc', ids: [null, '-1', '0', '1 OR 1=1'] });
++  assert.equal(result.omitido, 'sin_ids_validos');
++  assert.equal(h.calls.length, 0);
++});
++
++test('post-sync no analiza filas rechazadas y no altera una conexion prestada', async () => {
++  const h = createHarness({ pendientes: 1 });
++  const report = await h.service.validarDespuesSync({
++    tabla: 'pc',
++    rows: [{ id_pc: '10' }, { id_pc: '20' }, { id_pc: '30' }],
++    summary: { errors: [{ index: 1 }] },
++    connection: h.connection
++  });
++  assert.equal(report.corregidos, 1);
++  assert.equal(h.connection.released, false);
++  const find = h.calls.find(x => /^UPDATE\s+pc/.test(x.sql));
++  assert.deepEqual(find.params, ['10', '30']);
++});
++
++test('post-sync no transforma un COMMIT previo exitoso en fallo si la validacion da error', async () => {
++  const h = createHarness({ pendientes: 1, failUpdate: true });
++  const response = await h.service.validarDespuesSync({
++    tabla: 'gestion_credito', rows: [{ id_gc: '5' }], summary: { errors: [] }, connection: h.connection
++  });
++  assert.equal(response.omitido, 'error');
++  assert.equal(h.connection.rolledBack, 1);
++  assert.equal(h.connection.released, false);
++});
++
++test('acepta IDs enteros grandes mediante cadenas sin perdida de precision', async () => {
++  const h = createHarness({ pendientes: 0 });
++  await h.service.reconciliar({ tabla: 'gestion_credito', ids: ['00053', '9007199254740993'] });
++  const read = h.calls.find(x => /SELECT COUNT\(\*\) AS pendientes/.test(x.sql));
++  assert.deepEqual(read.params, ['53', '9007199254740993']);
++});
++
++
++test('reporta IDs sin asignar que no puede resolver sin inventar el proyecto', async () => {
++  const h = createHarness({ pendientes: 0, sinId: 3 });
++  const report = await h.service.reconciliar({ tabla: 'pc', origen: 'programado' });
++  assert.equal(report.corregidos, 0);
++  assert.equal(report.pendientes.sin_id, 3);
++  assert.ok(h.logs.some(l => l[0] === 'warn' && /excepciones/.test(l[1])));
++});
++
++test('el job periodico aisla un fallo de MP y continua con GC y PC', async () => {
++  const job = require('../backend/src/jobs/cobranzaUniFkValidator.job');
++  const original = validatorModule.reconciliar;
++  const used = [];
++  try {
++    validatorModule.reconciliar = async ({ tabla }) => {
++      used.push(tabla);
++      if (tabla === 'detalle_mp_2026') throw new Error('simulado MP');
++      return { tabla, corregidos: 0 };
++    };
++    const report = await job.runCobranzaUniFkValidatorJob();
++    assert.deepEqual(used, ['gestion_credito', 'detalle_mp_2026', 'pc']);
++    assert.equal(report.resultados.length, 3);
++    assert.equal(report.resultados[1].error, 'simulado MP');
++  } finally {
++    validatorModule.reconciliar = original;
++  }
++});
+diff --git a/docs/README_FIX_VALIDADOR_FK_COBRANZA_UNI_V001.md b/docs/README_FIX_VALIDADOR_FK_COBRANZA_UNI_V001.md
+new file mode 100644
+--- /dev/null
++++ b/docs/README_FIX_VALIDADOR_FK_COBRANZA_UNI_V001.md
+@@ -0,0 +1,69 @@
++# FIX VALIDADOR FK COBRANZA UNITED V001
++
++**Base GitHub revisada:** `ziSirrush/GestorMantto`, `main`, commit `fb348b875663677adb22b3e7d84814745fb3a10c` (13/10/2026).
++
++## Problema demostrado
++
++La sabana SQL del 07/10/2026 contiene IDs `id_proyecto_cobranza` desplazados en `detalle_mp_2026` y `pc`; el SQL manual `03_APLICAR_ALINEAR_FK_COBRANZA_GC_MP_VA_V003.sql` corrige un corte puntual, pero no revisa futuras cargas. Los tres sincronizadores del backend guardan por `id_gc`, `id_dmp` e `id_pc` y no asignan automaticamente el ID comun.
++
++## Alcance
++
++- **Motor 2 UNITED**: el mismo algoritmo SQL V003 para `gestion_credito`, `detalle_mp_2026` y `pc` (PC **es** la tabla fisica de Venta Adicional).
++- Cada sincronizacion dispara una revision selectiva de sus IDs exitosos **despues de su COMMIT**.
++- Un job verifica las tres tablas enteras **al minuto del arranque y cada 15 minutos**, incluso tras escrituras ajenas a los endpoints conocidos.
++- Usa `proyectos_mantto.cobranza` como puente **y verifica** que el ID pertenezca a `cobranza_proyectos` con el mismo nombre exacto.
++- Exige nombre unico ignorando solamente mayusculas y espacios externos (`utf8mb4_0900_as_ci`) e ID de Cobranza unico en `proyectos_mantto`.
++- **Solo escribe** `id_proyecto_cobranza` de esas tres tablas, cuando esta en NULL o no coincide. Preserva todos los otros campos, importes e IDs propios.
++- Un `GET_LOCK` distinto por tabla previene reconciliaciones simultaneas del mismo modulo en varias instancias Azure.
++- Transaccion con `ROLLBACK` en error; restaura `SQL_SAFE_UPDATES`; si falla un modulo, los otros continuan.
++- Si la validacion post-sync falla, **la carga que ya hizo COMMIT sigue siendo exitosa**. El fallo se registra y el ciclo periodico puede reintentar.
++- Registra muestras de `id_registro`, `id_anterior` e `id_nuevo` en logs tecnicos, mas cantidades sin ID y nombres discordantes para revision.
++
++## Exclusiones deliberadas
++
++- **No crea** tablas, columnas, indices, catalogos ni IDs en `cobranza_proyectos`.
++- **No modifica** `portafolio`, `proyectos_mantto`, Corellian o frontend.
++- **No unifica** proyectos por alias, nombre aproximado, IDNS o relaciones ambiguas. Esos casos se dejan pendientes.
++- **No modifica las consultas de lectura** que usan `ID OR proyecto`: ese problema requiere un FIX de lectura independiente; no basta con el validador para impedir toda mezcla de informacion si quedan relaciones sin mapa seguro.
++- No agrega endpoint publico ni permiso nuevo.
++
++## Archivos del FIX
++
++**Nuevos**:
++
++1. `backend/src/services/cobranza-uni/fk-validator.service.js`
++2. `backend/src/jobs/cobranzaUniFkValidator.job.js`
++3. `tests/cobranza-uni-fk-validator.test.js`
++4. `docs/README_FIX_VALIDADOR_FK_COBRANZA_UNI_V001.md`
++
++**Modificados**:
++
++5. `backend/src/bootstrap.js`
++6. `backend/src/controllers/cobranza-uni.controller.js`
++7. `backend/src/controllers/detalle-mp-2026.controller.js`
++8. `backend/src/controllers/pc.controller.js`
++
++## Validacion, respaldo y despliegue
++
++1. **ANTES de activar en Azure**: respaldar los FK actuales de `gestion_credito`, `detalle_mp_2026` y `pc`, por ID primario; exportar el SELECT de respaldo V003 D7. Guardar evidencia fuera del servidor.
++2. Ejecutar `00_VALIDACION_PREVIA_SOLO_LECTURA.sql` adjunto y confirmar que `proyectos_mantto.cobranza` es `BIGINT UNSIGNED` y que sus puentes al catalogo son correctos.
++3. Descomprimir el ZIP. Dentro de una copia del repositorio en `main`:
++   ```powershell
++   git status --short
++   git apply --check "RUTA\FIX_VALIDADOR_FK_COBRANZA_UNI_V001.patch"
++   git apply "RUTA\FIX_VALIDADOR_FK_COBRANZA_UNI_V001.patch"
++   node --check backend/src/services/cobranza-uni/fk-validator.service.js
++   node --check backend/src/jobs/cobranzaUniFkValidator.job.js
++   node --check backend/src/bootstrap.js
++   node --test tests/cobranza-uni-fk-validator.test.js
++   git diff --check
++   ```
++4. Validar en **laboratorio** con una copia restaurada de la sabana y comparacion de IDs antes/despues; posteriormente revisar un despliegue controlado de Azure.
++5. Verificar logs `[COBRANZA_UNI_FK]` tras cada sincronizacion y al minuto de arrancar la API. Volver a ejecutar el SQL de lectura para confirmar disminucion de discrepancias.
++6. Si se requiere revertir el cambio de codigo: `git apply -R "RUTA\FIX_VALIDADOR_FK_COBRANZA_UNI_V001.patch"` antes de hacer commits locales. Los **datos** modificados por el job NO se revierten automaticamente con `git apply -R`; restaurarlos desde el respaldo FK previo por PK si una auditoria autoriza dicha accion.
++
++## Limitaciones y evidencia
++
++- Pruebas locales incluidas: unitarias simuladas para SQL, error, rollback, lock y auditoria. No son una ejecucion real contra Aiven.
++- El codigo no se ha aplicado en GitHub, Azure ni Aiven desde esta entrega.
++- Revisar previamente cualquier variacion de `main` posterior a `fb348b875663677adb22b3e7d84814745fb3a10c` antes de aplicar el patch.

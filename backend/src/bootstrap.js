@@ -13,6 +13,7 @@ const { startAlmacenCierreIncorrectoJob, stopAlmacenCierreIncorrectoJob } = requ
 const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = require('./jobs/equiposCriticosSalidaU35.job');
 const { startMovimientosCriticosCierreSemanalJob, stopMovimientosCriticosCierreSemanalJob } = require('./jobs/movimientosCriticosCierreSemanal.job');
 const { startInstalacionesAdministracionCalculadosJob, stopInstalacionesAdministracionCalculadosJob } = require('./jobs/instalacionesAdministracionCalculados.job');
+const { startCobranzaUniFkValidatorJob, stopCobranzaUniFkValidatorJob } = require('./jobs/cobranzaUniFkValidator.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -123,6 +124,12 @@ async function startServer() {
 
   logger.info(`Mantto Gestor API escuchando en http://localhost:${port}`);
   startScheduledJobs(databaseReady);
+  // Reintenta aunque Aiven no estuviera disponible durante el arranque.
+  try {
+    startCobranzaUniFkValidatorJob();
+  } catch (error) {
+    logger.error('No fue posible iniciar validador FK Cobranza United.', error);
+  }
   registerShutdownHandlers();
 
   return server;
@@ -146,6 +153,7 @@ function registerShutdownHandlers() {
       stopEquiposCriticosSalidaU35Job();
       stopMovimientosCriticosCierreSemanalJob();
       stopInstalacionesAdministracionCalculadosJob();
+      stopCobranzaUniFkValidatorJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);

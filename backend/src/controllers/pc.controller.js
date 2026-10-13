@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | FASE: PC_BACKEND_V001]
 const db = require('../config/db');
+const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
 
 const TABLE_NAME = 'pc';
 const KEY_FIELD = 'id_pc';
@@ -253,6 +254,11 @@ async function syncPc(req, res) {
     }
 
     await conn.commit();
+
+    // Reconciliar solo registros aceptados, sin cambiar el resultado del sync.
+    await fkValidatorUni.validarDespuesSync({
+      tabla: TABLE_NAME, rows, summary, connection: conn
+    });
 
     return res.json({
       ok: true,

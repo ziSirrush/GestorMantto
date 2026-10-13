@@ -1,0 +1,11 @@
+FIX VALIDADOR FK COBRANZA UNITED V001 - QA
+Fuente de codigo: GitHub main fb348b875663677adb22b3e7d84814745fb3a10c
+Git apply --check: OK en fixture local construido con anclas exactas verificadas en main.
+IMPORTANTE: no se dispone de clon local de main para check directo.
+Sintaxis Node de archivos nuevos: OK.
+Pruebas simuladas de base de datos: 11/11 OK.
+NO ejecutado en Aiven, Azure, GitHub, ni restauracion MySQL real.
+
+e43f8a065cb2841bf0f1d36883baa8bfe0f291f0213aae9c14cfac4df85850ae  /mnt/data/FIX_VALIDADOR_FK_COBRANZA_UNI_V001.patch
+ca794714aaea8bb66016e8c345bdac11bcbefcde696b3b166f8aaad4d1aa3765  docs/README_FIX_VALIDADOR_FK_COBRANZA_UNI_V001.md
+f843a80122e44e80dcdda4c85a97567969a189eb52bd9e411c3230edee389f6b  00_VALIDACION_PREVIA_SOLO_LECTURA.sql

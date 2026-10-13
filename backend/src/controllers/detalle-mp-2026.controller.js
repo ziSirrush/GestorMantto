@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | FASE: DETALLE_MP_2026_BACKEND_V001]
 const db = require('../config/db');
+const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
 
 const TABLE_NAME = 'detalle_mp_2026';
 const KEY_FIELD = 'id_dmp';
@@ -421,6 +422,11 @@ async function syncDetalleMp2026(req, res) {
     }
 
     await conn.commit();
+
+    // Reconciliar solo registros aceptados, sin cambiar el resultado del sync.
+    await fkValidatorUni.validarDespuesSync({
+      tabla: TABLE_NAME, rows, summary, connection: conn
+    });
 
     return res.json({
       ok: true,

@@ -1,5 +1,6 @@
 // [Aster | 2026-08-13 | ASTER-MG | FASE: COBRANZA_UNI_GESTION_CREDITO_1A_V001]
 const db = require('../config/db');
+const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
 
 const TABLE_NAME = 'gestion_credito';
 const KEY_FIELD = 'id_gc';
@@ -426,6 +427,11 @@ async function syncCobranzaUni(req, res) {
     }
 
     await conn.commit();
+
+    // Reconciliar solo registros aceptados, sin cambiar el resultado del sync.
+    await fkValidatorUni.validarDespuesSync({
+      tabla: TABLE_NAME, rows, summary, connection: conn
+    });
 
     return res.json({
       ok: true,
