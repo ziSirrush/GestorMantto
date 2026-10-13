@@ -1,58 +1,88 @@
-/* [Aster | 2026-10-13 | ASTER-MG | FASE_2_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001]
-   Exclusivamente dentro de #iadm-cor-project (pantalla secundaria).
-   No altera el Main ni otros modulos. */
+/* [Mantto Gestor | 2026-10-13 | FASE_2_INSTALACIONES_ADMIN_V2_EDICION_DIRECTA_V001]
+ * Vista secundaria exclusivamente: autoguardado individual y tabla tipo Excel.
+ * Fase 3 reemplazara el espacio de acciones con Deseleccionar todo.
+ */
 #iadm-cor-project .iadm-cor-ghost-toolbar{
   display:flex;gap:15px;justify-content:space-between;align-items:center;flex-wrap:wrap;
-  padding:12px 14px;margin:0 0 12px;border:1px solid #b6d4f6;
-  border-radius:12px;background:#f1f7ff;color:#143866;font-size:13px
+  position:relative;z-index:2;margin:0 0 12px;padding:12px 14px;
+  border:1px solid #b6d4f6;border-radius:12px;background:#f1f7ff;color:#143866;font-size:13px
 }
-#iadm-cor-project .iadm-cor-ghost-toolbar>div:first-child{display:grid;gap:4px}
+#iadm-cor-project .iadm-cor-ghost-toolbar>div:first-child{display:grid;gap:5px}
 #iadm-cor-project .iadm-cor-ghost-toolbar-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-#iadm-cor-project .iadm-cor-matrix td[data-ghost-draft="true"]{background:#fff4d8!important;box-shadow:inset 3px 0 #b45309}
-#iadm-cor-project .iadm-cor-matrix td[data-ghost-conflict="true"]{background:#fee2e2!important;box-shadow:inset 3px 0 #b91c1c}
+#iadm-cor-project .iadm-cor-ghost-toolbar [data-state="loading"]{color:#0c4a6e;font-weight:600}
+#iadm-cor-project .iadm-cor-ghost-toolbar [data-state="error"]{color:#991b1b;font-weight:700}
+#iadm-cor-project .iadm-cor-ghost-toolbar [data-state="ready"]{color:#166534}
+#iadm-cor-project .iadm-cor-v2-chip{padding:5px 9px;border:1px solid #c4d7eb;border-radius:9px;white-space:nowrap}
 #iadm-cor-project .iadm-cor-ghost-trigger{
-  width:100%;padding:3px 4px;display:block;border:1px solid transparent;border-radius:6px;
-  background:transparent;color:inherit;text-align:left;cursor:text;font:inherit
+  display:block;width:100%;padding:4px 6px;text-align:left;cursor:text;font:inherit;
+  background:transparent;border:1px solid transparent;border-radius:7px;color:inherit
 }
 #iadm-cor-project .iadm-cor-ghost-trigger:hover,
 #iadm-cor-project .iadm-cor-ghost-trigger:focus-visible{
   background:#ecf5ff;border-color:#60a5fa;outline:2px solid transparent
 }
-#iadm-cor-project .iadm-cor-ghost-affordance{display:block;margin-top:5px;color:#416186;font-size:11px}
-#iadm-cor-project .iadm-cor-ghost-original{display:block;color:#92400e;font-size:11px;overflow-wrap:anywhere}
-#iadm-cor-project .iadm-cor-ghost-change{display:grid;gap:5px;border-top:1px dashed #d8ad55;margin-top:7px;padding-top:6px}
-#iadm-cor-project .iadm-cor-ghost-revert{
-  justify-self:start;padding:4px 0;background:transparent;border:0;
-  text-decoration:underline;color:#7c2d12;cursor:pointer;font-size:12px
-}
-#iadm-cor-project .iadm-cor-ghost-editor{display:grid;gap:6px;min-width:190px}
-#iadm-cor-project .iadm-cor-ghost-label{color:#475569;font-size:11px;font-weight:700}
+#iadm-cor-project .iadm-cor-ghost-affordance{display:block;margin-top:4px;font-size:11px;color:#416186}
+#iadm-cor-project .iadm-cor-v2-readonly{display:block;margin-top:4px;font-size:10px;color:#64748b}
+#iadm-cor-project .iadm-cor-ghost-editor{display:grid;gap:6px;min-width:185px}
+#iadm-cor-project .iadm-cor-ghost-label{font-size:11px;font-weight:700;color:#475569}
 #iadm-cor-project .iadm-cor-ghost-editor input,
 #iadm-cor-project .iadm-cor-ghost-editor select,
 #iadm-cor-project .iadm-cor-ghost-editor textarea{
-  width:100%;min-width:0;box-sizing:border-box;padding:7px;
-  border:1px solid #6094cb;border-radius:6px;background:#fff;color:#172033;font:inherit;font-size:13px
+  width:100%;min-width:0;box-sizing:border-box;padding:7px;border:1px solid #6094cb;
+  border-radius:6px;background:#fff;color:#172033;font:inherit;font-size:13px
 }
 #iadm-cor-project .iadm-cor-ghost-editor textarea{resize:vertical}
-#iadm-cor-project .iadm-cor-ghost-actions{display:flex;gap:6px;flex-wrap:wrap}
-#iadm-cor-project .iadm-cor-ghost-action{
-  padding:6px 8px;background:#fff;border:1px solid #96b3d8;border-radius:6px;
-  color:#1e3a5f;cursor:pointer;font-size:12px
-}
-#iadm-cor-project .iadm-cor-ghost-apply{background:#14532d;color:#fff;border-color:#14532d}
-#iadm-cor-project .iadm-cor-ghost-warning{display:block;color:#991b1b;font-size:11px;overflow-wrap:anywhere}
-#iadm-cor-project .iadm-cor-ghost-error{color:#991b1b;font-size:11px;overflow-wrap:anywhere}
-#iadm-cor-project .iadm-cor-ghost-trigger:focus-visible,
-#iadm-cor-project .iadm-cor-ghost-revert:focus-visible,
-#iadm-cor-project .iadm-cor-ghost-action:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+#iadm-cor-project .iadm-cor-v2-help{font-size:10px;color:#475569}
+#iadm-cor-project .iadm-cor-ghost-warning,
+#iadm-cor-project .iadm-cor-ghost-error{font-size:11px;color:#991b1b;overflow-wrap:anywhere}
+#iadm-cor-project .iadm-cor-matrix td[data-v2-editing="1"]{background:#f0f9ff;box-shadow:inset 3px 0 #2563eb}
+#iadm-cor-project .iadm-cor-ghost-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 @media(max-width:760px){
   #iadm-cor-project .iadm-cor-ghost-toolbar{display:grid;gap:10px}
   #iadm-cor-project .iadm-cor-ghost-toolbar-actions{justify-content:flex-start}
 }
 
-/* Fase 3: guardado explicito; estados visibles solo en la vista secundaria. */
-#iadm-cor-project .iadm-cor-ghost-save-message{
-  display:block;margin-top:5px;font-weight:600;color:#174a35;overflow-wrap:anywhere
+/* [Mantto Gestor | 2026-10-13 | FASE_3_INSTALACIONES_ADMIN_V2_SELECCION_MULTIPLE_V001]
+ * Barra en su ubicacion original: fuera del scroll horizontal y visible al
+ * desplazarse verticalmente. La primera columna de checks queda fija al X.
+ */
+#iadm-cor-project .iadm-cor-v3-toolbar{
+  position:sticky;top:0;z-index:9;
+  box-shadow:0 4px 12px rgba(15,23,42,.08)
 }
-#iadm-cor-project .iadm-cor-ghost-toolbar button:disabled,
-#iadm-cor-project .iadm-cor-ghost-trigger:disabled{cursor:not-allowed;opacity:.56}
+#iadm-cor-project .iadm-cor-v3-selected-count{
+  font-size:12px;font-weight:700;color:#1e40af;white-space:nowrap
+}
+#iadm-cor-project .iadm-cor-v3-clear{
+  white-space:nowrap;min-height:34px;border-color:#93b4d5;background:#fff;
+  color:#143866;font-size:12px;font-weight:700;cursor:pointer
+}
+#iadm-cor-project .iadm-cor-v3-clear:hover:not(:disabled),
+#iadm-cor-project .iadm-cor-v3-clear:focus-visible{background:#dbeafe;outline:2px solid #2563eb;outline-offset:2px}
+#iadm-cor-project .iadm-cor-v3-clear:disabled{opacity:.55;cursor:wait}
+#iadm-cor-project .iadm-cor-matrix [data-iadm-v3-select-column]{
+  position:sticky;left:0;min-width:82px;width:82px;max-width:82px;
+  box-sizing:border-box;text-align:center;background:#eff6ff;
+  border-right:2px solid #93c5fd;z-index:3
+}
+#iadm-cor-project .iadm-cor-matrix th[data-iadm-v3-select-column]{z-index:5;font-size:11px}
+#iadm-cor-project .iadm-cor-matrix [data-iadm-v3-select-column] input{
+  width:19px;height:19px;vertical-align:middle;accent-color:#2563eb;cursor:pointer
+}
+#iadm-cor-project .iadm-cor-matrix [data-iadm-v3-select-column] input:disabled{opacity:.45;cursor:not-allowed}
+#iadm-cor-project .iadm-cor-matrix tr[data-iadm-v3-selected="1"] > td{
+  background-color:#eff6ff
+}
+#iadm-cor-project .iadm-cor-matrix tr[data-iadm-v3-selected="1"] > td[data-iadm-v3-select-column]{
+  background-color:#bfdbfe;border-right-color:#2563eb
+}
+#iadm-cor-project .iadm-cor-matrix td[data-iadm-v3-bulk-edit="1"]{
+  background:#dbeafe;box-shadow:inset 3px 0 #1d4ed8
+}
+#iadm-cor-project .iadm-cor-v3-bulk-edit-title{font-size:12px;color:#1e40af}
+#iadm-cor-project .iadm-cor-v3-mixed{font-size:11px;color:#92400e}
+@media(max-width:760px){
+  #iadm-cor-project .iadm-cor-v3-toolbar{top:0}
+  #iadm-cor-project .iadm-cor-v3-selected-count{white-space:normal}
+  #iadm-cor-project .iadm-cor-matrix [data-iadm-v3-select-column]{min-width:66px;width:66px;max-width:66px}
+}

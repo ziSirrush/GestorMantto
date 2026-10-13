@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-10-08 | ASTER-MG | FASE_4_INSTALACIONES_ADMINISTRACION_FORMULARIOS_GUARDADO_V001]
+// [Mantto Gestor | 2026-10-13 | FASE_1_INSTALACIONES_ADMIN_V2_BACKEND_V001]
 // ins_fl stores the majority of values as VARCHAR/TEXT. Only changed values
 // are normalized; historical, non-editable values remain untouched.
 
@@ -10,12 +11,13 @@ const DATE_FIELDS_COR = Object.freeze([
   'fecha_inicio_montaje', 'fecha_fin_montaje_planeado',
   'fecha_fin_montaje_modificado', 'fecha_fin_montaje_real', 'fecha_cti',
   'fecha_revision_supervisor', 'fecha_posible_inicio_ajuste',
-  'fecha_minuta_revision_ajuste', 'fecha_liberacion_ajuste',
+  'fecha_minuta_revision_ajuste',
   'fecha_inicio_ajuste', 'fecha_fin_ajuste_planeado',
   'fecha_fin_ajuste_modificado', 'fecha_fin_ajuste_real',
   'fecha_reporte_ajuste', 'fecha_protocolo_aceptacion',
-  'fecha_entrega_cliente'
+  'fecha_entrega_cliente', 'recepcion_carpeta'
 ]);
+// fecha_liberacion_ajuste es TEXTO por acuerdo: admite 'SI' o una fecha.
 const PERCENT_FIELDS_COR = Object.freeze(['avance_oc', 'avance_mo', 'avance_aj']);
 const COST_FIELDS_COR = Object.freeze([
   'presupuesto_mantenimiento_cem', 'costo_mensual_mantenimiento_cem'

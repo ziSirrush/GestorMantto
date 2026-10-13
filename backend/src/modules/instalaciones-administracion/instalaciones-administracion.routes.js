@@ -3,6 +3,8 @@
 const express = require('express');
 const controller = require('./instalaciones-administracion.controller');
 const tableService = require('./instalaciones-administracion.tabla-service');
+const autoService = require('./instalaciones-administracion.auto-service');
+const { DIRECT_READONLY_FIELDS_COR } = require('./instalaciones-administracion.auto-rules');
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 const {
@@ -78,6 +80,55 @@ router.get('/administracion/proyectos/:projectKey/equipos/tabla',...accessGuard_
 });
 
 
+// [Mantto Gestor | 2026-10-13 | FASE_1_INSTALACIONES_ADMIN_V2_BACKEND_V001]
+// Contratos nuevos: no sustituyen los endpoints de borradores de la V1
+// hasta desplegar la nueva tabla en Fases 2/3. Guard CORELLIAN intacto.
+function autoKnownError_cor(error,res,next){
+  if(error?.statusCode){return res.status(error.statusCode).json({
+    ok:false,code:error.code||'INSTALACIONES_ADMINISTRACION_AUTO_ERROR',
+    message:error.message,details:error.details||undefined
+  });}
+  return next(error);
+}
+
+router.get('/administracion/catalogos-edicion',...accessGuard_cor,async(req,res,next)=>{
+  try {return res.json({ok:true,source:'aiven',...await autoService.getEditCatalogs_cor(req)});}
+  catch(error){return autoKnownError_cor(error,res,next);}
+});
+
+router.patch('/administracion/proyectos/:projectKey/equipos/edicion-multiple-directa',
+  ...accessGuard_cor,async(req,res,next)=>{
+    try {return res.json({ok:true,source:'aiven',
+      ...await autoService.updateDirectMulti_cor(req,req.params.projectKey,req.body||{})});}
+    catch(error){return autoKnownError_cor(error,res,next);}
+  });
+
+router.patch('/administracion/proyectos/:projectKey/equipos/:id/edicion-directa',
+  ...accessGuard_cor,async(req,res,next)=>{
+    try {return res.json({ok:true,source:'aiven',
+      ...await autoService.updateDirect_cor(req,req.params.projectKey,req.params.id,req.body||{})});}
+    catch(error){return autoKnownError_cor(error,res,next);}
+  });
+
+// Mientras conviven frontend V1/V2, las rutas de la TABLA V1 tampoco
+// permiten escribir columnas ocultas o autocalculadas por HTTP directo.
+const protectedTableFields_cor = new Set(DIRECT_READONLY_FIELDS_COR);
+function forbidProtectedTableFields_cor(req,res,next){
+  const input=req.body?.groups;
+  if(!input || typeof input!=='object' || Array.isArray(input))return next();
+  for(const payload of Object.values(input)){
+    const fields=payload?.changes;
+    if(!fields || typeof fields!=='object' || Array.isArray(fields))continue;
+    const restricted=Object.keys(fields).find(f=>protectedTableFields_cor.has(f));
+    if(restricted)return res.status(400).json({ok:false,
+      code:'INSTALACIONES_ADMINISTRACION_TABLA_SOLO_LECTURA',
+      message:'No se permite editar directamente IDs, controles ni calculados.',
+      details:{field:restricted}
+    });
+  }
+  return next();
+}
+
 // [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001]
 // Todas las operaciones vuelven a validar proyecto, equipos, permisos,
 // alcance y concurrencia dentro del servicio/repositorio. No confiar en UI.
@@ -86,12 +137,14 @@ router.get('/administracion/proyectos/:projectKey/equipos/tabla',...accessGuard_
 router.patch(
   '/administracion/proyectos/:projectKey/equipos/:id/tabla',
   ...accessGuard_cor,
+  forbidProtectedTableFields_cor,
   controller.updateTableEquipment_cor
 );
 
 router.patch(
   '/administracion/proyectos/:projectKey/equipos/edicion-multiple',
   ...accessGuard_cor,
+  forbidProtectedTableFields_cor,
   controller.updateMulti_cor
 );
 

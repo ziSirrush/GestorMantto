@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-10-12 | ASTER-MG | FASE_1_INSTALACIONES_ADMINISTRACION_TABLA_V001]
+// [Mantto Gestor | 2026-10-13 | FASE_1_INSTALACIONES_ADMIN_V2_BACKEND_V001]
 // Tabla completa de ins_fl limitada al proyecto, la puerta, el alcance y
 // los campos visibles por permiso. Solo lectura; NO acepta actualizaciones.
 const db = require('../../config/db');
@@ -35,13 +36,19 @@ async function projectEquipmentTable_cor(req, projectKey, query = {}) {
     offset: query.offset
   });
   const columns = projectTableColumns_cor(contract);
+  // rel_admin no existe fisicamente en ins_fl: es la relacion oficial
+  // de usuarios_rel_admin, concatenada igual que en el controlador ins-fl.
+  // Solo exponerlo cuando AMBOS grupos relacionados son visibles.
+  const groups = Array.isArray(contract?.groups) ? contract.groups : [];
+  const canViewRelAdmin = ['responsables', 'cliente_contrato'].every(key =>
+    groups.some(g => g.key === key && g.permissions?.can_view === true));
   const ids = (Array.isArray(listing.data) ? listing.data : [])
     .map(row => Number(row?.id_ins_fl))
     .filter(id => Number.isSafeInteger(id) && id > 0);
 
   const result = {
     data: [],
-    columns,
+    columns: canViewRelAdmin ? [...columns, 'rel_admin'] : columns,
     total: Number(listing.total) || 0,
     limit: Number(listing.limit) || 0,
     offset: Number(listing.offset) || 0
@@ -65,6 +72,38 @@ async function projectEquipmentTable_cor(req, projectKey, query = {}) {
   );
   const matched = new Map((rows || []).map(row => [Number(row.id_ins_fl), row]));
   result.data = ids.map(id => matched.get(id)).filter(Boolean);
+  if (canViewRelAdmin && result.data.length) {
+    const asesorIds = [...new Set(result.data.map(row => Number(row.id_asesor))
+      .filter(n => Number.isSafeInteger(n) && n > 0))];
+    const related = new Map();
+    if (asesorIds.length) {
+      const marks = asesorIds.map(() => '?').join(',');
+      const [relRows] = await db.query(
+        `SELECT ura.id_asesor,
+                GROUP_CONCAT(DISTINCT u.iniciales ORDER BY u.iniciales SEPARATOR ', ') AS rel_admin
+           FROM usuarios_rel_admin ura
+           INNER JOIN usuarios u ON u.id_SB=ura.id_admin
+          WHERE ura.id_asesor IN (${marks})
+          GROUP BY ura.id_asesor`, asesorIds
+      );
+      for (const item of relRows || []) related.set(Number(item.id_asesor), item.rel_admin);
+    }
+    // Fallback historico documentado en /api/ins-fl: id_admin directo
+    // cuando no existe asociacion en usuarios_rel_admin.
+    const adminIds = [...new Set(result.data.filter(row => !related.has(Number(row.id_asesor)))
+      .map(row => Number(row.id_admin)).filter(n => Number.isSafeInteger(n) && n > 0))];
+    const direct = new Map();
+    if (adminIds.length) {
+      const marks = adminIds.map(() => '?').join(',');
+      const [adminRows] = await db.query(
+        `SELECT id_SB,iniciales FROM usuarios WHERE id_SB IN (${marks})`, adminIds
+      );
+      for (const item of adminRows || []) direct.set(Number(item.id_SB), item.iniciales);
+    }
+    result.data = result.data.map(row => ({...row,
+      rel_admin: related.get(Number(row.id_asesor)) ?? direct.get(Number(row.id_admin)) ?? null
+    }));
+  }
   return result;
 }
 

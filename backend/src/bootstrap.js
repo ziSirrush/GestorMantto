@@ -12,6 +12,7 @@ const { startStorageOperationsJob, stopStorageOperationsJob } = require('./jobs/
 const { startAlmacenCierreIncorrectoJob, stopAlmacenCierreIncorrectoJob } = require('./jobs/almacenCierreIncorrecto.job');
 const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = require('./jobs/equiposCriticosSalidaU35.job');
 const { startMovimientosCriticosCierreSemanalJob, stopMovimientosCriticosCierreSemanalJob } = require('./jobs/movimientosCriticosCierreSemanal.job');
+const { startInstalacionesAdministracionCalculadosJob, stopInstalacionesAdministracionCalculadosJob } = require('./jobs/instalacionesAdministracionCalculados.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -54,6 +55,7 @@ function startScheduledJobs(databaseReady) {
     logger.warn('Job salida automática de Equipos Críticos U35 no iniciado porque MySQL no está disponible.');
     logger.warn('Job semanal de Movimientos Críticos no iniciado porque MySQL no está disponible.');
     logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
+    logger.warn('Job de calculados de Instalaciones Administracion no iniciado porque MySQL no esta disponible.');
     return;
   }
 
@@ -89,6 +91,13 @@ function startScheduledJobs(databaseReady) {
     startStorageOperationsJob();
   } catch (error) {
     logger.error('La API inicio, pero el job de operaciones pendientes de Storage no pudo inicializarse.', error);
+  }
+
+  // [Mantto Gestor | FASE_1_INSTALACIONES_ADMIN_V2_BACKEND_V001]
+  try {
+    startInstalacionesAdministracionCalculadosJob();
+  } catch(error) {
+    logger.error('No fue posible iniciar calculados diarios de Instalaciones Administracion.',error);
   }
 }
 
@@ -136,6 +145,7 @@ function registerShutdownHandlers() {
       stopAlmacenCierreIncorrectoJob();
       stopEquiposCriticosSalidaU35Job();
       stopMovimientosCriticosCierreSemanalJob();
+      stopInstalacionesAdministracionCalculadosJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);
