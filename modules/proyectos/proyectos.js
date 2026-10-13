@@ -10,7 +10,7 @@
     detailTickets:[]
   };
 
-  const INLINE_HTML = '<div class="proy-page"><section class="proy-card proy-head"><div><p class="proy-eyebrow">Aiven &middot; Proyectos</p><h1>Proyectos</h1><p>Vista agregada desde Portafolio y Tickets.</p></div><div class="proy-head-actions"><span class="proy-status loading" id="proy-status"><span class="proy-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="proy-btn proy-btn-primary" data-proy-action="refresh">&#8635; Actualizar</button></div></section><section class="proy-card proy-filters"><label>Zona<select id="proy-filter-zona"><option value="">Todas</option></select></label><label>Estado<select id="proy-filter-estado"><option value="">Todos</option></select></label><label>Supervisor<select id="proy-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="proy-filter-search" type="search" placeholder="Proyecto, codigo, ciudad, supervisor..."></label><button type="button" class="proy-btn" data-proy-action="clear">Limpiar</button><button type="button" class="proy-btn proy-btn-primary" data-proy-action="apply">Aplicar</button></section><section class="proy-grid proy-kpis"><article class="proy-kpi proy-kpi-blue"><span>&#127970;</span><strong id="proy-kpi-proyectos">-</strong><b>Proyectos</b><small>con equipos activos</small></article><article class="proy-kpi proy-kpi-indigo"><span>&#128736;</span><strong id="proy-kpi-equipos">-</strong><b>Equipos</b><small>portafolio activo</small></article><article class="proy-kpi proy-kpi-red"><span>&#9940;</span><strong id="proy-kpi-parados">-</strong><b>Parados</b><small>ultimo ticket no funcionando</small></article><article class="proy-kpi proy-kpi-green"><span>&#9201;</span><strong id="proy-kpi-mtbc">-</strong><b>MTBC prom.</b><small>estimado 365 dias</small></article></section><section class="proy-card"><div class="proy-section-head"><div><h2>Listado de proyectos</h2><p id="proy-count">-</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Proyecto</th><th>Ciudad</th><th>Estado</th><th>Zona</th><th>Supervisor</th><th>Equipos</th><th>Parados</th><th>Llamadas Totales</th><th>Ultima</th><th>Resp. BLT</th><th>Ultima BLT</th><th>Resp. Cliente</th><th>Ultima Cliente</th><th>Tickets 35d</th><th>BLT 365d</th><th>MTBC</th><th></th></tr></thead><tbody id="proy-body"><tr><td colspan="17" class="proy-empty">Cargando...</td></tr></tbody></table></div></section><section id="proy-detail-modal" class="proy-detail" hidden><div class="proy-detail-panel"><div class="proy-detail-head"><button type="button" id="proy-detail-close">&times;</button><div><h2 id="proy-detail-title">Detalle de proyecto</h2><p id="proy-detail-sub">Aiven</p></div></div><div class="proy-detail-body" id="proy-detail-body"></div></div></section></div>';
+  const INLINE_HTML = '<div class="proy-page"><section class="proy-card proy-head"><div><p class="proy-eyebrow">Aiven &middot; Proyectos</p><h1>Proyectos</h1><p>Vista agregada desde Portafolio y Tickets.</p></div><div class="proy-head-actions"><span class="proy-status loading" id="proy-status"><span class="proy-dot"></span><span>Cargando Aiven...</span></span><button type="button" class="proy-btn proy-btn-primary" data-proy-action="refresh">&#8635; Actualizar</button></div></section><section class="proy-card proy-filters"><label>Zona<select id="proy-filter-zona"><option value="">Todas</option></select></label><label>Estado<select id="proy-filter-estado"><option value="">Todos</option></select></label><label>Supervisor<select id="proy-filter-supervisor"><option value="">Todos</option></select></label><label>Buscar<input id="proy-filter-search" type="search" placeholder="Proyecto, codigo, ciudad, supervisor..."></label><button type="button" class="proy-btn" data-proy-action="clear">Limpiar</button><button type="button" class="proy-btn proy-btn-primary" data-proy-action="apply">Aplicar</button></section><section class="proy-grid proy-kpis"><article class="proy-kpi proy-kpi-blue"><span>&#127970;</span><strong id="proy-kpi-proyectos">-</strong><b>Proyectos</b><small>con equipos activos</small></article><article class="proy-kpi proy-kpi-indigo"><span>&#128736;</span><strong id="proy-kpi-equipos">-</strong><b>Equipos</b><small>portafolio activo</small></article><article class="proy-kpi proy-kpi-red"><span>&#9940;</span><strong id="proy-kpi-parados">-</strong><b>Parados</b><small>ultimo ticket no funcionando</small></article><article class="proy-kpi proy-kpi-green"><span>&#9201;</span><strong id="proy-kpi-mtbc">-</strong><b>MTBC U365</b><small>equipos con falla BLT</small></article></section><section class="proy-card"><div class="proy-section-head"><div><h2>Listado de proyectos</h2><p id="proy-count">-</p></div></div><div class="proy-table-wrap"><table class="proy-table"><thead><tr><th>Proyecto</th><th>Ciudad</th><th>Estado</th><th>Zona</th><th>Supervisor</th><th>Equipos</th><th>Parados</th><th>Llamadas Totales</th><th>Ultima</th><th>Resp. BLT</th><th>Ultima BLT</th><th>Resp. Cliente</th><th>Ultima Cliente</th><th>Tickets 35d</th><th>BLT 365d</th><th>MTBC U365</th><th></th></tr></thead><tbody id="proy-body"><tr><td colspan="17" class="proy-empty">Cargando...</td></tr></tbody></table></div></section><section id="proy-detail-modal" class="proy-detail" hidden><div class="proy-detail-panel"><div class="proy-detail-head"><button type="button" id="proy-detail-close">&times;</button><div><h2 id="proy-detail-title">Detalle de proyecto</h2><p id="proy-detail-sub">Aiven</p></div></div><div class="proy-detail-body" id="proy-detail-body"></div></div></section></div>';
 
   function API(){ return (window.MANTTO_API_BASE || '').replace(/\/$/, ''); }
   function $(id){ return document.getElementById(id); }
@@ -21,6 +21,7 @@
   }
   function int(v){ const n=Number(v||0); return Number.isFinite(n)?n.toLocaleString('es-MX'):'0'; }
   function num(v){ const n=Number(v||0); return Number.isFinite(n)?n:0; }
+  function fmtMtbc(v){ const n=Number(v); return v===null||v===undefined||v===''||!Number.isFinite(n)?'-':n.toLocaleString('es-MX',{maximumFractionDigits:3})+' d'; }
   function val(id){ const el=$(id); return el?el.value.trim():''; }
   function qs(params){
     const u=new URLSearchParams();
@@ -179,12 +180,11 @@
       a.proyectos+=1;
       a.equipos+=num(r.equipos||r.total||r.total_equipos);
       a.parados+=num(r.parados||r.equipos_parados);
-      const m=r.mtbc_365??r.mtbcProm??r.mtbc_promedio;
-      if(m!==null&&m!==undefined&&m!==''&&!Number.isNaN(Number(m))){a.mtbc_sum+=Number(m);a.mtbc_count+=1;}
+      a.fallas_blt_365d+=num(r.fallas_blt_365d);
+      a.equipos_con_falla_blt_365+=num(r.equipos_con_falla_blt_365);
       return a;
-    },{proyectos:0,equipos:0,parados:0,mtbc_sum:0,mtbc_count:0});
-    acc.mtbc_promedio=acc.mtbc_count?Math.round(acc.mtbc_sum/acc.mtbc_count):null;
-    delete acc.mtbc_sum;delete acc.mtbc_count;
+    },{proyectos:0,equipos:0,parados:0,fallas_blt_365d:0,equipos_con_falla_blt_365:0});
+    acc.mtbc_365=acc.fallas_blt_365d?Math.round((365*acc.equipos_con_falla_blt_365/acc.fallas_blt_365d)*1000)/1000:null;
     return acc;
   }
 
@@ -194,8 +194,8 @@
     setText('proy-kpi-proyectos',int(s.proyectos??s.total_proyectos));
     setText('proy-kpi-equipos',int(s.equipos??s.total_equipos));
     setText('proy-kpi-parados',int(s.parados??s.total_parados));
-    const mtbc=s.mtbc_promedio??s.mtbc??null;
-    setText('proy-kpi-mtbc',mtbc?int(mtbc)+' d':'-');
+    const mtbc=s.mtbc_365??null;
+    setText('proy-kpi-mtbc',fmtMtbc(mtbc));
   }
 
   function visualCodes(row){
@@ -236,7 +236,7 @@
         '<td class="date">'+date(r.ultima_llamada_cliente)+'</td>'+ 
         '<td class="num">'+int(r.tickets_35d)+'</td>'+ 
         '<td class="num">'+int(r.fallas_blt_365d)+'</td>'+ 
-        '<td class="num">'+(r.mtbc_365?int(r.mtbc_365)+' d':'-')+'</td>'+ 
+        '<td class="num">'+fmtMtbc(r.mtbc_365)+'</td>'+
         '<td><button type="button" class="proy-btn" data-proy-open="'+esc(proyectoCodigo(r))+'">Ver</button></td>'+ 
       '</tr>';
     }).join('');
@@ -301,7 +301,7 @@
         kpi('Equipos',int(p.equipos),'Portafolio activo','proy-kpi-indigo')+
         kpi('Parados',int(p.parados),'Ultimo ticket no funcionando','proy-kpi-red')+
         kpi('Tickets 35d',int(p.tickets_35d),'Actividad reciente','proy-kpi-blue')+
-        kpi('MTBC 365d',p.mtbc_365?int(p.mtbc_365)+' d':'-','estimado','proy-kpi-green')+
+        kpi('MTBC U365',fmtMtbc(p.mtbc_365),'equipos activos con falla BLT','proy-kpi-green')+
       '</section>'+ 
       '<section class="proy-charts">'+chartCard('Fallas por mes - ano actual',months)+chartCard('Fallas por mes - ano anterior',prev)+'</section>'+ 
       '<section class="proy-card" style="padding:16px"><div class="proy-section-head" style="padding:0 0 12px;border:0"><div><h2>Responsabilidad</h2><p>'+int(tickets.length)+' tickets en detalle</p></div></div>'+renderResp(resp)+'</section>'+ 

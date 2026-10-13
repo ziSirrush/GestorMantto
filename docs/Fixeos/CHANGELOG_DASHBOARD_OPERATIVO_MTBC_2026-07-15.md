@@ -4,10 +4,10 @@ Fecha: 2026-07-15
 
 ## Alcance
 
-Se integraron dos indicadores corporativos al Dashboard Operativo:
+Los indicadores MTBC que antes se agregaban como promedios en el Dashboard Operativo fueron retirados porque esa agregación no corresponde a una fórmula oficial. Los alcances oficiales permanecen disponibles en Call Center, Equipos Críticos, Proyectos e Informes:
 
-- Prom. MTBC Año Actual.
-- Prom. MTBC U365.
+- MTBC Año Actual.
+- MTBC U365.
 
 Ambos consideran únicamente fallas con responsabilidad BLT y consumen los resultados calculados por el backend United.
 
@@ -17,11 +17,11 @@ Ambos consideran únicamente fallas con responsabilidad BLT y consumen los resul
 GET /api/indicadores/mtbc/equipos
 ```
 
-El frontend no recalcula el MTBC individual. Solo obtiene `mtbc_anio` y `mtbc_365` y presenta el promedio correspondiente a los equipos incluidos por los filtros activos del Dashboard Operativo.
+El Dashboard Operativo ya no obtiene ni promedia `mtbc_anio` y `mtbc_365`.
 
 ## Comportamiento
 
-Los filtros de Zona, Supervisor y Tipo de equipo determinan qué equipos participan en los dos promedios mostrados. El filtro de Mes conserva su función sobre servicio preventivo y Vo.Bo.; no modifica los períodos corporativos del MTBC.
+Los filtros de Zona, Supervisor, Tipo de equipo y Mes conservan su función sobre servicio preventivo y Vo.Bo.; no calculan MTBC.
 
 No se agregó MTBC a las tablas de confirmación o histórico de servicios preventivos, porque esas tablas están orientadas al cumplimiento mensual y no al análisis de confiabilidad.
 

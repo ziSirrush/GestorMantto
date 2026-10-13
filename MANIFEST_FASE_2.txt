@@ -1,0 +1,27 @@
+MANTTO GESTOR — FASE 2 / INSTALACIONES · ADMINISTRACION
+Identificador: FIX_FASE_2_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001
+Fecha: 2026-10-13
+Fuente de codigo: ziSirrush/GestorMantto main @ c344f4cddb6b7fa4dd7be3eaabb7357edcc2b76e
+Prerequisito: FASE 1 - FIX_FASE_1_INSTALACIONES_ADMINISTRACION_TABLA_V001.zip aplicado exactamente
+Estado: Generado; no desplegado; E2E/Aiven pendientes
+Archivos preexistentes reconstruidos y reemplazados por instalador (3):
+  modules/instalaciones-administracion/instalaciones-administracion_cor.js
+  core/module-loader.js
+  index.html
+Archivos nuevos instalados (2):
+  modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.js
+  modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.css
+No instalados (auxiliares):
+  installer/aplicar-fase2.js
+  installer/reference-phase1/ (cuatro archivos oficiales originales del ZIP Fase 1)
+  tests/instalaciones-admin-ghost.test.js
+  tests/instalaciones-admin-fase2-installer.test.js
+  README_FASE_2.md
+  MANIFEST_FASE_2.txt
+  SHA256SUMS.txt
+SQL nuevos: NINGUNO
+Backend nuevo: NINGUNO
+Escrituras desde UI nueva: NINGUNA
+Permisos nuevos: NINGUNO
+Tablas/columnas nuevas: NINGUNA
+QA: unitario y transformacion simulados; prueba integrada local no ejecutada.

@@ -9,17 +9,18 @@ El MTBC se calcula exclusivamente con tickets cuya responsabilidad contiene `BLT
 Se exponen dos ventanas oficiales:
 
 - `mtbc_anio`: desde el 1 de enero del año actual hasta hoy.
-- `mtbc_365`: ventana movil desde hoy menos 365 dias hasta hoy.
+- `mtbc_365`: ventana móvil de 365 fechas, desde hoy menos 364 días hasta hoy inclusive.
 
-Formula aplicada tanto a equipos como a proyectos:
+Fórmula por equipo:
 
-`(fecha de la ultima falla BLT - fecha de la primera falla BLT) / (numero de fallas BLT - 1)`
+- Año actual: `días transcurridos desde el 1 de enero / fallas BLT del equipo en el año`.
+- U365: `365 / fallas BLT del equipo en U365`.
 
-Cuando existe cero o una falla BLT, el MTBC se devuelve como `null`, porque no existe un intervalo promedio calculable.
+Cuando no existen fallas BLT, el MTBC se devuelve como `null`.
 
 ## Agregacion por proyecto
 
-El MTBC de proyecto usa todas las fallas RESP BLT de los equipos pertenecientes al proyecto, ordenadas dentro de cada ventana temporal. No es un promedio simple de MTBC por equipo.
+El MTBC de proyecto es `(días del período × equipos activos con al menos una falla BLT en el período) / total de fallas BLT del proyecto en el período`. No es un promedio simple de MTBC por equipo y no incluye equipos activos sin fallas en el numerador.
 
 ## Endpoints nuevos
 
@@ -30,7 +31,7 @@ Ambos soportan paginacion. El endpoint de equipos conserva filtros compatibles d
 
 ## Compatibilidad
 
-- El endpoint existente de Equipos Criticos conserva `mtbc_dias` para el periodo dinamico y ahora agrega `mtbc_anio`, `mtbc_365`, `fallas_blt_anio` y `fallas_blt_365`.
+- El endpoint compartido con Experimental conserva `mtbc_dias` para no modificar ese módulo. Los módulos productivos presentan únicamente `mtbc_anio` y `mtbc_365`.
 - `GET /api/criticidad-corporativa` agrega `mtbc_anio` y `mtbc_365` a sus registros.
 - No se eliminaron rutas ni campos existentes.
 

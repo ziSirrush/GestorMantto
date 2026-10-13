@@ -94,7 +94,7 @@ async function getMtbcEquipos(req, res) {
       WHERE ${portafolioOperativo('p', req)}
         AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
-        AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+        AND t.fecha_reporte >= LEAST(MAKEDATE(YEAR(${sqlMexicoCityToday()}),1), DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY))
         AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
         AND ${responsabilidadBlt('t')}
         ${filters.sql}
@@ -110,12 +110,12 @@ async function getMtbcEquipos(req, res) {
         MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
         MAX(COALESCE(t.supervisor, p.supervisor_zona)) AS supervisor,
         SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS fallas_blt_anio,
-        COUNT(*) AS fallas_blt_365,
+        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN 1 ELSE 0 END) AS fallas_blt_365,
         CASE
           WHEN SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY) THEN 1 ELSE 0 END) = 0 THEN NULL
-          ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()}, MAKEDATE(YEAR(${sqlMexicoCityToday()}),1)) + 1) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END),0),1)
+          ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()}, MAKEDATE(YEAR(${sqlMexicoCityToday()}),1)) + 1) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END),0),3)
         END AS mtbc_anio,
-        CASE WHEN COUNT(*) = 0 THEN NULL ELSE ROUND(365 / NULLIF(COUNT(*),0),1) END AS mtbc_365,
+        CASE WHEN SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN 1 ELSE 0 END) = 0 THEN NULL ELSE ROUND(365 / NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN 1 ELSE 0 END),0),3) END AS mtbc_365,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
       INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
@@ -123,7 +123,7 @@ async function getMtbcEquipos(req, res) {
       WHERE ${portafolioOperativo('p', req)}
         AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
-        AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+        AND t.fecha_reporte >= LEAST(MAKEDATE(YEAR(${sqlMexicoCityToday()}),1), DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY))
         AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
         AND ${responsabilidadBlt('t')}
         ${filters.sql}
@@ -137,9 +137,9 @@ async function getMtbcEquipos(req, res) {
       source: 'aiven',
       rule: {
         responsabilidad: 'BLT',
-        mtbc: '(dias transcurridos x cantidad de equipos) / numero de fallas BLT',
+        mtbc: 'dias del periodo / numero de fallas BLT del equipo',
         anio_en_curso: '01 de enero hasta hoy',
-        ultimos_365_dias: 'ventana movil desde hoy - 365 dias hasta hoy'
+        ultimos_365_dias: '365 fechas calendario, desde hoy - 364 dias hasta hoy'
       },
       alcance: alcanceMeta(req),
       pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
@@ -166,22 +166,22 @@ async function getMtbcProyectos(req, res) {
       p.proyecto,
       MAX(z_cc.zona) AS zona,
       COUNT(DISTINCT p.numero_equipo) AS equipos_activos,
-      COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN t.codigo_equipo END) AS equipos_con_falla_blt_365,
+      COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN t.codigo_equipo END) AS equipos_con_falla_blt_365,
       COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN t.codigo_equipo END) AS equipos_con_falla_blt_anio,
       SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END) AS fallas_blt_anio,
-      SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END) AS fallas_blt_365,
+      SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN 1 ELSE 0 END) AS fallas_blt_365,
       CASE WHEN SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END) = 0 THEN NULL
-        ELSE ROUND(((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END),0),1)
+        ELSE ROUND(((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) THEN 1 ELSE 0 END),0),3)
       END AS mtbc_anio,
-      CASE WHEN SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END) = 0 THEN NULL
-        ELSE ROUND((365 * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY) THEN 1 ELSE 0 END),0),1)
+      CASE WHEN SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND((365 * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY) THEN 1 ELSE 0 END),0),3)
       END AS mtbc_365,
       MAX(t.fecha_reporte) AS ultimo_blt
     FROM portafolio p
     ${zoneJoin('p', 'z_cc')}
     LEFT JOIN tickets t
       ON t.codigo_equipo = p.numero_equipo
-     AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+     AND t.fecha_reporte >= LEAST(MAKEDATE(YEAR(${sqlMexicoCityToday()}),1), DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY))
      AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
      AND ${responsabilidadBlt('t')}
     WHERE ${portafolioOperativo('p', req)}
@@ -208,9 +208,9 @@ async function getMtbcProyectos(req, res) {
       rule: {
         responsabilidad: 'BLT',
         aggregation: 'fallas BLT de equipos activos y en servicio del proyecto',
-        mtbc: '(dias transcurridos x cantidad de equipos activos) / numero de fallas BLT',
+        mtbc: '(dias del periodo x equipos activos con fallas BLT en el periodo) / total de fallas BLT',
         anio_en_curso: '01 de enero hasta hoy',
-        ultimos_365_dias: 'ventana movil desde hoy - 365 dias hasta hoy'
+        ultimos_365_dias: '365 fechas calendario, desde hoy - 364 dias hasta hoy'
       },
       alcance: alcanceMeta(req),
       pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
@@ -227,19 +227,19 @@ function buildCallCenterU365TicketAggregate(diasCriticos, source) {
     sql: `
       SELECT
         t.codigo_equipo,
-        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS llamadas_365,
-        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%CLIENTE%' THEN 1 ELSE 0 END) AS resp_cliente_365,
-        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND ${responsabilidadBlt('t')} THEN 1 ELSE 0 END) AS fallas_blt_365,
-        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND TRIM(COALESCE(t.responsabilidad,'')) = '' THEN 1 ELSE 0 END) AS sin_responsabilidad_365,
+        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS llamadas_365,
+        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%CLIENTE%' THEN 1 ELSE 0 END) AS resp_cliente_365,
+        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND ${responsabilidadBlt('t')} THEN 1 ELSE 0 END) AS fallas_blt_365,
+        SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND TRIM(COALESCE(t.responsabilidad,'')) = '' THEN 1 ELSE 0 END) AS sin_responsabilidad_365,
         SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND ${responsabilidadBlt('t')} THEN 1 ELSE 0 END) AS fallas_blt_anio,
         SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL ? DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND ${responsabilidadBlt('t')} THEN 1 ELSE 0 END) AS fallas_blt_periodo_critico,
-        MAX(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) THEN t.fecha_reporte ELSE NULL END) AS ultima_llamada_365,
-        MAX(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND ${responsabilidadBlt('t')} THEN t.fecha_reporte ELSE NULL END) AS ultima_falla_blt_365
+        MAX(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) THEN t.fecha_reporte ELSE NULL END) AS ultima_llamada_365,
+        MAX(CASE WHEN t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY) AND ${responsabilidadBlt('t')} THEN t.fecha_reporte ELSE NULL END) AS ultima_falla_blt_365
       FROM tickets t
       WHERE t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
         AND t.fecha_reporte IS NOT NULL
-        AND t.fecha_reporte >= LEAST(DATE_SUB(${sqlMexicoCityToday()},INTERVAL 365 DAY), MAKEDATE(YEAR(${sqlMexicoCityToday()}),1), DATE_SUB(${sqlMexicoCityToday()},INTERVAL ? DAY))
+        AND t.fecha_reporte >= LEAST(DATE_SUB(${sqlMexicoCityToday()},INTERVAL 364 DAY), MAKEDATE(YEAR(${sqlMexicoCityToday()}),1), DATE_SUB(${sqlMexicoCityToday()},INTERVAL ? DAY))
         AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY)
         AND ${ticketScope.sql}
       GROUP BY t.codigo_equipo
@@ -303,8 +303,8 @@ async function getCallCenterU365Equipos(req, res) {
       COALESCE(ta.fallas_blt_365,0) AS fallas_blt_365,
       COALESCE(ta.sin_responsabilidad_365,0) AS sin_responsabilidad_365,
       COALESCE(ta.fallas_blt_anio,0) AS fallas_blt_anio,
-      CASE WHEN COALESCE(ta.fallas_blt_anio,0) = 0 THEN NULL ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) / NULLIF(ta.fallas_blt_anio,0),1) END AS mtbc_anio,
-      CASE WHEN COALESCE(ta.fallas_blt_365,0) = 0 THEN NULL ELSE ROUND(365 / NULLIF(ta.fallas_blt_365,0),1) END AS mtbc_365,
+      CASE WHEN COALESCE(ta.fallas_blt_anio,0) = 0 THEN NULL ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) / NULLIF(ta.fallas_blt_anio,0),3) END AS mtbc_anio,
+      CASE WHEN COALESCE(ta.fallas_blt_365,0) = 0 THEN NULL ELSE ROUND(365 / NULLIF(ta.fallas_blt_365,0),3) END AS mtbc_365,
       CASE WHEN COALESCE(ta.fallas_blt_periodo_critico,0) >= ? THEN 1 ELSE 0 END AS es_critico,
       ta.ultima_llamada_365,
       ta.ultima_falla_blt_365
@@ -367,9 +367,11 @@ async function getCallCenterU365Proyectos(req, res) {
       SUM(COALESCE(ta.fallas_blt_365,0)) AS fallas_blt_365,
       SUM(COALESCE(ta.sin_responsabilidad_365,0)) AS sin_responsabilidad_365,
       SUM(COALESCE(ta.fallas_blt_anio,0)) AS fallas_blt_anio,
+      SUM(CASE WHEN COALESCE(ta.fallas_blt_anio,0) > 0 THEN 1 ELSE 0 END) AS equipos_con_falla_blt_anio,
+      SUM(CASE WHEN COALESCE(ta.fallas_blt_365,0) > 0 THEN 1 ELSE 0 END) AS equipos_con_falla_blt_365,
       ROUND(SUM(COALESCE(ta.llamadas_365,0)) / NULLIF(COUNT(*),0),1) AS promedio_llamadas_por_equipo,
-      CASE WHEN SUM(COALESCE(ta.fallas_blt_anio,0)) = 0 THEN NULL ELSE ROUND(((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) * COUNT(*)) / NULLIF(SUM(COALESCE(ta.fallas_blt_anio,0)),0),1) END AS mtbc_anio,
-      CASE WHEN SUM(COALESCE(ta.fallas_blt_365,0)) = 0 THEN NULL ELSE ROUND((365 * COUNT(*)) / NULLIF(SUM(COALESCE(ta.fallas_blt_365,0)),0),1) END AS mtbc_365,
+      CASE WHEN SUM(COALESCE(ta.fallas_blt_anio,0)) = 0 THEN NULL ELSE ROUND(((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) * SUM(CASE WHEN COALESCE(ta.fallas_blt_anio,0) > 0 THEN 1 ELSE 0 END)) / NULLIF(SUM(COALESCE(ta.fallas_blt_anio,0)),0),3) END AS mtbc_anio,
+      CASE WHEN SUM(COALESCE(ta.fallas_blt_365,0)) = 0 THEN NULL ELSE ROUND((365 * SUM(CASE WHEN COALESCE(ta.fallas_blt_365,0) > 0 THEN 1 ELSE 0 END)) / NULLIF(SUM(COALESCE(ta.fallas_blt_365,0)),0),3) END AS mtbc_365,
       SUM(CASE WHEN COALESCE(ta.fallas_blt_periodo_critico,0) >= ? THEN 1 ELSE 0 END) AS equipos_criticos,
       MAX(ta.ultima_llamada_365) AS ultima_llamada_365,
       MAX(ta.ultima_falla_blt_365) AS ultima_falla_blt_365
@@ -398,7 +400,7 @@ async function getCallCenterU365Proyectos(req, res) {
         universo: 'equipos activos y en servicio del portafolio, agrupados por proyecto',
         llamadas: 'todas las llamadas de los ultimos 365 dias',
         responsabilidad_mtbc: 'BLT',
-        mtbc_proyecto: '(dias del periodo x equipos activos) / numero de fallas BLT',
+        mtbc_proyecto: '(dias del periodo x equipos activos con fallas BLT en el periodo) / total de fallas BLT',
         criticidad: `${minFallas} o mas fallas BLT por equipo en ${dias} dias`
       },
       criteria: { dias_criticidad: dias, min_fallas_blt: minFallas },

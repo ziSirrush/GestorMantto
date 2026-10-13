@@ -1190,7 +1190,7 @@
     const isStopped=e=>{const state=String(e.estado_operativo||e.estatus_equipo_final||'').trim().toUpperCase();return state.includes('NO FUNC')||state.includes('PARAD');};
     const fmtTime=v=>{if(!v)return '—';const value=String(v).trim();const match=value.match(/(?:T|\s)(\d{2}:\d{2})(?::\d{2})?/);if(match)return match[1];const plain=value.match(/^(\d{1,2}:\d{2})/);return plain?plain[1]:value;};
     const fmtDuration=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' h':String(v);};
-    const fmtMtbc=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' d':String(v);};
+    const fmtMtbc=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*1000)/1000)+' d':String(v);};
     const normalizeResponsibility=v=>{const value=String(v||'').trim();return value||'—';};
 
     function equipmentRows(equipos,tickets){
@@ -1359,7 +1359,7 @@
 
     const fmtTime=v=>{if(!v)return '—';const value=String(v).trim();const match=value.match(/(?:T|\s)(\d{2}:\d{2})(?::\d{2})?/);if(match)return match[1];const plain=value.match(/^(\d{1,2}:\d{2})/);return plain?plain[1]:value;};
     const fmtDuration=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' h':String(v);};
-    const fmtMtbc=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*10)/10)+' d':String(v);};
+    const fmtMtbc=v=>{if(v===null||v===undefined||String(v).trim()==='')return '—';const n=Number(v);return Number.isFinite(n)?(Math.round(n*1000)/1000)+' d':String(v);};
     const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
     const ticketBlob=t=>normalize([t.descripcion,t.asunto,t.causa,t.causa_falla,t.accion_en_cierre].filter(Boolean).join(' '));
     const ticketStatus=t=>normalize(t.estado_ticket||t.estado);
@@ -1439,7 +1439,7 @@
       const kpiCanvas=()=>{
         const items=[
           ['✅','Total cerrados',metrics.cerrados||0,'Año actual',colors.green],['🛠️','Total en curso',metrics.en_curso||0,'Año actual',colors.amber],['📂','Total abiertos',metrics.abiertos||0,'Año actual',colors.cyan],['💧','Con filtración',metrics.filtracion||0,'Año actual',colors.cyan],['🚨','Atrapados',metrics.atrapados||0,'Año actual',colors.red],
-          ['⚡','Por voltaje',metrics.voltaje||0,'Año actual',colors.indigo],['⏱️','Total en SLA',metrics.en_sla||0,'Llegada ≤ 4 h · solución ≤ 24 h',colors.green],['🚐','Prom. T. llegada',fmtDuration(metrics.promedio_llegada),'Año actual',colors.cyan],['🔧','Prom. T. solución',fmtDuration(metrics.promedio_solucion),'Año actual',colors.blue],['📈','MTBC año actual',fmtMtbc(metrics.mtbc_anio),'Entre fallas BLT',colors.indigo],['📅','MTBC U365',fmtMtbc(metrics.mtbc_u365),'Entre fallas BLT',colors.slate]
+          ['⚡','Por voltaje',metrics.voltaje||0,'Año actual',colors.indigo],['⏱️','Total en SLA',metrics.en_sla||0,'Llegada ≤ 4 h · solución ≤ 24 h',colors.green],['🚐','Prom. T. llegada',fmtDuration(metrics.promedio_llegada),'Año actual',colors.cyan],['🔧','Prom. T. solución',fmtDuration(metrics.promedio_solucion),'Año actual',colors.blue],['📈','MTBC año actual',fmtMtbc(metrics.mtbc_anio),'Días del año ÷ fallas BLT',colors.indigo],['📅','MTBC U365',fmtMtbc(metrics.mtbc_u365),'365 ÷ fallas BLT',colors.slate]
         ];
         const c=makeCanvas(1500,510),ctx=c.getContext('2d');ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,c.width,c.height);
         const layouts=[[5,0,5],[4,5,9],[2,9,11]];let y=10;
@@ -1515,8 +1515,8 @@
           kpi('Prom. T. solución',fmtDuration(metrics.promedio_solucion),'🔧','cyan','Año actual')+
         '</div>'+
         '<div class="mg-equipment-kpis cols-2">'+
-          kpi('MTBC año actual',fmtMtbc(metrics.mtbc_anio),'📈','indigo','Entre fallas BLT')+
-          kpi('MTBC U365',fmtMtbc(metrics.mtbc_u365),'📅','slate','Entre fallas BLT')+
+          kpi('MTBC año actual',fmtMtbc(metrics.mtbc_anio),'📈','indigo','Días por falla BLT')+
+          kpi('MTBC U365',fmtMtbc(metrics.mtbc_u365),'📅','slate','Días por falla BLT')+
         '</div>'+
         '<div class="mg-equipment-ring-wrap"><article class="mg-equipment-ring-card"><h4>Responsabilidad de llamadas · Año actual</h4><div class="mg-equipment-ring-layout"><div class="mg-equipment-ring" style="background:'+responsibilityBg+'"><div class="mg-equipment-ring-center"><strong>'+esc(responsibilityTotal)+'</strong><span>Total llamadas</span></div></div><div class="mg-equipment-ring-legend">'+responsibilityLegend+'</div></div></article></div>'+
       '</div>';

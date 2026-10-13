@@ -190,7 +190,7 @@ async function getEquiposCriticos(req, res) {
             AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
         (SELECT COUNT(*) FROM tickets t365
           WHERE t365.codigo_equipo = t.codigo_equipo
-            AND t365.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+            AND t365.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY)
             AND t365.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
             AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_365,
         (SELECT COUNT(*) FROM tickets ty
@@ -216,19 +216,19 @@ async function getEquiposCriticos(req, res) {
         (SELECT MAX(tcli.fecha_reporte) FROM tickets tcli
           WHERE tcli.codigo_equipo = t.codigo_equipo
             AND UPPER(COALESCE(tcli.responsabilidad,'')) LIKE '%CLIENTE%') AS ultimo_cliente,
-        CASE WHEN COUNT(*) = 0 THEN NULL ELSE ROUND(? / NULLIF(COUNT(*), 0), 1) END AS mtbc_dias,
+        CASE WHEN COUNT(*) = 0 THEN NULL ELSE ROUND(? / NULLIF(COUNT(*), 0), 3) END AS mtbc_dias,
         (SELECT CASE WHEN COUNT(*) = 0 THEN NULL
-          ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()}, MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)) + 1) / NULLIF(COUNT(*), 0), 1) END
+          ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()}, MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)) + 1) / NULLIF(COUNT(*), 0), 3) END
           FROM tickets tay
           WHERE tay.codigo_equipo = t.codigo_equipo
             AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
             AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
             AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio,
         (SELECT CASE WHEN COUNT(*) = 0 THEN NULL
-          ELSE ROUND(365 / NULLIF(COUNT(*), 0), 1) END
+          ELSE ROUND(365 / NULLIF(COUNT(*), 0), 3) END
           FROM tickets t365
           WHERE t365.codigo_equipo = t.codigo_equipo
-            AND t365.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+            AND t365.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY)
             AND t365.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
             AND UPPER(COALESCE(t365.responsabilidad,'')) LIKE '%BLT%') AS mtbc_365
       FROM tickets t
@@ -546,7 +546,7 @@ async function getCriticidadCorporativa(req, res) {
         (SELECT COUNT(*)
           FROM tickets tx
           WHERE tx.codigo_equipo = t.codigo_equipo
-            AND tx.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+            AND tx.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY)
             AND tx.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)) AS llamadas_365,
         MAX(t.fecha_reporte) AS ultimo_blt
       FROM tickets t
@@ -555,7 +555,7 @@ async function getCriticidadCorporativa(req, res) {
       WHERE ${portafolioOperativo('p', req)}
         AND t.codigo_equipo IS NOT NULL
         AND t.codigo_equipo <> ''
-        AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+        AND t.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY)
         AND t.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
         AND ${responsabilidadBlt('t')}
       GROUP BY t.codigo_equipo

@@ -1,6 +1,6 @@
 (function(){
   const STORAGE_KEY='mantto_operativo_servicio_confirm_v1';
-  const state={loaded:false,initialized:false,tickets:[],portfolio:[],supervisoresMantenimiento:[],preventivosSupervisor:[],preventivosMes:'',confirm:{},filteredPortfolio:[],mtbcEquipos:new Map(),critCods:new Set(),critFallas:3,critPeriodo:35,critListenerBound:false};
+  const state={loaded:false,initialized:false,tickets:[],portfolio:[],supervisoresMantenimiento:[],preventivosSupervisor:[],preventivosMes:'',confirm:{},filteredPortfolio:[],critCods:new Set(),critFallas:3,critPeriodo:35,critListenerBound:false};
   function $(id){return document.getElementById(id);} 
   function esc(v){return String(v==null||v===''?'—':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
   function nrm(v){return (v==null?'':String(v)).trim();}
@@ -51,7 +51,6 @@
     return r.json();
   }
   async function fetchPreventivosSupervisor(mes){try{const r=await fetch(API()+'/api/servicios-preventivos/resumen-supervisor?mes='+encodeURIComponent(mes.replace('_','-')),{cache:'no-store',headers:headers()});if(!r.ok)return[];const data=await r.json();return Array.isArray(data&&data.data)?data.data:[];}catch(e){return[];}}
-  async function fetchMtbcPages(path){const rows=[];let page=1,total=0;do{try{const sep=path.includes('?')?'&':'?';const r=await fetch(API()+path+sep+'page='+page+'&page_size=100',{cache:'no-store',headers:headers()});if(!r.ok)break;const data=await r.json();const batch=Array.isArray(data)?data:(data.data||[]);if(!Array.isArray(batch)||!batch.length)break;rows.push(...batch);total=Number(data&&data.pagination&&data.pagination.total||rows.length);page+=1;}catch(e){break;}}while(rows.length<total&&page<1000);return rows;}
   function positiveInt(value,fallback){const n=parseInt(value,10);return Number.isFinite(n)&&n>0?n:fallback;}
   async function fetchJson(path){const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
   async function fetchCriticidadUsuario(){
@@ -76,10 +75,6 @@
     return rows;
   }
   async function refreshCriticidadUsuario(){const rows=await fetchCriticidadUsuario();state.critCods=new Set(rows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));if(state.initialized)render();}
-  function mtbcKey(v){return nrm(v).toUpperCase();}
-  function mtbcDays(v){const n=Number(v);return Number.isFinite(n)?n:null;}
-  function fmtMtbc(v){const n=mtbcDays(v);return n==null?'—':n.toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:1})+' d';}
-  function avgMtbcForPortfolio(portfolio,key){const vals=(portfolio||[]).map(e=>{const row=state.mtbcEquipos.get(mtbcKey(e.cod));return mtbcDays(row&&row[key]);}).filter(v=>v!=null);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;}
   function equipoTipo(cod,row){const direct=nrm(pick(row,['tipo_equipo','tipo','Producto','prd']));if(direct)return direct;const parts=nrm(cod).split('-');const code=parts.length>=3?parts[2].toUpperCase():'';const map={ELE:'ELEVADOR',ESC:'ESCALERA',MON:'MONTACARGAS',RAM:'RAMPA',PLA:'PLATAFORMA',API:'MONTAPLATOS',MPL:'MONTAPLATOS',MCO:'MONTACOCHES'};return map[code]||code||'OTRO';}
   function mapEquipo(row){const cod=nrm(pick(row,['numero_equipo','Numero de Equipo','codigo_equipo','Código Equipo','equipo','cod']));const inactivo=upper(pick(row,['inactivo','Inactivo']));const estadoReg=nrm(pick(row,['estado_registro','estado']));const estatus=nrm(pick(row,['estatus_servicio','Estatus Servicio','estatus','estado_servicio']))||'—';const inactive=['1','SI','SÍ','TRUE','INACTIVO','X'].includes(inactivo);const active=(estadoReg===''||estadoReg==='1'||estadoReg.toLowerCase()==='true')&&!inactive;return{cod,pro:nrm(pick(row,['proyecto','Proyecto','pro']))||'—',ciu:nrm(pick(row,['ciudad','Ciudad','ciu']))||'—',edo:nrm(pick(row,['estado','Estado','edo'])),zon:nrm(pick(row,['zona_oficial','zona','zona_operativa','Z. Oper.','Zona Operativa','zon']))||'—',sup:nrm(pick(row,['supervisor_zona','Supervisor Zona','supervisor','Supervisor','sup']))||'—',tipo:equipoTipo(cod,row),estatus,active};}
   function estadoTicket(raw){const low=nrm(raw).toLowerCase();if(low.includes('cerr'))return 'Cerrado';if(low.includes('curso')||low.includes('proceso'))return 'En curso';if(low.includes('abier')||low.includes('pend'))return 'Abierto';return nrm(raw)||'Abierto';}
@@ -112,11 +107,7 @@
 
       // Enriquecimientos secundarios. Estos endpoints ya llevan Guard UNITED;
       // no construyen el universo territorial ni el catálogo de zonas.
-      const [mtbcRows,critRows]=await Promise.all([
-        fetchMtbcPages('/api/indicadores/mtbc/equipos'),
-        fetchCriticidadUsuario()
-      ]);
-      state.mtbcEquipos=new Map(mtbcRows.map(r=>[mtbcKey(r.codigo_equipo),r]));
+      const critRows=await fetchCriticidadUsuario();
       state.critCods=new Set(critRows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));
 
       if(!state.portfolio.length&&state.tickets.length){
@@ -139,7 +130,6 @@
       state.supervisoresMantenimiento=[];
       state.preventivosSupervisor=[];
       state.preventivosMes=mes;
-      state.mtbcEquipos=new Map();
       state.critCods=new Set();
       console.warn('[Dashboard Operativo] Carga inicial filtrada no disponible:',error&&error.message?error.message:error);
       setStatus('error','No fue posible cargar el Dashboard Operativo con el alcance autorizado');

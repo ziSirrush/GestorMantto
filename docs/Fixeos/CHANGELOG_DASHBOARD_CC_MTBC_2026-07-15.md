@@ -13,9 +13,9 @@ Se integraron los indicadores corporativos MTBC de United en Dashboard Call Cent
   - `/api/indicadores/mtbc/proyectos`
 - Se cargan todas las páginas disponibles de ambos endpoints.
 - Se agregaron dos KPIs:
-  - `Prom. MTBC Año Actual`
-  - `Prom. MTBC U365`
-- Los KPIs muestran el promedio de los indicadores por equipo devueltos por backend y respetan el filtro de Zona Operativa.
+  - `MTBC Año Actual`
+  - `MTBC U365`
+- Los KPIs se agregan con la fórmula oficial de proyecto: días del período por equipos activos con falla BLT, dividido entre el total de fallas BLT. Respetan el filtro de Zona Operativa.
 - El filtro de fechas del Call Center no modifica estos dos KPIs corporativos.
 - Se agregaron `MTBC Año Actual` y `MTBC U365` a:
   - Llamadas U365 por Proyecto.
@@ -27,7 +27,7 @@ Se integraron los indicadores corporativos MTBC de United en Dashboard Call Cent
 
 ## Regla de datos
 
-El frontend no recalcula el MTBC individual. Solo presenta `mtbc_anio` y `mtbc_365` entregados por el backend United. El promedio mostrado en los KPIs es una agregación visual de esos resultados por equipo.
+El frontend presenta el MTBC individual entregado por el backend en las tablas. Para los KPIs globales suma fallas y equipos con falla, y aplica la fórmula oficial; no promedia los MTBC individuales.
 
 ## Archivos modificados
 

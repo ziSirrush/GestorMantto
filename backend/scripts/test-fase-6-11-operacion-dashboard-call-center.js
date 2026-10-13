@@ -14,12 +14,12 @@ const controller = read('src/modules/criticos/criticos.controller.js');
 const callcenterScope = read('src/modules/criticos/callcenter-cuartos-operacion.service.js');
 const dataRoutes = read('src/routes/data.routes.js');
 
-const loadDataStart = frontend.indexOf('async function loadData()');
+const loadDataStart = frontend.indexOf('async function loadData(');
 const loadDataEnd = frontend.indexOf('function populateZona()', loadDataStart);
 const loadData = frontend.slice(loadDataStart, loadDataEnd);
 
 const checks = [
-  ['first module data endpoint', loadData.includes("fetchJson('/api/operacion/dashboard-call-center/inicial')")],
+  ['first module data endpoint', loadData.includes("fetchJson('/api/operacion/dashboard-call-center/inicial'")],
   ['no generic tickets fallback in loadData', !loadData.includes("fetchRows(['/api/tickets")],
   ['no generic portfolio fallback in loadData', !loadData.includes("fetchPortafolioPages()") && !loadData.includes("fetchRows(['/api/portafolio")],
   ['secondary calls happen after initial', loadData.indexOf('dashboard-call-center/inicial') < loadData.indexOf('Promise.all')],

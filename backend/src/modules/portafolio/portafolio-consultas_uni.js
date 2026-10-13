@@ -644,16 +644,16 @@ async function getPortafolioEquipoDetalle_uni(req, res) {
     const nextYear = new Date(Date.UTC(currentYear + 1, 0, 1));
     const elapsedYearDays = Math.max(1, Math.floor((now - yearStart) / 86400000) + 1);
     const u365Start = new Date(now);
-    u365Start.setUTCDate(u365Start.getUTCDate() - 365);
+    u365Start.setUTCDate(u365Start.getUTCDate() - 364);
 
     const currentYearTickets = allTickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
-      return date && date >= yearStart && date < nextYear;
+      return date && date >= yearStart && date < nextYear && date.getTime() < now.getTime() + 86400000;
     });
     const currentYearBlt = currentYearTickets.filter(isBlt);
     const u365Blt = allTickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
-      return date && date >= u365Start && date <= now && isBlt(ticket);
+      return date && date >= u365Start && date.getTime() < now.getTime() + 86400000 && isBlt(ticket);
     });
 
     const metrics = {
@@ -731,13 +731,10 @@ async function getEquipos_uni(req, res) {
 }
 
 function mtbcFromTickets_uni(tickets, periodDays) {
-  const dates = (Array.isArray(tickets) ? tickets : [])
-    .map(ticket => dateValue_uni(ticket.fecha_reporte))
-    .filter(Boolean)
-    .sort((left, right) => left - right);
-  if (!dates.length) return null;
-  if (dates.length === 1) return periodDays;
-  return round1_uni((dates[dates.length - 1] - dates[0]) / 86400000 / (dates.length - 1));
+  // MTBC individual: dias del periodo / fallas BLT del equipo en el periodo.
+  // El llamador ya filtra fechas, responsabilidad BLT y equipo.
+  const total = Array.isArray(tickets) ? tickets.length : 0;
+  return total > 0 ? Math.round((periodDays / total) * 1000) / 1000 : null;
 }
 
 function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
@@ -746,7 +743,7 @@ function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
   const yearStart = new Date(Date.UTC(year, 0, 1));
   const nextYear = new Date(Date.UTC(year + 1, 0, 1));
   const u365Start = new Date(now);
-  u365Start.setUTCDate(u365Start.getUTCDate() - 365);
+  u365Start.setUTCDate(u365Start.getUTCDate() - 364);
   const criticalStart = new Date(now);
   criticalStart.setUTCDate(criticalStart.getUTCDate() - criteria.dias);
   const elapsedYearDays = Math.max(1, Math.floor((now - yearStart) / 86400000) + 1);
@@ -767,16 +764,13 @@ function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
     const tickets = byEquipment.get(code) || [];
     const yearTickets = tickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
-      return date && date >= yearStart && date < nextYear;
+      return date && date >= yearStart && date < nextYear && date.getTime() < now.getTime() + 86400000;
     });
     const bltYear = yearTickets.filter(ticket => normalizeUpper_uni(ticket.responsabilidad).includes('BLT'));
-    const responsibilityBltYear = yearTickets.filter(
-      ticket => normalizeUpper_uni(ticket.responsabilidad) === 'BLT'
-    );
     const clientYear = yearTickets.filter(ticket => normalizeUpper_uni(ticket.responsabilidad).includes('CLIENTE'));
     const blt365 = tickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
-      return date && date >= u365Start && date <= now && normalizeUpper_uni(ticket.responsabilidad).includes('BLT');
+      return date && date >= u365Start && date.getTime() < now.getTime() + 86400000 && normalizeUpper_uni(ticket.responsabilidad).includes('BLT');
     });
     const criticalEligible = !['SI', 'SÍ', '1', 'TRUE', 'INACTIVO'].includes(normalizeUpper_uni(row.inactivo))
       && !normalizeUpper_uni(row.estatus_servicio).includes('NO EN SERVICIO');
@@ -788,11 +782,12 @@ function projectTicketMetrics_uni(allTickets, equipmentRows, criteria) {
 
     // Detalle Proyecto > Equipos del Proyecto:
     // - Fallas al año incluye todos los tickets del año calendario actual.
-    // - Resp BLT incluye únicamente los tickets cuya responsabilidad es BLT.
+    // - Resp BLT cuenta tickets cuya responsabilidad contiene BLT, igual que las consultas SQL.
     row.fallas_anio = yearTickets.length;
-    row.resp_blt_anio = responsibilityBltYear.length;
+    row.resp_blt_anio = bltYear.length;
     row.fallas_blt_anio = bltYear.length;
-    row.ultimo_blt = responsibilityBltYear.map(ticket => ticket.fecha_reporte).filter(Boolean).sort().pop() || null;
+    row.fallas_blt_365 = blt365.length;
+    row.ultimo_blt = bltYear.map(ticket => ticket.fecha_reporte).filter(Boolean).sort().pop() || null;
     row.resp_cliente_anio = clientYear.length;
     row.ultimo_cliente = tickets
       .filter(ticket => normalizeUpper_uni(ticket.responsabilidad).includes('CLIENTE'))
@@ -833,7 +828,20 @@ function projectHeaderFromEquipment_uni(project, equipmentRows, publicName, proj
     const value = normalizeUpper_uni(row.estado_operativo || row.ultimo_estatus_equipo_final);
     return value.includes('PARAD') || value.includes('NO FUNC');
   }).length;
-  const mtbcValues = equipmentRows.map(row => Number(row.mtbc_365)).filter(Number.isFinite);
+  // MTBC oficial de proyecto: dias del periodo por equipos activos con al menos
+  // una falla BLT en ese periodo, dividido entre el total de fallas BLT.
+  const activeRows = equipmentRows.filter(row =>
+    !['SI', 'SÍ', '1', 'TRUE', 'INACTIVO'].includes(normalizeUpper_uni(row.inactivo)) &&
+    !normalizeUpper_uni(row.estatus_servicio).includes('NO EN SERVICIO')
+  );
+  const faultsYear = activeRows.reduce((sum, row) => sum + Number(row.fallas_blt_anio || 0), 0);
+  const faults365 = activeRows.reduce((sum, row) => sum + Number(row.fallas_blt_365 || 0), 0);
+  const activeWithFaultsYear = activeRows.filter(row => Number(row.fallas_blt_anio || 0) > 0).length;
+  const activeWithFaults365 = activeRows.filter(row => Number(row.fallas_blt_365 || 0) > 0).length;
+  const now = mexicoCityCivilDateUtc();
+  const elapsedYearDays = Math.floor((now - new Date(Date.UTC(mexicoCityYear(), 0, 1))) / 86400000) + 1;
+  const mtbcYear = faultsYear ? Math.round((elapsedYearDays * activeWithFaultsYear / faultsYear) * 1000) / 1000 : null;
+  const mtbc365 = faults365 ? Math.round((365 * activeWithFaults365 / faults365) * 1000) / 1000 : null;
 
   const decorated = decorateProyectoRow_uni({
     ...project,
@@ -859,8 +867,11 @@ function projectHeaderFromEquipment_uni(project, equipmentRows, publicName, proj
     supervisor: supervisors.join(' / ') || null,
     supervisor_zona: supervisors.join(' / ') || null,
     equipos: equipmentRows.length,
+    equipos_con_falla_blt_anio: activeWithFaultsYear,
+    equipos_con_falla_blt_365: activeWithFaults365,
     parados,
-    mtbc_365: mtbcValues.length ? Math.round(mtbcValues.reduce((sum, value) => sum + value, 0) / mtbcValues.length) : null
+    mtbc_anio: mtbcYear,
+    mtbc_365: mtbc365
   });
   decorated.nombre_publico = publicName;
   decorated.proyecto_nombre = publicName || decorated.proyecto_nombre;
@@ -990,7 +1001,7 @@ async function getPortafolioProyectoDetalle_uni(req, res) {
 
     const last365 = allTickets.filter(ticket => {
       const date = dateValue_uni(ticket.fecha_reporte);
-      return date && date >= metricsContext.u365Start && date <= now;
+      return date && date >= metricsContext.u365Start && date.getTime() < now.getTime() + 86400000;
     });
     const responsibilityMap = new Map();
     for (const ticket of last365) {
@@ -1002,7 +1013,10 @@ async function getPortafolioProyectoDetalle_uni(req, res) {
       .sort((a, b) => b.total - a.total);
 
     const currentYearTickets = allTickets.filter(ticket => yearOf_uni(ticket.fecha_reporte) === currentYear);
-    const countResp = value => currentYearTickets.filter(ticket => normalizeUpper_uni(ticket.responsabilidad) === value).length;
+    const countResp = value => currentYearTickets.filter(ticket => {
+      const resp = normalizeUpper_uni(ticket.responsabilidad);
+      return value === 'BLT' ? resp.includes('BLT') : resp === value;
+    }).length;
     const projectMetrics = {
       equipos_activos: equipmentRows.length,
       equipos_detenidos: equipmentRows.filter(row => {

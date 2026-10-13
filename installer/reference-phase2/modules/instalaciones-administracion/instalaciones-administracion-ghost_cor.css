@@ -1,0 +1,51 @@
+/* [Aster | 2026-10-13 | ASTER-MG | FASE_2_INSTALACIONES_ADMINISTRACION_EDICION_FANTASMA_V001]
+   Exclusivamente dentro de #iadm-cor-project (pantalla secundaria).
+   No altera el Main ni otros modulos. */
+#iadm-cor-project .iadm-cor-ghost-toolbar{
+  display:flex;gap:15px;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  padding:12px 14px;margin:0 0 12px;border:1px solid #b6d4f6;
+  border-radius:12px;background:#f1f7ff;color:#143866;font-size:13px
+}
+#iadm-cor-project .iadm-cor-ghost-toolbar>div:first-child{display:grid;gap:4px}
+#iadm-cor-project .iadm-cor-ghost-toolbar-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+#iadm-cor-project .iadm-cor-matrix td[data-ghost-draft="true"]{background:#fff4d8!important;box-shadow:inset 3px 0 #b45309}
+#iadm-cor-project .iadm-cor-matrix td[data-ghost-conflict="true"]{background:#fee2e2!important;box-shadow:inset 3px 0 #b91c1c}
+#iadm-cor-project .iadm-cor-ghost-trigger{
+  width:100%;padding:3px 4px;display:block;border:1px solid transparent;border-radius:6px;
+  background:transparent;color:inherit;text-align:left;cursor:text;font:inherit
+}
+#iadm-cor-project .iadm-cor-ghost-trigger:hover,
+#iadm-cor-project .iadm-cor-ghost-trigger:focus-visible{
+  background:#ecf5ff;border-color:#60a5fa;outline:2px solid transparent
+}
+#iadm-cor-project .iadm-cor-ghost-affordance{display:block;margin-top:5px;color:#416186;font-size:11px}
+#iadm-cor-project .iadm-cor-ghost-original{display:block;color:#92400e;font-size:11px;overflow-wrap:anywhere}
+#iadm-cor-project .iadm-cor-ghost-change{display:grid;gap:5px;border-top:1px dashed #d8ad55;margin-top:7px;padding-top:6px}
+#iadm-cor-project .iadm-cor-ghost-revert{
+  justify-self:start;padding:4px 0;background:transparent;border:0;
+  text-decoration:underline;color:#7c2d12;cursor:pointer;font-size:12px
+}
+#iadm-cor-project .iadm-cor-ghost-editor{display:grid;gap:6px;min-width:190px}
+#iadm-cor-project .iadm-cor-ghost-label{color:#475569;font-size:11px;font-weight:700}
+#iadm-cor-project .iadm-cor-ghost-editor input,
+#iadm-cor-project .iadm-cor-ghost-editor select,
+#iadm-cor-project .iadm-cor-ghost-editor textarea{
+  width:100%;min-width:0;box-sizing:border-box;padding:7px;
+  border:1px solid #6094cb;border-radius:6px;background:#fff;color:#172033;font:inherit;font-size:13px
+}
+#iadm-cor-project .iadm-cor-ghost-editor textarea{resize:vertical}
+#iadm-cor-project .iadm-cor-ghost-actions{display:flex;gap:6px;flex-wrap:wrap}
+#iadm-cor-project .iadm-cor-ghost-action{
+  padding:6px 8px;background:#fff;border:1px solid #96b3d8;border-radius:6px;
+  color:#1e3a5f;cursor:pointer;font-size:12px
+}
+#iadm-cor-project .iadm-cor-ghost-apply{background:#14532d;color:#fff;border-color:#14532d}
+#iadm-cor-project .iadm-cor-ghost-warning{display:block;color:#991b1b;font-size:11px;overflow-wrap:anywhere}
+#iadm-cor-project .iadm-cor-ghost-error{color:#991b1b;font-size:11px;overflow-wrap:anywhere}
+#iadm-cor-project .iadm-cor-ghost-trigger:focus-visible,
+#iadm-cor-project .iadm-cor-ghost-revert:focus-visible,
+#iadm-cor-project .iadm-cor-ghost-action:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+@media(max-width:760px){
+  #iadm-cor-project .iadm-cor-ghost-toolbar{display:grid;gap:10px}
+  #iadm-cor-project .iadm-cor-ghost-toolbar-actions{justify-content:flex-start}
+}

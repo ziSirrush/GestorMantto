@@ -66,11 +66,11 @@ test('Proyectos UNI: BLT y CLIENTE son subconjuntos del mismo universo anual', (
 
   assert.match(
     block,
-    /SUM\(CASE WHEN UPPER\(TRIM\(COALESCE\(responsabilidad,''\)\)\)='BLT' THEN 1 ELSE 0 END\)\s+AS\s+llamadas_blt_anio/
+    /SUM\(CASE WHEN UPPER\(TRIM\(COALESCE\(responsabilidad,''\)\)\) LIKE '%BLT%' THEN 1 ELSE 0 END\)\s+AS\s+llamadas_blt_anio/
   );
   assert.match(
     block,
-    /MAX\(CASE WHEN UPPER\(TRIM\(COALESCE\(responsabilidad,''\)\)\)='BLT' THEN fecha_reporte END\)\s+AS\s+ultima_llamada_blt/
+    /MAX\(CASE WHEN UPPER\(TRIM\(COALESCE\(responsabilidad,''\)\)\) LIKE '%BLT%' THEN fecha_reporte END\)\s+AS\s+ultima_llamada_blt/
   );
   assert.match(
     block,

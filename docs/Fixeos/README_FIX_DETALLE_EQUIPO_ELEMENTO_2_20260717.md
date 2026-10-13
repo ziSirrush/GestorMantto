@@ -15,9 +15,9 @@ Alcance: exclusivamente Elemento 2 de Detalle Equipo.
 
 - Se agregó `metrics.sin_responsabilidad_anio` al endpoint de Detalle Equipo.
 - El valor considera tickets del año actual cuya responsabilidad no corresponde a BLT ni Cliente.
-- Se revisó la lógica existente de MTBC y se conservó sin cambios:
-  - MTBC año actual: promedio de días entre fallas BLT del año actual.
-  - MTBC U365: promedio de días entre fallas BLT del periodo U365.
+- Se alineó la lógica con las fórmulas oficiales:
+  - MTBC año actual: días transcurridos desde el 1 de enero entre fallas BLT del equipo en el año.
+  - MTBC U365: 365 entre fallas BLT del equipo en las últimas 365 fechas.
 
 ### Frontend
 
@@ -44,7 +44,6 @@ No se modificaron:
 - Elemento 5.
 - PDF.
 - Rango U365.
-- Fórmula de MTBC.
 
 ## Validaciones ejecutadas
 

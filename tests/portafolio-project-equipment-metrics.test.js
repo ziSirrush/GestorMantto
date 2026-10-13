@@ -16,9 +16,9 @@ test('Equipos del Proyecto separa fallas totales y responsabilidad BLT del año 
   const frontend = read('core/details.js');
 
   assert.ok(backend.includes('date >= yearStart && date < nextYear'));
-  assert.ok(backend.includes("normalizeUpper_uni(ticket.responsabilidad) === 'BLT'"));
+  assert.ok(backend.includes("normalizeUpper_uni(ticket.responsabilidad).includes('BLT')"));
   assert.ok(backend.includes('row.fallas_anio = yearTickets.length'));
-  assert.ok(backend.includes('row.resp_blt_anio = responsibilityBltYear.length'));
+  assert.ok(backend.includes('row.resp_blt_anio = bltYear.length'));
 
   assert.ok(frontend.includes('<th>Fallas al año</th><th>Resp BLT</th>'));
   assert.ok(frontend.includes("esc(e.fallas_anio||0)"));

@@ -57,6 +57,7 @@ function proyectosFilters(req, alias = 'p', zoneAlias = 'z_pm') {
     scope.sql,
     `${alias}.estado_registro = 1`,
     `(${alias}.inactivo IS NULL OR UPPER(${alias}.inactivo) NOT IN ('SI','S\u00cd','1','TRUE','INACTIVO'))`,
+    `UPPER(TRIM(COALESCE(${alias}.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'`,
     `${alias}.proyecto IS NOT NULL`,
     `TRIM(${alias}.proyecto) <> ''`,
     `${zoneAlias}.estado = 1`
@@ -159,11 +160,12 @@ async function queryProyectos_uni(req) {
       MAX(resp_anio.ultima_llamada_cliente) AS ultima_llamada_cliente,
       SUM(COALESCE(t35.tickets_35d, 0)) AS tickets_35d,
       SUM(COALESCE(blt.blt_365d, 0)) AS fallas_blt_365d,
+      SUM(CASE WHEN COALESCE(blt.blt_365d, 0) > 0 THEN 1 ELSE 0 END) AS equipos_con_falla_blt_365,
       CASE
-        WHEN COUNT(*) > 0 THEN ROUND(
-          AVG(CASE WHEN COALESCE(blt.blt_365d,0)=0 THEN 365 ELSE 365/COALESCE(blt.blt_365d,1) END),
-          0
-        )
+        WHEN SUM(COALESCE(blt.blt_365d, 0)) > 0 THEN ROUND(
+          (365 * SUM(CASE WHEN COALESCE(blt.blt_365d, 0) > 0 THEN 1 ELSE 0 END)) /
+          NULLIF(SUM(COALESCE(blt.blt_365d, 0)), 0),
+          3)
         ELSE NULL
       END AS mtbc_365
     FROM portafolio p
@@ -184,9 +186,10 @@ async function queryProyectos_uni(req) {
     LEFT JOIN (
       SELECT TRIM(codigo_equipo) AS codigo_equipo, COUNT(*) AS blt_365d
       FROM tickets
-      WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 365 DAY)
+      WHERE fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY)
+        AND fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
         AND NULLIF(TRIM(COALESCE(codigo_equipo, '')), '') IS NOT NULL
-        AND UPPER(TRIM(COALESCE(responsabilidad,''))) = 'BLT'
+        AND UPPER(COALESCE(responsabilidad,'')) LIKE '%BLT%'
       GROUP BY TRIM(codigo_equipo)
     ) blt ON blt.codigo_equipo = TRIM(p.numero_equipo)
     LEFT JOIN (
@@ -194,8 +197,8 @@ async function queryProyectos_uni(req) {
         TRIM(codigo_equipo) AS codigo_equipo,
         COUNT(*) AS llamadas_total_anio,
         MAX(fecha_reporte) AS ultima_llamada,
-        SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,'')))='BLT' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
-        MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,'')))='BLT' THEN fecha_reporte END) AS ultima_llamada_blt,
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) LIKE '%BLT%' THEN 1 ELSE 0 END) AS llamadas_blt_anio,
+        MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,''))) LIKE '%BLT%' THEN fecha_reporte END) AS ultima_llamada_blt,
         SUM(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,'')))='CLIENTE' THEN 1 ELSE 0 END) AS llamadas_cliente_anio,
         MAX(CASE WHEN UPPER(TRIM(COALESCE(responsabilidad,'')))='CLIENTE' THEN fecha_reporte END) AS ultima_llamada_cliente
       FROM tickets
@@ -213,19 +216,14 @@ async function queryProyectos_uni(req) {
     acc.proyectos += 1;
     acc.equipos += Number(row.equipos || 0);
     acc.parados += Number(row.parados || 0);
-    if (row.mtbc_365 !== null && row.mtbc_365 !== undefined) {
-      acc.mtbc_sum += Number(row.mtbc_365 || 0);
-      acc.mtbc_count += 1;
-    }
+    acc.fallas_blt_365d += Number(row.fallas_blt_365d || 0);
+    acc.equipos_con_falla_blt_365 += Number(row.equipos_con_falla_blt_365 || 0);
     return acc;
-  }, { proyectos:0, equipos:0, parados:0, mtbc_sum:0, mtbc_count:0 });
+  }, { proyectos:0, equipos:0, parados:0, fallas_blt_365d:0, equipos_con_falla_blt_365:0 });
 
-  summary.mtbc_promedio = summary.mtbc_count
-    ? Math.round(summary.mtbc_sum / summary.mtbc_count)
+  summary.mtbc_365 = summary.fallas_blt_365d
+    ? Math.round((365 * summary.equipos_con_falla_blt_365 / summary.fallas_blt_365d) * 1000) / 1000
     : null;
-  delete summary.mtbc_sum;
-  delete summary.mtbc_count;
-
   return { summary, data: rows.map(decorateProyectoRow) };
 }
 
