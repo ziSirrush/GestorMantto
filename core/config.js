@@ -50,4 +50,14 @@
           : directApiBase
     );
 
+  // Integrador aislado de rutas para avisos fotograficos (sin tocar Main).
+  // La inicializacion espera al router y no modifica las rutas restantes.
+  if (typeof document !== 'undefined' && !document.getElementById('mg-photo-notification-routes')) {
+    const script = document.createElement('script');
+    script.id = 'mg-photo-notification-routes';
+    script.src = './core/photo-notification-navigation.js?v=20261014-v001';
+    script.async = false;
+    document.head.appendChild(script);
+  }
+
 })();

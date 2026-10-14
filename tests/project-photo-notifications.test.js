@@ -98,7 +98,7 @@ test('carga de fotografía notifica exclusivamente a Directores Generales activo
   assert.equal(state.emissions[0].excludeActor, false);
   assert.equal(state.emissions[0].requireRoleMatrix, true);
   assert.equal(state.emissions[0].zonaOperativaNoAplica, true);
-  assert.equal(state.emissions[0].ruta, 'detalle:proyecto:PPNS-100');
+  assert.equal(state.emissions[0].ruta, 'detalle:proyecto-corellian:PPNS-100');
   assert.match(state.emissions[0].titulo, /cargada/i);
   assert.match(state.emissions[0].mensaje, /Gestora Foto cargó/);
   assert.match(state.emissions[0].eventInstanceKey, /:CARGADA:CORELLIAN:/);
@@ -123,6 +123,7 @@ test('eliminación de fotografía usa el mismo evento exclusivo con mensaje de b
   assert.match(state.emissions[0].titulo, /eliminada/i);
   assert.match(state.emissions[0].mensaje, /eliminó.*Proyecto Norte.*United/);
   assert.match(state.emissions[0].eventInstanceKey, /:ELIMINADA:UNITED:/);
+  assert.equal(state.emissions[0].ruta, 'detalle:proyecto:Proyecto Norte');
 });
 
 test('un actor sin rol Gestor de Fotografías no resuelve destinatarios ni emite', async () => {

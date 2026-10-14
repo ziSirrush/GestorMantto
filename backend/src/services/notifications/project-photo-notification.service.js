@@ -95,22 +95,58 @@ async function notifyProjectPhotoChange_gnral({
   const stableUrl = cleanText_gnral(storageUrl, 1500);
   const actor = actionUser_gnral(actionContext);
 
-  if (!normalizedAction) return emptyResult_gnral('ACCION_FOTOGRAFICA_INVALIDA');
-  if (!project || !photoSlot || !stableUrl) return emptyResult_gnral('IDENTIDAD_FOTOGRAFIA_INCOMPLETA');
-  if (!userCanManageProjectPhotos_gnral(actor)) return emptyResult_gnral('ACTOR_SIN_ROL_GESTOR_FOTOGRAFIAS');
+  if (!normalizedAction || !project || !photoSlot || !stableUrl) {
+    const reason = !normalizedAction
+      ? 'ACCION_FOTOGRAFICA_INVALIDA'
+      : 'IDENTIDAD_FOTOGRAFIA_INCOMPLETA';
+    logger.warn('[PROJECT_PHOTO_NOTIFICATION_INPUT_REJECTED]', {
+      codigo_evento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
+      dominio: normalizeDomain_gnral(domain),
+      proyecto: project,
+      actor_user_id: actorId_gnral(actionContext),
+      reason
+    });
+    return emptyResult_gnral(reason);
+  }
+  if (!userCanManageProjectPhotos_gnral(actor)) {
+    logger.warn('[PROJECT_PHOTO_NOTIFICATION_ACTOR_REJECTED]', {
+      codigo_evento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
+      dominio: normalizeDomain_gnral(domain),
+      proyecto: project,
+      actor_user_id: actorId_gnral(actionContext),
+      reason: 'ACTOR_SIN_ROL_GESTOR_FOTOGRAFIAS'
+    });
+    return emptyResult_gnral('ACTOR_SIN_ROL_GESTOR_FOTOGRAFIAS');
+  }
 
   try {
     const recipients = await directorGeneralUserIds_gnral();
-    if (!recipients.length) return emptyResult_gnral('SIN_DIRECTOR_GENERAL_ACTIVO');
+    const domainCode = normalizeDomain_gnral(domain);
+    if (!recipients.length) {
+      logger.warn('[PROJECT_PHOTO_NOTIFICATION_NO_DIRECTORS]', {
+        codigo_evento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
+        dominio: domainCode,
+        proyecto: project,
+        accion_fotografia: normalizedAction,
+        actor_user_id: actorId_gnral(actionContext),
+        reason: 'SIN_DIRECTOR_GENERAL_ACTIVO'
+      });
+      return emptyResult_gnral('SIN_DIRECTOR_GENERAL_ACTIVO');
+    }
 
     const uploaded = normalizedAction === ACTION_UPLOADED_GNRAL;
-    const domainName = normalizeDomain_gnral(domain) === 'UNITED' ? 'United' : 'Corellian';
+    const domainName = domainCode === 'UNITED' ? 'United' : 'Corellian';
+    // El tipo de ruta es el contrato de navegacion; el ID no indica dominio.
+    // CORELLIAN exige el detalle unificado con alcance de Instalaciones.
+    const destination = domainCode === 'CORELLIAN'
+      ? `detalle:proyecto-corellian:${project}`
+      : `detalle:proyecto:${project}`;
     const verb = uploaded ? 'cargó' : 'eliminó';
     const title = uploaded
       ? 'Fotografía de proyecto cargada'
       : 'Fotografía de proyecto eliminada';
 
-    return emitBusinessEventSafe_gnral({
+    const emission = await emitBusinessEventSafe_gnral({
       codigoEvento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
       destinatarios: recipients,
       actorUserId: actorId_gnral(actionContext),
@@ -125,11 +161,33 @@ async function notifyProjectPhotoChange_gnral({
       icono: uploaded ? '📷' : '🗑️',
       accion: 'ABRIR_MODULO',
       idReferencia: positiveId_gnral(photoRecordId),
-      ruta: `detalle:proyecto:${project}`,
-      eventInstanceKey: `project-photo:${normalizedAction}:${normalizeDomain_gnral(domain)}:${project}:${photoSlot}:${stableUrl}`
+      ruta: destination,
+      eventInstanceKey: `project-photo:${normalizedAction}:${domainCode}:${project}:${photoSlot}:${stableUrl}`
     }, {
       label: `project-photo:${normalizedAction.toLowerCase()}`
     });
+
+    // "Creada" no equivale a "entregada por Push". El envio depende de
+    // suscripcion y despacho posteriores; registrar ambas capas por separado.
+    const diagnostics = {
+      codigo_evento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
+      dominio: domainCode,
+      proyecto: project,
+      accion_fotografia: normalizedAction,
+      actor_user_id: actorId_gnral(actionContext),
+      destino: destination,
+      directores_candidatos: recipients.length,
+      creadas: Number(emission?.created || 0),
+      omitidas: Number(emission?.skipped || 0),
+      push_elegibles: Array.isArray(emission?.push_recipients) ? emission.push_recipients.length : 0,
+      razon: emission?.reason || null,
+      razones_omision: emission?.skipped_reasons || null,
+      trace_id: emission?.trace_id || null,
+      error_code: emission?.error_code || null
+    };
+    if (!diagnostics.creadas) logger.warn('[PROJECT_PHOTO_NOTIFICATION_NOT_CREATED]', diagnostics);
+    else logger.info('[PROJECT_PHOTO_NOTIFICATION_EMISSION]', diagnostics);
+    return emission;
   } catch (error) {
     logger.error('[PROJECT_PHOTO_NOTIFICATION_FAILED]', {
       codigo_evento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
