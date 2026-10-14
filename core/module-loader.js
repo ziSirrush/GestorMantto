@@ -264,10 +264,10 @@
     'cobranza-pagos':{css:['./modules/cobranza-cor/cobranza-cor-pagos.css?v=20261002-cobranza-pagos-list-buscable-tradicional-v004'],js:['./modules/cobranza-cor/cobranza-cor-pagos.js?v=20261002-cobranza-pagos-list-buscable-tradicional-v004']},
     'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260914-horarios-f2-v001']},
 
-    'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-cobranza-kpis-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-cobranza-kpis-v001']},
-    'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-cobranza-kpis-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-cobranza-kpis-v001']},
-    'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-cobranza-kpis-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-cobranza-kpis-v001']},
-    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-cobranza-kpis-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-cobranza-kpis-v001']}
+    'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']},
+    'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']},
+    'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']},
+    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']}
   });
 
   function absoluteUrl(src){

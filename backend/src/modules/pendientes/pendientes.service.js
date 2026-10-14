@@ -201,6 +201,31 @@ async function syncPendienteChildren_gnral(executor, idPendiente, body, creator)
     creatorInitials && selectedInitials.includes(creatorInitials)
   );
 
+  // Un payload manipulado no puede crear relaciones con iniciales inexistentes
+  // o cuentas inactivas. En edición sí se conservan las asignaciones históricas
+  // que ya pertenecían a la tarea para evitar una pérdida silenciosa.
+  const existingUsers = await pendientesRepository.listTaskUsers_gnral(executor, idPendiente);
+  const historicalInitials = new Set(existingUsers
+    .map(user => normalizeInitials(user.iniciales_usuario))
+    .filter(Boolean));
+  const activeUsers = await pendientesRepository.listActiveUsersByInitials_gnral(
+    executor,
+    filteredInitials
+  );
+  const activeInitials = new Set(activeUsers
+    .map(user => normalizeInitials(user.iniciales))
+    .filter(Boolean));
+  const invalidInitials = filteredInitials.filter(initials => (
+    !activeInitials.has(initials) && !historicalInitials.has(initials)
+  ));
+  if (invalidInitials.length) {
+    throw httpError(
+      'Uno o más usuarios seleccionados no existen o ya no están activos.',
+      400,
+      'PENDIENTE_USUARIO_INVALIDO'
+    );
+  }
+
   await pendientesRepository.replaceTaskUsers_gnral(
     executor,
     idPendiente,
@@ -403,7 +428,7 @@ async function getPendientesCatalogos(req) {
   const equipoSearch = likeParam(req.query.equipo || req.query.search || '');
 
   const areasRows = await pendientesRepository.getCatalogAreas_gnral();
-  const usuarios = await pendientesRepository.getCatalogUsers_gnral(null, empresa);
+  const usuarios = await pendientesRepository.getCatalogUsers_gnral(null, null);
   const proyectos = await pendientesRepository.getCatalogProjects_gnral(null, {
     empresa,
     search: projectSearch

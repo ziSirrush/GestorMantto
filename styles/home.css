@@ -283,3 +283,55 @@
   }
 }
 /* END FIX_NOTIFICACIONES_POPOVER_V002 */
+
+/* Home tareas v1.1 - formulario compacto con secciones opcionales */
+.task-form-modal{width:min(900px,96vw);overflow:hidden;display:flex;flex-direction:column}
+.task-form-modal .task-modal-head{flex:0 0 auto;padding:16px 20px;box-shadow:0 1px 0 rgba(15,23,42,.04)}
+.task-form-reorganized{padding:18px 20px 0;gap:12px;overflow-y:auto;min-height:0}
+.task-form-reorganized>.form-grid,.task-form-reorganized>.task-rich-field,.task-form-reorganized>.form-block,.task-form-reorganized>.task-optional-section{flex:0 0 auto}
+.task-primary-row{align-items:end}
+.task-form-reorganized input:not([type="checkbox"]):focus,.task-form-reorganized select:focus{outline:none;border-color:#7aa2f7;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.task-form-reorganized .task-rich-input{min-height:116px;max-height:250px}
+.task-form-reorganized .form-block{padding:14px 15px;border-radius:14px;background:#fff}
+.task-form-reorganized .block-title{align-items:flex-start;margin-bottom:12px}
+.task-form-reorganized .block-title strong{font-size:13px}
+.task-form-reorganized .block-title strong small{color:var(--muted);font-size:11px;font-weight:700}
+.task-form-reorganized .block-title span{max-width:480px;text-align:right;line-height:1.35}
+.task-optional-section{border:1px solid var(--line);border-radius:13px;background:#fff;overflow:hidden;transition:border-color .15s,background .15s}
+.task-optional-section.expanded{border-color:#c9d7eb;background:#fbfdff}
+.task-section-toggle{min-height:46px;padding:0 14px;display:flex!important;flex-direction:row!important;align-items:center;gap:10px!important;cursor:pointer;color:var(--navy)!important;font-size:13px!important;font-weight:850!important}
+.task-section-toggle input{width:17px!important;height:17px;accent-color:var(--blue);margin:0;flex:0 0 auto}
+.task-section-toggle span{line-height:1}
+.task-optional-content{padding:0 14px 14px;border-top:1px solid #e7edf5}
+.task-optional-content[hidden]{display:none!important}
+.task-optional-content>.subtask-editor,.task-optional-content>.form-grid,.task-optional-content>label{margin-top:12px}
+.task-evidence-block{border-left:3px solid #60a5fa!important;background:#fbfdff!important}
+.task-people-block{border-left:3px solid #2563eb!important}
+.task-form-reorganized .selected-users{min-height:42px;background:#fbfdff}
+.task-form-reorganized .user-chip{display:inline-flex;align-items:center;max-width:100%}
+.task-form-reorganized .user-chip.historical{border-style:dashed;background:#f8fafc;color:#64748b}
+.task-form-reorganized .subtask-edit-row{align-items:center}
+.task-form-reorganized .remove-subtask{min-width:72px;color:#b42318;background:#fff}
+.task-company-fixed{min-height:40px;justify-content:center}
+.task-form-actions{position:sticky;bottom:0;z-index:3;margin:2px -20px 0;padding:14px 20px!important;border-top:1px solid var(--line);background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}
+.task-form-actions .new-task,.task-form-actions .secondary{min-width:120px;height:38px}
+
+@media(max-width:760px){
+  .task-form-modal .task-modal-head{padding:14px}
+  .task-form-reorganized{padding:14px 14px 0;gap:10px}
+  .task-form-reorganized .block-title{flex-direction:column;gap:4px}
+  .task-form-reorganized .block-title span{max-width:none;text-align:left}
+  .task-form-actions{margin:2px -14px 0;padding:12px 14px!important}
+  .task-form-actions button{flex:1}
+}
+
+@media(max-width:480px){
+  .task-form-reorganized .task-rich-toolbar{gap:4px;padding:6px}
+  .task-form-reorganized .task-rich-toolbar-group{padding-right:3px}
+  .task-form-reorganized .task-rich-toolbar button{padding:0 6px}
+  .task-section-toggle{min-height:44px;padding:0 12px}
+  .task-optional-content{padding:0 12px 12px}
+  .task-form-reorganized .subtask-edit-row{grid-template-columns:minmax(0,1fr) 42px}
+  .task-form-reorganized .remove-subtask{min-width:42px;padding:8px 5px;font-size:0}
+  .task-form-reorganized .remove-subtask::after{content:"×";font-size:17px}
+}

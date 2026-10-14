@@ -214,15 +214,13 @@ async function listAreas_gnral(executor) {
   return rows.map(row => row.value).filter(Boolean);
 }
 
-async function listUsersByCompany_gnral(executor, companyLabel) {
-  if (!companyLabel) return [];
+async function listActiveUsers_gnral(executor) {
   const [rows] = await executor.query(`
     SELECT id_SB, nombre, iniciales, correo, area, puesto, empresa
     FROM usuarios
     WHERE estado = 1
-      AND LOWER(TRIM(empresa)) = LOWER(TRIM(?))
     ORDER BY nombre ASC
-  `, [companyLabel]);
+  `);
   return rows;
 }
 
@@ -456,7 +454,9 @@ async function getPendientesCatalogos_gnral(req, res) {
     const equipmentSearch = likeParam_gnral(req.query?.equipo || req.query?.search);
 
     const areas = await listAreas_gnral(connection);
-    const usuarios = await listUsersByCompany_gnral(connection, context.empresaSeleccionada);
+    // Las personas pertenecen al dominio GENERAL de Tareas. El filtro de empresa
+    // se conserva solo para Proyecto/Equipo y nunca reduce Responsables/Seguimiento.
+    const usuarios = await listActiveUsers_gnral(connection);
     const proyectos = await listProjects_gnral(connection, context, scope, projectSearch);
     const equipos = await listEquipment_gnral(
       connection,

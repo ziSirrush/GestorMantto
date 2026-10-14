@@ -19,6 +19,8 @@
     generatedAt:null,
     filters:{search:'',estado:'',z_oper:'',z_adm:'',riesgo:''},
     mobileRisk:'alto',
+    riskPages:{bajo:1,medio:1,alto:1},
+    riskPageSize:10,
     detailId:null,
     detailCache:{},
     detailLoading:false,
@@ -255,13 +257,24 @@
     '</article>';
   }
 
+  function resetRiskPages_uni(){
+    state_uni.riskPages={bajo:1,medio:1,alto:1};
+  }
+
   function riskColumn_uni(key,title,icon,rows){
     const grouped = rows.filter(row => riskKey_uni(row.nivel_riesgo_credito) === key);
-    const visible = grouped.slice(0,8);
+    const pageSize=state_uni.riskPageSize;
+    const totalPages=Math.max(1,Math.ceil(grouped.length/pageSize));
+    const requested=Number(state_uni.riskPages[key])||1;
+    const page=Math.min(totalPages,Math.max(1,requested));
+    state_uni.riskPages[key]=page;
+    const start=(page-1)*pageSize;
+    const visible=grouped.slice(start,start+pageSize);
+    const pagination=grouped.length?'<footer><span>Mostrando '+integer_uni(start+1)+'–'+integer_uni(Math.min(start+visible.length,grouped.length))+' de '+integer_uni(grouped.length)+'</span><div class="gc-uni-risk-pagination"><button type="button" data-gc-risk-page="'+(page-1)+'" data-gc-risk-key="'+escapeHtml_uni(key)+'" aria-label="Página anterior de '+escapeHtml_uni(title)+'"'+(page<=1?' disabled':'')+'>‹</button><b>Página '+integer_uni(page)+' de '+integer_uni(totalPages)+'</b><button type="button" data-gc-risk-page="'+(page+1)+'" data-gc-risk-key="'+escapeHtml_uni(key)+'" aria-label="Página siguiente de '+escapeHtml_uni(title)+'"'+(page>=totalPages?' disabled':'')+'>›</button></div></footer>':'';
     return '<section class="gc-uni-risk-column gc-col-' + key + '">' +
       '<header><div><span>' + icon + '</span><b>' + escapeHtml_uni(title) + '</b></div><em>' + integer_uni(grouped.length) + ' proyectos</em></header>' +
       '<div class="gc-uni-risk-list">' + (visible.length ? visible.map(renderCard_uni).join('') : '<div class="gc-uni-empty">Sin proyectos en este nivel.</div>') + '</div>' +
-      (grouped.length > visible.length ? '<footer>Mostrando ' + visible.length + ' de ' + grouped.length + '</footer>' : '') +
+      pagination +
     '</section>';
   }
 
@@ -665,6 +678,7 @@
       control.addEventListener(eventName,function(){
         const apply = function(){
           state_uni.filters[field] = control.value || '';
+          resetRiskPages_uni();
           renderContent_uni();
           const fresh = document.querySelector('[data-gc-filter="' + field + '"]');
           if(fresh && field === 'search'){
@@ -684,6 +698,7 @@
         if(action === 'refresh') loadGestionCredito_uni(true);
         if(action === 'clear'){
           state_uni.filters = {search:'',estado:'',z_oper:'',z_adm:'',riesgo:''};
+          resetRiskPages_uni();
           renderContent_uni();
         }
       });
@@ -733,6 +748,14 @@
     root.querySelectorAll('[data-gc-risk-tab]').forEach(function(button){
       button.addEventListener('click',function(){
         state_uni.mobileRisk = button.getAttribute('data-gc-risk-tab') || 'alto';
+        renderContent_uni();
+      });
+    });
+    root.querySelectorAll('[data-gc-risk-page]').forEach(function(button){
+      button.addEventListener('click',function(){
+        const key=button.getAttribute('data-gc-risk-key');
+        if(!Object.hasOwn(state_uni.riskPages,key)) return;
+        state_uni.riskPages[key]=Number(button.getAttribute('data-gc-risk-page'))||1;
         renderContent_uni();
       });
     });

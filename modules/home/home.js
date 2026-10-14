@@ -12,6 +12,7 @@
     unreadNotificationCount: 0,
     activities: [],
     catalogs: { areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [] },
+    formHistoricalUsers: [],
     selectedTask: null,
     selectedDetail: null,
     formMode: 'create',
@@ -732,7 +733,7 @@
   }
 
   async function loadCatalogs(filters){
-    const baseCatalogs = { areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [] };
+    const baseCatalogs = { areas: [], empresas: [], usuarios: [], proyectos: [], equipos: [], empresa_default: '', empresa_seleccionada: '', puede_seleccionar_empresa: false };
     const f = typeof filters === 'string' ? { proyecto: filters } : (filters || {});
     try{
       const params = new URLSearchParams();
@@ -752,12 +753,10 @@
       try{
         const usuarios = await apiGet('/api/usuarios');
         const activos = (Array.isArray(usuarios) ? usuarios : []).filter(u => Number(u.estado ?? 1) === 1);
-        const empresaFiltro = f.empresa || state.user?.empresa || '';
-        const usuariosFiltrados = empresaFiltro ? activos.filter(u => String(u.empresa || '') === String(empresaFiltro)) : activos;
         const uniq = arr => Array.from(new Set(arr.map(v => String(v || '').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es'));
         state.catalogs.areas = (state.catalogs.areas || []).length ? state.catalogs.areas : uniq(activos.map(u => u.area));
         state.catalogs.empresas = (state.catalogs.empresas || []).length ? state.catalogs.empresas : uniq(activos.map(u => u.empresa));
-        state.catalogs.usuarios = (state.catalogs.usuarios || []).length ? state.catalogs.usuarios : usuariosFiltrados.map(u => ({
+        state.catalogs.usuarios = (state.catalogs.usuarios || []).length ? state.catalogs.usuarios : activos.map(u => ({
           id_SB: u.id_SB,
           nombre: u.nombre,
           iniciales: u.iniciales,
@@ -777,6 +776,7 @@
     if(root) root.innerHTML = '';
     state.selectedTask = null;
     state.selectedDetail = null;
+    state.formHistoricalUsers = [];
   }
 
   function askDeleteConfirmation(taskTitle){
@@ -815,6 +815,19 @@
     return usuarios.map(u => u.iniciales_usuario).filter(Boolean);
   }
 
+  function selectedUserRecords(detail){
+    return (detail?.usuarios || []).map(user => ({
+      id_SB: user.id_SB || null,
+      nombre: user.nombre || '',
+      iniciales: user.iniciales_usuario || user.iniciales || '',
+      correo: user.correo || '',
+      area: user.area || '',
+      puesto: user.puesto || '',
+      empresa: user.empresa || '',
+      historical: Number(user.usuario_estado) !== 1
+    })).filter(user => user.iniciales);
+  }
+
   function optionList(values, selected){
     return values.map(v => `<option value="${safeText(v)}" ${String(v)===String(selected||'')?'selected':''}>${safeText(v)}</option>`).join('');
   }
@@ -838,7 +851,16 @@
   function renderUserPicker(selected){
     const creatorInitials = currentUserInitials();
     const chosen = new Set((selected || []).map(v => String(v || '').trim().toUpperCase()).filter(v => v && v !== creatorInitials));
-    const chips = Array.from(chosen).map(iniciales => `<button type="button" class="user-chip" data-remove-user="${safeText(iniciales)}">${safeText(iniciales)} ×</button>`).join('') || '<span class="muted-note">Sin usuarios seleccionados</span>';
+    const activeUsers = state.catalogs.usuarios || [];
+    const knownUsers = [...activeUsers, ...(state.formHistoricalUsers || [])];
+    const userByInitials = new Map(knownUsers.map(user => [String(user.iniciales || '').trim().toUpperCase(), user]));
+    const activeInitials = new Set(activeUsers.map(user => String(user.iniciales || '').trim().toUpperCase()).filter(Boolean));
+    const chips = Array.from(chosen).map(iniciales => {
+      const user = userByInitials.get(iniciales) || {};
+      const historical = !activeInitials.has(iniciales);
+      const label = user.nombre ? `${user.nombre} · ${iniciales}` : iniciales;
+      return `<button type="button" class="user-chip${historical ? ' historical' : ''}" data-remove-user="${safeText(iniciales)}" title="${historical ? 'Asignación histórica; no está disponible para selecciones nuevas' : 'Quitar usuario'}">${safeText(label)} ×</button>`;
+    }).join('') || '<span class="muted-note">Sin usuarios seleccionados</span>';
     const options = '<option value="">Agregar usuario...</option>' + (state.catalogs.usuarios || [])
       .filter(u => {
         const iniciales = String(u.iniciales || '').trim().toUpperCase();
@@ -846,6 +868,27 @@
       })
       .map(u => `<option value="${safeText(String(u.iniciales || '').trim().toUpperCase())}">${safeText(u.iniciales)} · ${safeText(u.nombre)}${u.area ? ' · ' + safeText(u.area) : ''}</option>`).join('');
     return `<div class="task-user-picker"><div class="selected-users" id="task-selected-users">${chips}</div><select id="task-user-select">${options}</select>${Array.from(chosen).map(i => `<input type="hidden" name="usuarios" value="${safeText(i)}">`).join('')}<p class="muted-note">El creador no puede agregarse a sí mismo.</p></div>`;
+  }
+
+  function selectedInitialsFromForm(){
+    return Array.from(document.querySelectorAll('#task-users-picker input[name="usuarios"]'))
+      .map(input => String(input.value || '').trim().toUpperCase())
+      .filter(Boolean);
+  }
+
+  function bindOptionalTaskSections(){
+    document.querySelectorAll('[data-task-toggle]').forEach(checkbox => {
+      const panel = document.getElementById(checkbox.dataset.taskToggle);
+      const section = checkbox.closest('[data-optional-section]');
+      const refresh = () => {
+        const expanded = Boolean(checkbox.checked);
+        if(panel) panel.hidden = !expanded;
+        if(section) section.classList.toggle('expanded', expanded);
+        checkbox.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      };
+      checkbox.addEventListener('change', refresh);
+      refresh();
+    });
   }
 
   function bindUserPicker(selected){
@@ -875,6 +918,12 @@
     const tipo = row.tipo_pendiente || state.activeTaskType || 'PERSONAL';
     const relationLabel = tipo === 'COLABORATIVA' ? 'Responsables' : 'Seguimiento';
     const subtareas = detail?.subtareas || [];
+    const hasSubtasks = mode === 'edit' && Boolean(Number(row.con_subtareas) === 1 || subtareas.length);
+    const hasDueDate = mode === 'edit' && Boolean(formatDateInput(row.due_date));
+    const hasLinkage = mode === 'edit' && Boolean(row.area || row.proyecto || row.equipo);
+    const technicalEmpresa = row.empresa || state.catalogs.empresa_seleccionada || state.catalogs.empresa_default || state.user?.empresa || '';
+    const canSelectCompany = state.catalogs.puede_seleccionar_empresa === true;
+    state.formHistoricalUsers = selectedUserRecords(detail);
     const currentFiles = [
       ...(detail?.archivos_directos || row.archivos_directos || []),
       ...(detail?.evidencias_legacy || row.evidencias_legacy || [])
@@ -882,24 +931,26 @@
     const root = document.getElementById('home-task-modal-root');
     if(!root) return;
 
-    root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal card">
-      <div class="task-modal-head"><div><p>${mode === 'edit' ? 'Editar tarea' : 'Nueva tarea'}</p><h2>${tipo === 'COLABORATIVA' ? 'Tarea colaborativa' : 'Tarea personal'}</h2></div><button class="modal-close" id="task-modal-close">×</button></div>
-      <form id="home-task-form" class="task-form" novalidate>
+    root.innerHTML = `<div class="task-modal-backdrop"><section class="task-modal task-form-modal card">
+      <div class="task-modal-head"><div><p>${mode === 'edit' ? 'Editar tarea' : 'Nueva tarea'}</p><h2>${tipo === 'COLABORATIVA' ? 'Tarea colaborativa' : 'Tarea personal'}</h2></div><button class="modal-close" id="task-modal-close" type="button" aria-label="Cerrar">×</button></div>
+      <form id="home-task-form" class="task-form task-form-reorganized" data-technical-company="${safeText(technicalEmpresa)}" novalidate>
         <input type="hidden" name="tipo_pendiente" value="${safeText(tipo)}">
-        <div class="form-grid">
-          <label>Pendiente *<input name="pendiente" required maxlength="255" value="${safeText(row.pendiente || '')}"></label>
+        <div class="form-grid task-primary-row">
+          <label>Pendiente *<input name="pendiente" required maxlength="255" value="${safeText(row.pendiente || '')}" placeholder="Escribe el título de la tarea"></label>
           ${tipo === 'PERSONAL'
             ? `<label>Prioridad *<select name="prioridad" required><option value="CRITICA" ${row.prioridad==='CRITICA'?'selected':''}>⚠️ Crítica</option><option value="ALTA" ${row.prioridad==='ALTA'?'selected':''}>🔴 Alta</option><option value="MEDIA" ${!row.prioridad || row.prioridad==='MEDIA'?'selected':''}>🟡 Media</option><option value="BAJA" ${row.prioridad==='BAJA'?'selected':''}>🟢 Baja</option></select></label>`
             : `<input type="hidden" name="prioridad" value="${safeText(row.prioridad || '')}"><div class="readonly-field"><strong>Prioridad</strong><span>La definirá el responsable</span></div>`}
-          <label>Fecha compromiso <small>(opcional)</small><input type="date" name="due_date" value="${safeText(formatDateInput(row.due_date))}"></label>
-          <label>Área<select name="area" id="task-area">${areaOptions(row.area || '')}</select></label>
-          <label>Empresa / razón social<select name="empresa" id="task-company">${empresaOptions(initialEmpresa)}</select></label>
-          <label>Proyecto<select name="proyecto" id="task-project"><option value="">Sin proyecto</option>${projectOptionList(state.catalogs.proyectos || [], row.proyecto)}</select></label>
-          <label>Equipo<select name="equipo" id="task-equipment"><option value="">Sin equipo</option>${(state.catalogs.equipos || []).map(e => `<option value="${safeText(e.numero_equipo)}" ${String(e.numero_equipo)===String(row.equipo||'')?'selected':''}>${safeText(e.identificacion_sitio || e.numero_equipo)} · ${safeText(e.numero_equipo)}</option>`).join('')}</select></label>
         </div>
         ${taskRichTextEditor(row.descripcion || '')}
-        <section class="form-block">
-          <div class="block-title"><strong>Evidencia directa</strong><span>Máximo un archivo de 25 MB. Al seleccionar uno nuevo se sustituirá la evidencia activa.</span></div>
+        <section class="task-optional-section${hasSubtasks ? ' expanded' : ''}" data-optional-section="subtasks">
+          <label class="task-section-toggle"><input type="checkbox" name="con_subtareas" id="task-has-subtasks" data-task-toggle="task-subtasks-panel" ${hasSubtasks ? 'checked' : ''}><span>Subtareas</span></label>
+          <div class="task-optional-content" id="task-subtasks-panel" ${hasSubtasks ? '' : 'hidden'}>
+            <div id="task-subtasks" class="subtask-editor">${(subtareas.length ? subtareas : [{subtarea:''}]).map(st => `<div class="subtask-edit-row"><input name="subtarea" value="${safeText(st.subtarea || '')}" placeholder="Subtarea"><button type="button" class="remove-subtask">Quitar</button></div>`).join('')}</div>
+            <button type="button" class="mini-action" id="add-subtask">+ Agregar subtarea</button>
+          </div>
+        </section>
+        <section class="form-block task-evidence-block">
+          <div class="block-title"><strong>Evidencia directa <small>(opcional)</small></strong><span>Máximo un archivo de 25 MB. Un archivo nuevo sustituye la evidencia activa.</span></div>
           ${renderStoredFiles(currentFiles)}
           <div class="form-grid">
             <label>Imagen<input type="file" id="task-photo-file" accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif"></label>
@@ -907,9 +958,25 @@
           </div>
           <p class="muted-note">Selecciona solo una opción. Los archivos nuevos se guardan en Azure; los enlaces históricos se conservan.</p>
         </section>
-        <section class="form-block"><div class="block-title"><strong>${safeText(relationLabel)}</strong><span>${tipo === 'COLABORATIVA' ? 'Responsables directos' : 'Usuarios que dan seguimiento'} filtrados por empresa seleccionada</span></div><div id="task-users-picker">${renderUserPicker(selectedInitials(detail))}</div></section>
-        <section class="form-block"><label class="inline-check"><input type="checkbox" name="con_subtareas" id="task-has-subtasks" ${row.con_subtareas || subtareas.length ? 'checked' : ''}> Tiene subtareas</label><div id="task-subtasks" class="subtask-editor">${(subtareas.length ? subtareas : [{subtarea:''}]).map(st => `<div class="subtask-edit-row"><input name="subtarea" value="${safeText(st.subtarea || '')}" placeholder="Subtarea"><button type="button" class="remove-subtask">Quitar</button></div>`).join('')}</div><button type="button" class="mini-action" id="add-subtask">+ Agregar subtarea</button></section>
-        <div class="form-actions"><button type="button" class="secondary" id="task-cancel">Cancelar</button><button type="submit" class="new-task">Guardar</button></div>
+        <section class="form-block task-people-block"><div class="block-title"><strong>${safeText(relationLabel)}</strong><span>${tipo === 'COLABORATIVA' ? 'Responsables directos' : 'Usuarios que dan seguimiento'} · usuarios activos de ambas empresas</span></div><div id="task-users-picker">${renderUserPicker(selectedInitials(detail))}</div></section>
+        <section class="task-optional-section${hasDueDate ? ' expanded' : ''}" data-optional-section="due-date">
+          <label class="task-section-toggle"><input type="checkbox" id="task-has-due-date" data-task-toggle="task-due-date-panel" ${hasDueDate ? 'checked' : ''}><span>Fecha compromiso</span></label>
+          <div class="task-optional-content" id="task-due-date-panel" ${hasDueDate ? '' : 'hidden'}><label>Fecha compromiso<input type="date" name="due_date" lang="es-MX" value="${safeText(formatDateInput(row.due_date))}"></label></div>
+        </section>
+        <section class="task-optional-section${hasLinkage ? ' expanded' : ''}" data-optional-section="linkage">
+          <label class="task-section-toggle"><input type="checkbox" id="task-has-linkage" data-task-toggle="task-linkage-panel" ${hasLinkage ? 'checked' : ''}><span>Vinculación</span></label>
+          <div class="task-optional-content" id="task-linkage-panel" ${hasLinkage ? '' : 'hidden'}>
+            <div class="form-grid">
+              ${canSelectCompany
+                ? `<label>Empresa / razón social<select name="empresa" id="task-company">${empresaOptions(technicalEmpresa)}</select></label>`
+                : `<div class="readonly-field task-company-fixed"><strong>Empresa / razón social</strong><span>${safeText(technicalEmpresa || 'Sin empresa')}</span><input type="hidden" name="empresa" id="task-company" value="${safeText(technicalEmpresa)}"></div>`}
+              <label>Área<select name="area" id="task-area">${areaOptions(row.area || '')}</select></label>
+              <label>Proyecto<select name="proyecto" id="task-project"><option value="">Sin proyecto</option>${projectOptionList(state.catalogs.proyectos || [], row.proyecto)}</select></label>
+              <label>Equipo<select name="equipo" id="task-equipment"><option value="">Sin equipo</option>${(state.catalogs.equipos || []).map(e => `<option value="${safeText(e.numero_equipo)}" ${String(e.numero_equipo)===String(row.equipo||'')?'selected':''}>${safeText(e.identificacion_sitio || e.numero_equipo)} · ${safeText(e.numero_equipo)}</option>`).join('')}</select></label>
+            </div>
+          </div>
+        </section>
+        <div class="form-actions task-form-actions"><button type="button" class="secondary" id="task-cancel">Cancelar</button><button type="submit" class="new-task">Guardar tarea</button></div>
       </form>
     </section></div>`;
 
@@ -923,6 +990,7 @@
     });
     bindSubtaskRemove();
     bindUserPicker(selectedInitials(detail));
+    bindOptionalTaskSections();
 
     const photoInput = document.getElementById('task-photo-file');
     const attachmentInput = document.getElementById('task-attachment-file');
@@ -937,14 +1005,16 @@
       if(attachmentInput.files.length && photoInput) photoInput.value = '';
     });
 
-    document.getElementById('task-company')?.addEventListener('change', async ev=>{
+    const companyField = document.getElementById('task-company');
+    if(companyField && companyField.tagName === 'SELECT') companyField.addEventListener('change', async ev=>{
+      const selectedUsers = selectedInitialsFromForm();
       await loadCatalogs({ empresa: ev.target.value });
       const project = document.getElementById('task-project');
       const eq = document.getElementById('task-equipment');
       const picker = document.getElementById('task-users-picker');
       if(project) project.innerHTML = '<option value="">Sin proyecto</option>' + projectOptionList(state.catalogs.proyectos || [], '');
       if(eq) eq.innerHTML = '<option value="">Sin equipo</option>';
-      if(picker){ picker.innerHTML = renderUserPicker([]); bindUserPicker([]); }
+      if(picker){ picker.innerHTML = renderUserPicker(selectedUsers); bindUserPicker(selectedUsers); }
     });
 
     document.getElementById('task-project')?.addEventListener('change', async ev=>{
@@ -984,6 +1054,10 @@
     const usuarios = raw.getAll('usuarios')
       .map(v=>String(v||'').trim().toUpperCase())
       .filter(v=>v && v !== currentUserInitials());
+    const subtareasEnabled = Boolean(document.getElementById('task-has-subtasks')?.checked);
+    const dueDateEnabled = Boolean(document.getElementById('task-has-due-date')?.checked);
+    const linkageEnabled = Boolean(document.getElementById('task-has-linkage')?.checked);
+    const technicalEmpresa = String(form.dataset.technicalCompany || state.user?.empresa || '').trim();
     const subtareas = raw.getAll('subtarea')
       .map(v=>String(v||'').trim())
       .filter(Boolean)
@@ -993,16 +1067,16 @@
     payload.append('pendiente', pendienteValue);
     payload.append('tipo_pendiente', tipoValue);
     payload.append('prioridad', String(prioridadValue || ''));
-    payload.append('due_date', String(raw.get('due_date') || ''));
-    payload.append('area', String(raw.get('area') || ''));
-    payload.append('empresa', String(raw.get('empresa') || ''));
-    payload.append('proyecto', String(raw.get('proyecto') || ''));
-    payload.append('equipo', String(raw.get('equipo') || ''));
+    payload.append('due_date', dueDateEnabled ? String(raw.get('due_date') || '') : '');
+    payload.append('area', linkageEnabled ? String(raw.get('area') || '') : '');
+    payload.append('empresa', linkageEnabled ? String(raw.get('empresa') || technicalEmpresa) : technicalEmpresa);
+    payload.append('proyecto', linkageEnabled ? String(raw.get('proyecto') || '') : '');
+    payload.append('equipo', linkageEnabled ? String(raw.get('equipo') || '') : '');
     payload.append('descripcion', String(raw.get('descripcion') || ''));
-    payload.append('con_subtareas', raw.get('con_subtareas') === 'on' ? '1' : '0');
+    payload.append('con_subtareas', subtareasEnabled ? '1' : '0');
     payload.append('rewrite_subtareas', '1');
     payload.append('usuarios_json', JSON.stringify(usuarios));
-    payload.append('subtareas_json', JSON.stringify(subtareas));
+    payload.append('subtareas_json', JSON.stringify(subtareasEnabled ? subtareas : []));
     if(photo) payload.append('photo_file', photo, photo.name);
     if(attachment) payload.append('adjunto_file', attachment, attachment.name);
 

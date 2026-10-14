@@ -198,7 +198,8 @@ async function listSubtasks_gnral(executor, idPendiente) {
 async function listTaskUsers_gnral(executor, idPendiente) {
   const connection = executor_gnral(executor);
   const [rows] = await connection.query(`
-    SELECT pu.*, u.nombre, u.correo, u.area, u.puesto
+    SELECT pu.*, u.id_SB, u.nombre, u.correo, u.area, u.puesto, u.empresa,
+           u.estado AS usuario_estado
     FROM pendientes_usuarios pu
     LEFT JOIN usuarios u ON u.iniciales = pu.iniciales_usuario
     WHERE pu.id_pendiente = ?
@@ -259,7 +260,7 @@ async function listActiveUsersByInitials_gnral(executor, initials) {
   const [rows] = await connection.query(`
     SELECT id_SB, nombre, iniciales
     FROM usuarios
-    WHERE estado = 1 AND iniciales IN (${placeholders})
+    WHERE estado = 1 AND UPPER(TRIM(iniciales)) IN (${placeholders})
   `, initials);
   return rows;
 }
