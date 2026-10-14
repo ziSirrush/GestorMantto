@@ -78,9 +78,14 @@
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  function moneyNumber_uni(value){
+    const parsed=number_uni(value);
+    return Math.round((parsed+Math.sign(parsed||1)*Number.EPSILON)*100)/100;
+  }
+
   function money_uni(value){
     return new Intl.NumberFormat('es-MX',{
-      style:'currency',currency:'MXN',maximumFractionDigits:0
+      style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2
     }).format(number_uni(value));
   }
 
@@ -803,6 +808,7 @@
   function renderMpKpis_uni(rows){
     let monto=0,corriente=0,vencido=0,pendiente=0,facturas=0,conPendiente=0,adeudoMp=0,adeudoVa=0;
     const proyectosVaContados=new Set();
+    const adeudoVaParcial=rows.some(function(row){ return row&&row.adeudo_va_verificado===false; });
 
     rows.forEach(function(row){
       const adeudoMpFila=row.adeudo_mp===undefined
@@ -825,7 +831,13 @@
       if(number_uni(row.pendiente)>0 || number_uni(row.facturas_pendientes)>0) conPendiente += 1;
     });
 
-    const adeudoTotal=adeudoMp+adeudoVa;
+    monto=moneyNumber_uni(monto);
+    corriente=moneyNumber_uni(corriente);
+    vencido=moneyNumber_uni(vencido);
+    pendiente=moneyNumber_uni(pendiente);
+    adeudoMp=moneyNumber_uni(adeudoMp);
+    adeudoVa=moneyNumber_uni(adeudoVa);
+    const adeudoTotal=moneyNumber_uni(adeudoMp+adeudoVa);
     return '<div class="mp-uni-kpi-stack">' +
       '<section class="mp-uni-kpis mp-uni-kpis-summary" aria-label="Indicadores de Mantenimiento Preventivo">' +
         mpKpi_uni('📋','Total registros',integer_uni(rows.length),'Registros del filtro','blue') +
@@ -838,8 +850,9 @@
       '<section class="mp-uni-kpis mp-uni-kpis-adeudo" aria-label="Desglose del adeudo">' +
         mpKpi_uni('💰','Adeudo Total',money_uni(adeudoTotal),'Adeudo MP + Adeudo VA','danger') +
         mpKpi_uni('🧾','Adeudo MP',money_uni(adeudoMp),'Pendiente corriente + vencido','warning') +
-        mpKpi_uni('➕','Adeudo VA',money_uni(adeudoVa),'Venta Adicional con adeudo','violet') +
+        mpKpi_uni('➕','Adeudo VA',money_uni(adeudoVa),adeudoVaParcial?'Subtotal validado; existen relaciones pendientes':'Venta Adicional con adeudo','violet') +
       '</section>' +
+      (adeudoVaParcial?'<p class="mp-uni-partial-warning" role="status">⚠️ El Adeudo VA y el Adeudo Total son subtotales: existen registros sin identidad de proyecto verificable.</p>':'') +
     '</div>';
   }
 
@@ -1138,6 +1151,34 @@
     });
   }
 
+  function vaFinancialProjectKey_uni(row,index){
+    const proyecto=normalize_uni(row&&(row.proyecto_oficial||row.proyecto));
+    if(proyecto) return 'proyecto:'+proyecto;
+    const idProyectoCobranza=Number(row&&row.id_proyecto_cobranza||0);
+    if(Number.isInteger(idProyectoCobranza)&&idProyectoCobranza>0) return 'id:'+idProyectoCobranza;
+    return 'registro:'+String(row&&row.id_pc||index);
+  }
+
+  function vaKpisFromRows_uni(rows){
+    const k={total_registros:rows.length,precio_venta_total:0,venta_total:0,facturado_pagado:0,no_pagado:0,pendiente_1pct:0,adeudo_total:0,facturas_pendientes:0,registros_con_adeudo:0};
+    const adeudoPorProyecto=new Map();
+    rows.forEach(function(row,index){
+      k.precio_venta_total+=number_uni(row.precio_venta);
+      k.venta_total+=number_uni(row.venta_total);
+      if(normalize_uni(row.estatus_administrativo)==='pagado por completo') k.facturado_pagado+=number_uni(row.venta_total);
+      k.no_pagado+=number_uni(row.no_pagado_iva);
+      k.facturas_pendientes+=number_uni(row.facturas_pendientes_pago);
+      const adeudo=number_uni(row.adeudo);
+      const key=vaFinancialProjectKey_uni(row,index);
+      if(!adeudoPorProyecto.has(key)||adeudo>adeudoPorProyecto.get(key)) adeudoPorProyecto.set(key,adeudo);
+      if(adeudo>0||number_uni(row.facturas_pendientes_pago)>0) k.registros_con_adeudo+=1;
+    });
+    adeudoPorProyecto.forEach(function(adeudo){ k.adeudo_total+=adeudo; });
+    k.pendiente_1pct=k.venta_total*0.01;
+    ['precio_venta_total','venta_total','facturado_pagado','no_pagado','pendiente_1pct','adeudo_total'].forEach(function(field){ k[field]=moneyNumber_uni(k[field]); });
+    return k;
+  }
+
   function renderVaMain_uni(){
     const view=document.getElementById('view-' + ROUTE_VENTA_ADICIONAL_UNI);
     if(!view) return;
@@ -1146,7 +1187,7 @@
     if(vaState_uni.page>totalPages) vaState_uni.page=totalPages;
     const start=(vaState_uni.page-1)*vaState_uni.pageSize;
     const pageRows=rows.slice(start,start+vaState_uni.pageSize);
-    const k=vaState_uni.kpis||{};
+    const k=vaKpisFromRows_uni(rows);
     const body=pageRows.length?pageRows.map(function(row){
       return '<tr>'+
         '<td><button type="button" class="va-uni-project" data-va-id="'+escapeHtml_uni(row.id_pc)+'">'+escapeHtml_uni(projectName_uni(row.proyecto))+'</button></td>'+

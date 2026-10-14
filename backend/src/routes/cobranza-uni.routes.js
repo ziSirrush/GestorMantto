@@ -4,6 +4,8 @@ const express = require('express');
 const router = express.Router();
 const cobranzaUniLegacyController = require('../controllers/cobranza-uni.controller');
 const cobranzaUniCuartosController = require('../controllers/cobranza-uni-cuartos-v2.controller');
+// [Mantto Gestor | 2026-10-13 | FASE 2] Lecturas cruzadas verificadas por identidad.
+const relacionesProtegidasUni = require('../controllers/cobranza-uni-relaciones-protegidas.controller');
 const { requireIntegrationAuthFor } = require('../middleware/integration-auth.middleware');
 const { humanInformationGuard_gnral } = require('../middleware/information-access-gnral.middleware');
 
@@ -21,9 +23,9 @@ const gestionCreditoGuard = cobranzaUniGuard('COBRANZA_UNI_ESTADOS_CUENTA_ACCESO
 const ventaAdicionalGuard = cobranzaUniGuard('COBRANZA_UNI_ADITIVAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL');
 
 router.get('/gestion-credito', ...gestionCreditoGuard, cobranzaUniCuartosController.getGestionCredito);
-router.get('/gestion-credito/:id/detalle', ...gestionCreditoGuard, cobranzaUniCuartosController.getGestionCreditoDetalle);
+router.get('/gestion-credito/:id/detalle', ...gestionCreditoGuard, relacionesProtegidasUni.getGestionCreditoDetalle);
 router.get('/venta-adicional', ...ventaAdicionalGuard, cobranzaUniCuartosController.getVentaAdicional);
-router.get('/venta-adicional/:id/detalle', ...ventaAdicionalGuard, cobranzaUniCuartosController.getVentaAdicionalDetalle);
+router.get('/venta-adicional/:id/detalle', ...ventaAdicionalGuard, relacionesProtegidasUni.getVentaAdicionalDetalle);
 
 // M2M: no pasa por alcance humano.
 router.post('/sync', requireCobranzaUniIntegration, cobranzaUniLegacyController.syncCobranzaUni);

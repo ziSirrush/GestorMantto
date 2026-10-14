@@ -16,7 +16,7 @@ La fórmula usada es la misma ya aplicada en el Detalle de Proyecto:
 
 ```text
 Adeudo MP = SUM(Pendiente Corriente + Pendiente Vencido)
-Adeudo VA = SUM(pc.adeudo)
+Adeudo VA = SUM(MAX(pc.adeudo) por proyecto)
 Adeudo Total = Adeudo MP + Adeudo VA
 ```
 
@@ -48,7 +48,7 @@ Se extiende únicamente la lectura `GET /api/cobranza-uni/detalle-mp-2026`.
 Cada fila de MP recibe:
 
 - `adeudo_mp`: `pendiente_corriente + pendiente_vencido`.
-- `adeudo_va`: suma de `pc.adeudo` del mismo proyecto, enlazando por `id_proyecto_cobranza` y/o nombre de proyecto existente.
+- `adeudo_va`: un único saldo `pc.adeudo` por proyecto (el máximo reportado), enlazando por identidad de proyecto validada. `pc.adeudo` es un saldo de proyecto y puede repetirse en varias operaciones.
 
 También se agregan al objeto `kpis` del endpoint:
 
@@ -88,7 +88,7 @@ No se agregan nuevas llamadas HTTP al frontend; los importes llegan en la respue
 - No se modifica Aiven/schema.
 - No hay `ALTER`, `CREATE TABLE` ni `DROP TABLE`.
 - No se modifica Gestión de Crédito.
-- No se modifica Venta Adicional.
+- No se modifica el esquema ni la sincronización de Venta Adicional; la corrección posterior sólo ajusta cómo se agrega y presenta su saldo por proyecto.
 - No se cambia la tabla visual de MP.
 - No se cambia la ruta HTTP.
 - No se modifica el detalle individual de MP.
@@ -109,7 +109,7 @@ No se agregan nuevas llamadas HTTP al frontend; los importes llegan en la respue
 3. Abrir Mantenimiento Preventivo.
 4. Comparar un proyecto conocido contra:
    - `detalle_mp_2026.pendiente_corriente + pendiente_vencido`;
-   - suma de `pc.adeudo` del proyecto.
+   - máximo de `pc.adeudo` del proyecto y contraste con `gestion_credito.monto_va`.
 5. Verificar `Adeudo Total = Adeudo MP + Adeudo VA`.
 6. Aplicar `Con Pendiente` y `Facturas Pendientes` y confirmar que los tres KPIs de adeudo responden al conjunto filtrado.
 7. Revisar escritorio/móvil.

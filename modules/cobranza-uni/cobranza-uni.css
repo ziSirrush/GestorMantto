@@ -130,6 +130,7 @@
 
 /* FASE MP · BLOQUE B · Desglose economico y acomodo de KPIs */
 .mp-uni-kpi-stack{display:grid;gap:9px}
+.mp-uni-partial-warning{margin:0;padding:10px 12px;border:1px solid #f1d8b2;border-radius:10px;background:#fff8e8;color:#8a4b08;font-size:12px;font-weight:700}
 .mp-uni-kpis.mp-uni-kpis-summary,.mp-uni-kpis.mp-uni-kpis-adeudo{grid-template-columns:repeat(3,minmax(0,1fr))}
 .mp-uni-kpis-adeudo .mp-uni-kpi{min-height:82px;padding:14px 16px}
 .mp-uni-kpis-adeudo .mp-uni-kpi strong{font-size:clamp(18px,1.55vw,24px)}

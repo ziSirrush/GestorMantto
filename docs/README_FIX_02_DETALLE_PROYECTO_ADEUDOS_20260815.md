@@ -14,7 +14,7 @@ Agregar al Detalle Proyecto United los indicadores financieros acordados sin cre
 
 ## Regla de calculo
 - Adeudo MP = suma de `pendiente_corriente + pendiente_vencido` de todos los registros de `detalle_mp_2026` cuyo `proyecto` coincide con el proyecto United.
-- Adeudo VA = suma de `pc.adeudo` de todos los registros de Venta Adicional del mismo proyecto.
+- Adeudo VA = un único saldo por proyecto: `MAX(pc.adeudo)`. El saldo puede repetirse en varias operaciones de Venta Adicional y no debe sumarse por fila.
 - Adeudo Total = Adeudo MP + Adeudo VA.
 - La relacion se resuelve por `proyecto`, siguiendo la regla vigente de Cobranza United V014.
 
@@ -49,7 +49,7 @@ con `id_gc`, por lo que el modulo existente abre su Detalle Gestion de Credito. 
 1. Reiniciar backend y confirmar `/api/health`.
 2. Abrir un proyecto United con MP y VA conocidos.
 3. Confirmar que Adeudo MP coincide con la suma de `pendiente_corriente + pendiente_vencido`.
-4. Confirmar que Adeudo VA coincide con la suma de `pc.adeudo`.
+4. Confirmar que Adeudo VA coincide con `MAX(pc.adeudo)` y contrastarlo con `gestion_credito.monto_va`.
 5. Confirmar que Adeudo Total = MP + VA.
 6. Pulsar cualquiera de los tres KPI y comprobar que abre el Detalle estandar de Gestion de Credito del mismo proyecto.
 7. Revisar Network: la apertura de Proyecto mantiene una sola solicitud de detalle de proyecto; los KPI no generan solicitudes adicionales hasta que el usuario navega a Gestion de Credito.

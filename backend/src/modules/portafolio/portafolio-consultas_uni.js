@@ -888,7 +888,7 @@ async function loadCobranzaSummary_uni(idProyectoCobranza, proyecto) {
       (SELECT MIN(gc.id_gc) FROM gestion_credito gc WHERE ${gc.sql}) AS gestion_credito_id,
       (SELECT COALESCE(SUM(COALESCE(mp.pendiente_corriente, 0) + COALESCE(mp.pendiente_vencido, 0)), 0)
          FROM detalle_mp_2026 mp WHERE ${mp.sql}) AS adeudo_mp,
-      (SELECT COALESCE(SUM(COALESCE(va.adeudo, 0)), 0)
+      (SELECT COALESCE(MAX(COALESCE(va.adeudo, 0)), 0)
          FROM pc va WHERE ${va.sql}) AS adeudo_va
   `, [...gc.params, ...mp.params, ...va.params]);
   return rows[0] || {};

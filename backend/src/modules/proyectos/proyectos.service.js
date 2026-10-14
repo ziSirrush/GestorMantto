@@ -772,7 +772,7 @@ async function getProyectoDetalle(req, res) {
           WHERE ${filtroMpCobranza.sql}
         ) AS adeudo_mp,
         (
-          SELECT COALESCE(SUM(COALESCE(va.adeudo, 0)), 0)
+          SELECT COALESCE(MAX(COALESCE(va.adeudo, 0)), 0)
           FROM pc va
           WHERE ${filtroVaCobranza.sql}
         ) AS adeudo_va

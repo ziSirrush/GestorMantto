@@ -13,6 +13,11 @@ function numberOrZero(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function roundMoney_uni(value) {
+  const number = numberOrZero(value);
+  return Math.round((number + Math.sign(number || 1) * Number.EPSILON) * 100) / 100;
+}
+
 function uniqueSorted(values) {
   return [...new Set((Array.isArray(values) ? values : [])
     .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
@@ -27,6 +32,58 @@ function projectLookupKey_uni(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function financialProjectKey_uni(row, index = 0) {
+  const project = projectLookupKey_uni(row && (row.proyecto_oficial || row.proyecto));
+  if (project) return `proyecto:${project}`;
+  const id = normalizeId(row && row.id_proyecto_cobranza);
+  if (id) return `id:${id}`;
+  return `registro:${String(row && row.id_pc || index)}`;
+}
+
+function calculateVentaAdicionalKpis_uni(rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  const kpis = {
+    total_registros: source.length,
+    precio_venta_total: 0,
+    venta_total: 0,
+    facturado_pagado: 0,
+    no_pagado: 0,
+    pendiente_1pct: 0,
+    adeudo_total: 0,
+    facturas_pendientes: 0,
+    registros_con_adeudo: 0
+  };
+  const debtByProject = new Map();
+
+  source.forEach((row, index) => {
+    kpis.precio_venta_total += numberOrZero(row.precio_venta);
+    kpis.venta_total += numberOrZero(row.venta_total);
+    if (String(row.estatus_administrativo || '').trim().toLowerCase() === 'pagado por completo') {
+      kpis.facturado_pagado += numberOrZero(row.venta_total);
+    }
+    kpis.no_pagado += numberOrZero(row.no_pagado_iva);
+    kpis.facturas_pendientes += numberOrZero(row.facturas_pendientes_pago);
+
+    const debt = numberOrZero(row.adeudo);
+    const projectKey = financialProjectKey_uni(row, index);
+    if (!debtByProject.has(projectKey) || debt > debtByProject.get(projectKey)) {
+      debtByProject.set(projectKey, debt);
+    }
+    if (debt > 0 || numberOrZero(row.facturas_pendientes_pago) > 0) {
+      kpis.registros_con_adeudo += 1;
+    }
+  });
+
+  // pc.adeudo es el saldo del proyecto y puede repetirse en varias operaciones.
+  // Se toma una sola vez por proyecto; ventas, facturas y pagos siguen por fila.
+  kpis.adeudo_total = [...debtByProject.values()].reduce((total, debt) => total + debt, 0);
+  kpis.pendiente_1pct = kpis.venta_total * 0.01;
+  for (const field of ['precio_venta_total', 'venta_total', 'facturado_pagado', 'no_pagado', 'pendiente_1pct', 'adeudo_total']) {
+    kpis[field] = roundMoney_uni(kpis[field]);
+  }
+  return kpis;
 }
 
 function chunkValues_uni(values, size = 400) {
@@ -121,6 +178,7 @@ function pcMainSelectSql(alias = 'pc') {
     'concepto',
     'pagado_iva',
     'no_pagado_iva',
+    'precio_venta',
     'venta_total',
     'facturas_pendientes_pago',
     'adeudo',
@@ -328,40 +386,7 @@ async function getVentaAdicional(req, res) {
       ORDER BY COALESCE(pc.fecha_ov, '1900-01-01') DESC, pc.id_pc DESC
     `);
     const rows = await canonicalizeMainRows_uni(conn, rawRows, 'zona_operativa');
-    const kpis = {
-      total_registros: rows.length,
-      precio_venta_total: 0,
-      venta_total: 0,
-      facturado_pagado: 0,
-      no_pagado: 0,
-      pendiente_1pct: 0,
-      adeudo_total: 0,
-      facturas_pendientes: 0,
-      registros_con_adeudo: 0
-    };
-    for (const row of rows) {
-      // Equivalente a SUBTOTALES(9, I:I) sobre el universo autorizado cargado.
-      kpis.precio_venta_total += numberOrZero(row.precio_venta);
-
-      // Equivalente a SUBTOTALES(9, L:L): NULL/vacio/0 permanece como 0.
-      kpis.venta_total += numberOrZero(row.venta_total);
-
-      // Equivalente a SUMAR.SI(W:W, "Pagado por completo", L:L).
-      // En el mapeo oficial de SEGUIMIENTO, W corresponde a estatus_administrativo.
-      if (String(row.estatus_administrativo || '').trim().toLowerCase() === 'pagado por completo') {
-        kpis.facturado_pagado += numberOrZero(row.venta_total);
-      }
-
-      // Equivalente a SUBTOTALES(9, K:K): suma literal de no_pagado_iva.
-      kpis.no_pagado += numberOrZero(row.no_pagado_iva);
-
-      kpis.adeudo_total += numberOrZero(row.adeudo);
-      kpis.facturas_pendientes += numberOrZero(row.facturas_pendientes_pago);
-      if (numberOrZero(row.adeudo) > 0 || numberOrZero(row.facturas_pendientes_pago) > 0) kpis.registros_con_adeudo += 1;
-    }
-
-    // Equivalente a =L1*1% en el resumen de Sheets.
-    kpis.pendiente_1pct = kpis.venta_total * 0.01;
+    const kpis = calculateVentaAdicionalKpis_uni(rows);
 
     return res.json({
       ok: true,
@@ -437,5 +462,10 @@ module.exports = {
   getGestionCredito,
   getGestionCreditoDetalle,
   getVentaAdicional,
-  getVentaAdicionalDetalle
+  getVentaAdicionalDetalle,
+  _test: Object.freeze({
+    pcMainSelectSql,
+    financialProjectKey_uni,
+    calculateVentaAdicionalKpis_uni
+  })
 };

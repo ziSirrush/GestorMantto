@@ -112,7 +112,7 @@ function financialProjectKey(row) {
   const id = Number(row && row.id_proyecto_cobranza || 0);
   if (Number.isInteger(id) && id > 0) return `id:${id}`;
   const proyecto = String(row && (row.proyecto_oficial || row.proyecto) || '').trim().toLowerCase();
-  return proyecto ? `proyecto:${proyecto}` : `registro:${String(row && row.id_dmp || '')}`;
+  return proyecto ? `proyecto:${proyecto}` : `registro:${String(row && (row.id_dmp || row.id_pc) || '')}`;
 }
 
 function projectMatchSql(alias) {
@@ -180,7 +180,10 @@ async function getMainDetalleMp2026(req, res) {
     const debtByProject = new Map();
     for (const row of pcRows) {
       const key = financialProjectKey(row);
-      debtByProject.set(key, (debtByProject.get(key) || 0) + numberOrZero(row.adeudo));
+      const debt = numberOrZero(row.adeudo);
+      if (!debtByProject.has(key) || debt > debtByProject.get(key)) {
+        debtByProject.set(key, debt);
+      }
     }
 
     const canonicalMpRows = await canonicalizeMainRows_uni(conn, rawMpRows, 'z_oper');

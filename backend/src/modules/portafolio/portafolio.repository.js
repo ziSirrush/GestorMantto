@@ -22,6 +22,7 @@ const portafolioComercialUni = require('./portafolio-comercial_uni');
 const portafolioConsultasUni = require('./portafolio-consultas_uni');
 const portafolioMovimientosUni = require('./portafolio-movimientos_uni');
 const portafolioProyectoFotosUni = require('./portafolio-proyecto-fotos_uni');
+const adeudosSeguros = require('../../services/cobranza-uni/adeudos-proyecto-portafolio.service');
 
 const handlers = Object.freeze({
   getPortafolioFiltros: portafolioConsultasUni.getPortafolioFiltros_uni,
@@ -36,7 +37,10 @@ const handlers = Object.freeze({
   getPortafolioEquipoTicketsLote: legacyController.getPortafolioEquipoTicketsLote,
   getPortafolioEquipoDetalle: portafolioConsultasUni.getPortafolioEquipoDetalle_uni,
   getPortafolioEquipos: portafolioComercialUni.getPortafolioEquipos_uni,
-  getPortafolioProyectoDetalle: portafolioConsultasUni.getPortafolioProyectoDetalle_uni,
+  // Fase 3: protege el agregado del detalle antes de devolverlo al navegador.
+  getPortafolioProyectoDetalle: (req, res) => adeudosSeguros.envolverDetalleUni(
+    req, res, portafolioConsultasUni.getPortafolioProyectoDetalle_uni
+  ),
   getPortafolioProyectoFotografias: portafolioProyectoFotosUni.getPortafolioProyectoFotografias_uni,
   uploadPortafolioProyectoFotografia: portafolioProyectoFotosUni.uploadPortafolioProyectoFotografia_uni,
   deletePortafolioProyectoFotografia: portafolioProyectoFotosUni.deletePortafolioProyectoFotografia_uni,

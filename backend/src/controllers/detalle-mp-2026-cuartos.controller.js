@@ -51,7 +51,7 @@ async function getMainDetalleMp2026(req, res) {
          mp.facturas_pendientes,
          COALESCE(mp.pendiente_corriente, 0) + COALESCE(mp.pendiente_vencido, 0) AS adeudo_mp,
          (
-           SELECT COALESCE(SUM(COALESCE(va.adeudo, 0)), 0)
+           SELECT COALESCE(MAX(COALESCE(va.adeudo, 0)), 0)
            FROM pc va
            WHERE ${pcScope}
              AND (
