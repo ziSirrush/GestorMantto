@@ -335,3 +335,114 @@
   .task-form-reorganized .remove-subtask{min-width:42px;padding:8px 5px;font-size:0}
   .task-form-reorganized .remove-subtask::after{content:"×";font-size:17px}
 }
+
+/* Home tareas v1.2 - tarjetas compactas y equilibradas */
+.task-workspace{container-type:inline-size;container-name:task-workspace}
+.task-list{gap:8px}
+.task-row.task-row-compact{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  min-width:0;
+  padding:10px 12px;
+}
+.task-row-compact .task-identity{min-width:0}
+.task-row-compact .task-identity-head{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
+.task-row-compact .task-title{
+  appearance:none;
+  min-width:0;
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:var(--navy);
+  font:inherit;
+  font-size:13px;
+  font-weight:850;
+  line-height:1.25;
+  text-align:left;
+  cursor:pointer;
+  overflow-wrap:anywhere;
+}
+.task-row-compact .task-title:hover{color:var(--blue);text-decoration:underline}
+.task-row-compact .task-title:focus-visible,.task-linkage button:focus-visible{outline:2px solid #2563eb;outline-offset:2px;border-radius:4px}
+.task-row-compact .task-title-badges{display:flex;align-items:center;gap:5px;flex:0 0 auto;flex-wrap:wrap}
+.task-row-compact .badge{padding:3px 7px;font-size:10px;line-height:1.2;white-space:nowrap}
+.task-row-compact .task-description{
+  display:-webkit-box;
+  margin:3px 0 0;
+  overflow:hidden;
+  color:#667085;
+  font-size:11px;
+  line-height:1.3;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+}
+.task-row-compact .task-linkage{display:flex;align-items:center;gap:5px 12px;min-width:0;margin-top:5px;flex-wrap:wrap}
+.task-row-compact .task-linkage span,.task-row-compact .task-linkage button{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#526175;
+  font:inherit;
+  font-size:10px;
+  line-height:1.25;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.task-row-compact .task-linkage button{color:var(--blue);font-weight:750;cursor:pointer}
+.task-row-compact .task-linkage button:hover{text-decoration:underline}
+.task-row-compact .task-linkage small{color:#8995a7;font-size:9px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+.task-row-compact .task-compact-meta{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:0;
+  min-width:0;
+  margin:0;
+  border-left:1px solid var(--line);
+}
+.task-row-compact .task-meta-item{display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 10px}
+.task-row-compact .task-meta-item span{color:#8995a7;font-size:9px;font-weight:800;letter-spacing:.02em;line-height:1.2;text-transform:uppercase}
+.task-row-compact .task-meta-item strong{
+  min-width:0;
+  color:#344054;
+  font-size:11px;
+  font-weight:750;
+  line-height:1.3;
+  overflow-wrap:anywhere;
+}
+.task-row-compact .task-meta-item strong[title]{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.task-row-compact .task-actions{align-self:stretch;display:flex;align-items:center;justify-content:center;min-width:0}
+.task-row-compact .task-actions .mini-action{min-width:56px;white-space:nowrap}
+
+@container task-workspace (max-width:640px){
+  .task-row.task-row-compact{grid-template-columns:minmax(0,1fr);gap:9px}
+  .task-row-compact .task-compact-meta{border-top:1px solid var(--line);border-left:0;padding-top:6px}
+  .task-row-compact .task-meta-item{padding:3px 8px 3px 0}
+  .task-row-compact .task-actions{justify-content:flex-end}
+}
+
+@container task-workspace (max-width:420px){
+  .task-row-compact .task-compact-meta{grid-template-columns:minmax(0,1fr)}
+  .task-row-compact .task-meta-item{padding:4px 0}
+  .task-row-compact .task-actions .mini-action{width:100%}
+}
+
+@media(max-width:760px){
+  .task-row.task-row-compact{grid-template-columns:minmax(0,1fr);gap:9px}
+  .task-row-compact .task-compact-meta{border-top:1px solid var(--line);border-left:0;padding-top:6px}
+  .task-row-compact .task-meta-item{padding:3px 8px 3px 0}
+  .task-row-compact .task-actions{justify-content:flex-end}
+}
+
+@media(max-width:480px){
+  .task-row-compact .task-compact-meta{grid-template-columns:minmax(0,1fr)}
+  .task-row-compact .task-meta-item{padding:4px 0}
+  .task-row-compact .task-actions .mini-action{width:100%}
+}

@@ -579,22 +579,32 @@
 
   function taskRow(t){
     const assignedLabel = t.tipo === 'COLABORATIVA' ? 'Responsables' : 'Seguimiento';
-    return `<article class="task-row" data-task-id="${safeText(t.id)}">
-      <button class="task-icon task-open" data-task-id="${safeText(t.id)}" title="Ver detalle">${t.tipo==='PERSONAL'?'🧭':'👥'}</button>
-      <div>
-        <div class="task-title task-open" data-task-id="${safeText(t.id)}">${safeText(t.titulo)}</div>
-        <div class="task-description">${safeText(t.descripcion || 'Sin descripcion')}</div>
-        <div class="task-meta">
-          <span class="badge ${safeText(String(t.prioridad || 'sin-prioridad').toLowerCase())}">${priorityIcon(t.prioridad)} ${safeText(t.prioridad || 'Sin prioridad')}</span>
-          <span class="badge estado">${safeText(t.estatus)}</span>
-          ${t.area ? `<span>${safeText(t.area)}</span>` : ''}
-          ${t.proyecto ? `<button data-target='${toTargetAttr({module:'proyectos',id:t.proyecto})}'>${safeText(t.proyecto)}</button>` : ''}
-          ${t.equipo ? `<button data-target='${toTargetAttr({module:'portafolio',id:t.equipo})}'>${safeText(t.equipo)}</button>` : ''}
-          <span>${safeText(t.subtareasCerradas + '/' + t.subtareas)} subtareas</span>
-          <span>${safeText(t.comentarios)} comentarios</span>
+    const assigned = (t.responsables || []).join(' · ') || 'Sin asignar';
+    const description = t.descripcion || 'Sin descripcion';
+    const hasLinkage = Boolean(t.area || t.proyecto || t.equipo);
+    return `<article class="task-row task-row-compact" data-task-id="${safeText(t.id)}">
+      <div class="task-identity">
+        <div class="task-identity-head">
+          <button type="button" class="task-title task-open" data-task-id="${safeText(t.id)}" title="${safeText(t.titulo)}">${safeText(t.titulo)}</button>
+          <div class="task-title-badges">
+            <span class="badge ${safeText(String(t.prioridad || 'sin-prioridad').toLowerCase())}">${priorityIcon(t.prioridad)} ${safeText(t.prioridad || 'Sin prioridad')}</span>
+            <span class="badge estado">${safeText(t.estatus)}</span>
+          </div>
         </div>
+        <div class="task-description" title="${safeText(description)}">${safeText(description)}</div>
+        ${hasLinkage ? `<div class="task-linkage">
+          ${t.area ? `<span><small>Área</small>${safeText(t.area)}</span>` : ''}
+          ${t.proyecto ? `<button type="button" data-target='${toTargetAttr({module:'proyectos',id:t.proyecto})}'><small>Proyecto</small>${safeText(t.proyecto)}</button>` : ''}
+          ${t.equipo ? `<button type="button" data-target='${toTargetAttr({module:'portafolio',id:t.equipo})}'><small>Equipo</small>${safeText(t.equipo)}</button>` : ''}
+        </div>` : ''}
       </div>
-      <div class="task-actions"><span class="task-date">${safeText(t.due)}</span><span>${safeText(assignedLabel)}: ${safeText((t.responsables||[]).join(' · ') || 'Sin asignar')}</span><button class="mini-action task-open" data-task-id="${safeText(t.id)}">Ver</button></div>
+      <div class="task-meta task-compact-meta">
+        <div class="task-meta-item"><span>Fecha compromiso</span><strong class="task-date">${safeText(t.due)}</strong></div>
+        <div class="task-meta-item"><span>${safeText(assignedLabel)}</span><strong title="${safeText(assigned)}">${safeText(assigned)}</strong></div>
+        <div class="task-meta-item"><span>Subtareas</span><strong>${safeText(t.subtareasCerradas + '/' + t.subtareas)} subtareas</strong></div>
+        <div class="task-meta-item"><span>Comentarios</span><strong>${safeText(t.comentarios)} comentarios</strong></div>
+      </div>
+      <div class="task-actions"><button type="button" class="mini-action task-open" data-task-id="${safeText(t.id)}">Ver</button></div>
     </article>`;
   }
 
