@@ -47,23 +47,34 @@ function normalizeDomain_gnral(value) {
   return String(value || '').trim().toUpperCase() === 'UNITED' ? 'UNITED' : 'CORELLIAN';
 }
 
-async function directorGeneralUserIds_gnral(executor = db) {
+/**
+ * El Panel de Control es la fuente de verdad de destinatarios.
+ * Resuelve usuarios con una relacion ACTIVA Evento + Rol desde
+ * notificacion_evento_roles; no declara nombres de roles en codigo.
+ * El motor notification.service vuelve a validar las politicas
+ * OBLIGATORIA/OPCIONAL, Mi Perfil y los canales Campana/Push.
+ */
+async function notificationMatrixRecipientIds_gnral(executor = db) {
   const [rows] = await executor.query(`
     SELECT DISTINCT u.id_SB
-      FROM usuarios u
-      INNER JOIN usuario_roles ur
-        ON ur.id_usuario = u.id_SB
-       AND ur.activo = 1
+      FROM notificacion_eventos e
+      INNER JOIN notificacion_evento_roles ner
+        ON ner.codigo_evento = e.codigo_evento
+       AND ner.activo = 1
+       AND ner.politica IN ('OBLIGATORIA', 'OPCIONAL')
       INNER JOIN roles r
-        ON r.id_rol = ur.id_rol
+        ON r.id_rol = ner.id_rol
        AND r.estado = 1
-     WHERE u.estado = 1
-       AND (
-         UPPER(TRIM(COALESCE(r.rol, ''))) = 'DIRECTOR GENERAL'
-         OR UPPER(TRIM(COALESCE(r.codigo, ''))) IN ('DIRECTOR GENERAL', 'DIRECTOR_GENERAL')
-       )
+      INNER JOIN usuario_roles ur
+        ON ur.id_rol = r.id_rol
+       AND ur.activo = 1
+      INNER JOIN usuarios u
+        ON u.id_SB = ur.id_usuario
+       AND u.estado = 1
+     WHERE e.codigo_evento = ?
+       AND e.activo = 1
      ORDER BY u.id_SB ASC
-  `);
+  `, [EVENT_PROJECT_PHOTO_UPDATED_GNRAL]);
 
   return [...new Set(rows
     .map((row) => positiveId_gnral(row.id_SB))
@@ -120,18 +131,18 @@ async function notifyProjectPhotoChange_gnral({
   }
 
   try {
-    const recipients = await directorGeneralUserIds_gnral();
+    const recipients = await notificationMatrixRecipientIds_gnral();
     const domainCode = normalizeDomain_gnral(domain);
     if (!recipients.length) {
-      logger.warn('[PROJECT_PHOTO_NOTIFICATION_NO_DIRECTORS]', {
+      logger.warn('[PROJECT_PHOTO_NOTIFICATION_NO_PANEL_RECIPIENTS]', {
         codigo_evento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
         dominio: domainCode,
         proyecto: project,
         accion_fotografia: normalizedAction,
         actor_user_id: actorId_gnral(actionContext),
-        reason: 'SIN_DIRECTOR_GENERAL_ACTIVO'
+        reason: 'SIN_DESTINATARIOS_HABILITADOS_EN_PANEL'
       });
-      return emptyResult_gnral('SIN_DIRECTOR_GENERAL_ACTIVO');
+      return emptyResult_gnral('SIN_DESTINATARIOS_HABILITADOS_EN_PANEL');
     }
 
     const uploaded = normalizedAction === ACTION_UPLOADED_GNRAL;
@@ -150,8 +161,8 @@ async function notifyProjectPhotoChange_gnral({
       codigoEvento: EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
       destinatarios: recipients,
       actorUserId: actorId_gnral(actionContext),
-      // Si el Gestor también tiene el rol Director General, debe recibir el aviso:
-      // la audiencia se define por el rol destino, no por ser distinto del actor.
+      // Los roles receptores proceden del Panel (no del codigo). Si el
+      // actor pertenece a la matriz habilitada, tambien puede recibir.
       excludeActor: false,
       zonaOperativaNoAplica: true,
       requireRoleMatrix: true,
@@ -176,7 +187,7 @@ async function notifyProjectPhotoChange_gnral({
       accion_fotografia: normalizedAction,
       actor_user_id: actorId_gnral(actionContext),
       destino: destination,
-      directores_candidatos: recipients.length,
+      destinatarios_panel_candidatos: recipients.length,
       creadas: Number(emission?.created || 0),
       omitidas: Number(emission?.skipped || 0),
       push_elegibles: Array.isArray(emission?.push_recipients) ? emission.push_recipients.length : 0,
@@ -215,7 +226,7 @@ module.exports = {
   EVENT_PROJECT_PHOTO_UPDATED_GNRAL,
   ACTION_UPLOADED_GNRAL,
   ACTION_DELETED_GNRAL,
-  directorGeneralUserIds_gnral,
+  notificationMatrixRecipientIds_gnral,
   notifyProjectPhotoChange_gnral,
   notifyProjectPhotoUploaded_gnral,
   notifyProjectPhotoDeleted_gnral

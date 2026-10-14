@@ -15,7 +15,7 @@ function loadPhotoEmitter(state) {
   const old = Module._load;
   Module._load = function(request, parent, main) {
     if (request === '../../config/db') return {
-      query: async () => [state.directors.map(id => ({id_SB:id}))]
+      query: async () => [state.matrixRecipients.map(id => ({id_SB:id}))]
     };
     if (request === '../../shared/logger') return {
       info: (type, data) => state.logs.push({level:'info',type,data}),
@@ -48,8 +48,8 @@ const input = {
   storageUrl:'https://storage.example/p.jpg',slot:'foto_blt_1',actionContext:actor
 };
 
-test('Corellian emite destino tipado y conserva Director General, incluido el actor', async () => {
-  const state = {directors:[42,99],logs:[],payloads:[]};
+test('Corellian emite destino tipado para cada usuario habilitado desde Panel, incluido el actor', async () => {
+  const state = {matrixRecipients:[42,99],logs:[],payloads:[]};
   const service = loadPhotoEmitter(state);
   const result = await service.notifyProjectPhotoUploaded_gnral(input);
   assert.equal(result.created,2);
@@ -65,24 +65,24 @@ test('Corellian emite destino tipado y conserva Director General, incluido el ac
 });
 
 test('United conserva el detalle de Portafolio',async()=>{
-  const state={directors:[42],logs:[],payloads:[]};
+  const state={matrixRecipients:[42],logs:[],payloads:[]};
   const service=loadPhotoEmitter(state);
   await service.notifyProjectPhotoDeleted_gnral({...input,domain:'UNITED'});
   assert.equal(state.payloads[0].ruta,'detalle:proyecto:P10152');
   assert.match(state.payloads[0].mensaje,/\(United\)\.$/);
 });
 
-test('sin DG activo registra causa y no crea una notificación',async()=>{
-  const state={directors:[],logs:[],payloads:[]};
+test('sin destinatarios activos en la matriz registra causa y no crea una notificación',async()=>{
+  const state={matrixRecipients:[],logs:[],payloads:[]};
   const service=loadPhotoEmitter(state);
   const result=await service.notifyProjectPhotoUploaded_gnral(input);
-  assert.equal(result.reason,'SIN_DIRECTOR_GENERAL_ACTIVO');
+  assert.equal(result.reason,'SIN_DESTINATARIOS_HABILITADOS_EN_PANEL');
   assert.equal(state.payloads.length,0);
-  assert.equal(state.logs.at(-1).type,'[PROJECT_PHOTO_NOTIFICATION_NO_DIRECTORS]');
+  assert.equal(state.logs.at(-1).type,'[PROJECT_PHOTO_NOTIFICATION_NO_PANEL_RECIPIENTS]');
 });
 
 test('matriz sin emisión produce advertencia y nunca afirma entrega de Push',async()=>{
-  const state={directors:[42],logs:[],payloads:[],override:{ok:true,created:0,skipped:1,reason:'MATRIZ_ROLES_NO_CONFIGURADA',trace_id:'diag-44'}};
+  const state={matrixRecipients:[42],logs:[],payloads:[],override:{ok:true,created:0,skipped:1,reason:'MATRIZ_ROLES_NO_CONFIGURADA',trace_id:'diag-44'}};
   const service=loadPhotoEmitter(state);
   const result=await service.notifyProjectPhotoUploaded_gnral(input);
   assert.equal(result.created,0);

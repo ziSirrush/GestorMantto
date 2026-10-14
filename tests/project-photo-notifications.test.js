@@ -13,19 +13,25 @@ const servicePath = path.join(
 );
 
 const state = {
-  directorIds: [],
+  panelRecipientIds: [],
   emissions: [],
   queries: 0
 };
 
 const dbStub = {
-  async query(sql) {
+  async query(sql, params) {
     state.queries += 1;
     const text = String(sql);
-    assert.match(text, /FROM usuarios u/);
-    assert.match(text, /usuario_roles/);
-    assert.match(text, /DIRECTOR GENERAL/);
-    return [state.directorIds.map((id) => ({ id_SB: id }))];
+    assert.match(text, /FROM notificacion_eventos e/);
+    assert.match(text, /INNER JOIN notificacion_evento_roles ner/);
+    assert.match(text, /ner\.activo = 1/);
+    assert.match(text, /ner\.politica IN \('OBLIGATORIA', 'OPCIONAL'\)/);
+    assert.match(text, /INNER JOIN usuario_roles ur/);
+    assert.match(text, /ur\.activo = 1/);
+    assert.match(text, /u\.estado = 1/);
+    assert.doesNotMatch(text, /DIRECTOR GENERAL/);
+    assert.deepEqual(params, ['FOTOGRAFIA_PROYECTO_ACTUALIZADA']);
+    return [state.panelRecipientIds.map((id) => ({ id_SB: id }))];
   }
 };
 
@@ -47,6 +53,9 @@ function loadService() {
   Module._load = function patchedLoad(request, parent, isMain) {
     if (request === '../../config/db') return dbStub;
     if (request === '../../shared/logger') return { info() {}, warn() {}, error() {} };
+    if (request === '../../middleware/project-photo.middleware') return {
+      userCanManageProjectPhotos_gnral: (user) => Array.isArray(user?.roles) && user.roles.includes('Gestor de Fotografías')
+    };
     if (request === './notification-business-emitter.service') return emitterStub;
     return originalLoad.call(this, request, parent, isMain);
   };
@@ -62,7 +71,7 @@ function loadService() {
 const service = loadService();
 
 function reset() {
-  state.directorIds = [];
+  state.panelRecipientIds = [];
   state.emissions = [];
   state.queries = 0;
 }
@@ -77,9 +86,9 @@ function manager(id = 70) {
   };
 }
 
-test('carga de fotografía notifica exclusivamente a Directores Generales activos', async () => {
+test('carga de fotografía incluye todos los destinatarios habilitados en el Panel (DG y Auxiliar)', async () => {
   reset();
-  state.directorIds = [1, 2, 2];
+  state.panelRecipientIds = [1, 2, 2];
 
   const result = await service.notifyProjectPhotoUploaded_gnral({
     domain: 'CORELLIAN',
@@ -104,9 +113,9 @@ test('carga de fotografía notifica exclusivamente a Directores Generales activo
   assert.match(state.emissions[0].eventInstanceKey, /:CARGADA:CORELLIAN:/);
 });
 
-test('eliminación de fotografía usa el mismo evento exclusivo con mensaje de baja', async () => {
+test('eliminación de fotografía mantiene mensaje y audiencia de la matriz', async () => {
   reset();
-  state.directorIds = [9];
+  state.panelRecipientIds = [9];
 
   await service.notifyProjectPhotoDeleted_gnral({
     domain: 'UNITED',
@@ -128,7 +137,7 @@ test('eliminación de fotografía usa el mismo evento exclusivo con mensaje de b
 
 test('un actor sin rol Gestor de Fotografías no resuelve destinatarios ni emite', async () => {
   reset();
-  state.directorIds = [1];
+  state.panelRecipientIds = [1];
 
   const result = await service.notifyProjectPhotoUploaded_gnral({
     domain: 'CORELLIAN',
@@ -144,9 +153,16 @@ test('un actor sin rol Gestor de Fotografías no resuelve destinatarios ni emite
   assert.equal(state.emissions.length, 0);
 });
 
-test('contrato estático registra una sola audiencia obligatoria y dispara después del commit', () => {
-  const migration = fs.readFileSync(
-    path.join(root, 'sql/20261008_FOTOGRAFIAS_NOTIFICACION_DIRECCION_GENERAL_V001.sql'),
+test('contrato del motor: panel es fuente de verdad y ambos dominios emiten despues del commit', {
+  skip: [
+    'backend/src/controllers/panel-control-notificaciones.controller.js',
+    'backend/src/controllers/ins-fl.controller.js',
+    'backend/src/modules/portafolio/portafolio-proyecto-fotos_uni.js'
+  ].some(file => !fs.existsSync(path.join(root, file))) ? 'Requiere checkout completo del repositorio' : false
+}, () => {
+  const service = fs.readFileSync(servicePath, 'utf8');
+  const panel = fs.readFileSync(
+    path.join(root, 'backend/src/controllers/panel-control-notificaciones.controller.js'),
     'utf8'
   );
   const coreController = fs.readFileSync(
@@ -158,11 +174,11 @@ test('contrato estático registra una sola audiencia obligatoria y dispara despu
     'utf8'
   );
 
-  assert.match(migration, /'FOTOGRAFIA_PROYECTO_ACTUALIZADA'/);
-  assert.match(migration, /'OBLIGATORIA'/);
-  assert.match(migration, /DIRECTOR GENERAL/);
-  assert.match(migration, /UPDATE notificacion_evento_roles[\s\S]*ner\.activo = 0/);
-  assert.doesNotMatch(migration, /id_rol\s*=\s*\d+/);
+  assert.match(service, /JOIN notificacion_evento_roles ner/);
+  assert.match(service, /requireRoleMatrix: true/);
+  assert.doesNotMatch(service, /DIRECTOR GENERAL/);
+  assert.match(panel, /notificacion_evento_roles/);
+  assert.match(panel, /politica IN \('OBLIGATORIA', 'OPCIONAL'\)/);
 
   for (const source of [coreController, unitedController]) {
     assert.ok(source.indexOf('await conn.commit()') < source.indexOf('notifyProjectPhotoUploaded_gnral({'));
