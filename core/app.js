@@ -274,6 +274,191 @@
     activateCustomerExperienceEncuestas_cor();
   }
 
+  // [BLT NOW | CX VISITAS | INTEGRACION DIRECTA F3 + F4]
+  const CUSTOMER_EXPERIENCE_VISITAS_ROUTE_COR = 'cx-visitas';
+  const CX_VISITAS_VISUAL_COR = 'CUSTOMER_EXPERIENCE_VISITAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+  const CX_VISITAS_LIST_COR = 'CUSTOMER_EXPERIENCE_VISITAS_GESTION_REGISTROS.VER';
+
+  let customerExperienceVisitasPromise_cor = null;
+  let cxVisitasMenuRequest_cor = 0;
+
+  function ensureCustomerExperienceVisitas_cor(){
+    if(window.ManttoCustomerExperienceVisitas){
+      return Promise.resolve(window.ManttoCustomerExperienceVisitas);
+    }
+
+    if(customerExperienceVisitasPromise_cor){
+      return customerExperienceVisitasPromise_cor;
+    }
+
+    customerExperienceVisitasPromise_cor = new Promise((resolve,reject)=>{
+      if(!document.querySelector('link[data-blt-cx-visitas="1"]')){
+        const style=document.createElement('link');
+        style.rel='stylesheet';
+        style.href='./modules/customer-experience-visitas/customer-experience-visitas.css?v=20261015-fase3-v001';
+        style.dataset.bltCxVisitas='1';
+        document.head.appendChild(style);
+      }
+
+      const script=document.createElement('script');
+      script.src='./modules/customer-experience-visitas/customer-experience-visitas.js?v=20261015-fase4-v001';
+      script.async=true;
+      script.dataset.bltCxVisitas='1';
+
+      script.addEventListener('load',()=>{
+        resolve(window.ManttoCustomerExperienceVisitas || null);
+      },{once:true});
+
+      script.addEventListener('error',reject,{once:true});
+      document.head.appendChild(script);
+    }).catch(error=>{
+      customerExperienceVisitasPromise_cor=null;
+      throw error;
+    });
+
+    return customerExperienceVisitasPromise_cor;
+  }
+
+  function activateCustomerExperienceVisitas_cor(){
+    if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_VISITAS_ROUTE_COR){
+      return Promise.resolve(false);
+    }
+
+    const view=document.getElementById('view-placeholder');
+
+    if(view){
+      view.innerHTML='<div class="cxv-loading">Cargando Customer Experience - Visitas...</div>';
+    }
+
+    return ensureCustomerExperienceVisitas_cor()
+      .then(module=>{
+        if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_VISITAS_ROUTE_COR){
+          return false;
+        }
+
+        if(!module || typeof module.init !== 'function'){
+          throw new Error('Modulo Visitas no disponible.');
+        }
+
+        return module.init();
+      })
+      .catch(error=>{
+        console.error('[BLT NOW] Error al cargar Visitas:',error);
+
+        if(currentAppRoute_cor() !== CUSTOMER_EXPERIENCE_VISITAS_ROUTE_COR){
+          return false;
+        }
+
+        const target=document.getElementById('view-placeholder');
+
+        if(target){
+          target.innerHTML=
+            '<div class="placeholder"><div class="card placeholder-card construction-card">'+
+            '<div class="construction-icon">⚠️</div>'+
+            '<h1>Visitas</h1>'+
+            '<h2>No fue posible cargar el modulo</h2>'+
+            '<p>Verifica la conexion con el backend y los permisos.</p>'+
+            '</div></div>';
+        }
+
+        return false;
+      });
+  }
+
+  function bindCustomerExperienceVisitas_cor(){
+    if(window.__BLT_CUSTOMER_EXPERIENCE_VISITAS_BOUND__) return;
+
+    window.__BLT_CUSTOMER_EXPERIENCE_VISITAS_BOUND__=true;
+
+    document.addEventListener('mantto:navigation',event=>{
+      const route=String(event?.detail?.route || '');
+
+      if(route===CUSTOMER_EXPERIENCE_VISITAS_ROUTE_COR){
+        activateCustomerExperienceVisitas_cor();
+      }
+    });
+
+    activateCustomerExperienceVisitas_cor();
+  }
+
+  function setCxVisitasMenuVisibility_cor(allowed){
+    const item=document.querySelector('[data-permission="cx_visitas"]');
+    if(!item) return;
+
+    item.hidden=!allowed;
+
+    const group=item.closest('.side-group');
+
+    if(group){
+      group.hidden=!Array.from(
+        group.querySelectorAll('.side-item')
+      ).some(button=>!button.hidden);
+    }
+  }
+
+  async function refreshCxVisitasMenu_cor(){
+    const request=++cxVisitasMenuRequest_cor;
+
+    setCxVisitasMenuVisibility_cor(false);
+
+    const permissions=window.ManttoPermissions;
+
+    if(permissions && typeof permissions.state==='function'){
+      try{
+        const visual=permissions.state(CX_VISITAS_VISUAL_COR);
+        const listado=permissions.state(CX_VISITAS_LIST_COR);
+
+        if(
+          visual?.exists===true &&
+          listado?.exists===true &&
+          (visual.efectivo!==true || listado.efectivo!==true)
+        ){
+          return;
+        }
+      }catch(error){
+        console.warn('[BLT NOW] Permisos CX Visitas:',error);
+      }
+    }
+
+    if(
+      !window.ManttoAuth ||
+      typeof window.ManttoAuth.api!=='function'
+    ){
+      return;
+    }
+
+    try{
+      const response=await window.ManttoAuth.api(
+        '/api/customer-experience/visitas?page=1&page_size=1',
+        {method:'GET'}
+      );
+
+      if(request===cxVisitasMenuRequest_cor){
+        setCxVisitasMenuVisibility_cor(
+          response?.ok===true &&
+          Array.isArray(response.visitas)
+        );
+      }
+    }catch(error){
+      if(request===cxVisitasMenuRequest_cor){
+        setCxVisitasMenuVisibility_cor(false);
+      }
+    }
+  }
+
+  function bindCxVisitasMenu_cor(){
+    if(window.__BLT_CX_VISITAS_MENU_BOUND__) return;
+
+    window.__BLT_CX_VISITAS_MENU_BOUND__=true;
+
+    document.addEventListener(
+      'mantto:permissions-updated',
+      refreshCxVisitasMenu_cor
+    );
+
+    refreshCxVisitasMenu_cor();
+  }
+
   // [Aster | 2026-10-07 | ASTER-MG | FASE 1 ENTREGAS V001]
   const ENTREGAS_CONTROL_ROUTE_GNRAL = 'entregas-control';
   let entregasControlPromise_gnral = null;
@@ -413,6 +598,7 @@
 
   function bindGlobalNavigation(){
     applyTemporarySidebarPermissions();
+    bindCxVisitasMenu_cor();
     openSidebarGroup(null);
 
     document.querySelectorAll('.side-group-toggle').forEach(function(toggle){
@@ -726,6 +912,7 @@
     bindCobranzaCorEstadosCuenta_cor();
     bindCustomerExperienceDashboard_cor();
     bindCustomerExperienceEncuestas_cor();
+    bindCustomerExperienceVisitas_cor();
     bindEntregasControl_gnral();
     ensureInteractionsModule_gnral()
       .then(module => {

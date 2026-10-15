@@ -1,3 +1,6 @@
+// [ChatGPT | 2026-10-15 | BLT NOW | CX VISITAS FASE 4 QA V001]
+// FIX: historial de baja logica accesible por ID con VER_HISTORIAL.
+// Base original de Fase 3 conservada; sin cambios en permisos, API ni esquema.
 // [ChatGPT | 2026-10-15 | BLT NOW | CX VISITAS FASE 3 FRONTEND V001]
 // UI incremental contra el contrato REAL de Fase 2. Aiven es la unica fuente.
 (function () {
@@ -218,6 +221,13 @@
             <button class="cxv-button cxv-secondary" data-cxv-action="clear" type="button">Limpiar</button></div>
         </form><p class="cxv-help">Los filtros de fechas corresponden a días UTC del backend; las fechas visibles y la captura de visita se presentan en hora de Ciudad de México.</p>
       </section>
+      ${may('history') ? `<section class="cxv-card cxv-history-lookup-card" aria-label="Consultar historial de visita por ID">
+        <form id="cxv-history-lookup-form" class="cxv-filters">
+          <label class="cxv-field"><span>Historial por ID (tambien visitas desactivadas)</span>
+            <input name="id_visita" type="number" min="1" step="1" required placeholder="ID de visita"></label>
+          <div class="cxv-filter-actions"><button class="cxv-button cxv-secondary" type="submit">Consultar historial</button></div>
+        </form><p class="cxv-help">Solo disponible para usuarios autorizados. Permite consultar el historial de una visita dada de baja logica.</p>
+      </section>` : ''}
       <section class="cxv-card cxv-results-card" aria-label="Listado de visitas">
         <div class="cxv-results-head"><div><h2>Visitas registradas</h2><span id="cxv-counter">Consultando Aiven…</span></div>
           <span class="cxv-pill">Aiven · Corellian</span></div>
@@ -513,6 +523,21 @@
     };
   }
   function onSubmit(event) {
+    if (event.target?.id === 'cxv-history-lookup-form') {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(event.target));
+      const id = safePositiveId(values.id_visita);
+      if (!id) {
+        setMessage('Captura un ID de visita valido.', 'error');
+        return;
+      }
+      if (!may('history')) {
+        setMessage('No tienes permiso para consultar el historial.', 'error');
+        return;
+      }
+      void showHistory(id);
+      return;
+    }
     if (event.target?.id === 'cxv-filter-form') {
       event.preventDefault();
       try {
