@@ -273,7 +273,7 @@
       document.head.appendChild(css);
     }
     if(!view.querySelector('.mg-detail-page')){
-      view.innerHTML = '<div class="mg-detail-page"><div class="mg-detail-head"><div class="mg-detail-head-copy"><h2 id="mg-detail-title">Detalle</h2><p id="mg-detail-sub">Mantto Gestor</p></div></div><div class="mg-detail-body" id="mg-detail-body"></div></div>';
+      view.innerHTML = '<div class="mg-detail-page"><div class="mg-detail-head"><div class="mg-detail-head-copy"><h2 id="mg-detail-title">Detalle</h2><p id="mg-detail-sub">BLT NOW</p></div></div><div class="mg-detail-body" id="mg-detail-body"></div></div>';
     }
     if(!document.getElementById('mg-photo-lightbox')){
       const lightbox=document.createElement('div');
@@ -300,7 +300,7 @@
     const subEl=document.getElementById('mg-detail-sub');
     const body=document.getElementById('mg-detail-body');
     if(titleEl) titleEl.textContent=title||'Detalle';
-    if(subEl) subEl.textContent=sub||'Mantto Gestor';
+    if(subEl) subEl.textContent=sub||'BLT NOW';
     if(body) body.innerHTML=html||'';
   }
   function stopTicketChatRefresh(){
@@ -324,7 +324,7 @@
     if(type === 'equipo') return openEquipo_gnral(id);
     if(type === 'ticket') return openTicket(id, payload && payload.knownTicket, payload || {});
     if(type === 'equipo-critico') return openEquipoCritico(id, payload && payload.options);
-    show('Detalle', 'Mantto Gestor', '<div class="mg-empty">No se indicó un detalle válido.</div>');
+    show('Detalle', 'BLT NOW', '<div class="mg-empty">No se indicó un detalle válido.</div>');
   }
   function grid(items){ return '<div class="mg-detail-grid">'+items.map(([k,v])=>'<div class="mg-field"><label>'+esc(k)+'</label><span>'+esc(v)+'</span></div>').join('')+'</div>'; }
 
@@ -1474,7 +1474,7 @@
       y=drawSectionTitle('Fallas BLT por mes',y);const cc1=chartCanvas('Año en curso',String(currentYear),data.fallas_blt_mes_anio||[],currentKeys);const cc2=chartCanvas('Bloque 365 días',u365Subtitle,data.fallas_blt_mes_u365||[],u365Keys);const chartGap=12,chartW=(contentWidth-chartGap)/2,chartH=chartW*cc1.height/cc1.width;y=addPageIfNeeded(y,chartH);canvasImage(cc1,margin,y,chartW,chartH);canvasImage(cc2,margin+chartW+chartGap,y,chartW,chartH);y+=chartH+16;
       y=drawSectionTitle('Tickets del Equipo',y);
       doc.autoTable({startY:y,head:[['No. Ticket','Estado','Fecha Reporte','Hora Reporte','Asunto','Estatus inicial','Fecha Llegada','Hora Llegada','T. llegada','Fecha Solución','Hora Solución','Estatus final','Causa','Acción cierre','Responsabilidad','Causa de falla']],body:rows.map(t=>[ticketWithEmojis(t),t.estado_ticket||t.estado,fmtDate(t.fecha_reporte),fmtTime(t.h_reporte),t.descripcion||t.asunto,t.estatus_equipo_ir,fmtDate(t.fecha_llegada),fmtTime(t.h_llegada),fmtDuration(t.tiempo_llegada),fmtDate(t.fecha_cierre),fmtTime(t.h_solucion),t.estatus_equipo_final,t.causa||t.causa_falla,t.accion_en_cierre,t.responsabilidad,t.causa_falla||t.causa]),styles:{fontSize:4.6,cellPadding:.8,overflow:'linebreak',valign:'middle',minCellWidth:1},headStyles:{fillColor:[13,46,110],textColor:[255,255,255]},alternateRowStyles:{fillColor:[239,246,255]},columnStyles:{0:{cellWidth:44},1:{cellWidth:32},2:{cellWidth:38},3:{cellWidth:30},4:{cellWidth:56},5:{cellWidth:44},6:{cellWidth:38},7:{cellWidth:30},8:{cellWidth:28,halign:'center'},9:{cellWidth:38},10:{cellWidth:30},11:{cellWidth:42},12:{cellWidth:58},13:{cellWidth:68},14:{cellWidth:48},15:{cellWidth:84}},margin:{left:margin,right:margin,bottom:32}});
-      const count=doc.getNumberOfPages();for(let page=1;page<=count;page++){doc.setPage(page);doc.setFont('helvetica','normal');doc.setFontSize(7);setColor('setTextColor',colors.slate);doc.text('Mantto Gestor · United Elevadores',margin,pageHeight-18);doc.text('Página '+page+' de '+count,pageWidth-margin,pageHeight-18,{align:'right'});}
+      const count=doc.getNumberOfPages();for(let page=1;page<=count;page++){doc.setPage(page);doc.setFont('helvetica','normal');doc.setFontSize(7);setColor('setTextColor',colors.slate);doc.text('BLT NOW · United Elevadores',margin,pageHeight-18);doc.text('Página '+page+' de '+count,pageWidth-margin,pageHeight-18,{align:'right'});}
       const safe=String(equipmentCode).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_');doc.save('Archivo_Equipo_'+safe+'_'+year+'_'+cdmxDate()+'.pdf');
     }
 

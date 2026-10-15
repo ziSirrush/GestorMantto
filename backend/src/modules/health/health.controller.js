@@ -6,7 +6,7 @@ async function getHealth(req, res) {
 
     return res.status(200).json({
       ok: true,
-      message: 'Mantto Gestor API activa',
+      message: 'BLT NOW API activa',
       environment: process.env.NODE_ENV || 'development',
       database: 'connected',
       server_time: database.server_time
@@ -14,7 +14,7 @@ async function getHealth(req, res) {
   } catch (error) {
     return res.status(503).json({
       ok: false,
-      message: 'Mantto Gestor API activa, pero MySQL no esta disponible',
+      message: 'BLT NOW API activa, pero MySQL no esta disponible',
       database: 'disconnected',
       error: process.env.NODE_ENV === 'production' ? undefined : error.message
     });

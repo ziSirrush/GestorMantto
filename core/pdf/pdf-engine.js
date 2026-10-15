@@ -81,7 +81,7 @@
       const height = doc.internal.pageSize.getHeight();
       doc.setFontSize(7);
       doc.setTextColor(100, 116, 139);
-      doc.text(safeText(footerText || 'Mantto Gestor'), 36, height - 18);
+      doc.text(safeText(footerText || 'BLT NOW'), 36, height - 18);
       doc.text('Página ' + page + ' de ' + count, width - 36, height - 18, { align:'right' });
     }
   }

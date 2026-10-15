@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20260828-fase1-calls-v001';
+const SERVICE_WORKER_VERSION = '20261015-blt-now-v001';
 const DEFAULT_URL = './index.html?push_open=notifications';
 
 self.addEventListener('install', event => {
@@ -30,7 +30,7 @@ function buildUrl(payload) {
 
 self.addEventListener('push', event => {
   const payload = normalizePayload(event);
-  const title = payload.title || 'Mantto Gestor';
+  const title = payload.title || 'BLT NOW';
   const url = buildUrl(payload);
   event.waitUntil((async () => {
     await self.registration.showNotification(title, {

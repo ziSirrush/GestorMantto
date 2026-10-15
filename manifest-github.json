@@ -1,0 +1,26 @@
+{
+  "name": "BLT NOW GH",
+  "short_name": "BLT NOW GH",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F4F7FB",
+  "theme_color": "#0D2E6E",
+  "lang": "es-MX",
+  "description": "BLT NOW para operación y mantenimiento.",
+  "scope": "./",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./assets/img/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./assets/img/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

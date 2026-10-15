@@ -15,7 +15,7 @@
   function layout_uni(){
     const root=$('view-'+ROUTE_UNI); if(!root)return false;
     root.innerHTML=`<div class="ecx-uni-page">
-      <section class="ecx-uni-head"><div><p>⚠️ Experimental · United</p><h1>Equipos Críticos</h1><span>Reincidencia de fallas con responsabilidad BLT usando las tablas actuales de Mantto Gestor.</span></div><button id="ecx-refresh" type="button">↻ Actualizar</button></section>
+      <section class="ecx-uni-head"><div><p>⚠️ Experimental · United</p><h1>Equipos Críticos</h1><span>Reincidencia de fallas con responsabilidad BLT usando las tablas actuales de BLT NOW.</span></div><button id="ecx-refresh" type="button">↻ Actualizar</button></section>
       <section class="ecx-uni-filters"><label>Zona<input id="ecx-zona" type="text" placeholder="Zona"></label><label>Proyecto<input id="ecx-proyecto" type="text" placeholder="Proyecto"></label><label>Buscar<input id="ecx-search" type="search" placeholder="Equipo, ticket o referencia"></label><button id="ecx-apply" type="button">Aplicar</button><button id="ecx-clear" type="button" class="soft">Limpiar</button></section>
       <section class="ecx-uni-summary"><article><small>Equipos críticos</small><strong id="ecx-total">—</strong></article><article><small>Criterio BLT</small><strong id="ecx-criteria">—</strong></article><article><small>Fuente</small><strong>tickets + portafolio</strong></article></section>
       <div id="ecx-feedback" class="ecx-uni-feedback" hidden></div>

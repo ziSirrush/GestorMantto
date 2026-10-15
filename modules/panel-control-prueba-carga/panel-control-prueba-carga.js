@@ -361,7 +361,7 @@
         <div>
           <span class="pclt-eyebrow">DIAGNÓSTICO · PANEL DE CONTROL</span>
           <h2>Prueba de Carga</h2>
-          <p>Prueba temporal de concurrencia contra Mantto Gestor con control real del runner y métricas en vivo separadas por origen.</p>
+          <p>Prueba temporal de concurrencia contra BLT NOW con control real del runner y métricas en vivo separadas por origen.</p>
         </div>
         <span class="pclt-phase">FASE 5 · REPORTE FINAL EFÍMERO</span>
       </div>

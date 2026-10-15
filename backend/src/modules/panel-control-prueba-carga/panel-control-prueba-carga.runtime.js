@@ -74,7 +74,7 @@ function assertLoadTestRunnerRuntimeReady() {
   }
   if (!runtime.target_configured) {
     throw runtimeError(
-      'Prueba de Carga no tiene un origen autorizado valido. Configura LOAD_TEST_ALLOWED_ORIGIN con el origen exacto de Mantto Gestor.',
+      'Prueba de Carga no tiene un origen autorizado valido. Configura LOAD_TEST_ALLOWED_ORIGIN con el origen exacto de BLT NOW.',
       'LOAD_TEST_ALLOWED_ORIGIN_REQUIRED'
     );
   }

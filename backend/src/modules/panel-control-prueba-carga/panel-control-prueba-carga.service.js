@@ -51,7 +51,7 @@ function normalizedSessionConfig(payload = {}) {
 
   if ('target' in payload || 'url' in payload || 'base_url' in payload || 'baseUrl' in payload || 'host' in payload) {
     throw loadTestError(
-      'El target no puede ser definido por el usuario. Prueba de Carga solo opera contra Mantto Gestor.',
+      'El target no puede ser definido por el usuario. Prueba de Carga solo opera contra BLT NOW.',
       400,
       'LOAD_TEST_TARGET_NOT_ALLOWED'
     );

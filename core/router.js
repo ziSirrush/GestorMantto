@@ -907,7 +907,7 @@
 
   function showDetalle(payload){
     const view = document.getElementById('view-detalle');
-    if(!view && window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Detalle','Mantto Gestor','<div class="mg-empty">Preparando detalle...</div>');
+    if(!view && window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Detalle','BLT NOW','<div class="mg-empty">Preparando detalle...</div>');
     activateViewById('view-detalle');
     setActiveSide('');
     const typeLabel = payload && payload.type === 'proyecto' ? 'Proyecto' : payload && payload.type === 'equipo' ? 'Equipo' : payload && payload.type === 'ticket' ? 'Ticket' : 'Detalle';
@@ -991,7 +991,7 @@
       <div class="construction-icon">🚧</div>
       <h1>${label(route)}</h1>
       <h2>En construcción / En desarrollo</h2>
-      <p>Este destino ya está registrado en la navegación de Mantto Gestor, pero el módulo todavía no ha sido integrado en Pruebas.</p>
+      <p>Este destino ya está registrado en la navegación de BLT NOW, pero el módulo todavía no ha sido integrado.</p>
       <p class="construction-note">Cuando este módulo se integre, este mismo acceso abrirá su vista real. Por ahora no se redirige a Resumen del día ni a otro módulo.</p>
       <span class="route-chip">Destino solicitado: ${route}${detail ? ' · ' + detail : ''}</span>
     </div></div>`;

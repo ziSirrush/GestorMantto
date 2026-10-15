@@ -25,7 +25,7 @@
   function layout_uni(){
     const root=$('view-'+ROUTE_UNI); if(!root)return false;
     root.innerHTML=`<div class="ccx-uni-page">
-      <section class="ccx-uni-head"><div><p>☎️ Experimental · United</p><h1>Dashboard Call Center</h1><span>Lectura operativa de tickets usando la información actual de Mantto Gestor.</span></div><button id="ccx-refresh" type="button">↻ Actualizar</button></section>
+      <section class="ccx-uni-head"><div><p>☎️ Experimental · United</p><h1>Dashboard Call Center</h1><span>Lectura operativa de tickets usando la información actual de BLT NOW.</span></div><button id="ccx-refresh" type="button">↻ Actualizar</button></section>
       <section class="ccx-uni-filters"><label>Desde<input id="ccx-from" type="date"></label><label>Hasta<input id="ccx-to" type="date"></label><label>Zona<select id="ccx-zona"><option value="">Todas</option></select></label><button id="ccx-apply" type="button">Aplicar</button><button id="ccx-clear" type="button" class="soft">Mes actual</button><span id="ccx-updated"></span></section>
       <div id="ccx-feedback" class="ccx-uni-feedback" hidden></div>
       <section class="ccx-uni-kpis" id="ccx-kpis"></section>

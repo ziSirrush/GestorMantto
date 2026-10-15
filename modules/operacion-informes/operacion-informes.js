@@ -715,7 +715,7 @@
       doc.setTextColor(13,46,110);
       doc.setFont('helvetica','bold');
       doc.setFontSize(18);
-      doc.text('Informes - Gestor Mantto', left, y);
+      doc.text('Informes - BLT NOW', left, y);
       y += 15;
       doc.setFont('helvetica','normal');
       doc.setTextColor(71,85,105);
@@ -806,7 +806,7 @@
         doc.setPage(page);
         if(page > 1){
           doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(13,46,110);
-          doc.text('Informes - Gestor Mantto',left,18);
+          doc.text('Informes - BLT NOW',left,18);
           doc.setDrawColor(226,232,240); doc.line(left,24,pageWidth-right,24);
         }
         doc.setFont('helvetica','normal'); doc.setFontSize(6.8); doc.setTextColor(100,116,139);

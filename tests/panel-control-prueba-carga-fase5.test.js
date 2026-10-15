@@ -68,7 +68,7 @@ test('Fase 5: acepta summary una sola vez y construye reporte temporal completo'
   assert.ok(accepted.summary_received_at);
 
   const report = registry.getReportText(run.id);
-  assert.match(report, /MANTTO GESTOR - PRUEBA DE CARGA/);
+  assert.match(report, /BLT NOW - PRUEBA DE CARGA/);
   assert.match(report, /Integridad del reporte: COMPLETO/);
   assert.match(report, /Requests totales k6: 100/);
   assert.match(report, /p95: 90\.00 ms/);

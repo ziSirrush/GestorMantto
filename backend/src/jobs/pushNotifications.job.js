@@ -87,7 +87,7 @@ function unitedPushTitle_gnral(notification, baseTitle, visualEmojis) {
 }
 
 function payloadFor(notification, visualCatalogByCode = new Map()) {
-  const baseTitle = notification.titulo_notificacion || 'Mantto Gestor';
+  const baseTitle = notification.titulo_notificacion || 'BLT NOW';
   const emoji = String(notification.icono_notificacion || '').trim();
   const priority = String(notification.prioridad_notificacion || 'MEDIA').trim().toUpperCase();
   const priorityEmoji = {

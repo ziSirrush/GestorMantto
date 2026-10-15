@@ -121,7 +121,7 @@ function buildLoadTestReport(session) {
   const mysqlRunningMax = number(system?.maxima?.mysql_threads_running, null);
 
   const lines = [
-    '=== MANTTO GESTOR - PRUEBA DE CARGA ===',
+    '=== BLT NOW - PRUEBA DE CARGA ===',
     '',
     `Grupo: ${count(session?.vus)} usuarios concurrentes`,
     `Escenario: ${sanitizeLine(session?.scenario)}`,

@@ -769,7 +769,7 @@
       title:'Equipos Críticos',
       fileName:'Equipos_Criticos_Desglose',
       sections,
-      footerText:'Mantto Gestor · United Elevadores'
+      footerText:'BLT NOW · United Elevadores'
     });
   }
 
@@ -784,7 +784,7 @@
     window.ManttoPdf_gnral.exportReport({
       title:'Proyectos Críticos',
       fileName:'Proyectos_Criticos',
-      footerText:'Mantto Gestor · United Elevadores',
+      footerText:'BLT NOW · United Elevadores',
       sections:[{
         title:'BLT Brilliant — Proyectos Críticos',
         titleColor:[30,64,175],

@@ -67,7 +67,7 @@ function sendCallbackPage(res, { ok, message, status = 200 }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Google OAuth | Mantto Gestor</title>
+  <title>Google OAuth | BLT NOW</title>
 </head>
 <body>
   <main>
@@ -138,7 +138,7 @@ async function callback(req, res) {
 
       return sendCallbackPage(res, {
         ok: false,
-        message: 'Debes autorizar con el mismo correo registrado en Mantto Gestor.',
+        message: 'Debes autorizar con el mismo correo registrado en BLT NOW.',
         status: 403
       });
     }

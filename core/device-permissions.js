@@ -85,7 +85,7 @@
 
   function pushAvailability(){
     if(!window.isSecureContext) return { available:false, reason:'Las notificaciones requieren HTTPS.' };
-    if(isIos() && !isStandalone()) return { available:false, reason:'En iPhone/iPad, abre Mantto Gestor desde la PWA instalada en la pantalla de inicio.' };
+    if(isIos() && !isStandalone()) return { available:false, reason:'En iPhone/iPad, abre BLT NOW desde la PWA instalada en la pantalla de inicio.' };
     if(!notificationApi() || !('serviceWorker' in navigator) || !('PushManager' in window)){
       return { available:false, reason:'Este navegador no ofrece Web Push en este modo.' };
     }

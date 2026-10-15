@@ -6,13 +6,25 @@
 <meta content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="light only" name="color-scheme"/>
 <meta content="#0D2E6E" name="theme-color"/>
-<meta content="Mantto Gestor" name="application-name"/>
+<meta content="BLT NOW" id="blt-pwa-application-name" name="application-name"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="yes" name="mobile-web-app-capable"/>
 <meta content="default" name="apple-mobile-web-app-status-bar-style"/>
-<meta content="Mantto Gestor" name="apple-mobile-web-app-title"/>
-<title>Mantto Gestor | Pruebas</title>
-<link href="./manifest.json" rel="manifest"/>
+<meta content="BLT NOW" id="blt-pwa-apple-title" name="apple-mobile-web-app-title"/>
+<title>BLT NOW</title>
+<link id="blt-pwa-manifest" rel="manifest"/>
+<script id="blt-pwa-install-brand">
+  (function(){
+    var isGitHubPages=/(^|\.)github\.io$/i.test(window.location.hostname||'');
+    var installName=isGitHubPages?'BLT NOW GH':'BLT NOW';
+    var manifest=document.getElementById('blt-pwa-manifest');
+    var applicationName=document.getElementById('blt-pwa-application-name');
+    var appleTitle=document.getElementById('blt-pwa-apple-title');
+    if(manifest) manifest.setAttribute('href',isGitHubPages?'./manifest-github.json':'./manifest.json');
+    if(applicationName) applicationName.setAttribute('content',installName);
+    if(appleTitle) appleTitle.setAttribute('content',installName);
+  })();
+</script>
 <link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
 <link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
 <link href="./styles/base.css?v=20260805-nori-dock-integrado-v002" rel="stylesheet"/>
@@ -32,13 +44,13 @@
 <section aria-label="Validando sesión" aria-live="polite" class="auth-bootstrap-screen" id="auth-bootstrap-screen">
 <div class="auth-bootstrap-card"><span aria-hidden="true" class="auth-bootstrap-spinner"></span><span>Validando sesión...</span></div>
 </section>
-<section aria-label="Inicio de sesión Mantto Gestor" class="auth-screen hidden" id="auth-screen">
+<section aria-label="Inicio de sesión BLT NOW" class="auth-screen hidden" id="auth-screen">
 <div class="auth-card">
 <div class="auth-brand">
 <img alt="BLT Brilliant" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" src="assets/logo.png"/>
 <span class="auth-logo-fallback">BLT</span>
 <div>
-<h1>GESTOR DE OPERACIONES</h1>
+<h1>BLT NOW</h1>
 <p>ACCESO SEGURO · PRUEBAS AIVEN</p>
 </div>
 </div>

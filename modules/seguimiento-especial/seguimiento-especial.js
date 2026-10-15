@@ -32,7 +32,7 @@
     return `<div class="se-page" id="se-page">
       <section class="se-head se-card">
         <div>
-          <p class="se-eyebrow">Seguimiento personal · Mantto Gestor</p>
+          <p class="se-eyebrow">Seguimiento personal · BLT NOW</p>
           <h1>${visualMarkup('se-visual')} Seguimiento Especial</h1>
           <p>Proyectos, equipos y tickets que requieren tu atención. El indicador visual es personal y nunca amplía tu alcance de información.</p>
         </div>
