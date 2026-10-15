@@ -11,19 +11,6 @@ const { humanInformationGuard_gnral } = require('../../middleware/information-ac
 const router = express.Router();
 const p = service.PERMISSIONS_COR;
 
-// Gate de despliegue conservador. No habilita endpoints hasta validar la Fase 1
-// en Aiven. El sidebar sigue oculto hasta la Fase 3.
-function requireEnabled_cor(req, res, next) {
-  if (String(process.env.CX_VISITAS_API_ENABLED || '').trim().toLowerCase() !== 'true') {
-    return res.status(503).json({
-      ok: false,
-      code: 'CX_VISITAS_API_NOT_ENABLED',
-      message: 'El modulo Customer Experience > Visitas todavia no esta habilitado.'
-    });
-  }
-  return next();
-}
-
 // Un permiso de accion NO sustituye al ACCESO_VISUAL preexistente del modulo.
 // El guard valida tambien identidad efectiva, agrupacion y alcance CORELLIAN.
 async function requireVisual_cor(req, res, next) {
@@ -55,7 +42,6 @@ function actionGuard_cor(actionCode) {
   ];
 }
 
-router.use(requireEnabled_cor);
 router.get('/', ...actionGuard_cor(p.list), controller.list_cor);
 router.get('/:id/historial', ...actionGuard_cor(p.history), controller.history_cor);
 router.get('/:id', ...actionGuard_cor(p.list), controller.get_cor);
