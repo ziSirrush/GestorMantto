@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20261015-blt-now-v001';
+const SERVICE_WORKER_VERSION = '20261015-app-update-v002';
 const DEFAULT_URL = './index.html?push_open=notifications';
 
 self.addEventListener('install', event => {
@@ -7,6 +7,12 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
 });
 
 function normalizePayload(event) {

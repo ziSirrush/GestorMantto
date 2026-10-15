@@ -115,3 +115,10 @@
 
 /* V016.2 · versión visible para soporte al final de Mi Perfil */
 .usr-app-version{margin-top:18px;padding-top:12px;border-top:1px solid #eef2f7;color:#98a2b3;font-size:.72rem;line-height:1.35;text-align:center;font-weight:600;word-break:break-word}
+.usr-app-update{display:grid;gap:10px;margin-top:10px;padding:14px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;text-align:center}
+.usr-app-update[hidden]{display:none!important}
+.usr-app-update-copy{display:grid;gap:3px;color:#1e3a5f}
+.usr-app-update-copy b{font-size:.9rem}
+.usr-app-update-copy span{font-size:.78rem;line-height:1.4;font-weight:650}
+.usr-app-update-copy span.error{color:#b42318}
+.usr-app-update-button{width:100%;background:#175cd3}

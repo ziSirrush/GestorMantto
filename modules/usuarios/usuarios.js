@@ -48,10 +48,15 @@
       <div class="usr-actions"><button class="usr-btn" id="usr-open-notifications" type="button">Personalizar notificaciones</button><button class="usr-btn" id="usr-open-pass" type="button">Cambiar contraseña</button><button class="usr-btn secondary" id="usr-open-secret" type="button">Cambiar pregunta/respuesta secreta</button><button class="usr-btn danger" id="usr-profile-logout" type="button">Cerrar sesión</button></div>
       <form class="usr-form usr-notification-form" id="usr-notifications-form"><div class="usr-section-title"><b>Notificaciones personalizadas</b><small>Las notificaciones obligatorias permanecen activas.</small></div><div id="usr-notification-preferences"><div class="usr-loading">Cargando preferencias...</div></div><button class="usr-btn" type="submit">Guardar preferencias</button><div id="usr-notification-msg" class="usr-msg"></div></form><form class="usr-form" id="usr-pass-form"><label>Contraseña actual<input id="usr-current-pass" type="password" autocomplete="current-password" required></label><label>Contraseña nueva<input id="usr-new-pass" type="password" autocomplete="new-password" required placeholder="Mínimo 10 caracteres"></label><label>Confirmar contraseña nueva<input id="usr-new-pass-confirm" type="password" autocomplete="new-password" required></label><button class="usr-btn" type="submit">Guardar contraseña</button><div id="usr-pass-msg" class="usr-msg"></div></form>
       <form class="usr-form" id="usr-secret-form"><label>Contraseña actual<input id="usr-secret-current-pass" type="password" autocomplete="current-password" required></label><label>Respuesta actual<input id="usr-current-answer" type="text" required></label><label>Nueva pregunta<select id="usr-new-question" required></select></label><label>Nueva respuesta<input id="usr-new-answer" type="text" required></label><button class="usr-btn" type="submit">Guardar pregunta</button><div id="usr-secret-msg" class="usr-msg"></div></form>
-      <div class="usr-app-version" id="usr-app-version">${esc(window.ManttoBuildInfo?.getProfileLabel?.() || 'Versión de la aplicación: no disponible')}</div>`;
+      <div class="usr-app-version" id="usr-app-version">${esc(window.ManttoBuildInfo?.getProfileLabel?.() || 'Versión de la aplicación: no disponible')}</div>
+      <div class="usr-app-update" id="usr-app-update" hidden>
+        <div class="usr-app-update-copy"><b>Actualización disponible</b><span id="usr-app-update-status" role="status">Hay una versión más reciente de BLT NOW disponible.</span></div>
+        <button class="usr-btn usr-app-update-button" id="usr-app-update-button" type="button">Descargar actualización</button>
+      </div>`;
     bindProfileForms();
     $('usr-profile-logout')?.addEventListener('click',()=>window.ManttoAuth?.logout?.());
     renderDevicePermissions();
+    window.ManttoAppUpdate?.mountProfile?.();
   }
   function bindProfileForms(){
     $('usr-open-notifications')?.addEventListener('click',async()=>{ $('usr-notifications-form')?.classList.toggle('open'); $('usr-pass-form')?.classList.remove('open'); $('usr-secret-form')?.classList.remove('open'); if($('usr-notifications-form')?.classList.contains('open')) await loadNotificationPreferences(); });

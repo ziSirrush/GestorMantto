@@ -248,7 +248,7 @@
     'almacen-auditoria':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002']},
 
-    usuarios:{css:['./modules/usuarios/usuarios.css?v=20260707-v001'],js:['./modules/usuarios/usuarios.js?v=20260707-v001']},
+    usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261015-app-update-v001']},
     'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260929-runner-central-desktop-v001']},
     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001']},
 

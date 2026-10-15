@@ -1,0 +1,13 @@
+[build]
+  command = "node tools/generate-build-info.js && node tools/generate-change-audit.js"
+  publish = "."
+
+[[headers]]
+  for = "/core/build-info.generated.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
