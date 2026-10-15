@@ -3,11 +3,31 @@
   publish = "."
 
 [[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+
+[[headers]]
   for = "/core/build-info.generated.js"
   [headers.values]
     Cache-Control = "no-store, no-cache, must-revalidate"
 
 [[headers]]
   for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+
+[[headers]]
+  for = "/manifest-github.json"
   [headers.values]
     Cache-Control = "no-store, no-cache, must-revalidate"

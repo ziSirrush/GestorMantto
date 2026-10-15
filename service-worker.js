@@ -1,12 +1,47 @@
-const SERVICE_WORKER_VERSION = '20261015-app-update-v002';
+const SERVICE_WORKER_VERSION = '20261015-pwa-version-sync-v003';
 const DEFAULT_URL = './index.html?push_open=notifications';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
 });
 
+function clientHasManagedUpdates(client) {
+  return new Promise(resolve => {
+    const channel = new MessageChannel();
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(Boolean(value));
+    };
+    const timer = setTimeout(() => finish(false), 900);
+    channel.port1.onmessage = message => {
+      const data = message.data || {};
+      finish(data.type === 'BLT_VERSION_RESPONSE' && data.managedUpdate === true);
+    };
+    try {
+      client.postMessage({ type:'BLT_VERSION_PROBE', serviceWorkerVersion:SERVICE_WORKER_VERSION }, [channel.port2]);
+    } catch (error) {
+      finish(false);
+    }
+  });
+}
+
+async function refreshLegacyClient(client) {
+  if (await clientHasManagedUpdates(client)) return;
+  const target = new URL(client.url);
+  if (target.searchParams.get('blt_sw_update') === SERVICE_WORKER_VERSION) return;
+  target.searchParams.set('blt_sw_update', SERVICE_WORKER_VERSION);
+  await client.navigate(target.href);
+}
+
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    const windows = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
+    await Promise.all(windows.map(refreshLegacyClient));
+  })());
 });
 
 self.addEventListener('message', event => {

@@ -70,9 +70,13 @@
 
     button.disabled=state.applying;
     button.textContent=state.applying?'Descargando actualización…':'Descargar actualización';
+    const installed=normalizeBuild(window.MANTTO_BUILD_INFO).message;
+    const published=normalizeBuild(state.latest).message;
     status.textContent=state.error
       ? state.error
-      : 'Hay una versión más reciente de BLT NOW disponible.';
+      : installed&&published
+        ? 'Tu PWA tiene '+installed+'. Está disponible '+published+'.'
+        : 'Hay una versión más reciente de BLT NOW disponible.';
     status.classList.toggle('error',Boolean(state.error));
 
     if(button.dataset.updateBound!=='1'){
@@ -197,7 +201,29 @@
     }
   }
 
+  function answerServiceWorkerProbe(event){
+    if(!event||!event.data||event.data.type!=='BLT_VERSION_PROBE')return;
+    const port=event.ports&&event.ports[0];
+    if(!port||typeof port.postMessage!=='function')return;
+    port.postMessage({
+      type:'BLT_VERSION_RESPONSE',
+      managedUpdate:true,
+      build:buildKey(window.MANTTO_BUILD_INFO)
+    });
+  }
+
+  function cleanUpdateParameters(){
+    if(!window.history||typeof window.history.replaceState!=='function')return;
+    const target=new URL(window.location.href);
+    const hadUpdateParameter=target.searchParams.has('blt_update')||target.searchParams.has('blt_sw_update');
+    if(!hadUpdateParameter)return;
+    target.searchParams.delete('blt_update');
+    target.searchParams.delete('blt_sw_update');
+    window.history.replaceState({},document.title,target.pathname+(target.search||'')+(target.hash||''));
+  }
+
   function init(){
+    cleanUpdateParameters();
     window.setTimeout(()=>checkForUpdate().catch(()=>null),1500);
     window.setInterval(()=>checkForUpdate().catch(()=>null),CHECK_INTERVAL_MS);
     document.addEventListener('visibilitychange',()=>{
@@ -214,8 +240,13 @@
     mountProfile,
     getState:publicState,
     parseBuildInfoSource,
-    hasNewerBuild
+    hasNewerBuild,
+    answerServiceWorkerProbe
   });
+
+  if(navigator.serviceWorker&&typeof navigator.serviceWorker.addEventListener==='function'){
+    navigator.serviceWorker.addEventListener('message',answerServiceWorkerProbe);
+  }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
   else init();

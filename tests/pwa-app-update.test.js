@@ -74,7 +74,7 @@ test('compara la versión cargada contra la metadata publicada sin caché',async
   assert.equal(result.available,true);
   assert.equal(elements['usr-app-update'].hidden,false);
   assert.equal(elements['usr-app-update-button'].textContent,'Descargar actualización');
-  assert.match(elements['usr-app-update-status'].textContent,/versión más reciente de BLT NOW/i);
+  assert.match(elements['usr-app-update-status'].textContent,/Tu PWA tiene Versión actual\. Está disponible Versión nueva\./);
   assert.equal(loaded.fetchCalls[0].options.cache,'no-store');
   assert.match(loaded.fetchCalls[0].url,/build-info\.generated\.js\?update_check=\d+/);
 });
@@ -128,6 +128,57 @@ test('el botón vive debajo de la versión del perfil y el worker acepta activac
   assert.ok(index.indexOf('core/app-update.js')>index.indexOf('core/build-info.js'));
   assert.match(worker,/event\.data\.type === 'SKIP_WAITING'/);
   assert.match(worker,/self\.skipWaiting\(\)/);
+  assert.match(worker,/BLT_VERSION_PROBE/);
+  assert.match(worker,/client\.navigate\(target\.href\)/);
+});
+
+test('el administrador actual responde al worker para evitar recargas automáticas posteriores',()=>{
+  let messageHandler=null;
+  const replies=[];
+  const navigator={serviceWorker:{addEventListener:(type,handler)=>{if(type==='message')messageHandler=handler;}}};
+  const loaded=loadUpdateModule({navigator});
+
+  assert.equal(typeof messageHandler,'function');
+  messageHandler({
+    data:{type:'BLT_VERSION_PROBE'},
+    ports:[{postMessage:value=>replies.push(value)}]
+  });
+  assert.equal(replies.length,1);
+  assert.equal(replies[0].type,'BLT_VERSION_RESPONSE');
+  assert.equal(replies[0].managedUpdate,true);
+  assert.equal(replies[0].build,'a'.repeat(40));
+  assert.equal(loaded.api.getState().available,false);
+});
+
+test('el worker puente recarga clientes antiguos y respeta clientes con actualizador',async()=>{
+  class TestMessageChannel{
+    constructor(){
+      this.port1={onmessage:null};
+      this.port2={reply:data=>this.port1.onmessage&&this.port1.onmessage({data})};
+    }
+  }
+  const self={addEventListener(){},clients:{claim:async()=>{},matchAll:async()=>[]}};
+  const context={
+    self,clients:self.clients,MessageChannel:TestMessageChannel,URL,URLSearchParams,Promise,Date,
+    setTimeout:callback=>{Promise.resolve().then(callback);return 1;},clearTimeout:()=>{}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'service-worker.js'),'utf8'),context);
+
+  let managedNavigation='';
+  await context.refreshLegacyClient({
+    url:'https://example.test/index.html',
+    postMessage:(_message,ports)=>ports[0].reply({type:'BLT_VERSION_RESPONSE',managedUpdate:true}),
+    navigate:async url=>{managedNavigation=url;}
+  });
+  assert.equal(managedNavigation,'');
+
+  let legacyNavigation='';
+  await context.refreshLegacyClient({
+    url:'https://example.test/index.html',
+    postMessage:()=>{},
+    navigate:async url=>{legacyNavigation=url;}
+  });
+  assert.match(legacyNavigation,/blt_sw_update=20261015-pwa-version-sync-v003/);
 });
 
 test('GitHub Pages y Netlify generan metadata nueva en cada despliegue',()=>{
