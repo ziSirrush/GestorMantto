@@ -30,11 +30,11 @@ Module._load = originalLoad;
 
 const fullScope = { dominio: 'CORELLIAN', acceso_dominio_completo: true };
 
-test('catalogo usa exclusivamente Fuente y agrupa por id_proyecto_origen', () => {
+test('catalogo usa exclusivamente Fuente y agrupa por nombre de proyecto', () => {
   const source = read('backend/src/modules/cobranza-cor/cobranza-cor-pagos-modulo.repository.js');
   assert.match(source, /const TABLE_FUENTE_COR = 'cobranza_fuente_cor'/);
   assert.match(source, /FROM \$\{TABLE_FUENTE_COR\} f/);
-  assert.match(source, /GROUP BY UPPER\(TRIM\(f\.id_proyecto_origen\)\)/);
+  assert.match(source, /GROUP BY UPPER\(TRIM\(f\.proyecto\)\)/);
   assert.doesNotMatch(source, /FROM ins_fl fl/);
 });
 
@@ -78,7 +78,7 @@ test('servicio devuelve toda la agrupacion e ignora el limit heredado', async ()
     const out = await service.listarProyectos_cor({ limit: '2000' }, fullScope);
     assert.equal(out.ok, true);
     assert.equal(out.source_table, 'cobranza_fuente_cor');
-    assert.equal(out.grouped_by, 'id_proyecto_origen');
+    assert.equal(out.grouped_by, 'proyecto');
     assert.equal(out.total_proyectos, 2);
     assert.equal(out.data.length, 2);
   } finally {

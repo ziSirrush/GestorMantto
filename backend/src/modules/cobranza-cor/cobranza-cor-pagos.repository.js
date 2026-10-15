@@ -5,6 +5,7 @@ const db = require('../../config/db');
 const TABLE_PAGOS_COR = 'cobranza_pagos_cor';
 const TABLE_FACTURAS_COR = 'cobranza_facturas_cor';
 const TABLE_REL_PAGOS_COR = 'cobranza_rel_pagos';
+const TABLE_FUENTE_COR = 'cobranza_fuente_cor';
 
 const PAGO_COLUMNS_COR = Object.freeze([
   'no_factura',
@@ -27,12 +28,11 @@ const PAGO_COLUMNS_COR = Object.freeze([
   'fecha_creacion_ov',
   'complemento_pago',
   'fecha_complemento_pago',
-  'importe_complemento_pago',
-  'id_pp'
+  'importe_complemento_pago'
 ]);
 
-function normalizedBusinessKeySql_cor(expression) {
-  return `REGEXP_REPLACE(UPPER(TRIM(COALESCE(${expression}, ''))), '[[:space:]_-]*MXN$', '')`;
+function normalizedProjectKeySql_cor(expression) {
+  return `UPPER(TRIM(COALESCE(${expression}, '')))`;
 }
 
 function valuesFromRecord_cor(record) {
@@ -115,15 +115,15 @@ async function listPagosEstadoCuenta_cor(connection, ppns) {
             DATE_FORMAT(p.fecha_complemento_pago, '%Y-%m-%d') AS fecha_pago,
             p.importe_complemento_pago
        FROM ${TABLE_PAGOS_COR} p
-      WHERE ${normalizedBusinessKeySql_cor('p.id_pp')} = ${normalizedBusinessKeySql_cor('?')}
-        AND EXISTS (
-        SELECT 1 FROM ${TABLE_FACTURAS_COR} f
-         WHERE f.activo = 1
-           AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-           AND ${normalizedBusinessKeySql_cor('f.factura')} = ${normalizedBusinessKeySql_cor('p.no_factura')}
+      WHERE EXISTS (
+        SELECT 1
+          FROM ${TABLE_FUENTE_COR} fuente
+         WHERE fuente.activo = 1
+           AND ${normalizedProjectKeySql_cor('fuente.id_proyecto_origen')} = ${normalizedProjectKeySql_cor('?')}
+           AND ${normalizedProjectKeySql_cor('fuente.proyecto')} = ${normalizedProjectKeySql_cor('p.id_pp')}
       )
       ORDER BY p.id_pago_cor ASC`,
-    [ppns, ppns]
+    [ppns]
   );
   return rows;
 }
@@ -136,8 +136,13 @@ async function listRelacionesEstadoCuenta_cor(connection, ppns) {
        JOIN ${TABLE_PAGOS_COR} p ON p.id_pago_cor = r.id_pago_cor
       WHERE f.activo = 1
         AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-        AND ${normalizedBusinessKeySql_cor('p.id_pp')} = ${normalizedBusinessKeySql_cor('?')}
-        AND ${normalizedBusinessKeySql_cor('f.factura')} = ${normalizedBusinessKeySql_cor('p.no_factura')}
+        AND EXISTS (
+          SELECT 1
+            FROM ${TABLE_FUENTE_COR} fuente
+           WHERE fuente.activo = 1
+             AND ${normalizedProjectKeySql_cor('fuente.id_proyecto_origen')} = ${normalizedProjectKeySql_cor('?')}
+             AND ${normalizedProjectKeySql_cor('fuente.proyecto')} = ${normalizedProjectKeySql_cor('p.id_pp')}
+        )
       ORDER BY r.id_pago_cor, r.id_factura_cor`,
     [ppns, ppns]
   );
@@ -150,15 +155,15 @@ async function lockPagoEstadoCuenta_cor(connection, idPagoCor, ppns) {
             p.importe_complemento_pago
        FROM ${TABLE_PAGOS_COR} p
       WHERE p.id_pago_cor = ?
-        AND ${normalizedBusinessKeySql_cor('p.id_pp')} = ${normalizedBusinessKeySql_cor('?')}
         AND EXISTS (
-          SELECT 1 FROM ${TABLE_FACTURAS_COR} f
-           WHERE f.activo = 1
-             AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-             AND ${normalizedBusinessKeySql_cor('f.factura')} = ${normalizedBusinessKeySql_cor('p.no_factura')}
+          SELECT 1
+            FROM ${TABLE_FUENTE_COR} fuente
+           WHERE fuente.activo = 1
+             AND ${normalizedProjectKeySql_cor('fuente.id_proyecto_origen')} = ${normalizedProjectKeySql_cor('?')}
+             AND ${normalizedProjectKeySql_cor('fuente.proyecto')} = ${normalizedProjectKeySql_cor('p.id_pp')}
         )
       FOR UPDATE`,
-    [idPagoCor, ppns, ppns]
+    [idPagoCor, ppns]
   );
   return rows[0] || null;
 }
@@ -225,6 +230,7 @@ async function quitarRelacionPagoFactura_cor(connection, idPagoCor, idFacturaCor
 
 module.exports = {
   TABLE_PAGOS_COR,
+  TABLE_FUENTE_COR,
   PAGO_COLUMNS_COR,
   getConnection_cor,
   lockExistingPagosByIds_cor,

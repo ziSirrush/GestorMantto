@@ -50,14 +50,15 @@ test('el buscador acota por PPNS, proyecto o cliente sin perder el catalogo comp
   assert.equal(api.filterProjects_cor('').length, 3);
 });
 
-test('seleccion exacta sigue resolviendo al PPNS real', () => {
+test('seleccion exacta resuelve al nombre de proyecto de Fuente', () => {
   const api = loadInternals();
   api.state.projects = [
     { ppns: 'P14223', proyecto: '16 DE SEPTIEMBRE 3RA ETAPA', cliente: 'CLIENTE NORTE' }
   ];
   api.rebuildProjectMaps_cor();
-  assert.equal(api.resolveProjectInput_cor('P14223').ppns, 'P14223');
-  assert.equal(api.resolveProjectInput_cor('P14223 · 16 DE SEPTIEMBRE 3RA ETAPA · CLIENTE NORTE').ppns, 'P14223');
+  assert.equal(api.resolveProjectInput_cor('16 DE SEPTIEMBRE 3RA ETAPA').proyecto, '16 DE SEPTIEMBRE 3RA ETAPA');
+  assert.equal(api.resolveProjectInput_cor('16 DE SEPTIEMBRE 3RA ETAPA · P14223 · CLIENTE NORTE').proyecto, '16 DE SEPTIEMBRE 3RA ETAPA');
+  assert.equal(api.resolveProjectInput_cor('P14223').valid, false);
 });
 
 test('estilo del desplegable es claro y equivalente a un list tradicional', () => {
@@ -81,9 +82,9 @@ test('se conservan asignacion individual y masiva', () => {
   assert.match(source, /data-ccor-pg-row-save/);
 });
 
-test('module-loader fuerza cache V004 para JS y CSS', () => {
+test('module-loader fuerza cache de alineacion a Fuente para JS y conserva CSS V004', () => {
   const loader = read('core/module-loader.js');
   assert.match(loader, /cobranza-pagos-list-buscable-tradicional-v004/);
   assert.match(loader, /cobranza-cor-pagos\.css\?v=20261002-cobranza-pagos-list-buscable-tradicional-v004/);
-  assert.match(loader, /cobranza-cor-pagos\.js\?v=20261002-cobranza-pagos-list-buscable-tradicional-v004/);
+  assert.match(loader, /cobranza-cor-pagos\.js\?v=20261015-pagos-proyecto-fuente-v002/);
 });

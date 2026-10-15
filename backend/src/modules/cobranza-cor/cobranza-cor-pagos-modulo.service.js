@@ -115,8 +115,8 @@ function serializePagoModulo_cor(row) {
   return {
     id_pago_cor: integerOrNull_cor(row?.id_pago_cor),
     no_factura: cleanText_cor(row?.no_factura, 150),
-    ppns_relacionado: cleanText_cor(row?.ppns_relacionado, 100),
-    proyecto_relacionado: cleanText_cor(row?.proyecto_relacionado, 1000),
+    proyecto_relacionado: cleanText_cor(row?.proyecto_relacionado, 255),
+    ppns_fuente_relacionado: cleanText_cor(row?.ppns_fuente_relacionado, 1000),
     cliente_relacionado: cleanText_cor(row?.cliente_relacionado, 1000),
     cliente: cleanText_cor(row?.cliente, 255),
     limite_credito: numberOrNull_cor(row?.limite_credito),
@@ -138,13 +138,13 @@ function serializePagoModulo_cor(row) {
     complemento_pago: cleanText_cor(row?.complemento_pago, 255),
     fecha_complemento_pago: cleanText_cor(row?.fecha_complemento_pago, 32),
     importe_complemento_pago: numberOrNull_cor(row?.importe_complemento_pago),
-    relacionado_proyecto: Boolean(cleanText_cor(row?.ppns_relacionado, 100))
+    relacionado_proyecto: Boolean(cleanText_cor(row?.proyecto_relacionado, 255))
   };
 }
 
 function serializeProyecto_cor(row) {
   return {
-    ppns: cleanText_cor(row?.ppns, 100),
+    ppns: cleanText_cor(row?.ppns, 1000),
     proyecto: cleanText_cor(row?.proyecto, 1000),
     cliente: cleanText_cor(row?.cliente, 1000)
   };
@@ -173,7 +173,7 @@ async function listarPagos_cor(query = {}, informationAccess) {
       route: ROUTES_PAGOS_COR.listado,
       source_table: repository.TABLE_PAGOS_COR,
       scope_aplicado: 'DOMINIO_COMPLETO',
-      relacion_ppns_resuelta: true,
+      relacion_proyecto_fuente_resuelta: true,
       filtros: { q: filters.buscar, estado: filters.estado, zona_adm: filters.zonaAdm, relacion_proyecto: filters.relacionProyecto },
       resumen,
       paginacion: { pagina: page, tamano: filters.pageSize, total_registros: total, total_paginas: totalPages },
@@ -194,7 +194,7 @@ async function listarProyectos_cor(query = {}, informationAccess) {
       ok: true,
       source: 'aiven',
       source_table: repository.TABLE_FUENTE_COR,
-      grouped_by: 'id_proyecto_origen',
+      grouped_by: 'proyecto',
       domain: 'CORELLIAN',
       route: ROUTES_PAGOS_COR.proyectos,
       total_proyectos: rows.length,
@@ -205,41 +205,36 @@ async function listarProyectos_cor(query = {}, informationAccess) {
   }
 }
 
-function relationPpnsSet_cor(relaciones) {
-  return [...new Set(
-    (Array.isArray(relaciones) ? relaciones : [])
-      .map((row) => cleanText_cor(row?.ppns, 100))
-      .filter(Boolean)
-      .map(canonicalText_cor)
-  )];
+function relationPpnsValues_cor(relaciones) {
+  const values = new Map();
+  for (const row of Array.isArray(relaciones) ? relaciones : []) {
+    const ppns = cleanText_cor(row?.ppns, 100);
+    if (ppns) values.set(canonicalText_cor(ppns), ppns);
+  }
+  return [...values.values()];
 }
 
 async function validatePagoRelationsForProject_cor(connection, idPagoCor, proyecto) {
   const relaciones = await repository.listRelacionesPagoProyecto_cor(connection, idPagoCor);
-  const ppnsRelaciones = relationPpnsSet_cor(relaciones);
-  if (ppnsRelaciones.length > 1) {
-    throw httpError(
-      409,
-      'El Pago tiene relaciones con Facturas de mas de un proyecto.',
-      { id_pago_cor: idPagoCor, ppns_facturas: ppnsRelaciones },
-      'COBRANZA_PAGOS_RELACIONES_INCONSISTENTES'
-    );
-  }
-  if (ppnsRelaciones.length === 1 && ppnsRelaciones[0] !== canonicalText_cor(proyecto.ppns)) {
-    throw httpError(
-      409,
-      'El Pago ya esta relacionado con Facturas de otro proyecto.',
-      { id_pago_cor: idPagoCor, ppns_facturas: ppnsRelaciones[0], ppns_solicitado: proyecto.ppns },
-      'COBRANZA_PAGOS_PROYECTO_CONFLICTO_FACTURAS'
-    );
+  const ppnsRelaciones = relationPpnsValues_cor(relaciones);
+  for (const ppns of ppnsRelaciones) {
+    const pertenece = await repository.existeProyectoFuenteEnPpns_cor(connection, proyecto.proyecto, ppns);
+    if (!pertenece) {
+      throw httpError(
+        409,
+        'El Pago ya esta relacionado con Facturas de otro proyecto de Fuente.',
+        { id_pago_cor: idPagoCor, ppns_factura: ppns, proyecto_solicitado: proyecto.proyecto },
+        'COBRANZA_PAGOS_PROYECTO_CONFLICTO_FACTURAS'
+      );
+    }
   }
 }
 
 async function asignarProyecto_cor(idPagoCorRaw, body = {}, informationAccess) {
   assertCompleteCorellianScope_cor(informationAccess);
   const idPagoCor = positiveId_cor(idPagoCorRaw, 'idPagoCor');
-  const requestedPpns = cleanText_cor(body.ppns, 100);
-  if (!requestedPpns) throw badRequest('ppns es obligatorio.', { field: 'ppns' }, 'COBRANZA_PAGOS_PPNS_REQUERIDO');
+  const requestedProject = cleanText_cor(body.proyecto, 255);
+  if (!requestedProject) throw badRequest('proyecto es obligatorio.', { field: 'proyecto' }, 'COBRANZA_PAGOS_PROYECTO_REQUERIDO');
 
   const connection = await repository.getConnection_cor();
   try {
@@ -247,15 +242,15 @@ async function asignarProyecto_cor(idPagoCorRaw, body = {}, informationAccess) {
     const pago = await repository.lockPagoProyecto_cor(connection, idPagoCor);
     if (!pago) throw httpError(404, 'El Pago solicitado no existe.', { id_pago_cor: idPagoCor }, 'COBRANZA_PAGO_NO_ENCONTRADO');
 
-    const proyecto = await repository.getProyectoPagoByPpns_cor(connection, requestedPpns);
-    if (!proyecto) throw httpError(404, 'El proyecto seleccionado no existe o no esta activo en Fuente.', { ppns: requestedPpns }, 'COBRANZA_PAGOS_PROYECTO_NO_ENCONTRADO');
+    const proyecto = await repository.getProyectoPagoByNombre_cor(connection, requestedProject);
+    if (!proyecto) throw httpError(404, 'El proyecto seleccionado no existe o no esta activo en Fuente.', { proyecto: requestedProject }, 'COBRANZA_PAGOS_PROYECTO_NO_ENCONTRADO');
 
     await validatePagoRelationsForProject_cor(connection, idPagoCor, proyecto);
 
-    const currentPpns = cleanText_cor(pago.ppns_relacionado, 100);
+    const currentProject = cleanText_cor(pago.proyecto_relacionado, 255);
     let actualizado = false;
-    if (canonicalText_cor(currentPpns) !== canonicalText_cor(proyecto.ppns)) {
-      await repository.updatePagoProyecto_cor(connection, idPagoCor, proyecto.ppns);
+    if (canonicalText_cor(currentProject) !== canonicalText_cor(proyecto.proyecto)) {
+      await repository.updatePagoProyecto_cor(connection, idPagoCor, proyecto.proyecto);
       actualizado = true;
     }
 
@@ -278,15 +273,15 @@ async function asignarProyecto_cor(idPagoCorRaw, body = {}, informationAccess) {
 async function asignarProyectoMasivo_cor(body = {}, informationAccess) {
   assertCompleteCorellianScope_cor(informationAccess);
   const idsPagoCor = positiveIds_cor(body.ids_pago_cor ?? body.ids, 'ids_pago_cor');
-  const requestedPpns = cleanText_cor(body.ppns, 100);
-  if (!requestedPpns) throw badRequest('ppns es obligatorio.', { field: 'ppns' }, 'COBRANZA_PAGOS_PPNS_REQUERIDO');
+  const requestedProject = cleanText_cor(body.proyecto, 255);
+  if (!requestedProject) throw badRequest('proyecto es obligatorio.', { field: 'proyecto' }, 'COBRANZA_PAGOS_PROYECTO_REQUERIDO');
 
   const connection = await repository.getConnection_cor();
   try {
     await connection.beginTransaction();
 
-    const proyecto = await repository.getProyectoPagoByPpns_cor(connection, requestedPpns);
-    if (!proyecto) throw httpError(404, 'El proyecto seleccionado no existe o no esta activo en Fuente.', { ppns: requestedPpns }, 'COBRANZA_PAGOS_PROYECTO_NO_ENCONTRADO');
+    const proyecto = await repository.getProyectoPagoByNombre_cor(connection, requestedProject);
+    if (!proyecto) throw httpError(404, 'El proyecto seleccionado no existe o no esta activo en Fuente.', { proyecto: requestedProject }, 'COBRANZA_PAGOS_PROYECTO_NO_ENCONTRADO');
 
     const pagos = await repository.lockPagosProyecto_cor(connection, idsPagoCor);
     const existentes = new Set(pagos.map((row) => Number(row.id_pago_cor)));
@@ -300,10 +295,10 @@ async function asignarProyectoMasivo_cor(body = {}, informationAccess) {
     }
 
     const idsCambiar = pagos
-      .filter((row) => canonicalText_cor(row.ppns_relacionado) !== canonicalText_cor(proyecto.ppns))
+      .filter((row) => canonicalText_cor(row.proyecto_relacionado) !== canonicalText_cor(proyecto.proyecto))
       .map((row) => Number(row.id_pago_cor));
 
-    if (idsCambiar.length) await repository.updatePagosProyecto_cor(connection, idsCambiar, proyecto.ppns);
+    if (idsCambiar.length) await repository.updatePagosProyecto_cor(connection, idsCambiar, proyecto.proyecto);
 
     await connection.commit();
     return {
@@ -341,9 +336,9 @@ async function quitarProyecto_cor(idPagoCorRaw, informationAccess) {
       );
     }
 
-    const currentPpns = cleanText_cor(pago.ppns_relacionado, 100);
+    const currentProject = cleanText_cor(pago.proyecto_relacionado, 255);
     let actualizado = false;
-    if (currentPpns) {
+    if (currentProject) {
       await repository.updatePagoProyecto_cor(connection, idPagoCor, null);
       actualizado = true;
     }

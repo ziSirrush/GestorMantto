@@ -150,24 +150,24 @@
   }
   function projectLabel_cor(project){
     if(!project) return '';
-    const parts=[text_cor(project.ppns,''),text_cor(project.proyecto,''),text_cor(project.cliente,'')].filter(Boolean);
+    const parts=[text_cor(project.proyecto,''),text_cor(project.ppns,''),text_cor(project.cliente,'')].filter(Boolean);
     return parts.join(' · ');
   }
   function rebuildProjectMaps_cor(){
     state.projectMap=new Map();
     state.projectInputMap=new Map();
     state.projects.forEach(project=>{
-      const ppns=String(project&&project.ppns||'').trim();
-      if(!ppns) return;
+      const projectName=String(project&&project.proyecto||'').trim();
+      if(!projectName) return;
       const label=projectLabel_cor(project);
-      state.projectMap.set(canonicalProjectInput_cor(ppns),project);
-      state.projectInputMap.set(canonicalProjectInput_cor(ppns),project);
+      state.projectMap.set(canonicalProjectInput_cor(projectName),project);
+      state.projectInputMap.set(canonicalProjectInput_cor(projectName),project);
       state.projectInputMap.set(canonicalProjectInput_cor(label),project);
     });
   }
   function projectMainLabel_cor(project){
     if(!project) return '';
-    return [text_cor(project.ppns,''),text_cor(project.proyecto,'')].filter(Boolean).join(' · ');
+    return text_cor(project.proyecto,'');
   }
   function filterProjects_cor(query){
     const key=canonicalProjectInput_cor(query);
@@ -180,9 +180,11 @@
     }
     return state.activeProjectResults.map((project,index)=>{
       const active=index===state.activeProjectIndex;
-      const ppns=String(project&&project.ppns||'').trim();
+      const projectName=String(project&&project.proyecto||'').trim();
+      const ppns=text_cor(project&&project.ppns,'');
       const client=text_cor(project&&project.cliente,'');
-      return `<button type="button" class="ccor-pg-project-option${active?' is-active':''}" data-ccor-pg-project-option data-index="${index}" data-ppns="${escapeHtml_cor(ppns)}" role="option" aria-selected="${active?'true':'false'}"><span class="ccor-pg-project-option-main">${escapeHtml_cor(projectMainLabel_cor(project))}</span>${client?`<small>${escapeHtml_cor(client)}</small>`:''}</button>`;
+      const detail=[ppns,client].filter(Boolean).join(' · ');
+      return `<button type="button" class="ccor-pg-project-option${active?' is-active':''}" data-ccor-pg-project-option data-index="${index}" data-proyecto="${escapeHtml_cor(projectName)}" role="option" aria-selected="${active?'true':'false'}"><span class="ccor-pg-project-option-main">${escapeHtml_cor(projectMainLabel_cor(project))}</span>${detail?`<small>${escapeHtml_cor(detail)}</small>`:''}</button>`;
     }).join('');
   }
   function closeProjectDropdown_cor(){
@@ -220,14 +222,14 @@
     const input=state.activeProjectInput;
     const project=state.activeProjectResults[Number(index)];
     if(!input||!project) return false;
-    const ppns=String(project.ppns||'').trim();
+    const projectName=String(project.proyecto||'').trim();
     input.value=projectLabel_cor(project);
     input.setAttribute('aria-invalid','false');
     if(input.id==='ccor-pg-bulk-project'){
-      state.bulkProject=ppns;
+      state.bulkProject=projectName;
     }else if(input.matches('[data-ccor-pg-row-project]')){
       const id=Number(input.dataset.pagoId);
-      if(Number.isInteger(id)) state.rowDrafts.set(id,ppns);
+      if(Number.isInteger(id)) state.rowDrafts.set(id,projectName);
     }
     closeProjectDropdown_cor();
     syncSelectionUi_cor();
@@ -246,18 +248,18 @@
       if(active&&typeof active.scrollIntoView==='function') active.scrollIntoView({block:'nearest'});
     }
   }
-  function projectInputValue_cor(ppns){
-    const raw=String(ppns||'').trim();
+  function projectInputValue_cor(projectName){
+    const raw=String(projectName||'').trim();
     if(!raw) return '';
     const project=state.projectMap.get(canonicalProjectInput_cor(raw));
     return project?projectLabel_cor(project):raw;
   }
   function resolveProjectInput_cor(value){
     const raw=String(value||'').trim();
-    if(!raw) return {valid:true,ppns:'',project:null};
+    if(!raw) return {valid:true,proyecto:'',project:null};
     const project=state.projectInputMap.get(canonicalProjectInput_cor(raw))||null;
-    if(!project) return {valid:false,ppns:'',project:null};
-    return {valid:true,ppns:String(project.ppns||'').trim(),project};
+    if(!project) return {valid:false,proyecto:'',project:null};
+    return {valid:true,proyecto:String(project.proyecto||'').trim(),project};
   }
 
   function renderShell_cor(){
@@ -335,7 +337,7 @@
     tbody.innerHTML=state.records.map(row=>{
       const id=Number(row&&row.id_pago_cor);
       const safeId=Number.isInteger(id)&&id>0?id:'';
-      const current=String(row&&row.ppns_relacionado||'').trim();
+      const current=String(row&&row.proyecto_relacionado||'').trim();
       const draft=state.rowDrafts.has(safeId)?state.rowDrafts.get(safeId):current;
       const checked=state.selectedIds.has(safeId);
       return `<tr data-ccor-pg-row data-pago-id="${safeId}">
@@ -460,14 +462,14 @@
       return false;
     }
     if(input) input.removeAttribute('aria-invalid');
-    const ppns=resolved.ppns;
-    const current=String(row.ppns_relacionado||'').trim();
+    const proyecto=resolved.proyecto;
+    const current=String(row.proyecto_relacionado||'').trim();
     state.saving=true;
-    setText_cor('ccor-pg-message',ppns?'Guardando relación...':'Quitando relación...');
+    setText_cor('ccor-pg-message',proyecto?'Guardando relación...':'Quitando relación...');
     renderRows_cor();
     try{
-      if(ppns){
-        await apiRequest_cor(API_PATH+'/'+encodeURIComponent(String(id))+'/proyecto',{method:'PUT',body:{ppns}});
+      if(proyecto){
+        await apiRequest_cor(API_PATH+'/'+encodeURIComponent(String(id))+'/proyecto',{method:'PUT',body:{proyecto}});
       }else if(current){
         await apiRequest_cor(API_PATH+'/'+encodeURIComponent(String(id))+'/proyecto',{method:'DELETE'});
       }
@@ -490,15 +492,15 @@
     const ids=[...state.selectedIds].filter(id=>Number.isInteger(id)&&id>0);
     const bulkInput=state.root&&state.root.querySelector('#ccor-pg-bulk-project');
     const resolved=resolveProjectInput_cor(bulkInput?bulkInput.value:projectInputValue_cor(state.bulkProject));
-    const ppns=resolved.valid?resolved.ppns:'';
+    const proyecto=resolved.valid?resolved.proyecto:'';
     if(!ids.length){setText_cor('ccor-pg-message','Selecciona al menos un Pago.');return false;}
     if(!resolved.valid){setText_cor('ccor-pg-message','Selecciona un proyecto válido del listado para la asignación masiva.');return false;}
-    if(!ppns){setText_cor('ccor-pg-message','Selecciona el proyecto para la asignación masiva.');return false;}
+    if(!proyecto){setText_cor('ccor-pg-message','Selecciona el proyecto para la asignación masiva.');return false;}
     state.saving=true;
     syncSelectionUi_cor();
     setText_cor('ccor-pg-message','Asignando '+ids.length+' Pagos...');
     try{
-      const response=await apiRequest_cor(API_PATH+'/proyecto/masivo',{method:'PUT',body:{ids_pago_cor:ids,ppns}});
+      const response=await apiRequest_cor(API_PATH+'/proyecto/masivo',{method:'PUT',body:{ids_pago_cor:ids,proyecto}});
       state.selectedIds.clear();
       state.bulkProject='';
       await refresh_cor();
@@ -556,14 +558,14 @@
       if(event.target.matches('[data-ccor-pg-row-project]')){
         const id=Number(event.target.dataset.pagoId);
         const resolved=resolveProjectInput_cor(event.target.value);
-        if(Number.isInteger(id)&&resolved.valid) state.rowDrafts.set(id,resolved.ppns);
+        if(Number.isInteger(id)&&resolved.valid) state.rowDrafts.set(id,resolved.proyecto);
         event.target.setAttribute('aria-invalid','false');
         renderProjectDropdown_cor(event.target,event.target.value);
         return;
       }
       if(event.target.id==='ccor-pg-bulk-project'){
         const resolved=resolveProjectInput_cor(event.target.value);
-        state.bulkProject=resolved.valid?resolved.ppns:'';
+        state.bulkProject=resolved.valid?resolved.proyecto:'';
         event.target.setAttribute('aria-invalid','false');
         renderProjectDropdown_cor(event.target,event.target.value);
         syncSelectionUi_cor();
@@ -618,8 +620,8 @@
         const id=Number(event.target.dataset.pagoId);
         const resolved=resolveProjectInput_cor(event.target.value);
         if(resolved.valid){
-          if(Number.isInteger(id)) state.rowDrafts.set(id,resolved.ppns);
-          event.target.value=projectInputValue_cor(resolved.ppns);
+          if(Number.isInteger(id)) state.rowDrafts.set(id,resolved.proyecto);
+          event.target.value=projectInputValue_cor(resolved.proyecto);
           event.target.setAttribute('aria-invalid','false');
         }else{
           event.target.setAttribute('aria-invalid','true');
@@ -630,8 +632,8 @@
       if(event.target.id==='ccor-pg-bulk-project'){
         const resolved=resolveProjectInput_cor(event.target.value);
         if(resolved.valid){
-          state.bulkProject=resolved.ppns;
-          event.target.value=projectInputValue_cor(resolved.ppns);
+          state.bulkProject=resolved.proyecto;
+          event.target.value=projectInputValue_cor(resolved.proyecto);
           event.target.setAttribute('aria-invalid','false');
         }else{
           state.bulkProject='';

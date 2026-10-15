@@ -7,25 +7,25 @@ const TABLE_PAGOS_COR = pagosSyncRepository.TABLE_PAGOS_COR;
 const TABLE_FUENTE_COR = 'cobranza_fuente_cor';
 
 // El catalogo de proyectos del modulo Pagos se alimenta EXCLUSIVAMENTE
-// de Fuente y se agrupa por PPNS/id_proyecto_origen.
+// de Fuente. La llave de relacion que se guarda en el Pago es f.proyecto;
+// los PPNS se conservan unicamente como referencia visible del catalogo.
 const PROJECTS_SQL_COR = `
   SELECT
-    UPPER(TRIM(f.id_proyecto_origen)) AS ppns_key,
-    MAX(NULLIF(TRIM(f.id_proyecto_origen), '')) AS ppns,
-    GROUP_CONCAT(DISTINCT NULLIF(TRIM(f.proyecto), '') ORDER BY NULLIF(TRIM(f.proyecto), '') SEPARATOR ' - ') AS proyecto,
+    UPPER(TRIM(f.proyecto)) AS proyecto_key,
+    MAX(NULLIF(TRIM(f.proyecto), '')) AS proyecto,
+    GROUP_CONCAT(DISTINCT NULLIF(TRIM(f.id_proyecto_origen), '') ORDER BY NULLIF(TRIM(f.id_proyecto_origen), '') SEPARATOR ' - ') AS ppns,
     GROUP_CONCAT(DISTINCT NULLIF(TRIM(f.cliente), '') ORDER BY NULLIF(TRIM(f.cliente), '') SEPARATOR ' - ') AS cliente
   FROM ${TABLE_FUENTE_COR} f
   WHERE f.activo = 1
-    AND NULLIF(TRIM(COALESCE(f.id_proyecto_origen, '')), '') IS NOT NULL
-    AND UPPER(TRIM(COALESCE(f.id_proyecto_origen, ''))) NOT IN ('-', 'N/A', 'NA', 'N.A.', 'S/P', 'S/PP', 'SIN PP', 'SIN PPNS')
-  GROUP BY UPPER(TRIM(f.id_proyecto_origen))
+    AND NULLIF(TRIM(COALESCE(f.proyecto, '')), '') IS NOT NULL
+  GROUP BY UPPER(TRIM(f.proyecto))
 `;
 
 const SELECT_PAGO_COR = `
   p.id_pago_cor,
   p.no_factura,
-  NULLIF(TRIM(p.id_pp), '') AS ppns_relacionado,
-  pr.proyecto AS proyecto_relacionado,
+  NULLIF(TRIM(p.id_pp), '') AS proyecto_relacionado,
+  pr.ppns AS ppns_fuente_relacionado,
   pr.cliente AS cliente_relacionado,
   p.cliente,
   p.limite_credito,
@@ -93,7 +93,7 @@ function buildWherePagos_cor(filters = {}) {
 function pagosFromSql_cor() {
   return `FROM ${TABLE_PAGOS_COR} p
           LEFT JOIN (${PROJECTS_SQL_COR}) pr
-            ON pr.ppns_key = UPPER(TRIM(p.id_pp))`;
+            ON pr.proyecto_key = UPPER(TRIM(p.id_pp))`;
 }
 
 async function countPagosModulo_cor(connection, filters = {}) {
@@ -164,26 +164,39 @@ async function listProyectosPagos_cor(connection, buscar = null) {
     `SELECT p.ppns, p.proyecto, p.cliente
        FROM (${PROJECTS_SQL_COR}) p
        ${where}
-      ORDER BY COALESCE(p.proyecto, ''), p.ppns`,
+      ORDER BY COALESCE(p.proyecto, ''), COALESCE(p.ppns, '')`,
     params
   );
   return rows;
 }
 
-async function getProyectoPagoByPpns_cor(connection, ppns) {
+async function getProyectoPagoByNombre_cor(connection, proyecto) {
   const [rows] = await connection.query(
     `SELECT p.ppns, p.proyecto, p.cliente
        FROM (${PROJECTS_SQL_COR}) p
-      WHERE p.ppns_key = UPPER(TRIM(?))
+      WHERE p.proyecto_key = UPPER(TRIM(?))
       LIMIT 1`,
-    [ppns]
+    [proyecto]
   );
   return rows[0] || null;
 }
 
+async function existeProyectoFuenteEnPpns_cor(connection, proyecto, ppns) {
+  const [rows] = await connection.query(
+    `SELECT 1
+       FROM ${TABLE_FUENTE_COR} f
+      WHERE f.activo = 1
+        AND UPPER(TRIM(f.proyecto)) = UPPER(TRIM(?))
+        AND UPPER(TRIM(f.id_proyecto_origen)) = UPPER(TRIM(?))
+      LIMIT 1`,
+    [proyecto, ppns]
+  );
+  return rows.length > 0;
+}
+
 async function lockPagoProyecto_cor(connection, idPagoCor) {
   const [rows] = await connection.query(
-    `SELECT id_pago_cor, NULLIF(TRIM(id_pp), '') AS ppns_relacionado
+    `SELECT id_pago_cor, NULLIF(TRIM(id_pp), '') AS proyecto_relacionado
        FROM ${TABLE_PAGOS_COR}
       WHERE id_pago_cor = ?
       FOR UPDATE`,
@@ -197,7 +210,7 @@ async function lockPagosProyecto_cor(connection, idsPagoCor) {
   if (!ids.length) return [];
   const placeholders = ids.map(() => '?').join(', ');
   const [rows] = await connection.query(
-    `SELECT id_pago_cor, NULLIF(TRIM(id_pp), '') AS ppns_relacionado
+    `SELECT id_pago_cor, NULLIF(TRIM(id_pp), '') AS proyecto_relacionado
        FROM ${TABLE_PAGOS_COR}
       WHERE id_pago_cor IN (${placeholders})
       FOR UPDATE`,
@@ -210,17 +223,17 @@ async function listRelacionesPagoProyecto_cor(connection, idPagoCor) {
   return pagosSyncRepository.listRelacionesPagoForUpdate_cor(connection, idPagoCor);
 }
 
-async function updatePagoProyecto_cor(connection, idPagoCor, ppns) {
+async function updatePagoProyecto_cor(connection, idPagoCor, proyecto) {
   const [result] = await connection.query(
     `UPDATE ${TABLE_PAGOS_COR}
         SET id_pp = ?
       WHERE id_pago_cor = ?`,
-    [ppns, idPagoCor]
+    [proyecto, idPagoCor]
   );
   return Number(result?.affectedRows || 0);
 }
 
-async function updatePagosProyecto_cor(connection, idsPagoCor, ppns) {
+async function updatePagosProyecto_cor(connection, idsPagoCor, proyecto) {
   const ids = Array.isArray(idsPagoCor) ? idsPagoCor : [];
   if (!ids.length) return 0;
   const placeholders = ids.map(() => '?').join(', ');
@@ -228,7 +241,7 @@ async function updatePagosProyecto_cor(connection, idsPagoCor, ppns) {
     `UPDATE ${TABLE_PAGOS_COR}
         SET id_pp = ?
       WHERE id_pago_cor IN (${placeholders})`,
-    [ppns, ...ids]
+    [proyecto, ...ids]
   );
   return Number(result?.affectedRows || 0);
 }
@@ -243,7 +256,8 @@ module.exports = {
   listPagosModulo_cor,
   getPagoModulo_cor,
   listProyectosPagos_cor,
-  getProyectoPagoByPpns_cor,
+  getProyectoPagoByNombre_cor,
+  existeProyectoFuenteEnPpns_cor,
   lockPagoProyecto_cor,
   lockPagosProyecto_cor,
   listRelacionesPagoProyecto_cor,

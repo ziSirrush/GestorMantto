@@ -66,7 +66,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261001-cobranza-pagos-detalle-v001';
+      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261015-pagos-proyecto-fuente-v002';
       script.async = true;
       script.dataset.manttoCobranzaCorEstadosCuenta = '1';
       script.addEventListener('load', () => resolve(window.ManttoCobranzaCorEstadosCuenta || null), { once:true });

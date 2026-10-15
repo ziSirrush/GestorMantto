@@ -7,25 +7,25 @@ Commit base: `bb1294520882e02e12bf8d82cb5387ad244b16d9` - `Version 100226.3`
 
 ## Objetivo
 
-Habilitar dentro del modulo **Cobranza > Pagos** la relacion manual de cada Pago con un proyecto/PPNS, sin crear tablas ni columnas nuevas.
+Habilitar dentro del modulo **Cobranza > Pagos** la relacion manual de cada Pago con el nombre de proyecto registrado en `cobranza_fuente_cor`, sin crear tablas ni columnas nuevas.
 
 ## Regla de estructura
 
 Se reutiliza exclusivamente la estructura existente:
 
-- `cobranza_pagos_cor.id_pp` para guardar el PPNS relacionado.
-- `ins_fl.id_proyecto` como catalogo de proyectos activos.
+- `cobranza_pagos_cor.id_pp` para guardar exactamente el valor de `cobranza_fuente_cor.proyecto` relacionado.
+- `cobranza_fuente_cor.proyecto` como catalogo y llave funcional de alineacion; `ins_fl` no interviene.
 - `cobranza_rel_pagos` solo para comprobar relaciones ya existentes con Facturas.
 
 No se incluye SQL de migracion. No hay `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE` ni cambios de esquema.
 
 ## Comportamiento incluido
 
-- Buscar proyectos por PPNS, proyecto o cliente.
+- Buscar proyectos de Fuente por nombre, PPNS de referencia o cliente.
 - Relacionar un Pago con un proyecto desde el detalle del mismo Pago.
 - Cambiar el proyecto relacionado cuando no entra en conflicto con Facturas ya relacionadas.
 - Quitar la relacion solo cuando el Pago no tiene Facturas relacionadas.
-- Mostrar PPNS/proyecto relacionado en listado y detalle.
+- Mostrar el nombre de proyecto relacionado y los PPNS de Fuente solo como referencia.
 - Filtro `Con proyecto / Sin proyecto`.
 - Edicion dentro de la misma pantalla, sin modal ni ventana flotante.
 - Visor de usuarios permanece en solo lectura.
@@ -61,6 +61,7 @@ Esta fase no implementa aun:
 node --check archivos JS modificados                 PASS
 node --test prueba dirigida Fase 4                   10/10 PASS
 cobranza_pagos_cor.id_pp existe en dump revisado     PASS
+id_pp guarda Fuente.proyecto, no PPNS                 PASS
 sin CREATE/ALTER/DROP/TRUNCATE                        PASS
 frontend sin modal/window.open/window.confirm        PASS
 ```

@@ -820,9 +820,9 @@
         </td>
         <td><span class="ccor-ec-badge ${asignadas.length?'is-ok':'is-warn'}">${asignadas.length?'Alineado':'Pendiente'}</span></td>
       </tr>`;
-    }).join(''):'<tr><td colspan="6" class="ccor-ec-table-empty">No hay Pagos para este PPNS. Aparecerán cuando la carga contenga números de factura coincidentes.</td></tr>';
+    }).join(''):'<tr><td colspan="6" class="ccor-ec-table-empty">No hay Pagos relacionados con este proyecto. Asígnalos desde el módulo de Pagos.</td></tr>';
     return `<section class="ccor-ec-card ccor-ec-pagos-section">
-      <div class="ccor-ec-facturas-head"><div><b>PAGOS</b><span>Un Pago puede tener varias Facturas; cada Factura se asigna a un solo Pago.</span></div></div>
+      <div class="ccor-ec-facturas-head"><div><b>PAGOS</b><span>Se muestran los Pagos alineados al proyecto; después pueden relacionarse con sus Facturas.</span></div></div>
       <div id="ccor-ec-pago-status" class="ccor-ec-inline-status" aria-live="polite"></div>
       <div class="ccor-ec-table-wrap ccor-ec-pagos-wrap"><table class="ccor-ec-table ccor-ec-pagos-table">
         <thead><tr><th>ID Pago</th><th>Complemento Pago</th><th>Fecha Pago</th><th>Importe</th><th>Factura</th><th>Estado</th></tr></thead>

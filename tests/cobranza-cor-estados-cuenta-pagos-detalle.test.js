@@ -15,7 +15,7 @@ vm.runInNewContext(read('backend/src/modules/cobranza-cor/cobranza-cor-pagos.rep
 });
 const pagosRepositoryReal = pagosRepositoryModule.exports;
 
-test('Pagos del detalle exige id_pp y Factura, ignorando el sufijo final MXN', async () => {
+test('Pagos del detalle aparecen cuando id_pp coincide con Fuente.proyecto antes de relacionarse con una Factura', async () => {
   const queries = [];
   const connection = {
     async query(sql, params) {
@@ -29,18 +29,22 @@ test('Pagos del detalle exige id_pp y Factura, ignorando el sufijo final MXN', a
   await pagosRepositoryReal.lockPagoEstadoCuenta_cor(connection, 1001, 'P14302');
 
   assert.equal(queries.length, 3);
-  for (const query of queries) {
-    assert.match(query.sql, /p\.id_pp/);
-    assert.match(query.sql, /p\.no_factura/);
-    assert.match(query.sql, /f\.factura/);
-    assert.match(query.sql, /REGEXP_REPLACE/);
-    assert.match(query.sql, /MXN\$/);
-  }
-  assert.doesNotMatch(queries[0].sql, /\)\s+OR EXISTS/i);
-  assert.doesNotMatch(queries[2].sql, /\)\s+OR EXISTS/i);
-  assert.deepEqual(Array.from(queries[0].params), ['P14302', 'P14302']);
+  assert.match(queries[0].sql, /p\.id_pp/);
+  assert.match(queries[0].sql, /FROM cobranza_fuente_cor fuente/);
+  assert.match(queries[0].sql, /fuente\.proyecto/);
+  assert.doesNotMatch(queries[0].sql, /f\.factura/);
+  assert.deepEqual(Array.from(queries[0].params), ['P14302']);
+
+  assert.match(queries[1].sql, /JOIN cobranza_rel_pagos|FROM cobranza_rel_pagos/);
+  assert.match(queries[1].sql, /p\.id_pp/);
+  assert.match(queries[1].sql, /fuente\.proyecto/);
+  assert.match(queries[1].sql, /f\.ppns/);
+  assert.doesNotMatch(queries[1].sql, /f\.factura/);
   assert.deepEqual(Array.from(queries[1].params), ['P14302', 'P14302']);
-  assert.deepEqual(Array.from(queries[2].params), [1001, 'P14302', 'P14302']);
+
+  assert.match(queries[2].sql, /p\.id_pp/);
+  assert.match(queries[2].sql, /fuente\.proyecto/);
+  assert.deepEqual(Array.from(queries[2].params), [1001, 'P14302']);
 });
 
 test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma aplicada', async () => {
@@ -140,7 +144,8 @@ test('la tabla de Pagos muestra el diseño pedido y omite Facturas ya asignadas 
     relaciones_pagos: [{ id_factura_cor: 1, id_pago_cor: 1001, importe_aplicado: 50 }],
     pagos: [
       { id_pago_cor: 1001, no_factura: 'CFV-2392 MXN', id_pp: 'FUENTE-123', complemento_pago: 'Pago #CP24897', fecha_pago: '2026-11-01', importe_complemento_pago: -50, facturas: [{ id_factura_cor: 1, importe_aplicado: 50 }] },
-      { id_pago_cor: 1002, no_factura: 'CFV-2393-MXN', id_pp: 'FUENTE-123', complemento_pago: 'Pago #CP13577', fecha_pago: '2026-10-15', importe_complemento_pago: -40, facturas: [] }
+      { id_pago_cor: 1002, no_factura: 'CFV-2393-MXN', id_pp: 'FUENTE-123', complemento_pago: 'Pago #CP13577', fecha_pago: '2026-10-15', importe_complemento_pago: -40, facturas: [] },
+      { id_pago_cor: 1003, no_factura: 'SIN-FACTURA-CAPTURADA', id_pp: 'FUENTE-123', complemento_pago: 'Pago #CP99999', fecha_pago: '2026-10-16', importe_complemento_pago: -25, facturas: [] }
     ]
   };
   const window = {
@@ -169,6 +174,8 @@ test('la tabla de Pagos muestra el diseño pedido y omite Facturas ya asignadas 
   assert.match(section, /50\.00/);
   assert.match(section, /Alineado/);
   assert.match(section, /Pendiente/);
+  assert.match(section, /Pago #CP99999/);
+  assert.match(section, /Se muestran los Pagos alineados al proyecto/);
   const secondPayment = section.split('data-pago-id="1002"')[1] || '';
   const selector = secondPayment.match(/<select data-pago-factura[^>]*>(.*?)<\/select>/s)?.[1] || '';
   assert.doesNotMatch(selector, /value="1"/);

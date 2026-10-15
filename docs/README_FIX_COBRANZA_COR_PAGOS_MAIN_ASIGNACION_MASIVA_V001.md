@@ -11,7 +11,7 @@ Este FIX aplica los cambios solicitados al módulo **Cobranza > Pagos**:
 2. toda la relación Pago → Proyecto se realiza desde la tabla principal;
 3. cada fila tiene un list de proyecto;
 4. el list se alimenta de `cobranza_fuente_cor`;
-5. los proyectos se agrupan por `id_proyecto_origen` / PPNS;
+5. los proyectos se agrupan por el nombre de `cobranza_fuente_cor.proyecto`;
 6. permite asignación individual;
 7. permite asignación masiva de hasta 100 Pagos seleccionados al mismo proyecto;
 8. la asignación masiva es transaccional: si un Pago entra en conflicto con Facturas de otro proyecto, no se aplica parcialmente;
@@ -42,8 +42,8 @@ No se crea ni modifica esquema.
 Se reutiliza:
 
 ```text
-cobranza_pagos_cor.id_pp       Pago → Proyecto
-cobranza_fuente_cor            catálogo agrupado de proyectos
+cobranza_pagos_cor.id_pp       Pago → nombre de Fuente.proyecto
+cobranza_fuente_cor            catálogo agrupado por proyecto
 cobranza_rel_pagos             validación de relaciones Pago → Factura
 ```
 
@@ -53,7 +53,7 @@ cobranza_rel_pagos             validación de relaciones Pago → Factura
 - “Seleccionar página”;
 - un solo proyecto destino por operación;
 - máximo 100 Pagos por operación;
-- si cualquier Pago tiene Facturas relacionadas con otro PPNS, se cancela toda la operación;
+- si cualquier Pago tiene Facturas relacionadas con otro proyecto de Fuente, se cancela toda la operación;
 - no se realizan asignaciones parciales silenciosas.
 
 ## Validaciones ejecutadas
@@ -63,7 +63,7 @@ node --check archivos JS modificados              PASS
 pruebas dirigidas                                 7/7 PASS
 Detalle GET /pagos/:idPagoCor                     eliminado
 Fuente de proyectos                               cobranza_fuente_cor
-Agrupación de proyectos                           id_proyecto_origen
+Agrupación de proyectos                           cobranza_fuente_cor.proyecto
 CREATE/ALTER/DROP/TRUNCATE                         0
 SQL                                                0
 .patch                                             0
