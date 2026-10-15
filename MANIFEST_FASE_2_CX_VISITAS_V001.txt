@@ -1,0 +1,25 @@
+BLT NOW | FASE 2 CUSTOMER EXPERIENCE > VISITAS | BACKEND V001
+Fecha: 2026-10-15
+Repositorio: ziSirrush/GestorMantto, main
+HEAD base: c8923226b70f8bc63d13f14fc7390ba41599ddfc (Version 101526.4)
+Blob de ruta modificada (ANTES): 5452360c461237a55e5ae689c15709a23dfbf987
+
+MODIFICADO COMPLETO (1):
+backend/src/modules/customer-experience/customer-experience.routes.js
+
+NUEVOS (10):
+backend/src/modules/customer-experience/customer-experience-visitas.routes.js
+backend/src/modules/customer-experience/customer-experience-visitas.controller.js
+backend/src/modules/customer-experience/customer-experience-visitas.service.js
+backend/src/modules/customer-experience/customer-experience-visitas.repository.js
+tests/cx-visitas-fase2.test.cjs
+tests/cx-visitas-fase2-http-smoke.cjs
+README_FASE_2_CUSTOMER_EXPERIENCE_VISITAS_BACKEND_V001.md
+docs/ROLLBACK_FASE_2_CX_VISITAS_V001.md
+docs/CHECKSUMS_FASE_2_CX_VISITAS_V001.sha256
+MANIFEST_FASE_2_CX_VISITAS_V001.txt
+
+Sin cambios a BD, frontend, roles, otros modulos ni entorno remoto.
+Depende de Fase 1 V001 aplicada y verificada sobre Aiven real.
+Feature flag CX_VISITAS_API_ENABLED (false por defecto).
+Tests mock: 12/12 PASS; deploy/Aiven/E2E NO ejecutados.

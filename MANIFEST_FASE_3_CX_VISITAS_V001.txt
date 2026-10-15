@@ -1,0 +1,29 @@
+BLT NOW | CUSTOMER EXPERIENCE > VISITAS | FASE 3 FRONTEND V001
+2026-10-15
+REPO ziSirrush/GestorMantto
+BASE_COMMIT c8923226b70f8bc63d13f14fc7390ba41599ddfc
+BASE_VERSION Version 101526.4
+BASE_BLOB_CORE_APP 9c857a6fedf488ff5bf6c2f311a6df0fcd4ddd24
+BASE_BLOB_INDEX 6c71db21ab191ba346d02c6460d0cd8a5fc53043
+
+ARCHIVOS NUEVOS EN ZIP (8)
+modules/customer-experience-visitas/customer-experience-visitas.js
+modules/customer-experience-visitas/customer-experience-visitas.css
+tools/apply-cx-visitas-fase3-v001.cjs
+tests/cx-visitas-fase3.test.cjs
+README_FASE_3_CUSTOMER_EXPERIENCE_VISITAS_FRONTEND_V001.md
+MANIFEST_FASE_3_CX_VISITAS_V001.txt
+docs/ROLLBACK_FASE_3_CX_VISITAS_V001.md
+docs/CHECKSUMS_FASE_3_CX_VISITAS_V001.sha256
+
+ARCHIVOS MODIFICADOS AL EJECUTAR EL INSTALADOR (2 COMPLETOS EN EL CLON)
+core/app.js
+index.html
+
+PRERREQUISITO: FASE 1 + FASE 2 APLICADAS Y VERIFICADAS
+SIN CAMBIOS SQL EN ESTA FASE
+NO SE MODIFICAN SERVICIOS EXTERNOS EN LA PREPARACION
+INSTALAR: node tools/apply-cx-visitas-fase3-v001.cjs --check
+APLICAR:  node tools/apply-cx-visitas-fase3-v001.cjs
+TEST:    node --test tests/cx-visitas-fase3.test.cjs
+ROLLBACK: docs/ROLLBACK_FASE_3_CX_VISITAS_V001.md

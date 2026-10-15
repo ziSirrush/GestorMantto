@@ -76,4 +76,9 @@ router.post('/venta-instalacion/sync',
   requireCxViSignedRequests_cor, requireVentasIntegration_cor,
   controller.syncVentaInstalacion_cor);
 
+// [ChatGPT | 2026-10-15 | BLT NOW | CX VISITAS FASE 2 V001]
+// Ruta acotada: conserva sin cambios Dashboard, Encuestas y sincronizaciones.
+const visitasRoutes_cor = require('./customer-experience-visitas.routes');
+router.use('/visitas', visitasRoutes_cor);
+
 module.exports = router;

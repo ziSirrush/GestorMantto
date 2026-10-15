@@ -1,0 +1,36 @@
+BLT NOW - CUSTOMER EXPERIENCE > VISITAS - FASE 4 INTEGRACION Y QA V001
+Fecha: 2026-10-15
+Repositorio: ziSirrush/GestorMantto
+Base: c8923226b70f8bc63d13f14fc7390ba41599ddfc (Version 101526.4)
+
+ENTREGA INCREMENTAL: 12 ARCHIVOS NUEVOS, CERO ARCHIVOS DE REPO REEMPLAZADOS AL EXTRAER.
+
+ARCHIVOS DE ESTE ZIP:
+- MANIFEST_FASE_4_CX_VISITAS_V001.txt
+- README_FASE_4_CUSTOMER_EXPERIENCE_VISITAS_INTEGRACION_QA_V001.md
+- release/cx-visitas-fase4/customer-experience-visitas.js
+- release/cx-visitas-fase4/customer-experience-visitas.fase3.original.js
+- tools/apply-cx-visitas-fase4-v001.cjs
+- tools/qa-cx-visitas-fase4-v001.cjs
+- tests/cx-visitas-fase4.test.cjs
+- tests/cx-visitas-fase4-http-smoke.cjs
+- database/03_PRECHECK_RELEASE_CX_VISITAS_V001.sql
+- docs/ROLLBACK_FASE_4_CX_VISITAS_V001.md
+- docs/QA_MATRIZ_FASE_4_CX_VISITAS_V001.md
+- docs/CHECKSUMS_FASE_4_CX_VISITAS_V001.sha256
+
+SOLO AL EJECUTAR EL INSTALADOR DESPUES DE --check:
+MODIFICADOS COMPLETOS (GENERADOS Y VALIDADOS, SIN PATCH CIEGO):
+- core/app.js (solo version JS lazy loader de CX Visitas)
+- index.html (solo version core/app.js)
+- modules/customer-experience-visitas/customer-experience-visitas.js
+
+NO MODIFICADOS:
+- Base de datos/DDL/filas/roles/permisos.
+- Backend Fase 2 ni rutas Customer Experience ya publicadas.
+- Dashboard CX, Encuestas, router, loader, Service Worker, manifests.
+- GitHub, Aiven, Azure, Netlify ni GitHub Pages.
+
+PRUEBAS LOCALES: 55/55 Node (Fases 1-4). Chromium responsive 1380/768/390 (mock API).
+PRUEBAS EXTERNAS: NO EJECUTADAS; smoke staging y SQL son instrucciones ejecutables pendientes.
+ROLLBACK: node tools/apply-cx-visitas-fase4-v001.cjs --rollback
