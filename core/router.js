@@ -438,7 +438,7 @@
     if(!view) return false;
     activateViewById('view-ventas-fotos-mapa');
     setActiveSide('ventas-fotos-mapa');
-    updateContext('ventas-fotos-mapa','Fotos Mapa · evidencia fotográfica por estado desde Aiven');
+    updateContext('ventas-fotos-mapa','Fotografías de proyectos por estado · CORELLIAN + UNITED');
     if(window.ManttoVentasFotosMapa) window.ManttoVentasFotosMapa.init();
     return true;
   }

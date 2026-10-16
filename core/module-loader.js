@@ -119,6 +119,10 @@
 
       const payload=payloadFromInitArgs(args,route,current);
       const key=lifecycleKey(route,payload);
+      if(route==='ventas-fotos-mapa'){
+        const gallery=document.getElementById('view-ventas-fotos-mapa');
+        if(gallery&&gallery.dataset.ready!=='1')initializedContexts.delete(key);
+      }
       const initialized=initializedContexts.has(key);
       const dirty=dataSyncIsDirty(route);
 
@@ -220,7 +224,7 @@
     'instalaciones-administracion':{css:['./modules/instalaciones-administracion/instalaciones-administracion_cor.css?v=20261008-instalaciones-administracion-fase3-v001','./modules/instalaciones-administracion/instalaciones-administracion-tabla_cor.css?v=20261012-fase1-v001','./modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.css?v=20261013-integral-fix-v001'],js:['./modules/instalaciones-administracion/instalaciones-administracion-save_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion_cor.js?v=20261013-integral-fix-v001']},
 
     'ventas-dashboard':{css:['./modules/ventas-dashboard/ventas-dashboard.css?v=20260831-anio-seccion-v003'],js:['./modules/ventas-dashboard/ventas-dashboard-pdf.js?v=20260914-horarios-f2-v001','./modules/ventas-dashboard/ventas-dashboard.js?v=20260914-horarios-f2-v001']},
-    'ventas-fotos-mapa':{css:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.css?v=20260726-fix-tabs-estados-v002'],js:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.js?v=20261008-fotografias-notificacion-direccion-v001']},
+    'ventas-fotos-mapa':{css:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.css?v=20261016-int10-fase3-v001'],js:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.js?v=20261016-int10-fase3-v001']},
     'ventas-clientes':{css:['./modules/ventas-clientes/ventas-clientes.css?v=20260729-fase3-v003'],js:['./modules/ventas-clientes/ventas-clientes.js?v=20260828-fase4-frontend-v001']},
     'ventas-clientes-nuevo':{css:['./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.css?v=20260729-v009'],js:['./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.js?v=20260828-fase4-frontend-v001']},
     'ventas-clientes-detalle':{css:['./modules/ventas-clientes-detalle/ventas-clientes-detalle.css?v=20260729-v011',CONTACTO_FORM_CSS],js:[CONTACTO_FORM_JS,'./modules/ventas-clientes-detalle/ventas-clientes-detalle.js?v=20260914-horarios-f2-v001']},

@@ -1,0 +1,27 @@
+/* INT-10 | Fase 1 | Mapa de Mexico por estados. Estilos aislados del carrusel. */
+#view-ventas-fotos-mapa .vfm-mapa-layout{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(240px,1fr);gap:16px;align-items:start}
+#view-ventas-fotos-mapa .vfm-mapa-card,#view-ventas-fotos-mapa .vfm-ranking{background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;padding:14px}
+#view-ventas-fotos-mapa .vfm-mapa-titulo{font-size:14px;font-weight:800;color:var(--text,#0f172a);margin-bottom:10px}
+#view-ventas-fotos-mapa .vfm-mapa-titulo span{font-weight:600;color:var(--muted,#64748b);font-size:12px}
+#view-ventas-fotos-mapa .vfm-mapa-wrap{position:relative}
+#view-ventas-fotos-mapa .vfm-mapa{width:100%;height:auto;display:block;max-height:58vh;margin:0 auto}
+#view-ventas-fotos-mapa .vfm-estado{fill:#eef2f7;stroke:#fff;stroke-width:1.1;stroke-linejoin:round;cursor:pointer;transition:fill .15s,filter .15s;outline:none}
+#view-ventas-fotos-mapa .vfm-estado[data-level="1"],#view-ventas-fotos-mapa .vfm-leyenda i[data-level="1"]{fill:#bfd4fb;background:#bfd4fb}
+#view-ventas-fotos-mapa .vfm-estado[data-level="2"],#view-ventas-fotos-mapa .vfm-leyenda i[data-level="2"]{fill:#7aa5f2;background:#7aa5f2}
+#view-ventas-fotos-mapa .vfm-estado[data-level="3"],#view-ventas-fotos-mapa .vfm-leyenda i[data-level="3"]{fill:#3d7be0;background:#3d7be0}
+#view-ventas-fotos-mapa .vfm-estado[data-level="4"],#view-ventas-fotos-mapa .vfm-leyenda i[data-level="4"]{fill:#0d2e6e;background:#0d2e6e}
+#view-ventas-fotos-mapa .vfm-estado:hover,#view-ventas-fotos-mapa .vfm-estado:focus-visible{fill:#f59e0b;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+#view-ventas-fotos-mapa .vfm-tip{position:absolute;pointer-events:none;background:#0f172a;color:#fff;font-size:12px;font-weight:700;padding:5px 9px;border-radius:8px;white-space:nowrap;z-index:5}
+#view-ventas-fotos-mapa .vfm-leyenda{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#64748b);margin-top:8px;flex-wrap:wrap}
+#view-ventas-fotos-mapa .vfm-leyenda i{width:22px;height:10px;border-radius:3px;display:inline-block}
+#view-ventas-fotos-mapa .vfm-leyenda em{margin-left:10px;font-style:normal}
+#view-ventas-fotos-mapa .vfm-creditos{font-size:10px;color:var(--muted,#94a3b8);margin-top:6px}
+#view-ventas-fotos-mapa .vfm-ranking ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow:auto}
+#view-ventas-fotos-mapa .vfm-ranking button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border,#e2e8f0);background:var(--card,#fff);color:var(--text,#0f172a);border-radius:9px;padding:7px 10px;font-size:12.5px;cursor:pointer;text-align:left}
+#view-ventas-fotos-mapa .vfm-ranking button:hover{background:#eff6ff;border-color:#93b4ef}
+#view-ventas-fotos-mapa .vfm-ranking button b{background:#0d2e6e;color:#fff;border-radius:999px;padding:1px 9px;font-size:11.5px}
+#view-ventas-fotos-mapa .vfm-otros{border-style:dashed!important;color:var(--muted,#64748b)!important}
+#view-ventas-fotos-mapa .vfm-estado-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
+#view-ventas-fotos-mapa .vfm-estado-head h2{margin:0;font-size:20px;color:var(--text,#0f172a)}
+#view-ventas-fotos-mapa .vfm-estado-head .count{color:var(--muted,#64748b);font-size:12.5px}
+@media(max-width:860px){#view-ventas-fotos-mapa .vfm-mapa-layout{grid-template-columns:1fr}}

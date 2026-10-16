@@ -1,10 +1,12 @@
 'use strict';
 
 // [Aster | 2026-09-08 | ASTER-MG | FIX CATALOGO GENERAL GUARDS V001]
-// Catálogo General lee ambas fuentes fotográficas sin aplicar los alcances de
+// Catalogo General lee ambas fuentes fotograficas sin aplicar los alcances de
 // registro CORELLIAN/UNITED. La puerta funcional GENERAL se aplica en routes.
-// Los endpoints históricos por origen conservan sus guards y sirven para
+// Los endpoints historicos por origen conservan sus guards y sirven para
 // determinar si el usuario puede navegar al proyecto correspondiente.
+// [INT-10 | 2026-10-16 | FASE 2 | FUENTES REALES Y LECTURA INCREMENTAL V001]
+// Compatibilidad: las URLs historicas, sus guards y los contratos JSON se conservan.
 
 const db = require('../../config/db');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
@@ -27,6 +29,22 @@ function normalizedLimit(value) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) return 5000;
   return Math.min(parsed, 5000);
+}
+
+function normalizedOffset(value) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) return 0;
+  return parsed;
+}
+
+function normalizeProjectFilter(value) {
+  const id = String(value == null ? '' : value).trim();
+  if (id.length > 255) {
+    const error = new Error('Identificador de proyecto demasiado largo.');
+    error.status = 400;
+    throw error;
+  }
+  return id;
 }
 
 function azureBlobNameFromStableUrl(value) {
@@ -100,7 +118,7 @@ async function presentUnitedPhotoRow(row) {
   return copy;
 }
 
-async function listGeneralCorePhotos(limit) {
+async function listGeneralCorePhotos(limit, offset, coreProject) {
   const [rows] = await db.query(
     `SELECT
        p.id_photo,
@@ -134,14 +152,15 @@ async function listGeneralCorePhotos(limit) {
        NULLIF(TRIM(p.foto_blt_6), '') IS NOT NULL OR
        NULLIF(TRIM(p.foto_blt_7), '') IS NOT NULL
      )
+     ${coreProject ? 'AND TRIM(p.id_ppns) = ?' : ''}
      GROUP BY
        p.id_photo, p.id_ppns, p.carpeta,
        p.foto_blt_1, p.foto_blt_2, p.foto_blt_3,
        p.foto_blt_4, p.foto_blt_5, p.foto_blt_6,
        p.foto_blt_7, p.foto_principal, p.imagen_drive, p.imagen_p_g
-     ORDER BY Proyecto ASC, p.id_ppns ASC
-     LIMIT ?`,
-    [limit]
+     ORDER BY Proyecto ASC, p.id_ppns ASC, p.id_photo ASC
+     LIMIT ? OFFSET ?`,
+    [...(coreProject ? [coreProject] : []), limit, offset]
   );
 
   const presentedRows = [];
@@ -151,7 +170,7 @@ async function listGeneralCorePhotos(limit) {
   return presentedRows;
 }
 
-async function listGeneralUnitedPhotos(limit) {
+async function listGeneralUnitedPhotos(limit, offset, unitedProject) {
   const [rows] = await db.query(
     `SELECT
        pf.id_photo,
@@ -194,9 +213,10 @@ async function listGeneralUnitedPhotos(limit) {
          NULLIF(TRIM(pf.foto_6), '') IS NOT NULL OR
          NULLIF(TRIM(pf.foto_7), '') IS NOT NULL
        )
+       ${unitedProject ? 'AND TRIM(pf.proyecto) = ?' : ''}
      ORDER BY pf.proyecto ASC, pf.id_photo ASC
-     LIMIT ?`,
-    [limit]
+     LIMIT ? OFFSET ?`,
+    [...(unitedProject ? [unitedProject] : []), limit, offset]
   );
 
   const presentedRows = [];
@@ -208,21 +228,27 @@ async function listGeneralUnitedPhotos(limit) {
 
 async function getGeneralProjectPhotos(req, res, next) {
   const limit = normalizedLimit(req.query?.limit);
-
+  const offset = normalizedOffset(req.query?.offset);
+  let coreProject, unitedProject;
   try {
+    coreProject = normalizeProjectFilter(req.query?.core_project);
+    unitedProject = normalizeProjectFilter(req.query?.united_project);
+    // Con filtro por proyecto, la otra fuente NO realiza consultas globales.
+    // Un proyecto vacio tras su ultima eliminacion se devuelve como []
+    // y permite retirarlo inmediatamente del mosaico y del mapa.
     const [corellian, united] = await Promise.all([
-      listGeneralCorePhotos(limit),
-      listGeneralUnitedPhotos(limit)
+      (!unitedProject || coreProject) ? listGeneralCorePhotos(limit, offset, coreProject) : Promise.resolve([]),
+      (!coreProject || unitedProject) ? listGeneralUnitedPhotos(limit, offset, unitedProject) : Promise.resolve([])
     ]);
 
     return res.json({
       ok: true,
       source: 'aiven',
       domain: 'GENERAL',
-      data: {
-        corellian,
-        united
-      }
+      data: { corellian, united },
+      limit,
+      offset,
+      filters: { core_project: coreProject || null, united_project: unitedProject || null }
     });
   } catch (error) {
     return next(error);
@@ -232,6 +258,7 @@ async function getGeneralProjectPhotos(req, res, next) {
 async function getUnitedProjectPhotos(req, res, next) {
   const scope = informationRecordScope.buildPortafolioScopeSql_gnral(req, 'p');
   const limit = normalizedLimit(req.query?.limit);
+  const offset = normalizedOffset(req.query?.offset);
 
   try {
     const [rows] = await db.query(
@@ -269,8 +296,8 @@ async function getUnitedProjectPhotos(req, res, next) {
         AND TRIM(pe.proyecto_united) = TRIM(pf.proyecto)
        WHERE pf.activo = 1
        ORDER BY pf.proyecto ASC, pf.id_photo ASC
-       LIMIT ?`,
-      [...scope.params, limit]
+       LIMIT ? OFFSET ?`,
+      [...scope.params, limit, offset]
     );
 
     const presentedRows = [];
@@ -282,7 +309,9 @@ async function getUnitedProjectPhotos(req, res, next) {
       ok: true,
       source: 'aiven',
       domain: 'UNITED',
-      data: presentedRows
+      data: presentedRows,
+      limit,
+      offset
     });
   } catch (error) {
     return next(error);
