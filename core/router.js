@@ -11,7 +11,7 @@
     'logistica-dashboard':'Dashboard Logística', 'logistica-reporte':'Reporte de Logística', 'logistica-pvo':'PVO', 'logistica-produccion':'PVO-Producción', 'logistica-produccion-nuevo':'Agregar PVO-Producción', 'logistica-produccion-detalle':'Detalle de PVO-Producción', 'logistica-documentos':'Documentos de Producción',
     'instalaciones-dashboard':'Dashboard Instalaciones', 'instalaciones-proyectos':'Proyectos de Instalación',
     'instalaciones-concentrado-cliente':'Concentrado Cliente', 'instalaciones-reporte':'Reporte de Instalaciones',
-    'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados', 'instalaciones-administracion':'Administración',
+    'instalaciones-ajuste':'Ajuste', 'instalaciones-carpetas':'Carpetas', 'instalaciones-pmm':'PM&M', 'instalaciones-documentacion':'Documentación Pendiente', 'instalaciones-cerrados':'Proyectos Cerrados', 'instalaciones-administracion':'Administración', 'instalaciones-programacion-personal':'Programación de Personal',
     'ventas-dashboard':'Dashboard Ventas', 'ventas-vendidos':'Vendidos', 'ventas-proyeccion':'Proyección', 'ventas-perdidos':'Perdidos',
     'ventas-fotos-mapa':'Fotos Mapa', 'ventas-clientes':'Clientes', 'ventas-clientes-nuevo':'Nuevo cliente', 'ventas-clientes-detalle':'Detalle del cliente', 'ventas-cotizaciones':'Cotizaciones', 'ventas-cotizaciones-nueva':'Nueva cotización', 'ventas-cotizaciones-editar':'Editar cotización', 'ventas-cotizaciones-detalle':'Detalle de cotización',
     'ventas-prospeccion':'Prospección', 'ventas-prospeccion-nueva':'Nueva visita', 'ventas-prospeccion-detalle':'Detalle de visita', 'ventas-mapa-prospeccion':'Mapa Prospección', 'ventas-asignacion-redes':'Asignación Redes', 'ventas-asignacion-redes-detalle':'Detalle de Asignación a Redes', 'ventas-asignacion-redes-formulario':'Formulario de Asignación a Redes',
@@ -693,6 +693,16 @@
     return true;
   }
 
+  function showInstalacionesProgramacionPersonal_cor(){
+    const view=document.getElementById('view-instalaciones-programacion-personal');
+    if(!view)return false;
+    activateViewById('view-instalaciones-programacion-personal');
+    setActiveSide('instalaciones-programacion-personal');
+    updateContext('instalaciones-programacion-personal','Personal · calendario, historial y disponibilidad de montadores y ajustadores');
+    if(window.ManttoInstalacionesProgramacionPersonal)window.ManttoInstalacionesProgramacionPersonal.init();
+    return true;
+  }
+
   function showInstalacionesPmm_cor(){
     const view=document.getElementById('view-instalaciones-pmm');
     if(!view) return false;
@@ -958,6 +968,7 @@
     if(route==='instalaciones-carpetas' && showInstalacionesCarpetas_cor()) return;
     if(route==='instalaciones-documentacion' && showInstalacionesDocumentacion_cor()) return;
     if(route==='instalaciones-pmm' && showInstalacionesPmm_cor()) return;
+    if(route==='instalaciones-programacion-personal' && showInstalacionesProgramacionPersonal_cor()) return;
     if(ALMACEN_ROUTES.has(route) && showAlmacen(route)) return;
     if(route==='logistica-dashboard' && showLogisticaDashboard()) return;
     if(route==='logistica-reporte' && showLogisticaReporte()) return;

@@ -30,6 +30,8 @@ const instalacionesCarpetasRoutes = require('../modules/instalaciones-carpetas/i
 const instalacionesDocumentacionRoutes = require('../modules/instalaciones-documentacion/instalaciones-documentacion.routes');
 const instalacionesPmmRoutes = require('../modules/instalaciones-pmm/instalaciones-pmm.routes');
 const instalacionesAdministracionRoutes = require('../modules/instalaciones-administracion/instalaciones-administracion.routes');
+// [Mantto Gestor | 2026-10-16 | INT9-F1 | CATALOGO PROGRAMACION PERSONAL V001]
+const instalacionesProgramacionPersonalRoutes = require('../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.routes');
 const ventasDashboardRoutes = require('../modules/ventas-dashboard/ventas-dashboard.routes');
 const ventasFotosMapaRoutes = require('../modules/ventas-fotos-mapa/ventas-fotos-mapa.routes');
 const ventasCotizacionesRoutes = require('../modules/ventas-cotizaciones/ventas-cotizaciones.routes');
@@ -90,6 +92,7 @@ router.use('/instalaciones', instalacionesCarpetasRoutes);
 router.use('/instalaciones', instalacionesDocumentacionRoutes);
 router.use('/instalaciones', instalacionesPmmRoutes);
 router.use('/instalaciones', instalacionesAdministracionRoutes);
+router.use('/instalaciones', instalacionesProgramacionPersonalRoutes);
 router.use('/ventas', ventasDashboardRoutes);
 router.use('/ventas', ventasFotosMapaRoutes);
 router.use('/ventas', ventasCotizacionesHistorialRoutes);

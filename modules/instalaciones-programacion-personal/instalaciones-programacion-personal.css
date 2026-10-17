@@ -1,0 +1,142 @@
+/* [Mantto Gestor | 2026-10-16 | INT9-F1 | CATALOGO PERSONAL V001] */
+/* Estilos autocontenidos: no modifica el CSS global del Gestor. */
+.ppc-page{padding:18px;max-width:1480px;margin:0 auto;color:#12305d;font-family:inherit}
+.ppc-head,.ppc-card{background:#fff;border:1px solid #dbe4f0;border-radius:14px;box-shadow:0 5px 22px rgba(15,39,80,.05)}
+.ppc-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:19px 24px;margin-bottom:16px;flex-wrap:wrap}
+.ppc-head h1{margin:0 0 6px;font-weight:800;font-size:22px;color:#0d2e6e}
+.ppc-head p{margin:0;color:#64748b;font-size:13px}
+.ppc-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.ppc-tab{padding:10px 16px;border:1px solid #cbd7e7;border-radius:10px;background:#f8fafc;color:#334155;font-weight:750;cursor:pointer}
+.ppc-tab.active{background:#0d2e6e;color:white;border-color:#0d2e6e}
+.ppc-card{padding:17px 20px}
+.ppc-toolbar{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ppc-search-label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#415a77;font-weight:700;flex:1;max-width:520px}
+.ppc-search-label input,.ppc-fields input,.ppc-fields select{font:inherit;background:#fff;border:1px solid #bdcce0;border-radius:9px;padding:10px 12px;min-height:41px;max-width:100%;color:#122b50}
+.ppc-search-label input:focus,.ppc-fields input:focus,.ppc-fields select:focus{outline:2px solid #b3d3ff;outline-offset:1px}
+.ppc-btn{border:1px solid #bdcce0;color:#0d2e6e;background:#f8fafc;border-radius:9px;padding:10px 13px;font-weight:750;cursor:pointer;white-space:nowrap;font:inherit}
+.ppc-btn:hover:not(:disabled){background:#eaf2fe}
+.ppc-btn:disabled{opacity:.5;cursor:not-allowed}
+.ppc-btn.ppc-primary{background:#1b4fd8;color:#fff;border-color:#1b4fd8}
+.ppc-btn.ppc-primary:hover:not(:disabled){background:#103dac}
+.ppc-btn.ppc-danger{border-color:#fecaca;color:#991b1b;background:#fff5f5}
+.ppc-btn.ppc-danger:hover:not(:disabled){background:#fee2e2}
+.ppc-btn.ppc-small{font-size:12px;padding:7px 9px}
+.ppc-table-scroll{width:100%;overflow-x:auto}
+.ppc-table{border-collapse:collapse;width:100%;min-width:560px;margin-top:8px;text-align:left}
+.ppc-table th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#53657e;padding:12px;border-bottom:2px solid #dfe7f2}
+.ppc-table td{font-size:13px;padding:12px;border-bottom:1px solid #ecf0f5;vertical-align:middle;color:#243b5b}
+.ppc-table tbody tr:hover{background:#f8fbff}
+.ppc-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.ppc-empty{text-align:center;padding:24px!important;color:#64748b!important}
+#ppc-feedback{min-height:19px;font-size:12px;color:#64748b;margin:10px 0 0}
+#ppc-feedback.ppc-error{color:#b91c1c}
+.ppc-pagination{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;font-size:12px;color:#53657e;flex-wrap:wrap}
+.ppc-pagination>div{display:flex;gap:8px}
+.ppc-overlay{position:fixed;inset:0;z-index:10100;background:rgba(1,16,43,.68);padding:20px;display:grid;place-items:center}
+.ppc-overlay[hidden]{display:none}
+.ppc-dialog{width:min(530px,96vw);max-height:92vh;overflow:auto;border-radius:15px;background:#fff;box-shadow:0 22px 70px #001d4280;padding:22px}
+.ppc-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ppc-dialog-header h2{margin:0 0 14px;color:#0d2e6e;font-size:19px}
+.ppc-icon-btn{border:0;background:transparent;color:#64748b;cursor:pointer;font-size:28px;line-height:1}
+.ppc-fields{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.ppc-fields label{font-size:12px;font-weight:750;color:#334155;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ppc-fields label:first-child{grid-column:1/-1}
+.ppc-form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:21px}
+@media(max-width:760px){.ppc-page{padding:8px}.ppc-head{padding:16px}.ppc-card{padding:14px}.ppc-search-label{max-width:none;min-width:190px}.ppc-head h1{font-size:19px}.ppc-fields{grid-template-columns:1fr}.ppc-fields label:first-child{grid-column:auto}}
+
+/* [Mantto Gestor | 2026-10-16 | INT9-F2 | CALENDARIO POR EQUIPO V001] */
+.ppc-nav{display:flex;align-items:center;gap:8px;margin:0 0 15px;flex-wrap:wrap}
+.ppc-cal-shell{padding:17px 18px}
+.ppc-cal-controls{display:flex;align-items:end;flex-wrap:wrap;gap:10px 15px}
+.ppc-cal-actions{display:flex;gap:5px}
+.ppc-cal-controls label,.ppc-a-label{font-size:12px;font-weight:750;display:flex;flex-direction:column;gap:5px;color:#435a75}
+.ppc-cal-controls input,.ppc-cal-controls select,.ppc-a-label input,.ppc-a-label select,.ppc-a-label textarea,
+.ppc-a-dates input{width:100%;font:inherit;color:#153459;border-radius:9px;min-height:38px;padding:8px 10px;border:1px solid #bbcade;background:#fff}
+.ppc-cal-controls label.ppc-cal-search{flex:1;min-width:170px;max-width:330px}
+.ppc-cal-controls>.ppc-btn{min-height:40px}
+.ppc-cal-feedback{color:#59708b;white-space:pre-wrap;font-size:12px;line-height:1.55;margin:12px 0}
+.ppc-cal-feedback.ppc-error{color:#ab1f26;white-space:pre-line}
+.ppc-cal-scroll{border:1px solid #dce5ef;border-radius:10px;overflow:auto;max-height:66vh;scrollbar-gutter:stable}
+.ppc-cal-table{background:#fff;min-width:100%}
+.ppc-cal-row{display:flex;align-items:stretch;border-bottom:1px solid #e7edf4;min-width:100%}
+.ppc-cal-row:last-child{border-bottom:0}
+.ppc-cal-person{width:245px;min-width:245px;max-width:245px;position:sticky;left:0;z-index:2;align-self:stretch;
+  padding:8px 12px;background:#fff;border-right:1px solid #e7edf4;display:flex;flex-direction:column;justify-content:center;gap:3px;
+  font-size:12px;overflow:hidden}
+.ppc-cal-person b,.ppc-cal-person small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppc-cal-person b{color:#0f3568}
+.ppc-cal-person small{color:#708099;font-size:10px}
+.ppc-cal-header{position:sticky;top:0;z-index:5;background:#eef4fe}
+.ppc-cal-header .ppc-cal-person{background:#eef4fe;z-index:6}
+.ppc-cal-days{display:flex;height:47px}
+.ppc-cal-day{width:30px;min-width:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;border-right:1px solid #d8e3f2;color:#48617c;font-size:11px}
+.ppc-cal-day small{font-size:9px}
+.ppc-cal-today{background:#d7e9ff;color:#123a93}
+.ppc-cal-track{position:relative;flex-shrink:0;background:repeating-linear-gradient(to right,#fff 0px,#fff 29px,#e7edf4 29px,#e7edf4 30px);
+  cursor:crosshair}
+.ppc-cal-track:focus-visible{outline:3px solid #1b4fd8;outline-offset:-3px}
+.ppc-cal-bar{position:absolute;display:block;height:23px;line-height:20px;border-radius:5px;font-size:10px;
+  font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding:1px 7px;
+  color:#fff;border:1px solid #1d4284;z-index:1;cursor:pointer}
+.ppc-cal-bar-active{background:linear-gradient(90deg,#1457c0,#2282cb)}
+.ppc-cal-bar-outside{background:#8494a6;color:#fff;border-color:#728498;opacity:.83;cursor:not-allowed}
+.ppc-cal-bar:disabled{cursor:not-allowed;opacity:.78}
+.ppc-cal-bar:focus-visible{outline:2px solid #fb923c;outline-offset:1px}
+.ppc-cal-note{font-size:12px;color:#62758b;margin:9px 0;line-height:1.55}
+.ppc-cal-extras{border:1px solid #dce5ef;border-radius:10px;margin-top:13px;padding:10px 13px}
+.ppc-cal-extras summary{cursor:pointer;color:#1a3e70;font-weight:750;font-size:13px}
+.ppc-cal-uncovered-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #ebf0f6;
+  padding:9px 0;font-size:12px;color:#38516e}
+.ppc-cal-uncovered-row span{min-width:0;word-break:break-word}
+.ppc-cal-uncovered-row small{display:block;font-size:11px;color:#718096;margin-top:3px}
+.ppc-a-dialog{width:min(715px,96vw)}
+.ppc-a-dialog form{display:flex;flex-direction:column;gap:12px}
+.ppc-a-persons{max-height:155px;overflow:auto;border:1px solid #dce5ef;border-radius:10px;padding:8px;background:#f9fbff}
+.ppc-a-person{padding:6px 8px;border-radius:7px;display:flex;align-items:center;gap:9px;font-size:12px;color:#304560}
+.ppc-a-person:hover{background:#e9f2ff}
+.ppc-a-person[hidden]{display:none}
+.ppc-a-person input{accent-color:#1b4fd8;flex-shrink:0;width:15px;height:15px}
+.ppc-a-person small{color:#677c95}
+.ppc-a-dates label:first-child{grid-column:auto}
+.ppc-a-dialog .ppc-form-actions{flex-wrap:wrap}
+.ppc-a-dialog #ppc-a-delete:not([hidden]){margin-right:auto}
+@media(max-width:760px){.ppc-cal-shell{padding:12px 9px}.ppc-cal-controls label.ppc-cal-search{max-width:none}
+  .ppc-cal-scroll{max-height:55vh}.ppc-cal-person{width:160px;min-width:160px;max-width:160px;padding:7px}
+  .ppc-cal-table{min-width:fit-content}.ppc-a-dialog{padding:16px}.ppc-cal-uncovered-row{align-items:start}}
+
+
+/* [Mantto Gestor | 2026-10-16 | INT9-F3 | HISTORIAL PROYECCION Y SIMULACION] */
+.ppc-analytics-card{margin:0 0 16px;padding:19px 22px}
+.ppc-analytics-heading h2{margin:0 0 6px;font-size:19px;color:#0d2e6e}
+.ppc-analytics-heading p{font-size:12px;color:#61748b;margin:0 0 13px;line-height:1.6}
+.ppc-analytics-filters{display:flex;align-items:end;flex-wrap:wrap;gap:10px;margin:12px 0}
+.ppc-analytics-filters label{font-size:12px;color:#425a78;font-weight:700;display:flex;flex-direction:column;gap:5px;min-width:125px;flex:1}
+.ppc-analytics-filters input,.ppc-analytics-filters select{min-height:40px;border-radius:9px;border:1px solid #bacadf;padding:8px;color:#12305d;font:inherit;max-width:100%;background:#fff}
+.ppc-analytics-filters button{min-height:40px}
+.ppc-analytics-filters label:first-child{min-width:200px;flex:2}
+.ppc-analytics-alert{border-left:3px solid #d19b35;padding:9px 13px;border-radius:5px;background:#fffaec;color:#694a0b;font-size:12px;line-height:1.6}
+.ppc-analytics-kpis{display:flex;flex-wrap:wrap;gap:10px;margin:17px 0}
+.ppc-analytics-kpi{background:#f6f9ff;border:1px solid #dce7f7;padding:13px;border-radius:11px;min-width:126px;flex:1}
+.ppc-analytics-kpi small{display:block;font-size:11px;color:#566a84;margin-bottom:8px}
+.ppc-analytics-kpi b{color:#113571;font-size:16px}
+.ppc-h-table td small{display:block;margin:4px 0;font-size:11px;color:#687d97}
+.ppc-analytics-state{background:#e9f2ff;color:#194d93;border-radius:6px;padding:5px 7px;white-space:nowrap;font-weight:650;font-size:11px}
+.ppc-analytics-presets{display:flex;gap:7px;flex-wrap:wrap;margin:11px 0}
+.ppc-d-table td{white-space:nowrap}
+.ppc-availability-bar{width:145px;min-height:12px;border-radius:8px;display:flex;overflow:hidden;background:#edf2f8;border:1px solid #dce3ef}
+.ppc-availability-bar>span{display:block;min-height:12px}
+.ppc-bar-free{background:#20a276}.ppc-bar-busy{background:#2a62ae}.ppc-bar-unknown{background:#df9836}
+.ppc-sim-card form{margin-bottom:10px}.ppc-s-search{min-width:200px}.ppc-s-equipo{min-width:240px}
+.ppc-s-result-heading{padding:14px 15px;border-radius:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;font-size:12px}
+.ppc-s-result-heading b{font-size:14px}
+.ppc-s-viable{background:#e8f8ee;color:#176a41;border:1px solid #bdebd0}
+.ppc-s-inviable{background:#fff0e6;color:#864522;border:1px solid #f4d0b3}
+.ppc-s-people-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.ppc-s-people{background:#f9fbff;border:1px solid #dce6f4;padding:10px;border-radius:10px;overflow-wrap:anywhere;font-size:12px}
+.ppc-s-people summary{font-weight:750;color:#19395f;cursor:pointer}
+.ppc-s-people ul{max-height:260px;overflow:auto;margin:12px 0;padding-left:20px;color:#3d5571}
+.ppc-s-people li{padding:5px 0;border-bottom:1px solid #e4edf6}
+@media(max-width:760px){.ppc-analytics-card{padding:12px}.ppc-analytics-filters{align-items:stretch}.ppc-analytics-filters label{min-width:140px}.ppc-s-people-grid{grid-template-columns:1fr}}
+
+.ppc-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
