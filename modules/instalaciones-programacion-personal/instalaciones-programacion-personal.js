@@ -12,7 +12,15 @@
   const root = () => document.getElementById(ROOT_ID);
   const el = id => document.getElementById(id);
   const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const permitted = code => Boolean(window.ManttoPermissions?.can?.(`${CODE}.${code}`,{defaultValue:false}))
+  // [Aster | 2026-10-17 | FIX_INT9_PERMISOS_PANEL_V001]
+  // El Panel publica la propiedad 'efectivo' en session-permissions.
+  // La utilidad can(...,{defaultValue:false}) no es util para este
+  // contrato, pues tambien consulta 'configurado', que no se publica.
+  function panelEffective(action) {
+    const permission=window.ManttoPermissions?.state?.(`${CODE}.${action}`);
+    return permission?.exists === true && permission.efectivo === true;
+  }
+  const permitted = code => panelEffective(code)
     && window.ManttoAuth?.isViewingAs?.() !== true;
   const fmt = v => v === null || v === undefined || v === '' ? '—' : esc(v);
 
@@ -508,7 +516,19 @@
   const disp={epoch:0,desde:todayMexico(),hasta:null,granularidad:'mes',res:null,
     simEpoch:0,simEquipo:null,simEquipos:[],simQ:'',simRes:null,searchEpoch:0,searchTimer:null};
   const READ_CODE = CODE+'.VER';
-  function canRead(){return Boolean(window.ManttoPermissions?.can?.(READ_CODE,{defaultValue:false}));}
+  function canRead(){return panelEffective('VER');}
+  // Si la ruta se abre antes de que el Visor termine de cargar el
+  // catalogo de permisos, resolverlo por la API nativa una sola vez.
+  // Si la consulta falla, no se concede ningun acceso por defecto.
+  async function ensurePanelPermissionSnapshot(){
+    if(window.ManttoPermissions?.state?.(READ_CODE)?.exists === true) return;
+    try {
+      if(typeof window.ManttoPermissions?.reload === 'function')
+        await window.ManttoPermissions.reload();
+    } catch(error) {
+      console.warn('[INT9] No se pudo actualizar el catalogo de permisos del Panel.',error);
+    }
+  }
   const histRoot=()=>el('ppc-historial');
   const dispRoot=()=>el('ppc-disponibilidad');
   const numberFmt=value=>new Intl.NumberFormat('es-MX').format(Number(value)||0);
@@ -829,7 +849,9 @@
     if (root()) { renderList();setFeedback(''); }
   }
   async function init() {
-    if (!root()) return;
+    if (!root()) return false;
+    await ensurePanelPermissionSnapshot();
+    if (!root()) return false;
     if (!state.ready) shell();
     renderView();renderTabs();
     if(!canRead()){
