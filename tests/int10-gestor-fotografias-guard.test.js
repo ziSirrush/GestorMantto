@@ -55,7 +55,7 @@ function response() {
 test('INT-10 separa navegacion de escritura fotografica CORELLIAN', () => {
   const source = read('modules/ventas-fotos-mapa/ventas-fotos-mapa.js');
   assert.ok(source.includes('int10AccesosGestionCore=createAccessSets(coreGestion,[])'));
-  assert.ok(source.includes("leerNavegacionInt10('/api/ins-fl/proyectos/fotografias-gestion')"));
+  assert.ok(source.includes("leerNavegacionInt10('/api/ins-fl/proyectos/fotografias-gestion',esActual)"));
   assert.ok(source.includes('canOpenCorellian:puedeNavegarCorellian(id,name,access)'));
   assert.ok(source.includes('canManageCorellian:puedeNavegarCorellian(id,name,gestion)'));
   assert.ok(source.includes('allowAdd:p.coreManaged!==false&&p.canManageCorellian===true'));
@@ -119,7 +119,8 @@ test('INT-10 conserva UNITED como lectura historica separada y 7+7 fotografias',
 test('INT-10: el navegador pide la nueva version del JS y del module-loader', () => {
   const loader=read('core/module-loader.js');
   const index=read('index.html');
-  const suffix='20261017-int10-gestor-fotos-v001';
+  // El blindaje B1 reemplaza el versionado del FIX del Gestor sin alterar sus guards.
+  const suffix='20261017-int10-b3-seguridad-v001';
   assert.ok(loader.includes('ventas-fotos-mapa.js?v='+suffix));
   assert.ok(index.includes('core/module-loader.js?v='+suffix));
 });

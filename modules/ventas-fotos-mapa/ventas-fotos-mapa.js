@@ -7,6 +7,9 @@
 // [Aster | 2026-09-08 | ASTER-MG | FIX CATALOGO GENERAL GUARDS SOLO NAVEGACION V001]
 // [INT-10 | 2026-10-16 | FASE 2 OPERACIONAL | FUENTES REALES Y SINCRONIZACION SELECTIVA V001]
 // [INT-10 | 2026-10-16 | FASE 3 OPERACIONAL | GUARDAS, VISOR Y CACHE GLOBAL V001]
+// [INT-10 | 2026-10-17 | BLINDAJE B1 | CONTINUIDAD DEL CATALOGO EN MEMORIA V001]
+// [INT-10 | 2026-10-17 | BLINDAJE B2 | REINTENTOS Y PAGINACION COMPROBADA V001]
+// [INT-10 | 2026-10-17 | BLINDAJE B3 | SEGURIDAD, INVALIDACION Y PRUEBAS V001]
 // Preserva la Fase 1 (mapa) y el contrato de origen (CORELLIAN/UNITED).
 let proyectos=[];
 let int10CatalogoCore = [];
@@ -16,9 +19,14 @@ let int10Accesos = { coreIds:new Set(), coreNames:new Set(), unitedNames:new Set
 let int10AccesosGestionCore = { coreIds:new Set(), coreNames:new Set(), unitedNames:new Set() };
 let int10RevisionCatalogo = 0;
 let int10RevisionIdentidad = 0;
+// B1: ultimo catalogo completo confirmado en esta identidad/sesion (solo memoria).
+let int10CatalogoConfirmadoEnSesion = false;
 const int10RevisionesFotos = new Map();
 const INT10_TAMANO_PAGINA = 500;
 const INT10_MAX_PAGINAS = 100;
+// B2: una peticion GET inicial + maximo dos reintentos, solo ante fallos temporales.
+const INT10_REINTENTOS_B2 = 2;
+const INT10_PAUSAS_B2_MS = Object.freeze([200,400]);
 
 const API=(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
 const MAX_FOTOS_ORIGEN=7;
@@ -28,7 +36,7 @@ const dbMap={'FOTO BLT':'foto_blt_1','FOTO BLT 2':'foto_blt_2','FOTO BLT 3':'fot
 const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const norm=v=>String(v==null?'':v).trim().toUpperCase();
 const headers=()=>Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
-async function getJson(path){const r=await fetch(API+path,{headers:headers(),cache:'no-store'});const t=await r.text();let j;try{j=t?JSON.parse(t):{};}catch(e){throw new Error('El backend respondió contenido no JSON.');}if(!r.ok||j.ok===false){const error=new Error(j.message||j.error||('Error HTTP '+r.status));error.status=r.status;throw error;}return j;}
+async function getJson(path){const r=await fetch(API+path,{headers:headers(),cache:'no-store'});const t=await r.text();let j;try{j=t?JSON.parse(t):{};}catch(e){const error=new Error(r.ok?'El backend respondió contenido no JSON.':'Error HTTP '+r.status);error.status=r.ok?0:r.status;throw error;}if(!r.ok||j.ok===false){const error=new Error(j.message||j.error||('Error HTTP '+r.status));error.status=r.status;throw error;}return j;}
 async function safePayload(path){try{return{ok:true,payload:await getJson(path),status:200};}catch(error){return{ok:false,payload:null,status:Number(error&&error.status)||0,error};}}
 async function safeSource(path){const result=await safePayload(path);return{ok:result.ok,data:result.ok&&Array.isArray(result.payload&&result.payload.data)?result.payload.data:[],status:result.status};}
 function info(url,campo,origen,manageable){if(!url||/\.heic(\?|$)/i.test(String(url)))return null;return{url:String(url).trim(),campo,origen,manageable:manageable!==false};}
@@ -209,7 +217,10 @@ async function refrescarProyectoFotografiasInt10(idProyecto){
   const revisionLocal=(int10RevisionesFotos.get(key)||0)+1;
   int10RevisionesFotos.set(key,revisionLocal);
   try{
-    const respuesta=await getJson('/api/ventas/fotos-mapa/catalogo-general/fotografias?limit=5000&core_project='+encodeURIComponent(id));
+    const respuesta=await getJsonResilienteInt10(
+      '/api/ventas/fotos-mapa/catalogo-general/fotografias?limit=5000&core_project='+encodeURIComponent(id),
+      ()=>revisionGlobal===int10RevisionCatalogo&&revisionLocal===int10RevisionesFotos.get(key)
+    );
     if(revisionGlobal!==int10RevisionCatalogo||revisionLocal!==int10RevisionesFotos.get(key))return;
     const nuevos=respuesta&&respuesta.data&&respuesta.data.corellian;
     if(!Array.isArray(nuevos)||norm(respuesta&&respuesta.filters&&respuesta.filters.core_project)!==key){
@@ -224,6 +235,14 @@ async function refrescarProyectoFotografiasInt10(idProyecto){
     setStatus('Catálogo General actualizado · '+visibles+' proyectos · '+resumen.merged+' carrete(s) unido(s)');
   }catch(error){
     if(revisionGlobal!==int10RevisionCatalogo||revisionLocal!==int10RevisionesFotos.get(key))return;
+    if(Number(error&&error.status)===401||Number(error&&error.status)===403){
+      // La lectura selectiva usa la misma puerta GENERAL. Su 401/403 no es un
+      // fallo transitorio: se revoca inmediatamente la galeria y su respaldo.
+      invalidarContextoFotografiasInt10();
+      const router=window.ManttoRouter;
+      if(router&&router.getCurrent&&router.getCurrent().route==='ventas-fotos-mapa'&&router.reset)router.reset();
+      return;
+    }
     // Sin datos inventados ni reemplazo erroneo de las imagenes guardadas.
     console.warn('[INT-10 FASE 2] No se pudo recargar el proyecto modificado:',error);
     setStatus('Fotografía guardada · Actualiza el catálogo para confirmar el cambio');
@@ -601,22 +620,76 @@ function render() {
   enlazarBaldosasMexico(contenedor, resultados);
 }
 function setStatus(text){const s=document.getElementById('vfm-aiven-status');if(s)s.textContent=String(text||'');}
+// B2: los reintentos solo corresponden a GET temporales. Nunca reintentar
+// 401/403, errores funcionales, respuestas mal formadas o limites de paginado.
+function errorLecturaObsoletaInt10(){
+  const error=new Error('La lectura pertenece a una sesion o revision anterior.');
+  error.code='INT10_LECTURA_OBSOLETA';
+  return error;
+}
+function lecturaVigenteInt10(esActual){return typeof esActual!=='function'||esActual();}
+function errorTemporalInt10(error){
+  const status=Number(error&&error.status)||0;
+  return status===408||status===429||(status>=500&&status<=599)
+    ||(status===0&&error&&error.name==='TypeError');
+}
+async function getJsonResilienteInt10(ruta,esActual){
+  for(let intento=0;intento<=INT10_REINTENTOS_B2;intento++){
+    if(!lecturaVigenteInt10(esActual))throw errorLecturaObsoletaInt10();
+    try{
+      const resultado=await getJson(ruta);
+      if(!lecturaVigenteInt10(esActual))throw errorLecturaObsoletaInt10();
+      return resultado;
+    }catch(error){
+      if(!lecturaVigenteInt10(esActual))throw errorLecturaObsoletaInt10();
+      if(!errorTemporalInt10(error)||intento===INT10_REINTENTOS_B2)throw error;
+      await new Promise(resolve=>setTimeout(resolve,INT10_PAUSAS_B2_MS[intento]));
+    }
+  }
+}
+function validarPaginaFotograficaInt10(respuesta,offset){
+  if(!respuesta||respuesta.ok!==true||respuesta.limit!==INT10_TAMANO_PAGINA||respuesta.offset!==offset
+      ||!respuesta.data||!Array.isArray(respuesta.data.corellian)||!Array.isArray(respuesta.data.united)
+      ||respuesta.data.corellian.length>INT10_TAMANO_PAGINA
+      ||respuesta.data.united.length>INT10_TAMANO_PAGINA){
+    throw new Error('El backend no devolvio una pagina completa y verificable de Fotografias.');
+  }
+}
+function agregarPaginaFotograficaInt10(destino,filas,vistos,origen){
+  for(const fila of filas){
+    if(!fila||typeof fila!=='object'||Array.isArray(fila)){
+      throw new Error('La pagina de '+origen+' contiene una fila invalida.');
+    }
+    // Ambas tablas fotograficas tienen id_photo como llave primaria. Si un
+    // offset repite un ID, no declarar el catalogo como completo.
+    const id=String(fila.id_photo==null?'':fila.id_photo).trim();
+    const proyecto=origen==='CORELLIAN'
+      ? String(fila['ID Proyecto']==null?fila.id_ppns||'':fila['ID Proyecto']).trim()
+      : String(fila.proyecto_united||'').trim();
+    if(!id||!proyecto||vistos.has(id)){
+      throw new Error('La pagina de '+origen+' presenta registros incompletos o repetidos.');
+    }
+    vistos.add(id);
+  }
+  destino.push(...filas);
+}
 // El limite HTTP por llamada se mantiene acotado; no se pierde el resto del
-// catalogo. Ante una respuesta sin offset confiable, falla cerrado.
-async function leerCatalogoFotograficoInt10(){
+// catalogo. Ante una pagina repetida, excesiva o sin offset confiable se rechaza
+// la lectura completa; B1 conserva los ultimos datos validos, en solo lectura.
+async function leerCatalogoFotograficoInt10(esActual){
   const corellian=[];
   const united=[];
+  const vistosCore=new Set();
+  const vistosUnited=new Set();
   for(let pagina=0;pagina<INT10_MAX_PAGINAS;pagina++){
+    if(!lecturaVigenteInt10(esActual))throw errorLecturaObsoletaInt10();
     const offset=pagina*INT10_TAMANO_PAGINA;
-    const respuesta=await getJson('/api/ventas/fotos-mapa/catalogo-general/fotografias?limit='+INT10_TAMANO_PAGINA+'&offset='+offset);
-    if(!respuesta||Number(respuesta.limit)!==INT10_TAMANO_PAGINA||Number(respuesta.offset)!==offset
-        ||!respuesta.data||!Array.isArray(respuesta.data.corellian)||!Array.isArray(respuesta.data.united)){
-      throw new Error('El backend no devolvio el contrato paginado de Fotografias Fase 2.');
-    }
+    const respuesta=await getJsonResilienteInt10('/api/ventas/fotos-mapa/catalogo-general/fotografias?limit='+INT10_TAMANO_PAGINA+'&offset='+offset,esActual);
+    validarPaginaFotograficaInt10(respuesta,offset);
     const filaCore=respuesta.data.corellian;
     const filaUnited=respuesta.data.united;
-    corellian.push(...filaCore);
-    united.push(...filaUnited);
+    agregarPaginaFotograficaInt10(corellian,filaCore,vistosCore,'CORELLIAN');
+    agregarPaginaFotograficaInt10(united,filaUnited,vistosUnited,'UNITED');
     if(filaCore.length<INT10_TAMANO_PAGINA&&filaUnited.length<INT10_TAMANO_PAGINA){
       return {corellian,united};
     }
@@ -624,13 +697,17 @@ async function leerCatalogoFotograficoInt10(){
   // Nunca presentar un listado incompleto como si fuera el catalogo entero.
   throw new Error('El catalogo supera el limite de seguridad del paginado; requiere revision del backend.');
 }
-async function leerNavegacionInt10(ruta){
+async function leerNavegacionInt10(ruta,esActual){
   try{
     const datos=[];
     for(let pagina=0;pagina<INT10_MAX_PAGINAS;pagina++){
+      if(!lecturaVigenteInt10(esActual))throw errorLecturaObsoletaInt10();
       const offset=pagina*INT10_TAMANO_PAGINA;
-      const respuesta=await getJson(ruta+(ruta.includes('?')?'&':'?')+'limit='+INT10_TAMANO_PAGINA+'&offset='+offset);
-      if(!respuesta||!Array.isArray(respuesta.data)||Number(respuesta.offset)!==offset){
+      const respuesta=await getJsonResilienteInt10(ruta+(ruta.includes('?')?'&':'?')+'limit='+INT10_TAMANO_PAGINA+'&offset='+offset,esActual);
+      if(!respuesta||respuesta.ok!==true||respuesta.limit!==INT10_TAMANO_PAGINA
+          ||respuesta.offset!==offset||!Array.isArray(respuesta.data)
+          ||respuesta.data.length>INT10_TAMANO_PAGINA
+          ||respuesta.data.some(fila=>!fila||typeof fila!=='object'||Array.isArray(fila))){
         throw new Error('El backend no devolvio el contrato de navegacion paginada.');
       }
       datos.push(...respuesta.data);
@@ -638,32 +715,83 @@ async function leerNavegacionInt10(ruta){
     }
     throw new Error('El alcance de navegacion excede el limite de consulta.');
   }catch(error){
-    // Un fallo/403 de cualquiera de las puertas independientes no permite
-    // mostrar botones hacia los proyectos de ese dominio.
+    // 401 es sesion no valida, NO un guard de navegacion opcional. Propagarlo
+    // para que la galeria borre el respaldo, incluso si fotos respondio 200.
+    if(Number(error&&error.status)===401)throw error;
+    // 403 de una puerta CORELLIAN/UNITED independiente solo desactiva su
+    // navegacion/gestion, sin retirar la galeria GENERAL autorizada.
     return [];
+  }
+}
+function cerrarCarruselInt10(){
+  const lightbox=document.getElementById('mg-photo-lightbox');
+  if(lightbox&&!lightbox.hidden){
+    const close=lightbox.querySelector('.mg-photo-close');
+    if(close&&typeof close.click==='function')close.click();
+    else lightbox.hidden=true;
   }
 }
 async function load(){
   const revision=++int10RevisionCatalogo;
-  setStatus('Actualizando Catálogo General...');
+  const esActual=()=>revision===int10RevisionCatalogo;
+  // B1: respaldo exclusivamente en memoria; se invalida con la identidad.
+  const habiaCatalogoValido=int10CatalogoConfirmadoEnSesion;
+  let anterior=null;
   try{
+    // Mientras los guards vuelven a verificarse, ningun control anterior
+    // puede seguir escribiendo o navegando. Las fotos permanecen visibles.
+    if(habiaCatalogoValido){
+      int10Accesos=createAccessSets([],[]);
+      int10AccesosGestionCore=createAccessSets([],[]);
+      cerrarCarruselInt10();
+      reconstruirCatalogoInt10();
+    }
+    setStatus('Actualizando Catálogo General...');
     const [datos,coreNavegacion,unitedNavegacion,coreGestion]=await Promise.all([
-      leerCatalogoFotograficoInt10(),
-      leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-corellian?solo_con_fotos=1'),
-      leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-united'),
+      leerCatalogoFotograficoInt10(esActual),
+      leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-corellian?solo_con_fotos=1',esActual),
+      leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-united',esActual),
       // API de solo IDs, guardada exactamente como la escritura de fotos CORELLIAN.
-      leerNavegacionInt10('/api/ins-fl/proyectos/fotografias-gestion')
+      leerNavegacionInt10('/api/ins-fl/proyectos/fotografias-gestion',esActual)
     ]);
     if(revision!==int10RevisionCatalogo)return;
+    // Tomar el respaldo justo antes del commit respeta refrescos selectivos
+    // confirmados durante la lectura paginada de este catalogo.
+    if(habiaCatalogoValido)anterior={corellian:int10CatalogoCore,united:int10CatalogoUnited};
     int10CatalogoCore=datos.corellian;
     int10CatalogoUnited=datos.united;
     int10Accesos=createAccessSets(coreNavegacion,unitedNavegacion);
     int10AccesosGestionCore=createAccessSets(coreGestion,[]);
     const resumen=reconstruirCatalogoInt10();
+    int10CatalogoConfirmadoEnSesion=true;
     const visibles=proyectos.filter(p=>fotos(p).length).length;
     setStatus('Catálogo General actualizado · '+visibles+' proyectos · '+resumen.merged+' carrete(s) unido(s)');
   }catch(error){
     if(revision!==int10RevisionCatalogo)return;
+    const status=Number(error&&error.status)||0;
+    if(habiaCatalogoValido&&status!==401&&status!==403){
+      // Si fallo antes del commit, las listas actuales aun contienen la ultima
+      // foto actualizada selectivamente; si fallo durante render, restaurarlas.
+      const respaldo=anterior||{corellian:int10CatalogoCore,united:int10CatalogoUnited};
+      // Conserva los dos origenes completos, pero NO reutiliza los permisos
+      // antiguos de navegacion/gestion cuando la nueva consulta no se verifico.
+      int10CatalogoCore=respaldo.corellian;
+      int10CatalogoUnited=respaldo.united;
+      int10Accesos=createAccessSets([],[]);
+      int10AccesosGestionCore=createAccessSets([],[]);
+      reconstruirCatalogoInt10();
+      console.warn('[INT-10 B1] Actualizacion incompleta: catalogo anterior en solo lectura.',error);
+      setStatus('No fue posible actualizar el Catálogo General · se muestran los últimos resultados válidos (solo lectura)');
+      return;
+    }
+    // B3: la negacion 401/403 invalida ademas TODAS las lecturas selectivas
+    // que todavia estuvieran pendientes, para impedir que repueblen el DOM.
+    if(status===401||status===403){
+      ++int10RevisionCatalogo;
+      int10RevisionesFotos.clear();
+    }
+    // Sin respaldo previo, o sin autorizacion (401/403), no se muestra nada.
+    int10CatalogoConfirmadoEnSesion=false;
     int10CatalogoCore=[];
     int10CatalogoUnited=[];
     int10Accesos=createAccessSets([],[]);
@@ -671,8 +799,9 @@ async function load(){
     proyectos=[];
     populate();
     render();
-    console.warn('[INT-10 FASE 2] No se pudo leer el catalogo completo:',error);
-    setStatus(Number(error&&error.status)===403?'Sin acceso a Catálogo General':'No fue posible cargar el Catálogo General completo');
+    if(status===401||status===403)cerrarCarruselInt10();
+    console.warn('[INT-10 B1] No se pudo leer el catalogo completo:',error);
+    setStatus(status===403?'Sin acceso a Catálogo General':status===401?'Sesión requerida para consultar el Catálogo General':'No fue posible cargar el Catálogo General completo');
   }
 }
 // El modulo puede seguir cargado mientras el usuario cambia su identidad
@@ -682,6 +811,7 @@ function invalidarContextoFotografiasInt10(){
   ++int10RevisionIdentidad;
   ++int10RevisionCatalogo;
   int10RevisionesFotos.clear();
+  int10CatalogoConfirmadoEnSesion=false;
   int10CatalogoCore=[];
   int10CatalogoUnited=[];
   int10Accesos=createAccessSets([],[]);
@@ -690,12 +820,7 @@ function invalidarContextoFotografiasInt10(){
   mexicoEstadoSeleccionado=null;
   // El lightbox del Gestor es compartido: cerrarlo al cambiar la identidad
   // evita conservar fotografias de una sesion anterior en pantalla.
-  const lightbox=document.getElementById('mg-photo-lightbox');
-  if(lightbox&&!lightbox.hidden){
-    const close=lightbox.querySelector('.mg-photo-close');
-    if(close&&typeof close.click==='function')close.click();
-    else lightbox.hidden=true;
-  }
+  cerrarCarruselInt10();
   const vista=document.getElementById('view-ventas-fotos-mapa');
   if(vista){
     vista.dataset.ready='0';
@@ -708,9 +833,35 @@ document.addEventListener('mantto:session-expired',invalidarContextoFotografiasI
 document.addEventListener('mantto:auth-ready',invalidarContextoFotografiasInt10);
 document.addEventListener('mantto:permissions-updated',()=>{
   const permissions=window.ManttoPermissions;
-  if(!permissions||typeof permissions.state!=='function')return;
-  const permiso=permissions.state('FOTOGRAFIAS_CATALOGO_GENERAL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL');
-  if(permiso&&permiso.exists===true&&permiso.efectivo===true)return;
+  let autorizado=false;
+  try{
+    const permiso=permissions&&typeof permissions.state==='function'
+      ?permissions.state('FOTOGRAFIAS_CATALOGO_GENERAL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL')
+      :null;
+    autorizado=Boolean(permiso&&permiso.exists===true&&permiso.efectivo===true);
+  }catch(_error){ autorizado=false; }
+  if(autorizado){
+    // El permiso GENERAL puede seguir vigente mientras cambia el rol Gestor,
+    // el alcance o las puertas CORELLIAN/UNITED. Revalidar, nunca conservar
+    // facultades previas durante una actualizacion de permisos.
+    ++int10RevisionCatalogo;
+    int10RevisionesFotos.clear();
+    int10Accesos=createAccessSets([],[]);
+    int10AccesosGestionCore=createAccessSets([],[]);
+    cerrarCarruselInt10();
+    if(int10CatalogoConfirmadoEnSesion){
+      reconstruirCatalogoInt10();
+      setStatus('Comprobando nuevamente los permisos del catálogo...');
+    }
+    const vista=document.getElementById('view-ventas-fotos-mapa');
+    if(vista&&vista.dataset.ready==='1'){
+      // La consulta usa los mismos guards del backend; fallas temporales
+      // vuelven a mostrar B1 solo lectura. No se asumen accesos por el rol.
+      void load();
+    }
+    return;
+  }
+  // Revocado, indeterminado o state() fallando: impedir reutilizar la galeria.
   invalidarContextoFotografiasInt10();
   const router=window.ManttoRouter;
   if(router&&router.getCurrent&&router.getCurrent().route==='ventas-fotos-mapa'&&router.reset){
