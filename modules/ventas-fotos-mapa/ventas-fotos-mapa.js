@@ -12,6 +12,8 @@ let proyectos=[];
 let int10CatalogoCore = [];
 let int10CatalogoUnited = [];
 let int10Accesos = { coreIds:new Set(), coreNames:new Set(), unitedNames:new Set() };
+// Gestión fotográfica: independiente de los guards usados solo para navegar.
+let int10AccesosGestionCore = { coreIds:new Set(), coreNames:new Set(), unitedNames:new Set() };
 let int10RevisionCatalogo = 0;
 let int10RevisionIdentidad = 0;
 const int10RevisionesFotos = new Map();
@@ -35,7 +37,7 @@ function coreRows(p){return Array.isArray(p&&p.coreRows)?p.coreRows:[];}
 function corePhotos(p){
   const items=coreRows(p).flatMap(row=>slots.map((slot,index)=>{
     // La galeria GENERAL es legible, pero no habilita la edicion de registros fuera del alcance COR.
-    const item=info(row&&row[slot],dbMap[slot],'CORELLIAN',p.canOpenCorellian===true);
+    const item=info(row&&row[slot],dbMap[slot],'CORELLIAN',p.canManageCorellian===true);
     if(item)item.label='CORELLIAN · Foto '+(index+1);
     return item;
   }).filter(Boolean));
@@ -49,7 +51,7 @@ function principal(p){
   const core=corePhotos(p);
   for(const row of coreRows(p)){
     const direct=String(row&&row.foto_portada||'').trim();
-    if(/^https?:\/\//i.test(direct))return info(direct,null,'CORELLIAN',p.canOpenCorellian===true);
+    if(/^https?:\/\//i.test(direct))return info(direct,null,'CORELLIAN',p.canManageCorellian===true);
     const sel=String(row&&(row.foto_principal||row['Foto Principal'])||'').trim();
     const coreMatch=core.find(item=>item.campo===sel);
     if(coreMatch)return coreMatch;
@@ -86,7 +88,7 @@ function puedeNavegarCorellian(id,nombre,access){
   if(key)return access.coreIds.has(key);
   return Boolean(nombre&&access.coreNames.has(norm(nombre)));
 }
-function buildCoreCatalog(rows,access){
+function buildCoreCatalog(rows,access,gestion){
   const map=new Map();
   (Array.isArray(rows)?rows:[]).forEach((row,index)=>{
     const id=String(row&&((row['ID Proyecto']!=null?row['ID Proyecto']:row.id_ppns)||'')).trim();
@@ -109,6 +111,7 @@ function buildCoreCatalog(rows,access){
         unitedRows:[],
         coreManaged:true,
         canOpenCorellian:puedeNavegarCorellian(id,name,access),
+        canManageCorellian:puedeNavegarCorellian(id,name,gestion),
         canOpenUnited:false
       });
     }
@@ -119,6 +122,7 @@ function buildCoreCatalog(rows,access){
     if(!project.ciudad)project.ciudad=String(row&&((row.Ciudad!=null?row.Ciudad:row.ciudad)||'')).trim();
     if(!project.cliente)project.cliente=String(row&&((row.Cliente!=null?row.Cliente:row.cliente)||'')).trim();
     if(puedeNavegarCorellian(id,name,access))project.canOpenCorellian=true;
+    if(puedeNavegarCorellian(id,name,gestion))project.canManageCorellian=true;
   });
   return [...map.values()];
 }
@@ -188,7 +192,7 @@ function mergeUnited(rows,access){
 // Refresco inmediato SOLO del proyecto CORELLIAN modificado; no repetir la
 // consulta completa ni usar el estado optimista del carrusel como verdad final.
 function reconstruirCatalogoInt10(){
-  proyectos=buildCoreCatalog(int10CatalogoCore,int10Accesos);
+  proyectos=buildCoreCatalog(int10CatalogoCore,int10Accesos,int10AccesosGestionCore);
   const resumen=mergeUnited(int10CatalogoUnited,int10Accesos);
   populate();
   render();
@@ -252,10 +256,10 @@ function openPhotoCarousel(p){
           void refrescarProyectoFotografiasInt10(p.coreProjectId);
         }
       },
-      // El boton de administrar no aparece por el solo acceso a GENERAL.
-      // core/details.js y el backend vuelven a validar el rol y alcance efectivo.
-      allowAdd:p.coreManaged!==false&&p.canOpenCorellian===true,
-      allowSetPrincipal:p.coreManaged!==false&&p.canOpenCorellian===true,
+      // Edicion: rol Gestor de Fotografias + guard INSTALACIONES + alcance del proyecto.
+      // La puerta de navegacion NO autoriza ni bloquea mutaciones fotograficas.
+      allowAdd:p.coreManaged!==false&&p.canManageCorellian===true,
+      allowSetPrincipal:p.coreManaged!==false&&p.canManageCorellian===true,
       managedPhotoLimit:7,
       photoDomain:'CORELLIAN'
     }
@@ -643,15 +647,18 @@ async function load(){
   const revision=++int10RevisionCatalogo;
   setStatus('Actualizando Catálogo General...');
   try{
-    const [datos,coreNavegacion,unitedNavegacion]=await Promise.all([
+    const [datos,coreNavegacion,unitedNavegacion,coreGestion]=await Promise.all([
       leerCatalogoFotograficoInt10(),
       leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-corellian?solo_con_fotos=1'),
-      leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-united')
+      leerNavegacionInt10('/api/ventas/fotos-mapa/catalogo-general/navegacion-united'),
+      // API de solo IDs, guardada exactamente como la escritura de fotos CORELLIAN.
+      leerNavegacionInt10('/api/ins-fl/proyectos/fotografias-gestion')
     ]);
     if(revision!==int10RevisionCatalogo)return;
     int10CatalogoCore=datos.corellian;
     int10CatalogoUnited=datos.united;
     int10Accesos=createAccessSets(coreNavegacion,unitedNavegacion);
+    int10AccesosGestionCore=createAccessSets(coreGestion,[]);
     const resumen=reconstruirCatalogoInt10();
     const visibles=proyectos.filter(p=>fotos(p).length).length;
     setStatus('Catálogo General actualizado · '+visibles+' proyectos · '+resumen.merged+' carrete(s) unido(s)');
@@ -660,6 +667,7 @@ async function load(){
     int10CatalogoCore=[];
     int10CatalogoUnited=[];
     int10Accesos=createAccessSets([],[]);
+    int10AccesosGestionCore=createAccessSets([],[]);
     proyectos=[];
     populate();
     render();
@@ -677,6 +685,7 @@ function invalidarContextoFotografiasInt10(){
   int10CatalogoCore=[];
   int10CatalogoUnited=[];
   int10Accesos=createAccessSets([],[]);
+  int10AccesosGestionCore=createAccessSets([],[]);
   proyectos=[];
   mexicoEstadoSeleccionado=null;
   // El lightbox del Gestor es compartido: cerrarlo al cambiar la identidad

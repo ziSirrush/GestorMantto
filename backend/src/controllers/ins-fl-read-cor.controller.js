@@ -7,6 +7,7 @@
 const db = require('../config/db');
 const azureStorage = require('../services/storage/azure-storage.service');
 const visibilityService = require('../modules/ventas/ventas-visibility.service');
+const { buildInsFlScopeSql_gnral } = require('../services/information-record-scope-gnral.service');
 
 const PROJECT_PHOTO_ALIASES = Object.freeze([
   ['foto_blt_1', 'FOTO BLT'],
@@ -514,10 +515,37 @@ async function getInsFlClientConcentrate_cor(req, res) {
   }
 }
 
+// Los derechos de edicion no se infieren del acceso visual al catalogo o a Ventas.
+// La ruta usa el MISMO guard funcional INSTALACIONES y el mismo alcance
+// CORELLIAN que POST, DELETE y PATCH; responde solo IDs, sin URLs ni SAS.
+async function getInsFlProjectPhotoManagementScope_cor(req, res) {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 500, 1), 5000);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  try {
+    const scope = buildInsFlScopeSql_gnral(req, 'f');
+    const [rows] = await db.query(
+      `SELECT DISTINCT TRIM(f.id_proyecto) AS id_ppns
+       FROM ins_fl f
+       WHERE NULLIF(TRIM(f.id_proyecto), '') IS NOT NULL
+         AND ${scope.sql}
+       ORDER BY id_ppns ASC
+       LIMIT ? OFFSET ?`,
+      [...scope.params, limit, offset]
+    );
+    return res.json({ ok: true, data: rows, limit, offset });
+  } catch (error) {
+    return res.status(statusFromError(error)).json({
+      ok: false,
+      message: error.message || 'No fue posible consultar el alcance de gestion fotografica.'
+    });
+  }
+}
+
 module.exports = {
   getInsFl_cor,
   getInsFlById_cor,
   getInsFlProjects_cor,
   getInsFlProjectPhotos_cor,
+  getInsFlProjectPhotoManagementScope_cor,
   getInsFlClientConcentrate_cor
 };

@@ -54,6 +54,13 @@ router.get(
   ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
   insFlReadController.getInsFlProjectPhotos_cor
 );
+// Consulta ligera para el rol Gestor de Fotografias (sin exponer fotos ni alterar datos).
+router.get(
+  '/proyectos/fotografias-gestion',
+  ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
+  requireProjectPhotoManager_gnral,
+  insFlReadController.getInsFlProjectPhotoManagementScope_cor
+);
 router.post(
   '/proyectos/fotografias/:id_ppns',
   ...instalacionesGuard(PROJECT_DETAIL_PHOTO_ACCESS),
