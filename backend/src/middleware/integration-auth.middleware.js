@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-10-19 | ASTER-MG | ALMACEN NS FASE 2 M2M HMAC V001]
+// [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN ID M2M SECRET EXISTENTE V001]
 // Se conserva el contrato M2M existente y se agrega autenticacion forzosa
 // por ruta: la sincronizacion de Almacen NUNCA hereda un bypass global.
 // El comportamiento de las rutas M2M anteriores no cambia por defecto.
@@ -33,7 +34,8 @@ function getIntegrationSecrets() {
     [process.env.INTEGRATION_VENTAS_ID, process.env.INTEGRATION_VENTAS_SECRET],
     [process.env.INTEGRATION_COBRANZA_UNI_ID, process.env.INTEGRATION_COBRANZA_UNI_SECRET],
     // Solo la identidad configurada para Almacen puede escribir en sus lotes.
-    [process.env.INTEGRATION_ALMACEN_NS_ID, process.env.INTEGRATION_ALMACEN_NS_SECRET]
+    // Almacen usa el secreto YA existente en Azure. El ID no es una variable secreta.
+    ['almacen-appscript', process.env.INTEGRATION_ALMACEN_SECRET]
   ].filter(([integrationId, secret]) => integrationId && secret));
 }
 
@@ -136,9 +138,14 @@ function requireIntegrationAuthFor(expectedIntegrationIdEnvName, options = {}) {
     }
     return requireIntegrationAuth(req, res, (error) => {
       if (error) return next(error);
-      const expectedIntegrationId = String(process.env[expectedIntegrationIdEnvName] || '').trim();
+      // Identidad fija exclusiva para Almacen; las otras integraciones siguen usando su variable de ID.
+      const configuredId = options.expectedIntegrationId !== undefined
+        ? options.expectedIntegrationId
+        : (expectedIntegrationIdEnvName ? process.env[expectedIntegrationIdEnvName] : '');
+      const expectedIntegrationId = String(configuredId || '').trim();
       if (!expectedIntegrationId) {
-        const configError = new Error(`Falta configurar ${expectedIntegrationIdEnvName} para la ruta M2M.`);
+        const name = expectedIntegrationIdEnvName || 'identidad M2M';
+        const configError = new Error(`Falta configurar ${name} para la ruta M2M.`);
         configError.statusCode = 500;
         configError.expose = false;
         return next(configError);

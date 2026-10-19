@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN 230 CONTRATO ID INVENTARIO V001]
+// [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN ID M2M SECRET EXISTENTE V001]
 // Autenticacion M2M HMAC obligatoria incluso si INTEGRATION_AUTH_ENABLED=false.
 // Nunca exponer estos endpoints con un JWT humano ni con un guard de frontend.
 
@@ -9,7 +10,12 @@ const { requireIntegrationAuthFor } = require('../../middleware/integration-auth
 const service = require('./almacen.ns-sync-service');
 const router = express.Router();
 
-router.use(requireIntegrationAuthFor('INTEGRATION_ALMACEN_NS_ID', { alwaysRequireAuth: true, algorithm: 'sha256' }));
+// Firma HMAC siempre obligatoria. Identidad publica estable, sin variable Azure de ID.
+router.use(requireIntegrationAuthFor(null, {
+  expectedIntegrationId: 'almacen-appscript',
+  alwaysRequireAuth: true,
+  algorithm: 'sha256'
+}));
 
 function respond(action, status = 200) {
   return async (req, res, next) => {

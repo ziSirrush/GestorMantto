@@ -1,5 +1,6 @@
 'use strict';
 // [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN 230 ID INVENTARIO QA V001]
+// [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN ID M2M SECRET EXISTENTE QA V001]
 // Test DB simulator: no external database, no network, no uploads.
 
 const {test,beforeEach} = require('node:test');
@@ -281,19 +282,49 @@ function signedReq(secret,id,method,url,body='',secs=Math.floor(Date.now()/1000)
   const headers={'X-Integration-Id':id,'X-Integration-Timestamp':ts,'X-Integration-Signature':sig};
   return {method,originalUrl:url,rawBody:Buffer.from(body),get(name){return headers[name]||'';}};
 }
-test('M2M Almacen sigue exigiendo HMAC con flag global apagado',async()=>{
+test('M2M Almacen usa solo INTEGRATION_ALMACEN_SECRET y exige HMAC con flag global apagado',async()=>{
   const old={...process.env};
   try{
     process.env.INTEGRATION_AUTH_ENABLED='false';
-    process.env.INTEGRATION_ALMACEN_NS_ID='alm-test';
-    process.env.INTEGRATION_ALMACEN_NS_SECRET='secreto-local-qa';
-    const authMiddleware=auth.requireIntegrationAuthFor('INTEGRATION_ALMACEN_NS_ID',{alwaysRequireAuth:true,algorithm:'sha256'});
+    process.env.INTEGRATION_ALMACEN_SECRET='secreto-local-qa';
+    delete process.env.INTEGRATION_ALMACEN_NS_ID;
+    delete process.env.INTEGRATION_ALMACEN_NS_SECRET;
+    const authMiddleware=auth.requireIntegrationAuthFor(null,{
+      expectedIntegrationId:'almacen-appscript',alwaysRequireAuth:true,algorithm:'sha256'
+    });
     let passed=0;
-    let res=response();authMiddleware({method:'POST',originalUrl:'/api/almacen/sync/inventario-230/lotes',rawBody:Buffer.from('{}'),get(){return '';}},res,()=>passed++);
+    const path='/api/almacen/sync/inventario-230/lotes';
+    let res=response();
+    authMiddleware({method:'POST',originalUrl:path,rawBody:Buffer.from('{}'),get(){return '';}},res,()=>passed++);
     assert.equal(res.code,401);
-    res=response();authMiddleware(signedReq('secreto-local-qa','alm-test','POST','/api/almacen/sync/inventario-230/lotes','{}'),res,()=>passed++);
+    res=response();authMiddleware(signedReq('secreto-local-qa','almacen-appscript','POST',path,'{}'),res,()=>passed++);
     assert.equal(passed,1);
-    res=response();authMiddleware(signedReq('incorrecto','alm-test','POST','/api/almacen/sync/inventario-230/lotes','{}'),res,()=>passed++);
+    res=response();authMiddleware(signedReq('incorrecto','almacen-appscript','POST',path,'{}'),res,()=>passed++);
+    assert.equal(res.code,401);
+    res=response();authMiddleware(signedReq('secreto-local-qa','otro-appscript','POST',path,'{}'),res,()=>passed++);
+    assert.equal(res.code,401);
+    delete process.env.INTEGRATION_ALMACEN_SECRET;
+    res=response();authMiddleware(signedReq('secreto-local-qa','almacen-appscript','POST',path,'{}'),res,()=>passed++);
+    assert.equal(res.code,401,'No se permite acceso si falta el secreto en Azure.');
+    assert.equal(passed,1);
+  }finally{
+    for(const k of Object.keys(process.env))if(!(k in old))delete process.env[k];
+    Object.assign(process.env,old);
+  }
+});
+
+test('M2M de otras integraciones conserva su ID configurado en entorno',async()=>{
+  const old={...process.env};
+  try{
+    process.env.INTEGRATION_AUTH_ENABLED='true';
+    process.env.INTEGRATION_PORTAFOLIO_ID='portafolio-appscript';
+    process.env.INTEGRATION_PORTAFOLIO_SECRET='secreto-portafolio-local';
+    const middleware=auth.requireIntegrationAuthFor('INTEGRATION_PORTAFOLIO_ID');
+    let passed=0;
+    const path='/api/portafolio/sync';
+    let res=response();middleware(signedReq('secreto-portafolio-local','portafolio-appscript','POST',path,'{}'),res,()=>passed++);
+    assert.equal(passed,1);
+    res=response();middleware(signedReq('secreto-portafolio-local','almacen-appscript','POST',path,'{}'),res,()=>passed++);
     assert.equal(res.code,401);
   }finally{
     for(const k of Object.keys(process.env))if(!(k in old))delete process.env[k];
