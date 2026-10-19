@@ -1,6 +1,9 @@
 'use strict';
 
-// [Aster | 2026-10-19 | ASTER-MG | ALMACEN NS FASE 2 RECEPTOR 230 433 CATALOGO V001]
+// [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN 230 ID INVENTARIO UPSERT V001]
+// El ID de SEND identifica INSERT o UPDATE en Aiven. El lote permanece
+// invisible hasta finalizar: se reciben filas temporales y se aplican en
+// una sola transaccion. Los IDs ausentes del SEND se conservan.
 // Ingreso M2M por paginas con bloqueo transaccional, hash e idempotencia.
 // Sin nuevas tablas ni referencias a Excel. Solo el inventario completo
 // PUBLICADO y activo alimenta las lecturas de la Fase 1.
@@ -28,6 +31,7 @@ const PUBLISH_LOCK = 'almacen_ns_230_publish';
 // column, JSON property, type, nullable, optional max chars.
 const COLS = Object.freeze({
   INVENTARIO_230: Object.freeze([
+    ['id_inventario', 'idInventario', 'u64'],
     ['id_articulo_ns', 'idArticuloNs', 'u64'],
     ['articulo', 'articulo', 'str', false, 500],
     ['descripcion', 'descripcion', 'str', true, 60000],
@@ -212,7 +216,7 @@ function normalizeRow(type, row, index) {
   return normalized;
 }
 function rowKey(type, row) {
-  if (type === 'INVENTARIO_230') return [row.idArticuloNs, row.idSubsidiariaNs, row.idUbicacionNs].join('|');
+  if (type === 'INVENTARIO_230') return row.idInventario;
   if (type === 'MOVIMIENTOS_433') return [row.idTransaccionNs, row.idLineaNs].join('|');
   return String(row.filaOrigen);
 }
@@ -340,7 +344,9 @@ async function beginLot(type, body) {
   });
 }
 function makeInsert(type, lotId, rows) {
-  const schema = COLS[type];
+  const schema = type === 'INVENTARIO_230'
+    ? COLS[type].filter(item => item[0] !== 'id_inventario')
+    : COLS[type];
   const baseCols = schema.map(item => item[0]);
   const extraColumns = type === 'MOVIMIENTOS_433'
     ? ['primer_lote_id','ultimo_lote_id','hash_fila','raw_json']
@@ -363,6 +369,106 @@ function makeInsert(type, lotId, rows) {
   }
   return {sql,params:recordParams.flat()};
 }
+
+// La PK id_inventario es estable entre envios; los IDs AUTO_INCREMENT que se
+// crean durante la recepcion son SOLO temporales y nunca se publican.
+const INVENTORY_PUBLISH_BATCH = 150;
+function inventoryPublishedInsert(lotId, rows, updateExisting) {
+  const schema = COLS.INVENTARIO_230;
+  const cols = [...schema.map(item => item[0]), 'id_lote', 'hash_fila', 'raw_json'];
+  const values = rows.map(row => {
+    const json = JSON.stringify(row);
+    return [...schema.map(item => row[item[1]]), lotId, sha256(json), json];
+  });
+  const slot = `(${cols.map(() => '?').join(',')})`;
+  let sql = `INSERT INTO almacen_ns_inventario (${cols.map(c => '`'+c+'`').join(',')}) VALUES ${rows.map(() => slot).join(',')}`;
+  if (updateExisting) {
+    // Mantener created_at y updated_at cuando los datos no cambian. Poner
+    // updated_at antes que hash_fila para comparar contra el hash previo.
+    const update = [
+      '`updated_at`=IF(`hash_fila` <=> VALUES(`hash_fila`),`updated_at`,CURRENT_TIMESTAMP(3))',
+      ...cols.filter(c => c !== 'id_inventario').map(c => `\`${c}\`=VALUES(\`${c}\`)`)
+    ];
+    sql += ' ON DUPLICATE KEY UPDATE ' + update.join(',');
+  }
+  return {sql,params:values.flat()};
+}
+function inventoryChunks(rows) {
+  const chunks=[];
+  for(let n=0;n<rows.length;n+=INVENTORY_PUBLISH_BATCH) chunks.push(rows.slice(n,n+INVENTORY_PUBLISH_BATCH));
+  return chunks;
+}
+function jsonRow(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  try { return JSON.parse(String(value || '')); }
+  catch (_) { throw err('Los registros del lote no tienen un JSON valido.',409,'ALMACEN_NS_STAGE_INVALID'); }
+}
+async function publishInventoryRows(conn, lotId, activeLotId, expectedRows) {
+  const [staging] = await conn.query(`SELECT raw_json FROM almacen_ns_inventario
+    WHERE id_lote=? ORDER BY id_inventario FOR UPDATE`,[lotId]);
+  if (staging.length !== expectedRows) {
+    throw err('Los registros del lote no coinciden con la carga.',409,'ALMACEN_NS_DB_COUNT_MISMATCH');
+  }
+  const seen = new Set();
+  const rows = staging.map((record, i) => {
+    const row = normalizeRow('INVENTARIO_230',jsonRow(record.raw_json),i+1);
+    if(seen.has(row.idInventario)) {
+      throw err('id_inventario duplicado en distintas paginas del mismo lote: '+row.idInventario,409,'ALMACEN_NS_INVENTORY_ID_DUPLICATE');
+    }
+    seen.add(row.idInventario);
+    return row;
+  });
+
+  // Liberar las PK temporales ANTES de intentar usar las PK oficiales de SEND.
+  // Todo se ejecuta dentro de la misma transaccion de publicacion.
+  await conn.query('DELETE FROM almacen_ns_inventario WHERE id_lote=?',[lotId]);
+  const existing = new Map();
+  for(const chunk of inventoryChunks(rows)) {
+    const [found] = await conn.query(`SELECT id_inventario AS idInventario,id_lote,hash_fila
+      FROM almacen_ns_inventario WHERE id_inventario IN (${chunk.map(() => 'CAST(? AS UNSIGNED)').join(',')}) FOR UPDATE`,
+      chunk.map(row => row.idInventario));
+    for(const current of found) {
+      const owner = String(current.id_lote || '');
+      if(owner !== activeLotId) {
+        // No tomar la PK de una importacion pendiente/rechazada ni una
+        // fotografia antigua ajena al lote activo.
+        throw err('id_inventario '+current.idInventario+' pertenece a otro lote. Sin cambios.',
+          409,'ALMACEN_NS_INVENTORY_ID_CONFLICT');
+      }
+      existing.set(String(current.idInventario),current.hash_fila || null);
+    }
+  }
+  const inserted=[],updated=[];
+  let unchanged=0;
+  for(const row of rows) {
+    const previous = existing.get(row.idInventario);
+    if (previous === undefined) inserted.push(row);
+    else if (previous === sha256(JSON.stringify(row))) unchanged += 1;
+    else updated.push(row);
+  }
+  // No usar ON DUPLICATE sobre IDs nuevos; una colision concurrente debe
+  // abortar, nunca actualizar una fila temporal de otro lote.
+  for(const chunk of inventoryChunks(inserted)) {
+    const write=inventoryPublishedInsert(lotId,chunk,false);
+    await conn.query(write.sql,write.params);
+  }
+  // Las PK que ya existian pertenecian al lote activo y estan bloqueadas.
+  for(const chunk of inventoryChunks(updated)) {
+    const write=inventoryPublishedInsert(lotId,chunk,true);
+    await conn.query(write.sql,write.params);
+  }
+  // Traspasar sin borrar las filas ausentes de SEND y las que no cambiaron.
+  // El inventario es vigente por ID; no se guardan copias historicas de filas.
+  let preserved=0;
+  if (activeLotId) {
+    const [moved] = await conn.query(`UPDATE almacen_ns_inventario
+      SET id_lote=?,updated_at=updated_at WHERE id_lote=?`,[lotId,activeLotId]);
+    preserved=Math.max(0,Number(moved.affectedRows||0)-unchanged);
+  }
+  return {insertados:inserted.length,actualizados:updated.length,
+    sinCambios:unchanged,conservados:preserved};
+}
+
 async function assertNoMovementPageDuplicates(conn, lotId, rows) {
   if (!rows.length) return;
   const pairs = rows.map(() => '(?,?)').join(',');
@@ -482,12 +588,14 @@ async function finishLot(type,lotIdInput) {
       throw err('Los registros persistidos no coinciden con el manifiesto.',409,'ALMACEN_NS_DB_COUNT_MISMATCH',
         {esperados:expectedRows,persistidos:actualRows});
     }
+    let summary=null;
     if (type==='INVENTARIO_230') {
       const [active] = await conn.query(`SELECT id_lote,DATE_FORMAT(fecha_corte,'%Y-%m-%d') AS fechaCorte
         FROM almacen_ns_lotes WHERE tipo_fuente='INVENTARIO_230' AND activo=1 FOR UPDATE`);
       if (active.length && active[0].fechaCorte>sqlDate(lot.fecha_corte)) {
         throw err('Existe un corte de inventario mas reciente. No se sustituye.',409,'ALMACEN_NS_STALE_SNAPSHOT');
       }
+      summary=await publishInventoryRows(conn,lotId,active[0]?.id_lote || null,expectedRows);
       await conn.query(`UPDATE almacen_ns_lotes SET activo=0
         WHERE tipo_fuente='INVENTARIO_230' AND activo=1 AND id_lote<>?`,[lotId]);
     }
@@ -498,7 +606,8 @@ async function finishLot(type,lotIdInput) {
       WHERE id_lote=?`,[actualHash,published,lotId]);
     return {ok:true,loteId:lotId,tipoFuente:type,estado:'PUBLICADO',activo:Boolean(published),
       completo:true,recibidas:expectedRows,esperadas:expectedRows,
-      paginasRecibidas:expectedPages,paginasEsperadas:expectedPages,hashCarga:actualHash,idempotente:false};
+      paginasRecibidas:expectedPages,paginasEsperadas:expectedPages,hashCarga:actualHash,
+      ...(summary ? {resumenInventario:summary} : {}),idempotente:false};
   },{advisory:type==='INVENTARIO_230'});
 }
 async function rejectLot(type,lotIdInput,body={}) {
@@ -509,6 +618,8 @@ async function rejectLot(type,lotIdInput,body={}) {
     assertLotType(lot,type);
     if (lot.estado==='PUBLICADO') throw err('No es posible rechazar un lote ya publicado.',409,'ALMACEN_NS_PUBLISHED_IMMUTABLE');
     if (lot.estado==='RECHAZADO') return {...rowState(lot),idempotente:true};
+    // Un lote rechazado no debe reservar claves AUTO_INCREMENT temporales.
+    if(type==='INVENTARIO_230') await conn.query('DELETE FROM almacen_ns_inventario WHERE id_lote=?',[lotId]);
     await conn.query(`UPDATE almacen_ns_lotes SET estado='RECHAZADO',activo=0,error_detalle=? WHERE id_lote=?`,[reason,lotId]);
     return {ok:true,loteId:lotId,estado:'RECHAZADO',idempotente:false};
   });

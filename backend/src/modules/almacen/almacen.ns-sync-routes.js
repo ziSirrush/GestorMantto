@@ -1,6 +1,6 @@
 'use strict';
 
-// [Aster | 2026-10-19 | ASTER-MG | ALMACEN NS FASE 2 ENDPOINTS SINCRONIZACION V001]
+// [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN 230 CONTRATO ID INVENTARIO V001]
 // Autenticacion M2M HMAC obligatoria incluso si INTEGRATION_AUTH_ENABLED=false.
 // Nunca exponer estos endpoints con un JWT humano ni con un guard de frontend.
 
@@ -22,11 +22,12 @@ function respond(action, status = 200) {
 }
 
 router.get('/contrato', (_req,res) => res.json({
-  ok:true, version:1, lotesPorFuente:service.TYPE_BY_ROUTE,
+  ok:true, version:2, lotesPorFuente:service.TYPE_BY_ROUTE,
+  inventario230:{llave:'idInventario',obligatoria:true,estrategia:'UPSERT_AL_FINALIZAR',ausentes:'CONSERVAR'},
   tamanoMaximoPagina:service.MAX_PAGE_SIZE,
   algoritmoFirma:'HMAC-SHA256',
   paginaBase:1,
-  nota:'El inventario se publica al finalizar la carga completa; no se exponen lotes RECIBIENDO.'
+  nota:'El inventario 230 recibe idInventario de SEND y aplica INSERT/UPDATE al finalizar el lote completo.'
 }));
 router.post('/:fuente/lotes', respond((type,req) => service.beginLot(type,req.body || {}),201));
 router.get('/:fuente/lotes/:id', respond((type,req) => service.statusLot(type,req.params.id)));
