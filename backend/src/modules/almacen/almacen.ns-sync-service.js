@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN 230 ID INVENTARIO UPSERT V001]
+// [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN NS REDONDEO DECIMALES V001]
 // El ID de SEND identifica INSERT o UPDATE en Aiven. El lote permanece
 // invisible hasta finalizar: se reciben filas temporales y se aplican en
 // una sola transaccion. Los IDs ausentes del SEND se conservan.
@@ -148,16 +149,32 @@ function numericString(value, precision, scale, key, nullable) {
   }
   if (/e/i.test(raw)) {
     if (typeof value !== 'number' || !Number.isFinite(value)) throw err(`${key} debe usar decimal explicito.`, 422);
+    // Google Sheets envia porcentajes calculados con mas decimales de los que
+    // MySQL puede almacenar. Ajustar a la escala de la columna, no rechazar.
     raw = value.toFixed(scale);
-    if (Number(raw) !== value) throw err(`${key} excede la escala decimal permitida.`, 422);
   }
   if (!/^-?\d+(?:\.\d+)?$/.test(raw)) throw err(`${key} contiene caracteres no numericos.`, 422);
-  const unsignedRaw = raw.startsWith('-') ? raw.slice(1) : raw;
-  const [integerPart, decimalPart = ''] = unsignedRaw.split('.');
-  if (integerPart.replace(/^0+/, '').length > precision - scale || decimalPart.length > scale) {
+  let unsignedRaw = raw.startsWith('-') ? raw.slice(1) : raw;
+  let [integerPart, decimalPart = ''] = unsignedRaw.split('.');
+  if (integerPart.replace(/^0+/, '').length > precision - scale) {
     throw err(`${key} excede DECIMAL(${precision},${scale}).`, 422);
   }
-  return raw === '-0' ? '0' : raw;
+  if (decimalPart.length > scale) {
+    // Redondeo decimal usando texto/BigInt: evita perder precision monetaria
+    // por convertir importes de hasta DECIMAL(20,*) a Number de JavaScript.
+    const roundUp = decimalPart.charCodeAt(scale) >= 53; // '5' a '9'
+    const scaled = BigInt(integerPart + decimalPart.slice(0, scale)) + (roundUp ? 1n : 0n);
+    const digits = scaled.toString().padStart(scale + 1, '0');
+    const split = digits.length - scale;
+    raw = (raw.startsWith('-') && scaled !== 0n ? '-' : '')
+      + digits.slice(0, split) + '.' + digits.slice(split);
+    unsignedRaw = raw.startsWith('-') ? raw.slice(1) : raw;
+    [integerPart] = unsignedRaw.split('.');
+    if (integerPart.replace(/^0+/, '').length > precision - scale) {
+      throw err(`${key} excede DECIMAL(${precision},${scale}).`, 422);
+    }
+  }
+  return raw === '-0' || /^-0\.0+$/.test(raw) ? '0' : raw;
 }
 function positiveBigInt(value, key, allowZero = false) {
   if (value === undefined || value === null || value === '' || typeof value === 'boolean') {
