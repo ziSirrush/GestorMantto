@@ -1,99 +1,103 @@
 'use strict';
 
+// [Aster | 2026-10-19 | ASTER-MG | ALMACEN NS FASE 1 BASE + FASE 2 SYNC V001]
+// Reemplazo integral del router Excel. Conserva las rutas de los siete
+// apartados del frontend; solo Inventario/Dashboard/Stock/Auditoria cuentan
+// con informacion contrastable en las busquedas recibidas hasta la F2.
+
 const express = require('express');
-const multer = require('multer');
-const controller = require('./almacen.controller');
-const service = require('./almacen.service');
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
-
+const ns = require('./almacen.ns-query-service');
+const audit = require('./almacen.ns-audit-service');
+const nsSyncRoutes = require('./almacen.ns-sync-routes');
 const router = express.Router();
-const upload = multer({ storage:multer.memoryStorage(), limits:{ fileSize:25*1024*1024, files:1 } });
+// Receptor Sheets M2M aislado de los permisos humanos y de Excel.
+router.use('/sync', nsSyncRoutes);
 
-const DASHBOARD_PERMISSION = 'ALMACEN_DASHBOARD_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const INVENTORY_PERMISSION = 'ALMACEN_INVENTARIOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-// Stock conserva temporalmente el codigo de permiso legado porque el SQL de migracion
-// reutiliza el registro historico de Movimientos. Los demas modulos usan su permiso propio.
-const STOCK_PERMISSION = 'ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const LOANS_PERMISSION = 'ALMACEN_PRESTAMOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const GUARDS_PERMISSION = 'ALMACEN_RESGUARDOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const AUDIT_PERMISSION = 'ALMACEN_AUDITORIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const LOAD_PERMISSION = 'ALMACEN_CARGA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const SOURCE_PERMISSIONS = Object.freeze([
-  DASHBOARD_PERMISSION,
-  INVENTORY_PERMISSION,
-  STOCK_PERMISSION,
-  LOANS_PERMISSION,
-  GUARDS_PERMISSION,
-  AUDIT_PERMISSION,
-  LOAD_PERMISSION
-]);
+const PERMISSION = Object.freeze({
+  dashboard:'ALMACEN_DASHBOARD_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  inventario:'ALMACEN_INVENTARIOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  // Codigo legado existente en el Panel de Control. NO se inventa uno nuevo.
+  stock:'ALMACEN_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  prestamos:'ALMACEN_PRESTAMOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  resguardos:'ALMACEN_RESGUARDOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  auditoria:'ALMACEN_AUDITORIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+  carga:'ALMACEN_CARGA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'
+});
 
-function almacenGuard(permissionCode) {
-  return humanInformationGuard_gnral({ permissionCodesAny:[permissionCode], domain:'CORELLIAN', groupingCodesAny:['ALMACEN'] });
+function guard(permission){
+  return humanInformationGuard_gnral({permissionCodesAny:[permission],domain:'CORELLIAN',groupingCodesAny:['ALMACEN']});
+}
+function guardAny(){
+  return humanInformationGuard_gnral({
+    permissionCodesAny:Object.values(PERMISSION),domain:'CORELLIAN',groupingCodesAny:['ALMACEN']
+  });
+}
+function read(handler){
+  return async (req,res,next)=>{
+    try{const scope=ns.readScope(req);res.json(await handler(scope,req.query||{},req));}
+    catch(e){next(e);}
+  };
+}
+function auditRead(handler){
+  return async (req,res,next)=>{
+    try{const scope=ns.readScope(req);res.json(await handler(scope,req));}
+    catch(e){next(e);}
+  };
+}
+function auditWrite(handler){
+  return async (req,res,next)=>{
+    try{const scope=ns.readScope(req);res.json(await handler(scope,req));}
+    catch(e){next(e);}
+  };
+}
+function legacyGone(req,res){
+  return res.status(410).json({
+    ok:false,code:'ALMACEN_EXCEL_RETIRED',
+    message:'La carga manual de Excel fue retirada. NetSuite/Sheets se integrara en Fase 3.'
+  });
 }
 
-function almacenSourceGuard() {
-  return humanInformationGuard_gnral({ permissionCodesAny:SOURCE_PERMISSIONS, domain:'CORELLIAN', groupingCodesAny:['ALMACEN'] });
-}
+// La fuente es el ultimo corte NetSuite publicado, completo y ACTIVO.
+router.get('/fuentes',...guardAny(),read(scope=>ns.listSources(scope)));
+router.get('/dashboard',...guard(PERMISSION.dashboard),read(scope=>ns.getDashboard(scope)));
+router.get('/inventario',...guard(PERMISSION.inventario),read((scope,q)=>ns.getInventory(scope,q)));
+router.get('/inventario/catalogos',...guard(PERMISSION.inventario),read(scope=>ns.getCatalogs(scope)));
+router.get('/inventario/empresa',...guard(PERMISSION.inventario),read((scope,q)=>ns.getCompany(scope,q)));
+router.get('/inventario/almacenes',...guard(PERMISSION.inventario),read((scope,q)=>ns.getWarehouses(scope,q)));
+router.get('/inventario/top',...guard(PERMISSION.inventario),read((scope,q)=>ns.getTop(scope,q)));
 
-async function inventoryCapabilities(req,res,next){
-  try{
-    // Inventario es de solo lectura y respeta el cierre solicitado por Fase 3.
-    // La mutación/importación sigue separada en Almacén > Carga de Información.
-    res.json({ok:true,canImport:false,source:await service.resolveSource(req.query||{}),loadRoute:'almacen-carga'});
-  }catch(error){next(error);}
-}
+router.get('/stock',...guard(PERMISSION.stock),read((scope,q)=>ns.getStock(scope,q)));
+router.get('/stock/reabasto',...guard(PERMISSION.stock),read((scope,q)=>ns.getStockReabasto(scope,q)));
+router.patch('/stock/reabasto',...guard(PERMISSION.stock),legacyGone);
 
-async function loadCapabilities(_req,res,next){
-  try{
-    // Llegar aquí implica que humanInformationGuard_gnral ya validó LOAD_PERMISSION.
-    res.json({ok:true,canImport:true,source:await service.activeSource(),permission:LOAD_PERMISSION});
-  }catch(error){next(error);}
-}
+router.get('/prestamos/catalogos',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanCatalogs(scope)));
+router.get('/prestamos/resumen',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanSummary(scope)));
+router.get('/prestamos',...guard(PERMISSION.prestamos),read((scope,q)=>ns.getLoans(scope,q)));
+router.get('/resguardos/catalogos',...guard(PERMISSION.resguardos),read(scope=>ns.getGuardCatalogs(scope)));
+router.get('/resguardos',...guard(PERMISSION.resguardos),read((scope,q)=>ns.getGuards(scope,q)));
 
-// Fuente común e histórico de cierres.
-router.get('/fuentes', ...almacenSourceGuard(), controller.sources);
-router.get('/dashboard', ...almacenGuard(DASHBOARD_PERMISSION), controller.dashboard);
-router.get('/inventario', ...almacenGuard(INVENTORY_PERMISSION), controller.inventory);
-router.get('/inventario/catalogos', ...almacenGuard(INVENTORY_PERMISSION), controller.catalogs);
-router.get('/inventario/empresa', ...almacenGuard(INVENTORY_PERMISSION), controller.company);
-router.get('/inventario/almacenes', ...almacenGuard(INVENTORY_PERMISSION), controller.warehouses);
-router.get('/inventario/top', ...almacenGuard(INVENTORY_PERMISSION), controller.top);
+router.get('/auditoria/catalogos',...guard(PERMISSION.auditoria),read(scope=>ns.getAuditCatalogs(scope)));
+router.get('/auditoria/muestra',...guard(PERMISSION.auditoria),read((scope,q)=>ns.getAuditSample(scope,q)));
+router.get('/auditoria/historico',...guard(PERMISSION.auditoria),read((scope,q)=>audit.listAudits(scope,q)));
+router.post('/auditoria',...guard(PERMISSION.auditoria),auditWrite((scope,req)=>audit.createAudit(scope,req.body||{},req)));
+router.get('/auditoria/:folio',...guard(PERMISSION.auditoria),auditRead((scope,req)=>audit.getAudit(scope,req.params.folio)));
+router.patch('/auditoria/:folio/items/:id',...guard(PERMISSION.auditoria),auditWrite((scope,req)=>audit.updateAuditItem(scope,req.params.folio,req.params.id,req.body||{},req)));
+router.post('/auditoria/:folio/cerrar',...guard(PERMISSION.auditoria),auditWrite((scope,req)=>audit.closeAudit(scope,req.params.folio,req)));
 
-router.get('/stock', ...almacenGuard(STOCK_PERMISSION), controller.stock);
-// [Aster | 2026-09-07 | ASTER-MG | FASE 4 ALMACEN NO REQUIERE REABASTO V001]
-// El bypass operativo conserva la alerta tecnica de Stock. La ruta de lectura devuelve
-// estado operativo/auditoria y PATCH agrega un evento append-only; no edita el cierre Excel.
-router.get('/stock/reabasto', ...almacenGuard(STOCK_PERMISSION), controller.stockReabasto);
-router.patch('/stock/reabasto', ...almacenGuard(STOCK_PERMISSION), controller.setStockReabasto);
-router.get('/prestamos/catalogos', ...almacenGuard(LOANS_PERMISSION), controller.loanCatalogs);
-router.get('/prestamos/resumen', ...almacenGuard(LOANS_PERMISSION), controller.loanSummary);
-router.get('/prestamos', ...almacenGuard(LOANS_PERMISSION), controller.loans);
-router.get('/resguardos/catalogos', ...almacenGuard(GUARDS_PERMISSION), controller.guardCatalogs);
-router.get('/resguardos', ...almacenGuard(GUARDS_PERMISSION), controller.guards);
+// El apartado Carga de Informacion sigue existiendo. En Fase 4 se reemplaza
+// su UI de Excel por monitoreo de lotes NetSuite. Sin escritura legacy.
+router.get('/importaciones/capabilities',...guard(PERMISSION.inventario),read(async scope=>({
+  ok:true,canImport:false,source:await ns.activeSource(scope),loadRoute:'almacen-carga',provider:'NETSUITE_AIVEN'
+})));
+router.get('/carga/capabilities',...guard(PERMISSION.carga),read(async scope=>({
+  ok:true,canImport:false,source:await ns.activeSource(scope),provider:'NETSUITE_AIVEN',
+  message:'La importacion de Excel fue retirada. Sincronizacion via Sheets pendiente de Fase 3.'
+})));
+router.post('/carga/validar',...guard(PERMISSION.carga),legacyGone);
+router.post('/carga/archivar-activo',...guard(PERMISSION.carga),legacyGone);
+router.post('/carga/archivar',...guard(PERMISSION.carga),legacyGone);
+router.post('/carga/importar',...guard(PERMISSION.carga),legacyGone);
+router.post('/carga/fuentes/:lote/activar',...guard(PERMISSION.carga),legacyGone);
 
-router.get('/auditoria/catalogos', ...almacenGuard(AUDIT_PERMISSION), controller.auditCatalogs);
-router.get('/auditoria/muestra', ...almacenGuard(AUDIT_PERMISSION), controller.auditSample);
-
-// [Aster | 2026-08-31 | ASTER-MG | FASE 3 ALMACEN CIERRES/AUDITORIA PERSISTENTE V001]
-// almacen_fuente_excel permanece inmutable desde Auditoría; las capturas viven en almacen_auditoria.
-router.get('/auditoria/historico', ...almacenGuard(AUDIT_PERMISSION), controller.listAudits);
-router.post('/auditoria', ...almacenGuard(AUDIT_PERMISSION), controller.createAudit);
-router.get('/auditoria/:folio', ...almacenGuard(AUDIT_PERMISSION), controller.getAudit);
-router.patch('/auditoria/:folio/items/:id', ...almacenGuard(AUDIT_PERMISSION), controller.updateAuditItem);
-router.post('/auditoria/:folio/cerrar', ...almacenGuard(AUDIT_PERMISSION), controller.closeAudit);
-
-// El módulo Inventario ya no expone funciones de carga.
-router.get('/importaciones/capabilities', ...almacenGuard(INVENTORY_PERMISSION), inventoryCapabilities);
-
-// [Aster | 2026-09-01 | ASTER-MG | FIX ALMACEN ARCHIVO BLOB + STAGING ACTIVO V001]
-// Carga de Información: el Excel original queda privado en Azure Blob. Aiven solo
-// conserva una fila ARCHIVO por cierre y las filas normalizadas del cierre activo.
-router.get('/carga/capabilities', ...almacenGuard(LOAD_PERMISSION), loadCapabilities);
-router.post('/carga/validar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.validateImport);
-router.post('/carga/archivar-activo', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.archiveActive);
-router.post('/carga/archivar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.archiveSpreadsheet);
-router.post('/carga/importar', ...almacenGuard(LOAD_PERMISSION), upload.single('archivo'), controller.importSpreadsheet);
-router.post('/carga/fuentes/:lote/activar', ...almacenGuard(LOAD_PERMISSION), controller.activateSource);
-
-module.exports = router;
+module.exports=router;
