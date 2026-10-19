@@ -22,17 +22,27 @@ function error(message, status = 400, code = 'ALMACEN_NS_ERROR') {
 }
 
 function readScope(req) {
-  const context = req?.informationAccess;
-  if (!context || context.acceso_puerta !== true || context.acceso_dominio_completo !== true) {
+  const context = req?.almacenNsScope;
+  const subsidiaryIds = Array.isArray(context?.subsidiaryIds)
+    ? [...new Set(context.subsidiaryIds.map(String))]
+    : [];
+  const expectedIds = [
+    ...(context?.masterKeys?.corellian === true ? ['2'] : []),
+    ...(context?.masterKeys?.corellian === true && context?.masterKeys?.united === true ? ['3'] : []),
+    ...(context?.masterKeys?.united === true ? ['5'] : [])
+  ];
+  if (!context || !subsidiaryIds.length
+    || subsidiaryIds.length !== expectedIds.length
+    || subsidiaryIds.some((id, index) => id !== expectedIds[index])) {
     throw error('No se puede determinar un alcance completo para estos registros de NetSuite.', 403, 'ALMACEN_NS_SCOPE_UNRESOLVED');
   }
-  // Mapeo documentado por la busqueda NS suministrada: 2=CORELLIAN, 5=UNITED.
-  // La agrupacion ALMACEN actualmente es CORELLIAN. Otros dominios requieren
-  // resolucion explicita del Guard central; ninguna union multiempresa implicita.
-  const domain = String(context.dominio || '').toUpperCase();
-  if (domain === 'CORELLIAN') return Object.freeze({domain, subsidiaryId:'2'});
-  if (domain === 'UNITED') return Object.freeze({domain, subsidiaryId:'5'});
-  throw error('La subsidiaria del alcance no tiene correspondencia NetSuite verificada.', 403, 'ALMACEN_NS_SUBSIDIARY_UNMAPPED');
+  // Mapeo confirmado: 2=CORELLIAN, 3=NUBIAN y 5=UNITED. El Guard es la unica
+  // autoridad que produce esta lista; los parametros del cliente nunca agregan IDs.
+  return Object.freeze({
+    domains: Object.freeze([...(context.domains || [])]),
+    subsidiaries: Object.freeze([...(context.subsidiaries || [])]),
+    subsidiaryIds: Object.freeze(subsidiaryIds)
+  });
 }
 
 function text(value, limit = MAX_SEARCH) {
@@ -86,8 +96,8 @@ async function activeSource(scope, conn = db) {
   if (!rows.length) return null;
   const item = rows[0];
   const [count] = await conn.query(
-    'SELECT COUNT(*) AS filas FROM almacen_ns_inventario WHERE id_lote=? AND id_subsidiaria_ns=?',
-    [item.loteImportacion,scope.subsidiaryId]
+    'SELECT COUNT(*) AS filas FROM almacen_ns_inventario WHERE id_lote=? AND id_subsidiaria_ns IN (?)',
+    [item.loteImportacion,scope.subsidiaryIds]
   );
   // Un lote valido puede no contener filas autorizadas en este dominio.
   const rowsScoped = Number(count[0]?.filas || 0);
@@ -97,7 +107,7 @@ async function activeSource(scope, conn = db) {
     activo:true,loaded:rowsScoped>0,archived:false,reloadable:false,
     archivoOrigen:'NetSuite · Inventario 230',filas:rowsScoped,filasCargadas:rowsScoped,
     datasets:{INVENTARIO:{filas:rowsScoped},PRESTAMO:{filas:0,available:false},RESGUARDO:{filas:0,available:false}},
-    scopeDomain:scope.domain
+    scopeDomains:scope.domains
   };
 }
 
@@ -141,10 +151,10 @@ function inventorySql(scope, source, publishedCatalog) {
       i.fisico,i.valor_factura AS valor,
       CASE WHEN i.fisico<>0 THEN i.valor_factura/i.fisico ELSE NULL END AS precioUnitario
     FROM almacen_ns_inventario i ${catJoin}
-    WHERE i.id_lote=? AND i.id_subsidiaria_ns=?`;
+    WHERE i.id_lote=? AND i.id_subsidiaria_ns IN (?)`;
   const params = publishedCatalog
-    ? [publishedCatalog,source.loteImportacion,scope.subsidiaryId]
-    : [source.loteImportacion,scope.subsidiaryId];
+    ? [publishedCatalog,source.loteImportacion,scope.subsidiaryIds]
+    : [source.loteImportacion,scope.subsidiaryIds];
   return {sql,params};
 }
 
@@ -190,9 +200,9 @@ async function listSources(scope) {
        WHERE l.tipo_fuente='INVENTARIO_230' AND l.estado='PUBLICADO' AND l.es_completo=1
          AND EXISTS (
            SELECT 1 FROM almacen_ns_inventario i
-            WHERE i.id_lote=l.id_lote AND i.id_subsidiaria_ns=?
+            WHERE i.id_lote=l.id_lote AND i.id_subsidiaria_ns IN (?)
          )
-       ORDER BY l.publicado_en DESC LIMIT 100`,[scope.subsidiaryId]
+       ORDER BY l.publicado_en DESC LIMIT 100`,[scope.subsidiaryIds]
   );
   const active = await activeSource(scope);
   // Lista global de tipos de lote, sin revelar las cantidades/filas de otras empresas.

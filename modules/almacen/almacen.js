@@ -26,7 +26,7 @@
     catalogs:{ companies:[], categories:[], warehouses:[] },
     dashboard:null,
     inventory:{ query:'', company:'todas', category:'todas', warehouse:'todos', minValue:'', maxValue:'', stockOnly:true, page:1, data:null },
-    company:{ selected:'Corellian', query:'', page:1, data:null },
+    company:{ selected:'', query:'', page:1, data:null },
     warehouse:{ company:'todas', query:'', data:null },
     top:{ mode:'valor', company:'todas', count:'20', data:null },
     stock:{ query:'', company:'todas', abc:'todas', alert:'todas', page:1, data:null },
@@ -181,7 +181,7 @@
   }
 
   function companyChips(active, attr, includeAll){
-    const values = (includeAll ? ['todas'] : []).concat(state.catalogs.companies.length ? state.catalogs.companies : ['Corellian','Nubian','United']);
+    const values = (includeAll ? ['todas'] : []).concat(state.catalogs.companies || []);
     return '<div class="alm-chip-row">' + values.map(function(value){
       const label = value === 'todas' ? 'Todas' : value;
       return '<button type="button" class="alm-chip' + (value===active?' is-active':'') + '" ' + attr + '="' + escapeHtml(value) + '">' + escapeHtml(label) + '</button>';
@@ -290,7 +290,12 @@
     state.inventory.data = await get('/api/almacen/inventario'+qs({page:f.page,pageSize:30,q:f.query,company:f.company,category:f.category,warehouse:f.warehouse,minValue:f.minValue,maxValue:f.maxValue,stockOnly:f.stockOnly}),{force:true});
   }
   async function loadCompanyData(){
-    if(!state.catalogs.companies.includes(state.company.selected) && state.catalogs.companies.length) state.company.selected = state.catalogs.companies[0];
+    if(!state.catalogs.companies.length){
+      state.company.selected='';
+      state.company.data={ok:true,rows:[],summary:{piezas:0,valorTotal:null,precioPromedio:null},pagination:{page:1,pageSize:30,total:0,pages:1}};
+      return;
+    }
+    if(!state.catalogs.companies.includes(state.company.selected)) state.company.selected = state.catalogs.companies[0];
     state.company.data = await get('/api/almacen/inventario/empresa'+qs({company:state.company.selected,q:state.company.query,page:state.company.page}),{force:true});
   }
   async function loadWarehouseData(){ state.warehouse.data = await get('/api/almacen/inventario/almacenes'+qs({company:state.warehouse.company,q:state.warehouse.query}),{force:true}); }

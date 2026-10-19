@@ -6,7 +6,7 @@
 // con informacion contrastable en las busquedas recibidas hasta la F2.
 
 const express = require('express');
-const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
+const { almacenNsAccessGuard } = require('./almacen.ns-access-guard');
 const ns = require('./almacen.ns-query-service');
 const audit = require('./almacen.ns-audit-service');
 const nsSyncRoutes = require('./almacen.ns-sync-routes');
@@ -26,12 +26,10 @@ const PERMISSION = Object.freeze({
 });
 
 function guard(permission){
-  return humanInformationGuard_gnral({permissionCodesAny:[permission],domain:'CORELLIAN',groupingCodesAny:['ALMACEN']});
+  return almacenNsAccessGuard([permission]);
 }
 function guardAny(){
-  return humanInformationGuard_gnral({
-    permissionCodesAny:Object.values(PERMISSION),domain:'CORELLIAN',groupingCodesAny:['ALMACEN']
-  });
+  return almacenNsAccessGuard(Object.values(PERMISSION));
 }
 function read(handler){
   return async (req,res,next)=>{

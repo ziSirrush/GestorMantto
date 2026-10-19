@@ -53,10 +53,10 @@ function calc(rows){
 }
 
 async function allowedCompanies(scope,conn=db){
-  const names=new Set(scope.domain==='CORELLIAN'?['Corellian']:['United']);
+  const names=new Set((scope.subsidiaries||[]).flatMap(item=>item.aliases||[]));
   const [rows]=await conn.query(
-    'SELECT DISTINCT subsidiaria FROM almacen_ns_inventario WHERE id_subsidiaria_ns=? AND subsidiaria IS NOT NULL',
-    [scope.subsidiaryId]
+    'SELECT DISTINCT subsidiaria FROM almacen_ns_inventario WHERE id_subsidiaria_ns IN (?) AND subsidiaria IS NOT NULL',
+    [scope.subsidiaryIds]
   );
   for(const row of rows){const name=String(row.subsidiaria||'').trim();if(name)names.add(name);}
   return [...names];
