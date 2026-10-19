@@ -347,6 +347,8 @@
   min-width:0;
   padding:10px 12px;
 }
+/* [Aster | 2026-10-19 | ASTER-MG | Sin hueco cuando toda la metadata esta vacia] */
+.task-row.task-row-compact[data-empty-meta="1"]{grid-template-columns:minmax(0,1fr) auto}
 .task-row-compact .task-identity{min-width:0}
 .task-row-compact .task-identity-head{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
 .task-row-compact .task-title{
@@ -423,6 +425,7 @@
 
 @container task-workspace (max-width:640px){
   .task-row.task-row-compact{grid-template-columns:minmax(0,1fr);gap:9px}
+  .task-row.task-row-compact[data-empty-meta="1"]{grid-template-columns:minmax(0,1fr)}
   .task-row-compact .task-compact-meta{border-top:1px solid var(--line);border-left:0;padding-top:6px}
   .task-row-compact .task-meta-item{padding:3px 8px 3px 0}
   .task-row-compact .task-actions{justify-content:flex-end}
@@ -436,6 +439,7 @@
 
 @media(max-width:760px){
   .task-row.task-row-compact{grid-template-columns:minmax(0,1fr);gap:9px}
+  .task-row.task-row-compact[data-empty-meta="1"]{grid-template-columns:minmax(0,1fr)}
   .task-row-compact .task-compact-meta{border-top:1px solid var(--line);border-left:0;padding-top:6px}
   .task-row-compact .task-meta-item{padding:3px 8px 3px 0}
   .task-row-compact .task-actions{justify-content:flex-end}

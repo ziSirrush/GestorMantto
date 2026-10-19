@@ -244,7 +244,7 @@ test('estilos y cache-bust publican la versión reorganizada', () => {
   assert.match(css, /\.task-form-reorganized/);
   assert.match(css, /\.task-optional-content\[hidden\]\{display:none!important\}/);
   assert.match(css, /@media\(max-width:480px\)/);
-  assert.match(index, /styles\/home\.css\?v=20261014-tareas-cards-v001/);
-  assert.match(index, /modules\/home\/home\.js\?v=20261014-tareas-cards-v001/);
+  assert.match(index, /styles\/home\.css\?v=20261019-tareas-meta-visibles-v001/);
+  assert.match(index, /modules\/home\/home\.js\?v=20261019-tareas-meta-visibles-v001/);
 });
 

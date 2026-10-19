@@ -465,7 +465,7 @@
       subtareas: Number(row.total_subtareas || 0),
       subtareasCerradas: Number(row.subtareas_cerradas || 0),
       comentarios: Number(row.total_comentarios || 0),
-      responsables: String(assigned || row.creado_por_iniciales || '').split(',').map(v => v.trim()).filter(Boolean).slice(0, 6),
+      responsables: String(assigned || '').split(',').map(v => v.trim()).filter(Boolean).slice(0, 6),
       route: { module: 'tareas', id }
     };
   }
@@ -577,12 +577,16 @@
     return '🕘';
   }
 
+  // [Aster | 2026-10-19 | ASTER-MG | FIX_HOME_TAREAS_META_VISIBILIDAD_V001]
   function taskRow(t){
     const assignedLabel = t.tipo === 'COLABORATIVA' ? 'Responsables' : 'Seguimiento';
-    const assigned = (t.responsables || []).join(' · ') || 'Sin asignar';
+    const assigned = (t.responsables || []).map(value => String(value || '').trim()).filter(value => value && !/^0+$/.test(value)).join(' · ');
     const description = t.descripcion || 'Sin descripcion';
     const hasLinkage = Boolean(t.area || t.proyecto || t.equipo);
-    return `<article class="task-row task-row-compact" data-task-id="${safeText(t.id)}">
+    const rawDue = String(t.dueRaw || '').trim();
+    const hasDue = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(rawDue) && !rawDue.startsWith('0000-');
+    const hasMeta = hasDue || Boolean(assigned) || t.subtareas > 0 || t.comentarios > 0;
+    return `<article class="task-row task-row-compact" data-task-id="${safeText(t.id)}" data-empty-meta="${hasMeta ? '0' : '1'}">
       <div class="task-identity">
         <div class="task-identity-head">
           <button type="button" class="task-title task-open" data-task-id="${safeText(t.id)}" title="${safeText(t.titulo)}">${safeText(t.titulo)}</button>
@@ -598,12 +602,12 @@
           ${t.equipo ? `<button type="button" data-target='${toTargetAttr({module:'portafolio',id:t.equipo})}'><small>Equipo</small>${safeText(t.equipo)}</button>` : ''}
         </div>` : ''}
       </div>
-      <div class="task-meta task-compact-meta">
-        <div class="task-meta-item"><span>Fecha compromiso</span><strong class="task-date">${safeText(t.due)}</strong></div>
-        <div class="task-meta-item"><span>${safeText(assignedLabel)}</span><strong title="${safeText(assigned)}">${safeText(assigned)}</strong></div>
-        <div class="task-meta-item"><span>Subtareas</span><strong>${safeText(t.subtareasCerradas + '/' + t.subtareas)} subtareas</strong></div>
-        <div class="task-meta-item"><span>Comentarios</span><strong>${safeText(t.comentarios)} comentarios</strong></div>
-      </div>
+      ${hasMeta ? `<div class="task-meta task-compact-meta">
+        ${hasDue ? `<div class="task-meta-item"><span>Fecha compromiso</span><strong class="task-date">${safeText(t.due)}</strong></div>` : ''}
+        ${assigned ? `<div class="task-meta-item"><span>${safeText(assignedLabel)}</span><strong title="${safeText(assigned)}">${safeText(assigned)}</strong></div>` : ''}
+        ${t.subtareas > 0 ? `<div class="task-meta-item"><span>Subtareas</span><strong>${safeText(t.subtareasCerradas + '/' + t.subtareas)} subtareas</strong></div>` : ''}
+        ${t.comentarios > 0 ? `<div class="task-meta-item"><span>Comentarios</span><strong>${safeText(t.comentarios)} comentarios</strong></div>` : ''}
+      </div>` : ''}
       <div class="task-actions"><button type="button" class="mini-action task-open" data-task-id="${safeText(t.id)}">Ver</button></div>
     </article>`;
   }

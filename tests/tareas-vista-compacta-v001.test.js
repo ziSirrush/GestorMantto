@@ -103,6 +103,6 @@ test('estilos y cache-bust habilitan layout fluido sin altura fija ni overflow h
   assert.match(compact, /@media\(max-width:760px\)/);
   assert.match(compact, /overflow-wrap:anywhere/);
   assert.doesNotMatch(compact, /\.task-row\.task-row-compact[^}]*height:/s);
-  assert.match(index, /styles\/home\.css\?v=20261014-tareas-cards-v001/);
-  assert.match(index, /modules\/home\/home\.js\?v=20261014-tareas-cards-v001/);
+  assert.match(index, /styles\/home\.css\?v=20261019-tareas-meta-visibles-v001/);
+  assert.match(index, /modules\/home\/home\.js\?v=20261019-tareas-meta-visibles-v001/);
 });
