@@ -1,8 +1,52 @@
-const SERVICE_WORKER_VERSION = '20261015-pwa-version-sync-v003';
+const SERVICE_WORKER_VERSION = '20261020-offline-shell-v001';
+const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}`;
 const DEFAULT_URL = './index.html?push_open=notifications';
+const SHELL_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './manifest-github.json',
+  './styles/base.css',
+  './styles/home.css',
+  './styles/device-permissions.css',
+  './core/daily-phrases.js',
+  './core/config.js',
+  './core/build-info.js',
+  './core/app-update.js',
+  './core/project-name.js',
+  './core/push-notifications.js',
+  './core/device-permissions.js',
+  './core/auth.js',
+  './core/viewer-readonly.js',
+  './core/http.js',
+  './core/data-sync.js',
+  './core/human-time.js',
+  './core/module-loader.js',
+  './core/router.js',
+  './core/estados-visuales.js',
+  './core/pdf/pdf-engine.js',
+  './core/rich-text.js',
+  './core/details.js',
+  './core/user-viewer.js',
+  './core/offline-storage.js',
+  './core/offline-scheduler.js',
+  './core/app.js',
+  './modules/home/home.js',
+  './modules/support/support.js',
+  './modules/offline-pilot/offline-pilot.js',
+  './modules/offline-pilot/offline-pilot.css',
+  './assets/img/icons/icon-192.png',
+  './assets/img/icons/icon-512.png'
+];
 
 self.addEventListener('install', event => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+    // Un recurso opcional no debe impedir instalar una nueva versión. El
+    // núcleo se precarga y el resto se completa con cache-first al utilizarse.
+    await Promise.allSettled(SHELL_ASSETS.map(asset => cache.add(asset)));
+    await self.skipWaiting();
+  })());
 });
 
 function clientHasManagedUpdates(client) {
@@ -38,9 +82,65 @@ async function refreshLegacyClient(client) {
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys
+      .filter(key => key.startsWith('blt-now-shell-') && key !== SHELL_CACHE)
+      .map(key => caches.delete(key)));
     await self.clients.claim();
     const windows = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
     await Promise.all(windows.map(refreshLegacyClient));
+  })());
+});
+
+function isStaticShellRequest(request) {
+  if (request.method !== 'GET') return false;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return false;
+  if (url.pathname.includes('/api/')) return false;
+  if (/build-info\.generated\.js$|change-audit\.generated\.js$/i.test(url.pathname)) return false;
+  const scopePath = new URL('./', self.location.href).pathname;
+  if (!url.pathname.startsWith(scopePath)) return false;
+  const relativePath = url.pathname.slice(scopePath.length);
+  if (!relativePath || relativePath === 'index.html') return true;
+  if (relativePath === 'manifest.json' || relativePath === 'manifest-github.json') return true;
+  if (/^(?:styles|core)\/.+\.(?:css|js|woff2?)$/i.test(relativePath)) return true;
+  if (/^modules\/.+\.(?:css|js)$/i.test(relativePath)) return true;
+  return /^assets\/img\/icons\/.+\.(?:png|svg|ico|webp)$/i.test(relativePath);
+}
+
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+
+  // Las respuestas autenticadas nunca entran a Cache Storage.
+  if (url.origin === self.location.origin && url.pathname.includes('/api/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        return await fetch(request);
+      } catch (_error) {
+        const cached = await caches.match('./index.html', { ignoreSearch:true });
+        return cached || Response.error();
+      }
+    })());
+    return;
+  }
+
+  if (!isStaticShellRequest(request)) return;
+  event.respondWith((async () => {
+    const cached = await caches.match(request, { ignoreSearch:true });
+    if (cached) return cached;
+    const response = await fetch(request);
+    if (response && response.ok) {
+      const cache = await caches.open(SHELL_CACHE);
+      await cache.put(request, response.clone());
+    }
+    return response;
   })());
 });
 

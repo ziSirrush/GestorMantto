@@ -16,6 +16,14 @@
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
 
   function actor(){return window.ManttoAuth?.getActorUser?.()||{};}
+  function hasCachedOfflineAccess(){
+    const real=actor();
+    const effective=window.ManttoAuth?.getUser?.()||real;
+    return window.ManttoOfflineStorage?.hasCachedAccess?.(
+      real.id_SB||real.id||real.user_id,
+      effective.id_SB||effective.id||effective.user_id
+    )===true;
+  }
   function allowed(){return Boolean(state.canUseViewer)&&!window.ManttoAuth?.isViewingAs?.();}
   function elements(){
     return {
@@ -260,6 +268,9 @@
     const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
     if(exactPermissionCode){
       const exact=permissionState(exactPermissionCode);
+      if(!exact.exists&&exactPermissionCode==='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'){
+        return hasCachedOfflineAccess();
+      }
       return exact.exists===true&&exact.efectivo===true;
     }
     const rows=rowsForModule(item).filter(isActiveCatalogRow);
@@ -287,7 +298,8 @@
     document.querySelectorAll('.side-group').forEach(group=>{
       const hasVisibleModule=Array.from(group.querySelectorAll('.side-item')).some(item=>!item.hidden);
       const hasVisualGroupPermission=hasGroupVisualAccess(group);
-      group.hidden=!(hasActiveCatalogGroup(group)&&(hasVisibleModule||hasVisualGroupPermission));
+      const cachedOfflineGroup=norm(group.dataset.group)==='modooffline'&&hasVisibleModule&&hasCachedOfflineAccess();
+      group.hidden=!((hasActiveCatalogGroup(group)&&(hasVisibleModule||hasVisualGroupPermission))||cachedOfflineGroup);
     });
     const currentRoute=window.ManttoRouter?.getCurrent?.().route;
     const currentItem=currentRoute?document.querySelector(`.side-item[data-route="${CSS.escape(currentRoute)}"]`):null;

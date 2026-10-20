@@ -1,6 +1,6 @@
 (function(){
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
-  const SW_PATH = './service-worker.js?v=20261015-pwa-version-sync-v003';
+  const SW_PATH = './service-worker.js?v=20261020-offline-shell-v001';
   let registration = null;
   let config = null;
   let initialized = false;

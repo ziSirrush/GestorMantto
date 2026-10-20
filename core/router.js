@@ -979,7 +979,7 @@
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
     if(route==='panel-control' && showPanelControl()) return;
-    if(route==='offline-configuracion' && showView(route,'Piloto controlado · permiso individual y prueba local')){
+    if(route==='offline-configuracion' && showView(route,'Piloto controlado · copia operativa de solo lectura')){
       if(window.ManttoOfflinePilot?.init)window.ManttoOfflinePilot.init();
       return;
     }

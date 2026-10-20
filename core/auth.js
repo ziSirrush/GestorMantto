@@ -578,6 +578,14 @@
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     $('sidebar-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     const launchedViewUser=consumeViewerLaunch();
+    const hadLocalSessionEvidence=Boolean(
+      sessionStorage.getItem(TOKEN_KEY) ||
+      sessionStorage.getItem(USER_KEY) ||
+      sessionStorage.getItem(SESSION_KEY) ||
+      localStorage.getItem(TOKEN_KEY) ||
+      localStorage.getItem(USER_KEY) ||
+      localStorage.getItem(SESSION_KEY)
+    );
     const persistedSession=readPersistedActorSession();
     let savedToken = sessionStorage.getItem(TOKEN_KEY) || persistedSession?.token || '';
     let savedUser = safeJson(sessionStorage.getItem(USER_KEY)) || persistedSession?.user || null;
@@ -607,7 +615,12 @@
         if(isTerminalRefreshError(error)){
           clearSession();
           showLogin();
-          msg('login-msg','Tu sesión renovable ya no es válida. Inicia sesión nuevamente.','info');
+          // Un visitante nuevo también recibe 401 al no tener cookie de refresh.
+          // Solo hablamos de sesión vencida cuando el dispositivo realmente
+          // conservaba evidencia de una sesión anterior.
+          msg('login-msg',hadLocalSessionEvidence
+            ? 'Tu sesión renovable ya no es válida. Inicia sesión nuevamente.'
+            : '',hadLocalSessionEvidence?'info':'');
           return;
         }
 
@@ -680,9 +693,17 @@
   }
   function clearViewUser(){ setViewUser(null); }
   async function logout(){
+    const actorUser=getActorUser();
+    const effectiveUser=getUser();
     const csrfToken=String(localStorage.getItem(SESSION_CSRF_KEY)||'');
     const revokeRequest=fetch(AUTH_API_BASE+'/api/auth/logout',{method:'POST',credentials:'include',headers:{'Accept':'application/json','X-Session-CSRF':csrfToken}});
     clearSession();
+    document.dispatchEvent(new CustomEvent('mantto:logout',{
+      detail:{
+        actor_user_id:Number(actorUser?.id_SB||actorUser?.id||0)||null,
+        effective_user_id:Number(effectiveUser?.id_SB||effectiveUser?.id||0)||null
+      }
+    }));
     showLogin();
     try{
       await revokeRequest;
