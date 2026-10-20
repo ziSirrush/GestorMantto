@@ -57,6 +57,7 @@ const logisticaCortesRoutes = require('../modules/logistica-cortes/logistica-cor
 const movimientosCriticosRoutes = require('../modules/movimientos-criticos/movimientos-criticos.routes');
 const customerExperienceRoutes = require('../modules/customer-experience/customer-experience.routes');
 const entregasControlRoutes = require('../modules/entregas-control/entregas-control.routes');
+const offlinePilotRoutes = require('../modules/offline-pilot/offline-pilot.routes');
 
 const router = express.Router();
 
@@ -115,6 +116,7 @@ router.use('/experimental', experimentalProyectosCriticosRoutes);
 router.use('/movimientos-criticos', movimientosCriticosRoutes);
 router.use('/customer-experience', customerExperienceRoutes);
 router.use('/entregas', entregasControlRoutes);
+router.use('/offline', offlinePilotRoutes);
 router.use(dataRoutes);
 
 module.exports = router;

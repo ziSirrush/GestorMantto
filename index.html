@@ -347,6 +347,14 @@
 <button class="side-item" data-permission="soporte_chats" data-route="soporte-chats" type="button"><span>💬</span><b>Chats</b></button>
 </div>
 </section>
+<section class="side-group" data-company="GENERAL" data-group="modo-offline">
+<button aria-controls="side-group-modo-offline" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">📴</span><b>Modo Offline</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-modo-offline">
+<button class="side-item" data-permission="offline_configuracion" data-permission-code="GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="offline-configuracion" type="button"><span>💾</span><b>Configuración</b></button>
+</div>
+</section>
 <div aria-hidden="true" class="side-divider"></div>
 <button class="side-item side-standalone" data-permission="usuarios" data-route="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
 <button class="side-item side-standalone programmer" data-permission="panel_control" data-route="panel-control" type="button"><span>⚙️</span><b>Panel de Control</b></button>
@@ -367,6 +375,7 @@
 <section aria-label="Portafolio" class="view pf-view" data-view="portafolio" id="view-portafolio"></section>
 <section aria-label="Usuarios" class="view usr-view" data-view="usuarios" id="view-usuarios"></section>
 <section aria-label="Panel de Control" class="view pc-view" data-view="panel-control" id="view-panel-control"></section>
+<section aria-label="Configuración de Modo Offline" class="view off-view" data-view="offline-configuracion" id="view-offline-configuracion"></section>
 <section aria-label="Proyectos" class="view proy-view" data-view="proyectos" id="view-proyectos"></section>
 <section aria-label="Dashboard de Instalaciones" class="view idb-cor-view" data-view="instalaciones-dashboard" id="view-instalaciones-dashboard"></section>
 <section aria-label="Proyectos de Instalación" class="view insproy-view" data-view="instalaciones-proyectos" id="view-instalaciones-proyectos"></section>
@@ -758,8 +767,8 @@
 <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
 <script src="./core/data-sync.js?v=20261005-movimientos-criticos-fase4-v002"></script>
 <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
-<script src="./core/module-loader.js?v=20261017-int10-b3-seguridad-v001"></script>
-<script src="./core/router.js?v=20261016-int9-fase3-v001"></script>
+<script src="./core/module-loader.js?v=20261020-offline-piloto-f1-v001"></script>
+<script src="./core/router.js?v=20261020-offline-piloto-f1-v001"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
 <script src="./core/rich-text.js?v=20260913-rich-text-v001"></script>

@@ -4,7 +4,7 @@
     home:'Inicio', resumen:'Resumen del día', tickets:'Tickets', callcenter:'Dashboard Call Center',
     operativo:'Dashboard Operativo', informes:'Informes', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio', 'movimientos-criticos':'Movimientos Críticos',
     proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
-    tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', control:'Centro de Control',
+    tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', 'offline-configuracion':'Modo Offline', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
     'cobranza-dashboard':'Dashboard Cobranza', 'cobranza-estados-cuenta':'Estados de Cuenta', 'cobranza-aditivas':'Aditivas',
@@ -979,6 +979,10 @@
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
     if(route==='panel-control' && showPanelControl()) return;
+    if(route==='offline-configuracion' && showView(route,'Piloto controlado · permiso individual y prueba local')){
+      if(window.ManttoOfflinePilot?.init)window.ManttoOfflinePilot.init();
+      return;
+    }
     if(route==='help' && showView('help','Centro de Ayuda · flujos y FAQ desde Aiven')) return;
     if(route==='notifications'){ showNotifications(payload); return; }
     if(route==='support-request' && showView('support-request', currentPayload && currentPayload.id ? 'Editar mi solicitud de soporte' : 'Crear solicitud de soporte en Aiven')){

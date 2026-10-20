@@ -255,6 +255,7 @@
 
     usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261015-app-update-v001']},
     'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260929-runner-central-desktop-v001']},
+    'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase1-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261020-fase1-v001']},
     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001']},
 
     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
