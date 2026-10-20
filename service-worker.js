@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20261020-offline-progreso-global-v001';
+const SERVICE_WORKER_VERSION = '20261020-navegacion-offline-f5-v001';
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
@@ -31,22 +31,59 @@ const SHELL_ASSETS = [
   './core/user-viewer.js',
   './core/offline-storage.js',
   './core/offline-scheduler.js',
+  './core/offline-navigation.js',
+  './core/offline-resumen-dia.js',
+  './core/offline-instalaciones-proyectos.js',
+  './core/offline-native-actions.js',
   './core/app.js',
   './modules/home/home.js',
   './modules/support/support.js',
   './modules/offline-pilot/offline-pilot.js',
   './modules/offline-pilot/offline-pilot.css',
+  './modules/resumen-dia/resumen-dia.js',
+  './modules/resumen-dia/resumen-dia.css',
+  './modules/instalaciones-proyectos/instalaciones-proyectos.js',
+  './modules/instalaciones-proyectos/instalaciones-proyectos.css',
+  './modules/instalaciones-proyectos/instalaciones-proyectos.html',
   './assets/img/icons/icon-192.png',
   './assets/img/icons/icon-512.png'
 ];
 
+// La pantalla original CORELLIAN y su puente son imprescindibles para abrir
+// por primera vez un respaldo mientras no hay red. Si no se pueden descargar,
+// preservar el worker anterior en lugar de activar uno con shell incompleto.
+const REQUIRED_OFFLINE_COR_ASSETS = [
+  './core/offline-instalaciones-proyectos.js',
+  './core/offline-native-actions.js',
+  './modules/instalaciones-proyectos/instalaciones-proyectos.js',
+  './modules/instalaciones-proyectos/instalaciones-proyectos.css',
+  './modules/instalaciones-proyectos/instalaciones-proyectos.html'
+];
+// No activar una PWA cuya pantalla de Resumen del Dia no pueda abrir offline.
+const REQUIRED_OFFLINE_UNITED_ASSETS = [
+  './core/offline-navigation.js',
+  './core/offline-resumen-dia.js',
+  './core/offline-storage.js',
+  './core/offline-scheduler.js',
+  './modules/resumen-dia/resumen-dia.js',
+  './modules/resumen-dia/resumen-dia.css'
+];
+const REQUIRED_OFFLINE_ASSETS = [...new Set([
+  ...REQUIRED_OFFLINE_COR_ASSETS,...REQUIRED_OFFLINE_UNITED_ASSETS
+])];
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL_CACHE);
-    // Un recurso opcional no debe impedir instalar una nueva versión. El
-    // núcleo se precarga y el resto se completa con cache-first al utilizarse.
-    await Promise.allSettled(SHELL_ASSETS.map(asset => cache.add(asset)));
-    await self.skipWaiting();
+    try {
+      await Promise.all(REQUIRED_OFFLINE_ASSETS.map(asset => cache.add(asset)));
+      // Optional assets may fail without invalidating an otherwise complete shell.
+      await Promise.allSettled(SHELL_ASSETS.filter(asset =>
+        !REQUIRED_OFFLINE_ASSETS.includes(asset)).map(asset => cache.add(asset)));
+      await self.skipWaiting();
+    } catch (error) {
+      await caches.delete(SHELL_CACHE);
+      throw error;
+    }
   })());
 });
 
@@ -106,6 +143,8 @@ function isStaticShellRequest(request) {
   if (relativePath === 'manifest.json' || relativePath === 'manifest-github.json') return true;
   if (/^(?:styles|core)\/.+\.(?:css|js|woff2?)$/i.test(relativePath)) return true;
   if (/^modules\/.+\.(?:css|js)$/i.test(relativePath)) return true;
+  // Unico HTML dinamico certificado para consulta offline CORELLIAN.
+  if (relativePath === 'modules/instalaciones-proyectos/instalaciones-proyectos.html') return true;
   return /^assets\/img\/icons\/.+\.(?:png|svg|ico|webp)$/i.test(relativePath);
 }
 

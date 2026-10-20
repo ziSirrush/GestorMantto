@@ -18,6 +18,21 @@
   function actorId(){const u=window.ManttoAuth?.getActorUser?.()||{};return positiveId(u.id_SB||u.id||u.user_id);}
   function effectiveId(){const u=window.ManttoAuth?.getUser?.()||{};return positiveId(u.id_SB||u.id||u.user_id);}
   function keyFor(prefix,id){return prefix+id;}
+  // Compartir el ultimo catalogo realmente autorizado con la navegacion local.
+  // Se reutiliza exactamente el formato y vigencia de core/offline-storage.js.
+  function rememberAuthorizedCatalog(caps,actor,effective){
+    if(caps?.permission_code!==PERMISSION_CODE||Number(caps?.effective_user_id)!==effective||
+       (caps.actor_user_id!=null&&Number(caps.actor_user_id)!==actor)||
+       !Array.isArray(caps.catalog_modules))return false;
+    try{
+      localStorage.setItem(`mantto:offline-access:${actor}:${effective}`,
+        JSON.stringify({saved_at:new Date().toISOString(),data:caps}));
+      document.dispatchEvent(new CustomEvent('mantto:offline-capabilities-updated',{
+        detail:{actor_user_id:actor,effective_user_id:effective}
+      }));
+      return true;
+    }catch(error){console.warn('[Offline] No se pudo guardar el catalogo validado.',error);return false;}
+  }
   function readPreferences(id){
     if(!id)return null;
     try{const p=JSON.parse(localStorage.getItem(keyFor(PREF_PREFIX,id))||'null');return p&&typeof p==='object'?p:null;}
@@ -208,6 +223,7 @@
       const caps=capsResult?.data;
       if(caps?.permission_code!==PERMISSION_CODE||Number(caps.effective_user_id)!==effective||caps.viewer_read_only===true)
         fail('No se pudo revalidar la identidad y el permiso offline.');
+      rememberAuthorizedCatalog(caps,actor,effective);
       const allAuthorized={};
       for(const m of caps.catalog_modules||[]){
         for(const dataset of m.datasets||[]){
@@ -288,6 +304,7 @@
         const caps=response?.data;
         if(caps?.permission_code!==PERMISSION_CODE||Number(caps.effective_user_id)!==effective)
           fail('El backend no confirmó la autorización vigente.');
+        rememberAuthorizedCatalog(caps,actor,effective);
         const writableScopes={};
         for(const m of caps.catalog_modules||[]){
           for(const dataset of m.datasets||[]){
@@ -521,4 +538,18 @@
   window.setInterval(()=>{if(!document.hidden){evaluate();refreshPendingNotice();schedulePendingSync();}},INTERVAL_MS);
 
   window.ManttoOfflineScheduler={evaluate,dueState,markCompleted,markFailed,readPreferences,backupNow,revalidateCopies,refreshPendingNotice,syncPendingNow};
+
+  // Adaptador de navegacion desacoplado. Sin instaladores ni cambios en index.
+  function installOfflineNavigation(){
+    if(window.ManttoOfflineNavigation||typeof document.createElement!=='function'||!document.head?.appendChild||
+       document.getElementById?.('bltnow-offline-navigation-script'))return;
+    const script=document.createElement('script');
+    script.id='bltnow-offline-navigation-script';
+    script.src='./core/offline-navigation.js?v=20261020-navegacion-offline-f1-v001';
+    script.async=false;
+    script.addEventListener('error',()=>console.warn('[Offline] No se pudo cargar el adaptador de navegacion.'));
+    document.head.appendChild(script);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installOfflineNavigation,{once:true});
+  else installOfflineNavigation();
 })();

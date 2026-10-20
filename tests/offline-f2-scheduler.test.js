@@ -155,3 +155,16 @@ test('un fallo de descarga no provoca 100% general aunque existan datos descarga
   assert.ok(x.events.filter(e=>e.type==='mantto:offline-backup-progress').every(e=>e.detail.overall_percent<100));
   assert.ok(x.events.some(e=>e.type==='mantto:offline-backup-error'));
 });
+
+test('F1 nueva navegación: respaldo exitoso renueva catálogo local ligado a identidad',async()=>{
+  const x=createEnv();
+  const result=await x.scheduler.backupNow();
+  assert.equal(result.status,'PASS');
+  const raw=x.values.get('mantto:offline-access:10:10');
+  assert.ok(raw,'El catálogo validado debe quedar disponible para el siguiente arranque offline.');
+  const cached=JSON.parse(raw);
+  assert.equal(cached.data.permission_code,permission);
+  assert.equal(cached.data.effective_user_id,10);
+  assert.equal(cached.data.catalog_modules.length,3);
+  assert.ok(x.events.some(e=>e.type==='mantto:offline-capabilities-updated'));
+});
