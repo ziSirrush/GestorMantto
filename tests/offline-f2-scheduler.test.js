@@ -69,10 +69,10 @@ function createEnv({alterFinal=false,failPage=false,excludeCor=false}={}){
   return {scheduler:window.ManttoOfflineScheduler,calls,chunks,committed,abandoned,events,values};
 }
 
-test('respaldo en ambos dominios, sólo módulos con exportador y aviso PARCIAL por módulos pendientes',async()=>{
+test('respaldo con módulos disponibles no marca PARTIAL por opciones aún no habilitadas',async()=>{
   const x=createEnv();
   const r=await x.scheduler.backupNow();
-  assert.equal(r.status,'PARTIAL');
+  assert.equal(r.status,'PASS');
   assert.equal(r.completed.length,2);
   assert.deepEqual(r.unsupported,['CORELLIAN:ALMACEN_INVENTARIOS']);
   assert.equal(x.committed.length,2);
@@ -82,7 +82,7 @@ test('respaldo en ambos dominios, sólo módulos con exportador y aviso PARCIAL 
   const prune=x.calls.find(v=>typeof v==='object'&&v.prune);
   assert.equal(prune.prune['UNITED:OPERACION-RESUMEN-DIA'].signature,uniSig);
   assert.equal(prune.prune['CORELLIAN:INSTALACIONES-PROYECTOS'].signature,corSig);
-  assert.equal(x.scheduler.readPreferences(10).last_backup_status,'PARTIAL');
+  assert.equal(x.scheduler.readPreferences(10).last_backup_status,'PASS');
 });
 
 test('selección usuario excluye CORELLIAN sin ampliar alcance',async()=>{
@@ -125,4 +125,33 @@ test('revalida alcance y catálogo aunque todavía no llegue la hora del respald
   const prune=x.calls.find(v=>typeof v==='object'&&v.prune);
   assert.equal(prune.prune['UNITED:OPERACION-RESUMEN-DIA'].signature,uniSig);
   assert.equal(prune.prune['CORELLIAN:INSTALACIONES-PROYECTOS'],undefined);
+});
+
+test('avance global real: dos modulos, conteo acumulado de tipos, y 100% solo con commit',async()=>{
+  const x=createEnv(),report=await x.scheduler.backupNow();
+  const progress=x.events.filter(e=>e.type==='mantto:offline-backup-progress').map(e=>e.detail);
+  assert.equal(report.status,'PASS');
+  assert.equal(report.total_modules,2);
+  assert.equal(report.overall_percent,100);
+  assert.equal(progress.length,3);
+  assert.equal(progress[0].module_percent,66); // tickets 2 de 3 registros reales del módulo
+  assert.equal(progress[0].overall_percent,33); // un medio módulo del total de 2 módulos
+  assert.equal(progress[1].module_percent,99); // portafolio termina; falta verificación y commit
+  assert.equal(progress[1].overall_percent,49);
+  assert.equal(progress[2].module_percent,99);
+  assert.equal(progress[2].overall_percent,99);
+  const successes=x.events.filter(e=>e.type==='mantto:offline-backup-completed');
+  assert.equal(successes.length,2);
+  assert.equal(successes[0].detail.overall_percent,50);
+  assert.equal(successes[1].detail.overall_percent,100);
+  assert.ok(!progress.some(p=>p.overall_percent===100));
+});
+
+test('un fallo de descarga no provoca 100% general aunque existan datos descargados',async()=>{
+  const x=createEnv({alterFinal:true}),report=await x.scheduler.backupNow();
+  assert.equal(report.status,'FAIL');
+  assert.equal(report.completed.length,1);
+  assert.equal(report.overall_percent,50);
+  assert.ok(x.events.filter(e=>e.type==='mantto:offline-backup-progress').every(e=>e.detail.overall_percent<100));
+  assert.ok(x.events.some(e=>e.type==='mantto:offline-backup-error'));
 });

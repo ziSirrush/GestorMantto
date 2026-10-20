@@ -178,7 +178,7 @@ test('el worker puente recarga clientes antiguos y respeta clientes con actualiz
     postMessage:()=>{},
     navigate:async url=>{legacyNavigation=url;}
   });
-  assert.match(legacyNavigation,/blt_sw_update=20261020-fix-altas-admin-v001/);
+  assert.match(legacyNavigation,/blt_sw_update=20261020-offline-progreso-global-v001/);
 });
 
 test('GitHub Pages y Netlify generan metadata nueva en cada despliegue',()=>{

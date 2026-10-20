@@ -149,6 +149,22 @@
     const node=document.getElementById(id);if(!node)return;
     node.textContent=message||'';node.className='off-message'+(type?' '+type:'');
   }
+  function showBackupProgress(detail={}){
+    const container=document.getElementById('off-backup-progress');
+    if(!container)return;
+    const module=document.getElementById('off-progress-module');
+    const track=document.getElementById('off-progress-track');
+    const fill=document.getElementById('off-progress-fill');
+    const percent=document.getElementById('off-progress-percent');
+    const modulePercent=Math.max(0,Math.min(100,Math.floor(Number(detail.module_percent)||0)));
+    const overallPercent=Math.max(0,Math.min(100,Math.floor(Number(detail.overall_percent)||0)));
+    const name=String(detail.module||'Preparando respaldo').trim();
+    if(module)module.textContent=`${name} ${modulePercent}/100`;
+    if(fill)fill.style.width=`${overallPercent}%`;
+    if(percent)percent.textContent=`${overallPercent}%`;
+    if(track)track.setAttribute('aria-valuenow',String(overallPercent));
+    container.hidden=false;
+  }
   function create(tag,className,content){
     const node=document.createElement(tag);if(className)node.className=className;
     if(content!==undefined)node.textContent=String(content);
@@ -200,7 +216,7 @@
         };
         const text=create('div');text.style.flex='1';
         text.append(create('strong','',m.name),create('p','off-muted',scopeLabel(m)),
-          create('p','off-muted',m.backup_status==='EXPORTADOR_COMPLETO'?'Respaldo automático disponible':'Exportador pendiente para este módulo'));
+          create('p','off-muted',m.backup_status==='EXPORTADOR_COMPLETO'?'Respaldo disponible':'Respaldo no habilitado todavía'));
         label.append(checkbox,text);group.append(label);
       }
       target.append(group);
@@ -239,6 +255,13 @@
             <div><dt>Tamaño</dt><dd id="off-backup-size">—</dd></div></dl>
           <div class="off-actions"><button class="off-btn off-btn-test" id="off-download" type="button" ${viewer||offline?'disabled':''}>Respaldar ahora</button>
             <button class="off-btn off-btn-secondary" id="off-read" type="button">Consultar copia local</button></div>
+          <div class="off-backup-progress" id="off-backup-progress" hidden>
+            <strong id="off-progress-module" class="off-progress-module">Preparando respaldo 0/100</strong>
+            <div id="off-progress-track" class="off-progress-track" role="progressbar" aria-label="Avance general del respaldo" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="off-progress-fill" class="off-progress-fill" style="width:0%"></div>
+              <span id="off-progress-percent" class="off-progress-percent">0%</span>
+            </div>
+          </div>
           <div class="off-message" id="off-backup-message" aria-live="polite"></div>
         </section>
       </div>
@@ -248,6 +271,14 @@
           <span>Seleccionar todos</span><span class="off-muted" id="off-catalog-count"></span></label>
         <div id="off-catalog-modules"></div><div id="off-catalog-message" class="off-message" aria-live="polite"></div></section>
       <style>
+        .off-backup-progress{margin-top:12px;display:grid;gap:8px}
+        .off-backup-progress[hidden]{display:none}
+        .off-progress-module{font-size:13px;font-weight:750;color:#1e3656}
+        .off-progress-track{position:relative;height:25px;border-radius:10px;background:#e2eaf4;overflow:hidden}
+        .off-progress-fill{height:100%;background:#78afe3;transition:width .2s ease}
+        .off-progress-percent{position:absolute;left:50%;top:3px;transform:translateX(-50%);min-width:40px;height:19px;
+          border-radius:5px;background:rgba(255,255,255,.78);color:#16345e;text-align:center;
+          font-size:12px;font-weight:800;line-height:19px;font-variant-numeric:tabular-nums}
         .off-reader-card{margin:12px 0;display:grid;gap:6px;}
         .off-reader{margin-top:14px;display:grid;gap:14px;}
         .off-reader-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;}
@@ -287,8 +318,8 @@
       </section>
       <section class="off-card off-scope off-safety"><h2>Estado de esta fase</h2><ul>
         <li>Activo: catálogo autorizado, selección y navegación local de registros completos por módulo.</li>
-        <li>Exportadores paginados certificados: Resumen del Día (UNITED) y Proyectos de Instalaciones (CORELLIAN).</li>
-        <li>Los demás módulos no tienen exportador certificado; por seguridad no se muestran en la navegación.</li>
+        <li>Módulos con respaldo habilitado: Resumen del Día (UNITED) y Proyectos de Instalaciones (CORELLIAN).</li>
+        <li>Los módulos todavía no habilitados para respaldo no aparecen en la consulta offline.</li>
         <li>Sincronización Fase 5: comentarios de Ticket y movimientos descriptivos enviados con validación e idempotencia.</li>
         <li>Los conflictos quedan retenidos para revisión. Vo.Bo., estatus, asignaciones y cambios de inventario no se sincronizan por este adaptador.</li>
         <li>Los documentos originales y fotografías no se descargan adicionalmente. Cerrar sesión elimina también los pendientes locales por seguridad.</li></ul></section>
@@ -755,15 +786,16 @@
     if(navigator.onLine===false)return setMessage('off-backup-message','No hay conexión.','error');
     if(!window.ManttoOfflineScheduler?.backupNow)return setMessage('off-backup-message','El programador automático no está disponible.','error');
     const button=document.getElementById('off-download');if(button)button.disabled=true;
-    setMessage('off-backup-message','Respaldando módulos autorizados por bloques…','info');
+    showBackupProgress({module:'Preparando respaldo',module_percent:0,overall_percent:0});
+    setMessage('off-backup-message','','info');
     try{
       const report=await window.ManttoOfflineScheduler.backupNow();
       if(report?.skipped)throw new Error('El respaldo no se pudo iniciar: '+report.reason);
       if(report?.failed?.length)throw new Error('Uno o más módulos fallaron; se conservó la copia anterior de los afectados.');
       const count=report?.completed?.length||0;
-      setMessage('off-backup-message',report?.unsupported?.length?
-        `${count} módulos respaldados. ${report.unsupported.length} módulos aún no tienen exportador certificado.`:
-        `${count} módulos respaldados correctamente.`,report?.unsupported?.length?'info':'ok');
+      if(!count)throw new Error('No hay módulos seleccionados con respaldo habilitado.');
+      setMessage('off-backup-message',
+        `Respaldo finalizado: ${count} ${count===1?'módulo disponible':'módulos disponibles'} guardados.`, 'ok');
       await refreshSnapshotMetadata();await renderSavedModules();
     }catch(error){setMessage('off-backup-message',error?.message||'No fue posible guardar los respaldos.','error');}
     finally{if(button)button.disabled=false;}
@@ -803,10 +835,16 @@
   });
   window.addEventListener?.('online',()=>{if(root()&&capabilities)renderPendingActions();});
   window.addEventListener?.('offline',()=>{if(root()&&capabilities)renderPendingActions();});
-  document.addEventListener?.('mantto:offline-backup-progress',event=>{
-    const d=event.detail||{};
-    if(root())setMessage('off-backup-message',`${d.module||d.dataset}: ${d.kind||''} ${d.count||0} / ${d.total||0}`, 'info');
-  });
+  for(const kind of ['start','module-start','progress','completed','error']){
+    document.addEventListener?.(`mantto:offline-backup-${kind}`,event=>{
+      if(!root()||!capabilities)return;
+      const d=event.detail||{};
+      // La UI solo muestra avance del MODULO y porcentaje GENERAL; nunca tablas internas.
+      if(kind==='start')showBackupProgress({module:'Preparando respaldo',module_percent:0,overall_percent:0});
+      else showBackupProgress({module:d.module||'Respaldando',
+        module_percent:d.module_percent??0,overall_percent:d.overall_percent??0});
+    });
+  }
   document.addEventListener?.('mantto:offline-sync-summary',async event=>{
     if(!root()||!capabilities)return;
     const d=event.detail||{};
@@ -816,9 +854,19 @@
   document.addEventListener?.('mantto:offline-backup-summary',async event=>{
     if(!root()||!capabilities)return;
     const d=event.detail||{};
-    setMessage('off-backup-message',d.failed?.length?'Hay respaldos pendientes o fallidos.':
-      d.unsupported?.length?`Respaldos disponibles actualizados; ${d.unsupported.length} módulos sin exportador.`:
-      'Respaldo automático finalizado.','info');
+    if(d.status==='NO_AVAILABLE'){
+      setMessage('off-backup-message','No hay módulos seleccionados con respaldo habilitado.','info');
+      const container=document.getElementById('off-backup-progress');
+      if(container)container.hidden=true;
+    }else if(d.failed?.length){
+      setMessage('off-backup-message',
+        `Respaldo incompleto. ${d.completed?.length||0} de ${d.total_modules||0} módulos disponibles guardados.`, 'error');
+      // Un respaldo incompleto no se presenta como 100%.
+    }else{
+      const count=d.completed?.length||0;
+      setMessage('off-backup-message',
+        `Respaldo finalizado: ${count} ${count===1?'módulo disponible':'módulos disponibles'} guardados.`,'ok');
+    }
     try{await refreshSnapshotMetadata();await renderSavedModules();}catch(_error){}
   });
   // Nunca conservar el DOM de copias tras cerrar/cambiar de identidad.

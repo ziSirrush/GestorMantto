@@ -91,6 +91,16 @@
     });
   }
   function contextFor(dataset,a,e){return {actor_user_id:a,effective_user_id:e,domain:dataset.domain,dataset:dataset.key};}
+  // El porcentaje general solo usa modulos que cuentan con exportador seguro.
+  // No confundir registros de un tipo con el progreso de TODO el respaldo.
+  function backupPercent(completedModules,totalModules,partialFraction=0,allCommitted=false){
+    const total=Number(totalModules),completed=Number(completedModules),partial=Number(partialFraction);
+    if(!Number.isSafeInteger(total)||total<1)return 0;
+    const safeCompleted=Number.isFinite(completed)?Math.min(total,Math.max(0,completed)):0;
+    const safePartial=Number.isFinite(partial)?Math.min(1,Math.max(0,partial)):0;
+    const calculated=Math.floor(100*Math.min(1,(safeCompleted+safePartial)/total));
+    return allCommitted&&safeCompleted===total?100:Math.min(99,calculated);
+  }
   function ensureManifest(manifest,dataset,module){
     if(manifest?.ok!==true||manifest.dataset!==dataset.key||manifest.domain!==dataset.domain||
       manifest.scope_signature!==module.scope.scope_signature||!manifest.kinds||!Object.keys(manifest.kinds).length)
@@ -111,8 +121,12 @@
     requireSameSession(actor,effective,epoch);
     const first=await api(dataset.exporter.manifest,{method:'GET',cache:'no-store'});
     ensureManifest(first,dataset,module);
+    const totals=dataset.exporter.kinds.map(kind=>Number(first.kinds[kind]?.count));
+    if(totals.some(n=>!Number.isSafeInteger(n)||n<0))fail('Conteos de respaldo inválidos.');
+    const totalRecords=totals.reduce((sum,n)=>sum+n,0);
     const runId=await storage.beginDownload(ctx,first);
     let committed=false;
+    let previousKindsCount=0;
     try{
       for(const kind of dataset.exporter.kinds){
         const expected=Number(first.kinds[kind]?.count);
@@ -130,10 +144,16 @@
           requireSameSession(actor,effective,epoch);
           await storage.appendDownload(ctx,runId,kind,page.rows);
           count+=page.rows.length;cursor=Number(page.next_cursor);
-          onProgress({dataset:dataset.key,module:dataset.label||dataset.key,kind,count,total:expected});
+          const currentTotal=previousKindsCount+count;
+          const fraction=totalRecords?currentTotal/totalRecords:0;
+          // Hasta verificar el manifiesto final y el commit, nunca es 100/100.
+          onProgress({dataset:dataset.key,module:dataset.label||dataset.key,
+            progress_fraction:Math.min(0.99,Math.max(0,fraction)),
+            module_percent:Math.min(99,Math.floor(100*fraction))});
           if(!page.has_more&&count!==expected)fail('El servidor terminó antes del total declarado.');
           if(page.has_more&&count>=expected)fail('Existen filas adicionales no contabilizadas.');
         }
+        previousKindsCount+=expected;
       }
       const final=await api(dataset.exporter.manifest,{method:'GET',cache:'no-store'});
       ensureManifest(final,dataset,module);
@@ -199,31 +219,51 @@
       const selectedModules=selected(caps.catalog_modules,excluded);
       const available=activeSelectedDatasets(caps,selectedModules);
       const unsupported=selectedModules.filter(m=>!(m.datasets||[]).some(k=>available.some(e=>e.dataset.key===k&&e.module.code===m.code&&e.module.domain===m.domain)));
+      // Los modulos no exportables quedan fuera del denominador: NO son fallos.
+      const totalModules=available.length;
+      notify('start',{identity,total_modules:totalModules,completed_modules:0,overall_percent:0});
       // Reconciliación segura: permisos actuales y selección. Los datos fuera de alcance se limpian.
       await window.ManttoOfflineStorage.pruneSnapshots({actor_user_id:actor,effective_user_id:effective},buildAuthorizedMap(available));
       const results=[],failed=[];
-      for(const entry of available){
+      for(const [index,entry] of available.entries()){
         renew?.();
+        const moduleName=entry.module.name||entry.dataset.label||entry.dataset.key;
+        notify('module-start',{identity,module:moduleName,dataset:entry.dataset.key,
+          module_index:index+1,total_modules:totalModules,completed_modules:results.length,
+          module_percent:0,overall_percent:backupPercent(results.length,totalModules)});
         try{
           const row=await backupDataset(api,window.ManttoOfflineStorage,entry,actor,effective,detail=>{
-            renew?.();notify('progress',detail);
+            renew?.();
+            notify('progress',{...detail,module:moduleName,module_index:index+1,total_modules:totalModules,
+              completed_modules:results.length,
+              overall_percent:backupPercent(results.length,totalModules,detail.progress_fraction)});
           },epoch);
           results.push({dataset:entry.dataset.key,domain:entry.dataset.domain,records:row.record_count,size:row.byte_size});
-          notify('completed',{...results[results.length-1],identity});
+          notify('completed',{...results[results.length-1],identity,module:moduleName,
+            module_percent:100,module_index:index+1,total_modules:totalModules,
+            completed_modules:results.length,
+            overall_percent:backupPercent(results.length,totalModules,0,results.length===totalModules)});
         }catch(error){
           failed.push({dataset:entry.dataset.key,error:String(error?.message||error).slice(0,300)});
-          notify('error',{dataset:entry.dataset.key,error:String(error?.message||error)});
+          notify('error',{dataset:entry.dataset.key,module:moduleName,module_index:index+1,
+            total_modules:totalModules,completed_modules:results.length,
+            overall_percent:backupPercent(results.length,totalModules),error:String(error?.message||error)});
         }
       }
       const now=new Date().toISOString();
-      const status=failed.length?'FAIL':unsupported.length?'PARTIAL':'PASS';
+      const status=failed.length?'FAIL':totalModules?'PASS':'NO_AVAILABLE';
       if(status==='FAIL')markFailed(effective,failed[0]?.error);
-      else{
+      else if(status==='PASS'){
         markCompleted(effective,now);
         writePreferences(effective,{last_backup_status:status,last_backup_modules:results.length,
           unsupported_modules:unsupported.map(m=>`${m.domain}:${m.code}`),last_backup_error:null});
+      }else{
+        writePreferences(effective,{last_backup_status:status,last_backup_modules:0,
+          unsupported_modules:unsupported.map(m=>`${m.domain}:${m.code}`),last_backup_error:'No hay modulos seleccionados con respaldo disponible.'});
       }
-      const report={status,completed:results,failed,unsupported:unsupported.map(m=>`${m.domain}:${m.code}`),at:now};
+      const report={status,completed:results,failed,unsupported:unsupported.map(m=>`${m.domain}:${m.code}`),
+        total_modules:totalModules,completed_modules:results.length,
+        overall_percent:backupPercent(results.length,totalModules,0,status==='PASS'),at:now};
       notify('summary',report);
       return report;
     });

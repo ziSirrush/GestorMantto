@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20261020-fix-altas-admin-v001';
+const SERVICE_WORKER_VERSION = '20261020-offline-progreso-global-v001';
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
