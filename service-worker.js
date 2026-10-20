@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20261020-offline-shell-v001';
+const SERVICE_WORKER_VERSION = '20261020-fix-altas-admin-v001';
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}`;
 const DEFAULT_URL = './index.html?push_open=notifications';
 const SHELL_ASSETS = [
