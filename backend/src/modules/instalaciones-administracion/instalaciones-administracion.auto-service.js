@@ -19,6 +19,8 @@ const { normalizeGroupUpdate_cor, positiveId_cor } =
 const { normalizeEditedFields_cor } =
   require('./instalaciones-administracion.field-policy');
 const rules = require('./instalaciones-administracion.auto-rules');
+const newRowPersist = require('./instalaciones-administracion-altas-persist');
+const newRowOrigin = require('./instalaciones-administracion-altas-origin');
 
 const MAX_MULTI_COR = 20;
 const ALLOWED_FIELDS_COR = [...ALL_OPERATIONAL_FIELDS_COR];
@@ -129,7 +131,7 @@ async function adminForSales_cor(connection, idAsesor, previousAdminId) {
   return result;
 }
 
-async function rowChanges_cor(connection,before,field,value,today) {
+async function rowChanges_cor(connection,before,field,value,today,isHumanCreated=false) {
   const updates = {[field]:value};
   if (field==='vendedor') {
     const user=await exactUserByInitials_cor(connection,field,value);
@@ -143,7 +145,9 @@ async function rowChanges_cor(connection,before,field,value,today) {
     updates.id_sup=user?.id ?? null;
   }
   const composed={...before,...updates};
-  Object.assign(updates,rules.derivedForRow_cor(composed,today));
+  Object.assign(updates,isHumanCreated
+    ? newRowPersist.persistedForRowCor(composed,today)
+    : rules.derivedForRow_cor(composed,today));
   return Object.fromEntries(Object.entries(updates).filter(([k,v])=>changed_cor(before[k],v)));
 }
 
@@ -170,7 +174,12 @@ function sqlError_cor(error) {
 }
 
 async function persistOne_cor(req,connection,id,before,field,value,today) {
-  const changes=await rowChanges_cor(connection,before,field,value,today);
+  const isHuman=(await newRowOrigin.humanCreatedIdsCor(connection,[before])).has(Number(id));
+  if (isHuman && newRowPersist.PERSISTED_FIELDS_COR.includes(field)) {
+    throw rules.knownError_cor(400,'INSTALACIONES_ADMIN_ALTA_CALCULADO_SOLO_LECTURA',
+      'El campo calculado del equipo nuevo no permite captura manual.');
+  }
+  const changes=await rowChanges_cor(connection,before,field,value,today,isHuman);
   if (!Object.keys(changes).length) return {id_ins_fl:id,changed:false,changed_fields:[]};
   const assignments=Object.keys(changes).map(f=>`\`${f}\`=?`).join(', ');
   try {

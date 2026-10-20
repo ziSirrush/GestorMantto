@@ -1,0 +1,6 @@
+README_FASE3_ALTAS_INSTALACIONES_ADMIN_V001.md
+modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.js
+modules/instalaciones-administracion/instalaciones-administracion-altas-formulas_cor.js
+backend/src/modules/instalaciones-administracion/instalaciones-administracion-altas-formulas.js
+tests/instalaciones-administracion-altas-fase3-formulas.test.js
+SHA256SUMS_FASE3_ALTAS_INSTALACIONES_ADMIN_V001.txt

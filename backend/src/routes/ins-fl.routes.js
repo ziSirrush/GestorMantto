@@ -4,6 +4,7 @@ const multer = require('multer');
 const router = express.Router();
 const insFlController = require('../controllers/ins-fl.controller');
 const insFlReadController = require('../controllers/ins-fl-read-cor.controller');
+const { protectManualAltasCor } = require('../modules/instalaciones-administracion/instalaciones-administracion-altas-sync-guard');
 const filePolicy = require('../services/storage/storage-file-policy.service');
 const { requireIntegrationAuthFor } = require('../middleware/integration-auth.middleware');
 const { humanInformationGuard_gnral } = require('../middleware/information-access-gnral.middleware');
@@ -40,7 +41,20 @@ function instalacionesGuard(permissionCodesAny) {
   });
 }
 
-router.post('/sync', requireInsFlIntegration, insFlController.syncInsFl);
+// [BLT NOW | 2026-10-20 | ALTAS FASE 5 V001]
+// Un cierre prematuro de HTTP no libera el candado mientras GAS sigue escribiendo.
+async function syncWithHeldAltasLockCor(req,res,next) {
+  try {
+    return await insFlController.syncInsFl(req,res);
+  } catch(error) {
+    return next(error);
+  } finally {
+    if(typeof req.bltnowInsFlGuardReleaseCor === 'function') {
+      await req.bltnowInsFlGuardReleaseCor();
+    }
+  }
+}
+router.post('/sync', requireInsFlIntegration, protectManualAltasCor, syncWithHeldAltasLockCor);
 
 const PROJECT_DETAIL_PHOTO_ACCESS = Object.freeze([
   'INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.ABRIR_DETALLE',

@@ -129,6 +129,24 @@ function forbidProtectedTableFields_cor(req,res,next){
   return next();
 }
 
+// [BLT NOW | 2026-10-20 | ALTAS FASE 5 V001]
+// Previene que rutas de edicion V1 sobrescriban las formulas de altas humanas.
+const {protectHumanFormulasLegacyCor} =
+  require('./instalaciones-administracion-altas-formula-guard');
+
+// [BLT NOW | 2026-10-20 | ALTAS INSTALACIONES ADMINISTRACION FASE 1 V001]
+// Guard central, permiso EDITAR, scope por fila, transaccion y auditoria
+// se comprueban dentro del servicio; no se confia en el formulario.
+const altaService_cor = require('./instalaciones-administracion-altas.service');
+router.post('/administracion/altas', ...accessGuard_cor, async(req, res, next) => {
+  try {
+    const result = await altaService_cor.createRowsCor(req, req.body);
+    return res.status(201).json({ok:true, source:'aiven', ...result});
+  } catch (error) {
+    return autoKnownError_cor(error, res, next);
+  }
+});
+
 // [Aster | 2026-10-09 | ASTER-MG | FIX_3_INSTALACIONES_ADMINISTRACION_EDICION_MULTIPLE_V001]
 // Todas las operaciones vuelven a validar proyecto, equipos, permisos,
 // alcance y concurrencia dentro del servicio/repositorio. No confiar en UI.
@@ -138,6 +156,7 @@ router.patch(
   '/administracion/proyectos/:projectKey/equipos/:id/tabla',
   ...accessGuard_cor,
   forbidProtectedTableFields_cor,
+  protectHumanFormulasLegacyCor,
   controller.updateTableEquipment_cor
 );
 
@@ -145,6 +164,7 @@ router.patch(
   '/administracion/proyectos/:projectKey/equipos/edicion-multiple',
   ...accessGuard_cor,
   forbidProtectedTableFields_cor,
+  protectHumanFormulasLegacyCor,
   controller.updateMulti_cor
 );
 
@@ -173,6 +193,7 @@ router.get(
 router.patch(
   '/administracion/registros/:id/detalle',
   ...accessGuard_cor,
+  protectHumanFormulasLegacyCor,
   controller.updateDetail_cor
 );
 
@@ -180,6 +201,7 @@ router.patch(
   '/administracion/registros/:id/grupos/:grupo',
   ...accessGuard_cor,
   requireGroupEdit_cor,
+  protectHumanFormulasLegacyCor,
   controller.updateGroup_cor
 );
 

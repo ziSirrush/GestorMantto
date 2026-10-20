@@ -9,12 +9,15 @@
 const db = require('../config/db');
 const logger = require('../shared/logger');
 const rules = require('../modules/instalaciones-administracion/instalaciones-administracion.auto-rules');
+const persist = require('../modules/instalaciones-administracion/instalaciones-administracion-altas-persist');
+const origin = require('../modules/instalaciones-administracion/instalaciones-administracion-altas-origin');
 const LOCK_NAME = 'mg:instalaciones:administracion:calculos:v1';
 const PAGE_SIZE = 200;
 const CHECK_MS = 15 * 60 * 1000;
-const COMPARISON_FIELDS = Object.freeze([
-  ...rules.DEPENDENCY_FIELDS_COR,...rules.AUTO_FIELDS_COR
-]);
+const COMPARISON_FIELDS = Object.freeze([...new Set([
+  ...rules.DEPENDENCY_FIELDS_COR, ...rules.AUTO_FIELDS_COR,
+  'id_proyecto', ...persist.EXTRA_INPUT_FIELDS_COR, ...persist.PERSISTED_FIELDS_COR
+])]);
 let timer = null;
 let running = false;
 let lastRunDay = null;
@@ -31,10 +34,13 @@ function zonedClock_cor(now = new Date()) {
     minute:Number(parts.hour)*60+Number(parts.minute)};
 }
 
-function changesForRow_cor(row,ymd) {
-  const desired=rules.derivedForRow_cor(row,ymd);
+function changesForRow_cor(row,ymd,isHumanCreated=false) {
+  // Los historicos GAS conservan el calculo previo. Solo equipos creados
+  // desde Administracion reciben formulas de la plantilla Excel.
+  const desired=isHumanCreated ? persist.persistedForRowCor(row,ymd) : rules.derivedForRow_cor(row,ymd);
+  const allowed=isHumanCreated ? persist.PERSISTED_FIELDS_COR : rules.AUTO_FIELDS_COR;
   return Object.fromEntries(Object.entries(desired).filter(([field,value])=>
-    rules.AUTO_FIELDS_COR.includes(field) &&
+    allowed.includes(field) &&
     // Comparacion canonica null/vacio: no reescribir indebidamente sin cambio.
     String(row[field]??'')!==String(value??'')
   ));
@@ -59,10 +65,13 @@ async function runDailyCor_cor(ymd, options={}) {
           LIMIT ?`,[lastId,PAGE_SIZE]
       );
       if(!rows.length)break;
+      // Una lectura indexada de la auditoria por PPNS y pagina: el origen
+      // humano existe solo si el INSERT y su CREAR/POST hicieron COMMIT.
+      const humanIds=await origin.humanCreatedIdsCor(connection,rows);
       for (const row of rows) {
         lastId=Number(row.id_ins_fl);
         scanned++;
-        const changes=changesForRow_cor(row,ymd);
+        const changes=changesForRow_cor(row,ymd,humanIds.has(Number(row.id_ins_fl)));
         if ([row.fecha_visita,row.fecha_ccnr,row.fecha_fin_montaje_modificado,row.fecha_fin_montaje_planeado]
           .some(value=>rules.parseCivilDate_cor(value).kind==='invalid')) invalid++;
         if(!Object.keys(changes).length)continue;
