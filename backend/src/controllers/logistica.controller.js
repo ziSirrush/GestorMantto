@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
+const { assertSamePpns } = require('../modules/logistica-produccion/logistica-produccion-integridad');
 
 const DB_FIELDS = [
   'id_ppns',
@@ -181,7 +182,7 @@ async function syncLogOps(req, res) {
           `SELECT id_log_ops, ${DB_FIELDS.join(', ')}
            FROM log_ops
            WHERE id_log_ops = ?
-           LIMIT 1`,
+           LIMIT 1 FOR UPDATE`,
           [incoming.id_log_ops]
         );
 
@@ -207,6 +208,18 @@ async function syncLogOps(req, res) {
           summary.unchanged += 1;
           await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
           continue;
+        }
+
+        // Bloquear reidentificacion de una fila de Logistica con PVO vinculado.
+        // Esta consulta no toma FOR UPDATE en Produccion: Logistica ya esta bloqueada
+        // y asi evitamos invertir el orden de bloqueos con las ediciones de PVO.
+        const [linkedPvo] = await conn.query(
+          `SELECT id_produccion,ppns FROM logistica_produccion WHERE id_log_ops=? LIMIT 1`,
+          [incoming.id_log_ops]
+        );
+        if (linkedPvo.length) {
+          assertSamePpns(linkedPvo[0].ppns, existingRows[0].id_ppns, 'Sincronizacion log_ops');
+          assertSamePpns(linkedPvo[0].ppns, incoming.id_ppns, 'Sincronizacion log_ops');
         }
 
         const assignments = DB_FIELDS.map(field => `${field} = ?`).join(', ');

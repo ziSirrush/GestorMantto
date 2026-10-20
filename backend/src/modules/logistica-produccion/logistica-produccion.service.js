@@ -16,6 +16,7 @@
 // [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE SIN DEPENDENCIA VENTAS V001]
 
 const repo=require('./logistica-produccion.repository');
+const { assertProductionLink, isProductionLinkValid }=require('./logistica-produccion-integridad');
 const storage=require('../../services/storage/azure-storage.service');
 
 const MODES=Object.freeze(['SEMI_AUTOMATICO','MANUAL']);
@@ -62,6 +63,22 @@ function buildDateComparison({captured,source,sourceRaw,sourceName,linked=true})
 }
 
 function decorate(row){
+  // Mostrar la fila sin mezclar fuentes si su id_log_ops apunta a otro PPNS.
+  // El registro y sus archivos permanecen en BD para auditoria; el Detalle se bloquea.
+  if(!isProductionLinkValid(row)){
+    return {
+      id_produccion:row.id_produccion,id_log_ops:row.id_log_ops,
+      modo_registro:row.modo_registro||'SEMI_AUTOMATICO',
+      anio_registro:row.anio_registro,semana_registro:row.semana_registro,
+      proyecto:'Registro con vinculo en revision',ppns:null,
+      asesores:null,supervisores:null,fecha_pvo:null,fecha_visita:null,
+      fecha_cubos:null,fecha_pvo_fl:null,fechas_pvo_fl:null,
+      fechas_visita:null,fechas_cubos:null,comentario:null,
+      estatus_produccion:'Revision de vinculo',cpvo_count:0,gm_count:0,archivos_count:0,
+      indicadores:[],integridad_bloqueada:true,
+      pvo:{cpvo:false,pvo_log:false,visita:false,pvo_fl:false}
+    };
+  }
   const sourceBound=row.id_log_ops!==null&&row.id_log_ops!==undefined&&row.id_log_ops!=='';
   const ppns=sourceBound?String(row.ppns_logistica||'').trim():String(row.ppns||'').trim();
   const proyecto=sourceBound?String(row.proyecto_logistica||'').trim():String(row.proyecto||'').trim();
@@ -128,6 +145,7 @@ async function list(query){return {ok:true,data:(await repo.list(query)).map(dec
 async function detail(id){
   const row=await repo.byId(positive(id,'id'));
   if(!row)throw error('Registro de PVO-Producción no encontrado.',404);
+  assertProductionLink(row,'Detalle PVO-Produccion');
   const decorated=decorate(row);
   const sourceBound=row.id_log_ops!==null&&row.id_log_ops!==undefined&&row.id_log_ops!=='';
   const comparacionFechas={
@@ -277,6 +295,7 @@ async function update(id,input,user){
   const userId=positive(user.id_SB||user.id,'usuario');
   const current=await repo.byId(id);
   if(!current)throw error('Registro de PVO-Producción no encontrado.',404);
+  assertProductionLink(current,'Edicion PVO-Produccion');
   const mode=normalizeMode(current.modo_registro||'SEMI_AUTOMATICO');
 
   const commonAllowed=['id_estatus_produccion','comentario','fecha_envio_docs_fabrica','fecha_envio_pago_fabrica'];
@@ -319,13 +338,9 @@ async function update(id,input,user){
     if(Object.hasOwn(input,'fecha_cubos'))next.fecha_cubos=optionalDate(input.fecha_cubos,'fecha_cubos');
     if(Object.hasOwn(input,'id_log_ops')){
       const idLog=positive(input.id_log_ops,'id_log_ops');
-      const changed=String(idLog)!==String(current.id_log_ops??'');
-      if(changed){
-        const source=await repo.logSnapshotById(idLog);
-        if(!source)throw error('El proyecto seleccionado ya no existe en Logística.',404);
-        next.ppns=requiredText(source.id_ppns,'PPNS del registro logístico',255);
+      if(String(idLog)!==String(current.id_log_ops??'')){
+        throw error('No es posible cambiar el proyecto de un registro PVO-Produccion existente. Los documentos y fechas deben permanecer en su proyecto hasta una conciliacion auditada.',409,'PVO_PROYECTO_INMUTABLE');
       }
-      next.id_log_ops=idLog;
     }
     if(Object.hasOwn(input,'id_asesor')){
       const advisor=positive(input.id_asesor,'id_asesor');
@@ -348,7 +363,11 @@ async function update(id,input,user){
 }
 
 async function listFiles(id){
-  const rows=await repo.files(positive(id,'id'));
+  id=positive(id,'id');
+  const parent=await repo.byId(id);
+  if(!parent)throw error('Registro de PVO-Produccion no encontrado.',404);
+  assertProductionLink(parent,'Consulta de archivos PVO-Produccion');
+  const rows=await repo.files(id);
   return Promise.all(rows.map(async row=>{
     if(row.storage_provider==='LEGACY_URL'||row.storage_provider==='LEGACY_REF')return {...row,url_acceso:row.storage_url||null,url_descarga:null};
     if(!row.storage_blob_name)return {...row,url_acceso:null,url_descarga:null};
@@ -365,9 +384,9 @@ function fileSlot(type,slot){const t=String(type||'').trim().toUpperCase();const
 function validateUploadPolicy(file){const maxMb=25;if(Number(file.size)>maxMb*1024*1024)throw error(`El archivo excede el límite de ${maxMb} MB.`,413,'FILE_TOO_LARGE');}
 async function upload(id,input,file,user){if(!file)throw error('Selecciona un archivo.');validateUploadPolicy(file);id=positive(id,'id');await detail(id);const {type,slot}=fileSlot(input.tipo_archivo,input.numero_archivo);const existing=(await repo.files(id)).find(x=>x.tipo_archivo===type&&Number(x.numero_archivo)===slot);const uploaded=await storage.uploadPrivate_gnral({file,empresa:'CORELLIAN',modulo:'logistica-produccion',entidadTipo:'produccion',entidadId:id,subruta:type.toLowerCase(),metadata:{uploaded_by:user.id_SB||user.id,tipo:type,slot}});try{await repo.upsertFile(id,type,slot,uploaded,positive(user.id_SB||user.id,'usuario'));}catch(e){await storage.deleteBlob_gnral(uploaded.storage_blob_name,{containerName:uploaded.storage_container,queueOnFailure:true}).catch(()=>null);throw e;}if(existing&&existing.storage_provider==='AZURE_BLOB'&&existing.storage_blob_name!==uploaded.storage_blob_name)await storage.deleteBlob_gnral(existing.storage_blob_name,{containerName:existing.storage_container,queueOnFailure:true,queueContext:{modulo:'logistica-produccion',entidadTipo:'archivo',entidadId:existing.id_archivo,solicitadoPor:user.id_SB||user.id}}).catch(()=>null);return {ok:true,data:await listFiles(id)};}
 async function replaceFile(id,fileId,file,user){id=positive(id,'id');const current=await repo.fileById(id,positive(fileId,'idArchivo'));if(!current||!current.activo)throw error('Archivo no encontrado.',404);return upload(id,{tipo_archivo:current.tipo_archivo,numero_archivo:current.numero_archivo},file,user);}
-async function removeFile(id,fileId,user){id=positive(id,'id');fileId=positive(fileId,'idArchivo');const row=await repo.fileById(id,fileId);if(!row||!row.activo)throw error('Archivo no encontrado.',404);if(!(await repo.deactivateFile(id,fileId,positive(user.id_SB||user.id,'usuario'))))throw error('Archivo no encontrado.',404);if(row.storage_provider==='AZURE_BLOB'&&row.storage_blob_name)await storage.deleteBlob_gnral(row.storage_blob_name,{containerName:row.storage_container,queueOnFailure:true,queueContext:{modulo:'logistica-produccion',entidadTipo:'archivo',entidadId:fileId,solicitadoPor:user.id_SB||user.id}}).catch(()=>null);return {ok:true,data:await listFiles(id)};}
-async function documents(query,missing=false){const rows=(await repo.list(query)).map(decorate);if(missing)return {ok:true,data:rows.filter(r=>Number(r.archivos_count)===0),regla:'PROVISIONAL_AL_MENOS_UN_ARCHIVO'};const out=[];for(const row of rows)for(const file of await listFiles(row.id_produccion))out.push({...file,id_produccion:row.id_produccion,proyecto:row.proyecto,ppns:row.ppns});return {ok:true,data:out};}
-async function pvo(query,missing=false){const rows=(await repo.list(query)).map(decorate);return {ok:true,data:rows.filter(r=>missing?!(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita):(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita))};}
+async function removeFile(id,fileId,user){id=positive(id,'id');await detail(id);fileId=positive(fileId,'idArchivo');const row=await repo.fileById(id,fileId);if(!row||!row.activo)throw error('Archivo no encontrado.',404);if(!(await repo.deactivateFile(id,fileId,positive(user.id_SB||user.id,'usuario'))))throw error('Archivo no encontrado.',404);if(row.storage_provider==='AZURE_BLOB'&&row.storage_blob_name)await storage.deleteBlob_gnral(row.storage_blob_name,{containerName:row.storage_container,queueOnFailure:true,queueContext:{modulo:'logistica-produccion',entidadTipo:'archivo',entidadId:fileId,solicitadoPor:user.id_SB||user.id}}).catch(()=>null);return {ok:true,data:await listFiles(id)};}
+async function documents(query,missing=false){const rows=(await repo.list(query)).filter(isProductionLinkValid).map(decorate);if(missing)return {ok:true,data:rows.filter(r=>Number(r.archivos_count)===0),regla:'PROVISIONAL_AL_MENOS_UN_ARCHIVO'};const out=[];for(const row of rows)for(const file of await listFiles(row.id_produccion))out.push({...file,id_produccion:row.id_produccion,proyecto:row.proyecto,ppns:row.ppns});return {ok:true,data:out};}
+async function pvo(query,missing=false){const rows=(await repo.list(query)).filter(isProductionLinkValid).map(decorate);return {ok:true,data:rows.filter(r=>missing?!(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita):(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita))};}
 
 module.exports={
   list,detail,projectSummary,options,manualCatalogs,manualProjects,manualAdvisors,manualSupervisors,manualPpns,

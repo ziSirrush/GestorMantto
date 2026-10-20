@@ -8,6 +8,7 @@
 // - Procesamiento por bloques de 300, con SAVEPOINT por fila.
 
 const db = require('../../config/db');
+const { assertSamePpns } = require('./logistica-produccion-integridad');
 
 const BATCH_SIZE = 300;
 const STATUS_CATALOG = Object.freeze({ area: 'Logistica', elemento: 'Estatus Produccion' });
@@ -195,7 +196,7 @@ async function validateStatusCatalog(connection, id) {
 
 async function findProductionIdentity(connection, record) {
   const [rows] = await connection.query(
-    `SELECT id_produccion,legacy_source_key
+    `SELECT id_produccion,legacy_source_key,id_log_ops,ppns
        FROM logistica_produccion
       WHERE id_produccion=? OR legacy_source_key=?
       FOR UPDATE`,
@@ -214,7 +215,23 @@ async function findProductionIdentity(connection, record) {
   if (cleanText(existing.legacy_source_key) !== record.legacy_source_key) {
     throw httpError(409, `id_produccion ${record.id_produccion} ya existe con otro legacy_source_key.`);
   }
+  // La sincronizacion idempotente actualiza campos, pero nunca reasigna un padre
+  // con CPVO/GM historicos a un proyecto diferente.
+  if (String(existing.id_log_ops??'')!==String(record.id_log_ops??'') ||
+      String(existing.ppns??'').trim().toUpperCase()!==String(record.ppns??'').trim().toUpperCase()) {
+    throw httpError(409, `id_produccion ${record.id_produccion}: cambio de proyecto/PPNS no permitido en una resincronizacion.`);
+  }
   return existing;
+}
+
+async function assertProductionSyncIdentity(connection, record) {
+  if (!record.id_log_ops) return;
+  const [rows] = await connection.query(
+    'SELECT id_ppns FROM log_ops WHERE id_log_ops=? LIMIT 1 FOR UPDATE',
+    [record.id_log_ops]
+  );
+  if (!rows.length) throw httpError(409, `El id_log_ops ${record.id_log_ops} ya no existe en Logistica.`);
+  assertSamePpns(record.ppns, rows[0].id_ppns, 'Importacion PVO-Produccion');
 }
 
 async function insertProduction(connection, record) {
@@ -257,10 +274,16 @@ async function updateProduction(connection, record) {
 
 async function assertParentExists(connection, idProduccion) {
   const [rows] = await connection.query(
-    'SELECT id_produccion FROM logistica_produccion WHERE id_produccion=? LIMIT 1',
+    `SELECT p.id_produccion,p.id_log_ops,p.ppns,l.id_ppns AS ppns_logistica
+       FROM logistica_produccion p
+       LEFT JOIN log_ops l ON l.id_log_ops=p.id_log_ops
+      WHERE p.id_produccion=? LIMIT 1 FOR UPDATE`,
     [idProduccion]
   );
   if (!rows.length) throw httpError(400, `No existe logistica_produccion.id_produccion=${idProduccion}.`);
+  if (rows[0].id_log_ops != null) {
+    assertSamePpns(rows[0].ppns, rows[0].ppns_logistica, 'Importacion archivos PVO-Produccion');
+  }
 }
 
 async function findFileIdentity(connection, record) {
@@ -360,6 +383,7 @@ async function sync(payload) {
         try {
           await connection.query(`SAVEPOINT ${savepoint}`);
           await validateStatusCatalog(connection, record.id_estatus_produccion);
+          await assertProductionSyncIdentity(connection, record);
           const existing = await findProductionIdentity(connection, record);
           if (existing) {
             await updateProduction(connection, record);

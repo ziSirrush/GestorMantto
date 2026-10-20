@@ -18,6 +18,7 @@
 // PVO, Visita y Cubos se leen de logistica_produccion; log_ops / ins_fl quedan como fuentes comparativas.
 
 const db = require('../../config/db');
+const { assertSamePpns } = require('./logistica-produccion-integridad');
 
 const STATUS_CATALOG=Object.freeze({area:'Logistica',elemento:'Estatus Produccion'});
 
@@ -90,9 +91,12 @@ async function list(filters={}){
   const where=['p.activo=1'];
   const params=[];
   const vista=String(filters.vista||'').trim().toLowerCase();
-  const ppnsExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.id_ppns ELSE p.ppns END`;
+  // Si el vinculo historico esta mal, buscar por el PPNS almacenado en PVO,
+  // nunca por el nombre de un proyecto distinto de Logistica.
+  const sameProject=`p.id_log_ops IS NOT NULL AND NULLIF(TRIM(p.ppns),'') IS NOT NULL AND TRIM(l.id_ppns)=TRIM(p.ppns)`;
+  const ppnsExpr=`CASE WHEN ${sameProject} THEN l.id_ppns ELSE p.ppns END`;
   const pvoExpr=`p.fecha_pvo`;
-  const projectExpr=`CASE WHEN p.id_log_ops IS NOT NULL THEN l.proyecto ELSE p.proyecto END`;
+  const projectExpr=`CASE WHEN ${sameProject} THEN l.proyecto ELSE p.proyecto END`;
   const pvoDateExpr=`STR_TO_DATE(LEFT(TRIM(COALESCE(${pvoExpr},'')),10),'%Y-%m-%d')`;
 
   if(vista==='sin_pvo'||String(filters.sin_fecha_pvo||'')==='1'){
@@ -155,6 +159,11 @@ async function byPpnsExact(idProyecto){
            AND TRIM(ip.id_proyecto)=TRIM(?)
            AND TRIM(p.ppns)=TRIM(ip.id_proyecto)
       )
+      AND (p.id_log_ops IS NULL OR (
+        NULLIF(TRIM(p.ppns),'') IS NOT NULL
+        AND l.id_log_ops IS NOT NULL
+        AND TRIM(p.ppns)=TRIM(l.id_ppns)
+      ))
     ORDER BY p.id_produccion ASC`,[idProyecto]);
   return rows;
 }
@@ -284,6 +293,7 @@ async function create(input,userId){
     if(input.id_log_ops){
       const log=await logSnapshotById(input.id_log_ops,connection,true);
       if(!log){const e=new Error('La fila logística relacionada ya no existe.');e.status=404;throw e;}
+      assertSamePpns(input.ppns, log.id_ppns, 'Creacion PVO-Produccion');
     }
     const [result]=await connection.query(`INSERT INTO logistica_produccion
       (id_log_ops,modo_registro,ppns,proyecto,id_cotizacion_venta,id_asesor,id_supervisor,
@@ -315,12 +325,17 @@ async function update(id,input,userId){
       WHERE id_produccion=? AND activo=1 LIMIT 1 FOR UPDATE`,[id]);
     if(!currentRows.length){const e=new Error('Registro de PVO-Producción no encontrado.');e.status=404;throw e;}
     const locked=currentRows[0];
+    if(String(input.id_log_ops??'')!==String(locked.id_log_ops??'')){
+      const e=new Error('No se permite reasignar el proyecto de un registro PVO-Produccion existente. Se requiere una conciliacion auditada.');e.status=409;throw e;
+    }
     const statusChanged=String(input.id_estatus_produccion??'')!==String(locked.id_estatus_produccion??'');
     if(statusChanged&&!(await validStatus(input.id_estatus_produccion,connection))){const e=new Error('El Estatus Producción no pertenece al catálogo activo Logistica / Estatus Produccion.');e.status=400;throw e;}
-    const logChanged=String(input.id_log_ops??'')!==String(locked.id_log_ops??'');
-    if(logChanged&&input.id_log_ops){
+    // Validar siempre, incluso si solo se esta modificando un comentario.
+    // El FOR UPDATE conserva la identidad contra sincronizaciones concurrentes.
+    if(input.id_log_ops){
       const log=await logSnapshotById(input.id_log_ops,connection,true);
       if(!log){const e=new Error('La fila logística relacionada ya no existe.');e.status=404;throw e;}
+      assertSamePpns(input.ppns, log.id_ppns, 'Edicion PVO-Produccion');
     }
     const [result]=await connection.query(`UPDATE logistica_produccion SET
       id_log_ops=?,ppns=?,proyecto=?,id_cotizacion_venta=?,id_asesor=?,id_supervisor=?,
@@ -347,14 +362,26 @@ async function update(id,input,userId){
 async function files(id){
   const [rows]=await db.query(`SELECT a.*,u.iniciales AS usuario_iniciales
     FROM logistica_produccion_archivos a
+    INNER JOIN logistica_produccion p ON p.id_produccion=a.id_produccion AND p.activo=1
+    LEFT JOIN log_ops l ON l.id_log_ops=p.id_log_ops
     LEFT JOIN usuarios u ON u.id_SB=a.id_usuario
     WHERE a.id_produccion=? AND a.activo=1
+      AND (p.id_log_ops IS NULL OR (l.id_log_ops IS NOT NULL
+        AND NULLIF(TRIM(p.ppns),'') IS NOT NULL
+        AND TRIM(p.ppns)=TRIM(l.id_ppns)))
     ORDER BY a.tipo_archivo,a.numero_archivo`,[id]);
   return rows;
 }
 
 async function fileById(id,fileId){
-  const [rows]=await db.query('SELECT * FROM logistica_produccion_archivos WHERE id_produccion=? AND id_archivo=? LIMIT 1',[id,fileId]);
+  const [rows]=await db.query(`SELECT a.* FROM logistica_produccion_archivos a
+    INNER JOIN logistica_produccion p ON p.id_produccion=a.id_produccion AND p.activo=1
+    LEFT JOIN log_ops l ON l.id_log_ops=p.id_log_ops
+    WHERE a.id_produccion=? AND a.id_archivo=?
+      AND (p.id_log_ops IS NULL OR (l.id_log_ops IS NOT NULL
+        AND NULLIF(TRIM(p.ppns),'') IS NOT NULL
+        AND TRIM(p.ppns)=TRIM(l.id_ppns)))
+    LIMIT 1`,[id,fileId]);
   return rows[0]||null;
 }
 
