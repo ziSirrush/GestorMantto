@@ -42,7 +42,11 @@ function personId(value) {
   return n;
 }
 
-function actorId(req) {
+function actorId(req, allowIntegration = false) {
+  // M2M autentica a una integracion, no a un usuario de la tabla usuarios.
+  // created_by/updated_by aceptan NULL; no atribuirle un usuario ficticio.
+  // Solo crear() habilita este modo. Editar y desactivar siguen exigiendo JWT.
+  if (allowIntegration && req?.integrationAuth?.integrationId) return null;
   // Nunca tomar el id del cuerpo o una identidad manipulable del navegador.
   const n = Number(req?.user?.id_SB || req?.user?.id || 0);
   if (!Number.isSafeInteger(n) || n < 1) {
@@ -164,7 +168,7 @@ async function listar(query = {}) {
 async function crear(req) {
   const type = tipoPersonal(req.body?.tipo);
   const payload = validatedPayload(type, req.body);
-  const userId = actorId(req);
+  const userId = actorId(req, true);
   let result;
   try {
     [result] = await db.execute(
@@ -175,7 +179,17 @@ async function crear(req) {
         payload.categoria,payload.experiencia,userId,userId]
     );
   } catch (error) { sqlKnownError(error); }
-  return getById(type, result.insertId);
+  const personalCreado = await getById(type, result.insertId);
+  if (req.integrationAuth?.integrationId) {
+    // Registro operativo sin datos personales ni secretos. La identidad M2M
+    // queda visible en logs Azure, no en la FK de usuarios (que permanece NULL).
+    console.info('INT9_PERSONAL_ALTA_M2M', {
+      integration_id: req.integrationAuth.integrationId,
+      id_personal: personalCreado.id_personal,
+      tipo_personal: type
+    });
+  }
+  return personalCreado;
 }
 
 async function editar(req) {

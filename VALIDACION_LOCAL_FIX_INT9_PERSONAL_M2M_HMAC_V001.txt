@@ -1,0 +1,125 @@
+BLT NOW / INT-9 M2M-HMAC — Validacion local
+Fecha: 2026-10-20
+Base GitHub main: 7f497d121eb26ec6a121140a19c334c6e16d57ab
+Runtime: v22.16.0
+Alcance: JavaScript aislado; prueba rutas con Express simulado, DB simulada, middleware HMAC real.
+NO se probaron servicios remotos ni se escribio en Aiven/Azure/GitHub.
+
+NODE --CHECK:
+ OK backend/src/modules/instalaciones-programacion-personal/instalaciones-programacion-personal.routes.js
+ OK backend/src/modules/instalaciones-programacion-personal/instalaciones-programacion-personal.service.js
+ OK tests/instalaciones-programacion-personal-m2m.test.js
+
+NODE --TEST:
+TAP version 13
+# Subtest: HMAC valido acepta Montador con flag global off, FK de usuario NULL y log de origen
+ok 1 - HMAC valido acepta Montador con flag global off, FK de usuario NULL y log de origen
+  ---
+  duration_ms: 5.0193
+  type: 'test'
+  ...
+# Subtest: HMAC valido acepta Ajustador sin token JWT
+ok 2 - HMAC valido acepta Ajustador sin token JWT
+  ---
+  duration_ms: 2.16807
+  type: 'test'
+  ...
+# Subtest: Sin HMAC ni JWT responde 401 y no inserta
+ok 3 - Sin HMAC ni JWT responde 401 y no inserta
+  ---
+  duration_ms: 1.157395
+  type: 'test'
+  ...
+# Subtest: HMAC parcial aun con JWT valido no retrocede a sesion humana
+ok 4 - HMAC parcial aun con JWT valido no retrocede a sesion humana
+  ---
+  duration_ms: 1.239414
+  type: 'test'
+  ...
+# Subtest: HMAC incorrecto bloqueado, no inserta
+ok 5 - HMAC incorrecto bloqueado, no inserta
+  ---
+  duration_ms: 2.210606
+  type: 'test'
+  ...
+# Subtest: HMAC vencido bloqueado
+ok 6 - HMAC vencido bloqueado
+  ---
+  duration_ms: 2.452179
+  type: 'test'
+  ...
+# Subtest: Otra identidad M2M autorizada globalmente no se admite en INT9
+ok 7 - Otra identidad M2M autorizada globalmente no se admite en INT9
+  ---
+  duration_ms: 0.995738
+  type: 'test'
+  ...
+# Subtest: Secret de Ventas faltante bloquea la integracion
+ok 8 - Secret de Ventas faltante bloquea la integracion
+  ---
+  duration_ms: 0.53034
+  type: 'test'
+  ...
+# Subtest: JWT humano conserva Guard y created_by reales
+ok 9 - JWT humano conserva Guard y created_by reales
+  ---
+  duration_ms: 2.088289
+  type: 'test'
+  ...
+# Subtest: JWT sin permiso y JWT fuera CORELLIAN bloqueados
+ok 10 - JWT sin permiso y JWT fuera CORELLIAN bloqueados
+  ---
+  duration_ms: 1.058355
+  type: 'test'
+  ...
+# Subtest: Reenvio identico se rechaza con 409 (duplicados protegidos)
+ok 11 - Reenvio identico se rechaza con 409 (duplicados protegidos)
+  ---
+  duration_ms: 1.634558
+  type: 'test'
+  ...
+# Subtest: Las demas mutaciones INT9 conservan sus guards JWT originales
+ok 12 - Las demas mutaciones INT9 conservan sus guards JWT originales
+  ---
+  duration_ms: 0.278366
+  type: 'test'
+  ...
+# Subtest: HMAC valido tambien funciona con el flag global activo
+ok 13 - HMAC valido tambien funciona con el flag global activo
+  ---
+  duration_ms: 1.346679
+  type: 'test'
+  ...
+# Subtest: La firma HMAC depende de los bytes del cuerpo recibido
+ok 14 - La firma HMAC depende de los bytes del cuerpo recibido
+  ---
+  duration_ms: 0.639335
+  type: 'test'
+  ...
+# Subtest: La firma HMAC esta ligada a la ruta canonica exacta
+ok 15 - La firma HMAC esta ligada a la ruta canonica exacta
+  ---
+  duration_ms: 0.437605
+  type: 'test'
+  ...
+# Subtest: Una identidad M2M completamente desconocida se rechaza
+ok 16 - Una identidad M2M completamente desconocida se rechaza
+  ---
+  duration_ms: 0.186201
+  type: 'test'
+  ...
+# Subtest: M2M no puede insertar un Montador sin contratista
+ok 17 - M2M no puede insertar un Montador sin contratista
+  ---
+  duration_ms: 0.362407
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 163.127117
