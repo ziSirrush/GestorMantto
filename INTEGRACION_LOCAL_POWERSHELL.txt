@@ -1,0 +1,136 @@
+# BLT NOW - Modo Offline - NUEVA FASE 1
+# Copiar estos comandos a PowerShell DESPUES de extraer el ZIP en Descargas.
+# No es un instalador, no realiza push ni despliega a Azure/Aiven/Netlify.
+
+$REPO = 'C:\Users\T14s\Downloads\mantto_gestor_frontend'
+$FIX = Join-Path $env:USERPROFILE 'Downloads\BLTNOW_FIX_MODO_OFFLINE_NUEVA_FASE_1'
+$BASE = '62eb487c56cdbeab40f8a7c859d081782287702c'
+Set-Location $REPO
+if ((git rev-parse HEAD).Trim() -ne $BASE) { throw 'La version local ya no coincide con 102026.4; no se realizaron cambios.' }
+if ((git status --porcelain).Count -gt 0) { throw 'Repo con cambios sin guardar; no se realizaron cambios.' }
+if (-not (Test-Path (Join-Path $FIX 'backend/src/modules/offline-pilot/offline-pilot.catalog.js'))) { throw 'Falta extraer el FIX con su estructura de carpetas.' }
+
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+$changed = @{}
+$lineEndings = @{}
+function Replace-Exact([string]$path,[string]$old,[string]$new) {
+    $absolute = Join-Path $REPO $path
+    if (-not $changed.ContainsKey($path)) {
+        $raw = [System.IO.File]::ReadAllText($absolute,[System.Text.Encoding]::UTF8)
+        $lineEndings[$path] = if ($raw.Contains("`r`n")) { "`r`n" } else { "`n" }
+        $changed[$path] = $raw.Replace("`r`n","`n")
+    }
+    $old = $old.Replace("`r`n","`n")
+    $new = $new.Replace("`r`n","`n")
+    $count = ([regex]::Matches($changed[$path],[regex]::Escape($old))).Count
+    if ($count -ne 1) { throw "La ruta $path no coincide con el codigo base ($count coincidencias). No se realizo ninguna escritura." }
+    $changed[$path] = $changed[$path].Replace($old,$new)
+}
+
+# 1. Activar el selector de modulos en el cargador central.
+Replace-Exact 'core/module-loader.js' `
+    "    'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261020-fase2-v001']}," `
+    "    'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261020-fase2-v001','./modules/offline-pilot/offline-catalog.js?v=20261020-nueva-f1-v001']},"
+
+# 2. Integrar seleccion validada y listado de modulos respaldados en el piloto existente.
+$original = @'
+      renderPage();
+      return true;
+'@
+$replacement = @'
+      renderPage();
+      await window.ManttoOfflineCatalog?.init?.(capabilities);
+      return true;
+'@
+Replace-Exact 'modules/offline-pilot/offline-pilot.js' $original $replacement
+$original = @'
+    const dataset=selectedDataset();
+    if(!dataset?.endpoint)return setMessage('off-backup-message','No hay un conjunto autorizado para descargar.','error');
+'@
+$replacement = @'
+    const dataset=selectedDataset();
+    if(!dataset?.endpoint)return setMessage('off-backup-message','No hay un conjunto autorizado para descargar.','error');
+    if(!window.ManttoOfflineCatalog?.canDownload?.(dataset.key))return setMessage('off-backup-message','No seleccionaste este modulo o ya no esta autorizado.','error');
+'@
+Replace-Exact 'modules/offline-pilot/offline-pilot.js' $original $replacement
+$original = @'
+  function renderSnapshot(row){
+'@
+$replacement = @'
+  function renderSnapshot(row){
+    if(window.ManttoOfflineCatalog?.renderSavedModules){
+      window.ManttoOfflineCatalog.renderSavedModules().catch(error=>console.warn('[Offline F1]',error));
+      return;
+    }
+'@
+Replace-Exact 'modules/offline-pilot/offline-pilot.js' $original $replacement
+Replace-Exact 'modules/offline-pilot/offline-pilot.js' 'PILOTO CONTROLADO · FASE 2' 'PILOTO CONTROLADO · FASE 1'
+
+# 3. Cachear nuevo script de configuracion sin almacenar respuestas de API.
+Replace-Exact 'service-worker.js' "const SERVICE_WORKER_VERSION = '20261020-offline-shell-v001';" "const SERVICE_WORKER_VERSION = '20261020-offline-catalog-f1-v001';"
+Replace-Exact 'service-worker.js' "  './modules/offline-pilot/offline-pilot.js'," "  './modules/offline-pilot/offline-pilot.js',`n  './modules/offline-pilot/offline-catalog.js',"
+Replace-Exact 'index.html' './core/module-loader.js?v=20261020-offline-piloto-f1-v001' './core/module-loader.js?v=20261020-offline-catalog-f1-v001'
+
+# 4. Adaptar assertions de los tests vigentes al reinicio de fases y permiso contextual.
+$original = @'
+  });
+  assert.equal(service.OFFLINE_PILOT_PERMISSION, permission);
+'@
+$replacement = @'
+  },[{code:'OPERACION_RESUMEN_DEL_DIA',domain:'UNITED',datasets:['operacion-resumen-dia']}]);
+  assert.equal(service.OFFLINE_PILOT_PERMISSION, permission);
+'@
+Replace-Exact 'tests/offline-pilot-permissions.test.js' $original $replacement
+Replace-Exact 'tests/offline-pilot-permissions.test.js' 'assert.equal(result.phase, 2);' 'assert.equal(result.phase, 1);'
+Replace-Exact 'tests/pwa-app-update.test.js' 'blt_sw_update=20261020-offline-shell-v001' 'blt_sw_update=20261020-offline-catalog-f1-v001'
+
+# 5. Preparar en staging TODOS los archivos a reemplazar, comprobar sintaxis y despues aplicar.
+$stage = Join-Path $env:TEMP ('BLTNOW_OFFLINE_F1_' + [guid]::NewGuid().ToString('N'))
+$copied = @(
+    'backend/src/modules/offline-pilot/offline-pilot.catalog.js',
+    'backend/src/modules/offline-pilot/offline-pilot.service.js',
+    'backend/src/modules/offline-pilot/offline-pilot.controller.js',
+    'modules/offline-pilot/offline-catalog.js',
+    'tests/offline-f1-catalog.test.js',
+    'docs/ADR_20261020_OFFLINE_NUEVA_FASE_1.txt',
+    'README_FIX_FASE_1.txt'
+)
+$all = @($changed.Keys) + $copied
+try {
+    foreach ($relative in $changed.Keys) {
+        $path = Join-Path $stage $relative
+        New-Item -ItemType Directory -Path (Split-Path $path) -Force | Out-Null
+        $stagedText = $changed[$relative]
+        if ($lineEndings[$relative] -eq "`r`n") { $stagedText = $stagedText.Replace("`n","`r`n") }
+        [System.IO.File]::WriteAllText($path,$stagedText,$utf8)
+    }
+    foreach ($relative in $copied) {
+        $src = Join-Path $FIX $relative
+        if (-not (Test-Path $src)) { throw "El FIX no contiene $relative" }
+        $dst = Join-Path $stage $relative
+        New-Item -ItemType Directory -Path (Split-Path $dst) -Force | Out-Null
+        Copy-Item $src $dst -Force
+    }
+    foreach ($relative in $all) {
+        if ($relative.EndsWith('.js')) {
+            node --check (Join-Path $stage $relative)
+            if ($LASTEXITCODE -ne 0) { throw "Sintaxis no valida: $relative" }
+        }
+    }
+    foreach ($relative in $all) {
+        $src = Join-Path $stage $relative
+        $dst = Join-Path $REPO $relative
+        New-Item -ItemType Directory -Path (Split-Path $dst) -Force | Out-Null
+        Copy-Item $src $dst -Force
+    }
+    node --test tests/offline-f1-catalog.test.js tests/offline-pilot-permissions.test.js tests/pwa-app-update.test.js
+    if ($LASTEXITCODE -ne 0) { throw 'Pruebas locales fallidas. No se crea commit.' }
+    git diff --check
+    if ($LASTEXITCODE -ne 0) { throw 'git diff --check fallo. No se crea commit.' }
+    git add -- $all
+    git commit -m 'BLT NOW Modo Offline - nueva Fase 1 catalogo y alcance'
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el commit local.' }
+    Write-Host 'FASE 1 APLICADA Y COMMIT LOCAL GENERADO. No se realizo push ni despliegue.'
+} finally {
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+}

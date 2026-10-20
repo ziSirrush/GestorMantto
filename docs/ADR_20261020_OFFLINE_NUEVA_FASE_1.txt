@@ -1,0 +1,21 @@
+ADR BLT NOW 2026-10-20 | MODO OFFLINE NUEVA FASE 1 | PROPUESTA PARA VALIDACION
+
+Contexto: piloto previo exporta solo UNITED Resumen del Dia. Nuevo criterio exige un catalogo por permisos
+reales, agrupacion, dominio y cuartos, con seleccion individual y todo marcado inicialmente.
+
+Decision de diseno F1:
+- Base de datos Aiven sigue siendo fuente oficial; no se agrega una segunda fuente de permisos.
+- Se consulta el catalogo existente perm_modulos/perm_agrupaciones/perm_elementos/perm_subelementos/
+  perm_subelemento_acciones/perm_acciones y se valida hasEffectivePermission por codigo.
+- Se exige puerta de informacion y motor oficial resolveAlcanceByGrouping_gnral para cada agrupacion.
+- Una llave maestra aplica solo al dominio al que corresponde; UNITED sin llave exige zonas.
+- El resultado de /api/offline/capabilities describe elegibilidad, NO entrega filas operativas.
+- Los exportadores aun no implementados se rotulan como pendientes; no se abren API nuevas.
+- La seleccion vive en localStorage por usuario actor y efectivo; no requiere tabla SQL.
+- El listado de copias muestra solo snapshots locales realmente existentes dentro del catalogo autorizado.
+- Se conserva validacion de alcance del propio endpoint original de Resumen del Dia.
+
+LIMITES de F1:
+- Un listado de elegibilidad NO reemplaza la autorizacion al descargar o escribir.
+- Persistencia/caducidad y purga de copias al revocar permisos se completan en fase posterior.
+- Sin prueba live de Aiven no se confirma listado real ni empresas/zonas de un usuario especifico.
