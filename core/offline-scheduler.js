@@ -33,16 +33,6 @@
       return true;
     }catch(error){console.warn('[Offline] No se pudo guardar el catalogo validado.',error);return false;}
   }
-  function cacheAuthorizedModuleShell(caps){
-    const loader=window.ManttoModuleLoader;
-    const controller=navigator.serviceWorker?.controller;
-    if(!loader?.offlineAssets||!controller?.postMessage||!Array.isArray(caps?.catalog_modules))return false;
-    const routes=caps.catalog_modules.map(module=>module?.route).filter(Boolean);
-    const assets=loader.offlineAssets(routes);
-    if(!assets.length)return false;
-    controller.postMessage({type:'BLT_CACHE_MODULE_SHELL',assets});
-    return true;
-  }
   function readPreferences(id){
     if(!id)return null;
     try{const p=JSON.parse(localStorage.getItem(keyFor(PREF_PREFIX,id))||'null');return p&&typeof p==='object'?p:null;}
@@ -234,7 +224,6 @@
       if(caps?.permission_code!==PERMISSION_CODE||Number(caps.effective_user_id)!==effective||caps.viewer_read_only===true)
         fail('No se pudo revalidar la identidad y el permiso offline.');
       rememberAuthorizedCatalog(caps,actor,effective);
-      cacheAuthorizedModuleShell(caps);
       const allAuthorized={};
       for(const m of caps.catalog_modules||[]){
         for(const dataset of m.datasets||[]){
@@ -556,7 +545,7 @@
        document.getElementById?.('bltnow-offline-navigation-script'))return;
     const script=document.createElement('script');
     script.id='bltnow-offline-navigation-script';
-    script.src='./core/offline-navigation.js?v=20261020-offline-sidebar-shell-v001';
+    script.src='./core/offline-navigation.js?v=20261020-navegacion-offline-f1-v001';
     script.async=false;
     script.addEventListener('error',()=>console.warn('[Offline] No se pudo cargar el adaptador de navegacion.'));
     document.head.appendChild(script);

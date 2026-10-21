@@ -188,7 +188,7 @@ test('F4: la nueva ruta se precachea y la version PWA cambia',()=>{
   const sw=fs.readFileSync(path.join(ROOT,'service-worker.js'),'utf8');
   assert.match(nav,/installNativeActionsBridge\(\)/);
   assert.match(nav,/core\/offline-native-actions\.js/);
-  assert.match(sw,/20261020-offline-sidebar-shell-v001/);
+  assert.match(sw,/20261020-navegacion-offline-f5-v001/);
   assert.match(sw,/REQUIRED_OFFLINE_COR_ASSETS = \[[\s\S]*core\/offline-native-actions\.js/);
   assert.match(sw,/core\/offline-resumen-dia\.js/);
   assert.match(sw,/core\/offline-instalaciones-proyectos\.js/);

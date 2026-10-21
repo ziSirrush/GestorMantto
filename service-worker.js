@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20261020-offline-sidebar-shell-v001';
+const SERVICE_WORKER_VERSION = '20261020-navegacion-offline-f5-v001';
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
@@ -143,14 +143,8 @@ function isStaticShellRequest(request) {
   if (relativePath === 'manifest.json' || relativePath === 'manifest-github.json') return true;
   if (/^(?:styles|core)\/.+\.(?:css|js|woff2?)$/i.test(relativePath)) return true;
   if (/^modules\/.+\.(?:css|js)$/i.test(relativePath)) return true;
-  if (/^modules\/.+\.html$/i.test(relativePath)) {
-    const parts=relativePath.split('/');
-    const folder=parts.length===3?parts[1]:'';
-    const file=parts.length===3?parts[2].replace(/\.html$/i,''):'';
-    // Las plantillas vigentes conservan el nombre de su módulo (algunas
-    // agregan sufijo _cor). No se admite HTML arbitrario dentro de modules/.
-    return Boolean(folder&&file&&(file===folder||file.startsWith(folder+'_')));
-  }
+  // Unico HTML dinamico certificado para consulta offline CORELLIAN.
+  if (relativePath === 'modules/instalaciones-proyectos/instalaciones-proyectos.html') return true;
   return /^assets\/img\/icons\/.+\.(?:png|svg|ico|webp)$/i.test(relativePath);
 }
 
@@ -193,25 +187,6 @@ self.addEventListener('fetch', event => {
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     event.waitUntil(self.skipWaiting());
-    return;
-  }
-  if(event.data && event.data.type === 'BLT_CACHE_MODULE_SHELL'){
-    const requested=Array.isArray(event.data.assets)?event.data.assets.slice(0,500):[];
-    event.waitUntil((async()=>{
-      const cache=await caches.open(SHELL_CACHE);
-      let cached=0,failed=0;
-      for(let index=0;index<requested.length;index+=8){
-        const batch=requested.slice(index,index+8).map(value=>{
-          let url;
-          try{url=new URL(String(value||''),self.location.href);}catch(_error){return null;}
-          const request={method:'GET',url:url.href};
-          if(!isStaticShellRequest(request))return null;
-          return cache.add(url.href).then(()=>{cached++;},()=>{failed++;});
-        }).filter(Boolean);
-        await Promise.all(batch);
-      }
-      event.source?.postMessage?.({type:'BLT_CACHE_MODULE_SHELL_RESULT',cached,failed});
-    })());
   }
 });
 
