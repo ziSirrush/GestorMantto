@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 const loadTestRegistry = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.registry');
 const { getCurrentLoadTestSessionId } = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.context');
-const { createConnectionPressureGuard } = require('./db-capacity-guard');
 
 const requiredDbVariables = [
   'DB_HOST',
@@ -36,10 +35,6 @@ function positiveNumber(value, fallback, minimum = 1) {
   if (!Number.isFinite(parsed) || parsed < minimum) return fallback;
   return parsed;
 }
-
-const connectionPressureGuard = createConnectionPressureGuard({
-  backoffMs: positiveNumber(process.env.DB_CONNECTION_PRESSURE_BACKOFF_MS, 5000, 1000)
-});
 
 function sqlText(sqlOrOptions) {
   if (typeof sqlOrOptions === 'string') return sqlOrOptions;
@@ -118,10 +113,6 @@ function installQueryObservability(target, label) {
     const original = target[methodName].bind(target);
 
     target[methodName] = async function observedDatabaseCall(...args) {
-      // Las consultas sobre una conexión ya adquirida pueden terminar su
-      // transacción. Solo el pool deja de abrir/adquirir conexiones nuevas
-      // durante el enfriamiento posterior a ER_CON_COUNT_ERROR (1040).
-      if (label === 'pool') connectionPressureGuard.assertAvailable();
       const startedAt = process.hrtime.bigint();
       const loadTestSessionId = getCurrentLoadTestSessionId();
       if (loadTestSessionId) loadTestRegistry.beginSql(loadTestSessionId);
@@ -138,7 +129,6 @@ function installQueryObservability(target, label) {
         const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, null, error);
         if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
         console.error('[DB_QUERY_ERROR]', JSON.stringify(telemetry));
-        connectionPressureGuard.record(error);
         throw error;
       }
     };
@@ -156,11 +146,6 @@ function installQueryObservability(target, label) {
 assertDatabaseEnvironment();
 
 const useSsl = isEnabled(process.env.DB_SSL, true);
-const connectionLimit = positiveNumber(process.env.DB_CONNECTION_LIMIT, 10, 1);
-const maxIdleConnections = Math.min(
-  connectionLimit,
-  positiveNumber(process.env.DB_MAX_IDLE_CONNECTIONS, Math.min(2, connectionLimit), 1)
-);
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -172,9 +157,7 @@ const pool = mysql.createPool({
   // No se expone como variable configurable para evitar una regresion a utf8/utf8mb3.
   charset: 'utf8mb4',
   waitForConnections: true,
-  connectionLimit,
-  maxIdle: maxIdleConnections,
-  idleTimeout: positiveNumber(process.env.DB_IDLE_TIMEOUT_MS, 60000, 1000),
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: Number(process.env.DB_QUEUE_LIMIT || 0),
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   enableKeepAlive: true,
@@ -206,7 +189,6 @@ installQueryObservability(pool, 'pool');
 if (typeof pool.getConnection === 'function') {
   const originalGetConnection = pool.getConnection.bind(pool);
   pool.getConnection = async function getObservedConnection(...args) {
-    connectionPressureGuard.assertAvailable();
     const loadTestSessionId = getCurrentLoadTestSessionId();
     const startedAt = process.hrtime.bigint();
     if (loadTestSessionId) loadTestRegistry.beginPoolAcquire(loadTestSessionId);
@@ -222,7 +204,6 @@ if (typeof pool.getConnection === 'function') {
         const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, error);
       }
-      connectionPressureGuard.record(error);
       throw error;
     }
   };

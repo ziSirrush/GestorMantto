@@ -129,8 +129,7 @@ test('el botón vive debajo de la versión del perfil y el worker acepta activac
   assert.match(worker,/event\.data\.type === 'SKIP_WAITING'/);
   assert.match(worker,/self\.skipWaiting\(\)/);
   assert.match(worker,/BLT_VERSION_PROBE/);
-  assert.doesNotMatch(worker,/client\.navigate\(/);
-  assert.match(worker,/reloadDeferred:true/);
+  assert.match(worker,/client\.navigate\(target\.href\)/);
 });
 
 test('el administrador actual responde al worker para evitar recargas automáticas posteriores',()=>{
@@ -151,7 +150,7 @@ test('el administrador actual responde al worker para evitar recargas automátic
   assert.equal(loaded.api.getState().available,false);
 });
 
-test('el worker respeta clientes administrados y difiere la recarga de clientes antiguos',async()=>{
+test('el worker puente recarga clientes antiguos y respeta clientes con actualizador',async()=>{
   class TestMessageChannel{
     constructor(){
       this.port1={onmessage:null};
@@ -174,15 +173,12 @@ test('el worker respeta clientes administrados y difiere la recarga de clientes 
   assert.equal(managedNavigation,'');
 
   let legacyNavigation='';
-  const legacyMessages=[];
   await context.refreshLegacyClient({
     url:'https://example.test/index.html',
-    postMessage:message=>{legacyMessages.push(message);},
+    postMessage:()=>{},
     navigate:async url=>{legacyNavigation=url;}
   });
-  assert.equal(legacyNavigation,'');
-  assert.equal(legacyMessages.at(-1).type,'BLT_UPDATE_AVAILABLE');
-  assert.equal(legacyMessages.at(-1).reloadDeferred,true);
+  assert.match(legacyNavigation,/blt_sw_update=20261020-navegacion-offline-f5-v001/);
 });
 
 test('GitHub Pages y Netlify generan metadata nueva en cada despliegue',()=>{

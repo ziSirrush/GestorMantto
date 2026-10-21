@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = '20261020-api-load-fallback-v001';
+const SERVICE_WORKER_VERSION = '20261020-offline-sidebar-shell-v001';
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
@@ -111,24 +111,11 @@ function clientHasManagedUpdates(client) {
 }
 
 async function refreshLegacyClient(client) {
-  if (await clientHasManagedUpdates(client)) return { managed:true };
-
-  // Un worker nuevo puede activarse a la vez en muchos dispositivos. Recargar
-  // aquí cada pestaña antigua generaba una ráfaga de consultas contra la API y
-  // Aiven justo después de un despliegue. Los clientes actuales ya administran
-  // la actualización desde core/app-update.js; los antiguos conservan su vista
-  // hasta la próxima recarga normal, cuando recibirán el shell nuevo.
-  try {
-    client.postMessage({
-      type:'BLT_UPDATE_AVAILABLE',
-      serviceWorkerVersion:SERVICE_WORKER_VERSION,
-      reloadDeferred:true
-    });
-  } catch (error) {
-    // Un cliente puede cerrarse entre matchAll y postMessage; no debe impedir
-    // la activación del worker ni provocar una recarga de respaldo.
-  }
-  return { managed:false, reloadDeferred:true };
+  if (await clientHasManagedUpdates(client)) return;
+  const target = new URL(client.url);
+  if (target.searchParams.get('blt_sw_update') === SERVICE_WORKER_VERSION) return;
+  target.searchParams.set('blt_sw_update', SERVICE_WORKER_VERSION);
+  await client.navigate(target.href);
 }
 
 self.addEventListener('activate', event => {

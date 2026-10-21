@@ -34,10 +34,6 @@ function errorHandler(sourceError, req, res, next) {
     if (error.queue_error) payload.queue_error = error.queue_error;
   }
 
-  if (Number.isFinite(Number(error.retryAfterSeconds)) && Number(error.retryAfterSeconds) > 0) {
-    res.set('Retry-After', String(Math.ceil(Number(error.retryAfterSeconds))));
-  }
-
   return res.status(statusCode).json(payload);
 }
 
