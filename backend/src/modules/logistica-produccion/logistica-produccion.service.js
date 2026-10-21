@@ -3,6 +3,8 @@
 // [Aster | 2026-10-05 | ASTER-MG | FASE 1 PVO-PRODUCCION CAPTURA MANUAL FECHAS V001]
 // [Aster | 2026-10-05 | ASTER-MG | FASE 2 PVO-PRODUCCION SEPARACION FECHAS FUENTES V001]
 // [Aster | 2026-10-05 | ASTER-MG | FASE 3 PVO-PRODUCCION COMPARACION FECHAS DETALLE V001]
+// [BLT NOW | 2026-10-21 | FASE 1 VALIDACION DOCUMENTAL CPVO + GM V001]
+// [BLT NOW | 2026-10-21 | FASE 2 PVO FECHA UNICA PARA VALIDAR COMPLETOS V001]
 
 // [Aster | 2026-09-03 | ASTER-MG | FIX PVO-PRODUCCION GUARDAR EDICION V002]
 // [Aster | 2026-09-24 | ASTER-MG | FIX PVO-PRODUCCION DOCUMENTOS DESCARGA SAS V001]
@@ -21,6 +23,9 @@ const storage=require('../../services/storage/azure-storage.service');
 
 const MODES=Object.freeze(['SEMI_AUTOMATICO','MANUAL']);
 const CREATION_MODE='MANUAL';
+// La BD admite CPVO y GM; no existe un tipo independiente para carta de primera visita.
+// Sin inferir el tipo por el nombre del archivo, la primera visita exige CPVO activo.
+const DOCUMENTATION_RULE='CPVO_MAS_GM_ACTIVOS';
 
 function error(message,status=400,code='VALIDATION_ERROR'){const e=new Error(message);e.status=status;e.statusCode=status;e.code=code;return e;}
 function positive(value,name){const n=Number(value);if(!Number.isInteger(n)||n<1)throw error(`${name} inválido.`);return n;}
@@ -31,6 +36,7 @@ function optionalText(value,name,max){const s=String(value==null?'':value).trim(
 function requiredText(value,name,max){const s=String(value==null?'':value).trim();if(!s)throw error(`${name} es obligatorio.`);if(s.length>max)throw error(`${name} excede ${max} caracteres.`);return s;}
 function normalizeMode(value){const mode=String(value||CREATION_MODE).trim().toUpperCase().replace(/[ -]+/g,'_');if(!MODES.includes(mode))throw error('modo_registro debe ser SEMI_AUTOMATICO o MANUAL.');return mode;}
 function validPpns(value){const s=String(value||'').trim().toUpperCase();return Boolean(s&&!['SIN PP NS','SIN PPNS','N/A'].includes(s));}
+function documentationComplete(row){return Number(row?.cpvo_count)>0&&Number(row?.gm_count)>0;}
 function isoWeekAtMexico(date=new Date()){
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).reduce((a,p)=>(a[p.type]=p.value,a),{});
   const d=new Date(Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day)));const day=d.getUTCDay()||7;d.setUTCDate(d.getUTCDate()+4-day);
@@ -75,7 +81,7 @@ function decorate(row){
       fecha_cubos:null,fecha_pvo_fl:null,fechas_pvo_fl:null,
       fechas_visita:null,fechas_cubos:null,comentario:null,
       estatus_produccion:'Revision de vinculo',cpvo_count:0,gm_count:0,archivos_count:0,
-      indicadores:[],integridad_bloqueada:true,
+      indicadores:[],integridad_bloqueada:true,documentacion_completa:false,
       pvo:{cpvo:false,pvo_log:false,visita:false,pvo_fl:false}
     };
   }
@@ -96,7 +102,7 @@ function decorate(row){
   const indicators=[];
   if(Number(row.cpvo_count)===0)indicators.push({codigo:'FALTA_ARCHIVO_PVO',emoji:'📍',nombre:'Falta Archivo PVO'});
   if(!validPpns(ppns))indicators.push({codigo:'FALTA_PPNS',emoji:'🥨',nombre:'Falta PPNS'});
-  if(Number(row.archivos_count)===0)indicators.push({codigo:'FALTAN_DOCS_PROD',emoji:'💾',nombre:'Faltan Docs de Prod',regla:'PROVISIONAL_AL_MENOS_UN_ARCHIVO'});
+  if(!documentationComplete(row))indicators.push({codigo:'FALTAN_DOCS_PROD',emoji:'💾',nombre:'Faltan Docs de Prod',regla:DOCUMENTATION_RULE});
   return {
     ...row,
     modo_registro:row.modo_registro||'SEMI_AUTOMATICO',
@@ -117,6 +123,7 @@ function decorate(row){
     estatus_logistica:estatusLogistica,
     fuente_operativa:sourceBound?'LOG_OPS_INS_FL':'SNAPSHOT_HISTORICO',
     indicadores:indicators,
+    documentacion_completa:documentationComplete(row),
     instalaciones:{
       supervisores:split(row.supervisores),
       asesores:split(row.asesores),
@@ -141,7 +148,7 @@ function decorate(row){
   };
 }
 
-async function list(query){return {ok:true,data:(await repo.list(query)).map(decorate),reglas:{documentos:'PROVISIONAL_AL_MENOS_UN_ARCHIVO'}};}
+async function list(query){return {ok:true,data:(await repo.list(query)).map(decorate),reglas:{documentos:DOCUMENTATION_RULE}};}
 async function detail(id){
   const row=await repo.byId(positive(id,'id'));
   if(!row)throw error('Registro de PVO-Producción no encontrado.',404);
@@ -385,11 +392,11 @@ function validateUploadPolicy(file){const maxMb=25;if(Number(file.size)>maxMb*10
 async function upload(id,input,file,user){if(!file)throw error('Selecciona un archivo.');validateUploadPolicy(file);id=positive(id,'id');await detail(id);const {type,slot}=fileSlot(input.tipo_archivo,input.numero_archivo);const existing=(await repo.files(id)).find(x=>x.tipo_archivo===type&&Number(x.numero_archivo)===slot);const uploaded=await storage.uploadPrivate_gnral({file,empresa:'CORELLIAN',modulo:'logistica-produccion',entidadTipo:'produccion',entidadId:id,subruta:type.toLowerCase(),metadata:{uploaded_by:user.id_SB||user.id,tipo:type,slot}});try{await repo.upsertFile(id,type,slot,uploaded,positive(user.id_SB||user.id,'usuario'));}catch(e){await storage.deleteBlob_gnral(uploaded.storage_blob_name,{containerName:uploaded.storage_container,queueOnFailure:true}).catch(()=>null);throw e;}if(existing&&existing.storage_provider==='AZURE_BLOB'&&existing.storage_blob_name!==uploaded.storage_blob_name)await storage.deleteBlob_gnral(existing.storage_blob_name,{containerName:existing.storage_container,queueOnFailure:true,queueContext:{modulo:'logistica-produccion',entidadTipo:'archivo',entidadId:existing.id_archivo,solicitadoPor:user.id_SB||user.id}}).catch(()=>null);return {ok:true,data:await listFiles(id)};}
 async function replaceFile(id,fileId,file,user){id=positive(id,'id');const current=await repo.fileById(id,positive(fileId,'idArchivo'));if(!current||!current.activo)throw error('Archivo no encontrado.',404);return upload(id,{tipo_archivo:current.tipo_archivo,numero_archivo:current.numero_archivo},file,user);}
 async function removeFile(id,fileId,user){id=positive(id,'id');await detail(id);fileId=positive(fileId,'idArchivo');const row=await repo.fileById(id,fileId);if(!row||!row.activo)throw error('Archivo no encontrado.',404);if(!(await repo.deactivateFile(id,fileId,positive(user.id_SB||user.id,'usuario'))))throw error('Archivo no encontrado.',404);if(row.storage_provider==='AZURE_BLOB'&&row.storage_blob_name)await storage.deleteBlob_gnral(row.storage_blob_name,{containerName:row.storage_container,queueOnFailure:true,queueContext:{modulo:'logistica-produccion',entidadTipo:'archivo',entidadId:fileId,solicitadoPor:user.id_SB||user.id}}).catch(()=>null);return {ok:true,data:await listFiles(id)};}
-async function documents(query,missing=false){const rows=(await repo.list(query)).filter(isProductionLinkValid).map(decorate);if(missing)return {ok:true,data:rows.filter(r=>Number(r.archivos_count)===0),regla:'PROVISIONAL_AL_MENOS_UN_ARCHIVO'};const out=[];for(const row of rows)for(const file of await listFiles(row.id_produccion))out.push({...file,id_produccion:row.id_produccion,proyecto:row.proyecto,ppns:row.ppns});return {ok:true,data:out};}
-async function pvo(query,missing=false){const rows=(await repo.list(query)).filter(isProductionLinkValid).map(decorate);return {ok:true,data:rows.filter(r=>missing?!(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita):(r.pvo.cpvo&&r.pvo.pvo_log&&r.pvo.visita))};}
+async function documents(query,missing=false){const rows=(await repo.list(query)).filter(isProductionLinkValid).map(decorate);if(missing)return {ok:true,data:rows.filter(r=>!r.documentacion_completa),regla:DOCUMENTATION_RULE};const out=[];for(const row of rows)for(const file of await listFiles(row.id_produccion))out.push({...file,id_produccion:row.id_produccion,proyecto:row.proyecto,ppns:row.ppns});return {ok:true,data:out};}
+async function pvo(query,missing=false){const rows=(await repo.list(query)).filter(isProductionLinkValid).map(decorate);return {ok:true,data:rows.filter(r=>{const complete=r.documentacion_completa&&r.pvo.pvo_log;return missing?!complete:complete;})};}
 
 module.exports={
   list,detail,projectSummary,options,manualCatalogs,manualProjects,manualAdvisors,manualSupervisors,manualPpns,
   create,update,listFiles,listReadOnlyFiles,upload,replaceFile,removeFile,documents,pvo,decorate,isoWeekAtMexico,fileSlot,
-  validateUploadPolicy,normalizeMode,singleSourceDate,buildDateComparison,requiredText
+  validateUploadPolicy,normalizeMode,singleSourceDate,buildDateComparison,requiredText,documentationComplete
 };

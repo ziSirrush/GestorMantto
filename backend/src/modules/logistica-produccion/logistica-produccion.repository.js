@@ -13,6 +13,8 @@
 // [Aster | 2026-09-04 | ASTER-MG | FASE 5 PVO-PRODUCCION DETALLE SIN VENTAS V001]
 // [Aster | 2026-09-23 | ASTER-MG | FIX PVO-PRODUCCION ORDEN FILTROS EMOJIS V001]
 // [Aster | 2026-10-05 | ASTER-MG | FASE 2 PVO-PRODUCCION SEPARACION FECHAS FUENTES V001]
+// [BLT NOW | 2026-10-21 | FASE 1 FILTRO PROYECTOS PREPRODUCCION V001]
+// [BLT NOW | 2026-10-21 | FASE 1 VALIDACION DOCUMENTAL CPVO + GM V001]
 // id_log_ops identifica el registro logistico y mantiene las fuentes operativas de log_ops.
 // La relacion con Instalaciones se hace por PPNS persistido: ins_fl.id_proyecto = logistica_produccion.ppns.
 // PVO, Visita y Cubos se leen de logistica_produccion; log_ops / ins_fl quedan como fuentes comparativas.
@@ -21,6 +23,20 @@ const db = require('../../config/db');
 const { assertSamePpns } = require('./logistica-produccion-integridad');
 
 const STATUS_CATALOG=Object.freeze({area:'Logistica',elemento:'Estatus Produccion'});
+// Etapas 1..4 del pipeline Logistica (antes de EN PRODUCCION).
+// Lista cerrada: un estatus ausente o desconocido NO habilita un alta nueva.
+const PRE_PRODUCTION_STATUSES=Object.freeze([
+  'SIN PRODUCCIÓN / Documentación Pendiente',
+  'SIN PRODUCCIÓN / Primera Visita a Obra',
+  'SIN PRODUCCIÓN / Pendiente Liberación por Parte del Cliente',
+  'SIN PRODUCCIÓN / Programados a Producción'
+]);
+const PRE_PRODUCTION_FILTER_SQL=`TRIM(l.estatus) IN (${PRE_PRODUCTION_STATUSES.map(()=>'?').join(',')})`;
+function normalizeLogStatus(value){
+  return String(value??'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+}
+const PRE_PRODUCTION_STATUS_KEYS=new Set(PRE_PRODUCTION_STATUSES.map(normalizeLogStatus));
+function isPreProductionStatus(value){return PRE_PRODUCTION_STATUS_KEYS.has(normalizeLogStatus(value));}
 
 const MANUAL_SALES_ROLE_SQL = `(
   r.codigo IN ('DIRECTOR_VENTAS','ASESOR_COMERCIAL','GERENTE_CUENTAS_CORPORATIVAS')
@@ -103,7 +119,8 @@ async function list(filters={}){
     where.push(`TRIM(COALESCE(${pvoExpr},'')) NOT REGEXP '[0-9]{4}-[0-9]{2}-[0-9]{2}'`);
   }
   if(vista==='falta_archivo_pvo')where.push('COALESCE(a.cpvo_count,0)=0');
-  if(vista==='sin_documentos'||String(filters.sin_documentos||'')==='1')where.push('COALESCE(a.archivos_count,0)=0');
+  // Incompleto si falta el documento de primera visita CPVO o un documento GM activo.
+  if(vista==='sin_documentos'||String(filters.sin_documentos||'')==='1')where.push('(COALESCE(a.cpvo_count,0)=0 OR COALESCE(a.gm_count,0)=0)');
   if(vista==='falta_ppns'){
     where.push(`(
       NULLIF(TRIM(COALESCE(${ppnsExpr},'')),'') IS NULL
@@ -199,8 +216,9 @@ async function ppnsOptions(q=''){
 
 async function projectOptions(q=''){
   const term=String(q||'').trim();
-  const params=[];
-  let filter="WHERE l.proyecto IS NOT NULL AND TRIM(l.proyecto)<>''";
+  const params=[...PRE_PRODUCTION_STATUSES];
+  // Solo el selector "Agregar nuevo > Buscar proyecto"; no filtra historicos ni edicion.
+  let filter="WHERE l.proyecto IS NOT NULL AND TRIM(l.proyecto)<>'' AND "+PRE_PRODUCTION_FILTER_SQL;
   if(term){
     filter+=' AND (l.proyecto LIKE ? OR l.id_ppns LIKE ?)';
     const like=`%${term}%`;
@@ -294,6 +312,12 @@ async function create(input,userId){
       const log=await logSnapshotById(input.id_log_ops,connection,true);
       if(!log){const e=new Error('La fila logística relacionada ya no existe.');e.status=404;throw e;}
       assertSamePpns(input.ppns, log.id_ppns, 'Creacion PVO-Produccion');
+      // Validar de nuevo bajo FOR UPDATE: el estatus pudo cambiar desde la busqueda.
+      if(!isPreProductionStatus(log.estatus)){
+        const e=new Error('El proyecto seleccionado ya no esta en una etapa previa a Produccion. Actualiza la busqueda.');
+        e.status=409;
+        throw e;
+      }
     }
     const [result]=await connection.query(`INSERT INTO logistica_produccion
       (id_log_ops,modo_registro,ppns,proyecto,id_cotizacion_venta,id_asesor,id_supervisor,
