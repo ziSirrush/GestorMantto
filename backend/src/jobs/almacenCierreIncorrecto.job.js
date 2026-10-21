@@ -17,6 +17,58 @@ const ENABLED = String(process.env.ALMACEN_CIERRE_ALERT_ENABLED || 'true').toLow
 
 let timer = null;
 let running = false;
+let sourceTableAvailable = null;
+let sourceTableWarningLogged = false;
+
+function isMissingSourceTableError(error) {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || error?.sqlMessage || '');
+  return code === 'ER_NO_SUCH_TABLE' && message.toLowerCase().includes(sourceEngine.TABLE.toLowerCase());
+}
+
+async function hasSourceTable(conn = db) {
+  const [rows] = await conn.query(
+    `SELECT 1 AS available
+       FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA=DATABASE()
+        AND TABLE_NAME=?
+      LIMIT 1`,
+    [sourceEngine.TABLE]
+  );
+  return Boolean(rows.length);
+}
+
+function disableForMissingSourceTable() {
+  sourceTableAvailable = false;
+  stopAlmacenCierreIncorrectoJob();
+  if (sourceTableWarningLogged) return;
+  sourceTableWarningLogged = true;
+  logger.warn(
+    `[Almacen] Job de cierre incorrecto pausado: falta la tabla ${sourceEngine.TABLE}. ` +
+    'Aplicar sql/FASE_2_ALMACEN_FUENTE_EXCEL_V002.sql y reiniciar la API.'
+  );
+}
+
+async function runScheduledCheck(label, dependencies = {}) {
+  const conn = dependencies.db || db;
+  try {
+    if (sourceTableAvailable === null) {
+      sourceTableAvailable = await hasSourceTable(conn);
+    }
+    if (!sourceTableAvailable) {
+      disableForMissingSourceTable();
+      return { skipped:true, reason:'source_table_unavailable' };
+    }
+    return await checkAlmacenCierreIncorrecto(new Date(), dependencies);
+  } catch (error) {
+    if (isMissingSourceTableError(error)) {
+      disableForMissingSourceTable();
+      return { skipped:true, reason:'source_table_unavailable' };
+    }
+    logger.error(label, error);
+    return { ok:false, error };
+  }
+}
 
 function zonedDateParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -165,9 +217,9 @@ function startAlmacenCierreIncorrectoJob() {
   if (timer) return timer;
 
   logger.info(`[Almacen] Alerta de cierre incorrecto activa: umbral 4 h, revisión cada ${Math.round(INTERVAL_MS / 60000)} min (${TZ}).`);
-  checkAlmacenCierreIncorrecto().catch(error => logger.error('[Almacen] Falló la revisión inicial del cierre activo.', error));
+  void runScheduledCheck('[Almacen] Falló la revisión inicial del cierre activo.');
   timer = setInterval(() => {
-    checkAlmacenCierreIncorrecto().catch(error => logger.error('[Almacen] Falló el job de cierre incorrecto.', error));
+    void runScheduledCheck('[Almacen] Falló el job de cierre incorrecto.');
   }, INTERVAL_MS);
   timer.unref?.();
   return timer;
@@ -184,6 +236,9 @@ module.exports = {
   THRESHOLD_MINUTES,
   previousMonthRange,
   dateInside,
+  isMissingSourceTableError,
+  hasSourceTable,
+  runScheduledCheck,
   activeOperationalSource,
   expectedArchivedSource,
   checkAlmacenCierreIncorrecto,

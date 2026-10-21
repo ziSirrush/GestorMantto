@@ -100,6 +100,22 @@ const expectedAugust = {
     key:'2025-12'
   });
 
+  assert.equal(job.isMissingSourceTableError({
+    code:'ER_NO_SUCH_TABLE',
+    message:"Table 'mydb.almacen_fuente_excel' doesn't exist"
+  }), true);
+  assert.equal(job.isMissingSourceTableError({
+    code:'ER_NO_SUCH_TABLE',
+    message:"Table 'mydb.otra_tabla' doesn't exist"
+  }), false);
+  assert.equal(await job.hasSourceTable({
+    async query(sql, params) {
+      assert(sql.includes('information_schema.TABLES'));
+      assert.deepEqual(params, ['almacen_fuente_excel']);
+      return [[]];
+    }
+  }), false);
+
   reset();
   state.active = { ...wrongActive, fechaCorte:'2026-08-15', activeMinutes:999 };
   let result = await job.checkAlmacenCierreIncorrecto(now, { db:dbMock, ignoreEnabled:true });
@@ -156,6 +172,21 @@ const expectedAugust = {
   });
   assert.equal(result.reason, 'no_authorized_recipients');
   assert.equal(state.emissions.length, 0);
+
+  let preflightQueries = 0;
+  result = await job.runScheduledCheck('[test] revisión', {
+    ignoreEnabled:true,
+    db:{
+      async query(sql, params) {
+        preflightQueries += 1;
+        assert(sql.includes('information_schema.TABLES'));
+        assert.deepEqual(params, ['almacen_fuente_excel']);
+        return [[]];
+      }
+    }
+  });
+  assert.equal(result.reason, 'source_table_unavailable');
+  assert.equal(preflightQueries, 1, 'Si falta la tabla, no debe ejecutar la consulta operativa del job');
 
   const permissionSource = fs.readFileSync(path.join(root, 'backend/src/services/permissions/effective-permission.service.js'), 'utf8');
   const bootstrap = fs.readFileSync(path.join(root, 'backend/src/bootstrap.js'), 'utf8');
