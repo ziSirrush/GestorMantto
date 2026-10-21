@@ -17,6 +17,13 @@ const { startCobranzaUniFkValidatorJob, stopCobranzaUniFkValidatorJob } = requir
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
+// Los jobs de negocio se activan una sola vez por proceso, aun cuando Aiven
+// no estuviera disponible en el arranque inicial del contenedor.
+let scheduledJobsStarted = false;
+let delayedJobsTimer = null;
+let dbRetryDelayMs = 30000;
+let shuttingDown = false;
+
 
 async function verifyStorageSchema() {
   try {
@@ -102,6 +109,30 @@ function startScheduledJobs(databaseReady) {
   }
 }
 
+function scheduleDatabaseRecovery() {
+  if (shuttingDown || scheduledJobsStarted || delayedJobsTimer) return;
+  const delay = dbRetryDelayMs;
+  dbRetryDelayMs = Math.min(dbRetryDelayMs * 2, 300000);
+  delayedJobsTimer = setTimeout(async () => {
+    delayedJobsTimer = null;
+    if (shuttingDown || scheduledJobsStarted) return;
+    try {
+      const available = await verifyDatabase();
+      if (!available) return scheduleDatabaseRecovery();
+      if (shuttingDown || scheduledJobsStarted) return;
+      await verifyStorageSchema();
+      if (shuttingDown || scheduledJobsStarted) return;
+      scheduledJobsStarted = true;
+      logger.info('[DB_RECOVERED] Aiven disponible; iniciando jobs omitidos al arranque.');
+      startScheduledJobs(true);
+    } catch (error) {
+      logger.error('[DB_RECOVERY] No se pudo completar la recuperacion de los jobs.', error);
+      scheduleDatabaseRecovery();
+    }
+  }, delay);
+  delayedJobsTimer.unref?.();
+}
+
 async function startServer() {
   validateEnvironment();
 
@@ -124,6 +155,8 @@ async function startServer() {
 
   logger.info(`Mantto Gestor API escuchando en http://localhost:${port}`);
   startScheduledJobs(databaseReady);
+  if (databaseReady) scheduledJobsStarted = true;
+  else scheduleDatabaseRecovery();
   // Reintenta aunque Aiven no estuviera disponible durante el arranque.
   try {
     startCobranzaUniFkValidatorJob();
@@ -140,6 +173,9 @@ function registerShutdownHandlers() {
     logger.info(`Senal ${signal} recibida. Cerrando servidor...`);
 
     try {
+      shuttingDown = true;
+      if (delayedJobsTimer) clearTimeout(delayedJobsTimer);
+      delayedJobsTimer = null;
       if (server) {
         await new Promise((resolve, reject) => {
           server.close((error) => (error ? reject(error) : resolve()));

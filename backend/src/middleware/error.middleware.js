@@ -34,6 +34,12 @@ function errorHandler(sourceError, req, res, next) {
     if (error.queue_error) payload.queue_error = error.queue_error;
   }
 
+  // Indica una pausa segura al cliente; no filtra host, credenciales ni SQL.
+  if (statusCode === 503 && Number.isFinite(Number(error.retryAfterSeconds)) &&
+      Number(error.retryAfterSeconds) > 0) {
+    res.set('Retry-After', String(Math.ceil(Number(error.retryAfterSeconds))));
+  }
+
   return res.status(statusCode).json(payload);
 }
 

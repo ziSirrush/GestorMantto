@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 const loadTestRegistry = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.registry');
 const { getCurrentLoadTestSessionId } = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.context');
+const { createConnectionPressureGuard } = require('./db-capacity-guard');
 
 const requiredDbVariables = [
   'DB_HOST',
@@ -16,6 +17,17 @@ const requiredDbVariables = [
 ];
 
 const DB_OBSERVABILITY_MARK = Symbol('manttoDbObservability');
+const connectionPressureGuard = createConnectionPressureGuard({
+  backoffMs: positiveNumber(process.env.DB_CONNECTION_PRESSURE_BACKOFF_MS, 5000, 1000),
+  maxBackoffMs: positiveNumber(process.env.DB_CONNECTION_PRESSURE_MAX_BACKOFF_MS, 30000, 1000)
+});
+
+// DB_QUEUE_LIMIT=0 (sin limite) no es seguro durante una averia de Aiven.
+// Limitar la cola por instancia evita acumular promesas y memoria sin fin.
+function boundedQueueLimit(value) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, 100) : 30;
+}
 
 function assertDatabaseEnvironment() {
   const missing = requiredDbVariables.filter((name) => !process.env[name]);
@@ -103,7 +115,8 @@ function buildQueryTelemetry(label, sqlOrOptions, startedAt, result, error) {
 
 function installQueryObservability(target, label) {
   const enabled = isEnabled(process.env.DB_QUERY_OBSERVABILITY_ENABLED, true);
-  if (!enabled || !target || target[DB_OBSERVABILITY_MARK]) return target;
+  // Proteccion de capacidad SIEMPRE activa, aun con telemetria deshabilitada.
+  if (!target || target[DB_OBSERVABILITY_MARK]) return target;
 
   const slowQueryMs = positiveNumber(process.env.DB_SLOW_QUERY_MS, 750, 1);
   const traceAll = isEnabled(process.env.DB_QUERY_TRACE_ALL, false);
@@ -113,22 +126,32 @@ function installQueryObservability(target, label) {
     const original = target[methodName].bind(target);
 
     target[methodName] = async function observedDatabaseCall(...args) {
+      if (label === 'pool') connectionPressureGuard.assertAvailable();
       const startedAt = process.hrtime.bigint();
       const loadTestSessionId = getCurrentLoadTestSessionId();
       if (loadTestSessionId) loadTestRegistry.beginSql(loadTestSessionId);
       try {
         const result = await original(...args);
-        const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, result, null);
-        if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
-        if (traceAll || telemetry.duration_ms >= slowQueryMs) {
-          const eventName = telemetry.duration_ms >= slowQueryMs ? '[DB_SLOW_QUERY]' : '[DB_QUERY]';
-          console.warn(eventName, JSON.stringify(telemetry));
+        if (label === 'pool') connectionPressureGuard.recordSuccess();
+        if (enabled || loadTestSessionId) {
+          const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, result, null);
+          if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
+          if (enabled && (traceAll || telemetry.duration_ms >= slowQueryMs)) {
+            const eventName = telemetry.duration_ms >= slowQueryMs ? '[DB_SLOW_QUERY]' : '[DB_QUERY]';
+            console.warn(eventName, JSON.stringify(telemetry));
+          }
         }
         return result;
       } catch (error) {
-        const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, null, error);
-        if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
-        console.error('[DB_QUERY_ERROR]', JSON.stringify(telemetry));
+        // Registrar primero el codigo MySQL original antes de normalizar el 503.
+        if (enabled || loadTestSessionId) {
+          const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, null, error);
+          if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
+          if (enabled) console.error('[DB_QUERY_ERROR]', JSON.stringify(telemetry));
+        }
+        if (label === 'pool') {
+          if (!connectionPressureGuard.record(error)) connectionPressureGuard.recordQueue(error);
+        }
         throw error;
       }
     };
@@ -171,7 +194,7 @@ const pool = mysql.createPool({
   connectionLimit,
   maxIdle: maxIdleConnections,
   idleTimeout: positiveNumber(process.env.DB_IDLE_TIMEOUT_MS, 30000, 1000),
-  queueLimit: Number(process.env.DB_QUEUE_LIMIT || 0),
+  queueLimit: boundedQueueLimit(process.env.DB_QUEUE_LIMIT),
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
@@ -200,7 +223,8 @@ const pool = mysql.createPool({
 console.warn('[DB_POOL_CAPACITY]', JSON.stringify({
   requested_connection_limit:requestedConnectionLimit,
   effective_connection_limit:connectionLimit,
-  max_idle_connections:maxIdleConnections
+  max_idle_connections:maxIdleConnections,
+  max_pending_requests:boundedQueueLimit(process.env.DB_QUEUE_LIMIT)
 }));
 
 installQueryObservability(pool, 'pool');
@@ -208,11 +232,13 @@ installQueryObservability(pool, 'pool');
 if (typeof pool.getConnection === 'function') {
   const originalGetConnection = pool.getConnection.bind(pool);
   pool.getConnection = async function getObservedConnection(...args) {
+    connectionPressureGuard.assertAvailable();
     const loadTestSessionId = getCurrentLoadTestSessionId();
     const startedAt = process.hrtime.bigint();
     if (loadTestSessionId) loadTestRegistry.beginPoolAcquire(loadTestSessionId);
     try {
       const connection = await originalGetConnection(...args);
+      connectionPressureGuard.recordSuccess();
       if (loadTestSessionId) {
         const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, null);
@@ -223,6 +249,7 @@ if (typeof pool.getConnection === 'function') {
         const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, error);
       }
+      if (!connectionPressureGuard.record(error)) connectionPressureGuard.recordQueue(error);
       throw error;
     }
   };
