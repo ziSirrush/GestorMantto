@@ -12,7 +12,8 @@
   const OFFLINE_PERMISSION='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
   const ACCESS_PREFIX='mantto:offline-access:';
   const ACCESS_TTL_MS=24*60*60*1000;
-  const MANAGED_LOCAL_PREFIXES=['mantto:offline-access:','mantto:offline-pending:', 'mantto:offline-backup-lease:'];
+  const MANAGED_LOCAL_PREFIXES=['mantto:offline-access:','mantto:offline-session-permissions:v1:',
+    'mantto:offline-pending:', 'mantto:offline-backup-lease:'];
   const SUPPORTED_KINDS=Object.freeze(['tickets','portafolio','proyectos']);
   // Fase 5: la cola mantiene confirmacion Aiven y conflictos por separado.
   const OUTBOX_ACTIONS=Object.freeze({

@@ -276,6 +276,73 @@
     'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']}
   });
 
+  // Plantillas solicitadas por los módulos después de cargar su JavaScript.
+  // Se incluyen en el shell administrado, nunca respuestas /api ni archivos
+  // originales. Los medios offline tendrán un almacén separado de vistas previas.
+  const OFFLINE_ROUTE_TEMPLATES=Object.freeze({
+    criticos:['./modules/equipos-criticos/equipos-criticos.html'],
+    callcenter:['./modules/callcenter/callcenter.html'],
+    operativo:['./modules/dashboard-operativo/dashboard-operativo.html'],
+    movimientos:['./modules/movimientos-portafolio/movimientos-portafolio.html'],
+    proyectos:['./modules/proyectos/proyectos.html'],
+    'instalaciones-dashboard':['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.html'],
+    'instalaciones-proyectos':['./modules/instalaciones-proyectos/instalaciones-proyectos.html'],
+    'instalaciones-cerrados':['./modules/instalaciones-cerrados/instalaciones-cerrados.html'],
+    'instalaciones-concentrado-cliente':['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.html'],
+    'instalaciones-reporte':['./modules/instalaciones-reporte/instalaciones-reporte_cor.html'],
+    'instalaciones-ajuste':['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.html'],
+    'instalaciones-pmm':['./modules/instalaciones-pmm/instalaciones-pmm_cor.html'],
+    'instalaciones-documentacion':['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.html'],
+    'instalaciones-carpetas':['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.html'],
+    'instalaciones-administracion':['./modules/instalaciones-administracion/instalaciones-administracion_cor.html'],
+    'ventas-dashboard':['./modules/ventas-dashboard/ventas-dashboard.html'],
+    'ventas-fotos-mapa':['./modules/ventas-fotos-mapa/ventas-fotos-mapa.html'],
+    'ventas-clientes':['./modules/ventas-clientes/ventas-clientes.html'],
+    'ventas-clientes-nuevo':['./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.html'],
+    'ventas-clientes-detalle':['./modules/ventas-clientes-detalle/ventas-clientes-detalle.html'],
+    'ventas-cotizaciones':['./modules/ventas-cotizaciones/ventas-cotizaciones.html'],
+    'ventas-cotizaciones-nueva':['./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.html'],
+    'ventas-cotizaciones-editar':['./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.html'],
+    'ventas-cotizaciones-detalle':['./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.html'],
+    'ventas-vendidos':['./modules/ventas-vendidos/ventas-vendidos.html'],
+    'ventas-proyeccion':['./modules/ventas-proyeccion/ventas-proyeccion.html'],
+    'ventas-perdidos':['./modules/ventas-perdidos/ventas-perdidos.html'],
+    'ventas-prospeccion':['./modules/ventas-prospeccion/ventas-prospeccion.html'],
+    'ventas-prospeccion-nueva':['./modules/ventas-prospeccion-nueva/ventas-prospeccion-nueva.html'],
+    'ventas-prospeccion-detalle':['./modules/ventas-prospeccion-detalle/ventas-prospeccion-detalle.html'],
+    'ventas-mapa-prospeccion':['./modules/ventas-mapa-prospeccion/ventas-mapa-prospeccion.html'],
+    'ventas-asignacion-redes':['./modules/ventas-asignacion-redes/ventas-asignacion-redes.html'],
+    'ventas-asignacion-redes-detalle':['./modules/ventas-asignacion-redes-detalle/ventas-asignacion-redes-detalle.html'],
+    'ventas-asignacion-redes-formulario':['./modules/ventas-asignacion-redes-formulario/ventas-asignacion-redes-formulario.html']
+  });
+  // Rutas cuyo cargador histórico todavía vive en core/app.js.
+  const OFFLINE_EXTRA_ROUTE_ASSETS=Object.freeze({
+    'cx-dashboard':['./modules/customer-experience-dashboard/customer-experience-dashboard.css?v=20261007-fase1-v001',
+      './modules/customer-experience-dashboard/customer-experience-dashboard.js?v=20261007-fase1-v001'],
+    'cx-encuestas':['./modules/customer-experience-encuestas/customer-experience-encuestas.css?v=20261007-fase2-v001',
+      './modules/customer-experience-encuestas/customer-experience-encuestas.js?v=20261007-fase2-v001'],
+    'cx-visitas':['./modules/customer-experience-visitas/customer-experience-visitas.css?v=20261015-fase3-v001',
+      './modules/customer-experience-visitas/customer-experience-visitas.js?v=20261015-fase4-v001'],
+    'entregas-control':['./modules/entregas-control/entregas-control.css?v=20261007-fase1-v001',
+      './modules/entregas-control/entregas-control.js?v=20261007-fase1-v001']
+  });
+
+  function normalizedRoute(route){
+    return String(route||'').trim().replace(/^#\/?/,'').replace(/^\//,'').split(/[/?#]/)[0];
+  }
+  function offlineAssets(routes){
+    const selected=new Set((Array.isArray(routes)?routes:[]).map(normalizedRoute).filter(Boolean));
+    const assets=new Set();
+    for(const route of selected){
+      const config=ROUTES[route];
+      for(const asset of [...(config?.css||[]),...(config?.js||[]),
+        ...(OFFLINE_ROUTE_TEMPLATES[route]||[]),...(OFFLINE_EXTRA_ROUTE_ASSETS[route]||[])]){
+        if(typeof asset==='string'&&asset.startsWith('./modules/'))assets.add(asset);
+      }
+    }
+    return [...assets];
+  }
+
   function absoluteUrl(src){
     try{return new URL(src, document.baseURI).href;}catch(_error){return String(src||'');}
   }
@@ -372,7 +439,7 @@
   document.addEventListener('mantto:session-expired',resetLifecycle);
 
   window.ManttoModuleLoader=Object.freeze({
-    ensure,hasRoute,loadScript,loadStyle,
+    ensure,hasRoute,loadScript,loadStyle,offlineAssets,
     lifecycle:{
       persistentRoutes:()=>Array.from(PERSISTENT_DATA_ROUTES),
       initialized:()=>Array.from(initializedContexts),

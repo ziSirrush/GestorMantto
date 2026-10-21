@@ -10,19 +10,45 @@
     usersLoaded:false,
     canUseViewer:false,
     headerBound:false,
-    bannerBound:false
+    bannerBound:false,
+    offlinePermissions:false
   };
+  const OFFLINE_PERMISSION_CACHE_PREFIX='mantto:offline-session-permissions:v1:';
+  const OFFLINE_PERMISSION_CACHE_TTL_MS=24*60*60*1000;
+  const OFFLINE_READ_ACTIONS=new Set(['VER','ACCESO_VISUAL','CONSULTAR','LISTAR']);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
 
   function actor(){return window.ManttoAuth?.getActorUser?.()||{};}
-  function hasCachedOfflineAccess(){
+  function positiveId(value){const id=Number(value);return Number.isSafeInteger(id)&&id>0?id:null;}
+  function identities(){
     const real=actor();
     const effective=window.ManttoAuth?.getUser?.()||real;
-    return window.ManttoOfflineStorage?.hasCachedAccess?.(
-      real.id_SB||real.id||real.user_id,
-      effective.id_SB||effective.id||effective.user_id
-    )===true;
+    const actorId=positiveId(real.id_SB||real.id||real.user_id);
+    const effectiveId=positiveId(effective.id_SB||effective.id||effective.user_id);
+    return actorId&&effectiveId?{actorId,effectiveId}:null;
+  }
+  function offlinePermissionCacheKey(ids){
+    return ids?`${OFFLINE_PERMISSION_CACHE_PREFIX}${ids.actorId}:${ids.effectiveId}`:null;
+  }
+  function trustedCachedOfflineAccess(ids){
+    if(!ids)return null;
+    return window.ManttoOfflineStorage?.readCachedAccess?.(ids.actorId,ids.effectiveId)||null;
+  }
+  function hasCachedOfflineAccess(){
+    return Boolean(trustedCachedOfflineAccess(identities()));
+  }
+  function normalizedRoute(value){
+    return String(value||'').trim().replace(/^#\/?/,'').replace(/^\//,'').split(/[/?#]/)[0];
+  }
+  function hasBackedOfflineRoute(item){
+    const route=normalizedRoute(item?.dataset?.route);
+    if(route==='home')return true;
+    if(route==='offline-configuracion')return hasCachedOfflineAccess();
+    const access=trustedCachedOfflineAccess(identities());
+    return Boolean(route&&access?.catalog_modules?.some(module=>
+      normalizedRoute(module?.route)===route&&module?.backup_status==='EXPORTADOR_COMPLETO'&&
+      Array.isArray(module?.datasets)&&module.datasets.length>0));
   }
   function allowed(){return Boolean(state.canUseViewer)&&!window.ManttoAuth?.isViewingAs?.();}
   function elements(){
@@ -265,6 +291,7 @@
   function hasModuleAccess(item){
     const permission=item.dataset.permission||'';
     if(permission==='home')return true;
+    if(state.offlinePermissions&&!hasBackedOfflineRoute(item))return false;
     const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
     if(exactPermissionCode){
       const exact=permissionState(exactPermissionCode);
@@ -305,10 +332,9 @@
     const currentItem=currentRoute?document.querySelector(`.side-item[data-route="${CSS.escape(currentRoute)}"]`):null;
     if(currentItem?.hidden&&currentRoute!=='home')window.ManttoRouter.reset();
   }
-  async function loadSessionPermissions(){
-    const json=await window.ManttoAuth.apiGet('/api/panel-control/session-permissions');
-    state.catalog=json.data?.catalogo||[];
-    const permissionRows=json.data?.permisos||[];
+  function applySessionPermissions(data,{offline=false}={}){
+    state.catalog=Array.isArray(data?.catalogo)?data.catalogo:[];
+    const permissionRows=Array.isArray(data?.permisos)?data.permisos:[];
     state.permissions=new Map(permissionRows.map(permission=>[
       Number(permission.id_subelemento_accion),
       permission.efectivo===true
@@ -330,7 +356,61 @@
           Number(row.id_subelemento_accion)
         ])
     );
-    state.canUseViewer=Boolean(json.data?.puede_usar_visor);
+    // El Visor requiere un contexto emitido y comprobado por backend. Una copia
+    // local nunca puede crear ni ampliar ese contexto.
+    state.canUseViewer=offline?false:Boolean(data?.puede_usar_visor);
+    state.offlinePermissions=offline;
+  }
+  function rememberSessionPermissions(data){
+    const ids=identities(),key=offlinePermissionCacheKey(ids);
+    // Puede ejecutarse antes de que /offline/capabilities termine. La lectura
+    // seguirá bloqueada hasta que exista además ese acceso firmado y vigente.
+    if(!key||!Array.isArray(data?.catalogo)||!Array.isArray(data?.permisos))return false;
+    try{
+      localStorage.setItem(key,JSON.stringify({
+        schema_version:1,
+        actor_user_id:ids.actorId,
+        effective_user_id:ids.effectiveId,
+        saved_at:new Date().toISOString(),
+        data:{catalogo:data.catalogo,permisos:data.permisos}
+      }));
+      return true;
+    }catch(error){
+      console.warn('[Permisos offline] No fue posible conservar el Guard de lectura.',error);
+      return false;
+    }
+  }
+  function restoreSessionPermissions(){
+    const ids=identities(),key=offlinePermissionCacheKey(ids);
+    if(!key||!trustedCachedOfflineAccess(ids))return false;
+    try{
+      const saved=JSON.parse(localStorage.getItem(key)||'null');
+      const timestamp=Date.parse(saved?.saved_at||'');
+      if(saved?.schema_version!==1||saved?.actor_user_id!==ids.actorId||
+         saved?.effective_user_id!==ids.effectiveId||!Number.isFinite(timestamp)||
+         timestamp>Date.now()||Date.now()-timestamp>OFFLINE_PERMISSION_CACHE_TTL_MS||
+         !Array.isArray(saved?.data?.catalogo)||!Array.isArray(saved?.data?.permisos))return false;
+      applySessionPermissions(saved.data,{offline:true});
+      return true;
+    }catch(_error){return false;}
+  }
+  function removeSessionPermissions(){
+    const key=offlinePermissionCacheKey(identities());
+    if(key)try{localStorage.removeItem(key);}catch(_error){}
+  }
+  function clearPermissionState(){
+    state.catalog=[];
+    state.permissions.clear();
+    state.permissionStates.clear();
+    state.permissionCodes.clear();
+    state.canUseViewer=false;
+    state.offlinePermissions=false;
+  }
+  async function loadSessionPermissions(){
+    const json=await window.ManttoAuth.apiGet('/api/panel-control/session-permissions');
+    const data=json?.data||{};
+    applySessionPermissions(data);
+    rememberSessionPermissions(data);
   }
 
   function permissionState(code){
@@ -346,8 +426,14 @@
   }
   function can(code,options={}){
     const current=permissionState(code);
-    if(!current.exists)return options.defaultValue!==undefined?Boolean(options.defaultValue):true;
-    if(!current.configurado)return options.defaultValue!==undefined?Boolean(options.defaultValue):true;
+    if(!current.exists)return state.offlinePermissions?false:
+      (options.defaultValue!==undefined?Boolean(options.defaultValue):true);
+    if(!current.configurado)return state.offlinePermissions?false:
+      (options.defaultValue!==undefined?Boolean(options.defaultValue):true);
+    if(state.offlinePermissions){
+      const action=String(code||'').trim().split('.').pop().toUpperCase();
+      if(!OFFLINE_READ_ACTIONS.has(action))return false;
+    }
     return current.efectivo===true;
   }
   function canAny(codes,options={}){
@@ -414,11 +500,9 @@
       if(allowed())await loadViewerUsers();
     }catch(error){
       console.error('[Permisos de sesión]',error);
-      state.catalog=[];
-      state.permissions.clear();
-      state.permissionStates.clear();
-      state.permissionCodes.clear();
-      state.canUseViewer=false;
+      const terminal=[401,403].includes(Number(error?.status||0));
+      if(terminal){removeSessionPermissions();clearPermissionState();}
+      else if(!restoreSessionPermissions())clearPermissionState();
       applySidebar();
       renderLauncher();
       renderBanner();
@@ -428,10 +512,9 @@
   document.addEventListener('mantto:view-user-changed',async()=>{
     try{await loadSessionPermissions();}catch(error){
       console.error('[Permisos de sesión]',error);
-      state.permissions.clear();
-      state.permissionStates.clear();
-      state.permissionCodes.clear();
-      state.canUseViewer=false;
+      const terminal=[401,403].includes(Number(error?.status||0));
+      if(terminal){removeSessionPermissions();clearPermissionState();}
+      else if(!restoreSessionPermissions())clearPermissionState();
     }
     renderLauncher();
     renderBanner();
@@ -445,5 +528,6 @@
     reload:reloadPermissions,
     apply:applyActionPermissions
   };
-  window.ManttoUserViewer={init,applySidebar,allowed,renderPanel,openViewer};
+  window.ManttoUserViewer={init,applySidebar,allowed,renderPanel,openViewer,
+    usingOfflinePermissions:()=>state.offlinePermissions};
 })();
