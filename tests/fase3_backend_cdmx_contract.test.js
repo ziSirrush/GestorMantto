@@ -60,8 +60,7 @@ test('Dashboard Operativo y reglas de Instalaciones toman fecha operativa CDMX',
 test('cortes semanales mantienen America/Mexico_City explicito', () => {
   for (const rel of [
     'backend/src/jobs/portafolioCierreSemanal.job.js',
-    'backend/src/jobs/logisticaCierreSemanal.job.js',
-    'backend/src/jobs/almacenCierreIncorrecto.job.js'
+    'backend/src/jobs/logisticaCierreSemanal.job.js'
   ]) {
     assert.match(read(rel), /America\/Mexico_City/, rel);
   }

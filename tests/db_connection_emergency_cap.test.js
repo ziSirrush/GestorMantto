@@ -14,6 +14,10 @@ const bootstrapSource = fs.readFileSync(path.join(ROOT,'backend','src','bootstra
 const { createConnectionPressureGuard, isConnectionCapacityError, isPoolQueueError } =
   require('../backend/src/config/db-capacity-guard');
 
+test('bootstrap no carga ni ejecuta el job legacy de Almacen Excel', () => {
+  assert.doesNotMatch(bootstrapSource, /almacenCierreIncorrecto/);
+});
+
 function noisyError(code='ER_CON_COUNT_ERROR', errno=1040) {
   const e = new Error('Too many connections');
   e.code=code;e.errno=errno;return e;
@@ -195,7 +199,6 @@ function bootFixture({failedChecks=1}={}) {
     './jobs/logisticaCierreSemanal.job':['startLogisticaCierreSemanalJob','stopLogisticaCierreSemanalJob'],
     './jobs/pushNotifications.job':['startPushNotificationsJob','stopPushNotificationsJob'],
     './jobs/storageOperations.job':['startStorageOperationsJob','stopStorageOperationsJob'],
-    './jobs/almacenCierreIncorrecto.job':['startAlmacenCierreIncorrectoJob','stopAlmacenCierreIncorrectoJob'],
     './jobs/equiposCriticosSalidaU35.job':['startEquiposCriticosSalidaU35Job','stopEquiposCriticosSalidaU35Job'],
     './jobs/movimientosCriticosCierreSemanal.job':['startMovimientosCriticosCierreSemanalJob','stopMovimientosCriticosCierreSemanalJob'],
     './jobs/instalacionesAdministracionCalculados.job':['startInstalacionesAdministracionCalculadosJob','stopInstalacionesAdministracionCalculadosJob'],
@@ -238,4 +241,21 @@ test('cuando la DB arranca lista no programa reintentos adicionales',async()=>{
   await f.runner.startServer();
   assert.equal(f.starts.startPushNotificationsJob,1);
   assert.equal(f.timers.length,0);
+});
+
+test('el cierre ordenado detiene todos los jobs activos restantes',async()=>{
+  const f=bootFixture({failedChecks:0});
+  await f.runner.startServer();
+  const sigterm=f.signaled.find(item=>item.name==='SIGTERM');
+  assert.ok(sigterm);
+  await sigterm.cb();
+  for(const stop of [
+    'stopLogisticaCierreSemanalJob',
+    'stopPushNotificationsJob',
+    'stopStorageOperationsJob',
+    'stopEquiposCriticosSalidaU35Job',
+    'stopMovimientosCriticosCierreSemanalJob',
+    'stopInstalacionesAdministracionCalculadosJob',
+    'stopCobranzaUniFkValidatorJob'
+  ]) assert.equal(f.starts[stop],1,stop);
 });

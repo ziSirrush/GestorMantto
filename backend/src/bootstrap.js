@@ -9,7 +9,6 @@ const { startPortafolioCierreSemanalJob } = require('./jobs/portafolioCierreSema
 const { startLogisticaCierreSemanalJob, stopLogisticaCierreSemanalJob } = require('./jobs/logisticaCierreSemanal.job');
 const { startPushNotificationsJob, stopPushNotificationsJob } = require('./jobs/pushNotifications.job');
 const { startStorageOperationsJob, stopStorageOperationsJob } = require('./jobs/storageOperations.job');
-const { startAlmacenCierreIncorrectoJob, stopAlmacenCierreIncorrectoJob } = require('./jobs/almacenCierreIncorrecto.job');
 const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = require('./jobs/equiposCriticosSalidaU35.job');
 const { startMovimientosCriticosCierreSemanalJob, stopMovimientosCriticosCierreSemanalJob } = require('./jobs/movimientosCriticosCierreSemanal.job');
 const { startInstalacionesAdministracionCalculadosJob, stopInstalacionesAdministracionCalculadosJob } = require('./jobs/instalacionesAdministracionCalculados.job');
@@ -71,7 +70,6 @@ function startScheduledJobs(databaseReady) {
     startPortafolioCierreMensualJob();
     startPortafolioCierreSemanalJob();
     startLogisticaCierreSemanalJob();
-    startAlmacenCierreIncorrectoJob();
     logger.info('Jobs de Portafolio inicializados.');
   } catch (error) {
     logger.error('La API inicio, pero los jobs de Portafolio no pudieron inicializarse.', error);
@@ -185,7 +183,6 @@ function registerShutdownHandlers() {
       stopPushNotificationsJob();
       stopStorageOperationsJob();
       stopLogisticaCierreSemanalJob();
-      stopAlmacenCierreIncorrectoJob();
       stopEquiposCriticosSalidaU35Job();
       stopMovimientosCriticosCierreSemanalJob();
       stopInstalacionesAdministracionCalculadosJob();
