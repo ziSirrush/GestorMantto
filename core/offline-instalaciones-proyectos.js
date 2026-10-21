@@ -161,6 +161,9 @@
   function installHttpBridge(){
     const http=window.ManttoHttp;
     if(!http||typeof http.get!=='function')return false;
+    // ManttoHttp es inmutable en BLT NOW. ManttoAuth.api utiliza window.fetch,
+    // interceptado por installFetchBridge sin modificar el cliente oficial.
+    if(Object.isFrozen(http))return false;
     const original=http.get;
     http.get=function(path,...args){
       const query=typeof path==='string'?path:'';
@@ -176,6 +179,9 @@
   function installHttpMutationGuard(){
     const http=window.ManttoHttp;
     if(!http||typeof http.request!=='function')return false;
+    // El puente fetch ya bloquea POST/PATCH/DELETE offline en los endpoints
+    // de Instalaciones. No mutar ManttoHttp.request, que es de solo lectura.
+    if(Object.isFrozen(http))return false;
     const original=http.request;
     http.request=function(path,options,...rest){
       const method=String(options?.method||'GET').toUpperCase();

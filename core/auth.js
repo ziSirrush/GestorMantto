@@ -13,6 +13,7 @@
   const ACCESS_TOKEN_LIFETIME_MS = 12 * 60 * 60 * 1000;
   const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 5 * 60 * 1000;
   const SESSION_REFRESH_RETRY_MS = 60 * 1000;
+  const SESSION_REQUEST_TIMEOUT_MS = 12000; // solo validación/refresh; no afecta módulos operativos
   const state = { token: null, user: null, viewUser: null, pendingUser: null, recoveryToken: null, expiringSession: false, lastSessionRefreshAt: 0 };
   let refreshPromise = null;
   let refreshTimer = null;
@@ -262,9 +263,37 @@
     scheduleSessionRefresh(state.token);
     return payload;
   }
+  function sessionNetworkTimeoutError(){
+    const error=new Error('No fue posible validar la sesión a tiempo. Reintenta cuando la API esté disponible.');
+    error.name='AbortError';
+    error.code='AUTH_NETWORK_TIMEOUT';
+    return error;
+  }
+  async function fetchSessionBounded(url,options={}){
+    const controller=typeof AbortController==='function'?new AbortController():null;
+    const externalSignal=options.signal;
+    const forwardAbort=()=>controller?.abort();
+    if(controller&&externalSignal){
+      if(externalSignal.aborted)controller.abort();
+      else externalSignal.addEventListener('abort',forwardAbort,{once:true});
+    }
+    const fetchOptions=controller?{...options,signal:controller.signal}:options;
+    let timer=null;
+    const expired=new Promise((_,reject)=>{
+      timer=window.setTimeout(()=>{
+        reject(sessionNetworkTimeoutError());
+        controller?.abort();
+      },SESSION_REQUEST_TIMEOUT_MS);
+    });
+    try{return await Promise.race([fetch(url,fetchOptions),expired]);}
+    finally{
+      if(timer!==null)window.clearTimeout(timer);
+      if(controller&&externalSignal)externalSignal.removeEventListener?.('abort',forwardAbort);
+    }
+  }
   async function requestSessionRefresh(){
     for(let attempt=0;attempt<2;attempt+=1){
-      const res=await fetch(AUTH_API_BASE+'/api/auth/refresh',{
+      const res=await fetchSessionBounded(AUTH_API_BASE+'/api/auth/refresh',{
         method:'POST',
         credentials:'include',
         headers:{'Accept':'application/json','X-Session-CSRF':String(localStorage.getItem(SESSION_CSRF_KEY)||'')}
@@ -281,7 +310,17 @@
     const requestedToken=getToken();
     refreshPromise=(async()=>{
       if(window.navigator?.locks?.request){
-        return window.navigator.locks.request('mantto-session-refresh',{mode:'exclusive'},()=>{
+        const controller=typeof AbortController==='function'?new AbortController():null;
+        let timer=null;
+        const lockDeadline=new Promise((_,reject)=>{
+          timer=window.setTimeout(()=>{
+            reject(sessionNetworkTimeoutError());
+            controller?.abort();
+          },SESSION_REQUEST_TIMEOUT_MS);
+        });
+        try{return await Promise.race([window.navigator.locks.request('mantto-session-refresh',{
+          mode:'exclusive',...(controller?{signal:controller.signal}:{})
+        },()=>{
           const sharedToken=String(localStorage.getItem(TOKEN_KEY)||'').trim();
           if(sharedToken && sharedToken!==requestedToken && jwtExpiryMs(sharedToken)>Date.now()){
             state.token=sharedToken;
@@ -293,7 +332,8 @@
             return {ok:true,token:sharedToken,user:state.user,shared:true};
           }
           return requestSessionRefresh();
-        });
+        }),lockDeadline]);}
+        finally{if(timer!==null)window.clearTimeout(timer);}
       }
       return requestSessionRefresh();
     })();
@@ -358,7 +398,9 @@
     const fetchOptions = Object.assign({ credentials:'include' }, opts, { headers, manttoMutationManaged:true });
     delete fetchOptions.skipMutationEvent;
     delete fetchOptions.skipAuthRefresh;
-    const res = await fetch(requestBase(path) + path, fetchOptions);
+    const res = String(path||'').split('?')[0]==='/api/auth/me'
+      ? await fetchSessionBounded(requestBase(path)+path,fetchOptions)
+      : await fetch(requestBase(path)+path,fetchOptions);
     const json = await res.json().catch(()=>({ ok:false, message:'Respuesta no JSON' }));
     if(!res.ok || json.ok === false){
       const error=buildApiError(res,json);

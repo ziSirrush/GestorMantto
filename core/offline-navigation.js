@@ -247,7 +247,7 @@
        !document.head?.appendChild||document.getElementById?.('bltnow-offline-resumen-f2'))return;
     const script=document.createElement('script');
     script.id='bltnow-offline-resumen-f2';
-    script.src='./core/offline-resumen-dia.js?v=20261020-navegacion-offline-f5-v001';
+    script.src='./core/offline-resumen-dia.js?v=20261021-offline-http-session-v001';
     script.async=false;
     script.addEventListener('error',()=>console.warn('[Offline] No fue posible cargar el lector del Resumen del Dia.'));
     document.head.appendChild(script);
@@ -257,7 +257,7 @@
        !document.head?.appendChild||document.getElementById?.('bltnow-offline-instalaciones-f3'))return;
     const script=document.createElement('script');
     script.id='bltnow-offline-instalaciones-f3';
-    script.src='./core/offline-instalaciones-proyectos.js?v=20261020-navegacion-offline-f5-v001';
+    script.src='./core/offline-instalaciones-proyectos.js?v=20261021-offline-http-session-v001';
     script.async=false;
     script.addEventListener('error',()=>console.warn('[Offline] No fue posible cargar el lector CORELLIAN de Instalaciones.'));
     document.head.appendChild(script);

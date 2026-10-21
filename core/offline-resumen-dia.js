@@ -176,6 +176,9 @@
   function installHttpBridge(){
     const http=window.ManttoHttp;
     if(!http||typeof http.get!=='function')return false;
+    // ManttoHttp es inmutable en BLT NOW. El puente fetch ya entrega las respuestas
+    // offline a ManttoAuth.api -> ManttoHttp; no se modifica el objeto congelado.
+    if(Object.isFrozen(http))return false;
     const old=http.get;
     http.get=function(path,...rest){
       const clean=typeof path==='string'?path.split('?')[0]:'';

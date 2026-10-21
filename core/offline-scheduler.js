@@ -545,7 +545,7 @@
        document.getElementById?.('bltnow-offline-navigation-script'))return;
     const script=document.createElement('script');
     script.id='bltnow-offline-navigation-script';
-    script.src='./core/offline-navigation.js?v=20261020-navegacion-offline-f1-v001';
+    script.src='./core/offline-navigation.js?v=20261021-offline-http-session-v001';
     script.async=false;
     script.addEventListener('error',()=>console.warn('[Offline] No se pudo cargar el adaptador de navegacion.'));
     document.head.appendChild(script);
