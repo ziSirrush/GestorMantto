@@ -1,0 +1,188 @@
+/* BLT NOW | Dashboard Logistica | FASE 5 V001 | Solo interfaz del Simulador de Fletes.
+   El CSS original del Dashboard permanece intacto. */
+#view-logistica-dashboard .dl-freight-section,
+[data-view="logistica-dashboard"] .dl-freight-section{
+  min-width:0;
+}
+#view-logistica-dashboard .dl-freight-section [hidden],
+[data-view="logistica-dashboard"] .dl-freight-section [hidden]{display:none!important}
+#view-logistica-dashboard .dl-freight-heading,
+[data-view="logistica-dashboard"] .dl-freight-heading{align-items:center}
+#view-logistica-dashboard .dl-freight-period,
+[data-view="logistica-dashboard"] .dl-freight-period{
+  display:inline-flex;align-items:center;max-width:100%;padding:7px 12px;
+  font-size:12px;font-weight:800;line-height:1.4;color:#1e3a8a;
+  background:#eff6ff;border:1px solid #bfdbfe;border-radius:99px;
+  overflow-wrap:anywhere;
+}
+#view-logistica-dashboard .dl-freight-form,
+[data-view="logistica-dashboard"] .dl-freight-form{display:flex;flex-direction:column;gap:14px}
+#view-logistica-dashboard .dl-freight-start,
+[data-view="logistica-dashboard"] .dl-freight-start{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;
+  border:1px solid #dbe5f2;border-radius:12px;margin:0;padding:10px 14px;
+}
+#view-logistica-dashboard .dl-freight-start legend,
+[data-view="logistica-dashboard"] .dl-freight-start legend{
+  padding:0 7px;color:#334155;font-weight:800;font-size:13px;
+}
+#view-logistica-dashboard .dl-freight-start label,
+[data-view="logistica-dashboard"] .dl-freight-start label{
+  display:inline-flex;align-items:center;gap:8px;min-height:40px;
+  font-weight:700;font-size:13px;color:#1e293b;cursor:pointer;
+}
+#view-logistica-dashboard .dl-freight-start input,
+[data-view="logistica-dashboard"] .dl-freight-start input{width:18px;height:18px;accent-color:#1d4ed8}
+#view-logistica-dashboard .dl-freight-fields,
+[data-view="logistica-dashboard"] .dl-freight-fields{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr));gap:13px;
+}
+#view-logistica-dashboard .dl-freight-field,
+[data-view="logistica-dashboard"] .dl-freight-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+#view-logistica-dashboard .dl-freight-field label,
+[data-view="logistica-dashboard"] .dl-freight-field label{font-size:12px;font-weight:800;color:#475569}
+#view-logistica-dashboard .dl-freight-field input,
+[data-view="logistica-dashboard"] .dl-freight-field input{
+  box-sizing:border-box;display:block;width:100%;max-width:100%;min-width:0;min-height:44px;
+  padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;
+  background:#fff;color:#0f172a;font-family:inherit;font-size:16px;
+}
+#view-logistica-dashboard .dl-freight-field input:focus-visible,
+[data-view="logistica-dashboard"] .dl-freight-field input:focus-visible,
+#view-logistica-dashboard .dl-freight-actions button:focus-visible,
+[data-view="logistica-dashboard"] .dl-freight-actions button:focus-visible{
+  outline:3px solid #93c5fd;outline-offset:2px;
+}
+#view-logistica-dashboard .dl-freight-actions,
+[data-view="logistica-dashboard"] .dl-freight-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#view-logistica-dashboard .dl-freight-actions .dl-btn,
+[data-view="logistica-dashboard"] .dl-freight-actions .dl-btn{min-height:44px}
+#view-logistica-dashboard .dl-freight-actions .dl-freight-primary,
+[data-view="logistica-dashboard"] .dl-freight-actions .dl-freight-primary{
+  border-color:#1d4ed8;background:#1d4ed8;color:#fff;
+}
+#view-logistica-dashboard .dl-freight-actions button:disabled,
+[data-view="logistica-dashboard"] .dl-freight-actions button:disabled{opacity:.65;cursor:wait}
+#view-logistica-dashboard .dl-freight-feedback,
+[data-view="logistica-dashboard"] .dl-freight-feedback{
+  margin:14px 0 12px;padding:12px 14px;line-height:1.45;
+  background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+  font-size:13px;font-weight:650;color:#475569;overflow-wrap:anywhere;
+}
+#view-logistica-dashboard .dl-freight-feedback.is-ok,
+[data-view="logistica-dashboard"] .dl-freight-feedback.is-ok{
+  background:#f0fdf4;border-color:#bbf7d0;color:#166534;
+}
+#view-logistica-dashboard .dl-freight-feedback.is-warn,
+[data-view="logistica-dashboard"] .dl-freight-feedback.is-warn{
+  background:#fffbeb;border-color:#fde68a;color:#92400e;
+}
+#view-logistica-dashboard .dl-freight-feedback.is-error,
+[data-view="logistica-dashboard"] .dl-freight-feedback.is-error{
+  background:#fef2f2;border-color:#fecaca;color:#991b1b;
+}
+#view-logistica-dashboard .dl-freight-summary,
+[data-view="logistica-dashboard"] .dl-freight-summary{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;
+  margin-bottom:12px;padding:12px 14px;border-radius:12px;background:#f1f5f9;
+  font-size:13px;color:#334155;overflow-wrap:anywhere;
+}
+#view-logistica-dashboard .dl-freight-summary>strong,
+[data-view="logistica-dashboard"] .dl-freight-summary>strong{font-weight:900;color:#102a56}
+#view-logistica-dashboard .dl-freight-scenarios,
+[data-view="logistica-dashboard"] .dl-freight-scenarios{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;
+}
+#view-logistica-dashboard .dl-freight-scenario,
+[data-view="logistica-dashboard"] .dl-freight-scenario{
+  padding:13px;border:1px solid #dbe5f2;border-radius:14px;background:#fff;min-width:0;
+}
+#view-logistica-dashboard .dl-freight-scenario-head,
+[data-view="logistica-dashboard"] .dl-freight-scenario-head{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-bottom:10px;
+}
+#view-logistica-dashboard .dl-freight-scenario-head h4,
+[data-view="logistica-dashboard"] .dl-freight-scenario-head h4{
+  color:#102a56;font-size:15px;font-weight:900;margin:0;
+}
+#view-logistica-dashboard .dl-freight-scenario-head span,
+[data-view="logistica-dashboard"] .dl-freight-scenario-head span{
+  font-size:11px;color:#475569;border-radius:99px;background:#e2e8f0;padding:4px 8px;
+}
+#view-logistica-dashboard .dl-freight-delivery,
+[data-view="logistica-dashboard"] .dl-freight-delivery{
+  display:flex;flex-direction:column;gap:4px;margin:0 0 14px;
+  font-size:12px;font-weight:700;color:#475569;
+}
+#view-logistica-dashboard .dl-freight-delivery strong,
+[data-view="logistica-dashboard"] .dl-freight-delivery strong{
+  font-size:19px;color:#1d4ed8;font-weight:900;
+}
+#view-logistica-dashboard .dl-freight-timeline,
+[data-view="logistica-dashboard"] .dl-freight-timeline{
+  list-style:none;margin:0 0 12px 0;padding:0 0 0 12px;border-left:3px solid #cbd5e1;
+}
+#view-logistica-dashboard .dl-freight-stage,
+[data-view="logistica-dashboard"] .dl-freight-stage{
+  position:relative;display:flex;flex-direction:column;gap:4px;
+  padding:3px 0 12px 12px;min-width:0;
+}
+#view-logistica-dashboard .dl-freight-stage:before,
+[data-view="logistica-dashboard"] .dl-freight-stage:before{
+  content:'';position:absolute;left:-19px;top:7px;width:10px;height:10px;
+  border-radius:100%;background:#1d4ed8;border:2px solid #eff6ff;
+}
+#view-logistica-dashboard .dl-freight-stage small,
+[data-view="logistica-dashboard"] .dl-freight-stage small{font-weight:700;color:#64748b;font-size:11px}
+#view-logistica-dashboard .dl-freight-stage strong,
+[data-view="logistica-dashboard"] .dl-freight-stage strong{font-size:14px;color:#1e293b}
+#view-logistica-dashboard .dl-freight-durations,
+[data-view="logistica-dashboard"] .dl-freight-durations{display:flex;flex-direction:column;gap:7px}
+#view-logistica-dashboard .dl-freight-durations>span,
+[data-view="logistica-dashboard"] .dl-freight-durations>span{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:12px;border-bottom:1px solid #f1f5f9;padding-bottom:5px;
+}
+#view-logistica-dashboard .dl-freight-durations small,
+[data-view="logistica-dashboard"] .dl-freight-durations small{font-size:11px;color:#64748b}
+#view-logistica-dashboard .dl-freight-durations strong,
+[data-view="logistica-dashboard"] .dl-freight-durations strong{font-weight:800;color:#102a56;white-space:nowrap}
+#view-logistica-dashboard .dl-freight-unavailable,
+[data-view="logistica-dashboard"] .dl-freight-unavailable{
+  background:#f8fafc;border-style:dashed;color:#64748b;
+}
+#view-logistica-dashboard .dl-freight-unavailable p,
+[data-view="logistica-dashboard"] .dl-freight-unavailable p{margin:8px 0;font-size:13px}
+#view-logistica-dashboard .dl-freight-no-data,
+[data-view="logistica-dashboard"] .dl-freight-no-data{
+  grid-column:1/-1;margin:0;padding:18px;
+  border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;
+  color:#475569;font-size:13px;
+}
+#view-logistica-dashboard .dl-freight-warnings,
+[data-view="logistica-dashboard"] .dl-freight-warnings{
+  margin-top:12px;font-size:12px;color:#475569;line-height:1.45;
+}
+#view-logistica-dashboard .dl-freight-warnings h4,
+[data-view="logistica-dashboard"] .dl-freight-warnings h4{margin:0 0 6px;font-size:12px;color:#334155}
+#view-logistica-dashboard .dl-freight-warnings ul,
+[data-view="logistica-dashboard"] .dl-freight-warnings ul{margin:0;padding-left:20px}
+#view-logistica-dashboard .dl-freight-warnings li,
+[data-view="logistica-dashboard"] .dl-freight-warnings li{margin:4px 0}
+@media(max-width:1050px){
+  #view-logistica-dashboard .dl-freight-scenarios,
+  [data-view="logistica-dashboard"] .dl-freight-scenarios{grid-template-columns:1fr}
+  #view-logistica-dashboard .dl-freight-scenario,
+  [data-view="logistica-dashboard"] .dl-freight-scenario{max-width:100%}
+}
+@media(max-width:520px){
+  #view-logistica-dashboard .dl-freight-section,
+  [data-view="logistica-dashboard"] .dl-freight-section{padding:13px}
+  #view-logistica-dashboard .dl-freight-period,
+  [data-view="logistica-dashboard"] .dl-freight-period{font-size:11px}
+  #view-logistica-dashboard .dl-freight-actions,
+  [data-view="logistica-dashboard"] .dl-freight-actions{display:grid;grid-template-columns:1fr}
+  #view-logistica-dashboard .dl-freight-actions .dl-btn,
+  [data-view="logistica-dashboard"] .dl-freight-actions .dl-btn{width:100%}
+}

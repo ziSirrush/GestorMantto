@@ -1,6 +1,7 @@
 'use strict';
 
 // [Aster | 2026-09-23 | ASTER-MG | FASE 1 DASHBOARD LOGISTICA ANALITICA V001]
+// [BLT NOW | 2026-10-21 | FASE 4 DASHBOARD LOGISTICA V001] Endpoint simulacion de fletes.
 
 const service = require('./logistica-dashboard.service');
 
@@ -18,4 +19,20 @@ async function analytics_cor(req, res, next) {
   }
 }
 
-module.exports = Object.freeze({ analytics_cor });
+
+// Endpoint de SOLO LECTURA: el mismo Guard del Dashboard protege el handler.
+async function freightSimulation_cor(req, res, next) {
+  try {
+    const data = await service.freightSimulation_cor(req.query || {});
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      generated_at: new Date().toISOString(),
+      data
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = Object.freeze({ analytics_cor, freightSimulation_cor });
