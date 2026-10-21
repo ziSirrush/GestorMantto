@@ -146,6 +146,17 @@ function installQueryObservability(target, label) {
 assertDatabaseEnvironment();
 
 const useSsl = isEnabled(process.env.DB_SSL, true);
+// Contención operativa: Aiven agotó max_connections durante el despliegue.
+// El valor histórico sigue siendo configurable, pero cada instancia de Azure
+// queda limitada por defecto a dos conexiones y conserva solo una ociosa. El
+// cap puede elevarse explícitamente cuando Aiven tenga capacidad confirmada.
+const requestedConnectionLimit = positiveNumber(process.env.DB_CONNECTION_LIMIT, 10, 1);
+const connectionLimitCap = positiveNumber(process.env.DB_CONNECTION_LIMIT_CAP, 2, 1);
+const connectionLimit = Math.max(1, Math.floor(Math.min(requestedConnectionLimit, connectionLimitCap)));
+const maxIdleConnections = Math.max(1, Math.floor(Math.min(
+  connectionLimit,
+  positiveNumber(process.env.DB_MAX_IDLE_CONNECTIONS, 1, 1)
+)));
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -157,7 +168,9 @@ const pool = mysql.createPool({
   // No se expone como variable configurable para evitar una regresion a utf8/utf8mb3.
   charset: 'utf8mb4',
   waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
+  connectionLimit,
+  maxIdle: maxIdleConnections,
+  idleTimeout: positiveNumber(process.env.DB_IDLE_TIMEOUT_MS, 30000, 1000),
   queueLimit: Number(process.env.DB_QUEUE_LIMIT || 0),
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   enableKeepAlive: true,
@@ -183,6 +196,12 @@ const pool = mysql.createPool({
       }
     : undefined
 });
+
+console.warn('[DB_POOL_CAPACITY]', JSON.stringify({
+  requested_connection_limit:requestedConnectionLimit,
+  effective_connection_limit:connectionLimit,
+  max_idle_connections:maxIdleConnections
+}));
 
 installQueryObservability(pool, 'pool');
 
