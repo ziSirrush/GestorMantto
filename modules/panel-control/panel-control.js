@@ -1627,17 +1627,7 @@
 
   function hierarchyKey(level,id){return `${level}:${id}`;}
 
-  function hierarchyValue(level,id){
-    const changed=state.hierarchyDirty.get(hierarchyKey(level,id));
-    if(state.tab==='roles'){
-      if(changed)return {checked:Boolean(changed.permitido),indeterminate:false};
-      return {checked:Boolean(state.roleHierarchy[level]?.get(Number(id))),indeterminate:false};
-    }
-    const base=state.userHierarchy[level]?.get(Number(id))||{heredado:false,personalizado:null,efectivo:false};
-    if(!changed)return {checked:Boolean(base.efectivo),indeterminate:false};
-    const checked=changed.mode==='inherit'?Boolean(base.heredado):changed.mode==='allow';
-    return {checked,indeterminate:false};
-  }
+
 
   function hierarchyCheck(level,id,actions,label){
     if(!actions.length){
@@ -1747,7 +1737,7 @@
   }
 
   function allActions(group){return group.modules.flatMap(m=>m.elements.flatMap(e=>e.subs.flatMap(s=>s.actions)));}
-  function groupPercent(g){const acts=allActions(g);const yes=acts.filter(a=>state.tab==='roles'?roleValue(a.id):userValue(a.id).efectivo).length;return Math.round(yes/Math.max(acts.length,1)*100);}
+
   function rolePercent(){const all=state.catalog.flatMap(allActions);return Math.round(all.filter(a=>roleValue(a.id)).length/Math.max(all.length,1)*100);}
   function effectivePercent(){const all=state.catalog.flatMap(allActions);return Math.round(all.filter(a=>userValue(a.id).efectivo).length/Math.max(all.length,1)*100);}
   function countUserOverrides(){const all=state.catalog.flatMap(allActions);return all.filter(a=>userValue(a.id).personalizado!==null).length;}
@@ -1822,7 +1812,6 @@
       ids.forEach(id=>applyDesiredValue(id,desired));
       renderTreeOnly();
     }));
-
 
 
     document.querySelectorAll('[data-role-permission]').forEach(input=>input.addEventListener('change',()=>{

@@ -240,16 +240,6 @@ function activeValue(value) {
   return ['0', 'false', 'no', 'inactivo'].includes(text) ? 0 : 1;
 }
 
-function normalizeEmail(value) {
-  const email = cleanText(value, 150);
-  if (!email) return null;
-  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  if (!valid) throw badRequest('El correo no tiene un formato válido.');
-  return email;
-}
-
-
-
 
 async function assertVisibleCotizacion(connection, idCotizacion, actionContext, { includeInactive = false } = {}) {
   const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
@@ -677,24 +667,6 @@ function buildPaginationResult(options, rows, total) {
   };
 }
 
-async function listSpecialized(query, statuses, tipo, actionContext) {
-  const options = normalizeListQuery(query);
-  const connection = await repository.getConnection();
-
-  try {
-    const scope = await ventasVisibility.resolveVisibilityScope(connection, actionContext);
-    const { rows, total } = await repository.listByStatuses(connection, options, statuses, scope);
-    return {
-      ok: true,
-      source: 'aiven',
-      tipo,
-      estatus_incluidos: statuses,
-      ...buildPaginationResult(options, rows, total)
-    };
-  } finally {
-    connection.release();
-  }
-}
 
 async function getEmbudo(query, actionContext) {
   const options = normalizeListQuery(query);

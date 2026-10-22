@@ -232,15 +232,3 @@ test('Repositorio usa cursor y watermark por id, no fecha, para el despacho pend
   assert.match(repository, /MAX\(id_notificacion\).*watermark_id/s);
   assert.match(repository, /GREATEST\(COALESCE\(ultimo_id_notificacion, 0\), \?\)/);
 });
-
-test('Migracion conserva el equivalente del cursor temporal y no crea tablas nuevas', () => {
-  const migration = fs.readFileSync(path.join(
-    __dirname,
-    '../backend/sql/20260827_FIX_PUSH_CURSOR_ID_V001.sql'
-  ), 'utf8');
-
-  assert.match(migration, /ADD COLUMN ultimo_id_notificacion INT UNSIGNED NULL/);
-  assert.match(migration, /MAX\(n\.id_notificacion\)/);
-  assert.match(migration, /n\.fecha_creacion\s*<=\s*COALESCE\(s\.ultimo_uso_at, s\.created_at\)/);
-  assert.doesNotMatch(migration, /CREATE TABLE/i);
-});

@@ -248,22 +248,6 @@ test('el proceso compara estado critico posterior y reserva el Ticket disparador
   assert.match(source, /equipo_sale_de_critico:\s*0/);
 });
 
-test('SQL de aplicacion registra el evento pero no inventa matriz Evento-Rol', () => {
-  const sql = read('sql/APLICAR_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.sql');
-  assert.match(sql, /EQUIPO_SALE_DE_CRITICO/);
-  assert.match(sql, /Equipos Criticos/);
-  assert.match(sql, /SALIDA_CRITICO/);
-  assert.match(sql, /ABRIR_TICKET/);
-  assert.match(sql, /ON DUPLICATE KEY UPDATE/);
-  assert.doesNotMatch(sql, /INSERT\s+INTO\s+notificacion_evento_roles/i);
-});
-
-test('rollback conserva historial y desactiva evento/matriz sin borrar', () => {
-  const sql = read('sql/ROLLBACK_EQUIPO_SALE_DE_CRITICO_FASE_1_V001.sql');
-  assert.match(sql, /UPDATE\s+notificacion_evento_roles[\s\S]*activo\s*=\s*0/i);
-  assert.match(sql, /UPDATE\s+notificacion_eventos[\s\S]*activo\s*=\s*0/i);
-  assert.doesNotMatch(sql, /DELETE\s+FROM/i);
-});
 
 test('Fase 1 no introduce scheduler ni resuelve vencimiento por paso del tiempo', () => {
   const source = read('backend/src/services/notifications/ticket-critical-notifications_uni.service.js');

@@ -206,10 +206,6 @@ function numberOrNull_cor(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function numberOrZero_cor(value) {
-  const parsed = numberOrNull_cor(value);
-  return parsed === null ? 0 : parsed;
-}
 
 function percentNumber_cor(value) {
   if (value === null || value === undefined || value === '' || value === '-') return null;

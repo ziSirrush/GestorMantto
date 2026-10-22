@@ -355,14 +355,7 @@
       return ticketCode===target && date.slice(0,4)===year && resp.includes('BLT');
     }).length>=3;
   }
-  function visualCodesEquipo(equipo,tickets){
-    const code=String((equipo&&equipo.numero_equipo)||'').trim();
-    const own=(tickets||[]).filter(t=>String(t.codigo_equipo||t.cod||t.equipo||'').trim()===code);
-    if(window.EstadosVisuales_gnral && window.EstadosVisuales_gnral.codesForEquipo){
-      return window.EstadosVisuales_gnral.codesForEquipo(equipo||{},own,{critico:isCriticalEquipmentByTickets(code,tickets)});
-    }
-    return isCriticalEquipmentByTickets(code,tickets)?['CRITICO']:[];
-  }
+
   function ticketsTable(rows){
     if(!rows || !rows.length) return '<div class="mg-empty">Sin tickets relacionados</div>';
     return legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table"><thead><tr><th>Ticket</th><th>Fecha</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Responsabilidad</th><th>Causa</th></tr></thead><tbody>' + rows.map(t=>{const ticketId=t.ticket||t.n||'';const ticketCodes=visualCodesTicket(t);return '<tr><td><button class="mg-link" data-ticket="'+esc(ticketId)+'">'+renderIdentifierVisual(ticketCodes,ticketId)+'</button></td><td>'+fmtDate(t.fecha_reporte || t.fr)+'</td><td>'+esc(t.estado_ticket || t.estado || t.et)+'</td><td><button class="mg-link" data-proyecto="'+esc(t.proyecto || t.pro || '')+'">'+esc(projectNameDisplay(t.proyecto || t.pro))+'</button></td><td><button class="mg-link" data-equipo="'+esc(t.codigo_equipo || t.cod || '')+'">'+esc(t.codigo_equipo || t.cod)+'</button></td><td>'+esc(t.responsabilidad || t.res)+'</td><td>'+esc(t.causa_falla || t.causa || t.caf)+'</td></tr>';}).join('') + '</tbody></table></div>';
@@ -372,27 +365,7 @@
     (root || document).querySelectorAll('[data-equipo]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openEquipo_gnral(el.getAttribute('data-equipo')); }));
     (root || document).querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); openTicket(el.getAttribute('data-ticket')); }));
   }
-  function bindProjectEquipmentKpis(root){
-    const scope=root||document;
-    const buttons=Array.from(scope.querySelectorAll('[data-project-equipment-filter]'));
-    const rows=Array.from(scope.querySelectorAll('[data-project-equipment-row]'));
-    const empty=scope.querySelector('[data-project-equipment-empty]');
-    if(!buttons.length||!rows.length) return;
-    buttons.forEach(button=>button.addEventListener('click',()=>{
-      const filter=button.getAttribute('data-project-equipment-filter')||'all';
-      const alreadyActive=button.classList.contains('is-active');
-      buttons.forEach(item=>item.classList.remove('is-active'));
-      const effective=alreadyActive?'all':filter;
-      if(!alreadyActive&&filter!=='all') button.classList.add('is-active');
-      let visible=0;
-      rows.forEach(row=>{
-        const showRow=effective==='all'||row.getAttribute('data-is-stopped')==='1';
-        row.hidden=!showRow;
-        if(showRow) visible+=1;
-      });
-      if(empty) empty.classList.toggle('is-visible',visible===0);
-    }));
-  }
+
   function toPct(value){
     const n=Number(String(value == null ? '' : value).replace('%','').trim());
     return Number.isFinite(n) ? Math.max(0,Math.min(100,n)) : 0;
@@ -1273,7 +1246,7 @@
       show('Proyecto · '+proyectoVisible,proyectoCodigoVisible,
         overview+
         '<section class="mg-detail-section"><h3>Indicadores del Proyecto</h3><div class="mg-project-dashboard">'+equipmentKpis+callKpis+debtKpis+mtbcKpis+rings+'</div></section>'+
-        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3>'+legendHostVisual(['CRITICO','NO_FUNCIONANDO_PROYECTO'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp BLT</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'</tbody></table></div></section>'+ 
+        '<section class="mg-detail-section"><h3>Equipos del Proyecto</h3>'+legendHostVisual(['CRITICO','NO_FUNCIONANDO_PROYECTO'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-equipment-table"><thead><tr><th>Equipo</th><th>Referencia</th><th>Operativo</th><th>Fallas al año</th><th>Resp BLT</th><th>Resp. BLT Última</th><th>Resp. Cliente</th><th>Última Resp. Cliente</th><th>MTBC Año</th><th>MTBC U365</th></tr></thead><tbody>'+equipmentRows(equipos,tickets)+'</tbody></table></div></section>'+
         '<section class="mg-detail-section"><div class="mg-section-toolbar"><h3>Tickets del Proyecto</h3><label>Año <select id="mg-project-ticket-year">'+yearOptions+'</select></label></div>'+legendHostVisual(['CRITICO','ATRAPADO','FILTRACION','VOLTAJE','NO_FUNCIONANDO','FUERA_SLA'])+'<div class="mg-table-wrap"><table class="mg-table mg-project-ticket-table"><thead><tr><th>No. ticket</th><th>Fecha Rep</th><th>Hora Rep</th><th>Estado</th><th>Asunto</th><th>Estatus inicial</th><th>F. Llegada</th><th>H. Llegada</th><th>T. Llegada</th><th>F. Solución</th><th>H. Solución</th><th>T. Solución</th><th>Estatus final</th><th>Causa</th><th>Acción en cierre</th><th>Resp.</th></tr></thead><tbody>'+groupedTicketRows(tickets)+'</tbody></table></div></section>');
       const detailRoot=document.getElementById('mg-detail-body');
       bindLinks(detailRoot);

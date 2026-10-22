@@ -1284,14 +1284,7 @@
     '</div>';
   }
 
-  function renderVaRelated_uni(detail){
-    const mp=detail&&Array.isArray(detail.mantenimiento_preventivo)?detail.mantenimiento_preventivo:[];
-    const gc=detail&&Array.isArray(detail.gestion_credito)?detail.gestion_credito:[];
-    const mpRows=mp.length?mp.map(function(r){return '<tr><td>'+tableCell_uni(r.id_dmp)+'</td><td>'+tableCell_uni(r.periodicidad)+'</td><td>'+tableCell_uni(r.estado)+'</td><td>'+tableCell_uni(r.monto_anual,money_uni)+'</td><td>'+tableCell_uni(r.pendiente,money_uni)+'</td><td><button class="va-uni-open" data-va-mp="'+escapeHtml_uni(r.id_dmp)+'">↗</button></td></tr>';}).join(''):'<tr><td colspan="6" class="gc-uni-record-empty">Sin Mantenimiento Preventivo relacionado.</td></tr>';
-    const gcRows=gc.length?gc.map(function(r){return '<tr><td>'+tableCell_uni(r.id_gc)+'</td><td>'+tableCell_uni(r.nivel_riesgo_credito)+'</td><td>'+tableCell_uni(r.credito_disponible_venta,money_uni)+'</td><td>'+tableCell_uni(r.adeudo,money_uni)+'</td><td><button class="va-uni-open" data-va-gc="'+escapeHtml_uni(r.id_gc)+'">↗</button></td></tr>';}).join(''):'<tr><td colspan="5" class="gc-uni-record-empty">Sin Gestión de Crédito relacionada.</td></tr>';
-    return '<div class="va-uni-related-grid"><section class="va-uni-card"><div class="va-uni-table-head"><div><h2>Mantenimiento Preventivo</h2><p>'+mp.length+' registros relacionados</p></div></div><div class="va-uni-table-wrap"><table><thead><tr><th>ID MP</th><th>Periodicidad</th><th>Estado</th><th>Monto anual</th><th>Pendiente</th><th></th></tr></thead><tbody>'+mpRows+'</tbody></table></div></section>'+
-      '<section class="va-uni-card"><div class="va-uni-table-head"><div><h2>Gestión de Crédito</h2><p>'+gc.length+' registros relacionados</p></div></div><div class="va-uni-table-wrap"><table><thead><tr><th>ID GC</th><th>Riesgo</th><th>Crédito disponible</th><th>Adeudo</th><th></th></tr></thead><tbody>'+gcRows+'</tbody></table></div></section></div>';
-  }
+
 
   function renderVaDetail_uni(){
     const view=document.getElementById('view-' + ROUTE_VENTA_ADICIONAL_UNI); if(!view) return;

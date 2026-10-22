@@ -295,18 +295,15 @@ test('contrato estatico conserva audiencia directa, actor incluido y catalogo ob
     path.join(root, 'backend/src/services/notifications/notification.service.js'),
     'utf8'
   );
-  const migration = fs.readFileSync(
-    path.join(root, 'sql/20260917_TICKETS_SUPERVISORES_ZONA_NOTIFICACIONES_V001.sql'),
-    'utf8'
-  );
+
 
   assert.match(serviceSource, /FROM usuarios u[\s\S]*usuario_zop[\s\S]*uz\.zona_id = \?/);
   assert.match(serviceSource, /SUPERVISOR MANTENIMIENTO ZONA%/);
   assert.match(serviceSource, /excludeActor:\s*false/);
   assert.doesNotMatch(serviceSource, /contextoSeguimiento\s*:/);
   assert.match(notificationSource, /input\.excludeActor !== false/);
-  assert.match(migration, /'TICKET_INSERTADO'/);
-  assert.match(migration, /'TICKET_CERRADO'/);
-  assert.match(migration, /'OBLIGATORIA'/);
-  assert.match(migration, /correo_default[\s\S]*0/);
+
+
+
+
 });

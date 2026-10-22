@@ -347,60 +347,7 @@
     }catch(e){ body.innerHTML='<tr><td colspan="12" class="ec-empty">Error: '+esc(e.message)+'</td></tr>'; }
   }
 
-  async function buildProyectosCriticosFromFrontend(c){
-    const tickets = await fetchTicketsForCriticalProjects();
-    const portafolio = await fetchPortafolioForCriticalProjects();
-    const cutStr = dateOffsetCdmx(-Math.max(1, Number(c.dias || 35)));
-    const proNeedle = String(c.proyecto || '').trim().toLowerCase();
-    const zonaNeedle = String(c.zona || '').trim().toLowerCase();
-    const proMap = new Map();
-    const eqFailMapByProject = new Map();
 
-    tickets.forEach(t=>{
-      if(!t.proyecto || !t.fecha_reporte || t.fecha_reporte < cutStr) return;
-      if(!String(t.responsabilidad || '').trim().toUpperCase().includes('BLT')) return;
-      if(proNeedle && !textMatch(t.proyecto, proNeedle)) return;
-      if(zonaNeedle && !textMatch(t.zona, zonaNeedle)) return;
-      if(!proMap.has(t.proyecto)){
-        const pf = portafolio.find(e=>e.proyecto === t.proyecto) || {};
-        proMap.set(t.proyecto, {
-          proyecto:t.proyecto, zona:t.zona || pf.zona || '—', ciudad:pf.ciudad || '—', supervisor:pf.supervisor || '—',
-          equipos_activos:0, fallas_blt_periodo:0, equipos_con_falla:0, equipos_criticos:0, ultimo_blt:null
-        });
-      }
-      const p = proMap.get(t.proyecto);
-      p.fallas_blt_periodo += 1;
-      if(!p.ultimo_blt || t.fecha_reporte > p.ultimo_blt) p.ultimo_blt = t.fecha_reporte;
-      if(t.codigo_equipo){
-        if(!eqFailMapByProject.has(t.proyecto)) eqFailMapByProject.set(t.proyecto, new Map());
-        const eqMap = eqFailMapByProject.get(t.proyecto);
-        eqMap.set(t.codigo_equipo, (eqMap.get(t.codigo_equipo) || 0) + 1);
-      }
-    });
-
-    const rows = Array.from(proMap.values()).map(p=>{
-      const equiposProyecto = portafolio.filter(e=>e.proyecto === p.proyecto);
-      const activos = equiposProyecto.filter(e=>e.activo).length;
-      const eqMap = eqFailMapByProject.get(p.proyecto) || new Map();
-      const criticos = Array.from(eqMap.values()).filter(n=>n >= Number(c.min_fallas_equipo || 3)).length;
-      const pf = equiposProyecto[0] || {};
-      return Object.assign(p, {
-        zona:p.zona || pf.zona || '—',
-        ciudad:p.ciudad || pf.ciudad || '—',
-        supervisor:p.supervisor || pf.supervisor || '—',
-        equipos_activos:activos,
-        equipos_con_falla:eqMap.size,
-        equipos_criticos:criticos
-      });
-    }).filter(p=>p.fallas_blt_periodo >= Number(c.min_fallas || 5))
-      .sort((a,b)=>(b.fallas_blt_periodo-a.fallas_blt_periodo) || (b.equipos_criticos-a.equipos_criticos) || String(a.proyecto).localeCompare(String(b.proyecto)));
-
-    const total = rows.length;
-    const pageSize = Number(c.page_size || state.pro.pageSize || 25);
-    const maxPage = Math.max(1, Math.ceil(total / pageSize));
-    const pageNow = Math.min(Math.max(1, Number(c.page || 1)), maxPage);
-    return { rows: rows.slice((pageNow-1)*pageSize, (pageNow-1)*pageSize + pageSize), total, page:pageNow };
-  }
 
   async function loadU365(){
     const body=$('ec-365-body');

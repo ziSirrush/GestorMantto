@@ -49,12 +49,6 @@ function auditWrite(handler){
     catch(e){next(e);}
   };
 }
-function legacyGone(req,res){
-  return res.status(410).json({
-    ok:false,code:'ALMACEN_EXCEL_RETIRED',
-    message:'La carga manual de Excel fue retirada. NetSuite/Sheets se integrara en Fase 3.'
-  });
-}
 
 // La fuente es el ultimo corte NetSuite publicado, completo y ACTIVO.
 router.get('/fuentes',...guardAny(),read(scope=>ns.listSources(scope)));
@@ -67,7 +61,6 @@ router.get('/inventario/top',...guard(PERMISSION.inventario),read((scope,q)=>ns.
 
 router.get('/stock',...guard(PERMISSION.stock),read((scope,q)=>ns.getStock(scope,q)));
 router.get('/stock/reabasto',...guard(PERMISSION.stock),read((scope,q)=>ns.getStockReabasto(scope,q)));
-router.patch('/stock/reabasto',...guard(PERMISSION.stock),legacyGone);
 
 router.get('/prestamos/catalogos',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanCatalogs(scope)));
 router.get('/prestamos/resumen',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanSummary(scope)));
@@ -83,19 +76,13 @@ router.get('/auditoria/:folio',...guard(PERMISSION.auditoria),auditRead((scope,r
 router.patch('/auditoria/:folio/items/:id',...guard(PERMISSION.auditoria),auditWrite((scope,req)=>audit.updateAuditItem(scope,req.params.folio,req.params.id,req.body||{},req)));
 router.post('/auditoria/:folio/cerrar',...guard(PERMISSION.auditoria),auditWrite((scope,req)=>audit.closeAudit(scope,req.params.folio,req)));
 
-// El apartado Carga de Informacion sigue existiendo. En Fase 4 se reemplaza
-// su UI de Excel por monitoreo de lotes NetSuite. Sin escritura legacy.
+// Carga de Informacion: consulta de lotes NetSuite, sin mutaciones Excel.
 router.get('/importaciones/capabilities',...guard(PERMISSION.inventario),read(async scope=>({
   ok:true,canImport:false,source:await ns.activeSource(scope),loadRoute:'almacen-carga',provider:'NETSUITE_AIVEN'
 })));
 router.get('/carga/capabilities',...guard(PERMISSION.carga),read(async scope=>({
   ok:true,canImport:false,source:await ns.activeSource(scope),provider:'NETSUITE_AIVEN',
-  message:'La importacion de Excel fue retirada. Sincronizacion via Sheets pendiente de Fase 3.'
+  message:'La importacion de Excel fue retirada. Sincronizacion mediante la API NetSuite existente.'
 })));
-router.post('/carga/validar',...guard(PERMISSION.carga),legacyGone);
-router.post('/carga/archivar-activo',...guard(PERMISSION.carga),legacyGone);
-router.post('/carga/archivar',...guard(PERMISSION.carga),legacyGone);
-router.post('/carga/importar',...guard(PERMISSION.carga),legacyGone);
-router.post('/carga/fuentes/:lote/activar',...guard(PERMISSION.carga),legacyGone);
 
 module.exports=router;

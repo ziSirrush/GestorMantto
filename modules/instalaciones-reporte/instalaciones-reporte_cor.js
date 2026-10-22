@@ -541,13 +541,7 @@
     if($('ir-cor-side-updated')) $('ir-cor-side-updated').textContent = 'Última actualización: ' + updated;
   }
 
-  function selectedOptionLabel_cor(id, fallback){
-    const select = $(id);
-    if(!select) return fallback || 'Todos';
-    const option = select.options && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null;
-    const label = raw(option && option.textContent) || fallback || 'Todos';
-    return label.replace(/\s+\([\d.,]+\)\s*$/, '');
-  }
+
 
   function printDate_cor(){
     if(window.ManttoHumanTime && typeof window.ManttoHumanTime.formatMexicoCityDate === 'function'){
@@ -556,14 +550,7 @@
     return new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
   }
 
-  function printFilenameDate_cor(){
-    if(window.ManttoHumanTime && typeof window.ManttoHumanTime.mexicoCityDate === 'function'){
-      return window.ManttoHumanTime.mexicoCityDate().replace(/-/g, '');
-    }
-    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
-    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-    return values.year + values.month + values.day;
-  }
+
 
   const PDF_LEGEND_BY_STATUS_COR = Object.freeze({
     '02-OC':'✂️ Mayor a 200 dias sin visita (posible suspension) &middot; 📅 Requiere visita &middot; ⚠️ Actualizar CCNR &middot; ‼️ Falta 1era CCNR',

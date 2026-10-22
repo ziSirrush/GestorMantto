@@ -15,7 +15,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './core/interactions.js?v=20260914-human-time-v001';
+      script.src = './core/interactions.js?v=20260914-human-time-v001-limpieza-v002';
       script.async = true;
       script.dataset.manttoInteractions = '1';
       script.addEventListener('load', () => resolve(window.ManttoInteractions || null), { once:true });

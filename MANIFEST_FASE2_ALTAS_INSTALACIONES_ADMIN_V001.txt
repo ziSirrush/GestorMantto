@@ -1,4 +1,0 @@
-modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.css
-modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.js
-tests/instalaciones-administracion-altas-fase2.test.js
-README_FASE2_ALTAS_INSTALACIONES_ADMIN_V001.md

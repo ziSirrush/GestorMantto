@@ -124,11 +124,5 @@ const indexSource = fs.readFileSync(path.join(projectRoot, 'index.html'), 'utf8'
 assert(indexSource.includes('ventas-cotizaciones-detalle.js?v=20260803-cffaa05-v001'));
 assert(indexSource.includes('ventas-cotizaciones-detalle.css?v=20260803-cffaa05-v001'));
 
-const postflight = readBackend('sql/20260803_CFFAA_05_POSTFLIGHT.sql');
-assert(postflight.includes('azure_activos_incompletos'));
-assert(postflight.includes('archivos_activos_en_comentarios_inactivos'));
-assert(postflight.includes('comentarios_artificiales_archivo_adjunto'));
-const postflightWithoutComments = postflight.replace(/^\s*--.*$/gm, '');
-assert.strictEqual(/\b(UPDATE|DELETE|INSERT|ALTER|DROP|CREATE|TRUNCATE)\b/i.test(postflightWithoutComments), false);
 
 console.log('CFFAA-05: interacción atómica, SAS bajo demanda, baja coordinada y versionado de Cotizaciones validados.');

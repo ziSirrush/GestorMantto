@@ -11,37 +11,11 @@ const uniTarget = path.join(
   'alcance',
   'alcance-uni.service.js'
 );
-const crossTarget = path.join(
-  backendRoot,
-  'src',
-  'services',
-  'alcance',
-  'informacion-cruzada.service.js'
-);
-
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const originalLoad = Module._load;
-Module._load = function patchedLoad(request, parent, isMain) {
-  if (parent && parent.filename === crossTarget) {
-    if (request === '../permissions/effective-permission.service') {
-      return { hasEffectivePermission: async () => false };
-    }
-    if (request === './alcance-resolver.service') {
-      return {
-        resolveInformationDoor_gnral: async () => ({ allowed: false }),
-        resolveAlcanceByGrouping_gnral: async () => null
-      };
-    }
-  }
-  return originalLoad(request, parent, isMain);
-};
-
 const uni = require(uniTarget);
-const cross = require(crossTarget);
-Module._load = originalLoad;
 
 async function testUnitedMasterScope() {
   let queries = 0;
@@ -123,118 +97,16 @@ async function testUnitedNormalWithoutZonesFailsClosed() {
   assert(ticket.sql === '1 = 0', 'Usuario normal sin zonas no fallo cerrado en Tickets.');
 }
 
-async function testCrossUnitedMasterBypassesRecordScopeOnlyAfterPermissionAndDoor() {
-  const executor = { async query() { return [[]]; } };
-  const source = { id_SB: 404 };
-  const definition = {
-    codigo: 'TICKETS',
-    payloadKey: 'tickets',
-    permissionCode: 'UNITED_TEST.VER',
-    groupingRef: 'OPERACION',
-    recordScopeCheck: async () => {
-      throw new Error('recordScopeCheck no debe ejecutarse para DOMINIO_COMPLETO UNITED.');
-    }
-  };
 
-  const result = await cross.resolveCrossInformationBlock_gnral(
-    executor,
-    source,
-    definition,
-    {
-      permissionResolver: async () => true,
-      doorResolver: async () => ({
-        allowed: true,
-        masterAccess: true,
-        grouping: { codigo: 'OPERACION', empresa: 'UNITED' }
-      }),
-      scopeResolver: async () => ({
-        motor: 'alcance_uni',
-        empresa: 'UNITED',
-        llave_maestra: true,
-        requiere_filtro_zona: false,
-        agrupacion: { codigo: 'OPERACION', empresa: 'UNITED' }
-      })
-    }
-  );
 
-  assert(result.visible === true && result.consultar === true, 'Master UNITED no habilito informacion cruzada.');
-  assert(result.llave_maestra === true, 'Informacion cruzada perdio marca de llave maestra.');
-}
 
-async function testCrossNormalUnitedStillChecksRecordScope() {
-  let scopeCheckCalls = 0;
-  const executor = { async query() { return [[]]; } };
-  const result = await cross.resolveCrossInformationBlock_gnral(
-    executor,
-    { id_SB: 505 },
-    {
-      codigo: 'TICKETS',
-      payloadKey: 'tickets',
-      permissionCode: 'UNITED_TEST.VER',
-      groupingRef: 'OPERACION',
-      recordScopeCheck: async () => {
-        scopeCheckCalls++;
-        return { allowed: false, reason: 'FUERA_DE_ZONA' };
-      }
-    },
-    {
-      permissionResolver: async () => true,
-      doorResolver: async () => ({
-        allowed: true,
-        masterAccess: false,
-        grouping: { codigo: 'OPERACION', empresa: 'UNITED' }
-      }),
-      scopeResolver: async () => ({
-        motor: 'alcance_uni',
-        empresa: 'UNITED',
-        llave_maestra: false,
-        requiere_filtro_zona: true,
-        zona_ids: [3],
-        agrupacion: { codigo: 'OPERACION', empresa: 'UNITED' }
-      })
-    }
-  );
 
-  assert(scopeCheckCalls === 1, 'Usuario UNITED normal no ejecuto recordScopeCheck.');
-  assert(result.visible === false, 'Usuario normal fuera de zona fue autorizado.');
-  assert(result.motivo === 'FUERA_DE_ZONA', 'Se perdio la causa de rechazo territorial.');
-}
 
-async function testCrossMasterDoesNotReplaceFunctionalPermission() {
-  let doorCalls = 0;
-  const executor = { async query() { return [[]]; } };
-  const result = await cross.resolveCrossInformationBlock_gnral(
-    executor,
-    { id_SB: 606 },
-    {
-      codigo: 'TICKETS',
-      payloadKey: 'tickets',
-      permissionCode: 'UNITED_TEST.VER',
-      groupingRef: 'OPERACION',
-      recordScopeCheck: async () => true
-    },
-    {
-      permissionResolver: async () => false,
-      doorResolver: async () => {
-        doorCalls++;
-        return { allowed: true, masterAccess: true };
-      },
-      scopeResolver: async () => ({ empresa: 'UNITED', llave_maestra: true })
-    }
-  );
-
-  assert(result.visible === false, 'Llave maestra sustituyo el permiso funcional.');
-  assert(result.motivo === cross.CROSS_BLOCK_REASON.FUNCTIONAL_PERMISSION_DENIED, 'Motivo funcional incorrecto.');
-  assert(doorCalls === 0, 'Se consulto puerta aun sin permiso funcional.');
-}
 
 async function main() {
   await testUnitedMasterScope();
   await testUnitedNormalScope();
   await testUnitedNormalWithoutZonesFailsClosed();
-  await testCrossUnitedMasterBypassesRecordScopeOnlyAfterPermissionAndDoor();
-  await testCrossNormalUnitedStillChecksRecordScope();
-  await testCrossMasterDoesNotReplaceFunctionalPermission();
   console.log('FIX_UNITED_DOMINIO_COMPLETO_SIN_FILTRO_ZONA_V001: OK');
 }
 

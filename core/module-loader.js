@@ -185,38 +185,38 @@
   const CONTACTO_FORM_CSS = './modules/ventas-contacto-form/ventas-contacto-form.css?v=20260729-v011';
   const EXPERIMENTAL_SHELL_JS = './modules/experimental/experimental.js?v=20260806-fase7-2-v001';
   const EXPERIMENTAL_SHELL_CSS = './modules/experimental/experimental.css?v=20260805-fase1-v001';
-  const ALMACEN_MODULE_JS = './modules/almacen/almacen.js?v=20260914-human-time-v001';
+  const ALMACEN_MODULE_JS = './modules/almacen/almacen.js?v=20260914-human-time-v001-limpieza-v002';
   const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
-  const ALMACEN_REABASTO_JS = './modules/almacen/almacen-stock-reabasto.js?v=20260907-fase4-reabasto-v001';
+  const ALMACEN_REABASTO_JS = './modules/almacen/almacen-stock-reabasto.js?v=20260907-fase4-reabasto-v001-limpieza-v002';
   const ALMACEN_REABASTO_CSS = './modules/almacen/almacen-stock-reabasto.css?v=20260907-fase4-reabasto-v001';
-  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260929-fix-seguimiento-ticket-detalle-permisos-v001';
+  const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260929-fix-seguimiento-ticket-detalle-permisos-v001-limpieza-v002';
 
   const ROUTES = Object.freeze({
-    resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260914-human-time-v001']},
-    criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260914-horarios-f2-v001']},
+    resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260914-human-time-v001-limpieza-v002']},
+    criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'movimientos-criticos':{css:['./modules/movimientos-criticos/movimientos-criticos.css?v=20261003-fase3-v001'],js:['./modules/movimientos-criticos/movimientos-criticos.js?v=20261003-fase3-v001']},
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
     detalle:{css:[],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS]},
     'seguimiento-especial':{css:['./modules/seguimiento-especial/seguimiento-especial.css?v=20260929-seguimiento-especial-ticket-listado-fase4-v001'],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS,'./modules/seguimiento-especial/seguimiento-especial.js?v=20260929-seguimiento-especial-ticket-listado-fase4-v001']},
     proyectos:{css:['./modules/proyectos/proyectos.css?v=20260921-proyectos-layout-metricas-v007'],js:['./modules/proyectos/proyectos.js?v=20260921-proyectos-metricas-anuales-v006']},
-    callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260914-horarios-f2-v001']},
-    operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260914-horarios-f2-v001']},
+    callcenter:{css:['./modules/callcenter/callcenter.css?v=cc-v005'],js:['./modules/callcenter/callcenter.js?v=20260914-horarios-f2-v001-limpieza-v002']},
+    operativo:{css:['./modules/dashboard-operativo/dashboard-operativo.css?v=20260707-v001'],js:['./modules/dashboard-operativo/dashboard-operativo.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     informes:{css:['./modules/operacion-informes/operacion-informes.css?v=20260917-fix-informes-integracion-v001'],js:['./modules/operacion-informes/operacion-informes.js?v=20260917-fix-informes-integracion-v001']},
     movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260830-corte-semanal-v004'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260830-corte-semanal-v004']},
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001','./modules/dashboard-logistica/dashboard-logistica-simulador.css?v=20261021-dashboard-fase5-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20261021-dashboard-fase5-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261005-pvo-cierre-fase4-v001']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261021-pvo-fecha-unica-fase2-v001-limpieza-v002']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261021-pvo-fecha-unica-fase2-v001-limpieza-v002']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261021-pvo-fecha-unica-fase2-v001-limpieza-v002']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261021-pvo-fecha-unica-fase2-v001-limpieza-v002']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261021-pvo-fecha-unica-fase2-v001-limpieza-v002']},
 
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20260914-human-time-v001']},
-    'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001']},
+    'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'instalaciones-cerrados':{css:['./modules/instalaciones-cerrados/instalaciones-cerrados.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-cerrados/instalaciones-cerrados.js?v=20260821-paginacion-v002']},
     'instalaciones-concentrado-cliente':{css:['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.css?v=20260713-v001'],js:['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.js?v=20260828-fase4-frontend-v001']},
-    'instalaciones-reporte':{css:['./modules/instalaciones-reporte/instalaciones-reporte_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-reporte/instalaciones-reporte_cor.js?v=20260914-horarios-f2-v001']},
+    'instalaciones-reporte':{css:['./modules/instalaciones-reporte/instalaciones-reporte_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-reporte/instalaciones-reporte_cor.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'instalaciones-ajuste':{css:['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.css?v=20260821-paginacion-30-v002'],js:['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-carpetas':{css:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.css?v=20260821-carpetas-disponibles-v002'],js:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-documentacion':{css:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.css?v=20260818-documentacion-fase2-v001'],js:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.js?v=20260821-pendientes-supervisor-v001']},
@@ -225,16 +225,16 @@
     'instalaciones-administracion':{css:['./modules/instalaciones-administracion/instalaciones-administracion_cor.css?v=20261008-instalaciones-administracion-fase3-v001','./modules/instalaciones-administracion/instalaciones-administracion-tabla_cor.css?v=20261012-fase1-v001','./modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.css?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.css?v=20261020-fix-altas-admin-v001'],js:['./modules/instalaciones-administracion/instalaciones-administracion-save_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-altas-formulas_cor.js?v=20261020-fix-altas-admin-v001','./modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.js?v=20261020-fix-altas-admin-v001']},
 
     'ventas-dashboard':{css:['./modules/ventas-dashboard/ventas-dashboard.css?v=20260831-anio-seccion-v003'],js:['./modules/ventas-dashboard/ventas-dashboard-pdf.js?v=20260914-horarios-f2-v001','./modules/ventas-dashboard/ventas-dashboard.js?v=20260914-horarios-f2-v001']},
-    'ventas-fotos-mapa':{css:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.css?v=20261016-int10-fase3-v001'],js:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.js?v=20261017-int10-b3-seguridad-v001']},
+    'ventas-fotos-mapa':{css:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.css?v=20261016-int10-fase3-v001'],js:['./modules/ventas-fotos-mapa/ventas-fotos-mapa.js?v=20261017-int10-b3-seguridad-v001-limpieza-v002']},
     'ventas-clientes':{css:['./modules/ventas-clientes/ventas-clientes.css?v=20260729-fase3-v003'],js:['./modules/ventas-clientes/ventas-clientes.js?v=20260828-fase4-frontend-v001']},
     'ventas-clientes-nuevo':{css:['./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.css?v=20260729-v009'],js:['./modules/ventas-clientes-nuevo/ventas-clientes-nuevo.js?v=20260828-fase4-frontend-v001']},
     'ventas-clientes-detalle':{css:['./modules/ventas-clientes-detalle/ventas-clientes-detalle.css?v=20260729-v011',CONTACTO_FORM_CSS],js:[CONTACTO_FORM_JS,'./modules/ventas-clientes-detalle/ventas-clientes-detalle.js?v=20260914-horarios-f2-v001']},
-    'ventas-cotizaciones':{css:['./modules/ventas-cotizaciones/ventas-cotizaciones.css?v=20260907-proyecto-interes-v001'],js:['./modules/ventas-cotizaciones/ventas-cotizaciones.js?v=20260914-horarios-f2-v001']},
-    'ventas-cotizaciones-nueva':{css:['./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.css?v=20260805-equipos-multiples-v001',CONTACTO_FORM_CSS],js:[CONTACTO_FORM_JS,'./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js?v=20260828-fase4-frontend-v001']},
+    'ventas-cotizaciones':{css:['./modules/ventas-cotizaciones/ventas-cotizaciones.css?v=20260907-proyecto-interes-v001'],js:['./modules/ventas-cotizaciones/ventas-cotizaciones.js?v=20260914-horarios-f2-v001-limpieza-v002']},
+    'ventas-cotizaciones-nueva':{css:['./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.css?v=20260805-equipos-multiples-v001',CONTACTO_FORM_CSS],js:[CONTACTO_FORM_JS,'./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.js?v=20260828-fase4-frontend-v001-limpieza-v002']},
     'ventas-cotizaciones-editar':{css:['./modules/ventas-cotizaciones-nueva/ventas-cotizaciones-nueva.css?v=20260805-equipos-multiples-v001','./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.css?v=20260813-v004',CONTACTO_FORM_CSS],js:[CONTACTO_FORM_JS,'./modules/ventas-cotizaciones-editar/ventas-cotizaciones-editar.js?v=20260828-fase4-frontend-v001']},
     'ventas-cotizaciones-detalle':{css:['./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.css?v=20260803-cffaa05-v001'],js:['./modules/ventas-cotizaciones-detalle/ventas-cotizaciones-detalle.js?v=20260914-horarios-f2-v001']},
     'ventas-vendidos':{css:['./modules/ventas-vendidos/ventas-vendidos.css?v=20260907-proyecto-interes-v001'],js:['./modules/ventas-vendidos/ventas-vendidos.js?v=20260914-horarios-f2-v001']},
-    'ventas-proyeccion':{css:['./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260830-responsive-v002'],js:['./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260914-horarios-f2-v001']},
+    'ventas-proyeccion':{css:['./modules/ventas-proyeccion/ventas-proyeccion.css?v=20260830-responsive-v002'],js:['./modules/ventas-proyeccion/ventas-proyeccion.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'ventas-proyectos-interes':{css:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.css?v=20260830-fase6-v001'],js:['./modules/ventas-proyectos-interes/ventas-proyectos-interes.js?v=20260914-human-time-v001']},
     'ventas-perdidos':{css:['./modules/ventas-perdidos/ventas-perdidos.css?v=20260804-paginado-f2-v001'],js:['./modules/ventas-perdidos/ventas-perdidos.js?v=20260914-horarios-f2-v001']},
     'ventas-prospeccion':{css:['./modules/ventas-prospeccion/ventas-prospeccion.css?v=20260830-responsive-v002'],js:['./modules/ventas-prospeccion/ventas-prospeccion.js?v=20260914-horarios-f2-v001']},
@@ -251,29 +251,29 @@
     'almacen-prestamos':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
     'almacen-resguardos':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
     'almacen-auditoria':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
-    'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002']},
+    'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001-limpieza-v002'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002-limpieza-v002']},
 
-    usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261015-app-update-v001']},
-    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260929-runner-central-desktop-v001']},
-    'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261020-fase2-v001']},
-    'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001']},
+    usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261015-app-update-v001-limpieza-v002']},
+    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20260929-runner-central-desktop-v001-limpieza-v002']},
+    'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261020-fase2-v001-limpieza-v002']},
+    'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20260914-human-time-v001-limpieza-v002']},
 
     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-resumen-dia':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-resumen-dia/experimental-resumen-dia.css?v=20260805-fase3-v001'],js:['./modules/experimental-resumen-dia/experimental-resumen-dia.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-entregas-recientes':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-entregas-recientes/experimental-entregas-recientes.css?v=20260806-fix-er-v001'],js:['./modules/experimental-entregas-recientes/experimental-entregas-recientes.js?v=20260806-fix-er-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-equipos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-equipos-criticos/experimental-equipos-criticos.css?v=20260806-fase5-2-v001'],js:['./modules/experimental-equipos-criticos/experimental-equipos-criticos.js?v=20260806-fase5-2-v001',EXPERIMENTAL_SHELL_JS]},
-    'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
+    'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260914-horarios-f2-v001-limpieza-v002',EXPERIMENTAL_SHELL_JS]},
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
-    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261015-pagos-proyecto-fuente-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261002-foco-hitos-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001']},
+    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261015-pagos-proyecto-fuente-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261002-foco-hitos-v001-limpieza-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001-limpieza-v002']},
     'cobranza-pagos':{css:['./modules/cobranza-cor/cobranza-cor-pagos.css?v=20261002-cobranza-pagos-list-buscable-tradicional-v004'],js:['./modules/cobranza-cor/cobranza-cor-pagos.js?v=20261015-pagos-proyecto-fuente-v002']},
     'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260914-horarios-f2-v001']},
 
-    'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']},
-    'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']},
-    'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']},
-    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001']}
+    'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
+    'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
+    'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
+    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']}
   });
 
   function absoluteUrl(src){

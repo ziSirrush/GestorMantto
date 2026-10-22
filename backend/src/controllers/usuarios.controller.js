@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const db = require('../config/db');
 const { mexicoCityYear } = require('../utils/temporal');
 const { validatePasswordRules } = require('../utils/passwordRules');
-const { resetUserPasswordById } = require('../../scripts/reset-user-id-password');
+const { resetUserPasswordById } = require('../services/user-credential-reset.service');
 const { hasGlobalProgrammerRole } = require('../services/permissions/global-programmer.service');
 
 const PUBLIC_USER_SELECT = `

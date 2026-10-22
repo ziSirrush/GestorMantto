@@ -55,10 +55,7 @@
     return Number.isFinite(number)?number:null;
   }
 
-  function formatAmount_cor(value){
-    const number=number_cor(value);
-    return number===null?'—':new Intl.NumberFormat('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}).format(number);
-  }
+
 
   function isViewerReadonly_cor(){
     const auth=window.ManttoAuth;

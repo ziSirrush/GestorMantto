@@ -59,7 +59,7 @@
   function setStatus(kind,msg){const el=$('cc-status');if(!el)return;el.innerHTML='<span class="cc-dot '+kind+'"></span><span>'+esc(msg)+'</span>';}
   async function fetchRows(paths){for(const path of paths){try{const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)continue;const data=await r.json();const rows=Array.isArray(data)?data:(data.data||data.rows||data.tickets||data.equipos||[]);if(Array.isArray(rows)&&rows.length)return rows;}catch(e){}}return[];}
   async function fetchMtbcPages(path){const rows=[];let page=1,total=0;do{try{const sep=path.includes('?')?'&':'?';const r=await fetch(API()+path+sep+'page='+page+'&page_size=100',{cache:'no-store',headers:headers()});if(!r.ok)break;const data=await r.json();const batch=Array.isArray(data)?data:(data.data||[]);if(!Array.isArray(batch)||!batch.length)break;rows.push(...batch);total=Number(data?.pagination?.total||rows.length);page+=1;}catch(e){break;}}while(rows.length<total&&page<1000);return rows;}
-  async function fetchPortafolioPages(){const rows=[];let page=1,total=0;do{try{const data=await fetchJson('/api/portafolio/equipos?page='+page+'&page_size=100');const batch=Array.isArray(data)?data:(data.data||[]);if(!Array.isArray(batch)||!batch.length)break;rows.push(...batch);total=Number(data&&data.pagination&&data.pagination.total||rows.length);page+=1;}catch(e){break;}}while(rows.length<total&&page<1000);if(rows.length)return rows;return fetchRows(['/api/portafolio?limit=20000','/api/portafolio']);}
+
   function positiveInt(value,fallback){const n=parseInt(value,10);return Number.isFinite(n)&&n>0?n:fallback;}
   async function fetchJson(path){const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
   async function fetchCriticidadUsuario(){
@@ -186,7 +186,7 @@
     bindStableDetailNavigation(tb);
     bindStableDetailNavigation(tbp);
   }
-  function renderCols(){const box=$('cc-col-checks');if(!box)return;box.innerHTML=COLS.map((c,i)=>`<label class="cc-col-chip"><input type="checkbox" data-col-idx="${i}" ${c.visible?'checked':''}/> ${esc(c.label)}</label>`).join('');box.querySelectorAll('[data-col-idx]').forEach(ch=>ch.addEventListener('change',()=>{COLS[Number(ch.dataset.colIdx)].visible=ch.checked;renderTable();}));}
+
   function cell(t,key){if(key==='tll'||key==='tso'||key==='tll2'||key==='tso2')return fmtDuration(t[key]);return t[key]||'—';}
   function renderTable(){const s=($('cc-search')?.value||'').toLowerCase(),f=$('cc-filter-et')?.value||'';let rows=state.periodTickets.slice().sort((a,b)=>(b.fr||'').localeCompare(a.fr||'')||(b.n||'').localeCompare(a.n||''));if(s)rows=rows.filter(t=>((t.n||'')+(t.pro||'')+(t.asu||'')+(t.zon||'')+(t.cod||'')).toLowerCase().includes(s));if(f)rows=rows.filter(t=>t.et===f);state.filtered=rows;state.page=0;renderPage();}
   function changePage(dir){const pages=Math.max(1,Math.ceil(state.filtered.length/state.pageSize));state.page=Math.max(0,Math.min(state.page+dir,pages-1));renderPage();}

@@ -199,11 +199,3 @@ test('FIX4: sin proyectos reporta casos no ejecutados y no inventa E2E',async()=
   assert.ok(result.skipped.some(s=>s.includes('sin proyectos')));
   assert.ok(result.skipped.some(s=>s.includes('sin --denied-record-id')));
 });
-
-test('FIX4: SQL de QA contiene solo lectura y no aplica permisos ni esquema',()=>{
-  const sql=source('database/QA_FIX_4_INSTALACIONES_ADMINISTRACION_SOLO_LECTURA_V001.sql');
-  assert.doesNotMatch(sql,/\b(CREATE|ALTER|DROP|TRUNCATE|INSERT|UPDATE|DELETE|REPLACE|GRANT|REVOKE|COMMIT|ROLLBACK|START\s+TRANSACTION)\b(?=\s+(TABLE|INTO|FROM|\w+))/i);
-  assert.match(sql,/perm_subelemento_acciones/);
-  assert.match(sql,/usuario_interacciones/);
-  assert.match(sql,/ins_fl/);
-});

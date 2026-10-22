@@ -186,6 +186,6 @@ test('GitHub Pages y Netlify generan metadata nueva en cada despliegue',()=>{
   const netlify=fs.readFileSync(path.join(ROOT,'netlify.toml'),'utf8');
 
   assert.match(github,/node tools\/generate-build-info\.js/);
-  assert.match(netlify,/command\s*=\s*"node tools\/generate-build-info\.js && node tools\/generate-change-audit\.js"/);
+  assert.match(netlify,/command\s*=\s*"node tools\/generate-build-info\.js && node tools\/generate-change-audit\.js && node tools\/build-frontend\.js"/);
   assert.match(netlify,/build-info\.generated\.js[\s\S]*Cache-Control\s*=\s*"no-store, no-cache, must-revalidate"/);
 });

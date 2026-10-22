@@ -4,16 +4,6 @@ const interactionsService = require('../../services/interactions/interactions.se
 
 const CLIENT_TYPES = new Set(['NAVEGACION', 'CONSULTAR']);
 
-function safeClientDetail(body, type) {
-  const source = type === 'NAVEGACION' ? 'frontend-router' : 'frontend-get';
-  const navigationType = body?.detalle_json?.navigation_type;
-  const endpoint = body?.detalle_json?.endpoint;
-  return {
-    source,
-    ...(type === 'NAVEGACION' && navigationType ? { navigation_type: String(navigationType).slice(0, 30) } : {}),
-    ...(type === 'CONSULTAR' && endpoint ? { endpoint: String(endpoint).slice(0, 500) } : {})
-  };
-}
 
 async function create(req, res) {
   const body = req.body || {};

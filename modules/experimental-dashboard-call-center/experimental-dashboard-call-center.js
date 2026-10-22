@@ -17,10 +17,7 @@
     return data;
   }
 
-  function isoLocal_uni(date){
-    const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
-    return `${y}-${m}-${d}`;
-  }
+
 
   function layout_uni(){
     const root=$('view-'+ROUTE_UNI); if(!root)return false;

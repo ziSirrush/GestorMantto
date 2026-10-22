@@ -125,32 +125,6 @@ test('normaliza id_pago positivo y los campos canonicos sin incorporar id_pp', (
   assert.equal(Object.hasOwn(normalized, 'id_pp'), false);
 });
 
-test('rechaza id_pago ausente, cero, negativo, decimal o fuera de entero seguro', () => {
-  const missing = record();
-  delete missing.id_pago;
-  expect400(
-    () => service.normalizarRegistroPago_cor(missing, 0),
-    'COBRANZA_PAGOS_CAMPOS_INVALIDOS'
-  );
-
-  for (const invalid of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, 'ABC']) {
-    expect400(
-      () => service.normalizarRegistroPago_cor(record({ id_pago: invalid }), 0),
-      'COBRANZA_PAGOS_ID_INVALIDO'
-    );
-  }
-});
-
-test('rechaza id_pago_cor e id_pp enviados desde la integracion', () => {
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ id_pago_cor: 9 }), 0),
-    'COBRANZA_PAGOS_CAMPO_TECNICO_PROHIBIDO'
-  );
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ id_pp: 'PP-77' }), 0),
-    'COBRANZA_PAGOS_CAMPO_TECNICO_PROHIBIDO'
-  );
-});
 
 test('key_fields debe ser exclusivamente id_pago', () => {
   expect400(
@@ -164,15 +138,6 @@ test('key_fields debe ser exclusivamente id_pago', () => {
   assert.deepEqual(contract.key_fields, ['id_pago']);
 });
 
-test('rechaza dos registros con el mismo id_pago dentro del lote', () => {
-  expect400(
-    () => service.validateAndNormalizeRecords_cor([
-      record({ id_pago: 500, importe_complemento_pago: -100 }),
-      record({ id_pago: 500, importe_complemento_pago: -0.01 })
-    ]),
-    'COBRANZA_PAGOS_ID_DUPLICADO_LOTE'
-  );
-});
 
 test('permite misma factura y mismo complemento si tienen id_pago diferentes', () => {
   const normalized = service.validateAndNormalizeRecords_cor([

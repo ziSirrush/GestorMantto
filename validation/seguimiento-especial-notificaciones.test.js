@@ -339,16 +339,6 @@ test('la herencia de proyecto respeta override directo aunque este inactivo', ()
   assert.doesNotMatch(resolver, /direct_override[\s\S]{0,180}activo\s*=\s*1/i);
 });
 
-test('SQL es condicional y registra eventos nativos sin reactivar el fanout generico', () => {
-  const migration = read('sql/20260909_FIX_SEGUIMIENTO_ESPECIAL_CAPA_NOTIFICACIONES_V001.sql');
-  assert.match(migration, /INFORMATION_SCHEMA\.COLUMNS/);
-  assert.match(migration, /TICKET_CREADO/);
-  assert.match(migration, /PORTAFOLIO_EQUIPO_SALIDA/);
-  assert.match(migration, /UPDATE\s+notificacion_evento_roles[\s\S]*SET\s+activo\s*=\s*0/i);
-  assert.doesNotMatch(migration, /INSERT\s+INTO\s+notificacion_evento_roles/i);
-  assert.doesNotMatch(migration, /tickets\.comentario\.creado/i);
-  assert.doesNotMatch(migration, /UPDATE\s+notificacion_eventos[\s\S]*PORTAFOLIO_SEGUIMIENTO_ESPECIAL_ACTUALIZACION/i);
-});
 
 test('actor que entra solo por Follow sigue excluido cuando la politica nativa excluye actor', async () => {
   reset();
@@ -665,19 +655,19 @@ test('presentacion de notificaciones usa Proyecto - Ref en sitio y no expone num
   const siteHelper = read('backend/src/services/notifications/notification-site-label.service.js');
   const critical = read('backend/src/services/notifications/ticket-critical-notifications_uni.service.js');
   const native = read('backend/src/services/notifications/portafolio-native-notifications_uni.service.js');
-  const interest = read('backend/src/services/notifications/portafolio-interest-notifications_uni.service.js');
+
   const writes = read('backend/src/modules/tickets/tickets-notification-writes.service.js');
 
   assert.match(siteHelper, /return `\$\{project\} - \$\{reference\}`/);
   assert.match(critical, /siteLabel_gnral/);
   assert.match(native, /siteLabel_gnral/);
-  assert.match(interest, /Actividad en sitio de interés: \$\{site\}/);
+
   assert.match(writes, /siteLabel_gnral\(row\)/);
 
   assert.doesNotMatch(critical, /sobre el equipo crítico \$\{equipment\}/);
   assert.doesNotMatch(critical, /El equipo \$\{equipment\} pasó a condición crítica/);
   assert.doesNotMatch(native, /title:\s*`(?:Ingreso|Salida|Actualización) de Portafolio[^`]*\$\{equipment\}/);
-  assert.doesNotMatch(interest, /Actividad en equipo de interés: \$\{resolved\.equipmentRow\.numero_equipo\}/);
+
 });
 
 test('comentario y VoBo de Ticket usan evento nativo con contexto Seguimiento; adjunto no se inventa', () => {

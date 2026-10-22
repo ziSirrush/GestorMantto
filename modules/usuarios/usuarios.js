@@ -182,10 +182,7 @@
       source:'directorio-usuarios'
     });
   }
-  function renderDetail(){
-    const box=$('usr-detail');
-    if(box){ box.hidden=true; box.innerHTML=''; }
-  }
+
   async function loadMe(){ const json=await API().apiGet('/api/auth/me'); state.me=json.data||json.user||{}; }
   async function loadUsers(){ const json=await API().apiGet('/api/usuarios'); state.usuarios=json.data||[]; }
   function setTab(tab){ state.tab=tab; document.querySelectorAll('.usr-tab').forEach(b=>b.classList.toggle('active', b.dataset.usrTab===tab)); document.querySelectorAll('.usr-panel').forEach(p=>p.classList.toggle('active', p.dataset.usrPanel===tab)); }

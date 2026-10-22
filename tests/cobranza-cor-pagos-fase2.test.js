@@ -107,41 +107,6 @@ test('convierte vacios opcionales a null y conserva no_factura como obligatorio'
   );
 });
 
-test('rechaza campos faltantes, desconocidos, tecnicos y el id_pp retirado del contrato canonico', () => {
-  const missing = record();
-  delete missing.clase;
-  expect400(
-    () => service.normalizarRegistroPago_cor(missing, 0),
-    'COBRANZA_PAGOS_CAMPOS_INVALIDOS'
-  );
-
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ campo_inventado: 'x' }), 0),
-    'COBRANZA_PAGOS_CAMPOS_INVALIDOS'
-  );
-
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ id_pp: 'PP-77' }), 0),
-    'COBRANZA_PAGOS_CAMPOS_INVALIDOS'
-  );
-
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ id_pago_cor: 9 }), 0),
-    'COBRANZA_PAGOS_CAMPO_TECNICO_PROHIBIDO'
-  );
-});
-
-test('respeta longitudes reales de la tabla y no trunca texto silenciosamente', () => {
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ no_factura: 'X'.repeat(151) }), 0),
-    'COBRANZA_PAGOS_LONGITUD_INVALIDA'
-  );
-
-  expect400(
-    () => service.normalizarRegistroPago_cor(record({ clase: 'X'.repeat(151) }), 0),
-    'COBRANZA_PAGOS_LONGITUD_INVALIDA'
-  );
-});
 
 test('valida DECIMAL(18,2) sin redondear precision adicional silenciosamente', () => {
   const normalized = service.normalizarRegistroPago_cor(

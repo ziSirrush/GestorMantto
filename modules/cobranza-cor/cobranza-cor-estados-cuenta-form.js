@@ -297,10 +297,7 @@
     return matches.length===1?Number(matches[0].id_log_ops)||null:null;
   }
 
-  function equipmentSourceFields_cor(row){
-    const source=insFlById_cor(row&&row.id_ins_fl);
-    return source||row||{};
-  }
+
 
   function equipmentAlignment_cor(row){
     if(row&&row.incluir===false) return {code:'excluded',label:'No incluido',detail:'No participa en la alineación.',className:'is-phns-excluded'};
@@ -326,30 +323,13 @@
     return {code:'mismatch',label:'Revisar PHNS',detail:phnsIns+' no aparece dentro de '+phnsLog.join(', ')+'.',className:'is-phns-mismatch'};
   }
 
-  function sourceAlignment_cor(){
-    const insSet=new Set(state.insFlCatalog.map(row=>normalizePhns_cor(row&&row.referencia_sitio)).filter(Boolean));
-    const logSet=new Set(state.logOps.flatMap(row=>splitLogOpsPhns_cor(row&&row.ph_ns)));
-    const missingInIns=[...logSet].filter(phns=>!insSet.has(phns)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true,sensitivity:'base'}));
-    const onlyInIns=[...insSet].filter(phns=>!logSet.has(phns)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true,sensitivity:'base'}));
-    const rowIssues=state.equipos.filter(row=>row&&row.incluir!==false&&equipmentAlignment_cor(row).code!=='aligned').length;
-    return {
-      ins:[...insSet],
-      log:[...logSet],
-      missingInIns,
-      onlyInIns,
-      rowIssues,
-      aligned:missingInIns.length===0&&onlyInIns.length===0&&rowIssues===0
-    };
-  }
+
 
   function stopEquipmentAlignmentPolling_cor(){
     if(state.alignmentTimer){window.clearInterval(state.alignmentTimer);state.alignmentTimer=null;}
   }
 
-  function formatAlignmentCheckTime_cor(){
-    if(!(state.alignmentLastCheck instanceof Date)||Number.isNaN(state.alignmentLastCheck.getTime())) return 'sin revisión todavía';
-    return state.alignmentLastCheck.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
-  }
+
 
   function relationByInsFl_cor(){
     const map=new Map();
@@ -585,19 +565,7 @@
       </tr>`).join('');
   }
 
-  function insFlOptions_cor(selectedId){
-    const options=['<option value="">Selecciona PHNS de Instalaciones</option>'];
-    let found=false;
-    state.insFlCatalog.forEach(row=>{
-      const selected=Number(selectedId)===Number(row.id_ins_fl);
-      if(selected) found=true;
-      const label=[row.referencia_sitio,row.capacidad_kg?row.capacidad_kg+' kg':'',row.estatus_equipo_entrega||row.estatus]
-        .map(v=>String(v||'').trim()).filter(Boolean).join(' · ');
-      options.push(`<option value="${escapeHtml_cor(row.id_ins_fl)}"${selected?' selected':''}>${escapeHtml_cor(label||('Instalaciones '+row.id_ins_fl))}</option>`);
-    });
-    if(selectedId&&!found) options.push(`<option value="${escapeHtml_cor(selectedId)}" selected>PHNS anterior no disponible · ins_fl #${escapeHtml_cor(selectedId)}</option>`);
-    return options.join('');
-  }
+
 
   function normalizedLogOpsPhns_cor(row){
     const seen=new Set();
@@ -849,11 +817,7 @@
       </tr>`).join('');
   }
 
-  function syncTotalFromAmounts_cor(index){
-    const row=state.hitos[index];
-    if(!row) return;
-    recalculateHitoFinancials_cor(row);
-  }
+
 
   function currencyCoverage_cor(){
     const currencies=activeGeneralCurrencies_cor();

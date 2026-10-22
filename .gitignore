@@ -8,3 +8,14 @@ backend/scripts/usuarios_passwords_temporales.csv
 
 # Local Netlify folder
 .netlify
+
+# BLT NOW - limpieza total autorizada V002
+*.sql
+installer/
+installers/
+**/installer/
+**/installers/
+*.patch
+APLICAR_*
+ACTUALIZAR_CACHE_*
+dist/

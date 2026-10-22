@@ -11,7 +11,7 @@ function read(relativePath) {
 }
 
 const serviceSource = read('backend/src/services/notifications/ticket-critical-notifications_uni.service.js');
-const sqlSource = read('backend/sql/20260825_VERIFICAR_NOTIFICACIONES_FASE_4_CRITICOS.sql');
+
 
 const state = {
   insertedRows: [],
@@ -492,18 +492,4 @@ test('El actor y el alcance UNITED se delegan al motor central', () => {
   assert.match(serviceSource, /zonaOperativaId:\s*zoneId/);
   assert.match(serviceSource, /destinatarios:\s*producerRecipients/);
   assert.match(serviceSource, /accion:\s*'ABRIR_TICKET'/);
-});
-
-test('SQL de Fase 4 es solo lectura y verifica eventos, roles, alcance y deduplicacion', () => {
-  for (const code of ['FALLA_EQUIPO_CRITICO', 'NUEVO_EQUIPO_CRITICO', 'PERSONA_ATRAPADA']) {
-    assert.match(sqlSource, new RegExp(code));
-  }
-  assert.match(sqlSource, /ner\.activo\s*=\s*1/);
-  assert.match(sqlSource, /usuario_roles/);
-  assert.match(sqlSource, /usuarios_alcance_informacion/);
-  assert.match(sqlSource, /usuario_zop/);
-  assert.match(sqlSource, /p\.zona_id/);
-  assert.match(sqlSource, /clave_deduplicacion/);
-  assert.match(sqlSource, /trace_id/);
-  assert.doesNotMatch(sqlSource, /^\s*(ALTER|CREATE|INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/im);
 });

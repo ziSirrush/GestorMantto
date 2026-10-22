@@ -117,8 +117,7 @@ check(homeSource.includes('access_endpoint'), 'Home abre archivos mediante endpo
 check(homeSource.includes('[task.responsables, task.seguimiento]'), 'El filtro defensivo del frontend reconoce relaciones colaborativas autorizadas.');
 
 for (const relative of [
-  'sql/20260803_CFFAA_02_HOME_PENDIENTES_AZURE.sql',
-  'sql/20260803_CFFAA_02_POSTFLIGHT.sql'
+
 ]) {
   check(fs.existsSync(path.join(root, relative)), `${relative} incluido.`);
 }

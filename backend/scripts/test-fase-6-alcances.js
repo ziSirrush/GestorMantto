@@ -23,10 +23,7 @@ const {
   buildTicketScopeSql_gnral,
   buildInsFlScopeSql_gnral
 } = require('../src/services/information-record-scope-gnral.service');
-const {
-  resolveCrossInformationBlock_gnral,
-  loadCrossInformationBlock_gnral
-} = require('../src/services/alcance/informacion-cruzada.service');
+
 
 function fakeExecutor(handler) {
   return {
@@ -216,76 +213,12 @@ function testRecordBridge() {
   assert.deepEqual(f.params, [10, 11, 10, 11, 10, 11]);
 }
 
-async function testCrossLayer() {
-  const executor = fakeExecutor(() => [[]]);
-  const source = { user: { id_SB: 10 } };
-  let recordCalls = 0;
-  let loadCalls = 0;
-  const definition = {
-    codigo: 'TICKETS',
-    payloadKey: 'tickets',
-    permissionCodesAny: ['TICKETS.VER'],
-    groupingRef: { id_agrupacion: 30, codigo: 'OPERACION', nombre: 'Operacion', empresa: 'UNITED', activo: 1 },
-    recordScopeCheck: async () => { recordCalls += 1; return true; },
-    load: async () => { loadCalls += 1; return ['ok']; }
-  };
 
-  const functionalDenied = await resolveCrossInformationBlock_gnral(executor, source, definition, {
-    permissionResolver: async () => false,
-    doorResolver: async () => { throw new Error('No debe resolver puerta sin permiso.'); },
-    scopeResolver: async () => { throw new Error('No debe resolver alcance sin permiso.'); }
-  });
-  assert.equal(functionalDenied.motivo, 'FUNCTIONAL_PERMISSION_DENIED');
-
-  const doorDenied = await resolveCrossInformationBlock_gnral(executor, source, definition, {
-    permissionResolver: async () => true,
-    doorResolver: async () => ({ allowed: false }),
-    scopeResolver: async () => { throw new Error('No debe resolver alcance con puerta cerrada.'); }
-  });
-  assert.equal(doorDenied.motivo, 'INFORMATION_DOOR_DENIED');
-  assert.equal(recordCalls, 0);
-
-  const loaded = await loadCrossInformationBlock_gnral(executor, source, definition, {
-    permissionResolver: async () => true,
-    doorResolver: async () => ({ allowed: true, masterAccess: false, grouping: definition.groupingRef, via: 'AGRUPACION' }),
-    scopeResolver: async () => ({ motor: 'alcance_uni', empresa: 'UNITED', llave_maestra: false, agrupacion: definition.groupingRef })
-  });
-  assert.equal(loaded.incluido, true);
-  assert.deepEqual(loaded.data, ['ok']);
-  assert.equal(recordCalls, 1);
-  assert.equal(loadCalls, 1);
-
-  // Llave maestra UNITED abre la puerta y evita reintroducir alcance territorial.
-  let unitedMasterRecordCalls = 0;
-  const masterDefinition = {
-    ...definition,
-    recordScopeCheck: async () => {
-      unitedMasterRecordCalls += 1;
-      return true;
-    }
-  };
-  const master = await resolveCrossInformationBlock_gnral(executor, source, masterDefinition, {
-    permissionResolver: async () => true,
-    doorResolver: async () => ({ allowed: true, masterAccess: true, grouping: definition.groupingRef, via: 'DOMINIO_COMPLETO' }),
-    scopeResolver: async () => ({
-      motor: 'alcance_uni',
-      empresa: 'UNITED',
-      llave_maestra: true,
-      requiere_filtro_zona: false,
-      zona_ids: null,
-      agrupacion: definition.groupingRef
-    })
-  });
-  assert.equal(master.visible, true);
-  assert.equal(master.llave_maestra, true);
-  assert.equal(unitedMasterRecordCalls, 0);
-}
 
 (async () => {
   await testDoors();
   await testPanelContract();
   testRecordBridge();
-  await testCrossLayer();
   console.log('FASE_6_ALCANCES_GLOBALES_V001 + UNI_PUERTAS_CUARTOS: OK');
 })().catch((error) => {
   console.error(error);

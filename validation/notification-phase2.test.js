@@ -14,7 +14,7 @@ const ticketWrites = read('backend/src/modules/tickets/tickets-notification-writ
 const ticketRepository = read('backend/src/modules/tickets/tickets.repository.js');
 const tasks = read('backend/src/modules/pendientes/pendientes.service.js');
 const support = read('backend/src/services/support-solicitudes.service.js');
-const sql = read('backend/sql/20260825_VERIFICAR_NOTIFICACIONES_FASE_2_EMISORES.sql');
+
 
 const legacyPatterns = [
   /['"]TAREA_ASIGNADA['"]/, /['"]TAREA_COMENTARIO['"]/,
@@ -141,17 +141,4 @@ test('Emisor de negocio exige codigo e identidad y nunca propaga fallo de Notifi
   assert.match(businessEmitter, /ERROR_EMISION_NOTIFICACION/);
   assert.match(businessEmitter, /try\s*\{[\s\S]*notificationService\.emit/);
   assert.match(businessEmitter, /catch\s*\(error\)/);
-});
-
-test('SQL de verificacion cubre catalogo, matriz activa y prerrequisitos de Fase 1', () => {
-  for (const code of [
-    'tareas.asignada',
-    'tareas.comentario.creado',
-    'tickets.comentario.creado',
-    'tickets.vobo.actualizado',
-    'soporte.solicitud.actualizada'
-  ]) assert.match(sql, new RegExp(code.replaceAll('.', '\\.')));
-  assert.match(sql, /ner\.activo\s*=\s*1/);
-  assert.match(sql, /clave_deduplicacion/);
-  assert.match(sql, /trace_id/);
 });

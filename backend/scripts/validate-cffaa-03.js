@@ -87,11 +87,5 @@ assert(indexSource.includes('Máximo 25 MB por archivo, 50 MB en total y hasta 5
 assert(indexSource.includes('soporte-solicitudes.js?v=20260803-cffaa03-v001'));
 assert(indexSource.includes('support.js?v=20260803-cffaa03-v001'));
 
-const migrationSource = fs.readFileSync(path.join(backendRoot, 'sql/20260803_CFFAA_03_SOPORTE_AZURE.sql'), 'utf8');
-assert(migrationSource.includes("'sup_tickets',\n  'empresa'"));
-assert(migrationSource.includes('idx_sup_tickets_empresa'));
-assert(migrationSource.includes('SET SQL_SAFE_UPDATES = 0'));
-assert(migrationSource.includes('SET SQL_SAFE_UPDATES = @cffaa03_sql_safe_updates_anterior'));
-assert(migrationSource.includes('t.id_ticket IS NOT NULL'));
 
 console.log('CFFAA-03: Soporte multipart, empresa persistida, SAS bajo demanda y baja de adjuntos validados.');

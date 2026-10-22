@@ -99,11 +99,7 @@
     return {text:'Sin necesidad',tone:'none'};
   }
 
-  function actionLabel(row){
-    if(row&&row.noRequiereReabasto)return 'Volver a requerir reabasto';
-    if(technicalNeed(row))return 'No requiere reabasto';
-    return '';
-  }
+
 
   function renderRows(rows){
     if(!rows||!rows.length){
@@ -111,7 +107,7 @@
     }
     return rows.map(function(row){
       const op=operationalLabel(row);
-      const action=actionLabel(row);
+
       const reason=row.motivoReabasto||'';
       const updated=row.reabastoUpdatedAt?dateText(row.reabastoUpdatedAt):'';
       const meta=reason?'<small class="alm-reabasto-reason" title="'+escapeHtml(reason)+'">'+escapeHtml(reason)+(updated?' · '+escapeHtml(updated):'')+'</small>':'';
@@ -128,7 +124,7 @@
         '<td>'+number(row.maximo,2)+'</td>'+
         '<td><span class="alm-reabasto-technical">'+escapeHtml(row.alertaTecnica||'—')+'</span></td>'+
         '<td><span class="alm-reabasto-state is-'+op.tone+'">'+escapeHtml(op.text)+'</span>'+meta+'</td>'+
-        '<td>'+(action?'<button type="button" class="alm-table-action alm-reabasto-action" data-alm-reabasto-action="'+escapeHtml(row.stockKey||'')+'" data-alm-reabasto-next="'+(row.noRequiereReabasto?'0':'1')+'">'+escapeHtml(action)+'</button>':'—')+'</td>'+
+        '<td>Solo lectura</td>'+
       '</tr>';
     }).join('');
   }
@@ -198,21 +194,6 @@
       });
     }
 
-    const rowsByKey=new Map((data.rows||[]).map(function(row){return [String(row.stockKey||''),row];}));
-    view.querySelectorAll('[data-alm-reabasto-action]').forEach(function(button){
-      button.addEventListener('click',async function(){
-        const key=String(button.dataset.almReabastoAction||'');const row=rowsByKey.get(key);if(!row)return;
-        const next=button.dataset.almReabastoNext==='1';
-        const reason=await askReason(row,next);if(reason===null)return;
-        button.disabled=true;
-        try{
-          await requestJson('/api/almacen/stock/reabasto',{method:'PATCH',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({stockKey:key,noRequiereReabasto:next,motivo:reason})});
-          if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
-          document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/stock/reabasto',method:'PATCH',source:'almacen-stock-reabasto'}}));
-          schedule(view,0);
-        }catch(error){window.alert(error.message||'No fue posible guardar el estado de reabasto.');button.disabled=false;}
-      });
-    });
   }
 
   function ensureErrorNote(view,message){
@@ -253,28 +234,9 @@
     }
   }
 
-  function ensureModal(){
-    let modal=document.getElementById('alm-reabasto-modal');if(modal)return modal;
-    modal=document.createElement('div');modal.id='alm-reabasto-modal';modal.className='alm-reabasto-modal';modal.hidden=true;
-    modal.innerHTML='<div class="alm-reabasto-modal-backdrop" data-alm-reabasto-cancel></div><section class="alm-reabasto-modal-card" role="dialog" aria-modal="true" aria-labelledby="alm-reabasto-modal-title"><div class="alm-reabasto-modal-head"><div><span>Gestión de Stock</span><h3 id="alm-reabasto-modal-title">Motivo</h3></div><button type="button" data-alm-reabasto-cancel aria-label="Cerrar">×</button></div><p id="alm-reabasto-modal-context"></p><label><span>Motivo obligatorio</span><textarea id="alm-reabasto-reason" maxlength="1000" rows="4" placeholder="Describe por qué se aplica este estado..."></textarea></label><small id="alm-reabasto-modal-help">Mínimo 5 caracteres. El motivo, usuario, fecha y condición técnica quedan auditados.</small><div class="alm-reabasto-modal-actions"><button type="button" class="alm-reabasto-secondary" data-alm-reabasto-cancel>Cancelar</button><button type="button" id="alm-reabasto-confirm">Guardar</button></div></section>';
-    document.body.appendChild(modal);return modal;
-  }
 
-  function askReason(row,nextState){
-    const modal=ensureModal();const title=modal.querySelector('#alm-reabasto-modal-title');const context=modal.querySelector('#alm-reabasto-modal-context');const textarea=modal.querySelector('#alm-reabasto-reason');const confirm=modal.querySelector('#alm-reabasto-confirm');
-    title.textContent=nextState?'Marcar No requiere reabasto':'Volver a requerir reabasto';
-    context.textContent=(row.articulo||row.codigo||'Artículo')+' · '+(row.empresa||'')+' · Alerta técnica: '+String(row.alertaTecnica||'—');
-    textarea.value='';modal.hidden=false;setTimeout(function(){textarea.focus();},0);
-    return new Promise(function(resolve){
-      let done=false;
-      function finish(value){if(done)return;done=true;modal.hidden=true;cleanup();resolve(value);}
-      function cancel(){finish(null);}
-      function save(){const value=String(textarea.value||'').trim();if(value.length<5){textarea.focus();textarea.setCustomValidity('Captura al menos 5 caracteres.');textarea.reportValidity();textarea.setCustomValidity('');return;}finish(value);}
-      function keydown(event){if(event.key==='Escape')cancel();}
-      function cleanup(){modal.querySelectorAll('[data-alm-reabasto-cancel]').forEach(function(button){button.removeEventListener('click',cancel);});confirm.removeEventListener('click',save);document.removeEventListener('keydown',keydown);}
-      modal.querySelectorAll('[data-alm-reabasto-cancel]').forEach(function(button){button.addEventListener('click',cancel);});confirm.addEventListener('click',save);document.addEventListener('keydown',keydown);
-    });
-  }
+
+
 
   function attachStock(){
     const view=document.getElementById('view-almacen-stock');if(!view)return;

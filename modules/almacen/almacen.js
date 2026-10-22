@@ -4,11 +4,11 @@
   if(window.ManttoAlmacen) return;
 
   const ROUTES = Object.freeze({
-    'almacen-dashboard': { shortTitle:'Dashboard', icon:'📊', description:'Resumen ejecutivo del inventario cargado temporalmente desde Excel hacia Aiven.' },
+    'almacen-dashboard': { shortTitle:'Dashboard', icon:'📊', description:'Resumen ejecutivo del inventario publicado por NetSuite en Aiven.' },
     'almacen-inventario': { shortTitle:'Inventario', icon:'📦', description:'Consulta consolidada de artículos con vistas por empresa, almacén y ranking.' },
-    'almacen-stock': { shortTitle:'Stock', icon:'📈', description:'Existencia del DET y parámetros calculados desde las hojas MOVIMIENTOS del cierre Excel seleccionado.' },
-    'almacen-prestamos': { shortTitle:'Préstamos', icon:'🔄', description:'Seguimiento de artículos en préstamo del cierre Excel seleccionado cuando contiene un conjunto compatible.' },
-    'almacen-resguardos': { shortTitle:'Resguardos', icon:'🔒', description:'Consulta de resguardos del cierre Excel seleccionado cuando contiene un conjunto compatible.' },
+    'almacen-stock': { shortTitle:'Stock', icon:'📈', description:'Existencia del DET y parámetros calculados desde las hojas MOVIMIENTOS del corte publicado de NetSuite.' },
+    'almacen-prestamos': { shortTitle:'Préstamos', icon:'🔄', description:'Seguimiento de artículos en préstamo del corte publicado de NetSuite cuando contiene un conjunto compatible.' },
+    'almacen-resguardos': { shortTitle:'Resguardos', icon:'🔒', description:'Consulta de resguardos del corte publicado de NetSuite cuando contiene un conjunto compatible.' },
     'almacen-auditoria': { shortTitle:'Auditoría', icon:'🔍', description:'Contraste físico contra el cierre seleccionado, con conteos y observaciones persistidos en Aiven.' }
   });
 
@@ -22,7 +22,6 @@
   const state = {
     inventoryTab:'inventario',
     source:null,
-    canImport:false,
     catalogs:{ companies:[], categories:[], warehouses:[] },
     dashboard:null,
     inventory:{ query:'', company:'todas', category:'todas', warehouse:'todos', minValue:'', maxValue:'', stockOnly:true, page:1, data:null },
@@ -107,18 +106,7 @@
     return data;
   }
 
-  async function upload(path, formData){
-    const response = await fetch(apiBase() + path, { method:'POST', body:formData, credentials:'include', manttoNoDedupe:true });
-    let data = {};
-    try{ data = await response.json(); }catch(_error){}
-    if(!response.ok || data.ok === false){
-      const error = new Error(data.message || ('HTTP ' + response.status));
-      error.status = response.status;
-      error.details = data.details || null;
-      throw error;
-    }
-    return data;
-  }
+
 
   function money(value){
     if(value === null || value === undefined || value === '') return '—';
@@ -166,10 +154,10 @@
   function empty(message){ return '<div class="alm-pending-block"><strong>Sin información</strong><small>' + escapeHtml(message || 'No hay registros disponibles.') + '</small></div>'; }
   function errorBlock(message){ return '<div class="alm-error-block"><strong>No fue posible cargar la información</strong><small>' + escapeHtml(message || 'Error no identificado.') + '</small></div>'; }
   function sourceCard(){
-    if(!state.source) return '<section class="alm-card alm-source-card"><div><strong>Fuente temporal Excel</strong><span>No existe un cierre disponible.</span></div>' + statusPill('Sin carga','warn') + '</section>';
+    if(!state.source) return '<section class="alm-card alm-source-card"><div><strong>Fuente NetSuite</strong><span>No existe un cierre disponible.</span></div>' + statusPill('Sin carga','warn') + '</section>';
     const invRows=state.source.datasets&&state.source.datasets.INVENTARIO?state.source.datasets.INVENTARIO.filas:state.source.filas;
     const historical=state.source.selection==='SELECCIONADO'&&!state.source.activo;
-    return '<section class="alm-card alm-source-card"><div><strong>Fuente temporal Excel</strong><span>' + escapeHtml(state.source.archivoOrigen || 'Archivo') + ' · ' + escapeHtml(state.source.hojaOrigen || 'Hoja') + ' · ' + number(invRows,0) + ' filas de inventario</span><small class="alm-source-selected-note">Corte: ' + dateText(state.source.fechaCorte) + ' · ' + (historical?'Histórico seleccionado':'Cierre activo') + '</small></div>' + statusPill(historical?'Histórico':'Activo',historical?'warn':'ok') + '</section>';
+    return '<section class="alm-card alm-source-card"><div><strong>Fuente NetSuite</strong><span>' + escapeHtml(state.source.archivoOrigen || 'Inventario NetSuite') + ' · ' + escapeHtml(state.source.tipoFuente || 'INVENTARIO_230') + ' · ' + number(invRows,0) + ' filas de inventario</span><small class="alm-source-selected-note">Corte: ' + dateText(state.source.fechaCorte) + ' · ' + (historical?'Histórico seleccionado':'Cierre activo') + '</small></div>' + statusPill(historical?'Histórico':'Activo',historical?'warn':'ok') + '</section>';
   }
 
   function kpi(label, icon, value, subtitle, tone){
@@ -216,7 +204,7 @@
         kpi('Almacenes','🏪',number(k.almacenes,0),'Almacenes distintos','amber') +
         kpi('Sin stock','⚠️',number(k.sinStock,0),'Renglones con existencia ≤ 0','red') +
       '</section>' +
-      '<section class="alm-card"><div class="alm-section-head"><div><h2>Resumen por empresa</h2><p>Derivado del cierre Excel seleccionado.</p></div></div><div class="alm-company-summary-grid">' + (companyRows || '<span>Sin empresas.</span>') + '</div></section>' +
+      '<section class="alm-card"><div class="alm-section-head"><div><h2>Resumen por empresa</h2><p>Derivado del corte publicado de NetSuite.</p></div></div><div class="alm-company-summary-grid">' + (companyRows || '<span>Sin empresas.</span>') + '</div></section>' +
       '<section class="alm-card"><div class="alm-section-head"><div><h2>Top 5 almacenes</h2><p>Ordenados por valor cuando la fuente permite calcularlo.</p></div></div>' + renderTable(['#','Almacén','Tipo','Empresa','Valor est.','Piezas','Refs'],warehouseRows,820) + '</section>' +
       '<section class="alm-card"><div class="alm-ranking-head"><div><h2>Rankings de artículos</h2><p>Información del cierre seleccionado. “Más movidos” sigue pendiente de historial de movimientos.</p></div></div><div class="alm-grid-2 alm-ranking-grid"><section class="alm-ranking-panel"><div class="alm-ranking-title"><span>📦</span><div><strong>Top 15 por volumen</strong><small>Cantidad física</small></div></div>' + rankingRows(data.topByVolume, function(v){return number(v,2);}) + '</section><section class="alm-ranking-panel"><div class="alm-ranking-title"><span>💰</span><div><strong>Top 15 por valor</strong><small>Valor estimado</small></div></div>' + rankingRows(data.topByValue, money) + '</section></div><div class="alm-movements-pending"><div><strong>🔄 Top 15 más movidos</strong><span>No se calcula con snapshots de Excel; requiere movimientos históricos/BG.</span></div>' + statusPill('Pendiente BG','warn') + '</div></section>'
     );
@@ -232,11 +220,7 @@
     }catch(error){ view.innerHTML = shell('almacen-dashboard', errorBlock(error.message)); }
   }
 
-  function sourceImportPanel(){
-    const source = sourceCard();
-    if(!state.canImport) return source;
-    return source + '<section class="alm-card alm-import-card"><div class="alm-section-head"><div><h2>Actualizar fuente temporal</h2><p>Solo Programador / Programador Corellian. Acepta .xlsx y .csv, máximo 25 MB.</p></div>' + statusPill('No reemplaza el lote anterior hasta terminar','ok') + '</div><div class="alm-import-grid"><label class="alm-field"><span>Archivo</span><input id="alm-import-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"></label><label class="alm-field"><span>Fecha de corte</span><input id="alm-import-cutoff" type="date"></label><div class="alm-import-actions"><button type="button" class="alm-btn" id="alm-import-validate">Validar</button><button type="button" class="alm-btn alm-btn-primary" id="alm-import-run" disabled>Importar y activar</button></div></div><div id="alm-import-result" class="alm-import-result">Selecciona el Excel y valida sus encabezados antes de importarlo.</div></section>';
-  }
+
 
   function inventoryTabs(){
     return '<nav class="alm-subtabs">' + INVENTORY_TABS.map(function(tab){ return '<button type="button" class="alm-subtab' + (state.inventoryTab===tab.key?' is-active':'') + '" data-alm-inventory-tab="' + tab.key + '"><span>' + tab.icon + '</span>' + escapeHtml(tab.label) + '</button>'; }).join('') + '</nav>';
@@ -277,11 +261,11 @@
     if(state.inventoryTab==='top') return topTab(state.top.data);
     return inventoryMain(state.inventory.data);
   }
-  function renderInventoryShell(body){ return shell('almacen-inventario', sourceImportPanel() + '<section class="alm-card alm-inventory-nav">' + inventoryTabs() + '</section><div id="alm-inventory-content" class="alm-stack">' + body + '</div>'); }
+  function renderInventoryShell(body){ return shell('almacen-inventario', sourceCard() + '<section class="alm-card alm-inventory-nav">' + inventoryTabs() + '</section><div id="alm-inventory-content" class="alm-stack">' + body + '</div>'); }
 
   async function loadCapabilities(){
     const data = await get('/api/almacen/importaciones/capabilities',{force:true});
-    state.canImport = Boolean(data.canImport);
+
     state.source = data.source || null;
   }
   async function loadCatalogs(){ state.catalogs = await get('/api/almacen/inventario/catalogos',{force:true}); }
@@ -307,63 +291,14 @@
     return loadInventoryData();
   }
 
-  function importMessage(view,text,tone){
-    const box=view.querySelector('#alm-import-result');
-    if(!box) return;
-    box.className='alm-import-result' + (tone?' is-'+tone:'');
-    box.innerHTML=escapeHtml(text);
-  }
-  function mappingSummary(data){
-    const mapping=data.mapping||{};
-    return Object.keys(mapping).map(function(key){return key + ' ← ' + mapping[key].header;}).join(' · ');
-  }
-  function bindImport(view){
-    const fileInput=view.querySelector('#alm-import-file');
-    const cutoff=view.querySelector('#alm-import-cutoff');
-    const validate=view.querySelector('#alm-import-validate');
-    const run=view.querySelector('#alm-import-run');
-    if(!fileInput||!validate||!run) return;
-    let validatedHash='';
-    validate.addEventListener('click',async function(){
-      const file=fileInput.files&&fileInput.files[0];
-      if(!file){importMessage(view,'Selecciona un archivo .xlsx o .csv.','error');return;}
-      validate.disabled=true; run.disabled=true; importMessage(view,'Validando encabezados y mapeo...','working');
-      try{
-        const form=new FormData(); form.append('archivo',file); if(cutoff&&cutoff.value) form.append('fechaCorte',cutoff.value);
-        const data=await upload('/api/almacen/importaciones/validar',form);
-        validatedHash=data.hash||''; run.disabled=false;
-        const warnings=Array.isArray(data.warnings)&&data.warnings.length?' · ADVERTENCIAS: '+data.warnings.join(' '):'';
-        importMessage(view,'Validación correcta: '+number(data.rows,0)+' filas · '+mappingSummary(data)+(data.coverage&&data.coverage.valor?'':' · ADVERTENCIA: no se confirmó valor/precio para todas las métricas.')+warnings, warnings?'warn':'ok');
-      }catch(error){
-        validatedHash='';
-        const details=error.details;
-        let message=error.message;
-        if(details&&details.headers) message+=' Encabezados detectados: '+details.headers.join(' | ');
-        importMessage(view,message,'error');
-      }finally{validate.disabled=false;}
-    });
-    fileInput.addEventListener('change',function(){validatedHash='';run.disabled=true;importMessage(view,'Archivo cambiado. Vuelve a validar antes de importar.','');});
-    run.addEventListener('click',async function(){
-      const file=fileInput.files&&fileInput.files[0];
-      if(!file||!validatedHash){importMessage(view,'Valida el archivo antes de importarlo.','error');return;}
-      if(!window.confirm('Se importará este archivo como nuevo lote activo. El lote anterior se conservará desactivado. ¿Continuar?')) return;
-      run.disabled=true; validate.disabled=true; importMessage(view,'Importando en Aiven. No cierres esta vista...','working');
-      try{
-        const form=new FormData(); form.append('archivo',file); if(cutoff&&cutoff.value) form.append('fechaCorte',cutoff.value);
-        const data=await upload('/api/almacen/importaciones',form);
-        if(window.ManttoHttp&&window.ManttoHttp.invalidate) window.ManttoHttp.invalidate('/api/almacen');
-        document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/importaciones',method:'POST',source:'almacen-import'}}));
-        state.source={archivoOrigen:data.archivoOrigen,hojaOrigen:data.hojaOrigen,fechaCorte:data.fechaCorte,fechaImportacion:new Date().toISOString(),filas:data.filas,loteImportacion:data.loteImportacion};
-        await loadCatalogs(); state.inventory.page=1; await loadCurrentTab();
-        view.innerHTML=renderInventoryShell(inventoryContent()); bindInventory(view);
-      }catch(error){importMessage(view,error.message,'error');run.disabled=false;validate.disabled=false;}
-    });
-  }
+
+
+
 
   function debounce(fn,wait){let timer;return function(){clearTimeout(timer);timer=setTimeout(fn,wait);};}
   function bindInventory(view){
-    bindImport(view);
-    view.querySelectorAll('[data-alm-inventory-tab]').forEach(function(button){button.addEventListener('click',async function(){state.inventoryTab=button.dataset.almInventoryTab; view.innerHTML=renderInventoryShell(loading('Consultando vista...')); bindImport(view); try{await loadCurrentTab(); view.innerHTML=renderInventoryShell(inventoryContent()); bindInventory(view);}catch(error){view.querySelector('#alm-inventory-content').innerHTML=errorBlock(error.message);}});});
+
+    view.querySelectorAll('[data-alm-inventory-tab]').forEach(function(button){button.addEventListener('click',async function(){state.inventoryTab=button.dataset.almInventoryTab; view.innerHTML=renderInventoryShell(loading('Consultando vista...'));  try{await loadCurrentTab(); view.innerHTML=renderInventoryShell(inventoryContent()); bindInventory(view);}catch(error){view.querySelector('#alm-inventory-content').innerHTML=errorBlock(error.message);}});});
     view.querySelectorAll('[data-alm-inventory-company]').forEach(function(button){button.addEventListener('click',async function(){state.inventory.company=button.dataset.almInventoryCompany;state.inventory.page=1;await refreshInventory(view);});});
     view.querySelectorAll('[data-alm-company-tab-company]').forEach(function(button){button.addEventListener('click',async function(){state.company.selected=button.dataset.almCompanyTabCompany;state.company.page=1;await refreshInventory(view);});});
     view.querySelectorAll('[data-alm-warehouse-company]').forEach(function(button){button.addEventListener('click',async function(){state.warehouse.company=button.dataset.almWarehouseCompany;await refreshInventory(view);});});
@@ -390,7 +325,7 @@
     view.innerHTML=shell('almacen-inventario',loading('Consultando fuente de inventario...'));
     try{
       await Promise.all([loadCapabilities(),loadCatalogs()]);
-      if(!state.source){view.innerHTML=renderInventoryShell(empty('No existe un cierre disponible. Si tienes autorización, carga el Excel desde Carga de Información.'));bindInventory(view);return;}
+      if(!state.source){view.innerHTML=renderInventoryShell(empty('No existe un cierre disponible. Si tienes autorización, revisa la sincronizacion NetSuite en Carga de Informacion.'));bindInventory(view);return;}
       await loadCurrentTab();
       view.innerHTML=renderInventoryShell(inventoryContent()); bindInventory(view);
     }catch(error){view.innerHTML=shell('almacen-inventario',errorBlock(error.message));}
@@ -563,7 +498,7 @@
   // [Aster | 2026-08-30 | ALMACEN-AUDITORIA-AIVEN-V002]
   // F4 V002: auditoría operativa de solo lectura/contraste. Sin persistencia en navegador ni escrituras API.
   function auditModeCard(){
-    return '<section class="alm-card alm-audit-mode"><div><strong>Auditoría persistente</strong><span>El esperado se copia del cierre seleccionado de almacen_fuente_excel. Conteos y observaciones se guardan en almacen_auditoria; nunca modifican el cierre Excel.</span></div>'+statusPill('Persistente','ok')+'</section>';
+    return '<section class="alm-card alm-audit-mode"><div><strong>Auditoría persistente</strong><span>El esperado se copia del cierre seleccionado de almacen_fuente_excel. Conteos y observaciones se guardan en almacen_auditoria; nunca modifican el corte de NetSuite.</span></div>'+statusPill('Persistente','ok')+'</section>';
   }
 
   function auditMetrics(session){
@@ -658,7 +593,7 @@
       const valueDiff=item.valueDifference!=null?Number(item.valueDifference):(item.unitValue==null?null:diff*Number(item.unitValue));
       return '<tr><td>'+escapeHtml(item.article||'—')+'</td><td>'+escapeHtml(item.code||'—')+'</td><td>'+number(item.expected,2)+'</td><td>'+number(found,2)+'</td><td class="'+(exact?'alm-text-ok':'alm-text-diff')+'">'+(diff>0?'+':'')+number(diff,2)+'</td><td>'+money(item.expectedValue)+'</td><td>'+money(valueDiff)+'</td><td>'+statusPill(exact?'Correcto':'Diferencia',exact?'ok':'warn')+'</td></tr>';
     });
-    return shell('almacen-auditoria',sourceCard()+auditModeCard()+'<section class="alm-card alm-audit-result-head"><div><span class="alm-eyebrow">Auditoría cerrada</span><h2>'+escapeHtml(session.warehouse)+'</h2><p>'+escapeHtml(session.company)+' · Folio '+escapeHtml(session.folioAuditoria||session.sessionId||'')+' · '+humanDateText(session.finishedAt||result.finishedAt)+'</p></div><div class="alm-audit-result-actions"><button type="button" class="alm-link-button" id="alm-audit-new">Regresar</button><button type="button" id="alm-audit-print">Imprimir / Guardar PDF</button></div></section><section class="alm-kpi-grid">'+kpi('Renglones correctos','✅',number(metrics.exact,0)+' / '+number(metrics.total,0),number(metrics.matchPercent,1)+'% coincidencia','green')+kpi('Piezas esperadas','📦',number(metrics.expectedPieces,2),'Fotografía del cierre','blue')+kpi('Piezas encontradas','🔎',number(metrics.foundPieces,2),(metrics.pieceDifference>0?'+':'')+number(metrics.pieceDifference,2)+' diferencia','amber')+kpi('Impacto valor','💰',money(metrics.valueDifference),metrics.valued+' artículos con valor comparable','purple')+'</section><section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Detalle del contraste</h2><p>Resultado persistido en almacen_auditoria. El cierre Excel original permanece sin cambios.</p></div>'+statusPill('Persistido','ok')+'</div>'+renderTable(['Artículo','Código','Esperado','Encontrado','Diferencia','Valor esperado','Dif. valor','Estado'],rows,980)+'</section>');
+    return shell('almacen-auditoria',sourceCard()+auditModeCard()+'<section class="alm-card alm-audit-result-head"><div><span class="alm-eyebrow">Auditoría cerrada</span><h2>'+escapeHtml(session.warehouse)+'</h2><p>'+escapeHtml(session.company)+' · Folio '+escapeHtml(session.folioAuditoria||session.sessionId||'')+' · '+humanDateText(session.finishedAt||result.finishedAt)+'</p></div><div class="alm-audit-result-actions"><button type="button" class="alm-link-button" id="alm-audit-new">Regresar</button><button type="button" id="alm-audit-print">Imprimir / Guardar PDF</button></div></section><section class="alm-kpi-grid">'+kpi('Renglones correctos','✅',number(metrics.exact,0)+' / '+number(metrics.total,0),number(metrics.matchPercent,1)+'% coincidencia','green')+kpi('Piezas esperadas','📦',number(metrics.expectedPieces,2),'Fotografía del cierre','blue')+kpi('Piezas encontradas','🔎',number(metrics.foundPieces,2),(metrics.pieceDifference>0?'+':'')+number(metrics.pieceDifference,2)+' diferencia','amber')+kpi('Impacto valor','💰',money(metrics.valueDifference),metrics.valued+' artículos con valor comparable','purple')+'</section><section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Detalle del contraste</h2><p>Resultado persistido en almacen_auditoria. El corte de NetSuite original permanece sin cambios.</p></div>'+statusPill('Persistido','ok')+'</div>'+renderTable(['Artículo','Código','Esperado','Encontrado','Diferencia','Valor esperado','Dif. valor','Estado'],rows,980)+'</section>');
   }
 
   function renderAudit(){
@@ -740,7 +675,7 @@
     const result=state.audit.result;if(!result)return;
     const s=result.session,m=result.metrics;
     const rows=s.items.map(function(item){const found=Number(item.found||0),diff=found-Number(item.expected||0),exact=Math.abs(diff)<1e-9;return '<tr><td>'+escapeHtml(item.article||'—')+'</td><td>'+escapeHtml(item.code||'—')+'</td><td>'+number(item.expected,2)+'</td><td>'+number(found,2)+'</td><td>'+(diff>0?'+':'')+number(diff,2)+'</td><td>'+(exact?'Correcto':'Diferencia')+'</td></tr>';}).join('');
-    const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Auditoría '+escapeHtml(s.warehouse)+'</title><style>body{font-family:Arial,sans-serif;color:#15315f;padding:28px}h1{margin:0 0 4px}p{color:#66758d}.notice{padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin:16px 0;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px}th{background:#f8fafc}.metrics{display:flex;gap:12px;flex-wrap:wrap}.metric{border:1px solid #dbe4f0;border-radius:8px;padding:10px 14px}.metric b{display:block;font-size:18px}@media print{button{display:none}}</style></head><body><h1>Reporte de contraste de inventario</h1><p>'+escapeHtml(s.company)+' · '+escapeHtml(s.warehouse)+' · '+humanDateText(result.finishedAt)+'</p><div class="notice">Auditoría persistida en almacen_auditoria. Fuente esperada: cierre INVENTARIO seleccionado en Aiven. El histórico del cierre Excel permanece sin modificaciones.</div><div class="metrics"><div class="metric"><span>Renglones correctos</span><b>'+number(m.exact,0)+' / '+number(m.total,0)+'</b></div><div class="metric"><span>Piezas esperadas</span><b>'+number(m.expectedPieces,2)+'</b></div><div class="metric"><span>Piezas encontradas</span><b>'+number(m.foundPieces,2)+'</b></div><div class="metric"><span>Diferencia</span><b>'+(m.pieceDifference>0?'+':'')+number(m.pieceDifference,2)+'</b></div></div><table><thead><tr><th>Artículo</th><th>Código</th><th>Esperado</th><th>Encontrado</th><th>Diferencia</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table><p>Sesión: '+escapeHtml(s.sessionId||'')+' · Cierre: '+escapeHtml(s.loteImportacion||(state.source&&state.source.loteImportacion)||'')+'</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>';
+    const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Auditoría '+escapeHtml(s.warehouse)+'</title><style>body{font-family:Arial,sans-serif;color:#15315f;padding:28px}h1{margin:0 0 4px}p{color:#66758d}.notice{padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin:16px 0;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px}th{background:#f8fafc}.metrics{display:flex;gap:12px;flex-wrap:wrap}.metric{border:1px solid #dbe4f0;border-radius:8px;padding:10px 14px}.metric b{display:block;font-size:18px}@media print{button{display:none}}</style></head><body><h1>Reporte de contraste de inventario</h1><p>'+escapeHtml(s.company)+' · '+escapeHtml(s.warehouse)+' · '+humanDateText(result.finishedAt)+'</p><div class="notice">Auditoría persistida en almacen_auditoria. Fuente esperada: cierre INVENTARIO seleccionado en Aiven. El histórico del corte de NetSuite permanece sin modificaciones.</div><div class="metrics"><div class="metric"><span>Renglones correctos</span><b>'+number(m.exact,0)+' / '+number(m.total,0)+'</b></div><div class="metric"><span>Piezas esperadas</span><b>'+number(m.expectedPieces,2)+'</b></div><div class="metric"><span>Piezas encontradas</span><b>'+number(m.foundPieces,2)+'</b></div><div class="metric"><span>Diferencia</span><b>'+(m.pieceDifference>0?'+':'')+number(m.pieceDifference,2)+'</b></div></div><table><thead><tr><th>Artículo</th><th>Código</th><th>Esperado</th><th>Encontrado</th><th>Diferencia</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table><p>Sesión: '+escapeHtml(s.sessionId||'')+' · Cierre: '+escapeHtml(s.loteImportacion||(state.source&&state.source.loteImportacion)||'')+'</p><button onclick="window.print()">Imprimir / Guardar PDF</button></body></html>';
     const popup=window.open('','_blank');if(!popup){alert('El navegador bloqueó la ventana de impresión.');return;}popup.document.open();popup.document.write(html);popup.document.close();
   }
 

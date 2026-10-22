@@ -397,21 +397,10 @@
       return {...p, activos: activosPf.length || p.cods.size, criticos: p.critCods.size};
     }).sort((a,b)=>b.total-a.total || a.pro.localeCompare(b.pro)).slice(0,20);
   }
-  function renderTopEquipos(rows){
-    const body=byId('rd-top-eq-body'); if(!body) return;
-    const data=topEquiposData(rows); txt('rd-top-eq-count', data.length ? data.length+' equipos' : '');
-    body.innerHTML = data.length ? data.map(e=>`<tr class="rd-click-row" data-equipo="${escapeHtml(e.cod)}"><td>${escapeHtml(e.zon)}</td><td><button class="rd-link" data-proyecto-link="${escapeHtml(e.pro)}">${renderIdentificador(visualCodesForRows(e.rows,e.critico),formatProyectoName(e.pro))}</button></td><td title="${escapeHtml(e.ref)}">${renderIdentificador(visualCodesForRows(e.rows,e.critico),e.ref)}</td><td><b>${e.total}</b></td><td>${e.blt}</td><td>${e.cli}</td><td>${renderVisuales(visualCodesForRows(e.rows,e.critico),'')}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin equipos para este periodo</td></tr>';
-    body.querySelectorAll('[data-proyecto-link]').forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();openProyecto(btn.dataset.proyectoLink);}));
-    body.querySelectorAll('tr[data-equipo]').forEach(tr=>tr.addEventListener('click',()=>openEquipo(tr.dataset.equipo)));
-  }
-  function renderTopProyectos(rows){
-    const body=byId('rd-top-proy-body'); if(!body) return;
-    const data=topProyectosData(rows); txt('rd-top-proy-count', data.length ? data.length+' proyectos' : '');
-    body.innerHTML = data.length ? data.map(p=>`<tr class="rd-click-row" data-proyecto="${escapeHtml(p.pro)}"><td>${escapeHtml(p.zon)}</td><td>${renderIdentificador([],formatProyectoName(p.pro))}<br><small>${escapeHtml(p.pro)}</small></td><td>${p.activos}</td><td><b>${p.total}</b></td><td>${p.blt}</td><td>${p.cli}</td><td>${p.criticos||0}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#667085;padding:20px">Sin proyectos para este periodo</td></tr>';
-    body.querySelectorAll('[data-proyecto]').forEach(tr=>tr.addEventListener('click',()=>openProyecto(tr.dataset.proyecto)));
-  }
+
+
   function badge(et){ const cls=et==='Cerrado'?'cerrado':et==='En curso'?'curso':'abierto'; return `<span class="rd-badge ${cls}">${et||'—'}</span>`; }
-  function ticketBtn(t){ return `<button class="rd-link" data-ticket="${escapeHtml(t.n)}">${escapeHtml(t.n||'—')}</button>`; }
+
   function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
   const TICKETS_CONTEXTUAL_UNI_HEADERS = ['No. Ticket','Proyecto','Equipo','Estado','Fecha Reporte','Hora Reporte','Asunto','Estatus inicial','Fecha Llegada','Hora Llegada','T. llegada','Fecha Solución','Hora Solución','Estatus final','Causa','Acción cierre','Responsabilidad','Causa de falla'];
   function ticketsContextualUniHead(){

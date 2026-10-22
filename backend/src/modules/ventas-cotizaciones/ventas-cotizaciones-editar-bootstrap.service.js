@@ -5,10 +5,6 @@ const clientesRepository = require('../ventas-clientes/ventas-clientes.repositor
 const contactosRepository = require('../ventas-clientes-contactos/ventas-clientes-contactos.repository');
 const ventasVisibility = require('../ventas/ventas-visibility.service');
 
-function positiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
-}
 
 function buildClientVisibility(scope) {
   if (!scope || scope.mode === 'ALL') return { sql: '', params: [] };

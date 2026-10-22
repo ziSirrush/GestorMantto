@@ -380,37 +380,7 @@
     }
   }
 
-  async function loadEditRecord(id) {
-    const data = await request(`/api/ventas/cotizaciones/${id}`);
-    const quotation = data.cotizacion || data.data;
-    if (!quotation) throw new Error('La cotización no fue encontrada.');
-    state.editRecord = quotation;
-    state.editId = Number(quotation.id_cotizacion) || Number(id);
-    state.legacyEquipmentFallback = null;
-    setModeCopy();
-    if (quotation.id_cliente) await selectClient(quotation.id_cliente, quotation.id_contacto);
-    setField('nombre_proyecto', quotation.nombre_proyecto);
-    setField('tipo_proyecto', quotation.tipo_proyecto);
-    setField('estatus_proyecto', quotation.estatus_proyecto);
-    setField('informacion_envia', quotation.informacion_envia);
-    setField('comentario', quotation.comentario);
-    setField('telefono', quotation.telefono);
-    setField('correo', quotation.correo);
-    setField('ciudad', quotation.ciudad);
-    setField('estado', quotation.estado);
-    if (Array.isArray(quotation.equipos) && quotation.equipos.length) {
-      state.equipmentRows = quotation.equipos.map((row) => ({ cantidad: Number(row.cantidad) || 0, tipo_equipo: String(row.tipo_equipo || '') }));
-    } else if (String(quotation.tipo_equipos || '').trim() || Number(quotation.numero_equipos) > 0) {
-      const legacyTypes = String(quotation.tipo_equipos || '').trim();
-      const legacyTotal = Number(quotation.numero_equipos) || 0;
-      state.legacyEquipmentFallback = { types: legacyTypes, total: legacyTotal, dirty: false };
-      const exactType = state.equipmentTypes.find((type) => type.toLowerCase() === legacyTypes.toLowerCase());
-      state.equipmentRows = exactType && legacyTotal > 0 ? [{ cantidad: legacyTotal, tipo_equipo: exactType }] : [{ cantidad: 0, tipo_equipo: '' }];
-    } else {
-      state.equipmentRows = [{ cantidad: 0, tipo_equipo: '' }];
-    }
-    renderEquipmentRows();
-  }
+
 
   async function relateCreatedQuotationToProspection(savedId) {
     const origin = state.routePayload?.originProspection;

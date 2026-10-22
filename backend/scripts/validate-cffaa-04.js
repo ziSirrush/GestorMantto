@@ -120,9 +120,5 @@ const indexSource = fs.readFileSync(path.join(projectRoot, 'index.html'), 'utf8'
 assert(indexSource.includes('ventas-prospeccion-detalle.js?v=20260803-cffaa04-v001'));
 assert(indexSource.includes('ventas-prospeccion-detalle.css?v=20260803-cffaa04-v001'));
 
-const postflight = read('sql/20260803_CFFAA_04_POSTFLIGHT.sql');
-assert(postflight.includes('posibles_azure_mal_etiquetados'));
-assert(postflight.includes("UPPER(TRIM(storage_provider)) = 'AZURE_BLOB'"));
-assert.strictEqual(/\b(UPDATE|DELETE|INSERT|ALTER|DROP|CREATE)\b/i.test(postflight.replace(/^--.*$/gm, '')), false);
 
 console.log('CFFAA-04: Prospeccion Azure, SAS bajo demanda, sincronizacion historica protegida y baja individual validados.');

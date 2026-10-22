@@ -80,34 +80,6 @@ async function assertPermissionInScope(conn, permissionId, scope) {
 }
 
 
-async function assertHierarchyInScope(conn, level, id, scope) {
-  const catalogFilter = companySql('pa.empresa', scope);
-  const normalizedLevel = String(level || '').toLowerCase();
-  let sql;
-  if (normalizedLevel === 'group') {
-    sql = `SELECT pa.id_agrupacion AS id
-           FROM perm_agrupaciones pa
-           WHERE pa.id_agrupacion = ? AND ${catalogFilter.clause}
-           LIMIT 1`;
-  } else if (normalizedLevel === 'module') {
-    sql = `SELECT pm.id_modulo AS id
-           FROM perm_modulos pm
-           INNER JOIN perm_agrupaciones pa ON pa.id_agrupacion = pm.id_agrupacion
-           WHERE pm.id_modulo = ? AND ${catalogFilter.clause}
-           LIMIT 1`;
-  } else {
-    const error = new Error('Nivel jerárquico inválido.');
-    error.status = 400;
-    throw error;
-  }
-  const [rows] = await conn.query(sql, [id, ...catalogFilter.params]);
-  if (!rows.length) {
-    const error = new Error('El contenedor no pertenece a tu alcance de administración.');
-    error.status = 403;
-    throw error;
-  }
-}
-
 function denyUnlessManager(req, res) {
   if (actorCanManage(req)) return false;
   res.status(403).json({ ok: false, message: 'No tienes autorización para administrar permisos.' });
@@ -400,7 +372,6 @@ async function getBootstrap(req, res, next) {
 }
 
 
-
 async function getViewerBootstrap(req, res, next) {
   try {
     if (!req.viewerContext?.active || !req.contextUser) {
@@ -463,7 +434,6 @@ async function postViewerContext(req, res, next) {
     next(error);
   }
 }
-
 
 
 async function postViewerClose(req, res, next) {

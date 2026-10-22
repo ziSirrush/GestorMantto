@@ -57,11 +57,7 @@
     return Boolean(window.ManttoAuth&&typeof window.ManttoAuth.getUser==='function'&&window.ManttoAuth.getUser());
   }
 
-  function permissionEffective(code){
-    if(!window.ManttoPermissions||typeof window.ManttoPermissions.state!=='function')return false;
-    const state=window.ManttoPermissions.state(code);
-    return Boolean(state&&state.exists&&state.efectivo===true);
-  }
+
 
   function localAccessState(){
     if(!window.ManttoPermissions||typeof window.ManttoPermissions.state!=='function')return null;
@@ -245,13 +241,9 @@
     return view;
   }
 
-  function projectReference(row){
-    return row&&(row.proyecto||row.proyecto_nombre||row.nombre_proyecto||row.proyecto_padre)||'';
-  }
 
-  function equipmentReference(row){
-    return row&&(row.numero_equipo||row.codigo_equipo||row.equipo||row.identificacion_sitio)||'';
-  }
+
+
 
   function isProjectTracked(value){return trackedProjects.has(normalize(value));}
   function isEquipmentTracked(value){return trackedEquipment.has(normalize(value));}

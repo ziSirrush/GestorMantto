@@ -51,10 +51,3 @@ test('FIX3: smoke bloquea fuga de columnas no autorizadas',()=>{
   const contract={groups:[{fields:['proyecto'],permissions:{can_view:true}}]};
   assert.throws(()=>qa.checkRecord_cor({id_ins_fl:5,proyecto:'A',secreto:'NO'},contract),/no autorizada/);
 });
-test('FIX3: SQL de verificacion es exclusivamente SELECT',()=>{
-  const file=fs.readFileSync(path.join(ROOT,'database/QA_FIX_3_INSTALACIONES_ADMINISTRACION_AUTOGUARDADO_SOLO_LECTURA_V001.sql'),'utf8');
-  const statements=file.replace(/--[^\n]*/g,'').split(';').map(s=>s.trim()).filter(Boolean);
-  assert.ok(statements.length>=3);
-  for(const statement of statements)assert.match(statement,/^SELECT\b/i,'sentencia no SELECT');
-  assert.doesNotMatch(file,/\b(CREATE|ALTER|DROP|TRUNCATE|INSERT|UPDATE|DELETE|REPLACE|GRANT|REVOKE|COMMIT|ROLLBACK)\s+(TABLE|INTO|FROM|\w+)/i);
-});

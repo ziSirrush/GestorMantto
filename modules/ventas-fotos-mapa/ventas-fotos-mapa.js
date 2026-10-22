@@ -38,7 +38,7 @@ const norm=v=>String(v==null?'':v).trim().toUpperCase();
 const headers=()=>Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
 async function getJson(path){const r=await fetch(API+path,{headers:headers(),cache:'no-store'});const t=await r.text();let j;try{j=t?JSON.parse(t):{};}catch(e){const error=new Error(r.ok?'El backend respondió contenido no JSON.':'Error HTTP '+r.status);error.status=r.ok?0:r.status;throw error;}if(!r.ok||j.ok===false){const error=new Error(j.message||j.error||('Error HTTP '+r.status));error.status=r.status;throw error;}return j;}
 async function safePayload(path){try{return{ok:true,payload:await getJson(path),status:200};}catch(error){return{ok:false,payload:null,status:Number(error&&error.status)||0,error};}}
-async function safeSource(path){const result=await safePayload(path);return{ok:result.ok,data:result.ok&&Array.isArray(result.payload&&result.payload.data)?result.payload.data:[],status:result.status};}
+
 function info(url,campo,origen,manageable){if(!url||/\.heic(\?|$)/i.test(String(url)))return null;return{url:String(url).trim(),campo,origen,manageable:manageable!==false};}
 function uniquePhotos(items){const seen=new Set();return (Array.isArray(items)?items:[]).filter(item=>{const url=String(item&&item.url||'').trim();if(!url||seen.has(url))return false;seen.add(url);return true;});}
 function coreRows(p){return Array.isArray(p&&p.coreRows)?p.coreRows:[];}

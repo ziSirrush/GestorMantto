@@ -18,7 +18,6 @@ const requiredFiles = [
   'src/services/storage/storage-operations.service.js',
   'src/services/storage/storage-reference.service.js',
   'src/services/storage/storage-access.service.js',
-  'src/services/storage/storage-access-handler.service.js',
   'src/services/storage/storage-diagnostics.service.js',
   'src/jobs/storageOperations.job.js',
   'scripts/validate-cffaa-01ef.js',
@@ -63,8 +62,6 @@ const requiredFiles = [
   'src/modules/storage-reconciliation/storage-reconciliation.service.js',
   'src/modules/storage-reconciliation/storage-reconciliation.controller.js',
   'src/modules/storage-reconciliation/storage-reconciliation.routes.js',
-  '../sql/20260803_CFFAA_06_STORAGE_EVENTOS.sql',
-  '../sql/20260803_CFFAA_06_POSTFLIGHT.sql',
   'scripts/validate-cffaa-06.js',
   '../core/router.js'
 ];

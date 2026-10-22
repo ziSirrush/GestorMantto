@@ -56,16 +56,6 @@ test('ring de contenedores conserva conteo fisico 20 DC vs 40 HQ', () => {
   assert.equal(value.criterio_anio, 'fecha_salida_estimada (ETD)');
 });
 
-test('la migracion reutiliza log_ops y no crea una tabla nueva', () => {
-  const sql = fs.readFileSync(
-    path.join(__dirname, '../sql/20260923_FASE_1_DASHBOARD_LOGISTICA_ANALITICA_V001.sql'),
-    'utf8'
-  );
-  assert.match(sql, /ALTER TABLE log_ops/i);
-  assert.match(sql, /contenedores_20_dc/i);
-  assert.match(sql, /contenedores_40_hq/i);
-  assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
-});
 
 test('el backend de sync acepta los dos campos canonicos y los encabezados de origen', () => {
   const controller = fs.readFileSync(

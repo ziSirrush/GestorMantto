@@ -248,25 +248,6 @@ function cleanValue(value) {
   return value;
 }
 
-function normalizeDateOnly(value) {
-  const cleaned = cleanValue(value);
-  if (cleaned === null) return null;
-
-  if (cleaned instanceof Date && !Number.isNaN(cleaned.getTime())) {
-    return cleaned.toISOString().slice(0, 10);
-  }
-
-  const text = String(cleaned).trim();
-  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (isoMatch) return isoMatch[1];
-
-  const parsed = new Date(text);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
-  }
-
-  return text;
-}
 
 function normalizeNumber(value, { integer = false, percent = false } = {}) {
   const cleaned = cleanValue(value);

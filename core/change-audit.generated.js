@@ -1,6 +1,6 @@
 window.MANTTO_CHANGE_AUDIT = Object.freeze({
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T15:37:50.325Z",
-  "buildCommit": "37780b376465b8906823bc46fed571f3210eff4a",
+  "generatedAt": "2026-10-22T02:35:23.857Z",
+  "buildCommit": "55bc12478130fda596f040dbe5abd900ee9ed99d",
   "changes": []
 });

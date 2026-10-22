@@ -1,236 +1,45 @@
 (function(){
   'use strict';
-
-  if(window.ManttoAlmacenCarga) return;
-
-  // [Aster | 2026-09-01 | ASTER-MG | FIX ALMACEN ARCHIVO BLOB + STAGING ACTIVO V001]
-  const state={source:null,sources:[],selectedLot:'',validation:null,busy:false,file:null,cutoff:''};
-
-  function escapeHtml(value){
-    return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
-    });
-  }
-  function number(value){
-    const n=Number(value);
-    return Number.isFinite(n)?new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(n):'—';
-  }
+  if(window.ManttoAlmacenCarga)return;
+  // BLT NOW | LIMPIEZA V002: el flujo Excel fue retirado; solo fuentes NetSuite.
+  const state={busy:false,requestId:0};
+  const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   function dateText(value){
-    if(!value)return '—';
-    const raw=String(value).trim();
-    const iso=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
-    if(iso){
-      const base=`${iso[3]}/${iso[2]}/${iso[1]}`;
-      return iso[4]&&iso[5]?`${base} - ${iso[4]}:${iso[5]}`:base;
-    }
-    return escapeHtml(raw);
+    if(!value)return '\u2014';
+    const raw=String(value),m=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m?m[3]+'/'+m[2]+'/'+m[1]:raw;
   }
-  function authApi(path,options){
-    if(window.ManttoAuth&&typeof window.ManttoAuth.api==='function') return window.ManttoAuth.api(path,options||{});
-    const headers=Object.assign({'Accept':'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{},options&&options.headers||{});
-    const opts=Object.assign({credentials:'include'},options||{},{headers:headers});
-    return fetch(String(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'')+path,opts).then(async function(response){
-      const json=await response.json().catch(function(){return {ok:false,message:'Respuesta no JSON.'};});
-      if(!response.ok||json.ok===false){const error=new Error(json.message||('HTTP '+response.status));error.status=response.status;error.payload=json;throw error;}
-      return json;
-    });
+  async function read(url){
+    if(window.ManttoAuth&&typeof window.ManttoAuth.api==='function')return window.ManttoAuth.api(url,{method:'GET'});
+    const headers=Object.assign({Accept:'application/json'},window.ManttoAuth&&window.ManttoAuth.authHeaders?window.ManttoAuth.authHeaders():{});
+    const response=await fetch(String(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'')+url,{method:'GET',headers,cache:'no-store'});
+    const payload=await response.json();
+    if(!response.ok||payload.ok===false){const error=new Error(payload.message||'No fue posible consultar Almacen.');error.status=response.status;throw error;}
+    return payload;
   }
-
-  const ALMACEN_SOURCE_KEY='mantto:almacen:lote-seleccionado';
-  function selectLot(lot){
-    const value=String(lot||'').trim();
-    try{if(value)window.sessionStorage.setItem(ALMACEN_SOURCE_KEY,value);else window.sessionStorage.removeItem(ALMACEN_SOURCE_KEY);}catch(_error){}
-    state.selectedLot=value;
-    if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
-    document.dispatchEvent(new CustomEvent('mantto:almacen-source-changed',{detail:{loteImportacion:value,source:'almacen-carga'}}));
+  function render(view,source,sources,message){
+    const rows=sources.map(item=>'<tr><td>'+esc(item.loteImportacion)+'</td><td>'+esc(item.tipoFuente||'INVENTARIO_230')+'</td><td>'+esc(dateText(item.fechaCorte))+'</td><td>'+esc(item.estado||'PUBLICADO')+'</td><td>'+((item.activo===true||Number(item.activo)===1)?'Activo':'Historico')+'</td></tr>').join('');
+    view.innerHTML='<div class="almload-shell"><section class="almload-card almload-head"><div><span class="almload-eyebrow">Gestion de Almacen</span><h1>Carga de Informacion</h1><p>Fuentes publicadas por la sincronizacion NetSuite. Consulta de solo lectura.</p></div><button type="button" id="almload-refresh">Actualizar</button></section>'+
+      (message?'<section class="almload-card" role="alert">'+esc(message)+'</section>':'')+
+      '<section class="almload-card"><h2>Fuente activa</h2><p>'+(source?esc(source.archivoOrigen||'Inventario NetSuite')+' | Corte: '+esc(dateText(source.fechaCorte))+' | Lote: '+esc(source.loteImportacion):'No hay un lote de inventario publicado y activo para tu alcance.')+'</p></section>'+
+      '<section class="almload-card"><h2>Lotes publicados</h2><div class="almload-table-wrap"><table><thead><tr><th>Lote</th><th>Fuente</th><th>Corte</th><th>Estado</th><th>Seleccion</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5">Sin lotes disponibles.</td></tr>')+'</tbody></table></div></section></div>';
+    const refresh=view.querySelector('#almload-refresh');if(refresh)refresh.onclick=()=>load(view);
   }
-  function syncSelectedLot(){
-    // Nuevo contrato: las pantallas siempre consultan el staging ACTIVO.
-    const active=state.source&&state.source.loteImportacion?String(state.source.loteImportacion):'';
-    state.selectedLot=active;
-    selectLot(active);
-  }
-
-  function historyHtml(){
-    const rows=state.sources||[];
-    if(!rows.length)return '<section class="almload-card"><div class="almload-section-head"><div><h2>Histórico de cierres</h2><p>No hay cierres disponibles.</p></div></div></section>';
-    return '<section class="almload-card"><div class="almload-section-head"><div><h2>Histórico de cierres</h2><p>Los cierres archivados conservan el Excel original en Azure. Activar uno reprocesa ese Excel y sustituye el staging operativo de Aiven.</p></div><span class="almload-pill neutral">'+number(rows.length)+' cierres</span></div><div class="almload-history-list">'+rows.map(function(row){
-      const isActive=Boolean(row.activo);
-      const archived=Boolean(row.archived);
-      const status=archived?'Excel en Azure Blob':(row.loaded?'Legacy en Aiven':'Sin archivo');
-      const disabled=isActive||!archived;
-      const buttonText=isActive?'En uso':(archived?'Usar este cierre':'Pendiente archivar');
-      return '<div class="almload-history-row'+(isActive?' is-selected':'')+'"><div><strong>'+escapeHtml(row.archivoOrigen||'Archivo')+'</strong><small>'+escapeHtml(row.loteImportacion||'')+'</small></div><div><strong>'+escapeHtml(row.fechaCorte||'Sin corte')+'</strong><small>'+dateText(row.fechaImportacion)+' · '+escapeHtml(status)+'</small></div><div><strong>'+number(row.datasets&&row.datasets.INVENTARIO?row.datasets.INVENTARIO.filas:0)+'</strong><small>inventario</small></div><button type="button" data-almload-source="'+escapeHtml(row.loteImportacion)+'"'+(disabled?' disabled':'')+'>'+buttonText+'</button></div>';
-    }).join('')+'</div></section>';
-  }
-
-  function sourceHtml(){
-    if(!state.source){
-      return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente global activa</span><h2>Sin cierre en uso</h2><p>Agrega uno o más Excel al histórico y elige cuál se utilizará en todos los módulos de Almacén.</p></div><span class="almload-pill warn">Sin selección</span></section>';
-    }
-    const s=state.source;
-    const rows=s.filas!=null?s.filas:(s.datasets&&s.datasets.INVENTARIO?s.datasets.INVENTARIO.filas:null);
-    const archiveText=s.archived?'Excel protegido en Azure Blob':'Legacy: falta archivar Excel original';
-    return '<section class="almload-card almload-source"><div><span class="almload-kicker">Fuente global activa</span><h2>'+escapeHtml(s.archivoOrigen||'Archivo activo')+'</h2><p>'+escapeHtml(s.hojaOrigen||'Lote de Almacén')+' · '+number(rows)+' filas · Corte '+escapeHtml(s.fechaCorte||'—')+'</p><small>Lote: '+escapeHtml(s.loteImportacion||'—')+' · '+archiveText+'</small></div><span class="almload-pill '+(s.archived?'ok':'warn')+'">'+(s.archived?'En uso para todos':'Migración requerida')+'</span></section>';
-  }
-
-  function messageHtml(text,tone){
-    return '<div class="almload-message '+escapeHtml(tone||'')+'" id="almload-message">'+escapeHtml(text||'Selecciona un archivo y valida antes de importar.')+'</div>';
-  }
-  function validationSummary(data){
-    const parts=[];
-    if(data&&data.profile)parts.push('Perfil '+String(data.profile));
-    if(data&&data.rows!=null)parts.push(number(data.rows)+' filas normalizadas');
-    if(Array.isArray(data&&data.datasets)&&data.datasets.length){
-      const sets=data.datasets.map(function(ds){return String(ds.type||'CONJUNTO')+' '+String(ds.sheetName||'')+': '+number(ds.rows||0);});
-      parts.push('Conjuntos: '+sets.join(' · '));
-    }
-    if(data&&data.hash)parts.push('Hash '+String(data.hash).slice(0,12));
-    if(Array.isArray(data&&data.warnings)&&data.warnings.length)parts.push('Advertencias: '+data.warnings.join(' '));
-    return parts.join(' · ')||'Validación correcta.';
-  }
-
-  function render(view,message,tone){
-    const requiresArchive=Boolean(state.source&&!state.source.archived);
-    const migration=requiresArchive
-      ? '<div class="almload-message warn"><b>Migración única requerida:</b> selecciona el mismo Excel que generó el cierre activo ('+escapeHtml(state.source.archivoOrigen||'actual')+'), valídalo y pulsa <b>Archivar cierre actual</b>. El backend comprobará su SHA-256 antes de asociarlo.</div>'
-      : '';
-    const archiveButton=requiresArchive?'<button type="button" class="almload-btn primary" id="almload-archive" '+(state.validation?'':'disabled')+'>Archivar cierre actual</button>':'';
-    const saveButton=!requiresArchive?'<button type="button" class="almload-btn primary" id="almload-save" '+(state.validation?'':'disabled')+'>Guardar en histórico</button>':'';
-    view.innerHTML='<div class="almload-shell">'+
-      '<section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Todos los Excel cargados quedan disponibles en el histórico. El cierre seleccionado se usa globalmente en los módulos de Almacén.</p></div><span class="almload-pill restricted">Selección global</span></section>'+
-      sourceHtml()+historyHtml()+
-      '<section class="almload-card"><div class="almload-section-head"><div><h2>Agregar archivo al histórico</h2><p>Guardar el Excel no cambia la información en uso. Después podrás seleccionarlo en el histórico cuando quieras convertirlo en la fuente global.</p></div><span class="almload-pill neutral">.xlsx / .csv · 25 MB</span></div>'+migration+
-      '<div class="almload-grid"><label><span>Archivo</span><input id="almload-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><small id="almload-file-name">'+escapeHtml(state.file?state.file.name:'Ningún archivo seleccionado')+'</small></label><label><span>Fecha de corte</span><input id="almload-cutoff" type="date" value="'+escapeHtml(state.cutoff)+'"></label></div>'+
-      '<div class="almload-actions"><button type="button" class="almload-btn" id="almload-validate">Validar</button>'+archiveButton+saveButton+'</div>'+messageHtml(message,tone)+'</section>'+
-      '<section class="almload-card almload-rules"><h2>Controles de seguridad</h2><div><span>1</span><p><b>Excel original privado.</b> Cada archivo se conserva en Azure Blob y aparece en el histórico.</p></div><div><span>2</span><p><b>Selección única y global.</b> Sólo un cierre está en uso y cualquier cambio afecta a todos los usuarios y módulos de Almacén.</p></div><div><span>3</span><p><b>Activación verificable.</b> El Excel elegido se descarga, verifica por SHA-256 y reemplaza el staging operativo de Aiven.</p></div></section></div>';
-    bind(view);
-  }
-
-  function setMessage(view,text,tone){
-    const node=view.querySelector('#almload-message');if(!node)return;
-    node.className='almload-message '+String(tone||'');node.textContent=text||'';
-  }
-  function syncControls(view){
-    const requiresArchive=Boolean(state.source&&!state.source.archived);
-    const validateBtn=view.querySelector('#almload-validate');
-    const archiveBtn=view.querySelector('#almload-archive');
-    const saveBtn=view.querySelector('#almload-save');
-    if(validateBtn)validateBtn.disabled=state.busy;
-    if(archiveBtn)archiveBtn.disabled=state.busy||!state.validation||!state.file;
-    if(saveBtn)saveBtn.disabled=state.busy||!state.validation||!state.file||requiresArchive;
-    const fileName=view.querySelector('#almload-file-name');if(fileName)fileName.textContent=state.file?state.file.name:'Ningún archivo seleccionado';
-  }
-  function fileKey(file){return file?[file.name,file.size,file.lastModified].join('|'):'';}
-  function buildForm(){
-    if(!state.file)return null;
-    const form=new FormData();form.append('archivo',state.file);
-    if(state.cutoff)form.append('fechaCorte',state.cutoff);
-    return form;
-  }
-
-  async function refreshSources(){
-    const responses=await Promise.all([
-      authApi('/api/almacen/carga/capabilities',{method:'GET'}),
-      authApi('/api/almacen/fuentes?all=1',{method:'GET'})
-    ]);
-    state.source=responses[0].source||null;
-    state.sources=responses[1].sources||[];
-    syncSelectedLot();
-  }
-
-  async function loadCapabilities(view){
-    view.innerHTML='<div class="almload-shell"><section class="almload-card almload-head"><div><span class="almload-eyebrow">⬆️ Gestión de Almacén</span><h1>Carga de Información</h1><p>Validando permiso, fuente activa e histórico...</p></div></section></div>';
+  async function load(view){
+    if(state.busy)return;state.busy=true;const request=++state.requestId;
+    const old=view.querySelector('#almload-refresh');if(old)old.disabled=true;
     try{
-      await refreshSources();
-      state.validation=null;state.file=null;state.cutoff='';
-      render(view,state.source&&!state.source.archived?'El cierre activo es legacy. Archívalo una sola vez antes de sustituirlo.':'Selecciona un archivo y valida antes de importar.',state.source&&!state.source.archived?'warn':'');
+      const result=await Promise.all([read('/api/almacen/carga/capabilities'),read('/api/almacen/fuentes')]);
+      if(request!==state.requestId)return;
+      render(view,result[0].source||null,Array.isArray(result[1].sources)?result[1].sources:[],'');
     }catch(error){
-      const denied=Number(error&&error.status)===403;
-      view.innerHTML='<div class="almload-shell"><section class="almload-card almload-error"><span>⚠️</span><div><h1>'+(denied?'Acceso no autorizado':'No fue posible abrir Carga de Información')+'</h1><p>'+escapeHtml(error.message||'Error no identificado.')+'</p>'+(denied?'<small>Solicita el permiso ALMACEN_CARGA desde Panel de Control.</small>':'')+'</div></section></div>';
-    }
+      if(request===state.requestId)render(view,null,[],Number(error.status)===403?'No tienes permiso o alcance para consultar las fuentes de Almacen.':error.message);
+    }finally{state.busy=false;const button=view.querySelector('#almload-refresh');if(button)button.disabled=false;}
   }
-
-  async function validate(view){
-    if(!state.file){setMessage(view,'Selecciona un archivo .xlsx o .csv.','error');return;}
-    const form=buildForm();state.validation=null;state.busy=true;syncControls(view);setMessage(view,'Validando encabezados, mapeo y estructura...','working');
-    try{
-      const data=await authApi('/api/almacen/carga/validar',{method:'POST',body:form});
-      state.validation={hash:data.hash||'',fileKey:fileKey(state.file),data:data};
-      setMessage(view,validationSummary(data),Array.isArray(data.warnings)&&data.warnings.length?'warn':'ok');
-    }catch(error){
-      state.validation=null;
-      let msg=error.message||'No se pudo validar el archivo.';
-      const details=error&&error.payload&&error.payload.details;
-      if(details&&Array.isArray(details.headers))msg+=' Encabezados detectados: '+details.headers.join(' | ');
-      setMessage(view,msg,'error');
-    }finally{state.busy=false;syncControls(view);}
-  }
-
-  async function archiveCurrent(view){
-    if(!state.source||state.source.archived)return;
-    if(!state.file||!state.validation||state.validation.fileKey!==fileKey(state.file)){setMessage(view,'Selecciona y valida el Excel exacto del cierre activo antes de archivarlo.','error');return;}
-    if(!window.confirm('Se verificará el hash del Excel contra el cierre activo y, si coincide, se guardará una copia privada en Azure Blob. ¿Continuar?'))return;
-    state.busy=true;syncControls(view);setMessage(view,'Archivando Excel activo en Azure Blob y verificando SHA-256...','working');
-    try{
-      await authApi('/api/almacen/carga/archivar-activo',{method:'POST',body:buildForm()});
-      state.validation=null;state.file=null;
-      await refreshSources();
-      render(view,'Cierre activo archivado correctamente. Ya puedes seleccionar el nuevo Excel e importarlo sin acumular históricos normalizados en Aiven.','ok');
-    }catch(error){setMessage(view,error.message||'No se pudo archivar el cierre activo.','error');}
-    finally{state.busy=false;syncControls(view);}
-  }
-
-  async function saveToHistory(view){
-    if(state.source&&!state.source.archived){setMessage(view,'Primero archiva el cierre activo legacy.','error');return;}
-    if(!state.file||!state.validation||state.validation.fileKey!==fileKey(state.file)){state.validation=null;syncControls(view);setMessage(view,'El archivo debe validarse nuevamente antes de importar.','error');return;}
-    if(!window.confirm('El Excel se guardará en el histórico de Azure Blob. La fuente global activa no cambiará hasta que elijas “Usar este cierre”. ¿Continuar?'))return;
-    const form=buildForm();state.busy=true;syncControls(view);setMessage(view,'Guardando Excel en el histórico de cierres...','working');
-    try{
-      const data=await authApi('/api/almacen/carga/archivar',{method:'POST',body:form});
-      state.validation=null;state.file=null;
-      if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
-      document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/carga/archivar',method:'POST',source:'almacen-carga'}}));
-      await refreshSources();
-      render(view,(data.alreadyArchived?'El archivo ya estaba registrado.':'Excel guardado en el histórico.')+' El cierre activo no cambió; usa el botón “Usar este cierre” cuando quieras aplicarlo globalmente.','ok');
-    }catch(error){setMessage(view,error.message||'No se pudo guardar el archivo en el histórico.','error');}
-    finally{state.busy=false;syncControls(view);}
-  }
-
-  async function activateSource(view,lot){
-    const target=String(lot||'').trim();if(!target||state.busy)return;
-    if(!window.confirm('Este cierre sustituirá la información activa de Almacén para TODOS los usuarios. Se verificará el Excel y se reemplazará el staging operativo de Aiven. ¿Continuar?'))return;
-    state.busy=true;syncControls(view);setMessage(view,'Reactivando cierre histórico desde Azure Blob...','working');
-    try{
-      const data=await authApi('/api/almacen/carga/fuentes/'+encodeURIComponent(target)+'/activar',{method:'POST'});
-      if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function')window.ManttoHttp.invalidate('/api/almacen');
-      document.dispatchEvent(new CustomEvent('mantto:data-mutated',{detail:{path:'/api/almacen/carga/fuentes/'+target+'/activar',method:'POST',source:'almacen-carga'}}));
-      await refreshSources();selectLot(data.loteImportacion||target);
-      render(view,'Cierre seleccionado. Sus datos son ahora la fuente global de Gestión de Almacén para todos los usuarios.','ok');
-    }catch(error){setMessage(view,error.message||'No se pudo reactivar el cierre histórico.','error');}
-    finally{state.busy=false;syncControls(view);}
-  }
-
-  function bind(view){
-    const file=view.querySelector('#almload-file');
-    const cutoff=view.querySelector('#almload-cutoff');
-    const validateBtn=view.querySelector('#almload-validate');
-    const archiveBtn=view.querySelector('#almload-archive');
-    const saveBtn=view.querySelector('#almload-save');
-    if(file)file.addEventListener('change',function(){state.file=file.files&&file.files[0]?file.files[0]:null;state.validation=null;syncControls(view);setMessage(view,state.file?'Archivo seleccionado. Valídalo antes de continuar.':'Selecciona un archivo .xlsx o .csv.','');});
-    if(cutoff)cutoff.addEventListener('change',function(){state.cutoff=cutoff.value||'';state.validation=null;syncControls(view);setMessage(view,'Fecha de corte modificada. Vuelve a validar antes de importar.','');});
-    if(validateBtn)validateBtn.addEventListener('click',function(){if(!state.busy)validate(view);});
-    if(archiveBtn)archiveBtn.addEventListener('click',function(){if(!state.busy)archiveCurrent(view);});
-    if(saveBtn)saveBtn.addEventListener('click',function(){if(!state.busy)saveToHistory(view);});
-    view.querySelectorAll('[data-almload-source]').forEach(function(button){button.addEventListener('click',function(){if(!button.disabled)activateSource(view,button.dataset.almloadSource||'');});});
-    syncControls(view);
-  }
-
   function init(route){
     if(route!=='almacen-carga')return false;
     const view=document.getElementById('view-almacen-carga');if(!view)return false;
-    view.dataset.almacenCargaReady='blob-staging-v001';loadCapabilities(view);return true;
+    view.dataset.almacenCargaReady='netsuite-lectura-v002';void load(view);return true;
   }
-
-  window.ManttoAlmacenCarga=Object.freeze({init:init});
+  window.ManttoAlmacenCarga=Object.freeze({init});
 })();

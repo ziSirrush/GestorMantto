@@ -194,28 +194,16 @@
     return current;
   }
 
-  function toUrl_gnral(input){
-    try{
-      const raw = typeof input === 'string' ? input : input && input.url;
-      if(!raw) return null;
-      return new URL(raw, window.location.href);
-    }catch(_error){ return null; }
-  }
 
-  function requestMethod_gnral(input, init){
-    return String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-  }
+
+
 
   function apiUrl_gnral(){
     try{ return new URL(API_BASE, window.location.href); }
     catch(_error){ return null; }
   }
 
-  function isGestorApi_gnral(url){
-    if(!url) return false;
-    const base = apiUrl_gnral();
-    return Boolean(base && url.origin === base.origin && url.pathname.startsWith('/api/'));
-  }
+
 
   function isSystemEndpoint_gnral(path){
     const p = String(path || '').toLowerCase();
@@ -237,29 +225,13 @@
     return { kind:null, id:null };
   }
 
-  function markUserGesture_gnral(event){
-    if(event && event.isTrusted === false) return;
-    lastUserGestureAt = Date.now();
-  }
+
 
   function recentUserGesture_gnral(){
     return Date.now() - lastUserGestureAt <= USER_GESTURE_WINDOW_MS;
   }
 
-  function addContextHeaders_gnral(input, init){
-    const current = currentRoute_gnral();
-    const nextInit = Object.assign({}, init || {});
-    const sourceHeaders = (init && init.headers) || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
-    const headers = new Headers(sourceHeaders || {});
-    headers.set('X-Mantto-Route', String(current.route || 'home').slice(0, 500));
-    const payload = routingPayload_gnral(current.payload);
-    if(payload){
-      const serialized = JSON.stringify(payload);
-      if(serialized.length <= 3000) headers.set('X-Mantto-Payload', serialized);
-    }
-    nextInit.headers = headers;
-    return nextInit;
-  }
+
 
   async function record_gnral(input){
     const data = input || {};
@@ -315,52 +287,11 @@
     };
   }
 
-  function recordNavigation_gnral(detail){
-    const data = navigationData_gnral(detail || {});
-    let key = '';
-    try{ key = JSON.stringify([data.modulo, data.payload_json, detail?.type || 'forward']); }catch(_error){}
-    const now = Date.now();
-    if(key && key === lastNavigationKey && now - lastNavigationAt < 250) return;
-    lastNavigationKey = key;
-    lastNavigationAt = now;
-    record_gnral(data);
-  }
 
-  function shouldTrackConsultation_gnral(method, path){
-    if(method !== 'GET' || !recentUserGesture_gnral() || isSystemEndpoint_gnral(path)) return false;
-    const endpoint = endpointEntity_gnral(path);
-    if(!endpoint.kind || !endpoint.id) return false;
 
-    const current = currentRoute_gnral();
-    const currentRef = referenceFromPayload_gnral(current.payload);
-    if(currentRef && String(currentRef) === String(endpoint.id)) return false;
-    return true;
-  }
 
-  function recordConsultation_gnral(path){
-    const endpoint = endpointEntity_gnral(path);
-    if(!endpoint.kind || !endpoint.id) return;
-    const current = currentRoute_gnral();
-    const target = targetFromEntity_gnral(endpoint.kind, endpoint.id, current);
-    const label = entityLabel_gnral(endpoint.kind) || routeLabel_gnral(target.route);
-    const key = `${endpoint.kind}:${endpoint.id}:${target.route}`;
-    const now = Date.now();
-    if(key === lastConsultationKey && now - lastConsultationAt < 1000) return;
-    lastConsultationKey = key;
-    lastConsultationAt = now;
 
-    record_gnral({
-      tipo_interaccion:'CONSULTAR',
-      modulo:target.route || current.route || 'general',
-      entidad:endpoint.kind,
-      id_referencia:endpoint.id,
-      titulo:`Consultaste ${label} · ${endpoint.id}`,
-      descripcion:`Consulta abierta desde ${routeLabel_gnral(current.route)}.`,
-      ruta_destino:target.route || current.route || 'home',
-      payload_json:target.payload || current.payload || null,
-      detalle_json:{ source:'frontend-get', endpoint:path }
-    });
-  }
+
 
   function rowPayload_gnral(row){
     const payload = parseJson_gnral(row.payload_json) || null;

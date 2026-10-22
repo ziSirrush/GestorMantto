@@ -84,17 +84,6 @@ test('auditoria se ejecuta antes del COMMIT para rollback atomico si falla', () 
   assert.ok(commit > callback);
 });
 
-test('SQL de Fase 2 permanece idempotente, no crea estructura ni asigna usuarios/roles', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'database', 'FASE_2_INSTALACIONES_ADMINISTRACION_PERMISOS_V001.sql'), 'utf8');
-  assert.doesNotMatch(source, /CREATE\s+TABLE/i);
-  assert.doesNotMatch(source, /ALTER\s+TABLE/i);
-  assert.doesNotMatch(source, /INSERT\s+INTO\s+usuario_permisos/i);
-  assert.doesNotMatch(source, /INSERT\s+INTO\s+rol_permisos/i);
-  assert.match(source, /ON DUPLICATE KEY UPDATE/g);
-  assert.match(source, /23 AS esperados/);
-  assert.match(source, /INSTALACIONES_ADMINISTRACION_GRUPOS_COSTOS/);
-  assert.match(source, /INSTALACIONES_ADMINISTRACION_GRUPOS_RESPONSABLES/);
-});
 
 test('detalle filtra por autorizacion de modulo y mantiene validacion de alcance', () => {
   const source = fs.readFileSync(path.join(MODULE_DIR, 'instalaciones-administracion.service.js'), 'utf8');

@@ -13,7 +13,7 @@ const notifications = read('backend/src/services/notifications/ventas-notificati
 const cotizaciones = read('backend/src/modules/ventas-cotizaciones/ventas-cotizaciones.controller.js');
 const prospeccion = read('backend/src/modules/ventas-prospeccion/ventas-prospeccion.controller.js');
 const redes = read('backend/src/modules/ventas-redes/ventas-redes.controller.js');
-const sql = read('backend/sql/20260825_VERIFICAR_NOTIFICACIONES_FASE_3_VENTAS.sql');
+
 
 const eventCodes = [
   'ventas.cotizacion.comentario',
@@ -161,14 +161,4 @@ test('Fase 3 no incluye los eventos criticos de Tickets', () => {
   for (const code of ['FALLA_EQUIPO_CRITICO', 'NUEVO_EQUIPO_CRITICO', 'PERSONA_ATRAPADA']) {
     assert.doesNotMatch(combined, new RegExp(code));
   }
-});
-
-test('SQL es solo lectura y cubre los seis eventos y prerrequisitos', () => {
-  for (const code of eventCodes) assert.match(sql, new RegExp(code.replaceAll('.', '\\.')));
-  assert.match(sql, /ner\.activo\s*=\s*1/);
-  assert.match(sql, /usuarios_alcance_informacion/);
-  assert.match(sql, /CORELLIAN/);
-  assert.match(sql, /clave_deduplicacion/);
-  assert.match(sql, /trace_id/);
-  assert.doesNotMatch(sql, /^\s*(ALTER|CREATE|INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/im);
 });

@@ -196,15 +196,5 @@ for (const variable of [
   assert(envExample.includes(variable));
 }
 
-const migration = read('sql/20260803_CFFAA_06_STORAGE_EVENTOS.sql');
-assert(migration.includes('CREATE TABLE IF NOT EXISTS storage_eventos'));
-assert(migration.includes('idx_storage_eventos_tipo_fecha'));
-assert.strictEqual(/\b(DROP|TRUNCATE|DELETE|UPDATE)\b/i.test(migration.replace(/^\s*--.*$/gm, '')), false);
-
-const postflight = read('sql/20260803_CFFAA_06_POSTFLIGHT.sql');
-assert(postflight.includes('Inventario consolidado por proveedor'));
-assert(postflight.includes('Referencias historicas conocidas bajo /uploads'));
-const postflightWithoutComments = postflight.replace(/^\s*--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-assert.strictEqual(/\b(UPDATE|DELETE|INSERT|ALTER|DROP|CREATE|TRUNCATE)\b/i.test(postflightWithoutComments), false);
 
 console.log('CFFAA-06: conciliacion Aiven/Azure, inventario historico, metricas, limpieza controlada y cierre validados.');

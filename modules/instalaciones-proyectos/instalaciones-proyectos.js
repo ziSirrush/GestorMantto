@@ -188,12 +188,6 @@ let PY_LIGHTBOX_FOTOS = [];
 let PY_LIGHTBOX_IDX = 0;
 let PY_LIGHTBOX_PROYECTO = null;
 
-function pyAbrirLightbox(url){
-  PY_LIGHTBOX_FOTOS = [pyInfoFoto(url)].filter(Boolean);
-  PY_LIGHTBOX_IDX = 0;
-  PY_LIGHTBOX_PROYECTO = null;
-  pyRenderLightbox();
-}
 
 function pyAbrirLightboxProyecto(idProyecto){
   const r = PY_PROYECTOS.find(x=>x._id===idProyecto);
@@ -256,11 +250,6 @@ function pyCerrarLightbox(){
    ========================================================= */
 let PY_PERMISO_CARGA = false;
 
-function pyTogglePermiso(){
-  PY_PERMISO_CARGA = document.getElementById('py-permiso-carga').checked;
-  // si hay un proyecto abierto en este momento, refrescar sus slots
-  if(PY_PROYECTO_ABIERTO_ID != null) pyRenderSlotsFoto(PY_PROYECTO_ABIERTO_ID);
-}
 
 let PY_PROYECTO_ABIERTO_ID = null;
 
@@ -320,10 +309,6 @@ function pyGuardarFotoEnSlot(r, slot, dataUrl){
   r[slot] = dataUrl;
 }
 
-function pyIdCarpetaDrive(url){
-  const m = String(url||'').match(/folders\/([a-zA-Z0-9_-]+)/);
-  return m ? m[1] : null;
-}
 
 /* =========================================================
    NAVEGADOR DE CARPETAS DE GOOGLE DRIVE (API real)
@@ -406,14 +391,8 @@ function pyDriveBreadcrumbHtml(){
       : `<span class="link" onclick="pyIrANivelDrive(${i})">${pyEsc(n.nombre)}</span><span>/</span>`;
   }).join('') + '</div>';
 }
-function pyAbrirPagina(html){
-  document.getElementById('py-detail-body').innerHTML = html;
-  document.getElementById('py-detail-page').classList.add('open');
-  document.getElementById('py-detail-page').scrollTop = 0;
-}
-function pyCerrarPaginaProyecto(){
-  document.getElementById('py-detail-page').classList.remove('open');
-}
+
+
 function pyAbrirPaginaEquipo(html, idProyecto){
   document.getElementById('py-detail-body-2').innerHTML = html;
   document.getElementById('py-equipo-back').onclick = () => {
@@ -422,9 +401,7 @@ function pyAbrirPaginaEquipo(html, idProyecto){
   document.getElementById('py-detail-page-2').classList.add('open');
   document.getElementById('py-detail-page-2').scrollTop = 0;
 }
-function pyCerrarPaginaEquipo(){
-  document.getElementById('py-detail-page-2').classList.remove('open');
-}
+
 function pyStatusClass(v){
   return 'st-' + String(v||'').toUpperCase().replace(/[^A-Z]/g,'');
 }
@@ -468,28 +445,6 @@ function pyRenderKPIs(){
   `;
 }
 
-function pyPopulateFiltros(){
-  const estados = [...new Set(PY_PROYECTOS.map(r=>r.Estado).filter(Boolean))].sort();
-  document.getElementById('py-f-estado').innerHTML = '<option value="">Todos los estados</option>' + estados.map(e=>`<option value="${pyEsc(e)}">${pyEsc(e)}</option>`).join('');
-
-  const asesores = [...new Set(PY_PROYECTOS.map(r=>r.Asesor).filter(Boolean))].sort();
-  document.getElementById('py-f-asesor').innerHTML = '<option value="">Todo asesor</option>' + asesores.map(a=>`<option value="${pyEsc(a)}">${pyEsc(a)}</option>`).join('');
-
-  const supervisores = [...new Set(PY_PROYECTOS.map(r=>r.Supervisor).filter(Boolean))].sort();
-  document.getElementById('py-f-supervisor').innerHTML = '<option value="">Todo supervisor</option>' + supervisores.map(s=>`<option value="${pyEsc(s)}">${pyEsc(s)}</option>`).join('');
-
-  const activos = [...new Set(PY_PROYECTOS.map(r=>r['Activo / Inactivo']).filter(Boolean))].sort();
-  document.getElementById('py-f-activo').innerHTML = '<option value="">Activo/Inactivo</option>' + activos.map(a=>`<option value="${pyEsc(a)}">${pyEsc(a)}</option>`).join('');
-
-  document.getElementById('py-f-estado-cerrados').innerHTML = '<option value="">Todos los estados</option>' + estados.map(e=>`<option value="${pyEsc(e)}">${pyEsc(e)}</option>`).join('');
-  document.getElementById('py-f-asesor-cerrados').innerHTML = '<option value="">Todo asesor</option>' + asesores.map(a=>`<option value="${pyEsc(a)}">${pyEsc(a)}</option>`).join('');
-  document.getElementById('py-f-supervisor-cerrados').innerHTML = '<option value="">Todo supervisor</option>' + supervisores.map(s=>`<option value="${pyEsc(s)}">${pyEsc(s)}</option>`).join('');
-
-  const estadosFoto = [...new Set(PY_PROYECTOS.filter(pyTieneFoto).map(r=>r.Estado).filter(Boolean))].sort();
-  document.getElementById('py-f-estado-fotos').innerHTML = '<option value="">Selecciona un estado...</option>' + estadosFoto.map(e=>`<option value="${pyEsc(e)}">${pyEsc(e)}</option>`).join('');
-
-  pyPopulateFiltroClientes();
-}
 
 function pyPopulateFiltrosBasicos(){
   const estados = [...new Set(PY_PROYECTOS.map(r=>r.Estado).filter(Boolean))].sort();
@@ -517,27 +472,7 @@ function pyIrAModulo(route){
   console.error('No se encontró la ruta de destino:', route);
   return false;
 }
-function pyBindTabs(){
-  document.querySelectorAll('#py-page .py-tab').forEach(btn=>{
-    btn.addEventListener('click',(event)=>{
-      const name=btn.dataset.tab;
-      if(name==='cerrados'){
-        event.preventDefault();
-        event.stopPropagation();
-        pyIrAModulo('instalaciones-cerrados');
-        return;
-      }
-      if(name==='fotografias'){
-        event.preventDefault();
-        event.stopPropagation();
-        pyIrAModulo('ventas-fotos-mapa');
-        return;
-      }
-      pyShowTab(name);
-      pyRenderProyectos();
-    });
-  });
-}
+
 
 function pyNorm(s){
   return (s||'').toString().trim().toUpperCase();
@@ -634,84 +569,11 @@ function pyCambiarPaginaProyectos(delta){
   pyRenderProyectos();
 }
 
-function pyRenderCerrados(){
-  const buscar = document.getElementById('py-f-buscar-cerrados').value.trim().toUpperCase();
-  const estado = document.getElementById('py-f-estado-cerrados').value;
-  const asesor = document.getElementById('py-f-asesor-cerrados').value;
-  const supervisor = document.getElementById('py-f-supervisor-cerrados').value;
-
-  let rows = PY_PROYECTOS.filter(pyEsCerrado);
-  if(buscar) rows = rows.filter(r => [r.Proyecto, r['ID Proyecto'], r.Cliente].some(v => (v||'').toString().toUpperCase().includes(buscar)));
-  if(estado) rows = rows.filter(r => r.Estado === estado);
-  if(asesor) rows = rows.filter(r => r.Asesor === asesor);
-  if(supervisor) rows = rows.filter(r => r.Supervisor === supervisor);
-  rows = pyOrdenarPorProyecto(rows, 'Proyecto');
-
-  const tbody = document.getElementById('py-cerrados-tbody');
-  if(!rows.length){
-    tbody.innerHTML = '<tr><td colspan="8" class="py-empty">Sin resultados.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = rows.map(r=>`
-    <tr class="clickable" onclick="pyAbrirProyecto(${r._id})">
-      <td>${pyEsc(r.Proyecto)}</td>
-      <td>${pyEsc(r['ID Proyecto'])||'-'}</td>
-      <td>${pyEsc(r.Ciudad)||'-'}</td>
-      <td>${pyEsc(r.Estado)||'-'}</td>
-      <td>${r['Numero de Equipos'] ?? '-'}</td>
-      <td>${pyEsc(r.Asesor)||'-'}</td>
-      <td>${pyEsc(r.Supervisor)||'-'}</td>
-      <td>${pyEsc(r.Cliente)||'-'}</td>
-    </tr>`).join('');
-}
 
 function pyPrimeraFoto(r){
   return pyFotoPrincipalInfo(r);
 }
 
-function pyRenderFotografias(){
-  const buscarEl = document.getElementById('py-f-buscar-fotos');
-  const estadoEl = document.getElementById('py-f-estado-fotos');
-  const buscar = buscarEl ? buscarEl.value.trim().toUpperCase() : '';
-  const estadoFiltro = estadoEl ? estadoEl.value : '';
-  const cont = document.getElementById('py-fotografias-galeria');
-  if(!cont) return;
-
-  if(!estadoFiltro){
-    cont.innerHTML = '<div class="py-empty">Selecciona un estado para visualizar los proyectos con evidencia fotográfica.</div>';
-    return;
-  }
-
-  let rows = PY_PROYECTOS.filter(r => pyTieneFoto(r) && r.Estado === estadoFiltro);
-  if(buscar){
-    rows = rows.filter(r => [r.Proyecto, r['ID Proyecto'], r.Cliente]
-      .some(v => (v||'').toString().toUpperCase().includes(buscar)));
-  }
-
-  if(!rows.length){
-    cont.innerHTML = '<div class="py-empty">No hay proyectos con fotografías para los criterios seleccionados.</div>';
-    return;
-  }
-
-  const proyectos = pyOrdenarPorProyecto(rows, 'Proyecto');
-  const tiles = proyectos.map(r=>{
-    const info = pyPrimeraFoto(r);
-    if(!info || !info.url) return '';
-    return `
-      <div class="py-foto-tile" role="button" tabindex="0" aria-label="Abrir detalle del proyecto ${pyEsc(r.Proyecto)}" onclick="pyAbrirProyecto(${r._id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();pyAbrirProyecto(${r._id});}">
-        <img src="${pyEsc(info.url)}" loading="lazy" alt="${pyEsc(r.Proyecto)}">
-        <div class="nombre">${pyEsc(r.Proyecto)}</div>
-        <div class="n-fotos">${pyContarFotos(r)} foto(s)</div>
-      </div>`;
-  }).join('');
-
-  cont.innerHTML = `
-    <div class="py-foto-grupo">
-      <div class="py-foto-grupo-title">${pyEsc(estadoFiltro)} <span class="count">(${proyectos.length})</span></div>
-      <div class="py-foto-mosaico">${tiles}</div>
-    </div>`;
-}
 
 function pyFilaProyectoResumen(r){
   return `
@@ -726,71 +588,6 @@ function pyFilaProyectoResumen(r){
     </tr>`;
 }
 
-function pyRenderConcentradoCliente(){
-  const nombreSel = document.getElementById('py-f-cliente').value;
-  const cont = document.getElementById('py-concentrado-cliente');
-
-  if(!nombreSel){
-    cont.innerHTML = '<div class="py-empty">Selecciona un cliente para ver su concentrado.</div>';
-    return;
-  }
-
-  const cliente = PY_CLIENTES.find(c => pyNorm(c['Nombre de la Empresa']) === pyNorm(nombreSel));
-  const proyectosCliente = PY_PROYECTOS.filter(r => pyNorm(r['Cliente N Comercial']) === pyNorm(nombreSel));
-  const activos = pyOrdenarPorProyecto(proyectosCliente.filter(r => !pyEsCerrado(r)), 'Proyecto');
-  const cerrados = pyOrdenarPorProyecto(proyectosCliente.filter(pyEsCerrado), 'Proyecto');
-  const conFoto = pyOrdenarPorProyecto(proyectosCliente.filter(pyTieneFoto), 'Proyecto');
-
-  const infoItems = [
-    ['Ciudad', cliente && cliente.Ciudad], ['Estado', cliente && cliente.Estado],
-    ['Nombre del Contacto', cliente && cliente['Nombre del Contacto']], ['Email', cliente && cliente.Email],
-    ['Telefono', cliente && cliente.Telefono], ['Tipo de Cliente', cliente && cliente['Tipo de Cliente']],
-    ['Estatus con Cliente', cliente && cliente['Estatus con Cliente']],
-  ].filter(([l,v]) => v != null && v !== '');
-  const infoHtml = infoItems.map(([l,v])=>`<tr><td class="l">${pyEsc(l)}</td><td class="v">${pyEsc(v)}</td></tr>`).join('');
-
-  const filasActivos = activos.map(pyFilaProyectoResumen).join('');
-  const filasCerrados = cerrados.map(pyFilaProyectoResumen).join('');
-
-  const tilesFoto = conFoto.map(r=>{
-    const info = pyPrimeraFoto(r);
-    return `
-      <div class="py-foto-tile" onclick="pyAbrirLightboxProyecto(${r._id})">
-        <img src="${pyEsc(info.url)}" loading="lazy" alt="${pyEsc(r.Proyecto)}">
-        <div class="nombre">${pyEsc(r.Proyecto)}</div>
-        <div class="n-fotos">${pyContarFotos(r)} foto(s)</div>
-      </div>`;
-  }).join('');
-
-  cont.innerHTML = `
-    <div class="py-grid" style="margin-top:14px;">
-      <div class="py-card"><div class="label">Proyectos activos</div><div class="value" style="color:var(--accent)">${activos.length}</div></div>
-      <div class="py-card"><div class="label">Proyectos cerrados</div><div class="value" style="color:var(--ok)">${cerrados.length}</div></div>
-      <div class="py-card"><div class="label">Con fotografia</div><div class="value">${conFoto.length}</div></div>
-    </div>
-
-    <table class="py-resumen-table"><tbody>${infoHtml}</tbody></table>
-
-    <div class="py-modal-block-title">Proyectos activos (${activos.length})</div>
-    <div class="py-table-wrap">
-      <table class="py-table">
-        <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th></tr></thead>
-        <tbody>${filasActivos || '<tr><td colspan="7" class="py-empty">Sin proyectos activos.</td></tr>'}</tbody>
-      </table>
-    </div>
-
-    <div class="py-modal-block-title">Proyectos cerrados (${cerrados.length})</div>
-    <div class="py-table-wrap">
-      <table class="py-table">
-        <thead><tr><th>Proyecto</th><th>ID Proyecto</th><th>Ciudad</th><th>Estado</th><th># Equipos</th><th>Asesor</th><th>Supervisor</th></tr></thead>
-        <tbody>${filasCerrados || '<tr><td colspan="7" class="py-empty">Sin proyectos cerrados.</td></tr>'}</tbody>
-      </table>
-    </div>
-
-    <div class="py-modal-block-title">Fotografias (${conFoto.length})</div>
-    <div class="py-foto-mosaico">${tilesFoto || '<div class="py-empty">Sin fotografias.</div>'}</div>
-  `;
-}
 
 /* =========================================================
    NOTIFICACIONES (iconos de alerta) por seccion. Reglas confirmadas
@@ -967,23 +764,6 @@ const PY_SECCIONES_REPORTE = [
 const PY_ANIO_ACTUAL = pyCurrentYearCdmx();
 
 
-function pyPopulateFiltrosReporte(){
-  const supervisores = [...new Set(PY_EQUIPOS.map(e=>e['Sup FL']).filter(Boolean))].sort();
-  document.getElementById('py-f-reporte-supervisor').innerHTML = '<option value="">Todo supervisor</option>' + supervisores.map(s=>`<option value="${pyEsc(s)}">${pyEsc(s)}</option>`).join('');
-
-  const asesores = [...new Set(PY_PROYECTOS.map(r=>r.Asesor).filter(Boolean))].sort();
-  document.getElementById('py-f-reporte-asesor').innerHTML = '<option value="">Todo asesor</option>' + asesores.map(a=>`<option value="${pyEsc(a)}">${pyEsc(a)}</option>`).join('');
-
-  document.getElementById('py-f-reporte-estatus').innerHTML = '<option value="">Todos los estatus</option>' + PY_SECCIONES_REPORTE.map(s=>`<option value="${s.codigo}">${s.codigo} - ${pyEsc(s.nombre)}</option>`).join('');
-}
-
-function pyGenerarPDF(){
-  pyShowTab('reporte');
-  const fechaEl = document.getElementById('py-print-fecha');
-  if(fechaEl) fechaEl.textContent = pyCurrentDateLabelCdmx();
-  setTimeout(() => window.print(), 50);
-}
-
 function pyRenderGraficaReporte(baseEquipos, secciones){
   const cont = document.getElementById('py-reporte-graficas');
   const conteos = secciones.map(sec=>{
@@ -1060,35 +840,6 @@ function pyTablaUnaSeccion(sec, equiposSeccionSinOrdenar, proyectosPorId){
     </div>`;
 }
 
-function pyRenderReporteInstalaciones(){
-  const supervisor = document.getElementById('py-f-reporte-supervisor').value;
-  const asesor = document.getElementById('py-f-reporte-asesor').value;
-  const estatusFiltro = document.getElementById('py-f-reporte-estatus').value;
-
-  const proyectosPorId = {};
-  PY_PROYECTOS.forEach(p => { if(p['ID Proyecto']) proyectosPorId[p['ID Proyecto']] = p; });
-
-  let base = PY_EQUIPOS.filter(e=>{
-    const p = proyectosPorId[e['ID PROYECTO']];
-    if(!p || p['Activo / Inactivo'] !== 'Activo') return false;
-    if(supervisor && e['Sup FL'] !== supervisor) return false;
-    if(asesor && p.Asesor !== asesor) return false;
-    return true;
-  });
-
-  const secciones = estatusFiltro ? PY_SECCIONES_REPORTE.filter(s=>s.codigo===estatusFiltro) : PY_SECCIONES_REPORTE;
-
-  pyRenderGraficaReporte(base, secciones);
-
-  const cont = document.getElementById('py-reporte-instalaciones');
-  cont.innerHTML = secciones.map(sec=>{
-    let equiposSeccion = base.filter(e => e.ESTATUS === sec.codigo);
-    if(sec.codigo === '08-T'){
-      equiposSeccion = equiposSeccion.filter(e => String(e['AÑO DE TERMINO']) === String(PY_ANIO_ACTUAL));
-    }
-    return pyTablaUnaSeccion(sec, equiposSeccion, proyectosPorId);
-  }).join('');
-}
 
 // Ancho de columna en px segun tipo. FECHA es la referencia: COMENTARIO = 2.5x FECHA.
 // PROYECTO/REFERENCIA se calculan segun el valor mas largo de esa seccion (para que
@@ -1121,18 +872,7 @@ function pyPromedioProyecto(equipos,campo){
   if(!equipos.length)return 0;
   return Math.round(equipos.reduce((sum,e)=>sum+Math.max(0,Math.min(100,pyNum(e[campo])<=1?pyNum(e[campo])*100:pyNum(e[campo]))),0)/equipos.length);
 }
-function pyProjectProgressBars(equipos){
-  const oc=pyPromedioProyecto(equipos,'OC'),mo=pyPromedioProyecto(equipos,'MO'),aj=pyPromedioProyecto(equipos,'AJ');
-  const general=Math.round((oc*.4)+(mo*.4)+(aj*.2));
-  const row=(label,pct,cls)=>`<div class="py-project-progress-row"><div class="py-project-progress-label"><span>${label}</span><strong>${pct}%</strong></div><div class="py-project-progress-track"><div class="py-project-progress-fill ${cls}" style="width:${pct}%"></div></div></div>`;
-  return `<section class="py-project-progress-card"><div class="py-project-section-title">Avance del proyecto</div>${row('Avance General',general,'general')}${row('Obra Civil (40%)',oc,'oc')}${row('Instalación (40%)',mo,'mo')}${row('Ajuste (20%)',aj,'aj')}</section>`;
-}
-function pyManttoProjectHtml(p){
-  const fields=[['Proyecto',p.proyecto_nombre||p.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Equipos parados',p.parados],['Tickets 35 días',p.tickets_35d],['MTBC 365',p.mtbc_365]];
-  const visible=fields.filter(([,v])=>v!==null&&v!==undefined&&String(v).trim()!=='');
-  if(!visible.length)return '';
-  return `<section class="py-project-mantto"><div class="py-project-section-title">United · Operación y Mantenimiento</div><div class="py-project-info-grid">${visible.map(([k,v])=>`<div class="py-project-info-item"><span>${pyEsc(k)}</span><strong>${pyEsc(v)}</strong></div>`).join('')}</div><div class="py-project-mantto-actions"><button type="button" class="py-crosslink-btn" id="py-open-mantto-project">Abrir detalle en Mantenimiento</button></div></section>`;
-}
+
 
 /* =========================================================
    DETALLE DE PROYECTO -> lista de equipos
@@ -1164,17 +904,6 @@ async function pyAbrirProyecto(id){
   );
 }
 
-function pyAbrirEquipoDesdeProyecto(idEquipo){
-  const equipo = PY_EQUIPOS.find(x => x._id === idEquipo);
-  if(!equipo) return;
-
-  const proyecto = String(equipo['PROYECTO'] || '').trim();
-  const referencia = String(equipo['REFERENCIA EN SITIO'] || '').trim();
-
-  // El detalle permanece en Corellian. La relación con Mantenimiento se
-  // presenta como acceso contextual dentro del encabezado del equipo.
-  pyAbrirEquipo(idEquipo);
-}
 
 /* =========================================================
    DETALLE DE EQUIPO (agrupado por seccion)
@@ -1192,19 +921,6 @@ function pyAbrirEquipoDesdeProyecto(idEquipo){
    ========================================================= */
 let PY_PENDIENTES_JUNTA = [];
 
-function pyUsuarioActualId(){
-  const u=window.ManttoAuth&&window.ManttoAuth.getUser?window.ManttoAuth.getUser():{};
-  return Number(u&&(u.id_SB||u.id)||0);
-}
-
-function pySemanaISO(fecha){
-  const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
-  const diaSemana = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - diaSemana);
-  const inicioAnio = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const numSemana = Math.ceil((((d - inicioAnio) / 86400000) + 1) / 7);
-  return { texto: 'S' + String(numSemana).padStart(2, '0'), anio: d.getUTCFullYear(), orden: d.getUTCFullYear()*100 + numSemana };
-}
 
 function pyMapComentarioJunta(row){
   const equipo=PY_EQUIPOS.find(x=>String(x['REFERENCIA EN SITIO']||'').trim()===String(row.referencia_sitio||'').trim());
@@ -1330,158 +1046,7 @@ function pyTieneAlgunaMetrica(m){
 // Equipos calificados para el analisis por tipo: 08-T, con al menos 1
 // metrica de dias calculable, y con Niveles Y Capacidad ambos definidos
 // (si falta alguno, no se puede clasificar por "tipo").
-function pyPopulateFiltroTipo(){
-  const calificados = PY_EQUIPOS
-    .filter(e => e.ESTATUS === '08-T')
-    .filter(e => pyTieneAlgunaMetrica(pyMetricasAjuste(e)))
-    .filter(e => e['NO. PISOS'] != null && e['NO. PISOS'] !== '' && e['CAPACIDAD [kg]'] != null && e['CAPACIDAD [kg]'] !== '');
 
-  const conteo = {};
-  calificados.forEach(e=>{
-    const clave = e['NO. PISOS'] + '|' + e['CAPACIDAD [kg]'];
-    conteo[clave] = (conteo[clave]||0) + 1;
-  });
-  const tipos = Object.entries(conteo)
-    .filter(([,n]) => n >= 5)
-    .sort((a,b) => b[1]-a[1]);
-
-  document.getElementById('py-f-tipo-equipo').innerHTML = '<option value="">Selecciona un tipo...</option>' +
-    tipos.map(([clave,n])=>{
-      const [niveles, capacidad] = clave.split('|');
-      return `<option value="${pyEsc(clave)}">${pyEsc(niveles)} niveles, ${pyEsc(capacidad)} kg (${n} equipos)</option>`;
-    }).join('');
-}
-
-function pyRenderComportamientoTipo(){
-  const clave = document.getElementById('py-f-tipo-equipo').value;
-  const cont = document.getElementById('py-comportamiento-tipo');
-  if(!clave){ cont.innerHTML = ''; return; }
-  const [niveles, capacidad] = clave.split('|');
-
-  const equiposTipo = PY_EQUIPOS.filter(e =>
-    e.ESTATUS === '08-T' &&
-    String(e['NO. PISOS']) === niveles && String(e['CAPACIDAD [kg]']) === capacidad &&
-    pyTieneAlgunaMetrica(pyMetricasAjuste(e))
-  );
-
-  const porAnio = {};
-  equiposTipo.forEach(e=>{
-    const anio = e['AÑO DE TERMINO'] || '(sin ano)';
-    if(!porAnio[anio]) porAnio[anio] = [];
-    porAnio[anio].push(pyMetricasAjuste(e));
-  });
-  const anios = Object.keys(porAnio).sort((a,b)=>{
-    if(a === '(sin ano)') return 1;
-    if(b === '(sin ano)') return -1;
-    return b - a;
-  });
-
-  const promedio = (arr, campo) => {
-    const vals = arr.map(m=>m[campo]).filter(v=>v!=null);
-    if(!vals.length) return null;
-    return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
-  };
-  const cCol = v => v==null ? '-' : v;
-
-  const filas = anios.map(anio=>{
-    const grupo = porAnio[anio];
-    return `<tr>
-      <td class="col-texto">${pyEsc(anio)}</td>
-      <td class="col-texto">${grupo.length}</td>
-      <td class="col-pct">${cCol(promedio(grupo,'inicioReal'))}</td>
-      <td class="col-pct">${cCol(promedio(grupo,'inicioCalidad'))}</td>
-      <td class="col-pct">${cCol(promedio(grupo,'inicioCliente'))}</td>
-    </tr>`;
-  }).join('');
-
-  cont.innerHTML = `
-    <div class="py-table-wrap">
-      <table class="py-table">
-        <thead><tr><th>Año</th><th># Equipos</th><th>Prom. dias Inicio&rarr;Real</th><th>Prom. dias Inicio&rarr;Calidad</th><th>Prom. dias Inicio&rarr;Cliente</th></tr></thead>
-        <tbody>${filas}</tbody>
-      </table>
-    </div>
-    <div class="py-cj-nota" style="margin-top:8px;">Promedios en dias, redondeados. Solo se promedian los equipos de ese año que tienen el dato correspondiente.</div>
-  `;
-}
-
-function pyRenderAnalisisAjuste(){
-  const cont = document.getElementById('py-analisis-ajuste-lista');
-  if(!cont) return;
-
-  const historico = PY_EQUIPOS
-    .filter(e => e.ESTATUS === '08-T')
-    .filter(e => pyTieneAlgunaMetrica(pyMetricasAjuste(e)));
-  const grupos = {};
-  historico.forEach(e=>{
-    const anio = e['AÑO DE TERMINO'] || '(sin ano)';
-    if(!grupos[anio]) grupos[anio] = [];
-    grupos[anio].push(e);
-  });
-  const anios = Object.keys(grupos).sort((a,b)=>{
-    if(a === '(sin ano)') return 1;
-    if(b === '(sin ano)') return -1;
-    return b - a;
-  });
-
-  const cCol = v => v==null ? '-' : v;
-  const claseDias = v => (v != null && v < 0) ? ' dias-negativo' : '';
-  const claseFecha = (actual, anterior) => {
-    const dA = pyParsearFecha(actual), dP = pyParsearFecha(anterior);
-    return (dA && dP && dA < dP) ? ' fecha-invertida' : '';
-  };
-
-  cont.innerHTML = anios.map(anio=>{
-    grupos[anio] = pyOrdenarPorProyecto(grupos[anio], 'PROYECTO');
-    const filas = grupos[anio].map(e=>{
-      const m = pyMetricasAjuste(e);
-      return `<tr class="clickable" onclick="pyAbrirEquipo(${e._id})">
-        <td class="col-proyecto">${pyEsc(e['PROYECTO'])||'-'}</td>
-        <td class="col-referencia">${pyEsc(e['REFERENCIA EN SITIO'])||'-'}</td>
-        <td class="col-texto">${pyEsc(e['NO. PISOS'])||'-'}</td>
-        <td class="col-texto">${pyEsc(e['CAPACIDAD [kg]'])||'-'}</td>
-        <td class="col-fecha">${pyEsc(pyFormatValor(m.inicio))||'-'}</td>
-        <td class="col-fecha${claseFecha(m.teorico, m.inicio)}">${pyEsc(pyFormatValor(m.teorico))||'-'}</td>
-        <td class="col-pct${claseDias(m.inicioTeorico)}">${cCol(m.inicioTeorico)}</td>
-        <td class="col-fecha${claseFecha(m.real, m.inicio)}">${pyEsc(pyFormatValor(m.real))||'-'}</td>
-        <td class="col-pct${claseDias(m.inicioReal)}">${cCol(m.inicioReal)}</td>
-        <td class="col-fecha${claseFecha(m.calidad, m.real)}">${pyEsc(pyFormatValor(m.calidad))||'-'}</td>
-        <td class="col-pct${claseDias(m.inicioCalidad)}">${cCol(m.inicioCalidad)}</td>
-        <td class="col-fecha${claseFecha(m.cliente, m.calidad)}">${pyEsc(pyFormatValor(m.cliente))||'-'}</td>
-        <td class="col-pct${claseDias(m.inicioCliente)}">${cCol(m.inicioCliente)}</td>
-      </tr>`;
-    }).join('');
-
-    const encabezados = [
-      ['PROYECTO','proyecto'], ['EQUIPO','referencia'], ['NIVELES','texto'], ['CAPACIDAD','texto'],
-      ['INICIO AJUSTE','fecha'],
-      ['FIN TEORICO','fecha'], ['DIAS A TEORICO','pct'],
-      ['FIN REAL','fecha'], ['DIAS A REAL','pct'],
-      ['ENTREGA CALIDAD','fecha'], ['DIAS A CALIDAD','pct'],
-      ['ENTREGA CLIENTE','fecha'], ['DIAS A CLIENTE','pct'],
-    ];
-    const colgroup = '<colgroup>' + encabezados.map(([,tipo])=>{
-      let px = 95;
-      if(tipo==='fecha') px = PY_ANCHO_FECHA;
-      else if(tipo==='pct') px = 88;
-      else if(tipo==='proyecto') px = pyAnchoPorContenido(grupos[anio].map(e=>e['PROYECTO']), 90, 200);
-      else if(tipo==='referencia') px = pyAnchoPorContenido(grupos[anio].map(e=>e['REFERENCIA EN SITIO']), 70, 140);
-      return `<col style="width:${px}px;">`;
-    }).join('') + '</colgroup>';
-
-    return `
-      <div class="py-foto-grupo">
-        <div class="py-foto-grupo-title">${pyEsc(anio)} <span class="count">(${grupos[anio].length})</span></div>
-        <div class="py-table-wrap">
-          <table class="py-table-reporte">
-            ${colgroup}
-            <thead><tr>${encabezados.map(([l,tipo])=>`<th class="col-${tipo}">${l}</th>`).join('')}</tr></thead>
-            <tbody>${filas}</tbody>
-          </table>
-        </div>
-      </div>`;
-  }).join('');
-}
 
 /* =========================================================
    DASHBOARD SUPERVISORES
@@ -1492,11 +1057,6 @@ function pyRenderAnalisisAjuste(){
    ========================================================= */
 let PY_DASH_SUP_SELECCIONADOS = [];
 
-function pyPopulateDashSupervisores(){
-  const cont = document.getElementById('py-dash-sup-checks');
-  const supervisores = [...new Set(PY_EQUIPOS.map(e=>e['Sup FL']).filter(Boolean))].sort();
-  cont.innerHTML = supervisores.map(s=>`<div class="py-dash-sup-chip" data-sup="${pyEsc(s)}" onclick="pyToggleDashSupervisor('${pyEsc(s)}')">${pyEsc(s)}</div>`).join('');
-}
 
 function pyToggleDashSupervisor(inicial){
   const idx = PY_DASH_SUP_SELECCIONADOS.indexOf(inicial);
@@ -1511,11 +1071,7 @@ function pyToggleDashSupervisor(inicial){
 function pyEsPartidaAditivaDash(nombre){
   return (nombre||'').toUpperCase().includes('ADITIVA');
 }
-function pyEsPartidaContractualDash(nombre){
-  const n = (nombre||'').toUpperCase();
-  if(n.includes('ADITIVA')) return false;
-  return n.includes('SUMINISTRO') || n.includes('INSTALACION') || n.includes('INSTALACIÓN');
-}
+
 
 function pyRenderDashSeccionReporte(){
   const cod = document.getElementById('py-dash-seccion').value;

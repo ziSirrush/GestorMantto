@@ -16,7 +16,7 @@ const repository=read('backend/src/modules/logistica-produccion/logistica-produc
 const serviceSource=read('backend/src/modules/logistica-produccion/logistica-produccion.service.js');
 const syncSource=read('backend/src/modules/logistica-produccion/logistica-produccion-sync.service.js');
 const loader=read('core/module-loader.js');
-const migration=read('sql/20261005_LOGISTICA_PRODUCCION_CAPTURA_MANUAL_FECHAS_V001.sql');
+
 const {decorate,compareCapturedDate}=require('../backend/src/modules/logistica-produccion/logistica-produccion.service');
 
 test('alta y detalle capturan las cinco fechas mediante calendarios',()=>{
@@ -79,13 +79,6 @@ test('Estatus Produccion se obtiene y valida en catalogo_general con el contrato
   assert.match(frontend,/data\.estatus_produccion/);
 });
 
-test('migracion conserva fechas univocas y retira el enum semiautomatico',()=>{
-  assert.match(migration,/p\.fecha_pvo=COALESCE/);
-  assert.match(migration,/COUNT\(DISTINCT STR_TO_DATE/);
-  assert.match(migration,/p\.modo_registro='MANUAL'/);
-  assert.match(migration,/ENUM\('MANUAL'\)/);
-  assert.match(migration,/sin modificar log_ops ni ins_fl/i);
-});
 
 test('cache bust se actualiza para las cinco rutas del modulo',()=>{
   assert.equal((loader.match(/20261005-pvo-captura-manual-fechas-v001/g)||[]).length,10);

@@ -9,14 +9,6 @@ const root=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const permission='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 
-test('permiso individual previo no asigna roles o usuarios al instalar',()=>{
-  const sql=read('sql/20261020_MODO_OFFLINE_PILOTO_PERMISO_V001.sql');
-  assert.match(sql,/'MODO_OFFLINE', 'Modo Offline', 'GENERAL'/);
-  assert.match(sql,/'GENERAL_MODO_OFFLINE'.*'offline-configuracion'/);
-  assert.match(sql,new RegExp(permission.replace('.','\\.')));
-  assert.doesNotMatch(sql,/INSERT\s+INTO\s+rol_permisos/i);
-  assert.doesNotMatch(sql,/INSERT\s+INTO\s+usuario_permisos/i);
-});
 
 test('backend exige permiso general y módulo específico en cada exportación',()=>{
   const routes=read('backend/src/modules/offline-pilot/offline-pilot.routes.js');

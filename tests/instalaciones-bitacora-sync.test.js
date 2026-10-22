@@ -103,16 +103,13 @@ test('la interfaz muestra el movimiento y pagina la Bitácora de 15 en 15', () =
 
 test('la Bitácora solo se inicializa con permiso visual efectivo', () => {
   const details = fs.readFileSync(path.resolve(__dirname, '../core/details.js'), 'utf8');
-  const migration = fs.readFileSync(
-    path.resolve(__dirname, '../sql/20260911_BITACORA_OBRA_PERMISO_VISUAL_V001.sql'),
-    'utf8'
-  );
+
 
   assert.match(details, new RegExp(permissionCode.replace('.', '\\.')));
   assert.match(details, /permission\.exists===true&&permission\.efectivo===true/);
   assert.match(details, /mg-bitacora-panel[^']+hidden/);
-  assert.match(migration, new RegExp(permissionCode.replace('.', '\\.')));
-  assert.doesNotMatch(migration, /INSERT\s+INTO\s+(?:rol_permisos|usuario_permisos)/i);
+
+
 });
 
 test('las rutas GET y sync rechazan usuarios sin permiso de Bitácora', async () => {

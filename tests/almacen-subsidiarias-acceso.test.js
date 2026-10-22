@@ -15,12 +15,6 @@ const queryPath = path.join(root, 'backend/src/modules/almacen/almacen.ns-query-
 const { SUBSIDIARIES, buildAlmacenNsScope } = require(guardPath);
 const { readScope } = require(queryPath);
 
-test.after(() => {
-  delete require.cache[require.resolve(guardPath)];
-  delete require.cache[require.resolve(queryPath)];
-  if (previousDb) require.cache[dbPath] = previousDb;
-  else delete require.cache[dbPath];
-});
 
 test('el ID confirmado de NUBIAN es 3', () => {
   assert.equal(SUBSIDIARIES.NUBIAN.id, '3');

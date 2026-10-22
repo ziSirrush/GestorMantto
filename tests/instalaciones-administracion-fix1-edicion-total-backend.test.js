@@ -12,7 +12,7 @@ const DIR = path.join(ROOT, 'backend/src/modules/instalaciones-administracion');
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const constants = require(path.join(DIR, 'instalaciones-administracion.constants.js'));
 const validation = require(path.join(DIR, 'instalaciones-administracion.validation.js'));
-const sql = read('database/FIX_1_INSTALACIONES_ADMINISTRACION_PERMISO_TOTAL_V001.sql');
+
 
 function withMocks(filename, stubs) {
   const full = path.join(DIR, filename);
@@ -246,15 +246,4 @@ test('FIX1: conflicto UNIQUE en ins_fl hace rollback y responde 409 sin SQL inte
       !e.message.includes('secret'));
   assert.equal(rollbacks,1);
   assert.equal(commits,0);
-});
-
-test('FIX1: SQL registra solo un permiso sobre estructura existente y no asigna a roles/usuarios',()=>{
-  assert.match(sql,/INSERT INTO perm_subelemento_acciones/);
-  assert.match(sql,/INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO\.EDITAR/);
-  assert.match(sql,/WHERE ps\.codigo = 'INSTALACIONES_ADMINISTRACION_ACCESO_VISUAL_MODULO'/);
-  assert.match(sql,/pg\.codigo = 'INSTALACIONES'/);
-  assert.doesNotMatch(sql,/pg\.empresa = 'CORELLIAN'/);
-  assert.doesNotMatch(sql,/\bCREATE TABLE\b|\bALTER TABLE\b|\bDROP TABLE\b/i);
-  assert.doesNotMatch(sql,/INSERT INTO (rol_permisos|usuario_permisos)/i);
-  assert.match(sql,/COMMIT;/);
 });

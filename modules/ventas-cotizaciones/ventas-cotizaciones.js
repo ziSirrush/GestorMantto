@@ -25,7 +25,7 @@ function filterKey(){return query(false);}
 async function loadCatalogs(){try{const path='/api/ventas/cotizaciones/catalogos';const j=await request(path,{cacheTtlMs:CATALOG_CACHE_MS,cacheKey:'catalog:'+path});state.catalogs=j.catalogos||{};}catch(e){state.catalogs={asesores:[],administrativos:[],estados:[],zonas:[],estado_zonas:[],anios:[],relaciones_admin:[]};setStatus('Error de conexión con la API: '+e.message,'error');toast('No se pudieron cargar los catálogos reales.',true);}fillCatalogs();applyVisibilityUI();}
 function applyVisibilityUI(){const advisorWrap=$('#vc-filter-advisor-wrap');const adminWrap=$('#vc-filter-admin-wrap');const admins=people(state.catalogs.administrativos||state.catalogs.usuarios_administrativos);if(advisorWrap)advisorWrap.hidden=state.visibleAdvisors.length<=1;if(adminWrap)adminWrap.hidden=admins.length<=1;}
 function people(arr){return Array.isArray(arr)?arr:[];}
-function personId(p){const id=Number(p?.id_SB??p?.id_usuario??p?.id);return Number.isInteger(id)&&id>0?id:null;}
+
 function visibleAdvisorCatalog(asesores){return people(asesores);}
 function optPerson(p){const id=p.id_SB??p.id_usuario??p.id;const name=p.nombre||p.iniciales||p.asesor||p.admin||('Usuario '+id);return '<option value="'+esc(id)+'">'+esc((p.iniciales?p.iniciales+' · ':'')+name)+'</option>';}
 function normalizeFilterText(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}

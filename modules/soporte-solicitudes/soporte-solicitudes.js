@@ -187,12 +187,7 @@
       .map(function (part) { return part.charAt(0).toUpperCase(); }).join('') || 'S';
   }
 
-  function ssFileUrl(file) {
-    const raw = ssFirst(file, ['url', 'ruta_archivo', 'ruta', 'path', 'href']);
-    if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) return raw;
-    return ssApiBase() + (String(raw).charAt(0) === '/' ? raw : '/' + raw);
-  }
+
 
   function ssRenderChat(ticket) {
     const container = ssById('ss-chat-history');

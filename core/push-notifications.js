@@ -187,12 +187,7 @@
     }
   }
 
-  async function togglePush(){
-    await ensureInfrastructure().catch(() => null);
-    const subscription = await getSubscription().catch(() => null);
-    if(subscription) await disablePush();
-    else await enablePush();
-  }
+
 
   function openNotifications(){
     if(window.ManttoRouter && window.ManttoRouter.go) window.ManttoRouter.go('notifications');

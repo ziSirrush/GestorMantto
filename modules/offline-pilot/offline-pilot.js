@@ -391,7 +391,7 @@
     const b=[...new Set(now.map(positiveId).filter(Boolean))].sort((x,y)=>x-y);
     return a.length===b.length&&a.every((x,i)=>x===b[i]);
   }
-  async function getLocalSnapshot(){return window.ManttoOfflineStorage.getSnapshot(snapshotContext());}
+
   // Fase 3: lector de modulos respaldados. No usa endpoints ni crea mutaciones.
   const READER_LABELS=Object.freeze({tickets:'Tickets',portafolio:'Portafolio / Equipos',proyectos:'Proyectos de Instalaciones'});
   const READER_FIELDS=Object.freeze({

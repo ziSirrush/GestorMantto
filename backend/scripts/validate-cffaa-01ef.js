@@ -8,7 +8,7 @@ process.env.CFFAA_STORAGE_ACCESS_AUDIT_LOG = 'false';
 
 const referenceService = require('../src/services/storage/storage-reference.service');
 const accessService = require('../src/services/storage/storage-access.service');
-const accessHandler = require('../src/services/storage/storage-access-handler.service');
+
 const diagnostics = require('../src/services/storage/storage-diagnostics.service');
 
 const user = { id_SB: 4, rol: 'Programador', roles: ['Programador'] };
@@ -104,45 +104,8 @@ async function main() {
     errorValue => errorValue.code === 'CFFAA_STORAGE_ACCESS_FORBIDDEN' && errorValue.status === 403
   );
 
-  error = captureError(() => accessHandler.createStorageAccessHandler_gnral({
-    authorize: async () => true
-  }));
-  assert(error);
-  assert.strictEqual(error.code, 'CFFAA_ACCESS_RESOLVER_REQUIRED');
 
-  const handler = accessHandler.createStorageAccessHandler_gnral({
-    resolveReference: async () => ({
-      reference: validReference,
-      context: { modulo: 'pendientes', entidad_tipo: 'comentario', entidad_id: 1, archivo_id: 10 }
-    }),
-    authorize: async () => true,
-    sasFactory: async () => ({
-      url: 'https://example.invalid/blob?sig=oculta',
-      expires_at: '2026-08-03T22:00:00.000Z',
-      expires_in_minutes: 15
-    })
-  });
-
-  let responsePayload = null;
-  const req = {
-    user,
-    actorUser: user,
-    contextUser: user,
-    query: {},
-    params: {},
-    body: {}
-  };
-  const res = {
-    statusCode: null,
-    status(code) { this.statusCode = code; return this; },
-    json(payload) { responsePayload = payload; return payload; }
-  };
-  let nextError = null;
-  await handler(req, res, errorValue => { nextError = errorValue; });
-  assert.strictEqual(nextError, null);
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(responsePayload.ok, true);
-  assert.strictEqual(responsePayload.data.access_url.includes('sig='), true);
+  // El adaptador HTTP no montado fue retirado. La autorizacion SAS se prueba arriba.
 
   process.env.JWT_SECRET = 'NO_DEBE_APARECER';
   process.env.DB_PASSWORD = 'NO_DEBE_APARECER';

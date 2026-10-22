@@ -33,9 +33,9 @@ test('valida los slots CPVO y GM',()=>{
 test('el límite de 25 MB se aplica por cada archivo',()=>{
  assert.doesNotThrow(()=>validateUploadPolicy({size:25*1024*1024}));
  assert.throws(()=>validateUploadPolicy({size:(25*1024*1024)+1}),/excede el límite de 25 MB/);
- const sql=fs.readFileSync(path.join(__dirname,'../sql/20260831_LOGISTICA_PRODUCCION_V003.sql'),'utf8');
- assert.match(sql,/chk_log_prod_arch_tamanio_25mb/);
- assert.match(sql,/tamanio_bytes` <= 26214400/);
+
+
+
 });
 
 test('expone indicadores y conserva snapshots historicos sin seleccionar fuentes externas',()=>{

@@ -1,6 +1,6 @@
 [build]
-  command = "node tools/generate-build-info.js && node tools/generate-change-audit.js"
-  publish = "."
+  command = "node tools/generate-build-info.js && node tools/generate-change-audit.js && node tools/build-frontend.js"
+  publish = "dist/web"
 
 [[headers]]
   for = "/"

@@ -11,17 +11,12 @@ const os = require('node:os');
 const vm = require('node:vm');
 
 const ROOT = path.resolve(__dirname, '..');
-const installer = require('../tools/apply-cx-visitas-fase3-v001.cjs');
+
 const assetJsPath = path.join(ROOT, 'modules/customer-experience-visitas/customer-experience-visitas.js');
 const assetCssPath = path.join(ROOT, 'modules/customer-experience-visitas/customer-experience-visitas.css');
 const jsSource = fs.readFileSync(assetJsPath, 'utf8');
 const cssSource = fs.readFileSync(assetCssPath, 'utf8');
 
-function fixtureApp() {
-  return `(function(){\n  // [Aster | 2026-10-07 | ASTER-MG | FASE 1 ENTREGAS V001]\n`
-    + `  function bindGlobalNavigation(){\n    applyTemporarySidebarPermissions();\n    openSidebarGroup(null);\n  }\n`
-    + `  function initAfterAuth(){\n    bindCustomerExperienceEncuestas_cor();\n    bindEntregasControl_gnral();\n    bindGlobalNavigation();\n  }\n})();\n`;
-}
 
 function loadUI({ api } = {}) {
   const listeners = new Map();
@@ -82,43 +77,11 @@ function loadUI({ api } = {}) {
   return { ui: context.window.ManttoCustomerExperienceVisitas, dom, listeners, requests, context };
 }
 
-test('01 - Los scripts JS de instalacion y frontend son sintacticamente validos', () => {
+test('01 - El frontend activo es sintacticamente valido', () => {
   new vm.Script(jsSource, { filename: 'customer-experience-visitas.js' });
-  new vm.Script(fs.readFileSync(path.join(ROOT,'tools/apply-cx-visitas-fase3-v001.cjs'),'utf8'));
+
 });
 
-test('02 - Instalador rechaza un app.js distinto al blob base; sin escritura', () => {
-  assert.throws(() => installer.transform(fixtureApp()), /CONFLICTO/);
-  assert.equal(installer.BASE_BLOB, '9c857a6fedf488ff5bf6c2f311a6df0fcd4ddd24');
-});
-
-test('03 - La insercion conserva el router/modulos existentes y es idempotente', () => {
-  const original = fixtureApp();
-  const once = installer.transform(original,{verifyBlob:false});
-  assert.equal(once.applied, true);
-  const result = once.content;
-  assert.match(result, /bindCustomerExperienceEncuestas_cor\(\)/);
-  assert.match(result, /bindEntregasControl_gnral\(\)/);
-  assert.match(result, /ensureCustomerExperienceVisitas_cor/);
-  assert.match(result, /bindCustomerExperienceVisitas_cor\(\)/);
-  assert.match(result, /bindCxVisitasMenu_cor\(\)/);
-  assert.match(result, /cx-visitas/);
-  assert.match(result, /CUSTOMER_EXPERIENCE_VISITAS_GESTION_REGISTROS\.VER/);
-  const twice = installer.transform(result, {verifyBlob:true});
-  assert.equal(twice.already, true);
-  assert.equal(twice.content, result);
-});
-
-test('04 - El instalador no escribe si falta alguno de los archivos requeridos', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'blt-cxv-f3-'));
-  try {
-    const p = path.join(tmp, 'core/app.js');
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, fixtureApp());
-    assert.throws(() => installer.install(tmp), /Falta archivo requerido/);
-    assert.equal(fs.readFileSync(p,'utf8'), fixtureApp());
-  } finally { fs.rmSync(tmp,{recursive:true,force:true}); }
-});
 
 test('05 - Escape de HTML, IDs y formato de URL sin injection', () => {
   const {ui} = loadUI();
@@ -209,9 +172,9 @@ test('12 - Los permisos efectivos conocidos niegan acciones sin confiar en cache
 test('13 - No se modifican estilos ni flujos de Dashboard y Encuestas', () => {
   assert.match(cssSource,/\.cxv-/);
   assert.doesNotMatch(cssSource,/\.ce-(?:page|row|modal)|\.cxd-(?:page|row|modal)/);
-  const injected = installer.transform(fixtureApp(),{verifyBlob:false}).content;
-  assert.equal((injected.match(/bindCustomerExperienceEncuestas_cor\(\)/g)||[]).length,1);
-  assert.equal((injected.match(/bindEntregasControl_gnral\(\)/g)||[]).length,1);
+
+
+
 });
 
 test('14 - El formulario POST envia solo campos de Fase 2 y fecha normalizada UTC', async () => {
@@ -306,10 +269,15 @@ test('16 - Desactivar usa DELETE (baja logica) y confirmacion del usuario', asyn
 });
 
 test('17 - El menu CX Visitas falla cerrado sin API autorizada y aparece tras permiso real', async () => {
-  const generated = installer.transform(fixtureApp(), { verifyBlob:false }).content;
-  const start = generated.indexOf(installer.MARKER);
-  const end = generated.indexOf('  // [Aster | 2026-10-07 | ASTER-MG | FASE 1 ENTREGAS V001]');
-  const snippet = generated.slice(start, end);
+  const app = fs.readFileSync(path.join(ROOT, 'core/app.js'), 'utf8');
+  const start = app.indexOf('  function setCxVisitasMenuVisibility_cor(');
+  const end = app.indexOf('  function bindCxVisitasMenu_cor(', start);
+  assert.ok(start >= 0 && end > start);
+  const snippet = app.slice(start, end);
+
+
+
+
   const item = {hidden:true,closest(){return group;}};
   const other = {hidden:false};
   const group = {hidden:false,querySelectorAll(){return [item,other];}};
@@ -321,7 +289,7 @@ test('17 - El menu CX Visitas falla cerrado sin API autorizada y aparece tras pe
     Promise,console
   };
   vm.createContext(context);
-  vm.runInContext('(function(){'+snippet+'window.__cxvProbe=refreshCxVisitasMenu_cor;})();',context);
+  vm.runInContext('(function(){let cxVisitasMenuRequest_cor=0;const CX_VISITAS_VISUAL_COR="CUSTOMER_EXPERIENCE_VISITAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL";const CX_VISITAS_LIST_COR="CUSTOMER_EXPERIENCE_VISITAS_GESTION_REGISTROS.VER";'+snippet+'window.__cxvProbe=refreshCxVisitasMenu_cor;})();',context);
   await context.window.__cxvProbe();
   assert.equal(item.hidden,false);
   apiHandler=async()=>{throw new Error('403');};
@@ -332,35 +300,6 @@ test('17 - El menu CX Visitas falla cerrado sin API autorizada y aparece tras pe
   await context.window.__cxvProbe();
   assert.equal(item.hidden,true);
   assert.equal(calls,previousCalls);
-});
-
-test('18 - El cache-bust del index conserva marca BLT NOW/BLT NOW GH y es idempotente', () => {
-  const oldTag='<script src="./core/app.js?v=20261001-cobranza-pagos-detalle-v001"></script>';
-  const html='<!doctype html><title>BLT NOW</title><meta content="BLT NOW GH">'+oldTag;
-  assert.throws(()=>installer.transformIndex(html),/CONFLICTO/);
-  const idempotent=installer.transformIndex('<title>BLT NOW</title><meta content="BLT NOW GH">'+
-    '<script src="./core/app.js?v=20261015-cx-visitas-fase3-v001"></script>');
-  assert.equal(idempotent.already,true);
-  assert.equal(installer.INDEX_BASE_BLOB,'6c71db21ab191ba346d02c6460d0cd8a5fc53043');
-});
-
-test('19 - Instalador bloquea si Fase 2 no esta presente antes de escribir el core', () => {
-  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'blt-cxv-f3-precheck-'));
-  try {
-    for (const file of [
-      'core/app.js','index.html','modules/customer-experience-visitas/customer-experience-visitas.js',
-      'modules/customer-experience-visitas/customer-experience-visitas.css',
-      'backend/src/modules/customer-experience/customer-experience.routes.js',
-      'backend/src/modules/customer-experience/customer-experience-visitas.routes.js'
-    ]) {
-      const dest=path.join(tmp,file);
-      fs.mkdirSync(path.dirname(dest),{recursive:true});
-      fs.writeFileSync(dest, file.endsWith('.css')?cssSource:
-        file.endsWith('customer-experience-visitas.js')?jsSource:fixtureApp());
-    }
-    assert.throws(()=>installer.install(tmp,{checkOnly:true}),/Fase 2 no detectada/);
-    assert.equal(fs.readFileSync(path.join(tmp,'core/app.js'),'utf8'),fixtureApp());
-  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 });
 
 
