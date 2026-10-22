@@ -17,16 +17,64 @@ function activeUserRolesSql() {
   )`;
 }
 
-async function hasEffectivePermission(userId, permissionCode, conn = db) {
-  const normalizedUserId = Number(userId);
-  const normalizedCode = String(permissionCode || '').trim();
+function normalizePermissionCodes_gnral(values) {
+  return [...new Set((Array.isArray(values) ? values : [values])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+}
 
-  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0 || !normalizedCode) {
-    return false;
+function normalizeRoleIds_gnral(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value > 0))]
+    .sort((a, b) => a - b);
+}
+
+async function listEffectivePermissions(userId, permissionCodes, conn = db, options = {}) {
+  const normalizedUserId = Number(userId);
+  const codes = normalizePermissionCodes_gnral(permissionCodes);
+  const result = new Map(codes.map((code) => [code, false]));
+
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0 || !codes.length) {
+    return result;
+  }
+
+  const roleIds = normalizeRoleIds_gnral(options.roleIds);
+  const codePlaceholders = codes.map(() => '?').join(', ');
+  let inheritedSql;
+  let params;
+
+  if (roleIds.length) {
+    const rolePlaceholders = roleIds.map(() => '?').join(', ');
+    inheritedSql = `EXISTS (
+      SELECT 1
+        FROM rol_permisos rp
+        INNER JOIN roles r
+                ON r.id_rol = rp.id_rol
+               AND r.estado = 1
+       WHERE rp.id_subelemento_accion = psa.id_subelemento_accion
+         AND rp.permitido = 1
+         AND rp.id_rol IN (${rolePlaceholders})
+    )`;
+    params = [normalizedUserId, ...roleIds, ...codes];
+  } else {
+    inheritedSql = `EXISTS (
+      SELECT 1
+        FROM rol_permisos rp
+        INNER JOIN ${activeUserRolesSql()} roles_usuario
+                ON roles_usuario.id_rol = rp.id_rol
+        INNER JOIN roles r
+                ON r.id_rol = rp.id_rol
+               AND r.estado = 1
+       WHERE rp.id_subelemento_accion = psa.id_subelemento_accion
+         AND rp.permitido = 1
+    )`;
+    params = [normalizedUserId, normalizedUserId, normalizedUserId, ...codes];
   }
 
   const [rows] = await conn.query(
     `SELECT
+       psa.codigo_permiso,
        (
          SELECT up.permitido
            FROM usuario_permisos up
@@ -38,29 +86,29 @@ async function hasEffectivePermission(userId, permissionCode, conn = db) {
           ORDER BY up.updated_at DESC, up.id_usuario_permiso DESC
           LIMIT 1
        ) AS personalizado,
-       EXISTS (
-         SELECT 1
-           FROM rol_permisos rp
-           INNER JOIN ${activeUserRolesSql()} roles_usuario
-                   ON roles_usuario.id_rol = rp.id_rol
-           INNER JOIN roles r
-                   ON r.id_rol = rp.id_rol
-                  AND r.estado = 1
-          WHERE rp.id_subelemento_accion = psa.id_subelemento_accion
-            AND rp.permitido = 1
-       ) AS heredado
+       ${inheritedSql} AS heredado
      FROM perm_subelemento_acciones psa
-     WHERE psa.codigo_permiso = ?
-       AND psa.activo = 1
-     LIMIT 1`,
-    [normalizedUserId, normalizedUserId, normalizedUserId, normalizedCode]
+     WHERE psa.codigo_permiso IN (${codePlaceholders})
+       AND psa.activo = 1`,
+    params
   );
 
-  if (!rows.length) return false;
-  if (rows[0].personalizado !== null && rows[0].personalizado !== undefined) {
-    return Number(rows[0].personalizado) === 1;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const code = String(row.codigo_permiso || '').trim();
+    if (!result.has(code)) continue;
+    const allowed = row.personalizado !== null && row.personalizado !== undefined
+      ? Number(row.personalizado) === 1
+      : Number(row.heredado) === 1;
+    result.set(code, allowed);
   }
-  return Number(rows[0].heredado) === 1;
+  return result;
+}
+
+async function hasEffectivePermission(userId, permissionCode, conn = db, options = {}) {
+  const normalizedCode = String(permissionCode || '').trim();
+  if (!normalizedCode) return false;
+  const permissions = await listEffectivePermissions(userId, [normalizedCode], conn, options);
+  return permissions.get(normalizedCode) === true;
 }
 
 async function listUsersWithEffectivePermission(permissionCode, conn = db) {
@@ -125,5 +173,8 @@ async function listUsersWithEffectivePermission(permissionCode, conn = db) {
 
 module.exports = {
   hasEffectivePermission,
-  listUsersWithEffectivePermission
+  listEffectivePermissions,
+  listUsersWithEffectivePermission,
+  normalizePermissionCodes_gnral,
+  normalizeRoleIds_gnral
 };

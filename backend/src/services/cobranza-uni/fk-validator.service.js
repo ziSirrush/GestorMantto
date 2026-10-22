@@ -15,6 +15,7 @@ const TABLES_UNI = Object.freeze({
 });
 
 const CHUNK_SIZE_UNI = 300;
+const BRIDGE_SCHEMA_CACHE_TTL_MS = 60 * 60 * 1000;
 
 // Requiere mapeo univoco tanto por nombre como por ID.
 // La equivalencia entre los dos catalogos SI es binaria (texto EXACTO).
@@ -103,9 +104,17 @@ function sqlFor_uni(table, pk, ids) {
 
 function crearValidadorUni({
   obtenerConexion = () => require('../../config/db').getConnection(),
-  logger = defaultLogger
+  logger = defaultLogger,
+  now = () => Date.now(),
+  bridgeSchemaCacheTtlMs = BRIDGE_SCHEMA_CACHE_TTL_MS
 } = {}) {
+  let bridgeSchemaValidatedAt = 0;
+
   async function comprobarPuente_uni(conn) {
+    const currentTime = Number(now());
+    if (bridgeSchemaValidatedAt && currentTime - bridgeSchemaValidatedAt < bridgeSchemaCacheTtlMs) {
+      return;
+    }
     // Previene ejecutar sobre la V001 antigua donde cobranza era TINYINT(1).
     const [rows] = await conn.query(`
       SELECT DATA_TYPE, COLUMN_TYPE
@@ -119,9 +128,17 @@ function crearValidadorUni({
         || !String(rows[0].COLUMN_TYPE).toLowerCase().includes('unsigned')) {
       throw new Error('El catalogo proyectos_mantto.cobranza no es BIGINT UNSIGNED; validacion bloqueada.');
     }
+    bridgeSchemaValidatedAt = currentTime;
   }
 
-  async function reconciliar({ tabla, ids = null, connection = null, origen = 'programado' } = {}) {
+  async function reconciliar({
+    tabla,
+    ids = null,
+    connection = null,
+    origen = 'programado',
+    auditarResiduales = true,
+    capturarMuestra = origen !== 'programado'
+  } = {}) {
     const spec = TABLES_UNI[tabla];
     if (!Object.prototype.hasOwnProperty.call(TABLES_UNI, tabla) || !spec) {
       throw new Error('Tabla fuera de la lista permitida de Cobranza United.');
@@ -166,30 +183,34 @@ function crearValidadorUni({
       const chunks = uniqueIds === null ? [null] : chunk_uni(uniqueIds);
       for (const batch of chunks) {
         const sql = sqlFor_uni(tabla, spec.pk, batch);
-        const [countRows] = await conn.query(sql.count, sql.params);
-        const pending = Number(countRows[0] && countRows[0].pendientes || 0);
-        if (!Number.isSafeInteger(pending) || pending < 0) {
-          throw new Error(`Conteo invalido de desalineados en ${spec.label}.`);
-        }
-        detected += pending;
-        if (pending === 0) continue;
 
-        if (examples.length < 10) {
+        // El UPDATE ya devuelve affectedRows; el COUNT previo recorria el mismo
+        // conjunto completo y duplicaba el costo sin aportar una decision de
+        // negocio. La muestra se conserva solo para reconciliaciones dirigidas.
+        if (capturarMuestra && examples.length < 10) {
           const [sample] = await conn.query(sql.examples, sql.params);
           examples.push(...sample.slice(0, 10 - examples.length));
         }
         const [result] = await conn.query(sql.update, sql.params);
-        corrected += Number(result.affectedRows || 0);
+        const affected = Number(result.affectedRows || 0);
+        if (!Number.isSafeInteger(affected) || affected < 0) {
+          throw new Error(`Conteo invalido de correcciones en ${spec.label}.`);
+        }
+        detected += affected;
+        corrected += affected;
       }
 
-      // Auditoria residual incluso si no habia correcciones automaticas.
-      // Las diferencias de nombre pueden ser alias legitimos: solo se reportan.
-      for (const batch of chunks) {
-        const sql = sqlFor_uni(tabla, spec.pk, batch);
-        const [auditRows] = await conn.query(sql.audit, sql.params);
-        const audit = auditRows[0] || {};
-        for (const key of Object.keys(pendingAudit)) {
-          pendingAudit[key] += Number(audit[key] || 0);
+      // La auditoria residual es valiosa, pero no tiene que repetirse en cada
+      // ciclo programado. El job decide cuando ejecutarla; post-sync conserva
+      // auditoria dirigida por IDs, cuyo costo es acotado.
+      if (auditarResiduales) {
+        for (const batch of chunks) {
+          const sql = sqlFor_uni(tabla, spec.pk, batch);
+          const [auditRows] = await conn.query(sql.audit, sql.params);
+          const audit = auditRows[0] || {};
+          for (const key of Object.keys(pendingAudit)) {
+            pendingAudit[key] += Number(audit[key] || 0);
+          }
         }
       }
 
@@ -200,14 +221,15 @@ function crearValidadorUni({
         origen,
         detectados: detected,
         corregidos: corrected,
-        pendientes: pendingAudit,
+        pendientes: auditarResiduales ? pendingAudit : null,
+        auditoria_residual: auditarResiduales ? 'ejecutada' : 'omitida',
         // Una muestra para auditoria tecnica; sin datos financieros.
         muestra: examples
       };
       if (corrected > 0 || detected !== corrected) {
         logger.info('[COBRANZA_UNI_FK] Reconciliacion', report);
       }
-      if (origen === 'programado' &&
+      if (origen === 'programado' && auditarResiduales &&
           (pendingAudit.sin_id || pendingAudit.id_sin_catalogo || pendingAudit.nombre_distinto)) {
         logger.warn(`[COBRANZA_UNI_FK] ${spec.label}: excepciones para revision manual`, pendingAudit);
       }

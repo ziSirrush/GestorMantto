@@ -3,7 +3,29 @@
 // Pruebas aisladas: simula respuestas MySQL; no requiere acceso a Aiven.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
+const path = require('node:path');
 const validatorModule = require('../backend/src/services/cobranza-uni/fk-validator.service');
+
+test('intervalos invalidos o fuera del rango de Node nunca programan un tick de 1 ms', () => {
+  const inspect = (overrides) => JSON.parse(execFileSync(process.execPath, [
+    '-e',
+    "const job = require('./backend/src/jobs/cobranzaUniFkValidator.job'); process.stdout.write(JSON.stringify({ first: job.FIRST_RUN_DELAY_MS, tick: job.TICK_INTERVAL_MS }));"
+  ], {
+    cwd: path.resolve(__dirname, '..'),
+    env: { ...process.env, ...overrides },
+    encoding: 'utf8'
+  }));
+
+  assert.deepEqual(inspect({
+    COBRANZA_UNI_FK_FIRST_RUN_DELAY_MS: 'invalid',
+    COBRANZA_UNI_FK_TICK_INTERVAL_MS: 'Infinity'
+  }), { first: 60000, tick: 900000 });
+  assert.deepEqual(inspect({
+    COBRANZA_UNI_FK_FIRST_RUN_DELAY_MS: '99999999999999',
+    COBRANZA_UNI_FK_TICK_INTERVAL_MS: '99999999999999'
+  }), { first: 2147483647, tick: 2147483647 });
+});
 
 function createHarness({ pendientes = 0, lock = 1, safeUpdates = 1, schemaOk = true, failUpdate = false, sinId = 0 } = {}) {
   const calls = [];
@@ -72,12 +94,46 @@ test('identifica y corrige un FK desplazado; solo cambia la FK y deja auditoria'
   assert.ok(h.logs.some(l => l[0] === 'info' && /Reconciliacion/.test(l[1])));
 });
 
-test('no emite UPDATE cuando los IDs ya estan alineados', async () => {
+test('evita el COUNT previo y usa affectedRows como autoridad de correccion', async () => {
   const h = createHarness({ pendientes: 0, safeUpdates: 0 });
   const report = await h.service.reconciliar({ tabla: 'gestion_credito' });
   assert.equal(report.corregidos, 0);
-  assert.equal(h.calls.filter(x => /^UPDATE/.test(x.sql)).length, 0);
+  assert.equal(h.calls.filter(x => /SELECT COUNT\(\*\) AS pendientes/.test(x.sql)).length, 0);
+  assert.equal(h.calls.filter(x => /^UPDATE\s+gestion_credito/.test(x.sql)).length, 1);
   assert.equal(h.connection.committed, 1);
+});
+
+
+
+test('ciclo programado puede omitir auditoria residual y muestra para evitar barridos duplicados', async () => {
+  const h = createHarness({ pendientes: 2, safeUpdates: 0 });
+  const report = await h.service.reconciliar({
+    tabla: 'detalle_mp_2026',
+    origen: 'programado',
+    auditarResiduales: false,
+    capturarMuestra: false
+  });
+  assert.equal(report.corregidos, 2);
+  assert.equal(report.pendientes, null);
+  assert.equal(report.auditoria_residual, 'omitida');
+  assert.equal(h.calls.filter(x => /registros_revisados/.test(x.sql)).length, 0);
+  assert.equal(h.calls.filter(x => /AS id_registro/.test(x.sql)).length, 0);
+  assert.equal(h.calls.filter(x => /SELECT COUNT\(\*\) AS pendientes/.test(x.sql)).length, 0);
+});
+
+test('cachea la validacion INFORMATION_SCHEMA del puente durante una hora por proceso', async () => {
+  let now = 1000;
+  const h = createHarness({ pendientes: 0, safeUpdates: 0 });
+  const service = validatorModule.crearValidadorUni({
+    obtenerConexion: async () => h.connection,
+    logger: { info(){}, warn(){}, error(){} },
+    now: () => now,
+    bridgeSchemaCacheTtlMs: 3600000
+  });
+  await service.reconciliar({ tabla: 'gestion_credito', ids: ['1'], auditarResiduales: false, capturarMuestra: false });
+  now += 1000;
+  await service.reconciliar({ tabla: 'gestion_credito', ids: ['2'], auditarResiduales: false, capturarMuestra: false });
+  assert.equal(h.calls.filter(x => /INFORMATION_SCHEMA\.COLUMNS/.test(x.sql)).length, 1);
 });
 
 test('evita ejecuciones superpuestas entre instancias', async () => {
@@ -140,8 +196,8 @@ test('post-sync no transforma un COMMIT previo exitoso en fallo si la validacion
 test('acepta IDs enteros grandes mediante cadenas sin perdida de precision', async () => {
   const h = createHarness({ pendientes: 0 });
   await h.service.reconciliar({ tabla: 'gestion_credito', ids: ['00053', '9007199254740993'] });
-  const read = h.calls.find(x => /SELECT COUNT\(\*\) AS pendientes/.test(x.sql));
-  assert.deepEqual(read.params, ['53', '9007199254740993']);
+  const update = h.calls.find(x => /^UPDATE\s+gestion_credito/.test(x.sql));
+  assert.deepEqual(update.params, ['53', '9007199254740993']);
 });
 
 
@@ -169,5 +225,30 @@ test('el job periodico aisla un fallo de MP y continua con GC y PC', async () =>
     assert.equal(report.resultados[1].error, 'simulado MP');
   } finally {
     validatorModule.reconciliar = original;
+  }
+});
+
+
+test('tick automatico rota una sola tabla y no dispara las tres juntas', async () => {
+  const job = require('../backend/src/jobs/cobranzaUniFkValidator.job');
+  const original = validatorModule.reconciliar;
+  const used = [];
+  try {
+    job.stopCobranzaUniFkValidatorJob();
+    validatorModule.reconciliar = async (options) => {
+      used.push(options);
+      return { tabla: options.tabla, corregidos: 0 };
+    };
+    const first = await job.runCobranzaUniFkValidatorTick(1000);
+    const second = await job.runCobranzaUniFkValidatorTick(1000);
+    const third = await job.runCobranzaUniFkValidatorTick(1000);
+    assert.deepEqual(used.map(item => item.tabla), ['gestion_credito', 'detalle_mp_2026', 'pc']);
+    assert.ok(used.every(item => item.capturarMuestra === false));
+    assert.equal(first.tabla, 'gestion_credito');
+    assert.equal(second.tabla, 'detalle_mp_2026');
+    assert.equal(third.tabla, 'pc');
+  } finally {
+    validatorModule.reconciliar = original;
+    job.stopCobranzaUniFkValidatorJob();
   }
 });

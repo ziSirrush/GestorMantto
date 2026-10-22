@@ -1,0 +1,32 @@
+BLT NOW - RENDIMIENTO FASE 4
+Base acumulada: Fase 1 + Fase 2 + Fase 3 sobre Version 102126.3 / c710c4c
+
+Cambios:
+- Prueba de Carga captura el perfil del pool al crear la sesion.
+- Capabilities expone el perfil del pool actual.
+- El reporte final registra solicitado/cap/efectivo/max idle/max pendientes.
+- DB_CONNECTION_LIMIT_CAP conserva 2 como default protegido.
+- El cap 4 queda disponible solo mediante override explicito posterior y autorizado.
+
+Verificacion Aiven solo lectura al generar esta fase:
+- Servicio RUNNING, plan developer-1, 1 CPU, 1024 MB RAM.
+- Ultimo dia: CPU promedio 12.796%, memoria promedio 84.847%.
+- No se considero prudente elevar el default a 4 sin prueba controlada posterior.
+
+Validacion local:
+- node --test tests/rendimiento-fase4.test.js: 6/6 PASS
+- npm test --prefix backend: 215/215 PASS
+- npm run check --prefix backend: PASS
+- git diff --check: PASS
+
+No se realizo:
+- git push
+- deploy Azure
+- deploy GitHub Pages
+- deploy Netlify
+- cambios de variables Azure
+- cambios Aiven
+- mantenimiento Aiven
+- cambio de plan Aiven
+- archivos .patch
+- instaladores

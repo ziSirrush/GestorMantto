@@ -54,12 +54,7 @@ function groupSupervisores(rows) {
   return [...map.values()];
 }
 
-async function getPreventivosSupervisor(mes, informationAccess = null) {
-  const [supervisores, servicios] = await Promise.all([
-    dashboardOperativoRepository.getSupervisoresActivosPorZona(informationAccess),
-    dashboardOperativoRepository.getPreventivosPorZona(mes, informationAccess)
-  ]);
-
+function buildPreventivosSupervisor(supervisores, servicios) {
   const porZona = new Map(
     servicios.map((row) => [
       String(row.zona_clave || ''),
@@ -105,6 +100,14 @@ async function getPreventivosSupervisor(mes, informationAccess = null) {
   }));
 }
 
+async function getPreventivosSupervisor(mes, informationAccess = null) {
+  const [supervisores, servicios] = await Promise.all([
+    dashboardOperativoRepository.getSupervisoresActivosPorZona(informationAccess),
+    dashboardOperativoRepository.getPreventivosPorZona(mes, informationAccess)
+  ]);
+  return buildPreventivosSupervisor(supervisores, servicios);
+}
+
 async function getInitialData(mes, informationAccess = null) {
   const unrestricted = hasUnrestrictedUnitedScope_gnral(informationAccess);
   const zoneIds = normalizePositiveIds(informationAccess?.zona_ids);
@@ -127,18 +130,18 @@ async function getInitialData(mes, informationAccess = null) {
     };
   }
 
-  const [portafolio, tickets, supervisoresRows, preventivosSupervisor] = await Promise.all([
+  const [portafolio, tickets, supervisoresRows, preventivosRows] = await Promise.all([
     dashboardOperativoRepository.getPortafolioInicial(informationAccess),
     dashboardOperativoRepository.getTicketsInicial(informationAccess),
     dashboardOperativoRepository.getSupervisoresActivosPorZona(informationAccess),
-    getPreventivosSupervisor(mes, informationAccess)
+    dashboardOperativoRepository.getPreventivosPorZona(mes, informationAccess)
   ]);
 
   return {
     portafolio,
     tickets,
     supervisores: groupSupervisores(supervisoresRows),
-    preventivos_supervisor: preventivosSupervisor,
+    preventivos_supervisor: buildPreventivosSupervisor(supervisoresRows, preventivosRows),
     alcance: { zona_ids: unrestricted ? null : zoneIds, zonas: unrestricted ? null : zoneCodes }
   };
 }
@@ -146,5 +149,6 @@ async function getInitialData(mes, informationAccess = null) {
 module.exports = {
   getPreventivosSupervisor,
   getInitialData,
-  groupSupervisores
+  groupSupervisores,
+  buildPreventivosSupervisor
 };

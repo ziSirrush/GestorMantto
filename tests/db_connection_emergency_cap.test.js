@@ -11,6 +11,10 @@ const ROOT = path.resolve(__dirname, '..');
 const cfgDir = path.join(ROOT, 'backend', 'src', 'config');
 const dbSource = fs.readFileSync(path.join(cfgDir, 'db.js'), 'utf8');
 const bootstrapSource = fs.readFileSync(path.join(ROOT,'backend','src','bootstrap.js'),'utf8');
+const notificationRepositorySource = fs.readFileSync(
+  path.join(ROOT,'backend','src','services','notifications','notification.repository.js'),
+  'utf8'
+);
 const { createConnectionPressureGuard, isConnectionCapacityError, isPoolQueueError } =
   require('../backend/src/config/db-capacity-guard');
 
@@ -105,20 +109,35 @@ function loadModule(code,mocks,overrides={}) {
   return module.exports;
 }
 
-function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0'}={}) {
+function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0',acquireDelayMs=0,poolWaitWarnMs='250'}={}) {
   let hits=0, options;
+  const logs={warn:[],error:[],info:[]};
+  const testConsole={
+    warn(...args){logs.warn.push(args.join(' '));},
+    error(...args){logs.error.push(args.join(' '));},
+    info(...args){logs.info.push(args.join(' '));}
+  };
   const pool={
     async query(){hits++;if(mode==='mysqlFull')throw noisyError();
       if(mode==='queue')throw new Error('Queue limit reached.');
       return [[{server_time:'2026-10-20T23:59:00Z'}]];},
     async execute(){return this.query();},
-    async getConnection(){hits++;if(mode==='mysqlFull')throw noisyError();
-      return {async query(){return [[1]];},release(){}};},
+    async getConnection(){
+      hits++;
+      if(acquireDelayMs)await new Promise(resolve=>setTimeout(resolve,acquireDelayMs));
+      if(mode==='mysqlFull')throw noisyError();
+      return {async query(sql){
+        if(mode==='duplicateConnection'){
+          const error=new Error('Duplicate entry');error.code='ER_DUP_ENTRY';error.errno=1062;error.sqlState='23000';throw error;
+        }
+        return [[1]];
+      },release(){}};
+    },
     async end(){}
   };
   const env={DB_HOST:'localhost',DB_PORT:'3306',DB_USER:'test',DB_PASSWORD:'not-used',
     DB_NAME:'test',DB_SSL:'false',DB_QUERY_OBSERVABILITY_ENABLED:String(observability),
-    DB_CONNECTION_LIMIT:String(connections),DB_QUEUE_LIMIT:queue};
+    DB_CONNECTION_LIMIT:String(connections),DB_QUEUE_LIMIT:queue,DB_POOL_WAIT_WARN_MS:String(poolWaitWarnMs)};
   const exported=loadModule(dbSource,{
     crypto:require('node:crypto'),
     'mysql2/promise':{createPool(x){options=x;return pool;}},
@@ -129,8 +148,8 @@ function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0'}={
       getCurrentLoadTestSessionId(){return null;}
     },
     './db-capacity-guard':require('../backend/src/config/db-capacity-guard')
-  },{process:{env,hrtime:process.hrtime},console:quietConsole});
-  return {pool:exported,options,hits:()=>hits};
+  },{process:{env,hrtime:process.hrtime},console:testConsole});
+  return {pool:exported,options,hits:()=>hits,logs};
 }
 
 test('el pool limita a 2 conexiones y 30 pendientes aun con cola=0 configurada', () => {
@@ -141,6 +160,36 @@ test('el pool limita a 2 conexiones y 30 pendientes aun con cola=0 configurada',
   assert.equal(options.waitForConnections,true);
   assert.equal(options.charset,'utf8mb4');
   assert.equal(options.timezone,'Z');
+});
+
+
+test('DB_POOL_WAIT registra adquisiciones lentas sin cambiar el limite del pool', async () => {
+  const f=loadDb({mode:'ok',acquireDelayMs:5,poolWaitWarnMs:'1'});
+  const connection=await f.pool.getConnection();
+  connection.release();
+  assert.ok(f.logs.warn.some(line=>line.includes('[DB_POOL_WAIT]') && line.includes('\"outcome\":\"acquired\"')));
+  assert.ok(f.logs.warn.some(line=>line.includes('\"effective_connection_limit\":2')));
+});
+
+test('DB_POOL_WAIT limita avisos repetidos durante una rafaga', async () => {
+  const f=loadDb({mode:'ok',acquireDelayMs:5,poolWaitWarnMs:'1'});
+  for(let index=0;index<3;index++) {
+    const connection=await f.pool.getConnection();
+    connection.release();
+  }
+  assert.equal(f.logs.warn.filter(line=>line.includes('[DB_POOL_WAIT]')).length,1);
+});
+
+test('duplicado marcado se registra como deduplicacion y no como DB_QUERY_ERROR', async () => {
+  const f=loadDb({mode:'duplicateConnection'});
+  const connection=await f.pool.getConnection();
+  await assert.rejects(
+    connection.query('/* BLT_EXPECTED_DUPLICATE */ INSERT INTO sup_notificaciones VALUES (?)'),
+    error=>error.code==='ER_DUP_ENTRY' && error.errno===1062
+  );
+  assert.ok(f.logs.info.some(line=>line.includes('[DB_DEDUPLICATED]')));
+  assert.ok(!f.logs.error.some(line=>line.includes('[DB_QUERY_ERROR]')));
+  assert.match(notificationRepositorySource, /BLT_EXPECTED_DUPLICATE/);
 });
 
 test('sin telemetría, tras error 1040 no abre mas conexiones durante el enfriamiento', async () => {
@@ -221,7 +270,7 @@ test('si Aiven falla al inicio la API escucha y reintenta sin duplicar jobs',asy
   assert.equal(f.timers.length,1);
   assert.equal(f.timers[0].ms,30000);
   assert.equal(f.starts.startPortafolioCierreMensualJob||0,0);
-  assert.equal(f.starts.startCobranzaUniFkValidatorJob,1);
+  assert.equal(f.starts.startCobranzaUniFkValidatorJob||0,0);
   await f.timers[0].fn();
   assert.equal(f.timers.length,2);
   assert.equal(f.timers[1].ms,60000);
@@ -240,6 +289,7 @@ test('cuando la DB arranca lista no programa reintentos adicionales',async()=>{
   const f=bootFixture({failedChecks:0});
   await f.runner.startServer();
   assert.equal(f.starts.startPushNotificationsJob,1);
+  assert.equal(f.starts.startCobranzaUniFkValidatorJob,1);
   assert.equal(f.timers.length,0);
 });
 

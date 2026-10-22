@@ -63,6 +63,7 @@ function startScheduledJobs(databaseReady) {
     logger.warn('Job semanal de Movimientos Críticos no iniciado porque MySQL no está disponible.');
     logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
     logger.warn('Job de calculados de Instalaciones Administracion no iniciado porque MySQL no esta disponible.');
+    logger.warn('[COBRANZA_UNI_FK] Validador no iniciado porque MySQL no esta disponible.');
     return;
   }
 
@@ -104,6 +105,12 @@ function startScheduledJobs(databaseReady) {
     startInstalacionesAdministracionCalculadosJob();
   } catch(error) {
     logger.error('No fue posible iniciar calculados diarios de Instalaciones Administracion.',error);
+  }
+
+  try {
+    startCobranzaUniFkValidatorJob();
+  } catch (error) {
+    logger.error('No fue posible iniciar validador FK Cobranza United.', error);
   }
 }
 
@@ -155,12 +162,6 @@ async function startServer() {
   startScheduledJobs(databaseReady);
   if (databaseReady) scheduledJobsStarted = true;
   else scheduleDatabaseRecovery();
-  // Reintenta aunque Aiven no estuviera disponible durante el arranque.
-  try {
-    startCobranzaUniFkValidatorJob();
-  } catch (error) {
-    logger.error('No fue posible iniciar validador FK Cobranza United.', error);
-  }
   registerShutdownHandlers();
 
   return server;

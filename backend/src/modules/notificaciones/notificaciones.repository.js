@@ -1,7 +1,7 @@
 const db = require('../../config/db');
 const { bellVisibilitySql_gnral } = require('../../services/notifications/notification-policy');
 
-async function getNotificaciones({ whereSql, params, orderSql, limit }) {
+async function getNotificaciones({ whereSql, params, orderSql, limit, roleIds = [] }) {
   const [rows] = await db.query(`
     SELECT n.*,
       CASE
@@ -54,7 +54,7 @@ async function getNotificaciones({ whereSql, params, orderSql, limit }) {
       ON p.codigo_evento = n.tipo_notificacion
      AND p.id_usuario = n.id_usuario
     ${whereSql}
-      AND ${bellVisibilitySql_gnral('n', 'e', 'p')}
+      AND ${bellVisibilitySql_gnral('n', 'e', 'p', { roleIds })}
     ${orderSql}
     LIMIT ?
   `, [...params, limit]);
@@ -71,7 +71,7 @@ async function getNotificaciones({ whereSql, params, orderSql, limit }) {
   });
 }
 
-async function getEstadoNotificaciones({ whereSql, params }) {
+async function getEstadoNotificaciones({ whereSql, params, roleIds = [] }) {
   const [rows] = await db.query(`
     SELECT
       COUNT(*) AS nuevas,
@@ -85,7 +85,7 @@ async function getEstadoNotificaciones({ whereSql, params }) {
      AND p.id_usuario = n.id_usuario
     ${whereSql}
       AND n.leido = 0
-      AND ${bellVisibilitySql_gnral('n', 'e', 'p')}
+      AND ${bellVisibilitySql_gnral('n', 'e', 'p', { roleIds })}
   `, params);
 
   const row = rows[0] || {};

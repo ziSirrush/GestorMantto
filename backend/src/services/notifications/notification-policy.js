@@ -19,6 +19,13 @@ const FOLLOW_ONLY_EVENT_CODES_GNRAL = Object.freeze([
   'TICKET_ACTUALIZADO'
 ]);
 
+function normalizeRoleIds_gnral(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value > 0))]
+    .sort((a, b) => a - b);
+}
+
 
 /**
  * Seguimiento Especial ya fue autorizado por el resolver UNITED antes de
@@ -60,7 +67,8 @@ function matrixChannelSql_gnral({
   notificationAlias = 'n',
   eventAlias = 'e',
   preferenceAlias = 'p',
-  channel = 'campana'
+  channel = 'campana',
+  roleIds = []
 } = {}) {
   const n = safeAlias_gnral(notificationAlias, 'n');
   const e = safeAlias_gnral(eventAlias, 'e');
@@ -69,22 +77,29 @@ function matrixChannelSql_gnral({
   const defaultColumn = channelName === 'push' ? 'push_default' : 'campana_default';
   const fallback = channelName === 'push' ? 0 : 1;
 
-  // Todos los roles activos del usuario participan en la decision NATIVA.
-  // Seguimiento Especial se resuelve antes y se exceptua en las funciones de
-  // visibilidad finales, no dentro de esta matriz.
+  // Auth ya hidrata los roles activos. Reutilizarlos evita consultar
+  // usuario_roles por cada fila de la bandeja. Sin contexto se conserva el
+  // fallback historico para otros consumidores de esta politica.
+  const normalizedRoleIds = normalizeRoleIds_gnral(roleIds);
+  const roleSourceSql = normalizedRoleIds.length
+    ? `ner_policy.id_rol IN (${normalizedRoleIds.join(', ')})`
+    : `ner_policy.id_rol IN (
+        SELECT ur_policy.id_rol
+        FROM usuario_roles ur_policy
+        WHERE ur_policy.id_usuario = ${n}.id_usuario
+          AND ur_policy.activo = 1
+      )`;
+
   return `EXISTS (
     SELECT 1
-    FROM usuario_roles ur_policy
+    FROM notificacion_evento_roles ner_policy
     INNER JOIN roles r_policy
-      ON r_policy.id_rol = ur_policy.id_rol
+      ON r_policy.id_rol = ner_policy.id_rol
      AND r_policy.estado = 1
-    INNER JOIN notificacion_evento_roles ner_policy
-      ON ner_policy.codigo_evento = ${n}.tipo_notificacion
-     AND ner_policy.id_rol = ur_policy.id_rol
-     AND ner_policy.activo = 1
-     AND ner_policy.politica IN ('OBLIGATORIA', 'OPCIONAL')
-    WHERE ur_policy.id_usuario = ${n}.id_usuario
-      AND ur_policy.activo = 1
+    WHERE ner_policy.codigo_evento = ${n}.tipo_notificacion
+      AND ner_policy.activo = 1
+      AND ner_policy.politica IN ('OBLIGATORIA', 'OPCIONAL')
+      AND ${roleSourceSql}
       AND (
         ner_policy.politica = 'OBLIGATORIA'
         OR (
@@ -96,7 +111,7 @@ function matrixChannelSql_gnral({
   )`;
 }
 
-function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', preferenceAlias = 'p') {
+function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', preferenceAlias = 'p', options = {}) {
   const seguimiento = seguimientoEspecialSql_gnral(notificationAlias);
   const followOnlyEvent = followOnlyEventSql_gnral(notificationAlias);
   const matrixExists = matrixExistsSql_gnral(notificationAlias);
@@ -104,7 +119,8 @@ function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
     notificationAlias,
     eventAlias,
     preferenceAlias,
-    channel: 'campana'
+    channel: 'campana',
+    roleIds: options.roleIds
   });
 
   // FOLLOW-ONLY falla cerrado en lectura: una fila historica o accidental sin
@@ -122,7 +138,7 @@ function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
   )`;
 }
 
-function pushVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', preferenceAlias = 'p') {
+function pushVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', preferenceAlias = 'p', options = {}) {
   const n = safeAlias_gnral(notificationAlias, 'n');
   const e = safeAlias_gnral(eventAlias, 'e');
   const p = safeAlias_gnral(preferenceAlias, 'p');
@@ -133,7 +149,8 @@ function pushVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
     notificationAlias: n,
     eventAlias: e,
     preferenceAlias: p,
-    channel: 'push'
+    channel: 'push',
+    roleIds: options.roleIds
   });
 
   const legacyPush = `(
@@ -167,5 +184,6 @@ module.exports = {
   matrixExistsSql_gnral,
   matrixChannelSql_gnral,
   bellVisibilitySql_gnral,
-  pushVisibilitySql_gnral
+  pushVisibilitySql_gnral,
+  normalizeRoleIds_gnral
 };

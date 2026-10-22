@@ -35,6 +35,34 @@ function normalizeZoneCode_uni(value) {
   return String(value || '').trim().toUpperCase();
 }
 
+function preloadedUnitedZones_uni(source) {
+  const user = effectiveUserFromSource_uni(source) || {};
+  const detailedLoaded = Array.isArray(user.zonas_detalle);
+  const candidates = detailedLoaded
+    ? user.zonas_detalle
+    : (Array.isArray(user.zonas) ? user.zonas : null);
+  if (!candidates) return null;
+  if (!candidates.length) return detailedLoaded ? [] : null;
+  if (!candidates.every((zone) => zone && typeof zone === 'object')) return null;
+
+  const byId = new Map();
+  for (const zone of candidates) {
+    const zoneId = normalizePositiveInteger_uni(zone.id_zona || zone.zona_id || zone.id);
+    if (!zoneId) continue;
+    const code = normalizeZoneCode_uni(zone.zona || zone.codigo);
+    byId.set(zoneId, {
+      id_zona: zoneId,
+      zona: code || null,
+      nombre: String(zone.nombre || '').trim() || null
+    });
+  }
+  if (!byId.size) return null;
+  return [...byId.values()].sort((left, right) => {
+    const byCode = String(left.zona || '').localeCompare(String(right.zona || ''));
+    return byCode || left.id_zona - right.id_zona;
+  });
+}
+
 function effectiveUserFromSource_uni(source) {
   if (!source) return null;
   if (source.contextUser || source.user) return source.contextUser || source.user;
@@ -154,7 +182,7 @@ async function resolveAlcanceUni_uni(executor, source, options = {}) {
     };
   }
 
-  const zones = await resolveUnitedZones_uni(executor, user.id);
+  const zones = preloadedUnitedZones_uni(source) || await resolveUnitedZones_uni(executor, user.id);
   const zoneIds = normalizePositiveIds_uni(zones.map((zone) => zone.id_zona));
   const zoneCodes = [...new Set(zones
     .map((zone) => normalizeZoneCode_uni(zone.zona))
@@ -326,6 +354,7 @@ module.exports = {
   UNITED_ENGINE,
   UNITED_MODE,
   normalizeEffectiveUser_uni,
+  preloadedUnitedZones_uni,
   resolveUnitedZones_uni,
   resolveAlcanceUni_uni,
   buildResolvedZoneIdScopeSql_uni,

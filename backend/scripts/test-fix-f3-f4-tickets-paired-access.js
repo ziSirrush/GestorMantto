@@ -57,8 +57,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
     }
     if (request === '../services/permissions/effective-permission.service') {
       return {
-        hasEffectivePermission: async (userId, permissionCode) => (
-          Number(userId) === 81 && permissionSet.has(permissionCode)
+        listEffectivePermissions: async (userId, permissionCodes) => new Map(
+          permissionCodes.map((code) => [code, Number(userId) === 81 && permissionSet.has(code)])
         )
       };
     }

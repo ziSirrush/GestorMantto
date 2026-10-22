@@ -81,7 +81,7 @@
     const text = await r.text();
     let data = null;
     try { data = text ? JSON.parse(text) : {}; }
-    catch(e){ throw new Error('Respuesta inválida del backend. Verifica que Railway/API esté activo y que la ruta exista.'); }
+    catch(e){ throw new Error('Respuesta inválida del backend. Verifica que la API esté activa y que la ruta exista.'); }
     if(!r.ok || data.ok === false) throw new Error(data.message || data.error || 'Error consultando backend');
     return data;
   }

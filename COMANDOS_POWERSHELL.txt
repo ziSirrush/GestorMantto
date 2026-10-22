@@ -1,0 +1,37 @@
+$REPO="C:\Users\T14s\Downloads\mantto_gestor_frontend"
+$FIX="$env:USERPROFILE\Downloads\BLT_NOW_RENDIMIENTO_FASE_4"
+
+Set-Location $REPO
+
+$files = @(
+  "backend\src\modules\panel-control-prueba-carga\panel-control-prueba-carga.constants.js",
+  "backend\src\modules\panel-control-prueba-carga\panel-control-prueba-carga.registry.js",
+  "backend\src\modules\panel-control-prueba-carga\panel-control-prueba-carga.service.js",
+  "backend\src\modules\panel-control-prueba-carga\panel-control-prueba-carga.report.js",
+  "tests\rendimiento-fase4.test.js"
+)
+
+foreach ($file in $files) {
+  $src = Join-Path $FIX $file
+  $dst = Join-Path $REPO $file
+  $dir = Split-Path $dst -Parent
+  if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+  Copy-Item $src $dst -Force
+}
+
+node --test .\tests\rendimiento-fase4.test.js
+npm.cmd test --prefix backend
+npm.cmd run check --prefix backend
+git diff --check
+git status
+git diff
+
+# Solo despues de revisar el diff:
+# git add backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.constants.js `
+#         backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.registry.js `
+#         backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.service.js `
+#         backend/src/modules/panel-control-prueba-carga/panel-control-prueba-carga.report.js `
+#         tests/rendimiento-fase4.test.js
+# git commit -m "Rendimiento Fase 4 perfil de pool y cierre de medicion"
+# NO ejecutar git push sin autorizacion expresa.
+# NO cambiar DB_CONNECTION_LIMIT_CAP a 4 hasta realizar y revisar la prueba controlada.

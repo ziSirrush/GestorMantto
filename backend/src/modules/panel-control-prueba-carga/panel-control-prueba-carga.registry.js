@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
-const { getLoadTestTelemetrySettings } = require('./panel-control-prueba-carga.constants');
+const { getLoadTestTelemetrySettings, getDatabasePoolProfile } = require('./panel-control-prueba-carga.constants');
 const { buildLoadTestReport } = require('./panel-control-prueba-carga.report');
 
 function asIso(value) {
@@ -306,6 +306,7 @@ class LoadTestRegistry extends EventEmitter {
       reportGeneratedAt: null,
       reportIncompleteReason: null,
       settings,
+      databasePoolProfile: getDatabasePoolProfile(),
       telemetry: createTelemetry(settings)
     };
 
@@ -954,6 +955,7 @@ class LoadTestRegistry extends EventEmitter {
       dispatch_deadline_at: asIso(session.dispatchDeadlineAt),
       runner_lease_at: asIso(session.runnerLeaseAt),
       runner_service_id: session.runnerServiceId,
+      database_pool: session.databasePoolProfile || null,
       expires_at: asIso(expiresAt),
       telemetry: this.telemetrySnapshot(session)
     };

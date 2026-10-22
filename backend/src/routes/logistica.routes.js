@@ -3,11 +3,12 @@ const express = require('express');
 const router = express.Router();
 const logisticaController = require('../controllers/logistica.controller');
 const { requireIntegrationAuthFor } = require('../middleware/integration-auth.middleware');
+const { requireAuth } = require('../middleware/auth.middleware');
 
 const requireLogisticaIntegration = requireIntegrationAuthFor('INTEGRATION_LOGISTICA_ID');
 
 router.post('/sync', requireLogisticaIntegration, logisticaController.syncLogOps);
-router.get('/', logisticaController.getLogOps);
-router.get('/:id', logisticaController.getLogOpsById);
+router.get('/', requireAuth, logisticaController.getLogOps);
+router.get('/:id', requireAuth, logisticaController.getLogOpsById);
 
 module.exports = router;

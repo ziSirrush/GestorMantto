@@ -275,7 +275,8 @@ async function insertOneNotification_gnral(connection, notification) {
     notification.clave_deduplicacion || null,
     notification.trace_id || null
   ];
-  const insertNative = () => connection.query(`
+  const expectedDuplicateMarker = hasDedupKey ? '/* BLT_EXPECTED_DUPLICATE */\n' : '';
+  const insertNative = () => connection.query(`${expectedDuplicateMarker}
     INSERT INTO sup_notificaciones (
       id_usuario,
       tipo_notificacion,
@@ -301,7 +302,7 @@ async function insertOneNotification_gnral(connection, notification) {
 
     if (visualCodes.length) {
       try {
-        [result] = await connection.query(`
+        [result] = await connection.query(`${expectedDuplicateMarker}
           INSERT INTO sup_notificaciones (
             id_usuario,
             tipo_notificacion,

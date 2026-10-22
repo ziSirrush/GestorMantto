@@ -204,6 +204,18 @@ test('Sin filas elegibles avanza de forma segura al watermark', async () => {
   assert.equal(state.cursor, 30);
 });
 
+
+
+test('Cursor ya igual al watermark no ejecuta UPDATE innecesario', async () => {
+  resetState(0);
+  state.cursor = 30;
+  const result = await job.processSubscription(subscription(), 30);
+  assert.equal(result.sent, 0);
+  assert.equal(result.noWrite, true);
+  assert.equal(state.advances.length, 0);
+  assert.equal(state.queries.length, 0);
+});
+
 test('Limite invalido nunca se convierte en LIMIT 0', () => {
   process.env.WEB_PUSH_NOTIFICATIONS_PER_CYCLE = '0';
   assert.equal(job.notificationLimit(), 20);
@@ -231,4 +243,5 @@ test('Repositorio usa cursor y watermark por id, no fecha, para el despacho pend
   assert.doesNotMatch(pendingBlock, /n\.fecha_creacion\s*>\s*\?/);
   assert.match(repository, /MAX\(id_notificacion\).*watermark_id/s);
   assert.match(repository, /GREATEST\(COALESCE\(ultimo_id_notificacion, 0\), \?\)/);
+  assert.match(repository, /AND COALESCE\(ultimo_id_notificacion, 0\) < \?/);
 });

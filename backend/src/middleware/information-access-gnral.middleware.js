@@ -2,7 +2,7 @@
 
 const db = require('../config/db');
 const { requireAuth } = require('./auth.middleware');
-const { hasEffectivePermission } = require('../services/permissions/effective-permission.service');
+const { listEffectivePermissions } = require('../services/permissions/effective-permission.service');
 const {
   GENERAL_COMPANY,
   resolveAlcanceGnral_gnral
@@ -263,11 +263,18 @@ async function resolveGuardGroupings_gnral(connection, configuration) {
   });
 }
 
-async function resolveEffectivePermission_gnral(connection, userId, permissionCodes) {
+function effectiveRoleIdsFromRequest_gnral(req) {
+  const user = effectiveUserFromRequest_gnral(req) || {};
+  return [...new Set([
+    user.rol_id,
+    ...(Array.isArray(user.roles_detalle) ? user.roles_detalle.map((role) => role.id_rol) : [])
+  ].map(Number).filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b);
+}
+
+function resolveEffectivePermission_gnral(permissionStates, permissionCodes) {
   for (const permissionCode of permissionCodes) {
-    if (await hasEffectivePermission(userId, permissionCode, connection)) {
-      return permissionCode;
-    }
+    if (permissionStates.get(permissionCode) === true) return permissionCode;
   }
   return null;
 }
@@ -475,6 +482,12 @@ function buildInformationAccessGuard_gnral(options = {}) {
       let allowedGrouping = null;
       let door = null;
       let scope = null;
+      const permissionStates = await listEffectivePermissions(
+        effectiveUserId,
+        configuration.permissionCodesAny,
+        connection,
+        { roleIds: effectiveRoleIdsFromRequest_gnral(req) }
+      );
 
       if (configuration.groupingPermissionPairsAny.length) {
         // Modo emparejado: conserva el flujo introducido por F3/F4.
@@ -495,9 +508,8 @@ function buildInformationAccessGuard_gnral(options = {}) {
             );
           }
 
-          const pairPermission = await resolveEffectivePermission_gnral(
-            connection,
-            effectiveUserId,
+          const pairPermission = resolveEffectivePermission_gnral(
+            permissionStates,
             pair.permissionCodesAny
           );
           if (!pairPermission) continue;
@@ -528,9 +540,8 @@ function buildInformationAccessGuard_gnral(options = {}) {
         // Modo historico: restaurar exactamente el orden previo al FIX F3/F4.
         // Pregunta 1: permiso funcional. Si falla, no se consulta la
         // configuracion de agrupaciones ni las puertas de informacion.
-        grantedPermissionCode = await resolveEffectivePermission_gnral(
-          connection,
-          effectiveUserId,
+        grantedPermissionCode = resolveEffectivePermission_gnral(
+          permissionStates,
           configuration.permissionCodesAny
         );
         if (!grantedPermissionCode) return denyFunctionalPermission_gnral(res);

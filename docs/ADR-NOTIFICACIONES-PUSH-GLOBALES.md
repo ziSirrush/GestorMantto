@@ -19,5 +19,5 @@ Se implementa Web Push como servicio global complementario al polling interno de
 
 ## Consecuencias
 - Requiere HTTPS, Service Worker y permiso explícito del usuario.
-- Requiere claves VAPID configuradas en Railway.
+- Requiere claves VAPID configuradas en el entorno de la API en Azure.
 - El polling interno sigue siendo respaldo cuando el push está bloqueado o no disponible.

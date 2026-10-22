@@ -1,23 +1,87 @@
 'use strict';
-// Revisa archivos; nunca ejecuta SQL ni abre conexiones.
-const fs=require('node:fs'),path=require('node:path');
-const ROOT=path.resolve(__dirname,'../..');
-const IGNORED=new Set(['.git','node_modules','.netlify','dist']);
-function auditTree(root=ROOT){
-  const errors=[];
-  function walk(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){
-    if(IGNORED.has(e.name))continue;
-    const p=path.join(dir,e.name),rel=path.relative(root,p).replace(/\\/g,'/');
-    if(e.isSymbolicLink()){errors.push('Enlace no auditado: '+rel);continue;}
-    if(e.isDirectory()){
-      walk(p);continue;
-    }
-    if(rel.split('/').some(part=>/^installers?$/i.test(part)))errors.push('Instalador no permitido: '+rel);
-    if(/\.sql$/i.test(e.name))errors.push('SQL archivado no permitido: '+rel);
-    if(/^(?:aplicar[_-]|apply[_-]|instalar[_-]|installer)/i.test(e.name)&&/\.(?:js|cjs|ps1|py)$/i.test(e.name))errors.push('Aplicador historico no permitido: '+rel);
-    if(/usuarios?_password.*\.csv$/i.test(e.name))errors.push('CSV de credenciales no permitido: '+rel);
-  }}
-  walk(root);return errors;
+
+// Audita exclusivamente archivos versionados. Nunca ejecuta SQL ni abre conexiones.
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+
+const ROOT = path.resolve(__dirname, '../..');
+const OBSOLETE_PATHS = Object.freeze([
+  'docs/BACKEND_ARQUITECTURA',
+  'docs/Fixeos/PROJECT_CONSTITUTION_REFERENCIA.md',
+  'backend/scripts/QA_SIMULAR_ACTUALIZACION_TICKET_254540_V001.js',
+  'backend/scripts/QA_TICKET_254013_SEGUIMIENTO_ESPECIAL_V002.js',
+  'backend/scripts/validate-architecture.js',
+  'backend/scripts/test-fase-2-portafolio-cuartos-uni.js',
+  'backend/scripts/test-fase-3-tickets-cuartos-uni.js',
+  'backend/scripts/test-fase-4-cobertura-total-uni.js'
+]);
+
+function normalize(relative) {
+  return String(relative || '').replace(/\\/g, '/').replace(/^\.\//, '');
 }
-if(require.main===module){const errors=auditTree();if(errors.length){console.error(errors.join('\n'));process.exitCode=1;}else console.log('Arbol sin SQL archivados, instaladores ni CSV de credenciales.');}
-module.exports={auditTree};
+
+function listTrackedFiles(root = ROOT) {
+  const output = execFileSync('git', ['ls-files', '-z', '--cached'], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  return output.split('\0').filter(Boolean).map(normalize).filter(relative => {
+    // Permite validar la baja física antes de preparar el commit.
+    return fs.existsSync(path.join(root, relative));
+  });
+}
+
+function auditTrackedFiles(files, root = ROOT) {
+  const errors = [];
+  for (const raw of files) {
+    const relative = normalize(raw);
+    const lower = relative.toLowerCase();
+    const name = path.posix.basename(relative);
+    const parts = lower.split('/');
+    const absolute = path.join(root, ...relative.split('/'));
+
+    if (OBSOLETE_PATHS.some(obsolete => relative === obsolete || relative.startsWith(obsolete + '/'))) {
+      errors.push('Artefacto obsoleto no permitido: ' + relative);
+      continue;
+    }
+    if (fs.existsSync(absolute) && fs.lstatSync(absolute).isSymbolicLink()) {
+      errors.push('Enlace no auditado: ' + relative);
+      continue;
+    }
+    if (parts.some(part => /^(?:dist|coverage|installers?)$/i.test(part))) {
+      errors.push('Artefacto de build o instalador no permitido: ' + relative);
+    }
+    if (/\.(?:sql|patch)$/i.test(name)) errors.push('Archivo de entrega no permitido: ' + relative);
+    if (/\.(?:zip|tar|tgz)$/i.test(name)) errors.push('Paquete generado no permitido: ' + relative);
+    if (/^(?:aplicar[_-]|apply[_-]|instalar[_-]|installer)/i.test(name) && /\.(?:js|cjs|ps1|py)$/i.test(name)) {
+      errors.push('Aplicador temporal no permitido: ' + relative);
+    }
+    if (/\.csv$/i.test(name) && /(?:credencial|credential|password|contrasena|secret|token)/i.test(name)) {
+      errors.push('CSV sensible no permitido: ' + relative);
+    }
+  }
+  return [...new Set(errors)];
+}
+
+function auditTree(root = ROOT) {
+  return auditTrackedFiles(listTrackedFiles(root), root);
+}
+
+if (require.main === module) {
+  try {
+    const errors = auditTree();
+    if (errors.length) {
+      console.error(errors.join('\n'));
+      process.exitCode = 1;
+    } else {
+      console.log('Árbol Git sin artefactos prohibidos u obsoletos.');
+    }
+  } catch (error) {
+    console.error('No se pudo auditar el árbol Git: ' + error.message);
+    process.exitCode = 1;
+  }
+}
+
+module.exports = { auditTree, auditTrackedFiles, listTrackedFiles };

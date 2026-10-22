@@ -6,12 +6,12 @@ const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const CHANGES_DIR = path.join(ROOT, 'audit', 'changes');
-const OUTPUT = path.join(ROOT, 'core', 'change-audit.generated.js');
+const OUTPUT = path.join(ROOT, 'dist', 'web', 'core', 'change-audit.generated.js');
 const COMPANIES = new Set(['GENERAL', 'UNITED', 'CORELLIAN']);
 const TYPES = new Set(['feature', 'correction', 'security', 'configuration', 'data', 'maintenance']);
 const LAYERS = new Set(['FRONTEND', 'BACKEND', 'DATABASE', 'INTEGRATION']);
 const STATUSES = new Set(['draft', 'published', 'cancelled']);
-const REQUIRED = ['title', 'module', 'final_summary', 'reason', 'user_impact', 'responsible', 'validation'];
+const REQUIRED = ['title', 'module', 'version', 'final_summary', 'reason', 'user_impact', 'responsible', 'validation'];
 const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const SHA = /^[0-9a-f]{40}$/i;
 
@@ -28,6 +28,7 @@ function validate(record, file) {
   if (!Array.isArray(record.layer) || !record.layer.length || record.layer.some(layer => !LAYERS.has(layer)) || new Set(record.layer).size !== record.layer.length) fail(file, 'layer inválida');
   if (record.status !== 'published') return;
   for (const key of REQUIRED) if (typeof record[key] !== 'string' || !record[key].trim()) fail(file, `${key} obligatorio`);
+  if (!Array.isArray(record.main_files) || !record.main_files.length || record.main_files.some(value => typeof value !== 'string' || !value.trim() || path.isAbsolute(value) || normalizeFile(value).startsWith('../'))) fail(file, 'main_files debe contener rutas relativas');
   if (typeof record.finalized_at !== 'string' || !ISO_WITH_ZONE.test(record.finalized_at) || !Number.isFinite(Date.parse(record.finalized_at))) fail(file, 'finalized_at debe ser una fecha ISO válida con zona horaria');
   const dateParts = record.finalized_at.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/).slice(1).map(Number);
   const local = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], dateParts[3], dateParts[4], dateParts[5]));
@@ -52,9 +53,9 @@ function collect(dir = CHANGES_DIR) {
     seen.add(record.change_id);
     if (record.status !== 'published') continue;
     changes.push(Object.fromEntries([
-      'schema_version', 'change_id', 'title', 'module', 'company', 'type', 'layer',
+      'schema_version', 'change_id', 'title', 'module', 'version', 'company', 'type', 'layer',
       'final_summary', 'reason', 'user_impact', 'status', 'finalized_at', 'responsible', 'validation'
-    ].map(key => [key, record[key]]).concat([['references', {
+    ].map(key => [key, record[key]]).concat([['main_files', [...record.main_files]], ['references', {
       commit: record.references.commit.toLowerCase(),
       issue: record.references.issue || null,
       pull_request: record.references.pull_request || null
@@ -83,8 +84,15 @@ function generate({ dir = CHANGES_DIR, output = OUTPUT, commit, generatedAt, ind
   return payload;
 }
 
+function normalizeFile(value) { return String(value || '').replace(/\\/g, '/'); }
+
 if (require.main === module) {
-  try { const payload = generate({ indexPath: path.join(ROOT, 'index.html') }); console.log(`[Mantto Audit] ${payload.changes.length} cambio(s) · ${payload.buildCommit.slice(0, 7)}`); }
+  try {
+    const indexPath = path.join(ROOT, 'dist', 'web', 'index.html');
+    if (!fs.existsSync(indexPath)) throw new Error('Falta dist/web/index.html; ejecuta primero el build del frontend');
+    const payload = generate({ indexPath });
+    console.log(`[Mantto Audit] ${payload.changes.length} cambio(s) · ${payload.buildCommit.slice(0, 7)} · dist/web`);
+  }
   catch (error) { console.error(`[Mantto Audit] ${error.message}`); process.exitCode = 1; }
 }
 

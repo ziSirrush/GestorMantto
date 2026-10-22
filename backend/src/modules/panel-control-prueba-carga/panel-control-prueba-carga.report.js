@@ -89,6 +89,7 @@ function buildLoadTestReport(session) {
   const sql = telemetry.sql || {};
   const system = telemetry.system || {};
   const k6 = session?.runnerSummary || null;
+  const poolProfile = session?.databasePoolProfile || session?.database_pool || null;
   const samples = Array.isArray(session?.telemetry?.system_samples)
     ? session.telemetry.system_samples
     : [];
@@ -178,6 +179,11 @@ function buildLoadTestReport(session) {
     `RAM host maxima: ${hostRamMax === null ? 'N/D' : percentage(hostRamMax)}`,
     '',
     'MYSQL',
+    `Pool solicitado: ${count(poolProfile?.requested_connection_limit)}`,
+    `Pool cap: ${count(poolProfile?.connection_limit_cap)}`,
+    `Pool efectivo: ${count(poolProfile?.effective_connection_limit)}`,
+    `Pool max idle: ${count(poolProfile?.max_idle_connections)}`,
+    `Pool max pendientes: ${count(poolProfile?.max_pending_requests)}`,
     `Threads_connected max: ${count(mysqlConnectedMax)}`,
     `Threads_running max: ${count(mysqlRunningMax)}`,
     `Consultas observadas: ${count(sql.completed)}`,

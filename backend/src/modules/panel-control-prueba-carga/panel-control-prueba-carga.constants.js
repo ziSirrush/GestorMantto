@@ -41,6 +41,32 @@ function getLoadTestLimits() {
   });
 }
 
+function boundedQueueLimit(value) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, 100) : 30;
+}
+
+function getDatabasePoolProfile(env = process.env) {
+  const requestedConnectionLimit = positiveNumber(env.DB_CONNECTION_LIMIT, 10, 1);
+  const connectionLimitCap = positiveNumber(env.DB_CONNECTION_LIMIT_CAP, 2, 1);
+  const effectiveConnectionLimit = Math.max(1, Math.floor(
+    Math.min(requestedConnectionLimit, connectionLimitCap)
+  ));
+  const maxIdleConnections = Math.max(1, Math.floor(Math.min(
+    effectiveConnectionLimit,
+    positiveNumber(env.DB_MAX_IDLE_CONNECTIONS, 1, 1)
+  )));
+
+  return Object.freeze({
+    requested_connection_limit: requestedConnectionLimit,
+    connection_limit_cap: connectionLimitCap,
+    effective_connection_limit: effectiveConnectionLimit,
+    max_idle_connections: maxIdleConnections,
+    max_pending_requests: boundedQueueLimit(env.DB_QUEUE_LIMIT),
+    explicit_cap_override: Object.prototype.hasOwnProperty.call(env, 'DB_CONNECTION_LIMIT_CAP')
+  });
+}
+
 function getLoadTestTelemetrySettings() {
   return Object.freeze({
     ready_ttl_seconds: positiveInteger(process.env.LOAD_TEST_READY_TTL_SECONDS, 900, 60, 86400),
@@ -70,5 +96,6 @@ module.exports = {
   PERMISSIONS,
   SCENARIOS,
   getLoadTestLimits,
-  getLoadTestTelemetrySettings
+  getLoadTestTelemetrySettings,
+  getDatabasePoolProfile
 };

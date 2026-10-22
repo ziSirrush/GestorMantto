@@ -11,6 +11,8 @@ process.env.DB_PASSWORD ||= 'test';
 process.env.DB_NAME ||= 'test';
 process.env.DB_SSL ||= 'false';
 
+const db = require('../src/config/db');
+
 const {
   resolveInformationDoor_gnral
 } = require('../src/services/alcance/alcance-resolver.service');
@@ -216,10 +218,14 @@ function testRecordBridge() {
 
 
 (async () => {
-  await testDoors();
-  await testPanelContract();
-  testRecordBridge();
-  console.log('FASE_6_ALCANCES_GLOBALES_V001 + UNI_PUERTAS_CUARTOS: OK');
+  try {
+    await testDoors();
+    await testPanelContract();
+    testRecordBridge();
+    console.log('FASE_6_ALCANCES_GLOBALES_V001 + UNI_PUERTAS_CUARTOS: OK');
+  } finally {
+    await db.close();
+  }
 })().catch((error) => {
   console.error(error);
   process.exit(1);

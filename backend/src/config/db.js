@@ -54,6 +54,11 @@ function sqlText(sqlOrOptions) {
   return '';
 }
 
+function isExpectedDuplicate(sqlOrOptions, error) {
+  if (!(error?.code === 'ER_DUP_ENTRY' || Number(error?.errno) === 1062)) return false;
+  return /\/\*\s*BLT_EXPECTED_DUPLICATE\s*\*\//i.test(sqlText(sqlOrOptions));
+}
+
 function sanitizedSqlShape(sql) {
   const maxLength = Math.max(200, Math.min(4000, Number(process.env.DB_QUERY_SHAPE_MAX_LENGTH || 1200)));
   return String(sql || '')
@@ -147,7 +152,13 @@ function installQueryObservability(target, label) {
         if (enabled || loadTestSessionId) {
           const telemetry = buildQueryTelemetry(`${label}.${methodName}`, args[0], startedAt, null, error);
           if (loadTestSessionId) loadTestRegistry.finishSql(loadTestSessionId, telemetry);
-          if (enabled) console.error('[DB_QUERY_ERROR]', JSON.stringify(telemetry));
+          if (enabled) {
+            if (isExpectedDuplicate(args[0], error)) {
+              console.info('[DB_DEDUPLICATED]', JSON.stringify(telemetry));
+            } else {
+              console.error('[DB_QUERY_ERROR]', JSON.stringify(telemetry));
+            }
+          }
         }
         if (label === 'pool') {
           if (!connectionPressureGuard.record(error)) connectionPressureGuard.recordQueue(error);
@@ -180,6 +191,38 @@ const maxIdleConnections = Math.max(1, Math.floor(Math.min(
   connectionLimit,
   positiveNumber(process.env.DB_MAX_IDLE_CONNECTIONS, 1, 1)
 )));
+const maxPendingRequests = boundedQueueLimit(process.env.DB_QUEUE_LIMIT);
+const poolWaitWarnMs = positiveNumber(process.env.DB_POOL_WAIT_WARN_MS, 250, 1);
+const poolWaitLogIntervalMs = positiveNumber(process.env.DB_POOL_WAIT_LOG_INTERVAL_MS, 60000, 1000);
+const poolWaitLogState = new Map();
+
+function warnPoolWait(waitMs, outcome, error = null) {
+  if (waitMs < poolWaitWarnMs) return;
+  const now = Number(process.hrtime.bigint() / 1000000n);
+  const previous = poolWaitLogState.get(outcome);
+  if (previous && now - previous.loggedAt < poolWaitLogIntervalMs) {
+    previous.suppressed += 1;
+    previous.maxSuppressedWaitMs = Math.max(previous.maxSuppressedWaitMs, waitMs);
+    return;
+  }
+
+  console.warn('[DB_POOL_WAIT]', JSON.stringify({
+    wait_ms: Number(waitMs.toFixed(2)),
+    outcome,
+    effective_connection_limit: connectionLimit,
+    max_idle_connections: maxIdleConnections,
+    max_pending_requests: maxPendingRequests,
+    suppressed_since_last_log: previous?.suppressed || 0,
+    max_suppressed_wait_ms: previous?.suppressed
+      ? Number(previous.maxSuppressedWaitMs.toFixed(2))
+      : null,
+    ...(error ? {
+      error_code: error.code || null,
+      error_errno: Number.isFinite(Number(error.errno)) ? Number(error.errno) : null
+    } : {})
+  }));
+  poolWaitLogState.set(outcome, { loggedAt: now, suppressed: 0, maxSuppressedWaitMs: 0 });
+}
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -194,7 +237,7 @@ const pool = mysql.createPool({
   connectionLimit,
   maxIdle: maxIdleConnections,
   idleTimeout: positiveNumber(process.env.DB_IDLE_TIMEOUT_MS, 30000, 1000),
-  queueLimit: boundedQueueLimit(process.env.DB_QUEUE_LIMIT),
+  queueLimit: maxPendingRequests,
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
@@ -224,7 +267,9 @@ console.warn('[DB_POOL_CAPACITY]', JSON.stringify({
   requested_connection_limit:requestedConnectionLimit,
   effective_connection_limit:connectionLimit,
   max_idle_connections:maxIdleConnections,
-  max_pending_requests:boundedQueueLimit(process.env.DB_QUEUE_LIMIT)
+  max_pending_requests:maxPendingRequests,
+  pool_wait_warn_ms:poolWaitWarnMs,
+  pool_wait_log_interval_ms:poolWaitLogIntervalMs
 }));
 
 installQueryObservability(pool, 'pool');
@@ -238,15 +283,17 @@ if (typeof pool.getConnection === 'function') {
     if (loadTestSessionId) loadTestRegistry.beginPoolAcquire(loadTestSessionId);
     try {
       const connection = await originalGetConnection(...args);
+      const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
       connectionPressureGuard.recordSuccess();
+      warnPoolWait(waitMs, 'acquired');
       if (loadTestSessionId) {
-        const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, null);
       }
       return installQueryObservability(connection, 'connection');
     } catch (error) {
+      const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      warnPoolWait(waitMs, 'error', error);
       if (loadTestSessionId) {
-        const waitMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         loadTestRegistry.finishPoolAcquire(loadTestSessionId, waitMs, error);
       }
       if (!connectionPressureGuard.record(error)) connectionPressureGuard.recordQueue(error);

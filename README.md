@@ -12,14 +12,16 @@ La configuracion local y los secretos van en `backend/.env`, nunca en Git.
 Las dependencias y comandos declarados estan en `backend/package.json`.
 
 Antes de preparar un commit, ejecutar `npm run check --prefix backend` y
-`npm test --prefix backend`. Las pruebas de contrato no certifican Aiven ni
-sustituyen la validacion funcional en un entorno autorizado.
+`npm test --prefix backend`. Esta ultima orden ejecuta las suites unitarias,
+de validacion, backend y contratos. Las pruebas de contrato no certifican Aiven
+ni sustituyen la validacion funcional en un entorno autorizado.
 
 ## Publicacion
 
-Generar metadatos con `tools/generate-build-info.js` y
-`tools/generate-change-audit.js`, y preparar el frontend con
-`node tools/build-frontend.js`. El destino es **dist/web**, no la raiz del repo.
+Preparar el frontend con `node tools/build-frontend.js`. El build genera ambos
+metadatos de despliegue directamente en **dist/web/core** y actualiza solamente
+el `index.html` del artefacto. El destino es **dist/web**, no la raiz del repo;
+los archivos fuente tracked permanecen estables.
 El builder se detiene si el destino ya existe: no sobrescribe datos ajenos.
 Retirar un build anterior generado o indicar un destino nuevo antes de repetir.
 
@@ -35,11 +37,21 @@ explicita del responsable; ello no elimina ni modifica tablas de Aiven.
 Conservar las consultas SQL que forman parte del codigo operativo de la API.
 
 Conservar pruebas de seguridad y negocio vigentes, documentacion normativa,
-contratos de alcance y herramientas operativas. No considerar muerto un
-endpoint M2M solo porque no lo llame el navegador.
+contratos de alcance y herramientas operativas. Retirar snapshots de
+arquitectura que contradigan al codigo actual y utilidades QA ligadas a casos
+cerrados. No considerar muerto un endpoint M2M solo porque no lo llame el
+navegador.
 
-`backend/scripts/validate-clean-tree.js` impide reintroducir los archivos
-prohibidos. `tests/limpieza-total-v002.test.js` verifica el retiro y el empaquetado.
+`backend/scripts/validate-clean-tree.js` audita `git ls-files` e impide
+reintroducir archivos prohibidos sin castigar archivos locales correctamente
+ignorados. `tests/limpieza-total-v003.test.js` verifica el retiro, la autoridad
+Git y el empaquetado.
+
+Las herramientas manuales conservadas tienen una ruta explicita: el respaldo
+UTF8MB4 vive en `backend/scripts/backup-aiven-mysql.ps1`; el monitor de tickets y
+los smokes de Instalaciones/CX se ejecutan con los scripts `qa:*` de
+`backend/package.json`; la validacion M2M, el diagnostico UTF8MB4 y la generacion
+VAPID usan respectivamente `validate:m2m`, `check:db:utf8mb4` y `generate:vapid`.
 
 El historial Git y los artefactos ya publicados pueden contener copias antiguas.
 Su saneamiento y la revocacion de credenciales requieren un procedimiento

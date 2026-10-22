@@ -115,11 +115,8 @@ test('module-loader invalida cache de global pantalla y CSS para Fase 4', () => 
 });
 
 test('suite oficial registra Fase 4 conservando Fases 1 2 y 3', () => {
-  const command = packageJson.scripts.test;
-  assert.match(command, /seguimiento-especial-ticket-fase1-api\.test\.js/);
-  assert.match(command, /seguimiento-especial-ticket-fase2-notificaciones\.test\.js/);
-  assert.match(command, /seguimiento-especial-ticket-fase3-frontend-detalle\.test\.js/);
-  assert.match(command, /seguimiento-especial-ticket-fase4-listado-frontend\.test\.js/);
+  assert.match(packageJson.scripts.test, /npm run test:validation/);
+  assert.match(packageJson.scripts['test:validation'], /\.\.\/validation\/\*\.test\.js/);
 });
 
 function createElementStub() {

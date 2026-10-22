@@ -5,7 +5,7 @@
   "required": ["schema_version", "change_id", "company", "type", "layer", "status"],
   "if": { "properties": { "status": { "const": "published" } } },
   "then": {
-    "required": ["title", "module", "final_summary", "reason", "user_impact", "finalized_at", "responsible", "validation", "references"],
+    "required": ["title", "module", "version", "final_summary", "reason", "user_impact", "main_files", "finalized_at", "responsible", "validation", "references"],
     "properties": { "references": { "required": ["commit"] } }
   },
   "properties": {
@@ -13,12 +13,19 @@
     "change_id": { "type": "string", "pattern": "^MG-[A-Z0-9]+(?:-[A-Z0-9]+)*$" },
     "title": { "type": "string", "minLength": 1 },
     "module": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
     "company": { "enum": ["GENERAL", "UNITED", "CORELLIAN"] },
     "type": { "enum": ["feature", "correction", "security", "configuration", "data", "maintenance"] },
     "layer": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["FRONTEND", "BACKEND", "DATABASE", "INTEGRATION"] } },
     "final_summary": { "type": "string", "minLength": 1 },
     "reason": { "type": "string", "minLength": 1 },
     "user_impact": { "type": "string", "minLength": 1 },
+    "main_files": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
     "status": { "enum": ["draft", "published", "cancelled"] },
     "finalized_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$" },
     "responsible": { "type": "string", "minLength": 1 },

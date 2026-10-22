@@ -72,7 +72,16 @@ async function getSubscriptionStatus({ userId, endpoint }) {
   return rows[0] || null;
 }
 
-async function listActiveSubscriptions(limit = 300) {
+async function listActiveSubscriptions(limit = 300, watermarkId = null) {
+  const normalizedLimit = Math.max(1, Math.min(1000, Number(limit) || 300));
+  const normalizedWatermark = Math.max(0, Number(watermarkId || 0));
+  const cursorFilter = normalizedWatermark > 0
+    ? 'AND COALESCE(s.ultimo_id_notificacion, 0) < ?'
+    : '';
+  const params = normalizedWatermark > 0
+    ? [normalizedWatermark, normalizedLimit]
+    : [normalizedLimit];
+
   const [rows] = await db.query(`
     SELECT
       s.id_suscripcion,
@@ -85,9 +94,10 @@ async function listActiveSubscriptions(limit = 300) {
       s.created_at
     FROM notificaciones_push_suscripciones s
     WHERE s.activo = 1
-    ORDER BY COALESCE(s.ultimo_uso_at, s.created_at) ASC, s.id_suscripcion ASC
+      ${cursorFilter}
+    ORDER BY COALESCE(s.ultimo_id_notificacion, 0) ASC, s.id_suscripcion ASC
     LIMIT ?
-  `, [Number(limit)]);
+  `, params);
   return rows;
 }
 
@@ -158,8 +168,10 @@ async function advanceSubscriptionCursor({ subscriptionId, cursorId, caughtUp = 
       ultimo_id_notificacion = GREATEST(COALESCE(ultimo_id_notificacion, 0), ?),
       ultimo_uso_at = CASE WHEN ? = 1 THEN NOW() ELSE ultimo_uso_at END,
       updated_at = NOW()
-    WHERE id_suscripcion = ? AND activo = 1
-  `, [normalizedCursorId, caughtUp ? 1 : 0, subscriptionId]);
+    WHERE id_suscripcion = ?
+      AND activo = 1
+      AND COALESCE(ultimo_id_notificacion, 0) < ?
+  `, [normalizedCursorId, caughtUp ? 1 : 0, subscriptionId, normalizedCursorId]);
   return result;
 }
 

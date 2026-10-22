@@ -742,17 +742,13 @@ test('npm test queda conectado al workflow existente y admite validaciones incre
   const workflow = read('.github/workflows/main_mantto-gestor-api.yml');
   const command = String(packageJson.scripts.test || '');
 
-  assert.match(command, /^node --test\b/);
-  for (const requiredTest of [
-    '../validation/seguimiento-especial-notificaciones.test.js',
-    '../validation/seguimiento-especial-fase1-sin-rol.test.js',
-    '../validation/seguimiento-especial-fase2-cobertura-united.test.js',
-    '../validation/equipo-sale-critico-fase1.test.js',
-    '../validation/equipo-sale-critico-fase2.test.js',
-    '../tests/instalaciones-bitacora-sync.test.js',
-    '../tests/notificaciones-marcar-todas.test.js'
-  ]) {
-    assert.match(command, new RegExp(requiredTest.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  for (const suite of ['test:unit', 'test:validation', 'test:backend', 'test:contracts']) {
+    assert.match(command, new RegExp(`npm run ${suite}`));
+    assert.match(String(packageJson.scripts[suite] || ''), /^node --test\b/);
   }
+  assert.match(command, /npm run test:storage/);
+  assert.match(packageJson.scripts['test:storage'], /^node scripts\/validate-cffaa-01\.js\b/);
+  assert.match(packageJson.scripts['test:unit'], /\.\.\/tests\/\*\.test\.js/);
+  assert.match(packageJson.scripts['test:validation'], /\.\.\/validation\/\*\.test\.js/);
   assert.match(workflow, /npm run test --if-present/);
 });

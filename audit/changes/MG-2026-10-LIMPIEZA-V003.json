@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "change_id": "MG-2026-10-LIMPIEZA-V003",
+  "title": "Limpieza V003 del repositorio",
+  "module": "Repositorio / CI",
+  "version": "Version 102126.3 + Limpieza V003",
+  "company": "GENERAL",
+  "type": "maintenance",
+  "layer": ["FRONTEND", "BACKEND"],
+  "final_summary": "Se separan código vigente, pruebas ejecutables, documentación normativa, herramientas operativas y metadatos de build.",
+  "reason": "Retirar evidencia histórica sustituida y evitar que el build reescriba archivos versionados.",
+  "user_impact": "Sin cambio funcional esperado; reduce residuos y hace reproducible la validación del repositorio.",
+  "main_files": [
+    "backend/scripts/validate-clean-tree.js",
+    "tools/build-frontend.js",
+    "tools/generate-build-info.js",
+    "tools/generate-change-audit.js",
+    "backend/package.json"
+  ],
+  "status": "draft",
+  "responsible": "Lumbre",
+  "validation": "PASS: npm run check; npm test (863 unitarias, 214 validación, 60 backend, 14 contratos y CFFAA 01/01EF/06); build frontend de 235 archivos; generadores sin cambios tracked; git diff --check. Pendiente únicamente asignar el SHA del commit final para publicar el registro."
+}

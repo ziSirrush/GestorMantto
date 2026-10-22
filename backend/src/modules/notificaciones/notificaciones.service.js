@@ -9,10 +9,17 @@ function positiveInt(value, fallback, min, max) {
 
 function currentUserRef(req) {
   const user = req.contextUser || req.user || {};
+  const roleIds = [...new Set([
+    Number(user.rol_id),
+    ...(Array.isArray(user.roles_detalle) ? user.roles_detalle : [])
+      .map((role) => Number(role && role.id_rol))
+  ].filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b);
   return {
     id: user.id_SB || user.id || null,
     correo: user.correo || user.email || null,
-    iniciales: user.iniciales || null
+    iniciales: user.iniciales || null,
+    roleIds
   };
 }
 
@@ -105,7 +112,7 @@ function buildNotificationQuery(req) {
 
   const limit = positiveInt(req.query.limit, leido === 1 ? 80 : 30, 1, 200);
 
-  return { user, whereSql, params, orderSql, limit };
+  return { user, roleIds: user.roleIds, whereSql, params, orderSql, limit };
 }
 
 async function getNotificaciones(req) {

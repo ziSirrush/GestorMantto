@@ -11,11 +11,11 @@ const { collect, generate } = require('../tools/generate-change-audit');
 const SHA = 'a'.repeat(40);
 function record(id, overrides = {}) {
   return {
-    schema_version: 1, change_id: id, title: 'Resultado final', module: 'Instalaciones',
+    schema_version: 1, change_id: id, title: 'Resultado final', module: 'Instalaciones', version: 'Version 1',
     company: 'GENERAL', type: 'correction', layer: ['FRONTEND'],
     final_summary: 'Comportamiento vigente', reason: 'Omisión', user_impact: 'Reporte completo',
     status: 'published', finalized_at: '2026-09-28T00:00:00-06:00',
-    responsible: 'Programador', validation: 'PDF revisado',
+    responsible: 'Programador', validation: 'PDF revisado', main_files: ['modules/instalaciones/main.js'],
     references: { commit: SHA, issue: null, pull_request: null }, ...overrides
   };
 }
@@ -51,6 +51,8 @@ test('rechaza duplicados, fechas inválidas, SHA corto y campos publicados vací
     ['finalized_at', '2026-09-28T00:00:00', /zona horaria/],
     ['finalized_at', '2026-02-30T00:00:00-06:00', /inexistente/],
     ['references', { commit: 'abc' }, /SHA completo/],
+    ['version', '', /version obligatorio/],
+    ['main_files', [], /rutas relativas/],
     ['title', '', /title obligatorio/],
     ['status', 'review', /status inválido/],
     ['layer', ['FRONTEND', 'FRONTEND'], /layer inválida/]
@@ -72,6 +74,7 @@ test('genera orden estable y serializa texto no confiable sin ejecutar HTML', t 
   const context = { window: {} };
   vm.runInNewContext(source, context);
   assert.equal(context.window.MANTTO_CHANGE_AUDIT.changes[1].title, '</script><script>alert(1)</script>');
+  assert.deepEqual(Array.from(context.window.MANTTO_CHANGE_AUDIT.changes[0].main_files), ['modules/instalaciones/main.js']);
 });
 
 test('actualiza la versión de caché de ambos metadatos con el commit de despliegue', t => {
@@ -109,6 +112,7 @@ test('semana CDMX, alcance por rol y contenido escapado en la interfaz', () => {
   audit.state.auditWeek = '2026-09-28';
   audit.renderChangeAudit(box);
   assert.match(box.innerHTML, /MG-2026-09-CORELLIAN|Resultado final/);
+  assert.match(box.innerHTML, /Version 1/);
   assert.doesNotMatch(box.innerHTML, /UNITED_SECRETO/);
   assert.match(box.innerHTML, /<b>1<\/b><span>Cambios lógicos/);
   context.window.MANTTO_CHANGE_AUDIT.changes.push(record('MG-2026-09-CORELLIAN-SECOND', { company: 'CORELLIAN', title: 'Segundo resultado' }));

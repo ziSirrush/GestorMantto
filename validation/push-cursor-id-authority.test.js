@@ -107,6 +107,18 @@ test('Notificacion tardia del mismo segundo no se pierde por un cursor legacy ad
   assert.equal(state.advances.at(-1).cursorId, 101);
 });
 
+
+
+test('suscripcion ya al dia no genera escritura de cursor ni ultimo_uso', async () => {
+  resetState();
+  const result = await job.processSubscription(subscription({ ultimo_id_notificacion: 100 }), 100);
+  assert.equal(result.sent, 0);
+  assert.equal(result.caughtUp, true);
+  assert.equal(result.noWrite, true);
+  assert.equal(state.advances.length, 0);
+  assert.equal(state.queries.length, 0);
+});
+
 test('Suscripcion sin cursor ID valido falla cerrado y no reenvia historicos desde cero', async () => {
   resetState();
   state.notifications = [{ id_notificacion: 1 }];
@@ -136,4 +148,6 @@ test('Repositorio lista suscripciones sin reconstruir cursor desde ultimo_uso_at
   assert.doesNotMatch(listBlock, /fecha_creacion/);
   assert.doesNotMatch(listBlock, /MAX\(n_cursor\.id_notificacion\)/);
   assert.doesNotMatch(listBlock, /GREATEST\s*\(/);
+  assert.match(listBlock, /COALESCE\(s\.ultimo_id_notificacion, 0\) < \?/);
+  assert.match(listBlock, /ORDER BY COALESCE\(s\.ultimo_id_notificacion, 0\) ASC/);
 });

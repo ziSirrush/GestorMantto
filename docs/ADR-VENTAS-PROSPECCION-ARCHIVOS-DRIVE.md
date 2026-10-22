@@ -7,7 +7,7 @@ Aprobación técnica requerida al desplegar Fase 3.
 Las fotografías se cargan en Google Drive mediante la conexión OAuth del usuario y Aiven conserva metadatos y relaciones en `ventas_prospeccion_archivos`.
 
 ## Motivo
-`storage_url` es `TEXT` y no debe utilizarse para guardar binarios/base64. El filesystem de Railway es efímero. Mantener archivos fuera de MySQL protege rendimiento y escalabilidad.
+`storage_url` es `TEXT` y no debe utilizarse para guardar binarios/base64. El filesystem local del servicio API no es almacenamiento durable. Mantener archivos fuera de MySQL protege rendimiento y escalabilidad.
 
 ## Configuración
 - Agregar `https://www.googleapis.com/auth/drive.file` a los alcances OAuth.

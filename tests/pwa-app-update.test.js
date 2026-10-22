@@ -181,11 +181,12 @@ test('el worker puente recarga clientes antiguos y respeta clientes con actualiz
   assert.match(legacyNavigation,/blt_sw_update=20261021-offline-http-session-v001/);
 });
 
-test('GitHub Pages y Netlify generan metadata nueva en cada despliegue',()=>{
+test('GitHub Pages y Netlify generan metadata dentro del build',()=>{
   const github=fs.readFileSync(path.join(ROOT,'.github','workflows','pages.yml'),'utf8');
   const netlify=fs.readFileSync(path.join(ROOT,'netlify.toml'),'utf8');
 
-  assert.match(github,/node tools\/generate-build-info\.js/);
-  assert.match(netlify,/command\s*=\s*"node tools\/generate-build-info\.js && node tools\/generate-change-audit\.js && node tools\/build-frontend\.js"/);
+  assert.match(github,/run:\s*node tools\/build-frontend\.js/);
+  assert.doesNotMatch(github,/node tools\/generate-build-info\.js/);
+  assert.match(netlify,/command\s*=\s*"node tools\/build-frontend\.js"/);
   assert.match(netlify,/build-info\.generated\.js[\s\S]*Cache-Control\s*=\s*"no-store, no-cache, must-revalidate"/);
 });

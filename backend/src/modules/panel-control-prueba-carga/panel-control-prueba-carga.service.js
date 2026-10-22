@@ -7,7 +7,8 @@ const {
   PERMISSIONS,
   SCENARIOS,
   getLoadTestLimits,
-  getLoadTestTelemetrySettings
+  getLoadTestTelemetrySettings,
+  getDatabasePoolProfile
 } = require('./panel-control-prueba-carga.constants');
 const {
   CATALOG_VERSION,
@@ -215,6 +216,7 @@ async function getCapabilities(user) {
     permissions,
     limits: getLoadTestLimits(),
     telemetry: getLoadTestTelemetrySettings(),
+    database_pool: getDatabasePoolProfile(),
     runner_runtime: publicRunnerRuntime(runtime),
     runner_service: runnerService.snapshot(),
     scenario_catalog_version: CATALOG_VERSION,

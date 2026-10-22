@@ -167,12 +167,8 @@ async function processSubscription(subscription, cycleWatermarkId) {
   const limit = notificationLimit();
 
   if (watermarkId <= startCursorId) {
-    await repository.advanceSubscriptionCursor({
-      subscriptionId: subscription.id_suscripcion,
-      cursorId: startCursorId,
-      caughtUp: true
-    });
-    return { sent: 0, cursorId: startCursorId, caughtUp: true };
+    // Ya esta al dia: no escribir ultimo_uso_at/updated_at en cada ciclo.
+    return { sent: 0, cursorId: startCursorId, caughtUp: true, noWrite: true };
   }
 
   const rows = await repository.listPendingNotifications({
@@ -272,7 +268,12 @@ async function runCycle() {
     warnedConfiguration = false;
 
     const cycleWatermarkId = await repository.getNotificationWatermark();
-    const subscriptions = await repository.listActiveSubscriptions(Number(process.env.WEB_PUSH_BATCH_SIZE || 300));
+    if (cycleWatermarkId <= 0) return;
+
+    const subscriptions = await repository.listActiveSubscriptions(
+      Number(process.env.WEB_PUSH_BATCH_SIZE || 300),
+      cycleWatermarkId
+    );
     for (const subscription of subscriptions) {
       try {
         await processSubscription(subscription, cycleWatermarkId);

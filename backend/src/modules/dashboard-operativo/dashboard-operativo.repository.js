@@ -42,7 +42,18 @@ async function getPortafolioInicial(informationAccess) {
   const scope = informationRecordScope.buildPortafolioScopeSql_gnral(informationAccess, 'p');
   const [rows] = await db.query(`
     SELECT
-      p.*,
+      p.id_portafolio,
+      p.numero_equipo,
+      p.proyecto,
+      p.ciudad,
+      p.estado,
+      p.zona_id,
+      p.zona_operativa,
+      p.supervisor_zona,
+      p.inactivo,
+      p.estado_registro,
+      p.estatus_servicio,
+      p.id_equipo_ns,
       z_op_ini.zona AS zona_oficial,
       z_op_ini.nombre AS zona_nombre_oficial
     FROM portafolio p
@@ -64,7 +75,26 @@ async function getTicketsInicial(informationAccess) {
   const scope = informationRecordScope.buildTicketScopeSql_gnral(informationAccess, 't');
   const [rows] = await db.query(`
     SELECT
-      t.*,
+      t.id,
+      t.ticket,
+      t.folio,
+      t.estado_ticket,
+      t.estado,
+      t.proyecto,
+      t.proyecto_padre,
+      t.codigo_equipo,
+      t.zona,
+      t.supervisor,
+      t.persona_que_atiende,
+      t.tecnico,
+      t.fecha_reporte,
+      t.vobo_estado,
+      t.responsabilidad,
+      t.descripcion,
+      t.causa,
+      t.estatus_equipo_final,
+      t.ticket_excede,
+      t.tipo_equipo,
       CASE
         WHEN NULLIF(TRIM(COALESCE(t.codigo_equipo, '')), '') IS NOT NULL
           THEN z_equipo_op.zona

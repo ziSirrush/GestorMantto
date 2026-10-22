@@ -121,8 +121,8 @@ test('module-loader conserva el global de detalle con cache-bust actualizado por
 
 test('suite oficial registra la prueba dirigida de Fase 3', () => {
   assert.match(
-    packageJson.scripts.test,
-    /seguimiento-especial-ticket-fase3-frontend-detalle\.test\.js/
+    packageJson.scripts['test:validation'],
+    /\.\.\/validation\/\*\.test\.js/
   );
 });
 

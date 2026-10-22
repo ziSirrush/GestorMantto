@@ -15,6 +15,7 @@ process.env.CFFAA_STORAGE_METRICS_ENABLED = 'false';
 process.env.CFFAA_STORAGE_ORPHAN_DELETE_ENABLED = 'false';
 
 const backendRoot = path.resolve(__dirname, '..');
+const db = require('../src/config/db');
 const reconciliation = require('../src/modules/storage-reconciliation/storage-reconciliation.service');
 const metricService = require('../src/services/storage/storage-metrics.service');
 
@@ -198,3 +199,7 @@ for (const variable of [
 
 
 console.log('CFFAA-06: conciliacion Aiven/Azure, inventario historico, metricas, limpieza controlada y cierre validados.');
+db.close().catch(error => {
+  console.error('CFFAA-06: no se pudo cerrar el pool de validación:', error.message);
+  process.exitCode = 1;
+});

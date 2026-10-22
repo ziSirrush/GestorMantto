@@ -22,8 +22,7 @@ El artefacto es un archivo estático descargable. El filtro de empresa controla 
 Ejecutar desde la raíz:
 
 ```sh
-node tools/generate-build-info.js
-node tools/generate-change-audit.js
+node tools/build-frontend.js
 node --test tests/change-audit-generator.test.js
 ```
 
