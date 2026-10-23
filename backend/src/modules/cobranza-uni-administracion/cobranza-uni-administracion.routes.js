@@ -17,9 +17,15 @@ const {createGateEnabled_uni,preflightCreatePc_uni,createPc_uni} =
   require('./cobranza-uni-administracion.pc-create-service');
 const {updateSingleGc_uni,updateMultiGc_uni} =
   require('./cobranza-uni-administracion.gc-edit-service');
-const {PHASE4_SAFE_FIELDS_MP_UNI} = require('./cobranza-uni-administracion.mp-edit-validation');
-const {mpEditFeatureEnabled_uni,updateSingleMp_uni,updateMultiMp_uni} =
-  require('./cobranza-uni-administracion.mp-edit-service');
+// [BLT NOW | 2026-10-23 | MP CI FIX V001]
+// La ruta administrativa comparte modulo con GC/VA; cargar dependencias de MP
+// solo cuando se consultan permisos/operaciones MP evita acoplar el arranque
+// de VA a los contratos de edicion de MP (tests y funcionalidad independientes).
+const mpEditService_uni=()=>require('./cobranza-uni-administracion.mp-edit-service');
+const mpValidation_uni=()=>require('./cobranza-uni-administracion.mp-edit-validation');
+const mpEditFeatureEnabled_uni=()=>mpEditService_uni().mpEditFeatureEnabled_uni();
+const updateSingleMp_uni=(...args)=>mpEditService_uni().updateSingleMp_uni(...args);
+const updateMultiMp_uni=(...args)=>mpEditService_uni().updateMultiMp_uni(...args);
 
 const router = express.Router();
 const guard = humanInformationGuard_gnral({
@@ -88,7 +94,7 @@ router.get('/tablas/:tabla/acceso', ...guard, async (req, res, next) => {
         can_prepare_create:canPrepareCreate,
         can_create:canPrepareCreate && createGateEnabled_uni()}:{}),
       ...(table==='detalle_mp_2026'?{
-        editable_fields:canEdit?PHASE4_SAFE_FIELDS_MP_UNI:[],
+        editable_fields:canEdit?mpValidation_uni().PHASE4_SAFE_FIELDS_MP_UNI:[],
         edit_policy:'safe_fields_after_authorized_GC_VA_MP_cutover',
         can_prepare_zone1:req.viewerContext?.active!==true && rights.get(cfg.edit)===true,
         can_write_zone1:req.viewerContext?.active!==true && rights.get(cfg.edit)===true &&
