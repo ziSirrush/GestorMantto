@@ -1,7 +1,7 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_3_V001]
 // Safe-cell edits only; formulas and project identity changes remain blocked.
-// Fail-closed until the authorized GAS cutover: PC_ADMIN_EDIT_ENABLED=true.
+// Aiven es la fuente de escritura humana; permiso y alcance se revalidan en cada transaccion.
 const db=require('../../config/db');
 const scope=require('../../services/cobranza-uni-scope.service');
 const {listEffectivePermissions}=require('../../services/permissions/effective-permission.service');
@@ -13,7 +13,7 @@ const {auditPcCell_uni}=require('./cobranza-uni-administracion.pc-edit-audit');
 
 const RIGHTS=[MAIN_VISUAL,TABLE_PERMISSIONS.pc.view,TABLE_PERMISSIONS.pc.edit];
 function pcEditFeatureEnabled_uni(){
-  return ['true','1','yes','on'].includes(String(process.env.PC_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
+  return !['false','0','no','off'].includes(String(process.env.PC_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
 }
 function actorId_uni(req){
   const raw=req?.informationAccess?.effective_user_id||req?.contextUser?.id_SB||
@@ -24,7 +24,7 @@ function actorId_uni(req){
 async function authorizePcWrite_uni(req,conn,permissionResolver,featureEnabled){
   if(!(featureEnabled??pcEditFeatureEnabled_uni()))
     throw failPc_uni(403,'VA_ADMIN_ESCRITURA_DESHABILITADA',
-      'Edicion deshabilitada hasta retirar y validar el activador de GAS.');
+      'Edicion de Venta Adicional deshabilitada por configuracion.');
   if(!req||req.viewerContext?.active===true||req.informationAccess?.empresa!=='UNITED'||
     req.informationAccess?.acceso_puerta!==true)
     throw failPc_uni(403,'VA_ADMIN_ACCESO_DENEGADO','Contexto UNITED no autorizado.');
@@ -70,10 +70,10 @@ async function editOnePc_uni(conn,req,input,territorySql,actor,deps){
 async function editPcTransaction_uni(req,body,deps={},bulk=false){
   const normalized=bulk?normalizeBulkPc_uni(body):normalizeSinglePc_uni(body);
   const ids=bulk?normalized.ids:[idPc_uni(deps.recordId)];
-  // No Aiven connection when feature flag is disabled.
+  // No abrir conexion cuando el corte de emergencia este activo.
   if(!(deps.featureEnabled??pcEditFeatureEnabled_uni()))
     throw failPc_uni(403,'VA_ADMIN_ESCRITURA_DESHABILITADA',
-      'Edicion deshabilitada hasta retirar y validar el activador de GAS.');
+      'Edicion de Venta Adicional deshabilitada por configuracion.');
   const conn=deps.connection||await db.getConnection();
   let transaction=false;
   try{

@@ -1,13 +1,11 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_3_V001]
-// PATCH preparado, pero INACTIVO con MP_RULES_UNI.writesEnabled=false.
-// Tras el corte GLOBAL GC+VA+MP autorizado (fase futura): requiere CUATRO
-// confirmaciones de servidor, permisos efectivos, identidad y auditoria.
+// PATCH humano autorizado: permisos efectivos, identidad, alcance y auditoria.
+// MP_ADMIN_EDIT_ENABLED=false permite un corte de emergencia.
 const db=require('../../config/db');
 const scope=require('../../services/cobranza-uni-scope.service');
 const {listEffectivePermissions}=require('../../services/permissions/effective-permission.service');
 const {MAIN_VISUAL,TABLE_PERMISSIONS}=require('./cobranza-uni-administracion.permissions');
-const {MP_RULES_UNI}=require('./cobranza-uni-administracion.constants');
 const {auditMpCell_uni}=require('./cobranza-uni-administracion.mp-edit-audit');
 const {previewMontoAnualMp_uni}=require('./cobranza-uni-administracion.mp-formulas');
 const {
@@ -18,12 +16,8 @@ const RIGHTS_MP_UNI=Object.freeze([
   MAIN_VISUAL,TABLE_PERMISSIONS.detalle_mp_2026.view,
   TABLE_PERMISSIONS.detalle_mp_2026.edit
 ]);
-function flag_uni(name){return String(process.env[name]||'').trim().toLowerCase()==='true';}
 function mpEditFeatureEnabled_uni(){
-  return MP_RULES_UNI.writesEnabled===true &&
-    flag_uni('MP_ADMIN_EDIT_ENABLED') &&
-    flag_uni('MP_ADMIN_GAS_CUTOVER_CONFIRMED') &&
-    flag_uni('MP_ADMIN_GC_VA_MP_RECONCILED');
+  return !['false','0','no','off'].includes(String(process.env.MP_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
 }
 function actorId_uni(req){
   const x=req?.informationAccess?.effective_user_id ?? req?.contextUser?.id_SB ??
@@ -72,7 +66,7 @@ async function editOneMp_uni(conn,rowChange,boundary,actor,req,deps={}){
       'Este campo cambio desde la consulta. Actualiza el registro.',{id,field});
   if(before===value)
     return {id,field,changed:false,derived_changes:[]};
-  // La formula de F4 se ejecutara SOLAMENTE si el corte habilita PATCH.
+  // El factor recalcula monto_anual en la misma transaccion.
   // NULL factor conserva monto almacenado. Sin iguala: conserva monto, no inventa 0.
   const setters=[`mp.\`${field}\` = ?`];
   const bindings=[value];
@@ -106,10 +100,10 @@ async function editOneMp_uni(conn,rowChange,boundary,actor,req,deps={}){
   return {id,field,changed:true,derived_changes:derived};
 }
 async function editMpTransaction_uni(req,body,deps={},bulk=false){
-  // Ni siquiera abrir conexion si GAS no ha sido cortado y validado.
+  // No abrir conexion si el corte de emergencia esta activo.
   if(!(deps.featureEnabled===true || (deps.featureEnabled===undefined && mpEditFeatureEnabled_uni())))
     throw failMp_uni(403,'MP_ADMIN_ESCRITURA_DESHABILITADA',
-      'Edicion MP bloqueada: GAS activo y corte GC+VA+MP pendiente.');
+      'Edicion MP deshabilitada por configuracion.');
   const data=bulk?normalizeBulkMp_uni(body):normalizeSingleMp_uni(body);
   const ids=bulk?data.ids:[idMp_uni(deps.recordId)];
   const conn=deps.connection||await db.getConnection();

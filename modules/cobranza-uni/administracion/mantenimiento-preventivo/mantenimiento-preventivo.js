@@ -207,7 +207,7 @@
             const zoneLink=column.name==='id_dmp'
               ? '<button class="cua-mp-btn cua-mp-zone1-open" type="button" data-mp-zona1="'+ESC(id)+'" aria-label="Consultar 12 facturaciones Zona 1 del registro '+ESC(id)+'">Facturación Zona 1</button>'
               : '';
-            const action=(allowed(column)?'<button type="button" class="cua-mp-cell-edit" data-mp-edit="'+ESC(column.name)+'" data-mp-edit-id="'+ESC(id)+'" aria-label="Editar '+ESC(colLabel(column))+' del registro '+ESC(id)+'">Editar</button>':'')+zoneLink;
+            const action=zoneLink;
             let detail='';
             if(column.name==='monto_anual' && preview){
               const result=preview.monto_anual;
@@ -228,7 +228,9 @@
                 'Corriente + vencido: '+ESC(preview.pendiente.component_sum)+
                 ' · diferencia orientativa, sin recalcular</small>';
             }
-            return '<td class="cua-mp-cell'+(isNumeric(column)?' cua-mp-numeric':'')+'" data-mp-kind="'+ESC(column.kind)+'" title="'+ESC(value)+'">'+selector+detail+action+'</td>';
+            return '<td class="cua-mp-cell'+(isNumeric(column)?' cua-mp-numeric':'')+(allowed(column)?' cua-mp-canedit':'')+'" data-mp-field="'+ESC(column.name)+'" data-mp-kind="'+ESC(column.kind)+'"'+
+              (allowed(column)?' tabindex="0" role="button" aria-label="Editar '+ESC(colLabel(column))+' del registro '+ESC(id)+'"':'')+
+              ' title="'+ESC(value)+'">'+selector+detail+action+'</td>';
           }).join('')+'</tr>';
         }).join(''):'<tr><td class="cua-mp-empty" colspan="'+Math.max(1,columns.length)+'">No se encontraron registros con los filtros seleccionados.</td></tr>';
       }
@@ -531,37 +533,37 @@
         return false;
       }
     }
-    function closeDialog(){
-      if(saving)return;
-      editing=null;
-      const dialog=el('[data-mp-dialog]');if(dialog)dialog.hidden=true;
-    }
-    function openEdit(id,field){
-      if(!canEdit||saving||!valid())return;
-      const col=state.columns.find(c=>c.name===field);
-      const row=getRow(id);
+    function openEdit(td){
+      if(!canEdit||saving||editing||!valid()||!td?.classList.contains('cua-mp-canedit'))return;
+      const field=td.dataset.mpField,id=td.closest('tr')?.dataset.mpId;
+      const col=state.columns.find(c=>c.name===field),row=getRow(id);
       if(!col||!allowed(col)||!row)return;
       const old=row[field]??null;
-      editing={id,field,old};
-      const dialog=el('[data-mp-dialog]');if(!dialog)return;
-      dialog.hidden=false;
-      const who=el('[data-mp-dialog-id]');if(who)who.textContent=id;
-      const label=el('[data-mp-edit-label]');if(label)label.textContent=colLabel(col);
-      const before=el('[data-mp-edit-before]');if(before)before.textContent=old??'(NULL)';
-      const input=el('[data-mp-edit-value]');
-      if(input){input.value=old==null?'':String(old);input.maxLength=col.name==='factor_monto_anual'?5:(Number((/varchar\((\d+)\)/i.exec(col.sqlType)||[])[1])||150);
-        input.inputMode=col.name==='factor_monto_anual'?'numeric':'text';}
-      const nullBox=el('[data-mp-edit-null]');if(nullBox)nullBox.checked=false;
-      input?.focus?.();
+      const input=doc.createElement('input');input.type='text';
+      input.value=old==null?'':String(old);
+      input.maxLength=col.name==='factor_monto_anual'?5:(Number((/varchar\((\d+)\)/i.exec(col.sqlType||'')||[])[1])||150);
+      input.inputMode=col.name==='factor_monto_anual'?'numeric':'text';
+      input.className='cua-mp-edit-input';input.setAttribute('data-mp-cell-input','');
+      input.setAttribute('aria-label','Nuevo valor para '+colLabel(col));
+      editing={id,field,old,td,committing:false};
+      td.replaceChildren(input);td.classList.add('cua-mp-editing');
+      input.focus();input.select();
+    }
+    function closeDialog(){
+      if(saving||!editing||editing.committing)return;
+      const {td,old}=editing;editing=null;
+      td.classList.remove('cua-mp-editing');
+      td.innerHTML='<span>'+ESC(old==null||old===''?'—':old)+'</span>';
+      td.focus();
     }
     function updateBusy(value){saving=value;updateBulk();}
     async function saveSingle(){
-      if(!canEdit||!valid()||saving||!editing)return;
-      const {id,field,old}=editing;
-      const nullable=el('[data-mp-edit-null]')?.checked===true;
-      const raw=el('[data-mp-edit-value]')?.value??'';
-      const value=nullable?null:raw.trim()||null;
-      if(value===old){closeDialog();return;}
+      if(!canEdit||!valid()||saving||!editing||editing.committing)return;
+      const current=editing,{id,field,old,td}=current;
+      const input=td.querySelector('[data-mp-cell-input]');if(!input)return;
+      const value=input.value.trim()||null;
+      if(value===(old==null||old===''?null:String(old))){closeDialog();return;}
+      current.committing=true;editing=null;
       updateBusy(true);setStatus('Guardando y auditando registro MP '+id+'…');
       try{
         const response=await win.ManttoAuth.api(API+'/'+encodeURIComponent(id),{
@@ -570,9 +572,9 @@
         if(!valid())return;
         if(response?.ok!==true||response.table!=='detalle_mp_2026'||response.field!==field||
           Number(response.total)!==1)throw new Error('El servidor no confirmo la edicion.');
-        updateBusy(false);closeDialog();await load();
+        updateBusy(false);await load();
         if(valid())setStatus(response.changed===1?'Cambio guardado y auditado.':'Sin cambios.','ready');
-      }catch(_error){if(valid()){updateBusy(false);setStatus('No se guardo MP: vuelve a consultar por un posible conflicto, GAS o permisos.','error');}}
+      }catch(error){if(valid()){updateBusy(false);await load();if(valid())setStatus('No se guardó MP: '+String(error?.message||'revisa conflicto, alcance o permisos.'),'error');}}
     }
     async function saveBulk(){
       if(!canEdit||!valid()||saving||state.selected.size<2||state.selected.size>MAX_BULK)return;
@@ -613,8 +615,6 @@
         state.estatus=el('[data-mp-estatus]')?.value||'';
         state.pendientes=el('[data-mp-pendientes]')?.value||'todos';
         state.page=1;load().catch(()=>{});
-      }else if(target?.matches?.('[data-mp-edit-form]')){
-        event.preventDefault();saveSingle().catch(()=>{});
       }else if(target?.matches?.('[data-mp-bulk-form]')){
         event.preventDefault();saveBulk().catch(()=>{});
       }else if(canPrepareZone1 && target?.matches?.('[data-mp-zona1-preflight]')){
@@ -630,9 +630,6 @@
       if(event.target.closest?.('[data-mp-zona1-apply]')){applyZone1().catch(()=>{});return;}
       const zona=event.target.closest?.('[data-mp-zona1]');
       if(zona){openZona1(zona.dataset.mpZona1).catch(()=>{});return;}
-      if(event.target.closest?.('[data-mp-close]')){closeDialog();return;}
-      const change=event.target.closest?.('[data-mp-edit]');
-      if(change){openEdit(change.dataset.mpEditId,change.dataset.mpEdit);return;}
       const group=event.target.closest?.('[data-mp-group]');
       if(group){
         if(Object.prototype.hasOwnProperty.call(GROUPS,group.dataset.mpGroup)){
@@ -695,9 +692,21 @@
       const apply=el('[data-mp-zona1-apply]');if(apply)apply.disabled=true;
     });
     root.addEventListener('keydown',event=>{
+      if(event.target.matches?.('[data-mp-cell-input]')){
+        if(event.key==='Escape'){event.preventDefault();closeDialog();}
+        else if(event.key==='Enter'){event.preventDefault();saveSingle().catch(()=>{});}
+        return;
+      }
+      if(event.key==='Enter'&&event.target.matches?.('td.cua-mp-canedit')){
+        event.preventDefault();openEdit(event.target);return;
+      }
       if(event.key==='Escape' && el('[data-mp-zona1-dialog]')?.hidden===false){
         event.preventDefault?.();closeZona1();
       }
+    });
+    root.addEventListener('dblclick',event=>openEdit(event.target.closest?.('td.cua-mp-canedit')));
+    root.addEventListener('focusout',event=>{
+      if(event.target.matches?.('[data-mp-cell-input]'))saveSingle().catch(()=>{});
     });
     load().catch(()=>{});
     return Object.freeze({destroy(){disposed=true;requestId++;zoneRequestId++;reconcileRequestId++;editing=null;state.selected.clear();root.replaceChildren();}});

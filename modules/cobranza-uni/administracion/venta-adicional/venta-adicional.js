@@ -382,13 +382,14 @@
           const origin=calculated&&RELATED_CALCULATED.has(column.name) ? (preview.sources?.[column.name]||'acumulado_proyecto') : 'formula_local';
           const title=calculated?'Vista previa sin guardar · corte '+state.previewDate+' · origen: '+origin+' · Aiven: '+stored+(warning?' · advertencias: '+preview.warnings.join(', '):''):shown;
           const numeric=/^(?:int|bigint|decimal)/i.test(column.sqlType||'');
+          const editable=canEdit&&safeColumns().some(c=>c.name===column.name)&&!calculated;
           const controls=canEdit&&column.name==='id_pc'
             ?'<div class="cua-pc-cell-actions">'+
               '<label><input type="checkbox" data-pc-select value="'+ESC(row.id_pc)+'"'+
-                (state.selected.has(String(row.id_pc))?' checked':'')+' aria-label="Seleccionar venta '+ESC(row.id_pc)+'" /></label>'+
-              '<button type="button" class="cua-pc-cell-edit" data-pc-edit-id="'+ESC(row.id_pc)+'">Editar</button></div>':'';
+                (state.selected.has(String(row.id_pc))?' checked':'')+' aria-label="Seleccionar venta '+ESC(row.id_pc)+'" /></label></div>':'';
           return '<td'+(index<2?' data-pc-fixed="'+index+'"':'')+
-            ' class="cua-pc-cell cua-pc-kind-'+ESC(column.kind)+(numeric?' cua-pc-number':'')+(calculated?' cua-pc-preview-cell':'')+(warning?' cua-pc-preview-warning':'')+'"'+
+            ' data-pc-field="'+ESC(column.name)+'" class="cua-pc-cell cua-pc-kind-'+ESC(column.kind)+(numeric?' cua-pc-number':'')+(calculated?' cua-pc-preview-cell':'')+(warning?' cua-pc-preview-warning':'')+(editable?' cua-pc-canedit':'')+'"'+
+            (editable?' tabindex="0" role="button" aria-label="Editar '+ESC(label(column))+' de la venta '+ESC(row.id_pc)+'"':'')+
             ' title="'+ESC(title)+'"><span>'+ESC(shown)+'</span>'+
             (calculated?'<small class="cua-pc-preview-tag" aria-label="Cálculo temporal sin guardar">Vista previa</small>':'')+
             controls+'</td>';
@@ -500,20 +501,37 @@
         return false;
       }
     }
-    async function saveEdit(event){
-      event.preventDefault();
-      if(!canEdit||!editing||!valid()||saving)return;
-      const {id}=editing,field=el('[data-pc-edit-field]')?.value||'';
-      if(!safeColumns().some(col=>col.name===field))return;
-      const old=rowById(id)?.[field]??null;
-      const isNull=el('[data-pc-edit-null]')?.checked===true;
-      const raw=field==='comentarios_cobranza'
-        ?el('[data-pc-edit-textarea]')?.value:el('[data-pc-edit-input]')?.value;
-      if(!isNull&&!String(raw||'').trim()){
-        updateStatus('Introduce un valor o marca Vaciar (NULL).','error');return;
-      }
-      const value=isNull?null:String(raw).trim();
-      if(value===old){closeDialog();return;}
+    function beginCellEdit(td){
+      if(!valid()||!canEdit||saving||editing||!td?.classList.contains('cua-pc-canedit'))return;
+      const field=td.dataset.pcField,id=td.closest('tr')?.dataset.pcRow;
+      const row=rowById(id),col=safeColumns().find(c=>c.name===field);
+      if(!row||!col)return;
+      const old=row[field]??null;
+      const input=doc.createElement(field==='comentarios_cobranza'?'textarea':'input');
+      if(input.tagName==='INPUT')input.type=col.sqlType==='date'?'date':'text';
+      const size=Number((/varchar\((\d+)\)/i.exec(col.sqlType||'')||[])[1]);
+      input.maxLength=Number.isSafeInteger(size)&&size>0?size:4000;
+      input.value=old==null?'':String(old);
+      input.className='cua-pc-edit-input';input.setAttribute('data-pc-cell-input','');
+      input.setAttribute('aria-label','Nuevo valor para '+label(col));
+      editing={id,field,old,td,committing:false};
+      td.replaceChildren(input);td.classList.add('cua-pc-editing');input.focus();input.select();
+    }
+    function cancelCellEdit(){
+      if(!editing||editing.committing)return;
+      const {td,old}=editing;editing=null;
+      td.classList.remove('cua-pc-editing');
+      td.innerHTML='<span>'+ESC(old==null||old===''?'—':old)+'</span>';
+      td.focus();
+    }
+    async function saveCellEdit(){
+      if(!canEdit||!editing||editing.committing||!valid()||saving)return;
+      const current=editing,{id,field,old,td}=current;
+      const input=td.querySelector('[data-pc-cell-input]');if(!input)return;
+      const value=input.value.trim()||null;
+      if(value===(old==null||old===''?null:String(old))){cancelCellEdit();return;}
+      if(!safeColumns().some(col=>col.name===field)){cancelCellEdit();return;}
+      current.committing=true;editing=null;
       busy(true);updateStatus('Guardando y auditando venta '+id+'...');
       try{
         const response=await win.ManttoAuth.api(API+'/'+encodeURIComponent(id),{
@@ -571,7 +589,6 @@
     }
     function onSubmit(event){
       if(event.target.matches('[data-pc-create-form]')){previewCreate(event).catch(()=>{});return;}
-      if(event.target.matches('[data-pc-edit-form]')){saveEdit(event).catch(()=>{});return;}
       if(event.target.matches('[data-pc-bulk-form]')){saveBulk(event).catch(()=>{});return;}
       if(saving)return;
       if(!event.target.matches('[data-pc-form]'))return;
@@ -594,9 +611,6 @@
       if(!button||!root.contains(button))return;
       if(button.hasAttribute('data-pc-create-open')){showCreateDialog();return;}
       if(button.hasAttribute('data-pc-create-save')){saveCreate().catch(()=>{});return;}
-      if(button.hasAttribute('data-pc-edit-id')){
-        showDialog(button.dataset.pcEditId);return;
-      }
       if(button.hasAttribute('data-pc-group')){
         const group=button.dataset.pcGroup;
         if(has(GROUPS,group)){
@@ -658,7 +672,21 @@
       load().catch(()=>{});
     }
     function onKey(event){
+      if(event.target.matches?.('[data-pc-cell-input]')){
+        if(event.key==='Escape'){event.preventDefault();cancelCellEdit();}
+        else if(event.key==='Enter'&&(event.target.tagName!=='TEXTAREA'||event.ctrlKey)){
+          event.preventDefault();saveCellEdit().catch(()=>{});
+        }
+        return;
+      }
+      if(event.key==='Enter'&&event.target.matches?.('td.cua-pc-canedit')){
+        event.preventDefault();beginCellEdit(event.target);return;
+      }
       if(event.key==='Escape'&&!saving){closeDialog();closeCreateDialog();}
+    }
+    function onDblClick(event){beginCellEdit(event.target.closest?.('td.cua-pc-canedit'));}
+    function onFocusOut(event){
+      if(event.target.matches?.('[data-pc-cell-input]'))saveCellEdit().catch(()=>{});
     }
     function onInput(event){
       if(!canPrepareCreate||saving)return;
@@ -669,6 +697,8 @@
     root.addEventListener('click',onClick);
     root.addEventListener('change',onChange);
     root.addEventListener('input',onInput);
+    root.addEventListener('dblclick',onDblClick);
+    root.addEventListener('focusout',onFocusOut);
     load().catch(()=>{});
     // Si la vista permanece abierta al pasar medianoche en CDMX, actualizar
     // solo lectura sin editar ningun registro ni depender del activador GAS.
@@ -679,6 +709,7 @@
     return Object.freeze({
       destroy(){disposed=true;requestNo++;if(midnightTimer!==null)win.clearInterval?.(midnightTimer);
         closeDialog();closeCreateDialog();root.removeEventListener('keydown',onKey);root.removeEventListener('submit',onSubmit);
+        root.removeEventListener('dblclick',onDblClick);root.removeEventListener('focusout',onFocusOut);
         root.removeEventListener('click',onClick);root.removeEventListener('change',onChange);
         root.removeEventListener('input',onInput);
         root.replaceChildren();}
