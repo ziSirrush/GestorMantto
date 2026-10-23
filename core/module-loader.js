@@ -273,7 +273,9 @@
     'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
     'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
     'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
-    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']}
+    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
+    // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_NAVEGACION_V001]
+    'cobranza-uni-administracion':{css:['./modules/cobranza-uni/administracion/main/main.css?v=20261023-cua-nav-v001'],js:['./modules/cobranza-uni/administracion/main/main.js?v=20261023-cua-nav-v001']}
   });
 
   function absoluteUrl(src){

@@ -23,7 +23,7 @@
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
-    'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional'
+    'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional', 'cobranza-uni-administracion':'Administración'
   };
 
   const EXPERIMENTAL_ROUTES_EXP = new Set([
@@ -915,6 +915,31 @@
     return true;
   }
 
+  // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_NAVEGACION_V001]
+  // Ruta propia: NO se incorpora a COBRANZA_ROUTES_UNI, ya que ese set
+  // instancia el modulo legacy de lectura, no el editor administrativo.
+  function showCobranzaAdministracion_uni(){
+    const route='cobranza-uni-administracion';
+    const view=document.getElementById('view-'+route);
+    if(!view) return false;
+    activateViewById('view-'+route);
+    setActiveSide(route);
+    updateContext(route,'Cobranza UNITED · Administración');
+    const main=window.ManttoCobranzaAdministracion_uni;
+    if(main && typeof main.init==='function'){
+      // El backend vuelve a verificar los permisos en cada inicializacion.
+      // Un error de acceso se representa en el Main sin exponer datos.
+      try{
+        Promise.resolve(main.init()).catch(error=>{
+          console.error('[COBRANZA_UNI_ADMIN] No se pudo iniciar.',error);
+        });
+      }catch(error){
+        console.error('[COBRANZA_UNI_ADMIN] No se pudo iniciar.',error);
+      }
+    }
+    return true;
+  }
+
   function showDetalle(payload){
     const view = document.getElementById('view-detalle');
     if(!view && window.ManttoDetails && window.ManttoDetails.show) window.ManttoDetails.show('Detalle','BLT NOW','<div class="mg-empty">Preparando detalle...</div>');
@@ -929,6 +954,7 @@
   function showPlaceholder(route, payload){
     if(route==='detalle' && showDetalle(payload)) return;
     if(EXPERIMENTAL_ROUTES_EXP.has(route) && showExperimental_exp(route)) return;
+    if(route==='cobranza-uni-administracion' && showCobranzaAdministracion_uni()) return;
     if(COBRANZA_ROUTES_UNI.has(route) && showCobranza_uni(route)) return;
     if(route==='resumen' && showResumen()) return;
     if(route==='criticos' && showCriticos()) return;

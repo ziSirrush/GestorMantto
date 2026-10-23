@@ -230,6 +230,7 @@
 <button class="side-item" data-permission="cobranza_uni_estados_cuenta" data-route="cobranza-uni-estados-cuenta" type="button"><span>🛡️</span><b>Gestión de Crédito</b></button>
 <button class="side-item" data-permission="cobranza_uni_mantenimiento_preventivo" data-route="cobranza-uni-mp-pro" type="button"><span>🛠️</span><b>Mantenimiento Preventivo</b></button>
 <button class="side-item" data-permission="cobranza_uni_aditivas" data-route="cobranza-uni-aditivas" type="button"><span>➕</span><b>Venta Adicional</b></button>
+<button id="side-cobranza-uni-administracion" class="side-item" data-route="cobranza-uni-administracion" type="button" hidden style="display:none"><span>🗂️</span><b>Administración</b></button>
 </div>
 </section>
 <section class="side-group" data-group="ventas">
@@ -372,6 +373,7 @@
 <section aria-label="Gestión de Crédito United" class="view cob-uni-view" data-view="cobranza-uni-estados-cuenta" id="view-cobranza-uni-estados-cuenta"></section>
 <section aria-label="Mantenimiento Preventivo United" class="view cob-uni-view" data-view="cobranza-uni-mp-pro" id="view-cobranza-uni-mp-pro"></section>
 <section aria-label="Venta Adicional United" class="view cob-uni-view" data-view="cobranza-uni-aditivas" id="view-cobranza-uni-aditivas"></section>
+<section aria-label="Administración de Cobranza United" class="view cua-uni-view" data-view="cobranza-uni-administracion" id="view-cobranza-uni-administracion"></section>
 <section aria-label="Portafolio" class="view pf-view" data-view="portafolio" id="view-portafolio"></section>
 <section aria-label="Usuarios" class="view usr-view" data-view="usuarios" id="view-usuarios"></section>
 <section aria-label="Panel de Control" class="view pc-view" data-view="panel-control" id="view-panel-control"></section>
@@ -767,8 +769,8 @@
 <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
 <script src="./core/data-sync.js?v=20261005-movimientos-criticos-fase4-v002"></script>
 <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
-<script src="./core/module-loader.js?v=20261020-fix-altas-admin-v001-limpieza-v002"></script>
-<script src="./core/router.js?v=20261020-offline-piloto-f1-v001"></script>
+<script src="./core/module-loader.js?v=20261023-cua-nav-v001"></script>
+<script src="./core/router.js?v=20261023-cua-nav-v001"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
 <script src="./core/rich-text.js?v=20260913-rich-text-v001"></script>
@@ -778,6 +780,7 @@
 <script src="./core/offline-storage.js?v=20261020-offline-f2-v001"></script>
 <script src="./core/user-viewer.js?v=20261020-offline-access-v001"></script>
 <script src="./core/offline-scheduler.js?v=20261021-offline-http-session-v001"></script>
+<script src="./modules/cobranza-uni/administracion/admin-menu.js?v=20261023-cua-nav-v001"></script>
 <script src="./core/app.js?v=20261015-cx-visitas-fase4-v001-limpieza-v002"></script>
 </body>
 </html>
