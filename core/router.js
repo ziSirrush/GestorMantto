@@ -54,10 +54,14 @@
   let currentRoute = 'home';
   let currentPayload = null;
   const historyStack = [];
-  let browserNavActive = false;
+  let navigationDepth = 0;
+  let navigationEpoch = 0;
+  let pendingAppBack = null;
   let initialRouteRestored = false;
   let navigationSequence = 0;
   const NAV_CURRENT_KEY = 'mantto:navigation:current';
+  const NAV_HISTORY_KEY = 'mantto:navigation:history';
+  const NAV_EPOCH_KEY = 'mantto:navigation:epoch';
 
   function readSession(key, fallback){
     try{
@@ -130,6 +134,13 @@
   }
   function saveCurrentRoute(){
     writeSession(NAV_CURRENT_KEY,{ route:currentRoute || 'home', payload:currentPayload || null, savedAt:Date.now() });
+    writeSession(NAV_HISTORY_KEY,{
+      route:currentRoute || 'home',
+      payload:currentPayload || null,
+      history:historyStack.map(function(entry){ return {route:entry.route,payload:entry.payload || null}; }),
+      depth:navigationDepth,
+      epoch:navigationEpoch
+    });
   }
   function updateBrowserCurrentContext(context){
     if(!window.history) return;
@@ -159,6 +170,13 @@
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function payloadKey(payload){ try{return JSON.stringify(payload || null);}catch(e){return ''; } }
+  function restoreHistoryStack(entries){
+    historyStack.length = 0;
+    if(!Array.isArray(entries)) return;
+    entries.slice(-25).forEach(function(entry){
+      if(entry && entry.route) historyStack.push({route:canonicalRoute(entry.route),payload:entry.payload || null,context:null});
+    });
+  }
   function routeUrl(route, payload){
     let hash = '#/' + encodeURIComponent(route || 'home');
     if(route === 'detalle' && payload && payload.type && payload.id){
@@ -167,8 +185,13 @@
     return hash;
   }
   function syncBrowserHistory(route, payload, replace, scrollY){
-    if(browserNavActive || !window.history) return;
-    const state = { mantto:true, route:route || 'home', payload:payload || null, scrollY:Number(scrollY)||0, context:null };
+    if(!window.history) return;
+    const state = {
+      mantto:true, route:route || 'home', payload:payload || null,
+      scrollY:Number(scrollY)||0, context:null,
+      manttoHistory:historyStack.map(function(entry){ return {route:entry.route,payload:entry.payload || null}; }),
+      manttoDepth:navigationDepth, manttoEpoch:navigationEpoch
+    };
     const url = routeUrl(route || 'home', payload || null);
     try{
       if(replace) window.history.replaceState(state, '', url);
@@ -176,12 +199,42 @@
     }catch(e){}
   }
 
+  function defaultBackTarget(route,payload){
+    const data = payload || {};
+    switch(route){
+      case 'ventas-prospeccion-nueva': return {route:'ventas-prospeccion'};
+      case 'ventas-prospeccion-detalle': return {route:data.origen === 'ventas-mapa-prospeccion' ? 'ventas-mapa-prospeccion' : 'ventas-prospeccion'};
+      case 'ventas-asignacion-redes-formulario': return data.mode === 'edit' && data.id
+        ? {route:'ventas-asignacion-redes-detalle',payload:{id:data.id}} : {route:'ventas-asignacion-redes'};
+      case 'ventas-asignacion-redes-detalle': return {route:'ventas-asignacion-redes'};
+      case 'ventas-clientes-nuevo': return data.returnTo === 'ventas-cotizaciones-nueva'
+        ? {route:'ventas-cotizaciones-nueva',payload:{createdClient:true}} : {route:'ventas-clientes'};
+      case 'ventas-clientes-detalle': return {route:'ventas-clientes'};
+      case 'ventas-cotizaciones-nueva': return data.originProspection?.id_pros
+        ? {route:'ventas-prospeccion-detalle',payload:{id_pros:data.originProspection.id_pros}} : {route:'ventas-cotizaciones'};
+      case 'ventas-cotizaciones-editar': return data.id
+        ? {route:'ventas-cotizaciones-detalle',payload:{id:data.id}} : {route:'ventas-cotizaciones'};
+      case 'ventas-cotizaciones-detalle': return {route:'ventas-cotizaciones'};
+      case 'logistica-produccion-nuevo':
+      case 'logistica-produccion-detalle': return {route:'logistica-produccion'};
+      case 'soporte-solicitudes': return data.mode === 'requester'
+        ? {route:data.backRoute || 'help',payload:{section:'my-requests'}}
+        : (data.id ? {route:'soporte-solicitudes'} : null);
+      case 'portafolio': return data.view === 'categoria' ? {route:'portafolio'} : null;
+      case 'cobranza-estados-cuenta': return data.mode || data.ppns
+        ? {route:'cobranza-estados-cuenta',payload:data.mode === 'edit' && data.ppns ? {ppns:data.ppns} : null} : null;
+      case 'cobranza-aditivas': return data.mode || data.id
+        ? {route:'cobranza-aditivas',payload:data.mode === 'edit' && data.id ? {id:data.id} : null} : null;
+      default: return null;
+    }
+  }
+
   function updateBackButton(){
     const btn = document.getElementById('app-back-btn');
     const lbl = document.getElementById('app-back-label');
     const last = historyStack[historyStack.length - 1];
     if(!btn || !lbl) return;
-    if(currentRoute === 'home'){
+    if(currentRoute === 'home' && navigationDepth === 0){
       btn.hidden = true;
       btn.disabled = true;
       lbl.textContent = 'Inicio';
@@ -190,9 +243,10 @@
     }
     btn.hidden = false;
     if(!last){
+      const fallback = defaultBackTarget(currentRoute,currentPayload);
       btn.disabled = false;
-      lbl.textContent = 'Inicio';
-      btn.title = 'Volver a Inicio';
+      lbl.textContent = navigationDepth > 0 ? 'Atrás' : label(fallback?.route || 'home');
+      btn.title = navigationDepth > 0 ? 'Volver a la vista anterior' : 'Volver a ' + label(fallback?.route || 'home');
       return;
     }
     btn.disabled = false;
@@ -1097,13 +1151,14 @@
       const previousContext = captureContext(currentRoute, currentPayload);
       historyStack.push({ route:currentRoute, payload:currentPayload, context:previousContext });
       if(historyStack.length > 25) historyStack.shift();
+      navigationDepth += 1;
       updateBrowserCurrentContext(previousContext);
     }
 
     currentRoute = nextRoute;
     currentPayload = nextPayload;
     saveCurrentRoute();
-    syncBrowserHistory(currentRoute, currentPayload, !!options.replace, 0);
+    syncBrowserHistory(currentRoute, currentPayload, !!options.replace || same, 0);
 
     try{
       await ensureRouteModule(currentRoute);
@@ -1128,10 +1183,12 @@
     const sequence = ++navigationSequence;
     let context = null;
     if(previous){
+      navigationDepth = Math.max(0,navigationDepth - 1);
       currentRoute = canonicalRoute(previous.route);
       currentPayload = previous.payload || null;
       context = previous.context || null;
     } else if(currentRoute !== 'home') {
+      navigationDepth = 0;
       currentRoute = 'home';
       currentPayload = null;
     }
@@ -1154,12 +1211,27 @@
   }
 
   window.addEventListener('popstate', function(ev){
-    browserNavActive = true;
+    const appBack = pendingAppBack;
+    if(appBack){
+      pendingAppBack = null;
+      window.clearTimeout(appBack.timer);
+    }
     (async function(){
-      try{
-        const state = ev.state;
+        let state = ev.state;
         if(state && state.mantto){
+          if(Number(state.manttoEpoch || 0) !== navigationEpoch){
+            historyStack.length = 0;
+            navigationDepth = 0;
+            return internalGo('home',null,{replace:true,skipHistory:true,navigationType:'back'});
+          }
+          if(appBack && appBack.hasPayloadOverride){
+            state = Object.assign({},state,{payload:appBack.payloadOverride || null,context:null});
+            try{ window.history.replaceState(state,'',routeUrl(state.route,state.payload)); }catch(error){}
+          }
           const sequence = ++navigationSequence;
+          if(Array.isArray(state.manttoHistory)) restoreHistoryStack(state.manttoHistory);
+          else if(historyStack.length && historyStack[historyStack.length - 1].route === canonicalRoute(state.route)) historyStack.pop();
+          navigationDepth = Number.isInteger(Number(state.manttoDepth)) ? Math.max(0,Number(state.manttoDepth)) : historyStack.length;
           currentRoute = canonicalRoute(state.route);
           currentPayload = state.payload || null;
           saveCurrentRoute();
@@ -1175,13 +1247,55 @@
           else window.setTimeout(resetScroll,0);
           document.dispatchEvent(new CustomEvent('mantto:navigation',{ detail:{ type:'back', route:currentRoute, payload:currentPayload } }));
         } else {
-          await internalBack({fromBrowser:true});
+          historyStack.length = 0;
+          navigationDepth = 0;
+          const target = parseHashRoute() || {route:'home',payload:null};
+          await internalGo(target.route,target.payload,{replace:true,skipHistory:true,navigationType:'back'});
         }
-      } finally {
-        browserNavActive = false;
-      }
-    })();
+    })().then(function(result){ if(appBack) appBack.resolve(result !== false); },function(error){
+      console.error('[Router] No fue posible completar Back:',error);
+      if(appBack) appBack.resolve(false);
+    });
   });
+
+  function requestBack(options){
+    if(pendingAppBack) return pendingAppBack.promise;
+    const state = window.history && window.history.state;
+    const browserEntryMatches = state && state.mantto &&
+      Number(state.manttoDepth) === navigationDepth && Number(state.manttoEpoch || 0) === navigationEpoch;
+    if(navigationDepth > 0 && browserEntryMatches && typeof window.history.back === 'function'){
+      let resolveBack;
+      const promise = new Promise(function(resolve){ resolveBack = resolve; });
+      const timer = window.setTimeout(function(){
+        if(pendingAppBack && pendingAppBack.promise === promise){
+          pendingAppBack = null;
+          resolveBack(false);
+        }
+      },3000);
+      pendingAppBack = {
+        promise:promise,resolve:resolveBack,timer:timer,
+        hasPayloadOverride:Boolean(options && Object.prototype.hasOwnProperty.call(options,'payload')),
+        payloadOverride:options && options.payload
+      };
+      try{ window.history.back(); }
+      catch(error){
+        window.clearTimeout(timer);
+        pendingAppBack = null;
+        return internalBack();
+      }
+      return promise;
+    }
+    const fallback = options && options.fallbackRoute
+      ? {route:options.fallbackRoute,payload:options.fallbackPayload || null}
+      : defaultBackTarget(currentRoute,currentPayload);
+    if(navigationDepth === 0 && fallback){
+      historyStack.length = 0;
+      return internalGo(fallback.route,fallback.payload || null,{
+        replace:true,skipHistory:true,navigationType:'back'
+      });
+    }
+    return internalBack();
+  }
 
   function isCommentNotification(target){
     const source = [
@@ -1240,31 +1354,61 @@
   window.ManttoRouter = {
     go(route, payload, opts){ return internalGo(route, payload, opts); },
     open(route, payload){ return internalGo(route, payload, { navigationType:'open' }); },
-    back(){ return internalBack(); },
+    back(options){ return requestBack(options); },
     openTarget(target){
       const destination = normalizeOpenTarget(target);
       this.go(destination.route, destination.payload);
     },
     getHistory(){ return historyStack.slice(); },
     getCurrent(){ return { route: currentRoute, payload: currentPayload }; },
-    reset(){ historyStack.length = 0; return internalGo('home', null, {replace:true,navigationType:'open',skipHistory:true}); }
+    reset(){
+      historyStack.length = 0;
+      navigationDepth = 0;
+      navigationEpoch += 1;
+      writeSession(NAV_EPOCH_KEY,navigationEpoch);
+      return internalGo('home', null, {replace:true,navigationType:'open',skipHistory:true});
+    }
   };
 
   function restoreInitialRoute(){
     if(initialRouteRestored) return;
     initialRouteRestored = true;
+    navigationEpoch = Math.max(0,Number(readSession(NAV_EPOCH_KEY,0)) || 0);
     const hashRoute = parseHashRoute();
     const stored = readSession(NAV_CURRENT_KEY, null);
-    let target = hashRoute || stored || { route:'home', payload:null };
-    if(hashRoute && stored && hashRoute.route === stored.route){
+    const browserState = window.history && window.history.state;
+    const browserRouteMatchesHash = browserState && browserState.mantto &&
+      routeUrl(canonicalRoute(browserState.route),browserState.payload || null) === String(window.location.hash || '');
+    const browserStateIsCurrent = browserRouteMatchesHash && Number(browserState.manttoEpoch || 0) === navigationEpoch;
+    let target = browserStateIsCurrent
+      ? {route:browserState.route,payload:browserState.payload || null}
+      : (browserState && browserState.mantto && Number(browserState.manttoEpoch || 0) !== navigationEpoch
+        ? {route:'home',payload:null}
+        : (hashRoute || stored || { route:'home', payload:null }));
+    if(hashRoute && stored && hashRoute.route === stored.route &&
+      (!browserState || !browserState.mantto || Number(browserState.manttoEpoch || 0) === navigationEpoch)){
       const sameDetail = hashRoute.route !== 'detalle' || (hashRoute.payload && stored.payload && String(hashRoute.payload.type||'')===String(stored.payload.type||'') && String(hashRoute.payload.id||'')===String(stored.payload.id||''));
-      if(sameDetail) target = { route:hashRoute.route, payload:Object.assign({}, stored.payload || {}, hashRoute.payload || {}) };
+      if(sameDetail && !browserStateIsCurrent) target = {
+        route:hashRoute.route,
+        payload:stored.payload || hashRoute.payload ? Object.assign({}, stored.payload || {}, hashRoute.payload || {}) : null
+      };
+    }
+    const savedHistory = readSession(NAV_HISTORY_KEY,null);
+    if(browserStateIsCurrent && Array.isArray(browserState.manttoHistory)){
+      restoreHistoryStack(browserState.manttoHistory);
+      navigationDepth = Math.max(0,Number(browserState.manttoDepth) || 0);
+    }else if(savedHistory && savedHistory.epoch === navigationEpoch &&
+      savedHistory.route === target.route && payloadKey(savedHistory.payload) === payloadKey(target.payload)){
+      restoreHistoryStack(savedHistory.history);
+      navigationDepth = Math.max(0,Number(savedHistory.depth) || 0);
     }
     const task = internalGo(target.route || 'home', target.payload || null, { replace:true, skipHistory:true, navigationType:'refresh' });
     Promise.resolve(task).finally(updateBackButton);
     return task;
   }
 
+  document.addEventListener('mantto:logout',function(){ window.ManttoRouter.reset(); });
+  document.addEventListener('mantto:session-expired',function(){ window.ManttoRouter.reset(); });
   document.addEventListener('DOMContentLoaded', function(){
     if(!window.ManttoAuth) window.setTimeout(restoreInitialRoute, 0);
     else window.setTimeout(function(){ if(!initialRouteRestored) restoreInitialRoute(); }, 800);

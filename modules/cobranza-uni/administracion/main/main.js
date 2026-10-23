@@ -8,7 +8,7 @@
   const ENDPOINT = '/api/cobranza-uni/administracion';
   const TABLES = Object.freeze({
     gestion_credito: Object.freeze({ label:'Gestión de Crédito', icon:'🛡️', description:'Administración de cartera y crédito.', phase:'Fase 6' }),
-    pc: Object.freeze({ label:'Venta Adicional', icon:'➕', description:'Administración de venta adicional.', phase:'Pendiente de definición' }),
+    pc: Object.freeze({ label:'Venta Adicional', icon:'➕', description:'Venta Adicional con vista previa de formulas, relaciones y acumulados.', phase:'Fase 6' }),
     detalle_mp_2026: Object.freeze({ label:'Mantenimiento Preventivo', icon:'🛠️', description:'Administración de mantenimiento preventivo.', phase:'Pendiente de definición' })
   });
 
@@ -94,6 +94,35 @@
           isCurrent:()=>isCurrent(epoch,key)&&selectedTable===table&&
           win.ManttoRouter?.getCurrent?.()?.route===ROUTE});
         if(!editor)throw new Error('El editor GC no se pudo inicializar.');
+        return true;
+      }
+      if(table==='pc'){
+        const loader=win.ManttoModuleLoader;
+        if(!loader || typeof loader.loadScript!=='function' || typeof loader.loadStyle!=='function')
+          throw new Error('Cargador oficial de módulos no disponible.');
+        await loader.loadStyle('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.css?v=20261023-va-f6-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js?v=20261023-va-f6-v001');
+        if(!isCurrent(epoch,key)||selectedTable!==table)return false;
+        shell('<section class="cua-uni-card cua-uni-detail">'+
+          '<button class="cua-uni-back" type="button" data-cua-back>← Volver al Main</button>'+
+          '<h2>'+escapeHtml(meta.label)+' · pc</h2>'+
+          '<p class="cua-uni-mode">'+escapeHtml(response.can_edit===true
+            ?'Fase 6: alta simulada, 14 derivados en vista previa; GAS activo hasta cerrar GC, VA y MP'
+            :'Fase 6: consulta y simulación de alta; GAS activo hasta terminar GC, VA y MP')+'</p>'+
+          '<div id="cua-uni-pc-list" class="cua-uni-pc-list"></div>'+ 
+          '</section>');
+        const mount=win.ManttoCobranzaAdministracionPC_uni?.mount;
+        const container=doc.getElementById('cua-uni-pc-list');
+        if(typeof mount!=='function'||!container)throw new Error('La pantalla pc no se ha cargado.');
+        editor=mount(container,{
+          canEdit:response.can_edit===true,
+          canPrepareCreate:response.can_prepare_create===true,
+          canCreate:response.can_create===true,
+          editableFields:Array.isArray(response.editable_fields)?response.editable_fields:[],
+          isCurrent:()=>isCurrent(epoch,key)&&selectedTable===table&&
+            win.ManttoRouter?.getCurrent?.()?.route===ROUTE
+        });
+        if(!editor)throw new Error('No se pudo inicializar la consulta pc.');
         return true;
       }
       shell('<section class="cua-uni-card cua-uni-detail">'+

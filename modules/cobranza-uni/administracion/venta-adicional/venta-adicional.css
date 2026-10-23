@@ -1,0 +1,142 @@
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_2_V001] */
+/* Solo afecta Venta Adicional dentro del Main de Administración. */
+.cua-uni-view:has(.cua-pc-admin){padding:clamp(9px,1.4vw,18px)}
+.cua-uni-page:has(.cua-pc-admin){width:100%;max-width:none;min-width:0}
+.cua-uni-detail:has(.cua-pc-admin){width:100%;min-width:0;display:grid;justify-items:stretch;padding:clamp(12px,1.7vw,24px)}
+.cua-uni-detail:has(.cua-pc-admin)>h2{font-size:clamp(18px,2vw,25px)}
+.cua-uni-detail:has(.cua-pc-admin)>p{margin:0}
+.cua-pc-admin{width:100%;min-width:0;display:grid;gap:13px;color:#132744}
+.cua-pc-topline{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.cua-pc-topline strong{font-size:16px;color:#143668}
+.cua-pc-topline p{margin:5px 0 0;font-size:12px;color:#667b99}
+.cua-pc-topline code{background:#f0f4fb;padding:2px 5px;border-radius:4px}
+.cua-pc-readonly{border:1px solid #b8d3e1;border-radius:100px;background:#ebf8fd;padding:8px 12px;color:#225b73;font-size:12px;font-weight:800;white-space:nowrap}
+.cua-pc-tools{display:flex;flex-wrap:wrap;gap:14px;align-items:end;justify-content:space-between}
+.cua-pc-form{display:flex;flex:1 1 730px;gap:10px;align-items:end;flex-wrap:wrap}
+.cua-pc-form label,.cua-pc-actions label{display:grid;gap:5px;min-width:120px;font-size:11px;font-weight:800;color:#3f5674}
+.cua-pc-form .cua-pc-search{flex:2 1 225px}
+.cua-pc-form label:not(.cua-pc-search){flex:1 1 165px}
+.cua-pc-form input,.cua-pc-form select,.cua-pc-actions select{display:block;min-width:0;width:100%;min-height:41px;border:1px solid #c8d6e8;border-radius:9px;padding:8px 11px;background:#fff;color:#132744;font-size:13px}
+.cua-pc-actions{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.cua-pc-btn{min-height:41px;padding:8px 13px;border:1px solid #bdcee5;border-radius:9px;background:#fff;color:#164277;cursor:pointer;font-size:12px;font-weight:800;white-space:nowrap}
+.cua-pc-btn:hover:not(:disabled){background:#eef5ff;border-color:#91b5e3}
+.cua-pc-btn:disabled{opacity:.48;cursor:not-allowed}
+.cua-pc-primary{background:#16417d;color:#fff;border-color:#16417d}
+.cua-pc-primary:hover:not(:disabled){background:#22569a;color:#fff}
+.cua-pc-btn:focus-visible,.cua-pc-group:focus-visible,.cua-pc-form input:focus-visible,.cua-pc-form select:focus-visible,.cua-pc-actions select:focus-visible,.cua-pc-th button:focus-visible,.cua-pc-scroll:focus-visible{outline:3px solid #4b91ee;outline-offset:2px}
+.cua-pc-groups{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid #e1e9f4}
+.cua-pc-group{font-size:12px;font-weight:800;border:1px solid transparent;border-radius:9px;background:transparent;padding:9px 13px;color:#506988;cursor:pointer}
+.cua-pc-group:hover{background:#eef5ff}
+.cua-pc-group[aria-pressed="true"]{background:#e9f1ff;color:#134586;border-color:#b9d2f7}
+.cua-pc-caption{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center}
+.cua-pc-note{margin:0;color:#667891;font-size:11px;line-height:1.5;flex:1 1 400px}
+.cua-pc-status{font-size:12px;font-weight:800;color:#476182}
+.cua-pc-status[data-kind="ready"]{color:#17724d}
+.cua-pc-status[data-kind="error"]{color:#ad323b}
+.cua-pc-scroll{width:100%;min-width:0;max-width:100%;min-height:140px;max-height:min(68vh,740px);overflow:auto;border:1px solid #ccd9ea;border-radius:12px;background:#fff;overscroll-behavior:contain}
+.cua-pc-grid{border-collapse:separate;border-spacing:0;min-width:100%;width:max-content;font-size:12px}
+.cua-pc-grid th,.cua-pc-grid td{box-sizing:border-box;border-right:1px solid #e3eaf5;border-bottom:1px solid #e3eaf5;padding:11px 13px;min-width:150px;max-width:310px;text-align:left;vertical-align:middle}
+.cua-pc-grid th{position:sticky;top:0;z-index:3;background:#133766;color:#fff}
+.cua-pc-th button{background:transparent;border:0;padding:0;color:inherit;text-align:left;cursor:pointer;font-size:12px;font-weight:850;line-height:1.3}
+.cua-pc-th small{display:block;margin-top:6px;font-size:10px;font-weight:700;color:#c9dcf3}
+.cua-pc-th.cua-pc-kind-protected{background:#354860}
+.cua-pc-th.cua-pc-kind-derived{background:#285f59}
+.cua-pc-cell{background:#fff;line-height:1.5}
+.cua-pc-cell span{display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-pc-cell.cua-pc-kind-protected{background:#f3f5fa;color:#546379;font-weight:800}
+.cua-pc-cell.cua-pc-kind-derived{background:#f0f8f5;color:#275b48}
+.cua-pc-cell.cua-pc-number{text-align:right;font-variant-numeric:tabular-nums}
+.cua-pc-grid tbody tr:hover td{box-shadow:inset 0 0 0 1px #b5cdeb}
+.cua-pc-grid [data-pc-fixed="0"]{position:sticky;left:0;z-index:4;width:108px;min-width:108px;max-width:108px}
+.cua-pc-grid [data-pc-fixed="1"]{position:sticky;left:108px;z-index:4;width:230px;min-width:230px;max-width:230px}
+.cua-pc-grid th[data-pc-fixed]{z-index:6}
+.cua-pc-empty{text-align:center!important;padding:34px!important;color:#58708f;font-weight:750}
+.cua-pc-pager{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;font-weight:750;color:#476282}
+.cua-pc-pager-controls{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:11px}
+@media(max-width:760px){
+  .cua-pc-form{flex:1 1 100%}
+  .cua-pc-form .cua-pc-search{flex:1 1 100%}
+  .cua-pc-grid th,.cua-pc-grid td{min-width:135px;padding:10px}
+  .cua-pc-grid [data-pc-fixed="0"]{width:98px;min-width:98px;max-width:98px}
+  .cua-pc-grid [data-pc-fixed="1"]{position:static;min-width:165px;width:165px;max-width:165px}
+  .cua-pc-pager{justify-content:center}
+}
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_3_V001] */
+/* Editing is presented in an overlay, so the table is never squeezed. */
+.cua-pc-admin .cua-pc-readonly{background:#e9f5ed;color:#216547;border-color:#bedbc9}
+.cua-pc-bulk{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#f1f6fc;border:1px solid #cbd9eb;border-radius:12px;padding:12px}
+.cua-pc-bulk strong{font-size:13px;color:#173b6f;white-space:nowrap}
+.cua-pc-bulk>span{font-size:11px;color:#5c7291;font-weight:800;min-width:150px}
+.cua-pc-bulk label{display:grid;gap:5px;flex:1 1 145px;font-size:11px;color:#405a79;font-weight:800}
+.cua-pc-bulk label:nth-of-type(2){flex:2 1 240px}
+.cua-pc-bulk input:not([type="checkbox"]),.cua-pc-bulk select{width:100%;min-width:0;border:1px solid #c2d2e7;border-radius:9px;background:#fff;color:#183354;padding:9px 11px;min-height:41px;font-size:12px}
+.cua-pc-bulk .cua-pc-null{display:flex;flex:0 1 auto;align-items:center;gap:7px;min-height:41px}
+.cua-pc-null input{width:16px;height:16px;accent-color:#1a518e}
+.cua-pc-cell-actions{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-top:6px}
+.cua-pc-cell-actions label{display:inline-flex;align-items:center}
+.cua-pc-cell-actions input{width:16px;height:16px;accent-color:#1b578c;cursor:pointer}
+.cua-pc-cell-edit{font-size:11px;font-weight:800;border:1px solid #b8cce2;color:#145089;background:#fff;border-radius:7px;padding:5px 8px;cursor:pointer}
+.cua-pc-cell-edit:hover{background:#e7f2ff}
+.cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="0"]{width:176px;min-width:176px;max-width:176px;text-align:left}
+.cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="1"]{left:176px}
+.cua-pc-dialog[hidden],.cua-pc-dialog [hidden]{display:none!important}
+.cua-pc-dialog{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:flex-end}
+.cua-pc-dialog-backdrop{position:absolute;inset:0;background:rgba(9,24,48,.54)}
+.cua-pc-dialog-panel{position:relative;z-index:1;background:#fff;width:min(560px,100vw);height:100%;max-height:100vh;overflow-y:auto;padding:clamp(16px,3vw,28px);box-shadow:-15px 0 40px rgba(0,0,0,.17);display:flex;flex-direction:column;gap:22px}
+.cua-pc-dialog-panel header{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.cua-pc-dialog-panel header p{margin:0 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#607d9d}
+.cua-pc-dialog-panel h3{margin:0;font-size:20px;color:#153963}
+.cua-pc-dialog-panel form{display:grid;gap:16px}
+.cua-pc-dialog-panel form>label{display:grid;gap:7px;font-size:12px;color:#375576;font-weight:800}
+.cua-pc-dialog-panel select,.cua-pc-dialog-panel input:not([type="checkbox"]),.cua-pc-dialog-panel textarea{width:100%;min-width:0;border:1px solid #bdcfe4;border-radius:9px;padding:12px;background:#fff;font-size:14px;color:#132b49;font-family:inherit}
+.cua-pc-dialog-panel textarea{resize:vertical;min-height:115px}
+.cua-pc-dialog-panel .cua-pc-null{display:flex;align-items:center;gap:8px}
+.cua-pc-dialog-panel form>p{margin:0;font-size:12px;color:#69809c;line-height:1.5}
+.cua-pc-before{padding:14px;border:1px solid #dbe5f1;border-radius:10px;background:#f5f8fc;color:#375879;font-size:13px;overflow-wrap:anywhere;white-space:pre-wrap}
+.cua-pc-dialog-panel input:focus-visible,.cua-pc-dialog-panel select:focus-visible,.cua-pc-dialog-panel textarea:focus-visible,.cua-pc-bulk input:focus-visible,.cua-pc-bulk select:focus-visible,.cua-pc-cell-edit:focus-visible{outline:3px solid #4b91ee;outline-offset:2px}
+@media(max-width:760px){
+ .cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="0"]{width:160px;min-width:160px;max-width:160px}
+ .cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="1"]{position:static}
+ .cua-pc-bulk{align-items:stretch}
+ .cua-pc-bulk>span{flex:1 1 100%}
+ .cua-pc-bulk label{flex:1 1 100%}
+ .cua-pc-bulk label:nth-of-type(2){flex:1 1 100%}
+ .cua-pc-dialog-panel{height:auto;max-height:90vh;min-height:50vh;align-self:end;border-radius:18px 18px 0 0}
+}
+
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_4_V001] */
+/* Calculated cells are a visible READ-ONLY preview, never stored in Aiven. */
+.cua-pc-grid td.cua-pc-preview-cell{background:#eef6ff;color:#163d70}
+.cua-pc-preview-tag{display:inline-flex;margin-top:4px;font-size:9px;line-height:1.2;font-weight:800;
+ color:#215594;background:#e0edff;border-radius:5px;padding:3px 5px;white-space:nowrap}
+.cua-pc-grid td.cua-pc-preview-warning{background:#fff8e8;color:#82510e}
+.cua-pc-preview-warning .cua-pc-preview-tag{background:#fff0ca;color:#8e5400}
+
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_5_V001] */
+.cua-pc-relations-summary{border:1px solid #c7deee;background:#eef8fd;color:#24526e;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:750;line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:760px){.cua-pc-relations-summary{font-size:11px;padding:11px}}
+
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_6_V001] */
+/* Alta en panel lateral ancho: no comprime el grid. Solo previsualizacion hasta corte GAS. */
+.cua-pc-create-panel{width:min(820px,100vw);gap:16px}
+.cua-pc-create-note{font-size:12px;color:#5f7491;line-height:1.55;margin:0}
+.cua-pc-create-panel form{display:grid;gap:17px}
+.cua-pc-create-id{display:grid;gap:8px;max-width:290px;font-weight:800;color:#214466;font-size:12px}
+.cua-pc-create-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.cua-pc-create-fields label{display:grid;gap:7px;align-content:start;font-weight:800;font-size:12px;color:#315578;min-width:0}
+.cua-pc-create-fields label strong{color:#ad3838}
+.cua-pc-create-fields input,.cua-pc-create-fields textarea{width:100%;min-width:0;border:1px solid #bfd0e4;border-radius:9px;padding:10px;background:#fff;font-size:13px;color:#193658;font-family:inherit}
+.cua-pc-create-fields textarea{min-height:100px;resize:vertical}
+.cua-pc-create-result{background:#edf7ff;border:1px solid #bad5ec;border-radius:12px;color:#235070;padding:13px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.cua-pc-create-result p{margin:4px 0 12px}
+.cua-pc-create-result dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;margin:0}
+.cua-pc-create-result dl div{border-bottom:1px solid #d4e3ee;padding:5px 0}
+.cua-pc-create-result dt{font-size:10px;color:#5a7991;font-weight:800}
+.cua-pc-create-result dd{margin:2px 0;font-weight:800;color:#14395a}
+.cua-pc-create-panel button{white-space:normal}
+@media(max-width:760px){
+  .cua-pc-create-panel{width:100%;height:100%;max-height:100vh;border-radius:0}
+  .cua-pc-create-fields{grid-template-columns:1fr}
+  .cua-pc-create-result dl{grid-template-columns:1fr}
+  .cua-pc-create-id{max-width:100%}
+}

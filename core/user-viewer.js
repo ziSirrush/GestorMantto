@@ -293,7 +293,7 @@
     });
   }
   function hasGroupVisualAccess(group){return groupVisualRows(group).some(row=>state.permissions.get(Number(row.id_subelemento_accion))===true);}
-  function applySidebar(){
+  function applySidebar(options={}){
     document.querySelectorAll('[data-permission]').forEach(item=>{item.hidden=!hasModuleAccess(item);});
     document.querySelectorAll('.side-group').forEach(group=>{
       const hasVisibleModule=Array.from(group.querySelectorAll('.side-item')).some(item=>!item.hidden);
@@ -303,7 +303,7 @@
     });
     const currentRoute=window.ManttoRouter?.getCurrent?.().route;
     const currentItem=currentRoute?document.querySelector(`.side-item[data-route="${CSS.escape(currentRoute)}"]`):null;
-    if(currentItem?.hidden&&currentRoute!=='home')window.ManttoRouter.reset();
+    if(options.redirectUnauthorized!==false&&currentItem?.hidden&&currentRoute!=='home')window.ManttoRouter.reset();
   }
   async function loadSessionPermissions(){
     const json=await window.ManttoAuth.apiGet('/api/panel-control/session-permissions');
@@ -419,14 +419,16 @@
       state.permissionStates.clear();
       state.permissionCodes.clear();
       state.canUseViewer=false;
-      applySidebar();
+      applySidebar({redirectUnauthorized:false});
       renderLauncher();
       renderBanner();
     }
   }
   document.addEventListener('mantto:auth-ready',init);
   document.addEventListener('mantto:view-user-changed',async()=>{
+    let permissionsConfirmed=true;
     try{await loadSessionPermissions();}catch(error){
+      permissionsConfirmed=false;
       console.error('[Permisos de sesión]',error);
       state.permissions.clear();
       state.permissionStates.clear();
@@ -435,7 +437,7 @@
     }
     renderLauncher();
     renderBanner();
-    applySidebar();
+    applySidebar({redirectUnauthorized:permissionsConfirmed});
     applyActionPermissions(document);
   });
   window.ManttoPermissions={

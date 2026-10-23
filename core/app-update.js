@@ -219,7 +219,7 @@
     if(!hadUpdateParameter)return;
     target.searchParams.delete('blt_update');
     target.searchParams.delete('blt_sw_update');
-    window.history.replaceState({},document.title,target.pathname+(target.search||'')+(target.hash||''));
+    window.history.replaceState(window.history.state,document.title,target.pathname+(target.search||'')+(target.hash||''));
   }
 
   function init(){

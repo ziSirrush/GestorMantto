@@ -1132,9 +1132,14 @@
       if(!ppns) throw new Error('El backend no devolvió el PPNS guardado.');
       if(window.ManttoHttp&&typeof window.ManttoHttp.invalidate==='function') window.ManttoHttp.invalidate(API_BASE);
       if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
-        await window.ManttoRouter.go(ROUTE,{ppns},{replace:true,skipHistory:true,navigationType:'open'});
-        if(window.ManttoCobranzaCorEstadosCuenta&&typeof window.ManttoCobranzaCorEstadosCuenta.init==='function'){
-          await window.ManttoCobranzaCorEstadosCuenta.init();
+        const history=window.ManttoRouter.getHistory?.() || [];
+        const previous=history[history.length-1];
+        const returnToDetail=editing && previous?.route===ROUTE &&
+          String(previous.payload?.ppns || '').trim()===ppns && !previous.payload?.mode;
+        if(returnToDetail && typeof window.ManttoRouter.back==='function'){
+          await window.ManttoRouter.back();
+        }else{
+          await window.ManttoRouter.go(ROUTE,{ppns},{replace:true,skipHistory:true,navigationType:'open'});
         }
       }
       return true;

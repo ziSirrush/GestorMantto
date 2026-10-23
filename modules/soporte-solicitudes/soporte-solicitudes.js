@@ -508,10 +508,11 @@
       const contextBack = document.getElementById('app-back-btn');
       if (contextBack) {
         contextBack.addEventListener('click', function (event) {
+          if (window.ManttoRouter?.getCurrent?.().route !== 'soporte-solicitudes') return;
           if (!ssIsDetailVisible()) return;
           event.preventDefault();
           event.stopImmediatePropagation();
-          if (SS_STATE.mode === 'requester' && window.ManttoRouter) window.ManttoRouter.go(SS_STATE.backRoute || 'help', { section: 'my-requests' });
+          if (SS_STATE.mode === 'requester' && window.ManttoRouter) window.ManttoRouter.back({fallbackRoute:SS_STATE.backRoute || 'help',fallbackPayload:{section:'my-requests'}});
           else ssShowList();
         }, true);
       }

@@ -12,7 +12,7 @@ const contract = require('../backend/src/modules/cobranza-uni-administracion/cob
 const ROOT = path.resolve(__dirname, '..');
 const MAIN = path.join(ROOT, 'modules', 'cobranza-uni', 'administracion', 'main', 'main.js');
 
-test('Fase 1: tablas y claves reales, con GC como unico esquema definido', () => {
+test('Fase 1: tablas y claves reales, con contratos GC y PC definidos', () => {
   assert.deepEqual(Object.keys(contract.TABLES_UNI), [
     'gestion_credito', 'pc', 'detalle_mp_2026'
   ]);
@@ -20,7 +20,7 @@ test('Fase 1: tablas y claves reales, con GC como unico esquema definido', () =>
   assert.equal(contract.TABLES_UNI.pc.primaryKey, 'id_pc');
   assert.equal(contract.TABLES_UNI.detalle_mp_2026.primaryKey, 'id_dmp');
   assert.equal(contract.getTableContract_uni('gestion_credito').columns.length, 29);
-  assert.equal(contract.getTableContract_uni('pc').columns, null);
+  assert.equal(contract.getTableContract_uni('pc').columns.length, 31);
   assert.equal(contract.getTableContract_uni('detalle_mp_2026').columns, null);
   assert.equal(contract.getTableContract_uni('tabla_inexistente'), null);
 });

@@ -223,13 +223,18 @@ async function save(event){
 
     const destination=routePayload?.returnTo;
     setTimeout(()=>{
-      if(destination==='ventas-cotizaciones-nueva'){
-        window.ManttoRouter?.go?.('ventas-cotizaciones-nueva',{
-          selectedClientId:idCliente,
-          createdClient:true
-        },{replace:true});
+      const router=window.ManttoRouter;
+      if(!router)return;
+      const route=destination==='ventas-cotizaciones-nueva'?'ventas-cotizaciones-nueva':'ventas-clientes';
+      const payload=route==='ventas-cotizaciones-nueva'
+        ? {selectedClientId:idCliente,createdClient:true}
+        : {createdClientId:idCliente};
+      const history=router.getHistory?.() || [];
+      const previous=history[history.length-1];
+      if(previous?.route===route && typeof router.back==='function'){
+        router.back({payload:{...(previous.payload || {}),...payload}});
       }else{
-        window.ManttoRouter?.go?.('ventas-clientes',{createdClientId:idCliente},{replace:true});
+        router.go?.(route,payload,{replace:true});
       }
     },contactWarning?1600:700);
   }catch(error){

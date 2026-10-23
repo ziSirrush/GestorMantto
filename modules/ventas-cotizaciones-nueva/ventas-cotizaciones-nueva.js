@@ -454,21 +454,32 @@
             detail: { route: 'ventas-prospeccion', path: `/api/ventas/prospeccion/${origin.id_pros}/cotizacion`, method: 'PATCH', id: Number(origin.id_pros) }
           }));
           toast('Cotización creada, relacionada y prospección marcada como Cotizado.');
-          setTimeout(() => window.ManttoRouter?.go?.('ventas-prospeccion-detalle', { id_pros: Number(origin.id_pros) }), 450);
+          setTimeout(() => returnToProspection(origin.id_pros), 450);
         } catch (relationError) {
           toast(`Cotización #${createdId} creada, pero no se pudo relacionar: ${relationError.message}`, true);
-          setTimeout(() => window.ManttoRouter?.go?.('ventas-prospeccion-detalle', { id_pros: Number(origin.id_pros) }), 1400);
+          setTimeout(() => returnToProspection(origin.id_pros), 1400);
         }
         return;
       }
 
       toast('Cotización creada correctamente.');
-      setTimeout(() => window.ManttoRouter?.go?.('ventas-cotizaciones-detalle', { id: createdId }), 350);
+      setTimeout(() => window.ManttoRouter?.go?.('ventas-cotizaciones-detalle', { id: createdId }, {replace:true}), 350);
     } catch (error) {
       toast(error.message, true);
     } finally {
       button.disabled = false;
       setModeCopy();
+    }
+  }
+
+  function returnToProspection(id) {
+    const router = window.ManttoRouter;
+    if (!router) return;
+    const previous = router.getHistory?.().slice(-1)[0];
+    if (previous?.route === 'ventas-prospeccion-detalle' && Number(previous.payload?.id_pros || previous.payload?.id) === Number(id)) {
+      router.back();
+    } else {
+      router.go('ventas-prospeccion-detalle', {id_pros:Number(id)}, {replace:true});
     }
   }
 

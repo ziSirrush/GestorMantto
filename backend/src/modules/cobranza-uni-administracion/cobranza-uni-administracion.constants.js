@@ -3,7 +3,8 @@
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_1_V001]
 // Contrato de estructura: no ejecuta consultas, no autoriza permisos y no escribe en BD.
 // Fuente GC: CREATE TABLE gestion_credito proporcionado para la Fase 1.
-// Los esquemas completos de pc y detalle_mp_2026 se definiran en sus respectivas fases.
+// pc definido por VA Fase 1 (solo contrato); MP conserva esquema pendiente.
+const PC_CONTRACT_UNI = require('./cobranza-uni-administracion.pc-contract');
 
 const TABLES_UNI = Object.freeze({
   gestion_credito: Object.freeze({
@@ -14,7 +15,7 @@ const TABLES_UNI = Object.freeze({
   pc: Object.freeze({
     label: 'Venta Adicional',
     primaryKey: 'id_pc',
-    schemaReady: false
+    schemaReady: true
   }),
   detalle_mp_2026: Object.freeze({
     label: 'Mantenimiento Preventivo',
@@ -98,6 +99,13 @@ const GC_DERIVED_FIELDS_UNI = Object.freeze(Object.keys(GC_DERIVED_DEPENDENCIES_
 
 function getTableContract_uni(tableName) {
   if (!Object.prototype.hasOwnProperty.call(TABLES_UNI, tableName)) return null;
+  if (tableName === 'pc') {
+    return Object.freeze({
+      table: tableName,
+      ...TABLES_UNI[tableName],
+      columns: PC_CONTRACT_UNI.PC_COLUMNS_UNI
+    });
+  }
   if (tableName !== 'gestion_credito') {
     return Object.freeze({
       table: tableName,
@@ -119,5 +127,6 @@ module.exports = Object.freeze({
   GC_PROTECTED_FIELDS_UNI,
   GC_DERIVED_FIELDS_UNI,
   GC_DERIVED_DEPENDENCIES_UNI,
+  ...PC_CONTRACT_UNI,
   getTableContract_uni
 });

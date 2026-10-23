@@ -1,6 +1,6 @@
 (function(){
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
-  const SW_PATH = './service-worker.js?v=20261020-offline-shell-v001';
+  const SW_PATH = './service-worker.js?v=20261023-back-history-v001';
   let registration = null;
   let config = null;
   let initialized = false;
@@ -265,7 +265,7 @@
     if(params.has('push_open')){
       ['push_open','push_route','push_action','push_reference','push_notification_id','push_type','push_focus'].forEach(key => params.delete(key));
       const clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
-      window.history.replaceState({}, document.title, clean);
+      window.history.replaceState(window.history.state, document.title, clean);
     }
   });
 
