@@ -281,7 +281,8 @@ test('VA F3: route access checks canEdit flag, readonly GET remains, PATCH guard
     assert.equal(payload.status,200);
   }
   assert.equal(called.length,2);
-  assert.deepEqual(registrations.filter(x=>x.method==='POST').map(x=>x.path),
+  // Este test valida exclusivamente POST de VA: MP Zona 1 tiene rutas POST propias.
+  assert.deepEqual(registrations.filter(x=>x.method==='POST' && x.path.startsWith('/tablas/pc/')).map(x=>x.path),
     ['/tablas/pc/registros/validar-alta','/tablas/pc/registros']);
   assert.ok(!registrations.some(x=>['PUT','DELETE'].includes(x.method))); 
 });
