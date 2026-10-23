@@ -1,6 +1,8 @@
 // [Aster | 2026-08-13 | ASTER-MG | FASE: COBRANZA_UNI_GESTION_CREDITO_1A_V001]
 const db = require('../config/db');
 const fkValidatorUni = require('../services/cobranza-uni/fk-validator.service');
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_6_V001]
+const gcAdminSyncGuard = require('../modules/cobranza-uni-administracion/cobranza-uni-administracion.gc-sync-guard');
 
 const TABLE_NAME = 'gestion_credito';
 const KEY_FIELD = 'id_gc';
@@ -340,12 +342,17 @@ async function syncCobranzaUni(req, res) {
     inserted: 0,
     updated: 0,
     unchanged: 0,
+    protected_manual: 0,
     rejected: 0,
     errors: []
   };
 
   try {
     await conn.beginTransaction();
+    // Si la migracion manual no esta aplicada, el GAS actual sigue operativo.
+    // La edicion administrativa, en cambio, falla cerrada sin la tabla guard.
+    const manualGuardReady = await gcAdminSyncGuard.guardAvailable_uni(conn);
+    summary.proteccion_administrativa = manualGuardReady ? 'ACTIVA' : 'MIGRACION_PENDIENTE';
 
     for (let index = 0; index < rows.length; index += 1) {
       const incoming = normalizeIncomingRow(rows[index] || {});
@@ -367,7 +374,7 @@ async function syncCobranzaUni(req, res) {
           `SELECT ${KEY_FIELD}, ${DB_FIELDS.join(', ')}
            FROM ${TABLE_NAME}
            WHERE ${KEY_FIELD} = ?
-           LIMIT 1`,
+           LIMIT 1 FOR UPDATE`,
           [incoming.id_gc]
         );
 
@@ -386,6 +393,22 @@ async function syncCobranzaUni(req, res) {
 
           summary.inserted += 1;
           summary.processed += 1;
+          await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
+          continue;
+        }
+
+        // El bloqueo de la fila (FOR UPDATE) serializa sync y editor humano.
+        // Nunca sobreescribir silenciosamente un registro editado desde Administracion.
+        // Se rechaza solo esta fila del lote: otros proyectos siguen sincronizando.
+        if (manualGuardReady && await gcAdminSyncGuard.isManuallyProtected_uni(conn,incoming.id_gc)) {
+          summary.protected_manual += 1;
+          summary.rejected += 1;
+          summary.errors.push({
+            index,
+            id_gc: incoming.id_gc,
+            code: 'GC_ADMIN_CONFLICTO_SYNC_HUMANO',
+            message: 'Edicion administrativa protegida. Reconciliar manualmente antes de aceptar el origen GAS.'
+          });
           await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
           continue;
         }

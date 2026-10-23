@@ -1,0 +1,27 @@
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_2_V001] */
+/* Aislado de las vistas de consulta Cobranza UNI y CORELLIAN. */
+.cua-uni-view{padding:18px;background:#f4f7fc;color:#172033}
+.cua-uni-page{max-width:1320px;margin:0 auto;display:grid;gap:16px}
+.cua-uni-card{border:1px solid #d8e1ef;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(13,46,110,.06)}
+.cua-uni-head{padding:23px}
+.cua-uni-eyebrow{margin:0 0 8px;color:#925800;font-size:11px;letter-spacing:.07em;font-weight:850;text-transform:uppercase}
+.cua-uni-head h1{margin:0;color:#0d2e6e;font-size:clamp(22px,3vw,31px)}
+.cua-uni-head>p:last-child{margin:10px 0 0;color:#64748b;line-height:1.5;font-size:13px}
+.cua-uni-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cua-uni-option{min-width:0;text-align:left;padding:24px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:13px;cursor:pointer;transition:border-color .17s,transform .17s}
+.cua-uni-option:hover,.cua-uni-option:focus-visible{border-color:#2d61bb;transform:translateY(-2px)}
+.cua-uni-option:focus-visible,.cua-uni-back:focus-visible{outline:3px solid #4f91ff;outline-offset:2px}
+.cua-uni-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:#eef4ff;font-size:24px}
+.cua-uni-option-text{display:grid;gap:8px}
+.cua-uni-option-text strong{font-size:17px;color:#123468;overflow-wrap:anywhere}
+.cua-uni-option-text small{color:#64748b;font-size:12px;line-height:1.4}
+.cua-uni-access{display:inline-flex;padding:6px 9px;border-radius:100px;background:#eaf1fc;color:#274c85;font-size:11px;font-weight:850}
+.cua-uni-chevron{font-size:20px;color:#2d61bb;margin-left:auto}
+.cua-uni-detail{padding:23px;display:grid;gap:15px;justify-items:start}
+.cua-uni-detail h2{margin:0;color:#123468}
+.cua-uni-back{border:1px solid #b8c9e5;background:#fff;color:#143668;border-radius:10px;padding:10px 13px;font-weight:800;cursor:pointer}
+.cua-uni-notice{padding:16px 20px;color:#365273;font-size:13px;line-height:1.5}
+.cua-uni-denied{border-color:#edc7c7;background:#fff6f6;color:#a72e33}
+.cua-uni-mode{color:#526785;font-weight:750;margin:0}
+@media(max-width:900px){.cua-uni-options{grid-template-columns:1fr}}
+@media(max-width:650px){.cua-uni-view{padding:12px}.cua-uni-head,.cua-uni-detail{padding:16px}}

@@ -9,6 +9,9 @@ const relacionesProtegidasUni = require('../controllers/cobranza-uni-relaciones-
 const { requireIntegrationAuthFor } = require('../middleware/integration-auth.middleware');
 const { humanInformationGuard_gnral } = require('../middleware/information-access-gnral.middleware');
 
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_2_V001]
+const administracionUniRoutes = require('../modules/cobranza-uni-administracion/cobranza-uni-administracion.routes');
+
 const requireCobranzaUniIntegration = requireIntegrationAuthFor('INTEGRATION_COBRANZA_UNI_ID');
 
 function cobranzaUniGuard(permissionCode) {
@@ -29,5 +32,8 @@ router.get('/venta-adicional/:id/detalle', ...ventaAdicionalGuard, relacionesPro
 
 // M2M: no pasa por alcance humano.
 router.post('/sync', requireCobranzaUniIntegration, cobranzaUniLegacyController.syncCobranzaUni);
+
+// Rutas administrativas aisladas; el Guard valida permiso, puerta UNITED y alcance.
+router.use('/administracion', administracionUniRoutes);
 
 module.exports = router;
