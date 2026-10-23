@@ -158,9 +158,9 @@ test('FIX: auth/me está acotado pero las solicitudes operativas conservan su fl
   assert.equal(operational.source,'api');assert.equal(f.timers.length,1);
 });
 
-test('FIX: el caché PWA y las URLs de carga usan la misma versión nueva',()=>{
+test('FIX: el caché PWA conserva el corte offline y carga Auth actualizado',()=>{
   const v='20261021-offline-http-session-v001';
-  assert.match(code('index.html'),new RegExp('core/auth\\.js\\?v='+v));
+  assert.match(code('index.html'),/core\/auth\.js\?v=20261023-context-back-only-v001/);
   assert.match(code('index.html'),new RegExp('core/offline-scheduler\\.js\\?v='+v));
   assert.match(code('core/offline-scheduler.js'),new RegExp('core/offline-navigation\\.js\\?v='+v));
   assert.match(code('core/offline-navigation.js'),new RegExp('core/offline-resumen-dia\\.js\\?v='+v));

@@ -17,6 +17,9 @@ const {createGateEnabled_uni,preflightCreatePc_uni,createPc_uni} =
   require('./cobranza-uni-administracion.pc-create-service');
 const {updateSingleGc_uni,updateMultiGc_uni} =
   require('./cobranza-uni-administracion.gc-edit-service');
+const {PHASE4_SAFE_FIELDS_MP_UNI} = require('./cobranza-uni-administracion.mp-edit-validation');
+const {mpEditFeatureEnabled_uni,updateSingleMp_uni,updateMultiMp_uni} =
+  require('./cobranza-uni-administracion.mp-edit-service');
 
 const router = express.Router();
 const guard = humanInformationGuard_gnral({
@@ -45,10 +48,16 @@ router.get('/contrato', ...guard, async (req, res, next) => {
         primary_key: meta.primaryKey,
         can_view: canView,
         can_edit: canView && req.viewerContext?.active !== true && effective.get(codes.edit) === true &&
-          (table !== 'pc' || pcEditFeatureEnabled_uni()),
+          (table !== 'pc' || pcEditFeatureEnabled_uni()) &&
+          (table !== 'detalle_mp_2026' || mpEditFeatureEnabled_uni()),
         ...(table==='pc'?{
           can_prepare_create:canView && req.viewerContext?.active !== true && effective.get(codes.edit)===true,
           can_create:canView && req.viewerContext?.active !== true && effective.get(codes.edit)===true && createGateEnabled_uni()
+        }:{}),
+        ...(table==='detalle_mp_2026'?{
+          can_prepare_zone1:canView && req.viewerContext?.active !== true && effective.get(codes.edit)===true,
+          can_write_zone1:canView && req.viewerContext?.active !== true && effective.get(codes.edit)===true &&
+            require('./cobranza-uni-administracion.mp-zona1-write-service').zone1WriteEnabled_uni()
         }:{}),
         schema_ready: meta.schemaReady
       };
@@ -70,13 +79,21 @@ router.get('/tablas/:tabla/acceso', ...guard, async (req, res, next) => {
       return res.status(403).json({ok:false,code:'COBRANZA_UNI_ADMIN_TABLA_DENEGADA'});
     }
     const canEdit=req.viewerContext?.active !== true && rights.get(cfg.edit) === true &&
-      (table!=='pc' || pcEditFeatureEnabled_uni());
+      (table!=='pc' || pcEditFeatureEnabled_uni()) &&
+      (table!=='detalle_mp_2026' || mpEditFeatureEnabled_uni());
     const canPrepareCreate=table==='pc' && req.viewerContext?.active !== true && rights.get(cfg.edit)===true;
     return res.json({ok:true,table,can_view:true,can_edit:canEdit,
       ...(table==='pc'?{editable_fields:canEdit?PHASE3_SAFE_FIELDS_UNI:[],
         edit_policy:'safe_fields_until_authorized_cutover',
         can_prepare_create:canPrepareCreate,
-        can_create:canPrepareCreate && createGateEnabled_uni()}:{})});
+        can_create:canPrepareCreate && createGateEnabled_uni()}:{}),
+      ...(table==='detalle_mp_2026'?{
+        editable_fields:canEdit?PHASE4_SAFE_FIELDS_MP_UNI:[],
+        edit_policy:'safe_fields_after_authorized_GC_VA_MP_cutover',
+        can_prepare_zone1:req.viewerContext?.active!==true && rights.get(cfg.edit)===true,
+        can_write_zone1:req.viewerContext?.active!==true && rights.get(cfg.edit)===true &&
+          require('./cobranza-uni-administracion.mp-zona1-write-service').zone1WriteEnabled_uni()
+      }:{})});
   } catch(error) { return next(error); }
 });
 
@@ -129,6 +146,119 @@ router.get('/tablas/pc/registros', ...guard, async (req,res,next)=>{
   }
 });
 
+
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_2_V001]
+// Lectura MP independiente: guard MAIN, permiso VER propio y scope oficial
+// UNITED por fila dentro del servicio. Nunca JOIN por nombre ni operaciones DML.
+router.get('/tablas/detalle_mp_2026/registros', ...guard, async(req,res,next)=>{
+  try {
+    const id = effectiveId(req);
+    if (!id) return res.status(401).json({ok:false,code:'EFFECTIVE_USER_REQUIRED'});
+    const permission = TABLE_PERMISSIONS.detalle_mp_2026.view;
+    const rights = await listEffectivePermissions(id,[permission]);
+    if (rights.get(permission) !== true)
+      return res.status(403).json({ok:false,code:'COBRANZA_UNI_ADMIN_TABLA_DENEGADA'});
+    const {listMantenimientoPreventivoAdmin_uni} = require('./cobranza-uni-administracion.mp-service');
+    return res.json(await listMantenimientoPreventivoAdmin_uni(req));
+  } catch(error) {
+    if (error && error.statusCode === 400)
+      return res.status(400).json({ok:false,
+        code:error.code||'COBRANZA_UNI_MP_ADMIN_CONSULTA_INVALIDA',message:error.message});
+    return next(error);
+  }
+});
+
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_7_V001]
+// Conciliacion READ ONLY: guarda de Administracion y permiso MP.VER efectivo,
+// filtros oficiales de UNITED/identidad en el servicio. No expone huérfanos
+// globales de Zona 1 ni habilita corte GAS por resultados favorables.
+router.get('/tablas/detalle_mp_2026/conciliacion', ...guard, async(req,res,next)=>{
+  try{
+    const {reconcileMpAdmin_uni}=require('./cobranza-uni-administracion.mp-reconciliation');
+    return res.json(await reconcileMpAdmin_uni(req));
+  }catch(error){
+    if(error&&[400,401,403].includes(error.statusCode))
+      return res.status(error.statusCode).json({ok:false,
+        code:error.code||'MP_F7_CONCILIACION_DENEGADA',message:error.message});
+    return next(error);
+  }
+});
+
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_5_V001]
+// Detalle Zona 1 READ ONLY por id_dmp; misma puerta MAIN/UNITED y MP.VER.
+// La identidad de proyecto se valida otra vez en el servicio; sin JOIN textual.
+router.get('/tablas/detalle_mp_2026/registros/:id/zona-1', ...guard, async(req,res,next)=>{
+  try{
+    const actor=effectiveId(req);
+    if(!actor)return res.status(401).json({ok:false,code:'EFFECTIVE_USER_REQUIRED'});
+    const permission=TABLE_PERMISSIONS.detalle_mp_2026.view;
+    const rights=await listEffectivePermissions(actor,[permission]);
+    if(rights.get(permission)!==true)
+      return res.status(403).json({ok:false,code:'COBRANZA_UNI_ADMIN_TABLA_DENEGADA'});
+    const {getZona1DetalleMp_uni}=require('./cobranza-uni-administracion.mp-zona1-service');
+    return res.json(await getZona1DetalleMp_uni(req,req.params.id));
+  }catch(error){
+    if(error&&[400,403,404,409].includes(error.statusCode))
+      return res.status(error.statusCode).json({ok:false,
+        code:error.code||'MP_ZONA1_CONSULTA_INVALIDA',message:error.message});
+    return next(error);
+  }
+});
+
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_6_V001]
+// Zona1 simulation: POST only runs SELECT; write routes are permanently gated
+// while GAS is active and require the same MAIN+VER+EDITAR+UNITED checks.
+const zona1Write_uni=()=>require('./cobranza-uni-administracion.mp-zona1-write-service');
+const zona1BasePath_uni='/tablas/detalle_mp_2026/zona-1/:id';
+function sendZone1Error_uni(error,res,next){
+  if(error&&[400,401,403,404,409,413,422].includes(error.statusCode))
+    return res.status(error.statusCode).json({ok:false,
+      code:error.code||'MP_ZONA1_OPERACION_INVALIDA',message:error.message});
+  return next(error);
+}
+router.post(zona1BasePath_uni+'/validar-vinculo',...guard,async(req,res,next)=>{
+  try{return res.json(await zona1Write_uni().preflightLinkZone1_uni(req,req.params.id,req.body));}
+  catch(error){return sendZone1Error_uni(error,res,next);}
+});
+router.post(zona1BasePath_uni+'/validar-alta',...guard,async(req,res,next)=>{
+  try{return res.json(await zona1Write_uni().preflightCreateZone1_uni(req,req.params.id,req.body));}
+  catch(error){return sendZone1Error_uni(error,res,next);}
+});
+router.post(zona1BasePath_uni+'/validar-cambio/:zonaId',...guard,async(req,res,next)=>{
+  try{return res.json(await zona1Write_uni().preflightEditZone1_uni(req,req.params.id,req.params.zonaId,req.body));}
+  catch(error){return sendZone1Error_uni(error,res,next);}
+});
+router.post(zona1BasePath_uni+'/vincular',...guard,async(req,res,next)=>{
+  try{return res.json(await zona1Write_uni().linkZone1_uni(req,req.params.id,req.body));}
+  catch(error){return sendZone1Error_uni(error,res,next);}
+});
+router.post(zona1BasePath_uni,...guard,async(req,res,next)=>{
+  try{return res.status(201).json(await zona1Write_uni().createZone1_uni(req,req.params.id,req.body));}
+  catch(error){return sendZone1Error_uni(error,res,next);}
+});
+router.patch(zona1BasePath_uni+'/:zonaId',...guard,async(req,res,next)=>{
+  try{return res.json(await zona1Write_uni().editZone1_uni(req,req.params.id,req.params.zonaId,req.body));}
+  catch(error){return sendZone1Error_uni(error,res,next);}
+});
+
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_3_V001]
+// Editor preparado, pero la puerta de GAS + contrato F1 impide escribir.
+// Una peticion PATCH NUNCA autoriza por si misma; el servicio valida otra vez.
+function sendMpWriteError_uni(error,res,next){
+  if(error && [400,401,403,404,409,413,422].includes(error.statusCode))
+    return res.status(error.statusCode).json({ok:false,
+      code:error.code||'MP_ADMIN_EDICION_INVALIDA',message:error.message,
+      details:error.details||undefined});
+  return next(error);
+}
+router.patch('/tablas/detalle_mp_2026/registros/edicion-multiple', ...guard,async(req,res,next)=>{
+  try{return res.json(await updateMultiMp_uni(req,req.body));}
+  catch(error){return sendMpWriteError_uni(error,res,next);}
+});
+router.patch('/tablas/detalle_mp_2026/registros/:id', ...guard,async(req,res,next)=>{
+  try{return res.json(await updateSingleMp_uni(req,req.params.id,req.body));}
+  catch(error){return sendMpWriteError_uni(error,res,next);}
+});
 
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_4_V001]
 // La ruta hereda guard: sesion, permiso MAIN, puerta UNITED/COBRANZA_UNI.

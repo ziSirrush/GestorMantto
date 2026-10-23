@@ -1,14 +1,14 @@
 'use strict';
 
-// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_1_V001]
-// Contrato de estructura: no ejecuta consultas, no autoriza permisos y no escribe en BD.
-// Fuente GC: CREATE TABLE gestion_credito proporcionado para la Fase 1.
-// pc definido por VA Fase 1 (solo contrato); MP conserva esquema pendiente.
+// [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_MP_FASE_1_V001]
+// Contratos de estructura: no ejecutan consultas, no autorizan permisos y no escriben BD.
+// GC y pc conservan sus contratos existentes; MP incluye tabla base y Zona 1.
 const PC_CONTRACT_UNI = require('./cobranza-uni-administracion.pc-contract');
+const MP_CONTRACT_UNI = require('./cobranza-uni-administracion.mp-contract');
 
 const TABLES_UNI = Object.freeze({
   gestion_credito: Object.freeze({
-    label: 'Gestión de Crédito',
+    label: 'Gesti\u00f3n de Cr\u00e9dito',
     primaryKey: 'id_gc',
     schemaReady: true
   }),
@@ -20,7 +20,7 @@ const TABLES_UNI = Object.freeze({
   detalle_mp_2026: Object.freeze({
     label: 'Mantenimiento Preventivo',
     primaryKey: 'id_dmp',
-    schemaReady: false
+    schemaReady: true
   })
 });
 
@@ -106,11 +106,11 @@ function getTableContract_uni(tableName) {
       columns: PC_CONTRACT_UNI.PC_COLUMNS_UNI
     });
   }
-  if (tableName !== 'gestion_credito') {
+  if (tableName === 'detalle_mp_2026') {
     return Object.freeze({
       table: tableName,
       ...TABLES_UNI[tableName],
-      columns: null
+      columns: MP_CONTRACT_UNI.MP_COLUMNS_UNI
     });
   }
   return Object.freeze({
@@ -128,5 +128,6 @@ module.exports = Object.freeze({
   GC_DERIVED_FIELDS_UNI,
   GC_DERIVED_DEPENDENCIES_UNI,
   ...PC_CONTRACT_UNI,
+  ...MP_CONTRACT_UNI,
   getTableContract_uni
 });

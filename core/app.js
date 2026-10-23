@@ -1,5 +1,45 @@
 (function(){
 
+  // El único control visible de regreso vive en la barra contextual. Las vistas
+  // internas conservan sus acciones locales, pero las ejecuta este control.
+  const CONTEXT_BACK_TARGETS = Object.freeze({
+    'almacen-auditoria':['#alm-audit-cancel','#alm-audit-new','#alm-audit-retry'],
+    'cobranza-uni-estados-cuenta':['[data-gc-detail-action="back"]'],
+    'cobranza-uni-mp-pro':['[data-mp-detail-action="back"]'],
+    'cobranza-uni-aditivas':['[data-va-action="back"]'],
+    'cobranza-uni-administracion':['[data-cua-back]'],
+    'instalaciones-administracion':['#iadm-cor-altas-back','#iadm-cor-bulk-back','#iadm-cor-change-record','#iadm-cor-back-projects'],
+    'instalaciones-proyectos':['#py-equipo-back','#py-detail-page .py-modal-back'],
+    'logistica-reporte':['#rl-detail-back'],
+    'offline-configuracion':['#off-reader-detail .off-reader-detail-back','#off-reader-home'],
+    'ventas-fotos-mapa':['[data-vfm-back]'],
+    'cx-visitas':['#cxv-dialog-overlay .cxv-history .cxv-form-actions [data-cxv-action="detail"]','#cxv-dialog-overlay .cxv-dialog-head [data-cxv-action="close"]']
+  });
+
+  function contextualBackTarget(){
+    const route=window.ManttoRouter?.getCurrent?.()?.route;
+    const view=document.getElementById(route==='cx-visitas'?'view-placeholder':'view-'+route);
+    if(!view)return null;
+    for(const selector of CONTEXT_BACK_TARGETS[route]||[]){
+      const button=view.querySelector(selector);
+      if(!button)continue;
+      let visible=true;
+      for(let node=button.parentElement;node&&node!==view.parentElement;node=node.parentElement){
+        const style=window.getComputedStyle?.(node);
+        if(node.hidden || style?.display==='none' || style?.visibility==='hidden'){
+          visible=false;break;
+        }
+      }
+      if(visible)return button;
+    }
+    return null;
+  }
+
+  function syncContextBarBottom(){
+    const bar=document.getElementById('app-context-nav');
+    if(bar)document.documentElement.style.setProperty('--app-context-bottom',Math.ceil(bar.getBoundingClientRect().bottom)+'px');
+  }
+
   let interactionsModulePromise = null;
 
   function ensureInteractionsModule_gnral(){
@@ -655,8 +695,16 @@
       backBtn.removeAttribute('data-route');
       backBtn.addEventListener('click', e=>{
         e.preventDefault();
+        const localBack=contextualBackTarget();
+        if(localBack){localBack.click();return;}
         if(window.ManttoRouter && window.ManttoRouter.back) window.ManttoRouter.back();
       });
+    }
+    syncContextBarBottom();
+    window.addEventListener('resize',syncContextBarBottom);
+    if(window.ResizeObserver){
+      const bar=document.getElementById('app-context-nav');
+      if(bar)new ResizeObserver(syncContextBarBottom).observe(bar);
     }
     document.getElementById('btnToggleSidebar').addEventListener('click',()=>{
       const sb = document.getElementById('sidebar');

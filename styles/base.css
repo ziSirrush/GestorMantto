@@ -139,6 +139,25 @@ button{cursor:pointer}
 }
 #app-back-btn[hidden]{display:none!important}
 #app-back-btn:disabled{opacity:.45;cursor:not-allowed;background:#F1F5F9;color:#98A2B3}
+/* Regreso único: las acciones locales siguen disponibles para la barra contextual. */
+[data-gc-detail-action="back"],
+[data-mp-detail-action="back"],
+[data-va-action="back"],
+[data-cua-back],
+[data-pf-action="back"],
+[data-vfm-back],
+#alm-audit-cancel,#alm-audit-new,#alm-audit-retry,
+#iadm-cor-altas-back,#iadm-cor-back-projects,#iadm-cor-bulk-back,#iadm-cor-change-record,
+#py-detail-page .py-modal-back,#py-equipo-back,
+#rl-detail-back,#off-reader-home,.off-reader-detail-back,
+#vpn-back,#vpd-back,#vcn-back,
+#cxv-dialog-overlay .cxv-history .cxv-form-actions [data-cxv-action="detail"]{
+  display:none!important;
+}
+/* Los detalles a pantalla completa dejan accesible la barra contextual. */
+#view-instalaciones-proyectos #py-detail-page,
+#view-instalaciones-proyectos #py-detail-page-2,
+#view-placeholder #cxv-dialog-overlay{top:var(--app-context-bottom,120px)!important}
 
 /* AUTH / LOGIN PRUEBAS V1 */
 .auth-hidden{display:none!important}.hidden{display:none!important}

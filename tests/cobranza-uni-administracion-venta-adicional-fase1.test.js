@@ -24,7 +24,7 @@ test('VA F1: tabla pc con 31 columnas reales y FK del DDL', () => {
   assert.equal(c.TABLES_UNI.pc.primaryKey, 'id_pc');
   assert.equal(c.TABLES_UNI.pc.schemaReady, true);
   assert.equal(c.getTableContract_uni('pc').columns, c.PC_COLUMNS_UNI);
-  assert.equal(c.getTableContract_uni('detalle_mp_2026').columns, null);
+  assert.equal(c.getTableContract_uni('detalle_mp_2026').columns, c.MP_COLUMNS_UNI);
   assert.equal(fields.id_pc.sqlType, 'bigint');
   assert.equal(fields.id_pc.nullable, false);
   assert.equal(fields.id_proyecto_cobranza.sqlType, 'bigint unsigned');

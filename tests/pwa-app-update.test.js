@@ -162,7 +162,8 @@ test('el worker puente recarga clientes antiguos y respeta clientes con actualiz
     self,clients:self.clients,MessageChannel:TestMessageChannel,URL,URLSearchParams,Promise,Date,
     setTimeout:callback=>{Promise.resolve().then(callback);return 1;},clearTimeout:()=>{}
   };
-  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'service-worker.js'),'utf8'),context);
+  const workerSource=fs.readFileSync(path.join(ROOT,'service-worker.js'),'utf8');
+  vm.runInNewContext(workerSource,context);
 
   let managedNavigation='';
   await context.refreshLegacyClient({
@@ -178,7 +179,8 @@ test('el worker puente recarga clientes antiguos y respeta clientes con actualiz
     postMessage:()=>{},
     navigate:async url=>{legacyNavigation=url;}
   });
-  assert.match(legacyNavigation,/blt_sw_update=20261021-offline-http-session-v001/);
+  const workerVersion=workerSource.match(/const SERVICE_WORKER_VERSION = '([^']+)'/)[1];
+  assert.equal(new URL(legacyNavigation).searchParams.get('blt_sw_update'),workerVersion);
 });
 
 test('GitHub Pages y Netlify generan metadata dentro del build',()=>{

@@ -614,7 +614,7 @@
     $('first-login-form')?.addEventListener('submit', handleFirstLogin);
     $('recovery-form')?.addEventListener('submit', handleRecovery);
     $('btn-open-recovery')?.addEventListener('click', ()=>{ state.recoveryToken=null; setForm('recovery-form'); msg('recovery-msg','',''); });
-    $('btn-back-login')?.addEventListener('click', ()=>setForm('login-form'));
+    $('btn-cancel-recovery')?.addEventListener('click', ()=>setForm('login-form'));
     $('btn-cancel-first')?.addEventListener('click', ()=>{ logout(); });
     $('btn-recovery-start')?.addEventListener('click', handleRecoveryStart);
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });

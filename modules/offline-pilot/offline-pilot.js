@@ -611,7 +611,7 @@
     if(!readerCanOpen(r.metadata,r.module)){closeReader();return;}
     detail.hidden=false;detail.replaceChildren();
     readerElement('off-reader-list').hidden=true;readerElement('off-reader-pager').hidden=true;
-    const back=create('button','off-btn off-btn-secondary','← Volver al listado');back.type='button';
+    const back=create('button','off-btn off-btn-secondary off-reader-detail-back','← Volver al listado');back.type='button';
     back.addEventListener('click',()=>{
       detail.hidden=true;readerElement('off-reader-list').hidden=false;readerElement('off-reader-pager').hidden=false;
     });

@@ -1,7 +1,7 @@
 'use strict';
 
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_FASE_1_V001]
-// Pruebas sin conexión a Aiven ni modificaciones de datos.
+// Pruebas sin conexion a Aiven ni modificaciones de datos.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,7 +12,7 @@ const contract = require('../backend/src/modules/cobranza-uni-administracion/cob
 const ROOT = path.resolve(__dirname, '..');
 const MAIN = path.join(ROOT, 'modules', 'cobranza-uni', 'administracion', 'main', 'main.js');
 
-test('Fase 1: tablas y claves reales, con contratos GC y PC definidos', () => {
+test('Fase 1: tablas y claves reales, con contratos GC, PC y MP definidos', () => {
   assert.deepEqual(Object.keys(contract.TABLES_UNI), [
     'gestion_credito', 'pc', 'detalle_mp_2026'
   ]);
@@ -21,7 +21,8 @@ test('Fase 1: tablas y claves reales, con contratos GC y PC definidos', () => {
   assert.equal(contract.TABLES_UNI.detalle_mp_2026.primaryKey, 'id_dmp');
   assert.equal(contract.getTableContract_uni('gestion_credito').columns.length, 29);
   assert.equal(contract.getTableContract_uni('pc').columns.length, 31);
-  assert.equal(contract.getTableContract_uni('detalle_mp_2026').columns, null);
+  assert.equal(contract.getTableContract_uni('detalle_mp_2026').columns.length, 20);
+  assert.equal(contract.TABLES_UNI.detalle_mp_2026.schemaReady, true);
   assert.equal(contract.getTableContract_uni('tabla_inexistente'), null);
 });
 
@@ -81,6 +82,6 @@ test('Fase 1/Fase 2: el frontend sigue sin poder modificar registros', async () 
   vm.runInNewContext(src, { window, document });
   assert.equal(typeof window.ManttoCobranzaAdministracion_uni.init, 'function');
   assert.equal(await window.ManttoCobranzaAdministracion_uni.init(), false);
-  assert.match(root.innerHTML, /Administración de Cobranza UNI/);
+  assert.match(root.innerHTML, /Administraci\u00f3n de Cobranza UNI/);
   assert.doesNotMatch(src, /\.patch\(|\.post\(/);
 });

@@ -30,7 +30,7 @@ test('index: Main tiene vista propia y menu de seguridad previo a inicializar la
   const app=html.indexOf('./core/app.js');
   assert.ok(menu>0 && app>menu);
   assert.match(html,/core\/router\.js\?v=20261023-back-history-v001/);
-  assert.match(html,/core\/module-loader\.js\?v=20261023-back-history-v001/);
+  assert.match(html,/core\/module-loader\.js\?v=20261023-context-back-only-v001/);
 });
 
 test('router: administra independientemente del modulo de consulta legacy',()=>{
