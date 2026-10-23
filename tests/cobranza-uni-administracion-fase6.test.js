@@ -146,10 +146,16 @@ test('F6: motor de edicion exige marcador dentro de la transaccion y antes de au
   assert.match(ctrlSource,/FOR UPDATE/);
 });
 
-test('F6: SQL de tabla guard no toca tablas financieras ni concede permisos',()=>{
-  const sql=fs.readFileSync(path.join(root,'database/migrations/20261023_cobranza_uni_administracion_fase6_proteccion_sync.sql'),'utf8');
-  assert.match(sql,/CREATE TABLE IF NOT EXISTS `cobranza_uni_gc_admin_guard`/);
-  assert.match(sql,/PRIMARY KEY \(`id_gc`\)/);
-  assert.doesNotMatch(sql,/\b(?:UPDATE|DELETE|DROP|TRUNCATE)\s+`?gestion_credito/i);
-  assert.doesNotMatch(sql,/\bINSERT INTO rol_permisos\b/i);
+test('F6: guard versionado no modifica tablas financieras ni requiere archivos SQL ignorados',()=>{
+  // Las migraciones son externas al repositorio; esta prueba valida el codigo
+  // ejecutable de proteccion sin depender de archivos ignorados por Git.
+  const source=fs.readFileSync(path.join(moduleDir,'cobranza-uni-administracion.gc-sync-guard.js'),'utf8');
+  const gitignore=fs.readFileSync(path.join(root,'.gitignore'),'utf8');
+  assert.match(gitignore,/^\*\.sql\s*$/m);
+  assert.match(source,/INSERT INTO \${TABLE} \(id_gc,id_usuario,campo\)/);
+  assert.match(source,/SELECT id_gc FROM \${TABLE} LIMIT 0/);
+  assert.match(source,/WHERE id_gc = \? LIMIT 1/);
+  assert.match(source,/ER_NO_SUCH_TABLE/);
+  assert.doesNotMatch(source,/\b(?:UPDATE|DELETE|DROP|TRUNCATE)\s+`?gestion_credito\b/i);
+  assert.doesNotMatch(source,/\bINSERT\s+INTO\s+rol_permisos\b/i);
 });

@@ -34,12 +34,15 @@ test('F2: rutas administrativas GET protegidas por Guard UNITED',()=>{
   assert.match(previous,/router\.post\('\/sync', requireCobranzaUniIntegration/);
   assert.match(previous,/router\.use\('\/administracion', administracionUniRoutes\)/);
 });
-test('F2: migración registra catálogo sin asignar roles/usuarios ni alterar las tablas financieras',()=>{
-  const migration=p('database/migrations/20261023_cobranza_uni_administracion_fase2_permisos.sql');
-  assert.match(migration,/INSERT INTO perm_modulos/);
-  assert.match(migration,/INSERT INTO perm_subelemento_acciones/);
-  assert.doesNotMatch(migration,/INSERT INTO (?:rol_permisos|usuario_permisos)/i);
-  assert.doesNotMatch(migration,/\b(?:UPDATE|DELETE FROM)\s+(?:gestion_credito|detalle_mp_2026|pc)\b/i);
+test('F2: politica de entrega protege el catalogo de permisos sin exigir archivos SQL ignorados',()=>{
+  // BLT NOW excluye *.sql y validate-clean-tree rechaza esos archivos versionados.
+  // Se verifica la seguridad del contrato JavaScript presente en un checkout limpio.
+  assert.match(p('.gitignore'), /^\*\.sql\s*$/m);
+  const routes=p('backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.routes.js');
+  const permissionSource=p('backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.permissions.js');
+  assert.match(permissionSource,/COBRANZA_UNI_ADMINISTRACION_ACCESO_VISUAL_MODULO/);
+  assert.doesNotMatch(routes,/\bINSERT\s+INTO\s+(?:rol_permisos|usuario_permisos)\b/i);
+  assert.doesNotMatch(routes,/\b(?:UPDATE|DELETE FROM)\s+(?:gestion_credito|detalle_mp_2026|pc)\b/i);
 });
 test('F2: selector mantiene el nombre y ruta de tablas reales, sin mutaciones en la interfaz',()=>{
   const js=p('modules/cobranza-uni/administracion/main/main.js');
