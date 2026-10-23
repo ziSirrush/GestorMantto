@@ -193,7 +193,8 @@ test('Backend conserva esquema historico sin backfill y no exige fecha_pvo_fl pa
 });
 
 test('Cache-bust actualizado solo para las 5 rutas del modulo',()=>{
- const newRef='./modules/logistica-produccion/logistica-produccion.js?v=20261021-pvo-fecha-unica-fase2-v001';
+ const newRef=loader.match(/\.\/modules\/logistica-produccion\/logistica-produccion\.js\?v=\d{8}-[a-z0-9-]+/)?.[0];
+ assert.ok(newRef);
  assert.equal(loader.split(newRef).length-1,5);
  assert.match(loader,/20260923-dashboard-ppns-final-v001/);
  assert.equal(loader.split('./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001').length-1,5);

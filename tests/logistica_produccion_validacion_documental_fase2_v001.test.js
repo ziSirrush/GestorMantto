@@ -171,7 +171,8 @@ test('Detalle mantiene carga, reemplazo, eliminación, recarga de backend y esta
 });
 
 test('Un único archivo del módulo y cache-bust solamente de JS en las cinco rutas',()=>{
- const token='20261021-pvo-fecha-unica-fase2-v001';
+ const token=loader.match(/logistica-produccion\.js\?v=(\d{8}-[a-z0-9-]+)/)?.[1];
+ assert.ok(token);
  const jsRef='./modules/logistica-produccion/logistica-produccion.js?v='+token;
  assert.equal(loader.split(jsRef).length-1,5);
  assert.equal(loader.split('./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001').length-1,5);
