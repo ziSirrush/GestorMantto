@@ -171,7 +171,7 @@ test('VA F2: ruta requiere MAIN + permiso VER exclusivo de pc (EDITAR no basta)'
   assert.equal(res.code,401);
 });
 
-test('VA F2/F3: frontend conserva grupos, filtros, scroll y 31 columnas bajo edicion independiente',()=>{
+test('VA F2/F3: frontend Excel unico, sin grupos, con filtros, scroll y 31 columnas',()=>{
   const main=read('modules/cobranza-uni/administracion/main/main.js');
   const js=read('modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js');
   const css=read('modules/cobranza-uni/administracion/venta-adicional/venta-adicional.css');
@@ -180,11 +180,11 @@ test('VA F2/F3: frontend conserva grupos, filtros, scroll y 31 columnas bajo edi
   assert.match(main,/loader\.loadStyle\('\.\/modules\/cobranza-uni\/administracion\/venta-adicional\//);
   assert.match(main,/loader\.loadScript\('\.\/modules\/cobranza-uni\/administracion\/venta-adicional\//);
   for(const word of ['data-pc-search','data-pc-page-size','data-pc-filter-column',
-    'data-pc-filter-value','data-pc-sort','data-pc-prev','data-pc-next','data-pc-group']){
+    'data-pc-filter-value','data-pc-sort','data-pc-prev','data-pc-next','data-pc-cell-input']){
     assert.ok(js.includes(word),word);
   }
-  for(const group of ['resumen','operacion','facturacion','cartera','todas'])
-    assert.ok(js.includes(group+':Object.freeze'),group);
+  assert.match(js,/const columns=colList\(\)/);
+  assert.doesNotMatch(js,/\bGROUPS\b|data-pc-group|data-pc-dialog hidden/);
   assert.match(js,/readonly!==true/);
   assert.match(js,/ManttoAuth\.apiGet/);
   assert.match(js,/method:'PATCH'/);

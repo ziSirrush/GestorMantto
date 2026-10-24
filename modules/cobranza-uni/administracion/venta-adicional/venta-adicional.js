@@ -1,7 +1,7 @@
 (function (win,doc) {
   'use strict';
   // [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_6_V001]
-  // F6: validacion de alta via SELECT; creacion real cerrada hasta corte GC+VA+MP.
+  // Tabla Excel con edicion fantasma en celda y alta controlada por el backend.
   // Los 31 campos llegan de /administracion/tablas/pc/registros (backend seguro).
   const API='/api/cobranza-uni/administracion/tablas/pc/registros';
   const EXPECTED_FIELDS=31;
@@ -15,29 +15,6 @@
     'zona_operativa','estado','estatus_cartera'
   ]);
   const ALL_PREVIEW=new Set([...LOCAL_CALCULATED,...RELATED_CALCULATED]);
-  const GROUPS=Object.freeze({
-    resumen:Object.freeze({label:'Resumen',fields:Object.freeze([
-      'id_pc','proyecto','cliente','ov','concepto','precio_venta',
-      'venta_total','adeudo','estatus_administrativo','fecha_vencimiento',
-      'dias_vencimiento','estatus'
-    ])}),
-    operacion:Object.freeze({label:'Operación',fields:Object.freeze([
-      'id_pc','proyecto','cliente','zona_adm','ov','fecha_ov','mes_ov','concepto',
-      'precio_venta','tipo_pago','estatus_operativo','zona_operativa','estado',
-      'id_proyecto_cobranza'
-    ])}),
-    facturacion:Object.freeze({label:'Facturación',fields:Object.freeze([
-      'id_pc','proyecto','cliente','no_factura','fecha_factura','mes_factura',
-      'terminos','fecha_vencimiento','dias_vencimiento','estatus',
-      'estatus_administrativo','fecha_pago','refacturacion_sustitucion'
-    ])}),
-    cartera:Object.freeze({label:'Cartera',fields:Object.freeze([
-      'id_pc','proyecto','cliente','pagado_iva','no_pagado_iva','venta_total',
-      'facturas_pendientes_pago','adeudo','estatus','estatus_cartera',
-      'estatus_administrativo','comentarios_cobranza'
-    ])}),
-    todas:Object.freeze({label:'31 columnas',fields:null})
-  });
   const MONEY=new Set(['precio_venta','pagado_iva','no_pagado_iva','venta_total','adeudo']);
   const HEADINGS=Object.freeze({
     id_pc:'Consecutivo',proyecto:'Proyecto',id_proyecto_cobranza:'ID Proyecto Cobranza',
@@ -73,7 +50,7 @@
     const canCreate=canPrepareCreate && options.canCreate===true;
     const state={
       page:1,pageSize:30,search:'',filterColumn:'',filterValue:'',
-      sort:'id_pc',order:'desc',group:'resumen',columns:[],rows:[],total:0,pages:0,selected:new Set(),
+      sort:'id_pc',order:'desc',columns:[],rows:[],total:0,pages:0,selected:new Set(),
       previews:new Map(),previewDate:null,relationSummary:null
     };
     const valid=()=>!disposed &&
@@ -87,13 +64,6 @@
     const el=selector=>root.querySelector(selector);
     const label=column=>HEADINGS[column.name]||column.sheetHeader||column.name;
     const colList=()=>state.columns.filter(column=>has(HEADINGS,column.name));
-    const visible=()=>{
-      const group=GROUPS[state.group];
-      if(!group||!group.fields)return colList();
-      const keys=new Set(group.fields);
-      return colList().filter(col=>keys.has(col.name))
-        .sort((a,b)=>group.fields.indexOf(a.name)-group.fields.indexOf(b.name));
-    };
     const safeColumns=()=>state.columns.filter(c=>c.editable===true&&enabledFields.has(c.name));
     const rowById=id=>state.rows.find(row=>String(row.id_pc)===String(id));
     const updateStatus=(message,kind='info')=>{
@@ -104,7 +74,7 @@
     root.innerHTML='<section class="cua-pc-admin" data-cua-pc-grid aria-label="Venta Adicional: consulta de registros">'+
       '<div class="cua-pc-topline">'+
        '<div><strong>Registros de Venta Adicional</strong><p>Datos actuales de Aiven · tabla <code>pc</code></p></div>'+
-       '<span class="cua-pc-readonly" aria-label="Estado">'+(canEdit?'Edición controlada · 8 campos':'Relaciones F5 · consulta')+'</span>'+
+       '<span class="cua-pc-readonly" aria-label="Estado">'+(canEdit?'Edición fantasma · '+enabledFields.size+' campos':'Solo consulta')+'</span>'+
       '</div>'+
       '<div class="cua-pc-tools">'+
        '<form data-pc-form class="cua-pc-form" autocomplete="off">'+
@@ -120,13 +90,8 @@
         (canPrepareCreate?'<button type="button" class="cua-pc-btn cua-pc-primary" data-pc-create-open>+ Nuevo registro</button>':'')+
        '</div>'+
       '</div>'+
-      '<div class="cua-pc-groups" role="group" aria-label="Grupo de columnas">'+
-       Object.entries(GROUPS).map(([key,group])=>
-         '<button type="button" class="cua-pc-group" data-pc-group="'+ESC(key)+'" aria-pressed="'+(key==='resumen'?'true':'false')+'">'+ESC(group.label)+'</button>'
-       ).join('')+
-      '</div>'+
       '<div class="cua-pc-caption">'+
-        '<p class="cua-pc-note">GAS sigue activo para GC, VA y MP. Vista previa sin guardar: 8 fórmulas locales y 6 derivados relacionados, solo con identidad válida. Los acumulados incluyen todas las ventas autorizadas del proyecto, sin duplicarse en el resumen de página.'+'</p>'+
+        '<p class="cua-pc-note">Vista previa sin guardar: 8 fórmulas locales y 6 derivados relacionados, solo con identidad válida. Los acumulados incluyen todas las ventas autorizadas del proyecto, sin duplicarse en el resumen de página.'+'</p>'+
         '<span class="cua-pc-status" data-pc-status role="status" aria-live="polite">Consultando registros...</span>'+
       '</div>'+
       '<div class="cua-pc-relations-summary" data-pc-relations role="status" aria-live="polite">Acumulados por proyecto: consultando relaciones...</div>'+
@@ -146,33 +111,19 @@
        '<span data-pc-page>Página 1</span>'+
        '<button type="button" class="cua-pc-btn" data-pc-next disabled>Siguiente →</button></div>'+
       '</nav>'+
-      (canEdit?'<div class="cua-pc-dialog" data-pc-dialog hidden>'+ 
-         '<div class="cua-pc-dialog-backdrop" data-pc-dialog-close></div>'+ 
-         '<section class="cua-pc-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="cua-pc-edit-title">'+ 
-           '<header><div><p>Edicion auditada</p><h3 id="cua-pc-edit-title">Modificar registro <span data-pc-edit-id></span></h3></div>'+ 
-           '<button class="cua-pc-btn" type="button" data-pc-dialog-close>Cerrar</button></header>'+ 
-           '<form data-pc-edit-form autocomplete="off">'+ 
-             '<label>Campo <select data-pc-edit-field></select></label>'+ 
-             '<div class="cua-pc-before"><b>Valor original:</b> <span data-pc-edit-before></span></div>'+ 
-             '<label>Nuevo valor <input data-pc-edit-input type="text" maxlength="4000" />'+ 
-             '<textarea data-pc-edit-textarea rows="5" maxlength="4000" hidden></textarea></label>'+ 
-             '<label class="cua-pc-null"><input data-pc-edit-null type="checkbox" /> Vaciar este campo (NULL)</label>'+ 
-             '<p>Los 14 derivados, importes e identidad permanecen protegidos. La escritura seguira bloqueada mientras GAS opere GC, VA y MP.</p>'+ 
-             '<button type="submit" class="cua-pc-btn cua-pc-primary" data-pc-edit-save>Guardar y auditar</button>'+ 
-           '</form></section></div>':'')+
       (canPrepareCreate?'<div class="cua-pc-dialog" data-pc-create-dialog hidden>'+ 
         '<div class="cua-pc-dialog-backdrop" data-pc-create-close></div>'+ 
         '<section class="cua-pc-dialog-panel cua-pc-create-panel" role="dialog" aria-modal="true" aria-labelledby="cua-pc-create-title">'+
-          '<header><div><p>Venta Adicional · Fase 6</p><h3 id="cua-pc-create-title">Nuevo registro en pc</h3></div>'+ 
+          '<header><div><p>Venta Adicional · Alta controlada</p><h3 id="cua-pc-create-title">Nuevo registro en pc</h3></div>'+ 
             '<button class="cua-pc-btn" data-pc-create-close type="button">Cerrar</button></header>'+ 
-          '<p class="cua-pc-create-note">El consecutivo no es autoincremental. Verifica el ID sugerido; el servidor comprueba la llave primaria al guardar. El alta sigue bloqueada mientras GAS opere GC, VA y MP.</p>'+ 
+          '<p class="cua-pc-create-note">El consecutivo no es autoincremental. Verifica el ID sugerido; el servidor comprueba la llave primaria al guardar. El alta depende de permisos y configuracion del servidor.</p>'+ 
           '<form data-pc-create-form autocomplete="off">'+
             '<label class="cua-pc-create-id">Consecutivo (id_pc) <input data-pc-create-id inputmode="numeric" type="text" maxlength="19" placeholder="Sugerencia al validar" /></label>'+ 
             '<div class="cua-pc-create-fields" data-pc-create-fields></div>'+ 
             '<button class="cua-pc-btn cua-pc-primary" type="submit" data-pc-create-check>Validar y calcular (sin guardar)</button>'+ 
             '<div class="cua-pc-create-result" data-pc-create-result role="status" aria-live="polite">La validación consulta Aiven sin modificar registros.</div>'+ 
             '<button class="cua-pc-btn cua-pc-primary" type="button" data-pc-create-save disabled>'+ 
-              (canCreate?'Crear registro y auditar':'Creación bloqueada · GAS activo')+'</button>'+ 
+              (canCreate?'Crear registro y auditar':'Creación no habilitada')+'</button>'+ 
           '</form></section></div>':'')+
     '</section>';
 
@@ -210,8 +161,8 @@
       clearCreatePreview();
     }
     function showCreateDialog(){
-      if(!canPrepareCreate||!valid()||saving||state.columns.length!==EXPECTED_FIELDS)return;
-      closeDialog();renderCreateForm();clearCreatePreview();
+      if(!canPrepareCreate||!valid()||saving||editing||state.columns.length!==EXPECTED_FIELDS)return;
+      renderCreateForm();clearCreatePreview();
       const form=el('[data-pc-create-form]');if(form)form.reset();
       const result=el('[data-pc-create-result]');
       if(result)result.textContent='La validación consulta Aiven sin modificar registros.';
@@ -240,7 +191,7 @@
             'facturas_pendientes_pago','adeudo','zona_operativa','estado','estatus_cartera'];
           output.innerHTML='<strong>Validación correcta · ID '+ESC(response.id_pc)+'</strong><p>'+ 
             'Proyecto: '+ESC(response.proyecto)+' · Corte: '+ESC(response.as_of)+
-            ' · '+(canCreate?'Lista para confirmar alta.':'Solo simulación; GAS permanece activo.')+'</p>'+ 
+            ' · '+(canCreate?'Lista para confirmar alta.':'Solo simulación; alta no habilitada.')+'</p>'+ 
             '<dl>'+keys.map(name=>'<div><dt>'+ESC(HEADINGS[name]||name)+'</dt><dd>'+ 
               ESC(response.derived[name]??'—')+'</dd></div>').join('')+'</dl>';
         }
@@ -273,7 +224,7 @@
       }catch(error){
         if(!valid())return;
         clearCreatePreview();
-        updateStatus('Alta NO confirmada: '+String(error?.message||'revisa ID, permisos o GAS.'),'error');
+        updateStatus('Alta NO confirmada: '+String(error?.message||'revisa ID, permisos o configuración.'),'error');
       }finally{if(valid())busy(false);}
     }
     function renderColumnsSelect(){
@@ -286,14 +237,14 @@
     }
     function renderEditorOptions(){
       if(!canEdit)return;
-      const optionsHtml=safeColumns().map(column=>
-        '<option value="'+ESC(column.name)+'">'+ESC(label(column))+'</option>').join('');
-      for(const selector of ['[data-pc-edit-field]','[data-pc-bulk-field]']){
-        const control=el(selector);
-        if(control){const current=control.value;control.innerHTML=optionsHtml;
-          if(safeColumns().some(column=>column.name===current))control.value=current;}
+      const control=el('[data-pc-bulk-field]');
+      if(control){
+        const current=control.value;
+        control.innerHTML=safeColumns().map(column=>
+          '<option value="'+ESC(column.name)+'">'+ESC(label(column))+'</option>'
+        ).join('');
+        if(safeColumns().some(column=>column.name===current))control.value=current;
       }
-      editFieldChanged();
       bulkControlChanged();
     }
     function renderBulkControls(){
@@ -301,36 +252,14 @@
       const count=el('[data-pc-bulk-count]');
       if(count)count.textContent=state.selected.size+' seleccionados (maximo '+MAX_BULK+')';
       const submit=el('[data-pc-bulk-save]');
-      if(submit)submit.disabled=saving||state.selected.size<2||state.selected.size>MAX_BULK;
+      if(submit)submit.disabled=saving||Boolean(editing)||
+        state.selected.size<2||state.selected.size>MAX_BULK;
     }
     function busy(value){
       saving=Boolean(value);
       renderBulkControls();
-      const submit=el('[data-pc-edit-save]');if(submit)submit.disabled=saving;
       const check=el('[data-pc-create-check]');if(check)check.disabled=saving;
       const create=el('[data-pc-create-save]');if(create)create.disabled=saving||!canCreate||!createPreview;
-    }
-    function editFieldChanged(){
-      if(!editing||!canEdit)return;
-      const field=el('[data-pc-edit-field]')?.value||'';
-      const row=rowById(editing.id);if(!row)return;
-      const old=Object.hasOwn(row,field)?row[field]:null;
-      const before=el('[data-pc-edit-before]');
-      if(before)before.textContent=old==null||old===''?'(vacio)':String(old);
-      const input=el('[data-pc-edit-input]'),area=el('[data-pc-edit-textarea]');
-      const meta=state.columns.find(c=>c.name===field);
-      if(input&&area){
-        const comment=field==='comentarios_cobranza';
-        area.hidden=!comment;input.hidden=comment;
-        input.type=meta?.sqlType==='date'?'date':'text';
-        const len=Number((/varchar\((\d+)\)/.exec(meta?.sqlType||'')||[])[1]);
-        input.maxLength=Number.isSafeInteger(len)&&len>0?len:4000;
-        if(!comment)input.value=old??'';
-        else area.value=old??'';
-        input.disabled=comment;
-        area.disabled=!comment;
-      }
-      const nullBox=el('[data-pc-edit-null]');if(nullBox)nullBox.checked=false;
     }
     function bulkControlChanged(){
       if(!canEdit)return;
@@ -341,24 +270,12 @@
         input.maxLength=Number.isSafeInteger(size)&&size>0?size:4000;
       }
     }
-    function closeDialog(){
-      const dialog=el('[data-pc-dialog]');if(dialog)dialog.hidden=true;
-      editing=null;
-    }
-    function showDialog(id){
-      if(!canEdit||saving||!valid()||!rowById(id))return;
-      closeDialog();editing={id:String(id)};
-      const idEl=el('[data-pc-edit-id]');if(idEl)idEl.textContent=String(id);
-      const dialog=el('[data-pc-dialog]');if(dialog)dialog.hidden=false;
-      editFieldChanged();
-      el('[data-pc-edit-field]')?.focus();
-    }
     function render(){
       if(!valid())return;
       const scroll=el('.cua-pc-scroll');
       const left=scroll?.scrollLeft||0;
       const top=scroll?.scrollTop||0;
-      const columns=visible();
+      const columns=colList();
       const head=el('[data-pc-head]'),body=el('[data-pc-body]');
       if(head)head.innerHTML='<tr>'+columns.map((column,index)=>{
         const currentSort=state.sort===column.name;
@@ -406,9 +323,6 @@
           ' · Facturas vencidas: '+s.facturas_pendientes_pago+
           ' · Adeudo vencido: $'+formatMoney(s.adeudo)+' MXN (cada proyecto contado una sola vez).';
       }
-      root.querySelectorAll('[data-pc-group]').forEach(button=>{
-        button.setAttribute('aria-pressed',String(button.dataset.pcGroup===state.group));
-      });
       const page=el('[data-pc-page]');
       if(page)page.textContent='Página '+state.page+' de '+Math.max(1,state.pages);
       const range=el('[data-pc-range]');
@@ -448,7 +362,7 @@
           Number(response.page)!==state.page||Number(response.page_size)!==state.pageSize){
           throw new Error('Paginacion inconsistente.');
         }
-        closeDialog();state.selected.clear();
+        if(editing)cancelCellEdit();state.selected.clear();
         state.columns=columns;
         state.rows=response.rows;
         state.previews=new Map();state.previewDate=null;state.relationSummary=null;
@@ -494,7 +408,7 @@
         return true;
       }catch(error){
         if(!valid()||seq!==requestNo)return false;
-        closeDialog();state.selected.clear();
+        if(editing)cancelCellEdit();state.selected.clear();
         state.rows=[];state.previews.clear();state.previewDate=null;state.relationSummary=null;state.total=0;state.pages=0;
         render();
         updateStatus('No se pudo consultar Venta Adicional. Comprueba permisos, conexión o filtros.','error');
@@ -515,14 +429,15 @@
       input.className='cua-pc-edit-input';input.setAttribute('data-pc-cell-input','');
       input.setAttribute('aria-label','Nuevo valor para '+label(col));
       editing={id,field,old,td,committing:false};
-      td.replaceChildren(input);td.classList.add('cua-pc-editing');input.focus();input.select();
+      td.replaceChildren(input);td.classList.add('cua-pc-editing');
+      renderBulkControls();input.focus();if(typeof input.select==='function')input.select();
     }
     function cancelCellEdit(){
       if(!editing||editing.committing)return;
       const {td,old}=editing;editing=null;
       td.classList.remove('cua-pc-editing');
       td.innerHTML='<span>'+ESC(old==null||old===''?'—':old)+'</span>';
-      td.focus();
+      td.focus();renderBulkControls();
     }
     async function saveCellEdit(){
       if(!canEdit||!editing||editing.committing||!valid()||saving)return;
@@ -550,7 +465,7 @@
     }
     async function saveBulk(event){
       event.preventDefault();
-      if(!canEdit||saving||!valid())return;
+      if(!canEdit||saving||editing||!valid())return;
       const ids=[...state.selected];
       if(ids.length<2||ids.length>MAX_BULK){
         updateStatus('Selecciona de 2 a 20 registros.','error');return;
@@ -590,10 +505,9 @@
     function onSubmit(event){
       if(event.target.matches('[data-pc-create-form]')){previewCreate(event).catch(()=>{});return;}
       if(event.target.matches('[data-pc-bulk-form]')){saveBulk(event).catch(()=>{});return;}
-      if(saving)return;
       if(!event.target.matches('[data-pc-form]'))return;
       event.preventDefault();
-      if(!valid())return;
+      if(saving||editing||!valid())return;
       const column=el('[data-pc-filter-column]')?.value||'';
       const value=(el('[data-pc-filter-value]')?.value||'').trim();
       if(value&&!column){updateStatus('Selecciona una columna para filtrar.','error');return;}
@@ -604,22 +518,12 @@
       load().catch(()=>{});
     }
     function onClick(event){
-      if(saving||!valid())return;
-      if(event.target.closest('[data-pc-dialog-close]')){closeDialog();return;}
+      if(saving||editing||!valid())return;
       if(event.target.closest('[data-pc-create-close]')){closeCreateDialog();return;}
       const button=event.target.closest('button');
       if(!button||!root.contains(button))return;
       if(button.hasAttribute('data-pc-create-open')){showCreateDialog();return;}
       if(button.hasAttribute('data-pc-create-save')){saveCreate().catch(()=>{});return;}
-      if(button.hasAttribute('data-pc-group')){
-        const group=button.dataset.pcGroup;
-        if(has(GROUPS,group)){
-          state.group=group;
-          render();
-          el('.cua-pc-scroll')?.scrollTo?.({left:0,top:0});
-        }
-        return;
-      }
       if(button.hasAttribute('data-pc-sort')){
         const column=button.dataset.pcSort;
         if(!state.columns.some(c=>c.name===column))return;
@@ -647,10 +551,7 @@
       }
     }
     function onChange(event){
-      if(!valid()||saving)return;
-      if(canEdit&&event.target.matches('[data-pc-edit-field]')){
-        editFieldChanged();return;
-      }
+      if(!valid()||saving||editing)return;
       if(canEdit&&event.target.matches('[data-pc-bulk-field]')){
         bulkControlChanged();return;
       }
@@ -682,7 +583,7 @@
       if(event.key==='Enter'&&event.target.matches?.('td.cua-pc-canedit')){
         event.preventDefault();beginCellEdit(event.target);return;
       }
-      if(event.key==='Escape'&&!saving){closeDialog();closeCreateDialog();}
+      if(event.key==='Escape'&&!saving)closeCreateDialog();
     }
     function onDblClick(event){beginCellEdit(event.target.closest?.('td.cua-pc-canedit'));}
     function onFocusOut(event){
@@ -708,7 +609,7 @@
     },60000) : null;
     return Object.freeze({
       destroy(){disposed=true;requestNo++;if(midnightTimer!==null)win.clearInterval?.(midnightTimer);
-        closeDialog();closeCreateDialog();root.removeEventListener('keydown',onKey);root.removeEventListener('submit',onSubmit);
+        if(editing)cancelCellEdit();closeCreateDialog();root.removeEventListener('keydown',onKey);root.removeEventListener('submit',onSubmit);
         root.removeEventListener('dblclick',onDblClick);root.removeEventListener('focusout',onFocusOut);
         root.removeEventListener('click',onClick);root.removeEventListener('change',onChange);
         root.removeEventListener('input',onInput);

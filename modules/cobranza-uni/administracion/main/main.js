@@ -1,15 +1,15 @@
 (function (win, doc) {
   'use strict';
-  // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_2_V001]
-  // Main selector: GC/VA intactos. MP F3: editor preparado y cortado por GAS.
-  // El backend sigue siendo autoridad para permisos de tabla y alcance de filas.
+  // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_EXCEL_FASE_1_V001]
+  // Selector de tablas existente; limpieza de etiquetas historicas sin cambiar guards,
+  // consultas, rutas ni editores. El backend es autoridad de permisos y alcance.
   const ROOT_ID = 'view-cobranza-uni-administracion';
   const ROUTE = 'cobranza-uni-administracion';
   const ENDPOINT = '/api/cobranza-uni/administracion';
   const TABLES = Object.freeze({
-    gestion_credito: Object.freeze({ label:'Gestión de Crédito', icon:'🛡️', description:'Administración de cartera y crédito.', phase:'Fase 6' }),
-    pc: Object.freeze({ label:'Venta Adicional', icon:'➕', description:'Venta Adicional con vista previa de formulas, relaciones y acumulados.', phase:'Fase 6' }),
-    detalle_mp_2026: Object.freeze({ label:'Mantenimiento Preventivo', icon:'🛠️', description:'Consulta y edición auditada de MP (bloqueada hasta corte GAS).', phase:'Fase 3' })
+    gestion_credito: Object.freeze({ label:'Gestión de Crédito', icon:'🛡️', description:'Administración de cartera y crédito.' }),
+    pc: Object.freeze({ label:'Venta Adicional', icon:'➕', description:'Venta Adicional con vista previa de fórmulas y acumulados.' }),
+    detalle_mp_2026: Object.freeze({ label:'Mantenimiento Preventivo', icon:'🛠️', description:'Consulta de mantenimiento preventivo y facturación Zona 1.' })
   });
 
   let generation=0;
@@ -72,7 +72,7 @@
       if(!isCurrent(epoch,key)||selectedTable!==table)return false;
       if(response?.ok!==true||response?.can_view!==true||response?.table!==table)throw new Error('Acceso no autorizado.');
       const mode=response.can_edit===true
-        ? 'Edición autorizada · recálculo automático y control de sincronización'
+        ? 'Edición de campos autorizados según permisos y validaciones de esta tabla'
         : 'Acceso únicamente de consulta';
       if(table==='gestion_credito'){
         const loader=win.ManttoModuleLoader;
@@ -100,15 +100,13 @@
         const loader=win.ManttoModuleLoader;
         if(!loader || typeof loader.loadScript!=='function' || typeof loader.loadStyle!=='function')
           throw new Error('Cargador oficial de módulos no disponible.');
-        await loader.loadStyle('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.css?v=20261023-va-f6-v001');
-        await loader.loadScript('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js?v=20261023-va-f6-v001');
+        await loader.loadStyle('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.css?v=20261023-va-f6-v001-excel-f2-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js?v=20261023-va-excel-f6-v001');
         if(!isCurrent(epoch,key)||selectedTable!==table)return false;
         shell('<section class="cua-uni-card cua-uni-detail">'+
           '<button class="cua-uni-back" type="button" data-cua-back>← Volver al Main</button>'+
           '<h2>'+escapeHtml(meta.label)+' · pc</h2>'+
-          '<p class="cua-uni-mode">'+escapeHtml(response.can_edit===true
-            ?'Fase 6: alta simulada, 14 derivados en vista previa; GAS activo hasta cerrar GC, VA y MP'
-            :'Fase 6: consulta y simulación de alta; GAS activo hasta terminar GC, VA y MP')+'</p>'+
+          '<p class="cua-uni-mode">'+escapeHtml(mode)+'</p>'+
           '<div id="cua-uni-pc-list" class="cua-uni-pc-list"></div>'+ 
           '</section>');
         const mount=win.ManttoCobranzaAdministracionPC_uni?.mount;
@@ -125,20 +123,21 @@
         if(!editor)throw new Error('No se pudo inicializar la consulta pc.');
         return true;
       }
-      // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_3_V001]
+      // MP conserva validacion separada de permisos y acceso a Zona 1.
       if(table==='detalle_mp_2026'){
-        // Backend decide la habilitacion; F3 permanece bloqueada durante GAS.
+        // Solo el backend puede autorizar editar campos o escribir en Zona 1.
         const canEdit=response.can_edit===true;
         const loader=win.ManttoModuleLoader;
         if(!loader || typeof loader.loadScript!=='function' || typeof loader.loadStyle!=='function')
           throw new Error('Cargador oficial de módulos no disponible.');
-        await loader.loadStyle('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.css?v=20261023-mp-f6-v001');
-        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js?v=20261023-mp-f6-v001');
+        await loader.loadStyle('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.css?v=20261023-mp-excel-f4-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js?v=20261023-mp-excel-f6-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo-zona1.js?v=20261023-mp-zona1-excel-f6-v001');
         if(!isCurrent(epoch,key)||selectedTable!==table)return false;
         shell('<section class="cua-uni-card cua-uni-detail">'+
           '<button class="cua-uni-back" type="button" data-cua-back>← Volver al Main</button>'+
           '<h2>'+escapeHtml(meta.label)+' · detalle_mp_2026</h2>'+
-          '<p class="cua-uni-mode">Fase 3 · Editor preparado, GAS activo hasta corte global autorizado.</p>'+
+          '<p class="cua-uni-mode">'+escapeHtml(mode)+'</p>'+
           '<div id="cua-uni-mp-grid" class="cua-uni-mp-grid"></div>'+
           '</section>');
         const mount=win.ManttoCobranzaAdministracionMP_uni?.mount;
@@ -146,21 +145,16 @@
         if(typeof mount!=='function'||!container)throw new Error('La consulta MP no se ha cargado.');
         editor=mount(container,{
           canEdit, editableFields:Array.isArray(response.editable_fields)?response.editable_fields:[],
-          canPrepareZone1:response.can_prepare_zone1===true,
           canWriteZone1:response.can_write_zone1===true,
+          zona1EditableFields:Array.isArray(response.zona1_editable_fields)?response.zona1_editable_fields:[],
           isCurrent:()=>isCurrent(epoch,key)&&selectedTable===table&&
             win.ManttoRouter?.getCurrent?.()?.route===ROUTE
         });
         if(!editor)throw new Error('No se pudo inicializar la consulta MP.');
         return true;
       }
-      shell('<section class="cua-uni-card cua-uni-detail">'+
-        '<button class="cua-uni-back" type="button" data-cua-back>← Volver al Main</button>'+
-        '<h2>'+escapeHtml(meta.label)+'</h2>'+
-        '<p class="cua-uni-mode">'+escapeHtml(mode)+'</p>'+
-        notice('La estructura de esta tabla se definirá en fases posteriores.','info')+
-        '</section>');
-      return true;
+      // Si el catalogo creciera sin un adaptador, no mostrar un modulo ficticio.
+      throw new Error('Tabla sin adaptador autorizado.');
     }catch(error){
       if(!isCurrent(epoch,key))return false;
       shell('<section class="cua-uni-card cua-uni-detail">'+

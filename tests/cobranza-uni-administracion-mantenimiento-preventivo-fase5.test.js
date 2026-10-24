@@ -231,98 +231,75 @@ test('MP F5: rutas y cliente no introducen alta ni escritura de Zona 1',()=>{
   const client=text('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js');
   assert.match(routes,/router\.get\('\/tablas\/detalle_mp_2026\/registros\/:id\/zona-1'/);
   assert.doesNotMatch(routes,/router\.(?:post|put|delete|patch)\('\/tablas\/detalle_mp_2026\/registros\/:id\/zona-1'/);
-  assert.match(client,/ManttoAuth\.apiGet\(API\+'\/'\+encodeURIComponent\(id\)\+'\/zona-1'\)/);
+  assert.match(client,/data-mp-tab=\"zona1\"/);
+  assert.doesNotMatch(client,/data-mp-zona1-dialog|data-mp-zona1-preflight/);
+  const zoneClient=text('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo-zona1.js');
+  assert.match(zoneClient,/ManttoAuth\.apiGet\(API\+'\?'\+query\.toString\(\)\)/);
   assert.doesNotMatch(client,/method\s*:\s*['"](?:PUT|DELETE)['"]/);
   assert.ok(C.MP_RULES_UNI.gasSyncRemainsActive);
   assert.ok(!C.MP_RULES_UNI.writesEnabled);
 });
-// ------------------ CLIENTE ------------------
-function clientMock(mainRows=[MAIN],zoneResponse){
-  const handlers={};const nodes=new Map();const calls=[];
+// ------------------ CLIENTE (editor anterior sustituido por pestaña) ------------------
+function zoneGridResponse(rows){return {
+  ok:true,readonly:true,table:'detalle_mp_2026_zona_1',relation:'id_dmp',
+  identity_verified:true,primary_key:'id_mp_zona_1',columns:C.MP_ZONE1_COLUMNS_UNI,
+  rows,total:rows.length,pages:Math.ceil(rows.length/25),page:1,page_size:25
+};}
+function clientMock(response){
+  const handlers={},nodes=new Map(),calls=[];
   const findNode=selector=>{
     if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',dataset:{},value:'',
-      hidden:true,disabled:false,checked:false,setAttribute(){},focus(){},reset(){}});
+      disabled:false,scrollLeft:0,scrollTop:0,setAttribute(){},focus(){},reset(){}});
     return nodes.get(selector);
   };
-  const container={innerHTML:'',querySelector:findNode,querySelectorAll(){return [];},
-    addEventListener(event,fn){handlers[event]=fn;},replaceChildren(){this.innerHTML='';}};
-  const win={ManttoAuth:{apiGet:async url=>{
-    calls.push(url);
-    if(url.endsWith('/zona-1'))return typeof zoneResponse==='function'?zoneResponse():zoneResponse;
-    return {ok:true,readonly:true,table:'detalle_mp_2026',columns:C.MP_COLUMNS_UNI,
-      rows:mainRows,total:mainRows.length,pages:1,formula_preview:F.buildMpFormulaPreview_uni(mainRows)};
+  const root={innerHTML:'',querySelector:findNode,querySelectorAll(){return [];},
+    addEventListener(event,fn){handlers[event]=fn;},removeEventListener(event){delete handlers[event];},
+    replaceChildren(){this.innerHTML='';}};
+  const win={ManttoAuth:{apiGet:async url=>{calls.push(url);
+    return typeof response==='function'?response():response;
   }}};
-  vm.runInNewContext(text('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js'),{
-    window:win,document:{},URLSearchParams
+  vm.runInNewContext(text('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo-zona1.js'),{
+    window:win,URLSearchParams
   });
-  const editor=win.ManttoCobranzaAdministracionMP_uni.mount(container,{isCurrent:()=>true});
-  const clickZone=id=>handlers.click({target:{closest(selector){
-    if(selector==='[data-mp-zona1]')return {dataset:{mpZona1:id}};
-    return null;
-  }}});
-  const closeZone=()=>handlers.click({target:{closest(selector){
-    if(selector==='[data-mp-zona1-close]')return {};
-    return null;
-  }}});
-  return {editor,container,nodes,findNode,handlers,clickZone,closeZone,calls};
+  const editor=win.ManttoCobranzaMPZona1_uni.mount(root,{isCurrent:()=>true});
+  return {editor,root,nodes,findNode,calls,handlers};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-test('MP F5: UI muestra detalle 16+12x9, nombres coherentes y escape HTML',async()=>{
-  const z=zone({cliente:'<svg onload=alert(1)>',numero_factura_01:'FAC-001',forma_pago_12:'RECIBO'});
-  const main=[MAIN];
-  const identity={verified:true,join_key:'id_dmp',project_checked:true,idns_checked:true,cliente_checked:true};
-  const response={ok:true,readonly:true,table:'detalle_mp_2026_zona_1',id_dmp:'41',
-    relation:'id_dmp',invoice_blocks:12,columns:C.MP_ZONE1_COLUMNS_UNI,
-    linked:true,identity_verified:true,identity,row:z,lookup_preview:S._test.reportLookup_uni(main[0],z)};
-  const ui=clientMock(main,response);
-  await tick();
-  assert.match(ui.findNode('[data-mp-body]').innerHTML,/data-mp-zona1="41"/);
-  assert.doesNotMatch(ui.container.innerHTML,/data-mp-bulk-form/);
-  ui.clickZone('41');await tick();
-  const html=ui.findNode('[data-mp-zona1-content]').innerHTML;
-  assert.equal((html.match(/class="cua-mp-zona1-block"/g)||[]).length,12);
-  assert.match(html,/Facturación 12/);
-  assert.match(html,/FAC-001/);
+test('MP F5: nueva pestaña presenta 128 celdas por fila y sanitiza contenido',async()=>{
+  const z=zone({id_mp_zona_1:'77',id_dmp:'41',cliente:'<svg onload=alert(1)>',
+    numero_factura_01:'FAC-001',forma_pago_12:'RECIBO'});
+  const ui=clientMock(zoneGridResponse([z]));await tick();
+  const html=ui.findNode('[data-mpz-body]').innerHTML;
+  assert.match(html,/FAC-001/);assert.match(html,/RECIBO/);
   assert.match(html,/&lt;svg onload=alert\(1\)&gt;/);
   assert.doesNotMatch(html,/<svg onload/);
-  assert.match(html,/FORMA DE PAGO/);
-  assert.doesNotMatch(html,/FOMA DE PAGO/);
-  assert.match(html,/Solo vista previa/);
-  assert.equal(ui.findNode('[data-mp-zona1-dialog]').hidden,false);
-  ui.closeZone();assert.equal(ui.findNode('[data-mp-zona1-dialog]').hidden,true);
-  assert.equal(ui.findNode('[data-mp-zona1-content]').innerHTML,'');
+  assert.equal((html.match(/<td\b/g)||[]).length,128);
+  const header=ui.findNode('[data-mpz-head]').innerHTML;
+  assert.match(header,/Factura 12/);assert.match(header,/Forma de pago/);
+  assert.doesNotMatch(ui.root.innerHTML,/data-mp-zona1-dialog|data-mpz-apply/);
+  assert.equal(ui.calls.length,1);ui.editor.destroy();
+});
+test('MP F5: cliente no presenta Zona 1 cuando backend omite identidad verificada',async()=>{
+  const fake={...zoneGridResponse([zone({id_mp_zona_1:'77',id_dmp:'41'})]),
+    identity_verified:false};
+  const ui=clientMock(fake);await tick();
+  assert.equal(ui.findNode('[data-mpz-body]').innerHTML.includes('FAC-001'),false);
+  assert.match(ui.findNode('[data-mpz-status]').textContent,/No se pudo consultar Zona 1/);
+  assert.equal(ui.calls.length,1);ui.editor.destroy();
+});
+test('MP F5: Zona 1 vacía no inventa registros por nombre',async()=>{
+  const ui=clientMock(zoneGridResponse([]));await tick();
+  assert.match(ui.findNode('[data-mpz-body]').innerHTML,/Sin filas verificadas/);
+  assert.match(ui.findNode('[data-mpz-status]').textContent,/0 filas verificadas/);
   ui.editor.destroy();
 });
-test('MP F5: UI no muestra detalles por identidad incorrecta, ni hace PATCH al consultar',async()=>{
-  const ui=clientMock([MAIN],{ok:true,readonly:true,table:'detalle_mp_2026_zona_1',
-    id_dmp:'41',relation:'id_dmp',invoice_blocks:12,columns:C.MP_ZONE1_COLUMNS_UNI,
-    linked:true,identity_verified:false,row:zone()});
-  await tick();ui.clickZone('41');await tick();
-  assert.equal(ui.findNode('[data-mp-zona1-content]').innerHTML,'');
-  assert.match(ui.findNode('[data-mp-zona1-status]').textContent,/No se puede mostrar Zona 1/);
-  assert.equal(ui.calls.filter(x=>x.endsWith('/zona-1')).length,1);
-  ui.editor.destroy();
-});
-test('MP F5: UI declara sin vinculo y no inventa datos por nombre',async()=>{
-  const ui=clientMock([MAIN],{ok:true,readonly:true,table:'detalle_mp_2026_zona_1',
-    id_dmp:'41',relation:'id_dmp',invoice_blocks:12,columns:C.MP_ZONE1_COLUMNS_UNI,
-    linked:false,identity_verified:false,row:null});
-  await tick();ui.clickZone('41');await tick();
-  assert.match(ui.findNode('[data-mp-zona1-content]').innerHTML,/No existe una fila/);
-  assert.match(ui.findNode('[data-mp-zona1-content]').innerHTML,/No se utilizará el nombre del proyecto/);
-  ui.editor.destroy();
-});
-test('MP F5: cierre y destruccion invalidan una respuesta asincrona obsoleta',async()=>{
+test('MP F5: destrucción invalida respuesta de Zona 1 pendiente',async()=>{
   let finish;
   const pending=new Promise(resolve=>finish=resolve);
-  const ui=clientMock([MAIN],()=>pending);
-  await tick();ui.clickZone('41');
-  ui.closeZone();
-  finish({ok:true,readonly:true,table:'detalle_mp_2026_zona_1',id_dmp:'41',
-    relation:'id_dmp',invoice_blocks:12,columns:C.MP_ZONE1_COLUMNS_UNI,
-    linked:false,identity_verified:false,row:null});
-  await tick();
-  assert.equal(ui.findNode('[data-mp-zona1-content]').innerHTML,'');
-  assert.equal(ui.findNode('[data-mp-zona1-dialog]').hidden,true);
+  const ui=clientMock(()=>pending);
   ui.editor.destroy();
+  finish(zoneGridResponse([zone({id_mp_zona_1:'77',id_dmp:'41'})]));
+  await tick();
+  assert.equal(ui.root.innerHTML,'');
+  assert.equal(ui.findNode('[data-mpz-body]').innerHTML,'');
 });

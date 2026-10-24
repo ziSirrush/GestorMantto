@@ -1,0 +1,75 @@
+{
+  "id": "BLTNOW_COBRANZA_UNI_ADMIN_EXCEL_V001",
+  "fecha": "2026-10-23",
+  "fase": 1,
+  "total_fases": 6,
+  "modelo_referencia": "gestion_credito",
+  "tablas": {
+    "gestion_credito": {
+      "primary_key": "id_gc",
+      "columnas": 29,
+      "origen": "Aiven MySQL",
+      "rol": "modelo funcional existente; no modificar su editor"
+    },
+    "pc": {
+      "primary_key": "id_pc",
+      "columnas": 31,
+      "origen": "Aiven MySQL",
+      "rol": "adoptar interfaz y edicion fantasma de GC; mantener validaciones propias"
+    },
+    "detalle_mp_2026": {
+      "primary_key": "id_dmp",
+      "columnas": 20,
+      "origen": "Aiven MySQL",
+      "rol": "adoptar interfaz y edicion fantasma de GC; permitir dos pestanas MP/Zona 1"
+    },
+    "detalle_mp_2026_zona_1": {
+      "primary_key": "id_mp_zona_1",
+      "foreign_key": "id_dmp",
+      "columnas": 128,
+      "bloques_facturacion": 12,
+      "campos_por_bloque": 9,
+      "origen": "Aiven MySQL",
+      "rol": "segunda pestana interna de MP; tabla Excel filtrada por alcance validado"
+    }
+  },
+  "contrato_visual": {
+    "editor_de_referencia": "modules/cobranza-uni/administracion/gestion-credito/gestion-credito.js",
+    "abrir_celda": ["doble_clic", "enter_en_celda_con_foco"],
+    "guardar_celda": ["enter", "salir_del_campo"],
+    "cancelar_celda": "escape",
+    "formato": "editar_dentro_de_la_celda_sin_modal",
+    "confirmacion": "PATCH_a_backend_con_changes_y_expected",
+    "recarga": "solo_tabla_afectada_tras_confirmacion",
+    "seleccion_multiple": "2_a_20_registros",
+    "sin_edicion_para": ["identificadores", "llaves_foraneas", "campos_derivados_o_protegidos"],
+    "pantallas": {
+      "GC": "tabla_unica_sin_pestanas",
+      "VA": "tabla_unica_sin_grupos_ni_pestanas",
+      "MP": "exactamente_dos_pestanas_MP_y_Zona_1",
+      "Zona_1": "tabla_Excel_con_edicion_fantasma_desde_la_pestana_MP"
+    }
+  },
+  "invariantes_de_seguridad": [
+    "sesion_efectiva",
+    "permiso_MAIN_mas_VER_mas_EDITAR_en_su_tabla",
+    "puerta_UNI_y_alcance_por_registro",
+    "no_escritura_en_modo_visor",
+    "id_dmp_y_llaves_estructuradas_sin_vinculacion_por_nombre",
+    "validacion_de_tipo_y_campo_en_backend",
+    "control_de_concurrencia_expected",
+    "transaccion_y_auditoria_en_la_misma_conexion",
+    "refresco_selectivo_tras_mutacion"
+  ],
+  "entrega_fase_1": {
+    "objetivo": "linea_base_verificable_y_limpieza_del_selector_principal",
+    "sin_cambios_en": ["GC_editor", "VA_editor", "MP_editor", "Zona1_editor", "backend", "base_de_datos", "GAS"],
+    "pendientes": {
+      "fase_2": "VA_excel_y_depuracion_de_modales_grupos_css",
+      "fase_3": "MP_excel_y_depuracion_de_modales_grupos_css",
+      "fase_4": "pestanas_MP_Zona1_y_listado_scoped",
+      "fase_5": "Zona1_excel_escritura_auditada_y_lote_scoped",
+      "fase_6": "limpieza_final_y_ci_integral"
+    }
+  }
+}

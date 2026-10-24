@@ -243,11 +243,14 @@ test('MP F6: route set contains three read-only previews plus gated writers',()=
   for(const op of ['validar-vinculo','validar-alta','validar-cambio'])assert.ok(routes.includes(op));
   for(const op of ['createZone1_uni','linkZone1_uni','editZone1_uni'])assert.ok(routes.includes(op));
   assert.match(routes,/\.\.\.guard/);
-  assert.match(routes,/can_prepare_zone1/);assert.match(routes,/can_write_zone1/);
-  assert.match(main,/canPrepareZone1:response\.can_prepare_zone1===true/);
+  assert.doesNotMatch(routes,/can_prepare_zone1/);assert.match(routes,/can_write_zone1/);
+  assert.doesNotMatch(main,/canPrepareZone1:response\.can_prepare_zone1===true/);
+  // F5: la puerta de editar Zona 1 viene estrictamente del backend.
   assert.match(main,/canWriteZone1:response\.can_write_zone1===true/);
-  assert.match(ui,/canPrepareZone1/);assert.match(ui,/preflightZone1\(kind\)/);
-  assert.match(ui,/canWriteZone1/);
+  assert.match(main,/mantenimiento-preventivo-zona1\.js/);
+  assert.doesNotMatch(ui,/canPrepareZone1|preflightZone1\(kind\)/);
+  assert.match(ui,/canEdit:options\.canWriteZone1===true/);
+  assert.match(ui,/data-mp-tab/);
   assert.doesNotMatch(routes,/router\.delete\(/i);
 });
 
@@ -305,49 +308,30 @@ test('MP F6: routes preserve MAIN guard and 403 for disabled Zona 1 writes',asyn
   }
 });
 
-test('MP F6: the UI prepares a Zona 1 link by POST preview without allowing an actual write',async()=>{
+test('MP F6: la pestaña sustituye preflight UI sin alterar endpoints protegidos', async()=>{
   const handlers={},nodes=new Map(),calls=[];
   const el=key=>{
     if(!nodes.has(key))nodes.set(key,{innerHTML:'',textContent:'',dataset:{},value:'',
-      hidden:true,disabled:false,checked:false,setAttribute(){},focus(){},reset(){}});
+      hidden:true,disabled:false,setAttribute(){},focus(){},reset(){}});
     return nodes.get(key);
   };
   const root={innerHTML:'',addEventListener(name,cb){handlers[name]=cb;},
     querySelector:el,querySelectorAll(){return [];},replaceChildren(){this.innerHTML='';}};
-  const format=require('../backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.mp-formulas');
-  const win={ManttoAuth:{apiGet:async url=>{
-    calls.push({url,method:'GET'});
-    if(url.endsWith('/zona-1'))return {ok:true,readonly:true,
-      table:'detalle_mp_2026_zona_1',id_dmp:'41',relation:'id_dmp',invoice_blocks:12,
-      columns:C.MP_ZONE1_COLUMNS_UNI,linked:false,row:null,identity_verified:false};
-    return {ok:true,readonly:true,table:'detalle_mp_2026',
-      columns:C.MP_COLUMNS_UNI,rows:[MAIN],total:1,pages:1,
-      formula_preview:format.buildMpFormulaPreview_uni([MAIN])};
-  },api:async(url,options)=>{
-    calls.push({url,method:options.method,body:JSON.parse(options.body)});
-    return {ok:true,mode:'preview_only',can_write:false,table:'detalle_mp_2026_zona_1',
-      operation:'link',id_dmp:'41',id_mp_zona_1:'99'};
-  }}};
-  const mod={};vm.runInNewContext(txt('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js'),
+  const F=require('../backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.mp-formulas');
+  let mounted=0;
+  const win={ManttoCobranzaMPZona1_uni:{mount(){mounted++;return {destroy(){}};}},
+    ManttoAuth:{apiGet:async url=>{calls.push({url,method:'GET'});return {
+      ok:true,readonly:true,table:'detalle_mp_2026',columns:C.MP_COLUMNS_UNI,
+      rows:[MAIN],total:1,pages:1,formula_preview:F.buildMpFormulaPreview_uni([MAIN])
+    };},api:async(url,options)=>{calls.push({url,method:options.method});throw Error('No escribir Zona 1');}}};
+  vm.runInNewContext(txt('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js'),
     {window:win,document:{},URLSearchParams});
-  const editor=win.ManttoCobranzaAdministracionMP_uni.mount(root,
-    {isCurrent:()=>true,canPrepareZone1:true,canWriteZone1:false});
-  const tick=()=>new Promise(resolve=>setImmediate(resolve));
-  await tick();
-  handlers.click({target:{closest(sel){return sel==='[data-mp-zona1]'?{dataset:{mpZona1:'41'}}:null;}}});
-  await tick();
-  assert.match(el('[data-mp-zona1-actions]').innerHTML,/data-mp-zona1-preflight="link"/);
-  assert.match(el('[data-mp-zona1-actions]').innerHTML,/data-mp-zona1-preflight="create"/);
-  assert.doesNotMatch(el('[data-mp-zona1-actions]').innerHTML,/data-mp-zona1-apply/);
-  el('[data-mp-zona1-link-id]').value='99';
-  handlers.submit({preventDefault(){},target:{dataset:{mpZona1Preflight:'link'},
-    matches(sel){return sel==='[data-mp-zona1-preflight]';}}});
-  await tick();
-  assert.equal(calls.filter(x=>x.method==='POST').length,1);
-  assert.match(calls.at(-1).url,/\/validar-vinculo$/);
-  assert.equal(calls.at(-1).body.id_mp_zona_1,'99');
-  assert.match(el('[data-mp-zona1-preview]').textContent,/sin guardar/);
-  assert.equal(calls.filter(x=>x.method==='PATCH').length,0);
+  const editor=win.ManttoCobranzaAdministracionMP_uni.mount(root,{isCurrent:()=>true,canPrepareZone1:true,canWriteZone1:true});
+  await new Promise(resolve=>setImmediate(resolve));
+  handlers.click({target:{closest(sel){return sel==='[data-mp-tab]'?{dataset:{mpTab:'zona1'}}:null;}}});
+  assert.equal(mounted,1);
+  assert.doesNotMatch(root.innerHTML,/data-mp-zona1-preflight|data-mp-zona1-apply/);
+  assert.ok(calls.every(x=>x.method==='GET'));
   editor.destroy();
 });
 
@@ -366,7 +350,7 @@ test('MP F6: no preparation controls when there is no effective EDITAR permissio
   const editor=win.ManttoCobranzaAdministracionMP_uni.mount(root,{isCurrent:()=>true});
   await new Promise(resolve=>setImmediate(resolve));
   assert.ok(!root.innerHTML.includes('data-mp-zona1-apply'));
-  assert.equal(el('[data-mp-zona1-actions]').innerHTML,'');
+  assert.doesNotMatch(root.innerHTML,/data-mp-zona1-preflight|data-mp-zona1-dialog/);
   editor.destroy();
 });
 

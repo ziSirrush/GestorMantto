@@ -1,5 +1,5 @@
-/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_2_V001] */
-/* Solo afecta Venta Adicional dentro del Main de Administración. */
+/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_EXCEL_FASE_2_V001] */
+/* Estilos aislados de VA: edición de celda como GC; el panel modal se reserva para ALTAS. */
 .cua-uni-view:has(.cua-pc-admin){padding:clamp(9px,1.4vw,18px)}
 .cua-uni-page:has(.cua-pc-admin){width:100%;max-width:none;min-width:0}
 .cua-uni-detail:has(.cua-pc-admin){width:100%;min-width:0;display:grid;justify-items:stretch;padding:clamp(12px,1.7vw,24px)}
@@ -23,11 +23,7 @@
 .cua-pc-btn:disabled{opacity:.48;cursor:not-allowed}
 .cua-pc-primary{background:#16417d;color:#fff;border-color:#16417d}
 .cua-pc-primary:hover:not(:disabled){background:#22569a;color:#fff}
-.cua-pc-btn:focus-visible,.cua-pc-group:focus-visible,.cua-pc-form input:focus-visible,.cua-pc-form select:focus-visible,.cua-pc-actions select:focus-visible,.cua-pc-th button:focus-visible,.cua-pc-scroll:focus-visible{outline:3px solid #4b91ee;outline-offset:2px}
-.cua-pc-groups{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid #e1e9f4}
-.cua-pc-group{font-size:12px;font-weight:800;border:1px solid transparent;border-radius:9px;background:transparent;padding:9px 13px;color:#506988;cursor:pointer}
-.cua-pc-group:hover{background:#eef5ff}
-.cua-pc-group[aria-pressed="true"]{background:#e9f1ff;color:#134586;border-color:#b9d2f7}
+.cua-pc-btn:focus-visible,.cua-pc-form input:focus-visible,.cua-pc-form select:focus-visible,.cua-pc-actions select:focus-visible,.cua-pc-th button:focus-visible,.cua-pc-scroll:focus-visible{outline:3px solid #4b91ee;outline-offset:2px}
 .cua-pc-caption{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center}
 .cua-pc-note{margin:0;color:#667891;font-size:11px;line-height:1.5;flex:1 1 400px}
 .cua-pc-status{font-size:12px;font-weight:800;color:#476182}
@@ -61,8 +57,13 @@
   .cua-pc-grid [data-pc-fixed="1"]{position:static;min-width:165px;width:165px;max-width:165px}
   .cua-pc-pager{justify-content:center}
 }
-/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_3_V001] */
-/* Editing is presented in an overlay, so the table is never squeezed. */
+/* Celda Excel (mismo modelo de interaccion que gestion_credito). */
+.cua-pc-cell.cua-pc-canedit{cursor:cell;outline-offset:-3px}
+.cua-pc-cell.cua-pc-canedit:focus-visible{outline:3px solid #3b82f6;background:#eaf3ff}
+.cua-pc-cell.cua-pc-editing{padding:4px 5px;box-shadow:inset 0 0 0 2px #2463c0;background:#fff;text-align:left}
+.cua-pc-edit-input{display:block;width:100%;min-width:128px;min-height:34px;box-sizing:border-box;border:2px solid #2463c0;border-radius:5px;padding:6px 9px;background:#fff;color:#172033;font:inherit;font-size:12px;text-align:left}
+textarea.cua-pc-edit-input{min-width:220px;min-height:88px;resize:vertical;white-space:pre-wrap}
+.cua-pc-edit-input:focus{outline:2px solid #91c2ff;outline-offset:1px}
 .cua-pc-admin .cua-pc-readonly{background:#e9f5ed;color:#216547;border-color:#bedbc9}
 .cua-pc-bulk{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#f1f6fc;border:1px solid #cbd9eb;border-radius:12px;padding:12px}
 .cua-pc-bulk strong{font-size:13px;color:#173b6f;white-space:nowrap}
@@ -75,10 +76,9 @@
 .cua-pc-cell-actions{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-top:6px}
 .cua-pc-cell-actions label{display:inline-flex;align-items:center}
 .cua-pc-cell-actions input{width:16px;height:16px;accent-color:#1b578c;cursor:pointer}
-.cua-pc-cell-edit{font-size:11px;font-weight:800;border:1px solid #b8cce2;color:#145089;background:#fff;border-radius:7px;padding:5px 8px;cursor:pointer}
-.cua-pc-cell-edit:hover{background:#e7f2ff}
 .cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="0"]{width:176px;min-width:176px;max-width:176px;text-align:left}
 .cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="1"]{left:176px}
+/* Panel de creación: se conserva porque tiene consumidores reales. */
 .cua-pc-dialog[hidden],.cua-pc-dialog [hidden]{display:none!important}
 .cua-pc-dialog{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:flex-end}
 .cua-pc-dialog-backdrop{position:absolute;inset:0;background:rgba(9,24,48,.54)}
@@ -88,12 +88,9 @@
 .cua-pc-dialog-panel h3{margin:0;font-size:20px;color:#153963}
 .cua-pc-dialog-panel form{display:grid;gap:16px}
 .cua-pc-dialog-panel form>label{display:grid;gap:7px;font-size:12px;color:#375576;font-weight:800}
-.cua-pc-dialog-panel select,.cua-pc-dialog-panel input:not([type="checkbox"]),.cua-pc-dialog-panel textarea{width:100%;min-width:0;border:1px solid #bdcfe4;border-radius:9px;padding:12px;background:#fff;font-size:14px;color:#132b49;font-family:inherit}
+.cua-pc-dialog-panel input:not([type="checkbox"]),.cua-pc-dialog-panel textarea{width:100%;min-width:0;border:1px solid #bdcfe4;border-radius:9px;padding:12px;background:#fff;font-size:14px;color:#132b49;font-family:inherit}
 .cua-pc-dialog-panel textarea{resize:vertical;min-height:115px}
-.cua-pc-dialog-panel .cua-pc-null{display:flex;align-items:center;gap:8px}
-.cua-pc-dialog-panel form>p{margin:0;font-size:12px;color:#69809c;line-height:1.5}
-.cua-pc-before{padding:14px;border:1px solid #dbe5f1;border-radius:10px;background:#f5f8fc;color:#375879;font-size:13px;overflow-wrap:anywhere;white-space:pre-wrap}
-.cua-pc-dialog-panel input:focus-visible,.cua-pc-dialog-panel select:focus-visible,.cua-pc-dialog-panel textarea:focus-visible,.cua-pc-bulk input:focus-visible,.cua-pc-bulk select:focus-visible,.cua-pc-cell-edit:focus-visible{outline:3px solid #4b91ee;outline-offset:2px}
+.cua-pc-dialog-panel input:focus-visible,.cua-pc-dialog-panel textarea:focus-visible,.cua-pc-bulk input:focus-visible,.cua-pc-bulk select:focus-visible,.cua-pc-edit-input:focus-visible{outline:3px solid #4b91ee;outline-offset:2px}
 @media(max-width:760px){
  .cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="0"]{width:160px;min-width:160px;max-width:160px}
  .cua-pc-grid:has(.cua-pc-cell-actions) [data-pc-fixed="1"]{position:static}
@@ -103,21 +100,13 @@
  .cua-pc-bulk label:nth-of-type(2){flex:1 1 100%}
  .cua-pc-dialog-panel{height:auto;max-height:90vh;min-height:50vh;align-self:end;border-radius:18px 18px 0 0}
 }
-
-/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_4_V001] */
-/* Calculated cells are a visible READ-ONLY preview, never stored in Aiven. */
+/* Las fórmulas y relaciones solo se presentan en vista previa; no son editables. */
 .cua-pc-grid td.cua-pc-preview-cell{background:#eef6ff;color:#163d70}
-.cua-pc-preview-tag{display:inline-flex;margin-top:4px;font-size:9px;line-height:1.2;font-weight:800;
- color:#215594;background:#e0edff;border-radius:5px;padding:3px 5px;white-space:nowrap}
+.cua-pc-preview-tag{display:inline-flex;margin-top:4px;font-size:9px;line-height:1.2;font-weight:800;color:#215594;background:#e0edff;border-radius:5px;padding:3px 5px;white-space:nowrap}
 .cua-pc-grid td.cua-pc-preview-warning{background:#fff8e8;color:#82510e}
 .cua-pc-preview-warning .cua-pc-preview-tag{background:#fff0ca;color:#8e5400}
-
-/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_5_V001] */
 .cua-pc-relations-summary{border:1px solid #c7deee;background:#eef8fd;color:#24526e;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:750;line-height:1.5;overflow-wrap:anywhere}
 @media(max-width:760px){.cua-pc-relations-summary{font-size:11px;padding:11px}}
-
-/* [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_6_V001] */
-/* Alta en panel lateral ancho: no comprime el grid. Solo previsualizacion hasta corte GAS. */
 .cua-pc-create-panel{width:min(820px,100vw);gap:16px}
 .cua-pc-create-note{font-size:12px;color:#5f7491;line-height:1.55;margin:0}
 .cua-pc-create-panel form{display:grid;gap:17px}
@@ -135,8 +124,8 @@
 .cua-pc-create-result dd{margin:2px 0;font-weight:800;color:#14395a}
 .cua-pc-create-panel button{white-space:normal}
 @media(max-width:760px){
-  .cua-pc-create-panel{width:100%;height:100%;max-height:100vh;border-radius:0}
-  .cua-pc-create-fields{grid-template-columns:1fr}
-  .cua-pc-create-result dl{grid-template-columns:1fr}
-  .cua-pc-create-id{max-width:100%}
+ .cua-pc-create-panel{width:100%;height:100%;max-height:100vh;border-radius:0}
+ .cua-pc-create-fields{grid-template-columns:1fr}
+ .cua-pc-create-result dl{grid-template-columns:1fr}
+ .cua-pc-create-id{max-width:100%}
 }

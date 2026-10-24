@@ -134,18 +134,18 @@ test('MP F3: lote 2..20, orden BIGINT sin Number, esperado exacto por ID',()=>{
   }
   assert.equal(V.idMp_uni('9223372036854775807'),'9223372036854775807');
 });
-test('MP F3: GAS no activado; los tres flags NO abren escritura sin aprobacion en contrato',async()=>{
-  const {module}=makeService({env:{
-    MP_ADMIN_EDIT_ENABLED:'true',MP_ADMIN_GAS_CUTOVER_CONFIRMED:'true',
-    MP_ADMIN_GC_VA_MP_RECONCILED:'true'
-  }});
+test('MP F3: edicion segun permisos por defecto, flag false corta la escritura antes de DB',async()=>{
+  // Tras la desactivacion declarada de GAS, el backend .9 adopta feature ON
+  // por defecto; el kill-switch sigue siendo obligatorio y verificable.
+  assert.equal(makeService({env:{}}).module.mpEditFeatureEnabled_uni(),true);
+  const {module}=makeService({env:{MP_ADMIN_EDIT_ENABLED:'false'}});
   assert.equal(module.mpEditFeatureEnabled_uni(),false);
   await assert.rejects(module.updateSingleMp_uni(REQ,'41',{
     changes:{zona_adm:'SUR'},expected:{zona_adm:'ORIGEN'}
   }),{statusCode:403,code:'MP_ADMIN_ESCRITURA_DESHABILITADA'});
 });
-test('MP F3: sin autorización se bloquea ANTES de abrir transacción MySQL',async()=>{
-  const {module}=makeService();
+test('MP F3: flag de emergencia false bloquea ANTES de abrir transacción MySQL',async()=>{
+  const {module}=makeService({env:{MP_ADMIN_EDIT_ENABLED:'false'}});
   const db=makeConnection();
   await assert.rejects(module.updateSingleMp_uni(REQ,'41',{
     changes:{zona_adm:'SUR'},expected:{zona_adm:'ORIGEN'}
@@ -325,13 +325,13 @@ test('MP F3: rutas PATCH llevan guard MAIN y reportan 403 con GAS sin corte',asy
   const answer=await contract({...REQ,contextUser:{id_SB:25}},response(),e=>{throw e;});
   assert.equal(answer.body.tables.find(t=>t.table==='detalle_mp_2026').can_edit,false);
 });
-test('MP F3: interfaz no muestra editor sin can_edit; con permiso simulado solo habilita whitelist',async()=>{
+test('MP F3: editor Excel fantasma dentro de TD, sin modal y con whitelist de backend',async()=>{
   const code=read('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js');
   const css=read('modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.css');
   const main=read('modules/cobranza-uni/administracion/main/main.js');
-  for(const part of ['data-mp-bulk-form','data-mp-edit-form','data-mp-dialog-id',"method:'PATCH'",'expected'])
+  for(const part of ['data-mp-bulk-form','data-mp-cell-input','cua-mp-canedit',"method:'PATCH'",'expected'])
     assert.ok(code.includes(part),part);
-  assert.match(css,/\.cua-mp-dialog-panel/);assert.match(css,/@media\(max-width:540px\)/);
+  assert.match(css,/@media\(max-width:540px\)/);
   assert.match(main,/editableFields:Array\.isArray\(response\.editable_fields\)/);
   const events={},nodes=new Map(),requests=[];
   function el(selector){
@@ -340,33 +340,43 @@ test('MP F3: interfaz no muestra editor sin can_edit; con permiso simulado solo 
     return nodes.get(selector);
   }
   const root={innerHTML:'',addEventListener(type,handler){events[type]=handler;},
-    querySelector:el,querySelectorAll(){return [];},replaceChildren(){this.innerHTML='';}};
+    querySelector:el,querySelectorAll(){return [];},replaceChildren(){this.innerHTML='';},
+    contains(){return true;}};
   const uiRows=[{id_dmp:'41',proyecto:'<script>x</script>',zona_adm:'ORIGEN'},
     {id_dmp:'42',proyecto:'B',zona_adm:'SUR'}];
   const win={ManttoAuth:{apiGet:async()=>({ok:true,table:'detalle_mp_2026',readonly:true,
     columns:C.MP_COLUMNS_UNI,rows:uiRows,total:2,pages:1,
     formula_preview:F.buildMpFormulaPreview_uni(uiRows)}),
-    api:async(url,options)=>{requests.push({url,options});return {ok:true,table:'detalle_mp_2026',field:'zona_adm',total:1,changed:1};}
+    api:async(url,options)=>{requests.push({url,options});return {
+      ok:true,table:'detalle_mp_2026',field:'zona_adm',total:1,changed:1};}
   }};
-  vm.runInNewContext(code,{window:win,document:{},URLSearchParams});
+  let created;
+  const doc={createElement(kind){
+    created={tagName:String(kind).toUpperCase(),value:'',setAttribute(){},
+      focus(){},select(){},matches(sel){return sel==='[data-mp-cell-input]';}};
+    return created;
+  }};
+  vm.runInNewContext(code,{window:win,document:doc,URLSearchParams});
   const view=win.ManttoCobranzaAdministracionMP_uni.mount(root,{
     canEdit:true,editableFields:['zona_adm','id_dmp','factor_monto_anual'],isCurrent:()=>true
   });
   await new Promise(done=>setImmediate(done));
   assert.ok(view);
   assert.match(root.innerHTML,/data-mp-bulk-form/);
-  assert.match(el('[data-mp-body]').innerHTML,/data-mp-edit="zona_adm"/);
-  assert.doesNotMatch(el('[data-mp-body]').innerHTML,/data-mp-edit="factor_monto_anual"/,
-    'el grupo Resumen no muestra factor hasta abrir Contrato');
+  assert.match(el('[data-mp-body]').innerHTML,/cua-mp-canedit/);
   assert.doesNotMatch(el('[data-mp-body]').innerHTML,/<script>x<\/script>/);
   assert.match(el('[data-mp-body]').innerHTML,/&lt;script&gt;/);
-  // Click edit Zona ADM for first row; reply is audited by backend.
-  events.click({target:{closest(sel){return sel==='[data-mp-edit]'?{
-    dataset:{mpEdit:'zona_adm',mpEditId:'41'}
-  }:null;}}});
-  assert.equal(el('[data-mp-dialog]').hidden,false);
-  el('[data-mp-edit-value]').value='NORTE';
-  events.submit({target:{matches:sel=>sel==='[data-mp-edit-form]'},preventDefault(){}});
+  // Doble clic directamente en celda autorizada; sin modal ni boton Editar.
+  const td={dataset:{mpField:'zona_adm'},classList:{contains:v=>v==='cua-mp-canedit',add(){},remove(){}},
+    closest:selector=>selector==='tr'?{dataset:{mpId:'41'}}:null,
+    replaceChildren(input){this.input=input;},
+    querySelector:selector=>selector==='[data-mp-cell-input]'?td.input:null,
+    focus(){},innerHTML:''};
+  assert.equal(typeof events.dblclick,'function');
+  events.dblclick({target:{closest:selector=>selector==='td.cua-mp-canedit'?td:null}});
+  assert.equal(created.value,'ORIGEN');
+  created.value='NORTE';
+  events.keydown({target:created,key:'Enter',preventDefault(){}});
   await new Promise(done=>setImmediate(done));
   assert.equal(requests.length,1);
   assert.equal(requests[0].options.method,'PATCH');

@@ -1,7 +1,7 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_6_V001]
-// Read-only preflight + transactional implementation prepared, all writes OFF.
-// No name-based discovery: explicit MP id and linked/candidate Zona1 PK only.
+// Legacy crear/vincular cerrado; Fase 5 habilita SOLO edicion de celdas de
+// factura con corte global confirmado, scope, permiso y auditoria transaccional.
 const db=require('../../config/db');
 const scope=require('../../services/cobranza-uni-scope.service');
 const {MP_RULES_UNI,MP_ZONE1_BASE_UNI}=require('./cobranza-uni-administracion.constants');
@@ -23,11 +23,21 @@ function zone1WriteEnabled_uni(){
     MP_RULES_UNI.gasSyncRemainsActive===false && mpEditFeatureEnabled_uni() &&
     flag_uni('MP_ADMIN_ZONA1_WRITE_ENABLED');
 }
-function requireWriteGate_uni(deps){
+// Edicion Excel de facturas: puerta propia, explicitamente autorizada para
+// corte manual; nunca habilita los POST legacy de alta o vinculacion.
+// Tres confirmaciones operativas son obligatorias (por defecto OFF).
+function zone1ExcelWriteEnabled_uni(){
+  return mpEditFeatureEnabled_uni() &&
+    flag_uni('MP_ADMIN_ZONA1_EXCEL_EDIT_ENABLED') &&
+    flag_uni('MP_ADMIN_GAS_CUTOVER_CONFIRMED') &&
+    flag_uni('MP_ADMIN_GC_VA_MP_RECONCILED');
+}
+function requireWriteGate_uni(deps,operation){
   // Test-only dependency injection; HTTP routes never supply dependencies.
-  if(!(deps.featureEnabled===true || (deps.featureEnabled===undefined && zone1WriteEnabled_uni())))
+  if(!(deps.featureEnabled===true || (deps.featureEnabled===undefined &&
+    (operation==='edit'?zone1ExcelWriteEnabled_uni():zone1WriteEnabled_uni()))))
     throw failMp_uni(403,'MP_ZONA1_ESCRITURA_DESHABILITADA',
-      'Escritura Zona 1 cerrada: GAS sigue activo y falta corte GC+VA+MP autorizado.');
+      'Escritura Zona 1 cerrada: falta confirmacion del corte global o funcion deshabilitada.');
 }
 function officialWhere_uni(req,deps){
   const official=deps.scopeService||scope;
@@ -84,7 +94,7 @@ function assertMatch_uni(parent,candidate,requiresIdns){
 async function checkedEditRow_uni(conn,id,zonaId,where,field,locked,parent){
   const [rows]=await conn.query(
     `SELECT CAST(z.\`id_mp_zona_1\` AS CHAR) AS id_mp_zona_1, `+
-    `CAST(z.\`id_dmp\` AS CHAR) AS id_dmp, z.\`${field}\` AS original_value, `+
+    `CAST(z.\`id_dmp\` AS CHAR) AS id_dmp, CAST(z.\`${field}\` AS CHAR) AS original_value, `+
     'z.`proyecto`, z.`idns`, z.`cliente` '+
     'FROM `detalle_mp_2026_zona_1` z '+
     'INNER JOIN `detalle_mp_2026` mp ON mp.`id_dmp` = z.`id_dmp` '+
@@ -94,12 +104,12 @@ async function checkedEditRow_uni(conn,id,zonaId,where,field,locked,parent){
     String(rows[0].id_mp_zona_1)!==zonaId)
     throw failMp_uni(404,'MP_ZONA1_REGISTRO_NO_DISPONIBLE',
       'Factura no disponible dentro del proyecto autorizado.');
-  assertMatch_uni(parent,rows[0],false);
+  assertMatch_uni(parent,rows[0],true);
   return rows[0];
 }
 async function run_uni(req,idInput,body,deps,operation,zonaInput){
   const isWrite=['create','link','edit'].includes(operation);
-  if(isWrite)requireWriteGate_uni(deps);
+  if(isWrite)requireWriteGate_uni(deps,operation);
   const id=idMp_uni(idInput);
   const input=operation.endsWith('create')?normalizeInvoiceCreate_uni(body):
     operation.endsWith('link')?normalizeLink_uni(body):normalizeInvoiceEdit_uni(body);
@@ -189,7 +199,7 @@ async function run_uni(req,idInput,body,deps,operation,zonaInput){
   }finally{if(!deps.connection)conn.release();}
 }
 module.exports=Object.freeze({
-  zone1WriteEnabled_uni,INVOICE_FIELDS_MP_UNI,
+  zone1WriteEnabled_uni,zone1ExcelWriteEnabled_uni,INVOICE_FIELDS_MP_UNI,
   preflightCreateZone1_uni(req,id,body,deps={}){return run_uni(req,id,body,deps,'preflight_create');},
   createZone1_uni(req,id,body,deps={}){return run_uni(req,id,body,deps,'create');},
   preflightLinkZone1_uni(req,id,body,deps={}){return run_uni(req,id,body,deps,'preflight_link');},

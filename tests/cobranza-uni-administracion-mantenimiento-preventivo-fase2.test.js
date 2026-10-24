@@ -205,8 +205,9 @@ test('MP F2/F3: consulta no permite PATCH sin autorizacion; conserva filtros, sc
   assert.match(main,/if\(table==='gestion_credito'\)/);
   for(const word of ['data-mp-search','data-mp-filter-column','data-mp-filter-value',
     'data-mp-estatus','data-mp-pendientes','data-mp-sort','data-mp-prev','data-mp-next',
-    'data-mp-page-size','data-mp-group','URLSearchParams','ManttoAuth.apiGet'])
+    'data-mp-page-size','URLSearchParams','ManttoAuth.apiGet'])
     assert.ok(client.includes(word),word);
+  assert.doesNotMatch(client,/data-mp-group|const GROUPS|data-mp-dialog hidden/);
   assert.match(client,/options\.canEdit===true/);
   assert.match(client,/method:'PATCH'/);
   assert.doesNotMatch(client,/method\s*:\s*['"](?:PUT|DELETE)['"]/);

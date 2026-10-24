@@ -13,7 +13,7 @@ const v=require(dir+'cobranza-uni-administracion.pc-edit-validation');
 const c=require(dir+'cobranza-uni-administracion.constants');
 const rights=require(dir+'cobranza-uni-administracion.permissions');
 
-function serviceMock(){
+function serviceMock(env=process.env){
   const mod={exports:{}};
   const stub=name=>{
     if(name==='../../config/db')return {getConnection(){throw Error('NO_AIVEN');}};
@@ -25,7 +25,7 @@ function serviceMock(){
     throw Error('Missing mocked dependency '+name);
   };
   vm.runInNewContext(read('backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.pc-edit-service.js'),
-    {require:stub,module:mod,exports:mod.exports,process});
+    {require:stub,module:mod,exports:mod.exports,process:{env}});
   return mod.exports;
 }
 const svc=serviceMock();
@@ -129,8 +129,9 @@ test('VA F3: optimistic concurrency is mandatory for single and bulk',()=>{
     changes:{ov:'A'},expected:{}}),{code:'VA_ADMIN_LOTE_INVALIDO'});
 });
 
-test('VA F3: disabled by default until GAS cutover, before DB connection',async()=>{
-  const s=serviceMock();
+test('VA F3: flag de emergencia false bloquea escritura antes de DB',async()=>{
+  assert.equal(serviceMock({}).pcEditFeatureEnabled_uni(),true);
+  const s=serviceMock({PC_ADMIN_EDIT_ENABLED:'false'});
   await assert.rejects(s.updateSinglePc_uni(request,'2041',{
     changes:{ov:'N'},expected:{ov:'OV-1'}
   }),{code:'VA_ADMIN_ESCRITURA_DESHABILITADA',statusCode:403});
@@ -287,14 +288,20 @@ test('VA F3: route access checks canEdit flag, readonly GET remains, PATCH guard
   assert.ok(!registrations.some(x=>['PUT','DELETE'].includes(x.method))); 
 });
 
-test('VA F3: frontend safe overlay, bulk controls, editing API but no creation/SQL',()=>{
+test('VA F3: edicion fantasma Excel, lote y alta independiente sin SQL en frontend',()=>{
   const main=read('modules/cobranza-uni/administracion/main/main.js');
   const ui=read('modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js');
   const css=read('modules/cobranza-uni/administracion/venta-adicional/venta-adicional.css');
   assert.match(main,/editableFields:Array\.isArray\(response\.editable_fields\)/);
   assert.match(main,/canEdit:response.can_edit===true/);
-  for(const field of ['data-pc-dialog','data-pc-edit-id','data-pc-bulk-form','data-pc-select','data-pc-edit-null'])
+  for(const field of ['data-pc-cell-input','cua-pc-canedit','data-pc-bulk-form',
+    'data-pc-select','data-pc-bulk-null','data-pc-create-dialog'])
     assert.ok(ui.includes(field),field);
+  assert.doesNotMatch(ui,/data-pc-dialog hidden|data-pc-group|data-pc-edit-field|\bGROUPS\b/);
+  assert.match(ui,/root\.addEventListener\('dblclick',onDblClick\)/);
+  assert.match(ui,/function cancelCellEdit\(\)/);
+  assert.match(css,/\.cua-pc-edit-input/);
+  assert.doesNotMatch(css,/\.cua-pc-group(?:\s|\{|:)/);
   assert.match(ui,/method:'PATCH'/);
   assert.match(ui,/options\.canEdit===true/);
   assert.match(ui,/method:'POST'/);

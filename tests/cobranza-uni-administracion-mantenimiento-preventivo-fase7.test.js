@@ -237,7 +237,7 @@ test('MP F7: la vista consulta solo GET y no interpreta un informe como autoriza
   handlers.click({target:{closest(selector){return selector==='[data-mp-reconcile]'?{}:null;}}});
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(calls.filter(x=>x.endsWith('/conciliacion')).length,1);
-  assert.match(node('[data-mp-reconcile-report]').textContent,/NO autoriza apagar GAS/);
+  assert.match(node('[data-mp-reconcile-report]').textContent,/no habilita cambios de configuración ni escritura de Zona 1/);
   assert.match(node('[data-mp-reconcile-report]').textContent,/Zona 1 vinculadas 1/);
   assert.ok(!calls.some(x=>x.includes('validar-alta')));
   editor.destroy();

@@ -1,22 +1,12 @@
 (function(win,doc){
   'use strict';
   // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_6_V001]
-  // F5: consulta detalle de Zona 1 por id_dmp validado, sin cruzar nombres.
-  // Las 12 facturaciones son consulta historica; GAS sigue activo.
+  // Edicion tipo Excel en tabla principal MP, con auditoria/alcance de backend.
+  // MP conserva en exclusiva las pestanas MP / Zona 1; ambas tablas editan
+  // celdas autorizadas mediante el mismo flujo Excel de GC.
   const API='/api/cobranza-uni/administracion/tablas/detalle_mp_2026/registros';
   const RECONCILE_API='/api/cobranza-uni/administracion/tablas/detalle_mp_2026/conciliacion';
   const EXPECTED=20,MAX_BULK=20;
-  const ZONE1_ADMIN_API='/api/cobranza-uni/administracion/tablas/detalle_mp_2026/zona-1';
-  const ZONE1_FIELDS=Object.freeze([
-    'facturacion','fecha_pago','estatus_factura','fecha_factura','numero_factura',
-    'vencimiento','dias_vencimiento','estatus','forma_pago'
-  ]);
-  const ZONE1_LABELS=Object.freeze({
-    facturacion:'FACTURACIÓN',fecha_pago:'FECHA DE PAGO',
-    estatus_factura:'ESTATUS FACTURA',fecha_factura:'FECHA FACTURA',
-    numero_factura:'NO. FACTURA',vencimiento:'VENCIMIENTO',
-    dias_vencimiento:'DÍAS DE VENCIMIENTO',estatus:'ESTATUS',forma_pago:'FORMA DE PAGO'
-  });
   const CLIENT_SAFE=new Set(['zona_adm','periodicidad','momento_facturacion','forma_pago','factor_monto_anual']);
   const LABELS=Object.freeze({
     id_dmp:'Consecutivo',zona_adm:'ZONA ADM',proyecto:'PROYECTO',
@@ -27,22 +17,6 @@
     monto_anual:'MONTO ANUAL',pendiente_corriente:'$ PENDIENTE CORRIENTE',
     pendiente_vencido:'$ PENDIENTE VENCIDO',pendiente:'$ PENDIENTE',
     facturas_pendientes:'N° DE FACTURAS PENDIENTES',estatus_cartera:'Activo / Inactivo'
-  });
-  const GROUPS=Object.freeze({
-    resumen:Object.freeze({label:'Resumen',fields:Object.freeze([
-      'id_dmp','proyecto','cliente','idns','zona_adm','periodicidad',
-      'monto_anual','pendiente','facturas_pendientes','estatus_cartera'
-    ])}),
-    contrato:Object.freeze({label:'Contrato',fields:Object.freeze([
-      'id_dmp','proyecto','id_proyecto_cobranza','idns','cliente','zona_adm',
-      'periodicidad','momento_facturacion','estado','z_oper','forma_pago',
-      'iguala','factor_monto_anual','condiciones_pago','monto_anual','estatus_cartera'
-    ])}),
-    cartera:Object.freeze({label:'Cartera',fields:Object.freeze([
-      'id_dmp','proyecto','cliente','condiciones_pago','monto_anual',
-      'pendiente_corriente','pendiente_vencido','pendiente','facturas_pendientes','estatus_cartera'
-    ])}),
-    todas:Object.freeze({label:'20 columnas',fields:null})
   });
   const ESC=value=>String(value==null?'':value)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -56,14 +30,12 @@
       .filter(field=>CLIENT_SAFE.has(field)));
     const canEdit=options.canEdit===true && permitted.size>0 &&
       win.ManttoAuth?.isViewingAs?.()!==true;
-    const canPrepareZone1=options.canPrepareZone1===true && win.ManttoAuth?.isViewingAs?.()!==true;
-    const canWriteZone1=canPrepareZone1 && options.canWriteZone1===true;
-    let disposed=false,requestId=0,saving=false,editing=null,zoneRequestId=0,reconcileRequestId=0;
-    let zone1State=null,zone1Preview=null;
+    let disposed=false,requestId=0,saving=false,editing=null,reconcileRequestId=0;
+    let zoneTab=null;
     const state={
       page:1,pageSize:50,search:'',filterColumn:'',filterValue:'',
       estatus:'',pendientes:'todos',sort:'id_dmp',order:'asc',
-      columns:[],rows:[],total:0,pages:0,group:'resumen',selected:new Set(),
+      columns:[],rows:[],total:0,pages:0,selected:new Set(),
       formulaById:new Map(),formulaSummary:null
     };
     const valid=()=>!disposed&&(typeof options.isCurrent!=='function'||options.isCurrent());
@@ -76,15 +48,16 @@
     const colLabel=column=>LABELS[column.name]||column.sheetHeader||column.name;
     const allowed=col=>canEdit && permitted.has(col.name) && col.kind==='editable' && col.editable===true;
     const editableCols=()=>state.columns.filter(allowed);
-    const visibleColumns=()=>{
-      const fields=GROUPS[state.group].fields;
-      return fields===null?state.columns:state.columns.filter(col=>fields.includes(col.name));
-    };
 
     root.innerHTML='<section class="cua-mp-admin" data-cua-mp-grid>'+
+      '<div class="cua-mp-tabs" role="tablist" aria-label="Tablas MP">'+
+        '<button type="button" role="tab" aria-selected="true" aria-controls="cua-mp-panel-principal" data-mp-tab="principal">MP</button>'+
+        '<button type="button" role="tab" aria-selected="false" aria-controls="cua-mp-panel-zona1" data-mp-tab="zona1">Zona 1</button>'+
+      '</div>'+
+      '<div class="cua-mp-tabpanel" id="cua-mp-panel-principal" data-mp-panel="principal" role="tabpanel">'+
       '<div class="cua-mp-topline"><div><strong>Mantenimiento Preventivo</strong>'+
-      '<p>Tabla principal · 20 columnas · fórmula anual en vista previa · facturación Zona 1 por registro</p></div>'+
-      '<span class="cua-mp-badge">'+(canEdit?'Edición autorizada · auditada':'Solo consulta · GAS activo')+'</span></div>'+
+      '<p>Tabla principal · 20 columnas · fórmula anual en vista previa</p></div>'+
+      '<span class="cua-mp-badge">'+(canEdit?'Edición autorizada · auditada':'Solo consulta')+'</span></div>'+
       '<form class="cua-mp-filters" data-mp-form autocomplete="off">'+
         '<label class="cua-mp-search"><span>Buscar</span><input data-mp-search type="search" maxlength="120" placeholder="Proyecto, cliente, consecutivo, ID…" /></label>'+
         '<label><span>Columna</span><select data-mp-filter-column><option value="">Sin filtro de columna</option></select></label>'+
@@ -95,10 +68,6 @@
         '<button class="cua-mp-btn" type="button" data-mp-clear>Limpiar</button>'+
       '</form>'+
       '<div class="cua-mp-controls">'+
-        '<nav class="cua-mp-groups" aria-label="Grupos de columnas de mantenimiento">'+
-        Object.entries(GROUPS).map(([name,meta])=>
-          '<button class="cua-mp-btn cua-mp-group" type="button" data-mp-group="'+name+'" aria-pressed="'+(name===state.group)+'">'+ESC(meta.label)+'</button>'
-        ).join('')+'</nav>'+
         '<label class="cua-mp-pagesize">Filas <select data-mp-page-size><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select></label>'+
         '<button class="cua-mp-btn" type="button" data-mp-reload>↻ Actualizar</button>'+
       '</div>'+
@@ -110,14 +79,14 @@
         '<button type="submit" class="cua-mp-btn cua-mp-primary" data-mp-bulk-apply disabled>Aplicar y auditar lote</button>'+
         '</form>':'')+
       '<p class="cua-mp-help">Se conserva el importe almacenado. Monto anual previsto = IGUALA × FACTOR, calculado en el servidor y nunca guardado desde la consulta. '+
-        (canEdit?'Solo se permiten campos F3 expresamente aprobados; otros cálculos e identidades están protegidos.' :
-        'La edición requiere terminar y autorizar el corte de GAS de GC, VA y MP.')+'</p>'+
+        (canEdit?'Solo los campos autorizados por el backend se pueden editar; los cálculos e identificadores están protegidos.' :
+        'Consulta de solo lectura; para editar se requieren permisos y habilitación del servidor.')+'</p>'+
       '<div class="cua-mp-status" data-mp-status role="status" aria-live="polite">Cargando registros…</div>'+
       '<div class="cua-mp-formula-summary" data-mp-formula-summary role="status" aria-live="polite">Previsualización pendiente…</div>'+
       '<section class="cua-mp-reconcile" aria-label="Conciliación de MP">'+
         '<div><strong>Conciliación de MP y Zona 1</strong><small>Solo lectura; datos limitados a tus proyectos autorizados. No sustituye la conciliación completa con Sheets.</small></div>'+
         '<button class="cua-mp-btn" type="button" data-mp-reconcile>Consultar conciliación</button>'+
-        '<div data-mp-reconcile-report class="cua-mp-reconcile-result" role="status" aria-live="polite">Pendiente de consulta · GAS sigue activo.</div>'+
+        '<div data-mp-reconcile-report class="cua-mp-reconcile-result" role="status" aria-live="polite">Pendiente de consulta · solo diagnóstico.</div>'+
       '</section>'+
       '<div class="cua-mp-scroll" tabindex="0" role="region" aria-label="Mantenimiento Preventivo: tabla desplazable">'+
         '<table class="cua-mp-table"><thead data-mp-head></thead><tbody data-mp-body></tbody></table>'+
@@ -128,27 +97,10 @@
         '<span data-mp-page>Página 1</span>'+
         '<button class="cua-mp-btn" type="button" data-mp-next disabled>Siguiente →</button>'+ 
         '</div></nav>'+
-      '<div class="cua-mp-zona1-dialog" data-mp-zona1-dialog hidden>'+
-        '<div class="cua-mp-zona1-backdrop" data-mp-zona1-close></div>'+
-        '<section class="cua-mp-zona1-panel" role="dialog" aria-modal="true" aria-labelledby="cua-mp-zona1-title">'+
-          '<header><div><p>DETALLE MP 2026 ZONA 1 · Solo lectura</p>'+
-            '<h3 id="cua-mp-zona1-title">Facturación · MP <span data-mp-zona1-id></span></h3></div>'+
-            '<button type="button" class="cua-mp-btn" data-mp-zona1-close>Cerrar</button></header>'+
-          '<div class="cua-mp-zona1-status" data-mp-zona1-status role="status" aria-live="polite">Consulta pendiente</div>'+
-          '<div class="cua-mp-zona1-content" data-mp-zona1-content></div>'+
-          '<div class="cua-mp-zona1-actions" data-mp-zona1-actions></div>'+
-        '</section></div>'+
-      (canEdit?'<div class="cua-mp-dialog" data-mp-dialog hidden>'+ 
-        '<div class="cua-mp-dialog-backdrop" data-mp-close></div>'+ 
-        '<section class="cua-mp-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="cua-mp-dialog-title">'+
-          '<header><h3 id="cua-mp-dialog-title">Editar registro <span data-mp-dialog-id></span></h3>'+
-          '<button class="cua-mp-btn" type="button" data-mp-close>Cerrar</button></header>'+
-          '<form data-mp-edit-form autocomplete="off">'+
-            '<p data-mp-edit-label></p><p><b>Valor original:</b> <span data-mp-edit-before></span></p>'+
-            '<label>Nuevo valor <input data-mp-edit-value type="text" maxlength="150" /></label>'+
-            '<label class="cua-mp-null"><input type="checkbox" data-mp-edit-null /> Vaciar (NULL)</label>'+
-            '<button class="cua-mp-btn cua-mp-primary" type="submit">Guardar y auditar</button>'+
-          '</form></section></div>':'')+
+      '</div>'+
+      '<div class="cua-mp-tabpanel" id="cua-mp-panel-zona1" data-mp-panel="zona1" role="tabpanel" hidden>'+
+        '<div class="cua-mp-zona1-grid" data-mp-zona1-grid></div>'+
+      '</div>'+
       '</section>';
 
     function updateBulk(){
@@ -156,11 +108,11 @@
       const counter=el('[data-mp-selected-count]');
       if(counter)counter.textContent=state.selected.size+' seleccionados (máx. '+MAX_BULK+')';
       const action=el('[data-mp-bulk-apply]');
-      if(action)action.disabled=saving||state.selected.size<2||state.selected.size>MAX_BULK;
+      if(action)action.disabled=saving||Boolean(editing)||state.selected.size<2||state.selected.size>MAX_BULK;
     }
     function render(){
       if(!valid())return;
-      const columns=visibleColumns();
+      const columns=state.columns;
       const scroll=el('.cua-mp-scroll');
       const left=scroll?.scrollLeft||0,top=scroll?.scrollTop||0;
       const filter=el('[data-mp-filter-column]');
@@ -204,10 +156,6 @@
             const selector=canEdit&&column.name==='id_dmp'
               ?'<label class="cua-mp-select"><input type="checkbox" data-mp-select value="'+ESC(id)+'"'+(state.selected.has(id)?' checked':'')+' aria-label="Seleccionar MP '+ESC(id)+'" /> <span>'+ESC(value)+'</span></label>'
               :'<span>'+ESC(value)+'</span>';
-            const zoneLink=column.name==='id_dmp'
-              ? '<button class="cua-mp-btn cua-mp-zone1-open" type="button" data-mp-zona1="'+ESC(id)+'" aria-label="Consultar 12 facturaciones Zona 1 del registro '+ESC(id)+'">Facturación Zona 1</button>'
-              : '';
-            const action=zoneLink;
             let detail='';
             if(column.name==='monto_anual' && preview){
               const result=preview.monto_anual;
@@ -230,12 +178,10 @@
             }
             return '<td class="cua-mp-cell'+(isNumeric(column)?' cua-mp-numeric':'')+(allowed(column)?' cua-mp-canedit':'')+'" data-mp-field="'+ESC(column.name)+'" data-mp-kind="'+ESC(column.kind)+'"'+
               (allowed(column)?' tabindex="0" role="button" aria-label="Editar '+ESC(colLabel(column))+' del registro '+ESC(id)+'"':'')+
-              ' title="'+ESC(value)+'">'+selector+detail+action+'</td>';
+              ' title="'+ESC(value)+'">'+selector+detail+'</td>';
           }).join('')+'</tr>';
         }).join(''):'<tr><td class="cua-mp-empty" colspan="'+Math.max(1,columns.length)+'">No se encontraron registros con los filtros seleccionados.</td></tr>';
       }
-      for(const btn of root.querySelectorAll('[data-mp-group]'))
-        btn.setAttribute('aria-pressed',String(btn.dataset.mpGroup===state.group));
       const previous=el('[data-mp-prev]'),next=el('[data-mp-next]');
       if(previous)previous.disabled=saving||state.page<=1;
       if(next)next.disabled=saving||state.page>=state.pages;
@@ -274,19 +220,19 @@
             ' · Diferencias pendiente '+c.pendiente_discrepante+
             ' · Espacios de factura con datos '+c.facturas_con_campos+'.';
         }
-        note+=' · Estado: '+report.status+'. NO autoriza apagar GAS ni editar datos.';
+        note+=' · Estado: '+report.status+'. Este diagnóstico no habilita cambios de configuración ni escritura de Zona 1.';
         if(output){output.textContent=note;output.dataset.kind=report.status==='SIN_DIFERENCIAS_DETECTADAS_EN_ALCANCE'?'info':'warning';}
         return true;
       }catch(error){
         if(!valid()||request!==reconcileRequestId)return false;
-        if(output){output.textContent='No se pudo verificar la conciliación. No habilitar escritura ni detener GAS.';
+        if(output){output.textContent='No se pudo verificar la conciliación. No cambiar configuración ni habilitar Zona 1 por este resultado.';
           output.dataset.kind='error';}
         return false;
       }
     }
     async function load(){
       if(!valid()||saving)return false;
-      closeZona1();
+      if(editing)cancelCellEdit();
       const current=++requestId;
       setStatus('Consultando registros…');
       const query=new URLSearchParams({
@@ -337,201 +283,28 @@
         return false;
       }
     }
-    // El detalle Zona 1 NO habilita acceso a un cuarto ni modifica saldos.
-    // Se consulta una fila por id_dmp, con identidad y alcance verificados por backend.
-    function zoneLabel(meta){
-      const matched=/^(.+)_\d{2}$/.exec(meta.name);
-      return matched?ZONE1_LABELS[matched[1]]||meta.name:
-        LABELS[meta.name]||meta.sheetHeader||meta.name;
-    }
-    const zoneValue=value=>value===null||value===undefined||value===''?'—':String(value);
-    function closeZona1(){
-      ++zoneRequestId;zone1State=null;zone1Preview=null;
-      const dialog=el('[data-mp-zona1-dialog]');if(dialog)dialog.hidden=true;
-      const content=el('[data-mp-zona1-content]');if(content)content.innerHTML='';
-      const actions=el('[data-mp-zona1-actions]');if(actions)actions.innerHTML='';
-    }
-    function renderZona1(response){
-      const content=el('[data-mp-zona1-content]');if(!content)return;
-      if(response.linked===false){
-        content.innerHTML='<p class="cua-mp-zona1-unlinked">No existe una fila de Zona 1 vinculada mediante id_dmp. No se utilizará el nombre del proyecto como búsqueda alternativa.</p>';
-        return;
+    function selectTab(name){
+      if(!valid()||saving||editing||!['principal','zona1'].includes(name))return false;
+      const mpPanel=el('[data-mp-panel="principal"]');
+      const zonePanel=el('[data-mp-panel="zona1"]');
+      if(!mpPanel||!zonePanel)return false;
+      if(name==='zona1'&&!zoneTab){
+        const node=el('[data-mp-zona1-grid]');
+        const mount=win.ManttoCobranzaMPZona1_uni?.mount;
+        if(typeof mount!=='function'||!node){
+          setStatus('La pestaña Zona 1 no está disponible: falta el módulo de consulta.','error');
+          return false;
+        }
+        const instance=mount(node,{isCurrent:valid,canEdit:options.canWriteZone1===true,
+          editableFields:options.zona1EditableFields||[]});
+        if(!instance){setStatus('No se pudo iniciar la pestaña Zona 1.','error');return false;}
+        zoneTab=instance;
       }
-      const meta=response.columns;
-      const row=response.row;
-      const general=meta.filter(c=>c.sheetColumn&&!/_\d{2}$/.test(c.name));
-      const comparison=response.lookup_preview;
-      const matchText={match:'Coincide',different:'Diferente',missing:'Sin dato',invalid:'Dato inválido'};
-      const preview=comparison.comparisons.map(item=>
-        '<tr><th scope="row">'+ESC(LABELS[item.field]||item.field)+'</th>'+ 
-        '<td>'+ESC(zoneValue(item.main_value))+'</td>'+ 
-        '<td>'+ESC(zoneValue(item.zone1_value))+'</td>'+ 
-        '<td data-zona1-match="'+ESC(item.status)+'">'+ESC(matchText[item.status]||'Revisar')+'</td></tr>'
-      ).join('');
-      const generalCards=general.map(c=>
-        '<div class="cua-mp-zona1-general-field"><dt>'+ESC(zoneLabel(c))+'</dt>'+ 
-        '<dd>'+ESC(zoneValue(row[c.name]))+'</dd></div>'
-      ).join('');
-      const blocks=Array.from({length:12},(_,i)=>{
-        const number=String(i+1).padStart(2,'0');
-        const cols=ZONE1_FIELDS.map(name=>meta.find(c=>c.name===name+'_'+number));
-        const hasValues=cols.some(c=>row[c.name]!==null&&row[c.name]!==undefined&&row[c.name]!=='');
-        return '<section class="cua-mp-zona1-block">'+
-          '<h5>Facturación '+number+' <small>'+(hasValues?'Con datos':'Sin captura')+'</small></h5>'+ 
-          '<dl>'+cols.map(c=>'<div><dt>'+ESC(zoneLabel(c))+'</dt><dd>'+ 
-            ESC(zoneValue(row[c.name]))+'</dd></div>').join('')+'</dl></section>';
-      }).join('');
-      content.innerHTML=
-        '<p class="cua-mp-zona1-info">Vínculo verificado por id_dmp y proyecto. Fuente Zona 1: los importes y estados se muestran sin recalcular ni guardar.</p>'+ 
-        '<section class="cua-mp-zona1-section"><h4>Datos generales · 16 columnas</h4>'+ 
-          '<dl class="cua-mp-zona1-general">'+generalCards+'</dl></section>'+ 
-        '<section class="cua-mp-zona1-section"><h4>Comparativo con MP principal · BUSCARV original</h4>'+ 
-          '<p class="cua-mp-zona1-info">Solo vista previa · '+ESC(comparison.summary.match)+' coinciden · '+ 
-          ESC(comparison.summary.different)+' diferentes · '+ESC(comparison.summary.missing)+' sin dato · '+ 
-          ESC(comparison.summary.invalid)+' inválidos. No sincroniza valores.</p>'+ 
-          '<div class="cua-mp-zona1-compare-scroll"><table><thead><tr><th>Campo</th><th>MP principal</th><th>Zona 1</th><th>Comparación</th></tr></thead>'+ 
-          '<tbody>'+preview+'</tbody></table></div></section>'+ 
-        '<section class="cua-mp-zona1-section"><h4>12 bloques de facturación · 9 campos por bloque</h4>'+ 
-          '<div class="cua-mp-zona1-blocks">'+blocks+'</div></section>';
-    }
-    // F6: preparation only while GAS is active. No submit persists data.
-    const invoiceCandidates=()=>Array.from({length:12},(_,i)=>{
-      const suffix=String(i+1).padStart(2,'0');
-      return ZONE1_FIELDS.map(field=>field+'_'+suffix);
-    }).flat();
-    const zoneOptionHtml=()=>invoiceCandidates().map(name=>{
-      const matched=/^(.+)_([0-9]{2})$/.exec(name);
-      return '<option value="'+ESC(name)+'">Facturacion '+ESC(matched[2])+' - '+
-        ESC(ZONE1_LABELS[matched[1]]||matched[1])+'</option>';
-    }).join('');
-    const zoneInputHtml='<label>Campo de factura <select data-mp-zona1-field>'+zoneOptionHtml()+'</select></label>'+
-      '<label>Valor a preparar <input data-mp-zona1-value type="text" maxlength="150" autocomplete="off" /></label>'+
-      '<label class="cua-mp-zona1-null"><input data-mp-zona1-null type="checkbox" /> Registrar NULL</label>';
-    function renderZone1Actions(response){
-      const actions=el('[data-mp-zona1-actions]');if(!actions)return;
-      if(!canPrepareZone1){actions.innerHTML='';return;}
-      const note='<p>Validaciones sin guardar. La escritura y el corte GAS siguen bloqueados hasta autorizacion final de GC, VA y MP.</p>';
-      if(response.linked===true){
-        actions.innerHTML='<section class="cua-mp-zona1-prepare"><h4>Preparar edicion de factura</h4>'+note+
-          '<form data-mp-zona1-preflight="edit">'+zoneInputHtml+
-          '<button class="cua-mp-btn cua-mp-primary" type="submit">Validar cambio (sin guardar)</button></form>'+
-          '<div data-mp-zona1-preview role="status" aria-live="polite"></div></section>';
-      }else{
-        actions.innerHTML='<section class="cua-mp-zona1-prepare"><h4>Preparar vinculacion</h4>'+note+
-          '<form data-mp-zona1-preflight="link"><label>Identificador de fila importada (id_mp_zona_1)'+
-          '<input data-mp-zona1-link-id type="text" inputmode="numeric" maxlength="20" autocomplete="off" /></label>'+
-          '<button class="cua-mp-btn cua-mp-primary" type="submit">Validar vinculo (sin guardar)</button></form>'+
-          '<h4>O preparar una captura nueva</h4><form data-mp-zona1-preflight="create">'+zoneInputHtml+
-          '<button class="cua-mp-btn cua-mp-primary" type="submit">Validar captura (sin guardar)</button></form>'+
-          '<div data-mp-zona1-preview role="status" aria-live="polite"></div></section>';
-      }
-      if(canWriteZone1){
-        // Not reached while the backend contract sets zone1WritesEnabled=false.
-        actions.innerHTML+='<button type="button" class="cua-mp-btn" data-mp-zona1-apply disabled>Guardar operacion validada</button>';
-      }
-    }
-    function getZone1Payload(kind){
-      const id=zone1State?.id;
-      if(!id||!zone1State?.response)return null;
-      if(kind==='link'){
-        const raw=el('[data-mp-zona1-link-id]')?.value?.trim()||'';
-        if(!/^[1-9]\d{0,19}$/.test(raw))return null;
-        return {path:ZONE1_ADMIN_API+'/'+encodeURIComponent(id)+'/validar-vinculo',
-          body:{id_mp_zona_1:raw},operation:'link',id};
-      }
-      const field=el('[data-mp-zona1-field]')?.value||'';
-      if(!invoiceCandidates().includes(field))return null;
-      const nullValue=el('[data-mp-zona1-null]')?.checked===true;
-      const raw=el('[data-mp-zona1-value]')?.value??'';
-      const value=nullValue?null:(raw.trim()===''?null:raw.trim());
-      if(kind==='create')return {path:ZONE1_ADMIN_API+'/'+encodeURIComponent(id)+'/validar-alta',
-        body:{changes:{[field]:value}},operation:'create',id};
-      const original=zone1State.response?.row?.[field]??null;
-      const zoneId=String(zone1State.response.row?.id_mp_zona_1||'');
-      if(!/^[1-9]\d*$/.test(zoneId))return null;
-      return {path:ZONE1_ADMIN_API+'/'+encodeURIComponent(id)+'/validar-cambio/'+encodeURIComponent(zoneId),
-        body:{changes:{[field]:value},expected:{[field]:original}},operation:'edit',id,zoneId};
-    }
-    async function preflightZone1(kind){
-      if(!valid()||!canPrepareZone1||!zone1State)return false;
-      const payload=getZone1Payload(kind);
-      const status=el('[data-mp-zona1-preview]');
-      if(!status)return false;
-      if(!payload){status.textContent='Captura invalida: comprueba los campos e identificadores.';return false;}
-      const epoch=zoneRequestId;
-      zone1Preview=null;
-      status.textContent='Validando identidad y datos sin modificar Aiven...';
-      try{
-        const result=await win.ManttoAuth.api(payload.path,{method:'POST',body:JSON.stringify(payload.body)});
-        if(!valid()||epoch!==zoneRequestId)return false;
-        if(result?.ok!==true||result.mode!=='preview_only'||result.can_write!==false||
-          result.operation!==kind||result.id_dmp!==payload.id||
-          result.table!=='detalle_mp_2026_zona_1')throw new Error('Preflight no confiable.');
-        zone1Preview={...payload,snapshot:JSON.stringify(payload.body)};
-        status.textContent='Validacion correcta (sin guardar). '+
-          (kind==='edit'?'Cambio preparado.':kind==='link'?'Identidad de vinculacion verificada.':'Captura preparada.');
-        const apply=el('[data-mp-zona1-apply]');if(apply)apply.disabled=!canWriteZone1;
-        return true;
-      }catch(_error){
-        if(valid()&&epoch===zoneRequestId){status.textContent='No se valido: registro, permisos, identidad o valores incompatibles.';
-          zone1Preview=null;}
-        return false;
-      }
-    }
-    async function applyZone1(){
-      // Not available until explicit global cutover changes the backend contract.
-      if(!canWriteZone1||!zone1Preview||!valid())return false;
-      const preview=zone1Preview;
-      if(JSON.stringify(getZone1Payload(preview.operation)?.body)!==preview.snapshot)return false;
-      if(typeof win.confirm==='function'&&!win.confirm('Confirmar operacion de MP Zona 1 y auditar?'))return false;
-      const url=ZONE1_ADMIN_API+'/'+encodeURIComponent(preview.id);
-      const path=preview.operation==='edit'?url+'/'+encodeURIComponent(preview.zoneId):
-        preview.operation==='link'?url+'/vincular':url;
-      const method=preview.operation==='edit'?'PATCH':'POST';
-      const response=await win.ManttoAuth.api(path,{method,body:JSON.stringify(preview.body)});
-      if(response?.ok!==true||response.table!=='detalle_mp_2026_zona_1')return false;
-      if(valid())await openZona1(preview.id); // selective refresh
+      mpPanel.hidden=name!=='principal';zonePanel.hidden=name!=='zona1';
+      root.querySelectorAll('[data-mp-tab]').forEach(button=>{
+        button.setAttribute('aria-selected',String(button.dataset.mpTab===name));
+      });
       return true;
-    }
-    async function openZona1(id){
-      if(!valid()||!getRow(id))return false;
-      const dialog=el('[data-mp-zona1-dialog]');if(!dialog)return false;
-      const current=++zoneRequestId;
-      dialog.hidden=false;
-      const who=el('[data-mp-zona1-id]');if(who)who.textContent=id;
-      const status=el('[data-mp-zona1-status]');
-      if(status){status.textContent='Verificando alcance y relación de Zona 1…';status.dataset.kind='info';}
-      const content=el('[data-mp-zona1-content]');if(content)content.innerHTML='';
-      try{
-        const response=await win.ManttoAuth.apiGet(API+'/'+encodeURIComponent(id)+'/zona-1');
-        if(!valid()||current!==zoneRequestId)return false;
-        if(response?.ok!==true||response.readonly!==true||response.table!=='detalle_mp_2026_zona_1'||
-          response.id_dmp!==id||response.relation!=='id_dmp'||response.invoice_blocks!==12||
-          !Array.isArray(response.columns)||response.columns.length!==128||
-          new Set(response.columns.map(c=>c.name)).size!==128)throw new Error('Contrato Zona 1 inválido.');
-        if(response.linked===true){
-          if(response.identity_verified!==true||response.identity?.verified!==true||
-            !response.row||String(response.row.id_dmp)!==id||
-            !response.lookup_preview||response.lookup_preview.mode!=='preview_only'||
-            !Array.isArray(response.lookup_preview.comparisons)||response.lookup_preview.comparisons.length!==6||
-            response.columns.filter(c=>c.sheetColumn&&!/_\d{2}$/.test(c.name)).length!==16||
-            Array.from({length:12},(_,i)=>ZONE1_FIELDS.every(name=>response.columns.some(c=>c.name===name+'_'+String(i+1).padStart(2,'0')))).some(ok=>!ok))
-            throw new Error('Detalle Zona 1 incompleto o sin identidad verificada.');
-        }else if(response.linked!==false||response.row!==null||response.identity_verified!==false)
-          throw new Error('Vínculo Zona 1 inválido.');
-        renderZona1(response);
-        zone1State={id,response};zone1Preview=null;
-        renderZone1Actions(response);
-        if(status){status.textContent=response.linked?'Vínculo Zona 1 verificado · 12 bloques · solo consulta.':'Sin vinculación por id_dmp · no se muestran datos ajenos.';
-          status.dataset.kind=response.linked?'ready':'warning';}
-        return true;
-      }catch(_error){
-        if(!valid()||current!==zoneRequestId)return false;
-        if(content)content.innerHTML='';
-        if(status){status.textContent='No se puede mostrar Zona 1: comprueba la vinculación, identidad y permisos.';
-          status.dataset.kind='error';}
-        return false;
-      }
     }
     function openEdit(td){
       if(!canEdit||saving||editing||!valid()||!td?.classList.contains('cua-mp-canedit'))return;
@@ -547,14 +320,14 @@
       input.setAttribute('aria-label','Nuevo valor para '+colLabel(col));
       editing={id,field,old,td,committing:false};
       td.replaceChildren(input);td.classList.add('cua-mp-editing');
-      input.focus();input.select();
+      updateBulk();input.focus();input.select();
     }
-    function closeDialog(){
+    function cancelCellEdit(){
       if(saving||!editing||editing.committing)return;
       const {td,old}=editing;editing=null;
       td.classList.remove('cua-mp-editing');
       td.innerHTML='<span>'+ESC(old==null||old===''?'—':old)+'</span>';
-      td.focus();
+      td.focus();updateBulk();
     }
     function updateBusy(value){saving=value;updateBulk();}
     async function saveSingle(){
@@ -562,7 +335,7 @@
       const current=editing,{id,field,old,td}=current;
       const input=td.querySelector('[data-mp-cell-input]');if(!input)return;
       const value=input.value.trim()||null;
-      if(value===(old==null||old===''?null:String(old))){closeDialog();return;}
+      if(value===(old==null||old===''?null:String(old))){cancelCellEdit();return;}
       current.committing=true;editing=null;
       updateBusy(true);setStatus('Guardando y auditando registro MP '+id+'…');
       try{
@@ -577,7 +350,7 @@
       }catch(error){if(valid()){updateBusy(false);await load();if(valid())setStatus('No se guardó MP: '+String(error?.message||'revisa conflicto, alcance o permisos.'),'error');}}
     }
     async function saveBulk(){
-      if(!canEdit||!valid()||saving||state.selected.size<2||state.selected.size>MAX_BULK)return;
+      if(!canEdit||!valid()||saving||editing||state.selected.size<2||state.selected.size>MAX_BULK)return;
       const field=el('[data-mp-bulk-field]')?.value||'';
       const col=state.columns.find(c=>c.name===field);
       if(!col||!allowed(col))return;
@@ -603,12 +376,12 @@
           throw new Error('El servidor no confirmo el lote.');
         updateBusy(false);await load();
         if(valid())setStatus(response.changed+' registros guardados y auditados.','ready');
-      }catch(_error){if(valid()){updateBusy(false);setStatus('Lote cancelado: revisa alcance, GAS o valores originales.','error');}}
+      }catch(error){if(valid()){updateBusy(false);await load();if(valid())setStatus('Lote no guardado: '+String(error?.message||'revisa alcance, permisos o valores originales.'),'error');}}
     }
     root.addEventListener('submit',event=>{
       const target=event.target;
       if(target?.matches?.('[data-mp-form]')){
-        event.preventDefault();if(!valid()||saving)return;
+        event.preventDefault();if(!valid()||saving||editing)return;
         state.search=el('[data-mp-search]')?.value?.trim()||'';
         state.filterColumn=el('[data-mp-filter-column]')?.value||'';
         state.filterValue=el('[data-mp-filter-value]')?.value?.trim()||'';
@@ -617,26 +390,13 @@
         state.page=1;load().catch(()=>{});
       }else if(target?.matches?.('[data-mp-bulk-form]')){
         event.preventDefault();saveBulk().catch(()=>{});
-      }else if(canPrepareZone1 && target?.matches?.('[data-mp-zona1-preflight]')){
-        event.preventDefault();
-        const kind=target.dataset.mpZona1Preflight;
-        if(['edit','link','create'].includes(kind))preflightZone1(kind).catch(()=>{});
       }
     });
     root.addEventListener('click',event=>{
-      if(!valid()||saving)return;
+      if(!valid()||saving||editing)return;
       if(event.target.closest?.('[data-mp-reconcile]')){reconcile().catch(()=>{});return;}
-      if(event.target.closest?.('[data-mp-zona1-close]')){closeZona1();return;}
-      if(event.target.closest?.('[data-mp-zona1-apply]')){applyZone1().catch(()=>{});return;}
-      const zona=event.target.closest?.('[data-mp-zona1]');
-      if(zona){openZona1(zona.dataset.mpZona1).catch(()=>{});return;}
-      const group=event.target.closest?.('[data-mp-group]');
-      if(group){
-        if(Object.prototype.hasOwnProperty.call(GROUPS,group.dataset.mpGroup)){
-          state.group=group.dataset.mpGroup;render();
-        }
-        return;
-      }
+      const tab=event.target.closest?.('[data-mp-tab]');
+      if(tab){selectTab(tab.dataset.mpTab);return;}
       const sort=event.target.closest?.('[data-mp-sort]');
       if(sort){
         const name=sort.dataset.mpSort;
@@ -654,20 +414,11 @@
       }
     });
     root.addEventListener('change',event=>{
-      if(!valid()||saving)return;
+      if(!valid()||saving||editing)return;
       if(event.target?.matches?.('[data-mp-page-size]')){
         const size=Number(event.target.value);
         if(![25,50,100].includes(size))return;
         state.pageSize=size;state.page=1;load().catch(()=>{});
-        return;
-      }
-      if(canPrepareZone1 && event.target?.matches?.('[data-mp-zona1-field]')){
-        zone1Preview=null;
-        const apply=el('[data-mp-zona1-apply]');if(apply)apply.disabled=true;
-        const field=event.target.value;
-        const input=el('[data-mp-zona1-value]');
-        if(input){input.value='';input.type=field.startsWith('fecha_')||field.startsWith('vencimiento_')?'date':'text';
-          input.inputMode=field.startsWith('dias_vencimiento_')?'numeric':'text';}
         return;
       }
       if(canEdit&&event.target?.matches?.('[data-mp-bulk-field]')){
@@ -686,22 +437,14 @@
         updateBulk();
       }
     });
-    root.addEventListener('input',event=>{
-      if(!canPrepareZone1||!event.target?.closest?.('[data-mp-zona1-preflight]'))return;
-      zone1Preview=null;
-      const apply=el('[data-mp-zona1-apply]');if(apply)apply.disabled=true;
-    });
     root.addEventListener('keydown',event=>{
       if(event.target.matches?.('[data-mp-cell-input]')){
-        if(event.key==='Escape'){event.preventDefault();closeDialog();}
+        if(event.key==='Escape'){event.preventDefault();cancelCellEdit();}
         else if(event.key==='Enter'){event.preventDefault();saveSingle().catch(()=>{});}
         return;
       }
       if(event.key==='Enter'&&event.target.matches?.('td.cua-mp-canedit')){
         event.preventDefault();openEdit(event.target);return;
-      }
-      if(event.key==='Escape' && el('[data-mp-zona1-dialog]')?.hidden===false){
-        event.preventDefault?.();closeZona1();
       }
     });
     root.addEventListener('dblclick',event=>openEdit(event.target.closest?.('td.cua-mp-canedit')));
@@ -709,7 +452,7 @@
       if(event.target.matches?.('[data-mp-cell-input]'))saveSingle().catch(()=>{});
     });
     load().catch(()=>{});
-    return Object.freeze({destroy(){disposed=true;requestId++;zoneRequestId++;reconcileRequestId++;editing=null;state.selected.clear();root.replaceChildren();}});
+    return Object.freeze({destroy(){disposed=true;requestId++;reconcileRequestId++;editing=null;if(zoneTab)zoneTab.destroy();zoneTab=null;state.selected.clear();root.replaceChildren();}});
   }
   win.ManttoCobranzaAdministracionMP_uni=Object.freeze({mount});
 })(window,document);

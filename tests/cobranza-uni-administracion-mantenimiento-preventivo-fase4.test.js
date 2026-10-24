@@ -178,9 +178,8 @@ test('MP F4: input factor admite NULL, 1..65535 y expected con entero MySQL',()=
   for(const field of ['id_dmp','proyecto','id_proyecto_cobranza','iguala','monto_anual','pendiente','estatus_cartera'])
     assert.throws(()=>V.inputMp_uni(field,'1'),{code:'MP_ADMIN_CAMPO_PROTEGIDO'});
 });
-test('MP F4: incluso con flags true, contrato bloquea el corte GAS y no abre MySQL',async()=>{
-  const s=service({MP_ADMIN_EDIT_ENABLED:'true',MP_ADMIN_GAS_CUTOVER_CONFIRMED:'true',
-    MP_ADMIN_GC_VA_MP_RECONCILED:'true'});
+test('MP F4: flag de emergencia false preserva fail-closed y no abre MySQL',async()=>{
+  const s=service({MP_ADMIN_EDIT_ENABLED:'false'});
   assert.equal(s.mpEditFeatureEnabled_uni(),false);
   const mock=mockDb({'41':{factor:null,iguala:'100.00',monto:'500.00'}});
   await assert.rejects(s.updateSingleMp_uni(REQ,'41',{
