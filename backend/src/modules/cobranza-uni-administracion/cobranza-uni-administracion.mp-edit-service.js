@@ -17,7 +17,7 @@ const RIGHTS_MP_UNI=Object.freeze([
   TABLE_PERMISSIONS.detalle_mp_2026.edit
 ]);
 function mpEditFeatureEnabled_uni(){
-  return !['false','0','no','off'].includes(String(process.env.MP_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
+  return ['true','1','yes','on'].includes(String(process.env.MP_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
 }
 function actorId_uni(req){
   const x=req?.informationAccess?.effective_user_id ?? req?.contextUser?.id_SB ??

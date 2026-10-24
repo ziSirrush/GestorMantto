@@ -129,8 +129,15 @@ test('VA F3: optimistic concurrency is mandatory for single and bulk',()=>{
     changes:{ov:'A'},expected:{}}),{code:'VA_ADMIN_LOTE_INVALIDO'});
 });
 
-test('VA F3: flag de emergencia false bloquea escritura antes de DB',async()=>{
-  assert.equal(serviceMock({}).pcEditFeatureEnabled_uni(),true);
+test('VA F3: escritura OFF sin flag; requiere habilitacion explicita y respeta false',async()=>{
+  const absent=serviceMock({});
+  assert.equal(absent.pcEditFeatureEnabled_uni(),false);
+  await assert.rejects(absent.updateSinglePc_uni(request,'2041',{
+    changes:{ov:'N'},expected:{ov:'OV-1'}
+  }),{code:'VA_ADMIN_ESCRITURA_DESHABILITADA',statusCode:403});
+  assert.equal(serviceMock({PC_ADMIN_EDIT_ENABLED:'true'}).pcEditFeatureEnabled_uni(),true);
+  assert.equal(serviceMock({PC_ADMIN_EDIT_ENABLED:'1'}).pcEditFeatureEnabled_uni(),true);
+  assert.equal(serviceMock({PC_ADMIN_EDIT_ENABLED:'garbage'}).pcEditFeatureEnabled_uni(),false);
   const s=serviceMock({PC_ADMIN_EDIT_ENABLED:'false'});
   await assert.rejects(s.updateSinglePc_uni(request,'2041',{
     changes:{ov:'N'},expected:{ov:'OV-1'}

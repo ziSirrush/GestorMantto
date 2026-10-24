@@ -134,10 +134,15 @@ test('MP F3: lote 2..20, orden BIGINT sin Number, esperado exacto por ID',()=>{
   }
   assert.equal(V.idMp_uni('9223372036854775807'),'9223372036854775807');
 });
-test('MP F3: edicion segun permisos por defecto, flag false corta la escritura antes de DB',async()=>{
-  // Tras la desactivacion declarada de GAS, el backend .9 adopta feature ON
-  // por defecto; el kill-switch sigue siendo obligatorio y verificable.
-  assert.equal(makeService({env:{}}).module.mpEditFeatureEnabled_uni(),true);
+test('MP F3: escritura OFF por defecto; opt-in explicito y false bloquea antes de DB',async()=>{
+  const absent=makeService({env:{}}).module;
+  assert.equal(absent.mpEditFeatureEnabled_uni(),false);
+  await assert.rejects(absent.updateSingleMp_uni(REQ,'41',{
+    changes:{zona_adm:'SUR'},expected:{zona_adm:'ORIGEN'}
+  }),{statusCode:403,code:'MP_ADMIN_ESCRITURA_DESHABILITADA'});
+  assert.equal(makeService({env:{MP_ADMIN_EDIT_ENABLED:'true'}}).module.mpEditFeatureEnabled_uni(),true);
+  assert.equal(makeService({env:{MP_ADMIN_EDIT_ENABLED:'1'}}).module.mpEditFeatureEnabled_uni(),true);
+  assert.equal(makeService({env:{MP_ADMIN_EDIT_ENABLED:'invalid'}}).module.mpEditFeatureEnabled_uni(),false);
   const {module}=makeService({env:{MP_ADMIN_EDIT_ENABLED:'false'}});
   assert.equal(module.mpEditFeatureEnabled_uni(),false);
   await assert.rejects(module.updateSingleMp_uni(REQ,'41',{

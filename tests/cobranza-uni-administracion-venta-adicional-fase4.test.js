@@ -225,12 +225,14 @@ test('VA F4: frontend muestra marca de previa, mantiene puerta de escritura y us
   assert.doesNotMatch(ui,/method:'DELETE'/);
 });
 
-test('VA F4: politica GAS: trigger se conserva hasta finalizar GC+VA+MP',()=>{
+test('VA F4: formula no gestiona GAS y editor Excel usa puerta backend',()=>{
   const service=file('backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.pc-edit-service.js');
   const code=file('backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.pc-formulas.js');
   const ui=file('modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js');
-  assert.match(ui,/GC, VA y MP/);
-  assert.match(service,/\|\|''\)/); // flag ausente => false
+  assert.match(ui,/data-pc-cell-input/);
+  assert.match(ui,/beginCellEdit/);
+  assert.match(service,/PC_ADMIN_EDIT_ENABLED/);
+  assert.doesNotMatch(ui,/GAS sigue activo para GC, VA y MP/);
   assert.doesNotMatch(code,/require\(['"]\.\.\/\.\.\/config\/db/);
   assert.doesNotMatch(code,/setInterval|fetch\(|app\.script|ScriptApp|deleteTrigger/i);
   const ignored=file('.gitignore');

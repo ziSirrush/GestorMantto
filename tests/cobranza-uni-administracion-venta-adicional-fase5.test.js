@@ -293,7 +293,8 @@ test('F5: UI usa las 14 columnas en preview, marca advertencias y no suma factur
   assert.match(js,/ALL_PREVIEW/);
   assert.match(js,/data-pc-relations/);
   assert.match(js,/Proyectos únicos de esta página/);
-  assert.match(js,/GC, VA y MP/);
+  assert.match(js,/data-pc-cell-input/);
+  assert.match(js,/beginCellEdit/);
   assert.match(js,/ESC\(title\)/);
   assert.match(css,/cua-pc-relations-summary/);
   assert.match(main,/20261023-va-f6-v001/);

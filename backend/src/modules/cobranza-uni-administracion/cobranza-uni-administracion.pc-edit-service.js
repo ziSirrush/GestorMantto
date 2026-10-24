@@ -13,7 +13,7 @@ const {auditPcCell_uni}=require('./cobranza-uni-administracion.pc-edit-audit');
 
 const RIGHTS=[MAIN_VISUAL,TABLE_PERMISSIONS.pc.view,TABLE_PERMISSIONS.pc.edit];
 function pcEditFeatureEnabled_uni(){
-  return !['false','0','no','off'].includes(String(process.env.PC_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
+  return ['true','1','yes','on'].includes(String(process.env.PC_ADMIN_EDIT_ENABLED||'').trim().toLowerCase());
 }
 function actorId_uni(req){
   const raw=req?.informationAccess?.effective_user_id||req?.contextUser?.id_SB||
