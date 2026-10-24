@@ -96,6 +96,14 @@ async function editOneMp_uni(conn,rowChange,boundary,actor,req,deps={}){
   if(Number(written?.affectedRows)!==1)
     throw failMp_uni(409,'MP_ADMIN_CONFLICTO_ACTUALIZACION',
       'El registro no se pudo actualizar; cambios revertidos.',{id,field});
+  if(field==='proyecto'){
+    const [visible]=await conn.query(
+      'SELECT CAST(mp.`id_dmp` AS CHAR) AS id_dmp FROM `detalle_mp_2026` mp '+
+      `WHERE ${where} LIMIT 1 FOR UPDATE`,[id]);
+    if(!Array.isArray(visible)||visible.length!==1)
+      throw failMp_uni(409,'MP_ADMIN_PROYECTO_FUERA_DE_ALCANCE',
+        'El proyecto nuevo ya no cumple la identidad o el alcance; cambio revertido.',{id,field});
+  }
   await (deps.auditRecorder||auditMpCell_uni)(req,
     {id,field,before:original,after:value,operation,actor,derived_changes:derived},conn);
   return {id,field,changed:true,derived_changes:derived};

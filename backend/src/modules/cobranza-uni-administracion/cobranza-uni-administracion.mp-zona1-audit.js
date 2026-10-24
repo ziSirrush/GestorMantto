@@ -9,6 +9,7 @@ async function auditZone1_uni(req,change,conn){
     operation:change.operation,id_dmp:String(change.id_dmp),
     id_mp_zona_1:String(change.id_mp_zona_1),actor:String(change.actor),
     ...(change.field?{field:change.field,before:change.before,after:change.after}:{}),
+    ...(change.derived_changes?{derived_changes:change.derived_changes}:{}),
     ...(change.fields?{fields:change.fields}:{}),
     ...(change.previous_link!==undefined?{previous_link:change.previous_link}:{}),
     link:String(change.id_dmp)};

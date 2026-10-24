@@ -65,6 +65,19 @@ async function editOnePc_uni(conn,req,input,territorySql,actor,deps){
   if(Number(updated?.affectedRows)!==1)
     throw failPc_uni(409,'VA_ADMIN_CONFLICTO_ACTUALIZACION',
       'El registro dejo de estar disponible. Operacion revertida.',{id,field});
+  if(field==='proyecto'){
+    const canonical=(deps.scopeService||scope).canonicalProjectSql_uni('pc');
+    if(typeof canonical!=='string'||!canonical.trim())
+      throw failPc_uni(403,'VA_ADMIN_IDENTIDAD_NO_DISPONIBLE',
+        'No se pudo comprobar la identidad del proyecto.');
+    const [visible]=await conn.query(
+      'SELECT CAST(pc.`id_pc` AS CHAR) AS id_pc FROM `pc` pc '+
+      `WHERE pc.\`id_pc\` = ? AND (${territorySql}) AND (${canonical}) IS NOT NULL `+
+      'LIMIT 1 FOR UPDATE',[id]);
+    if(!Array.isArray(visible)||visible.length!==1)
+      throw failPc_uni(409,'VA_ADMIN_PROYECTO_FUERA_DE_ALCANCE',
+        'El proyecto nuevo queda fuera del alcance; cambio revertido.',{id,field});
+  }
   await (deps.auditRecorder||auditPcCell_uni)(req,{id,field,before,after:value,operation,actor},conn);
   return {id,field,changed:true};
 }
