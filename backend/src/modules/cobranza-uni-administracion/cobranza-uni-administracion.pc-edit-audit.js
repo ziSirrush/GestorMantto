@@ -9,7 +9,10 @@ async function auditPcCell_uni(req,change,conn){
   const detail={
     source:'cobranza-uni-administracion',table:'pc',operation:change.operation||'single',
     id_pc:String(change.id),field:change.field,before:change.before,after:change.after,
-    actor:String(change.actor)
+    actor:String(change.actor),
+    ...(Array.isArray(change.derived_changes)?{
+      derived_changes:change.derived_changes.map(item=>({field:item.field,
+        before:item.before,after:item.after}))}: {})
   };
   if(Buffer.byteLength(JSON.stringify(detail),'utf8')>60000)
     throw failPc_uni(413,'VA_ADMIN_AUDITORIA_EXCESIVA','Auditoria excede limite seguro.');

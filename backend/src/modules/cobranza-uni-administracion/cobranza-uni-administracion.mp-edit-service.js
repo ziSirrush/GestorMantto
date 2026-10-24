@@ -8,6 +8,7 @@ const {listEffectivePermissions}=require('../../services/permissions/effective-p
 const {MAIN_VISUAL,TABLE_PERMISSIONS}=require('./cobranza-uni-administracion.permissions');
 const {auditMpCell_uni}=require('./cobranza-uni-administracion.mp-edit-audit');
 const {previewMontoAnualMp_uni}=require('./cobranza-uni-administracion.mp-formulas');
+const {persistPcDerivedForMpChange_uni}=require('./cobranza-uni-administracion.pc-derived-write');
 const {
   failMp_uni,idMp_uni,comparableMp_uni,normalizeSingleMp_uni,normalizeBulkMp_uni
 }=require('./cobranza-uni-administracion.mp-edit-validation');
@@ -52,7 +53,8 @@ async function editOneMp_uni(conn,rowChange,boundary,actor,req,deps={}){
   const {id,field,value,expected,operation}=rowChange;
   const where=`mp.\`id_dmp\` = ? AND (${boundary.territory}) AND (${boundary.identity}) IS NOT NULL`;
   const [rows]=await conn.query(
-    `SELECT CAST(mp.\`id_dmp\` AS CHAR) AS id_dmp, mp.\`${field}\` AS original_value `+
+    `SELECT CAST(mp.\`id_dmp\` AS CHAR) AS id_dmp, mp.\`${field}\` AS original_value, `+
+    'mp.`proyecto` AS original_project, mp.`cliente` AS original_client '+
     (field==='factor_monto_anual'?
       ', mp.`iguala` AS original_iguala, mp.`monto_anual` AS original_monto_anual ':' ')+
     `FROM \`detalle_mp_2026\` mp WHERE ${where} FOR UPDATE`,[id]
@@ -106,7 +108,10 @@ async function editOneMp_uni(conn,rowChange,boundary,actor,req,deps={}){
   }
   await (deps.auditRecorder||auditMpCell_uni)(req,
     {id,field,before:original,after:value,operation,actor,derived_changes:derived},conn);
-  return {id,field,changed:true,derived_changes:derived};
+  return {id,field,changed:true,derived_changes:derived,
+    oldProject:rows[0].original_project,oldClient:rows[0].original_client,
+    newProject:field==='proyecto'?value:rows[0].original_project,
+    newClient:field==='cliente'?value:rows[0].original_client};
 }
 async function editMpTransaction_uni(req,body,deps={},bulk=false){
   // No abrir conexion si el corte de emergencia esta activo.
@@ -129,10 +134,21 @@ async function editMpTransaction_uni(req,body,deps={},bulk=false){
         operation:bulk?'bulk':'single'
       },boundary,actor,req,deps));
     }
+    const changedRows=results.filter(row=>row.changed);
+    let vaCalculated=0;
+    if(changedRows.length&&['proyecto','cliente','estado','z_oper','estatus_cartera'].includes(data.field)){
+      const refs=changedRows.flatMap(row=>[
+        {proyecto:row.oldProject,cliente:row.oldClient},
+        {proyecto:row.newProject,cliente:row.newClient}
+      ]);
+      const impact=await (deps.vaDerivedWriter||persistPcDerivedForMpChange_uni)(
+        conn,req,refs,actor,deps);
+      vaCalculated=impact.calculated||0;
+    }
     await conn.commit();started=false;
     return {ok:true,table:'detalle_mp_2026',field:data.field,total:results.length,
       changed:results.filter(r=>r.changed).length,
-      calculated:results.reduce((sum,r)=>sum+(r.derived_changes?.length||0),0),results};
+      calculated:results.reduce((sum,r)=>sum+(r.derived_changes?.length||0),0)+vaCalculated,results};
   }catch(error){
     if(started){try{await conn.rollback();}catch(_rollback){error.rollbackFailed=true;}}
     throw error;

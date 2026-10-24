@@ -22,6 +22,7 @@ function serviceMock(env=process.env){
     if(name.endsWith('.permissions'))return rights;
     if(name.endsWith('.pc-edit-validation'))return v;
     if(name.endsWith('.pc-edit-audit'))return {auditPcCell_uni(){throw Error('AUDIT_MUST_BE_MOCKED');}};
+    if(name.endsWith('.pc-derived-write'))return {persistPcDerivedAfterEdit_uni:async()=>({calculated:0,projects:0})};
     throw Error('Missing mocked dependency '+name);
   };
   vm.runInNewContext(read('backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.pc-edit-service.js'),
@@ -77,16 +78,12 @@ function txFixture(overrides={}){
     get audits(){return committedAudits;}};
 }
 
-test('VA F3: only eight safe fields; derived, identity, FK and financial origins stay locked',()=>{
-  assert.deepEqual(v.PHASE3_SAFE_FIELDS_UNI,[
-    'zona_adm','ov','concepto','no_factura','estatus_operativo',
-    'fecha_pago','refacturacion_sustitucion','comentarios_cobranza'
-  ]);
+test('VA: las 15 capturas son editables; PK, FK y derivados siguen protegidos',()=>{
+  assert.deepEqual(v.PHASE3_SAFE_FIELDS_UNI,c.PC_EDITABLE_FIELDS_UNI);
   assert.equal(c.PC_COLUMNS_UNI.length,31);
   assert.equal(c.PC_EDITABLE_FIELDS_UNI.length,15);
   assert.equal(c.PC_DERIVED_FIELDS_UNI.length,14);
-  for(const field of ['id_pc','id_proyecto_cobranza','venta_total','estatus','adeudo',
-      'proyecto','cliente','fecha_factura','fecha_ov','precio_venta','tipo_pago','estatus_administrativo']){
+  for(const field of ['id_pc','id_proyecto_cobranza','venta_total','estatus','adeudo']){
     assert.throws(()=>v.inputValue_uni(field,'DATO'),{code:'VA_ADMIN_CAMPO_NO_DISPONIBLE'},field);
   }
   assert.ok(v.PHASE3_SAFE_FIELDS_UNI.every(field=>c.PC_EDITABLE_FIELDS_UNI.includes(field)));
@@ -275,7 +272,7 @@ test('VA F3: route access checks canEdit flag, readonly GET remains, PATCH guard
   feature=true;
   r=await access({...req,params:{tabla:'pc'}},response(),error=>{throw error;});
   assert.equal(r.body.can_edit,true);
-  assert.equal(r.body.editable_fields.length,8);
+  assert.equal(r.body.editable_fields.length,15);
   r=await access({...req,viewerContext:{active:true},params:{tabla:'pc'}},response(),error=>{throw error;});
   assert.equal(r.body.can_edit,false);
   for(const path of ['/tablas/pc/registros/:id','/tablas/pc/registros/edicion-multiple']){

@@ -77,7 +77,7 @@ test('F6 ruta: /contrato y /acceso comparten la MISMA puerta de Zona1 Excel; nun
     assert.equal(a.body.can_write_zone1,on);
     assert.equal(mp.can_write_zone1,on);
     assert.equal(a.body.can_write_zone1,mp.can_write_zone1);
-    assert.equal(a.body.zona1_editable_fields.length,on?108:0);
+    assert.equal(a.body.zona1_editable_fields.length,on?124:0);
     assert.equal(Object.hasOwn(mp,'can_prepare_zone1'),false);
   }
 });
@@ -156,13 +156,13 @@ test('F6 VA: editar celda bloquea lote y acciones simultaneas; Escape restablece
   ui.app.destroy();
 });
 
-test('F6 integridad: exactamente dos pestañas solo MP, cuatro tablas y 108/128 Zona1',()=>{
+test('F6 integridad: exactamente dos pestañas solo MP, cuatro tablas y 124/128 Zona1',()=>{
   const main=read(FRONT+'main/main.js');
   const mp=read(FRONT+'mantenimiento-preventivo/mantenimiento-preventivo.js');
   const zone=read(FRONT+'mantenimiento-preventivo/mantenimiento-preventivo-zona1.js');
   const va=read(FRONT+'venta-adicional/venta-adicional.js');
   assert.equal(constants.MP_ZONE1_COLUMNS_UNI.length,128);
-  assert.equal(zone1Fields.length,108);
+  assert.equal(zone1Fields.length,124);
   assert.equal((mp.match(/data-mp-tab="/g)||[]).length,2);
   for(const source of [va,zone]){
     assert.match(source,/method:'PATCH'/);assert.match(source,/expected/);
@@ -217,9 +217,9 @@ test('F6 consultas: Zona1 usa solo COUNT/SELECT paginados y comparte identidad d
   assert.match(bulk,/FOR UPDATE/);
 });
 
-test('F6 frontend: versiones de JS conservadas y CSS de GC renovado',()=>{
+test('F6 frontend: versiones de VA/MP renovadas y CSS de GC conservado',()=>{
   const main=read(FRONT+'main/main.js');
-  for(const tag of ['va-excel-f6-v001','mp-excel-f6-v001','mp-zona1-excel-f6-v001'])
+  for(const tag of ['va-manual-fields-v001','mp-manual-fields-v001','mp-zona1-manual-fields-v001'])
     assert.ok(main.includes(tag),tag);
   assert.match(main,/gestion-credito\.js\?v=20261023-f6-v001/);
   assert.match(main,/gestion-credito\.css\?v=20261023-gc-wide-v002/);

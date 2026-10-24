@@ -1,6 +1,6 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_3_V001]
-// Safe-cell edits only; formulas and project identity changes remain blocked.
+// Captura VA y derivados persistidos bajo una sola transaccion.
 // Aiven es la fuente de escritura humana; permiso y alcance se revalidan en cada transaccion.
 const db=require('../../config/db');
 const scope=require('../../services/cobranza-uni-scope.service');
@@ -10,6 +10,7 @@ const {
   failPc_uni,idPc_uni,comparablePc_uni,normalizeSinglePc_uni,normalizeBulkPc_uni
 }=require('./cobranza-uni-administracion.pc-edit-validation');
 const {auditPcCell_uni}=require('./cobranza-uni-administracion.pc-edit-audit');
+const {persistPcDerivedAfterEdit_uni}=require('./cobranza-uni-administracion.pc-derived-write');
 
 const RIGHTS=[MAIN_VISUAL,TABLE_PERMISSIONS.pc.view,TABLE_PERMISSIONS.pc.edit];
 function pcEditFeatureEnabled_uni(){
@@ -46,7 +47,9 @@ function getTerritoryPc_uni(req,scopeBuilder){
 async function editOnePc_uni(conn,req,input,territorySql,actor,deps){
   const {id,field,value,expected,operation}=input;
   const [rows]=await conn.query(
-    `SELECT CAST(pc.\`id_pc\` AS CHAR) AS id_pc, pc.\`${field}\` AS original_value `+
+    `SELECT CAST(pc.\`id_pc\` AS CHAR) AS id_pc, pc.\`${field}\` AS original_value, `+
+    'pc.`proyecto` AS original_project, '+
+    'CAST(pc.`id_proyecto_cobranza` AS CHAR) AS original_fk '+
     `FROM \`pc\` pc WHERE pc.\`id_pc\` = ? AND (${territorySql}) FOR UPDATE`,[id]
   );
   if(!Array.isArray(rows)||rows.length!==1)
@@ -79,7 +82,8 @@ async function editOnePc_uni(conn,req,input,territorySql,actor,deps){
         'El proyecto nuevo queda fuera del alcance; cambio revertido.',{id,field});
   }
   await (deps.auditRecorder||auditPcCell_uni)(req,{id,field,before,after:value,operation,actor},conn);
-  return {id,field,changed:true};
+  return {id,field,changed:true,actor,
+    oldProject:rows[0].original_project,oldFk:rows[0].original_fk};
 }
 async function editPcTransaction_uni(req,body,deps={},bulk=false){
   const normalized=bulk?normalizeBulkPc_uni(body):normalizeSinglePc_uni(body);
@@ -102,9 +106,14 @@ async function editPcTransaction_uni(req,body,deps={},bulk=false){
         operation:bulk?'bulk':'single'
       },sql,actor,deps));
     }
+    const changedRows=results.filter(row=>row.changed);
+    const derived=changedRows.length
+      ?await (deps.derivedWriter||persistPcDerivedAfterEdit_uni)(conn,req,changedRows,{
+        ...deps,scopeBuilder:deps.scopeBuilder||scope.buildCobranzaProjectScopeSql_uni})
+      :{calculated:0,projects:0};
     await conn.commit();transaction=false;
     return {ok:true,table:'pc',field:normalized.field,total:results.length,
-      changed:results.filter(row=>row.changed).length,results};
+      changed:changedRows.length,calculated:derived.calculated||0,results};
   }catch(error){
     if(transaction){try{await conn.rollback();}catch(_rollback){error.rollbackFailed=true;}}
     throw error;

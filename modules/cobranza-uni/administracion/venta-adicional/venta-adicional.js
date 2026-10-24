@@ -74,7 +74,7 @@
     root.innerHTML='<section class="cua-pc-admin" data-cua-pc-grid aria-label="Venta Adicional: consulta de registros">'+
       '<div class="cua-pc-topline">'+
        '<div><strong>Registros de Venta Adicional</strong><p>Datos actuales de Aiven · tabla <code>pc</code></p></div>'+
-       '<span class="cua-pc-readonly" aria-label="Estado">'+(canEdit?'Edición fantasma · '+enabledFields.size+' campos':'Solo consulta')+'</span>'+
+       '<span class="cua-pc-readonly" aria-label="Estado">'+(canEdit?'Edición fantasma · '+enabledFields.size+' campos · doble clic o Enter':'Solo consulta')+'</span>'+
       '</div>'+
       '<div class="cua-pc-tools">'+
        '<form data-pc-form class="cua-pc-form" autocomplete="off">'+

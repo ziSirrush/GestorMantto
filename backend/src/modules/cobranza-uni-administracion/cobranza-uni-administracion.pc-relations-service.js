@@ -122,7 +122,12 @@ async function previewPcRelationsFromAiven_uni(req,connection,pageRows,cutoffIso
     if(query)mpRows=await queryPaged_uni(connection,query,deps.maxRelatedRows??MAX_RELATED_ROWS_UNI);
   }
   let siblingRows=[];
-  if(pcFilters.clauses.length){
+  if(deps.siblingRowsOverride!==undefined){
+    if(!Array.isArray(deps.siblingRowsOverride)||
+      deps.siblingRowsOverride.length>MAX_PAGE_IDENTITIES_UNI)
+      throw new TypeError('Hermanos pc bloqueados fuera de contrato.');
+    siblingRows=deps.siblingRowsOverride;
+  }else if(pcFilters.clauses.length){
     const pcScope=scopeText_uni(scopeBuilder,req,'pc');
     siblingRows=await queryPaged_uni(connection,
       sqlPcSiblings_uni({filters:pcFilters,territory:pcScope}),

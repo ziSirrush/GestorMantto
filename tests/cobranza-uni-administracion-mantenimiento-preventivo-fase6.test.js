@@ -48,7 +48,9 @@ const S=load(BASE+'cobranza-uni-administracion.mp-zona1-write-service.js',{
   './cobranza-uni-administracion.mp-edit-validation':
     require('../backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.mp-edit-validation'),
   './cobranza-uni-administracion.mp-zona1-validation':V,
-  './cobranza-uni-administracion.mp-zona1-audit':{auditZone1_uni:recordAudit}
+  './cobranza-uni-administracion.mp-zona1-audit':{auditZone1_uni:recordAudit},
+  './cobranza-uni-administracion.mp-zone1-derived-write':{propagateZone1ToMp_uni:async()=>[]},
+  './cobranza-uni-administracion.pc-derived-write':{persistPcDerivedForMpChange_uni:async()=>({})}
 });
 const REQ={informationAccess:{acceso_puerta:true,empresa:'UNITED',effective_user_id:7},
   viewerContext:{active:false},authorized:true};
@@ -87,16 +89,21 @@ function onlySelect(conn){
   assert.ok(conn.sqlCalls.every(c=>!/DELETE|TRUNCATE|DROP|ALTER/.test(c.sql)));
 }
 
-test('MP F6: 108 candidate invoice fields; all technical, identity and lookup columns remain protected',()=>{
-  assert.equal(V.INVOICE_FIELDS_MP_UNI.length,108);
-  assert.equal(new Set(V.INVOICE_FIELDS_MP_UNI).size,108);
-  assert.equal(V.INVOICE_FIELDS_MP_UNI[0],'facturacion_01');
+test('MP F6: 124 editable fields; four technical fields remain protected',()=>{
+  assert.equal(V.INVOICE_FIELDS_MP_UNI.length,124);
+  assert.equal(new Set(V.INVOICE_FIELDS_MP_UNI).size,124);
+  assert.equal(V.INVOICE_FIELDS_MP_UNI[0],'zona_adm');
   assert.equal(V.INVOICE_FIELDS_MP_UNI.at(-1),'forma_pago_12');
-  for(const field of ['id_dmp','id_mp_zona_1','created_at','updated_at',
-    'proyecto','idns','cliente','zona_adm','iguala','pendiente']){
+  for(const field of ['id_dmp','id_mp_zona_1','created_at','updated_at']){
     assert.ok(!V.INVOICE_FIELDS_MP_UNI.includes(field));
     assert.throws(()=>V.normalizeInvoiceCreate_uni({changes:{[field]:'x'}}),{code:'MP_ZONA1_CAMPO_NO_PERMITIDO'});
   }
+  for(const field of ['proyecto','idns','cliente','zona_adm','iguala','pendiente'])
+    assert.ok(V.INVOICE_FIELDS_MP_UNI.includes(field));
+  assert.equal(V.CREATE_INVOICE_FIELDS_MP_UNI.length,108);
+  for(const field of ['proyecto','idns','cliente','zona_adm','iguala','pendiente'])
+    assert.throws(()=>V.normalizeInvoiceCreate_uni({changes:{[field]:'x'}}),
+      {code:'MP_ZONA1_CAMPO_NO_PERMITIDO'});
   assert.equal(C.MP_ZONE1_COLUMNS_UNI.length,128);
   assert.equal(C.MP_ZONE1_META_UNI.invoiceBlocks,12);
 });
@@ -222,6 +229,19 @@ test('MP F6: edit updates exactly one allowed invoice field and transactionally 
   const update=conn.sqlCalls.find(x=>/^UPDATE/.test(x.sql));
   assert.deepEqual(Array.from(update.params),['F-202','99','41']);
   assert.match(update.sql,/z\.`numero_factura_01` = \?/);
+});
+test('MP F6: identidad desajustada permite reparar IDNS por FK, no editar facturas',async()=>{
+  const blocked=mockConnection('edit',{editRow:{idns:'ANTERIOR'}});
+  await assert.rejects(S.editZone1_uni(REQ,'41','99',bodyEdit,
+    deps(blocked,{featureEnabled:true})),{code:'MP_ZONA1_IDENTIDAD_CONFLICTIVA'});
+  assert.deepEqual(blocked.events,['begin','rollback']);
+  const repair=mockConnection('edit',{before:'ANTERIOR',editRow:{idns:'ANTERIOR'}});
+  const result=await S.editZone1_uni(REQ,'41','99',
+    {changes:{idns:'P010'},expected:{idns:'ANTERIOR'}},
+    deps(repair,{featureEnabled:true,auditRecorder:async()=>{}}));
+  assert.equal(result.changed,true);
+  assert.match(repair.sqlCalls.find(call=>/^UPDATE/.test(call.sql)).sql,/z\.`idns` = \?/);
+  assert.deepEqual(repair.events,['begin','commit']);
 });
 test('MP F6: failed audit rolls back the whole transaction',async()=>{
   const conn=mockConnection('link');

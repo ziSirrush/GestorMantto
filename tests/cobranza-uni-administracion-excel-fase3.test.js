@@ -214,7 +214,7 @@ test('MP F3: limpieza de grupos y editor modal sin retirar consultas, filtros, c
   assert.doesNotMatch(css,/\.cua-mp-(?:group|dialog|cell-edit)(?:\s|\{|:)/);
   assert.match(css,/\.cua-mp-tabs\{/);
   assert.doesNotMatch(css,/\.cua-mp-zona1-dialog|\.cua-mp-zona1-backdrop/);
-  assert.match(main,/20261023-mp-excel-f6-v001/);
-  assert.match(main,/20261023-va-excel-f6-v001/);
+  assert.match(main,/20261023-mp-manual-fields-v001/);
+  assert.match(main,/20261023-va-manual-fields-v001/);
   assert.doesNotMatch(code,/\b(?:INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+`detalle_mp_2026`)\b/i);
 });

@@ -126,8 +126,8 @@ test('MP F1: 12 bloques sin duplicar nombres SQL; variaciones de Sheets conserva
   assert.equal(sheetByField.estatus_factura_04.sheetHeader,'ESTATUS DE FACTURA');
   assert.equal(sheetByField.fecha_factura_07.sheetHeader,'FECHA DE FACTURA');
   assert.equal(sheetByField.forma_pago_12.sheetColumn,'DT');
-  assert.equal(zoneByName.fecha_factura_01.editable,false);
-  assert.equal(zoneByName.dias_vencimiento_01.kind,'source_pending_rules');
+  assert.equal(zoneByName.fecha_factura_01.editable,true);
+  assert.equal(zoneByName.dias_vencimiento_01.kind,'editable');
 });
 
 test('MP F1: Zona 1 esta vinculada 1:1 y no se puede enlazar por nombre',()=>{

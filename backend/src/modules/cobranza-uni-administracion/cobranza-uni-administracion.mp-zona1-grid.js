@@ -70,10 +70,17 @@ function buildVerifiedZone1Where_uni(verified){
     present('mp','idns'),present('z','idns'),`(${pair('idns')})`,optional('cliente')
   ].join(' AND ');
 }
-function buildGridSql_uni(params,verified){
+function buildScopedZone1Where_uni(verified){
+  if(!verified?.territorial||!verified?.canonical)
+    throw fail_uni(403,'MP_ZONA1_GRID_ALCANCE_NO_VERIFICADO','Alcance obligatorio.');
+  return `(${verified.territorial}) AND (${verified.canonical}) IS NOT NULL `+
+    'AND z.`id_dmp` IS NOT NULL';
+}
+function buildGridSql_uni(params,verified,repairMode=false){
   if(!params||!verified?.territorial||!verified?.canonical)
     throw fail_uni(403,'MP_ZONA1_GRID_ALCANCE_NO_VERIFICADO','Alcance obligatorio.');
-  const where=[buildVerifiedZone1Where_uni(verified)];
+  const where=[repairMode?buildScopedZone1Where_uni(verified):
+    buildVerifiedZone1Where_uni(verified)];
   const vals=[];
   if(params.search){
     where.push('('+SEARCH_FIELDS.map(name=>
@@ -93,8 +100,10 @@ function buildGridSql_uni(params,verified){
       ? `CAST(z.\`${name}\` AS CHAR) AS \`${name}\`` : `z.\`${name}\``).join(', ');
   const order=`ORDER BY z.\`${params.sort}\` ${params.order.toUpperCase()}`+
     (params.sort==='id_mp_zona_1'?'':', z.`id_mp_zona_1` ASC');
+  const identityFlag=repairMode?', CASE WHEN ('+buildVerifiedZone1Where_uni(verified)+
+    ') THEN 1 ELSE 0 END AS identity_match':'';
   return Object.freeze({countSql:`SELECT COUNT(*) AS total ${from}`,
-    selectSql:`SELECT ${select} ${from} ${order} LIMIT ? OFFSET ?`,
+    selectSql:`SELECT ${select}${identityFlag} ${from} ${order} LIMIT ? OFFSET ?`,
     countParams:vals,selectParams:[...vals,params.pageSize,(params.page-1)*params.pageSize]});
 }
 function count_uni(row){
@@ -106,7 +115,8 @@ function count_uni(row){
 async function listMpZona1Grid_uni(req,deps={}){
   const params=parseGridParams_uni(req?.query||{});
   const verified=verifyScope_uni(req,deps);
-  const sql=buildGridSql_uni(params,verified);
+  const repairMode=deps.repairMode===true;
+  const sql=buildGridSql_uni(params,verified,repairMode);
   const conn=deps.connection||await db.getConnection();
   try{
     const [countRows]=await conn.query(sql.countSql,sql.countParams);
@@ -123,14 +133,22 @@ async function listMpZona1Grid_uni(req,deps={}){
       if(!/^[1-9]\d*$/.test(id)||!/^[1-9]\d*$/.test(mp)||seen.has(id)||
         MP_ZONE1_COLUMNS_UNI.some(c=>!Object.hasOwn(row,c.name)))
         throw fail_uni(409,'MP_ZONA1_GRID_FILAS_INVALIDAS','Fila Zona 1 no confiable.');
+      if(repairMode){
+        if(![0,1,'0','1'].includes(row.identity_match))
+          throw fail_uni(409,'MP_ZONA1_GRID_FILAS_INVALIDAS','Identidad de fila no confiable.');
+        row.repair_only=Number(row.identity_match)===0;
+        delete row.identity_match;
+      }
       seen.add(id);
     }
     return {ok:true,table:'detalle_mp_2026_zona_1',source:'aiven',readonly:true,
-      identity_verified:true,relation:'id_dmp',primary_key:'id_mp_zona_1',
+      identity_verified:!repairMode||rows.every(row=>!row.repair_only),
+      scope_verified:true,repair_mode:repairMode,
+      relation:'id_dmp',primary_key:'id_mp_zona_1',
       columns:MP_ZONE1_COLUMNS_UNI,rows,total,
       page:params.page,page_size:params.pageSize,pages:Math.ceil(total/params.pageSize),
       sort:params.sort,order:params.order};
   }finally{if(!deps.connection)conn.release();}
 }
 module.exports=Object.freeze({listMpZona1Grid_uni,parseGridParams_uni,buildGridSql_uni,
-  buildVerifiedZone1Where_uni,verifyScope_uni});
+  buildVerifiedZone1Where_uni,buildScopedZone1Where_uni,verifyScope_uni});

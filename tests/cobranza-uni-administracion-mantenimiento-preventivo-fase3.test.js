@@ -46,7 +46,10 @@ function makeService(options={}){
     './cobranza-uni-administracion.constants':C,
     './cobranza-uni-administracion.mp-edit-audit':{auditMpCell_uni(){throw Error('Auditoria real prohibida');}},
     './cobranza-uni-administracion.mp-edit-validation':V,
-    './cobranza-uni-administracion.mp-formulas':F
+    './cobranza-uni-administracion.mp-formulas':F,
+    './cobranza-uni-administracion.pc-derived-write':{
+      persistPcDerivedForMpChange_uni:async()=>({calculated:0,projects:0})
+    }
   },{process:{env:options.env||{}}});
   return {module,aliases,audits};
 }
@@ -60,7 +63,9 @@ function makeConnection(input={}){
       if(/FOR UPDATE/.test(sql)){
         const id=params[0];
         if(input.hideId===id)return [[]];
-        return [[{id_dmp:id,original_value:values[id]??null}]];
+        return [[{id_dmp:id,original_value:values[id]??null,
+          original_project:input.project||'PROYECTO UNO',
+          original_client:input.client||'CLIENTE UNO'}]];
       }
       if(/^UPDATE `detalle_mp_2026` mp/.test(sql)){
         if(input.failUpdate)return [{affectedRows:0}];
@@ -89,18 +94,18 @@ function deps(db,extra={}){
 }
 
 // ---------- contrato ----------
-test('MP F3/F4: whitelist F3 historica y F4 amplía únicamente el factor validado',()=>{
+test('MP: las once capturas son editables y los derivados/IDs siguen protegidos',()=>{
   assert.deepEqual(V.PHASE3_SAFE_FIELDS_MP_UNI,
     ['zona_adm','periodicidad','momento_facturacion','forma_pago']);
   assert.equal(C.MP_COLUMNS_UNI.length,20);
   assert.equal(C.MP_RULES_UNI.writesEnabled,false);
   assert.equal(C.MP_ZONE1_META_UNI.writesEnabled,false);
-  assert.deepEqual(V.PHASE4_SAFE_FIELDS_MP_UNI,[...V.PHASE3_SAFE_FIELDS_MP_UNI,'factor_monto_anual']);
+  assert.deepEqual(V.PHASE4_SAFE_FIELDS_MP_UNI,C.MP_EDITABLE_FIELDS_UNI);
   assert.ok(V.PHASE3_SAFE_FIELDS_MP_UNI.every(x=>C.MP_EDITABLE_FIELDS_UNI.includes(x)));
-  for(const field of ['id_dmp','id_proyecto_cobranza','proyecto','cliente','idns',
+  for(const field of ['id_dmp','id_proyecto_cobranza',
     'iguala','condiciones_pago','monto_anual','pendiente',
     'pendiente_corriente','pendiente_vencido','facturas_pendientes',
-    'estatus_cartera','estado','z_oper']){
+    ]){
     assert.throws(()=>V.normalizeSingleMp_uni({changes:{[field]:'X'},expected:{[field]:null}}),
       {code:'MP_ADMIN_CAMPO_PROTEGIDO'},field);
   }
@@ -175,6 +180,25 @@ test('MP F3: single transaccional con scope+identidad, FOR UPDATE, expected y au
   assert.match(db.log[1][0],/AND \(mp\.id_dmp > 0\)/);
   assert.match(db.log[2][0],/^UPDATE `detalle_mp_2026` mp SET mp\.`zona_adm` = \?/);
   assert.deepEqual(Array.from(db.log[2][1]),['SUR','41']);
+});
+test('MP: cambio de estado recalcula VA en la misma transacción y revierte si falla',async()=>{
+  const {module}=makeService(),db=makeConnection();
+  const calls=[];
+  const d=deps(db,{vaDerivedWriter:async(conn,req,refs,actor)=>{
+    assert.equal(conn,db.connection);assert.equal(req,REQ);assert.equal(actor,25);
+    calls.push(refs);return {calculated:3};
+  }});
+  const body={changes:{estado:'JALISCO'},expected:{estado:'ORIGEN'}};
+  const result=await module.updateSingleMp_uni(REQ,'41',body,d);
+  assert.equal(result.calculated,3);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0][0].proyecto,'PROYECTO UNO');
+  assert.deepEqual(db.stats(),{commits:1,rollbacks:0,begins:1,released:0});
+  const bad=makeConnection();
+  await assert.rejects(module.updateSingleMp_uni(REQ,'41',body,
+    deps(bad,{vaDerivedWriter:async()=>{throw Error('VA_DERIVADO');}})),/VA_DERIVADO/);
+  assert.equal(bad.stats().commits,0);
+  assert.equal(bad.stats().rollbacks,1);
 });
 test('MP F3: no-op no audita, pero valida identidad y expected bajo lock',async()=>{
   const {module}=makeService();const db=makeConnection();const d=deps(db);

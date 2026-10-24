@@ -78,7 +78,7 @@ test('MP F5: Zona 1 conserva 128 columnas y 12 bloques de 9 sin mutar F1-F4',()=
     const suffix=String(i).padStart(2,'0');
     assert.equal(C.MP_ZONE1_COLUMNS_UNI.filter(c=>c.name.endsWith('_'+suffix)).length,9);
   }
-  assert.equal(C.MP_ZONE1_COLUMNS_UNI.filter(c=>c.editable).length,0);
+  assert.equal(C.MP_ZONE1_COLUMNS_UNI.filter(c=>c.editable).length,124);
 });
 test('MP F5: GET por ID usa scope oficial, identidad validada, dos SELECT y PK BIGINT texto',async()=>{
   const h=harness();const result=await run(h);
@@ -290,7 +290,7 @@ test('MP F5: cliente no presenta Zona 1 cuando backend omite identidad verificad
 test('MP F5: Zona 1 vacía no inventa registros por nombre',async()=>{
   const ui=clientMock(zoneGridResponse([]));await tick();
   assert.match(ui.findNode('[data-mpz-body]').innerHTML,/Sin filas verificadas/);
-  assert.match(ui.findNode('[data-mpz-status]').textContent,/0 filas verificadas/);
+  assert.match(ui.findNode('[data-mpz-status]').textContent,/0 filas vinculadas/);
   ui.editor.destroy();
 });
 test('MP F5: destrucción invalida respuesta de Zona 1 pendiente',async()=>{

@@ -42,7 +42,10 @@ function service(env={}){
     './cobranza-uni-administracion.constants':C,
     './cobranza-uni-administracion.mp-edit-audit':{auditMpCell_uni(){throw Error('Auditoria real no autorizada');}},
     './cobranza-uni-administracion.mp-edit-validation':V,
-    './cobranza-uni-administracion.mp-formulas':F
+    './cobranza-uni-administracion.mp-formulas':F,
+    './cobranza-uni-administracion.pc-derived-write':{
+      persistPcDerivedForMpChange_uni:async()=>({calculated:0,projects:0})
+    }
   },{process:{env}});
 }
 function mockDb(data={}){
@@ -167,7 +170,7 @@ test('MP F4: GET agrega preview a registros ya filtrados, sin JOIN ni mutaciones
   }
 });
 test('MP F4: input factor admite NULL, 1..65535 y expected con entero MySQL',()=>{
-  assert.deepEqual(V.PHASE4_SAFE_FIELDS_MP_UNI,[...V.PHASE3_SAFE_FIELDS_MP_UNI,'factor_monto_anual']);
+  assert.deepEqual(V.PHASE4_SAFE_FIELDS_MP_UNI,C.MP_EDITABLE_FIELDS_UNI);
   assert.deepEqual(V.normalizeSingleMp_uni({changes:{factor_monto_anual:'0012'},expected:{factor_monto_anual:6}}),
     {field:'factor_monto_anual',value:'12',expected:'6'});
   assert.equal(V.normalizeSingleMp_uni({changes:{factor_monto_anual:null},expected:{factor_monto_anual:12}}).value,null);
@@ -175,7 +178,7 @@ test('MP F4: input factor admite NULL, 1..65535 y expected con entero MySQL',()=
   for(const value of ['0','-1','1.5','65536','abc','']){
     assert.throws(()=>V.inputMp_uni('factor_monto_anual',value),{code:'MP_ADMIN_FACTOR_INVALIDO'});
   }
-  for(const field of ['id_dmp','proyecto','id_proyecto_cobranza','iguala','monto_anual','pendiente','estatus_cartera'])
+  for(const field of ['id_dmp','id_proyecto_cobranza','iguala','monto_anual','pendiente'])
     assert.throws(()=>V.inputMp_uni(field,'1'),{code:'MP_ADMIN_CAMPO_PROTEGIDO'});
 });
 test('MP F4: flag de emergencia false preserva fail-closed y no abre MySQL',async()=>{

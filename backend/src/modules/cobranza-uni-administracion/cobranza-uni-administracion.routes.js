@@ -203,11 +203,14 @@ router.get('/tablas/detalle_mp_2026/zona-1/registros', ...guard, async(req,res,n
     const id=effectiveId(req);
     if(!id)return res.status(401).json({ok:false,code:'EFFECTIVE_USER_REQUIRED'});
     const permission=TABLE_PERMISSIONS.detalle_mp_2026.view;
-    const rights=await listEffectivePermissions(id,[permission]);
+    const editPermission=TABLE_PERMISSIONS.detalle_mp_2026.edit;
+    const rights=await listEffectivePermissions(id,[permission,editPermission]);
     if(rights.get(permission)!==true)
       return res.status(403).json({ok:false,code:'COBRANZA_UNI_ADMIN_TABLA_DENEGADA'});
     const {listMpZona1Grid_uni}=require('./cobranza-uni-administracion.mp-zona1-grid');
-    return res.json(await listMpZona1Grid_uni(req));
+    const repairMode=req.viewerContext?.active!==true&&rights.get(editPermission)===true&&
+      require('./cobranza-uni-administracion.mp-zona1-write-service').zone1ExcelWriteEnabled_uni();
+    return res.json(await listMpZona1Grid_uni(req,{repairMode}));
   }catch(error){
     if(error&&[400,401,403,409].includes(error.statusCode))
       return res.status(error.statusCode).json({ok:false,

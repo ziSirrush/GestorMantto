@@ -206,5 +206,5 @@ test('VA F2 Excel: estilos de celda y solo panel de alta; carga con cache-bust V
   assert.match(css,/\.cua-pc-create-panel\{/);
   assert.doesNotMatch(css,/\.cua-pc-group(?:\s|\{|:)/);
   assert.doesNotMatch(css,/\.cua-pc-cell-edit(?:\s|\{|:)/);
-  assert.match(main,/20261023-va-excel-f6-v001/);
+  assert.match(main,/20261023-va-manual-fields-v001/);
 });

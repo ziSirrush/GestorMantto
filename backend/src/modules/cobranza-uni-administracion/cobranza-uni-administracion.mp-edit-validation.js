@@ -9,10 +9,8 @@ const CANDIDATES_UNI = new Set(MP_EDITABLE_FIELDS_UNI);
 const PHASE3_SAFE_FIELDS_MP_UNI = Object.freeze([
   'zona_adm','periodicidad','momento_facturacion','forma_pago'
 ].filter(field=>CANDIDATES_UNI.has(field) && META_UNI.get(field)?.kind === 'editable'));
-const PHASE4_SAFE_FIELDS_MP_UNI = Object.freeze([
-  ...PHASE3_SAFE_FIELDS_MP_UNI,
-  'factor_monto_anual'
-].filter(field=>CANDIDATES_UNI.has(field) && META_UNI.get(field)?.kind==='editable'));
+const PHASE4_SAFE_FIELDS_MP_UNI = Object.freeze(MP_EDITABLE_FIELDS_UNI.filter(
+  field=>CANDIDATES_UNI.has(field) && META_UNI.get(field)?.kind==='editable'));
 const SAFE_UNI = new Set(PHASE4_SAFE_FIELDS_MP_UNI);
 const MAX_BULK_MP_UNI = 20;
 const MAX_SIGNED_BIGINT_MP_UNI = 9223372036854775807n;

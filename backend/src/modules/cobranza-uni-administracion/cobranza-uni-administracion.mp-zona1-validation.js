@@ -1,14 +1,19 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_6_V001]
-// Invoice field allowlist and typed validation. No writes or dynamic SQL.
+// Edit allowlist and typed validation. Legacy creation remains invoice-only.
 const {MP_ZONE1_COLUMNS_UNI}=require('./cobranza-uni-administracion.constants');
 const {failMp_uni}=require('./cobranza-uni-administracion.mp-edit-validation');
 
 const META=new Map(MP_ZONE1_COLUMNS_UNI.map(x=>[x.name,x]));
+// Nombre histórico exportado para compatibilidad: edición incluye también
+// los 16 campos generales. El alta usa CREATE_INVOICE_FIELDS_MP_UNI (108).
 const INVOICE_FIELDS_MP_UNI=Object.freeze(MP_ZONE1_COLUMNS_UNI
-  .filter(c=>/_\d{2}$/.test(c.name)&&c.sheetColumn&&c.kind==='source_pending_rules')
+  .filter(c=>c.sheetColumn&&c.editable)
   .map(c=>c.name));
 const SAFE=new Set(INVOICE_FIELDS_MP_UNI);
+const CREATE_INVOICE_FIELDS_MP_UNI=Object.freeze(INVOICE_FIELDS_MP_UNI
+  .filter(field=>/_\d{2}$/.test(field)));
+const CREATE_SAFE=new Set(CREATE_INVOICE_FIELDS_MP_UNI);
 const MAX_DECIMAL=999999999999999999n;
 const MIN_INT=-2147483648n;
 const MAX_INT=2147483647n;
@@ -34,7 +39,7 @@ function realDate_uni(value){
 }
 function validateInvoiceField_uni(field){
   if(typeof field!=='string'||!SAFE.has(field))
-    throw failMp_uni(400,'MP_ZONA1_CAMPO_NO_PERMITIDO','Solo campos de los 12 bloques de facturacion.',{field});
+    throw failMp_uni(400,'MP_ZONA1_CAMPO_NO_PERMITIDO','Solo las 124 columnas de datos de Zona 1.',{field});
   return META.get(field);
 }
 function invoiceValue_uni(field,value,forWrite){
@@ -87,10 +92,15 @@ function normalizeInvoiceCreate_uni(body){
   if(!plain_uni(body)||!plain_uni(body.changes)||Object.keys(body).length!==1)
     throw failMp_uni(400,'MP_ZONA1_PAYLOAD_INVALIDO','Solo changes de facturacion.');
   const fields=Object.keys(body.changes);
-  if(fields.length<1||fields.length>INVOICE_FIELDS_MP_UNI.length)
+  if(fields.length<1||fields.length>CREATE_INVOICE_FIELDS_MP_UNI.length)
     throw failMp_uni(400,'MP_ZONA1_PAYLOAD_INVALIDO','Se requiere al menos una captura de factura.');
   const changes=Object.create(null);
-  for(const field of fields)changes[field]=invoiceValue_uni(field,body.changes[field],true);
+  for(const field of fields){
+    if(!CREATE_SAFE.has(field))
+      throw failMp_uni(400,'MP_ZONA1_CAMPO_NO_PERMITIDO',
+        'El alta solo acepta bloques de facturacion.',{field});
+    changes[field]=invoiceValue_uni(field,body.changes[field],true);
+  }
   if(Object.values(changes).every(v=>v===null))
     throw failMp_uni(400,'MP_ZONA1_CAPTURA_VACIA','Captura al menos un valor.');
   return Object.freeze({changes:Object.freeze(changes),fields:Object.freeze(fields)});
@@ -100,5 +110,5 @@ function normalizeLink_uni(body){
     throw failMp_uni(400,'MP_ZONA1_VINCULO_INVALIDO','ID de fila Zona 1 requerido.');
   return Object.freeze({id_mp_zona_1:idZone1_uni(body.id_mp_zona_1)});
 }
-module.exports=Object.freeze({INVOICE_FIELDS_MP_UNI,validateInvoiceField_uni,
+module.exports=Object.freeze({INVOICE_FIELDS_MP_UNI,CREATE_INVOICE_FIELDS_MP_UNI,validateInvoiceField_uni,
   idZone1_uni,invoiceValue_uni,normalizeInvoiceEdit_uni,normalizeInvoiceCreate_uni,normalizeLink_uni});

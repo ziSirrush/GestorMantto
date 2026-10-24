@@ -101,7 +101,7 @@
         if(!loader || typeof loader.loadScript!=='function' || typeof loader.loadStyle!=='function')
           throw new Error('Cargador oficial de módulos no disponible.');
         await loader.loadStyle('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.css?v=20261023-va-f6-v001-excel-f2-v001');
-        await loader.loadScript('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js?v=20261023-va-excel-f6-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/venta-adicional/venta-adicional.js?v=20261023-va-manual-fields-v001');
         if(!isCurrent(epoch,key)||selectedTable!==table)return false;
         shell('<section class="cua-uni-card cua-uni-detail">'+
           '<button class="cua-uni-back" type="button" data-cua-back>← Volver al Main</button>'+
@@ -130,9 +130,9 @@
         const loader=win.ManttoModuleLoader;
         if(!loader || typeof loader.loadScript!=='function' || typeof loader.loadStyle!=='function')
           throw new Error('Cargador oficial de módulos no disponible.');
-        await loader.loadStyle('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.css?v=20261023-mp-excel-f4-v001');
-        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js?v=20261023-mp-excel-f6-v001');
-        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo-zona1.js?v=20261023-mp-zona1-excel-f6-v001');
+        await loader.loadStyle('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.css?v=20261023-mp-manual-fields-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo.js?v=20261023-mp-manual-fields-v001');
+        await loader.loadScript('./modules/cobranza-uni/administracion/mantenimiento-preventivo/mantenimiento-preventivo-zona1.js?v=20261023-mp-zona1-manual-fields-v001');
         if(!isCurrent(epoch,key)||selectedTable!==table)return false;
         shell('<section class="cua-uni-card cua-uni-detail">'+
           '<button class="cua-uni-back" type="button" data-cua-back>← Volver al Main</button>'+

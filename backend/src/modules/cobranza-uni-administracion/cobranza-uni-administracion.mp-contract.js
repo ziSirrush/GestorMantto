@@ -199,8 +199,8 @@ const MP_ZONE1_COLUMNS_UNI = Object.freeze(MP_ZONE1_SQL_SPEC_UNI.map(([name,sqlT
   const source=zoneHeaders.get(name)||null;
   return Object.freeze({
     name,sqlType,nullable,
-    kind:zoneProtected.has(name)?'protected':'source_pending_rules',
-    editable:false, // No hay formulas/reglas de los 12 bloques aprobadas.
+    kind:zoneProtected.has(name)?'protected':'editable',
+    editable:!zoneProtected.has(name),
     sheetColumn:source?.sheetColumn||null,
     sheetHeader:source?.sheetHeader||null
   });

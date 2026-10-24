@@ -1,13 +1,15 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMIN_MP_FASE_6_V001]
-// Legacy crear/vincular cerrado; Fase 5 habilita SOLO edicion de celdas de
-// factura con corte global confirmado, scope, permiso y auditoria transaccional.
+// Legacy crear/vincular cerrado; Excel edita las 124 columnas manuales con
+// scope, permiso y auditoria transaccional. Las 4 tecnicas siguen protegidas.
 const db=require('../../config/db');
 const scope=require('../../services/cobranza-uni-scope.service');
 const {MP_RULES_UNI,MP_ZONE1_BASE_UNI}=require('./cobranza-uni-administracion.constants');
 const {assertAuthorizedMp_uni,mpEditFeatureEnabled_uni}=require('./cobranza-uni-administracion.mp-edit-service');
 const {idMp_uni,failMp_uni}=require('./cobranza-uni-administracion.mp-edit-validation');
 const {auditZone1_uni}=require('./cobranza-uni-administracion.mp-zona1-audit');
+const {propagateZone1ToMp_uni}=require('./cobranza-uni-administracion.mp-zone1-derived-write');
+const {persistPcDerivedForMpChange_uni}=require('./cobranza-uni-administracion.pc-derived-write');
 const {
   INVOICE_FIELDS_MP_UNI,idZone1_uni,invoiceValue_uni,
   normalizeInvoiceEdit_uni,normalizeInvoiceCreate_uni,normalizeLink_uni
@@ -17,27 +19,25 @@ const GENERAL=MP_ZONE1_BASE_UNI.map(x=>x[0]);
 const MAIN_FIELDS=GENERAL.map(name=>`mp.\`${name}\``).join(', ');
 const TEXT=value=>value===null||value===undefined?'':
   String(value).trim().normalize('NFC').toLocaleUpperCase('es-MX');
+const REPAIR_FIELDS=new Set(['proyecto','idns','cliente']);
 function flag_uni(name){return String(process.env[name]||'').trim().toLowerCase()==='true';}
 function zone1WriteEnabled_uni(){
   return MP_RULES_UNI.zone1WritesEnabled===true &&
     MP_RULES_UNI.gasSyncRemainsActive===false && mpEditFeatureEnabled_uni() &&
     flag_uni('MP_ADMIN_ZONA1_WRITE_ENABLED');
 }
-// Edicion Excel de facturas: puerta propia, explicitamente autorizada para
-// corte manual; nunca habilita los POST legacy de alta o vinculacion.
-// Tres confirmaciones operativas son obligatorias (por defecto OFF).
+// Edicion Excel: puerta propia; nunca habilita POST legacy de alta/vinculo.
 function zone1ExcelWriteEnabled_uni(){
+  const flag=String(process.env.MP_ADMIN_ZONA1_EXCEL_EDIT_ENABLED||'').trim().toLowerCase();
   return mpEditFeatureEnabled_uni() &&
-    flag_uni('MP_ADMIN_ZONA1_EXCEL_EDIT_ENABLED') &&
-    flag_uni('MP_ADMIN_GAS_CUTOVER_CONFIRMED') &&
-    flag_uni('MP_ADMIN_GC_VA_MP_RECONCILED');
+    (flag===''||['true','1','yes','on'].includes(flag));
 }
 function requireWriteGate_uni(deps,operation){
   // Test-only dependency injection; HTTP routes never supply dependencies.
   if(!(deps.featureEnabled===true || (deps.featureEnabled===undefined &&
     (operation==='edit'?zone1ExcelWriteEnabled_uni():zone1WriteEnabled_uni()))))
     throw failMp_uni(403,'MP_ZONA1_ESCRITURA_DESHABILITADA',
-      'Escritura Zona 1 cerrada: falta confirmacion del corte global o funcion deshabilitada.');
+      'Escritura Zona 1 deshabilitada por configuracion o permisos.');
 }
 function officialWhere_uni(req,deps){
   const official=deps.scopeService||scope;
@@ -104,7 +104,7 @@ async function checkedEditRow_uni(conn,id,zonaId,where,field,locked,parent){
     String(rows[0].id_mp_zona_1)!==zonaId)
     throw failMp_uni(404,'MP_ZONA1_REGISTRO_NO_DISPONIBLE',
       'Factura no disponible dentro del proyecto autorizado.');
-  assertMatch_uni(parent,rows[0],true);
+  if(!REPAIR_FIELDS.has(field))assertMatch_uni(parent,rows[0],true);
   return rows[0];
 }
 async function run_uni(req,idInput,body,deps,operation,zonaInput){
@@ -143,8 +143,14 @@ async function run_uni(req,idInput,body,deps,operation,zonaInput){
           [input.value,zoneId,id]);
         if(Number(result?.affectedRows)!==1)
           throw failMp_uni(409,'MP_ZONA1_CAMBIO_CONFLICTIVO','Cambio no confirmado.');
+        const derived=await (deps.derivedWriter||propagateZone1ToMp_uni)(
+          conn,id,input.field,input.value);
+        if(input.field==='condiciones_pago')
+          await (deps.vaDerivedWriter||persistPcDerivedForMpChange_uni)(
+            conn,req,[{proyecto:parent.proyecto,cliente:parent.cliente}],actor,deps);
         await (deps.auditRecorder||auditZone1_uni)(req,{operation:'edit',actor,id_dmp:id,
-          id_mp_zona_1:zoneId,field:input.field,before,after:input.value},conn);
+          id_mp_zona_1:zoneId,field:input.field,before,after:input.value,
+          derived_changes:derived},conn);
       }
       await conn.commit();transaction=false;
       return {ok:true,table:'detalle_mp_2026_zona_1',operation:'edit',id_dmp:id,

@@ -39,14 +39,15 @@
       const node=el('[data-mpz-status]');
       if(node){node.textContent=message;node.dataset.kind=kind;}
     };
-    const allowed=c=>canEdit&&c.kind!=='protected'&&
-      /^.+_[0-9]{2}$/.test(c.name)&&allowedFields.has(c.name);
+    const repairFields=new Set(['proyecto','idns','cliente']);
+    const allowed=c=>canEdit&&c?.kind!=='protected'&&c?.sheetColumn&&allowedFields.has(c.name);
+    const rowAllowed=(c,row)=>allowed(c)&&(!row?.repair_only||repairFields.has(c.name));
     const editableCols=()=>state.columns.filter(allowed);
     const findRow=id=>state.rows.find(row=>String(row.id_mp_zona_1)===String(id));
     root.innerHTML='<section class="cua-mpz-admin" aria-label="Zona 1 de Mantenimiento Preventivo">'+
       '<header class="cua-mpz-head"><div><strong>Facturación Zona 1 · 128 columnas</strong>'+
         '<p>16 campos generales · 12 facturaciones × 9 campos · 4 columnas técnicas. '+
-          'Solo filas vinculadas por id_dmp e identidad verificada.</p></div>'+
+          'Vínculo por id_dmp; filas desajustadas solo visibles para reparación autorizada.</p></div>'+
         '<span class="cua-mpz-badge">'+(canEdit?'Edición Excel auditada':'Solo consulta')+'</span></header>'+
       '<form class="cua-mpz-filters" data-mpz-form autocomplete="off">'+
         '<label><span>Buscar</span><input data-mpz-search type="search" maxlength="120" '+
@@ -66,9 +67,9 @@
         '<button class="cua-mp-btn cua-mp-primary" type="submit" data-mpz-bulk-apply disabled>Aplicar y auditar lote</button>'+ 
         '</form>':'')+
       '<p class="cua-mpz-hint">La vinculación es por id_dmp, nunca por nombre. '+
-        (canEdit?'Doble clic o Enter en una celda de factura · Enter para guardar · Escape para cancelar. '+
-          'Las 16 columnas generales y cuatro técnicas no se modifican desde esta pantalla.' :
-          'Los registros sin identidad verificable no se muestran. Edición sujeta a permisos y corte GAS.')+
+        (canEdit?'Doble clic o Enter en una celda de datos · Enter para guardar · Escape para cancelar. '+
+          'Solo PK, FK y marcas de tiempo permanecen protegidas. Si la identidad difiere, primero corrige proyecto, IDNS o cliente.' :
+          'Los registros sin identidad verificable no se muestran. Edición sujeta a permisos.')+
         '</p>'+
       '<div data-mpz-status class="cua-mpz-status" role="status" aria-live="polite">Consulta pendiente…</div>'+
       '<div class="cua-mpz-scroll" tabindex="0" role="region" aria-label="Zona 1 · tabla Excel desplazable">'+
@@ -88,7 +89,9 @@
     function renderBulkFields(){
       if(!canEdit)return;
       const target=el('[data-mpz-bulk-field]');if(!target)return;
-      const original=target.value,cols=editableCols();
+      const original=target.value;
+      const repairSelected=[...state.selected].some(id=>findRow(id)?.repair_only===true);
+      const cols=editableCols().filter(c=>!repairSelected||repairFields.has(c.name));
       target.innerHTML=cols.map(c=>'<option value="'+ESC(c.name)+'">'+ESC(label(c))+'</option>').join('');
       if(cols.some(c=>c.name===original))target.value=original;
       updateBulkInput();updateBulk();
@@ -119,11 +122,14 @@
           '<small>'+ESC(c.kind==='protected'?'Identificador / técnico':allowed(c)?'Editable · auditado':'Origen Zona 1 · solo lectura')+'</small></th>';
       }).join('')+'</tr>';
       if(body)body.innerHTML=state.rows.length?state.rows.map(row=>
-        '<tr data-mpz-id="'+ESC(row.id_mp_zona_1)+'">'+state.columns.map(c=>{
-          const editable=allowed(c),selection=canEdit&&c.name==='id_mp_zona_1'
+        '<tr data-mpz-id="'+ESC(row.id_mp_zona_1)+'"'+
+          (row.repair_only?' class="cua-mpz-repair" title="Identidad desajustada: corrige proyecto, IDNS o cliente"':'')+'>'+state.columns.map(c=>{
+          const editable=rowAllowed(c,row),selection=canEdit&&c.name==='id_mp_zona_1'
             ?'<label class="cua-mpz-select"><input type="checkbox" data-mpz-select value="'+ESC(row.id_mp_zona_1)+'"'+
               (state.selected.has(String(row.id_mp_zona_1))?' checked':'')+' aria-label="Seleccionar Zona 1 '+ESC(row.id_mp_zona_1)+'" /> '+
-              '<span>'+ESC(display(row[c.name]))+'</span></label>' : '<span>'+ESC(display(row[c.name]))+'</span>';
+              '<span>'+ESC(display(row[c.name]))+'</span></label>'+
+              (row.repair_only?' <small>Identidad desajustada</small>':'') :
+              '<span>'+ESC(display(row[c.name]))+'</span>';
           return '<td data-mpz-field="'+ESC(c.name)+'" data-mpz-kind="'+ESC(c.kind)+'"'+
             ' class="cua-mpz-cell'+(editable?' cua-mpz-canedit':'')+'"'+
             (editable?' tabindex="0" role="button" aria-label="Editar '+ESC(label(c))+' del registro '+ESC(row.id_mp_zona_1)+'"':'')+
@@ -135,7 +141,9 @@
       if(prev)prev.disabled=loading||saving||state.page<=1;
       if(next)next.disabled=loading||saving||state.page>=state.pages;
       const page=el('[data-mpz-page]');if(page)page.textContent='Página '+state.page+' de '+Math.max(1,state.pages);
-      const range=el('[data-mpz-range]');if(range)range.textContent=state.total+' registros vinculados y verificados';
+      const range=el('[data-mpz-range]');if(range)range.textContent=state.total+
+        ' registros vinculados · '+state.rows.filter(row=>row.repair_only).length+
+        ' desajustados en esta página';
       if(scroll){scroll.scrollLeft=left;scroll.scrollTop=top;}
       renderBulkFields();
     }
@@ -151,7 +159,10 @@
         const response=await win.ManttoAuth.apiGet(API+'?'+query.toString());
         if(!valid()||current!==requestSeq)return false;
         if(response?.ok!==true||response.table!=='detalle_mp_2026_zona_1'||
-          response.readonly!==true||response.identity_verified!==true||response.relation!=='id_dmp'||
+          response.readonly!==true||
+          !(response.identity_verified===true||
+            (canEdit&&response.repair_mode===true&&response.scope_verified===true))||
+          response.relation!=='id_dmp'||
           response.primary_key!=='id_mp_zona_1'||!Array.isArray(response.columns)||
           response.columns.length!==EXPECTED||!Array.isArray(response.rows)||
           response.rows.length>state.pageSize||new Set(response.columns.map(c=>c.name)).size!==EXPECTED||
@@ -164,6 +175,7 @@
         for(const row of response.rows){
           const id=String(row?.id_mp_zona_1??''),parent=String(row?.id_dmp??'');
           if(!/^[1-9]\d*$/.test(id)||!/^[1-9]\d*$/.test(parent)||set.has(id)||
+            (response.repair_mode===true&&typeof row.repair_only!=='boolean')||
             response.columns.some(c=>!has(row,c.name)))throw new Error('Fila Zona 1 sin identidad confiable.');
           set.add(id);
         }
@@ -171,7 +183,8 @@
         state.total=Number(response.total);state.pages=Number(response.pages);
         state.selected.clear();
         loading=false;render();status('Zona 1 actualizada · '+state.total+
-          ' filas verificadas · '+(canEdit?'edición auditada':'solo lectura')+'.','ready');
+          ' filas vinculadas · '+state.rows.filter(row=>row.repair_only).length+
+          ' con identidad desajustada en esta página.','ready');
         return true;
       }catch(_error){
         if(!valid()||current!==requestSeq)return false;
@@ -184,7 +197,7 @@
       if(!valid()||!canEdit||saving||loading||editing||!td?.classList.contains('cua-mpz-canedit'))return;
       const id=td.closest('tr')?.dataset.mpzId,field=td.dataset.mpzField;
       const col=editableCols().find(c=>c.name===field),row=findRow(id);
-      if(!col||!row||!row.id_dmp)return;
+      if(!col||!row||!row.id_dmp||!rowAllowed(col,row))return;
       const doc=root.ownerDocument||win.document;
       if(!doc||typeof doc.createElement!=='function')return;
       const original=row[field]??null;
@@ -212,7 +225,7 @@
       const value=input.value.trim()||null;
       if(value===(original==null||original===''?null:String(original))){cancelCellEdit();return;}
       current.committing=true;editing=null;saving=true;updateBulk();
-      status('Guardando y auditando factura de Zona 1…');
+      status('Guardando y auditando celda de Zona 1…');
       try{
         const response=await win.ManttoAuth.api(WRITE+'/'+encodeURIComponent(parent)+'/'+encodeURIComponent(id),{
           method:'PATCH',body:JSON.stringify({changes:{[field]:value},expected:{[field]:original}})
@@ -233,7 +246,8 @@
     async function saveBulk(event){
       event.preventDefault();if(!valid()||!canEdit||saving||loading||editing)return;
       const ids=[...state.selected],field=el('[data-mpz-bulk-field]')?.value||'';
-      if(ids.length<2||ids.length>MAX_BULK||!editableCols().some(c=>c.name===field))return;
+      if(ids.length<2||ids.length>MAX_BULK||!editableCols().some(c=>c.name===field)||
+        ids.some(id=>!rowAllowed(state.columns.find(c=>c.name===field),findRow(id))))return;
       const value=el('[data-mpz-bulk-null]')?.checked===true?null:
         (el('[data-mpz-bulk-input]')?.value||'').trim()||null;
       const expected={};
@@ -241,7 +255,7 @@
         const row=findRow(id);if(!row){status('Selección no confiable. Actualiza.','error');return;}
         expected[id]={[field]:row[field]??null};
       }
-      if(typeof win.confirm==='function'&&!win.confirm('Modificar '+ids.length+' facturas de Zona 1?'))return;
+      if(typeof win.confirm==='function'&&!win.confirm('Modificar '+ids.length+' registros de Zona 1?'))return;
       saving=true;updateBulk();status('Guardando lote con auditoría…');
       try{
         const response=await win.ManttoAuth.api(API+'/edicion-multiple',{
@@ -300,7 +314,7 @@
             status('Máximo 20 registros por lote.','error');return;}
           state.selected.add(id);
         }else state.selected.delete(id);
-        updateBulk();return;
+        renderBulkFields();return;
       }
       if(canEdit&&event.target?.matches?.('[data-mpz-bulk-field]')){
         updateBulkInput();return;

@@ -8,9 +8,13 @@ const {failMp_uni}=require('./cobranza-uni-administracion.mp-edit-validation');
 const {invoiceValue_uni,idZone1_uni,INVOICE_FIELDS_MP_UNI}=
   require('./cobranza-uni-administracion.mp-zona1-validation');
 const {auditZone1_uni}=require('./cobranza-uni-administracion.mp-zona1-audit');
+const {propagateZone1ToMp_uni}=require('./cobranza-uni-administracion.mp-zone1-derived-write');
+const {persistPcDerivedForMpChange_uni}=require('./cobranza-uni-administracion.pc-derived-write');
 const {zone1ExcelWriteEnabled_uni}=require('./cobranza-uni-administracion.mp-zona1-write-service');
-const {verifyScope_uni,buildVerifiedZone1Where_uni}=require('./cobranza-uni-administracion.mp-zona1-grid');
+const {verifyScope_uni,buildVerifiedZone1Where_uni,buildScopedZone1Where_uni}=
+  require('./cobranza-uni-administracion.mp-zona1-grid');
 const MAX_ROWS=20;
+const REPAIR_FIELDS=new Set(['proyecto','idns','cliente']);
 const FIELDS=new Set(INVOICE_FIELDS_MP_UNI);
 function plain_uni(value){
   return value!==null&&typeof value==='object'&&!Array.isArray(value)&&
@@ -45,10 +49,10 @@ function normalizeBulkZone1_uni(body){
   return {field,value,ids,expected};
 }
 async function editBulkZone1Excel_uni(req,body,deps={}){
-  // Antes de SQL o conexión: nunca reanudar escrituras sin los tres controles.
+  // Antes de SQL o conexión: respetar el apagado de emergencia.
   if(!(deps.featureEnabled===true || (deps.featureEnabled===undefined && zone1ExcelWriteEnabled_uni())))
     throw failMp_uni(403,'MP_ZONA1_ESCRITURA_DESHABILITADA',
-      'Edicion Zona 1 inactiva: requiere corte GAS confirmado y conciliacion GC+VA+MP.');
+      'Edicion Zona 1 deshabilitada por configuracion o permisos.');
   const data=normalizeBulkZone1_uni(body);
   const verified=verifyScope_uni(req,deps); // fail-closed antes de obtener MySQL.
   const conn=deps.connection||await db.getConnection();
@@ -56,8 +60,10 @@ async function editBulkZone1Excel_uni(req,body,deps={}){
   try{
     await conn.beginTransaction();transaction=true;
     const actor=await assertAuthorizedMp_uni(req,conn,deps);
-    // Reusa EXACTAMENTE los criterios de identidad/alcance de la tabla F4.
-    const where=buildVerifiedZone1Where_uni(verified);
+    // Una identidad desajustada solo puede corregirse por FK con alcance MP.
+    // Los demás campos conservan la comprobación estricta completa.
+    const where=REPAIR_FIELDS.has(data.field)?buildScopedZone1Where_uni(verified):
+      buildVerifiedZone1Where_uni(verified);
     const placeholders=data.ids.map(()=>'?').join(', ');
     const [rows]=await conn.query(
       'SELECT CAST(z.`id_mp_zona_1` AS CHAR) AS id_mp_zona_1, '+
@@ -97,11 +103,25 @@ async function editBulkZone1Excel_uni(req,body,deps={}){
           [data.value,id,row.id_dmp]);
         if(Number(updated?.affectedRows)!==1)
           throw failMp_uni(409,'MP_ZONA1_CAMBIO_CONFLICTIVO','Lote no confirmado. Rollback.');
+        const derived=await (deps.derivedWriter||propagateZone1ToMp_uni)(
+          conn,row.id_dmp,data.field,data.value);
         await (deps.auditRecorder||auditZone1_uni)(req,{operation:'edit',actor,
           id_dmp:row.id_dmp,id_mp_zona_1:id,field:data.field,
-          before,after:data.value},conn);
+          before,after:data.value,derived_changes:derived},conn);
       }
       results.push({id_mp_zona_1:id,id_dmp:row.id_dmp,changed});
+    }
+    if(data.field==='condiciones_pago'&&results.some(row=>row.changed)){
+      const mpIds=[...new Set(results.filter(row=>row.changed).map(row=>row.id_dmp))];
+      const marks=mpIds.map(()=>'?').join(', ');
+      const [parents]=await conn.query('SELECT mp.`proyecto`, mp.`cliente` '+
+        'FROM `detalle_mp_2026` mp WHERE mp.`id_dmp` IN ('+marks+') AND ('+
+        verified.territorial+') AND ('+verified.canonical+') IS NOT NULL',mpIds);
+      if(!Array.isArray(parents)||parents.length!==mpIds.length)
+        throw failMp_uni(409,'MP_ZONA1_PADRES_NO_VERIFICADOS',
+          'No se pudieron verificar los proyectos MP del lote.');
+      await (deps.vaDerivedWriter||persistPcDerivedForMpChange_uni)(
+        conn,req,parents,actor,deps);
     }
     await conn.commit();transaction=false;
     return {ok:true,table:'detalle_mp_2026_zona_1',operation:'bulk',field:data.field,

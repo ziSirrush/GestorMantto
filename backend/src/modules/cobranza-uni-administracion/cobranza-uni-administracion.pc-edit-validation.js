@@ -1,19 +1,13 @@
 'use strict';
 // [BLT NOW | 2026-10-23 | COBRANZA_UNI_VA_ADMIN_FASE_3_V001]
-// Isolated, fail-closed edits. No calculated, FK or identity-dependent writes
-// before the formula and relationship engines of phases 4 and 5.
+// Capturas editables: PK, FK y los 14 derivados permanecen protegidos.
 const {
-  PC_COLUMNS_UNI,PC_EDITABLE_FIELDS_UNI,PC_DERIVED_DEPENDENCIES_UNI
+  PC_COLUMNS_UNI,PC_EDITABLE_FIELDS_UNI
 } = require('./cobranza-uni-administracion.constants');
+const {moneyToCents_uni,centsToMoney_uni}=require('./cobranza-uni-administracion.pc-formulas');
 
 const META = new Map(PC_COLUMNS_UNI.map(column=>[column.name,column]));
-const IDENTITY_FIELDS = new Set(['proyecto','cliente']);
-const DERIVATIVE_ORIGINS = new Set(
-  Object.values(PC_DERIVED_DEPENDENCIES_UNI).flat()
-);
-const PHASE3_SAFE_FIELDS_UNI = Object.freeze(PC_EDITABLE_FIELDS_UNI.filter(
-  field => !IDENTITY_FIELDS.has(field) && !DERIVATIVE_ORIGINS.has(field)
-));
+const PHASE3_SAFE_FIELDS_UNI = Object.freeze([...PC_EDITABLE_FIELDS_UNI]);
 const SAFE = new Set(PHASE3_SAFE_FIELDS_UNI);
 const MAX_BULK = 20;
 const MAX_ID = 9223372036854775807n;
@@ -46,7 +40,7 @@ function isRealDate_uni(s){
 function validatedField_uni(field){
   if(typeof field!=='string'||!SAFE.has(field))
     throw failPc_uni(400,'VA_ADMIN_CAMPO_NO_DISPONIBLE',
-      'Campo protegido, calculado o reservado hasta fases posteriores.',{field});
+      'Solo se editan capturas; PK, FK y calculados estan protegidos.',{field});
   return META.get(field);
 }
 function inputValue_uni(field,value){
@@ -63,6 +57,12 @@ function inputValue_uni(field,value){
       'La fecha debe tener formato AAAA-MM-DD y existir.',{field});
     return text;
   }
+  if(meta.sqlType==='decimal(18,2)'){
+    const cents=moneyToCents_uni(text);
+    if(cents===null)throw failPc_uni(400,'VA_ADMIN_IMPORTE_INVALIDO',
+      'Importe fuera de DECIMAL(18,2) o con mas de dos decimales.',{field});
+    return centsToMoney_uni(cents);
+  }
   if(meta.sqlType==='text'){
     if(Array.from(text).length>MAX_TEXT)throw failPc_uni(413,'VA_ADMIN_VALOR_EXCESIVO',
       'Los comentarios superan el limite permitido.',{field});
@@ -75,8 +75,14 @@ function inputValue_uni(field,value){
   return text;
 }
 function comparablePc_uni(field,value){
-  validatedField_uni(field);
+  const meta=validatedField_uni(field);
   if(value===null||value===undefined||value==='')return null;
+  if(meta.sqlType==='decimal(18,2)'){
+    const cents=moneyToCents_uni(value);
+    if(cents===null)throw failPc_uni(400,'VA_ADMIN_VALOR_INVALIDO',
+      'Importe previo invalido.',{field});
+    return centsToMoney_uni(cents);
+  }
   if(typeof value!=='string')throw failPc_uni(400,'VA_ADMIN_VALOR_INVALIDO','Valor original invalido.',{field});
   // Existing database values must be compared exactly, not silently trimmed.
   return value;

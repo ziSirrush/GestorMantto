@@ -43,7 +43,9 @@ function legacy(env={},authorized=true){
     },
     './cobranza-uni-administracion.mp-edit-validation':require('../backend/src/modules/cobranza-uni-administracion/cobranza-uni-administracion.mp-edit-validation'),
     './cobranza-uni-administracion.mp-zona1-validation':V,
-    './cobranza-uni-administracion.mp-zona1-audit':{auditZone1_uni:async()=>({})}
+    './cobranza-uni-administracion.mp-zona1-audit':{auditZone1_uni:async()=>({})},
+    './cobranza-uni-administracion.mp-zone1-derived-write':{propagateZone1ToMp_uni:async()=>[]},
+    './cobranza-uni-administracion.pc-derived-write':{persistPcDerivedForMpChange_uni:async()=>({})}
   },env);
   return f;
 }
@@ -58,7 +60,9 @@ function bulk({env=writeEnv,authorized=true}={}){
     './cobranza-uni-administracion.mp-zona1-validation':V,
     './cobranza-uni-administracion.mp-zona1-audit':{auditZone1_uni:async()=>({})},
     './cobranza-uni-administracion.mp-zona1-write-service':{zone1ExcelWriteEnabled_uni:feature},
-    './cobranza-uni-administracion.mp-zona1-grid':grid
+    './cobranza-uni-administracion.mp-zona1-grid':grid,
+    './cobranza-uni-administracion.mp-zone1-derived-write':{propagateZone1ToMp_uni:async()=>[]},
+    './cobranza-uni-administracion.pc-derived-write':{persistPcDerivedForMpChange_uni:async()=>({})}
   },env);
 }
 const payload={ids:['77','88'],changes:{numero_factura_01:'F-202'},
@@ -79,22 +83,21 @@ function mockConn({values=['F-101','F-102'],missing=false,affected=1,auditFail=f
   return {conn,sql,events,calls,auditRecorder};
 }
 
-test('F5 contrato: 108 celdas de factura + 20 campos protegidos para edicion',()=>{
+test('F5 contrato: 124 campos manuales y cuatro técnicos protegidos',()=>{
   assert.equal(C.MP_ZONE1_COLUMNS_UNI.length,128);
-  assert.equal(V.INVOICE_FIELDS_MP_UNI.length,108);
-  const forbidden=['id_mp_zona_1','id_dmp','created_at','updated_at',
-    'proyecto','idns','cliente','monto_anual','iguala','pendiente'];
+  assert.equal(V.INVOICE_FIELDS_MP_UNI.length,124);
+  const forbidden=['id_mp_zona_1','id_dmp','created_at','updated_at'];
   for(const field of forbidden)assert.ok(!V.INVOICE_FIELDS_MP_UNI.includes(field));
+  for(const field of ['proyecto','idns','cliente','monto_anual','iguala','pendiente'])
+    assert.ok(V.INVOICE_FIELDS_MP_UNI.includes(field));
   for(const n of ['01','12'])assert.ok(V.INVOICE_FIELDS_MP_UNI.includes('numero_factura_'+n));
 });
-test('F5 puerta: sin las TRES banderas operativas no abre escritura; create/link sigue OFF',async()=>{
-  for(const key of Object.keys(writeEnv)){
-    const env={...writeEnv};delete env[key];
-    assert.equal(legacy(env).zone1ExcelWriteEnabled_uni(),false);
-    const entry=bulk({env});
-    await assert.rejects(entry.editBulkZone1Excel_uni(goodRequest(),payload),{
-      code:'MP_ZONA1_ESCRITURA_DESHABILITADA',statusCode:403});
-  }
+test('F5 puerta: Excel activo por defecto, apagado explícito y create/link OFF',async()=>{
+  const env={MP_ADMIN_ZONA1_EXCEL_EDIT_ENABLED:'false'};
+  assert.equal(legacy(env).zone1ExcelWriteEnabled_uni(),false);
+  await assert.rejects(bulk({env}).editBulkZone1Excel_uni(goodRequest(),payload),{
+    code:'MP_ZONA1_ESCRITURA_DESHABILITADA',statusCode:403});
+  assert.equal(legacy({}).zone1ExcelWriteEnabled_uni(),true);
   assert.equal(legacy(writeEnv).zone1ExcelWriteEnabled_uni(),true);
   assert.equal(legacy(writeEnv).zone1WriteEnabled_uni(),false);
 });
@@ -106,7 +109,6 @@ test('F5 validacion: exactamente un campo, 2 a 20 IDs, expected individual y sin
     {...payload,ids:['77']},
     {...payload,ids:['77','88','99']},
     {...payload,changes:{id_dmp:'11'}},
-    {...payload,changes:{proyecto:'NUEVO'}},
     {...payload,expected:{'77':{numero_factura_01:'X'}}},
     {...payload,expected:{'77':{numero_factura_01:'X'},'88':{numero_factura_01:'Y'},'99':{numero_factura_01:'Z'}}},
     {...payload,changes:{numero_factura_01:'X',fecha_pago_01:'2026-10-23'}},
@@ -141,6 +143,18 @@ test('F5 bulk: SELECT scope+identidad + locking, luego 2 UPDATE y 2 auditorias, 
     assert.match(q.statement,/WHERE z.`id_mp_zona_1` = \? AND z.`id_dmp` = \?/);
     assert.equal(q.params[0],'F-202');
   }
+});
+test('F5 reparación: proyecto desajustado usa FK y scope; facturas conservan identidad estricta',async()=>{
+  const svc=bulk(),f=mockConn({values:['PROYECTO VIEJO','PROYECTO VIEJO']});
+  const repair={ids:['77','88'],changes:{proyecto:'PROYECTO NUEVO'},
+    expected:{'77':{proyecto:'PROYECTO VIEJO'},'88':{proyecto:'PROYECTO VIEJO'}}};
+  const result=await svc.editBulkZone1Excel_uni(goodRequest(),repair,{
+    connection:f.conn,scopeBuilder:()=>verified.territorial,scopeService,
+    auditRecorder:f.auditRecorder});
+  assert.equal(result.changed,2);
+  assert.match(f.sql[0].statement,/z\.`id_dmp` IS NOT NULL/);
+  assert.doesNotMatch(f.sql[0].statement,/UPPER\(TRIM\(mp\.`idns`\)\)/);
+  assert.deepEqual(f.events,['begin','commit']);
 });
 test('F5 bulk: falla concurrencia en la ultima fila sin efectuar ningún UPDATE',async()=>{
   const svc=bulk(),f=mockConn({values:['F-101','CAMBIADO']});
@@ -190,9 +204,11 @@ function zoneRow(id='77',override={}){
   return {...result,id_mp_zona_1:id,id_dmp:id==='77'?'41':'42',
     proyecto:'P',idns:'P11',cliente:'C',numero_factura_01:id==='77'?'F-101':'F-102',...override};
 }
-function uiHarness({canEdit=true,viewer=false,failPatch=false,fields=V.INVOICE_FIELDS_MP_UNI}={}){
+function uiHarness({canEdit=true,viewer=false,failPatch=false,repairMode=false,
+  fields=V.INVOICE_FIELDS_MP_UNI}={}){
   const nodes=new Map(),events=new Map(),writes=[],reads=[];
-  const rows=[zoneRow(),zoneRow('88')];
+  const rows=[zoneRow('77',repairMode?{repair_only:true}:{}),zoneRow('88',
+    repairMode?{repair_only:false}:{})];
   const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{
     innerHTML:'',textContent:'',value:'',dataset:{},disabled:false,scrollLeft:0,scrollTop:0,
     setAttribute(){},focus(){},select(){}});return nodes.get(selector);};
@@ -204,7 +220,8 @@ function uiHarness({canEdit=true,viewer=false,failPatch=false,fields=V.INVOICE_F
     removeEventListener(k){events.delete(k);},replaceChildren(){this.innerHTML='';}};
   const win={document:doc,confirm:()=>true,ManttoAuth:{isViewingAs:()=>viewer,
     async apiGet(url){reads.push(url);return {ok:true,table:'detalle_mp_2026_zona_1',readonly:true,
-      identity_verified:true,relation:'id_dmp',primary_key:'id_mp_zona_1',
+      identity_verified:!repairMode,scope_verified:repairMode,repair_mode:repairMode,
+      relation:'id_dmp',primary_key:'id_mp_zona_1',
       columns:C.MP_ZONE1_COLUMNS_UNI,rows:rows.map(r=>({...r})),total:2,pages:1,page:1,page_size:25};},
     async api(url,opts){const body=JSON.parse(opts.body);writes.push({url,method:opts.method,body});
       if(failPatch)throw Error('CONFLICTO');
@@ -251,7 +268,19 @@ test('F5 UI: ESC cancela, no PATCH y conserva celda; celda protegida nunca es ed
   const h=uiHarness();await tick();const td=h.cell();dbl(h,td);
   td.input.value='MAL';key(h,td.input,'Escape');await tick();
   assert.equal(h.writes.length,0);assert.match(td.innerHTML,/F-101/);
-  const bad=h.cell('proyecto');dbl(h,bad);assert.equal(bad.input,undefined);
+  const bad=h.cell('id_dmp');dbl(h,bad);assert.equal(bad.input,undefined);
+  h.app.destroy();
+});
+test('F5 UI: fila desajustada visible para EDITAR, solo identidad habilitada',async()=>{
+  const h=uiHarness({repairMode:true});await tick();
+  assert.match(h.node('[data-mpz-body]').innerHTML,/Identidad desajustada/);
+  const blocked=h.cell('numero_factura_01');dbl(h,blocked);
+  assert.equal(blocked.input,undefined);
+  const repair=h.cell('idns');dbl(h,repair);
+  assert.ok(repair.input);
+  repair.input.value='P12';key(h,repair.input,'Enter');await tick();await tick();
+  assert.equal(h.writes.length,1);
+  assert.deepEqual(h.writes[0].body,{changes:{idns:'P12'},expected:{idns:'P11'}});
   h.app.destroy();
 });
 test('F5 UI: usuario VER o vista simulada muestra 128 columnas sin edición ni POST',async()=>{
@@ -339,7 +368,7 @@ test('F5 single: IDNS ausente aun con mismo proyecto impide UPDATE y revierte tr
   assert.ok(sql.every(q=>/^SELECT/.test(q)));
 });
 
-test('F5 ruta de acceso: DEVUELVE solo 108 editables si MP.EDITAR y corte autorizado',async()=>{
+test('F5 ruta de acceso: devuelve 124 editables si MP.EDITAR y corte autorizado',async()=>{
   const registrations=[],rights={current:new Map()},auth={enabled:true};
   const perms={MAIN_VISUAL:'MAIN',TABLE_PERMISSIONS:{
     gestion_credito:{view:'GC.VER',edit:'GC.EDITAR'},
@@ -379,7 +408,7 @@ test('F5 ruta de acceso: DEVUELVE solo 108 editables si MP.EDITAR y corte autori
   rights.current=new Map([['MP.VER',true],['MP.EDITAR',true]]);
   const yes=res();await route.handlers.at(-1)(req,yes,e=>{throw e;});
   assert.equal(yes.code,200);assert.equal(yes.body.can_write_zone1,true);
-  assert.equal(yes.body.zona1_editable_fields.length,108);
+  assert.equal(yes.body.zona1_editable_fields.length,124);
   rights.current=new Map([['MP.VER',true],['MP.EDITAR',false]]);
   const no=res();await route.handlers.at(-1)(req,no,e=>{throw e;});
   assert.equal(no.body.can_write_zone1,false);assert.deepEqual(Array.from(no.body.zona1_editable_fields),[]);

@@ -274,7 +274,7 @@ test('F4 limpieza: no quedan grupos, modal Zona 1 ni preflight en frontend; back
   assert.match(zoneJs,/method:\s*'PATCH'/);
   assert.doesNotMatch(zoneJs,/method:\s*'POST'/);
   assert.match(main,/mantenimiento-preventivo-zona1\.js/);
-  assert.match(main,/mantenimiento-preventivo\.js\?v=20261023-mp-excel-f6-v001/);
+  assert.match(main,/mantenimiento-preventivo\.js\?v=20261023-mp-manual-fields-v001/);
   assert.match(backend,/\/tablas\/detalle_mp_2026\/zona-1\/registros/);
   assert.match(backend,/\/tablas\/detalle_mp_2026\/registros\/:id\/zona-1/);
 });

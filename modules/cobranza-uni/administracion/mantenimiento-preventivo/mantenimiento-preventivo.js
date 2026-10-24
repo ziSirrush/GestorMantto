@@ -7,7 +7,8 @@
   const API='/api/cobranza-uni/administracion/tablas/detalle_mp_2026/registros';
   const RECONCILE_API='/api/cobranza-uni/administracion/tablas/detalle_mp_2026/conciliacion';
   const EXPECTED=20,MAX_BULK=20;
-  const CLIENT_SAFE=new Set(['zona_adm','periodicidad','momento_facturacion','forma_pago','factor_monto_anual']);
+  const CLIENT_SAFE=new Set(['zona_adm','proyecto','idns','cliente','periodicidad',
+    'momento_facturacion','estado','z_oper','forma_pago','factor_monto_anual','estatus_cartera']);
   const LABELS=Object.freeze({
     id_dmp:'Consecutivo',zona_adm:'ZONA ADM',proyecto:'PROYECTO',
     id_proyecto_cobranza:'ID Proyecto Cobranza',idns:'ID',cliente:'CLIENTE',
@@ -57,7 +58,7 @@
       '<div class="cua-mp-tabpanel" id="cua-mp-panel-principal" data-mp-panel="principal" role="tabpanel">'+
       '<div class="cua-mp-topline"><div><strong>Mantenimiento Preventivo</strong>'+
       '<p>Tabla principal · 20 columnas · fórmula anual en vista previa</p></div>'+
-      '<span class="cua-mp-badge">'+(canEdit?'Edición autorizada · auditada':'Solo consulta')+'</span></div>'+
+      '<span class="cua-mp-badge">'+(canEdit?'Edición autorizada · doble clic o Enter':'Solo consulta')+'</span></div>'+
       '<form class="cua-mp-filters" data-mp-form autocomplete="off">'+
         '<label class="cua-mp-search"><span>Buscar</span><input data-mp-search type="search" maxlength="120" placeholder="Proyecto, cliente, consecutivo, ID…" /></label>'+
         '<label><span>Columna</span><select data-mp-filter-column><option value="">Sin filtro de columna</option></select></label>'+
