@@ -217,10 +217,10 @@ test('F6 consultas: Zona1 usa solo COUNT/SELECT paginados y comparte identidad d
   assert.match(bulk,/FOR UPDATE/);
 });
 
-test('F6 frontend: se actualizan las versiones de JS cargadas sin tocar GC',()=>{
+test('F6 frontend: versiones de JS conservadas y CSS de GC renovado',()=>{
   const main=read(FRONT+'main/main.js');
   for(const tag of ['va-excel-f6-v001','mp-excel-f6-v001','mp-zona1-excel-f6-v001'])
     assert.ok(main.includes(tag),tag);
   assert.match(main,/gestion-credito\.js\?v=20261023-f6-v001/);
-  assert.match(main,/gestion-credito\.css\?v=20261023-f6-v001/);
+  assert.match(main,/gestion-credito\.css\?v=20261023-gc-wide-v002/);
 });

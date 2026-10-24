@@ -78,7 +78,7 @@
         const loader=win.ManttoModuleLoader;
         if(!loader || typeof loader.loadScript!=='function' || typeof loader.loadStyle!=='function')
           throw new Error('Cargador oficial de módulos no disponible.');
-        await loader.loadStyle('./modules/cobranza-uni/administracion/gestion-credito/gestion-credito.css?v=20261023-f6-v001');
+        await loader.loadStyle('./modules/cobranza-uni/administracion/gestion-credito/gestion-credito.css?v=20261023-gc-wide-v002');
         await loader.loadScript('./modules/cobranza-uni/administracion/gestion-credito/gestion-credito.js?v=20261023-f6-v001');
         if(!isCurrent(epoch,key)||selectedTable!==table)return false;
         shell('<section class="cua-uni-card cua-uni-detail">'+

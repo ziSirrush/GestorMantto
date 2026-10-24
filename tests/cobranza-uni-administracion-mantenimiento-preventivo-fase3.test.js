@@ -134,12 +134,9 @@ test('MP F3: lote 2..20, orden BIGINT sin Number, esperado exacto por ID',()=>{
   }
   assert.equal(V.idMp_uni('9223372036854775807'),'9223372036854775807');
 });
-test('MP F3: escritura OFF por defecto; opt-in explicito y false bloquea antes de DB',async()=>{
+test('MP F3: edición habilitada por defecto; false e inválidos bloquean antes de DB',async()=>{
   const absent=makeService({env:{}}).module;
-  assert.equal(absent.mpEditFeatureEnabled_uni(),false);
-  await assert.rejects(absent.updateSingleMp_uni(REQ,'41',{
-    changes:{zona_adm:'SUR'},expected:{zona_adm:'ORIGEN'}
-  }),{statusCode:403,code:'MP_ADMIN_ESCRITURA_DESHABILITADA'});
+  assert.equal(absent.mpEditFeatureEnabled_uni(),true);
   assert.equal(makeService({env:{MP_ADMIN_EDIT_ENABLED:'true'}}).module.mpEditFeatureEnabled_uni(),true);
   assert.equal(makeService({env:{MP_ADMIN_EDIT_ENABLED:'1'}}).module.mpEditFeatureEnabled_uni(),true);
   assert.equal(makeService({env:{MP_ADMIN_EDIT_ENABLED:'invalid'}}).module.mpEditFeatureEnabled_uni(),false);

@@ -30,7 +30,7 @@ test('index: Main tiene vista propia y menu de seguridad previo a inicializar la
   const app=html.indexOf('./core/app.js');
   assert.ok(menu>0 && app>menu);
   assert.match(html,/core\/router\.js\?v=20261023-back-history-v001/);
-  assert.match(html,/core\/module-loader\.js\?v=20261023-context-back-only-v001/);
+  assert.match(html,/core\/module-loader\.js\?v=20261023-cua-admin-wide-edit-v001/);
 });
 
 test('router: administra independientemente del modulo de consulta legacy',()=>{
@@ -79,7 +79,7 @@ test('loader: assets administrativos independientes con carga diferida',()=>{
   assert.ok(found);
   assert.match(found[1],/administracion\/main\/main\.css/);
   assert.match(found[2],/administracion\/main\/main\.js/);
-  assert.match(found[1],/20261023-cua-nav-v001/);
+  assert.match(found[1],/20261023-cua-wide-v002/);
   const persistent=loader.match(/const PERSISTENT_DATA_ROUTES = new Set\(\[([\s\S]*?)\]\)/);
   assert.ok(persistent);
   assert.doesNotMatch(persistent[1],/cobranza-uni-administracion/);
