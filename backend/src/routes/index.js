@@ -58,6 +58,8 @@ const movimientosCriticosRoutes = require('../modules/movimientos-criticos/movim
 const customerExperienceRoutes = require('../modules/customer-experience/customer-experience.routes');
 const entregasControlRoutes = require('../modules/entregas-control/entregas-control.routes');
 const offlinePilotRoutes = require('../modules/offline-pilot/offline-pilot.routes');
+// [NS Integration | 2026-10-26 | receptor V001 - sin escritura hasta aprobacion de destino]
+const netsuiteIntegrationRoutes = require('../modules/netsuite-integration/netsuite-integration.routes');
 
 const router = express.Router();
 
@@ -117,6 +119,7 @@ router.use('/movimientos-criticos', movimientosCriticosRoutes);
 router.use('/customer-experience', customerExperienceRoutes);
 router.use('/entregas', entregasControlRoutes);
 router.use('/offline', offlinePilotRoutes);
+router.use('/integraciones/netsuite/v1', netsuiteIntegrationRoutes);
 router.use(dataRoutes);
 
 module.exports = router;

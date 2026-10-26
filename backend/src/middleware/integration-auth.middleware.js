@@ -33,6 +33,8 @@ function getIntegrationSecrets() {
     [process.env.INTEGRATION_INSTALACIONES_DRIVE_ID, process.env.INTEGRATION_INSTALACIONES_DRIVE_SECRET],
     [process.env.INTEGRATION_VENTAS_ID, process.env.INTEGRATION_VENTAS_SECRET],
     [process.env.INTEGRATION_COBRANZA_UNI_ID, process.env.INTEGRATION_COBRANZA_UNI_SECRET],
+    // Credencial independiente: NetSuite no utiliza secretos de GAS.
+    [process.env.INTEGRATION_NETSUITE_ID, process.env.INTEGRATION_NETSUITE_SECRET],
     // Solo la identidad configurada para Almacen puede escribir en sus lotes.
     // Almacen usa el secreto YA existente en Azure. El ID no es una variable secreta.
     ['almacen-appscript', process.env.INTEGRATION_ALMACEN_SECRET]
