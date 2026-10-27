@@ -208,7 +208,12 @@ test('F5: integracion GAS con 409 sigue fail-closed, no ejecuta controller',asyn
 test('F5: integration auth permanece ANTES del guard y del controlador GAS',()=>{
   const s=fs.readFileSync(INS_ROUTE,'utf8');
   assert.match(s,/router\.post\('\/sync', requireInsFlIntegration, protectManualAltasCor, syncWithHeldAltasLockCor\)/);
-  assert.match(s,/finally\s*\{\s*if\(typeof req\.bltnowInsFlGuardReleaseCor/);
+  // F3 mantiene la liberacion una sola vez despues del controlador GAS,
+  // usando releaseOnce() tanto en syncOriginal como en el finally exterior.
+  assert.match(s,/const releaseOnce\s*=\s*async\s*\(\)\s*=>/);
+  assert.match(s,/const syncOriginal\s*=\s*async\s*\(request,response\)/);
+  assert.match(s,/finally\s*\{\s*await releaseOnce\(\)/);
+  assert.match(s,/return await ejecutarSyncConAjustadores\(req,res,syncOriginal\)/);
 });
 
 function routeFixture(){
@@ -231,6 +236,11 @@ function routeFixture(){
     '../controllers/ins-fl.controller':controller,
     '../controllers/ins-fl-read-cor.controller':{},
     '../modules/instalaciones-administracion/instalaciones-administracion-altas-sync-guard':{protectManualAltasCor(_req,_res,next){next();}},
+    // F3 se aisla: este QA verifica que Altas retenga el lock hasta el
+    // resultado del controlador original, no la conciliacion de ajustadores.
+    '../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.ajustadores-sync.service':{
+      ejecutarSyncConAjustadores:async(req,res,syncOriginal)=>syncOriginal(req,res)
+    },
     '../services/storage/storage-file-policy.service':{getLimits_gnral:()=>({maxFileBytes:1000000})},
     '../middleware/integration-auth.middleware':{requireIntegrationAuthFor:()=>()=>{}},
     '../middleware/information-access-gnral.middleware':{humanInformationGuard_gnral:()=>[()=>{}]},
