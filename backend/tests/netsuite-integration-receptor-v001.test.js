@@ -127,6 +127,22 @@ test('Auth general liga firma a ruta original',()=>{
   assert.equal(passed,false);assert.equal(res.payload.code,'INTEGRATION_AUTH_INVALID_SIGNATURE');
 });
 
+test('Cancelacion firmada con misma API general: HMAC vinculada a ruta',()=>{
+  const endpoint=basePath+'/lotes/'+loteId+'/abortar';
+  const body={loteId};
+  const req=signed(fakeReq('POST',endpoint,body));
+  const ok=response();let passed=false;
+  requireNsAuth(req,ok,()=>{passed=true;});
+  assert.equal(passed,true);
+  // Una firma valida de /abortar no autoriza /finalizar ni otra operacion.
+  req.originalUrl=basePath+'/lotes/'+loteId+'/finalizar';
+  const denied=response();passed=false;
+  requireNsAuth(req,denied,()=>{passed=true;});
+  assert.equal(passed,false);
+  assert.equal(denied.statusCode,401);
+  assert.equal(denied.payload.code,'INTEGRATION_AUTH_INVALID_SIGNATURE');
+});
+
 test('Rutas existentes usan auth general y fallan cerrado sin credencial',()=>{
   const recorder={uses:[],posts:new Map(),gets:new Map()};
   const fakeExpress={Router(){return {
@@ -144,7 +160,8 @@ test('Rutas existentes usan auth general y fallan cerrado sin credencial',()=>{
   } finally {Module._load=oldLoad;}
   assert.equal(recorder.uses.length,1);
   assert.ok(recorder.gets.has('/estado'));
-  assert.equal(recorder.posts.size,3);
+  assert.equal(recorder.posts.size,4);
+  assert.ok(recorder.posts.has('/lotes/:loteId/abortar'));
   // Sin secreto de la API general, el receptor debe rechazar ANTES de acceder a Aiven.
   const saved=process.env.INTEGRATION_NETSUITE_SECRET;
   delete process.env.INTEGRATION_NETSUITE_SECRET;
@@ -153,7 +170,8 @@ test('Rutas existentes usan auth general y fallan cerrado sin credencial',()=>{
     assert.equal(status.payload.persistenciaHabilitada,false);
     for(const [route,body] of [['/lotes',validBegin()],
       ['/lotes/:loteId/paginas',validPage()],
-      ['/lotes/:loteId/finalizar',validFinish()]]){
+      ['/lotes/:loteId/finalizar',validFinish()],
+      ['/lotes/:loteId/abortar',{loteId}]]){
       const res=response();let error=null;
       recorder.posts.get(route)[0]({body,params:{loteId}},res,e=>{error=e;});
       assert.equal(error,null);assert.equal(res.statusCode,503);

@@ -150,4 +150,18 @@ function validateFinish(loteIdParam, body) {
   return { loteId, filasEsperadas, paginasEsperadas, hashCarga: digest(body.hashCarga, 'hashCarga') };
 }
 
-module.exports = { validateBegin, validatePage, validateFinish, MAX_PAGE_SIZE, MAX_PAGES };
+// Recuperacion segura: solo se permite cancelar el MISMO lote autenticado.
+// La operacion nunca borra registros ni cambia el esquema de Aiven.
+function validateAbort(loteIdParam, body) {
+  const loteId = uuid(loteIdParam);
+  object(body, 'Cuerpo de cancelacion');
+  if (uuid(body.loteId) !== loteId) {
+    throw invalid('El lote del cuerpo no corresponde a la ruta.', 'NS_LOTE_MISMATCH');
+  }
+  if (Object.keys(body).some(key => key !== 'loteId')) {
+    throw invalid('La cancelacion solo admite loteId.', 'NS_ABORT_BODY_INVALID');
+  }
+  return { loteId };
+}
+
+module.exports = { validateBegin, validatePage, validateFinish, validateAbort, MAX_PAGE_SIZE, MAX_PAGES };

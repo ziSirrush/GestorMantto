@@ -47,7 +47,12 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
   const recent = new Map();
   function cleanup() {
     const now=clock();
-    if (active && !active.committing && now - active.touched > MAX_IDLE_MS) active=null;
+    if (active && !active.committing && now - active.touched > MAX_IDLE_MS) {
+      console.warn('[NS_PORTAFOLIO_LOTE_EXPIRADO]', JSON.stringify({
+        loteId:active.id,paginasDescartadas:active.pages.size,filasDescartadas:active.countRows
+      }));
+      active=null;
+    }
     for (const [key, entry] of recent) {
       if (now - entry.completed > MAX_IDLE_MS) recent.delete(key);
     }
@@ -61,11 +66,36 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
       persistenciaHabilitada:enabled, destino:DATASET,
       estado:!enabled?'PENDIENTE_CREDENCIALES_API_GENERAL':
         active?.committing?'PUBLICANDO_ATOMICAMENTE':active?'RECIBIENDO':'CONFIGURADO_PRECHECK_PENDIENTE',
-      loteActivo:Boolean(active), paginasRecibidas:active?.pages.size||0,
+      loteActivo:Boolean(active), loteId:active?.id||null, paginasRecibidas:active?.pages.size||0,
       paginasEsperadas:active?.countPages||0, filasRecibidas:active?.countRows||0,
       sinEscriturasParciales:true
     };
   }
+  function abort(loteId, body) {
+    const { loteId: id } = contract.validateAbort(loteId, body);
+    cleanup();
+    const done=recent.get(id);
+    if (done) {
+      // El servidor nunca revierte lotes ya confirmados en Aiven.
+      return {ok:true,loteId:id,estado:'PUBLICADO',filasConfirmadas:done.totalRows};
+    }
+    if (!active) return {ok:true,loteId:id,estado:'SIN_LOTE_ACTIVO'};
+    if (active.id!==id) {
+      throw mapping.invalid('No se puede cancelar un lote distinto del activo.',
+        409,'NS_PORTAFOLIO_ABORT_DIFFERENT_LOT');
+    }
+    if (active.committing) {
+      throw mapping.invalid('No se puede cancelar un lote durante su COMMIT.',
+        409,'NS_PORTAFOLIO_COMMITTING');
+    }
+    const discarded=active;
+    active=null; // staging exclusivamente en memoria: sin DML ni escrituras parciales.
+    console.warn('[NS_PORTAFOLIO_LOTE_ABORTADO]', JSON.stringify({
+      loteId:id,paginasDescartadas:discarded.pages.size,filasDescartadas:discarded.countRows
+    }));
+    return {ok:true,loteId:id,estado:'ABORTADO'};
+  }
+
   async function begin(body) {
     cleanup();
     const b=contract.validateBegin(body);
@@ -81,13 +111,22 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
     }
     if (active) {
       if (active.id !== b.loteId) {
+        console.warn('[NS_PORTAFOLIO_BUSY]', JSON.stringify({
+          loteActivo:active.id,loteSolicitado:b.loteId,
+          inactividadMs:Math.max(0,clock()-active.touched)
+        }));
         throw mapping.invalid('Ya hay otro lote Portafolio en curso.',429,'NS_PORTAFOLIO_BUSY');
       }
       if (active.beginHash !== fingerprint) {
         throw mapping.invalid('La cabecera de un lote no puede cambiar.',409,'NS_PORTAFOLIO_LOTE_CONFLICT');
       }
-      await active.ready;
-      active.touched=clock();
+      const current=active;
+      await current.ready;
+      if (active!==current) {
+        throw mapping.invalid('Lote cancelado durante la verificacion de esquema.',
+          409,'NS_PORTAFOLIO_LOTE_NOT_FOUND');
+      }
+      current.touched=clock();
       return {ok:true,loteId:b.loteId,estado:'RECIBIENDO'};
     }
     const lot={
@@ -105,6 +144,10 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
       throw error;
     });
     await lot.ready;
+    if (active!==lot) {
+      throw mapping.invalid('Lote cancelado durante la verificacion de esquema.',
+        409,'NS_PORTAFOLIO_LOTE_NOT_FOUND');
+    }
     return {ok:true,loteId:b.loteId,estado:'RECIBIENDO'};
   }
   async function page(loteId,body) {
@@ -122,6 +165,8 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
     if (!lot || lot.id!==p.loteId) throw mapping.invalid('Lote no iniciado o expirado. Reejecutar el envio completo.',
       409,'NS_PORTAFOLIO_LOTE_NOT_FOUND');
     await lot.ready;
+    if (active!==lot) throw mapping.invalid('Lote cancelado antes de recibir la pagina.',
+      409,'NS_PORTAFOLIO_LOTE_NOT_FOUND');
     if (lot.committing) throw mapping.invalid('El lote ya se esta publicando.',409,'NS_PORTAFOLIO_COMMITTING');
     if (p.pagina > lot.countPages) throw mapping.invalid('Pagina fuera del lote.');
     const existing=lot.pages.get(p.pagina);
@@ -169,6 +214,8 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
     if (!lot || lot.id!==f.loteId) throw mapping.invalid('Lote no iniciado o expirado. Reejecutar el envio completo.',
       409,'NS_PORTAFOLIO_LOTE_NOT_FOUND');
     await lot.ready;
+    if (active!==lot) throw mapping.invalid('Lote cancelado antes de finalizar.',
+      409,'NS_PORTAFOLIO_LOTE_NOT_FOUND');
     if (lot.commitPromise) return lot.commitPromise;
     if (f.filasEsperadas!==lot.totalRows || f.paginasEsperadas!==lot.countPages ||
         lot.pages.size!==lot.countPages || lot.countRows!==lot.totalRows || lot.keys.size!==lot.totalRows) {
@@ -205,7 +252,7 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
     try { return await promise; }
     catch(error) { lot.committing=false;lot.commitPromise=null;throw error; }
   }
-  return Object.freeze({status,begin,page,finish});
+  return Object.freeze({status,begin,page,finish,abort});
 }
 
 module.exports = {createReceiver,configReady,MAX_ROWS,MAX_STAGE_BYTES,MAX_IDLE_MS};

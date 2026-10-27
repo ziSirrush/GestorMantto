@@ -34,7 +34,7 @@ function receive(validate, operation) {
   };
 }
 
-// Contrato 1 y rutas existentes: el Map/Reduce anterior no cambia sus URLs.
+// Contrato 1 y rutas existentes: se conservan para el Emisor Universal.
 router.post('/lotes',receive(
   req => contract.validateBegin(req.body),
   req => receiver.begin(req.body)
@@ -46,6 +46,13 @@ router.post('/lotes/:loteId/paginas',receive(
 router.post('/lotes/:loteId/finalizar',receive(
   req => contract.validateFinish(req.params.loteId,req.body),
   req => receiver.finish(req.params.loteId,req.body)
+));
+
+// Cancelacion autenticada, sin DML: libera solo el staging del lote indicado.
+// No altera contratos existentes ni requiere credenciales adicionales.
+router.post('/lotes/:loteId/abortar',receive(
+  req => contract.validateAbort(req.params.loteId,req.body),
+  req => receiver.abort(req.params.loteId,req.body)
 ));
 
 module.exports = router;
