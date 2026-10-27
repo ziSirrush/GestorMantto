@@ -1,0 +1,26 @@
+/* BLT NOW · Experimental NS F5 · Complemento visual; estilos de Proyectos se reutilizan, no modifican. */
+.proyns-page{padding:20px 24px 26px;max-width:none}
+.proyns-page .proy-head{border-left:5px solid #7c3aed}
+.proyns-page .proy-eyebrow{color:#7c3aed}
+.proyns-banner{border:1px solid #ddd6fe;background:#f5f3ff;color:#5b21b6;border-radius:12px;padding:12px 16px;font-size:12px;font-weight:650;line-height:1.5}
+.proyns-quality{margin:8px 18px 13px;color:#64748b;font-size:12px;line-height:1.45}
+.proyns-provisional{color:#b45309;font-weight:900}
+.proyns-pagination{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:15px}
+.proyns-pagination span{font-weight:800;color:#334155;font-size:12px}
+.proyns-page .proy-table{min-width:1450px}
+.proyns-page .proy-table button.proy-btn{white-space:nowrap}
+.proyns-page .proy-detail{z-index:350}
+.proyns-page .proy-detail-body{display:flex;flex-direction:column;gap:14px;padding:18px;overflow:auto}
+.proyns-page .proy-detail-body>.proy-card{padding:16px}
+.proyns-page .proy-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.proyns-page .proy-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.proyns-page .proy-chart{min-width:0}
+.proyns-page .proyns-chart{display:grid;gap:6px;padding:8px 4px;max-height:340px;overflow:auto}
+.proyns-page .proy-bar-row{display:grid;grid-template-columns:125px minmax(80px,1fr) 35px;align-items:center;gap:10px;font-size:12px}
+.proyns-page .proy-bar-row span{overflow-wrap:anywhere}
+.proyns-page .proy-bar-track{height:9px;border-radius:99px;background:#e2e8f0;overflow:hidden}
+.proyns-page .proy-bar-fill{height:100%;border-radius:99px;background:#7c3aed}
+.proyns-page .proy-status.error{border-color:#fecaca;background:#fef2f2;color:#991b1b;white-space:normal}
+.proyns-page .proy-status.error .proy-dot{background:#dc2626}
+.proyns-page .proyns-close{font-size:24px;border:0;background:transparent;color:#fff;cursor:pointer}
+@media(max-width:760px){.proyns-page{padding:14px 10px}.proyns-page .proy-charts{grid-template-columns:1fr}.proyns-page .proy-bar-row{grid-template-columns:80px minmax(60px,1fr) 30px}}

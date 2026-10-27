@@ -1,0 +1,114 @@
+# BLT NOW | EXPERIMENTAL NS - FASE 2 | SOLO APLICACION LOCAL
+# Copiar este bloque completo en PowerShell una vez extraido/descargado el ZIP.
+# No crea tablas, NO ejecuta SQL, NO hace commit ni push, NO despliega Azure.
+# Requiere Fase 1 local aplicada y backend/src/routes/index.js intacto respecto a main aaa1f1ed.
+# Acepta un commit posterior de F1 siempre que descienda del commit base validado.
+
+$ErrorActionPreference = 'Stop'
+$REPO = 'C:\Users\T14s\Downloads\mantto_gestor_frontend'
+$ZIP = Join-Path $env:USERPROFILE 'Downloads\EXPERIMENTAL_NS_FASE2_V001.zip'
+$EXPECTED_MAIN = 'aaa1f1ed30798716d0885dee1692ce56b1583402'
+$EXPECTED_ROUTES_BLOB = '7ae6c01da315ad33f4d26757e73345d5b0055990'
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+
+function Replace-Exactly-Once([string]$source,[string]$before,[string]$after,[string]$what) {
+    $n = [regex]::Matches($source,[regex]::Escape($before)).Count
+    if($n -ne 1){throw "F2 ABORTADA: marcador $what encontrado $n veces (se esperaba 1)."}
+    return $source.Replace($before,$after)
+}
+
+if(-not (Test-Path -LiteralPath $ZIP)){throw "No se encuentra el ZIP: $ZIP"}
+if(-not (Test-Path -LiteralPath (Join-Path $REPO '.git'))){throw "No se encontro repositorio Git: $REPO"}
+if(-not (Test-Path -LiteralPath (Join-Path $REPO 'modules\experimental-ns\experimental-ns.js'))){throw 'Fase 1 no encontrada localmente. Aplica/valida F1 antes de F2.'}
+
+$head = (& git -C $REPO rev-parse HEAD).Trim()
+if($LASTEXITCODE -ne 0){throw 'No fue posible leer HEAD.'}
+& git -C $REPO merge-base --is-ancestor $EXPECTED_MAIN HEAD
+if($LASTEXITCODE -ne 0){throw "HEAD=$head no desciende del commit base $EXPECTED_MAIN. Debe revalidarse."}
+$dirty = & git -C $REPO status --porcelain -- backend/src/routes/index.js
+if($LASTEXITCODE -ne 0 -or $dirty){throw 'backend/src/routes/index.js contiene cambios locales. NO se sobreescribe.'}
+$routesBlob = (& git -C $REPO hash-object backend/src/routes/index.js).Trim()
+if($LASTEXITCODE -ne 0 -or $routesBlob -ne $EXPECTED_ROUTES_BLOB){throw "backend/src/routes/index.js no coincide con version validada: $routesBlob"}
+
+$work = Join-Path $env:TEMP ('EXPNS_F2_' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $work | Out-Null
+Expand-Archive -LiteralPath $ZIP -DestinationPath $work
+
+# Correccion de portabilidad para Windows: la prueba original compara rutas con '/'.
+# Se sustituye solo la prueba extraida; el codigo funcional de la fase permanece intacto.
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'backend\tests\experimental-ns-fase2.test.js') `
+  -Destination (Join-Path $work 'backend\tests\experimental-ns-fase2.test.js') -Force
+
+$files = @(
+    'backend\src\modules\experimental-ns\experimental-ns.scope.js',
+    'backend\src\modules\experimental-ns\experimental-ns.repository.js',
+    'backend\src\modules\experimental-ns\experimental-ns.service.js',
+    'backend\src\modules\experimental-ns\experimental-ns.controller.js',
+    'backend\src\modules\experimental-ns\experimental-ns.routes.js',
+    'backend\tests\experimental-ns-fase2.test.js',
+    'docs\EXPERIMENTAL_NS_FASE2.md',
+    'sql\EXPERIMENTAL_NS_F2_PRECHECK_SOLO_LECTURA.sql',
+    'sql\EXPERIMENTAL_NS_F2_CATALOGO_PERMISOS_NO_EJECUTADO.sql'
+)
+foreach($file in $files){
+    if(-not (Test-Path -LiteralPath (Join-Path $work $file))){throw "Falta archivo en ZIP: $file"}
+    if(Test-Path -LiteralPath (Join-Path $REPO $file)){throw "El destino ya existe: $file. No se sobreescribe."}
+}
+
+$routesPath = Join-Path $REPO 'backend\src\routes\index.js'
+$original = [System.IO.File]::ReadAllText($routesPath,[System.Text.Encoding]::UTF8)
+if($original.Contains('experimentalNsRoutes')){throw 'Experimental NS ya montado en backend. No aplicar dos veces.'}
+$nl = if($original.Contains("`r`n")){"`r`n"}else{"`n"}
+$import = "const offlinePilotRoutes = require('../modules/offline-pilot/offline-pilot.routes');"
+$addition = "const experimentalNsRoutes = require('../modules/experimental-ns/experimental-ns.routes');"
+$updated = Replace-Exactly-Once $original $import ($import + $nl + $addition) 'import Experimental NS'
+$mount = "router.use('/offline', offlinePilotRoutes);"
+$mountAddition = "router.use('/experimental-ns', experimentalNsRoutes);"
+$updated = Replace-Exactly-Once $updated $mount ($mount + $nl + $mountAddition) 'montaje Experimental NS'
+
+# Preflight: no tocar proyecto hasta validar sintaxis y pruebas desde el ZIP.
+$preflight = Join-Path $work 'index-f2-check.js'
+[System.IO.File]::WriteAllText($preflight,$updated,$utf8)
+& node --check $preflight
+if($LASTEXITCODE -ne 0){throw 'index.js generado no supera sintaxis.'}
+foreach($file in $files | Where-Object { $_ -like '*.js' }){
+    & node --check (Join-Path $work $file)
+    if($LASTEXITCODE -ne 0){throw "Sintaxis invalida: $file"}
+}
+& node --test (Join-Path $work 'backend\tests\experimental-ns-fase2.test.js')
+if($LASTEXITCODE -ne 0){throw 'Tests F2 no pasaron en la copia temporal.'}
+
+$backup = Join-Path $env:USERPROFILE ('Downloads\BACKUP_EXPNS_F2_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
+New-Item -ItemType Directory -Path $backup | Out-Null
+Copy-Item -LiteralPath $routesPath -Destination (Join-Path $backup 'backend-routes-index.js')
+$applied = $false
+try {
+    $applied = $true
+    foreach($file in $files){
+        $destination = Join-Path $REPO $file
+        $parent = Split-Path -Parent $destination
+        if(-not (Test-Path -LiteralPath $parent)){New-Item -ItemType Directory -Path $parent -Force | Out-Null}
+        Copy-Item -LiteralPath (Join-Path $work $file) -Destination $destination
+    }
+    [System.IO.File]::WriteAllText($routesPath,$updated,$utf8)
+    & node --check $routesPath
+    if($LASTEXITCODE -ne 0){throw 'Sintaxis index.js modificada invalida.'}
+    & node --test (Join-Path $REPO 'backend\tests\experimental-ns-fase2.test.js')
+    if($LASTEXITCODE -ne 0){throw 'Tests Fase 2 fallaron tras copiar.'}
+    & git -C $REPO diff --check
+    if($LASTEXITCODE -ne 0){throw 'git diff --check detecto errores.'}
+    Write-Host 'FASE 2 VALIDADA EN LOCAL. SIN COMMIT, PUSH, AZURE NI SQL.' -ForegroundColor Green
+    & git -C $REPO status --short
+    & git -C $REPO diff --stat
+    Write-Host "Respaldo: $backup"
+    Write-Host 'Los permisos de Experimental NS aun deben registrarse/autorizase en Aiven por separado.'
+} catch {
+    if($applied){
+        Copy-Item -LiteralPath (Join-Path $backup 'backend-routes-index.js') -Destination $routesPath -Force
+        foreach($file in $files){
+            $destination = Join-Path $REPO $file
+            if(Test-Path -LiteralPath $destination){Remove-Item -LiteralPath $destination -Force}
+        }
+    }
+    throw
+}

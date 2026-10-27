@@ -1,0 +1,26 @@
+/* Experimental NS F7: solo paneles de borrador locales. */
+.expns-protect-panel{flex:0 0 auto;max-height:42vh;overflow:auto;border:1px solid #c7d2fe;border-top:3px solid #6366f1;border-radius:11px;background:#f8faff;padding:12px 15px;color:#1e293b;box-shadow:0 3px 10px rgba(30,58,138,.07);font:13px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+.expns-protect-panel[hidden],.expns-protect-panel [hidden]{display:none!important}
+.expns-protect-heading,.expns-protect-tools{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.expns-protect-heading b{display:block;font-size:14px;color:#1e3a8a}
+.expns-protect-heading small{display:block;font-size:11px;color:#475569}
+.expns-protect-pill{font-size:10px;font-weight:800;background:#ede9fe;color:#5b21b6;border-radius:99px;padding:4px 8px}
+.expns-protect-label{display:block;margin-top:9px;font-size:12px;font-weight:700}
+.expns-protect-label textarea{box-sizing:border-box;display:block;width:100%;resize:vertical;margin-top:5px;min-height:70px;border:1px solid #94a3b8;border-radius:8px;padding:9px 10px;font:inherit;color:#0f172a;background:#fff}
+.expns-protect-label textarea:focus{outline:2px solid #6366f1;outline-offset:1px}
+.expns-protect-tools{margin-top:8px}.expns-protect-tools small{color:#334155}
+.expns-protect-tools button{background:#fff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;padding:5px 10px;cursor:pointer}
+.expns-protect-tools button:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}
+.expns-protect-warning{padding:8px 10px;margin:8px 0 0;border:1px solid #f59e0b;background:#fffbeb;color:#78350f;border-radius:8px;font-weight:700}
+.expns-protect-history{margin-top:8px;padding-top:7px;border-top:1px solid #e2e8f0;color:#334155}
+.expns-protect-history summary{cursor:pointer;font-weight:700}
+.expns-protect-history ol{margin:8px 0;padding-left:18px;max-height:115px;overflow:auto}
+.expns-protect-history li{margin:3px 0;overflow-wrap:anywhere}
+.expns-protect-history small{color:#64748b}
+/* Modal F3: el borrador queda fuera del contenedor parcheable de datos. */
+.rdns-dialog>.expns-protect-panel{margin:0 14px 12px}
+/* Modal F4 y F5: ajuste a flex vertical existente. */
+.ec-detail-panel>.expns-protect-panel,.proy-detail-panel>.expns-protect-panel{margin:0 12px 10px}
+@media(max-width:640px){.expns-protect-panel{max-height:46vh;padding:10px}.expns-protect-tools button{padding:8px 12px}}
+
+.expns-protect-warning button{margin-left:8px;padding:4px 8px;border:1px solid #d97706;background:#fff;color:#92400e;border-radius:6px;cursor:pointer;font-weight:700}

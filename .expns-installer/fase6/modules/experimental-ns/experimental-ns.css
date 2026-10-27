@@ -1,0 +1,21 @@
+/* BLT NOW | Experimental NS | Fase 1. Estilos locales sin impacto en otros modulos. */
+.expns-view { padding: 24px; background: #f4f7fc; }
+.expns-page { width: 100%; max-width: 1080px; margin: 0 auto; display: grid; gap: 18px; }
+.expns-card { padding: 22px; background: #fff; border: 1px solid #d8e1ef; border-radius: 18px; box-shadow: 0 12px 30px rgba(13,46,110,.07); }
+.expns-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.expns-eyebrow { margin: 0 0 8px; color: #6d28d9; font-size: 12px; font-weight: 800; }
+.expns-card h1 { font-size: clamp(23px,3vw,31px); color: #0d2e6e; margin: 0 0 10px; }
+.expns-card h2 { font-size: 17px; color: #0d2e6e; margin: 0 0 8px; }
+.expns-card p { color: #5b6c80; margin: 0 0 10px; line-height: 1.55; }
+.expns-pill { flex: 0 0 auto; background: #f4f0ff; color: #6d28d9; border-radius: 99px; font-size: 12px; font-weight: 800; padding: 8px 12px; }
+.expns-sources { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.expns-sources code { font-family: ui-monospace, Consolas, monospace; background: #edf2fc; color: #203a6e; border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.expns-card .expns-note { margin-bottom: 0; font-size: 12px; color: #64748b; }
+@media (max-width: 760px){ .expns-view{padding:14px} .expns-hero{flex-direction:column} .expns-pill{align-self:flex-start} .expns-card{padding:17px} }
+
+/* F6: indicador no intrusivo SOLO para vistas Experimental NS (Programador). */
+.expns-view .expns-live-line{order:-50;position:sticky;top:0;z-index:1000;box-sizing:border-box;padding:8px 13px;min-height:35px;display:flex;align-items:center;border:1px solid #c7ddf5;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:12px;font-weight:750;box-shadow:0 2px 7px rgba(13,46,110,.06)}
+.expns-view .expns-live-line[data-state="busy"]{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}
+.expns-view .expns-live-line[data-state="error"]{background:#fffbeb;color:#92400e;border-color:#fcd34d}
+.expns-view .expns-live-changed{background:#fef9c3!important;outline:2px solid #eab308;outline-offset:-2px;transition:background .5s ease;border-radius:3px}
+@media (prefers-reduced-motion:reduce){.expns-view .expns-live-changed{transition:none}}

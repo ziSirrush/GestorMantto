@@ -20,6 +20,9 @@
     'cx-dashboard':'Dashboard CX', 'cx-encuestas':'Encuestas', 'cx-visitas':'Visitas', 'entregas-control':'Control de Entregas',
     'legal-dashboard':'Dashboard Legal', 'legal-contratos':'Contratos', 'legal-suspendidos':'Suspendidos',
     'soporte-dashboard':'Dashboard de Soporte', 'soporte-solicitudes':'Solicitudes de Soporte', 'soporte-chats':'Chats de Soporte',
+    'experimental-ns-resumen-dia':'Resumen del Día · NS',
+    'experimental-ns-equipos-criticos':'Equipos Críticos · NS',
+    'experimental-ns-proyectos-mantenimiento':'Proyectos de Mantenimiento · NS',
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
@@ -1007,6 +1010,27 @@
 
   function showPlaceholder(route, payload){
     if(route==='detalle' && showDetalle(payload)) return;
+    // Experimental NS Fase 1: vista estatica independiente y acceso piloto solo Programador.
+    // No se consultan APIs; los permisos funcionales/puertas/alcance se implementan en F2.
+    if(['experimental-ns-resumen-dia','experimental-ns-equipos-criticos','experimental-ns-proyectos-mantenimiento'].includes(route)){
+      const nsUser = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function' ? window.ManttoAuth.getUser() : null;
+      const nsRoles = new Set([nsUser && nsUser.rol, ...(Array.isArray(nsUser && nsUser.roles) ? nsUser.roles : [])].filter(Boolean));
+      const nsAuthorized = Boolean(nsUser) && ['Programador','Programador United','Programador Corellian'].some(function(role){return nsRoles.has(role);});
+      const nsView = activateViewById('view-' + route);
+      if(!nsView) return;
+      setActiveSide(nsAuthorized ? route : '');
+      updateContext(route, nsAuthorized ? 'Experimental NS · Fase 1 · Sin consultas de datos' : 'Experimental NS · Acceso restringido');
+      if(!nsAuthorized){
+        nsView.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Acceso restringido</h1><p>Experimental NS esta reservado temporalmente al rol Programador.</p></section></div>';
+        return;
+      }
+      if(window.ManttoExperimentalNsF1 && typeof window.ManttoExperimentalNsF1.init === 'function'){
+        window.ManttoExperimentalNsF1.init(route);
+      }else{
+        nsView.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Experimental NS</h1><p>Modulo no disponible. Recarga la pantalla.</p></section></div>';
+      }
+      return;
+    }
     if(EXPERIMENTAL_ROUTES_EXP.has(route) && showExperimental_exp(route)) return;
     if(route==='cobranza-uni-administracion' && showCobranzaAdministracion_uni()) return;
     if(COBRANZA_ROUTES_UNI.has(route) && showCobranza_uni(route)) return;

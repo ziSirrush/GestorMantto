@@ -39,6 +39,7 @@
   </style>
 
 <link rel="stylesheet" href="./styles/device-permissions.css?v=20260731-mobile-v006"/>
+<link rel="stylesheet" href="./modules/experimental-ns/experimental-ns.css?v=20261026-f1-v001"/>
 </head>
 <body>
 <section aria-label="Validando sesión" aria-live="polite" class="auth-bootstrap-screen" id="auth-bootstrap-screen">
@@ -195,6 +196,16 @@
 <button class="side-item" data-permission="equipos_criticos_exp" data-route="experimental-equipos-criticos" type="button"><span>⚠️</span><b>Equipos Críticos</b></button>
 <button class="side-item" data-permission="dashboard_call_center_exp" data-route="experimental-dashboard-call-center" type="button"><span>☎️</span><b>Dashboard Call Center</b></button>
 <button class="side-item" data-permission="proyectos_criticos_exp" data-route="experimental-proyectos-criticos" type="button"><span>🏗️</span><b>Proyectos Críticos</b></button>
+</div>
+</section>
+<section class="side-group programmer" data-group="experimental-ns" style="display:none">
+<button aria-controls="side-group-experimental-ns" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">🧪</span><b>Experimental NS</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-experimental-ns">
+<button class="side-item" data-route="experimental-ns-resumen-dia" type="button"><span>📅</span><b>Resumen del Día</b></button>
+<button class="side-item" data-route="experimental-ns-equipos-criticos" type="button"><span>⚠️</span><b>Equipos Críticos</b></button>
+<button class="side-item" data-route="experimental-ns-proyectos-mantenimiento" type="button"><span>🏗️</span><b>Proyectos de Mantenimiento</b></button>
 </div>
 </section>
 <section class="side-group" data-group="operacion">
@@ -369,6 +380,9 @@
 <section aria-label="Equipos Críticos Experimental" class="view exp-view" data-view="experimental-equipos-criticos" id="view-experimental-equipos-criticos"></section>
 <section aria-label="Dashboard Call Center Experimental" class="view exp-view" data-view="experimental-dashboard-call-center" id="view-experimental-dashboard-call-center"></section>
 <section aria-label="Proyectos Críticos Experimental" class="view exp-view" data-view="experimental-proyectos-criticos" id="view-experimental-proyectos-criticos"></section>
+<section aria-label="Resumen del Día Experimental NS" class="view expns-view" data-view="experimental-ns-resumen-dia" id="view-experimental-ns-resumen-dia"></section>
+<section aria-label="Equipos Críticos Experimental NS" class="view expns-view" data-view="experimental-ns-equipos-criticos" id="view-experimental-ns-equipos-criticos"></section>
+<section aria-label="Proyectos de Mantenimiento Experimental NS" class="view expns-view" data-view="experimental-ns-proyectos-mantenimiento" id="view-experimental-ns-proyectos-mantenimiento"></section>
 <section aria-label="Dashboard Cobranza United" class="view cob-uni-view" data-view="cobranza-uni-dashboard" id="view-cobranza-uni-dashboard"></section>
 <section aria-label="Gestión de Crédito United" class="view cob-uni-view" data-view="cobranza-uni-estados-cuenta" id="view-cobranza-uni-estados-cuenta"></section>
 <section aria-label="Mantenimiento Preventivo United" class="view cob-uni-view" data-view="cobranza-uni-mp-pro" id="view-cobranza-uni-mp-pro"></section>
@@ -781,6 +795,7 @@
 <script src="./core/user-viewer.js?v=20261023-back-history-v001"></script>
 <script src="./core/offline-scheduler.js?v=20261021-offline-http-session-v001"></script>
 <script src="./modules/cobranza-uni/administracion/admin-menu.js?v=20261023-cua-nav-v001"></script>
+<script src="./modules/experimental-ns/experimental-ns.js?v=20261026-f1-v001"></script>
 <script src="./core/app.js?v=20261023-context-back-only-v001"></script>
 </body>
 </html>
