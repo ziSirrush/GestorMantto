@@ -80,8 +80,11 @@ Module._load = function(request, parent, isMain) {
     if (request === '../../services/permissions/effective-permission.service') {
       return {hasEffectivePermission:async (userId, code) => Number(userId) === 42 && code.endsWith('.CREAR')};
     }
+    // INT9 Ajustadores F3: la ruta importa este servicio en inicializacion.
+    // La prueba M2M del catalogo lo aisla para no abrir Aiven/credenciales.
     if (request === './instalaciones-programacion-personal.asignaciones.service' ||
-        request === './instalaciones-programacion-personal.analitica.service') return {};
+        request === './instalaciones-programacion-personal.analitica.service' ||
+        request === './instalaciones-programacion-personal.ajustadores-sync.service') return {};
   }
   if (parent?.filename === servicePath) {
     if (request === '../../config/db') return db;
