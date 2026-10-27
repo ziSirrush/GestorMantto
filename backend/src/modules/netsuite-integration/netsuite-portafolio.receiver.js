@@ -1,6 +1,9 @@
 'use strict';
-// F9A: staging acotado en memoria; un solo COMMIT atomico al finalizar el lote.
-// Sin escritura parcial, sin nuevas tablas y sin dependencia del Core general.
+// NetSuite -> API general Azure (HMAC M2M existente) -> Aiven, solo Portafolio experimental.
+// Un COMMIT atomico al finalizar el lote, sin escrituras parciales ni tablas productivas.
+// El middleware integration-auth.middleware.js autentica con
+// INTEGRATION_NETSUITE_ID / INTEGRATION_NETSUITE_SECRET (YA existentes).
+// No requiere variables NS_PORTAFOLIO_* ni introduce credenciales por modulo.
 const crypto = require('node:crypto');
 const contract = require('./netsuite-integration.contract');
 const mapping = require('./netsuite-portafolio.mapping');
@@ -9,29 +12,26 @@ const MAX_STAGE_BYTES = 24 * 1024 * 1024;
 const MAX_IDLE_MS = 40 * 60 * 1000;
 const MAX_RECENT = 10;
 const DATASET = 'PORTAFOLIO';
+// Contrato de fechas de BLT NOW: DD/MM/AAAA. Tambien admite YYYY-MM-DD (mapping).
+// Si NS emplea otra preferencia regional, la fuente debe normalizar a ISO antes de enviar.
+const DATE_FORMAT = 'DD/MM/YYYY';
+const SCRIPT_ID = /^customscript_[a-z0-9_]+$/i;
 
 const sha = value => crypto.createHash('sha256').update(value,'utf8').digest('hex');
-const activeFlag = value => ['1','true','yes','on'].includes(String(value || '').trim().toLowerCase());
+
+// Mismas dos variables que YA consume integration-auth.middleware.js.
+// La identidad, el secreto y la firma se validan en el middleware para CADA peticion.
 function configReady() {
-  return activeFlag(process.env.NS_PORTAFOLIO_WRITE_ENABLED) &&
-    Boolean(String(process.env.NS_PORTAFOLIO_SEARCH_ID || '').trim()) &&
-    ['DD/MM/YYYY','MM/DD/YYYY'].includes(process.env.NS_PORTAFOLIO_DATE_FORMAT);
-}
-function configured() {
-  return {
-    enabled: configReady(),
-    searchId: String(process.env.NS_PORTAFOLIO_SEARCH_ID || '').trim(),
-    dateFormat: String(process.env.NS_PORTAFOLIO_DATE_FORMAT || '')
-  };
+  return Boolean(String(process.env.INTEGRATION_NETSUITE_ID || '').trim() &&
+    String(process.env.INTEGRATION_NETSUITE_SECRET || '').trim());
 }
 function paused() {
-  return mapping.invalid('La escritura Portafolio NS esta deshabilitada o sin configurar.',
+  return mapping.invalid('La credencial de la API general NetSuite no esta configurada.',
     503,'NS_DATASET_DESTINATION_PENDING');
 }
 function assertConfig(begin) {
-  const cfg = configured();
-  if (!cfg.enabled) throw paused();
-  if (begin.dataset !== DATASET || begin.busquedaGuardada !== cfg.searchId) {
+  if (!configReady()) throw paused();
+  if (begin.dataset !== DATASET || !SCRIPT_ID.test(String(begin.busquedaGuardada || ''))) {
     throw mapping.invalid('Origen/dataset no autorizado para Portafolio experimental.',
       403,'NS_PORTAFOLIO_SOURCE_DENIED');
   }
@@ -39,7 +39,7 @@ function assertConfig(begin) {
     throw mapping.invalid('La busqueda supera el limite de 10000 filas. No se guardaron datos.',
       413,'NS_PORTAFOLIO_CAPACITY_LIMIT');
   }
-  return cfg;
+  return { dateFormat: DATE_FORMAT };
 }
 
 function createReceiver({repository = () => require('./netsuite-portafolio.repository'), clock = () => Date.now()} = {}) {
@@ -59,7 +59,7 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
     return {
       ok:true, origen:'NETSUITE', contrato:1, autenticado:true,
       persistenciaHabilitada:enabled, destino:DATASET,
-      estado:!enabled?'PENDIENTE_DESTINO_AIVEN':
+      estado:!enabled?'PENDIENTE_CREDENCIALES_API_GENERAL':
         active?.committing?'PUBLICANDO_ATOMICAMENTE':active?'RECIBIENDO':'CONFIGURADO_PRECHECK_PENDIENTE',
       loteActivo:Boolean(active), paginasRecibidas:active?.pages.size||0,
       paginasEsperadas:active?.countPages||0, filasRecibidas:active?.countRows||0,
@@ -93,11 +93,11 @@ function createReceiver({repository = () => require('./netsuite-portafolio.repos
     const lot={
       id:b.loteId, beginHash:fingerprint, map:sourceMapping,
       countPages:b.paginasEsperadas, totalRows:body.filasEsperadas,
-      searchId:cfg.searchId, dateFormat:cfg.dateFormat,
+      sourceId:body.busquedaGuardada, dateFormat:cfg.dateFormat,
       pages:new Map(), keys:new Set(), bytes:0, countRows:0,
       touched:clock(), ready:null, committing:false, commitPromise:null, lengths:null
     };
-    active=lot; // reservar antes del await para cerrar carreras entre peticiones de MapReduce
+    active=lot;
     lot.ready=Promise.resolve().then(()=>repository().preflight()).then(lengths=>{
       lot.lengths=lengths;
     }).catch(error=>{
