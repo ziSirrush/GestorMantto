@@ -12,6 +12,9 @@ const {
   requireProjectPhotoManager_gnral,
   requireCorellianProjectPhotoScope_gnral
 } = require('../middleware/project-photo.middleware');
+// [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 3]
+// Enganchar cambios de fechas/nombres despues del COMMIT oficial de ins_fl.
+const { ejecutarSyncConAjustadores } = require('../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.ajustadores-sync.service');
 
 const requireInsFlIntegration = requireIntegrationAuthFor('INTEGRATION_INS_FL_ID');
 
@@ -44,14 +47,27 @@ function instalacionesGuard(permissionCodesAny) {
 // [BLT NOW | 2026-10-20 | ALTAS FASE 5 V001]
 // Un cierre prematuro de HTTP no libera el candado mientras GAS sigue escribiendo.
 async function syncWithHeldAltasLockCor(req,res,next) {
-  try {
-    return await insFlController.syncInsFl(req,res);
-  } catch(error) {
-    return next(error);
-  } finally {
+  let released=false;
+  const releaseOnce=async()=>{
+    if(released)return;
+    released=true;
     if(typeof req.bltnowInsFlGuardReleaseCor === 'function') {
       await req.bltnowInsFlGuardReleaseCor();
     }
+  };
+  try {
+    // Conservar el candado durante TODO el sync original de ins_fl, pero
+    // liberarlo tras su resultado/COMMIT antes de la reconciliacion F3.
+    // Asi F3 no bloquea la siguiente carga de Altas desde GAS.
+    const syncOriginal=async(request,response)=>{
+      try {return await insFlController.syncInsFl(request,response);}
+      finally {await releaseOnce();}
+    };
+    return await ejecutarSyncConAjustadores(req,res,syncOriginal);
+  } catch(error) {
+    return next(error);
+  } finally {
+    await releaseOnce();
   }
 }
 router.post('/sync', requireInsFlIntegration, protectManualAltasCor, syncWithHeldAltasLockCor);

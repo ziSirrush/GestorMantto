@@ -1,0 +1,20 @@
+/* BLT NOW | 2026-10-27 | INT9 Ajustadores F4: anexo visual responsivo */
+.ppc-aj-auto { margin-top: 12px; }
+.ppc-aj-auto[hidden] { display:none!important; }
+.ppc-aj-auto-details > summary { cursor:pointer; font-weight:700; padding:6px 2px; }
+.ppc-aj-auto-details > summary small { margin-left:8px; opacity:.72; font-weight:500; }
+.ppc-aj-auto-content { padding-top:12px; }
+.ppc-aj-auto-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0; }
+.ppc-aj-auto-toolbar [data-aj-status] { font-size:.85rem; }
+.ppc-aj-auto-scroll { overflow-x:auto; max-width:100%; }
+.ppc-aj-auto-scroll table { width:100%; min-width:730px; }
+.ppc-aj-auto-scroll td { vertical-align:top; }
+.ppc-aj-auto-scroll td small { display:block; margin-top:4px; opacity:.7; }
+.ppc-aj-status { font-weight:600; }
+.ppc-aj-status-ok { color:#17673e; }
+.ppc-aj-status-review { color:#9f6316; }
+.ppc-aj-auto-footer { display:flex; justify-content:flex-end; padding-top:10px; }
+@media (max-width:640px) {
+  .ppc-aj-auto-toolbar > button { width:100%; }
+  .ppc-aj-auto-details > summary small { display:block; margin:4px 0 0; }
+}

@@ -5,6 +5,7 @@ const express = require('express');
 const service = require('./instalaciones-programacion-personal.service');
 const asignaciones = require('./instalaciones-programacion-personal.asignaciones.service');
 const analitica = require('./instalaciones-programacion-personal.analitica.service');
+const ajustadoresSync = require('./instalaciones-programacion-personal.ajustadores-sync.service');
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
@@ -97,10 +98,29 @@ router.put('/programacion/asignaciones/:id',...readGuard,permissionFor('EDITAR')
 router.delete('/programacion/asignaciones/:id',...readGuard,permissionFor('DESACTIVAR'),
   reply(req => asignaciones.eliminarAsignacion(req)));
 
+// [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 1]
+// Vista previa solo lectura; no crea asignaciones ni modifica ins_fl.
+// Carga diferida para no afectar los flujos existentes ni la integracion M2M.
+router.get('/programacion/ajustadores/vinculaciones',...readGuard,
+  reply(req => require('./instalaciones-programacion-personal.ajustadores.service').vinculaciones(req)));
+
+// [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 2]
+// Escritura explicita protegida por VER + CREAR, puerta CORELLIAN y scope ins_fl.
+router.post('/programacion/ajustadores/asignaciones-automaticas',...readGuard,permissionFor('CREAR'),
+  reply(req => require('./instalaciones-programacion-personal.ajustadores.service').asignarAutomaticamente(req),
+    result => result.creadas?.length ? 201 : 200));
 
 // [Mantto Gestor | 2026-10-16 | INT9-F3 | HISTORIAL Y PROYECCION SOLO LECTURA]
 router.get('/programacion/historial',...readGuard,reply(req => analitica.historial(req)));
 router.get('/programacion/disponibilidad',...readGuard,reply(req => analitica.disponibilidad(req)));
 router.get('/programacion/simulacion',...readGuard,reply(req => analitica.simulacion(req)));
+
+
+// [BLT NOW | 2026-10-27 | INT9 AJUSTADORES F3]
+// Reintento explicito y acotado: necesita permisos de crear y desactivar,
+// ademas de la puerta/alcance CORELLIAN. No se ejecuta mediante GET.
+router.post('/programacion/ajustadores/reconciliar',...readGuard,
+  permissionFor('CREAR'),permissionFor('DESACTIVAR'),
+  reply(req => ajustadoresSync.reconciliarManual(req)));
 
 module.exports = router;

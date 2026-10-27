@@ -220,7 +220,13 @@
     'instalaciones-ajuste':{css:['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.css?v=20260821-paginacion-30-v002'],js:['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-carpetas':{css:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.css?v=20260821-carpetas-disponibles-v002'],js:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-documentacion':{css:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.css?v=20260818-documentacion-fase2-v001'],js:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.js?v=20260821-pendientes-supervisor-v001']},
-    'instalaciones-programacion-personal':{css:['./modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css?v=20261016-int9-fase3-v001'],js:['./modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js?v=20261017-int9-permisos-panel-v001']},
+    'instalaciones-programacion-personal':{css:[
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css?v=20261016-int9-fase3-v001',
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal-ajustadores.css?v=20261027-int9-ajustadores-fase4-v001'
+    ],js:[
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js?v=20261017-int9-permisos-panel-v001',
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal-ajustadores.js?v=20261027-int9-ajustadores-fase4-v001'
+    ]},
     'instalaciones-pmm':{css:['./modules/instalaciones-pmm/instalaciones-pmm_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-pmm/instalaciones-pmm_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-administracion':{css:['./modules/instalaciones-administracion/instalaciones-administracion_cor.css?v=20261008-instalaciones-administracion-fase3-v001','./modules/instalaciones-administracion/instalaciones-administracion-tabla_cor.css?v=20261012-fase1-v001','./modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.css?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.css?v=20261020-fix-altas-admin-v001'],js:['./modules/instalaciones-administracion/instalaciones-administracion-save_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-ghost_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion_cor.js?v=20261013-integral-fix-v001','./modules/instalaciones-administracion/instalaciones-administracion-altas-formulas_cor.js?v=20261020-fix-altas-admin-v001','./modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.js?v=20261020-fix-altas-admin-v001']},
 
