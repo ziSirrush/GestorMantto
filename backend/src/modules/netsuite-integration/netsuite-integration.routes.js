@@ -1,46 +1,51 @@
 'use strict';
-
-// NS Integration V001: receptor protegido, sin persistencia hasta aprobar dataset y tabla.
+// BLT NOW | F9A | NetSuite -> Aiven: escritura atomica exclusiva Portafolio experimental.
+// Tickets sigue cerrado. Seguridad HMAC obligatoria en TODO el receptor.
 const express = require('express');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const contract = require('./netsuite-integration.contract');
+const { createReceiver } = require('./netsuite-portafolio.receiver');
 
 const router = express.Router();
+const receiver = createReceiver();
 
-// Siempre exigir HMAC, aun cuando INTEGRATION_AUTH_ENABLED=false.
-// Nunca usar JWT humano ni accesos del frontend para estas rutas.
 router.use(requireIntegrationAuthFor('INTEGRATION_NETSUITE_ID', {
   alwaysRequireAuth: true,
   algorithm: 'sha256'
 }));
 
-router.get('/estado', (_req, res) => res.json({
-  ok: true,
-  origen: 'NETSUITE',
-  contrato: 1,
-  autenticado: true,
-  persistenciaHabilitada: false,
-  estado: 'PENDIENTE_DESTINO_AIVEN'
-}));
+router.get('/estado', (_req,res) => res.json(receiver.status()));
 
-function pendingValidation(validator) {
-  return (req, res, next) => {
+function receive(validate, operation) {
+  return (req,res,next) => {
     try {
-      validator(req);
-      // Prohibido responder ok:true hasta escribir de forma durable en Aiven.
-      return res.status(503).json({
-        ok: false,
-        code: 'NS_DATASET_DESTINATION_PENDING',
-        message: 'No se guardaron datos. Falta aprobar el destino Aiven y la persistencia del receptor.'
-      });
-    } catch (error) {
-      return next(error);
-    }
+      validate(req);
+      if (!receiver.status().persistenciaHabilitada) {
+        return res.status(503).json({
+          ok:false,
+          code:'NS_DATASET_DESTINATION_PENDING',
+          message:'Portafolio NS no habilitado o sin parametros de seguridad.'
+        });
+      }
+    } catch(error) { return next(error); }
+    Promise.resolve().then(() => operation(req))
+      .then(result => res.json(result))
+      .catch(next);
   };
 }
 
-router.post('/lotes', pendingValidation(req => contract.validateBegin(req.body)));
-router.post('/lotes/:loteId/paginas', pendingValidation(req => contract.validatePage(req.params.loteId, req.body)));
-router.post('/lotes/:loteId/finalizar', pendingValidation(req => contract.validateFinish(req.params.loteId, req.body)));
+// Contrato 1 y rutas existentes: el Map/Reduce anterior no cambia sus URLs.
+router.post('/lotes',receive(
+  req => contract.validateBegin(req.body),
+  req => receiver.begin(req.body)
+));
+router.post('/lotes/:loteId/paginas',receive(
+  req => contract.validatePage(req.params.loteId,req.body),
+  req => receiver.page(req.params.loteId,req.body)
+));
+router.post('/lotes/:loteId/finalizar',receive(
+  req => contract.validateFinish(req.params.loteId,req.body),
+  req => receiver.finish(req.params.loteId,req.body)
+));
 
 module.exports = router;
