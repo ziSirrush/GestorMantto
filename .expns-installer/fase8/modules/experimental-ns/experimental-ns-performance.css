@@ -1,5 +1,0 @@
-/* BLT NOW · Experimental NS · F8 · Solo diagnóstico autorizado. */
-.expns-performance{margin:6px 0 12px;padding:7px 12px;background:#f7faff;border:1px solid #d9e5f8;border-radius:9px;color:#25446c;font-size:12px;max-width:100%;}
-.expns-performance summary{cursor:pointer;font-weight:700;touch-action:manipulation;}
-.expns-performance-values{display:block;padding-top:8px;line-height:1.55;overflow-wrap:anywhere;}
-@media(max-width:600px){.expns-performance{font-size:11px;padding:8px;}}

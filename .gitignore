@@ -19,3 +19,5 @@ installers/
 APLICAR_*
 ACTUALIZAR_CACHE_*
 dist/
+.expns-installer/
+Microsoft/
