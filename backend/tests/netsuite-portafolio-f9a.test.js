@@ -239,26 +239,52 @@ test('Prueba de capacidad simulada: 3714 registros completos sin escrituras hast
   assert.equal(db.state.commits.length,1);
 });
 
-test('SuiteScript V002: no envia con flag apagado y usa getText para campos select',()=>{
+test('SuiteScript V002: reutiliza consulta del script original sin leer Saved Searches',()=>{
   const fs=require('node:fs');
   const path=require('node:path');
   const vm=require('node:vm');
   const source=fs.readFileSync(path.join(__dirname,'../../netsuite/BLTNOW_NS_Emisor_MR_V002.js'),'utf8');
   let factoryExports;
-  let posts=0;
+  let posts=0, createCalls=0, loadCalls=0;
   const rec=row(1);
-  const sortedColumns=columns.map(c=>({...c,name:c.nombre,sort:c.nombre==='formulatext'?'ASC':null}));
+  const originalColumns=[];
   const result={id:'10001',recordType:'customer',
-    getValue(c){return c.name==='custentity1'?'999':rec.valores[c.indice];},
-    getText(c){return c.name==='custentity1'?'Zona de prueba':rec.valores[c.indice];}};
-  const saved={columns:sortedColumns,runPaged(){return {
-    count:1,pageRanges:[{index:0}],fetch(){return {data:[result]}}}}};
+    getValue(c){
+      if(c.name==='isinactive')return false;
+      if(c.name==='custentity1')return '999';
+      return rec.valores[c.indice];
+    },
+    getText(c){
+      if(c.name==='custentity1')return 'Zona de prueba';
+      if(c.name==='custrecord18')return '28 Nombre Superintendente';
+      if(c.name==='custrecord_blt_supervisor_zona')return '34 Nombre Supervisor';
+      return rec.valores[c.indice];
+    }
+  };
   const params={custscript_blt_ns_busqueda:savedSearch,custscript_blt_ns_dataset:'PORTAFOLIO',
     custscript_blt_ns_azure_base:'',custscript_blt_ns_habilitar_envio:false};
   const noCrypto={HashAlg:{SHA256:'sha256'},createHash(){const c=crypto.createHash('sha256');return {
     update({input}){c.update(input)},digest(){return c.digest('hex')}}}};
   const dependencies={
-    'N/search':{load:()=>saved},
+    'N/search':{
+      Sort:{ASC:'ASC'},
+      createColumn(def){return {...def};},
+      create(opts){
+        createCalls++;
+        assert.equal(opts.type,'job');
+        assert.equal(JSON.stringify(opts.filters),JSON.stringify([
+          ['custentity_blt_codigo_equipo','noneof','@NONE@'],
+          'AND',['subsidiary','anyof','2','5'],
+          'AND',['custentity_blt_depto_proyecto','anyof','2','7'],
+          'AND',['custentityblt_cambio_cliente','is','F']
+        ]));
+        const cols=opts.columns.map((c,i)=>({...c,indice:i}));
+        if(!originalColumns.length)originalColumns.push(...cols);
+        return {columns:cols,runPaged(){return {
+          count:1,pageRanges:[{index:0}],fetch(){return {data:[result]}}}}};
+      },
+      load(){loadCalls++;throw new Error('No se debe usar Saved Search');}
+    },
     'N/runtime':{getCurrentScript(){return {getParameter({name}){return params[name]}}}},
     'N/https':{post(){posts++;throw new Error('No debe enviar sin autorizacion')}},
     'N/crypto':noCrypto,
@@ -270,10 +296,116 @@ test('SuiteScript V002: no envia con flag apagado y usa getText para campos sele
   vm.runInNewContext(source,context,{timeout:1500});
   const work=factoryExports.getInputData();
   assert.equal(work.length,1);
+  assert.equal(work[0].busqueda,savedSearch); // ID historico preservado para F9A
   const savedPage=[];
   factoryExports.map({value:JSON.stringify(work[0]),write(row){savedPage.push(row)}});
   assert.equal(posts,0);
+  assert.equal(loadCalls,0);
+  assert.equal(createCalls,2);
+  assert.equal(originalColumns.length,53);
+  assert.equal(originalColumns[1].name,'formulatext');
+  assert.equal(originalColumns[1].sort,'ASC');
+  assert.equal(originalColumns[1].formula,
+    'CONCAT({custentity_blt_codigo_equipo.name}, {custentity_blt_codigo_equipo.altname})');
+  assert.deepEqual(originalColumns.map(c=>`${c.name.toLowerCase()}|${(c.join||'').toLowerCase()}`),
+    mapping.FIELD_MAP.map(c=>`${c.name.toLowerCase()}|${c.join.toLowerCase()}`));
   const entry=JSON.parse(savedPage[0].value);
   assert.equal(entry.enviado,false);
   assert.equal(entry.filasRecibidas,1);
+});
+
+test('SuiteScript V002: contrato F9A, HMAC y los 53 campos permanecen sin cambiar IDs',()=>{
+  const fs=require('node:fs');
+  const path=require('node:path');
+  const vm=require('node:vm');
+  const source=fs.readFileSync(path.join(__dirname,'../../netsuite/BLTNOW_NS_Emisor_MR_V002.js'),'utf8');
+  const rec=row(1);
+  const originalId='customsearch_blt_por_equipo';
+  const secret='SIMULATED_KEY_ONLY';
+  const urlBase='https://example.azurewebsites.net';
+  const sent=[];
+  let exports;
+  let searchLoadCalls=0;
+  const params={custscript_blt_ns_busqueda:originalId,custscript_blt_ns_dataset:'PORTAFOLIO',
+    custscript_blt_ns_azure_base:urlBase,custscript_blt_ns_habilitar_envio:true};
+  const result={id:'10001',recordType:'customer',
+    getValue(c){return c.name==='isinactive'?false:rec.valores[c.indice];},
+    getText(c){
+      if(c.name==='custrecord18')return '23 Ana General';
+      if(c.name==='custrecord_blt_supervisor_zona')return '99 Juan Supervisor';
+      return rec.valores[c.indice];
+    }
+  };
+  const hash=()=>{
+    const h=crypto.createHash('sha256');
+    return {update({input}){h.update(input);},digest(){return h.digest('hex');}};
+  };
+  const dependencies={
+    'N/search':{
+      Sort:{ASC:'ASC'},
+      createColumn(c){return {...c};},
+      create({type,columns}){
+        assert.equal(type,'job');
+        const cols=columns.map((c,i)=>({...c,indice:i}));
+        return {columns:cols,runPaged(){return {
+          count:1,pageRanges:[{index:0}],fetch(){return {data:[result]}}}}};
+      },
+      load(){searchLoadCalls++;throw new Error('BG no autorizada');}
+    },
+    'N/runtime':{getCurrentScript(){return {getParameter({name}){return params[name]}}}},
+    'N/https':{post({url,body,headers}){
+      sent.push({url,body:JSON.parse(body),rawBody:body,headers});
+      const route=new URL(url).pathname;
+      if(route.endsWith('/finalizar'))return {code:200,body:JSON.stringify({ok:true,loteId:uuid,estado:'PUBLICADO'})};
+      if(route.endsWith('/paginas'))return {code:200,body:JSON.stringify({ok:true,loteId:uuid,pagina:1})};
+      return {code:200,body:JSON.stringify({ok:true,loteId:uuid})};
+    }},
+    'N/crypto':{
+      HashAlg:{SHA256:'sha256'},createHash:hash,
+      createSecretKey(){return {secret};},
+      createHmac({key}){
+        const h=crypto.createHmac('sha256',key.secret);
+        return {update({input}){h.update(input);},digest(){return h.digest('hex');}};
+      }
+    },
+    'N/encode':{Encoding:{UTF_8:'utf8',HEX:'hex'}},
+    'N/crypto/random':{generateUUID:()=>uuid}
+  };
+  vm.runInNewContext(source,{define(names,factory){exports=factory(...names.map(n=>dependencies[n]));},
+    log:{audit(){},error(){}},Date,Map,Set,JSON,Number,Math,String,Error},{timeout:1500});
+  const jobs=exports.getInputData();
+  assert.equal(jobs.length,1);
+  const output=[];
+  exports.map({value:JSON.stringify(jobs[0]),write(row){output.push(row);}});
+  exports.summarize({
+    inputSummary:{error:null},
+    mapSummary:{errors:{iterator(){return {each(){return true;}}}}},
+    output:{iterator(){return {each(cb){for(const row of output)cb(row.key,row.value);}}}}
+  });
+  assert.equal(searchLoadCalls,0);
+  assert.equal(sent.length,3);
+  const [begin,page,finish]=sent;
+  assert.deepEqual(sent.map(x=>new URL(x.url).pathname),[
+    '/api/integraciones/netsuite/v1/lotes',
+    '/api/integraciones/netsuite/v1/lotes/'+uuid+'/paginas',
+    '/api/integraciones/netsuite/v1/lotes/'+uuid+'/finalizar'
+  ]);
+  assert.equal(begin.body.busquedaGuardada,originalId);
+  assert.equal(begin.body.dataset,'PORTAFOLIO');
+  assert.equal(begin.body.columnas.length,53);
+  assert.deepEqual(mapping.validateColumns(begin.body.columnas),mapping.COLUMNS);
+  assert.equal(page.body.filas[0].valores[1],'EQ-1');
+  assert.equal(page.body.filas[0].valores[51],'Ana General');
+  assert.equal(page.body.filas[0].valores[52],'Juan Supervisor');
+  assert.equal(finish.body.filasEsperadas,1);
+  assert.equal(finish.body.paginasEsperadas,1);
+  for(const request of sent){
+    const header=request.headers;
+    const route=new URL(request.url).pathname;
+    const expected=crypto.createHmac('sha256',secret).update(
+      `${header['X-Integration-Timestamp']}\nPOST\n${route}\n${request.rawBody}`
+    ).digest('hex');
+    assert.equal(header['X-Integration-Id'],'netsuite-bltnow');
+    assert.equal(header['X-Integration-Signature'],expected);
+  }
 });

@@ -6,7 +6,8 @@
  * BLT NOW / NS Integration - Emisor NetSuite V002 (PORTAFOLIO EXPERIMENTAL)
  *
  * Flujo unilateral: NetSuite -> Azure -> Aiven MySQL.
- * Solo CONSULTA una busqueda guardada de NetSuite; nunca escribe en NetSuite.
+ * Construye la extraccion desde la logica del SuiteScript Portafolio original.
+ * NO carga Saved Searches ni modifica datos dentro de NetSuite.
  *
  * IMPORTANTE:
  *   - Requiere F9A en Azure; los POST fallan cerrado si la escritura esta pausada.
@@ -18,7 +19,8 @@
  *     restringido a este script y al dominio del receptor.
  *
  * Parametros de script por deployment (crear al registrar el script):
- *   custscript_blt_ns_busqueda             texto: ID de Saved Search
+ *   custscript_blt_ns_busqueda             texto: identificador legado (SIN CAMBIAR ID NI VALOR)
+ *     Se conserva como marca de origen para el contrato de Azure, no para search.load().
  *   custscript_blt_ns_dataset             texto: dataset canonico (p.ej. PRUEBA)
  *   custscript_blt_ns_azure_base          texto: https://HOST, sin ruta final
  *   custscript_blt_ns_habilitar_envio     casilla: por defecto desmarcada
@@ -71,7 +73,7 @@ define([
     const sendEnabled = sendRaw === true || String(sendRaw).toUpperCase() === 'T';
     const azureBase = String(parameter(PARAMETERS.azureBase) || '').trim().replace(/\/+$/, '');
 
-    if (!searchId) throw fail('BUSQUEDA_NO_CONFIGURADA');
+    if (!searchId) throw fail('IDENTIFICADOR_ORIGEN_NO_CONFIGURADO');
     if (dataset !== 'PORTAFOLIO') throw fail('SOLO_PORTAFOLIO', 'Dataset obligatorio: PORTAFOLIO');
     if (!/^[A-Z][A-Z0-9_-]{1,59}$/.test(dataset)) {
       throw fail('DATASET_INVALIDO', 'Usa letras mayusculas, numeros, guion o guion bajo.');
@@ -131,7 +133,8 @@ define([
 
   function requiredSortedSearch(searchObj) {
     // runPaged requiere orden unico/estable para no duplicar u omitir filas.
-    // La unicidad efectiva debe evaluarse al seleccionar la busqueda.
+    // La extraccion original ordena por la formula de numero_equipo;
+    // la unicidad real sigue verificandose en la recepcion antes de escribir.
     const hasStableSort = (searchObj.columns || []).some(c =>
       keyOf(c) === 'formulatext|' && !!c.sort);
     if (!hasStableSort) {
@@ -142,7 +145,8 @@ define([
   }
 
 
-  // Mapeo cerrado, 53 campos conocidos; un ajuste a Saved Search requiere nueva revision.
+  // Mapeo cerrado, 53 campos del SuiteScript original Portafolio;
+  // cualquier cambio requiere revisar el receptor antes de habilitar el envio.
   const APPROVED_FIELDS = new Set([
     "entityid|",
     "formulatext|",
@@ -238,18 +242,98 @@ define([
       seen.add(key);
     });
   }
+
+  // Misma fuente que el Scheduled Script original que envia Portafolio a GAS:
+  // search.create({type:'job', filters, columns}), sin search.load().
+  // Se mantiene el parametro custscript_blt_ns_busqueda y su valor solamente
+  // porque Azure F9A valida ese identificador en busquedaGuardada.
+  // No se lee, ejecuta ni modifica el script original de GAS.
+  const ORIGINAL_FIELD_LABELS = Object.freeze([
+    "ID Equipo", "Código Equipo", "Referencia en Sitio", "Proyecto",
+    "Cliente", "Subsidiaria", "Región", "Estado",
+    "Ciudad", "Dirección", "Z. Oper.", "Z. Adm.",
+    "Categoría", "Prioridad", "Inactivo", "Motivo de Inactivo",
+    "Nivel de precio", "Términos", "Estatus Servicio", "Causa No en Servicio",
+    "Detalle No en Servicio", "Frecuencia", "Estatus Cobranza", "Precio Unitario",
+    "Tipo de Póliza", "Tipo de facturación", "Suspensión Temporal", "Causa Suspensión Temporal",
+    "Número Contrato Fabricante", "Producto", "Marca", "Modelo",
+    "No . Paradas", "No. Accesos", "Velocidad (m/s)", "Capacidad (kg)",
+    "Desnivel (mm)", "Longitud (mm)", "Ancho Peldaño (mm)", "Inclinación (°)",
+    "Tiempo MP (Hrs)", "No. Gratuitos", "No. Garantía", "Fecha de Instalación",
+    "Fecha de Entrega", "Término Garantía", "Fecha Recepción Mntto.", "Mes Inicio Gratuitos",
+    "Mes Término Gratuitos", "Mes Objetivo Inicio Cobranza", "Fecha Ingreso Portafolio", "Superintendente",
+    "Supervisor Zona"
+  ]);
+  function portafolioFilters() {
+    return [
+    ['custentity_blt_codigo_equipo', 'noneof', '@NONE@'],
+    'AND', ['subsidiary', 'anyof', '2', '5'],
+    'AND', ['custentity_blt_depto_proyecto', 'anyof', '2', '7'],
+    'AND', ['custentityblt_cambio_cliente', 'is', 'F']
+    ];
+  }
+  const EQUIPO_FORMULA = 'CONCAT({custentity_blt_codigo_equipo.name}, {custentity_blt_codigo_equipo.altname})';
+
+  function createPortafolioSource() {
+    // El orden proviene del catalogo de campos ya autorizado en F9A.
+    const approved = [...APPROVED_FIELDS];
+    if (approved.length !== ORIGINAL_FIELD_LABELS.length) {
+      throw fail('CAMPOS_ORIGEN_INCOMPATIBLES');
+    }
+    const columns = approved.map((key, index) => {
+      const pos = key.indexOf('|');
+      const name = key.slice(0, pos);
+      const join = key.slice(pos + 1);
+      const def = { name, label: ORIGINAL_FIELD_LABELS[index] };
+      if (join) {
+        // Reproducir la notacion del Scheduled Script original para este join.
+        def.join = join === 'custentity_blt_codigo_equipo' ?
+          'CUSTENTITY_BLT_CODIGO_EQUIPO' : join;
+      }
+      if (name === 'formulatext' && !join) {
+        def.formula = EQUIPO_FORMULA;
+        def.sort = search.Sort.ASC;
+      }
+      return search.createColumn(def);
+    });
+    const source = search.create({
+      type: 'job',
+      filters: portafolioFilters(),
+      columns
+    });
+    checkColumns(source.columns || []);
+    return requiredSortedSearch(source);
+  }
+
   function safeValue(result, col) {
+    const key = keyOf(col);
+    // Regla del Scheduled Script original: Superintendente/Supervisor Zona
+    // son "No aplica" en proyectos inactivos. En activos se elimina el ID
+    // inicial de la etiqueta, sin tocar las otras 51 columnas.
+    if (key === 'custrecord18|custentity1' ||
+        key === 'custrecord_blt_supervisor_zona|custentity1') {
+      const inactive = result.getValue({name:'isinactive'});
+      if (inactive === true || inactive === 'T') return 'No aplica';
+      let label;
+      try { label = result.getText(col) || ''; }
+      catch (_) { throw fail('GETTEXT_REQUERIDO', key); }
+      const parts = String(label).split(' ');
+      parts.shift();
+      return parts.join(' ').trim() || null;
+    }
     const value = result.getValue(col);
-    if (value === undefined || value === null || value === '') return null;
-    if (!LABEL_FIELDS.has(keyOf(col))) return value;
-    // Un getValue() numerico de un campo select no representa el texto comercial.
+    if (!LABEL_FIELDS.has(key)) {
+      return value === undefined || value === null || value === '' ? null : value;
+    }
+    // Para campos de lista, la extraccion original prioriza getText.
+    // Nunca enviar IDs internos numericos como etiquetas a Aiven.
     let label;
     try { label = result.getText(col); }
-    catch (_) { throw fail('GETTEXT_REQUERIDO', keyOf(col)); }
+    catch (_) { throw fail('GETTEXT_REQUERIDO', key); }
     if (typeof label === 'string' && label.trim()) return label.trim();
-    // Algunos campos ya son texto directo; nunca aceptar el ID numerico como etiqueta.
+    if (value === undefined || value === null || value === '') return null;
     if (typeof value === 'string' && value.trim() && !/^\d+$/.test(value.trim())) return value.trim();
-    throw fail('ETIQUETA_NO_RESUELTA', keyOf(col));
+    throw fail('ETIQUETA_NO_RESUELTA', key);
   }
 
   function columnMetadata(columns) {
@@ -274,7 +358,7 @@ define([
 
   function getInputData() {
     const cfg = config();
-    const loaded = requiredSortedSearch(search.load({ id: cfg.searchId }));
+    const loaded = createPortafolioSource();
     const paged = loaded.runPaged({ pageSize: PAGE_SIZE });
     const count = Number(paged.count || 0);
     const pageCount = paged.pageRanges.length;
@@ -313,11 +397,11 @@ define([
       throw fail('CONFIGURACION_CAMBIADA');
     }
 
-    const loaded = requiredSortedSearch(search.load({ id: job.busqueda }));
+    const loaded = createPortafolioSource();
     const paged = loaded.runPaged({ pageSize: PAGE_SIZE });
     if (Number(paged.count) !== job.filasEsperadas ||
         paged.pageRanges.length !== job.paginasEsperadas) {
-      throw fail('BUSQUEDA_CAMBIO_DURANTE_ENVIO', 'Se cancela para evitar publicar un lote incompleto.');
+      throw fail('ORIGEN_CAMBIO_DURANTE_ENVIO', 'Se cancela para evitar publicar un lote incompleto.');
     }
 
     const page = paged.fetch({ index: job.pagina - 1 });
