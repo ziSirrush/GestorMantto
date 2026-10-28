@@ -109,7 +109,13 @@ test('F3: SQL de ambos universos no toca tablas productivas', async()=>{
   const ticketStatement=statements.find(({sql})=>sql.includes('FROM ns_tickets_pruebas t'));
   assert.ok(ticketStatement);
   assert.equal((ticketStatement.sql.match(/FROM ns_portafolio_pruebas/g)||[]).length,4);
-  assert.deepEqual(ticketStatement.params,[5,5,5]);
+  // FIX PERIODOS V001: fechas antes del alcance territorial y el tope de la ventana.
+  assert.match(ticketStatement.sql,/t\.fecha_reporte\s*>=\s*\?/);
+  assert.match(ticketStatement.sql,/t\.fecha_reporte\s*<\s*\?/);
+  assert.equal(ticketStatement.params.length,6);
+  assert.match(ticketStatement.params[0],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.match(ticketStatement.params[1],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.deepEqual(ticketStatement.params.slice(2),[5,5,5,10001]);
 });
 
 test('F3: entrega alcance que realmente autorizo el backend', async()=>{

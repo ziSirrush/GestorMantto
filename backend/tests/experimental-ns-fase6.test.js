@@ -39,7 +39,14 @@ test('F6: revision SQL consulta SOLO dos tablas NS con alcance territorial param
   assert.ok(sql[0].statement.includes('FROM ns_portafolio_pruebas p'));
   assert.ok(sql[1].statement.includes('FROM ns_tickets_pruebas t'));
   assert.ok(sql.every(({statement})=>!(/\b(?:FROM|JOIN)\s+(?:portafolio|tickets)\b/i.test(statement))));
-  assert.deepEqual(sql[0].params,[12]);assert.deepEqual(sql[1].params,[12]);
+  assert.deepEqual(sql[0].params,[12]);
+  // FIX PERIODOS V001: Live revisa solamente la fecha correspondiente.
+  assert.match(sql[1].statement,/t\.fecha_reporte\s*>=\s*\?/);
+  assert.match(sql[1].statement,/t\.fecha_reporte\s*<\s*\?/);
+  assert.equal(sql[1].params.length,3);
+  assert.match(sql[1].params[0],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.match(sql[1].params[1],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.deepEqual(sql[1].params.slice(2),[12]);
   assert.match(sql[0].statement,/estado_registro\s*=\s*1/);
 });
 

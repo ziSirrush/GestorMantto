@@ -185,7 +185,15 @@ test('F5: todas las consultas SQL contienen solo fuentes ns_ y scope territorial
   assert.match(q.pSql,/FROM ns_portafolio_pruebas p/);
   assert.match(q.tSql,/FROM ns_tickets_pruebas t/);
   assert.match(q.tSql,/FROM ns_portafolio_pruebas p_scope_uni_ticket_equipo/);
-  assert.deepEqual(q.pParams,[10,50001]);assert.deepEqual(q.tParams,[10,50001]);
+  assert.deepEqual(q.pParams,[10,50001]);
+  // FIX PERIODOS V001: verificamos el filtro de fecha sin asumir el dia de CI.
+  assert.match(q.tSql,/t\.fecha_reporte\s*>=\s*\?/);
+  assert.match(q.tSql,/t\.fecha_reporte\s*<\s*\?/);
+  assert.equal(q.tParams.length,4);
+  assert.match(q.tParams[0],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.match(q.tParams[1],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.ok(q.tParams[0] < q.tParams[1]);
+  assert.deepEqual(q.tParams.slice(2),[10,50001]);
   for(const sql of [q.pSql,q.tSql]){
     assert.doesNotMatch(sql,/\b(?:FROM|JOIN)\s+`?(?:portafolio|tickets|z_op)`?(?=\s|$)/i);
     assert.doesNotMatch(sql,/\b(?:UPDATE|INSERT|DELETE|REPLACE|TRUNCATE|ALTER|DROP)\s+/i);

@@ -162,7 +162,14 @@ test('F4: SQL productivo NO aparece en ninguna consulta principal ni en scope',(
   assert.match(q.tSql,/FROM ns_portafolio_pruebas p_scope_uni_ticket_equipo/i);
   for(const sql of [q.pSql,q.tSql])assert.doesNotMatch(sql,/\b(?:FROM|JOIN)\s+`?(?:portafolio|tickets)`?(?:\s|$)/i);
   assert.deepEqual(q.pParams,[10,50001]);
-  assert.deepEqual(q.tParams,[10,50001]);
+  // FIX PERIODOS V001: el filtro historico de Tickets usa [inicio,fin).
+  assert.match(q.tSql,/t\.fecha_reporte\s*>=\s*\?/);
+  assert.match(q.tSql,/t\.fecha_reporte\s*<\s*\?/);
+  assert.equal(q.tParams.length,4);
+  assert.match(q.tParams[0],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.match(q.tParams[1],/^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.ok(q.tParams[0] < q.tParams[1]);
+  assert.deepEqual(q.tParams.slice(2),[10,50001]);
 });
 test('F4: ausencia de columnas necesarias bloquea SELECT de datos',async()=>{
   let reads=0;
