@@ -68,6 +68,7 @@
     const entry=prior||{version:null,lastFetched:0,busy:false,visible:false,
       pending:false,retryCount:0,nextRetryAt:0};
     entry.refreshSilent=callbacks.refreshSilent;
+    entry.revisionQuery=typeof callbacks.revisionQuery==='function'?callbacks.revisionQuery:null;
     entry.reset=callbacks.reset;
     entries.set(route,entry);
     show(route,entry.lastFetched?'🟢 Información en memoria · verificando actualizaciones de NS en Aiven':'🧪 Experimental NS · preparando caché','ok');
@@ -222,7 +223,18 @@
       show(route,'🔄 Consultando actualizaciones NS en Aiven…','busy');
       const monitor=window.ManttoExperimentalNsPerformance;
       monitor?.noteCheck(route);
-      const request=()=>window.ManttoAuth.apiGet('/api/experimental-ns/live/'+MODULE_BY_ROUTE[route]+'/revision');
+      // El monitoreo usa el MISMO periodo autorizado de la vista.
+      const liveFilters=entry.revisionQuery?.()||{};
+      const params=[];
+      for(const key of ['fecha','dias','dias_proyectos','dias_criticos']){
+        const value=liveFilters[key];
+        if(value!==undefined&&value!==null&&value!==''){
+          params.push(encodeURIComponent(key)+'='+encodeURIComponent(String(value)));
+        }
+      }
+      const path='/api/experimental-ns/live/'+MODULE_BY_ROUTE[route]+'/revision'+
+        (params.length?'?'+params.join('&'):'');
+      const request=()=>window.ManttoAuth.apiGet(path);
       const res=await (monitor?.measureGet?monitor.measureGet(route,'revision',request):request());
       if(!res||res.ok!==true||res.source!=='experimental-ns'||!/^[a-f0-9]{64}$/.test(res.version||'')){
         throw new Error('Revision experimental invalida.');

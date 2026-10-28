@@ -17,7 +17,7 @@
 
   const state = {
     initialized: false, loading: false, tickets: [], portafolio: [],
-    dates: [], dayIndex: 0, current: [], filtered: [], page: 0,
+    dates: [], dayIndex: 0, selectedDate: '', previousDate: null, nextDate: null, current: [], filtered: [], page: 0,
     details: {}, truncated: false, modal: null, hasData:false, generation:0, activeDetail:null,boundRoot:false
   };
   function view(){ return document.getElementById('view-' + ROUTE); }
@@ -330,7 +330,7 @@
     }));
   }
   function renderDay(options={}){
-    const key=state.dates[state.dayIndex];
+    const key=state.selectedDate;
     if(!key){
       text('day-label','Sin registros experimentales');text('day-sub','Verifica las cargas NetSuite y el alcance autorizado');
       for(const name of ['total','cerrados','encurso','abiertos','blt','cli','atrap','agua','voltaje','nofunc','sla'])text(name,'0');
@@ -339,9 +339,12 @@
       for(const name of ['svg-estado','svg-resp','svg-caf-blt','svg-caf-cli','leg-estado','leg-resp','leg-caf-blt','leg-caf-cli','bar-zona','bar-tipo','bar-edo']){const el=id(name);if(el)el.innerHTML='';}
       renderTable();return;
     }
-    state.current=state.tickets.filter(t=>t.fr===key);
-    text('day-label',fullDate(key));text('day-sub',state.dayIndex===0?'Día más reciente disponible en la muestra NS':'Día '+(state.dayIndex+1)+' de '+state.dates.length);
-    const prev=id('prev-day'),next=id('next-day');if(prev)prev.disabled=state.dayIndex>=state.dates.length-1;if(next)next.disabled=state.dayIndex===0;
+    // El backend devuelve UN dia. Nunca filtrar un historico descargado.
+    state.current=state.tickets;
+    text('day-label',fullDate(key));text('day-sub','Tickets registrados en la fecha solicitada · NS');
+    const prev=id('prev-day'),next=id('next-day');
+    if(prev)prev.disabled=!state.previousDate;
+    if(next)next.disabled=!state.nextDate;
     const rows=state.current, total=rows.length;
     const closed=rows.filter(t=>t.et==='Cerrado'),inProgress=rows.filter(t=>t.et==='En curso'),open=rows.filter(t=>t.et==='Abierto');
     const blt=closed.filter(t=>t.res==='BLT'),client=closed.filter(t=>t.res==='CLIENTE');
@@ -376,8 +379,8 @@
   }
   function bind(){
     const root=view();if(!root)return;
-    id('prev-day')?.addEventListener('click',()=>{if(state.dayIndex<state.dates.length-1){state.dayIndex++;renderDay();}});
-    id('next-day')?.addEventListener('click',()=>{if(state.dayIndex>0){state.dayIndex--;renderDay();}});
+    id('prev-day')?.addEventListener('click',()=>{if(state.previousDate&&!state.loading)load({date:state.previousDate});});
+    id('next-day')?.addEventListener('click',()=>{if(state.nextDate&&!state.loading)load({date:state.nextDate});});
     id('refresh')?.addEventListener('click',()=>load());
     id('search')?.addEventListener('input',()=>{state.page=0;renderTable();});
     id('filter-et')?.addEventListener('change',()=>{state.page=0;renderTable();});
@@ -402,6 +405,7 @@
   function reset(){
     state.generation++;
     state.tickets=[];state.portafolio=[];state.dates=[];state.current=[];
+    state.selectedDate='';state.previousDate=null;state.nextDate=null;
     state.hasData=false;state.initialized=false;state.loading=false;
     state.details={};state.activeDetail=null;state.page=0;state.dayIndex=0;
     if(state.modal){state.modal.remove();state.modal=null;}
@@ -419,7 +423,10 @@
     const refresh=id('refresh');if(refresh&&!silent)refresh.disabled=true;
     if(!silent)setStatus('loading','Consultando únicamente tablas NS...');
     try{
-      const get=()=>window.ManttoAuth.apiGet(ENDPOINT);
+      // Fecha solicitada en SQL, no filtrado posterior en el navegador.
+      const requested=options.date||state.selectedDate;
+      const url=ENDPOINT+(requested?'?fecha='+encodeURIComponent(requested):'');
+      const get=()=>window.ManttoAuth.apiGet(url);
       const perf=window.ManttoExperimentalNsPerformance;
       const result=await (perf?.measureGet?perf.measureGet(ROUTE,'datos',get):get());
       if(token!==state.generation)return false;
@@ -428,13 +435,18 @@
       }
       const oldTickets=new Map(state.tickets.map(t=>[t.n,JSON.stringify(t)]));
       const oldPortafolio=JSON.stringify(state.portafolio);
-      const previousDate=state.dates[state.dayIndex];
-      state.tickets=result.data.tickets.map(ticket).filter(t=>t.n&&t.fr);
+      if(typeof result.fecha!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(result.fecha)){
+        throw new Error('Fecha de Resumen NS no válida.');
+      }
+      state.selectedDate=result.fecha;
+      state.previousDate=result.anterior||null;
+      state.nextDate=result.siguiente||null;
+      state.tickets=result.data.tickets.map(ticket).filter(t=>t.n&&t.fr===result.fecha);
       window.ManttoExperimentalNsProtection?.observe(ROUTE,state.tickets);
       state.portafolio=result.data.portafolio;
       state.truncated=result.truncado===true;
-      state.dates=[...new Set(state.tickets.map(t=>t.fr))].sort().reverse();
-      state.dayIndex=silent&&previousDate&&state.dates.includes(previousDate)?state.dates.indexOf(previousDate):0;
+      // La navegacion viene de consultas LIMIT 1 sobre el indice de fecha.
+      state.dates=[state.selectedDate];state.dayIndex=0;
       state.hasData=true;
       const changed=state.tickets.filter(t=>oldTickets.get(t.n)!==JSON.stringify(t)).length+
         [...oldTickets.keys()].filter(k=>!state.tickets.some(t=>t.n===k)).length+
@@ -452,6 +464,7 @@
     }catch(error){
       if(silent)throw error; // El coordinador F6 controla reconexion y revocacion.
       state.tickets=[];state.portafolio=[];state.dates=[];state.dayIndex=0;state.hasData=false;
+      state.selectedDate='';state.previousDate=null;state.nextDate=null;
       setStatus('error','Sin acceso a datos NS ('+String(error?.code||error?.message||'error de lectura').slice(0,90)+')');
       renderDay();return false;
     }finally{
@@ -466,7 +479,8 @@
       bind();state.initialized=true;
     }
     const live=window.ManttoExperimentalNsLive;
-    live?.register(ROUTE,{refreshSilent:()=>load({silent:true}),reset});
+    live?.register(ROUTE,{refreshSilent:()=>load({silent:true}),reset,
+      revisionQuery:()=>({fecha:state.selectedDate})});
     if(state.hasData){live?.check(ROUTE,false);return true;}
     load();return true;
   }

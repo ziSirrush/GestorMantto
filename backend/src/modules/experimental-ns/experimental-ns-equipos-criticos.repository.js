@@ -1,9 +1,10 @@
 'use strict';
 
-// BLT NOW | EXPERIMENTAL_NS_F4 | Snapshot acotado, SOLO NS; nunca escribe.
+// BLT NOW | EXPERIMENTAL_NS_F4 | Snapshot de calendario requerido, SOLO NS.
 const db = require('../../config/db');
 const base = require('./experimental-ns.repository');
 const scope = require('./experimental-ns.scope');
+const periods = require('./experimental-ns-periodos');
 
 const MAX_EQUIPMENT = 50000;
 const MAX_TICKETS = 50000;
@@ -30,7 +31,6 @@ function failUnavailable(code, message, details) {
 }
 
 async function requireCriticalSchema() {
-  // La puerta de F2 exige el mapa original, incluido custeventblt_mot_det.
   await base.requireSchema();
   const [rows] = await db.query(`
     SELECT TABLE_NAME, COLUMN_NAME
@@ -53,11 +53,19 @@ async function requireCriticalSchema() {
   }
 }
 
+function dayCriteria(req) {
+  // Misma fuente de preferencias usada por el servicio de Criticos.
+  // Solo se amplia la ventana si se solicita expresamente un periodo mayor.
+  const rawDefault=Number(req?.user?.criticos_periodo);
+  const userDays=Number.isSafeInteger(rawDefault)&&rawDefault>=1&&rawDefault<=3650?rawDefault:35;
+  return [periods.lookbackDays(req?.query?.dias,userDays),
+    periods.lookbackDays(req?.query?.dias_proyectos,userDays)];
+}
+
 function queryStatements(req) {
   const pScope = scope.portafolioScope(req);
   const tScope = scope.ticketsScope(req);
-  // SQL de columnas fijo y firmado por codigo: los parametros del usuario no
-  // pueden modificar nombres de tablas o expresiones de permisos.
+  const window=periods.historicalWindow(undefined,dayCriteria(req));
   const pSql = `
     SELECT p.id_portafolio,p.id_proyecto_cobranza,p.numero_equipo,p.proyecto,
       p.ciudad,p.zona_id,p.zona_operativa,p.identificacion_sitio,
@@ -73,14 +81,15 @@ function queryStatements(req) {
       t.responsabilidad,t.estatus_equipo_final,t.causa,t.causa_falla,
       t.tiempo_llegada,t.tiempo_solucion,t.ticket_excede,t.custeventblt_mot_det
     FROM ns_tickets_pruebas t
-    WHERE (${tScope.sql}) AND t.fecha_reporte IS NOT NULL
+    WHERE t.fecha_reporte >= ? AND t.fecha_reporte < ? AND (${tScope.sql})
     ORDER BY t.id DESC LIMIT ?`;
   scope.assertNoProductionTables(pSql);
   scope.assertNoProductionTables(tSql);
   return {
     pSql, tSql,
     pParams: [...pScope.params, MAX_EQUIPMENT + 1],
-    tParams: [...tScope.params, MAX_TICKETS + 1]
+    tParams: [window.inicio,window.fin,...tScope.params, MAX_TICKETS + 1],
+    window
   };
 }
 
@@ -88,14 +97,12 @@ async function readSnapshot(req) {
   scope.assertScope(req);
   await requireCriticalSchema();
   const {pSql,tSql,pParams,tParams} = queryStatements(req);
-  // Una lectura secuencial evita consumir simultaneamente las dos conexiones
-  // maximas configuradas por instancia en Azure.
   const [pRows] = await db.query(pSql, pParams);
-  if (pRows.length > MAX_EQUIPMENT) throw failUnavailable('EXPERIMENTAL_NS_EQUIPMENT_LIMIT',
+  if (!Array.isArray(pRows)||pRows.length > MAX_EQUIPMENT) throw failUnavailable('EXPERIMENTAL_NS_EQUIPMENT_LIMIT',
     'La muestra NS excede el limite del piloto (50000 equipos). No se genera un resultado parcial.');
   const [tRows] = await db.query(tSql, tParams);
-  if (tRows.length > MAX_TICKETS) throw failUnavailable('EXPERIMENTAL_NS_TICKETS_LIMIT',
-    'La muestra NS excede el limite del piloto (50000 tickets). No se genera criticidad parcial.');
+  if (!Array.isArray(tRows)||tRows.length > MAX_TICKETS) throw failUnavailable('EXPERIMENTAL_NS_TICKETS_LIMIT',
+    'El periodo solicitado excede el limite seguro de 50000 tickets. No se genera criticidad parcial.');
   return { portafolio: pRows, tickets: tRows };
 }
 
