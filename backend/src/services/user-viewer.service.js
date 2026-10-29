@@ -188,7 +188,7 @@ async function createViewerContext(actor, targetUserId, conn = db) {
     actor_id: Number(actor.id_SB),
     target_id: Number(target.id_SB),
     read_only: true
-  }, secret, { expiresIn: '30m' });
+  }, secret, { expiresIn: '30m', algorithm: 'HS256', issuer: 'blt-now-api', audience: 'blt-now-user-viewer' });
 
   return {
     viewer_token: viewerToken,

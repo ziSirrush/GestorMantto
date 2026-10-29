@@ -30,12 +30,12 @@ function createState(user, origin) {
       origin
     },
     process.env.JWT_SECRET,
-    { expiresIn: STATE_EXPIRES_IN }
+    { expiresIn: STATE_EXPIRES_IN, algorithm: 'HS256', issuer: 'blt-now-api', audience: 'blt-now-google-oauth' }
   );
 }
 
 function verifyState(state) {
-  const payload = jwt.verify(String(state || ''), process.env.JWT_SECRET);
+  const payload = jwt.verify(String(state || ''), process.env.JWT_SECRET, { algorithms: ['HS256'], issuer: 'blt-now-api', audience: 'blt-now-google-oauth' });
 
   if (
     payload.purpose !== STATE_PURPOSE ||
