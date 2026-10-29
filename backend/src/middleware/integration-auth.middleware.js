@@ -84,6 +84,39 @@ function runMiddlewareChain(middlewares, req, res, next, index = 0) {
  * y no admite ninguna cabecera de integracion M2M.
  * Replay durable se evalua por separado (AST-09).
  */
+// [Aster | 2026-10-29 | ASTER-MG | AST-09 REPLAY GUARD V001]
+// Compartido via Redis REST; no acepta replays al faltar almacenamiento.
+// Replay equivale a la misma firma, ruta, timestamp y cuerpo.
+const replayCache=new Map();
+async function assertNotReplay_aster(integrationId,timestamp,signature,method,url){
+  const maxSeconds=Math.max(1,Math.min(900,Number(process.env.INTEGRATION_TIMESTAMP_TOLERANCE_SECONDS||300)||300));
+  const key=crypto.createHash('sha256').update([integrationId,timestamp,signature,method,url].join('|')).digest('hex');
+  const redisUrl=String(process.env.AUTH_RATE_LIMIT_REDIS_URL||'').trim();
+  const redisToken=String(process.env.AUTH_RATE_LIMIT_REDIS_TOKEN||'').trim();
+  if(redisUrl||redisToken){
+    if(!redisUrl.startsWith('https://')||!redisToken)throw Error('M2M replay Redis REST incompleto');
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),3000);
+    try{
+      const uri=(redisUrl.endsWith('/')?redisUrl.slice(0,-1):redisUrl)+'/pipeline';
+      const response=await fetch(uri,{method:'POST',headers:{Authorization:'Bearer '+redisToken,'Content-Type':'application/json'},
+        redirect:'error',signal:controller.signal,
+        body:JSON.stringify([['SET','blt:m2m:replay:'+key,'1','EX',String(maxSeconds*2+30),'NX']])});
+      if(!response.ok)throw Error('M2M replay store unavailable');
+      const results=await response.json();
+      if(!Array.isArray(results)||results.length!==1||results[0]?.error)throw Error('M2M replay store invalid');
+      return results[0].result==='OK';
+    }finally{clearTimeout(timer)}
+  }
+  // Nunca declarar seguridad distribuida a partir de memoria local.
+  if(String(process.env.NODE_ENV||'').toLowerCase()==='production')throw Error('M2M replay store required in production');
+  const now=Date.now(),expiry=now+(maxSeconds*2+30)*1000;
+  if(replayCache.size>5000)for(const [k,until] of replayCache){if(until<=now)replayCache.delete(k);}
+  if(replayCache.size>=10000)throw Error('M2M replay cache capacity reached');
+  if((replayCache.get(key)||0)>now)return false;
+  replayCache.set(key,expiry);
+  return true;
+}
+
 function requireIntegrationAuth(req, res, next, options = {}) {
   const idHeader = getHeaderName('INTEGRATION_HEADER_ID', 'X-Integration-Id');
   const timestampHeader = getHeaderName('INTEGRATION_HEADER_TIMESTAMP', 'X-Integration-Timestamp');
@@ -124,8 +157,18 @@ function requireIntegrationAuth(req, res, next, options = {}) {
   if (!safeHexEqual(signature, expectedSignature)) {
     return authError(res, 'Firma de integracion invalida.', 'INTEGRATION_AUTH_INVALID_SIGNATURE');
   }
-  req.integrationAuth = Object.freeze({ integrationId, timestamp: timestampSeconds, algorithm });
-  return next();
+  // Consume el nonce derivado de la firma DESPUES de validar HMAC.
+  // El almacenamiento compartido evita carreras entre instancias Azure.
+  void assertNotReplay_aster(integrationId,timestampRaw,signature,String(req.method||'').toUpperCase(),String(req.originalUrl||''))
+    .then(available=>{
+      if(!available)return authError(res,'Firma de integracion ya utilizada.','INTEGRATION_AUTH_REPLAY');
+      req.integrationAuth=Object.freeze({integrationId,timestamp:timestampSeconds,algorithm});
+      return next();
+    })
+    .catch(error=>{
+      console.error('[INTEGRATION_REPLAY_GUARD_UNAVAILABLE]',error.message);
+      return res.status(503).json({ok:false,code:'INTEGRATION_REPLAY_UNAVAILABLE',message:'Control de seguridad temporalmente no disponible.'});
+    });
 }
 
 function requireIntegrationAuthFor(expectedIntegrationIdEnvName, options = {}) {
