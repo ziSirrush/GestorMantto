@@ -37,6 +37,15 @@ test('M2M sin HMAC permanece bloqueado con flag global false',()=>{
   assert.equal(response.res.statusCode,401);
   assert.equal(response.res.body.code,'INTEGRATION_AUTH_HEADERS_MISSING');
 });
+test('M2M con firma valida pasa incluso si INTEGRATION_AUTH_ENABLED=false',()=>{
+  const m=auth.requireIntegrationAuthFor('INTEGRATION_LOGISTICA_ID');
+  const body={rows:[]};
+  const req=make(body,signed(body));
+  const response=invoke(m,req);
+  assert.equal(response.nextCalled,true);
+  assert.equal(req.integrationAuth.integrationId,'qa-logistica');
+});
+
 test('M2M firma valida pasa; firma falsa, identidad ajena y JWT humano no pasan',()=>{
   const m=auth.requireIntegrationAuthFor('INTEGRATION_LOGISTICA_ID');
   const body={rows:[]};
@@ -49,6 +58,13 @@ test('M2M firma valida pasa; firma falsa, identidad ajena y JWT humano no pasan'
   const human=make(body);human.user={id_SB:1};
   assert.equal(invoke(m,human).res.body.code,'INTEGRATION_AUTH_HEADERS_MISSING');
 });
+test('El middleware directo exige HMAC aun con flag global false',()=>{
+  const body={rows:[]};
+  assert.equal(invoke(auth.requireIntegrationAuth,make(body)).res.body.code,'INTEGRATION_AUTH_HEADERS_MISSING');
+  const signedRequest=make(body,signed(body));
+  assert.equal(invoke(auth.requireIntegrationAuth,signedRequest).nextCalled,true);
+});
+
 test('Fallback humano historico solo admite JWT si no hay encabezados HMAC',()=>{
   const fallback=(req,res,next)=>req.user?next():res.status(401).json({code:'SESSION_REQUIRED'});
   const m=auth.requireIntegrationAuthFor('INTEGRATION_LOGISTICA_ID',{whenDisabled:[fallback]});
@@ -58,4 +74,10 @@ test('Fallback humano historico solo admite JWT si no hay encabezados HMAC',()=>
   assert.equal(invoke(m,human).nextCalled,true);
   const partial=make(body,{'x-integration-id':'qa-logistica'});partial.user={id_SB:1};
   assert.equal(invoke(m,partial).res.body.code,'INTEGRATION_AUTH_HEADERS_MISSING');
+  const empty=make(body,{'x-integration-id':''});empty.user={id_SB:1};
+  assert.equal(invoke(m,empty).res.body.code,'INTEGRATION_AUTH_HEADERS_MISSING');
+  const good=make(body,signed(body));
+  assert.equal(invoke(m,good).nextCalled,true);
+  process.env.INTEGRATION_AUTH_ENABLED='true';
+  assert.equal(invoke(m,human).res.body.code,'INTEGRATION_AUTH_HEADERS_MISSING');
 });
