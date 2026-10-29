@@ -6,8 +6,9 @@ const fs=require('node:fs');
 const path=require('node:path');
 const modulePath=path.resolve(__dirname,'../modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.js');
 const cssPath=path.resolve(__dirname,'../modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.css');
+const mainPath=path.resolve(__dirname,'../modules/instalaciones-administracion/instalaciones-administracion_cor.js');
 const api=require(modulePath);
-const {visibleFields,canCapture,editable,createRow,validateDraftCell,assessRows,MAX}=api.helpers;
+const {visibleFields,canCapture,editable,createRow,duplicateRow,projectPrefill,validateDraftCell,assessRows,MAX}=api.helpers;
 const fullGroups=[
   {key:'proyecto',fields:[],permissions:{can_view:true,can_edit:true}},
   {key:'cliente_contrato',fields:[],permissions:{can_view:true,can_edit:true}},
@@ -84,6 +85,41 @@ test('No permite mas de veinte filas',()=>{
   assert.equal(MAX,20);
   assert.equal(assessRows(Array.from({length:21},(_,i)=>row('P'+i,'Proyecto '+i,'Equipo'))).ok,false);
 });
+test('Duplicar fila copia el borrador salvo PH NS y Referencia en sitio',()=>{
+  const source=createRow(3);
+  source.values={proyecto:'Proyecto A',id_proyecto:'P200',referencia_sitio:'Elevador 1',
+    ph_ns:'PH900',estatus:'04-M',marca:null,numero_pisos:'12'};
+  const copy=duplicateRow(source,4);
+  assert.equal(copy.draft_id,4);
+  assert.notStrictEqual(copy.values,source.values);
+  assert.equal(Object.getPrototypeOf(copy.values),null);
+  assert.deepEqual({...copy.values},{proyecto:'Proyecto A',id_proyecto:'P200',estatus:'04-M',marca:null,numero_pisos:'12'});
+  assert.equal(Object.hasOwn(copy.values,'ph_ns'),false);
+  assert.equal(Object.hasOwn(copy.values,'referencia_sitio'),false);
+  assert.equal(source.values.ph_ns,'PH900');
+  assert.equal(source.values.referencia_sitio,'Elevador 1');
+});
+test('Agregar desde un proyecto precarga sus datos autorizados y limpia PH NS y Referencia',()=>{
+  const context={
+    project:{project_key:'P:P200',id_proyecto:'P200',proyecto:'Proyecto A'},
+    template:{id_ins_fl:18,id_proyecto:'P-VIEJO',proyecto:'Nombre anterior',
+      referencia_sitio:'Elevador 1',ph_ns:'PH900',estatus:'04-M',marca:'BLT',
+      numero_pisos:'12',dias_restantes:8,rel_admin:'AA'}
+  };
+  const defaults=projectPrefill(context,[
+    'proyecto','referencia_sitio','ph_ns','estatus','marca','numero_pisos','dias_restantes','rel_admin'
+  ]);
+  const row=createRow(5,defaults);
+  assert.deepEqual({...row.values},{
+    id_proyecto:'P200',proyecto:'Proyecto A',estatus:'04-M',marca:'BLT',numero_pisos:'12'
+  });
+  for(const field of ['ph_ns','referencia_sitio','id_ins_fl','dias_restantes','rel_admin'])
+    assert.equal(Object.hasOwn(row.values,field),false,field);
+  const main=fs.readFileSync(mainPath,'utf8');
+  assert.match(main,/function getAltaContext_cor\(\)/);
+  assert.match(main,/st\.records\[0\]/);
+  assert.match(main,/getAltaContext:getAltaContext_cor/);
+});
 test('Captura solo envia POST cuando el usuario confirma, sin storage ni PATCH',()=>{
   const src=fs.readFileSync(modulePath,'utf8');
   assert.match(src, /method:'POST'/);
@@ -92,6 +128,9 @@ test('Captura solo envia POST cuando el usuario confirma, sin storage ni PATCH',
   assert.doesNotMatch(src, /\b(?:localStorage|sessionStorage|indexedDB)\./i);
   assert.match(src,/Agregar nuevo/);
   assert.match(src,/Agregar fila/);
+  assert.match(src,/data-iadm-altas-duplicate/);
+  assert.match(src,/>Duplicar<\/button>/);
+  assert.match(src,/getAltaContext/);
   assert.match(src,/Guardar lote/);
   assert.ok(fs.existsSync(cssPath));
 });

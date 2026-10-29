@@ -371,6 +371,19 @@
     st.selectedRecord=null;st.selectedSummary=null;st.editingGroup=null;st.editingDetail=false;st.touched.clear();
     showPage_cor('equipos');return loadTeams_cor();
   }
+  function getAltaContext_cor(){
+    if(!st.selectedProject)return null;
+    const source=st.page==='detalle'&&st.selectedRecord
+      ?st.selectedRecord:(st.records[0]||st.selectedProject);
+    return {
+      project:{
+        project_key:st.selectedProject.project_key,
+        id_proyecto:st.selectedProject.id_proyecto,
+        proyecto:st.selectedProject.proyecto
+      },
+      template:{...source}
+    };
+  }
   // Compatibilidad: tras PATCH se siguen recargando inmediatamente los datos
   // afectados; ahora son dos niveles (lista de proyectos + equipos del proyecto).
   async function search(q){
@@ -1274,5 +1287,5 @@
     const id=st.selectedRecord?.id_ins_fl;
     refreshAfterContextSwitch_cor({recordId:id});
   });
-  window.ManttoInstalacionesAdministracion_cor=Object.freeze({init,refresh});
+  window.ManttoInstalacionesAdministracion_cor=Object.freeze({init,refresh,getAltaContext:getAltaContext_cor});
 })();

@@ -1,6 +1,7 @@
 /* BLT NOW | 2026-10-20 | Instalaciones Administracion: Altas Fase 4 V001
  * Conserva F2/F3: tabla con edicion fantasma + formulas Excel en vivo.
  * F4: POST transaccional confirmado manualmente, GET posterior y refresco.
+ * 2026-10-29: duplicacion de borradores sin PH NS ni Referencia en sitio.
  * No hay auto-POST ni reintento despues de resultado incierto.
  * AR/BB son PREVISIONES y nunca se guardan como fin real.
  */
@@ -31,6 +32,7 @@
     'fecha_fin_ajuste_real', 'anio_termino', 'costo_mensual_mantenimiento_cem'
   ]);
   const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl']);
+  const DUPLICATE_OMITTED = new Set(['ph_ns', 'referencia_sitio']);
   const LABELS = Object.freeze({
     proyecto:'Proyecto', id_proyecto:'PP NS', referencia_sitio:'Referencia en sitio',
     estatus:'Estatus', estatus_completo:'Estatus completo', fecha_visita:'Ultima visita',
@@ -78,7 +80,28 @@
   }
 
   function editable(field) { return field==='id_proyecto' || !NO_INPUT.has(field); }
-  function createRow(id) {return {draft_id:id, values:Object.create(null)};}
+  function createRow(id, defaults=null) {
+    const row={draft_id:id, values:Object.create(null)};
+    for(const [field,value] of Object.entries(defaults || {})){
+      if(!DUPLICATE_OMITTED.has(field))row.values[field]=value;
+    }
+    return row;
+  }
+  function duplicateRow(source, id) {
+    return createRow(id,source?.values);
+  }
+  function projectPrefill(context, fields) {
+    const values=Object.create(null), source=context?.template || {};
+    const allowed=new Set(['id_proyecto',...(fields || []).filter(editable)]);
+    for(const field of allowed){
+      if(!DUPLICATE_OMITTED.has(field) && own(source,field))values[field]=source[field];
+    }
+    const project=context?.project || {};
+    for(const field of ['id_proyecto','proyecto']){
+      if(own(project,field) && trimmed(project[field]))values[field]=project[field];
+    }
+    return values;
+  }
   function validateDraftCell(field, raw, meta={}, catalogs=null, helpers={}) {
     const value = trimmed(raw);
     if (!editable(field)) return {ok:false,error:'Campo calculado o de sistema.'};
@@ -152,7 +175,7 @@
 
   function install(env) {
     const document=env.document;
-    let host=null, observer=null, context=null, contract=null, catalogs=null;
+    let host=null, observer=null, context=null, contract=null, catalogs=null, prefillValues=null;
     let rows=[], seq=0, current=null, visible=false, beforeVisibility=new Map(), error='';
     let saving=false, uncertain=false;
     let requestSerial=0, boundHost=null;
@@ -173,7 +196,7 @@
     const rowById=id=>rows.find(row=>row.draft_id===Number(id));
     function clearSensitive() {
       ++requestSerial;
-      context=null;contract=null;catalogs=null;rows=[];seq=0;current=null;error='';
+      context=null;contract=null;catalogs=null;prefillValues=null;rows=[];seq=0;current=null;error='';
       // No conservar payload ni datos personales tras cambio de sesion.
       uncertain=false;
       saving=false;
@@ -262,7 +285,9 @@
         error='Termina la edicion del equipo abierto antes de iniciar un alta.';
         return false;
       }
-      if(!rows.length)rows=[createRow(++seq)];
+      const projectContext=env.ManttoInstalacionesAdministracion_cor?.getAltaContext?.() || null;
+      prefillValues=projectPrefill(projectContext,allFields());
+      if(!rows.length)rows=[createRow(++seq,prefillValues)];
       beforeVisibility=new Map();
       for(const id of ['iadm-cor-projects','iadm-cor-project','iadm-cor-bulk','iadm-cor-selected','iadm-cor-empty']){
         const n=node(id);if(n){beforeVisibility.set(id,n.hidden);n.hidden=true;}
@@ -281,7 +306,7 @@
       visible=false;current=null;
       const panel=node('iadm-cor-altas-panel');if(panel)panel.hidden=true;
       for(const [id,wasHidden] of beforeVisibility){const n=node(id);if(n)n.hidden=wasHidden;}
-      beforeVisibility.clear();rows=[];seq=0;error='';uncertain=false;
+      beforeVisibility.clear();rows=[];seq=0;error='';uncertain=false;prefillValues=null;
       const table=node('iadm-cor-altas-table');if(table)table.replaceChildren();
       return true;
     }
@@ -353,9 +378,12 @@
       const header='<th scope="col" class="iadm-cor-altas-row-head">Fila</th><th scope="col">PP NS *</th>'+columns.map(x=>
         '<th scope="col">'+escape(label(x))+'</th>').join('');
       const body=rows.map((row,index)=>'<tr data-iadm-altas-row="'+row.draft_id+'">'+
-        '<td class="iadm-cor-altas-row-head"><strong>'+String(index+1)+'</strong>'+
+        '<td class="iadm-cor-altas-row-head"><strong>'+String(index+1)+'</strong><div class="iadm-cor-altas-row-actions">'+
+        '<button class="iadm-cor-btn iadm-cor-btn-compact" type="button" data-iadm-altas-duplicate="'+row.draft_id+'" '+
+        'aria-label="Duplicar fila '+String(index+1)+' sin PH NS ni Referencia en sitio" '+
+        (rows.length>=MAX?'disabled':'')+'>Duplicar</button>'+
         '<button class="iadm-cor-btn iadm-cor-btn-compact" type="button" data-iadm-altas-remove="'+row.draft_id+'" '+
-        (rows.length===1?'disabled':'')+'>Quitar</button></td>'+cell(row,'id_proyecto',previews.get(row.draft_id))+
+        (rows.length===1?'disabled':'')+'>Quitar</button></div></td>'+cell(row,'id_proyecto',previews.get(row.draft_id))+
         columns.map(field=>cell(row,field,previews.get(row.draft_id))).join('')+'</tr>').join('');
       container.innerHTML='<table class="iadm-cor-matrix"><thead><tr>'+header+'</tr></thead><tbody>'+body+'</tbody></table>';
       const count=node('iadm-cor-altas-count');if(count)count.textContent=rows.length+' de '+MAX+
@@ -472,9 +500,14 @@
       if(target.closest('#iadm-cor-altas-back')){event.preventDefault();if(current&&!commitCurrent())return;close();return;}
       if(uncertain){event.preventDefault();return;}
       if(target.closest('#iadm-cor-altas-add')){event.preventDefault();if(current&&!commitCurrent())return;
-        if(rows.length<MAX){rows.push(createRow(++seq));render();}return;}
+        if(rows.length<MAX){rows.push(createRow(++seq,prefillValues));render();}return;}
       if(target.closest('#iadm-cor-altas-clear')){event.preventDefault();if(!env.confirm('¿Vaciar todos los borradores de equipos nuevos?'))return;
-        rows=[createRow(++seq)];current=null;error='';render();return;}
+        rows=[createRow(++seq,prefillValues)];current=null;error='';render();return;}
+      const duplicate=target.closest('[data-iadm-altas-duplicate]');
+      if(duplicate){event.preventDefault();if(current&&!commitCurrent())return;if(rows.length>=MAX)return;
+        const id=Number(duplicate.dataset.iadmAltasDuplicate),index=rows.findIndex(row=>row.draft_id===id);
+        if(index<0)return;
+        rows.splice(index+1,0,duplicateRow(rows[index],++seq));current=null;error='';render();return;}
       const removed=target.closest('[data-iadm-altas-remove]');
       if(removed){event.preventDefault();if(rows.length<=1)return;
         const id=Number(removed.dataset.iadmAltasRemove),row=rowById(id);
@@ -535,7 +568,7 @@
     else env.setTimeout(watch,0);
   }
   return {install, helpers:Object.freeze({
-    visibleFields,canCapture,editable,createRow,validateDraftCell,assessRows,previewRowCor,
+    visibleFields,canCapture,editable,createRow,duplicateRow,projectPrefill,validateDraftCell,assessRows,previewRowCor,
     postRowsCor,acceptedPostCor,MAX,REQUIRED,NO_INPUT
   })};
 });
