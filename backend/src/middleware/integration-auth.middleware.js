@@ -2,9 +2,9 @@
 
 // [Aster | 2026-10-19 | ASTER-MG | ALMACEN NS FASE 2 M2M HMAC V001]
 // [Aster | 2026-10-19 | ASTER-MG | FIX ALMACEN ID M2M SECRET EXISTENTE V001]
-// Se conserva el contrato M2M existente y se agrega autenticacion forzosa
-// por ruta: la sincronizacion de Almacen NUNCA hereda un bypass global.
-// El comportamiento de las rutas M2M anteriores no cambia por defecto.
+// [Aster | 2026-10-29 | ASTER-MG | P0 M2M FAIL CLOSED V002]
+// Toda ruta M2M exige HMAC. El flag global historico solo habilita
+// una alternativa humana explicita, protegida por guards whenDisabled.
 
 const crypto = require('crypto');
 
@@ -79,13 +79,12 @@ function runMiddlewareChain(middlewares, req, res, next, index = 0) {
 
 /**
  * Canonico: timestamp + '\n' + METHOD + '\n' + originalUrl + '\n' + rawBody
- * El flag global historico mantiene su semantica salvo forceEnabled=true.
- * La proteccion contra replay depende de la ventana temporal; el servicio
- * de Almacen agrega idempotencia durable por lote/pagina/hash.
+ * HMAC obligatorio incluso si el flag global esta desactivado.
+ * La alternativa humana existe solo con guards whenDisabled explicitos,
+ * y no admite ninguna cabecera de integracion M2M.
+ * Replay durable se evalua por separado (AST-09).
  */
 function requireIntegrationAuth(req, res, next, options = {}) {
-  if (!isIntegrationAuthEnabled() && options.forceEnabled !== true) return next();
-
   const idHeader = getHeaderName('INTEGRATION_HEADER_ID', 'X-Integration-Id');
   const timestampHeader = getHeaderName('INTEGRATION_HEADER_TIMESTAMP', 'X-Integration-Timestamp');
   const signatureHeader = getHeaderName('INTEGRATION_HEADER_SIGNATURE', 'X-Integration-Signature');
@@ -145,7 +144,8 @@ function requireIntegrationAuthFor(expectedIntegrationIdEnvName, options = {}) {
         getHeaderName('INTEGRATION_HEADER_TIMESTAMP', 'X-Integration-Timestamp'),
         getHeaderName('INTEGRATION_HEADER_SIGNATURE', 'X-Integration-Signature')
       ];
-      const hasM2MHeaders = headers.some(name => getHeader(req, name));
+      // Un header presente, aunque vacio, evita la degradacion a JWT.
+      const hasM2MHeaders = headers.some(name => req.get(name) != null);
       if (!hasM2MHeaders) return runMiddlewareChain(disabledMiddlewares, req, res, next);
     }
     return requireIntegrationAuth(req, res, (error) => {
@@ -166,7 +166,7 @@ function requireIntegrationAuthFor(expectedIntegrationIdEnvName, options = {}) {
         return authError(res, 'La identidad de integracion no esta autorizada para esta ruta.', 'INTEGRATION_AUTH_WRONG_ROUTE_ID');
       }
       return next();
-    }, { forceEnabled: alwaysRequireAuth, algorithm: options.algorithm });
+    }, { algorithm: options.algorithm });
   };
 }
 
