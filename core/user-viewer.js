@@ -1,5 +1,5 @@
 (function(){
-  // [Lumbre | 2026-10-29 | LUMBRE-MG | VISOR_CANAL_EFIMERO_V002]
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | SIDEBAR_PERMISOS_FAIL_CLOSED_V003]
   const state={
     catalog:[],
     permissions:new Map(),
@@ -355,9 +355,14 @@
     const list=Array.isArray(codes)?codes:[codes];
     return list.some(code=>can(code,options));
   }
+  function isSidebarPermissionNode(node){
+    return node?.matches?.('.side-item[data-permission]')===true;
+  }
   function applyActionPermissions(root=document){
     root.querySelectorAll?.('[data-permission-code]').forEach(node=>{
-      const permitted=can(node.dataset.permissionCode,{defaultValue:true});
+      // La navegación es fail-closed. Los controles internos heredados conservan
+      // su compatibilidad cuando el catálogo todavía no declara el permiso.
+      const permitted=can(node.dataset.permissionCode,{defaultValue:!isSidebarPermissionNode(node)});
       const behavior=String(node.dataset.permissionBehavior||'hide').toLowerCase();
       if(behavior==='disable'){
         node.disabled=!permitted;
@@ -367,7 +372,20 @@
       }
     });
   }
+  function resetPermissionState(){
+    state.catalog=[];
+    state.permissions.clear();
+    state.permissionStates.clear();
+    state.permissionCodes.clear();
+    state.canUseViewer=false;
+  }
+  function lockSidebarUntilPermissionsLoad(){
+    resetPermissionState();
+    applySidebar({redirectUnauthorized:false});
+    renderLauncher();
+  }
   async function reloadPermissions(){
+    lockSidebarUntilPermissionsLoad();
     await loadSessionPermissions();
     applySidebar();
     applyActionPermissions(document);
@@ -405,6 +423,7 @@
     state.ready=true;
     bindHeader();
     bindBanner();
+    lockSidebarUntilPermissionsLoad();
     try{
       await loadSessionPermissions();
       applySidebar();
@@ -415,11 +434,7 @@
       if(allowed())await loadViewerUsers();
     }catch(error){
       console.error('[Permisos de sesión]',error);
-      state.catalog=[];
-      state.permissions.clear();
-      state.permissionStates.clear();
-      state.permissionCodes.clear();
-      state.canUseViewer=false;
+      resetPermissionState();
       applySidebar({redirectUnauthorized:false});
       renderLauncher();
       renderBanner();
@@ -428,13 +443,11 @@
   document.addEventListener('mantto:auth-ready',init);
   document.addEventListener('mantto:view-user-changed',async()=>{
     let permissionsConfirmed=true;
+    lockSidebarUntilPermissionsLoad();
     try{await loadSessionPermissions();}catch(error){
       permissionsConfirmed=false;
       console.error('[Permisos de sesión]',error);
-      state.permissions.clear();
-      state.permissionStates.clear();
-      state.permissionCodes.clear();
-      state.canUseViewer=false;
+      resetPermissionState();
     }
     renderLauncher();
     renderBanner();

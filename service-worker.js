@@ -1,5 +1,5 @@
-// [Lumbre | 2026-10-29 | LUMBRE-MG | CACHE_VISOR_CANAL_EFIMERO_V002]
-const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001-viewer-channel-v002';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | CACHE_SIDEBAR_PERMISOS_V003]
+const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001-viewer-channel-v002-sidebar-permissions-v003';
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';

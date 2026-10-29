@@ -162,7 +162,7 @@ test('FIX: auth/me está acotado pero las solicitudes operativas conservan su fl
 test('FIX: el caché PWA conserva el corte offline y carga Auth actualizado',()=>{
   const v='20261021-offline-http-session-v001';
   assert.match(code('index.html'),/core\/auth\.js\?v=20261029-viewer-channel-v002/);
-  assert.match(code('index.html'),/core\/user-viewer\.js\?v=20261029-viewer-channel-v002/);
+  assert.match(code('index.html'),/core\/user-viewer\.js\?v=20261029-sidebar-permissions-v003/);
   assert.match(code('index.html'),new RegExp('core/offline-scheduler\\.js\\?v='+v));
   assert.match(code('core/offline-scheduler.js'),new RegExp('core/offline-navigation\\.js\\?v='+v));
   assert.match(code('core/offline-navigation.js'),new RegExp('core/offline-resumen-dia\\.js\\?v='+v));

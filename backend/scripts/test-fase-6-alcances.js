@@ -9,7 +9,7 @@ process.env.DB_PORT ||= '3306';
 process.env.DB_USER ||= 'test';
 process.env.DB_PASSWORD ||= 'test';
 process.env.DB_NAME ||= 'test';
-process.env.DB_SSL ||= 'false';
+process.env.DB_SSL = 'true';
 
 const db = require('../src/config/db');
 

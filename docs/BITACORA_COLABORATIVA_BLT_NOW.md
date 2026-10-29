@@ -85,3 +85,54 @@ El navegador debe soportar `BroadcastChannel`. Si no lo soporta, el visor falla 
 No se realizó commit, push, CI remoto ni despliegue. El archivo local no relacionado `docs/PROJECT_CONSTITUTION.md` no fue modificado.
 
 [Lumbre | 2026-10-29 | LUMBRE-MG | FIX_VISOR_CANAL_EFIMERO_LOCAL_V001]
+
+## Preparación local Version 102926.8 — 29/10/2026 - 17:22
+
+- **Base:** `118974a8b436cc6728ebbb009e1b01f80ee64938` (`Version 102926.7`)
+- **Rama:** `main`
+- **Implementación:** Lumbre
+- **Revisión humana:** pendiente
+- **Estado:** `LOCAL` + `EN QA` aprobados; `PENDIENTE AUTORIZACION` para commit; push no realizado
+
+### LUMBRE-FIX-SIDEBAR-PERMISOS-002 — Navegación fail-closed
+
+Se reaplicó sobre la base `.7` la corrección local que no alcanzó el remoto debido al rechazo non-fast-forward del push anterior. `applyActionPermissions()` podía volver a mostrar módulos que `applySidebar()` ya había ocultado cuando el permiso exacto no existía, no estaba configurado o todavía estaba cargando.
+
+- Los nodos `.side-item[data-permission]` usan valor predeterminado denegado.
+- El estado de permisos y el menú se bloquean antes de iniciar, recargar o cambiar la identidad del Visor.
+- Un error de la API conserva oculta la navegación protegida.
+- Se actualizaron las referencias de caché de `user-viewer.js` y del Service Worker.
+- Se agregaron regresiones para carga pendiente, ausencia de permiso, concesión efectiva, cambio de identidad y fallo de API.
+
+### LUMBRE-FIX-CI-TLS-001 — Contrato Fase 6 compatible con TLS obligatorio
+
+El contrato `backend/scripts/test-fase-6-alcances.js` establecía `DB_SSL` en `false`, mientras `backend/src/config/aiven-tls.js` exige TLS habilitado. La prueba usa ejecutores simulados y no abre una conexión real.
+
+- Se sustituyó exclusivamente `process.env.DB_SSL ||= 'false';` por `process.env.DB_SSL = 'true';`.
+- No se modificó `aiven-tls.js` ni se debilitaron sus validaciones.
+- No se modificaron variables de Azure.
+- No se reintrodujeron Redis ni ClamAV.
+
+### Archivos afectados
+
+- `backend/scripts/test-fase-6-alcances.js`
+- `core/user-viewer.js`
+- `index.html`
+- `service-worker.js`
+- `tests/fix_offline_http_session_v001.test.js`
+- `tests/lumbre-fix-sidebar-permissions.test.js`
+- `docs/BITACORA_COLABORATIVA_BLT_NOW.md`
+
+### Validaciones ejecutadas
+
+- `node backend/scripts/test-fase-6-alcances.js`: aprobado; `FASE_6_ALCANCES_GLOBALES_V001 + UNI_PUERTAS_CUARTOS: OK`.
+- Regresiones dirigidas de permisos, sesión y Visor: 29/29 aprobadas.
+- Análisis sintáctico de los tres archivos JavaScript directamente intervenidos: aprobado.
+- `npm.cmd run check --prefix backend`: aprobado; estructura y árbol Git validados.
+- `npm.cmd test --prefix backend`: aprobado en sus cinco etapas. Validación 216/216, backend 278/278, contratos 14/14 y los tres validadores de almacenamiento concluyeron correctamente; la etapa unitaria también terminó sin fallos.
+
+### Publicación
+
+No se realizó commit, push, CI remoto ni despliegue. La versión `102926.8` permanece reservada para publicación por Joseph.
+
+[Lumbre | 2026-10-29 | LUMBRE-MG | PREPARACION_LOCAL_VERSION_102926_8_V001]
