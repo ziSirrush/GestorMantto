@@ -26,10 +26,12 @@ test('Guard General resuelve todos los permisos configurados en una sola consult
   assert.match(permissionSource, /psa\.codigo_permiso IN \(\$\{codePlaceholders\}\)/);
 });
 
-test('el batch de permisos reutiliza roles activos ya hidratados por Auth', () => {
-  assert.match(guardSource, /roles_detalle/);
-  assert.match(guardSource, /roleIds:\s*effectiveRoleIdsFromRequest_gnral\(req\)/);
-  assert.match(permissionSource, /rp\.id_rol IN \(\$\{rolePlaceholders\}\)/);
+test('el batch de permisos consulta roles vigentes en Aiven sin confiar en IDs del contexto', () => {
+  assert.match(permissionSource, /INNER JOIN \$\{activeUserRolesSql\(\)\} roles_usuario/);
+  assert.match(permissionSource, /ur\.activo = 1/);
+  assert.match(permissionSource, /r\.estado = 1/);
+  assert.match(permissionSource, /NOT EXISTS \(SELECT 1 FROM usuario_roles ur_any/);
+  assert.doesNotMatch(permissionSource, /rp\.id_rol IN \(\$\{rolePlaceholders\}\)/);
 });
 
 test('alcance UNITED reutiliza zonas hidratadas antes de consultar usuario_zop', () => {
@@ -60,10 +62,14 @@ test('Dashboard deja de transportar SELECT p.* y t.* en la carga inicial', () =>
   }
 });
 
-test('GET crudos de Logistica requieren sesion humana y POST sync conserva M2M', () => {
-  assert.match(logisticaRoutesSource, /router\.post\('\/sync', requireLogisticaIntegration/);
-  assert.match(logisticaRoutesSource, /router\.get\('\/', requireAuth, logisticaController\.getLogOps\)/);
-  assert.match(logisticaRoutesSource, /router\.get\('\/:id', requireAuth, logisticaController\.getLogOpsById\)/);
+test('GET de Logistica exigen sesion, permisos CORELLIAN y alcance completo; sync exige M2M', () => {
+  assert.match(guardSource, /function humanInformationGuard_gnral\(options = \{\}\) \{\s*return \[requireAuth, buildInformationAccessGuard_gnral\(options\)\];/);
+  assert.match(logisticaRoutesSource, /const listGuard_cor = humanInformationGuard_gnral\(\{/);
+  assert.match(logisticaRoutesSource, /const detailGuard_cor = humanInformationGuard_gnral\(\{/);
+  assert.match(logisticaRoutesSource, /requireCompleteInformationDomain_gnral\('CORELLIAN'\)/);
+  assert.match(logisticaRoutesSource, /router\.post\('\/sync', requireLogisticaIntegration, logisticaController\.syncLogOps\)/);
+  assert.match(logisticaRoutesSource, /router\.get\('\/', \.\.\.listGuard_cor, requireFullLogisticaScope_cor, logisticaController\.getLogOps\)/);
+  assert.match(logisticaRoutesSource, /router\.get\('\/:id', \.\.\.detailGuard_cor, requireFullLogisticaScope_cor, logisticaController\.getLogOpsById\)/);
 });
 
 test('listEffectivePermissions conserva prioridad de override personalizado', async () => {
@@ -95,6 +101,7 @@ test('listEffectivePermissions conserva prioridad de override personalizado', as
   });
   const result = await module.exports.listEffectivePermissions(7, ['A.VER','B.VER'], conn, { roleIds: [2,3] });
   assert.equal(queries.length, 1);
+  assert.deepEqual(Array.from(queries[0].params), [7,7,7,'A.VER','B.VER']);
   assert.equal(result.get('A.VER'), false);
   assert.equal(result.get('B.VER'), true);
 });

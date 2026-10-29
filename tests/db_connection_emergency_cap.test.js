@@ -17,6 +17,7 @@ const notificationRepositorySource = fs.readFileSync(
 );
 const { createConnectionPressureGuard, isConnectionCapacityError, isPoolQueueError } =
   require('../backend/src/config/db-capacity-guard');
+const { buildAivenTlsOptions } = require('../backend/src/config/aiven-tls');
 
 test('bootstrap no carga ni ejecuta el job legacy de Almacen Excel', () => {
   assert.doesNotMatch(bootstrapSource, /almacenCierreIncorrecto/);
@@ -109,7 +110,7 @@ function loadModule(code,mocks,overrides={}) {
   return module.exports;
 }
 
-function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0',acquireDelayMs=0,poolWaitWarnMs='250'}={}) {
+function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0',acquireDelayMs=0,poolWaitWarnMs='250',dbSsl='true'}={}) {
   let hits=0, options;
   const logs={warn:[],error:[],info:[]};
   const testConsole={
@@ -136,7 +137,7 @@ function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0',ac
     async end(){}
   };
   const env={DB_HOST:'localhost',DB_PORT:'3306',DB_USER:'test',DB_PASSWORD:'not-used',
-    DB_NAME:'test',DB_SSL:'false',DB_QUERY_OBSERVABILITY_ENABLED:String(observability),
+    DB_NAME:'test',DB_SSL:String(dbSsl),DB_QUERY_OBSERVABILITY_ENABLED:String(observability),
     DB_CONNECTION_LIMIT:String(connections),DB_QUEUE_LIMIT:queue,DB_POOL_WAIT_WARN_MS:String(poolWaitWarnMs)};
   const exported=loadModule(dbSource,{
     crypto:require('node:crypto'),
@@ -147,7 +148,9 @@ function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0',ac
     '../modules/panel-control-prueba-carga/panel-control-prueba-carga.context':{
       getCurrentLoadTestSessionId(){return null;}
     },
-    './db-capacity-guard':require('../backend/src/config/db-capacity-guard')
+    './db-capacity-guard':require('../backend/src/config/db-capacity-guard'),
+    // Ejecutar la implementación TLS real con el entorno aislado de la prueba.
+    './aiven-tls':{buildAivenTlsOptions:()=>buildAivenTlsOptions(env)}
   },{process:{env,hrtime:process.hrtime},console:testConsole});
   return {pool:exported,options,hits:()=>hits,logs};
 }
@@ -160,8 +163,14 @@ test('el pool limita a 2 conexiones y 30 pendientes aun con cola=0 configurada',
   assert.equal(options.waitForConnections,true);
   assert.equal(options.charset,'utf8mb4');
   assert.equal(options.timezone,'Z');
+  assert.deepEqual(options.ssl,{rejectUnauthorized:true});
 });
 
+test('El pool exige TLS verificado incluso en el fixture de pruebas',()=>{
+  assert.throws(()=>loadDb({mode:'ok',dbSsl:'false'}),/DB_SSL debe estar habilitado/);
+  const {options}=loadDb({mode:'ok',dbSsl:'true'});
+  assert.equal(options.ssl.rejectUnauthorized,true);
+});
 
 test('DB_POOL_WAIT registra adquisiciones lentas sin cambiar el limite del pool', async () => {
   const f=loadDb({mode:'ok',acquireDelayMs:5,poolWaitWarnMs:'1'});
