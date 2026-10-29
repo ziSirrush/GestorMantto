@@ -14,15 +14,21 @@ function createApp() {
 
   app.disable('x-powered-by');
   app.use(cors(getCorsOptions()));
-  app.use(express.json({
-    limit: process.env.JSON_LIMIT || '12mb',
-    verify: captureRawBody
-  }));
-  app.use(express.urlencoded({
-    extended: true,
-    limit: process.env.JSON_LIMIT || '12mb',
-    verify: captureRawBody
-  }));
+  // [Aster | 2026-10-29 | ASTER-MG | AST-06 HTTP BODY LIMITS V001]
+  const { chooseBodyLimit_aster } = require('./middleware/body-limit.middleware');
+  const jsonParsers = new Map();
+  const formParsers = new Map();
+  for (const limit of ['64kb', '1mb', '12mb']) {
+    jsonParsers.set(limit, express.json({limit,verify:captureRawBody}));
+    formParsers.set(limit, express.urlencoded({extended:true,limit,verify:captureRawBody}));
+  }
+  app.use((req,res,next)=>{
+    const limit=chooseBodyLimit_aster(req);
+    jsonParsers.get(limit)(req,res,err=>{
+      if(err) return next(err);
+      formParsers.get(limit)(req,res,next);
+    });
+  });
   app.use(loadTestTelemetryMiddleware);
   app.use(viewerReadOnlyGuard);
   app.use(interactionTrackingMiddleware_gnral);

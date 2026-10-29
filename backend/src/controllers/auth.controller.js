@@ -55,10 +55,12 @@ function signSessionToken(user, explicitRoles, absoluteExpiresAt) {
       empresa: user.empresa,
       is_programador: isProgramador,
       session_version: timestampMarker(user.password_changed_at),
+      token_use: 'access',
       session_absolute_expires_at: absoluteExpiresAtSeconds,
       exp: expiresAt
     },
-    process.env.JWT_SECRET
+    process.env.JWT_SECRET,
+    { algorithm: 'HS256', issuer: 'blt-now-api', audience: 'blt-now-access' }
   );
 }
 
@@ -693,7 +695,7 @@ async function recoveryStart(req, res) {
         password_changed_at: timestampMarker(user.password_changed_at)
       },
       process.env.JWT_SECRET,
-      { expiresIn: '10m', audience: 'mantto-password-recovery' }
+      { expiresIn: '10m', algorithm: 'HS256', audience: 'mantto-password-recovery', issuer: 'blt-now-api' }
     );
 
     return res.json({
@@ -758,7 +760,7 @@ async function recoveryReset(req, res) {
     let challenge;
     try {
       challenge = jwt.verify(String(challengeToken), process.env.JWT_SECRET, {
-        audience: 'mantto-password-recovery'
+        audience: 'mantto-password-recovery', algorithms: ['HS256']
       });
     } catch (_error) {
       return res.status(401).json({

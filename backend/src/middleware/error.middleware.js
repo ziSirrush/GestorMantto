@@ -19,20 +19,25 @@ function errorHandler(sourceError, req, res, next) {
   const statusCode = Number(error.statusCode || error.status || 500);
   logger.error(`${req.method} ${req.originalUrl}`, error);
 
-  const exposeMessage = statusCode < 500 || error.expose === true;
+  const known503 = statusCode === 503 && ['DB_CONNECTION_CAPACITY','DB_POOL_QUEUE_FULL'].includes(String(error.code || ''));
+  const exposeMessage = (statusCode >= 400 && statusCode < 500) || known503;
+  // Los 5xx se devuelven siempre con mensaje público, salvo 503 de capacidad
+  // que ya utiliza Retry-After. Detalles completos siguen en logs privados.
   const payload = {
     ok: false,
     message: exposeMessage ? error.message : 'Error interno del servidor'
   };
 
-  if (error.code) payload.code = error.code;
+  // [Aster | 2026-10-29 | ASTER-MG | AST-11 SAFE ERRORS V001]
+  // No exponer codigos SQL, stack ni excepciones de proveedor a clientes.
+  if ((statusCode < 500 || known503) && typeof error.code === 'string' && /^[A-Z][A-Z0-9_]{2,80}$/.test(error.code)) {
+    payload.code = error.code;
+  } else if (statusCode >= 500) {
+    payload.code = 'INTERNAL_ERROR';
+  }
   if (error.details && exposeMessage) payload.details = error.details;
 
-  if (process.env.NODE_ENV !== 'production') {
-    payload.error = error.message;
-    if (error.queue_operation_id) payload.queue_operation_id = error.queue_operation_id;
-    if (error.queue_error) payload.queue_error = error.queue_error;
-  }
+
 
   // Indica una pausa segura al cliente; no filtra host, credenciales ni SQL.
   if (statusCode === 503 && Number.isFinite(Number(error.retryAfterSeconds)) &&

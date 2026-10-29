@@ -2,6 +2,41 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { getViewerTarget } = require('../services/user-viewer.service');
 
+// [Aster | 2026-10-29 | ASTER-MG | AST-08 JWT DOMAIN SEPARATION V001]
+const ACCESS_AUDIENCE='blt-now-access';
+const TOKEN_ISSUER='blt-now-api';
+const MAX_ACCESS_SECONDS=12*60*60;
+function verifyAccessToken_aster(token) {
+  const decoded=jwt.verify(token,process.env.JWT_SECRET,{
+    algorithms:['HS256'],clockTolerance:5,maxAge:'12h'
+  });
+  const typed=decoded?.aud===ACCESS_AUDIENCE && decoded?.iss===TOKEN_ISSUER
+    && decoded?.token_use==='access';
+  // Un JWT previo solo se acepta con la forma exacta de un access token,
+  // expiracion limitada y version de sesion; Recovery/Viewer no aplican.
+  const legacy=!decoded?.aud && !decoded?.iss && !decoded?.token_use
+    && !decoded?.type && Number.isInteger(Number(decoded?.id_SB))
+    && Number(decoded.id_SB)>0;
+  const lifetime=Number(decoded?.exp)-Number(decoded?.iat);
+  if((!typed&&!legacy)||!Number.isFinite(lifetime)||lifetime<=0||
+      lifetime>MAX_ACCESS_SECONDS+5||typeof decoded.session_version!=='string') {
+    const error=new Error('Access token inválido.');
+    error.name='JsonWebTokenError';
+    throw error;
+  }
+  return decoded;
+}
+function verifyViewerToken_aster(token){
+  const decoded=jwt.verify(token,process.env.JWT_SECRET,{
+    algorithms:['HS256'],clockTolerance:5,maxAge:'30m'
+  });
+  if(decoded?.aud && decoded.aud!=='blt-now-user-viewer')throw new Error('Audiencia inválida del visor.');
+  if(decoded?.iss && decoded.iss!==TOKEN_ISSUER)throw new Error('Emisor inválido del visor.');
+  if(decoded?.type!=='user_viewer' || !Number.isInteger(Number(decoded.actor_id))
+      || !Number.isInteger(Number(decoded.target_id)))throw new Error('Identidad del visor inválida.');
+  return decoded;
+}
+
 function parseAuthHeader(req) {
   const header = req.headers.authorization || req.headers.Authorization || '';
   if (!header || !String(header).startsWith('Bearer ')) return null;
@@ -189,7 +224,7 @@ async function hydrateViewContext(req, actor) {
   if (viewerToken) {
     let payload;
     try {
-      payload = jwt.verify(viewerToken, process.env.JWT_SECRET);
+      payload = verifyViewerToken_aster(viewerToken);
     } catch (verifyError) {
       const error = new Error('El contexto temporal del Visor de usuarios expiró o dejó de ser válido.');
       error.status = 403;
@@ -233,7 +268,7 @@ async function optionalAuth(req, res, next) {
     const token = parseAuthHeader(req);
     if (!token) return next();
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyAccessToken_aster(token);
     const user = await hydrateAuthUser(decoded);
     if (!user || !sessionMatchesUser(decoded, user)) return next();
 
@@ -273,7 +308,7 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ ok: false, message: 'Sesión requerida.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyAccessToken_aster(token);
     const user = await hydrateAuthUser(decoded);
 
     if (!user || !sessionMatchesUser(decoded, user)) {

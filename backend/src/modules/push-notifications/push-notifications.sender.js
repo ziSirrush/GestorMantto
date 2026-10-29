@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { validatePushEndpoint } = require('./push-notifications.endpoint-guard');
 
 function base64UrlToBuffer(value) {
   const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
@@ -101,6 +102,7 @@ function encryptPayload(subscription, payload) {
 }
 
 async function sendPush(subscription, payload, options = {}) {
+  const endpoint = validatePushEndpoint(subscription?.endpoint).href;
   const config = getVapidConfig();
   const validation = validateVapidConfig(config);
   if (!validation.ok) {
@@ -109,9 +111,10 @@ async function sendPush(subscription, payload, options = {}) {
     throw error;
   }
   const body = encryptPayload(subscription, payload);
-  const token = createVapidJwt(subscription.endpoint, config);
+  const token = createVapidJwt(endpoint, config);
   const ttl = Math.max(0, Math.min(86400, Number(options.ttl || 120)));
-  const response = await fetch(subscription.endpoint, {
+  const response = await fetch(endpoint, {
+    redirect: 'error',
     method: 'POST',
     headers: {
       TTL: String(ttl),

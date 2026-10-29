@@ -4,6 +4,7 @@
 // [Lumbre | 2026-08-28 | DB_OBSERVABILITY_GET_CONNECTION_GUARD_V001]
 const crypto = require('crypto');
 const mysql = require('mysql2/promise');
+const { buildAivenTlsOptions } = require('./aiven-tls');
 const loadTestRegistry = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.registry');
 const { getCurrentLoadTestSessionId } = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.context');
 const { createConnectionPressureGuard } = require('./db-capacity-guard');
@@ -179,7 +180,8 @@ function installQueryObservability(target, label) {
 
 assertDatabaseEnvironment();
 
-const useSsl = isEnabled(process.env.DB_SSL, true);
+// Certificado y nombre del servidor verificados antes de crear el pool.
+const dbTlsOptions = buildAivenTlsOptions();
 // Contención operativa: Aiven agotó max_connections durante el despliegue.
 // El valor histórico sigue siendo configurable, pero cada instancia de Azure
 // queda limitada por defecto a dos conexiones y conserva solo una ociosa. El
@@ -254,13 +256,7 @@ const pool = mysql.createPool({
   // no una preferencia de despliegue.
   timezone: 'Z',
   dateStrings: ['DATE'],
-  ssl: useSsl
-    ? {
-        // Aiven usa TLS. El contrato historico del proyecto es DB_SSL=true.
-        // Se mantiene un unico contrato SSL mediante DB_SSL.
-        rejectUnauthorized: false
-      }
-    : undefined
+  ssl: dbTlsOptions
 });
 
 console.warn('[DB_POOL_CAPACITY]', JSON.stringify({
