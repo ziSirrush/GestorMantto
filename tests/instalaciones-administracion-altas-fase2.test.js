@@ -131,6 +131,9 @@ test('Captura solo envia POST cuando el usuario confirma, sin storage ni PATCH',
   assert.match(src,/data-iadm-altas-duplicate/);
   assert.match(src,/>Duplicar<\/button>/);
   assert.match(src,/getAltaContext/);
+  assert.match(src,/id="iadm-cor-altas-cancel"[^>]*[\s\S]*?>Cancelar<\/button>/);
+  assert.match(src,/id="iadm-cor-altas-clear"[^>]*>Eliminar borrador<\/button>/);
+  assert.match(src,/Cancelar y eliminar el borrador/);
   assert.match(src,/Guardar lote/);
   assert.ok(fs.existsSync(cssPath));
 });

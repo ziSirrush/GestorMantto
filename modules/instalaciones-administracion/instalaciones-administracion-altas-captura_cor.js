@@ -224,18 +224,19 @@
         panel.innerHTML='<div class="iadm-cor-altas-heading">'+
           '<div><p class="iadm-cor-eyebrow">Alta de equipos · Borrador local</p>'+
           '<h2>Agregar equipos nuevos</h2><p>Una fila = un equipo. Los campos opcionales pueden permanecer vacios (NULL).</p></div>'+
-          '<button class="iadm-cor-btn" id="iadm-cor-altas-back" type="button">&larr; Regresar</button></div>'+
+          '<button class="iadm-cor-btn" id="iadm-cor-altas-back" type="button">&larr; Cancelar</button></div>'+
           '<div class="iadm-cor-altas-notice">Misma tabla y edicion fantasma · Todas las columnas autorizadas · '+
           'El lote se envia solo al confirmar; formulas Excel calculadas por servidor. ' +
           'Las fechas AR/BB son PREVISTAS, nunca terminaciones reales.</div>'+
           '<div class="iadm-cor-altas-actions">'+
           '<span id="iadm-cor-altas-count" aria-live="polite">0 de 20 equipos</span>'+
           '<button class="iadm-cor-btn iadm-cor-btn-primary" id="iadm-cor-altas-add" type="button">+ Agregar fila</button>'+
-          '<button class="iadm-cor-btn" id="iadm-cor-altas-clear" type="button">Vaciar borrador</button></div>'+
+          '<button class="iadm-cor-btn" id="iadm-cor-altas-clear" type="button">Eliminar borrador</button></div>'+
           '<div class="iadm-cor-altas-scroll iadm-cor-equipment-list" id="iadm-cor-altas-table" role="region" tabindex="0" '+
           'aria-label="Tabla de captura de equipos nuevos"></div>'+
           '<p class="iadm-cor-altas-feedback" id="iadm-cor-altas-feedback" role="status" aria-live="polite"></p>'+
-          '<div class="iadm-cor-altas-footer"><button id="iadm-cor-altas-save" class="iadm-cor-btn iadm-cor-btn-primary" '+
+          '<div class="iadm-cor-altas-footer"><button id="iadm-cor-altas-cancel" class="iadm-cor-btn" '+
+          'type="button">Cancelar</button><button id="iadm-cor-altas-save" class="iadm-cor-btn iadm-cor-btn-primary" '+
           'type="button" disabled>Guardar lote</button></div>';
         const place=host.querySelector('#iadm-cor-projects');
         place.parentNode.insertBefore(panel,place);
@@ -302,7 +303,7 @@
       if(confirmDiscard && (uncertain||rows.some(row=>Object.keys(row.values).length>0)) &&
           !env.confirm(uncertain ?
             'El envio anterior tiene resultado INCIERTO. Para evitar duplicados, primero comprueba los equipos en Aiven. ¿Salir SIN reintentar?' :
-            'Se perderan los equipos nuevos sin guardar. ¿Regresar?'))return false;
+            'Se perderan los equipos nuevos sin guardar. ¿Cancelar y eliminar el borrador?'))return false;
       visible=false;current=null;
       const panel=node('iadm-cor-altas-panel');if(panel)panel.hidden=true;
       for(const [id,wasHidden] of beforeVisibility){const n=node(id);if(n)n.hidden=wasHidden;}
@@ -391,6 +392,7 @@
       const add=node('iadm-cor-altas-add');if(add)add.disabled=rows.length>=MAX||saving;
       const clear=node('iadm-cor-altas-clear');if(clear)clear.disabled=saving;
       const back=node('iadm-cor-altas-back');if(back)back.disabled=saving;
+      const cancel=node('iadm-cor-altas-cancel');if(cancel)cancel.disabled=saving;
       const save=node('iadm-cor-altas-save');
       if(save){save.disabled=saving||uncertain||!canUse()||!engine?.calculateCor||!assessRows(rows).ok;
         save.textContent=saving?'Guardando lote...':'Guardar '+rows.length+' equipo'+(rows.length===1?'':'s');}
@@ -497,11 +499,12 @@
       if(!visible)return;
       if(target.closest('#iadm-cor-altas-save')){event.preventDefault();void saveBatch();return;}
       if(saving){event.preventDefault();return;}
-      if(target.closest('#iadm-cor-altas-back')){event.preventDefault();if(current&&!commitCurrent())return;close();return;}
+      if(target.closest('#iadm-cor-altas-back, #iadm-cor-altas-cancel')){
+        event.preventDefault();current=null;close();return;}
       if(uncertain){event.preventDefault();return;}
       if(target.closest('#iadm-cor-altas-add')){event.preventDefault();if(current&&!commitCurrent())return;
         if(rows.length<MAX){rows.push(createRow(++seq,prefillValues));render();}return;}
-      if(target.closest('#iadm-cor-altas-clear')){event.preventDefault();if(!env.confirm('¿Vaciar todos los borradores de equipos nuevos?'))return;
+      if(target.closest('#iadm-cor-altas-clear')){event.preventDefault();if(!env.confirm('¿Eliminar todos los borradores de equipos nuevos?'))return;
         rows=[createRow(++seq,prefillValues)];current=null;error='';render();return;}
       const duplicate=target.closest('[data-iadm-altas-duplicate]');
       if(duplicate){event.preventDefault();if(current&&!commitCurrent())return;if(rows.length>=MAX)return;
@@ -529,7 +532,7 @@
     }
     function onFocusOut(event) {
       if(!visible || !current || !event.target?.matches?.('[data-iadm-altas-editor]'))return;
-      // El cambio de foco puede producirse al clicar sobre Agregar/Regresar:
+      // El cambio de foco puede producirse al clicar sobre Agregar/Cancelar:
       // el editor confirma el borrador, pero NUNCA crea registros en MySQL.
       const {id, field}=current;
       env.setTimeout(()=>{
