@@ -1,14 +1,19 @@
+// [Aster | 2026-10-29 | ASTER-MG | AST-07 CORS ALLOWLIST V001]
 function parseAllowedOrigins() {
-  const raw = process.env.CORS_ORIGINS || '*';
+  const raw=String(process.env.CORS_ORIGINS || '').trim();
+  if(!raw || raw==='*')return [];
+  return [...new Set(raw.split(',').map(s=>s.trim()).filter(Boolean))].filter(value=>{
+    try {
+      const url=new URL(value);
+      return url.origin===value && !url.username && !url.password && (url.protocol==='https:' || process.env.NODE_ENV!=='production');
+    } catch (_) { return false; }
+  });
+}
 
-  if (raw.trim() === '*') {
-    return '*';
-  }
-
-  return raw
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+function isAllowedOrigin(origin) {
+  return Boolean(origin && (
+    parseAllowedOrigins().includes(origin) || isDevelopmentOrigin(origin)
+  ));
 }
 
 function isPrivateIpv4(hostname) {
@@ -60,30 +65,17 @@ function isDevelopmentOrigin(origin) {
 }
 
 function getCorsOptions() {
-  const allowedOrigins = parseAllowedOrigins();
-
-  if (allowedOrigins === '*') {
-    return { origin: true, credentials: false };
-  }
-
   return {
     credentials: true,
     origin(origin, callback) {
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        isDevelopmentOrigin(origin)
-      ) {
-        return callback(null, true);
-      }
-
-      const error = new Error(
-        `Origen no permitido por CORS: ${origin}`
-      );
-      error.statusCode = 403;
+      // La ausencia de Origin permite clientes M2M sin navegador,
+      // pero no supone permiso funcional ni elude HMAC.
+      if (!origin || isAllowedOrigin(origin)) return callback(null, true);
+      const error=new Error('Origen CORS no autorizado.');
+      error.statusCode=403;
       return callback(error);
     }
   };
 }
 
-module.exports = { getCorsOptions };
+module.exports = { getCorsOptions, isAllowedOrigin, parseAllowedOrigins };

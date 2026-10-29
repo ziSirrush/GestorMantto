@@ -1,6 +1,7 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const { isAllowedOrigin } = require('../config/http.config');
 
 const oauthService = require('../services/google/oauth.service');
 const cryptoService = require('../services/google/crypto.service');
@@ -14,12 +15,19 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function createState(user) {
+function createState(user, origin) {
+  if (!isAllowedOrigin(origin)) {
+    const error=new Error('Origen de inicio OAuth no autorizado.');
+    error.status=403;
+    error.code='GOOGLE_OAUTH_ORIGIN_DENIED';
+    throw error;
+  }
   return jwt.sign(
     {
       purpose: STATE_PURPOSE,
       userId: Number(user.id_SB),
-      email: normalizeEmail(user.correo)
+      email: normalizeEmail(user.correo),
+      origin
     },
     process.env.JWT_SECRET,
     { expiresIn: STATE_EXPIRES_IN }
@@ -32,7 +40,8 @@ function verifyState(state) {
   if (
     payload.purpose !== STATE_PURPOSE ||
     !Number.isInteger(Number(payload.userId)) ||
-    !normalizeEmail(payload.email)
+    !normalizeEmail(payload.email) ||
+    !isAllowedOrigin(payload.origin)
   ) {
     const error = new Error('El estado OAuth es inválido.');
     error.status = 400;
@@ -41,7 +50,8 @@ function verifyState(state) {
 
   return {
     userId: Number(payload.userId),
-    email: normalizeEmail(payload.email)
+    email: normalizeEmail(payload.email),
+    origin: payload.origin
   };
 }
 
@@ -54,14 +64,17 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-function sendCallbackPage(res, { ok, message, status = 200 }) {
+function sendCallbackPage(res, { ok, message, status = 200, targetOrigin = null }) {
   const safeMessage = escapeHtml(message);
+  const safeOrigin = isAllowedOrigin(targetOrigin) ? targetOrigin : null;
   const payload = JSON.stringify({
     source: 'mantto-gestor-google-oauth',
     ok: Boolean(ok),
     message: String(message || '')
   }).replace(/</g, '\\u003c');
 
+  res.set('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+  res.set('Referrer-Policy','no-referrer');
   return res.status(status).type('html').send(`<!doctype html>
 <html lang="es">
 <head>
@@ -78,8 +91,9 @@ function sendCallbackPage(res, { ok, message, status = 200 }) {
   <script>
     (function () {
       var payload = ${payload};
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(payload, '*');
+      var targetOrigin = ${JSON.stringify(safeOrigin)};
+      if (targetOrigin && window.opener && !window.opener.closed) {
+        window.opener.postMessage(payload, targetOrigin);
       }
       window.setTimeout(function () { window.close(); }, 1200);
     }());
@@ -90,7 +104,7 @@ function sendCallbackPage(res, { ok, message, status = 200 }) {
 
 async function login(req, res, next) {
   try {
-    const state = createState(req.user);
+    const state = createState(req.user, req.get('origin'));
     const authorizationUrl = oauthService.generateAuthorizationUrl({
       state,
       loginHint: req.user.correo,
@@ -108,16 +122,16 @@ async function login(req, res, next) {
 
 async function callback(req, res) {
   try {
+    // Siempre validar state antes de cualquier comunicacion con la ventana.
+    const state = verifyState(req.query.state);
     if (req.query.error) {
-      const description = req.query.error_description || req.query.error;
       return sendCallbackPage(res, {
         ok: false,
-        message: `Google canceló o rechazó la autorización: ${description}`,
-        status: 400
+        message: 'Google canceló o rechazó la autorización.',
+        status: 400,
+        targetOrigin: state.origin
       });
     }
-
-    const state = verifyState(req.query.state);
     const { client, tokens } = await oauthService.exchangeCodeForTokens(req.query.code);
     const identity = await oauthService.getGoogleIdentity(client);
 
@@ -169,7 +183,8 @@ async function callback(req, res) {
 
     return sendCallbackPage(res, {
       ok: true,
-      message: `La cuenta ${identity.email} quedó conectada correctamente.`
+      message: `La cuenta ${identity.email} quedó conectada correctamente.`,
+      targetOrigin: state.origin
     });
   } catch (error) {
     logger.error('Error en callback de Google OAuth.', error);
