@@ -1,5 +1,6 @@
 (function(){
 'use strict';
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | EVENTO_CERRADOS_COMPATIBLE_CSP_V001]
 
 let proyectos = [];
 let equiposPorProyecto = {};
@@ -211,6 +212,7 @@ async function mount(force){
     document.getElementById('ic-limpiar')?.addEventListener('click', clearFilters);
     document.getElementById('ic-prev')?.addEventListener('click', () => changePage(-1));
     document.getElementById('ic-next')?.addEventListener('click', () => changePage(1));
+    document.getElementById('ic-refresh')?.addEventListener('click', load);
     await load();
   }
   return true;

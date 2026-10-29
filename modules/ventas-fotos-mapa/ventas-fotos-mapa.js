@@ -1,5 +1,6 @@
 (function(){
 'use strict';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | EVENTO_FOTOS_COMPATIBLE_CSP_V001]
 // [Aster | 2026-08-19 | ASTER-MG | FASE 3 VENTAS: Fotos Mapa por puerta VENTAS]
 // [Aster | 2026-09-07 | ASTER-MG | FASE 2 FOTOS CORELLIAN UNITED 7X7 V001]
 // [Aster | 2026-09-08 | ASTER-MG | FIX CATALOGO GENERAL CORELLIAN + UNITED V003]
@@ -889,6 +890,7 @@ async function mount(force) {
     view.dataset.ready='1';
     const buscar=document.getElementById('vfm-buscar');
     if(buscar)buscar.addEventListener('input',render);
+    document.getElementById('vfm-refresh')?.addEventListener('click',()=>window.ManttoVentasFotosMapa?.reload());
     const mapaDisponible=await asegurarMapaMexico();
     if(revisionIdentidad!==int10RevisionIdentidad)return false;
     await load();

@@ -1,4 +1,5 @@
 (function(){
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | SESION_JWT_SIN_LOCALSTORAGE_V001]
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AUTH_API_BASE = (window.MANTTO_SESSION_API_BASE || API_BASE).replace(/\/$/, '');
   const TOKEN_KEY = 'mantto_token';
@@ -7,7 +8,7 @@
   const SESSION_CSRF_KEY = 'mantto_session_csrf';
   const VIEW_USER_KEY = 'mantto_view_user';
   const VIEWER_TOKEN_KEY = 'mantto_viewer_token';
-  const VIEWER_LAUNCH_PREFIX = 'mantto:viewer:launch:';
+  const VIEWER_LAUNCH_KEY = 'mantto_viewer_launch';
   const VIEWER_LAUNCH_PARAM = 'viewer_launch';
   const VIEWER_LAUNCH_TTL_MS = 60000;
   const ACCESS_TOKEN_LIFETIME_MS = 12 * 60 * 60 * 1000;
@@ -24,8 +25,8 @@
   function setForm(name){
     ['login-form','first-login-form','recovery-form'].forEach(id=>show($(id), id===name));
   }
-  function getToken(){ return state.token || sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || ''; }
-  function getActorUser(){ return state.user || safeJson(sessionStorage.getItem(USER_KEY)) || safeJson(localStorage.getItem(USER_KEY)); }
+  function getToken(){ return state.token || sessionStorage.getItem(TOKEN_KEY) || ''; }
+  function getActorUser(){ return state.user || safeJson(sessionStorage.getItem(USER_KEY)); }
   function jwtPayload(token){
     try{
       const payloadPart=String(token||'').split('.')[1]||'';
@@ -70,52 +71,10 @@
       : Math.max(0,Number(delayOverride)||0);
     refreshTimer=window.setTimeout(runScheduledSessionRefresh,delay);
   }
-  function persistActorSession(token,user,marker){
-    const cleanToken=String(token||'').trim();
-    if(!cleanToken) return;
-    const sessionUser=user||null;
-    const expiresAt=jwtExpiryMs(cleanToken);
-    localStorage.setItem(TOKEN_KEY,cleanToken);
-    if(sessionUser) localStorage.setItem(USER_KEY,JSON.stringify(sessionUser));
-    localStorage.setItem(SESSION_KEY,JSON.stringify({
-      token:cleanToken,
-      user:sessionUser,
-      persisted_at:new Date().toISOString(),
-      expires_at:expiresAt||null,
-      session_absolute_expires_at:jwtAbsoluteExpiryMs(cleanToken)||null,
-      marker:marker||'persisted'
-    }));
-  }
-  function readPersistedActorSession(){
-    const token=String(localStorage.getItem(TOKEN_KEY)||'').trim();
-    const user=safeJson(localStorage.getItem(USER_KEY));
-    const expiresAt=jwtExpiryMs(token);
-    const absoluteExpiresAt=jwtAbsoluteExpiryMs(token);
-
-    if(!token){
-      localStorage.removeItem(USER_KEY);
-      localStorage.removeItem(SESSION_KEY);
-      return null;
-    }
-
-    // El vencimiento del JWT de acceso (12 h) no equivale al vencimiento de la
-    // sesión renovable. Se conserva token + usuario para poder intentar refresh
-    // y para no convertir un fallo temporal de red/Azure en un cierre de sesión.
-    if(absoluteExpiresAt && absoluteExpiresAt<=Date.now()){
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
-      localStorage.removeItem(SESSION_KEY);
-      localStorage.removeItem(SESSION_CSRF_KEY);
-      return null;
-    }
-
-    return {
-      token,
-      user,
-      expiresAt,
-      absoluteExpiresAt,
-      accessExpired:Boolean(expiresAt && expiresAt<=Date.now())
-    };
+  function clearLegacyPersistentAuth(){
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(SESSION_KEY);
   }
   function getViewUser(){ return state.viewUser || safeJson(sessionStorage.getItem(VIEW_USER_KEY)); }
   function getUser(){ return getViewUser() || getActorUser(); }
@@ -133,54 +92,40 @@
     return Boolean(actor && viewed && Number(actor.id_SB)!==Number(viewed.id_SB));
   }
   function safeJson(raw){ try{return raw?JSON.parse(raw):null;}catch(e){return null;} }
-  function cleanupViewerLaunches(){
-    const now=Date.now();
-    for(let index=localStorage.length-1;index>=0;index-=1){
-      const key=localStorage.key(index);
-      if(!key || !key.startsWith(VIEWER_LAUNCH_PREFIX)) continue;
-      const launch=safeJson(localStorage.getItem(key));
-      if(!launch || Number(launch.expires_at||0)<now) localStorage.removeItem(key);
-    }
-  }
-  function createViewerLaunch(context){
+  function createViewerLaunch(context,targetWindow){
     const user=context?.user;
     const viewerToken=String(context?.viewer_token||'').trim();
     if(!user || !user.id_SB || !viewerToken) throw new Error('Contexto inválido para abrir el visor.');
-    cleanupViewerLaunches();
-    const launchId=(window.crypto&&typeof window.crypto.randomUUID==='function')
-      ? window.crypto.randomUUID()
-      : 'viewer-'+Date.now()+'-'+Math.random().toString(16).slice(2);
-    localStorage.setItem(VIEWER_LAUNCH_PREFIX+launchId,JSON.stringify({
-      user,
-      viewer_token:viewerToken,
+    const targetStorage=targetWindow?.sessionStorage;
+    if(!targetStorage) throw new Error('No fue posible preparar el almacenamiento temporal del visor.');
+    targetStorage.setItem(VIEW_USER_KEY,JSON.stringify(user));
+    targetStorage.setItem(VIEWER_TOKEN_KEY,viewerToken);
+    targetStorage.setItem(VIEWER_LAUNCH_KEY,JSON.stringify({
       read_only:true,
       expires_at:Date.now()+VIEWER_LAUNCH_TTL_MS
     }));
     const url=new URL(window.location.href);
-    url.searchParams.set(VIEWER_LAUNCH_PARAM,launchId);
+    url.searchParams.set(VIEWER_LAUNCH_PARAM,'session');
     url.hash='#/home';
     return url.toString();
   }
   function consumeViewerLaunch(){
     const url=new URL(window.location.href);
-    const launchId=url.searchParams.get(VIEWER_LAUNCH_PARAM);
-    if(!launchId) return null;
+    if(!url.searchParams.get(VIEWER_LAUNCH_PARAM)) return null;
 
-    const storageKey=VIEWER_LAUNCH_PREFIX+launchId;
-    const launch=safeJson(localStorage.getItem(storageKey));
-    localStorage.removeItem(storageKey);
+    const launch=safeJson(sessionStorage.getItem(VIEWER_LAUNCH_KEY));
+    const user=safeJson(sessionStorage.getItem(VIEW_USER_KEY));
+    const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim();
+    sessionStorage.removeItem(VIEWER_LAUNCH_KEY);
     url.searchParams.delete(VIEWER_LAUNCH_PARAM);
     window.history.replaceState(window.history.state,document.title,url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
 
-    if(!launch || Number(launch.expires_at||0)<Date.now() || !launch.user?.id_SB || !launch.viewer_token){
+    if(!launch || Number(launch.expires_at||0)<Date.now() || !user?.id_SB || !viewerToken){
       sessionStorage.removeItem(VIEW_USER_KEY);
       sessionStorage.removeItem(VIEWER_TOKEN_KEY);
       return null;
     }
-
-    sessionStorage.setItem(VIEW_USER_KEY,JSON.stringify(launch.user));
-    sessionStorage.setItem(VIEWER_TOKEN_KEY,String(launch.viewer_token));
-    return launch.user;
+    return user;
   }
   function isAuthPath(path){
     return String(path||'').split('?')[0].startsWith('/api/auth/');
@@ -244,7 +189,6 @@
       validation_deferred:true,
       marker:marker||'deferred'
     }));
-    persistActorSession(cleanToken,user,marker||'deferred');
     state.lastSessionRefreshAt=jwtIssuedAtMs(cleanToken)||0;
     scheduleSessionRefresh(cleanToken,SESSION_REFRESH_RETRY_MS);
     console.warn('[AUTH] Renovación/validación temporalmente no disponible; la sesión local se conserva.',error);
@@ -258,7 +202,6 @@
     if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
     if(payload?.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(payload.session_csrf_token));
     sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:state.user,refreshed_at:new Date().toISOString()}));
-    persistActorSession(state.token,state.user,'refresh');
     state.lastSessionRefreshAt=Date.now();
     scheduleSessionRefresh(state.token);
     return payload;
@@ -307,7 +250,6 @@
   }
   async function refreshAccessToken(){
     if(refreshPromise) return refreshPromise;
-    const requestedToken=getToken();
     refreshPromise=(async()=>{
       if(window.navigator?.locks?.request){
         const controller=typeof AbortController==='function'?new AbortController():null;
@@ -321,16 +263,6 @@
         try{return await Promise.race([window.navigator.locks.request('mantto-session-refresh',{
           mode:'exclusive',...(controller?{signal:controller.signal}:{})
         },()=>{
-          const sharedToken=String(localStorage.getItem(TOKEN_KEY)||'').trim();
-          if(sharedToken && sharedToken!==requestedToken && jwtExpiryMs(sharedToken)>Date.now()){
-            state.token=sharedToken;
-            state.user=safeJson(localStorage.getItem(USER_KEY))||state.user;
-            sessionStorage.setItem(TOKEN_KEY,sharedToken);
-            if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
-            state.lastSessionRefreshAt=jwtIssuedAtMs(sharedToken)||Date.now();
-            scheduleSessionRefresh(sharedToken);
-            return {ok:true,token:sharedToken,user:state.user,shared:true};
-          }
           return requestSessionRefresh();
         }),lockDeadline]);}
         finally{if(timer!==null)window.clearTimeout(timer);}
@@ -444,7 +376,6 @@
       if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
       if(json.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(json.session_csrf_token));
       sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,user:state.user,refreshed_at:new Date().toISOString()}));
-      persistActorSession(state.token,state.user,'api-token');
       state.lastSessionRefreshAt=jwtIssuedAtMs(state.token)||Date.now();
       scheduleSessionRefresh(state.token);
     }
@@ -478,7 +409,6 @@
     state.viewUser = null;
     sessionStorage.setItem(TOKEN_KEY, payload.token || '');
     sessionStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
-    persistActorSession(payload.token,payload.user,'login');
     if(payload.session_csrf_token) localStorage.setItem(SESSION_CSRF_KEY,String(payload.session_csrf_token));
     sessionStorage.removeItem(VIEW_USER_KEY);
     sessionStorage.removeItem(VIEWER_TOKEN_KEY);
@@ -599,17 +529,6 @@
     document.addEventListener?.('visibilitychange',()=>{
       if(!document.hidden) touchSessionFromActivity();
     });
-    window.addEventListener?.('storage',event=>{
-      if(event.key!==TOKEN_KEY || !event.newValue) return;
-      const sharedToken=String(event.newValue||'').trim();
-      if(!sharedToken || sharedToken===state.token || jwtExpiryMs(sharedToken)<=Date.now()) return;
-      state.token=sharedToken;
-      state.user=safeJson(localStorage.getItem(USER_KEY))||state.user;
-      sessionStorage.setItem(TOKEN_KEY,sharedToken);
-      if(state.user) sessionStorage.setItem(USER_KEY,JSON.stringify(state.user));
-      state.lastSessionRefreshAt=jwtIssuedAtMs(sharedToken)||Date.now();
-      scheduleSessionRefresh(sharedToken);
-    });
     $('login-form')?.addEventListener('submit', handleLogin);
     $('first-login-form')?.addEventListener('submit', handleFirstLogin);
     $('recovery-form')?.addEventListener('submit', handleRecovery);
@@ -628,14 +547,9 @@
       localStorage.getItem(USER_KEY) ||
       localStorage.getItem(SESSION_KEY)
     );
-    const persistedSession=readPersistedActorSession();
-    let savedToken = sessionStorage.getItem(TOKEN_KEY) || persistedSession?.token || '';
-    let savedUser = safeJson(sessionStorage.getItem(USER_KEY)) || persistedSession?.user || null;
-    if(savedToken && !sessionStorage.getItem(TOKEN_KEY)){
-      sessionStorage.setItem(TOKEN_KEY,savedToken);
-      if(savedUser) sessionStorage.setItem(USER_KEY,JSON.stringify(savedUser));
-      sessionStorage.setItem(SESSION_KEY,JSON.stringify({token:savedToken,user:savedUser,restored_at:new Date().toISOString()}));
-    }
+    clearLegacyPersistentAuth();
+    let savedToken = sessionStorage.getItem(TOKEN_KEY) || '';
+    let savedUser = safeJson(sessionStorage.getItem(USER_KEY)) || null;
 
     const savedTokenExpiresAt=jwtExpiryMs(savedToken);
     const savedTokenExpired=Boolean(savedToken && savedTokenExpiresAt && savedTokenExpiresAt<=Date.now());
@@ -685,7 +599,6 @@
       if(!validatedUser) throw new Error('Sesión sin usuario válido.');
       state.user=validatedUser;
       sessionStorage.setItem(USER_KEY,JSON.stringify(validatedUser));
-      persistActorSession(state.token,validatedUser,'validated');
       if(state.viewUser) await hydrateViewerUser();
       await completeAuthenticatedAccess();
     }catch(error){

@@ -326,7 +326,18 @@
     if(type === 'equipo-critico') return openEquipoCritico(id, payload && payload.options);
     show('Detalle', 'BLT NOW', '<div class="mg-empty">No se indicó un detalle válido.</div>');
   }
-  function grid(items){ return '<div class="mg-detail-grid">'+items.map(([k,v])=>'<div class="mg-field"><label>'+esc(k)+'</label><span>'+esc(v)+'</span></div>').join('')+'</div>'; }
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | L01_XSS_DETALLE_TICKETS_V001]
+  // Solo este contenedor opaco puede omitir el escape de grid(). Los datos
+  // recibidos del backend continúan pasando siempre por esc().
+  const DETAIL_SAFE_HTML=Symbol('DETAIL_SAFE_HTML');
+  function safeDetailHtml(html){ return Object.freeze({[DETAIL_SAFE_HTML]:true,html:String(html||'')}); }
+  function detailValueHtml(value){ return value&&value[DETAIL_SAFE_HTML]===true?value.html:esc(value); }
+  function detailLink(kind,value,label){
+    const attribute=kind==='proyecto'?'data-proyecto':kind==='equipo'?'data-equipo':'';
+    if(!attribute)return String(label==null?'':label);
+    return safeDetailHtml('<button type="button" class="mg-link" '+attribute+'="'+esc(value)+'">'+esc(label)+'</button>');
+  }
+  function grid(items){ return '<div class="mg-detail-grid">'+items.map(([k,v])=>'<div class="mg-field"><label>'+esc(k)+'</label><span>'+detailValueHtml(v)+'</span></div>').join('')+'</div>'; }
 
   function renderIdentifierVisual(codes, text, options){
     if(window.EstadosVisuales_gnral && window.EstadosVisuales_gnral.renderIdentifier){
@@ -1626,8 +1637,8 @@
     const proyecto = t.proyecto || t.pro || '';
     return '<section class="mg-detail-section"><h3>Datos generales</h3>'+grid([
       ['Ticket', t.ticket || t.n || ticketId], ['Folio', t.folio], ['Estado ticket', t.estado_ticket || t.estado || t.et],
-      ['Proyecto', proyecto ? '<button class="mg-link" data-proyecto="'+esc(proyecto)+'">'+esc(projectNameDisplay(proyecto))+'</button>' : '—'],
-      ['Equipo', equipo ? '<button class="mg-link" data-equipo="'+esc(equipo)+'">'+esc(equipo)+'</button>' : '—'],
+      ['Proyecto', proyecto ? detailLink('proyecto',proyecto,projectNameDisplay(proyecto)) : '—'],
+      ['Equipo', equipo ? detailLink('equipo',equipo,equipo) : '—'],
       ['Zona', t.zona || t.zon], ['Ciudad', t.ciudad], ['Prioridad', t.prioridad || t.pri]
     ])+'</section>'+ '<section class="mg-detail-section"><h3>Reporte y atención</h3>'+grid([
       ['Fecha reporte', fmtDate(t.fecha_reporte || t.fr)], ['Hora reporte', t.h_reporte || t.hr], ['Fecha llegada', fmtDate(t.fecha_llegada || t.fl)],
@@ -1802,7 +1813,6 @@
       try{ const ix=await fetchJson('/api/tickets/'+encodeURIComponent(ticketId)+'/interacciones'); interactions=ix.data||ix||interactions; }catch(interactionError){ interactions.error=interactionError.message; }
       show('Ticket · ' + (t.ticket || t.n || ticketId), [projectNameDisplay(t.proyecto || t.pro), t.codigo_equipo || t.cod || t.equipo, t.zona || t.zon].filter(Boolean).join(' · ') || 'Detalle de ticket', ticketDetailHtml(t, ticketId, interactions));
       const body=document.getElementById('mg-detail-body');
-      body.innerHTML = body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
       bindLinks(body); bindTicketInteractions(t,ticketId);
       startTicketChatRefresh(ticketId, interactions.comentarios||[]);
       if(openOptions.focus==='chat') window.setTimeout(focusTicketChat, 80);
@@ -1822,12 +1832,12 @@
         try{
           const pd = await fetchJson('/api/proyectos/detalle/' + encodeURIComponent(e.proyecto));
           const p = pd.proyecto || {};
-          projectHtml = grid([['Proyecto','<button class="mg-link" data-proyecto="'+esc(e.proyecto)+'">'+esc(projectNameDisplay(p.proyecto_nombre || e.proyecto))+'</button>'],['Código',p.proyecto_codigo || e.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d]]);
+          projectHtml = grid([['Proyecto',detailLink('proyecto',e.proyecto,projectNameDisplay(p.proyecto_nombre || e.proyecto))],['Código',p.proyecto_codigo || e.proyecto],['Ciudad',p.ciudad],['Estado',p.estado],['Zona',p.zona],['Supervisor',p.supervisor],['Equipos',p.equipos],['Parados',p.parados],['Tickets 35d',p.tickets_35d]]);
         }catch(e2){ projectHtml = '<div class="mg-empty">No se pudo cargar detalle del proyecto: '+esc(e2.message)+'</div>'; }
       }
       const rows = ticketData.data || ticketData.tickets || [];
-      show('Equipo crítico · ' + codigo, (rows.length || 0) + ' tickets relacionados', '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+projectHtml+'</section><section class="mg-detail-section"><h3>Detalle del Equipo</h3>'+grid([['Código','<button class="mg-link" data-equipo="'+esc(codigo)+'">'+esc(codigo)+'</button>'],['Proyecto',e.proyecto],['Ciudad',e.ciudad],['Estado',e.estado],['Zona',e.zona],['Supervisor',e.supervisor],['Estatus servicio',e.estatus_servicio],['Operativo',e.estado_operativo],['Identificación sitio',e.identificacion_sitio]])+'</section><section class="mg-detail-section"><h3>Tickets relacionados al equipo</h3>'+ticketsTable(rows)+'</section>');
-      const body=document.getElementById('mg-detail-body'); body.innerHTML=body.innerHTML.replace(/&lt;button/g,'<button').replace(/&lt;\/button&gt;/g,'</button>').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); bindLinks(body);
+      show('Equipo crítico · ' + codigo, (rows.length || 0) + ' tickets relacionados', '<section class="mg-detail-section"><h3>Detalle del Proyecto</h3>'+projectHtml+'</section><section class="mg-detail-section"><h3>Detalle del Equipo</h3>'+grid([['Código',detailLink('equipo',codigo,codigo)],['Proyecto',e.proyecto],['Ciudad',e.ciudad],['Estado',e.estado],['Zona',e.zona],['Supervisor',e.supervisor],['Estatus servicio',e.estatus_servicio],['Operativo',e.estado_operativo],['Identificación sitio',e.identificacion_sitio]])+'</section><section class="mg-detail-section"><h3>Tickets relacionados al equipo</h3>'+ticketsTable(rows)+'</section>');
+      const body=document.getElementById('mg-detail-body'); bindLinks(body);
     }catch(e){ show('Equipo crítico', codigo, '<div class="mg-empty">Error: '+esc(e.message)+'</div>'); }
   }
   document.addEventListener('mantto:navigation', function(event){

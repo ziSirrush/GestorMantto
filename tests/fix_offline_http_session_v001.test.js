@@ -1,4 +1,5 @@
 'use strict';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | REGRESION_SESION_JWT_EFIMERA_V001]
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -169,7 +170,7 @@ test('FIX: el caché PWA conserva el corte offline y carga Auth actualizado',()=
   assert.match(code('core/http.js'),/Object\.freeze\(\{ request, get/);
 });
 
-test('FIX: sesión guardada y auth/me sin respuesta dejan de mostrar spinner tras el límite',async()=>{
+test('FIX: un JWT legacy persistido se purga y un refresh sin respuesta muestra login tras el límite',async()=>{
   const timerTasks=[];
   const values=new Map();
   const sessionValues=new Map();
@@ -184,7 +185,8 @@ test('FIX: sesión guardada y auth/me sin respuesta dejan de mostrar spinner tra
     if(!display.has(id)){
       const classes=new Set(['auth-bootstrap-screen','auth-screen','app'].includes(id)?[]:[]);
       display.set(id,{textContent:'',className:'',style:{},classList:{
-        add:k=>classes.add(k),remove:k=>classes.delete(k),contains:k=>classes.has(k)
+        add:k=>classes.add(k),remove:k=>classes.delete(k),contains:k=>classes.has(k),
+        toggle(k,force){if(force===undefined){if(classes.has(k))classes.delete(k);else classes.add(k);return;}if(force)classes.add(k);else classes.delete(k);}
       },addEventListener(){}});
     }
     return display.get(id);
@@ -206,13 +208,14 @@ test('FIX: sesión guardada y auth/me sin respuesta dejan de mostrar spinner tra
   vm.runInNewContext(code('core/auth.js'),sandbox,{filename:'auth.js'});
   const task=window.ManttoAuth.init();
   await Promise.resolve();await Promise.resolve();
-  // Refresh se programa para el futuro; la validación pendiente dura como máximo 12 s.
+  // El JWT legacy no se restaura: se intenta renovar mediante la cookie HttpOnly.
   const deadline=timerTasks.find(t=>t.ms===12000);
-  assert.ok(deadline,'No se programó límite para auth/me');
+  assert.ok(deadline,'No se programó límite para refresh');
   deadline.fn();
   await task;
   assert.equal(element('auth-bootstrap-screen').classList.contains('hidden'),true);
-  assert.equal(element('auth-screen').classList.contains('hidden'),true);
-  assert.ok(events.includes('mantto:auth-ready'));
-  assert.equal(values.get('mantto_token'),token,'No se eliminó la sesión guardada');
+  assert.equal(element('auth-screen').classList.contains('hidden'),false);
+  assert.equal(events.includes('mantto:auth-ready'),false);
+  assert.equal(values.has('mantto_token'),false,'El JWT legacy debe eliminarse de localStorage');
+  assert.equal(values.has('mantto_user'),false,'La identidad legacy debe eliminarse de localStorage');
 });

@@ -1,5 +1,7 @@
 name: Build and deploy Node.js app to Azure Web App - mantto-gestor-api
 
+# [Lumbre | 2026-10-29 | LUMBRE-MG | L04_CI_SUMINISTRO_SEGURO_V001]
+
 on:
   push:
     branches:
@@ -9,31 +11,47 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.x'
           cache: 'npm'
           cache-dependency-path: './backend/package-lock.json'
 
-      - name: Instalar dependencias, validar y probar
+      - name: Instalar dependencias reproducibles
+        working-directory: ./backend
+        run: npm ci --no-audit --no-fund
+
+      - name: Auditar dependencias
+        working-directory: ./backend
+        run: npm audit --audit-level=moderate
+
+      - name: Validar y probar
         working-directory: ./backend
         run: |
-          npm install --no-audit --no-fund
           npm run check
           npm run build --if-present
-          npm run test --if-present
+          npm test
+
+      - name: Reducir dependencias para producción
+        working-directory: ./backend
+        run: npm prune --omit=dev --no-audit --no-fund
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: node-app
+          if-no-files-found: error
+          retention-days: 1
           path: |
             ./backend/server.js
             ./backend/package.json
@@ -43,6 +61,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: build
     permissions:
       id-token: write
@@ -50,12 +69,13 @@ jobs:
 
     steps:
       - name: Download artifact from build job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: node-app
+          path: ./release
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -63,8 +83,8 @@ jobs:
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@b686016b4de8820a23519503685d8d03fbfa03a6 # v3
         with:
           app-name: 'mantto-gestor-api'
           slot-name: 'Production'
-          package: .
+          package: ./release

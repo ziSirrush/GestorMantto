@@ -298,19 +298,19 @@ async function legacyUploadsReport_gnral(query = {}) {
     sampleLimit: query.sample_limit
   });
   const local = scanLocalUploads_gnral({ sampleLimit: query.sample_limit });
-  const enabled = process.env.CFFAA_LEGACY_UPLOADS_ENABLED === undefined
-    ? true
-    : enabled_gnral(process.env.CFFAA_LEGACY_UPLOADS_ENABLED, true);
+  const migrationComplete = database.total_references === 0 && local.files === 0;
 
   return {
     generated_at: new Date().toISOString(),
-    static_route_enabled: enabled,
+    static_route_enabled: false,
+    public_exposure_removed: true,
     database,
     local,
-    safe_to_disable: database.total_references === 0 && local.files === 0,
-    decision: database.total_references === 0 && local.files === 0
-      ? 'La ruta /uploads puede deshabilitarse después de una prueba funcional completa.'
-      : 'No deshabilitar /uploads: todavía existen referencias o archivos locales.'
+    safe_to_disable: true,
+    migration_complete: migrationComplete,
+    decision: migrationComplete
+      ? 'La ruta pública /uploads está retirada y no quedan referencias o archivos locales pendientes.'
+      : 'La ruta pública /uploads está retirada; migra las referencias o archivos históricos pendientes al flujo autorizado de Azure.'
   };
 }
 

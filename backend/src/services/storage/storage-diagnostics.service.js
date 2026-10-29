@@ -52,7 +52,9 @@ function getStaticSnapshot_gnral() {
       metrics_enabled: enabled_gnral(process.env.CFFAA_STORAGE_METRICS_ENABLED, false),
       orphan_delete_enabled: enabled_gnral(process.env.CFFAA_STORAGE_ORPHAN_DELETE_ENABLED, false),
       orphan_min_age_hours: Number(process.env.CFFAA_STORAGE_ORPHAN_MIN_AGE_HOURS || 24),
-      legacy_uploads_enabled: enabled_gnral(process.env.CFFAA_LEGACY_UPLOADS_ENABLED, true),
+      // [Lumbre | 2026-10-29 | LUMBRE-MG | L02_RETIRO_UPLOADS_PUBLICO_V001]
+      legacy_uploads_enabled: false,
+      legacy_uploads_public_route_removed: true,
       historical_migration_automatic: false
     }
   };

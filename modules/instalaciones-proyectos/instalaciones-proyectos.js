@@ -1307,6 +1307,22 @@ async function pyAbrirEquipo(idEquipo){
 /* =========================================================
    INIT
    ========================================================= */
+// [Lumbre | 2026-10-29 | LUMBRE-MG | EVENTOS_INSTALACIONES_COMPATIBLES_CSP_V001]
+function pyBindCspSafeEvents(){
+  document.getElementById('py-proyectos-refresh')?.addEventListener('click',()=>window.ManttoInstalacionesProyectos?.reload());
+  document.getElementById('py-f-buscar')?.addEventListener('input',pyRenderProyectos);
+  ['py-f-estado','py-f-asesor','py-f-supervisor','py-f-activo'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change',pyRenderProyectos);
+  });
+  document.getElementById('py-proyectos-prev')?.addEventListener('click',()=>pyCambiarPaginaProyectos(-1));
+  document.getElementById('py-proyectos-next')?.addEventListener('click',()=>pyCambiarPaginaProyectos(1));
+  document.getElementById('py-detail-back')?.addEventListener('click',()=>document.getElementById('py-detail-page')?.classList.remove('open'));
+  const lightbox=document.getElementById('py-lightbox');
+  lightbox?.addEventListener('click',event=>{if(event.target===lightbox)pyCerrarLightbox();});
+  document.getElementById('py-lightbox-close')?.addEventListener('click',pyCerrarLightbox);
+  document.getElementById('py-lightbox-prev')?.addEventListener('click',()=>pyLightboxNav(-1));
+  document.getElementById('py-lightbox-next')?.addEventListener('click',()=>pyLightboxNav(1));
+}
 async function pyInit(){
   try{ await pyCargarDesdeAiven(); const status=document.getElementById('py-aiven-status'); if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>'; }catch(error){ console.error(error); const page=document.getElementById('py-page'); if(page) page.insertAdjacentHTML('afterbegin',`<div class="py-note">No se pudieron cargar los datos desde Aiven: ${pyEsc(error.message||error)}</div>`); }
   pyRenderKPIs();
@@ -1334,6 +1350,7 @@ async function pyMount(forceReload,payload){
    if(!r.ok)throw new Error('No se pudo cargar Proyectos de Instalación.');
    view.innerHTML=await r.text();
    view.dataset.pyReady='1';
+   pyBindCspSafeEvents();
    await pyInit();
  }
  await pyOpenDeepLink(payload);

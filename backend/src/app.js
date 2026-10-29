@@ -1,5 +1,4 @@
 const express = require('express');
-const path = require('path');
 const cors = require('cors');
 const { captureRawBody } = require('./middleware/raw-body.middleware');
 
@@ -9,11 +8,6 @@ const { getCorsOptions } = require('./config/http.config');
 const { viewerReadOnlyGuard } = require('./middleware/viewer-readonly.middleware');
 const { interactionTrackingMiddleware_gnral } = require('./middleware/interaction-tracking.middleware');
 const { loadTestTelemetryMiddleware } = require('./modules/panel-control-prueba-carga/panel-control-prueba-carga.telemetry');
-
-function enabled(value, fallback = true) {
-  if (value === undefined || value === null || value === '') return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
-}
 
 function createApp() {
   const app = express();
@@ -33,10 +27,9 @@ function createApp() {
   app.use(viewerReadOnlyGuard);
   app.use(interactionTrackingMiddleware_gnral);
 
-  if (enabled(process.env.CFFAA_LEGACY_UPLOADS_ENABLED, true)) {
-    app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
-  }
-
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | L02_RETIRO_UPLOADS_PUBLICO_V001]
+  // Los archivos se entregan exclusivamente por el flujo autorizado de Azure.
+  // No reintroducir servidores estáticos para carpetas de cargas históricas.
   app.use('/api', apiRouter);
 
   app.use(notFoundHandler);

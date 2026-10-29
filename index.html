@@ -13,18 +13,7 @@
 <meta content="BLT NOW" id="blt-pwa-apple-title" name="apple-mobile-web-app-title"/>
 <title>BLT NOW</title>
 <link id="blt-pwa-manifest" rel="manifest"/>
-<script id="blt-pwa-install-brand">
-  (function(){
-    var isGitHubPages=/(^|\.)github\.io$/i.test(window.location.hostname||'');
-    var installName=isGitHubPages?'BLT NOW GH':'BLT NOW';
-    var manifest=document.getElementById('blt-pwa-manifest');
-    var applicationName=document.getElementById('blt-pwa-application-name');
-    var appleTitle=document.getElementById('blt-pwa-apple-title');
-    if(manifest) manifest.setAttribute('href',isGitHubPages?'./manifest-github.json':'./manifest.json');
-    if(applicationName) applicationName.setAttribute('content',installName);
-    if(appleTitle) appleTitle.setAttribute('content',installName);
-  })();
-</script>
+<script src="./core/early-bootstrap.js?v=20261029-csp-v001"></script>
 <link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
 <link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
 <link href="./styles/base.css?v=20261023-context-back-only-v001" rel="stylesheet"/>
@@ -48,7 +37,7 @@
 <section aria-label="Inicio de sesión BLT NOW" class="auth-screen hidden" id="auth-screen">
 <div class="auth-card">
 <div class="auth-brand">
-<img alt="BLT Brilliant" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" src="assets/logo.png"/>
+<img alt="BLT Brilliant" data-image-fallback="sibling" src="assets/logo.png"/>
 <span class="auth-logo-fallback">BLT</span>
 <div>
 <h1>BLT NOW</h1>
@@ -112,7 +101,7 @@
 <header class="hdr app-topbar">
 <button aria-label="Contraer panel lateral" class="sidebar-toggle" id="btnToggleSidebar" title="Contraer panel lateral">☰</button>
 <button class="hdr-logo-btn" data-route="home" title="Inicio" type="button">
-<img alt="BLT Brilliant" class="hdr-logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" src="assets/logo.png"/>
+<img alt="BLT Brilliant" class="hdr-logo-img" data-image-fallback="sibling" src="assets/logo.png"/>
 <span class="hdr-logo-fallback">BLT</span>
 </button>
 <div class="hdr-title-main">SISTEMA DE GESTIÓN DE OPERACIONES</div>
@@ -746,7 +735,7 @@
 <!-- NORI DE PRUEBAS -->
 <button aria-controls="pandaChat" aria-expanded="false" aria-label="Abrir Nori" class="panda-float" id="noriFloat" title="Abrir Nori" type="button">
 <span class="nori-dock-label" aria-hidden="true">Nori</span>
-<img alt="Nori soporte" onerror="this.style.display='none'; this.parentElement.classList.add('panda-fallback');" src="assets/img/panda-support.png"/>
+<img alt="Nori soporte" data-image-fallback="nori" src="assets/img/panda-support.png"/>
 <span class="panda-fallback-icon">🐼</span>
 <span class="panda-notif" aria-hidden="true"></span>
 </button>
@@ -767,8 +756,8 @@
 </div>
 </div>
 </section>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" referrerpolicy="no-referrer" src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" referrerpolicy="no-referrer" src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="./core/daily-phrases.js?v=20260914-horarios-f2-v001"></script>
 <script src="./core/config.js?v=20260705-v114"></script>
 <script src="./core/build-info.generated.js?v=source"></script>

@@ -737,7 +737,7 @@ test('detalle Seguimiento Especial invalida montajes async viejos y conserva un 
   assert.equal((globalModule.match(/head\.appendChild\(root\)/g)||[]).length,1);
 });
 
-test('npm test queda conectado al workflow existente y admite validaciones incrementales', () => {
+test('npm test queda conectado de forma obligatoria al workflow y admite validaciones incrementales', () => {
   const packageJson = JSON.parse(read('backend/package.json'));
   const workflow = read('.github/workflows/main_mantto-gestor-api.yml');
   const command = String(packageJson.scripts.test || '');
@@ -750,5 +750,7 @@ test('npm test queda conectado al workflow existente y admite validaciones incre
   assert.match(packageJson.scripts['test:storage'], /^node scripts\/validate-cffaa-01\.js\b/);
   assert.match(packageJson.scripts['test:unit'], /\.\.\/tests\/\*\.test\.js/);
   assert.match(packageJson.scripts['test:validation'], /\.\.\/validation\/\*\.test\.js/);
-  assert.match(workflow, /npm run test --if-present/);
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | CONTRATO_CI_TEST_OBLIGATORIO_V001]
+  assert.match(workflow, /^\s*npm test\s*$/m);
+  assert.doesNotMatch(workflow, /npm run test --if-present/);
 });

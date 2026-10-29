@@ -1,4 +1,5 @@
-const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | CACHE_BOOTSTRAP_CSP_V001]
+const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001';
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
@@ -10,6 +11,7 @@ const SHELL_ASSETS = [
   './styles/base.css',
   './styles/home.css',
   './styles/device-permissions.css',
+  './core/early-bootstrap.js',
   './core/daily-phrases.js',
   './core/config.js',
   './core/build-info.js',

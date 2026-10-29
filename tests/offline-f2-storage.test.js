@@ -1,4 +1,5 @@
 'use strict';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | PRUEBAS_CADUCIDAD_PURGA_AISLAMIENTO_OFFLINE_V001]
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -87,7 +88,7 @@ function createStorage(){
   const sandbox={window:{indexedDB:db,crypto:{randomUUID:()=>Math.random().toString(16).slice(2)}},
     document:{addEventListener(name,fn){events[name]=fn;}},localStorage,Blob,Date,console};
   vm.runInNewContext(code,sandbox);
-  return {storage:sandbox.window.ManttoOfflineStorage,db,events};
+  return {storage:sandbox.window.ManttoOfflineStorage,db,events,values};
 }
 function context(){return {actor_user_id:10,effective_user_id:20,domain:'UNITED',dataset:'operacion-resumen-dia'};}
 function manifest(signature='a'.repeat(64)){
@@ -167,4 +168,51 @@ test('el respaldo legado UNITED válido sigue vigente hasta su reemplazo y se li
   assert.equal((await storage.getSnapshot(c)).record_count,1);
   await storage.pruneSnapshots({actor_user_id:10,effective_user_id:20},{[key]:{signature:'b'.repeat(64),zone_ids:[2,5]}});
   assert.equal(await storage.getSnapshot(c),null);
+});
+
+test('L-08: una copia vencida se rechaza y purga junto con sus bloques',async()=>{
+  const {storage,db}=createStorage(),c=context(),m=manifest();
+  const run=await storage.beginDownload(c,m);
+  await storage.appendDownload(c,run,'tickets',[{id:5},{id:10}]);
+  await storage.appendDownload(c,run,'portafolio',[{id_portafolio:9}]);
+  await storage.finishDownload(c,run,m);
+  const snapshot=db.stores.get('snapshots').get(storage.normalizeContext(c).partition_key);
+  snapshot.downloaded_at=new Date(Date.now()-8*24*60*60*1000).toISOString();
+  snapshot.expires_at=new Date(Date.now()-24*60*60*1000).toISOString();
+
+  assert.equal(await storage.getSnapshot(c),null);
+  assert.equal(db.stores.get('snapshots').size,0);
+  assert.equal([...db.stores.get('backup_chunks').values()].some(row=>row.run_id===run),false);
+});
+
+test('L-08: un cambio de identidad conserva solo la partición activa',async()=>{
+  const {storage,events}=createStorage();
+  const active=context();
+  const previous={...context(),effective_user_id:21};
+  await storage.saveSnapshot(active,{data:{tickets:[{id:1}]}},{record_count:1});
+  await storage.saveSnapshot(previous,{data:{tickets:[{id:2}]}},{record_count:1});
+
+  await events['mantto:view-user-changed']({detail:{actor:{id_SB:10},user:{id_SB:20}}});
+
+  assert.equal((await storage.getSnapshot(active)).record_count,1);
+  assert.equal(await storage.getSnapshot(previous),null);
+});
+
+test('L-08: logout y expiración de sesión purgan por completo IndexedDB',async()=>{
+  for(const eventName of ['mantto:logout','mantto:session-expired']){
+    const {storage,events}=createStorage();
+    await storage.saveSnapshot(context(),{data:{tickets:[{id:1}]}},{record_count:1});
+    await events[eventName]();
+    assert.equal(await storage.getSnapshot(context()),null,eventName);
+  }
+});
+
+test('L-08: una autorización local vencida se elimina, no solo se ignora',()=>{
+  const {storage,values}=createStorage();
+  const key='mantto:offline-access:10:20';
+  values.set(key,JSON.stringify({saved_at:new Date(Date.now()-25*60*60*1000).toISOString(),data:{
+    permission_code:'GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',effective_user_id:20
+  }}));
+  assert.equal(storage.readCachedAccess(10,20),null);
+  assert.equal(values.has(key),false);
 });

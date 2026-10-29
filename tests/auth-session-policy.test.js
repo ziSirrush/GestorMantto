@@ -1,4 +1,5 @@
 'use strict';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | PRUEBA_CSRF_SIN_JWT_PERSISTENTE_V001]
 
 const assert = require('assert');
 const fs = require('fs');
@@ -244,6 +245,9 @@ async function testFrontendSchedulingAndCsrfRotation() {
   const expectedDelay = (12 * 60 - 5) * 60 * 1000;
   assert(Math.abs(regularTimer.delay - expectedDelay) < 5000);
   assert.strictEqual(localStorage.getItem('mantto_session_csrf'), 'csrf-rotado-1');
+  assert.strictEqual(localStorage.getItem('mantto_token'), null);
+  assert.strictEqual(localStorage.getItem('mantto_user'), null);
+  assert.strictEqual(sessionStorage.getItem('mantto_token'), nextPayload.token);
   assert.strictEqual(fetchCalls[0].options.credentials, 'include');
 
   const finalAbsoluteSeconds = Math.floor((Date.now() + 60 * 60 * 1000) / 1000);

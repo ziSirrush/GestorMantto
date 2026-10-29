@@ -1,5 +1,6 @@
 (function(){
   'use strict';
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | CADUCIDAD_PURGA_AISLAMIENTO_OFFLINE_V001]
   if(window.ManttoOfflineStorage)return;
 
   const DB_NAME='mantto-offline-v2';
@@ -12,6 +13,9 @@
   const OFFLINE_PERMISSION='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
   const ACCESS_PREFIX='mantto:offline-access:';
   const ACCESS_TTL_MS=24*60*60*1000;
+  const SNAPSHOT_TTL_MS=7*24*60*60*1000;
+  const DRAFT_TTL_MS=60*60*1000;
+  const CLOCK_SKEW_MS=5*60*1000;
   const MANAGED_LOCAL_PREFIXES=['mantto:offline-access:','mantto:offline-pending:', 'mantto:offline-backup-lease:'];
   const SUPPORTED_KINDS=Object.freeze(['tickets','portafolio','proyectos']);
   // Fase 5: la cola mantiene confirmacion Aiven y conflictos por separado.
@@ -94,12 +98,44 @@
     return Object.values(data).reduce((total,value)=>total+(Array.isArray(value)?value.length:0),0);
   }
   function isHash(value){return typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);}
+  function timestampMs(value){
+    const parsed=new Date(value||0).getTime();
+    return Number.isFinite(parsed)?parsed:0;
+  }
+  function snapshotExpiresAt(row){
+    const downloaded=timestampMs(row?.downloaded_at);
+    return downloaded?downloaded+SNAPSHOT_TTL_MS:0;
+  }
+  function snapshotIsFresh(row,now=Date.now()){
+    const downloaded=timestampMs(row?.downloaded_at),expires=snapshotExpiresAt(row);
+    return Boolean(downloaded&&downloaded<=now+CLOCK_SKEW_MS&&expires>now);
+  }
+  function partitionMatchesIdentity(partitionKey,actor,effective){
+    const [storedActor,storedEffective]=String(partitionKey||'').split(':').map(Number);
+    return storedActor===actor&&storedEffective===effective;
+  }
+  async function deleteSnapshotRows(db,rows){
+    const targets=(rows||[]).filter(Boolean);
+    if(!targets.length)return 0;
+    const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
+    const snapshots=tx.objectStore(SNAPSHOT_STORE),metadata=tx.objectStore(METADATA_STORE);
+    for(const row of targets){
+      snapshots.delete(row.partition_key);
+      metadata.delete(`snapshot:${row.partition_key}`);
+    }
+    await done;
+    for(const runId of [...new Set(targets.map(row=>row.run_id).filter(Boolean))]){
+      try{await deleteChunkRun(db,runId);}catch(error){console.warn('[Offline] No fue posible purgar bloques caducados.',error);}
+    }
+    return targets.length;
+  }
 
   // Conserva el contrato histórico de respaldos pequeños. Escritura atómica.
   async function saveSnapshot(context,payload,metadata){
     const part=normalizeContext(context);
     const now=new Date().toISOString();
     const row={...part,schema_version:1,read_only:true,downloaded_at:now,
+      expires_at:new Date(Date.now()+SNAPSHOT_TTL_MS).toISOString(),
       source_updated_at:metadata?.source_updated_at||payload?.generated_at||null,
       record_count:Number.isFinite(Number(metadata?.record_count))?Number(metadata.record_count):recordCount(payload),
       byte_size:sizeOf(payload),payload};
@@ -108,7 +144,7 @@
       const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
       tx.objectStore(SNAPSHOT_STORE).put(row);
       tx.objectStore(METADATA_STORE).put({key:`snapshot:${part.partition_key}`,partition_key:part.partition_key,
-        downloaded_at:now,record_count:row.record_count,byte_size:row.byte_size,read_only:true});
+        downloaded_at:now,expires_at:row.expires_at,record_count:row.record_count,byte_size:row.byte_size,read_only:true});
       await done;return row;
     }finally{db.close();}
   }
@@ -127,7 +163,7 @@
     }
     const runId=`${part.partition_key}:${Date.now()}:${window.crypto?.randomUUID?.()||Math.random().toString(16).slice(2)}`;
     const draft={key:`draft:${runId}`,run_id:runId,partition_key:part.partition_key,
-      started_at:new Date().toISOString(),scope_signature:manifest.scope_signature,
+      started_at:new Date().toISOString(),expires_at:new Date(Date.now()+DRAFT_TTL_MS).toISOString(),scope_signature:manifest.scope_signature,
       expected,counts:Object.fromEntries(kinds.map(k=>[k,0])),
       last_ids:Object.fromEntries(kinds.map(k=>[k,0])),
       parts:Object.fromEntries(kinds.map(k=>[k,0])),kinds,byte_size:0};
@@ -199,6 +235,7 @@
       previousRun=before?.run_id||null;
       const now=new Date().toISOString();
       const row={...part,schema_version:2,read_only:true,downloaded_at:now,
+        expires_at:new Date(Date.now()+SNAPSHOT_TTL_MS).toISOString(),
         source_updated_at:manifest.generated_at||null,
         record_count:Object.values(draft.counts).reduce((a,b)=>a+b,0),
         byte_size:draft.byte_size,run_id:runId,scope_signature:manifest.scope_signature,
@@ -206,7 +243,7 @@
         payload:{alcance:manifest.alcance,data:Object.fromEntries(draft.kinds.map(k=>[k,[]]))}};
       snaps.put(row);
       meta.put({key:`snapshot:${part.partition_key}`,partition_key:part.partition_key,
-        downloaded_at:now,record_count:row.record_count,byte_size:row.byte_size,
+        downloaded_at:now,expires_at:row.expires_at,record_count:row.record_count,byte_size:row.byte_size,
         scope_signature:row.scope_signature,read_only:true});
       meta.delete(`draft:${runId}`);
       await done;
@@ -235,6 +272,10 @@
       const tx=db.transaction(SNAPSHOT_STORE,'readonly'),done=transactionDone(tx);
       const row=await requestResult(tx.objectStore(SNAPSHOT_STORE).get(part.partition_key));
       await done;
+      if(row&&!snapshotIsFresh(row)){
+        await deleteSnapshotRows(db,[row]);
+        return null;
+      }
       if(!row||row.schema_version!==2)return row||null;
       if(!row.run_id)throw new Error('La copia offline no contiene generación válida.');
       const txChunks=db.transaction(CHUNK_STORE,'readonly'),doneChunks=transactionDone(txChunks);
@@ -257,7 +298,10 @@
       const tx=db.transaction(SNAPSHOT_STORE,'readonly'),done=transactionDone(tx);
       const rows=await requestResult(tx.objectStore(SNAPSHOT_STORE).getAll());
       await done;
-      return (rows||[]).filter(r=>r.actor_user_id===actor&&r.effective_user_id===effective);
+      const matching=(rows||[]).filter(r=>r.actor_user_id===actor&&r.effective_user_id===effective);
+      const expired=matching.filter(row=>!snapshotIsFresh(row));
+      await deleteSnapshotRows(db,expired);
+      return matching.filter(row=>snapshotIsFresh(row));
     }finally{db.close();}
   }
 
@@ -275,6 +319,11 @@
       const removed=[];
       for(const row of rows){
         if(row.actor_user_id!==actor||row.effective_user_id!==effective)continue;
+        if(!snapshotIsFresh(row)){
+          snaps.delete(row.partition_key);meta.delete(`snapshot:${row.partition_key}`);
+          if(row.run_id)removed.push(row.run_id);
+          continue;
+        }
         const key=`${row.domain}:${row.dataset}`;
         const expected=allowed.get(key);
         const signature=typeof expected==='string'?expected:expected?.signature;
@@ -325,6 +374,7 @@
        row.domain!==part.domain||row.dataset!==part.dataset||
        row.scope_signature!==signature||typeof row.run_id!=='string'||!row.run_id)
       throw new Error('Respaldo sin validar, incompleto o fuera del alcance vigente.');
+    if(!snapshotIsFresh(row))throw new Error('La copia offline caducó y debe descargarse nuevamente.');
     if(expectedRun&&row.run_id!==expectedRun)throw new Error('La copia fue renovada. Abre nuevamente el módulo.');
     const kinds=readerKinds(part),counts=row.kind_counts;
     if(!counts||Object.keys(counts).length!==kinds.length||
@@ -337,6 +387,10 @@
     const tx=db.transaction(SNAPSHOT_STORE,'readonly'),done=transactionDone(tx);
     const row=await requestResult(tx.objectStore(SNAPSHOT_STORE).get(part.partition_key));
     await done;
+    if(row&&!snapshotIsFresh(row)){
+      await deleteSnapshotRows(db,[row]);
+      throw new Error('La copia offline caducó y fue purgada. Descárgala nuevamente.');
+    }
     assertSnapshotReaderRow(row,part,signature,run);
     return row;
   }
@@ -725,16 +779,89 @@
       if(key&&MANAGED_LOCAL_PREFIXES.some(prefix=>key.startsWith(prefix)))localStorage.removeItem(key);
     }
   }
+  function clearManagedLocalStateOutsideIdentity(actor,effective){
+    const keepAccessKey=`${ACCESS_PREFIX}${actor}:${effective}`;
+    for(let i=localStorage.length-1;i>=0;i--){
+      const key=localStorage.key(i);
+      if(!key||!MANAGED_LOCAL_PREFIXES.some(prefix=>key.startsWith(prefix)))continue;
+      if(key===keepAccessKey)continue;
+      localStorage.removeItem(key);
+    }
+  }
   function readCachedAccess(actorUserId,effectiveUserId){
     const actor=Number(actorUserId),effective=Number(effectiveUserId);
     if(!Number.isSafeInteger(actor)||actor<=0||!Number.isSafeInteger(effective)||effective<=0)return null;
     try{
       const item=JSON.parse(localStorage.getItem(`${ACCESS_PREFIX}${actor}:${effective}`)||'null');
       const ts=new Date(item?.saved_at||0).getTime();
-      if(!item?.data||!Number.isFinite(ts)||Date.now()<ts||Date.now()-ts>ACCESS_TTL_MS)return null;
-      if(item.data.permission_code!==OFFLINE_PERMISSION||Number(item.data.effective_user_id)!==effective)return null;
+      if(!item?.data||!Number.isFinite(ts)||Date.now()+CLOCK_SKEW_MS<ts||Date.now()-ts>ACCESS_TTL_MS){
+        localStorage.removeItem(`${ACCESS_PREFIX}${actor}:${effective}`);
+        return null;
+      }
+      if(item.data.permission_code!==OFFLINE_PERMISSION||Number(item.data.effective_user_id)!==effective){
+        localStorage.removeItem(`${ACCESS_PREFIX}${actor}:${effective}`);
+        return null;
+      }
       return item.data;
     }catch(_error){return null;}
+  }
+  async function purgeExpiredData(){
+    if(!window.indexedDB)return 0;
+    const db=await openDatabase();
+    try{
+      const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
+      const snapshots=tx.objectStore(SNAPSHOT_STORE),metadata=tx.objectStore(METADATA_STORE);
+      const rows=await requestResult(snapshots.getAll());
+      const metas=await requestResult(metadata.getAll());
+      const expired=(rows||[]).filter(row=>!snapshotIsFresh(row));
+      const staleRuns=[];
+      for(const row of expired){
+        snapshots.delete(row.partition_key);
+        metadata.delete(`snapshot:${row.partition_key}`);
+        if(row.run_id)staleRuns.push(row.run_id);
+      }
+      for(const meta of metas||[]){
+        if(!String(meta?.key||'').startsWith('draft:'))continue;
+        const started=timestampMs(meta.started_at);
+        if(started&&started<=Date.now()+CLOCK_SKEW_MS&&Date.now()-started<=DRAFT_TTL_MS)continue;
+        metadata.delete(meta.key);
+        if(meta.run_id)staleRuns.push(meta.run_id);
+      }
+      await done;
+      for(const runId of [...new Set(staleRuns)]){
+        try{await deleteChunkRun(db,runId);}catch(error){console.warn('[Offline] Limpieza de bloques temporales pendiente.',error);}
+      }
+      return expired.length;
+    }finally{db.close();}
+  }
+  async function purgeOutsideIdentity(actorUserId,effectiveUserId){
+    const actor=positiveId(actorUserId,'usuario actor'),effective=positiveId(effectiveUserId,'usuario efectivo');
+    clearManagedLocalStateOutsideIdentity(actor,effective);
+    if(!window.indexedDB)return 0;
+    const db=await openDatabase();
+    try{
+      const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
+      const snapshots=tx.objectStore(SNAPSHOT_STORE),metadata=tx.objectStore(METADATA_STORE);
+      const rows=await requestResult(snapshots.getAll());
+      const metas=await requestResult(metadata.getAll());
+      const removed=(rows||[]).filter(row=>row.actor_user_id!==actor||row.effective_user_id!==effective);
+      const staleRuns=[];
+      for(const row of removed){
+        snapshots.delete(row.partition_key);
+        metadata.delete(`snapshot:${row.partition_key}`);
+        if(row.run_id)staleRuns.push(row.run_id);
+      }
+      for(const meta of metas||[]){
+        if(!String(meta?.key||'').startsWith('draft:')||partitionMatchesIdentity(meta.partition_key,actor,effective))continue;
+        metadata.delete(meta.key);
+        if(meta.run_id)staleRuns.push(meta.run_id);
+      }
+      await done;
+      for(const runId of [...new Set(staleRuns)]){
+        try{await deleteChunkRun(db,runId);}catch(error){console.warn('[Offline] Limpieza de identidad anterior pendiente.',error);}
+      }
+      return removed.length;
+    }finally{db.close();}
   }
   async function purgeAll(){
     clearManagedLocalState();
@@ -746,16 +873,29 @@
       request.onblocked=()=>reject(new Error('No se pudieron purgar las copias porque otra pestaña mantiene la base abierta. Cierra las demás pestañas y elimina los datos locales.')); 
     });
   }
-  document.addEventListener('mantto:view-user-changed',()=>{offlineIdentityRevision++;});
-  document.addEventListener('mantto:logout',()=>{
+  document.addEventListener('mantto:view-user-changed',event=>{
     offlineIdentityRevision++;
-    purgeAll().catch(error=>console.warn('[Modo Offline] No fue posible purgar IndexedDB al cerrar sesión.',error));
+    const actor=Number(event?.detail?.actor?.id_SB||event?.detail?.actor?.id||0);
+    const effective=Number(event?.detail?.user?.id_SB||event?.detail?.user?.id||0);
+    if(!actor||!effective)return Promise.resolve(false);
+    return purgeOutsideIdentity(actor,effective).catch(error=>console.warn('[Modo Offline] No fue posible aislar la identidad activa.',error));
+  });
+  const purgeClosedSession=eventName=>{
+    document.addEventListener(eventName,()=>{
+      offlineIdentityRevision++;
+      return purgeAll().catch(error=>console.warn('[Modo Offline] No fue posible purgar IndexedDB al cerrar sesión.',error));
+    });
+  };
+  purgeClosedSession('mantto:logout');
+  purgeClosedSession('mantto:session-expired');
+  document.addEventListener('mantto:auth-ready',()=>{
+    return purgeExpiredData().catch(error=>console.warn('[Modo Offline] No fue posible completar la purga por caducidad.',error));
   });
   window.ManttoOfflineStorage={databaseName:DB_NAME,normalizeContext,
     saveSnapshot,getSnapshot,listSnapshots,healthCheck,outboxStatus,readCachedAccess,
     hasCachedAccess(actor,effective){return Boolean(readCachedAccess(actor,effective));},
     beginDownload,appendDownload,finishDownload,abandonDownload,pruneSnapshots,
-    verifiedSnapshot,readSnapshotPage,purgeAll,
+    verifiedSnapshot,readSnapshotPage,purgeAll,purgeExpiredData,purgeOutsideIdentity,
     enqueueOfflineAction,listPendingActions,discardPendingAction,pruneOutbox,
     listSendableActions,claimPendingAction,settlePendingAction,requeueReviewedAction};
 })();

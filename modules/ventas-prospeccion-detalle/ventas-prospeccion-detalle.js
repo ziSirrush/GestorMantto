@@ -1,9 +1,12 @@
 (function () {
   'use strict';
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | SRI_LEAFLET_PROSPECCION_DETALLE_V001]
 
   const LEAFLET_VERSION = '1.9.4';
   const LEAFLET_CSS_URL = `https://cdnjs.cloudflare.com/ajax/libs/leaflet/${LEAFLET_VERSION}/leaflet.css`;
   const LEAFLET_JS_URL = `https://cdnjs.cloudflare.com/ajax/libs/leaflet/${LEAFLET_VERSION}/leaflet.js`;
+  const LEAFLET_CSS_INTEGRITY = 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';
+  const LEAFLET_JS_INTEGRITY = 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';
 
   const state = {
     id: null,
@@ -395,6 +398,7 @@
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = LEAFLET_CSS_URL;
+    link.integrity = LEAFLET_CSS_INTEGRITY;
     link.crossOrigin = 'anonymous';
     link.referrerPolicy = 'no-referrer';
     link.dataset.vpdLeaflet = 'css';
@@ -429,6 +433,7 @@
       script.addEventListener('error', failed, { once: true });
       if (!existing) {
         script.src = LEAFLET_JS_URL;
+        script.integrity = LEAFLET_JS_INTEGRITY;
         script.crossOrigin = 'anonymous';
         script.referrerPolicy = 'no-referrer';
         script.dataset.vpdLeaflet = 'js';

@@ -1,4 +1,5 @@
 'use strict';
+// [Lumbre | 2026-10-29 | LUMBRE-MG | REGRESION_BOOTSTRAP_PWA_CSP_V001]
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,16 +11,14 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 
 function executeBrandScript(hostname) {
-  const index = read('index.html');
-  const source = index.match(/<script id="blt-pwa-install-brand">([\s\S]*?)<\/script>/)?.[1];
-  assert.ok(source, 'No se encontró el selector de marca PWA.');
+  const source = read('core/early-bootstrap.js');
   const elements = new Map([
     ['blt-pwa-manifest', { setAttribute(name, value) { this[name] = value; } }],
     ['blt-pwa-application-name', { setAttribute(name, value) { this[name] = value; } }],
     ['blt-pwa-apple-title', { setAttribute(name, value) { this[name] = value; } }]
   ]);
   vm.runInNewContext(source, {
-    window: { location: { hostname } },
+    window: { location: { hostname }, addEventListener() {} },
     document: { getElementById(id) { return elements.get(id) || null; } }
   });
   return elements;
@@ -39,11 +38,13 @@ test('GitHub Pages instala la PWA como BLT NOW GH', () => {
 
 test('index selecciona el manifiesto por hostname y mantiene el nombre de iOS alineado', () => {
   const index = read('index.html');
+  const bootstrap = read('core/early-bootstrap.js');
   assert.match(index, /<title>BLT NOW<\/title>/);
   assert.doesNotMatch(index, /<title>BLT NOW\s*[|—-]/);
-  assert.match(index, /\(\^\|\\\.\)github\\\.io\$\/i/);
-  assert.match(index, /isGitHubPages\?'\.\/manifest-github\.json':'\.\/manifest\.json'/);
-  assert.match(index, /isGitHubPages\?'BLT NOW GH':'BLT NOW'/);
+  assert.match(index, /core\/early-bootstrap\.js/);
+  assert.match(bootstrap, /\(\^\|\\\.\)github\\\.io\$\/i/);
+  assert.match(bootstrap, /isGitHubPages\?'\.\/manifest-github\.json':'\.\/manifest\.json'/);
+  assert.match(bootstrap, /isGitHubPages\?'BLT NOW GH':'BLT NOW'/);
   assert.match(index, /id="blt-pwa-apple-title"/);
   assert.match(index, /id="blt-pwa-application-name"/);
 });

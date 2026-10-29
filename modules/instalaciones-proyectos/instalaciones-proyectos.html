@@ -7,7 +7,7 @@
     </div>
     <div class="py-head-actions">
       <span id="py-aiven-status" class="py-connection-status"><span class="py-connection-dot"></span><span>Datos desde Aiven</span></span>
-      <button class="py-refresh-btn" type="button" onclick="window.ManttoInstalacionesProyectos && window.ManttoInstalacionesProyectos.reload()">↻ Actualizar</button>
+      <button class="py-refresh-btn" id="py-proyectos-refresh" type="button">↻ Actualizar</button>
     </div>
   </section>
 
@@ -24,11 +24,11 @@
     <div class="py-grid" id="py-kpis-activos"></div>
 
     <div class="py-filters">
-      <input type="text" id="py-f-buscar" placeholder="Buscar proyecto, ID o cliente..." oninput="pyRenderProyectos()">
-      <select id="py-f-estado" onchange="pyRenderProyectos()"><option value="">Todos los estados</option></select>
-      <select id="py-f-asesor" onchange="pyRenderProyectos()"><option value="">Todo asesor</option></select>
-      <select id="py-f-supervisor" onchange="pyRenderProyectos()"><option value="">Todo supervisor</option></select>
-      <select id="py-f-activo" onchange="pyRenderProyectos()"><option value="">Activo/Inactivo</option></select>
+      <input type="text" id="py-f-buscar" placeholder="Buscar proyecto, ID o cliente...">
+      <select id="py-f-estado"><option value="">Todos los estados</option></select>
+      <select id="py-f-asesor"><option value="">Todo asesor</option></select>
+      <select id="py-f-supervisor"><option value="">Todo supervisor</option></select>
+      <select id="py-f-activo"><option value="">Activo/Inactivo</option></select>
     </div>
 
     <div class="py-table-wrap">
@@ -45,9 +45,9 @@
     <footer class="py-table-footer">
       <span id="py-proyectos-range">0 proyectos</span>
       <div class="py-pagination" aria-label="Paginación de proyectos activos">
-        <button id="py-proyectos-prev" type="button" aria-label="Página anterior" onclick="pyCambiarPaginaProyectos(-1)">&#8249;</button>
+        <button id="py-proyectos-prev" type="button" aria-label="Página anterior">&#8249;</button>
         <strong id="py-proyectos-page">1 / 1</strong>
-        <button id="py-proyectos-next" type="button" aria-label="Página siguiente" onclick="pyCambiarPaginaProyectos(1)">&#8250;</button>
+        <button id="py-proyectos-next" type="button" aria-label="Página siguiente">&#8250;</button>
       </div>
       <span class="py-page-size-note">30 por página</span>
     </footer>
@@ -59,7 +59,7 @@
 <!-- ===================== PAGINA COMPLETA: PROYECTO ===================== -->
 <div id="py-detail-page">
   <div class="py-detail-header">
-    <button class="py-modal-back" onclick="document.getElementById('py-detail-page').classList.remove('open')">&larr; Regresar</button>
+    <button class="py-modal-back" id="py-detail-back" type="button">&larr; Regresar</button>
   </div>
   <div class="py-detail-body" id="py-detail-body"></div>
 </div>
@@ -73,11 +73,11 @@
 </div>
 
 <!-- ===================== LIGHTBOX DE IMAGENES ===================== -->
-<div id="py-lightbox" onclick="if(event.target===this) pyCerrarLightbox()">
-  <button id="py-lightbox-close" onclick="pyCerrarLightbox()">&times;</button>
+<div id="py-lightbox">
+  <button id="py-lightbox-close" type="button">&times;</button>
   <a id="py-lightbox-proyecto" href="#" style="display:none"></a>
-  <button id="py-lightbox-prev" class="py-lightbox-nav" onclick="pyLightboxNav(-1)" style="display:none">&#8249;</button>
+  <button id="py-lightbox-prev" class="py-lightbox-nav" type="button" style="display:none">&#8249;</button>
   <img id="py-lightbox-img" src="" alt="Foto ampliada">
-  <button id="py-lightbox-next" class="py-lightbox-nav" onclick="pyLightboxNav(1)" style="display:none">&#8250;</button>
+  <button id="py-lightbox-next" class="py-lightbox-nav" type="button" style="display:none">&#8250;</button>
   <div id="py-lightbox-contador" style="display:none"></div>
 </div>

@@ -178,8 +178,15 @@ const uploadMiddleware = read('src/middleware/storage-upload.middleware.js');
 assert(uploadMiddleware.includes("tipo_evento: 'REJECTED'"));
 
 const appSource = read('src/app.js');
-assert(appSource.includes('CFFAA_LEGACY_UPLOADS_ENABLED'));
-assert(appSource.includes("app.use('/uploads'"));
+assert.strictEqual(appSource.includes('CFFAA_LEGACY_UPLOADS_ENABLED'), false);
+assert.strictEqual(appSource.includes("app.use('/uploads'"), false);
+assert.strictEqual(appSource.includes('express.static'), false);
+
+const diagnosticsSource = read('src/services/storage/storage-diagnostics.service.js');
+assert(diagnosticsSource.includes('legacy_uploads_enabled: false'));
+assert(diagnosticsSource.includes('legacy_uploads_public_route_removed: true'));
+assert(serviceSource.includes('static_route_enabled: false'));
+assert(serviceSource.includes('public_exposure_removed: true'));
 
 const diagnosticsMiddleware = read('src/middleware/historical-sync.middleware.js');
 assert(diagnosticsMiddleware.includes('CFFAA_PRODUCTION_DIAGNOSTICS_OVERRIDE'));
@@ -191,11 +198,11 @@ for (const variable of [
   'CFFAA_STORAGE_METRICS_ENABLED=false',
   'CFFAA_STORAGE_ORPHAN_DELETE_ENABLED=false',
   'CFFAA_STORAGE_ORPHAN_MIN_AGE_HOURS=24',
-  'CFFAA_LEGACY_UPLOADS_ENABLED=true',
   'CFFAA_PRODUCTION_DIAGNOSTICS_OVERRIDE=false'
 ]) {
   assert(envExample.includes(variable));
 }
+assert.strictEqual(envExample.includes('CFFAA_LEGACY_UPLOADS_ENABLED='), false);
 
 
 console.log('CFFAA-06: conciliacion Aiven/Azure, inventario historico, metricas, limpieza controlada y cierre validados.');
