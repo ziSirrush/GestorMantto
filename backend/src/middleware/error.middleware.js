@@ -19,7 +19,7 @@ function errorHandler(sourceError, req, res, next) {
   const statusCode = Number(error.statusCode || error.status || 500);
   logger.error(`${req.method} ${req.originalUrl}`, error);
 
-  const known503 = statusCode === 503 && ['DB_CONNECTION_CAPACITY','DB_POOL_QUEUE_FULL','AUTH_RATE_LIMIT_UNAVAILABLE','INTEGRATION_REPLAY_UNAVAILABLE','STORAGE_AV_UNAVAILABLE'].includes(String(error.code || ''));
+  const known503 = statusCode === 503 && ['DB_CONNECTION_CAPACITY','DB_POOL_QUEUE_FULL'].includes(String(error.code || ''));
   const exposeMessage = (statusCode >= 400 && statusCode < 500) || known503;
   // Los 5xx se devuelven siempre con mensaje público, salvo 503 de capacidad
   // que ya utiliza Retry-After. Detalles completos siguen en logs privados.

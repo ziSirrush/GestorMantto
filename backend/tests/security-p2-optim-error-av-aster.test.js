@@ -1,5 +1,5 @@
 'use strict';
-// [Aster | 2026-10-29 | ASTER-MG | QA AST-10/11/12 V001]
+// [Aster | 2026-10-29 | ASTER-MG | QA AST-10/11 V002]
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const read=p=>fs.readFileSync(path.resolve(__dirname,'../src/'+p),'utf8');
 test('health deduplica concurrencia y evita sondeo SQL repetitivo',()=>{
@@ -12,17 +12,23 @@ test('errores HTTP 5xx no publican SQL ni mensajes internos',()=>{
  assert.doesNotMatch(src,/payload\.error = error\.message/);
  assert.match(src,/payload\.code = 'INTERNAL_ERROR'/);
 });
-test('upload no almacena si antivirus no respondio',()=>{
- const src=read('services/storage/azure-storage.service.js');
- assert.ok(src.indexOf('scanBuffer_aster(file.buffer)')<src.indexOf('const blockBlobClient ='));
+
+test('El rate limit conserva los umbrales originales sin Redis',()=>{
+ const src=read('middleware/auth-rate-limit.middleware.js');
+ assert.match(src,/const buckets = new Map\(\)/);
+ assert.match(src,/max: 10/);
+ assert.match(src,/max: 5/);
+ assert.doesNotMatch(src,/AUTH_RATE_LIMIT_REDIS_URL|AUTH_RATE_LIMIT_REDIS_TOKEN|distributedCount/);
 });
-test('scanner falla cerrado en producción si no está configurado',async()=>{
- const scanner=require('../src/services/storage/storage-antivirus.service');
- const prev=process.env.NODE_ENV,prevAv=process.env.STORAGE_AV_ENABLED;
- try{process.env.NODE_ENV='production';delete process.env.STORAGE_AV_ENABLED;
-  await assert.rejects(scanner.scanBuffer_aster(Buffer.from('x')),{code:'STORAGE_AV_UNAVAILABLE'});
- }finally{
-  if(prev===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=prev;
-  if(prevAv===undefined)delete process.env.STORAGE_AV_ENABLED;else process.env.STORAGE_AV_ENABLED=prevAv;
- }
+test('Las integraciones usan HMAC sin Redis, ClamAV ni antirrepeticion distribuida',()=>{
+ const src=read('middleware/integration-auth.middleware.js');
+ assert.match(src,/crypto\.createHmac/);
+ assert.match(src,/INTEGRATION_TIMESTAMP_TOLERANCE_SECONDS/);
+ assert.doesNotMatch(src,/assertNotReplay_aster|AUTH_RATE_LIMIT_REDIS/);
+});
+test('El almacenamiento conserva validacion de archivos sin ClamAV',()=>{
+ const src=read('services/storage/azure-storage.service.js');
+ assert.match(src,/validateFile_gnral\(file, \{ policyName \}\)/);
+ assert.doesNotMatch(src,/scanBuffer_aster|storage-antivirus\.service/);
+ assert.equal(fs.existsSync(path.resolve(__dirname,'../src/services/storage/storage-antivirus.service.js')),false);
 });

@@ -210,9 +210,6 @@ async function uploadPrivate_gnral({
   forceDownload = false
 }) {
   const checked = validateFile_gnral(file, { policyName });
-  // [Aster | 2026-10-29 | ASTER-MG | AST-12 QUARANTINE BEFORE PUBLICATION V001]
-  // No se genera blob ni SAS hasta que el analizador complete correctamente.
-  await require('./storage-antivirus.service').scanBuffer_aster(file.buffer);
   const { containerClient, config } = getClients_gnral();
   const normalizedFile = {
     ...file,
