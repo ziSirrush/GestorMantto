@@ -1,5 +1,5 @@
 (function(){
-  // [Lumbre | 2026-10-29 | LUMBRE-MG | VISOR_JWT_SESSIONSTORAGE_V001]
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | VISOR_CANAL_EFIMERO_V002]
   const state={
     catalog:[],
     permissions:new Map(),
@@ -160,7 +160,7 @@
       const url=window.ManttoAuth?.createViewerLaunch?.({
         user:buildViewUser(target),
         viewer_token:context.viewer_token
-      },viewerWindow);
+      });
       if(!url)throw new Error('No fue posible crear el contexto temporal del visor.');
       viewerWindow.location.replace(url);
       try{viewerWindow.opener=null;}catch(error){}

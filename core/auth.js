@@ -1,5 +1,5 @@
 (function(){
-  // [Lumbre | 2026-10-29 | LUMBRE-MG | SESION_JWT_SIN_LOCALSTORAGE_V001]
+  // [Lumbre | 2026-10-29 | LUMBRE-MG | VISOR_CANAL_EFIMERO_V002]
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AUTH_API_BASE = (window.MANTTO_SESSION_API_BASE || API_BASE).replace(/\/$/, '');
   const TOKEN_KEY = 'mantto_token';
@@ -8,7 +8,7 @@
   const SESSION_CSRF_KEY = 'mantto_session_csrf';
   const VIEW_USER_KEY = 'mantto_view_user';
   const VIEWER_TOKEN_KEY = 'mantto_viewer_token';
-  const VIEWER_LAUNCH_KEY = 'mantto_viewer_launch';
+  const VIEWER_LAUNCH_CHANNEL_PREFIX = 'mantto:viewer:launch:';
   const VIEWER_LAUNCH_PARAM = 'viewer_launch';
   const VIEWER_LAUNCH_TTL_MS = 60000;
   const ACCESS_TOKEN_LIFETIME_MS = 12 * 60 * 60 * 1000;
@@ -92,40 +92,82 @@
     return Boolean(actor && viewed && Number(actor.id_SB)!==Number(viewed.id_SB));
   }
   function safeJson(raw){ try{return raw?JSON.parse(raw):null;}catch(e){return null;} }
-  function createViewerLaunch(context,targetWindow){
+  function createViewerLaunch(context){
     const user=context?.user;
     const viewerToken=String(context?.viewer_token||'').trim();
     if(!user || !user.id_SB || !viewerToken) throw new Error('Contexto inválido para abrir el visor.');
-    const targetStorage=targetWindow?.sessionStorage;
-    if(!targetStorage) throw new Error('No fue posible preparar el almacenamiento temporal del visor.');
-    targetStorage.setItem(VIEW_USER_KEY,JSON.stringify(user));
-    targetStorage.setItem(VIEWER_TOKEN_KEY,viewerToken);
-    targetStorage.setItem(VIEWER_LAUNCH_KEY,JSON.stringify({
+    if(typeof window.BroadcastChannel!=='function'){
+      throw new Error('El navegador no permite transferir de forma segura el contexto del visor.');
+    }
+    const launchId=(window.crypto&&typeof window.crypto.randomUUID==='function')
+      ? window.crypto.randomUUID()
+      : 'viewer-'+Date.now()+'-'+Math.random().toString(16).slice(2);
+    const channel=new window.BroadcastChannel(VIEWER_LAUNCH_CHANNEL_PREFIX+launchId);
+    const payload={
+      user,
+      viewer_token:viewerToken,
       read_only:true,
       expires_at:Date.now()+VIEWER_LAUNCH_TTL_MS
-    }));
+    };
+    const dispose=()=>{
+      window.clearTimeout(expiryTimer);
+      try{channel.close();}catch(_error){}
+    };
+    const expiryTimer=window.setTimeout(dispose,VIEWER_LAUNCH_TTL_MS);
+    channel.onmessage=event=>{
+      const message=event?.data||{};
+      if(message.launch_id!==launchId)return;
+      if(message.type==='MANTTO_VIEWER_READY')channel.postMessage({
+        type:'MANTTO_VIEWER_CONTEXT',
+        launch_id:launchId,
+        payload
+      });
+      if(message.type==='MANTTO_VIEWER_RECEIVED')dispose();
+    };
     const url=new URL(window.location.href);
-    url.searchParams.set(VIEWER_LAUNCH_PARAM,'session');
+    url.searchParams.set(VIEWER_LAUNCH_PARAM,launchId);
     url.hash='#/home';
     return url.toString();
   }
-  function consumeViewerLaunch(){
+  async function consumeViewerLaunch(){
     const url=new URL(window.location.href);
-    if(!url.searchParams.get(VIEWER_LAUNCH_PARAM)) return null;
-
-    const launch=safeJson(sessionStorage.getItem(VIEWER_LAUNCH_KEY));
-    const user=safeJson(sessionStorage.getItem(VIEW_USER_KEY));
-    const viewerToken=String(sessionStorage.getItem(VIEWER_TOKEN_KEY)||'').trim();
-    sessionStorage.removeItem(VIEWER_LAUNCH_KEY);
+    const launchId=String(url.searchParams.get(VIEWER_LAUNCH_PARAM)||'').trim();
+    if(!launchId)return null;
     url.searchParams.delete(VIEWER_LAUNCH_PARAM);
     window.history.replaceState(window.history.state,document.title,url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
-
-    if(!launch || Number(launch.expires_at||0)<Date.now() || !user?.id_SB || !viewerToken){
-      sessionStorage.removeItem(VIEW_USER_KEY);
-      sessionStorage.removeItem(VIEWER_TOKEN_KEY);
-      return null;
+    if(!/^[a-zA-Z0-9-]{16,128}$/.test(launchId) || typeof window.BroadcastChannel!=='function'){
+      throw new Error('El contexto temporal del visor no es válido para este navegador.');
     }
-    return user;
+    const channel=new window.BroadcastChannel(VIEWER_LAUNCH_CHANNEL_PREFIX+launchId);
+    return new Promise((resolve,reject)=>{
+      let settled=false;
+      let timeout=null;
+      const finish=(error,user)=>{
+        if(settled)return;
+        settled=true;
+        if(timeout!==null)window.clearTimeout(timeout);
+        try{channel.close();}catch(_error){}
+        if(error)reject(error);else resolve(user);
+      };
+      channel.onmessage=event=>{
+        const message=event?.data||{};
+        if(message.type!=='MANTTO_VIEWER_CONTEXT'||message.launch_id!==launchId)return;
+        const launch=message.payload||{};
+        const user=launch.user;
+        const viewerToken=String(launch.viewer_token||'').trim();
+        if(Number(launch.expires_at||0)<Date.now()||!user?.id_SB||!viewerToken){
+          finish(new Error('El contexto temporal del Visor de usuarios expiró o está incompleto.'));
+          return;
+        }
+        sessionStorage.setItem(VIEW_USER_KEY,JSON.stringify(user));
+        sessionStorage.setItem(VIEWER_TOKEN_KEY,viewerToken);
+        channel.postMessage({type:'MANTTO_VIEWER_RECEIVED',launch_id:launchId});
+        try{window.opener=null;}catch(_error){}
+        finish(null,user);
+      };
+      timeout=window.setTimeout(()=>finish(new Error('El Visor de usuarios no recibió su contexto temporal a tiempo.')),VIEWER_LAUNCH_TTL_MS);
+      channel.postMessage({type:'MANTTO_VIEWER_READY',launch_id:launchId});
+    });
   }
   function isAuthPath(path){
     return String(path||'').split('?')[0].startsWith('/api/auth/');
@@ -538,7 +580,20 @@
     $('btn-recovery-start')?.addEventListener('click', handleRecoveryStart);
     $('hdr-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
     $('sidebar-logout-btn')?.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); logout(); });
-    const launchedViewUser=consumeViewerLaunch();
+    let launchedViewUser=null;
+    try{
+      launchedViewUser=await consumeViewerLaunch();
+    }catch(error){
+      const viewerMessage=error?.message||'No fue posible iniciar el Visor de usuarios.';
+      window.alert(viewerMessage);
+      window.close();
+      window.setTimeout(()=>{
+        if(window.closed)return;
+        showLogin();
+        msg('login-msg',viewerMessage,'error');
+      },120);
+      return;
+    }
     const hadLocalSessionEvidence=Boolean(
       sessionStorage.getItem(TOKEN_KEY) ||
       sessionStorage.getItem(USER_KEY) ||

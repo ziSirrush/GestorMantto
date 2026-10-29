@@ -38,3 +38,50 @@ L-05 y L-09 no fueron ejecutadas por Lumbre porque fueron reasignadas por la dir
 - Los snapshots offline caducan a los siete días y los borradores a una hora, por lo que el cliente puede requerir una nueva descarga después de esos límites.
 
 [Lumbre | 2026-10-29 | LUMBRE-MG | REGISTRO_BITACORA_SEGURIDAD_LOCAL_V001]
+
+## Fix local — 2026-10-29 16:15:13 -06:00
+
+- **ID:** LUMBRE-FIX-VISOR-001
+- **Título:** El Visor de usuarios no abre al seleccionar una identidad
+- **Módulo:** autenticación / Visor de usuarios / PWA
+- **Tipo:** corrección de regresión local
+- **Base:** `ecedf8b315ebc7c3603d82d8506a017467c72b3b`
+- **Implementación:** Lumbre
+- **Revisión humana:** pendiente
+- **Estado:** `LOCAL` + `EN QA` aprobados; `PENDIENTE AUTORIZACION` para commit
+
+### Defecto y causa raíz
+
+La protección L-06 intentaba escribir el contexto temporal directamente en el `sessionStorage` de la pestaña recién abierta. Ese acceso entre ventanas puede ser rechazado por el aislamiento del navegador; el manejador cerraba entonces la pestaña y el usuario no llegaba al modo Visor. La prueba original usaba un objeto de almacenamiento simulado y no reproducía el arranque de la segunda pestaña.
+
+### Solución local
+
+- Sustituido el acceso directo al almacenamiento de la ventana por un `BroadcastChannel` efímero, identificado mediante un nonce temporal.
+- El JWT del visor se transmite únicamente entre contextos del mismo origen; no se escribe en `localStorage` ni se incorpora a la URL.
+- La pestaña receptora valida vigencia, identidad y token, confirma la recepción y cierra el canal.
+- Actualizadas las referencias de caché de `auth.js`, `user-viewer.js` y la versión del Service Worker para impedir que la PWA conserve el flujo defectuoso.
+- Añadida una prueba integral simulada de dos pestañas que confirma que la receptora inicia con la identidad seleccionada.
+
+### Archivos afectados
+
+- `core/auth.js`
+- `core/user-viewer.js`
+- `index.html`
+- `service-worker.js`
+- `tests/lumbre-seg-006-jwt-storage.test.js`
+- `tests/fix_offline_http_session_v001.test.js`
+- `docs/BITACORA_COLABORATIVA_BLT_NOW.md`
+
+### Validación
+
+- Prueba específica del visor: 4/4 aprobadas.
+- Suite completa `npm.cmd test --prefix backend`: 1,373 unitarias, 216 validaciones, 251 backend y 14 contratos aprobados; validadores de almacenamiento aprobados.
+- Reproducción visual en la aplicación instalada: no ejecutada porque el control de navegador no pudo verificar de forma segura su URL; sustituida por prueba integral local de transferencia y arranque entre pestañas.
+
+### Riesgo residual
+
+El navegador debe soportar `BroadcastChannel`. Si no lo soporta, el visor falla de forma explícita y cerrada sin exponer el token. Chrome/Chromium moderno implementa esta API.
+
+No se realizó commit, push, CI remoto ni despliegue. El archivo local no relacionado `docs/PROJECT_CONSTITUTION.md` no fue modificado.
+
+[Lumbre | 2026-10-29 | LUMBRE-MG | FIX_VISOR_CANAL_EFIMERO_LOCAL_V001]
