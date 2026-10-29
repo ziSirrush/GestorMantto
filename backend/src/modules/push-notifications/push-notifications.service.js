@@ -1,4 +1,5 @@
 const repository = require('./push-notifications.repository');
+const { validatePushEndpoint } = require('./push-notifications.endpoint-guard');
 const { getVapidConfig, validateVapidConfig } = require('./push-notifications.sender');
 
 function actorUser(req) {
@@ -32,11 +33,7 @@ function assertSubscription(subscription) {
     throw invalid;
   }
 
-  if (endpointUrl.protocol !== 'https:') {
-    const error = new Error('El endpoint push debe usar HTTPS.');
-    error.status = 400;
-    throw error;
-  }
+  validatePushEndpoint(subscription.endpoint);
 }
 
 function getConfig() {
