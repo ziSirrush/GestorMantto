@@ -2,18 +2,25 @@
 
 const db = require('../../config/db');
 
+// [Aster | 2026-10-29 | ASTER-MG | AST-05 ROLE REVOCATION V001]
+// Solo asignaciones vigentes. El rol primario legacy es un fallback
+// exclusivamente para usuarios sin NINGUNA fila de usuario_roles.
+// Una asignacion inactiva no puede resucitar desde usuarios.rol_id.
 function activeUserRolesSql() {
   return `(
     SELECT ur.id_rol
       FROM usuario_roles ur
+      INNER JOIN roles r ON r.id_rol = ur.id_rol AND r.estado = 1
      WHERE ur.id_usuario = ?
        AND ur.activo = 1
     UNION
     SELECT u.rol_id
       FROM usuarios u
+      INNER JOIN roles r ON r.id_rol = u.rol_id AND r.estado = 1
      WHERE u.id_SB = ?
        AND u.estado = 1
        AND u.rol_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM usuario_roles ur_any WHERE ur_any.id_usuario = u.id_SB)
   )`;
 }
 
@@ -39,38 +46,15 @@ async function listEffectivePermissions(userId, permissionCodes, conn = db, opti
     return result;
   }
 
-  const roleIds = normalizeRoleIds_gnral(options.roleIds);
+  // Nunca confiar en roleIds del JWT ni del contexto. La autoridad es Aiven.
   const codePlaceholders = codes.map(() => '?').join(', ');
-  let inheritedSql;
-  let params;
-
-  if (roleIds.length) {
-    const rolePlaceholders = roleIds.map(() => '?').join(', ');
-    inheritedSql = `EXISTS (
-      SELECT 1
-        FROM rol_permisos rp
-        INNER JOIN roles r
-                ON r.id_rol = rp.id_rol
-               AND r.estado = 1
-       WHERE rp.id_subelemento_accion = psa.id_subelemento_accion
-         AND rp.permitido = 1
-         AND rp.id_rol IN (${rolePlaceholders})
-    )`;
-    params = [normalizedUserId, ...roleIds, ...codes];
-  } else {
-    inheritedSql = `EXISTS (
-      SELECT 1
-        FROM rol_permisos rp
-        INNER JOIN ${activeUserRolesSql()} roles_usuario
-                ON roles_usuario.id_rol = rp.id_rol
-        INNER JOIN roles r
-                ON r.id_rol = rp.id_rol
-               AND r.estado = 1
-       WHERE rp.id_subelemento_accion = psa.id_subelemento_accion
-         AND rp.permitido = 1
-    )`;
-    params = [normalizedUserId, normalizedUserId, normalizedUserId, ...codes];
-  }
+  const inheritedSql = `EXISTS (
+    SELECT 1
+      FROM rol_permisos rp
+      INNER JOIN ${activeUserRolesSql()} roles_usuario ON roles_usuario.id_rol = rp.id_rol
+     WHERE rp.id_subelemento_accion = psa.id_subelemento_accion AND rp.permitido = 1
+  )`;
+  const params = [normalizedUserId, normalizedUserId, normalizedUserId, ...codes];
 
   const [rows] = await conn.query(
     `SELECT
@@ -151,13 +135,13 @@ async function listUsersWithEffectivePermission(permissionCode, conn = db) {
              WHERE rp.id_subelemento_accion = psa.id_subelemento_accion
                AND rp.permitido = 1
                AND (
-                 u.rol_id = rp.id_rol
+                 (u.rol_id = rp.id_rol
+                  AND NOT EXISTS (SELECT 1 FROM usuario_roles ur_any WHERE ur_any.id_usuario = u.id_SB))
                  OR EXISTS (
-                   SELECT 1
-                     FROM usuario_roles ur
-                    WHERE ur.id_usuario = u.id_SB
-                      AND ur.id_rol = rp.id_rol
-                      AND ur.activo = 1
+                   SELECT 1 FROM usuario_roles ur
+                   WHERE ur.id_usuario = u.id_SB
+                     AND ur.id_rol = rp.id_rol
+                     AND ur.activo = 1
                  )
                )
           )
