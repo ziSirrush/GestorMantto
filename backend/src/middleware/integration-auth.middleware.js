@@ -135,8 +135,18 @@ function requireIntegrationAuthFor(expectedIntegrationIdEnvName, options = {}) {
   const alwaysRequireAuth = options.alwaysRequireAuth === true;
 
   return function integrationAuthForRoute(req, res, next) {
-    if (!isIntegrationAuthEnabled() && !alwaysRequireAuth) {
-      return runMiddlewareChain(disabledMiddlewares, req, res, next);
+    // [Aster | 2026-10-29 | ASTER-MG | P0 M2M FAIL CLOSED V001]
+    // El flag global no puede desactivar la autenticacion de rutas M2M.
+    // Solo rutas historicas con una cadena humana explicita conservan
+    // su alternativa JWT, siempre bajo sus propios guards.
+    if (!isIntegrationAuthEnabled() && !alwaysRequireAuth && disabledMiddlewares.length) {
+      const headers = [
+        getHeaderName('INTEGRATION_HEADER_ID', 'X-Integration-Id'),
+        getHeaderName('INTEGRATION_HEADER_TIMESTAMP', 'X-Integration-Timestamp'),
+        getHeaderName('INTEGRATION_HEADER_SIGNATURE', 'X-Integration-Signature')
+      ];
+      const hasM2MHeaders = headers.some(name => getHeader(req, name));
+      if (!hasM2MHeaders) return runMiddlewareChain(disabledMiddlewares, req, res, next);
     }
     return requireIntegrationAuth(req, res, (error) => {
       if (error) return next(error);
