@@ -2,7 +2,27 @@
 // [Aster | 2026-10-29 | ASTER-MG | QA AST-05 ROLE REVOCATION V001]
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const svc=require('../src/services/permissions/effective-permission.service');
+
+// Este test es unitario: no debe importar ni iniciar el pool real de Aiven.
+// Sustituimos la dependencia predeterminada unicamente durante la carga del servicio.
+const dbPath=require.resolve('../src/config/db');
+const priorDbCache=require.cache[dbPath];
+require.cache[dbPath]={
+  id:dbPath,
+  filename:dbPath,
+  loaded:true,
+  exports:{
+    query:async()=>{throw new Error('Se intento consultar la BD real en una prueba aislada.');}
+  }
+};
+let svc;
+try {
+  svc=require('../src/services/permissions/effective-permission.service');
+} finally {
+  if(priorDbCache) require.cache[dbPath]=priorDbCache;
+  else delete require.cache[dbPath];
+}
+
 test('roles inactivos y JWT roleIds no generan permisos heredados',async()=>{
   let got={};
   const db={query:async(sql,params)=>{got={sql,params};return [[{codigo_permiso:'P0',personalizado:null,heredado:0}]];}};
