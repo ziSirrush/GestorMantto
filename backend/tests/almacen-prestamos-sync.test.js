@@ -49,7 +49,9 @@ test('valor from frontend is preserved without recalculation', async () => {
   assert.equal(db.records()[0].valor, '99.1234');
 });
 test('rejects invalid data before acquiring a connection', async () => {
-  const invalid = [{ ...row(), id_articulo_ns: null }, { ...row(), id_articulo_ns: 9007199254740992 },
+  const invalid = [{ ...row(), id_articulo_ns: 0 }, { ...row(), id_articulo_ns: 9007199254740992 },
+    { ...row(), id_articulo_ns: false }, { ...row(), id_articulo_ns: -1 },
+    { ...row(), id_articulo_ns: '18446744073709551616' },
     { ...row(), fecha_evento: '2026-02-30' }, { ...row(), costo_unitario: '1.0000001' },
     { ...row(), cantidad: true }, { ...row(), valor: '1,234' }, { ...row(), nombre_articulo: ' ' },
     { ...row(), correo_seguimiento: 'x'.repeat(256) }, { ...row(), id_prestamo: 1 }];
@@ -61,6 +63,18 @@ test('rejects invalid data before acquiring a connection', async () => {
   assert.throws(() => normalizePayload(payload([])), { statusCode: 422 });
   assert.throws(() => normalizePayload(payload(Array(5001).fill(row()))), { statusCode: 422 });
   assert.equal(normalizePayload(payload([{ ...row(), id_articulo_ns: '18446744073709551615' }])).rows[0].id_articulo_ns, '18446744073709551615');
+});
+test('initial load accepts missing, null and blank NS IDs and preserves valid IDs', async () => {
+  const missing = row();
+  delete missing.id_articulo_ns;
+  const cases = [missing, { ...row(), id_articulo_ns: null }, { ...row(), id_articulo_ns: '' },
+    { ...row(), id_articulo_ns: '  ' }, row()];
+  const db = fakeDb();
+  const service = createPrestamosSyncService(db);
+  assert.equal((await service.loadInitial(payload(cases))).insertados, 5);
+  assert.deepEqual(db.records().map(item => item.id_articulo_ns), [null, null, null, null, '123']);
+  assert.ok(db.records().slice(0, 4).every(item => JSON.parse(item.raw_json).id_articulo_ns === null));
+  assert.equal((await service.loadInitial(payload(cases))).repetido, true);
 });
 test('existing table or changed retry is rejected without writes', async () => {
   const db = fakeDb(), service = createPrestamosSyncService(db);

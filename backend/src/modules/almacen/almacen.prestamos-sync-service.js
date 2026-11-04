@@ -39,10 +39,12 @@ function normalizeRow(row, index) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) fail(`${label}: objeto requerido.`);
   for (const key of Object.keys(row)) if (!COLUMNS.includes(key)) fail(`${label}: campo no admitido: ${key}.`);
   const id = row.id_articulo_ns;
-  if (!['number', 'string'].includes(typeof id) ||
+  const missingId = id == null || (typeof id === 'string' && id.trim() === '');
+  if (!missingId && (!['number', 'string'].includes(typeof id) ||
       (typeof id === 'number' && !Number.isSafeInteger(id)) || !/^[1-9]\d*$/.test(String(id)) ||
-      BigInt(id) > 18446744073709551615n) fail(`${label}: id_articulo_ns positivo obligatorio; usar texto para IDs grandes.`);
-  const normalized = { id_articulo_ns: String(id) };
+      BigInt(id) > 18446744073709551615n)) fail(`${label}: id_articulo_ns debe ser positivo o estar vacio; usar texto para IDs grandes.`);
+  // El catalogo puede cargarse despues. No inventar IDs para pendientes.
+  const normalized = { id_articulo_ns: missingId ? null : String(id) };
   for (const [key, max] of Object.entries(TEXT)) {
     const value = row[key];
     if (value != null && typeof value !== 'string') fail(`${label}: ${key} debe ser texto.`);
