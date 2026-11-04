@@ -67,3 +67,19 @@ test('Politicas de lectura: usuario 4, preferencia campana/push y silencio',()=>
   assert.match(bell,/COALESCE\(p\.campana, e\.campana_default, 1\) = 1/);
   assert.match(push,/COALESCE\(p\.push, e\.push_default, 0\) = 1/);
 });
+
+test('Regression: cargar receptor y rutas NS sin secretos DB no inicializa pool Aiven',()=>{
+  const {spawnSync}=require('node:child_process');
+  const path=require('node:path');
+  const env={...process.env};
+  for(const name of ['DB_HOST','DB_PORT','DB_USER','DB_PASSWORD','DB_NAME']) delete env[name];
+  const receiverPath=path.resolve(__dirname,'../src/modules/netsuite-integration/netsuite-tickets.receiver.js');
+  const child=spawnSync(process.execPath,['-e',`
+    for(const name of ['DB_HOST','DB_PORT','DB_USER','DB_PASSWORD','DB_NAME']) delete process.env[name];
+    const moduleExports=require(process.argv[1]);
+    if(typeof moduleExports.createReceiver !== 'function') process.exit(2);
+    process.stdout.write('RECEIVER_LOAD_OK');
+  `,receiverPath],{env,encoding:'utf8',timeout:10000});
+  assert.equal(child.status,0,`La carga de receptor NS requiere Aiven: ${child.stderr || child.error?.message}`);
+  assert.match(child.stdout,/RECEIVER_LOAD_OK/);
+});

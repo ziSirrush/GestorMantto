@@ -2,7 +2,6 @@
 // Observabilidad para el usuario 4, posterior al COMMIT de ns_tickets_pruebas.
 // El motor central conserva deduplicacion, preferencias y canales.
 const logger=require('../../shared/logger');
-const {emitBusinessEventSafe_gnral}=require('../../services/notifications/notification-business-emitter.service');
 const {NS_TICKETS_NOTIFY_USER_ID,EVENTS,isNsTicketNotificationEvent_gnral}=
   require('./netsuite-tickets-notification.contract');
 
@@ -40,6 +39,10 @@ async function publishTicketEvents_ns({loteId,eventos}={}) {
     if (!view) continue;
     summary.evaluados++;
     try {
+      // Carga diferida: no inicializar Aiven durante require() del receptor NS.
+      // Se requiere el motor central solo al emitir un evento real, post-COMMIT.
+      const {emitBusinessEventSafe_gnral}=
+        require('../../services/notifications/notification-business-emitter.service');
       const result=await emitBusinessEventSafe_gnral({
         codigoEvento:change.eventCode,
         destinatarios:[NS_TICKETS_NOTIFY_USER_ID],
