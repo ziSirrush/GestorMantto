@@ -27,6 +27,41 @@ test('L-03: lockfile contiene las versiones transitivas corregidas', () => {
   assert.equal(versionAt('node_modules/body-parser'), '2.4.0');
   assert.equal(versionAt('node_modules/qs'), '6.17.1');
   assert.equal(versionAt('node_modules/uuid'), '11.1.1');
-  assert.equal(versionAt('node_modules/glob/node_modules/brace-expansion'), '2.1.7');
+  // La cadena gaxios 7.1.3 -> rimraf -> glob fue retirada; no exigir
+  // instalar una dependencia vulnerable para conservar una ruta historica.
+  assert.equal(versionAt('node_modules/glob'), undefined);
+  assert.equal(versionAt('node_modules/rimraf'), undefined);
+  assert.equal(versionAt('node_modules/minimatch'), '11.0.4');
   assert.equal(versionAt('node_modules/brace-expansion'), '5.0.12');
+});
+
+const backendRequire = require('node:module').createRequire(path.join(root, 'backend', 'package.json'));
+
+test('Google Drive conserva solicitudes HTTP con la dependencia gaxios corregida', async () => {
+  const http = require('node:http');
+  const { google } = backendRequire('googleapis');
+  const server = http.createServer((_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ files: [{ id: 'compat-test', name: 'test.txt' }] }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const drive = google.drive({ version: 'v3' });
+    const response = await drive.files.list({ pageSize: 1 }, {
+      rootUrl: `http://127.0.0.1:${server.address().port}/`, retry: false,
+      timeout: 5000
+    });
+    assert.deepEqual(response.data.files, [{ id: 'compat-test', name: 'test.txt' }]);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('Nodemon conserva globstar, filtro de extension y exclusiones con minimatch corregido', () => {
+  const match = backendRequire('nodemon/lib/monitor/match');
+  const folder = path.join(root, 'compat-patterns');
+  const files = ['src/index.js', 'src/nested/test.js', 'src/readme.md', 'node_modules/test.js']
+    .map(name => path.join(folder, name));
+  const rules = [path.join(folder, '**', '*.js'), '!' + path.join(folder, 'node_modules', '**')];
+  assert.deepEqual(match(files, rules, 'js').result.sort(), files.slice(0, 2).sort());
 });
