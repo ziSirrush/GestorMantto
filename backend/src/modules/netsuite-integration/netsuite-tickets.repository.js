@@ -2,6 +2,7 @@
 // Receptor TICKETS: DML permitido EXCLUSIVAMENTE en ns_tickets_pruebas.
 // DDL inexistente en sabana 07/10/2026: exige precheck de esquema vivo ANTES de escribir.
 const mapping=require('./netsuite-tickets.mapping');
+const {OBSERVED_FIELDS,classifyTicketChange_ns}=require('./netsuite-tickets-changes.service');
 const TABLE='ns_tickets_pruebas';
 const CHUNK_ROWS=50;
 const LOOKUP_CHUNK_ROWS=500;
@@ -111,23 +112,34 @@ async function publishRows(rows,database=pool(),shouldContinue=()=>true) {
   await preflight(database);
   const connection=await database.getConnection();
   let inTransaction=false;
+  const changedEvents=[];
   try {
     if (!shouldContinue()) throw mapping.invalid('Carga Tickets no autorizada.',503,'NS_TICKETS_PAUSED');
     await connection.beginTransaction();inTransaction=true;
+    // Comprobar identidades y capturar el estado anterior bajo FOR UPDATE.
+    // El mismo snapshot sirve para identificar cambios reales y evitar lecturas extra.
     // Comprobar identidades ANTES del primer INSERT y en grupos de 500
     // para limitar viajes a Aiven sin generar un IN de 10,000 placeholders.
     for (let i=0;i<rows.length;i+=LOOKUP_CHUNK_ROWS) {
       if (!shouldContinue()) throw mapping.invalid('Tickets deshabilitado durante validacion.',503,'NS_TICKETS_PAUSED');
       const batch=rows.slice(i,i+LOOKUP_CHUNK_ROWS),tickets=batch.map(row=>row.ticket);
-      const lookup=`SELECT \`ticket\`,\`id_interno\` FROM \`${TABLE}\` `+
+      const watch=OBSERVED_FIELDS.map(name=>'`'+name+'`').join(',');
+      const lookup=`SELECT \`ticket\`,\`id_interno\`,${watch} FROM \`${TABLE}\` `+
         `WHERE \`ticket\` IN (${tickets.map(()=>'?').join(',')}) FOR UPDATE`;
       const [existing]=await connection.execute(lookup,tickets);
       const incoming=new Map(batch.map(row=>[row.ticket,row.id_interno]));
+      const oldByTicket=new Map();
       for (const old of existing||[]) {
         if (old.id_interno!=null && String(old.id_interno).trim() &&
             String(old.id_interno).trim()!==incoming.get(old.ticket)) {
           throw mapping.invalid('Ticket existente corresponde a otro ID de NetSuite.',409,'NS_TICKETS_ID_CONFLICT');
         }
+        oldByTicket.set(String(old.ticket),old);
+      }
+      for (const row of batch) {
+        const previous=oldByTicket.get(String(row.ticket))||null;
+        const changed=classifyTicketChange_ns(previous,row);
+        if (changed) changedEvents.push(changed);
       }
     }
     for (let i=0;i<rows.length;i+=CHUNK_ROWS) {
@@ -138,7 +150,8 @@ async function publishRows(rows,database=pool(),shouldContinue=()=>true) {
     }
     if (!shouldContinue()) throw mapping.invalid('Tickets deshabilitado antes del COMMIT.',503,'NS_TICKETS_PAUSED');
     await connection.commit();inTransaction=false;
-    return {filasConfirmadas:rows.length};
+    // Cambios entregados solo tras COMMIT. Nunca se envian desde un ROLLBACK.
+    return {filasConfirmadas:rows.length,cambiosNotificables:changedEvents};
   } catch (error) {
     if (inTransaction) {
       try {await connection.rollback();}

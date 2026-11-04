@@ -8,6 +8,7 @@
 const crypto = require('node:crypto');
 const contract = require('./netsuite-integration.contract');
 const mapping = require('./netsuite-tickets.mapping');
+const {publishTicketEvents_ns}=require('./netsuite-tickets-notifications.service');
 const MAX_ROWS = 10000;
 const MAX_STAGE_BYTES = 24 * 1024 * 1024;
 const MAX_IDLE_MS = 40 * 60 * 1000;
@@ -243,6 +244,15 @@ function createReceiver({repository = () => require('./netsuite-tickets.reposito
     const promise=(async()=>{
       // Unica transaccion InnoDB para todo el lote. Si falla, ROLLBACK completo.
       const result=await repository().publishRows(rows,undefined,()=>configReady());
+      // Telemetria del usuario 4, sin retrasar el ACK ni acoplar la escritura
+      // de Tickets a posibles fallos del servicio de Notificaciones.
+      // No es una outbox durable: si el proceso reinicia, una entrega puede perderse.
+      if (Array.isArray(result.cambiosNotificables) && result.cambiosNotificables.length) {
+        setImmediate(()=>{
+          publishTicketEvents_ns({loteId:lot.id,eventos:result.cambiosNotificables})
+            .catch(error=>console.error('[NS_TICKETS_NOTIFICATION_JOB_FAILED]',error?.code||error?.message||error));
+        });
+      }
       const ledger=new Map([...lot.pages].map(([idx,v])=>[idx,{hash:v.hash}]));
       recent.set(lot.id,{
         beginHash:lot.beginHash,hash:f.hashCarga,pages:ledger,

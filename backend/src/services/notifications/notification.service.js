@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const repository = require('./notification.repository');
 const logger = require('../../shared/logger');
+const {NS_TICKETS_NOTIFY_USER_ID,isNsTicketNotificationEvent_gnral}=
+  require('../../modules/netsuite-integration/netsuite-tickets-notification.contract');
 const {
   resolveMatrixRecipientDecision_gnral
 } = require('./notification-decision');
@@ -393,9 +395,14 @@ async function emitLegacy_gnral(connection, prepared, event) {
     } else {
       const preference = preferenceByUser.get(idUsuario) || null;
       const obligatory = Number(event.obligatoria) === 1;
+      const nsMonitor=isNsTicketNotificationEvent_gnral(codigoEvento);
       const silenced = !obligatory && Number(preference?.silenciada || 0) === 1;
-      const bellEnabled = obligatory || Number(preference?.campana ?? 1) === 1;
-      if (silenced || !bellEnabled) {
+      const bellEnabled = obligatory || Number(preference?.campana ?? (nsMonitor ? (event.campana_default ?? 1) : 1)) === 1;
+      const pushEnabled = nsMonitor && Number(preference?.push ?? event.push_default ?? 0) === 1;
+      // Las cinco categorias NS son privadas del usuario 4. El resto de
+      // notificaciones legacy conserva sus reglas anteriores.
+      if ((nsMonitor && idUsuario !== NS_TICKETS_NOTIFY_USER_ID) ||
+          silenced || (!bellEnabled && !pushEnabled)) {
         decisions.push({
           id_usuario: idUsuario,
           status: 'OMITIDA',
@@ -408,9 +415,9 @@ async function emitLegacy_gnral(connection, prepared, event) {
         policy: obligatory ? 'OBLIGATORIA' : 'LEGACY',
         role_ids: [],
         bell_enabled: true,
-        push_enabled: false,
+        push_enabled: Boolean(pushEnabled),
         scope_allowed: true,
-        scope_via: 'LEGACY'
+        scope_via: nsMonitor ? 'NS_TICKETS_PRUEBAS_USUARIO_4' : 'LEGACY'
       });
     }
 
