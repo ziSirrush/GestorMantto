@@ -11,6 +11,8 @@ const ns = require('./almacen.ns-query-service');
 const audit = require('./almacen.ns-audit-service');
 const nsSyncRoutes = require('./almacen.ns-sync-routes');
 const router = express.Router();
+const { createPrestamosSyncRouter } = require('./almacen.prestamos-sync-routes');
+router.use(createPrestamosSyncRouter(require('../../config/db')));
 // Receptor Sheets M2M aislado de los permisos humanos y de Excel.
 router.use('/sync', nsSyncRoutes);
 
