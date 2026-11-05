@@ -54,9 +54,10 @@ function assertSecurity() {
   for (const q of queries) {
     assert.match(q.sql,/FROM almacen_ns_prestamos p/);
     assert.match(q.sql,/IN \(\?\)/);
-    assert.ok(Array.isArray(q.params[0]),'Los permisos se aplican en SQL.');
-    assert.ok(q.params[0].includes('CORELLIAN'));
-    assert.ok(!q.params[0].includes('UNITED'));
+    const allowedCompanies = q.params.find(value => Array.isArray(value));
+    assert.ok(Array.isArray(allowedCompanies),'Los permisos se aplican en SQL.');
+    assert.ok(allowedCompanies.includes('CORELLIAN'));
+    assert.ok(!allowedCompanies.includes('UNITED'));
     assert.doesNotMatch(q.sql,/\b(INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE)\b/i);
   }
 }
