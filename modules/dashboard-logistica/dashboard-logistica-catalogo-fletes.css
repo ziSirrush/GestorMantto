@@ -1,0 +1,30 @@
+/* BLT NOW | 2026-11-05 | Solo Dashboard de Logística CORELLIAN. */
+#view-logistica-dashboard .dl-costs-widget{width:100%;min-width:0;max-width:100%;overflow:hidden}
+#view-logistica-dashboard .dl-costs-strip{display:flex;align-items:center;gap:12px;padding:10px 12px;background:#0d2e6e;min-width:0}
+#view-logistica-dashboard .dl-costs-label{display:inline-flex;align-items:center;justify-content:center;flex:none;background:#e87722;color:#fff;border-radius:6px;padding:7px 10px;font-weight:900;font-size:11px;letter-spacing:.04em}
+#view-logistica-dashboard .dl-costs-marquee{display:block;flex:1;min-width:0;overflow:hidden;white-space:nowrap;color:#fff;outline-offset:3px}
+#view-logistica-dashboard .dl-costs-track{display:flex;align-items:center;width:max-content;animation:dl-costs-scroll 34s linear infinite}
+#view-logistica-dashboard .dl-costs-group{display:flex;align-items:center;gap:32px;padding-right:32px;flex:none}
+#view-logistica-dashboard .dl-costs-item{display:inline-flex;align-items:center;gap:8px;font-size:12px;line-height:26px;white-space:nowrap}
+#view-logistica-dashboard .dl-costs-item strong{color:#fbd38d;font-weight:800}
+#view-logistica-dashboard .dl-costs-placeholder{color:#e2e8f0;font-size:12px;line-height:26px}
+#view-logistica-dashboard .dl-costs-toggle{flex:none;border:1px solid rgba(255,255,255,.5);border-radius:7px;background:#fff;color:#0d2e6e;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer}
+#view-logistica-dashboard .dl-costs-toggle:hover{background:#eaf2ff}
+#view-logistica-dashboard .dl-costs-marquee:hover .dl-costs-track,
+#view-logistica-dashboard .dl-costs-marquee:focus .dl-costs-track{animation-play-state:paused}
+@keyframes dl-costs-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+#view-logistica-dashboard .dl-costs-panel{padding:16px;min-width:0}
+#view-logistica-dashboard .dl-costs-panel[hidden]{display:none!important}
+#view-logistica-dashboard .dl-costs-title{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+#view-logistica-dashboard .dl-costs-title h2{font-size:16px;color:#102a56;margin:0}
+#view-logistica-dashboard .dl-costs-title p{margin:4px 0 0;color:#64748b;font-size:12px}
+#view-logistica-dashboard #dl-costs-count{color:#64748b;font-size:12px;font-weight:700}
+#view-logistica-dashboard .dl-costs-filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+#view-logistica-dashboard .dl-costs-filters label{display:flex;flex-direction:column;gap:5px;color:#64748b;font-size:11px;font-weight:800}
+#view-logistica-dashboard .dl-costs-filters input,
+#view-logistica-dashboard .dl-costs-filters select{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#fff;color:#1e293b;font-size:12px;min-height:34px}
+#view-logistica-dashboard .dl-costs-filters input{width:min(360px,calc(100vw - 80px))}
+#view-logistica-dashboard .dl-costs-table{min-width:760px}
+#view-logistica-dashboard .dl-costs-money{font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:520px){#view-logistica-dashboard .dl-costs-strip{gap:6px;padding:9px 8px}#view-logistica-dashboard .dl-costs-label{font-size:10px;padding:7px 6px}#view-logistica-dashboard .dl-costs-toggle{font-size:11px;padding:7px 8px}}
+@media(prefers-reduced-motion:reduce){#view-logistica-dashboard .dl-costs-track{animation:none}}

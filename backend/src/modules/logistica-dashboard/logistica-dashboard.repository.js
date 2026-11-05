@@ -287,6 +287,22 @@ async function freightSimulationSamples_cor({ year = null, puerto_origen, puerto
   return rows;
 }
 
+
+async function catalogFletes_cor() {
+  const [rows] = await db.query(
+    'SELECT id_concepto, codigo_concepto, concepto, subcategoria, ' +
+    'unidad_medida, costo_unitario, moneda, proveedor, zona_aplicable ' +
+    'FROM catalogo_conceptos ' +
+    'WHERE empresa = ? AND area = ? AND categoria = ? AND estatus = ? ' +
+    'AND costo_unitario IS NOT NULL ' +
+    'AND (fecha_vigencia IS NULL OR fecha_vigencia <= CURRENT_DATE()) ' +
+    'AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= CURRENT_DATE()) ' +
+    'ORDER BY concepto ASC, id_concepto ASC',
+    ['CORELLIAN', 'Logística', 'Fletes', 'ACTIVO']
+  );
+  return rows;
+}
+
 module.exports = Object.freeze({
   statusCounts_cor,
   deliveredByYear_cor,
@@ -299,5 +315,6 @@ module.exports = Object.freeze({
   currentYearContainersByMonth_cor,
   periodContainers_cor,
   periodContainerMonths_cor,
-  freightSimulationSamples_cor
+  freightSimulationSamples_cor,
+  catalogFletes_cor
 });

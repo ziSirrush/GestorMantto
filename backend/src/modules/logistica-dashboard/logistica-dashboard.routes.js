@@ -31,6 +31,14 @@ router.get(
   controller.freightSimulation_cor
 );
 
+// Catálogo de fletes de referencia: mismo guard y alcance completo del Dashboard.
+router.get(
+  '/fletes',
+  ...analyticsGuard_cor,
+  requireCompleteInformationDomain_gnral('CORELLIAN'),
+  controller.catalogFletes_cor
+);
+
 router.get(
   '/',
   ...analyticsGuard_cor,

@@ -489,6 +489,27 @@ async function freightSimulation_cor(query = {}) {
   };
 }
 
+
+async function catalogFletes_cor() {
+  const rows = await repository.catalogFletes_cor();
+  if (!Array.isArray(rows)) {
+    const error = new Error('La consulta de fletes no devolvió una lista.');
+    error.status = 500;
+    throw error;
+  }
+  return rows.map(row => ({
+    id_concepto: row.id_concepto,
+    codigo_concepto: row.codigo_concepto,
+    concepto: row.concepto,
+    subcategoria: row.subcategoria,
+    unidad_medida: row.unidad_medida,
+    costo_unitario: row.costo_unitario,
+    moneda: row.moneda,
+    proveedor: row.proveedor,
+    zona_aplicable: row.zona_aplicable
+  }));
+}
+
 module.exports = Object.freeze({
   STATUS_GROUPS,
   normalizeText,
@@ -500,5 +521,6 @@ module.exports = Object.freeze({
   normalizeContainerMonths_cor,
   normalizeRouteTable_cor,
   analytics_cor,
-  freightSimulation_cor
+  freightSimulation_cor,
+  catalogFletes_cor
 });

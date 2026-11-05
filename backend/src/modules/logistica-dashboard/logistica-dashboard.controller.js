@@ -35,4 +35,19 @@ async function freightSimulation_cor(req, res, next) {
   }
 }
 
-module.exports = Object.freeze({ analytics_cor, freightSimulation_cor });
+
+async function catalogFletes_cor(req, res, next) {
+  try {
+    const data = await service.catalogFletes_cor();
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      generated_at: new Date().toISOString(),
+      data
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = Object.freeze({ analytics_cor, freightSimulation_cor, catalogFletes_cor });
