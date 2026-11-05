@@ -206,44 +206,54 @@ test('Dos filas historicas identicas insertan dos Facturas del mismo Hito', asyn
 });
 
 
-test('Carga inicial HMAC de Sheets respeta PAGADA/PAGADO con bandera temporal; importacion humana no', async () => {
+test('Carga historica M2M de Ventas respeta los cinco estatus sin bandera de Azure', async () => {
   const keys = ['COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED', 'INTEGRATION_VENTAS_ID'];
   const old = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const inserted = [];
   try {
-    process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED = 'true';
+    // La bandera anterior NO debe bloquear el estatus historico si el HMAC ya fue validado.
+    process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED = 'false';
     process.env.INTEGRATION_VENTAS_ID = 'ventas-appscript';
     await withRepositoryStub({
       getConnection_cor: async () => fakeConnection(),
       findHitosFacturaCarga_cor: async (_conn, input) => [{
         id_fuente_cor: input.condicion === 'Parcial anticipo 1' ? 12 : 11,
-        moneda: 'USD', subtotal: 100, iva: 0,
-        total: input.condicion === 'Parcial anticipo 1' ? 0 : 100
+        moneda: 'USD', subtotal: input.subtotal, iva: input.iva, total: input.total
       }],
       insertRecord_cor: async (_connection, _table, record) => inserted.push(record)
     }, async () => {
-      const response = await service.cargarFacturas_cor({ registros: [
-        { ...facturaBase, estatus_factura_origen: 'PAGADA' },
+      const payload = { registros: [
+        { ...facturaBase, factura: 'CFV-1', estatus_factura_origen: 'PAGADA' },
         { ...facturaBase, factura: 'CFV-2', estatus_factura_origen: 'PAGADO' },
-        { ...facturaBase, factura: 'CFV-3', condicion: 'Parcial anticipo 1',
-          subtotal: 0, iva: 0, total: 0, estatus_factura_origen: 'PAGADA' },
-        facturaBase
-      ] }, { integrationId: 'ventas-appscript' });
-      assert.equal(response.insertados, 4);
-      assert.equal(response.pagadas_historicas, 3);
-      const human = await service.cargarFacturas_cor({ registros: [
-        { ...facturaBase, factura: 'CFV-4', estatus_factura_origen: 'PAGADA' }
+        { ...facturaBase, factura: 'CFV-3', estatus_factura_origen: 'COBRADA' },
+        { ...facturaBase, factura: 'CFV-4', estatus_factura_origen: 'EN COBRANZA' },
+        { ...facturaBase, factura: 'CFV-5', estatus_factura_origen: 'PENDIENTE' },
+        { ...facturaBase, factura: 'CFV-6', condicion: 'Parcial anticipo 1',
+          subtotal: 0, iva: 0, total: 0, estatus_factura_origen: 'PAGADA' }
+      ] };
+      const m2m = await service.cargarFacturas_cor(payload, { integrationId: 'ventas-appscript' });
+      assert.equal(m2m.insertados, 6);
+      assert.equal(m2m.rechazados, 0);
+      assert.equal(m2m.pagadas_historicas, 4);
+      assert.deepEqual(inserted.map((row) => row.estatus_factura), [
+        'Pagado', 'Pagado', 'Pagado', 'No pagado', 'No pagado', 'Pagado'
+      ]);
+      assert.deepEqual(inserted.map((row) => row.estatus_cobranza), [
+        null, null, null, 'En Cobranza', 'Pendiente', null
+      ]);
+      assert.ok(inserted.every((row) => row.origen_registro === 'LEGACY_HITO'));
+      assert.equal(inserted[5].total, 0);
+
+      const manual = await service.cargarFacturas_cor({ registros: [
+        { ...facturaBase, factura: 'CFV-7', estatus_factura_origen: 'COBRADA' }
       ] });
-      assert.equal(human.pagadas_historicas, 0);
-      process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED = 'false';
-      const closed = await service.cargarFacturas_cor({ registros: [
-        { ...facturaBase, factura: 'CFV-5', estatus_factura_origen: 'PAGADA' }
-      ] }, { integrationId: 'ventas-appscript' });
-      assert.equal(closed.pagadas_historicas, 0);
+      const idIncorrecto = await service.cargarFacturas_cor({ registros: [
+        { ...facturaBase, factura: 'CFV-8', estatus_factura_origen: 'PAGADA' }
+      ] }, { integrationId: 'otro-appscript' });
+      assert.equal(manual.pagadas_historicas, 0);
+      assert.equal(idIncorrecto.pagadas_historicas, 0);
+      assert.deepEqual(inserted.slice(-2).map((row) => row.estatus_factura), ['No pagado', 'No pagado']);
     });
-    assert.deepEqual(inserted.map((row) => row.estatus_factura),
-      ['Pagado', 'Pagado', 'Pagado', 'No pagado', 'No pagado', 'No pagado']);
-    assert.ok(inserted.every((row) => row.origen_registro === 'LEGACY_HITO'));
   } finally {
     for (const key of keys) {
       if (old[key] === undefined) delete process.env[key];

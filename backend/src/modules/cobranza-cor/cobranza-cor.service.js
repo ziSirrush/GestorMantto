@@ -434,13 +434,13 @@ function normalizeFacturaCarga_cor(row) {
   };
 }
 
-// [BLT NOW | 2026-11-05 | COBRANZA_COR_CARGA_INICIAL_PAGADAS_V001]
-// Excepcion temporal solo para HMAC de Ventas (Sheets). Apagada por defecto.
-// El estatus historico persiste en LEGACY_HITO; el flujo manual no cambia.
+// [Aster | 2026-11-05 | ASTER-MG | COBRANZA COR ESTATUS HISTORICO V002]
+// La ruta /carga/facturas ya valida HMAC de Ventas. No depender de un flag
+// de Azure: solo una identidad M2M validada puede reconocer pagos historicos.
+// Los registros creados manualmente continuan exigiendo pagos aplicados.
 function permitePagadasIniciales_cor(integrationAuth) {
   const integrationId = String(process.env.INTEGRATION_VENTAS_ID || '').trim();
-  return process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED === 'true'
-    && integrationId.length > 0
+  return integrationId.length > 0
     && integrationAuth?.integrationId === integrationId;
 }
 
@@ -487,7 +487,10 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
             const hito = hitos[0];
             const estatusOrigen = canonicalText_cor(item.record.estatus_factura_origen);
             const pagadaHistorica = permitirPagadasIniciales
-              && (estatusOrigen === 'PAGADA' || estatusOrigen === 'PAGADO');
+              && ['COBRADA', 'PAGADA', 'PAGADO'].includes(estatusOrigen);
+            const estatusCobranzaOrigen = estatusOrigen === 'EN COBRANZA'
+              ? 'En Cobranza'
+              : estatusOrigen === 'PENDIENTE' ? 'Pendiente' : null;
             if (pagadaHistorica && (hito.total === null || hito.total === undefined
               || !Number.isFinite(Number(hito.total)) || Number(hito.total) < 0)) {
               const error = new Error('Factura PAGADA historica sin total verificable en Fuente.');
@@ -507,7 +510,7 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
               total: hito.total,
               estatus_factura: pagadaHistorica ? 'Pagado' : 'No pagado',
               fecha_vencimiento: null,
-              estatus_cobranza: estatusOrigen === 'EN COBRANZA' ? 'En Cobranza' : null,
+              estatus_cobranza: estatusCobranzaOrigen,
               origen_registro: 'LEGACY_HITO',
               activo: 1,
               created_by: null,
