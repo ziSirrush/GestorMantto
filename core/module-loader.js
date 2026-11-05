@@ -185,7 +185,7 @@
   const CONTACTO_FORM_CSS = './modules/ventas-contacto-form/ventas-contacto-form.css?v=20260729-v011';
   const EXPERIMENTAL_SHELL_JS = './modules/experimental/experimental.js?v=20260806-fase7-2-v001';
   const EXPERIMENTAL_SHELL_CSS = './modules/experimental/experimental.css?v=20260805-fase1-v001';
-  const ALMACEN_MODULE_JS = './modules/almacen/almacen.js?v=20260914-human-time-v001-limpieza-v002';
+  const ALMACEN_MODULE_JS = './modules/almacen/almacen.js?v=20261105-prestamos-aiven-v001';
   const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
   const ALMACEN_REABASTO_JS = './modules/almacen/almacen-stock-reabasto.js?v=20260907-fase4-reabasto-v001-limpieza-v002';
   const ALMACEN_REABASTO_CSS = './modules/almacen/almacen-stock-reabasto.css?v=20260907-fase4-reabasto-v001';

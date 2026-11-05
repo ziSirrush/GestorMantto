@@ -8,6 +8,7 @@
 
 const crypto = require('crypto');
 const db = require('../../config/db');
+const loanQueries = require('./almacen.prestamos-query-service');
 
 const SOURCE_TYPES = Object.freeze({ inventory:'INVENTARIO_230', catalog:'CATALOGO_ARTICULOS' });
 const PAGE_SIZE = 30;
@@ -347,9 +348,10 @@ async function getStock(scope,query={}) {
 function operationalUnavailable(source,kind) {
   return {ok:true,source,available:false,kind,reason:'Las fuentes NetSuite aprobadas no contienen los campos necesarios para comprobar esta relacion.'};
 }
-async function getLoanCatalogs(scope) {const s=await activeSource(scope);return {...operationalUnavailable(s,'PRESTAMOS'),companies:[],responsibles:[],ages:[]};}
-async function getLoanSummary(scope) {const s=await activeSource(scope);return {...operationalUnavailable(s,'PRESTAMOS'),kpis:{articulos:0,piezas:0,valorTotal:null,responsables:0},ages:[],rows:[]};}
-async function getLoans(scope,query={}) {const s=await activeSource(scope);return {...operationalUnavailable(s,'PRESTAMOS'),rows:[],summary:{articulos:0,cantidad:0,valorTotal:null},pagination:pagination(0,pageValues(query,true))};}
+// Préstamos conserva el alcance por subsidiaria, pero usa su propia tabla Aiven.
+async function getLoanCatalogs(scope) {return loanQueries.getLoanCatalogs(scope);}
+async function getLoanSummary(scope,query={}) {return loanQueries.getLoanSummary(scope,query);}
+async function getLoans(scope,query={}) {return loanQueries.getLoans(scope,query);}
 async function getGuardCatalogs(scope) {const s=await activeSource(scope);return {...operationalUnavailable(s,'RESGUARDOS'),companies:[],departments:[]};}
 async function getGuards(scope,query={}) {const s=await activeSource(scope);return {...operationalUnavailable(s,'RESGUARDOS'),kpis:{total:0,conSalida:0,sinSalida:0,filtrados:0},rows:[],pagination:pagination(0,pageValues(query,true))};}
 async function getStockReabasto(scope,query={}) {

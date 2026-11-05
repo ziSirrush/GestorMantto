@@ -7,7 +7,7 @@
     'almacen-dashboard': { shortTitle:'Dashboard', icon:'📊', description:'Resumen ejecutivo del inventario publicado por NetSuite en Aiven.' },
     'almacen-inventario': { shortTitle:'Inventario', icon:'📦', description:'Consulta consolidada de artículos con vistas por empresa, almacén y ranking.' },
     'almacen-stock': { shortTitle:'Stock', icon:'📈', description:'Existencia del DET y parámetros calculados desde las hojas MOVIMIENTOS del corte publicado de NetSuite.' },
-    'almacen-prestamos': { shortTitle:'Préstamos', icon:'🔄', description:'Seguimiento de artículos en préstamo del corte publicado de NetSuite cuando contiene un conjunto compatible.' },
+    'almacen-prestamos': { shortTitle:'Préstamos', icon:'🔄', description:'Consulta de préstamos persistidos en Aiven, independiente del lote de Inventario.' },
     'almacen-resguardos': { shortTitle:'Resguardos', icon:'🔒', description:'Consulta de resguardos del corte publicado de NetSuite cuando contiene un conjunto compatible.' },
     'almacen-auditoria': { shortTitle:'Auditoría', icon:'🔍', description:'Contraste físico contra el cierre seleccionado, con conteos y observaciones persistidos en Aiven.' }
   });
@@ -412,13 +412,13 @@
 
   function loanAgeCards(summary){
     const ages=(summary.ages||[]).filter(function(row){return row&&row.antiguedad;});
-    if(!ages.length)return '<section class="alm-card alm-operational-note"><strong>Antigüedad</strong><span>El cierre no trae clasificación de antigüedad para los préstamos seleccionados.</span></section>';
+    if(!ages.length)return '<section class="alm-card alm-operational-note"><strong>Antigüedad</strong><span>No hay clasificación de antigüedad en los préstamos seleccionados.</span></section>';
     return '<section class="alm-loan-age-grid">'+ages.map(function(row,index){const label=row.antiguedad||'SIN CLASIFICAR';const tone=loanAgeTone(label,index);return '<article class="alm-loan-age alm-loan-age-'+tone+'"><small>'+escapeHtml(label)+'</small><strong>'+number(row.articulos||0,0)+' art.</strong><span>Valor: '+money(row.valorTotal)+'</span></article>';}).join('')+'</section>';
   }
 
   function renderLoanSummary(summary){
     const rows=(summary.rows||[]).map(function(row){return '<tr><td><strong>'+escapeHtml(row.responsable||'—')+'</strong></td><td>'+number(row.articulos,0)+'</td><td>'+number(row.cantidad,2)+'</td><td>'+money(row.valorTotal)+'</td><td>'+(row.porcentaje==null?'—':number(row.porcentaje,1)+'%')+'</td><td>'+number(row.diasPrestamo,0)+'</td><td>'+dateText(row.desde)+'</td><td>'+number(row.sitios,0)+'</td><td><button type="button" class="alm-table-action" data-alm-loan-responsible-open="'+escapeHtml(row.responsable||'')+'">Detalle</button></td></tr>';});
-    return loanAgeCards(summary)+'<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Préstamos por responsable</h2><p>Concentrado del conjunto PRESTAMO del cierre seleccionado.</p></div>'+statusPill('Fuente Excel','ok')+'</div>'+renderTable(['Responsable','Artículos','Cantidad','Valor total','% del total','Días en préstamo','Desde','Sitios','Detalle'],rows,1060)+'</section>';
+    return loanAgeCards(summary)+'<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Préstamos por responsable</h2><p>Concentrado de la tabla almacen_ns_prestamos en Aiven.</p></div>'+statusPill('Fuente Aiven','ok')+'</div>'+renderTable(['Responsable','Artículos','Cantidad','Valor total','% del total','Días en préstamo','Desde','Sitios','Detalle'],rows,1060)+'</section>';
   }
 
   function renderLoanDetail(detail){
@@ -426,21 +426,24 @@
     const rows=(detail.rows||[]).map(function(row){return '<tr><td><strong>'+escapeHtml(row.articulo||row.codigo||'—')+'</strong><small class="alm-cell-sub">'+escapeHtml(row.codigo||'')+'</small></td><td>'+escapeHtml(row.ag||'—')+'</td><td>'+escapeHtml(row.responsable||'—')+'</td><td>'+escapeHtml(row.sitio||'—')+'</td><td>'+number(row.cantidad,2)+'</td><td>'+money(row.costo)+'</td><td>'+dateText(row.fecha)+'</td><td>'+number(row.dias,0)+'</td><td>'+escapeHtml(row.antiguedad||'—')+'</td></tr>';});
     return '<section class="alm-card alm-filter-card"><div class="alm-filter-row alm-filter-row-main"><label class="alm-field"><span>Responsable</span><select id="alm-loan-responsible">'+responsibleOptions+'</select></label><label class="alm-field"><span>Antigüedad</span><select id="alm-loan-age"><option value="todas">Todas</option>'+(state.loans.catalogs.ages||[]).map(function(value){return '<option value="'+escapeHtml(value)+'"'+(state.loans.age===value?' selected':'')+'>'+escapeHtml(value)+'</option>';}).join('')+'</select></label><label class="alm-field"><span>Buscar</span><input id="alm-loan-query" type="search" value="'+escapeHtml(state.loans.query)+'" placeholder="Artículo, sitio o AG..."></label></div></section>'+
       '<section class="alm-mini-summary-grid"><article><small>Artículos filtrados</small><strong>'+number(detail.summary&&detail.summary.articulos,0)+'</strong></article><article><small>Cantidad filtrada</small><strong>'+number(detail.summary&&detail.summary.cantidad,2)+' pz</strong></article><article><small>Valor filtrado</small><strong>'+money(detail.summary&&detail.summary.valorTotal)+'</strong></article></section>'+
-      '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Detalle de artículos en préstamo</h2><p>Desglose del conjunto PRESTAMO del cierre seleccionado.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Artículo','AG','Responsable','Sitio / AD','Cant.','Costo total','Fecha','Días','Antigüedad'],rows,980)+operationalPager('loans',detail.pagination)+'</section>';
+      '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Detalle de artículos en préstamo</h2><p>Desglose de la tabla almacen_ns_prestamos en Aiven.</p></div>'+statusPill('30 por página','ok')+'</div>'+renderTable(['Artículo','AG','Responsable','Sitio / AD','Cant.','Costo total','Fecha','Días','Antigüedad'],rows,980)+operationalPager('loans',detail.pagination)+'</section>';
   }
 
+  function loanSourceCard(){
+    const dataset=state.loans.catalogs&&state.loans.catalogs.source;
+    return '<section class="alm-card alm-source-card"><div><strong>Fuente Aiven · Préstamos</strong><span>Tabla: almacen_ns_prestamos · '+number(dataset&&dataset.filas||0,0)+' registros autorizados</span><small>Consulta independiente de Inventario 230. Solo lectura.</small></div>'+statusPill('Aiven','ok')+'</section>';
+  }
   function renderLoans(){
     const catalogs=state.loans.catalogs||{};
-    if(!state.source)return shell('almacen-prestamos',empty('No existe un cierre disponible de Almacén.'));
-    if(!catalogs.available)return shell('almacen-prestamos',operationalDatasetCard('PRESTAMO','Fuente para Préstamos')+empty('No se detectó una hoja o conjunto con Empresa, Fecha, Artículo, Responsable y Cantidad. No se fabrican préstamos a partir del inventario.'));
+    if(!catalogs.available)return shell('almacen-prestamos',loanSourceCard()+empty('La tabla de Préstamos no contiene registros para las empresas autorizadas.'));
     const summary=state.loans.summary||{kpis:{},ages:[],rows:[]}; const k=summary.kpis||{};
-    return shell('almacen-prestamos',operationalDatasetCard('PRESTAMO','Fuente para Préstamos')+'<section class="alm-loan-company-row">'+loanCompanyOptions()+'</section><section class="alm-kpi-grid">'+kpi('Total artículos','🔄',number(k.articulos,0),'Registros de préstamo','blue')+kpi('Valor en préstamo','💰',money(k.valorTotal),'Cuando costo/valor viene en fuente','green')+kpi('Piezas totales','📦',number(k.piezas,2),'Cantidad','amber')+kpi('Responsables','👤',number(k.responsables,0),'Con material','purple')+'</section><section class="alm-card alm-inventory-nav"><nav class="alm-subtabs"><button type="button" class="alm-subtab'+(state.loans.view==='resumen'?' is-active':'')+'" data-alm-loan-view="resumen"><span>👥</span>Por responsable</button><button type="button" class="alm-subtab'+(state.loans.view==='detalle'?' is-active':'')+'" data-alm-loan-view="detalle"><span>📋</span>Detalle de artículos</button></nav></section><div class="alm-stack">'+(state.loans.view==='detalle'?renderLoanDetail(state.loans.detail||{rows:[],summary:{},pagination:{page:1,pages:1,total:0}}):renderLoanSummary(summary))+'</div>');
+    return shell('almacen-prestamos',loanSourceCard()+'<section class="alm-loan-company-row">'+loanCompanyOptions()+'</section><section class="alm-kpi-grid">'+kpi('Total artículos','🔄',number(k.articulos,0),'Registros de préstamo','blue')+kpi('Valor en préstamo','💰',money(k.valorTotal),'Cuando costo/valor viene en fuente','green')+kpi('Piezas totales','📦',number(k.piezas,2),'Cantidad','amber')+kpi('Responsables','👤',number(k.responsables,0),'Con material','purple')+'</section><section class="alm-card alm-inventory-nav"><nav class="alm-subtabs"><button type="button" class="alm-subtab'+(state.loans.view==='resumen'?' is-active':'')+'" data-alm-loan-view="resumen"><span>👥</span>Por responsable</button><button type="button" class="alm-subtab'+(state.loans.view==='detalle'?' is-active':'')+'" data-alm-loan-view="detalle"><span>📋</span>Detalle de artículos</button></nav></section><div class="alm-stack">'+(state.loans.view==='detalle'?renderLoanDetail(state.loans.detail||{rows:[],summary:{},pagination:{page:1,pages:1,total:0}}):renderLoanSummary(summary))+'</div>');
   }
 
   async function loadLoans(view){
     view.innerHTML=shell('almacen-prestamos',loading('Consultando préstamos...'));
     try{
-      state.loans.catalogs=await get('/api/almacen/prestamos/catalogos',{force:true}); state.source=state.loans.catalogs.source||state.source;
+      state.loans.catalogs=await get('/api/almacen/prestamos/catalogos',{force:true}); state.source=state.loans.catalogs.source||null;
       if(!state.loans.catalogs.available){view.innerHTML=renderLoans();return;}
       if(state.loans.company!=='todas' && !(state.loans.catalogs.companies||[]).includes(state.loans.company))state.loans.company='todas';
       if(state.loans.responsible!=='todos' && !(state.loans.catalogs.responsibles||[]).includes(state.loans.responsible))state.loans.responsible='todos';
