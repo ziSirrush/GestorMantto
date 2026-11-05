@@ -205,6 +205,125 @@ test('Dos filas historicas identicas insertan dos Facturas del mismo Hito', asyn
   ]);
 });
 
+
+test('Carga inicial HMAC de Sheets respeta PAGADA/PAGADO con bandera temporal; importacion humana no', async () => {
+  const keys = ['COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED', 'INTEGRATION_VENTAS_ID'];
+  const old = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  const inserted = [];
+  try {
+    process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED = 'true';
+    process.env.INTEGRATION_VENTAS_ID = 'ventas-appscript';
+    await withRepositoryStub({
+      getConnection_cor: async () => fakeConnection(),
+      findHitosFacturaCarga_cor: async (_conn, input) => [{
+        id_fuente_cor: input.condicion === 'Parcial anticipo 1' ? 12 : 11,
+        moneda: 'USD', subtotal: 100, iva: 0,
+        total: input.condicion === 'Parcial anticipo 1' ? 0 : 100
+      }],
+      insertRecord_cor: async (_connection, _table, record) => inserted.push(record)
+    }, async () => {
+      const response = await service.cargarFacturas_cor({ registros: [
+        { ...facturaBase, estatus_factura_origen: 'PAGADA' },
+        { ...facturaBase, factura: 'CFV-2', estatus_factura_origen: 'PAGADO' },
+        { ...facturaBase, factura: 'CFV-3', condicion: 'Parcial anticipo 1',
+          subtotal: 0, iva: 0, total: 0, estatus_factura_origen: 'PAGADA' },
+        facturaBase
+      ] }, { integrationId: 'ventas-appscript' });
+      assert.equal(response.insertados, 4);
+      assert.equal(response.pagadas_historicas, 3);
+      const human = await service.cargarFacturas_cor({ registros: [
+        { ...facturaBase, factura: 'CFV-4', estatus_factura_origen: 'PAGADA' }
+      ] });
+      assert.equal(human.pagadas_historicas, 0);
+      process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED = 'false';
+      const closed = await service.cargarFacturas_cor({ registros: [
+        { ...facturaBase, factura: 'CFV-5', estatus_factura_origen: 'PAGADA' }
+      ] }, { integrationId: 'ventas-appscript' });
+      assert.equal(closed.pagadas_historicas, 0);
+    });
+    assert.deepEqual(inserted.map((row) => row.estatus_factura),
+      ['Pagado', 'Pagado', 'Pagado', 'No pagado', 'No pagado', 'No pagado']);
+    assert.ok(inserted.every((row) => row.origen_registro === 'LEGACY_HITO'));
+  } finally {
+    for (const key of keys) {
+      if (old[key] === undefined) delete process.env[key];
+      else process.env[key] = old[key];
+    }
+  }
+});
+
+test('Detalle y KPIs reconocen saldo historico LEGACY_HITO aun despues de desactivar la bandera', async () => {
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  const sources = [
+    { id_fuente_cor: 11, id_proyecto_origen: 'P14302', moneda: 'USD', total: 100, subtotal: 100, iva: 0 },
+    { id_fuente_cor: 12, id_proyecto_origen: 'P14302', moneda: 'USD', total: 0, subtotal: 0, iva: 0 },
+    { id_fuente_cor: 13, id_proyecto_origen: 'P14302', moneda: 'USD', total: 50, subtotal: 50, iva: 0 }
+  ];
+  const invoices = [
+    { id_factura_cor: 501, id_fuente_cor: 11, ppns: 'P14302', tipo_concepto: 'HITO', total: 100,
+      factura: 'CFV-1', estatus_factura: 'Pagado', origen_registro: 'LEGACY_HITO' },
+    { id_factura_cor: 502, id_fuente_cor: 12, ppns: 'P14302', tipo_concepto: 'HITO', total: 0,
+      factura: 'CFV-2', estatus_factura: 'Pagado', origen_registro: 'LEGACY_HITO' },
+    { id_factura_cor: 503, id_fuente_cor: 13, ppns: 'P14302', tipo_concepto: 'HITO', total: 50,
+      factura: 'CFV-3', estatus_factura: 'Pagado', origen_registro: 'MANUAL' }
+  ];
+  let relations = [];
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'P14302', registros_estado_cuenta: 3 }),
+    listFuenteEstadoCuenta_cor: async () => sources,
+    listFacturasEstadoCuenta_cor: async () => invoices,
+    listAditivasEstadoCuenta_cor: async () => [],
+    listCrearEstadoCuentaEquipos_cor: async () => [],
+    listCrearEstadoCuentaLogOps_cor: async () => [],
+    listEquiposEstadoCuenta_cor: async () => [],
+    listPartidasEstadoCuenta_cor: async () => []
+  }, () => withRepositoryStub({
+    listPagosEstadoCuenta_cor: async () => [],
+    listRelacionesEstadoCuenta_cor: async () => relations
+  }, async () => {
+    const detail = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.deepEqual(detail.facturas.map((row) => row.estatus_factura), ['Pagado', 'Pagado', 'No pagado']);
+    assert.equal(detail.facturas[0].importe_pagado, 100);
+    assert.equal(detail.facturas[1].importe_pagado, 0);
+    assert.equal(detail.facturas[1].saldo, 0);
+    assert.deepEqual(detail.estado_cuenta.map((row) => row.es_pagado), [true, true, false]);
+    assert.equal(detail.resumen.monedas[0].cobrado, 100);
+    assert.equal(detail.resumen.monedas[0].pendiente, 50);
+    const form = await service.formularioEstadoCuenta_cor('P14302', access);
+    assert.equal(form.hitos[0].estatus_factura, 'Pagado');
+    assert.equal(form.hitos[1].estatus_factura, 'Pagado');
+
+    relations = [{ id_factura_cor: 501, id_pago_cor: 91, importe_aplicado: 25 }];
+    const partial = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.equal(partial.facturas[0].estatus_factura, 'No pagado');
+    assert.equal(partial.facturas[0].importe_pagado, 25);
+    assert.equal(partial.resumen.monedas[0].cobrado, 25);
+    assert.equal(partial.resumen.monedas[0].pendiente, 125);
+  }, pagosRepository));
+});
+
+test('Controller solo transmite identidad validada M2M a la carga de facturas', async () => {
+  const original = service.cargarFacturas_cor;
+  const passed = [];
+  const response = {
+    status() { return this; },
+    json(value) { return value; }
+  };
+  try {
+    service.cargarFacturas_cor = async (_body, auth) => {
+      passed.push(auth);
+      return { ok: true };
+    };
+    await controller.cargarFacturas_cor({ body: { registros: [] },
+      integrationAuth: { integrationId: 'ventas-appscript' } }, response, assert.fail);
+    await controller.cargarFacturas_cor({ body: { registros: [] } }, response, assert.fail);
+    assert.deepEqual(passed, [{ integrationId: 'ventas-appscript' }, null]);
+  } finally {
+    service.cargarFacturas_cor = original;
+  }
+});
+
 test('Factura manual rechaza Pagado y guarda No pagado aunque el campo venga vacio', async () => {
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   await assert.rejects(service.crearFacturaEstadoCuenta_cor('P14302', {

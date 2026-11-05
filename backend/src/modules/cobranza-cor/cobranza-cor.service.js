@@ -434,7 +434,17 @@ function normalizeFacturaCarga_cor(row) {
   };
 }
 
-async function cargarFacturas_cor(payload) {
+// [BLT NOW | 2026-11-05 | COBRANZA_COR_CARGA_INICIAL_PAGADAS_V001]
+// Excepcion temporal solo para HMAC de Ventas (Sheets). Apagada por defecto.
+// El estatus historico persiste en LEGACY_HITO; el flujo manual no cambia.
+function permitePagadasIniciales_cor(integrationAuth) {
+  const integrationId = String(process.env.INTEGRATION_VENTAS_ID || '').trim();
+  return process.env.COBRANZA_COR_CARGA_INICIAL_PAGADAS_ENABLED === 'true'
+    && integrationId.length > 0
+    && integrationAuth?.integrationId === integrationId;
+}
+
+async function cargarFacturas_cor(payload, integrationAuth = null) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Array.isArray(payload.registros)) {
     throw badRequest('El cuerpo debe contener registros: [...].');
   }
@@ -442,6 +452,7 @@ async function cargarFacturas_cor(payload) {
   if (!input.length) throw badRequest('No se recibieron registros para cargar.');
   if (input.length > MAX_RECORDS) throw badRequest(`La peticion excede el maximo de ${MAX_RECORDS} registros.`);
 
+  const permitirPagadasIniciales = permitePagadasIniciales_cor(integrationAuth);
   const normalized = normalizeRows_cor(input, normalizeFacturaCarga_cor);
   const rejected = normalized.rejected.map((error) => ({
     ...error,
@@ -451,6 +462,7 @@ async function cargarFacturas_cor(payload) {
     detalles: null
   }));
   let inserted = 0;
+  let pagadasHistoricas = 0;
   let sinVinculoHito = 0;
   let vinculoHitoAmbiguo = 0;
   let processedBatches = 0;
@@ -473,6 +485,15 @@ async function cargarFacturas_cor(payload) {
               throw error;
             }
             const hito = hitos[0];
+            const estatusOrigen = canonicalText_cor(item.record.estatus_factura_origen);
+            const pagadaHistorica = permitirPagadasIniciales
+              && (estatusOrigen === 'PAGADA' || estatusOrigen === 'PAGADO');
+            if (pagadaHistorica && (hito.total === null || hito.total === undefined
+              || !Number.isFinite(Number(hito.total)) || Number(hito.total) < 0)) {
+              const error = new Error('Factura PAGADA historica sin total verificable en Fuente.');
+              error.code = 'COBRANZA_FACTURA_TOTAL_HISTORICO_INVALIDO';
+              throw error;
+            }
             await repository.insertRecord_cor(connection, repository.TABLES_COR.facturas, {
               ppns: item.record.ppns,
               tipo_concepto: 'HITO',
@@ -484,9 +505,9 @@ async function cargarFacturas_cor(payload) {
               subtotal: hito.subtotal,
               iva: hito.iva,
               total: hito.total,
-              estatus_factura: 'No pagado',
+              estatus_factura: pagadaHistorica ? 'Pagado' : 'No pagado',
               fecha_vencimiento: null,
-              estatus_cobranza: canonicalText_cor(item.record.estatus_factura_origen) === 'EN COBRANZA' ? 'En Cobranza' : null,
+              estatus_cobranza: estatusOrigen === 'EN COBRANZA' ? 'En Cobranza' : null,
               origen_registro: 'LEGACY_HITO',
               activo: 1,
               created_by: null,
@@ -494,6 +515,7 @@ async function cargarFacturas_cor(payload) {
             });
             await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
             inserted += 1;
+            if (pagadaHistorica) pagadasHistoricas += 1;
           } catch (rowError) {
             await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
             await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
@@ -531,6 +553,7 @@ async function cargarFacturas_cor(payload) {
     insertados: inserted,
     rechazados: rejected.length,
     vinculados_hito: inserted,
+    pagadas_historicas: pagadasHistoricas,
     sin_vinculo_hito: sinVinculoHito,
     vinculo_hito_ambiguo: vinculoHitoAmbiguo,
     bloques_procesados: processedBatches,
@@ -564,10 +587,11 @@ function roundAmount_cor(value) {
 
 const PAYMENT_TOLERANCE_COR = 0.005;
 
-function facturaPaymentState_cor(totalValue, appliedValue) {
+function facturaPaymentState_cor(totalValue, appliedValue, pagadaHistorica = false) {
   const total = numberOrNull_cor(totalValue);
   const applied = numberOrNull_cor(appliedValue) ?? 0;
-  const paid = applied > 0 && total !== null && applied >= total - PAYMENT_TOLERANCE_COR;
+  const paid = (pagadaHistorica && total !== null && total >= 0)
+    || (applied > 0 && total !== null && applied >= total - PAYMENT_TOLERANCE_COR);
   return {
     importe_pagado: roundAmount_cor(applied),
     saldo: total === null ? null : Math.max(roundAmount_cor(total - applied), 0),
@@ -650,9 +674,9 @@ function serializeEstadoCuentaMain_cor(row) {
   };
 }
 
-function serializeFuenteEstadoCuenta_cor(row, applied = 0) {
+function serializeFuenteEstadoCuenta_cor(row, applied = 0, pagadaHistorica = false) {
   const total = numberOrNull_cor(row?.total);
-  const payment = facturaPaymentState_cor(total, applied);
+  const payment = facturaPaymentState_cor(total, applied, pagadaHistorica);
 
   return {
     id_fuente_cor: integerOrNull_cor(row?.id_fuente_cor),
@@ -793,18 +817,34 @@ function buildPaymentMaps_cor(facturaRows, relacionPagoRows) {
     if (id === null || !facturaPorId.has(id)) continue;
     aplicadoPorFactura.set(id, (aplicadoPorFactura.get(id) || 0) + (numberOrNull_cor(row?.importe_aplicado) ?? 0));
   }
+  // Saldo inicial de facturas LEGACY_HITO pagadas en la carga unica.
+  // Nunca se fabrican pagos ni relaciones; cualquier relacion real prevalece.
+  const historicasSinRelacion = new Set();
+  for (const [idFactura, factura] of facturaPorId) {
+    const total = numberOrNull_cor(factura?.total);
+    if (!aplicadoPorFactura.has(idFactura)
+      && canonicalText_cor(factura?.tipo_concepto) === 'HITO'
+      && canonicalText_cor(factura?.origen_registro) === 'LEGACY_HITO'
+      && canonicalText_cor(factura?.estatus_factura) === 'PAGADO'
+      && total !== null && total >= 0) {
+      historicasSinRelacion.add(idFactura);
+      aplicadoPorFactura.set(idFactura, total);
+    }
+  }
   const aplicadoPorHito = new Map();
+  const hitosHistoricosSinRelacion = new Set();
   for (const [idFactura, factura] of facturaPorId) {
     const idHito = integerOrNull_cor(factura?.id_fuente_cor);
     if (canonicalText_cor(factura?.tipo_concepto) !== 'HITO' || idHito === null) continue;
     aplicadoPorHito.set(idHito, (aplicadoPorHito.get(idHito) || 0) + (aplicadoPorFactura.get(idFactura) || 0));
+    if (historicasSinRelacion.has(idFactura)) hitosHistoricosSinRelacion.add(idHito);
   }
-  return { aplicadoPorFactura, aplicadoPorHito };
+  return { aplicadoPorFactura, aplicadoPorHito, historicasSinRelacion, hitosHistoricosSinRelacion };
 }
 
-function serializeFacturaEstadoCuenta_cor(row, applied = 0) {
+function serializeFacturaEstadoCuenta_cor(row, applied = 0, pagadaHistorica = false) {
   const tipo = cleanText_cor(row?.tipo_concepto)?.toUpperCase() || null;
-  const payment = facturaPaymentState_cor(row?.total, applied);
+  const payment = facturaPaymentState_cor(row?.total, applied, pagadaHistorica);
   let concepto = null;
   if (tipo === 'HITO') {
     const orden = integerOrNull_cor(row?.orden_hito);
@@ -988,13 +1028,20 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
       pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
     ]);
-    const { aplicadoPorFactura, aplicadoPorHito } = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
-    const facturas = facturaRows.map((item) => serializeFacturaEstadoCuenta_cor(
-      item, aplicadoPorFactura.get(integerOrNull_cor(item.id_factura_cor)) || 0
-    ));
-    const detailRows = attachFacturaRefsToHitos_cor(sourceRows.map((item) => serializeFuenteEstadoCuenta_cor(
-      item, aplicadoPorHito.get(integerOrNull_cor(item.id_fuente_cor)) || 0
-    )), facturaRows);
+    const { aplicadoPorFactura, aplicadoPorHito, historicasSinRelacion, hitosHistoricosSinRelacion } =
+      buildPaymentMaps_cor(facturaRows, relacionPagoRows);
+    const facturas = facturaRows.map((item) => {
+      const id = integerOrNull_cor(item.id_factura_cor);
+      return serializeFacturaEstadoCuenta_cor(
+        item, aplicadoPorFactura.get(id) || 0, historicasSinRelacion.has(id)
+      );
+    });
+    const detailRows = attachFacturaRefsToHitos_cor(sourceRows.map((item) => {
+      const id = integerOrNull_cor(item.id_fuente_cor);
+      return serializeFuenteEstadoCuenta_cor(
+        item, aplicadoPorHito.get(id) || 0, hitosHistoricosSinRelacion.has(id)
+      );
+    }), facturaRows);
     const summary = buildEstadoCuentaSummary_cor(detailRows);
     return {
       ok: true,
@@ -1160,7 +1207,7 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
 
     const project = serializeEstadoCuentaMain_cor(row);
     const ivaGeneral = resolveIvaGeneralFromRows_cor(sourceRows);
-    const { aplicadoPorHito } = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
+    const { aplicadoPorHito, hitosHistoricosSinRelacion } = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
     return {
       ok: true,
       source: 'aiven',
@@ -1172,9 +1219,12 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
         ...project,
         equipos_total: equipmentRows.length
       },
-      hitos: attachFacturaRefsToHitos_cor(sourceRows.map((item) => serializeFuenteEstadoCuenta_cor(
-        item, aplicadoPorHito.get(integerOrNull_cor(item.id_fuente_cor)) || 0
-      )), facturaRows),
+      hitos: attachFacturaRefsToHitos_cor(sourceRows.map((item) => {
+        const id = integerOrNull_cor(item.id_fuente_cor);
+        return serializeFuenteEstadoCuenta_cor(
+          item, aplicadoPorHito.get(id) || 0, hitosHistoricosSinRelacion.has(id)
+        );
+      }), facturaRows),
       iva_general_pct: ivaGeneral.value,
       iva_general_mixed: ivaGeneral.mixed,
       partidas: partidaRows.map(serializeEstadoCuentaPartida_cor),

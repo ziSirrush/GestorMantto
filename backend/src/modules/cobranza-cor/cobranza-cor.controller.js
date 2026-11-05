@@ -117,7 +117,7 @@ async function crearFacturaEstadoCuenta_cor(req, res, next) {
 
 async function cargarFacturas_cor(req, res, next) {
   try {
-    return res.status(200).json(await service.cargarFacturas_cor(req.body || {}));
+    return res.status(200).json(await service.cargarFacturas_cor(req.body || {}, req.integrationAuth || null));
   } catch (error) {
     return sendKnownError(error, res, next);
   }
