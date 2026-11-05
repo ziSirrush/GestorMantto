@@ -127,13 +127,15 @@ async function snapshot(scope) {
   return {source, catalog:source ? await catalogLot() : null};
 }
 
+// FIX 2026-11-05: MySQL 1267 en MAX() de texto sobre subconsultas de inventario.
+// Fijar la misma collation SOLO en agregados de texto; no alterar datos ni filtros.
 function inventorySql(scope, source, publishedCatalog) {
   const catJoin = publishedCatalog ? `LEFT JOIN (
     SELECT id_articulo_ns,
       CASE WHEN COUNT(DISTINCT NULLIF(TRIM(categoria_articulo),''))=1
-           THEN MAX(NULLIF(TRIM(categoria_articulo),'')) ELSE NULL END AS categoria,
+           THEN MAX(CONVERT(NULLIF(TRIM(categoria_articulo),'') USING utf8mb4) COLLATE utf8mb4_unicode_ci) ELSE NULL END AS categoria,
       CASE WHEN COUNT(DISTINCT NULLIF(TRIM(numero_parte_fabricante_original),''))=1
-           THEN MAX(NULLIF(TRIM(numero_parte_fabricante_original),'')) ELSE NULL END AS ag
+           THEN MAX(CONVERT(NULLIF(TRIM(numero_parte_fabricante_original),'') USING utf8mb4) COLLATE utf8mb4_unicode_ci) ELSE NULL END AS ag
       FROM almacen_ns_catalogo_articulos WHERE id_lote=? GROUP BY id_articulo_ns
     ) c ON c.id_articulo_ns=i.id_articulo_ns` : '';
   const categorySql = publishedCatalog ? 'c.categoria' : 'NULL';
@@ -178,16 +180,16 @@ function filteredRows(base, query = {}, options = {}) {
 }
 
 function groupedRows(raw) {
-  return {sql:`SELECT MIN(v.id) AS id,MAX(v.codigo) AS codigo,
-       MAX(v.articulo) AS articulo,MAX(v.categoria) AS categoria,MAX(v.ag) AS ag,
-       MAX(v.empresa) AS empresa,MAX(v.idSubsidiariaNs) AS idSubsidiariaNs,
+  return {sql:`SELECT MIN(v.id) AS id,MAX(CONVERT(v.codigo USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS codigo,
+       MAX(CONVERT(v.articulo USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS articulo,MAX(CONVERT(v.categoria USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS categoria,MAX(CONVERT(v.ag USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS ag,
+       MAX(CONVERT(v.empresa USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS empresa,MAX(CONVERT(v.idSubsidiariaNs USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS idSubsidiariaNs,
        MAX(v.idArticuloNs) AS idArticuloNs,
        COALESCE(SUM(v.fisico),0) AS fisico,
        SUM(v.valor) AS valor,
        CASE WHEN SUM(v.fisico)<>0 AND SUM(v.valor) IS NOT NULL
             THEN SUM(v.valor)/SUM(v.fisico) ELSE NULL END AS precioUnitario,
        COUNT(DISTINCT v.idUbicacionNs) AS almacenes,
-       CASE WHEN COUNT(DISTINCT v.idUbicacionNs)=1 THEN MAX(v.almacen)
+       CASE WHEN COUNT(DISTINCT v.idUbicacionNs)=1 THEN MAX(CONVERT(v.almacen USING utf8mb4) COLLATE utf8mb4_unicode_ci)
             ELSE CONCAT(COUNT(DISTINCT v.idUbicacionNs),' almacenes') END AS almacen
     FROM (${raw.sql}) v GROUP BY v.idSubsidiariaNs,v.idArticuloNs`,params:raw.params};
 }
