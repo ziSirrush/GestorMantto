@@ -288,17 +288,22 @@ async function freightSimulationSamples_cor({ year = null, puerto_origen, puerto
 }
 
 
-async function catalogFletes_cor() {
+async function catalogFletes_cor(fechaCorte) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fechaCorte || ''))) {
+    const error = new Error('Fecha de corte de fletes inválida.');
+    error.status = 500;
+    throw error;
+  }
   const [rows] = await db.query(
     'SELECT id_concepto, codigo_concepto, concepto, subcategoria, ' +
     'unidad_medida, costo_unitario, moneda, proveedor, zona_aplicable ' +
     'FROM catalogo_conceptos ' +
     'WHERE empresa = ? AND area = ? AND categoria = ? AND estatus = ? ' +
     'AND costo_unitario IS NOT NULL ' +
-    'AND (fecha_vigencia IS NULL OR fecha_vigencia <= CURRENT_DATE()) ' +
-    'AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= CURRENT_DATE()) ' +
+    'AND (fecha_vigencia IS NULL OR fecha_vigencia <= ?) ' +
+    'AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= ?) ' +
     'ORDER BY concepto ASC, id_concepto ASC',
-    ['CORELLIAN', 'Logística', 'Fletes', 'ACTIVO']
+    ['CORELLIAN', 'Logística', 'Fletes', 'ACTIVO', fechaCorte, fechaCorte]
   );
   return rows;
 }

@@ -16,19 +16,21 @@ test('Repositorio solo lee fletes activos CORELLIAN con costo y vigencia',async(
   const calls=[];
   const db={query:async(sql,params)=>{calls.push({sql,params});return [[{id_concepto:1,concepto:'Terrestre',costo_unitario:'2000.00'}]];}};
   const repository=cjs(src(base+'logistica-dashboard.repository.js'),{'../../config/db':db});
-  assert.equal((await repository.catalogFletes_cor()).length,1);
+  assert.equal((await repository.catalogFletes_cor('2026-11-05')).length,1);
   assert.equal(calls.length,1);
-  assert.deepEqual(calls[0].params,['CORELLIAN','Logística','Fletes','ACTIVO']);
+  assert.deepEqual(calls[0].params,['CORELLIAN','Logística','Fletes','ACTIVO','2026-11-05','2026-11-05']);
   assert.match(calls[0].sql,/FROM catalogo_conceptos/);
   assert.match(calls[0].sql,/fecha_vigencia/);
   assert.match(calls[0].sql,/fecha_vencimiento/);
+  assert.doesNotMatch(calls[0].sql,/\b(?:CURDATE|CURRENT_DATE)\b/i);
+  await assert.rejects(repository.catalogFletes_cor(), /Fecha de corte de fletes inválida/);
   assert.match(calls[0].sql,/costo_unitario IS NOT NULL/);
   assert.doesNotMatch(calls[0].sql,/\b(?:UPDATE|INSERT|DELETE|DROP|ALTER)\b/i);
 });
 test('Servicio de fletes no expone precio_sugerido',async()=>{
   const service=cjs(src(base+'logistica-dashboard.service.js'),{
     './logistica-dashboard.repository':{catalogFletes_cor:async()=>[{concepto:'Ejemplo',costo_unitario:'100.00',precio_sugerido:'300.00'}]},
-    '../../utils/temporal':{mexicoCityYear:()=>2026}
+    '../../utils/temporal':{mexicoCityYear:()=>2026,mexicoCityDate:()=> '2026-11-05'}
   });
   const rows=await service.catalogFletes_cor();
   assert.equal(rows[0].costo_unitario,'100.00');

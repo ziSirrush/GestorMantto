@@ -6,7 +6,7 @@
 // [BLT NOW | 2026-10-21 | FASE 2 DASHBOARD LOGISTICA V001] Datos de ruta y periodo.
 
 const repository = require('./logistica-dashboard.repository');
-const { mexicoCityYear } = require('../../utils/temporal');
+const { mexicoCityYear, mexicoCityDate } = require('../../utils/temporal');
 
 const STATUS_GROUPS = Object.freeze({
   sin_produccion: Object.freeze([
@@ -491,7 +491,13 @@ async function freightSimulation_cor(query = {}) {
 
 
 async function catalogFletes_cor() {
-  const rows = await repository.catalogFletes_cor();
+  const fechaCorte = mexicoCityDate();
+  if (!fechaCorte) {
+    const error = new Error('No se pudo resolver la fecha civil de America/Mexico_City.');
+    error.status = 500;
+    throw error;
+  }
+  const rows = await repository.catalogFletes_cor(fechaCorte);
   if (!Array.isArray(rows)) {
     const error = new Error('La consulta de fletes no devolvió una lista.');
     error.status = 500;
