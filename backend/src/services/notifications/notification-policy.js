@@ -6,22 +6,6 @@ function safeAlias_gnral(value, fallback) {
   return alias;
 }
 
-const {NS_TICKETS_NOTIFY_USER_ID,EVENT_CODES}=
-  require('../../modules/netsuite-integration/netsuite-tickets-notification.contract');
-const NS_TICKETS_CODE_LIST=EVENT_CODES.map(code=>`'${code}'`).join(', ');
-function nsTicketsPolicySql_gnral(n,p,e,channel) {
-  const col=channel==='push'?'push':'campana';
-  const fallback=channel==='push'?0:1;
-  return `(UPPER(TRIM(COALESCE(${n}.tipo_notificacion, ''))) IN (${NS_TICKETS_CODE_LIST})
-    AND ${n}.id_usuario = ${NS_TICKETS_NOTIFY_USER_ID}
-    AND COALESCE(${e}.activo,0) = 1
-    AND COALESCE(${p}.silenciada,0) = 0
-    AND COALESCE(${p}.${col}, ${e}.${col}_default, ${fallback}) = 1)`;
-}
-function nsTicketsCodesSql_gnral(n) {
-  return `UPPER(TRIM(COALESCE(${n}.tipo_notificacion, ''))) IN (${NS_TICKETS_CODE_LIST})`;
-}
-
 const SEGUIMIENTO_VISUAL_CODE_GNRAL = 'SEGUIMIENTO_ESPECIAL';
 const FOLLOW_ONLY_EVENT_CODES_GNRAL = Object.freeze([
   'PORTAFOLIO_EQUIPO_INGRESO',
@@ -128,9 +112,6 @@ function matrixChannelSql_gnral({
 }
 
 function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', preferenceAlias = 'p', options = {}) {
-  const n=safeAlias_gnral(notificationAlias,'n');
-  const e=safeAlias_gnral(eventAlias,'e');
-  const p=safeAlias_gnral(preferenceAlias,'p');
   const seguimiento = seguimientoEspecialSql_gnral(notificationAlias);
   const followOnlyEvent = followOnlyEventSql_gnral(notificationAlias);
   const matrixExists = matrixExistsSql_gnral(notificationAlias);
@@ -146,15 +127,12 @@ function bellVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
   // metadata SEGUIMIENTO_ESPECIAL nunca puede reaparecer por fallback legacy.
   // Para los demas eventos se conserva la politica anterior.
   return `(
-    ${nsTicketsPolicySql_gnral(n,p,e,'campana')}
+    ${seguimiento}
     OR (
-      NOT (${nsTicketsCodesSql_gnral(n)})
+      NOT (${followOnlyEvent})
       AND (
-        ${seguimiento}
-        OR (
-          NOT (${followOnlyEvent})
-          AND (NOT ${matrixExists} OR ${matrixBell})
-        )
+        NOT ${matrixExists}
+        OR ${matrixBell}
       )
     )
   )`;
@@ -187,15 +165,12 @@ function pushVisibilitySql_gnral(notificationAlias = 'n', eventAlias = 'e', pref
   // SEGUIMIENTO_ESPECIAL puede salir por Push. Los demas eventos conservan
   // exactamente la politica nativa/legacy previa.
   return `(
-    ${nsTicketsPolicySql_gnral(n,p,e,'push')}
+    ${seguimiento}
     OR (
-      NOT (${nsTicketsCodesSql_gnral(n)})
+      NOT (${followOnlyEvent})
       AND (
-        ${seguimiento}
-        OR (
-          NOT (${followOnlyEvent})
-          AND ((NOT ${matrixExists} AND ${legacyPush}) OR ${matrixPush})
-        )
+        (NOT ${matrixExists} AND ${legacyPush})
+        OR ${matrixPush}
       )
     )
   )`;

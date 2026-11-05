@@ -262,6 +262,67 @@ test('Carga historica M2M de Ventas respeta los cinco estatus sin bandera de Azu
   }
 });
 
+test('Carga inicial Sheets: 925 coincidencias duplicadas y 2 totales historicos inconsistentes se importan sin rechazo', async () => {
+  const oldId = process.env.INTEGRATION_VENTAS_ID;
+  const inserted = [];
+  try {
+    process.env.INTEGRATION_VENTAS_ID = 'ventas-appscript';
+    const registros = [
+      ...Array.from({ length: 925 }, (_, i) => ({
+        ...facturaBase, factura: 'CFV-' + (90000 + i),
+        estatus_factura_origen: ['PAGADA', 'PAGADO', 'COBRADA', 'EN COBRANZA', 'PENDIENTE'][i % 5]
+      })),
+      { ...facturaBase, ppns: 'P13575', factura: 'CFV-7777', total: 23837.84, estatus_factura_origen: 'PAGADA' },
+      { ...facturaBase, ppns: 'P13177', factura: 'CFV-8833', total: 23840.84, estatus_factura_origen: 'PENDIENTE' }
+    ];
+    await withRepositoryStub({
+      getConnection_cor: async () => fakeConnection(),
+      findHitosFacturaCarga_cor: async (_connection, record) => {
+        const source = {
+          moneda: record.moneda, subtotal: record.subtotal,
+          iva: record.iva, total: record.total
+        };
+        return record.ppns === 'P14302'
+          ? [{id_fuente_cor: 1, ...source}, {id_fuente_cor: 1508, ...source}]
+          : [{id_fuente_cor: record.ppns === 'P13575' ? 31 : 32, ...source}];
+      },
+      insertRecord_cor: async (_connection, table, record) => {
+        assert.equal(table, repository.TABLES_COR.facturas);
+        inserted.push(record);
+      }
+    }, async () => {
+      const response = await service.cargarFacturas_cor({ registros }, { integrationId: 'ventas-appscript' });
+      assert.equal(response.total_recibidos, 927);
+      assert.equal(response.insertados, 927);
+      assert.equal(response.rechazados, 0);
+      assert.equal(response.vinculo_hito_ambiguo, 0);
+      assert.ok(inserted.slice(0, 925).every(row => row.id_fuente_cor === 1));
+      assert.deepEqual(inserted.slice(0, 5).map(row => [row.estatus_factura, row.estatus_cobranza]), [
+        ['Pagado', null], ['Pagado', null], ['Pagado', null],
+        ['No pagado', 'En Cobranza'], ['No pagado', 'Pendiente']
+      ]);
+      assert.deepEqual(inserted.slice(-2).map(row => [row.ppns, row.total, row.estatus_factura]), [
+        ['P13575', 23837.84, 'Pagado'], ['P13177', 23840.84, 'No pagado']
+      ]);
+    });
+    assert.equal(inserted.length, 927);
+  } finally {
+    if (oldId === undefined) delete process.env.INTEGRATION_VENTAS_ID;
+    else process.env.INTEGRATION_VENTAS_ID = oldId;
+  }
+});
+
+test('Validacion estricta de subtotal mas IVA permanece para cargas sin identidad M2M', async () => {
+  const response = await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection()
+  }, () => service.cargarFacturas_cor({ registros: [
+    { ...facturaBase, total: 23837.84 }
+  ] }));
+  assert.equal(response.insertados, 0);
+  assert.equal(response.rechazados, 1);
+  assert.equal(response.errores[0].code, 'COBRANZA_FACTURA_REGISTRO_INVALIDO');
+});
+
 test('Detalle y KPIs reconocen saldo historico LEGACY_HITO aun despues de desactivar la bandera', async () => {
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   const sources = [

@@ -398,7 +398,7 @@ function facturaCargaText_cor(value, fieldName, maxLength, required = false) {
   return text;
 }
 
-function normalizeFacturaCarga_cor(row) {
+function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false } = {}) {
   const ppns = facturaCargaText_cor(row.ppns, 'ppns', 100, true);
   const factura = facturaCargaText_cor(row.factura, 'factura', 150, true);
   const moneda = facturaCargaText_cor(row.moneda, 'moneda', 3)?.toUpperCase() || null;
@@ -408,7 +408,10 @@ function normalizeFacturaCarga_cor(row) {
   for (const [field, value] of [['subtotal', subtotal], ['iva', iva], ['total', total]]) {
     if (value !== null && value < 0) throw new Error(`${field} no puede ser negativo.`);
   }
-  if (subtotal !== null && iva !== null && total !== null && Math.abs(total - (subtotal + iva)) > 0.05) {
+  // Las facturas historicas de Sheets conservan sus importes originales, incluso
+  // cuando el origen trae diferencias entre total y subtotal + IVA.
+  // En el resto de flujos esta validacion financiera no cambia.
+  if (!permitirHistoricoSheets && subtotal !== null && iva !== null && total !== null && Math.abs(total - (subtotal + iva)) > 0.05) {
     throw new Error('total no coincide con subtotal + iva.');
   }
   if (row.tipo_concepto !== undefined && canonicalText_cor(row.tipo_concepto) !== 'HITO') {
@@ -453,7 +456,9 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
   if (input.length > MAX_RECORDS) throw badRequest(`La peticion excede el maximo de ${MAX_RECORDS} registros.`);
 
   const permitirPagadasIniciales = permitePagadasIniciales_cor(integrationAuth);
-  const normalized = normalizeRows_cor(input, normalizeFacturaCarga_cor);
+  // Excepcion exclusiva de la carga inicial autenticada HMAC de Ventas.
+  const normalized = normalizeRows_cor(input, (row) =>
+    normalizeFacturaCarga_cor(row, { permitirHistoricoSheets: permitirPagadasIniciales }));
   const rejected = normalized.rejected.map((error) => ({
     ...error,
     ppns: cleanText_cor(input[error.fila - 2]?.ppns),
@@ -477,13 +482,17 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
           await connection.query(`SAVEPOINT ${savepoint}`);
           try {
             const hitos = await repository.findHitosFacturaCarga_cor(connection, item.record);
-            if (hitos.length !== 1) {
+            if (!hitos.length || (!permitirPagadasIniciales && hitos.length !== 1)) {
               const code = hitos.length ? 'COBRANZA_FACTURA_HITO_AMBIGUO' : 'COBRANZA_FACTURA_HITO_NO_ENCONTRADO';
               const error = new Error(hitos.length ? 'Mas de un Hito coincide con la Factura.' : 'No se encontro un Hito para la Factura.');
               error.code = code;
               if (hitos.length) error.detalles = { id_fuente_cor_candidatos: hitos.map((hito) => hito.id_fuente_cor) };
               throw error;
             }
+            // En la carga inicial Sheets, varias coincidencias con las siete
+            // mismas claves representan hitos historicos equivalentes en Fuente.
+            // La consulta los ordena por id_fuente_cor ASC: preferir el mas antiguo
+            // sin alterar la unicidad exigida para el resto de las importaciones.
             const hito = hitos[0];
             const estatusOrigen = canonicalText_cor(item.record.estatus_factura_origen);
             const pagadaHistorica = permitirPagadasIniciales

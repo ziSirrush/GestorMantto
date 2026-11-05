@@ -1,8 +1,5 @@
 const db = require('../../config/db');
 const logger = require('../../shared/logger');
-const {
-  NS_TICKETS_NOTIFY_USER_ID,EVENT_CODES
-}=require('../../modules/netsuite-integration/netsuite-tickets-notification.contract');
 
 function normalizeVisualCodes_gnral(values) {
   return [...new Set((Array.isArray(values) ? values : [])
@@ -77,29 +74,7 @@ async function listEventPreferences(idUsuario, queryable = db) {
       AND u.estado = 1
     ORDER BY e.agrupacion, e.modulo, e.orden, e.nombre_evento
   `, [idUsuario]);
-  // El monitor NS es una excepcion individual de diagnostico, NO una matriz
-  // de roles: sus cinco preferencias solo son visibles para usuario 4.
-  if (Number(idUsuario) !== NS_TICKETS_NOTIFY_USER_ID) return rows;
-  const [experimental] = await queryable.query(`
-    SELECT
-      e.codigo_evento, e.agrupacion, e.modulo, e.accion,
-      e.nombre_evento, e.descripcion, e.prioridad_default,
-      e.campana_default, e.push_default, e.correo_default,
-      NULL AS id_rol_principal, NULL AS rol_principal,
-      NULL AS roles_aplicables, 'OPCIONAL' AS politica,
-      1 AS configurable, 0 AS obligatoria,
-      COALESCE(p.campana, e.campana_default, 1) AS campana,
-      COALESCE(p.push, e.push_default, 0) AS push,
-      COALESCE(p.correo, e.correo_default, 0) AS correo,
-      COALESCE(p.silenciada, 0) AS silenciada
-    FROM notificacion_eventos e
-    LEFT JOIN notificacion_preferencias p
-      ON p.codigo_evento = e.codigo_evento AND p.id_usuario = ?
-    WHERE e.codigo_evento IN (?) AND e.activo = 1
-    ORDER BY e.orden, e.codigo_evento
-  `, [idUsuario, EVENT_CODES]);
-  const existing=new Set(rows.map(row=>row.codigo_evento));
-  return rows.concat((experimental||[]).filter(row=>!existing.has(row.codigo_evento)));
+  return rows;
 }
 
 async function findEvent(connection, codigoEvento) {
