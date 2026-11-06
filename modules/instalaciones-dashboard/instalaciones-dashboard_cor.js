@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20260819-dashboard-modo-junta-orden-v002';
+  const VERSION_COR = '20261106-dashboard-modo-junta-edicion-total-v003';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
@@ -597,8 +597,25 @@
   }
 
   function quickEditConfig_cor(sectionCode, field){
-    const section = QUICK_EDIT_FIELDS_COR[raw(sectionCode)] || null;
-    return section && typeof field === 'string' ? (section[field] || null) : null;
+    if(!field || ['dias_restantes','dias_sin_visita','dias_sin_ccnr'].includes(field)) return null;
+    const section = state.report && state.report.section;
+    if(!section || raw(section.codigo) !== raw(sectionCode)) return null;
+    const fixed = [
+      ['Ciudad','ciudad','texto'],
+      ['Supervisor','supervisor_fl','texto'],
+      ['Asesor','vendedor','texto']
+    ];
+    const column = fixed.concat(reportColumns_cor(section)).find(item => Array.isArray(item) && (
+      item[1] === field || (Array.isArray(item[1]) && item[1].includes(field))
+    ));
+    if(!column) return null;
+    const existing = QUICK_EDIT_FIELDS_COR[sectionCode] && QUICK_EDIT_FIELDS_COR[sectionCode][field];
+    if(existing) return existing;
+    return {
+      label: column[0],
+      type: column[2] === 'fecha' ? 'date' : column[2] === 'pct' ? 'percent' :
+        column[2] === 'comentario' ? 'textarea' : 'text'
+    };
   }
 
   function reportColumns_cor(section){
@@ -728,7 +745,8 @@
 
     closeCellEditor_cor();
     cell.classList.add('idb-cor-cell-editing');
-    state.editor = { cell, sectionCode, field, rowId };
+    state.editor = { cell, sectionCode, field, rowId, previousValue: row[field],
+      reportRef: state.report };
 
     const editor = document.createElement('div');
     editor.id = 'idb-cor-cell-editor';
@@ -754,14 +772,46 @@
     setStatus_cor('Edición rápida · ' + sectionCode + ' · ' + raw(row.referencia_sitio) + ' · ' + config.label + '.');
   }
 
-  async function refreshAfterQuickEdit_cor(field){
-    if(field === 'estatus'){
-      const bootstrap = await fetchJson_cor('/api/instalaciones/dashboard/bootstrap');
-      applyBootstrap_cor(bootstrap);
+  function applyQuickEditResult_cor(context, response){
+    if(!response || !response.row || Number(response.row.id_ins_fl) !== Number(context.rowId)) return false;
+    if(!state.report || state.report !== context.reportRef) return false;
+    const rows = Array.isArray(state.report.rows) ? state.report.rows : [];
+    const index = rows.findIndex(item => raw(item.id_ins_fl) === context.rowId);
+    if(index < 0 || !context.cell || !context.cell.isConnected) return false;
+    const row = { ...rows[index], ...response.row };
+    const moved = raw(row.estatus) !== raw(context.sectionCode);
+    if(moved){
+      rows.splice(index, 1);
+      context.cell.closest('tr')?.remove();
+      state.report.total = rows.length;
+      const count = $('idb-cor-report-count');
+      if(count) count.textContent = formatInteger_cor(rows.length);
+      if(!rows.length){
+        const tbody = $('idb-cor-report-result')?.querySelector('.idb-cor-table tbody');
+        const section = state.report.section;
+        if(tbody) tbody.innerHTML = emptyRow_cor(6 + reportColumns_cor(section).length, 'Sin equipos para esta sección y universo seleccionado.');
+      }
+      return true;
     }
-    if(state.reportSection && validUniverse_cor() && hasPermission_cor('reporte_listado_ver')){
-      await loadReport_cor();
+    rows[index] = row;
+    const columns = reportColumns_cor(state.report.section);
+    const column = columns.find(item => Array.isArray(item) && (
+      item[1] === context.field || (Array.isArray(item[1]) && item[1].includes(context.field))
+    ));
+    const type = column ? column[2] :
+      (quickEditConfig_cor(context.sectionCode, context.field)?.type === 'date' ? 'fecha' : 'texto');
+    const value = resolveColumnValue_cor(row, column ? column[1] : context.field);
+    const span = context.cell.querySelector('.idb-cor-cell-value');
+    if(span) span.textContent = displayColumn_cor(value, type);
+    const alertCell = context.cell.closest('tr')?.lastElementChild;
+    if(alertCell && Array.isArray(row.notificaciones)){
+      alertCell.innerHTML = row.notificaciones.length
+        ? '<div class="idb-cor-alerts">' + row.notificaciones.map(alert =>
+          '<span class="idb-cor-alert" role="img" aria-label="' + esc(alert.texto) +
+          '" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + '</span>').join('') + '</div>'
+        : '<span class="idb-cor-muted">—</span>';
     }
+    return true;
   }
 
   async function saveCellEditor_cor(){
@@ -788,6 +838,7 @@
         {
           campo:context.field,
           valor:control.value,
+          valor_anterior:context.previousValue == null ? '' : String(context.previousValue),
           seccion:context.sectionCode,
           modo_junta:true
         }
@@ -804,17 +855,14 @@
 
     const changed = response && response.changed === true;
     const label = quickEditConfig_cor(context.sectionCode, context.field)?.label || context.field;
-    closeCellEditor_cor();
-    try{
-      await refreshAfterQuickEdit_cor(context.field);
-      setStatus_cor(changed
-        ? 'Cambio guardado · ' + label + '. Interacción registrada.'
-        : 'Sin cambios · ' + label + ' conserva el mismo valor.');
-    }catch(refreshError){
-      setStatus_cor(changed
-        ? 'Cambio guardado · ' + label + '. No se pudo refrescar la tabla; usa Actualizar.'
-        : 'Sin cambios · ' + label + '. No se pudo refrescar la tabla; usa Actualizar.');
-    }
+    const confirmed = applyQuickEditResult_cor(context, response);
+    if(state.editor === context) closeCellEditor_cor();
+    setStatus_cor(confirmed
+      ? (changed ? 'Cambio guardado · ' + label + '. Interacción registrada.'
+        : 'Sin cambios · ' + label + ' conserva el mismo valor.')
+      : 'El servidor confirmó la operación, pero la vista cambió. Pulsa Actualizar para verificar.');
+
+
   }
 
   function bindResultRows_cor(){
@@ -1029,7 +1077,9 @@
     const type = Array.isArray(item) ? item[2] : 'texto';
     const value = resolveColumnValue_cor(row, field);
     const display = displayColumn_cor(value, type);
-    const editableField = typeof field === 'string' ? field : '';
+    const editableField = typeof field === 'string' ? field : Array.isArray(field)
+      ? (field.find(key => raw(row[key]) && raw(row[key]) !== '-' && raw(row[key]) !== '.') || field[field.length - 1])
+      : '';
     const config = state.meetingMode && hasPermission_cor('reporte_editar') ? quickEditConfig_cor(sectionCode, editableField) : null;
     if(!config) return '<td>' + esc(display) + '</td>';
     return '<td class="idb-cor-cell-editable" tabindex="0" role="button" data-idb-cor-cell-edit data-row-id="' + esc(row.id_ins_fl) + '" data-section="' + esc(sectionCode) + '" data-field="' + esc(editableField) + '" aria-label="Editar ' + esc(config.label) + ' de ' + esc(row.referencia_sitio || 'equipo') + '">' +
@@ -1051,21 +1101,22 @@
     const sectionCode = raw(section.codigo);
     const columns = reportColumns_cor(section);
     const quickEditVisible = state.meetingMode && hasPermission_cor('reporte_editar') && Boolean(QUICK_EDIT_FIELDS_COR[sectionCode]);
+    const identity = [['Ciudad','ciudad','texto'],['Supervisor','supervisor_fl','texto'],['Asesor','vendedor','texto']];
     const header = ['Proyecto','Equipo','Ciudad','Supervisor','Asesor'].concat(columns.map(item => item[0])).concat(['Alertas']);
     const canOpen = hasPermission_cor('reporte_abrir_detalle');
     const body = rows.length ? rows.map(row => {
-      const dynamic = columns.map(item => renderReportCell_cor(row, item, sectionCode)).join('');
+      const dynamic = identity.concat(columns).map(item => renderReportCell_cor(row, item, sectionCode)).join('');
       const alerts = Array.isArray(row.notificaciones) && row.notificaciones.length
         ? '<div class="idb-cor-alerts">' + row.notificaciones.map(alert => '<span class="idb-cor-alert" role="img" aria-label="' + esc(alert.texto) + '" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + '</span>').join('') + '</div>'
         : '<span class="idb-cor-muted">—</span>';
       const attrs = canOpen && raw(row.proyecto) && raw(row.referencia_sitio)
         ? ' class="idb-cor-clickable" data-equipment-project="' + esc(row.proyecto) + '" data-equipment-reference="' + esc(row.referencia_sitio) + '"'
         : '';
-      return '<tr' + attrs + '><td>' + esc(row.proyecto || '—') + '</td><td>' + esc(row.referencia_sitio || '—') + '</td><td>' + esc(row.ciudad || '—') + '</td><td>' + esc(row.supervisor_fl || '—') + '</td><td>' + esc(row.vendedor || '—') + '</td>' + dynamic + '<td>' + alerts + '</td></tr>';
+      return '<tr' + attrs + '><td>' + esc(row.proyecto || '—') + '</td><td>' + esc(row.referencia_sitio || '—') + '</td>' + dynamic + '<td>' + alerts + '</td></tr>';
     }).join('') : emptyRow_cor(header.length, 'Sin equipos para esta sección y universo seleccionado.');
 
     const editHint = quickEditVisible ? ' · <span class="idb-cor-edit-hint">Edición rápida activa</span>' : '';
-    host.innerHTML = '<div class="idb-cor-note idb-cor-note-neutral"><strong>' + esc(section.codigo + ' · ' + section.nombre) + '</strong> · ' + esc(formatInteger_cor(response.total)) + ' equipos' + (response.section_forced ? ' · Sección forzada por AFL' : '') + editHint + '</div>' +
+    host.innerHTML = '<div class="idb-cor-note idb-cor-note-neutral"><strong>' + esc(section.codigo + ' · ' + section.nombre) + '</strong> · <span id="idb-cor-report-count">' + esc(formatInteger_cor(response.total)) + '</span> equipos' + (response.section_forced ? ' · Sección forzada por AFL' : '') + editHint + '</div>' +
       '<div class="idb-cor-table-wrap"><table class="idb-cor-table"><thead><tr>' + header.map(label => '<th>' + esc(label) + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
     bindResultRows_cor();
   }

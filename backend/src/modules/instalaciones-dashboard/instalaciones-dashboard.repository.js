@@ -378,16 +378,8 @@ async function listReportRows_cor(supervisors, status, currentYear, options = {}
 }
 
 
-const QUICK_EDIT_COLUMNS_COR = new Set([
-  'estatus',
-  'fecha_posible_recepcion_cubo',
-  'comentarios_fl',
-  'ajustador',
-  'fecha_posible_inicio_ajuste',
-  'fecha_inicio_ajuste',
-  'fecha_fin_ajuste_planeado',
-  'fecha_fin_ajuste_modificado'
-]);
+// Las columnas autorizadas provienen del conjunto validado por el servicio.
+// No aceptar nombres de columnas libres recibidos directamente del cliente.
 
 async function getReportRowById_cor(idInsFl, executor = db, forUpdate = false) {
   const id = Number(idInsFl);
@@ -454,10 +446,12 @@ async function getReportRowById_cor(idInsFl, executor = db, forUpdate = false) {
   return rows[0] || null;
 }
 
-async function updateReportField_cor(idInsFl, field, value, executor = db) {
+async function updateReportField_cor(idInsFl, field, value, executor = db, allowedFields = null) {
   const id = Number(idInsFl);
   const column = String(field || '').trim();
-  if (!Number.isInteger(id) || id <= 0 || !QUICK_EDIT_COLUMNS_COR.has(column)) {
+  if (!Number.isInteger(id) || id <= 0 ||
+      !(allowedFields instanceof Set) || !allowedFields.has(column) ||
+      !/^[a-z][a-z0-9_]*$/.test(column)) {
     return 0;
   }
   const [result] = await executor.query(

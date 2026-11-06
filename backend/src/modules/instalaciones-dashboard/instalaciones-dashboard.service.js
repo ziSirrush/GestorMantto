@@ -4,6 +4,8 @@ const db = require('../../config/db');
 const interactionsService = require('../../services/interactions/interactions.service');
 const repository = require('./instalaciones-dashboard.repository');
 const documentationRepository = require('../instalaciones-documentacion/instalaciones-documentacion.repository');
+const { DATE_FIELDS_COR, PERCENT_FIELDS_COR, MULTILINE_FIELDS_COR, normalizeEditedFields_cor } =
+  require('../instalaciones-administracion/instalaciones-administracion.field-policy');
 
 const DOCUMENTATION_PAGE_SIZE_COR = 30;
 
@@ -102,35 +104,44 @@ const REPORT_SECTIONS_COR = Object.freeze([
   }
 ]);
 
-const QUICK_EDIT_FIELDS_COR = Object.freeze({
-  '01-SUS': new Set(['estatus']),
-  '02-OC': new Set(['estatus', 'fecha_posible_recepcion_cubo', 'comentarios_fl']),
-  '03-PM': new Set(['estatus', 'fecha_posible_recepcion_cubo', 'comentarios_fl']),
-  '04-M': new Set(['estatus', 'comentarios_fl']),
-  '05-PA': new Set(['estatus', 'ajustador', 'fecha_posible_inicio_ajuste', 'comentarios_fl']),
-  '06-A': new Set(['estatus', 'fecha_inicio_ajuste', 'fecha_fin_ajuste_planeado', 'fecha_fin_ajuste_modificado', 'ajustador', 'comentarios_fl']),
-  '07-PE': new Set(['estatus', 'comentarios_fl']),
-  '08-T': new Set(['estatus', 'comentarios_fl'])
+// Una sola politica backend: campos almacenados visibles despues de Referencia en sitio.
+const QUICK_EDIT_BASE_FIELDS_COR = ['ciudad', 'supervisor_fl', 'vendedor'];
+const QUICK_EDIT_EXTRA_FIELDS_COR = Object.freeze({
+  '02-OC': ['fecha_posible_recepcion_cubo'],
+  '04-M': ['fecha_minuta_revision_ajuste', 'fecha_liberacion_ajuste'],
+  '05-PA': ['ajustador', 'numero_pisos', 'numero_desembarques', 'numero_puertas', 'capacidad_kg'],
+  '07-PE': ['comentarios_fl'],
+  '08-T': ['comentarios_fl']
 });
-
+const QUICK_EDIT_COMPUTED_COR = new Set(['dias_restantes', 'dias_sin_visita', 'dias_sin_ccnr']);
+const QUICK_EDIT_FIELDS_COR = Object.freeze(Object.fromEntries(REPORT_SECTIONS_COR.map(section => [
+  section.codigo,
+  new Set([
+    'estatus',
+    ...QUICK_EDIT_BASE_FIELDS_COR,
+    ...section.columnas.flatMap(column => Array.isArray(column[1]) ? column[1] : [column[1]]),
+    ...(QUICK_EDIT_EXTRA_FIELDS_COR[section.codigo] || [])
+  ].filter(field => !QUICK_EDIT_COMPUTED_COR.has(field)))
+])));
 const QUICK_EDIT_LABELS_COR = Object.freeze({
+  ...Object.fromEntries(REPORT_SECTIONS_COR.flatMap(section => section.columnas.flatMap(column =>
+    (Array.isArray(column[1]) ? column[1] : [column[1]]).map(field => [field, column[0]])
+  ))),
   estatus: 'Estatus',
+  ciudad: 'Ciudad',
+  supervisor_fl: 'Supervisor',
+  vendedor: 'Asesor',
   fecha_posible_recepcion_cubo: 'Posible recepción de cubo',
-  comentarios_fl: 'Comentario',
+  fecha_minuta_revision_ajuste: 'Revisión por Ajuste',
+  fecha_liberacion_ajuste: 'Liberado por Ajuste',
   ajustador: 'Ajustador',
-  fecha_posible_inicio_ajuste: 'Posible inicio de Ajuste',
-  fecha_inicio_ajuste: 'Fecha Inicio Ajuste',
-  fecha_fin_ajuste_planeado: 'Fecha Fin Ajuste',
-  fecha_fin_ajuste_modificado: 'Fecha Fin Ajuste Modificado'
+  numero_pisos: 'No. Pisos',
+  numero_desembarques: 'No. Desembarques',
+  numero_puertas: 'No. Puertas',
+  capacidad_kg: 'Capacidad (kg)',
+  comentarios_fl: 'Comentario'
 });
 
-const QUICK_EDIT_DATE_FIELDS_COR = new Set([
-  'fecha_posible_recepcion_cubo',
-  'fecha_posible_inicio_ajuste',
-  'fecha_inicio_ajuste',
-  'fecha_fin_ajuste_planeado',
-  'fecha_fin_ajuste_modificado'
-]);
 
 const REPORT_STATUS_CODES_COR = new Set(REPORT_SECTIONS_COR.map(item => item.codigo));
 
@@ -618,25 +629,17 @@ function normalizeQuickEditValue_cor(field, value) {
     }
     return status;
   }
-
-  if (QUICK_EDIT_DATE_FIELDS_COR.has(field)) {
-    const text = String(value == null ? '' : value).trim();
-    if (!text) return '';
-    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) {
-      throw makeError_cor(400, 'INSTALACIONES_DASHBOARD_DATE_INVALID', 'La fecha debe enviarse en formato YYYY-MM-DD.');
-    }
-    const parsed = new Date(text + 'T00:00:00Z');
-    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text) {
-      throw makeError_cor(400, 'INSTALACIONES_DASHBOARD_DATE_INVALID', 'La fecha indicada no es válida.');
-    }
-    return text;
-  }
-
   const text = String(value == null ? '' : value);
-  if (field === 'ajustador') return text.trim().slice(0, 255);
-  if (field === 'comentarios_fl') return text.slice(0, 65535);
-  return text;
+  if (DATE_FIELDS_COR.includes(field) || PERCENT_FIELDS_COR.includes(field)) {
+    if (!text.trim()) return '';
+    try {
+      return normalizeEditedFields_cor({ [field]: text.trim() })[field];
+    } catch (error) {
+      throw makeError_cor(400, 'INSTALACIONES_DASHBOARD_VALUE_INVALID', error.message || 'Valor inválido.');
+    }
+  }
+  if (MULTILINE_FIELDS_COR.includes(field)) return text.slice(0, 65535);
+  return text.trim().slice(0, 255);
 }
 
 function interactionValue_cor(value) {
@@ -685,12 +688,19 @@ async function updateQuickEdit_cor(req, userId, idInsFl, body = {}) {
 
     const nextValue = normalizeQuickEditValue_cor(field, body.valor);
     const previousValue = current[field] == null ? '' : String(current[field]);
+    if (Object.prototype.hasOwnProperty.call(body, 'valor_anterior') &&
+        previousValue !== String(body.valor_anterior == null ? '' : body.valor_anterior)) {
+      throw makeError_cor(409, 'INSTALACIONES_DASHBOARD_STALE_VALUE',
+        'El campo cambió desde que abriste la edición. Actualiza la tabla antes de volver a intentar.');
+    }
     if (previousValue === nextValue) {
       await connection.commit();
-      return { changed: false, field, previous_value: previousValue, value: nextValue, row: current, interaction: null };
+      return { changed: false, field, previous_value: previousValue, value: nextValue,
+        row: { ...current, notificaciones: notificationsForRow_cor(current, (await repository.getRulesDate_cor()).fecha_actual) },
+        interaction: null };
     }
 
-    const affected = await repository.updateReportField_cor(id, field, nextValue, connection);
+    const affected = await repository.updateReportField_cor(id, field, nextValue, connection, allowed);
     if (affected !== 1) {
       throw makeError_cor(409, 'INSTALACIONES_DASHBOARD_UPDATE_CONFLICT', 'El equipo cambió mientras se intentaba guardar. Vuelve a cargar la sección.');
     }
@@ -733,7 +743,7 @@ async function updateQuickEdit_cor(req, userId, idInsFl, body = {}) {
       field,
       previous_value: previousValue,
       value: nextValue,
-      row: updated,
+      row: { ...updated, notificaciones: notificationsForRow_cor(updated, (await repository.getRulesDate_cor()).fecha_actual) },
       interaction: interaction ? { id_interaccion: interaction.id_interaccion, tipo_interaccion: interaction.tipo_interaccion } : null
     };
   } catch (error) {
