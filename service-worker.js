@@ -1,5 +1,5 @@
 // [Lumbre | 2026-10-29 | LUMBRE-MG | CACHE_SIDEBAR_PERMISOS_V003]
-const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001-viewer-channel-v002-sidebar-permissions-v003';
+const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001-viewer-channel-v002-sidebar-permissions-v003-20261106-modo-junta-cachefix-v004';;
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
@@ -150,6 +150,16 @@ function isStaticShellRequest(request) {
   return /^assets\/img\/icons\/.+\.(?:png|svg|ico|webp)$/i.test(relativePath);
 }
 
+// Dos activos de Modo Junta requieren network-first para evitar archivos antiguos
+// cuando el navegador conserva una ruta cargada con un token ?v= obsoleto.
+function needsFreshMeetingAsset_cor(url) {
+  const scopePath = new URL('./', self.location.href).pathname;
+  if (!url.pathname.startsWith(scopePath)) return false;
+  const path = url.pathname.slice(scopePath.length);
+  return path === 'core/module-loader.js' ||
+    path === 'modules/instalaciones-dashboard/instalaciones-dashboard_cor.js';
+}
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -174,6 +184,29 @@ self.addEventListener('fetch', event => {
   }
 
   if (!isStaticShellRequest(request)) return;
+
+  // Dashboard Modo Junta: consultar la version mas reciente online y seguir
+  // permitiendo fallback offline. Nunca cachear respuestas de /api/.
+  if (needsFreshMeetingAsset_cor(url)) {
+    event.respondWith((async () => {
+      try {
+        const live = await fetch(request, { cache:'no-store' });
+        if (live && live.ok) {
+          try {
+            const cache = await caches.open(SHELL_CACHE);
+            await cache.put(request, live.clone());
+          } catch (_cacheError) {
+            // Un error de cuota de cache no debe invalidar el JS descargado.
+          }
+        }
+        return live;
+      } catch (_networkError) {
+        return (await caches.match(request, { ignoreSearch:true })) || Response.error();
+      }
+    })());
+    return;
+  }
+
   event.respondWith((async () => {
     const cached = await caches.match(request, { ignoreSearch:true });
     if (cached) return cached;
