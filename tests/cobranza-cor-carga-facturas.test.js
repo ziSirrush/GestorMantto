@@ -678,3 +678,80 @@ test('Controller responde 200 para filas rechazadas y 400 para payload estructur
     service.cargarFacturas_cor = original;
   }
 });
+
+test('Backdoor validar_pagados: solo UPDATE de Facturas existentes, nunca INSERT', async () => {
+  const connection = fakeConnection();
+  const updates = [];
+  const estado = new Map([['CFV-1', 'No pagado'], ['CFV-2', 'Pagado']]);
+  const anterior = process.env.INTEGRATION_VENTAS_ID;
+  try {
+    process.env.INTEGRATION_VENTAS_ID = 'ventas-appscript';
+    await withRepositoryStub({
+      getConnection_cor: async () => connection,
+      findHitosFacturaCarga_cor: async () => [{ id_fuente_cor: 589 }],
+      findFacturasHistoricasParaValidar_cor: async (_connection, _ppns, idHito, folio) => {
+        assert.equal(idHito, 589);
+        return estado.has(folio) ? [{ id_factura_cor: folio === 'CFV-1' ? 41 : 42, estatus_factura: estado.get(folio) }] : [];
+      },
+      marcarFacturaHistoricaPagada_cor: async (_connection, idFactura, ppns) => {
+        updates.push({ idFactura, ppns });
+        estado.set('CFV-1', 'Pagado');
+        return 1;
+      },
+      insertRecord_cor: async () => assert.fail('La backdoor no puede insertar registros')
+    }, async () => {
+      const pagada = { ...facturaBase, ppns: 'P11417', factura: 'CFV-1', estatus_factura_origen: 'PAGADA' };
+      const yaPagada = { ...pagada, factura: 'CFV-2', estatus_factura_origen: 'COBRADA' };
+      const pendiente = { ...pagada, factura: 'CFV-3', estatus_factura_origen: 'PENDIENTE' };
+      const noExiste = { ...pagada, factura: 'CFV-4' };
+      const payload = { modo: 'validar_pagados', registros: [pagada, yaPagada, pendiente, noExiste] };
+      const result = await service.cargarFacturas_cor(payload, { integrationId: 'ventas-appscript' });
+      assert.equal(result.actualizados, 1);
+      assert.equal(result.ya_pagados, 1);
+      assert.equal(result.omitidos_no_pagados, 1);
+      assert.equal(result.rechazados, 1);
+      assert.equal(result.insertados, 0);
+      assert.equal(result.errores[0].code, 'COBRANZA_VALIDACION_FACTURA_NO_ENCONTRADA');
+      assert.deepEqual(updates, [{ idFactura: 41, ppns: 'P11417' }]);
+
+      const repeat = await service.cargarFacturas_cor({ modo: 'validar_pagados', registros: [pagada] },
+        { integrationId: 'ventas-appscript' });
+      assert.equal(repeat.actualizados, 0);
+      assert.equal(repeat.ya_pagados, 1);
+      assert.equal(updates.length, 1);
+    });
+  } finally {
+    if (anterior === undefined) delete process.env.INTEGRATION_VENTAS_ID;
+    else process.env.INTEGRATION_VENTAS_ID = anterior;
+  }
+});
+
+test('Backdoor validar_pagados exige M2M de Ventas y falla cerrado ante ambiguedad', async () => {
+  const anterior = process.env.INTEGRATION_VENTAS_ID;
+  try {
+    process.env.INTEGRATION_VENTAS_ID = 'ventas-appscript';
+    await assert.rejects(
+      service.cargarFacturas_cor({ modo: 'validar_pagados', registros: [facturaBase] }, null),
+      (error) => error.statusCode === 403 && error.code === 'COBRANZA_VALIDACION_PAGADOS_NO_AUTORIZADA'
+    );
+    let writes = 0;
+    await withRepositoryStub({
+      getConnection_cor: async () => fakeConnection(),
+      findHitosFacturaCarga_cor: async () => [{ id_fuente_cor: 11 }, { id_fuente_cor: 1518 }],
+      findFacturasHistoricasParaValidar_cor: async () => assert.fail('No consultar Facturas con Hitos ambiguos'),
+      marcarFacturaHistoricaPagada_cor: async () => { writes += 1; return 1; },
+      insertRecord_cor: async () => assert.fail('La backdoor no puede insertar')
+    }, async () => {
+      const result = await service.cargarFacturas_cor({ modo: 'validar_pagados', registros: [
+        { ...facturaBase, estatus_factura_origen: 'PAGADO' }
+      ] }, { integrationId: 'ventas-appscript' });
+      assert.equal(result.actualizados, 0);
+      assert.equal(result.rechazados, 1);
+      assert.equal(result.errores[0].code, 'COBRANZA_VALIDACION_HITO_AMBIGUO');
+      assert.equal(writes, 0);
+    });
+  } finally {
+    if (anterior === undefined) delete process.env.INTEGRATION_VENTAS_ID;
+    else process.env.INTEGRATION_VENTAS_ID = anterior;
+  }
+});

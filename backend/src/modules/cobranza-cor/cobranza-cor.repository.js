@@ -659,6 +659,42 @@ async function updateFacturaEstatus_cor(connection, idFacturaCor, ppns, estatus)
   );
 }
 
+// Bloqueo de la Factura LEGACY_HITO preexistente; no crear una Factura
+// por una coincidencia aproximada o ambigua.
+async function findFacturasHistoricasParaValidar_cor(connection, ppns, idFuenteCor, factura) {
+  const [rows] = await connection.query(
+    `SELECT cf.id_factura_cor, cf.estatus_factura
+       FROM ${TABLES_COR.facturas} cf
+      WHERE cf.activo = 1
+        AND ${normalizedKeySql_cor('cf.ppns')} = ${normalizedKeySql_cor('?')}
+        AND cf.tipo_concepto = 'HITO'
+        AND cf.id_fuente_cor = ?
+        AND cf.id_aditiva_cor IS NULL
+        AND UPPER(TRIM(cf.factura)) = UPPER(TRIM(?))
+        AND cf.origen_registro = 'LEGACY_HITO'
+      ORDER BY cf.id_factura_cor ASC
+      LIMIT 2 FOR UPDATE`,
+    [ppns, idFuenteCor, factura]
+  );
+  return rows;
+}
+
+// UNICA escritura permitida para validar pagados historicos: UPDATE
+// condicional sobre una Factura LEGACY_HITO ya existente.
+async function marcarFacturaHistoricaPagada_cor(connection, idFacturaCor, ppns) {
+  const [result] = await connection.query(
+    `UPDATE ${TABLES_COR.facturas}
+        SET estatus_factura = 'Pagado'
+      WHERE id_factura_cor = ?
+        AND activo = 1
+        AND origen_registro = 'LEGACY_HITO'
+        AND ${normalizedKeySql_cor('ppns')} = ${normalizedKeySql_cor('?')}
+        AND (estatus_factura IS NULL OR UPPER(TRIM(estatus_factura)) <> 'PAGADO')`,
+    [idFacturaCor, ppns]
+  );
+  return Number(result.affectedRows || 0);
+}
+
 async function findHitosFacturaCarga_cor(connection, input) {
   const textEquals = (column) =>
     `NULLIF(UPPER(TRIM(${column})), '') <=> NULLIF(UPPER(TRIM(?)), '')`;
@@ -1041,6 +1077,8 @@ module.exports = {
   getFacturaEstadoCuentaById_cor,
   findFacturaDuplicada_cor,
   updateFacturaEstatus_cor,
+  findFacturasHistoricasParaValidar_cor,
+  marcarFacturaHistoricaPagada_cor,
   findHitosFacturaCarga_cor,
   getHitoFacturable_cor,
   listAditivasEstadoCuenta_cor,

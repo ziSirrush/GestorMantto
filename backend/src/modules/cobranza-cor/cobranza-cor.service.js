@@ -447,6 +447,123 @@ function permitePagadasIniciales_cor(integrationAuth) {
     && integrationAuth?.integrationId === integrationId;
 }
 
+// [Aster | 2026-11-06 | COBRANZA COR | VALIDACION PAGADOS SIN ALTAS V001]
+// Operacion separada de la carga maestra: actualiza exclusivamente Facturas
+// LEGACY_HITO ya existentes; no inserta Hitos, Facturas ni relaciones de pagos.
+async function validarPagadasHistoricas_cor(input) {
+  const estatusPagados = new Set(['PAGADA', 'PAGADO', 'COBRADA']);
+  const candidatos = [];
+  const errores = [];
+  let omitidosNoPagados = 0;
+
+  input.forEach((row, index) => {
+    const fila = index + 2;
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      errores.push({ fila, code: 'COBRANZA_VALIDACION_FILA_INVALIDA', motivo: 'Cada registro debe ser un objeto JSON.' });
+      return;
+    }
+    if (!estatusPagados.has(canonicalText_cor(row.estatus_factura_origen))) {
+      omitidosNoPagados += 1;
+      return;
+    }
+    try {
+      candidatos.push({ fila, record: normalizeFacturaCarga_cor(row, { permitirHistoricoSheets: true }) });
+    } catch (error) {
+      errores.push({ fila, code: 'COBRANZA_VALIDACION_FILA_INVALIDA', motivo: error.message });
+    }
+  });
+
+  let actualizados = 0;
+  let yaPagados = 0;
+  let bloquesProcesados = 0;
+  if (candidatos.length) {
+    const connection = await repository.getConnection_cor();
+    try {
+      for (const batch of splitBatches_cor(candidatos)) {
+        let actualizadosBloque = 0;
+        let yaPagadosBloque = 0;
+        await connection.beginTransaction();
+        try {
+          for (let position = 0; position < batch.length; position += 1) {
+            const item = batch[position];
+            const savepoint = `cob_cor_validar_pagados_${position}`;
+            await connection.query(`SAVEPOINT ${savepoint}`);
+            try {
+              const hitos = await repository.findHitosFacturaCarga_cor(connection, item.record);
+              if (hitos.length !== 1) {
+                const error = new Error(hitos.length ? 'Mas de un Hito coincide con la Factura.' : 'No existe un Hito coincidente.');
+                error.code = hitos.length ? 'COBRANZA_VALIDACION_HITO_AMBIGUO' : 'COBRANZA_VALIDACION_HITO_NO_ENCONTRADO';
+                throw error;
+              }
+
+              const facturas = await repository.findFacturasHistoricasParaValidar_cor(
+                connection, item.record.ppns, hitos[0].id_fuente_cor, item.record.factura
+              );
+              if (facturas.length !== 1) {
+                const error = new Error(facturas.length ? 'Hay varias Facturas historicas con el mismo folio y Hito.' : 'La Factura historica aun no existe.');
+                error.code = facturas.length ? 'COBRANZA_VALIDACION_FACTURA_AMBIGUA' : 'COBRANZA_VALIDACION_FACTURA_NO_ENCONTRADA';
+                throw error;
+              }
+
+              const factura = facturas[0];
+              if (canonicalText_cor(factura.estatus_factura) === 'PAGADO') {
+                yaPagadosBloque += 1;
+              } else {
+                const affected = await repository.marcarFacturaHistoricaPagada_cor(
+                  connection, factura.id_factura_cor, item.record.ppns
+                );
+                if (affected !== 1) {
+                  const error = new Error('La Factura historica no pudo actualizarse de manera exclusiva.');
+                  error.code = 'COBRANZA_VALIDACION_ACTUALIZACION_NO_CONFIRMADA';
+                  throw error;
+                }
+                actualizadosBloque += 1;
+              }
+              await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+            } catch (rowError) {
+              await connection.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+              await connection.query(`RELEASE SAVEPOINT ${savepoint}`);
+              errores.push({
+                fila: item.fila,
+                ppns: item.record.ppns,
+                factura: item.record.factura,
+                code: rowError.code || 'COBRANZA_VALIDACION_FALLIDA',
+                motivo: rowError.message
+              });
+            }
+          }
+          await connection.commit();
+          actualizados += actualizadosBloque;
+          yaPagados += yaPagadosBloque;
+          bloquesProcesados += 1;
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        }
+      }
+    } finally {
+      connection.release();
+    }
+  }
+
+  return {
+    ok: true,
+    source: 'aiven',
+    domain: 'CORELLIAN',
+    tabla: repository.TABLES_COR.facturas,
+    modo: 'validar_pagados',
+    total_recibidos: input.length,
+    pagados_evaluados: candidatos.length,
+    actualizados,
+    ya_pagados: yaPagados,
+    omitidos_no_pagados: omitidosNoPagados,
+    insertados: 0,
+    rechazados: errores.length,
+    bloques_procesados: bloquesProcesados,
+    errores
+  };
+}
+
 async function cargarFacturas_cor(payload, integrationAuth = null) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Array.isArray(payload.registros)) {
     throw badRequest('El cuerpo debe contener registros: [...].');
@@ -454,6 +571,20 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
   const input = payload.registros;
   if (!input.length) throw badRequest('No se recibieron registros para cargar.');
   if (input.length > MAX_RECORDS) throw badRequest(`La peticion excede el maximo de ${MAX_RECORDS} registros.`);
+
+  // La carga maestra conserva su contrato; la validacion historica debe
+  // solicitar expresamente este modo y jamas ejecutar INSERT.
+  const modo = canonicalText_cor(payload.modo);
+  if (modo && modo !== 'CARGA_MAESTRA' && modo !== 'VALIDAR_PAGADOS') {
+    throw badRequest('modo debe ser carga_maestra o validar_pagados.');
+  }
+  if (modo === 'VALIDAR_PAGADOS') {
+    if (!permitePagadasIniciales_cor(integrationAuth)) {
+      throw httpError(403, 'La validacion de pagados requiere la integracion M2M autorizada de Ventas.',
+        null, 'COBRANZA_VALIDACION_PAGADOS_NO_AUTORIZADA');
+    }
+    return validarPagadasHistoricas_cor(input);
+  }
 
   const permitirPagadasIniciales = permitePagadasIniciales_cor(integrationAuth);
   // Excepcion exclusiva de la carga inicial autenticada HMAC de Ventas.
