@@ -1,11 +1,17 @@
 name: Build and deploy Node.js app to Azure Web App - mantto-gestor-api
+run-name: "API · ${{ github.event.head_commit.message || github.ref_name }}"
 
-# [Lumbre | 2026-10-29 | LUMBRE-MG | L04_CI_SUMINISTRO_SEGURO_V001]
+# BLT NOW | 2026-11-09 | CI_SELECTIVO_V001
+# Respaldo: backup/ci-before-selective-20261109 (commit cb33a88051bb713576bd0b39899ca016b5d340f1)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    # Frontend puro NO ejecuta pruebas del backend ni vuelve a desplegar Azure.
+    paths:
+      - 'backend/**'
+      - 'tools/ci-run-tests.js'
+      - '.github/workflows/main_mantto-gestor-api.yml'
   workflow_dispatch:
 
 jobs:
@@ -35,12 +41,14 @@ jobs:
         working-directory: ./backend
         run: npm audit --audit-level=moderate
 
-      - name: Validar y probar
+      - name: Validar y probar backend
         working-directory: ./backend
         run: |
           npm run check
           npm run build --if-present
-          npm test
+          npm run test:contracts
+          npm run test:storage
+          node ../tools/ci-run-tests.js backend
 
       - name: Reducir dependencias para producción
         working-directory: ./backend
@@ -63,6 +71,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: build
+    # No cancelar un deploy Azure a medio publicar ni superponer versiones.
+    concurrency:
+      group: blt-now-azure-production
+      cancel-in-progress: false
     permissions:
       id-token: write
       contents: read
@@ -88,3 +100,20 @@ jobs:
           app-name: 'mantto-gestor-api'
           slot-name: 'Production'
           package: ./release
+
+      - name: Verificar API y conexion de base de datos publicada
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://mantto-gestor-api-a4hwfpgvbeb4gmgj.mexicocentral-01.azurewebsites.net/api/health"
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --location --max-time 15 "$url" -o /tmp/blt-now-health.json \
+              && node -e "const d=require('/tmp/blt-now-health.json'); if(d.ok!==true || d.database!=='connected') process.exit(1)"; then
+              echo "API OK: GET /api/health y MySQL conectado"
+              exit 0
+            fi
+            echo "API aun sin confirmar (intento $attempt de 12)"
+            sleep 5
+          done
+          echo "::error::Azure devolvio un health check no saludable tras el despliegue."
+          exit 1

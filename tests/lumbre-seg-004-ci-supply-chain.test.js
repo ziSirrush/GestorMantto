@@ -32,7 +32,7 @@ test('L-04: backend usa lockfile, auditoría, pruebas y artefacto de producción
   const workflow = read('.github/workflows/main_mantto-gestor-api.yml');
   assert.match(workflow, /npm ci --no-audit --no-fund/);
   assert.match(workflow, /npm audit --audit-level=moderate/);
-  assert.match(workflow, /npm test/);
+  assert.match(workflow, /node \.\.\/tools\/ci-run-tests\.js backend/);
   assert.match(workflow, /npm prune --omit=dev/);
   assert.match(workflow, /if-no-files-found:\s*error/);
   assert.match(workflow, /retention-days:\s*1/);
