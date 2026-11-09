@@ -103,12 +103,13 @@ test('SQL promedio total se calcula solo con las mismas operaciones completas', 
   assert.match(sql, /THEN DATEDIFF\(STR_TO_DATE\(LEFT\(TRIM\(fecha_llegada_real\)/);
   assert.doesNotMatch(sql, /promedio_dias_salida\s*\+\s*promedio_dias_llegada/i);
   assert.doesNotMatch(sql, /ROUND\(AVG\(/);
-  for (const field of ['operaciones','operaciones_salida','operaciones_transito','operaciones_completas']) {
-    assert.match(sql, new RegExp('COUNT\\(CASE WHEN \\$\\{completo\\} THEN 1 END\\) AS '+field));
-  }
-  for (const field of ['promedio_dias_salida','promedio_dias_llegada','promedio_dias_total']) {
-    assert.match(sql, new RegExp('AVG\\(CASE WHEN \\$\\{completo\\} THEN DATEDIFF\\([\\s\\S]*? END\\) AS '+field));
-  }
+  const normalizePredicate = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const countMatches = [...sql.matchAll(/COUNT\(CASE WHEN ([\s\S]*?) THEN 1 END\) AS (operaciones(?:_salida|_transito|_completas)?)/g)];
+  assert.equal(countMatches.length, 4);
+  assert.equal(new Set(countMatches.map(match => normalizePredicate(match[1]))).size, 1, 'todos los conteos usan la misma cohorte completa');
+  const averageMatches = [...sql.matchAll(/AVG\(CASE WHEN ([\s\S]*?) THEN DATEDIFF\([\s\S]*? END\) AS (promedio_dias_(?:salida|llegada|total))/g)];
+  assert.equal(averageMatches.length, 3);
+  assert.equal(new Set(averageMatches.map(match => normalizePredicate(match[1]))).size, 1, 'todos los promedios usan la misma cohorte completa');
 });
 
 test('catalogo de periodos incluye anios de zarpe real o ETD (aunque sean exclusivos)', async () => {

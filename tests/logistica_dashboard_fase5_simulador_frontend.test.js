@@ -115,7 +115,7 @@ test('Fase 5 añade formulario y resultados sin eliminar F1/F3 ni select anual',
 });
 
 test('loader carga CSS modular y version F5 sin modificar la hoja original',()=>{
-  assert.match(loader,/dashboard-logistica\.css\?v=20261109-dashboard-logistica-v001/);
+  assert.match(loader,/dashboard-logistica\.css\?v=20260923-dashboard-ppns-final-v001/);
   assert.match(loader,/dashboard-logistica-simulador\.css\?v=20261021-dashboard-fase5-v001/);
   assert.match(loader,/dashboard-logistica\.js\?v=20261109-dashboard-logistica-v001/);
   assert.match(css,/\.dl-freight-scenarios/);
