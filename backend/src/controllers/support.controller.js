@@ -3,7 +3,7 @@ const supportSolicitudesService = require('../services/support-solicitudes.servi
 const supportFilesService = require('../modules/support/support-files.service');
 
 function hasExactSupportRole(user) {
-  const roles = [user && user.rol, ...((user && Array.isArray(user.roles)) ? user.roles : [])].filter(Boolean);
+  const roles = Array.isArray(user?.roles) ? user.roles : [user?.rol].filter(Boolean);
   return roles.includes('Soporte');
 }
 

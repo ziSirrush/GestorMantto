@@ -274,14 +274,22 @@
   function isActiveCatalogRow(row){return Number(row?.agrupacion_activo)!==0&&Number(row?.modulo_activo)!==0;}
   function hasModuleAccess(item){
     const permission=item.dataset.permission||'';
-    if(permission==='home')return true;
+    if(permission==='home'||permission==='usuarios')return true;
+    // Solo Soporte y Panel de Control son excepciones por rol.
+    // El rol puede ser principal o secundario, pero debe estar activo en la sesion
+    // validada por el backend; sin catalogo de sesion se conserva fail-closed.
+    if(permission.startsWith('soporte_')){
+      if(!state.sessionPermissionsReady)return false;
+      const user=window.ManttoAuth?.getUser?.()||{};
+      return (Array.isArray(user.roles)?user.roles:[user.rol]).includes('Soporte');
+    }
     // La administracion es una excepcion por rol, no un permiso de modulo.
     // Exigir primero una respuesta valida de permisos de la sesion para no
     // mostrar el enlace durante el arranque o ante fallos de autenticacion.
     if(permission==='panel_control'){
       if(!state.sessionPermissionsReady || window.ManttoAuth?.isViewingAs?.())return false;
       const user=window.ManttoAuth?.getUser?.()||{};
-      const roles=new Set([user.rol,...(Array.isArray(user.roles)?user.roles:[])].filter(Boolean));
+      const roles=new Set((Array.isArray(user.roles)?user.roles:[user.rol]).filter(Boolean));
       return roles.has('Programador') || roles.has('Director General');
     }
     const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
@@ -292,7 +300,7 @@
         return hasCachedOfflineAccess();
       }
       // El codigo de permiso, presente en el catalogo autorizado, es la identidad estable.
-      return exact.exists===true&&exact.efectivo===true;
+      return rows.length>0&&exact.exists===true&&exact.efectivo===true;
     }
     if(!rows.length)return false;
     const visualRows=rows.filter(row=>String(row.codigo_permiso||((row.subelemento_codigo||'')+'.'+(row.accion_codigo||''))).endsWith('_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'));
@@ -308,12 +316,20 @@
     });
   }
   function hasGroupVisualAccess(group){return groupVisualRows(group).some(row=>state.permissions.get(Number(row.id_subelemento_accion))===true);}
+  function canNavigate(route){
+    const item=document.querySelector(`.side-item[data-route="${CSS.escape(String(route||''))}"]`);
+    return item?.dataset?.permission ? hasModuleAccess(item) : false;
+  }
   function applySidebar(options={}){
     document.querySelectorAll('.side-item[data-permission]').forEach(item=>{item.hidden=!hasModuleAccess(item);});
     document.querySelectorAll('.side-group').forEach(group=>{
       const hasVisibleModule=Array.from(group.querySelectorAll('.side-item')).some(item=>!item.hidden);
       const hasVisualGroupPermission=hasGroupVisualAccess(group);
-      group.hidden=!(hasVisibleModule||hasVisualGroupPermission);
+      // El contenedor Soporte es excepcion exclusiva por rol; el checkbox
+      // de agrupacion no puede revelar un grupo reservado sin rol Soporte.
+      group.hidden=group.dataset?.group==='soporte'
+        ? !hasVisibleModule
+        : !(hasVisibleModule||hasVisualGroupPermission);
     });
     const currentRoute=window.ManttoRouter?.getCurrent?.().route;
     const currentItem=currentRoute?document.querySelector(`.side-item[data-route="${CSS.escape(currentRoute)}"]`):null;
@@ -495,6 +511,7 @@
     can,
     canAny,
     state:permissionState,
+    canNavigate,
     reload:reloadPermissions,
     apply:applyActionPermissions
   };

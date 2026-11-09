@@ -266,7 +266,7 @@ test('F5: endpoint detalle no expone otro proyecto por clave o scope',async()=>{
   const req=fakeContext();req.query={proyecto_clave:'NO_EXISTE'};
   await assert.rejects(()=>service.getDetail(req),e=>e.statusCode===404);
 });
-test('F5: rutas exclusivamente GET, guarda rol Programador efectivo y permiso UNITED',()=>{
+test('F5: rutas exclusivamente GET, usa permiso individual y alcance UNITED',()=>{
   const endpoints=[];
   const fakeExpress={Router:()=>({
     get:(...args)=>endpoints.push(args),post:()=>assert.fail('POST no permitido'),
@@ -285,10 +285,11 @@ test('F5: rutas exclusivamente GET, guarda rol Programador efectivo y permiso UN
     './experimental-ns-proyectos-mantenimiento.service':{REQUIRED_PERMISSION:'EXPERIMENTAL_NS_PROYECTOS_MANTENIMIENTO_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'}
   });
   assert.ok(router);assert.deepEqual(endpoints.map(x=>x[0]),['/proyectos-mantenimiento/inicial','/proyectos-mantenimiento/detalle']);
-  for(const e of endpoints){const r={status(n){this.code=n;return this;},json(x){this.body=x;return this;}};
-    e[2]({actorUser:{is_programador:false}},r,()=>assert.fail('sin rol'));
-    assert.equal(r.code,403);let passed=false;
-    e[2]({actorUser:{is_programador:true}},r,()=>passed=true);assert.equal(passed,true);
+  for(const e of endpoints){
+    assert.equal(e.length,4);
+    let passed=false;
+    e[2]({actorUser:{is_programador:false}}, {},()=>passed=true);
+    assert.equal(passed,true);
   }
 });
 test('F5: no hay consultas o mutaciones productivas en codigo experimental',()=>{

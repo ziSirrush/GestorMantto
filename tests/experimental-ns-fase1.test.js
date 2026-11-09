@@ -16,12 +16,11 @@ const routes = [
   'experimental-ns-proyectos-mantenimiento'
 ];
 
-test('F1: agrupacion nueva, separada y restringida a Programador', () => {
-  assert.match(html, /class="side-group programmer" data-group="experimental-ns" style="display:none"/);
+test('F1: Experimental NS separado y autorizado por permisos, no por rol', () => {
+  assert.match(html, /class="side-group" data-company="UNITED" data-group="experimental-ns"/);
   assert.match(html, /data-group="experimental"/);
-  assert.match(router, /nsAuthorized/);
-  assert.match(router, /Programador United/);
-  assert.match(router, /Programador Corellian/);
+  assert.match(router, /ManttoPermissions\?\.canNavigate\?\.\(route\)/);
+  assert.doesNotMatch(router.slice(router.indexOf('// Experimental NS: acceso'),router.indexOf("if(EXPERIMENTAL_ROUTES_EXP.has(route)")),/Programador United|Programador Corellian|roles\.has/);
   assert.match(router, /Acceso restringido/);
 });
 

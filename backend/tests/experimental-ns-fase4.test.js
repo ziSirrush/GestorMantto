@@ -213,7 +213,7 @@ test('F4: servicio responde usando las dos fuentes NS y sin escritura',async()=>
   assert.deepEqual(out.tablas,['ns_portafolio_pruebas','ns_tickets_pruebas']);
   assert.equal(out.modo,'SOLO_LECTURA');
 });
-test('F4: rutas GET y guard de Programador, no hay rutas de escritura',()=>{
+test('F4: rutas GET protegidas por permiso y alcance, sin filtro de rol',()=>{
   const endpoints=[];
   const fakeExpress={Router:()=>({
     get:(...args)=>endpoints.push(args),
@@ -236,11 +236,9 @@ test('F4: rutas GET y guard de Programador, no hay rutas de escritura',()=>{
   assert.equal(endpoints.length,2);
   assert.deepEqual(endpoints.map(x=>x[0]),['/equipos-criticos/inicial','/equipos-criticos/detalle']);
   for(const endpoint of endpoints){
-    const guard=endpoint[2],res={status(c){this.code=c;return this;},json(v){this.body=v;return this;}};
-    guard({actorUser:{is_programador:false}},res,()=>assert.fail('No autorizar no Programador'));
-    assert.equal(res.code,403);
+    assert.equal(endpoint.length,4);
     let nextCalled=false;
-    guard({actorUser:{is_programador:true}},res,()=>nextCalled=true);
+    endpoint[2]({actorUser:{is_programador:false}}, {},()=>nextCalled=true);
     assert.equal(nextCalled,true);
   }
 });

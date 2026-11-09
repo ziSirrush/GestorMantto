@@ -6,16 +6,10 @@ const controller = require('./experimental-ns-equipos-criticos.controller');
 const { REQUIRED_PERMISSION } = require('./experimental-ns-equipos-criticos.service');
 
 const router = express.Router();
-function requireProgramador(req,res,next) {
-  if (!req.actorUser || req.actorUser.is_programador !== true) {
-    return res.status(403).json({ok:false,code:'EXPERIMENTAL_NS_PROGRAMMER_REQUIRED',
-      message:'Experimental NS esta reservado al rol Programador.'});
-  }
-  return next();
-}
+// Sin restriccion por rol: humanInformationGuard_gnral valida sesion, permiso, puerta y alcance.
 const [requireSession, requireSpecificPermission] = humanInformationGuard_gnral({
   domain:'UNITED',groupingCode:'EXPERIMENTAL_NS',permissionCode:REQUIRED_PERMISSION
 });
-router.get('/equipos-criticos/inicial',requireSession,requireProgramador,requireSpecificPermission,controller.initial);
-router.get('/equipos-criticos/detalle',requireSession,requireProgramador,requireSpecificPermission,controller.detail);
+router.get('/equipos-criticos/inicial',requireSession,requireSpecificPermission,controller.initial);
+router.get('/equipos-criticos/detalle',requireSession,requireSpecificPermission,controller.detail);
 module.exports = router;

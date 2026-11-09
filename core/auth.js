@@ -478,7 +478,8 @@
     if($('hdr-user-role')) $('hdr-user-role').textContent = user.rol || (user.roles && user.roles[0]) || 'Sin rol';
     // Panel de Control: excepcion por rol (Programador maestro o Director General).
     // Las demas superficies .programmer conservan su regla previa.
-    const roles = new Set([user.rol, ...(Array.isArray(user.roles) ? user.roles : [])].filter(Boolean));
+    // La lista de roles activos del backend tiene prioridad sobre el rol primario legacy.
+    const roles = new Set((Array.isArray(user.roles) ? user.roles : [user.rol]).filter(Boolean));
     const isProgrammer = roles.has('Programador') || roles.has('Programador United') ||
       roles.has('Programador Corellian');
     const canUsePanelControl = !isViewingAs() && (roles.has('Programador') || roles.has('Director General'));

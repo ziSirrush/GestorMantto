@@ -12,6 +12,8 @@ on:
     paths:
       - 'backend/**'
       - 'tools/ci-run-tests.js'
+      - 'tools/release-version.js'
+      - 'config/releases/api.json'
       - '.github/workflows/main_mantto-gestor-api.yml'
   workflow_dispatch:
 
@@ -37,6 +39,9 @@ jobs:
       - name: Instalar dependencias reproducibles
         working-directory: ./backend
         run: npm ci --no-audit --no-fund
+
+      - name: Validar nomenclatura de doble fecha
+        run: node tools/release-version.js verify
 
       - name: Auditar dependencias
         working-directory: ./backend

@@ -13,6 +13,9 @@
       local,
       generated,
       provider:String(raw.provider||'').trim(),
+      version:String(raw.version||'').trim(),
+      apiVersion:String(raw.apiVersion||'').trim(),
+      frontendVersion:String(raw.frontendVersion||'').trim(),
       localVersion:String(raw.localVersion||'FIX V016.2').trim(),
       message:String(raw.message||'').trim(),
       commit:String(raw.commit||'').trim(),
@@ -25,11 +28,12 @@
     if(info.local) return ['LOCAL',info.localVersion].filter(Boolean).join(' · ');
     const provider=String(info.provider||'DEPLOY').trim().toUpperCase()||'DEPLOY';
     if(!info.generated) return provider+' · metadata de commit no generada';
-    return [provider,info.message,info.commitShort].filter(Boolean).join(' · ');
+    return [provider,info.version||info.message,info.commitShort].filter(Boolean).join(' · ');
   }
 
   function loginLabel(){
     const info=current();
+    if(info.version) return 'Version '+info.version;
     if(info.message) return info.message;
     if(info.local && info.localVersion) return info.localVersion;
     return '';

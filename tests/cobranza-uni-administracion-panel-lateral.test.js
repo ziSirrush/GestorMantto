@@ -18,8 +18,9 @@ test('sidebar: Administracion aparece solo en Cobranza UNITED y oculta hasta aut
   assert.ok(group);
   assert.equal((group[1].match(/id="side-cobranza-uni-administracion"/g)||[]).length,1);
   assert.match(group[1],/data-route="cobranza-uni-administracion"/);
-  assert.match(group[1],/id="side-cobranza-uni-administracion"[^>]*\bhidden\b[^>]*display:none/);
-  assert.doesNotMatch(group[1],/id="side-cobranza-uni-administracion"[^>]*data-permission/);
+  assert.match(group[1],/id="side-cobranza-uni-administracion"[^>]*data-permission="cobranza_uni_administracion"/);
+  assert.match(group[1],/data-permission-code="COBRANZA_UNI_ADMINISTRACION_ACCESO_VISUAL_MODULO\.ACCESO_VISUAL"/);
+  assert.doesNotMatch(group[1],/id="side-cobranza-uni-administracion"[^>]*\bhidden\b/);
   for(const r of ['cobranza-uni-dashboard','cobranza-uni-estados-cuenta','cobranza-uni-mp-pro','cobranza-uni-aditivas'])
     assert.match(group[1],new RegExp('data-route="'+r+'"'));
 });
@@ -29,7 +30,7 @@ test('index: Main tiene vista propia y menu de seguridad previo a inicializar la
   const menu=html.indexOf('modules/cobranza-uni/administracion/admin-menu.js');
   const app=html.indexOf('./core/app.js');
   assert.ok(menu>0 && app>menu);
-  assert.match(html,/core\/router\.js\?v=20261023-back-history-v001/);
+  assert.match(html,/core\/router\.js\?v=20261109-permisos-v001/);
   assert.match(html,/<script src="\.\/core\/module-loader\.js(?:\?v=[^"]+)?"><\/script>/);
 });
 
@@ -96,7 +97,7 @@ test('integracion: no cambia ninguna de las cuatro vistas legacy de Cobranza UNI
 test('integracion: permisos se consultan en el backend; no se declara rol fijo',()=>{
   const button=html.match(/<button[^>]+id="side-cobranza-uni-administracion"[^>]*>/)?.[0];
   assert.ok(button);
-  assert.doesNotMatch(button,/data-permission=/);
+  assert.match(button,/data-permission="cobranza_uni_administracion"/);
   assert.doesNotMatch(button,/role|admin=true|programador/i);
   // La seguridad de lectura/escritura reside en las rutas backend existentes.
   assert.doesNotMatch(router,/fetch\('\/api\/cobranza-uni\/administracion/);

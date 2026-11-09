@@ -15,9 +15,8 @@ function actorScope_gnral(req) {
 }
 
 function actorCanManage_gnral(req) {
-  const roles = new Set([req.user?.rol, ...(req.user?.roles || [])].filter(Boolean));
-  return roles.has('Programador') || roles.has('Programador United') ||
-    roles.has('Programador Corellian') || roles.has('Director General');
+  const roles = new Set((Array.isArray(req.user?.roles) ? req.user.roles : [req.user?.rol]).filter(Boolean));
+  return roles.has('Programador') || roles.has('Director General');
 }
 
 function companySql_gnral(column, scope) {

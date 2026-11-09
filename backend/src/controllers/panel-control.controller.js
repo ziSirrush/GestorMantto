@@ -15,9 +15,9 @@ function actorScope(req) {
 }
 
 function actorCanManage(req) {
-  const roles = new Set([req.user?.rol, ...(req.user?.roles || [])].filter(Boolean));
-  return roles.has('Programador') || roles.has('Programador United') ||
-    roles.has('Programador Corellian') || roles.has('Director General');
+  const roles = new Set((Array.isArray(req.user?.roles) ? req.user.roles : [req.user?.rol]).filter(Boolean));
+  // Panel de Control: solo Programador maestro y Director General.
+  return roles.has('Programador') || roles.has('Director General');
 }
 
 function companySql(column, scope) {
@@ -482,8 +482,8 @@ async function getViewerUsers(req, res, next) {
 async function ensurePanelControlProgrammerPermissions(conn) {
   /*
    * Garantiza que el acceso visual del Panel de Control sea un permiso real
-   * heredado por cualquier rol Programador activo. No depende de que el rol
-   * sea principal y respeta las excepciones personales evaluadas después.
+   * heredado solo por Programador maestro y Director General.
+   * No depende de que el rol sea principal y respeta las excepciones personales.
    */
   await conn.query(`
     INSERT INTO rol_permisos
@@ -513,8 +513,7 @@ async function ensurePanelControlProgrammerPermissions(conn) {
     WHERE r.estado = 1
       AND LOWER(TRIM(r.rol)) IN (
         'programador',
-        'programador united',
-        'programador corellian'
+        'director general'
       )
       AND (
         pac.codigo = 'ACCESO_VISUAL'

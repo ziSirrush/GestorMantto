@@ -59,7 +59,7 @@ test('F6: huella varía con modificaciones y rechaza acceso sin alcance',async()
   await assert.rejects(r.revision({informationAccess:{dominio:'GENERAL'}}),/denied/);
 });
 
-test('F6: rutas GET independientes exigen autenticación, permiso individual y Programador',async()=>{
+test('F6: rutas GET exigen autenticación y permiso individual, no rol',async()=>{
   const routes=[];const guards=[];
   const express=()=>({get(...args){routes.push(args);}});express.Router=()=>({get(...args){routes.push(args);}});
   const repo={revision:async()=>'a'.repeat(64)};
@@ -80,14 +80,13 @@ test('F6: rutas GET independientes exigen autenticación, permiso individual y P
   assert.ok(guards.every(g=>g.domain==='UNITED'&&g.groupingCode==='EXPERIMENTAL_NS'));
   for(const route of routes){
     assert.match(route[0],/^\/live\/[^/]+\/revision$/);
-    assert.equal(route.length,5);
-    const denied=[];
-    const res={status(n){denied.push(n);return this;},json(v){denied.push(v);return v;}};
-    route[2]({actorUser:{is_programador:false}},res,()=>{throw Error('guard bypass');});
-    assert.equal(denied[0],403);
+    assert.equal(route.length,4);
+    let passed=false;
+    route[2]({actorUser:{is_programador:false}}, {},()=>{passed=true;});
+    assert.equal(passed,true);
     const output=[];
     const authorizedRes={set(k,v){output.push([k,v]);},json(v){output.push(v);return v;}};
-    await route[4]({actorUser:{is_programador:true}},authorizedRes,e=>{throw e;});
+    await route[3]({actorUser:{is_programador:false}},authorizedRes,e=>{throw e;});
     assert.equal(output.at(-1).version,'a'.repeat(64));
     assert.deepEqual(output[0],['Cache-Control','no-store, private']);
   }

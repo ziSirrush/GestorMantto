@@ -24,6 +24,8 @@ on:
       - 'tools/generate-build-info.js'
       - 'tools/generate-change-audit.js'
       - 'tools/ci-run-tests.js'
+      - 'tools/release-version.js'
+      - 'config/releases/frontend.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -56,6 +58,9 @@ jobs:
       - name: Preparar dependencias para pruebas de contratos compartidos
         working-directory: ./backend
         run: npm ci --no-audit --no-fund
+
+      - name: Validar nomenclatura de doble fecha
+        run: node tools/release-version.js verify
 
       - name: Pruebas selectivas de frontend
         run: node tools/ci-run-tests.js frontend

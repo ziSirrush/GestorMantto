@@ -1010,18 +1010,16 @@
 
   function showPlaceholder(route, payload){
     if(route==='detalle' && showDetalle(payload)) return;
-    // Experimental NS Fase 1: vista estatica independiente y acceso piloto solo Programador.
-    // No se consultan APIs; los permisos funcionales/puertas/alcance se implementan en F2.
+    // Experimental NS: acceso exclusivo por permisos efectivos del catalogo,
+    // sin listas de roles. El backend valida permiso, puerta y alcance UNITED.
     if(['experimental-ns-resumen-dia','experimental-ns-equipos-criticos','experimental-ns-proyectos-mantenimiento'].includes(route)){
-      const nsUser = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function' ? window.ManttoAuth.getUser() : null;
-      const nsRoles = new Set([nsUser && nsUser.rol, ...(Array.isArray(nsUser && nsUser.roles) ? nsUser.roles : [])].filter(Boolean));
-      const nsAuthorized = Boolean(nsUser) && ['Programador','Programador United','Programador Corellian'].some(function(role){return nsRoles.has(role);});
+      const nsAuthorized = window.ManttoPermissions?.canNavigate?.(route)===true;
       const nsView = activateViewById('view-' + route);
       if(!nsView) return;
       setActiveSide(nsAuthorized ? route : '');
-      updateContext(route, nsAuthorized ? 'Experimental NS · Fase 1 · Sin consultas de datos' : 'Experimental NS · Acceso restringido');
+      updateContext(route, nsAuthorized ? 'Experimental NS · Permisos validados' : 'Experimental NS · Acceso restringido');
       if(!nsAuthorized){
-        nsView.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Acceso restringido</h1><p>Experimental NS esta reservado temporalmente al rol Programador.</p></section></div>';
+        nsView.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Acceso restringido</h1><p>Este modulo requiere el permiso efectivo de Panel de Control.</p></section></div>';
         return;
       }
       if(window.ManttoExperimentalNsF1 && typeof window.ManttoExperimentalNsF1.init === 'function'){

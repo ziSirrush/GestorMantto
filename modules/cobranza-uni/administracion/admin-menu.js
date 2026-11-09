@@ -14,6 +14,9 @@
     if(group)group.hidden=!Array.from(group.querySelectorAll('.side-item')).some(item=>!item.hidden);
   }
   async function refresh(){
+    // Desde el fix universal esta entrada es administrada por ManttoPermissions.
+    // Conservar el contrato legacy solo como fallback para clientes anteriores.
+    if(doc.getElementById(ID)?.dataset?.permission)return;
     const ticket=++seq;
     visible(false);
     if(!win.ManttoAuth?.getToken?.()||!win.ManttoAuth?.apiGet)return;

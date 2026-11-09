@@ -121,15 +121,10 @@ test('F2: incluye exactamente tres rutas GET protegidas y ningun POST', () => {
   assert.deepEqual(record.settings.permissionCodesAny, scopes.PERMISSION_CODES);
 });
 
-test('F2: Programador se verifica en backend, independiente de puerta y permiso', () => {
-  const middleware = router.middleware[1];
+test('F2: no hay rol hardcodeado, pero se mantienen sesion y guard de permiso/alcance', () => {
+  assert.deepEqual(router.middleware,[userAuth,scopeGuard]);
   let called = false;
-  const denied = res();
-  middleware(req({actorUser:{is_programador:false}}),denied,()=>{called=true});
-  assert.equal(called,false);
-  assert.equal(denied.statusCode,403);
-  assert.equal(denied.payload.code,'EXPERIMENTAL_NS_PROGRAMMER_REQUIRED');
-  middleware(req(),res(),()=>{called=true});
+  router.middleware[1](req({actorUser:{is_programador:false}}),res(),()=>{called=true});
   assert.equal(called,true);
 });
 

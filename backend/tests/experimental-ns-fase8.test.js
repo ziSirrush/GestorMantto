@@ -68,11 +68,11 @@ test('F8: los errores no se guardan como éxito en caché',async()=>{
   assert.equal(n,2);
 });
 
-function perfFixture(programmer=true){
+function perfFixture(allowed=true){
   const timers=new Map();let tid=0,now=1;
   const document={querySelectorAll:()=>[],getElementById:()=>null};
   const window={
-    ManttoAuth:{getActorUser:()=>({is_programador:programmer})},
+    ManttoPermissions:{state:()=>({efectivo:allowed}),canNavigate:()=>allowed},
     performance:{now:()=>now},
     setTimeout(fn){const id=++tid;timers.set(id,fn);return id;},
     clearTimeout(id){timers.delete(id);}
@@ -111,7 +111,7 @@ test('F8: medicion sin datos sensibles, muestras acotadas y reinicio al cerrar s
   p.clear();assert.equal(p.report(R1).requests,0);
 });
 
-test('F8: prohibido mostrar indicadores tecnicos sin Programador validado',()=>{
+test('F8: prohibido mostrar indicadores tecnicos sin permiso efectivo',()=>{
   const f=perfFixture(false);let added=0;
   const view={querySelector:()=>null,insertBefore(){added++;}};
   f.api.render(R1,view);

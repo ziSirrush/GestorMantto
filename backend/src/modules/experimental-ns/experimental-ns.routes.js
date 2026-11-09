@@ -8,13 +8,7 @@ const { PERMISSION_CODES } = require('./experimental-ns.scope');
 
 const router = express.Router();
 
-function requireProgramador(req, res, next) {
-  // Rol verificado EN BACKEND; esto no reemplaza permiso, puerta ni alcance.
-  if (!req.actorUser || req.actorUser.is_programador !== true) {
-    return res.status(403).json({ ok: false, code: 'EXPERIMENTAL_NS_PROGRAMMER_REQUIRED', message: 'Acceso restringido al rol Programador.' });
-  }
-  return next();
-}
+// Sin restriccion por rol: humanInformationGuard_gnral valida sesion, permiso, puerta y alcance.
 
 const [requireSession, requirePermissionAndScope] = humanInformationGuard_gnral({
   domain: 'UNITED',
@@ -24,7 +18,7 @@ const [requireSession, requirePermissionAndScope] = humanInformationGuard_gnral(
 
 // La autenticacion humana, los permisos funcionales y la puerta UNITED se exigen
 // incluso al consultar el estado tecnico. El visor respeta al usuario efectivo.
-router.use(requireSession, requireProgramador, requirePermissionAndScope);
+router.use(requireSession, requirePermissionAndScope);
 router.get('/estado', controller.estado);
 router.get('/portafolio', controller.portafolio);
 router.get('/tickets', controller.tickets);

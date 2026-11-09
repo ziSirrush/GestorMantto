@@ -34,9 +34,14 @@
     const a=values.slice().sort((x,y)=>x-y);
     return a[Math.max(0,Math.ceil(a.length*p)-1)];
   }
-  function isProgrammer(){
-    const actor=window.ManttoAuth?.getActorUser?.();
-    return actor?.is_programador===true; // Nunca inferir por rol o visor.
+  const PERMISSIONS=Object.freeze({
+    'experimental-ns-resumen-dia':'EXPERIMENTAL_NS_RESUMEN_DIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+    'experimental-ns-equipos-criticos':'EXPERIMENTAL_NS_EQUIPOS_CRITICOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
+    'experimental-ns-proyectos-mantenimiento':'EXPERIMENTAL_NS_PROYECTOS_MANTENIMIENTO_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'
+  });
+  function canInspect(route){
+    return window.ManttoPermissions?.state?.(PERMISSIONS[route])?.efectivo===true
+      && window.ManttoPermissions?.canNavigate?.(route)===true;
   }
   async function measureGet(route,kind,request){
     if(typeof request!=='function')throw new TypeError('Solicitud experimental invalida.');
@@ -101,13 +106,13 @@
   function render(route,root){
     if(!ROUTES.has(route)||!root)return;
     let details=root.querySelector?.('.expns-performance');
-    if(!isProgrammer()){
+    if(!canInspect(route)){
       details?.remove();return;
     }
     if(!details){
       details=document.createElement('details');details.className='expns-performance';
       const summary=document.createElement('summary');
-      summary.textContent='⚙️ Diagnóstico de rendimiento NS (solo Programador)';
+      summary.textContent='⚙️ Diagnóstico de rendimiento NS (permiso de módulo)';
       const output=document.createElement('output');output.className='expns-performance-values';
       details.appendChild(summary);details.appendChild(output);
       const banner=root.querySelector('.expns-live-line');

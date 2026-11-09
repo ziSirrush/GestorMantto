@@ -126,9 +126,11 @@ test('Fallo de permisos de sesion conserva Panel de Control oculto', async () =>
   assert.equal(sidebar.hiddenAfterVerification, true);
 });
 
-test('Backend ya autoriza a Director General; no necesita redeploy de Azure', () => {
+test('Backend limita Panel de Control a Director General y Programador maestro', () => {
   const controller = read('backend/src/controllers/panel-control.controller.js');
   assert.match(controller, /function actorCanManage\(req\)/);
   assert.match(controller, /roles\.has\('Director General'\)/);
+  const gate=controller.slice(controller.indexOf('function actorCanManage(req)'),controller.indexOf('function companySql('));
+  assert.doesNotMatch(gate,/Programador United|Programador Corellian/);
   assert.match(read('index.html'), /class="side-item side-standalone programmer" data-permission="panel_control"/);
 });
