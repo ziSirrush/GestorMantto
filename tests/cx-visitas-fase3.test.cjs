@@ -268,38 +268,12 @@ test('16 - Desactivar usa DELETE (baja logica) y confirmacion del usuario', asyn
   assert.match(dom['cxv-feedback'].textContent,/desactivada/);
 });
 
-test('17 - El menu CX Visitas falla cerrado sin API autorizada y aparece tras permiso real', async () => {
+test('17 - La visibilidad del menú CX Visitas depende de los permisos efectivos, no de consultar datos', () => {
   const app = fs.readFileSync(path.join(ROOT, 'core/app.js'), 'utf8');
-  const start = app.indexOf('  function setCxVisitasMenuVisibility_cor(');
-  const end = app.indexOf('  function bindCxVisitasMenu_cor(', start);
-  assert.ok(start >= 0 && end > start);
-  const snippet = app.slice(start, end);
-
-
-
-
-  const item = {hidden:true,closest(){return group;}};
-  const other = {hidden:false};
-  const group = {hidden:false,querySelectorAll(){return [item,other];}};
-  let apiHandler=async()=>({ok:true,visitas:[]});
-  let calls=0;
-  const context={
-    window:{ManttoAuth:{async api(){calls++;return apiHandler();}}},
-    document:{querySelector(query){return query==='[data-permission="cx_visitas"]' ? item : null;}},
-    Promise,console
-  };
-  vm.createContext(context);
-  vm.runInContext('(function(){let cxVisitasMenuRequest_cor=0;const CX_VISITAS_VISUAL_COR="CUSTOMER_EXPERIENCE_VISITAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL";const CX_VISITAS_LIST_COR="CUSTOMER_EXPERIENCE_VISITAS_GESTION_REGISTROS.VER";'+snippet+'window.__cxvProbe=refreshCxVisitasMenu_cor;})();',context);
-  await context.window.__cxvProbe();
-  assert.equal(item.hidden,false);
-  apiHandler=async()=>{throw new Error('403');};
-  await context.window.__cxvProbe();
-  assert.equal(item.hidden,true);
-  const previousCalls=calls;
-  context.window.ManttoPermissions={state(){return {exists:true,efectivo:false};}};
-  await context.window.__cxvProbe();
-  assert.equal(item.hidden,true);
-  assert.equal(calls,previousCalls);
+  const viewer = fs.readFileSync(path.join(ROOT, 'core/user-viewer.js'), 'utf8');
+  assert.doesNotMatch(app, /refreshCxVisitasMenu_cor|setCxVisitasMenuVisibility_cor/);
+  assert.match(viewer, /function hasModuleAccess\(item\)/);
+  assert.match(viewer, /visualRows\.length\?visualRows:rows/);
 });
 
 

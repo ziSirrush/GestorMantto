@@ -281,7 +281,8 @@
       if(!exact.exists&&exactPermissionCode==='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'){
         return hasCachedOfflineAccess();
       }
-      return rows.length>0&&exact.exists===true&&exact.efectivo===true;
+      // El codigo de permiso, presente en el catalogo autorizado, es la identidad estable.
+      return exact.exists===true&&exact.efectivo===true;
     }
     if(!rows.length)return false;
     const visualRows=rows.filter(row=>String(row.codigo_permiso||((row.subelemento_codigo||'')+'.'+(row.accion_codigo||''))).endsWith('_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'));
