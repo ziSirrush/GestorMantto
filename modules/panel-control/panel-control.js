@@ -1594,6 +1594,7 @@
       toast('Roles actualizados correctamente en Aiven.');
       await refreshTotalsOnly();
       await loadUserPermissions(state.selectedUserId);
+      await refreshSessionMenuAfterSave();
     }catch(error){
       toast(error.message||'No fue posible actualizar los roles.');
     }finally{
@@ -1910,6 +1911,16 @@
     return Boolean(value);
   }
 
+  async function refreshSessionMenuAfterSave(){
+    if(typeof window.ManttoPermissions?.reload!=='function')return;
+    try{
+      await window.ManttoPermissions.reload();
+    }catch(error){
+      console.warn('[Panel de Control] Permisos guardados; falló recarga de menú.',error);
+      toast('Permisos guardados; recarga la página para actualizar el panel lateral.');
+    }
+  }
+
   function permissionRowsFromReadback(readback){
     if(Array.isArray(readback?.data))return readback.data;
     return Array.isArray(readback?.data?.permisos)?readback.data.permisos:[];
@@ -2095,6 +2106,7 @@
       restorePermissionViewContext(viewContext);
       setSaveStatus(100,'Permisos guardados y verificados.','success',2600);
       toast('Permisos guardados y usuario o rol actualizado.');
+      await refreshSessionMenuAfterSave();
     }catch(error){
       state.savingPermissions=false;
       updateSaveButton();

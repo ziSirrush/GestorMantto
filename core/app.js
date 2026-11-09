@@ -316,11 +316,7 @@
 
   // [BLT NOW | CX VISITAS | INTEGRACION DIRECTA F3 + F4]
   const CUSTOMER_EXPERIENCE_VISITAS_ROUTE_COR = 'cx-visitas';
-  const CX_VISITAS_VISUAL_COR = 'CUSTOMER_EXPERIENCE_VISITAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-  const CX_VISITAS_LIST_COR = 'CUSTOMER_EXPERIENCE_VISITAS_GESTION_REGISTROS.VER';
-
   let customerExperienceVisitasPromise_cor = null;
-  let cxVisitasMenuRequest_cor = 0;
 
   function ensureCustomerExperienceVisitas_cor(){
     if(window.ManttoCustomerExperienceVisitas){
@@ -419,84 +415,6 @@
     });
 
     activateCustomerExperienceVisitas_cor();
-  }
-
-  function setCxVisitasMenuVisibility_cor(allowed){
-    const item=document.querySelector('[data-permission="cx_visitas"]');
-    if(!item) return;
-
-    item.hidden=!allowed;
-
-    const group=item.closest('.side-group');
-
-    if(group){
-      group.hidden=!Array.from(
-        group.querySelectorAll('.side-item')
-      ).some(button=>!button.hidden);
-    }
-  }
-
-  async function refreshCxVisitasMenu_cor(){
-    const request=++cxVisitasMenuRequest_cor;
-
-    setCxVisitasMenuVisibility_cor(false);
-
-    const permissions=window.ManttoPermissions;
-
-    if(permissions && typeof permissions.state==='function'){
-      try{
-        const visual=permissions.state(CX_VISITAS_VISUAL_COR);
-        const listado=permissions.state(CX_VISITAS_LIST_COR);
-
-        if(
-          visual?.exists===true &&
-          listado?.exists===true &&
-          (visual.efectivo!==true || listado.efectivo!==true)
-        ){
-          return;
-        }
-      }catch(error){
-        console.warn('[BLT NOW] Permisos CX Visitas:',error);
-      }
-    }
-
-    if(
-      !window.ManttoAuth ||
-      typeof window.ManttoAuth.api!=='function'
-    ){
-      return;
-    }
-
-    try{
-      const response=await window.ManttoAuth.api(
-        '/api/customer-experience/visitas?page=1&page_size=1',
-        {method:'GET'}
-      );
-
-      if(request===cxVisitasMenuRequest_cor){
-        setCxVisitasMenuVisibility_cor(
-          response?.ok===true &&
-          Array.isArray(response.visitas)
-        );
-      }
-    }catch(error){
-      if(request===cxVisitasMenuRequest_cor){
-        setCxVisitasMenuVisibility_cor(false);
-      }
-    }
-  }
-
-  function bindCxVisitasMenu_cor(){
-    if(window.__BLT_CX_VISITAS_MENU_BOUND__) return;
-
-    window.__BLT_CX_VISITAS_MENU_BOUND__=true;
-
-    document.addEventListener(
-      'mantto:permissions-updated',
-      refreshCxVisitasMenu_cor
-    );
-
-    refreshCxVisitasMenu_cor();
   }
 
   // [Aster | 2026-10-07 | ASTER-MG | FASE 1 ENTREGAS V001]
@@ -603,15 +521,11 @@
     window.setInterval(render, 30000);
   }
 
-  const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({
-    home:true,
-    cx_dashboard:true,
-    cx_encuestas:true,
-    entregas_control:true
-  });
+  // No conceder accesos temporales mientras se verifican permisos.
+  const TEMP_SIDEBAR_PERMISSIONS = Object.freeze({ home:true });
 
   function applyTemporarySidebarPermissions(){
-    document.querySelectorAll('[data-permission]').forEach(function(el){
+    document.querySelectorAll('.side-item[data-permission]').forEach(function(el){
       const permission = el.dataset.permission;
       el.hidden = TEMP_SIDEBAR_PERMISSIONS[permission] !== true;
     });
@@ -638,7 +552,6 @@
 
   function bindGlobalNavigation(){
     applyTemporarySidebarPermissions();
-    bindCxVisitasMenu_cor();
     openSidebarGroup(null);
 
     document.querySelectorAll('.side-group-toggle').forEach(function(toggle){

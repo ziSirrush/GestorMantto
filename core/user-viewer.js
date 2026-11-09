@@ -7,6 +7,7 @@
     permissionCodes:new Map(),
     permissionObserver:null,
     ready:false,
+    permissionEpoch:0,
     users:[],
     usersLoaded:false,
     canUseViewer:false,
@@ -249,6 +250,13 @@
     const keys=permissionKeysForItem(item);
     if(!keys.length)return [];
     const group=item.closest('.side-group');
+    const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
+    if(exactPermissionCode){
+      return state.catalog.filter(row=>
+        matchesGroupCompany(group,row)&&
+        String(row.codigo_permiso||((row.subelemento_codigo||'')+'.'+(row.accion_codigo||''))).trim()===exactPermissionCode
+      );
+    }
     const acceptedGroups=groupKeys(group);
     return state.catalog.filter(row=>{
       if(Number(row.modulo_interno_visual)===1)return false;
@@ -267,47 +275,46 @@
     const permission=item.dataset.permission||'';
     if(permission==='home')return true;
     const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
+    const rows=rowsForModule(item).filter(isActiveCatalogRow);
     if(exactPermissionCode){
       const exact=permissionState(exactPermissionCode);
       if(!exact.exists&&exactPermissionCode==='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'){
         return hasCachedOfflineAccess();
       }
-      return exact.exists===true&&exact.efectivo===true;
+      return rows.length>0&&exact.exists===true&&exact.efectivo===true;
     }
-    const rows=rowsForModule(item).filter(isActiveCatalogRow);
     if(!rows.length)return false;
-    const actionRows=rows.filter(row=>Number(row.id_subelemento_accion)>0);
-    if(!actionRows.length)return false;
-    return actionRows.some(row=>state.permissions.get(Number(row.id_subelemento_accion))===true);
+    const visualRows=rows.filter(row=>String(row.codigo_permiso||((row.subelemento_codigo||'')+'.'+(row.accion_codigo||''))).endsWith('_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'));
+    const candidates=visualRows.length?visualRows:rows;
+    return candidates.some(row=>Number(row.id_subelemento_accion)>0&&state.permissions.get(Number(row.id_subelemento_accion))===true);
   }
-  function hasActiveCatalogGroup(group){
-    const keys=groupKeys(group);
-    if(!keys.length)return false;
-    return state.catalog.some(row=>matchesGroupCompany(group,row)&&Number(row.agrupacion_activo)!==0&&keys.some(key=>key&&norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' ')).includes(key)));
-  }
-  function groupVisualRows(group){
+    function groupVisualRows(group){
     const keys=groupKeys(group);
     if(!keys.length)return [];
     return state.catalog.filter(row=>{
       const groupMatch=keys.some(key=>key&&norm([row.agrupacion_codigo,row.agrupacion_nombre].join(' ')).includes(key));
-      return matchesGroupCompany(group,row)&&groupMatch&&Number(row.modulo_interno_visual)===1&&Number(row.id_subelemento_accion)>0;
+      return matchesGroupCompany(group,row)&&isActiveCatalogRow(row)&&groupMatch&&Number(row.modulo_interno_visual)===1&&Number(row.id_subelemento_accion)>0;
     });
   }
   function hasGroupVisualAccess(group){return groupVisualRows(group).some(row=>state.permissions.get(Number(row.id_subelemento_accion))===true);}
   function applySidebar(options={}){
-    document.querySelectorAll('[data-permission]').forEach(item=>{item.hidden=!hasModuleAccess(item);});
+    document.querySelectorAll('.side-item[data-permission]').forEach(item=>{item.hidden=!hasModuleAccess(item);});
     document.querySelectorAll('.side-group').forEach(group=>{
       const hasVisibleModule=Array.from(group.querySelectorAll('.side-item')).some(item=>!item.hidden);
       const hasVisualGroupPermission=hasGroupVisualAccess(group);
-      const cachedOfflineGroup=norm(group.dataset.group)==='modooffline'&&hasVisibleModule&&hasCachedOfflineAccess();
-      group.hidden=!((hasActiveCatalogGroup(group)&&(hasVisibleModule||hasVisualGroupPermission))||cachedOfflineGroup);
+      group.hidden=!(hasVisibleModule||hasVisualGroupPermission);
     });
     const currentRoute=window.ManttoRouter?.getCurrent?.().route;
     const currentItem=currentRoute?document.querySelector(`.side-item[data-route="${CSS.escape(currentRoute)}"]`):null;
     if(options.redirectUnauthorized!==false&&currentItem?.hidden&&currentRoute!=='home')window.ManttoRouter.reset();
   }
-  async function loadSessionPermissions(){
+    async function loadSessionPermissions(){
+    const requestEpoch=state.permissionEpoch;
+    const requestedUserId=Number(window.ManttoAuth?.getUser?.()?.id_SB||0);
     const json=await window.ManttoAuth.apiGet('/api/panel-control/session-permissions');
+    if(requestEpoch!==state.permissionEpoch)return false;
+    const responseUserId=Number(json.data?.usuario_id||0);
+    if(requestedUserId>0&&responseUserId>0&&responseUserId!==requestedUserId)return false;
     state.catalog=json.data?.catalogo||[];
     const permissionRows=json.data?.permisos||[];
     state.permissions=new Map(permissionRows.map(permission=>[
@@ -332,6 +339,7 @@
         ])
     );
     state.canUseViewer=Boolean(json.data?.puede_usar_visor);
+    return true;
   }
 
   function permissionState(code){
@@ -362,7 +370,9 @@
     root.querySelectorAll?.('[data-permission-code]').forEach(node=>{
       // La navegación es fail-closed. Los controles internos heredados conservan
       // su compatibilidad cuando el catálogo todavía no declara el permiso.
-      const permitted=can(node.dataset.permissionCode,{defaultValue:!isSidebarPermissionNode(node)});
+      const permitted=isSidebarPermissionNode(node)
+        ?hasModuleAccess(node)
+        :can(node.dataset.permissionCode,{defaultValue:true});
       const behavior=String(node.dataset.permissionBehavior||'hide').toLowerCase();
       if(behavior==='disable'){
         node.disabled=!permitted;
@@ -373,6 +383,7 @@
     });
   }
   function resetPermissionState(){
+    state.permissionEpoch+=1;
     state.catalog=[];
     state.permissions.clear();
     state.permissionStates.clear();
@@ -386,11 +397,12 @@
   }
   async function reloadPermissions(){
     lockSidebarUntilPermissionsLoad();
-    await loadSessionPermissions();
+    if(!await loadSessionPermissions())return false;
     applySidebar();
     applyActionPermissions(document);
     renderLauncher();
     document.dispatchEvent(new CustomEvent('mantto:permissions-updated'));
+    return true;
   }
   function observePermissionControls(){
     if(state.permissionObserver||!document.body||typeof MutationObserver!=='function')return;
@@ -425,7 +437,7 @@
     bindBanner();
     lockSidebarUntilPermissionsLoad();
     try{
-      await loadSessionPermissions();
+      if(!await loadSessionPermissions())return;
       applySidebar();
       applyActionPermissions(document);
       observePermissionControls();
@@ -434,17 +446,29 @@
       if(allowed())await loadViewerUsers();
     }catch(error){
       console.error('[Permisos de sesión]',error);
+      state.ready=false;
       resetPermissionState();
       applySidebar({redirectUnauthorized:false});
       renderLauncher();
       renderBanner();
     }
   }
-  document.addEventListener('mantto:auth-ready',init);
+  document.addEventListener('mantto:auth-ready',()=>{
+    if(!state.ready){init();return;}
+    reloadPermissions().catch(error=>{
+      console.error('[Permisos de sesión]',error);
+      resetPermissionState();
+      applySidebar({redirectUnauthorized:false});
+    });
+  });
+  document.addEventListener('mantto:logout',()=>{
+    state.ready=false;
+    lockSidebarUntilPermissionsLoad();
+  });
   document.addEventListener('mantto:view-user-changed',async()=>{
     let permissionsConfirmed=true;
     lockSidebarUntilPermissionsLoad();
-    try{await loadSessionPermissions();}catch(error){
+    try{if(!await loadSessionPermissions())return;}catch(error){
       permissionsConfirmed=false;
       console.error('[Permisos de sesión]',error);
       resetPermissionState();

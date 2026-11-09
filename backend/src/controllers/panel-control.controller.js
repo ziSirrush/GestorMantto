@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { listEffectivePermissions } = require('../services/permissions/effective-permission.service');
 const { canUseUserViewer, listViewerUsers, createViewerContext, auditViewerEvent } = require('../services/user-viewer.service');
 
 function actorScope(req) {
@@ -535,10 +536,9 @@ async function getSessionPermissions(req, res, next) {
       return res.status(401).json({ ok: false, message: 'Sesión sin usuario válido.' });
     }
 
-    const viewerAllowedPromise = canUseUserViewer(req.actorUser || req.user, db);
-    const [catalogRows, permissionRows, viewerAllowed] = await Promise.all([
+    const [catalogRows, viewerAllowed] = await Promise.all([
       db.query(`
-        SELECT psa.id_subelemento_accion,
+        SELECT psa.id_subelemento_accion, psa.codigo_permiso,
                pa.id_agrupacion, pa.codigo AS agrupacion_codigo, pa.nombre AS agrupacion_nombre,
                pa.empresa AS agrupacion_empresa, pa.orden AS agrupacion_orden, pa.activo AS agrupacion_activo,
                pm.id_modulo, pm.codigo AS modulo_codigo, pm.nombre AS modulo_nombre, pm.ruta_frontend AS modulo_ruta_frontend, pm.orden AS modulo_orden, pm.activo AS modulo_activo,
@@ -558,45 +558,29 @@ async function getSessionPermissions(req, res, next) {
         WHERE pa.activo = 1
         ORDER BY pa.orden, pm.orden, pe.orden, ps.orden, pac.nombre
       `),
-      db.query(`
-        SELECT psa.id_subelemento_accion,
-               COALESCE(MAX(CASE WHEN rp.permitido = 1 THEN 1 ELSE 0 END), 0) AS heredado,
-               MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.permitido ELSE NULL END) AS personalizado
-        FROM perm_subelemento_acciones psa
-        LEFT JOIN usuario_roles ur
-          ON ur.id_usuario = ? AND ur.activo = 1
-        LEFT JOIN roles r
-          ON r.id_rol = ur.id_rol AND r.estado = 1
-        LEFT JOIN rol_permisos rp
-          ON rp.id_rol = r.id_rol
-         AND rp.id_subelemento_accion = psa.id_subelemento_accion
-        LEFT JOIN usuario_permisos up
-          ON up.id_usuario = ?
-         AND up.id_subelemento_accion = psa.id_subelemento_accion
-         AND up.activo = 1
-         AND (up.fecha_inicio IS NULL OR up.fecha_inicio <= NOW())
-         AND (up.fecha_fin IS NULL OR up.fecha_fin >= NOW())
-        WHERE psa.activo = 1
-        GROUP BY psa.id_subelemento_accion
-        ORDER BY psa.id_subelemento_accion
-      `, [userId, userId]),
-      viewerAllowedPromise
+      canUseUserViewer(req.actorUser || req.user, db)
     ]);
 
-    const permisos = permissionRows[0].map((row) => {
-      const personalizado = row.personalizado === null ? null : Number(row.personalizado) === 1;
-      const heredado = Number(row.heredado) === 1;
-      return {
-        id_subelemento_accion: row.id_subelemento_accion,
-        efectivo: personalizado === null ? heredado : personalizado
-      };
+    // El panel lateral debe utilizar el mismo motor efectivo que los guards del backend.
+    const catalogo = catalogRows[0];
+    const permissionCodesById = new Map();
+    catalogo.forEach((row) => {
+      const id = Number(row.id_subelemento_accion);
+      const code = String(row.codigo_permiso || '').trim();
+      if (Number.isInteger(id) && id > 0 && code) permissionCodesById.set(id, code);
     });
+    const efectivos = await listEffectivePermissions(userId, [...permissionCodesById.values()], db);
+    const permisos = [...permissionCodesById].map(([id_subelemento_accion, code]) => ({
+      id_subelemento_accion,
+      efectivo: efectivos.get(code) === true,
+      configurado: true
+    }));
 
     return res.json({
       ok: true,
       data: {
         usuario_id: userId,
-        catalogo: catalogRows[0],
+        catalogo,
         permisos,
         puede_usar_visor: Boolean(viewerAllowed)
       }

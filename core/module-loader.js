@@ -261,7 +261,7 @@
     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001-limpieza-v002'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002-limpieza-v002']},
 
     usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261015-app-update-v001-limpieza-v002']},
-    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20261023-context-back-only-v001']},
+    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20261109-sidebar-permissions-v004']},
     'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261023-context-back-only-v001']},
     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20261023-back-history-v001']},
 

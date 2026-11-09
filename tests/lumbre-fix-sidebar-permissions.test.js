@@ -72,7 +72,7 @@ function harness() {
     getElementById() { return null; },
     querySelector() { return null; },
     querySelectorAll(selector) {
-      if (selector === '[data-permission]') return [admin, dashboard];
+      if (selector === '[data-permission]' || selector === '.side-item[data-permission]') return [admin, dashboard];
       if (selector === '.side-group') return [group];
       if (selector === '[data-permission-code]') return [admin, internalAction];
       return [];
@@ -192,4 +192,58 @@ test('un error al cargar permisos conserva la navegación protegida oculta', asy
   assert.equal(h.admin.hidden, true);
   assert.equal(h.dashboard.hidden, true);
   assert.equal(h.group.hidden, true);
+});
+
+
+test('permiso efectivo explícito muestra el módulo sin depender de configurado legacy',async()=>{
+  const h=harness();
+  const init=h.emit('mantto:auth-ready');
+  h.requests[0].resolve({data:{catalogo:[ADMIN_ROW],permisos:[{id_subelemento_accion:101,efectivo:true}]}});
+  await init;
+  assert.equal(h.admin.hidden,false);
+});
+
+test('la autorización operativa no sustituye el permiso visual denegado',async()=>{
+  const h=harness();
+  const init=h.emit('mantto:auth-ready');
+  const action={...DASHBOARD_ROW,id_subelemento_accion:103,codigo_permiso:'INSTALACIONES_DASHBOARD_LISTADO.VER'};
+  h.requests[0].resolve({data:{catalogo:[DASHBOARD_ROW,action],permisos:[
+    {id_subelemento_accion:102,efectivo:false,configurado:true},
+    {id_subelemento_accion:103,efectivo:true,configurado:true}
+  ]}});
+  await init;
+  assert.equal(h.dashboard.hidden,true);
+});
+
+test('el permiso explícito conserva grupo aunque se renombre el alias visual',async()=>{
+  const h=harness();
+  h.group.dataset.group='grupo-renombrado';
+  const init=h.emit('mantto:auth-ready');
+  h.requests[0].resolve({data:{catalogo:[ADMIN_ROW],permisos:[{id_subelemento_accion:101,efectivo:true,configurado:true}]}});
+  await init;
+  assert.equal(h.admin.hidden,false);
+  assert.equal(h.group.hidden,false);
+});
+
+test('respuesta tardía de la sesión anterior no sobreescribe la sesión nueva',async()=>{
+  const h=harness();
+  const first=h.emit('mantto:auth-ready');
+  const second=h.emit('mantto:view-user-changed');
+  h.requests[1].resolve({data:{catalogo:[DASHBOARD_ROW],permisos:[{id_subelemento_accion:102,efectivo:true,configurado:true}]}});
+  await second;
+  h.requests[0].resolve({data:{catalogo:[ADMIN_ROW],permisos:[{id_subelemento_accion:101,efectivo:true,configurado:true}]}});
+  await first;
+  assert.equal(h.admin.hidden,true);
+  assert.equal(h.dashboard.hidden,false);
+});
+
+test('CX Visitas ya no oculta el menú según los datos de la API',()=>{
+  const app=fs.readFileSync(path.join(ROOT,'core','app.js'),'utf8');
+  assert.doesNotMatch(app,/refreshCxVisitasMenu_cor|setCxVisitasMenuVisibility_cor/);
+});
+
+test('backend de sesión utiliza la evaluación efectiva compartida con los guards',()=>{
+  const controller=fs.readFileSync(path.join(ROOT,'backend','src','controllers','panel-control.controller.js'),'utf8');
+  assert.match(controller,/listEffectivePermissions\(userId, \[\.\.\.permissionCodesById\.values\(\)\], db\)/);
+  assert.match(controller,/configurado:\s*true/);
 });
