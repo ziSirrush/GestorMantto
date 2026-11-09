@@ -31,6 +31,10 @@ function analytics(period=2026){
       {puerto_origen:'Shanghai',puerto_destino:'Manzanillo',modo:'Marítimo',operaciones:12,operaciones_salida:12,promedio_dias_salida:13,operaciones_transito:12,promedio_dias_llegada:21,operaciones_completas:12,promedio_dias_total:34},
       {puerto_origen:'Ningbo',puerto_destino:'Lázaro Cárdenas',modo:'FCL',operaciones:9,operaciones_salida:9,promedio_dias_salida:11,operaciones_transito:9,promedio_dias_llegada:20,operaciones_completas:9,promedio_dias_total:31}
     ]},
+    simulador:{anio_actual:2026,rutas:[
+      {puerto_origen:'Shanghai',puerto_destino:'Manzanillo',modo:'Marítimo'},
+      {puerto_origen:'Ningbo',puerto_destino:'Lázaro Cárdenas',modo:'FCL'}
+    ]},
     contenedores_periodo:{periodo:period,etiqueta:period==='all'?'Todos los años (ETD)':'ETD '+period,contenedores_20_dc:3,contenedores_40_hq:5,operaciones_con_dato:5,meses:[{mes:1,contenedores_20_dc:1,contenedores_40_hq:2}]}
   };
 }
@@ -111,9 +115,9 @@ test('Fase 5 añade formulario y resultados sin eliminar F1/F3 ni select anual',
 });
 
 test('loader carga CSS modular y version F5 sin modificar la hoja original',()=>{
-  assert.match(loader,/dashboard-logistica\.css\?v=20260923-dashboard-ppns-final-v001/);
+  assert.match(loader,/dashboard-logistica\.css\?v=20261109-dashboard-logistica-v001/);
   assert.match(loader,/dashboard-logistica-simulador\.css\?v=20261021-dashboard-fase5-v001/);
-  assert.match(loader,/dashboard-logistica\.js\?v=20261021-dashboard-fase5-v001/);
+  assert.match(loader,/dashboard-logistica\.js\?v=20261109-dashboard-logistica-v001/);
   assert.match(css,/\.dl-freight-scenarios/);
   assert.match(css,/@media\(max-width:520px\)/);
   assert.doesNotMatch(css,/position:fixed/);
@@ -121,9 +125,9 @@ test('loader carga CSS modular y version F5 sin modificar la hoja original',()=>
   assert.match(loader,/logistica-produccion\.js\?v=/);
 });
 
-test('sugerencias de ruta provienen de promedios agregados por año; se escapan',()=>{
+test('sugerencias del simulador provienen del catalogo del año actual y se escapan',()=>{
   const r=harness();
-  r.api.state.analytics.tablas.promedios_por_ruta.push({puerto_origen:'<svg onload=alert(1)>',puerto_destino:'Otro',modo:'Otro'});
+  r.api.state.analytics.simulador.rutas.push({puerto_origen:'<svg onload=alert(1)>',puerto_destino:'Otro',modo:'Otro'});
   r.api.renderFreightSuggestions();
   assert.match(r.get('dl-freight-origin-options').innerHTML,/Shanghai/);
   assert.match(r.get('dl-freight-origin-options').innerHTML,/Ningbo/);
@@ -216,7 +220,7 @@ test('sin muestra no genera fechas ni falsa duracion',async()=>{
   assert.match(r.get('dl-freight-feedback').textContent,/Sin datos/);
 });
 
-test('historico se aplica al simulador y recalcula automaticamente sin borrar entradas',async()=>{
+test('cambiar periodo de analisis no altera simulacion ni entradas del ano vigente',async()=>{
   const r=harness(async url=>{
     const u=new URL(url),raw=u.searchParams.get('anio_promedios')||'2026';
     const period=raw==='all'?'all':Number(raw);
@@ -225,21 +229,23 @@ test('historico se aplica al simulador y recalcula automaticamente sin borrar en
   r.preset();
   r.get('dl-freight-place').value='Obra ABC';
   await r.api.runFreightSimulation();
-  assert.match(r.get('dl-freight-summary').innerHTML,/2026/);
+  const before=r.requests.filter(x=>x.url.includes('/simulacion?')).length;
+  assert.equal(r.api.state.freightData.periodo,2026);
   r.get('dl-average-year-select').value='2025';
   await r.api.applyAveragePeriod();
-  await new Promise(resolve=>setImmediate(resolve));
   assert.equal(r.api.state.analytics.promedios.periodo,2025);
-  assert.match(r.get('dl-freight-summary').innerHTML,/2025/);
+  assert.equal(r.api.state.freightData.periodo,2026);
+  assert.match(r.get('dl-freight-summary').innerHTML,/2026/);
   assert.equal(r.get('dl-freight-date').value,'2026-11-01');
   assert.equal(r.get('dl-freight-place').value,'Obra ABC');
-  assert(r.requests.some(x=>x.url.includes('simulacion?')&&x.url.includes('anio_promedios=2025')));
+  assert.equal(r.requests.filter(x=>x.url.includes('/simulacion?')).length,before);
+  assert.match(r.get('dl-freight-period').textContent,/2026/);
   r.get('dl-average-year-select').value='all';
   await r.api.applyAveragePeriod();
-  await new Promise(resolve=>setImmediate(resolve));
   assert.equal(r.api.state.analytics.promedios.periodo,'all');
-  assert.match(r.get('dl-freight-summary').innerHTML,/Todos los años/);
-  assert.match(r.get('dl-freight-period').textContent,/Todos los años/);
+  assert.equal(r.api.state.freightData.periodo,2026);
+  assert.equal(r.requests.filter(x=>x.url.includes('/simulacion?')).length,before);
+  assert.match(r.get('dl-freight-period').textContent,/Año actual 2026/);
 });
 
 test('respuesta simulacion de un año distinto falla cerrado, sin mostrar fechas equivocadas',async()=>{
@@ -290,25 +296,24 @@ test('edicion de formulario invalida respuesta asincrona anterior',async()=>{
   assert.match(r.get('dl-freight-feedback').textContent,/Datos modificados/);
 });
 
-test('una respuesta tardia de otro periodo no reemplaza simulacion del ano vigente',async()=>{
-  let finishOld;
+test('cambiar periodo de analisis durante simulacion no invalida calculo del ano actual',async()=>{
+  let finishCurrent;
   const r=harness(async url=>{
-    const u=new URL(url),p=u.searchParams.get('anio_promedios')||'2026';
-    if(u.pathname.endsWith('/simulacion')&&p==='2026')return new Promise(resolve=>{finishOld=resolve;});
-    if(u.pathname.endsWith('/simulacion'))return {ok:true,data:simulation(2025)};
+    const u=new URL(url);
+    if(u.pathname.endsWith('/simulacion'))return new Promise(resolve=>{finishCurrent=resolve;});
     return {ok:true,data:analytics(2025)};
   });
   r.preset();
-  const old=r.api.runFreightSimulation();
+  const current=r.api.runFreightSimulation();
   await Promise.resolve();
   r.get('dl-average-year-select').value='2025';
   await r.api.applyAveragePeriod();
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.match(r.get('dl-freight-summary').innerHTML,/2025/);
-  finishOld({ok:true,data:simulation(2026)});
-  await old;
-  assert.match(r.get('dl-freight-summary').innerHTML,/2025/);
-  assert.equal(r.api.state.freightData.periodo,2025);
+  assert.equal(r.api.state.analytics.promedios.periodo,2025);
+  finishCurrent({ok:true,data:simulation(2026)});
+  await current;
+  assert.match(r.get('dl-freight-summary').innerHTML,/2026/);
+  assert.equal(r.api.state.freightData.periodo,2026);
+  assert.equal(r.requests.filter(x=>x.url.includes('/simulacion?')).length,1);
 });
 
 test('reset borra resultado y no dispara consultas externas',async()=>{
@@ -338,7 +343,7 @@ test('integracion offline: UI consume contrato calculado por el servicio REAL de
   new Function('require','module','exports',serviceText)(requireMock,mod,mod.exports);
   const out=await mod.exports.freightSimulation_cor({
     puerto_origen:'Shanghai',puerto_destino:'Manzanillo',ict:'Marítimo',
-    fecha_zarpe:'2026-11-01',anio_promedios:'2025'
+    fecha_zarpe:'2026-11-01',anio_promedios:'2026'
   });
   assert.equal(out.muestra.operaciones_completas,12);
   assert.equal(out.estado,'estimacion');
@@ -353,5 +358,5 @@ test('integracion offline: UI consume contrato calculado por el servicio REAL de
   assert.match(r.get('dl-freight-scenarios').innerHTML,/Optimista/);
   assert.match(r.get('dl-freight-scenarios').innerHTML,/Conservador/);
   assert.match(r.get('dl-freight-scenarios').innerHTML,/Obra estimada/);
-  assert.match(r.get('dl-freight-summary').innerHTML,/2025/);
+  assert.match(r.get('dl-freight-summary').innerHTML,/2026/);
 });

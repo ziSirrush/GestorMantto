@@ -224,12 +224,13 @@ async function analytics_cor(requestedPeriod) {
   const averageYears = normalizeAverageYears_cor(averageYearRows);
   const analysisYears = normalizeAverageYears_cor(analysisYearRows);
 
-  const [departureRows, transitRows, routeRows, periodContainerRow, periodContainerMonthRows] = await Promise.all([
+  const [departureRows, transitRows, routeRows, periodContainerRow, periodContainerMonthRows, freightRoutes] = await Promise.all([
     repository.averageDepartureByPort_cor(averageFilter.year),
     repository.averageTransitByPortMode_cor(averageFilter.year),
     repository.averageByRoute_cor(averageFilter.year),
     repository.periodContainers_cor(averageFilter.year),
-    repository.periodContainerMonths_cor(averageFilter.year)
+    repository.periodContainerMonths_cor(averageFilter.year),
+    repository.freightRouteCatalogCurrentYear_cor(currentYear)
   ]);
 
   return {
@@ -251,6 +252,14 @@ async function analytics_cor(requestedPeriod) {
       llegada_por_modo_puerto: normalizeTransitTable_cor(transitRows),
       promedios_por_ruta: normalizeRouteTable_cor(routeRows)
     },
+    simulador: {
+      anio_actual: currentYear,
+      rutas: (freightRoutes || []).map(row => ({
+        puerto_origen: String(row.puerto_origen || '').trim(),
+        puerto_destino: String(row.puerto_destino || '').trim(),
+        modo: String(row.modo || '').trim()
+      }))
+    },
     contenedores: {
       // Legacy visual: conserva ano actual hasta actualizar la UI en Fase 3.
       ...normalizeContainers_cor(containerRow, currentYear),
@@ -271,7 +280,7 @@ async function analytics_cor(requestedPeriod) {
       entregados_por_anio: 'COUNT por año de fecha_entrega_real_obra para estatus ENTREGADO, orden ascendente.',
       contenedores_anio_actual: 'SUM de contenedores_20_dc y contenedores_40_hq cuando el año de fecha_salida_estimada (ETD) es el año actual CDMX.',
       contenedores_por_mes: 'SUM mensual de contenedores_20_dc y contenedores_40_hq para enero-diciembre del año actual, usando fecha_salida_estimada (ETD).',
-      promedios_por_ruta: 'Agrupacion puerto_origen + puerto_destino + ict. Cada tramo usa pares de fechas validos no negativos; total es AVG(fecha_llegada_real - fecha_exw) SOLO sobre registros con ambos tramos completos. Ano segun fecha_salida_real.',
+      promedios_por_ruta: 'Agrupacion puerto_origen + puerto_destino + ict. Los tres tramos usan la misma cohorte de EXW, zarpe y llegada validos y cronologicos. Las medias conservan precision completa y se redondean solo en frontend. Ano segun fecha_salida_real.',
       contenedores_periodo: 'SUM por fecha_salida_estimada (ETD) valida: ano seleccionado o historico completo. En historico, el desglose de 12 meses consolida los meses de todos los anos.'
     }
   };

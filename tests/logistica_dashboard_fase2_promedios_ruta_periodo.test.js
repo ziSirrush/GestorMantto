@@ -32,8 +32,8 @@ function loadRepo() {
 
 const demoRoute = {
   puerto_origen: 'Shanghai', puerto_destino: 'Manzanillo', modo: 'MARÍTIMO',
-  operaciones: '4', operaciones_salida: '3', promedio_dias_salida: '13.5',
-  operaciones_transito: '2', promedio_dias_llegada: '21.0',
+  operaciones: '1', operaciones_salida: '1', promedio_dias_salida: '20.0',
+  operaciones_transito: '1', promedio_dias_llegada: '21.0',
   operaciones_completas: '1', promedio_dias_total: '41.0'
 };
 
@@ -48,6 +48,7 @@ function loadService(calls = []) {
     async averageDepartureByPort_cor(year) { calls.push(['salida', year]); return [{ puerto: 'Shanghai', operaciones: 2, promedio_dias_salida: 13.5 }]; },
     async averageTransitByPortMode_cor(year) { calls.push(['transito', year]); return [{ puerto_destino: 'Manzanillo', modo: 'MARÍTIMO', operaciones: 2, promedio_dias_llegada: 21 }]; },
     async averageByRoute_cor(year) { calls.push(['rutas', year]); return [demoRoute]; },
+    async freightRouteCatalogCurrentYear_cor(year) { calls.push(['simRutas', year]); return [{ puerto_origen: 'Shanghai', puerto_destino: 'Manzanillo', modo: 'MARÍTIMO' }]; },
     async periodContainers_cor(year) { calls.push(['contenedoresPeriodo', year]); return { contenedores_20_dc: 7, contenedores_40_hq: 9, operaciones_con_dato: 8 }; },
     async periodContainerMonths_cor(year) { calls.push(['mesesPeriodo', year]); return [{ mes: 1, contenedores_20_dc: 1, contenedores_40_hq: 2 }]; }
   };
@@ -73,7 +74,7 @@ test('SQL ruta agrupa origen + destino + modo, filtra el anio por salida real pa
   assert.match(sql, /GROUP BY UPPER\(TRIM\(puerto_origen\)\), UPPER\(TRIM\(puerto_destino\)\), UPPER\(TRIM\(ict\)\)/);
   assert.match(sql, /CAST\(LEFT\(TRIM\(fecha_salida_real\), 4\) AS UNSIGNED\) = \?/);
   assert.deepEqual(params, ['^[0-9]{4}-[0-9]{2}-[0-9]{2}', 2025]);
-  assert.match(sql, /HAVING operaciones_salida > 0 OR operaciones_transito > 0/);
+  assert.match(sql, /HAVING operaciones_completas > 0/);
   assert.match(sql, /TRIM\(COALESCE\(puerto_origen, ''\)\) <> ''/);
   assert.match(sql, /TRIM\(COALESCE\(puerto_destino, ''\)\) <> ''/);
   assert.match(sql, /TRIM\(COALESCE\(ict, ''\)\) <> ''/);
@@ -92,7 +93,7 @@ test('SQL promedio total se calcula solo con las mismas operaciones completas', 
   const { calls, repository } = loadRepo();
   await repository.averageByRoute_cor(2026);
   const { sql } = calls.at(-1);
-  const columns = /COUNT\(CASE WHEN ([\s\S]*?) THEN 1 END\) AS operaciones_completas,\s*ROUND\(AVG\(CASE WHEN ([\s\S]*?) THEN DATEDIFF\(/.exec(sql);
+  const columns = /COUNT\(CASE WHEN ([\s\S]*?) THEN 1 END\) AS operaciones_completas,\s*AVG\(CASE WHEN ([\s\S]*?) THEN DATEDIFF\(/.exec(sql);
   assert.ok(columns, 'conteo de operaciones completas y media de extremo a extremo');
   assert.match(columns[1], /fecha_exw/);
   assert.match(columns[1], /fecha_llegada_real/);
@@ -101,6 +102,13 @@ test('SQL promedio total se calcula solo con las mismas operaciones completas', 
   assert.match(columns[2], /fecha_llegada_real/);
   assert.match(sql, /THEN DATEDIFF\(STR_TO_DATE\(LEFT\(TRIM\(fecha_llegada_real\)/);
   assert.doesNotMatch(sql, /promedio_dias_salida\s*\+\s*promedio_dias_llegada/i);
+  assert.doesNotMatch(sql, /ROUND\(AVG\(/);
+  for (const field of ['operaciones','operaciones_salida','operaciones_transito','operaciones_completas']) {
+    assert.match(sql, new RegExp('COUNT\\(CASE WHEN \\$\\{completo\\} THEN 1 END\\) AS '+field));
+  }
+  for (const field of ['promedio_dias_salida','promedio_dias_llegada','promedio_dias_total']) {
+    assert.match(sql, new RegExp('AVG\\(CASE WHEN \\$\\{completo\\} THEN DATEDIFF\\([\\s\\S]*? END\\) AS '+field));
+  }
 });
 
 test('catalogo de periodos incluye anios de zarpe real o ETD (aunque sean exclusivos)', async () => {
@@ -143,21 +151,21 @@ test('contenedores all consolidan anos sin filtrar ETD por ano y mantienen 12 me
   assert.doesNotMatch(months.sql, /fecha_salida_estimada\), 4\) AS UNSIGNED\) = \?/);
 });
 
-test('salida, transito y total conservan muestras independientes y nulos sin datos', () => {
+test('los tres promedios por ruta conservan la cohorte completa y admiten cero dias', () => {
   const service = loadService();
   const list = service.normalizeRouteTable_cor([
     demoRoute,
-    { puerto_origen: 'Ningbo', puerto_destino: 'Veracruz', modo: 'MARÍTIMO', operaciones: 1, operaciones_salida: 1, promedio_dias_salida: 0, operaciones_transito: 0, promedio_dias_llegada: null, operaciones_completas: 0, promedio_dias_total: null },
+    { puerto_origen: 'Ningbo', puerto_destino: 'Veracruz', modo: 'MARÍTIMO', operaciones: 1, operaciones_salida: 1, promedio_dias_salida: 0, operaciones_transito: 1, promedio_dias_llegada: 0, operaciones_completas: 1, promedio_dias_total: 0 },
     { puerto_origen: '', puerto_destino: 'Veracruz', modo: 'MARÍTIMO', operaciones: 5 }
   ]);
   assert.equal(list.length, 2);
-  assert.equal(list[0].promedio_dias_salida, 13.5);
+  assert.equal(list[0].promedio_dias_salida, 20);
   assert.equal(list[0].promedio_dias_llegada, 21);
-  assert.equal(list[0].promedio_dias_total, 41); // NO suma 13.5 + 21
+  assert.equal(list[0].promedio_dias_total, 41); // 20 + 21 = 41 en la misma muestra
   assert.equal(list[0].operaciones_completas, 1);
   assert.equal(list[1].promedio_dias_salida, 0); // cero dias es una media valida
-  assert.equal(list[1].promedio_dias_llegada, null);
-  assert.equal(list[1].promedio_dias_total, null);
+  assert.equal(list[1].promedio_dias_llegada, 0);
+  assert.equal(list[1].promedio_dias_total, 0);
 });
 
 test('filtro por defecto usa 2026 simultaneamente en ambos promedios, ruta y ETD', async () => {
@@ -170,6 +178,8 @@ test('filtro por defecto usa 2026 simultaneamente en ambos promedios, ruta y ETD
   assert.deepEqual(Array.from(result.promedios.anios_disponibles), [2026, 2025, 2024]);
   assert.deepEqual(Array.from(result.promedios.anios_con_salida_real), [2026]);
   assert.equal(result.tablas.promedios_por_ruta[0].promedio_dias_total, 41);
+  assert.equal(result.simulador.anio_actual, 2026);
+  assert.equal(result.simulador.rutas[0].puerto_origen, 'Shanghai');
   assert.equal(result.contenedores_periodo.anio, 2026);
   assert.equal(result.contenedores_periodo.total, 16);
   assert.equal(result.contenedores_periodo.meses.length, 12);
@@ -199,6 +209,8 @@ test('all consulta ambas rutas y contenedores sin filtros anuales y describe men
     assert.deepEqual(calls.find(x => x[0] === field), [field, null]);
   }
   assert.equal(result.promedios.periodo, 'all');
+  assert.equal(result.simulador.anio_actual, 2026);
+  assert.deepEqual(calls.find(x => x[0] === 'simRutas'), ['simRutas', 2026]);
   assert.equal(result.contenedores_periodo.periodo, 'all');
   assert.equal(result.contenedores_periodo.etiqueta, 'Todos los años (ETD)');
   assert.match(result.reglas_calculo.contenedores_periodo, /consolida los meses/);
@@ -218,4 +230,24 @@ test('no se altera el esquema ni los permisos: controller y routes fuera del FIX
   assert.doesNotMatch(serviceText, /\b(?:INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE)\b/i);
   assert.match(serviceText, /promedios_por_ruta/);
   assert.match(serviceText, /contenedores_periodo/);
+});
+
+
+test('catalogo del simulador se restringe al ano actual independientemente del periodo de analisis', async () => {
+  const { calls, repository } = loadRepo();
+  await repository.freightRouteCatalogCurrentYear_cor(2026);
+  const { sql, params } = calls.at(-1);
+  assert.match(sql, /FROM log_ops/);
+  assert.match(sql, /fecha_salida_real/);
+  assert.match(sql, /fecha_llegada_real/);
+  assert.match(sql, /GROUP BY UPPER\(TRIM\(puerto_origen\)\)/);
+  assert.equal(params.at(-1), 2026);
+});
+
+test('frontend: acordeones por seccion y simulador independiente del periodo de analisis', () => {
+  const frontend = fs.readFileSync(path.join(dir, 'modules/dashboard-logistica/dashboard-logistica.js'), 'utf8');
+  for (const id of ['operativo','analisis','simulador','movimientos']) assert.match(frontend, new RegExp('data-dl-accordion="'+id+'"'));
+  assert.match(frontend, /function bindDashboardAccordions\(\)/);
+  assert.match(frontend, /const year=Number\(state\.analytics&&state\.analytics\.anio_actual\)/);
+  assert.match(frontend, /state\.analytics\.simulador\.rutas/);
 });

@@ -900,3 +900,41 @@
     grid-template-columns:1fr;
   }
 }
+
+/* [BLT NOW | 2026-11-09 | DASHBOARD LOGISTICA ACORDEONES V001] */
+#view-logistica-dashboard .dl-accordion,
+[data-view="logistica-dashboard"] .dl-accordion{overflow:hidden}
+#view-logistica-dashboard .dl-accordion-toggle,
+[data-view="logistica-dashboard"] .dl-accordion-toggle{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  border:0;background:#fff;padding:17px 19px;text-align:left;cursor:pointer;
+  color:#102a56;border-radius:16px;font:inherit;
+}
+#view-logistica-dashboard .dl-accordion-toggle:hover,
+[data-view="logistica-dashboard"] .dl-accordion-toggle:hover{background:#f8fbff}
+#view-logistica-dashboard .dl-accordion-toggle:focus-visible,
+[data-view="logistica-dashboard"] .dl-accordion-toggle:focus-visible{outline:3px solid #3b82f6;outline-offset:-3px}
+#view-logistica-dashboard .dl-accordion-title,
+[data-view="logistica-dashboard"] .dl-accordion-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+#view-logistica-dashboard .dl-accordion-title strong,
+[data-view="logistica-dashboard"] .dl-accordion-title strong{font-size:17px;font-weight:800}
+#view-logistica-dashboard .dl-accordion-title small,
+[data-view="logistica-dashboard"] .dl-accordion-title small{font-size:12px;color:#64748b;font-weight:500}
+#view-logistica-dashboard .dl-accordion-chevron,
+[data-view="logistica-dashboard"] .dl-accordion-chevron{font-size:24px;line-height:1;transform:rotate(-90deg);transition:transform .18s ease}
+#view-logistica-dashboard .dl-accordion-toggle[aria-expanded="true"] .dl-accordion-chevron,
+[data-view="logistica-dashboard"] .dl-accordion-toggle[aria-expanded="true"] .dl-accordion-chevron{transform:rotate(0)}
+#view-logistica-dashboard .dl-accordion-panel[hidden],
+[data-view="logistica-dashboard"] .dl-accordion-panel[hidden]{display:none!important}
+#view-logistica-dashboard .dl-accordion-panel,
+[data-view="logistica-dashboard"] .dl-accordion-panel{border-top:1px solid #e2e8f0;min-width:0}
+#view-logistica-dashboard .dl-accordion-panel > .dl-card,
+[data-view="logistica-dashboard"] .dl-accordion-panel > .dl-card{border:0;border-radius:0;box-shadow:none;background:transparent}
+#view-logistica-dashboard .dl-accordion-panel > .dl-card + .dl-card,
+[data-view="logistica-dashboard"] .dl-accordion-panel > .dl-card + .dl-card{border-top:1px solid #e2e8f0}
+@media(max-width:600px){
+  #view-logistica-dashboard .dl-accordion-toggle,
+  [data-view="logistica-dashboard"] .dl-accordion-toggle{padding:15px 13px}
+  #view-logistica-dashboard .dl-accordion-title strong,
+  [data-view="logistica-dashboard"] .dl-accordion-title strong{font-size:15px}
+}

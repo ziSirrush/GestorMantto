@@ -50,6 +50,12 @@
     </div>
   </section>
 
+  <section class="dl-card dl-accordion" data-dl-accordion="operativo">
+    <button id="dl-accordion-operativo-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-operativo-panel" aria-expanded="false">
+      <span class="dl-accordion-title"><strong>Estado operativo</strong><small>Distribución por etapa y entregas históricas</small></span>
+      <span class="dl-accordion-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div id="dl-accordion-operativo-panel" class="dl-accordion-panel" hidden>
   <section class="dl-card dl-section">
     <div class="dl-section-head">
       <div>
@@ -93,7 +99,15 @@
       </article>
     </div>
   </section>
+    </div>
+  </section>
 
+  <section class="dl-card dl-accordion" data-dl-accordion="analisis">
+    <button id="dl-accordion-analisis-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-analisis-panel" aria-expanded="true">
+      <span class="dl-accordion-title"><strong>Análisis logístico</strong><small>Período, promedios y contenedores</small></span>
+      <span class="dl-accordion-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div id="dl-accordion-analisis-panel" class="dl-accordion-panel">
   <section class="dl-card dl-average-filter-card">
     <div class="dl-average-filter-copy">
       <p class="dl-eyebrow">Promedios logísticos</p>
@@ -134,9 +148,54 @@
         <tbody id="dl-route-body"></tbody>
       </table>
     </div>
-    <p class="dl-analytics-note">Cada tramo indica sus operaciones válidas (n). El total usa solo registros con ambos tramos completos; no suma promedios independientes.</p>
+    <p class="dl-analytics-note">Los tres tramos utilizan la misma muestra de operaciones completas (n). Se redondea a un decimal solo al presentar; puede existir diferencia visual de 0.1 días.</p>
   </section>
 
+  <section class="dl-card dl-section dl-container-card">
+    <div class="dl-section-head">
+      <div><h2>Contenedores del período</h2><p>Distribución física 20' DC vs 40' HQ según salida estimada (ETD) del período seleccionado.</p></div>
+      <small id="dl-containers-year">—</small>
+    </div>
+    <div id="dl-containers-ring-wrap" class="dl-ring-wrap">
+      <div id="dl-containers-ring" class="dl-ring" role="img" aria-label="Distribución de contenedores del período">
+        <div class="dl-ring-center"><strong id="dl-containers-total">—</strong><span>Total</span></div>
+      </div>
+      <div class="dl-ring-legend">
+        <div class="dl-ring-item"><span class="dl-ring-dot dl-ring-dot-20"></span><div><small>20' DC</small><strong id="dl-containers-20">—</strong><span id="dl-containers-20-pct">—</span></div></div>
+        <div class="dl-ring-item"><span class="dl-ring-dot dl-ring-dot-40"></span><div><small>40' HQ</small><strong id="dl-containers-40">—</strong><span id="dl-containers-40-pct">—</span></div></div>
+      </div>
+    </div>
+    <p id="dl-containers-note" class="dl-analytics-note">—</p>
+    <div class="dl-container-months">
+      <div class="dl-container-months-head">
+        <strong>Contenedores por mes</strong>
+        <small id="dl-containers-months-period">Enero - Diciembre</small>
+      </div>
+      <div class="dl-container-months-grid">
+        <div class="dl-container-months-table-wrap">
+          <table class="dl-container-months-table" aria-label="Contenedores de enero a junio">
+            <thead><tr><th>Mes</th><th>20' DC</th><th>40' HQ</th></tr></thead>
+            <tbody id="dl-containers-months-first"></tbody>
+          </table>
+        </div>
+        <div class="dl-container-months-table-wrap">
+          <table class="dl-container-months-table" aria-label="Contenedores de julio a diciembre">
+            <thead><tr><th>Mes</th><th>20' DC</th><th>40' HQ</th></tr></thead>
+            <tbody id="dl-containers-months-second"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+    </div>
+  </section>
+
+  <section class="dl-card dl-accordion" data-dl-accordion="simulador">
+    <button id="dl-accordion-simulador-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-simulador-panel" aria-expanded="false">
+      <span class="dl-accordion-title"><strong>Simulador de Fletes</strong><small>Operaciones del año vigente; independiente del período de análisis</small></span>
+      <span class="dl-accordion-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div id="dl-accordion-simulador-panel" class="dl-accordion-panel" hidden>
   <section class="dl-card dl-section dl-freight-section" id="dl-freight-section" aria-labelledby="dl-freight-title">
     <div class="dl-section-head dl-freight-heading">
       <div>
@@ -191,44 +250,15 @@
     </div>
     <p class="dl-analytics-note">La entrega en obra contempla la espera entre llegada real a puerto y entrega real. Los escenarios P25/P75 requieren al menos 10 operaciones completas de la misma ruta y período.</p>
   </section>
-
-  <section class="dl-card dl-section dl-container-card">
-    <div class="dl-section-head">
-      <div><h2>Contenedores del período</h2><p>Distribución física 20' DC vs 40' HQ según salida estimada (ETD) del período seleccionado.</p></div>
-      <small id="dl-containers-year">—</small>
-    </div>
-    <div id="dl-containers-ring-wrap" class="dl-ring-wrap">
-      <div id="dl-containers-ring" class="dl-ring" role="img" aria-label="Distribución de contenedores del período">
-        <div class="dl-ring-center"><strong id="dl-containers-total">—</strong><span>Total</span></div>
-      </div>
-      <div class="dl-ring-legend">
-        <div class="dl-ring-item"><span class="dl-ring-dot dl-ring-dot-20"></span><div><small>20' DC</small><strong id="dl-containers-20">—</strong><span id="dl-containers-20-pct">—</span></div></div>
-        <div class="dl-ring-item"><span class="dl-ring-dot dl-ring-dot-40"></span><div><small>40' HQ</small><strong id="dl-containers-40">—</strong><span id="dl-containers-40-pct">—</span></div></div>
-      </div>
-    </div>
-    <p id="dl-containers-note" class="dl-analytics-note">—</p>
-    <div class="dl-container-months">
-      <div class="dl-container-months-head">
-        <strong>Contenedores por mes</strong>
-        <small id="dl-containers-months-period">Enero - Diciembre</small>
-      </div>
-      <div class="dl-container-months-grid">
-        <div class="dl-container-months-table-wrap">
-          <table class="dl-container-months-table" aria-label="Contenedores de enero a junio">
-            <thead><tr><th>Mes</th><th>20' DC</th><th>40' HQ</th></tr></thead>
-            <tbody id="dl-containers-months-first"></tbody>
-          </table>
-        </div>
-        <div class="dl-container-months-table-wrap">
-          <table class="dl-container-months-table" aria-label="Contenedores de julio a diciembre">
-            <thead><tr><th>Mes</th><th>20' DC</th><th>40' HQ</th></tr></thead>
-            <tbody id="dl-containers-months-second"></tbody>
-          </table>
-        </div>
-      </div>
     </div>
   </section>
 
+  <section class="dl-card dl-accordion" data-dl-accordion="movimientos">
+    <button id="dl-accordion-movimientos-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-movimientos-panel" aria-expanded="false">
+      <span class="dl-accordion-title"><strong>Movimientos semanales</strong><small>Cortes e indicadores semanales</small></span>
+      <span class="dl-accordion-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div id="dl-accordion-movimientos-panel" class="dl-accordion-panel" hidden>
   <section class="dl-card dl-section">
     <div class="dl-section-head dl-mov-head">
       <div><h2>Movimientos semanales</h2><p id="dl-mov-subtitle">Último corte autónomo cerrado.</p></div>
@@ -244,6 +274,8 @@
       <div class="dl-cut-kpi"><small>Registros corte</small><strong id="dl-cut-registros">—</strong></div>
     </div>
     <div class="dl-table-wrap"><table class="dl-table"><thead><tr><th>Tipo</th><th>PP NS</th><th>Proyecto</th><th>Estatus anterior</th><th>Estatus nuevo</th></tr></thead><tbody id="dl-mov-body"></tbody></table></div>
+  </section>
+    </div>
   </section>
 
   <section class="dl-card dl-section dl-ppns-final">
@@ -514,7 +546,6 @@
 
     state.averageFilterLoading=true;
     state.averageFilterError=null;
-    if(state.freightSubmitted)invalidateFreightResult('Actualizando período; se recalculará la estimación...');
     renderAverageFilter();
 
     try{
@@ -522,11 +553,9 @@
       state.averageFilterError=null;
       renderAnalytics();
       renderFreightSuggestions();
-      if(state.freightSubmitted)void runFreightSimulation();
       renderAverageFilter();
     }catch(error){
       state.averageFilterError=error;
-      if(state.freightSubmitted)void runFreightSimulation();
       renderAverageFilter();
     }finally{
       state.averageFilterLoading=false;
@@ -599,14 +628,14 @@
   }
 
   function freightPeriod(){
-    const meta=averagePeriodMeta();
-    const period=meta.period;
-    if(period!=='all'&&(!Number.isInteger(Number(period))||Number(period)<1900))return null;
-    return period;
+    // Independiente del selector de periodo de analisis.
+    const year=Number(state.analytics&&state.analytics.anio_actual);
+    return Number.isInteger(year)&&year>=1900&&year<=2200?year:null;
   }
 
   function renderFreightPeriod(){
-    text('dl-freight-period','Histórico de zarpe: '+averagePeriodLabel());
+    const year=freightPeriod();
+    text('dl-freight-period',year===null?'Año actual no disponible':'Histórico de zarpe: Año actual '+year);
   }
 
   function freightOptions(values,id){
@@ -621,8 +650,8 @@
   }
 
   function renderFreightSuggestions(){
-    const routes=state.analytics&&state.analytics.tablas&&Array.isArray(state.analytics.tablas.promedios_por_ruta)
-      ?state.analytics.tablas.promedios_por_ruta:[];
+    const routes=state.analytics&&state.analytics.simulador&&Array.isArray(state.analytics.simulador.rutas)
+      ?state.analytics.simulador.rutas:[];
     const origin=String($('dl-freight-origin')&&$('dl-freight-origin').value||'').trim();
     const destination=String($('dl-freight-destination')&&$('dl-freight-destination').value||'').trim();
     const same=(a,b)=>norm(a)===norm(b);
@@ -1014,6 +1043,22 @@
     bindRows();
   }
 
+  // Acordeones independientes, con contenido montado para preservar el refresco.
+  function bindDashboardAccordions(){
+    const view=$('view-logistica-dashboard');
+    if(!view)return;
+    view.querySelectorAll('[data-dl-accordion]').forEach(section=>{
+      const toggle=section.querySelector('.dl-accordion-toggle');
+      const panel=section.querySelector('.dl-accordion-panel');
+      if(!toggle||!panel)return;
+      toggle.onclick=()=>{
+        const open=panel.hidden;
+        panel.hidden=!open;
+        toggle.setAttribute('aria-expanded',String(open));
+      };
+    });
+  }
+
   // FASE 1: panel plegable; no altera la consulta ni el conteo de PP NS.
   function bindSinAccordion(){
     const toggle=$('dl-sin-toggle');
@@ -1112,6 +1157,7 @@
 
     if(refresh)refresh.onclick=load;
     bindAverageFilter();
+    bindDashboardAccordions();
     bindSinAccordion();
     bindFreightSimulator();
     if(modalClose&&modal)modalClose.onclick=()=>{modal.hidden=true;};

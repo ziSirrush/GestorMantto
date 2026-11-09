@@ -154,13 +154,13 @@ async function averageByRoute_cor(year = null) {
        MIN(TRIM(puerto_origen)) AS puerto_origen,
        MIN(TRIM(puerto_destino)) AS puerto_destino,
        MIN(TRIM(ict)) AS modo,
-       COUNT(CASE WHEN ${salidaValida} OR ${transitoValido} THEN 1 END) AS operaciones,
-       COUNT(CASE WHEN ${salidaValida} THEN 1 END) AS operaciones_salida,
-       ROUND(AVG(CASE WHEN ${salidaValida} THEN DATEDIFF(${departure}, ${exw}) END), 1) AS promedio_dias_salida,
-       COUNT(CASE WHEN ${transitoValido} THEN 1 END) AS operaciones_transito,
-       ROUND(AVG(CASE WHEN ${transitoValido} THEN DATEDIFF(${arrival}, ${departure}) END), 1) AS promedio_dias_llegada,
+       COUNT(CASE WHEN ${completo} THEN 1 END) AS operaciones,
+       COUNT(CASE WHEN ${completo} THEN 1 END) AS operaciones_salida,
+       AVG(CASE WHEN ${completo} THEN DATEDIFF(${departure}, ${exw}) END) AS promedio_dias_salida,
+       COUNT(CASE WHEN ${completo} THEN 1 END) AS operaciones_transito,
+       AVG(CASE WHEN ${completo} THEN DATEDIFF(${arrival}, ${departure}) END) AS promedio_dias_llegada,
        COUNT(CASE WHEN ${completo} THEN 1 END) AS operaciones_completas,
-       ROUND(AVG(CASE WHEN ${completo} THEN DATEDIFF(${arrival}, ${exw}) END), 1) AS promedio_dias_total
+       AVG(CASE WHEN ${completo} THEN DATEDIFF(${arrival}, ${exw}) END) AS promedio_dias_total
      FROM log_ops
      WHERE TRIM(COALESCE(puerto_origen, '')) <> ''
        AND TRIM(COALESCE(puerto_destino, '')) <> ''
@@ -170,9 +170,34 @@ async function averageByRoute_cor(year = null) {
        AND CAST(LEFT(TRIM(fecha_salida_real), 4) AS UNSIGNED) BETWEEN 1900 AND 2200
        ${yearFilter.sql}
      GROUP BY UPPER(TRIM(puerto_origen)), UPPER(TRIM(puerto_destino)), UPPER(TRIM(ict))
-     HAVING operaciones_salida > 0 OR operaciones_transito > 0
+     HAVING operaciones_completas > 0
      ORDER BY UPPER(TRIM(puerto_origen)), UPPER(TRIM(puerto_destino)), UPPER(TRIM(ict))`,
     [DATE_PREFIX_RE, ...yearFilter.params]
+  );
+  return rows;
+}
+
+// Catalogo del simulador del ano actual; separado del filtro analitico.
+async function freightRouteCatalogCurrentYear_cor(year) {
+  const departure = dateExpr('fecha_salida_real');
+  const arrival = dateExpr('fecha_llegada_real');
+  const [rows] = await db.query(
+    `SELECT MIN(TRIM(puerto_origen)) AS puerto_origen,
+            MIN(TRIM(puerto_destino)) AS puerto_destino,
+            MIN(TRIM(ict)) AS modo
+       FROM log_ops
+      WHERE TRIM(COALESCE(puerto_origen, '')) <> ''
+        AND TRIM(COALESCE(puerto_destino, '')) <> ''
+        AND TRIM(COALESCE(ict, '')) <> ''
+        AND TRIM(COALESCE(fecha_salida_real, '')) REGEXP ?
+        AND TRIM(COALESCE(fecha_llegada_real, '')) REGEXP ?
+        AND ${departure} IS NOT NULL
+        AND ${arrival} IS NOT NULL
+        AND DATEDIFF(${arrival}, ${departure}) >= 0
+        AND CAST(LEFT(TRIM(fecha_salida_real), 4) AS UNSIGNED) = ?
+      GROUP BY UPPER(TRIM(puerto_origen)), UPPER(TRIM(puerto_destino)), UPPER(TRIM(ict))
+      ORDER BY UPPER(TRIM(puerto_origen)), UPPER(TRIM(puerto_destino)), UPPER(TRIM(ict))`,
+    [DATE_PREFIX_RE, DATE_PREFIX_RE, Number(year)]
   );
   return rows;
 }
@@ -316,6 +341,7 @@ module.exports = Object.freeze({
   averageDepartureByPort_cor,
   averageTransitByPortMode_cor,
   averageByRoute_cor,
+  freightRouteCatalogCurrentYear_cor,
   currentYearContainers_cor,
   currentYearContainersByMonth_cor,
   periodContainers_cor,

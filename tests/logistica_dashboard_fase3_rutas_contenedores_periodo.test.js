@@ -58,8 +58,8 @@ function apiPayload(period){
     tablas:{
       promedios_por_ruta:[{
         puerto_origen:year===2025?'Ningbo':'Shanghai',puerto_destino:'Manzanillo',modo:'Marítimo',
-        operaciones:4,operaciones_salida:3,promedio_dias_salida:13.5,
-        operaciones_transito:2,promedio_dias_llegada:21,
+        operaciones:1,operaciones_salida:1,promedio_dias_salida:20,
+        operaciones_transito:1,promedio_dias_llegada:21,
         operaciones_completas:1,promedio_dias_total:41
       }]
     },
@@ -95,7 +95,7 @@ test('una tabla por ruta, contenedores y bloques anteriores preservados',()=>{
   assert.match(html,/dl-chart-entregados/);
 });
 
-test('promedios por ruta muestran conteos distintos; total usa backend y no suma medias',()=>{
+test('promedios por ruta usan una muestra consistente',()=>{
   const r=setup();
   r.api.state.analytics=apiPayload(2026);
   r.api.renderRouteTable(r.api.state.analytics.tablas.promedios_por_ruta);
@@ -103,13 +103,11 @@ test('promedios por ruta muestran conteos distintos; total usa backend y no suma
   assert.match(html,/Shanghai/);
   assert.match(html,/Manzanillo/);
   assert.match(html,/Marítimo/);
-  assert.match(html,/13[.,]5 días/);
+  assert.match(html,/20[.,]0 días/);
   assert.match(html,/21[.,]0 días/);
   assert.match(html,/41[.,]0 días/);
   assert.doesNotMatch(html,/34[.,]5 días/);
-  assert.match(html,/n=3/);
-  assert.match(html,/n=2/);
-  assert.match(html,/n=1/);
+  assert.equal((html.match(/n=1/g)||[]).length,3);
   assert.match($(r,'dl-route-count').textContent,/2026/);
 });
 
@@ -205,8 +203,8 @@ test('refresco conserva el período elegido en vez de reiniciarlo a año actual'
   assert.match(js,/fetchAnalytics\(state\.analytics&&state\.analytics\.promedios\?state\.analytics\.promedios\.periodo:undefined\)/);
 });
 
-test('solo cache-bust JS nuevo; no cambia CSS ni dependencias de PVO',()=>{
-  assert.match(loader,/dashboard-logistica\.js\?v=20261021-dashboard-fase5-v001/);
-  assert.match(loader,/dashboard-logistica\.css\?v=20260923-dashboard-ppns-final-v001/);
+test('cache-bust JS y CSS del Dashboard sin afectar PVO',()=>{
+  assert.match(loader,/dashboard-logistica\.js\?v=20261109-dashboard-logistica-v001/);
+  assert.match(loader,/dashboard-logistica\.css\?v=20261109-dashboard-logistica-v001/);
   assert.match(loader,/logistica-produccion\.js\?v=/);
 });
