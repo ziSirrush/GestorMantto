@@ -175,7 +175,7 @@ test('Un único archivo del módulo y cache-bust solamente de JS en las cinco ru
  assert.ok(token);
  const jsRef='./modules/logistica-produccion/logistica-produccion.js?v='+token;
  assert.equal(loader.split(jsRef).length-1,5);
- assert.equal(loader.split('./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001').length-1,5);
+ assert.equal(loader.split('./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001').length-1,5);
  assert.doesNotMatch(loader,/logistica-produccion\.js\?v=20261005-pvo-cierre-fase4-v001/);
  assert.doesNotMatch(client,/Fecha de Visita|lp-visit-date|lp-edit-visit-date/);
  assert.match(loader,/20260923-dashboard-ppns-final-v001/);

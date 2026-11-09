@@ -10,6 +10,7 @@ const root=path.join(__dirname,'..');
 const read=rel=>fs.readFileSync(path.join(root,rel),'utf8');
 const js=read('modules/logistica-produccion/logistica-produccion.js');
 const loader=read('core/module-loader.js');
+const css=read('modules/logistica-produccion/logistica-produccion.css');
 const serviceSource=read('backend/src/modules/logistica-produccion/logistica-produccion.service.js');
 
 function mockDomNode(id,value=''){
@@ -24,7 +25,7 @@ function frontend(api={}){
   return api[route];
  }}};
  const context={window,document,console,setTimeout,clearTimeout,FormData,URL,URLSearchParams};
- const names='manualPayload,manualEditPayload,manualDetailEditForm,renderSelectedOption,loadMain,loadPvo,detailSummaryTable,pvoRow,pvoMissingReasons,state';
+ const names='manualPayload,manualEditPayload,manualDetailEditForm,renderSelectedOption,loadMain,loadPvo,detailSummaryTable,pvoRow,pvoMissingReasons,fetchManualProjects,fetchManualPicker,state';
  const marker='window.ManttoLogisticaProduccion={init};';
  assert.equal(js.split(marker).length-1,1,'Entry point unico');
  const code=js.replace(marker,`globalThis.__testApi={${names}};\n${marker}`);
@@ -63,6 +64,21 @@ test('Nuevo contiene solo Fecha PVO; no hay otro calendario de visita',()=>{
  assert.match(js,/id="lp-cubes-date"/);
 });
 
+test('Agregar nuevo oculta proyectos ya registrados, pero Detalle puede conservarlos',async()=>{
+ const api={'/api/logistica/produccion/manual/proyectos':{data:[
+  {id_log_ops:71,proyecto:'Ya registrado',ya_registrado:1},
+  {id_log_ops:72,proyecto:'Disponible',ya_registrado:0}
+ ]}};
+ const f=frontend(api);
+ f.ui.state.manual.onlyAvailableProjects=true;
+ const available=await f.ui.fetchManualProjects('');
+ assert.deepEqual(Array.from(available,row=>row.id_log_ops),[72]);
+ assert.deepEqual(Array.from(f.ui.state.manual.lists.project,row=>row.id_log_ops),[72]);
+ f.ui.state.manual.onlyAvailableProjects=false;
+ const all=await f.ui.fetchManualProjects('');
+ assert.deepEqual(Array.from(all,row=>row.id_log_ops),[71,72]);
+ assert.ok(js.includes("resetManualNewState();state.manual.onlyAvailableProjects=true;"));
+});
 test('Nuevo genera un payload exclusivamente con fecha_pvo, no fecha_pvo_fl',()=>{
  const f=frontend();
  f.ui.state.manual.selected={
@@ -128,6 +144,28 @@ test('Resumen de proyecto y Detalle muestran solo Fecha PVO',()=>{
  assert.match(detail,/Fecha entrega cubos/);
 });
 
+test('Listado principal abre con Sin Fecha PVO y coloca Estatus antes de Comentario',()=>{
+ assert.ok(js.includes('<option value="sin_pvo" selected>Sin Fecha PVO</option>'));
+ const header="${sortTh('semana','Semana/Año')}${sortTh('estatus','Estatus Producción')}${sortTh('comentario','Comentario')}";
+ assert.ok(js.includes(header));
+ const row="<td>${esc(mainWeekLabel(r))}</td><td>${esc(r.estatus_produccion)}</td><td>${esc(r.comentario)}</td>";
+ assert.ok(js.includes(row));
+});
+
+test('Detalle movil convierte el Resumen a dos columnas Campo y Valor',()=>{
+ assert.ok(css.includes('grid-template-columns:minmax(108px,38%) minmax(0,1fr)'));
+ assert.ok(css.includes('.lp-summary-table tr{display:contents}'));
+ assert.ok(css.includes('.lp-summary-table .lp-summary-empty{display:none!important}'));
+ const summary=frontend().ui.detailSummaryTable({
+  modo_registro:'MANUAL',proyecto:'Proyecto',semana_registro:46,anio_registro:2026,
+  estatus_produccion:'Estatus',ppns:'P1',fecha_pvo:'2026-10-23',fecha_cubos:'2027-01-01',
+  estatus_logistica:'Logística',comentario:'Comentario'
+ },{asesores:['XP'],supervisores:['RL']});
+ for(const label of ['Modo','Proyecto','Supervisor','Asesor','Semana Registro','Estatus Producción','PPNS','Fecha PVO','Fecha entrega cubos','Estatus Logística','Comentario']){
+  assert.ok(summary.includes('>'+label+'<'));
+ }
+ assert.ok(summary.includes('lp-summary-empty'));
+});
 test('Lista principal tiene 9 columnas y elimina filtro y orden de visita',async()=>{
  const f=frontend({'/api/logistica/produccion':{data:[{
   ...fakeProductionRow(10,{fecha_pvo_fl:'2026-10-19',fechas_visita:'2026-10-19'}),
@@ -197,5 +235,5 @@ test('Cache-bust actualizado solo para las 5 rutas del modulo',()=>{
  assert.ok(newRef);
  assert.equal(loader.split(newRef).length-1,5);
  assert.match(loader,/20260923-dashboard-ppns-final-v001/);
- assert.equal(loader.split('./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001').length-1,5);
+ assert.equal(loader.split('./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001').length-1,5);
 });

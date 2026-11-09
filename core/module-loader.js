@@ -206,11 +206,11 @@
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001','./modules/dashboard-logistica/dashboard-logistica-simulador.css?v=20261021-dashboard-fase5-v001','./modules/dashboard-logistica/dashboard-logistica-catalogo-fletes.css?v=20261105-ticker-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20261109-dashboard-logistica-v002','./modules/dashboard-logistica/dashboard-logistica-catalogo-fletes.js?v=20261105-ticker-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261023-back-history-v001']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261023-back-history-v001']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261023-back-history-v001']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261023-back-history-v001']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261005-pvo-cierre-fase4-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261023-back-history-v001']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
 
     // Mantener este token sincronizado con el despliegue del Dashboard.
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20261106-modo-junta-cachefix-v004']},
