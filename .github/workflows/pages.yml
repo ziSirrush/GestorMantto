@@ -1,7 +1,8 @@
 name: Deploy GitHub Pages
 run-name: "Frontend · ${{ github.event.head_commit.message || github.ref_name }}"
 
-# BLT NOW | 2026-11-09 | CI_SELECTIVO_V001
+# BLT NOW | 2026-11-09 | CI_SELECTIVO_V002
+# QA: se conservan las pruebas completas para uso manual; Actions usa suites de impacto.
 # Respaldo: backup/ci-before-selective-20261109 (commit cb33a88051bb713576bd0b39899ca016b5d340f1)
 
 on:
