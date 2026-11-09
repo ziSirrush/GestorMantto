@@ -495,7 +495,7 @@ async function refreshDetailAfterSave(view,id){
 }
 function bindDetail(view,id){
  const p=state.detail.produccion,manual=String(p.modo_registro||'SEMI_AUTOMATICO')==='MANUAL',install=$('lp-install');
- if(install&&!install.disabled)install.onclick=()=>go('instalaciones-proyectos',{id:p.ppns});
+ if(install&&!install.disabled)install.onclick=()=>go('detalle',{type:'proyecto',id:p.ppns,projectName:p.proyecto||p.ppns,source:'logistica-produccion',template:'cliente-unificado'});
  $('lp-edit').onclick=()=>{clearAlert();clearDetailEditMsg();$('lp-edit-form').hidden=false;$('lp-edit').hidden=true;};
  $('lp-edit-cancel').onclick=()=>renderDetail(view);
  if(manual)bindPickerDismiss(view);

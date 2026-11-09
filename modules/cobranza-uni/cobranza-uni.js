@@ -516,6 +516,7 @@
       if(payload.gestion_credito){
         const index=state_uni.rows.findIndex(function(item){return Number(item.id_gc)===Number(id);});
         if(index>=0) state_uni.rows[index]=Object.assign({},state_uni.rows[index],payload.gestion_credito);
+        else state_uni.rows.push(Object.assign({},payload.gestion_credito));
       }
     }catch(error){
       state_uni.detailError=error.message||'Error de conexión';
@@ -530,8 +531,11 @@
     if(!root) return;
     const row = currentDetailRow_uni();
     if(!row){
-      state_uni.detailId = null;
-      renderContent_uni();
+      if(state_uni.detailLoading) return;
+      if(state_uni.detailError){
+        root.innerHTML='<section class="gc-uni-error"><span>⚠️</span><div><h2>No fue posible abrir Gestión de Crédito</h2><p>'+escapeHtml_uni(state_uni.detailError)+'</p><button type="button" class="gc-uni-btn" data-gc-detail-action="back">← Volver</button></div></section>';
+        bindGestionCredito_uni(root);
+      }
       return;
     }
     const risk = riskKey_uni(row.nivel_riesgo_credito);
@@ -589,20 +593,25 @@
   }
 
   function openDetail_uni(id){
-    const exists = state_uni.rows.some(function(row){ return Number(row.id_gc) === Number(id); });
-    if(!exists) return;
-    state_uni.detailId = Number(id);
+    const detailId=Number(id);
+    if(!detailId) return;
+    state_uni.detailId = detailId;
     state_uni.detailError = null;
     state_uni.relatedTables={mp:{search:'',estado:'',periodicidad:'',page:1,pageSize:30},va:{search:'',estatus:'',page:1,pageSize:30}};
-    renderDetailContent_uni();
-    loadDetailRelations_uni(state_uni.detailId,false);
+    const exists = state_uni.rows.some(function(row){ return Number(row.id_gc) === detailId; });
+    const view=document.getElementById('view-' + ROUTE_GESTION_CREDITO_UNI);
+    if(!exists&&view){
+      view.innerHTML='<div class="gc-uni-page" data-gc-uni-root><section class="gc-uni-titlebar gc-uni-detail-titlebar"><div><p class="gc-uni-eyebrow">💰 Cobranza United · Gestión de Crédito</p><h1>Detalle</h1><p>Abriendo el registro solicitado directamente.</p></div></section><div class="gc-uni-loading"><span class="gc-uni-spinner"></span><b>Consultando detalle...</b></div></div>';
+    }else renderDetailContent_uni();
+    loadDetailRelations_uni(detailId,false);
   }
 
   function navigateRelation_uni(type){
     const row = currentDetailRow_uni();
     if(!row || !window.ManttoRouter || typeof window.ManttoRouter.go !== 'function') return;
     if(type === 'proyecto' && row.proyecto){
-      window.ManttoRouter.go('proyectos',{proyecto:row.proyecto,idns:row.idns||null,source:'gestion_credito'});
+      if(window.ManttoDetails&&typeof window.ManttoDetails.openProyecto==='function') window.ManttoDetails.openProyecto(row.proyecto,{source:'gestion_credito'});
+      else window.ManttoRouter.go('detalle',{type:'proyecto',id:row.proyecto,source:'gestion_credito'});
       return;
     }
     if(type === 'mp' && routeReady_uni(ROUTE_MP_UNI)){
@@ -664,7 +673,10 @@
     root.querySelectorAll('[data-gc-detail-action]').forEach(function(button){
       button.addEventListener('click',function(){
         const action = button.getAttribute('data-gc-detail-action');
-        if(action === 'back'){ state_uni.detailId = null; state_uni.detailError=null; renderContent_uni(); }
+        if(action === 'back'){
+          if(window.ManttoRouter&&typeof window.ManttoRouter.back==='function') window.ManttoRouter.back({fallbackRoute:ROUTE_GESTION_CREDITO_UNI});
+          else { state_uni.detailId = null; state_uni.detailError=null; renderContent_uni(); }
+        }
         if(action === 'refresh' || action === 'relations-refresh') loadDetailRelations_uni(state_uni.detailId,true);
       });
     });
@@ -742,7 +754,7 @@
         if(!id) return;
         mpState_uni.detailId=id;
         mpState_uni.detailError=null;
-        if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function') window.ManttoRouter.go(ROUTE_MP_UNI);
+        if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function') window.ManttoRouter.go(ROUTE_MP_UNI,{id_dmp:id,id:id,source:'gestion_credito_relacion'});
       });
     });
     root.querySelectorAll('[data-gc-risk-tab]').forEach(function(button){
@@ -1019,7 +1031,14 @@
     const root=document.querySelector('[data-mp-uni-root]');
     if(!root) return;
     const row=mpCurrentDetail_uni();
-    if(!row){ mpState_uni.detailId=null; renderMpMain_uni(); return; }
+    if(!row){
+      if(mpState_uni.detailLoading) return;
+      if(mpState_uni.detailError){
+        root.innerHTML='<section class="gc-uni-error"><span>⚠️</span><div><h2>No fue posible abrir Mantenimiento Preventivo</h2><p>'+escapeHtml_uni(mpState_uni.detailError)+'</p><button type="button" class="mp-uni-btn" data-mp-detail-action="back">← Volver</button></div></section>';
+        bindMpDetail_uni(root);
+      }
+      return;
+    }
     const detail=mpState_uni.detailCache[String(mpState_uni.detailId)]||null;
     root.innerHTML='<section class="mp-uni-detail-head">'+
       '<div><button type="button" class="mp-uni-back" data-mp-detail-action="back">← Volver a Mantenimiento Preventivo</button><p class="mp-uni-eyebrow">🛠️ Cobranza United · Detalle</p><h1>'+escapeHtml_uni(row.proyecto?projectName_uni(row.proyecto):('MP '+row.id_dmp))+'</h1><p>'+escapeHtml_uni(row.cliente||'—')+' · '+escapeHtml_uni(row.idns||'Sin IDNS')+'</p></div>'+
@@ -1036,7 +1055,10 @@
     root.querySelectorAll('[data-mp-detail-action]').forEach(function(button){
       button.addEventListener('click',function(){
         const action=button.getAttribute('data-mp-detail-action');
-        if(action==='back'){ mpState_uni.detailId=null; mpState_uni.detailError=null; renderMpMain_uni(); }
+        if(action==='back'){
+          if(window.ManttoRouter&&typeof window.ManttoRouter.back==='function') window.ManttoRouter.back({fallbackRoute:ROUTE_MP_UNI});
+          else { mpState_uni.detailId=null; mpState_uni.detailError=null; renderMpMain_uni(); }
+        }
         if(action==='refresh') loadMpDetail_uni(mpState_uni.detailId,true);
       });
     });
@@ -1301,7 +1323,7 @@
   }
 
   function bindVaDetail_uni(root,row){
-    root.querySelectorAll('[data-va-action]').forEach(function(btn){btn.addEventListener('click',function(){const a=btn.dataset.vaAction;if(a==='back'){vaState_uni.detailId=null;renderVaMain_uni();}if(a==='project'&&window.ManttoDetails&&window.ManttoDetails.openProyecto)window.ManttoDetails.openProyecto(row.proyecto);});});
+    root.querySelectorAll('[data-va-action]').forEach(function(btn){btn.addEventListener('click',function(){const a=btn.dataset.vaAction;if(a==='back'){if(window.ManttoRouter&&typeof window.ManttoRouter.back==='function')window.ManttoRouter.back({fallbackRoute:ROUTE_VENTA_ADICIONAL_UNI});else{vaState_uni.detailId=null;renderVaMain_uni();}}if(a==='project'&&window.ManttoDetails&&window.ManttoDetails.openProyecto)window.ManttoDetails.openProyecto(row.proyecto);});});
     root.querySelectorAll('[data-va-mp]').forEach(function(btn){btn.addEventListener('click',function(){if(window.ManttoRouter)window.ManttoRouter.go(ROUTE_MP_UNI,{id_dmp:Number(btn.dataset.vaMp),id:Number(btn.dataset.vaMp),source:'venta_adicional'});});});
     root.querySelectorAll('[data-va-gc]').forEach(function(btn){btn.addEventListener('click',function(){const id=Number(btn.dataset.vaGc);if(!id)return;if(window.ManttoRouter)window.ManttoRouter.go(ROUTE_GESTION_CREDITO_UNI,{id_gc:id,id:id,source:'venta_adicional'});});});
   }
@@ -1332,10 +1354,11 @@
     return String(current.payload.id || '').trim();
   }
 
-  function navigateProjectGestionCredito_uni(projectRef){
+  function navigateProjectGestionCredito_uni(projectRef,gcId){
     const ref = String(projectRef || '').trim();
-    if(!ref || !window.ManttoRouter || typeof window.ManttoRouter.go !== 'function') return;
-    window.ManttoRouter.go(ROUTE_GESTION_CREDITO_UNI,{proyecto:ref,source:'detalle_proyecto'});
+    const id=Number(gcId||0);
+    if(!ref || !(id>0) || !window.ManttoRouter || typeof window.ManttoRouter.go !== 'function') return;
+    window.ManttoRouter.go(ROUTE_GESTION_CREDITO_UNI,{id_gc:id,id:id,proyecto:ref,source:'detalle_proyecto'});
   }
 
   function ensureProjectGestionCreditoButton_uni(){
@@ -1344,7 +1367,9 @@
     const detailView = document.getElementById('view-detalle');
     if(!detailView || !detailView.classList.contains('active')) return;
     const header = detailView.querySelector('.mg-company-block.united .mg-company-head');
-    if(!header || header.querySelector('[data-project-gc-uni]')) return;
+    const gcControl=detailView.querySelector('[data-project-gc-id]');
+    const gcId=Number(gcControl&&gcControl.getAttribute('data-project-gc-id')||0);
+    if(!header || !(gcId>0) || header.querySelector('[data-project-gc-uni]')) return;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'mg-project-gc-link-uni';
@@ -1353,7 +1378,7 @@
     button.addEventListener('click',function(event){
       event.preventDefault();
       event.stopPropagation();
-      navigateProjectGestionCredito_uni(projectRef);
+      navigateProjectGestionCredito_uni(projectRef,gcId);
     });
     header.appendChild(button);
   }
@@ -1373,12 +1398,15 @@
     if(route === ROUTE_GESTION_CREDITO_UNI){
       const requestedGcId=Number(payload&&(payload.id_gc||payload.id));
       const requestedProject=String(payload&&payload.proyecto||'').trim();
-      if(!(requestedGcId>0) && !requestedProject){
+      if(requestedGcId>0){
+        openDetail_uni(requestedGcId);
+        return true;
+      }
+      if(!requestedProject){
         state_uni.detailId=null;
         state_uni.detailError=null;
       }
       loadGestionCredito_uni(false).then(function(){
-        if(requestedGcId>0){ openDetail_uni(requestedGcId); return; }
         if(requestedProject){
           const related=findGestionCreditoByProject_uni(requestedProject);
           if(related&&Number(related.id_gc)>0){ openDetail_uni(related.id_gc); return; }

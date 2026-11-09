@@ -106,7 +106,7 @@ test('Frontend recalcula KPI VA filtrados y advierte subtotales MP', () => {
   assert.match(details, /deudaNoVerificada/);
   assert.match(details, /No verificado/);
   assert.match(details, /adeudo_advertencia/);
-  assert.match(loader, /cobranza-uni\.js\?v=20261014-gc-paginacion-v001/);
+  assert.match(loader, /cobranza-uni\.js\?v=20261109-detail-navigation-v001/);
   assert.match(loader, /cobranza-uni\.css\?v=20261014-gc-paginacion-v001/);
   assert.match(index, /core\/details\.js\?v=20261014-cobranza-kpis-v001/);
 });

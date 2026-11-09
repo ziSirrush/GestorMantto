@@ -598,8 +598,8 @@
         <div class="task-description" title="${safeText(description)}">${safeText(description)}</div>
         ${hasLinkage ? `<div class="task-linkage">
           ${t.area ? `<span><small>Área</small>${safeText(t.area)}</span>` : ''}
-          ${t.proyecto ? `<button type="button" data-target='${toTargetAttr({module:'proyectos',id:t.proyecto})}'><small>Proyecto</small>${safeText(t.proyecto)}</button>` : ''}
-          ${t.equipo ? `<button type="button" data-target='${toTargetAttr({module:'portafolio',id:t.equipo})}'><small>Equipo</small>${safeText(t.equipo)}</button>` : ''}
+          ${t.proyecto ? `<button type="button" data-target='${toTargetAttr({module:'detalle',type:'proyecto',id:t.proyecto,source:'home-tarea'})}'><small>Proyecto</small>${safeText(t.proyecto)}</button>` : ''}
+          ${t.equipo ? `<button type="button" data-target='${toTargetAttr({module:'detalle',type:'equipo',id:t.equipo,source:'home-tarea'})}'><small>Equipo</small>${safeText(t.equipo)}</button>` : ''}
         </div>` : ''}
       </div>
       ${hasMeta ? `<div class="task-meta task-compact-meta">

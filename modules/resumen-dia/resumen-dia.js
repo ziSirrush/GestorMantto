@@ -261,12 +261,12 @@
   function openEquipo(cod){
     if(!cod) return;
     if(window.ManttoDetails && window.ManttoDetails.openEquipo) return window.ManttoDetails.openEquipo(cod);
-    if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'portafolio', id:cod, source:'resumen-dia'});
+    if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'detalle', type:'equipo', id:cod, source:'resumen-dia'});
   }
   function openProyecto(pro){
     if(!pro) return;
     if(window.ManttoDetails && window.ManttoDetails.openProyecto) return window.ManttoDetails.openProyecto(pro);
-    if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'proyectos', id:pro, source:'resumen-dia'});
+    if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'detalle', type:'proyecto', id:pro, source:'resumen-dia'});
   }
   function formatProyectoName(value){
     if(window.ManttoFormat && typeof window.ManttoFormat.projectName === 'function') return window.ManttoFormat.projectName(value);
@@ -623,7 +623,7 @@
     }
     const box = byId('rd-ticket-detail');
     if(!box){
-      if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'tickets',id:ticketId,source:'resumen-dia'});
+      if(window.ManttoRouter && window.ManttoRouter.openTarget) window.ManttoRouter.openTarget({module:'detalle',type:'ticket',id:ticketId,source:'resumen-dia'});
       return;
     }
     if(!t){

@@ -192,7 +192,7 @@
   const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260929-fix-seguimiento-ticket-detalle-permisos-v001-limpieza-v002';
 
   const ROUTES = Object.freeze({
-    resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20260914-human-time-v001-limpieza-v002']},
+    resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20261109-detail-navigation-v001']},
     criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'movimientos-criticos':{css:['./modules/movimientos-criticos/movimientos-criticos.css?v=20261003-fase3-v001'],js:['./modules/movimientos-criticos/movimientos-criticos.js?v=20261003-fase3-v001']},
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
@@ -206,11 +206,11 @@
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001','./modules/dashboard-logistica/dashboard-logistica-simulador.css?v=20261021-dashboard-fase5-v001','./modules/dashboard-logistica/dashboard-logistica-catalogo-fletes.css?v=20261105-ticker-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20261109-dashboard-logistica-v002','./modules/dashboard-logistica/dashboard-logistica-catalogo-fletes.js?v=20261105-ticker-v001']},
     'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
-    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
-    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
-    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
-    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
-    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-pvo-comentarios-v001']},
+    'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
+    'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
+    'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
+    'logistica-pvo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
+    'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
 
     // Mantener este token sincronizado con el despliegue del Dashboard.
     'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20261106-modo-junta-cachefix-v004']},
@@ -277,10 +277,10 @@
     'cobranza-pagos':{css:['./modules/cobranza-cor/cobranza-cor-pagos.css?v=20261002-cobranza-pagos-list-buscable-tradicional-v004'],js:['./modules/cobranza-cor/cobranza-cor-pagos.js?v=20261015-pagos-proyecto-fuente-v002']},
     'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260914-horarios-f2-v001']},
 
-    'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
-    'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
-    'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
-    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261014-gc-paginacion-v001-limpieza-v002']},
+    'cobranza-uni-dashboard':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261109-detail-navigation-v001']},
+    'cobranza-uni-estados-cuenta':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261109-detail-navigation-v001']},
+    'cobranza-uni-mp-pro':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261109-detail-navigation-v001']},
+    'cobranza-uni-aditivas':{css:['./modules/cobranza-uni/cobranza-uni.css?v=20261014-gc-paginacion-v001'],js:['./modules/cobranza-uni/cobranza-uni.js?v=20261109-detail-navigation-v001']},
     // [BLT NOW | 2026-10-23 | COBRANZA_UNI_ADMINISTRACION_NAVEGACION_V001]
     'cobranza-uni-administracion':{css:['./modules/cobranza-uni/administracion/main/main.css?v=20261023-cua-wide-v002'],js:['./modules/cobranza-uni/administracion/main/main.js?v=20261023-cua-manual-fields-v001']}
   });
