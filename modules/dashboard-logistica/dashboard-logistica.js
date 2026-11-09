@@ -51,11 +51,11 @@
   </section>
 
   <section class="dl-card dl-accordion" data-dl-accordion="operativo">
-    <button id="dl-accordion-operativo-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-operativo-panel" aria-expanded="false">
+    <button id="dl-accordion-operativo-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-operativo-panel" aria-expanded="true">
       <span class="dl-accordion-title"><strong>Estado operativo</strong><small>Distribución por etapa y entregas históricas</small></span>
       <span class="dl-accordion-chevron" aria-hidden="true">⌄</span>
     </button>
-    <div id="dl-accordion-operativo-panel" class="dl-accordion-panel" hidden>
+    <div id="dl-accordion-operativo-panel" class="dl-accordion-panel">
   <section class="dl-card dl-section">
     <div class="dl-section-head">
       <div>
@@ -103,11 +103,11 @@
   </section>
 
   <section class="dl-card dl-accordion" data-dl-accordion="analisis">
-    <button id="dl-accordion-analisis-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-analisis-panel" aria-expanded="true">
+    <button id="dl-accordion-analisis-toggle" class="dl-accordion-toggle" type="button" aria-controls="dl-accordion-analisis-panel" aria-expanded="false">
       <span class="dl-accordion-title"><strong>Análisis logístico</strong><small>Período, promedios y contenedores</small></span>
       <span class="dl-accordion-chevron" aria-hidden="true">⌄</span>
     </button>
-    <div id="dl-accordion-analisis-panel" class="dl-accordion-panel">
+    <div id="dl-accordion-analisis-panel" class="dl-accordion-panel" hidden>
   <section class="dl-card dl-average-filter-card">
     <div class="dl-average-filter-copy">
       <p class="dl-eyebrow">Promedios logísticos</p>

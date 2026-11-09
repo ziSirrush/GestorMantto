@@ -9,14 +9,14 @@ const root=path.resolve(__dirname,'..');
 test('Nomenclatura nueva DDMMYY.API.DDMMYY.FE corresponde a manifiestos',()=>{
   const state=read();
   assert.equal(state.api,'091126.8');
-  assert.equal(state.frontend,'091126.1');
-  assert.equal(state.combined,'091126.8.091126.1');
+  assert.equal(state.frontend,'091126.2');
+  assert.equal(state.combined,'091126.8.091126.2');
   assert.match(fs.readFileSync(path.join(root,'tools/generate-build-info.js'),'utf8'),/readReleaseVersion/);
 });
 test('Solo front incrementa su contador sin tocar API',()=>{
   const s=read();
   assert.deepEqual(bump('frontend',s,'091126'),
-    {api:'091126.8',frontend:'091126.2',combined:'091126.8.091126.2'});
+    {api:'091126.8',frontend:'091126.3',combined:'091126.8.091126.3'});
 });
 test('Al cambiar de fecha el front reinicia revision y API permanece estable',()=>{
   const s=read();

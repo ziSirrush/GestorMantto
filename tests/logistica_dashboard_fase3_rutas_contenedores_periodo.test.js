@@ -204,7 +204,7 @@ test('refresco conserva el período elegido en vez de reiniciarlo a año actual'
 });
 
 test('cache-bust JS y CSS del Dashboard sin afectar PVO',()=>{
-  assert.match(loader,/dashboard-logistica\.js\?v=20261109-dashboard-logistica-v001/);
+  assert.match(loader,/dashboard-logistica\.js\?v=20261109-dashboard-logistica-v002/);
   assert.match(loader,/dashboard-logistica\.css\?v=20260923-dashboard-ppns-final-v001/);
   assert.match(loader,/logistica-produccion\.js\?v=/);
 });

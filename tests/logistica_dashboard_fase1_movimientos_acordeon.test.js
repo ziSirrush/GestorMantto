@@ -26,9 +26,13 @@ function runtime() {
   return { ...window.__BLT_F1_TEST__, elements };
 }
 
-test('solo cambios visuales: cinco columnas visibles y acordeon cerrado en HTML inicial', () => {
+test('acordeones iniciales: Estado operativo abierto, Analisis cerrado y PPNS cerrado', () => {
   const { HTML } = runtime();
   assert.match(HTML, /<th>Estatus anterior<\/th><th>Estatus nuevo<\/th>/);
+  assert.match(HTML, /id="dl-accordion-operativo-toggle"[^>]+aria-expanded="true"/);
+  assert.match(HTML, /id="dl-accordion-operativo-panel" class="dl-accordion-panel">/);
+  assert.match(HTML, /id="dl-accordion-analisis-toggle"[^>]+aria-expanded="false"/);
+  assert.match(HTML, /id="dl-accordion-analisis-panel" class="dl-accordion-panel" hidden>/);
   assert.match(HTML, /id="dl-sin-toggle"[^>]+aria-expanded="false"[^>]+aria-controls="dl-sin-panel"/);
   assert.match(HTML, /<div id="dl-sin-panel" hidden>/);
   assert.match(HTML, /<tbody id="dl-sin-body"><\/tbody>/);
@@ -106,7 +110,7 @@ test('acordeon permite expandir, contraer y activar desde encabezado', () => {
 });
 
 test('loader incluye version JS nueva sin cambiar CSS ni rutas PVO', () => {
-  assert.match(loader, /dashboard-logistica\.js\?v=20261109-dashboard-logistica-v001/);
+  assert.match(loader, /dashboard-logistica\.js\?v=20261109-dashboard-logistica-v002/);
   assert.match(loader, /dashboard-logistica\.css\?v=20260923-dashboard-ppns-final-v001/);
   assert.match(loader, /logistica-produccion\.js\?v=/);
 });
