@@ -45,19 +45,57 @@ Las pruebas de `tests/` con referencias a frontend y backend se consideran
 contratos compartidos y pueden ejecutarse en ambos pipelines. No se publica
 un artefacto distinto del correspondiente a cada componente.
 
-## Sincronización de PC local
+## Sincronización de PC local — dos rutas oficiales
 
-`tools/sync-local.ps1` permite actualizar una copia local limpia en la rama
-`main` con `git fetch` y `git merge --ff-only`. Se detiene cuando existen
-cambios sin guardar, otra rama activa o historial divergente. Para convertirlo
-en actualización periódica se debe instalar una tarea programada en cada PC;
-un workflow remoto no puede descargar archivos a una PC apagada o sin agente.
+El script `tools/sync-local.ps1` usa **únicamente** los destinos autorizados:
 
-Uso manual en Windows PowerShell:
+- T14s: `C:\Users\T14s\Downloads\mantto_gestor_frontend`
+- poock: `C:\Users\poock\Desktop\Publicada\mantto_gestor_frontend`
+
+Detecta la ruta que existe en el equipo, valida que sea **la raíz del clon Git
+ziSirrush/GestorMantto**, que `origin` sea el correcto y que la rama sea `main`.
+Si solo hay archivos copiados manualmente (sin carpeta `.git`), falla sin
+sobrescribir nada. No se ha podido confirmar remotamente la estructura real
+de esas carpetas; se debe verificar en cada PC.
+
+### Uso manual
+
+Desde PowerShell, en el equipo correspondiente:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\sync-local.ps1 -RepoPath "C:\ruta\GestorMantto"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\T14s\Downloads\mantto_gestor_frontend\tools\sync-local.ps1"
 ```
 
-No programar la tarea hasta comprobar que la ruta local y credenciales de
-`origin` correspondan al repositorio autorizado.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\poock\Desktop\Publicada\mantto_gestor_frontend\tools\sync-local.ps1"
+```
+
+### Activación periódica opcional (solo tras verificar cada equipo)
+
+La opción `-InstallTask` registra una tarea del usuario actual que revisa
+`main` cada **30 minutos mientras la sesión de Windows está iniciada**.
+La instalación no se ejecuta desde GitHub: se debe activar una vez en cada PC.
+
+En T14s:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\T14s\Downloads\mantto_gestor_frontend\tools\sync-local.ps1" -InstallTask
+```
+
+En poock:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\poock\Desktop\Publicada\mantto_gestor_frontend\tools\sync-local.ps1" -InstallTask
+```
+
+Para desinstalar, sustituir `-InstallTask` por `-RemoveTask`. Para ejecutar
+una actualización inmediatamente, omitir ambos.
+
+La sincronización utiliza `git fetch` + `git merge --ff-only`, transfiere
+diferencias de Git y **no sobrescribe cambios sin guardar**, no hace
+`reset --hard`, no usa `force` y no crea ni elimina archivos fuera de lo
+versionado en ese repositorio. Un error de red o un conflicto detiene esa
+ejecución sin sustituir forzosamente la versión local.
+
+**No iniciar la tarea hasta comprobar que cada carpeta sea un clon Git
+válido y que cuente con acceso a `origin`.**
