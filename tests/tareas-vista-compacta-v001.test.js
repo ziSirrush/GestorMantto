@@ -44,8 +44,8 @@ test('título y Ver abren el mismo detalle mientras los vínculos conservan su n
   assert.match(bindings, /document\.querySelectorAll\('\.task-open'\)/);
   assert.match(bindings, /ev\.stopPropagation\(\); openTaskDetail\(el\.dataset\.taskId\)/);
 
-  assert.match(taskRow, /module:'proyectos',id:t\.proyecto/);
-  assert.match(taskRow, /module:'portafolio',id:t\.equipo/);
+  assert.match(taskRow, /module:'detalle',type:'proyecto',id:t\.proyecto,source:'home-tarea'/);
+  assert.match(taskRow, /module:'detalle',type:'equipo',id:t\.equipo,source:'home-tarea'/);
   assert.match(bindings, /document\.querySelectorAll\('\[data-target\]'\)/);
   assert.match(bindings, /ev\.stopPropagation\(\)/);
 });
@@ -104,5 +104,5 @@ test('estilos y cache-bust habilitan layout fluido sin altura fija ni overflow h
   assert.match(compact, /overflow-wrap:anywhere/);
   assert.doesNotMatch(compact, /\.task-row\.task-row-compact[^}]*height:/s);
   assert.match(index, /styles\/home\.css\?v=20261019-tareas-meta-visibles-v001/);
-  assert.match(index, /modules\/home\/home\.js\?v=20261019-tareas-meta-visibles-v001/);
+  assert.match(index, /modules\/home\/home\.js\?v=20261109-detail-navigation-v001/);
 });
