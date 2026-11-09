@@ -476,11 +476,15 @@
     if($('hdr-user-name')) $('hdr-user-name').textContent = user.nombre || user.correo || 'Usuario';
     if($('hdr-user-company')) $('hdr-user-company').textContent = user.empresa || 'BLT';
     if($('hdr-user-role')) $('hdr-user-role').textContent = user.rol || (user.roles && user.roles[0]) || 'Sin rol';
+    // Panel de Control: excepcion por rol (Programador maestro o Director General).
+    // Las demas superficies .programmer conservan su regla previa.
+    const roles = new Set([user.rol, ...(Array.isArray(user.roles) ? user.roles : [])].filter(Boolean));
+    const isProgrammer = roles.has('Programador') || roles.has('Programador United') ||
+      roles.has('Programador Corellian');
+    const canUsePanelControl = !isViewingAs() && (roles.has('Programador') || roles.has('Director General'));
     document.querySelectorAll('.programmer').forEach(el=>{
-      const roles = new Set([user.rol, ...(user.roles||[])].filter(Boolean));
-      const isProgrammer = roles.has('Programador') || roles.has('Programador United') ||
-        roles.has('Programador Corellian');
-      el.style.display = isProgrammer ? '' : 'none';
+      const allowed = el.dataset?.route === 'panel-control' ? canUsePanelControl : isProgrammer;
+      el.style.display = allowed ? '' : 'none';
     });
   }
   function hideBootstrap(){ const el=$('auth-bootstrap-screen'); if(el) el.classList.add('hidden'); }

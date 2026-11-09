@@ -7,6 +7,7 @@
     permissionCodes:new Map(),
     permissionObserver:null,
     ready:false,
+    sessionPermissionsReady:false,
     permissionEpoch:0,
     users:[],
     usersLoaded:false,
@@ -274,6 +275,15 @@
   function hasModuleAccess(item){
     const permission=item.dataset.permission||'';
     if(permission==='home')return true;
+    // La administracion es una excepcion por rol, no un permiso de modulo.
+    // Exigir primero una respuesta valida de permisos de la sesion para no
+    // mostrar el enlace durante el arranque o ante fallos de autenticacion.
+    if(permission==='panel_control'){
+      if(!state.sessionPermissionsReady || window.ManttoAuth?.isViewingAs?.())return false;
+      const user=window.ManttoAuth?.getUser?.()||{};
+      const roles=new Set([user.rol,...(Array.isArray(user.roles)?user.roles:[])].filter(Boolean));
+      return roles.has('Programador') || roles.has('Director General');
+    }
     const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
     const rows=rowsForModule(item).filter(isActiveCatalogRow);
     if(exactPermissionCode){
@@ -340,6 +350,7 @@
         ])
     );
     state.canUseViewer=Boolean(json.data?.puede_usar_visor);
+    state.sessionPermissionsReady=true;
     return true;
   }
 
@@ -385,6 +396,7 @@
   }
   function resetPermissionState(){
     state.permissionEpoch+=1;
+    state.sessionPermissionsReady=false;
     state.catalog=[];
     state.permissions.clear();
     state.permissionStates.clear();
