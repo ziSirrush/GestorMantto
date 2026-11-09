@@ -1237,10 +1237,10 @@
       const money=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v)||0);
       const gestionCreditoId=Number(metrics.gestion_credito_id||0);
       const deudaNoVerificada=metrics.adeudo_verificado===false||metrics.adeudo_es_parcial===true;
-      const deudaSubtitle=deudaNoVerificada?'Importe bloqueado por validación':(gestionCreditoId>0?'Abrir Gestión de Crédito':'Sin Gestión de Crédito relacionada');
-      const debtKpi=(label,value,icon,tone)=>'<article class="mg-project-kpi mg-project-kpi-'+esc(tone)+(gestionCreditoId>0&&!deudaNoVerificada?' mg-project-kpi-link':'')+'"'+(gestionCreditoId>0&&!deudaNoVerificada?' data-project-gc-id="'+esc(gestionCreditoId)+'" tabindex="0" role="button"':'')+'><span class="mg-project-kpi-icon" aria-hidden="true">'+esc(icon)+'</span><strong>'+esc(deudaNoVerificada?'No verificado':money(value))+'</strong><span>'+esc(label)+'</span><small>'+esc(deudaSubtitle)+'</small></article>';
+      const debtSubtitleByKind={gc:'Abrir Gestión de Crédito',mp:'Abrir Mantenimiento Preventivo',va:'Abrir Venta Adicional'};
+      const debtKpi=(kind,label,value,icon,tone)=>{const clickable=gestionCreditoId>0&&!deudaNoVerificada;const subtitle=deudaNoVerificada?'Importe bloqueado por validación':(clickable?debtSubtitleByKind[kind]:'Sin Gestión de Crédito relacionada');return '<article class="mg-project-kpi mg-project-kpi-'+esc(tone)+(clickable?' mg-project-kpi-link':'')+'"'+(clickable?' data-project-gc-id="'+esc(gestionCreditoId)+'" data-project-debt-kind="'+esc(kind)+'" tabindex="0" role="button"':'')+'><span class="mg-project-kpi-icon" aria-hidden="true">'+esc(icon)+'</span><strong>'+esc(deudaNoVerificada?'No verificado':money(value))+'</strong><span>'+esc(label)+'</span><small>'+esc(subtitle)+'</small></article>';};
       const debtWarning=deudaNoVerificada?'<p class="mg-project-debt-warning" role="status">⚠️ '+esc(metrics.adeudo_advertencia||'No fue posible verificar de forma segura los importes de Cobranza United.')+'</p>':'';
-      const debtKpis=debtWarning+'<div class="mg-project-kpis cols-3">'+debtKpi('Adeudo Total',metrics.adeudo_total,'💰','red')+debtKpi('Adeudo MP',metrics.adeudo_mp,'🧾','amber')+debtKpi('Adeudo VA',metrics.adeudo_va,'➕','indigo')+'</div>';
+      const debtKpis=debtWarning+'<div class="mg-project-kpis cols-3">'+debtKpi('gc','Adeudo Total',metrics.adeudo_total,'💰','red')+debtKpi('mp','Adeudo MP',metrics.adeudo_mp,'🧾','amber')+debtKpi('va','Adeudo VA',metrics.adeudo_va,'➕','indigo')+'</div>';
       const criticalPeriodSubtitle='≥ '+esc(metrics.criticos_min_fallas||3)+' fallas BLT · '+esc(metrics.criticos_periodo_dias||35)+' días';
       const equipmentKpis='<div class="mg-project-kpis cols-3">'+kpi('Equipos activos',metrics.equipos_activos,'🛠️','green','Portafolio activo')+kpi('Equipos detenidos',metrics.equipos_detenidos,'⛔','red','No funcionando')+kpi('Críticos del período',metrics.equipos_criticos_periodo,'💥','indigo',criticalPeriodSubtitle)+'</div>';
       const callKpis='<div class="mg-project-kpis cols-4">'+kpi('Total de llamadas',metrics.llamadas_total_anio,'☎️','blue','Año actual')+kpi('Resp. BLT',metrics.llamadas_blt_anio,'🔧','indigo','Año actual')+kpi('Resp. Cliente',metrics.llamadas_cliente_anio,'👤','cyan','Año actual')+kpi('Sin responsable',metrics.llamadas_sin_responsable_anio,'❓','slate','Año actual')+'</div>';
@@ -1262,15 +1262,36 @@
       const detailRoot=document.getElementById('mg-detail-body');
       bindLinks(detailRoot);
       bindProjectPhotoCover(detailRoot,{projectId:photoProjectId,projectName:proyectoVisible,photos,principalUrl,photoDomain:PROJECT_PHOTO_DOMAIN_UNI});
-      detailRoot.querySelectorAll('[data-project-gc-id]').forEach(card=>{
-        const openGestionCredito=()=>{
+      detailRoot.querySelectorAll('[data-project-debt-kind][data-project-gc-id]').forEach(card=>{
+        const openDebtDetail=async()=>{
           const id=Number(card.getAttribute('data-project-gc-id')||0);
-          if(id>0&&window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
+          const kind=String(card.getAttribute('data-project-debt-kind')||'gc');
+          if(!(id>0)||!window.ManttoRouter||typeof window.ManttoRouter.go!=='function'||card.dataset.loading==='1')return;
+          if(kind==='gc'){
             window.ManttoRouter.go('cobranza-uni-estados-cuenta',{id_gc:id,id:id,proyecto:proyecto,source:'detalle_proyecto'});
+            return;
+          }
+          card.dataset.loading='1';
+          try{
+            const detail=await fetchJson('/api/cobranza-uni/gestion-credito/'+encodeURIComponent(id)+'/detalle');
+            const rows=kind==='mp'?(Array.isArray(detail.mantenimiento_preventivo)?detail.mantenimiento_preventivo:[]):(Array.isArray(detail.venta_adicional)?detail.venta_adicional:[]);
+            const target=rows.find(item=>Number(kind==='mp'?item&&item.id_dmp:item&&item.id_pc)>0);
+            if(!target)throw new Error(kind==='mp'?'No existe Mantenimiento Preventivo relacionado.':'No existe Venta Adicional relacionada.');
+            if(kind==='mp'){
+              const targetId=Number(target.id_dmp);
+              window.ManttoRouter.go('cobranza-uni-mp-pro',{id_dmp:targetId,id:targetId,proyecto:proyecto,source:'detalle_proyecto'});
+            }else{
+              const targetId=Number(target.id_pc);
+              window.ManttoRouter.go('cobranza-uni-aditivas',{id_pc:targetId,id:targetId,proyecto:proyecto,source:'detalle_proyecto'});
+            }
+          }catch(error){
+            alert(error&&error.message?error.message:'No fue posible abrir el detalle relacionado.');
+          }finally{
+            delete card.dataset.loading;
           }
         };
-        card.addEventListener('click',openGestionCredito);
-        card.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openGestionCredito();}});
+        card.addEventListener('click',openDebtDetail);
+        card.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openDebtDetail();}});
       });
       detailRoot.querySelectorAll('.mg-clickable-row').forEach(row=>row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();row.click();}}));
       const ticketGroupHeaders=Array.from(detailRoot.querySelectorAll('[data-ticket-group-toggle]'));

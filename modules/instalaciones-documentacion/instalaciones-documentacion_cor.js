@@ -317,8 +317,14 @@
   function openEquipment_cor(row){
     const permissions = state.data && state.data.permissions ? state.data.permissions : {};
     if(permissions.listado_abrir_detalle !== true) return;
+    const project=String(row&&row.proyecto||'').trim();
+    const reference=String(row&&row.referencia_sitio||'').trim();
+    if(!project||!reference) return;
+    const key=project+'|||'+reference;
     if(window.ManttoDetails && typeof window.ManttoDetails.openEquipo === 'function'){
-      window.ManttoDetails.openEquipo(row.referencia_sitio);
+      window.ManttoDetails.openEquipo(key);
+    }else if(window.ManttoRouter&&typeof window.ManttoRouter.go==='function'){
+      window.ManttoRouter.go('detalle',{type:'equipo',id:key,projectName:project,referencia_sitio:reference,source:'instalaciones-documentacion'});
     }
   }
 

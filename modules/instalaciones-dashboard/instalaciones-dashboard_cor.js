@@ -488,12 +488,13 @@
   function openProject_cor(project){
     const name = raw(project);
     if(!name) return;
+    const options={template:'cliente-unificado',source:'instalaciones-dashboard',projectName:name};
     if(window.ManttoDetails && typeof window.ManttoDetails.openProyecto === 'function'){
-      window.ManttoDetails.openProyecto(name);
+      window.ManttoDetails.openProyecto(name,options);
       return;
     }
     if(window.ManttoRouter && typeof window.ManttoRouter.open === 'function'){
-      window.ManttoRouter.open('detalle', { type:'proyecto', id:name, source:'instalaciones-dashboard' });
+      window.ManttoRouter.open('detalle', Object.assign({type:'proyecto',id:name},options));
     }
   }
 

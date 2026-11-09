@@ -12,7 +12,7 @@ const frontend = read('modules/instalaciones-dashboard/instalaciones-dashboard_c
 const loader = read('core/module-loader.js');
 const index = read('index.html');
 const sw = read('service-worker.js');
-const REV = '20261106-modo-junta-cachefix-v004';
+const REV = '20261109-detail-navigation-v002';
 
 test('La version del Dashboard, cargador y service worker invalida la revision anterior', () => {
   assert.ok(loader.includes('instalaciones-dashboard_cor.js?v=' + REV));

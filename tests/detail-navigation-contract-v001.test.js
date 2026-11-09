@@ -12,6 +12,9 @@ const home=read('modules/home/home.js');
 const pvo=read('modules/logistica-produccion/logistica-produccion.js');
 const cobranza=read('modules/cobranza-uni/cobranza-uni.js');
 const resumen=read('modules/resumen-dia/resumen-dia.js');
+const details=read('core/details.js');
+const instalacionesDoc=read('modules/instalaciones-documentacion/instalaciones-documentacion_cor.js');
+const instalacionesDashboard=read('modules/instalaciones-dashboard/instalaciones-dashboard_cor.js');
 
 test('Home/Tareas abre Proyecto y Equipo por la ruta global detalle',()=>{
   assert.match(home,/module:'detalle',type:'proyecto',id:t\.proyecto,source:'home-tarea'/);
@@ -55,4 +58,26 @@ test('GC directo por id no carga el main antes del detalle',()=>{
 test('MP directo no destruye detailId durante su carga',()=>{
   assert.match(cobranza,/if\(!row\)\{\s*if\(mpState_uni\.detailLoading\) return;/);
   assert.doesNotMatch(cobranza,/if\(!row\)\{ mpState_uni\.detailId=null; renderMpMain_uni\(\); return; \}/);
+});
+
+
+test('Detalle Proyecto UNI separa GC, MP y VA sin pasar por un main',()=>{
+  assert.match(details,/data-project-debt-kind/);
+  assert.match(details,/debtKpi\('gc','Adeudo Total'/);
+  assert.match(details,/debtKpi\('mp','Adeudo MP'/);
+  assert.match(details,/debtKpi\('va','Adeudo VA'/);
+  assert.match(details,/ManttoRouter\.go\('cobranza-uni-estados-cuenta',\{id_gc:id,id:id,proyecto:proyecto,source:'detalle_proyecto'\}\)/);
+  assert.match(details,/ManttoRouter\.go\('cobranza-uni-mp-pro',\{id_dmp:targetId,id:targetId,proyecto:proyecto,source:'detalle_proyecto'\}\)/);
+  assert.match(details,/ManttoRouter\.go\('cobranza-uni-aditivas',\{id_pc:targetId,id:targetId,proyecto:proyecto,source:'detalle_proyecto'\}\)/);
+});
+
+test('Instalaciones Documentacion usa identidad Corellian completa para Equipo',()=>{
+  assert.match(instalacionesDoc,/const key=project\+'\|\|\|'\+reference/);
+  assert.match(instalacionesDoc,/ManttoDetails\.openEquipo\(key\)/);
+  assert.doesNotMatch(instalacionesDoc,/ManttoDetails\.openEquipo\(row\.referencia_sitio\)/);
+});
+
+test('Instalaciones Dashboard abre Proyecto con plantilla unificada',()=>{
+  assert.match(instalacionesDashboard,/template:'cliente-unificado',source:'instalaciones-dashboard',projectName:name/);
+  assert.match(instalacionesDashboard,/ManttoDetails\.openProyecto\(name,options\)/);
 });
