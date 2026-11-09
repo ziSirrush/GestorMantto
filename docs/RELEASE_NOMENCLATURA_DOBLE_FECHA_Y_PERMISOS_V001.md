@@ -13,10 +13,10 @@
 
 Formato publicado: `DDMMYY.R_API.DDMMYY.R_FRONT`.
 
-Ejemplo del primer fix integrado:
+Versión publicada tras QA del fix integrado (la revisión 091126.1 falló la validación del frontend y no se publicó):
 - Versión API: **091126.6**.
-- Versión frontend: **091126.1**.
-- Versión combinada: **091126.6.091126.1**.
+- Versión frontend: **091126.2**.
+- Versión combinada: **091126.6.091126.2**.
 
 El último despliegue API anterior usaba `Version 110926.5` (formato antiguo MMDDYY). En esta transición se interpreta como el 09/11/2026 revisión 5; el siguiente despliegue de API es revisión 6. No se reescribe el historial de commits anteriores.
 
@@ -39,7 +39,7 @@ node tools/release-version.js verify
 El comando `verify` valida la consistencia y, en GitHub Actions de tipo `push`, exige que el título del commit sea exactamente `Version <version_combinada>`. Por ejemplo:
 
 ```bash
-git commit -m "Version 091126.6.091126.1"
+git commit -m "Version 091126.6.091126.2"
 ```
 
 Los workflows de CI/CD siguen separados por dominios:
