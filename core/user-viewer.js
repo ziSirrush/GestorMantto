@@ -455,8 +455,8 @@
     }
   }
   document.addEventListener('mantto:auth-ready',()=>{
-    if(!state.ready){init();return;}
-    reloadPermissions().catch(error=>{
+    if(!state.ready)return init();
+    return reloadPermissions().catch(error=>{
       console.error('[Permisos de sesión]',error);
       resetPermissionState();
       applySidebar({redirectUnauthorized:false});
