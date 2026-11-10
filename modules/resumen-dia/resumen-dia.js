@@ -6,6 +6,7 @@
   let allTickets = [], portafolioItems = [], dates = [], currentDayIdx = 0, currentDayTickets = [], tableFiltered = [], page = 0;
   let criticalEquipmentCodes = new Set();
   let criticalCriteria = { fallas: 3, periodo: 35 };
+  let criticalListenerBound = false;
   const pageSize = 30;
 
   function byId(id){ return document.getElementById(id); }
@@ -204,7 +205,8 @@
   async function fetchResumenInicial(){
     setStatus('loading','Cargando Aiven...');
     try{
-      const response = await fetch(apiUrl('/api/operacion/resumen-dia/inicial'), {
+      const params=new URLSearchParams({criticos_periodo:String(criticalCriteria.periodo||35),min_fallas:String(criticalCriteria.fallas||3)});
+      const response = await fetch(apiUrl('/api/operacion/resumen-dia/inicial?'+params.toString()), {
         cache:'no-store',
         headers:Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {})
       });
@@ -215,6 +217,9 @@
       const portafolioRows = Array.isArray(data.portafolio) ? data.portafolio : [];
       const tickets = ticketRows.map(mapTicket).filter(t=>t.n && t.fr);
       const portafolio = portafolioRows.map(mapPortafolio).filter(p=>p.cod || p.pro);
+      const crit=data.criticidad||{};
+      criticalCriteria={fallas:Number(crit.min_fallas_blt)||criticalCriteria.fallas||3,periodo:Number(crit.dias)||criticalCriteria.periodo||35};
+      criticalEquipmentCodes=new Set((Array.isArray(data.criticos_codigos)?data.criticos_codigos:[]).map(nrm).filter(Boolean));
       setStatus('ok','Aiven · '+tickets.length.toLocaleString('es-MX')+' tickets');
       return { tickets, portafolio, alcance: payload.alcance || null };
     }catch(error){
@@ -223,39 +228,22 @@
       return { tickets: [], portafolio: [], alcance: null };
     }
   }
-  async function fetchCriticidadUsuario(){
-    const authHeaders = Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {});
-
-    try{
-      const prefResponse = await fetch(apiUrl('/api/usuarios/me/criticos-preferencias'), {cache:'no-store', headers:authHeaders});
-      if(prefResponse.ok){
-        const prefPayload = await prefResponse.json().catch(()=>({}));
-        const pref = prefPayload.data || prefPayload.preferencias || prefPayload.user || prefPayload || {};
-        const fallas = parseInt(pref.criticos_fallas, 10);
-        const periodo = parseInt(pref.criticos_periodo, 10);
-        criticalCriteria = {
-          fallas: Number.isFinite(fallas) && fallas > 0 ? fallas : 3,
-          periodo: Number.isFinite(periodo) && periodo > 0 ? periodo : 35
-        };
-      }
-    }catch(error){
-      criticalCriteria = { fallas: 3, periodo: 35 };
-    }
-
-    try{
-      // No enviamos min_fallas ni dias: el backend usa las preferencias
-      // específicas del usuario autenticado y sus defaults 3/35.
-      const response = await fetch(apiUrl('/api/equipos-criticos?page=1&page_size=5000'), {cache:'no-store', headers:authHeaders});
-      if(!response.ok) throw new Error('HTTP '+response.status);
-      const payload = await response.json();
-      const rows = Array.isArray(payload) ? payload : (payload.data || payload.rows || []);
-      criticalEquipmentCodes = new Set(rows.map(row=>nrm(row.codigo_equipo || row.numero_equipo || row.equipo || row.cod)).filter(Boolean));
-      return criticalEquipmentCodes;
-    }catch(error){
-      console.warn('[Resumen del Día] No se pudo cargar la criticidad del usuario:', error.message);
-      criticalEquipmentCodes = new Set();
-      return criticalEquipmentCodes;
-    }
+  function syncCriticalCriteriaFromSession(){
+    const user=window.ManttoAuth&&typeof window.ManttoAuth.getUser==='function'?window.ManttoAuth.getUser():null;
+    const fallas=parseInt(user&&user.criticos_fallas,10);
+    const periodo=parseInt(user&&user.criticos_periodo,10);
+    criticalCriteria={
+      fallas:Number.isFinite(fallas)&&fallas>0?fallas:3,
+      periodo:Number.isFinite(periodo)&&periodo>0?periodo:35
+    };
+  }
+  async function onCriticalPreferencesUpdated(event){
+    const detail=event&&event.detail?event.detail:{};
+    const fallas=parseInt(detail.criticos_fallas,10);
+    const periodo=parseInt(detail.criticos_periodo,10);
+    if(Number.isFinite(fallas)&&fallas>0) criticalCriteria.fallas=fallas;
+    if(Number.isFinite(periodo)&&periodo>0) criticalCriteria.periodo=periodo;
+    await load();
   }
   function pfByCod(cod){ return portafolioItems.find(p=>p.cod===cod); }
   function openEquipo(cod){
@@ -708,20 +696,17 @@
     }
   }
 
-  function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
+  function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); if(!criticalListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',onCriticalPreferencesUpdated);criticalListenerBound=true;} byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
   async function load(){
     ensureResumenVisualFixes();
 
-    // FASE 1/11: la primera llamada de datos del modulo ya llega filtrada
-    // por Puerta OPERACION + usuario_zop. No existe fallback a endpoints globales.
+    syncCriticalCriteriaFromSession();
+    // Snapshot territorial: tickets + portafolio + criticidad en una sola llamada.
     const initial = await fetchResumenInicial();
     allTickets = initial.tickets;
     portafolioItems = initial.portafolio;
 
-    await Promise.all([
-      fetchCriticidadUsuario(),
-      window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.load() : Promise.resolve()
-    ]);
+    await (window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.load() : Promise.resolve());
 
     initData();
     render();
