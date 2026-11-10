@@ -28,21 +28,21 @@ const fakeDb = {
       return [[{antiguedad:'0-6 MESES'}]];
     }
     if (sql.startsWith('SELECT COUNT(*) AS articulos') && sql.includes('AS piezas')) {
-      return [[{articulos:2,piezas:'3.5000',valorTotal:'100.0000',responsables:1}]];
+      return [[{articulos:2,piezas:'3.5000',valorTotal:'100.0000',responsables:1,discrepanciasCosto:1}]];
     }
     if (sql.startsWith('SELECT COUNT(*) AS articulos') && sql.includes('AS cantidad')) {
-      return [[{articulos:2,cantidad:'3.5000',valorTotal:'100.0000'}]];
+      return [[{articulos:2,cantidad:'3.5000',valorTotal:'100.0000',discrepanciasCosto:1}]];
     }
     if (sql.includes('GROUP BY antiguedad')) {
       return [[{antiguedad:'0-6 MESES',articulos:2,valorTotal:'100.0000'}]];
     }
     if (sql.includes('GROUP BY responsable')) {
-      return [[{responsable:'ANA',articulos:2,cantidad:'3.5000',valorTotal:'100.0000',desde:'2026-11-01',diasPrestamo:4,sitios:1}]];
+      return [[{responsable:'ANA',articulos:2,cantidad:'3.5000',valorTotal:'100.0000',discrepanciasCosto:1,desde:'2026-11-01',diasPrestamo:4,sitios:1}]];
     }
     if (sql.includes('ORDER BY p.id_prestamo DESC')) {
       return [[{id:10,idArticuloNs:'3',articulo:'Pieza de prueba',codigo:'AB3',ag:'AG3',
-        empresa:'Corellian',responsable:'ANA',sitio:'AD 2',cantidad:'2.5000',costo:'50.0000',
-        costoUnitario:'20.000000',fecha:'2026-11-01',dias:4,antiguedad:'0-6 MESES'}]];
+        empresa:'Corellian',responsable:'ANA',sitio:'AD 2',cantidad:'2.5000',costo:null,
+        costoUnitario:null,costosCatalogo:2,costoDiscrepante:1,fecha:'2026-11-01',dias:4,antiguedad:'0-6 MESES'}]];
     }
     throw new Error('SQL no reconocido: '+sql.slice(0,100));
   }
@@ -94,7 +94,8 @@ test('catálogos: Aiven independiente del lote Inventario y con alcance seguro',
 test('resumen: valor total suma cantidad por precio unitario de catálogo según AG', async () => {
   queries.length=0;
   const out=await loans.getLoanSummary(scope,{company:'Corellian'});
-  assert.deepEqual(out.kpis,{articulos:2,piezas:3.5,valorTotal:100,responsables:1});
+  assert.deepEqual(out.kpis,{articulos:2,piezas:3.5,valorTotal:100,responsables:1,discrepanciasCosto:1});
+  assert.equal(out.rows[0].discrepanciasCosto,1);
   assert.equal(out.rows[0].porcentaje,100);
   assert.equal(out.rows[0].cantidad,3.5);
   assert.equal(out.rows[0].sitios,1);
@@ -115,14 +116,18 @@ test('detalle: parámetros SQL, filtros y paginación por 30', async () => {
   assert.equal(out.pagination.page,2);
   assert.equal(out.pagination.pageSize,30);
   assert.equal(out.pagination.total,2);
-  assert.equal(out.rows[0].costo,50);
-  assert.equal(out.rows[0].costoUnitario,20);
+  assert.equal(out.rows[0].costo,null);
+  assert.equal(out.rows[0].costoUnitario,null);
+  assert.equal(out.rows[0].costosCatalogo,2);
+  assert.equal(out.rows[0].costoDiscrepante,true);
+  assert.equal(out.summary.discrepanciasCosto,1);
   assert.equal(out.rows[0].cantidad,2.5);
   assert.equal(queries.length,2);
   assert.deepEqual(queries[0].params.slice(-2),[30,30]);
   assert.ok(queries.every(x=>x.params.includes('Corellian')&&x.params.includes('ANA')&&x.params.includes('0-6 MESES')));
   assert.ok(queries.every(x=>x.sql.includes('almacen_ns_catalogo_articulos')));
   assert.ok(queries.every(x=>x.sql.includes('ultimo_precio_compra')));
+  assert.ok(queries.every(x=>x.sql.includes('costos_distintos_catalogo')));
   assert.match(queries[0].sql,/p\.cantidad \* cat\.costo_unitario_catalogo/);
   assert.doesNotMatch(queries[0].sql,/p\.valor AS costo/);
   assert.doesNotMatch(queries[0].sql,/p\.costo_unitario AS costoUnitario/);
@@ -180,8 +185,10 @@ test('contrato: backend conecta rutas de préstamo y frontend abandona Excel', (
   assert.match(frontend,/Fuente Aiven/);
   assert.match(frontend,/Pendientes de asignar empresa/);
   assert.match(frontend,/Estos usuarios no están en nuestra BD/);
+  assert.match(frontend,/Discrepancia de costos en catálogo/);
+  assert.match(frontend,/valor parcial/);
   assert.match(routes,/prestamos\/pendientes-empresa/);
   assert.match(routes,/router\.patch\('\/prestamos\/pendientes-empresa'/);
   assert.doesNotMatch(frontend,/statusPill\('Fuente Excel','ok'\)/);
-  assert.match(loader,/20261110-prestamos-empresa-pendiente-v001/);
+  assert.match(loader,/20261110-prestamos-costo-discrepancia-v001/);
 });

@@ -23,7 +23,8 @@ const CATALOG_COST_JOIN = `LEFT JOIN (
         WHEN COUNT(DISTINCT c.ultimo_precio_compra)=1
         THEN MAX(c.ultimo_precio_compra)
         ELSE NULL
-      END AS costo_unitario_catalogo
+      END AS costo_unitario_catalogo,
+      COUNT(DISTINCT c.ultimo_precio_compra) AS costos_distintos_catalogo
     FROM almacen_ns_catalogo_articulos c
     WHERE c.id_lote=(
       SELECT l.id_lote
@@ -174,13 +175,15 @@ async function getLoanSummary(scope, query = {}) {
   const today = cdmxDate();
   const [stats, ages, responsibles] = await Promise.all([
     db.query('SELECT COUNT(*) AS articulos, SUM(p.cantidad) AS piezas, ' +
-      'SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal, COUNT(DISTINCT NULLIF(TRIM(p.responsable), \'\')) AS responsables ' +
+      'SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal, COUNT(DISTINCT NULLIF(TRIM(p.responsable), \'\')) AS responsables, ' +
+      'SUM(CASE WHEN COALESCE(cat.costos_distintos_catalogo,0)>1 THEN 1 ELSE 0 END) AS discrepanciasCosto ' +
       'FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where, f.args),
     db.query("SELECT COALESCE(NULLIF(TRIM(p.antiguedad), ''), 'SIN CLASIFICAR') AS antiguedad, " +
       'COUNT(*) AS articulos, SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal ' +
       'FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where + ' GROUP BY antiguedad ORDER BY antiguedad', f.args),
     db.query('SELECT ' + RESPONSIBLE_SQL + ' AS responsable, COUNT(*) AS articulos, ' +
       'SUM(p.cantidad) AS cantidad, SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal, ' +
+      'SUM(CASE WHEN COALESCE(cat.costos_distintos_catalogo,0)>1 THEN 1 ELSE 0 END) AS discrepanciasCosto, ' +
       'MIN(p.fecha_evento) AS desde, ' +
       'CASE WHEN MIN(p.fecha_evento) IS NULL THEN NULL ELSE GREATEST(0, DATEDIFF(?, MIN(p.fecha_evento))) END AS diasPrestamo, ' +
       "COUNT(DISTINCT NULLIF(TRIM(p.sitio), '')) AS sitios " +
@@ -197,7 +200,8 @@ async function getLoanSummary(scope, query = {}) {
       articulos: Number(k.articulos || 0),
       piezas: numeric(k.piezas),
       valorTotal: totalValue,
-      responsables: Number(k.responsables || 0)
+      responsables: Number(k.responsables || 0),
+      discrepanciasCosto: Number(k.discrepanciasCosto || 0)
     },
     ages: ages[0].map(row => ({
       antiguedad: row.antiguedad,
@@ -209,6 +213,7 @@ async function getLoanSummary(scope, query = {}) {
       articulos: Number(row.articulos || 0),
       cantidad: numeric(row.cantidad),
       valorTotal: numeric(row.valorTotal),
+      discrepanciasCosto: Number(row.discrepanciasCosto || 0),
       porcentaje: totalValue > 0 && row.valorTotal != null
         ? (Number(row.valorTotal) / totalValue) * 100 : null,
       diasPrestamo: numeric(row.diasPrestamo),
@@ -228,13 +233,17 @@ async function getLoans(scope, query = {}) {
     db.query('SELECT p.id_prestamo AS id, p.id_articulo_ns AS idArticuloNs, ' +
       'p.nombre_articulo AS articulo, p.codigo, p.ag, p.empresa, ' +
       'p.responsable, p.sitio, p.cantidad, ' + CATALOG_TOTAL_COST_SQL + ' AS costo, ' +
-      CATALOG_UNIT_COST_SQL + ' AS costoUnitario, p.fecha_evento AS fecha, ' +
+      CATALOG_UNIT_COST_SQL + ' AS costoUnitario, ' +
+      'COALESCE(cat.costos_distintos_catalogo,0) AS costosCatalogo, ' +
+      'CASE WHEN COALESCE(cat.costos_distintos_catalogo,0)>1 THEN 1 ELSE 0 END AS costoDiscrepante, ' +
+      'p.fecha_evento AS fecha, ' +
       'CASE WHEN p.fecha_evento IS NULL THEN NULL ELSE GREATEST(0, DATEDIFF(?, p.fecha_evento)) END AS dias, ' +
       'p.antiguedad FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where +
       ' ORDER BY p.id_prestamo DESC LIMIT ? OFFSET ?', [today, ...f.args, PAGE_SIZE, offset]),
     db.query('SELECT COUNT(*) AS articulos, SUM(p.cantidad) AS cantidad, ' +
-      'SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal FROM almacen_ns_prestamos p ' +
-      CATALOG_COST_JOIN + ' ' + f.where, f.args)
+      'SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal, ' +
+      'SUM(CASE WHEN COALESCE(cat.costos_distintos_catalogo,0)>1 THEN 1 ELSE 0 END) AS discrepanciasCosto ' +
+      'FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where, f.args)
   ]);
   const row = stats[0][0] || {};
   const total = Number(row.articulos || 0);
@@ -244,12 +253,15 @@ async function getLoans(scope, query = {}) {
     rows: data[0].map(item => ({
       ...item, cantidad: numeric(item.cantidad),
       costo: numeric(item.costo), costoUnitario: numeric(item.costoUnitario),
+      costosCatalogo: Number(item.costosCatalogo || 0),
+      costoDiscrepante: Number(item.costoDiscrepante || 0) > 0,
       dias: numeric(item.dias)
     })),
     summary: {
       articulos: total,
       cantidad: numeric(row.cantidad),
-      valorTotal: numeric(row.valorTotal)
+      valorTotal: numeric(row.valorTotal),
+      discrepanciasCosto: Number(row.discrepanciasCosto || 0)
     },
     pagination: {
       page, pageSize: PAGE_SIZE, total, pages: Math.max(1, Math.ceil(total / PAGE_SIZE))
