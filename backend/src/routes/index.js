@@ -62,6 +62,7 @@ const experimentalNsRoutes = require('../modules/experimental-ns/experimental-ns
 const experimentalNsResumenDiaRoutes = require('../modules/experimental-ns/experimental-ns-resumen-dia.routes');
 const experimentalNsEquiposCriticosRoutes = require('../modules/experimental-ns/experimental-ns-equipos-criticos.routes');
 const experimentalNsProyectosMantenimientoRoutes = require('../modules/experimental-ns/experimental-ns-proyectos-mantenimiento.routes');
+const experimentalNsEquiposParadosRoutes = require('../modules/experimental-ns/experimental-ns-equipos-parados.routes');
 const experimentalNsLiveRoutes = require('../modules/experimental-ns/experimental-ns-live.routes');
 // [NS Integration | 2026-10-26 | receptor V001 - sin escritura hasta aprobacion de destino]
 const netsuiteIntegrationRoutes = require('../modules/netsuite-integration/netsuite-integration.routes');
@@ -128,6 +129,7 @@ router.use('/experimental-ns', experimentalNsRoutes);
 router.use('/experimental-ns', experimentalNsResumenDiaRoutes);
 router.use('/experimental-ns', experimentalNsEquiposCriticosRoutes);
 router.use('/experimental-ns', experimentalNsProyectosMantenimientoRoutes);
+router.use('/experimental-ns', experimentalNsEquiposParadosRoutes);
 router.use('/experimental-ns', experimentalNsLiveRoutes);
 router.use('/integraciones/netsuite/v1', netsuiteIntegrationRoutes);
 router.use(dataRoutes);

@@ -22,6 +22,12 @@
       title: 'Proyectos de Mantenimiento',
       next: 'Fase 5 (integrada)',
       sources: ['ns_portafolio_pruebas', 'ns_tickets_pruebas']
+    },
+    'experimental-ns-equipos-parados': {
+      icon: '⛔',
+      title: 'Equipos Parados',
+      next: 'Adaptación EP integrada',
+      sources: ['ns_tickets_pruebas', 'ns_portafolio_pruebas']
     }
   });
 
@@ -149,10 +155,48 @@
     return true;
   }
 
+
+  // EP: tablero Equipos Parados aislado; solo clones NS, sin fallback productivo.
+  function loadEquiposParadosNS(){
+    const route = 'experimental-ns-equipos-parados';
+    const view = document.getElementById('view-' + route);
+    if(!view) return false;
+    const loaded = window.ManttoEquiposParadosNS;
+    if(loaded && typeof loaded.init === 'function') return loaded.init();
+    const loader = window.ManttoModuleLoader;
+    if(!loader || typeof loader.loadStyle !== 'function' || typeof loader.loadScript !== 'function'){
+      view.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Experimental NS</h1><p>No se encuentra el cargador de modulos.</p></section></div>';
+      return false;
+    }
+    view.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Equipos Parados · Experimental NS</h1><p>Preparando tablero de solo lectura...</p></section></div>';
+    Promise.all([
+      loader.loadStyle('./modules/experimental-ns/equipos-parados/equipos-parados-ns.css?v=20261110-v001'),
+      loader.loadStyle('./modules/experimental-ns/experimental-ns-protection.css?v=20261026-f7-v001'),
+      loader.loadStyle('./modules/experimental-ns/experimental-ns-performance.css?v=20261026-f8-v001')
+    ]).then(function(){
+      return loader.loadScript('./modules/experimental-ns/experimental-ns-performance.js?v=20261026-f8-v001');
+    }).then(function(){
+      return loader.loadScript('./modules/experimental-ns/experimental-ns-protection.js?v=20261026-f7-v001');
+    }).then(function(){
+      return loader.loadScript('./modules/experimental-ns/equipos-parados/equipos-parados-ns.js?v=20261110-v001');
+    }).then(function(){
+      if(window.ManttoRouter?.getCurrent?.()?.route !== route) return;
+      if(!window.ManttoEquiposParadosNS?.init) throw new Error('Modulo Equipos Parados NS no disponible.');
+      window.ManttoEquiposParadosNS.init();
+    }).catch(function(error){
+      console.error('[EXPERIMENTAL_NS_EQUIPOS_PARADOS]',error);
+      if(window.ManttoRouter?.getCurrent?.()?.route === route){
+        view.innerHTML = '<div class="expns-page"><section class="expns-card"><h1>Equipos Parados · Experimental NS</h1><p>No fue posible cargar el modulo. No se consulta Produccion como respaldo.</p></section></div>';
+      }
+    });
+    return true;
+  }
+
   function initNsF1(route){
     if(String(route || '') === 'experimental-ns-resumen-dia') return loadResumenDiaNS();
     if(String(route || '') === 'experimental-ns-equipos-criticos') return loadEquiposCriticosNS();
     if(String(route || '') === 'experimental-ns-proyectos-mantenimiento') return loadProyectosMantenimientoNS();
+    if(String(route || '') === 'experimental-ns-equipos-parados') return loadEquiposParadosNS();
     const module = MODULES_NS_F1[String(route || '')];
     const view = document.getElementById('view-' + String(route || ''));
     if(!module || !view) return false;
