@@ -35,7 +35,9 @@ async function getInitialData(req) {
       source: 'aiven',
       data: {
         tickets: [],
-        portafolio: []
+        portafolio: [],
+        criticidad:{dias:Number(req && req.user && req.user.criticos_periodo)||35,min_fallas_blt:Number(req && req.user && req.user.criticos_fallas)||3},
+        criticos_codigos:[]
       },
       alcance: {
         zona_ids: unrestricted ? null : zoneIds,
@@ -53,9 +55,13 @@ async function getInitialData(req) {
   return {
     ok: true,
     source: 'aiven',
+    mode: 'SNAPSHOT_FULL',
+    snapshot:{version:'RESUMEN_DIA_SNAPSHOT_V001',refresh:'ACTUALIZAR'},
     data: {
       tickets: data.tickets,
-      portafolio: data.portafolio
+      portafolio: data.portafolio,
+      criticidad:data.criticidad,
+      criticos_codigos:data.criticos_codigos
     },
     alcance: {
       zona_ids: unrestricted ? null : zoneIds,

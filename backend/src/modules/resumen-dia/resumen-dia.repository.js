@@ -5,6 +5,7 @@ const {
   buildPortafolioScopeSql_gnral,
   buildTicketScopeSql_gnral
 } = require('../../services/information-record-scope-gnral.service');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 
 function officialProjectZoneSql(ticketAlias) {
   const a = String(ticketAlias || 't');
@@ -41,11 +42,47 @@ function officialProjectZoneIdSql(ticketAlias) {
   )`;
 }
 
+async function getCriticosCodigos(req, dias, minFallas) {
+  const scope = buildPortafolioScopeSql_gnral(req, 'p');
+  const safeDias = Math.max(1, Math.min(3650, Number.parseInt(dias,10) || 35));
+  const safeMin = Math.max(1, Math.min(9999, Number.parseInt(minFallas,10) || 3));
+  const today = sqlMexicoCityToday();
+  const sql = [
+    'SELECT t.codigo_equipo, COUNT(*) AS fallas_blt_periodo',
+    'FROM tickets t',
+    'INNER JOIN portafolio p ON p.numero_equipo=t.codigo_equipo',
+    'WHERE p.estado_registro=1',
+    "AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))",
+    "AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'",
+    'AND (' + scope.sql + ')',
+    "AND t.codigo_equipo IS NOT NULL AND t.codigo_equipo<>''",
+    'AND t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL ? DAY)',
+    'AND t.fecha_reporte < DATE_ADD(' + today + ', INTERVAL 1 DAY)',
+    "AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'",
+    'GROUP BY t.codigo_equipo',
+    'HAVING COUNT(*) >= ?',
+    'ORDER BY t.codigo_equipo ASC',
+    'LIMIT 10001'
+  ].join(' ');
+  const [rows] = await db.query(sql,[...(scope.params||[]),safeDias,safeMin]);
+  const data=Array.isArray(rows)?rows:[];
+  if(data.length>10000){
+    const error=new Error('Resumen del Día supera 10,000 equipos críticos visibles.');
+    error.code='RESUMEN_DIA_CRITICOS_LIMIT';
+    error.statusCode=503;
+    throw error;
+  }
+  return data;
+}
+
 async function getInitialData(req) {
   const portafolioScope = buildPortafolioScopeSql_gnral(req, 'p');
   const ticketScope = buildTicketScopeSql_gnral(req, 't');
 
-  const [portafolioResult, ticketsResult] = await Promise.all([
+  const diasCriticos = Number(req.query && (req.query.criticos_periodo || req.query.dias)) || Number(req.user && req.user.criticos_periodo) || 35;
+  const minFallasCriticos = Number(req.query && (req.query.min_fallas || req.query.criticos_fallas)) || Number(req.user && req.user.criticos_fallas) || 3;
+
+  const [portafolioResult, ticketsResult, criticosRows] = await Promise.all([
     db.query(`
       SELECT
         p.*,
@@ -82,7 +119,9 @@ async function getInitialData(req) {
       WHERE ${ticketScope.sql}
       ORDER BY t.id DESC
       LIMIT 50000
-    `, ticketScope.params || [])
+    `, ticketScope.params || []),
+
+    getCriticosCodigos(req,diasCriticos,minFallasCriticos)
   ]);
 
   const portafolioRows = Array.isArray(portafolioResult?.[0]) ? portafolioResult[0] : [];
@@ -101,11 +140,17 @@ async function getInitialData(req) {
     zona: row.zona_oficial || null
   }));
 
-  return { portafolio, tickets };
+  return {
+    portafolio,
+    tickets,
+    criticidad:{dias:diasCriticos,min_fallas_blt:minFallasCriticos},
+    criticos_codigos:criticosRows.map((row)=>String(row.codigo_equipo||'').trim()).filter(Boolean)
+  };
 }
 
 module.exports = {
   getInitialData,
+  getCriticosCodigos,
   officialProjectZoneSql,
   officialProjectZoneIdSql
 };
