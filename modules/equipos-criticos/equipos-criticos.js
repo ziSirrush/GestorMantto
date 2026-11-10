@@ -4,7 +4,7 @@
     loaded:false,
     eq:{ page:1, pageSize:25, total:0, rows:[], lastCriteria:null, expandedCode:'', expandedTickets:[], expanding:false },
     pro:{ page:1, pageSize:25, total:0, rows:[], lastCriteria:null },
-    u365:{ rows:[], expanded:false },
+    u365:{ rows:[], expanded:false, loaded:false, loading:false },
     detail:{ title:'Detalle', rows:[] },
     preferences:{ fallas:3, periodo:35, loaded:false, saving:false }
   };
@@ -143,21 +143,11 @@
     if($('ec-eq-dias')) $('ec-eq-dias').value = state.preferences.periodo;
   }
   async function loadUserPreferences(){
-    let fallas = 3;
-    let periodo = 35;
-    try{
-      const data = await fetchJson('/api/usuarios/me/criticos-preferencias');
-      fallas = positivePreference(data.data && data.data.criticos_fallas, 3);
-      periodo = positivePreference(data.data && data.data.criticos_periodo, 35);
-    }catch(error){
-      const user = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function' ? window.ManttoAuth.getUser() : null;
-      fallas = positivePreference(user && user.criticos_fallas, 3);
-      periodo = positivePreference(user && user.criticos_periodo, 35);
-      console.warn('[Equipos Criticos] Preferencias no disponibles; se usan valores de sesión/default.', error);
-    }
+    const user = window.ManttoAuth && typeof window.ManttoAuth.getUser === 'function' ? window.ManttoAuth.getUser() : null;
+    const fallas = positivePreference(user && user.criticos_fallas, 3);
+    const periodo = positivePreference(user && user.criticos_periodo, 35);
     state.preferences = { fallas, periodo, loaded:true, saving:false };
     applyPreferencesToInputs();
-    updateCachedUserPreferences(fallas, periodo);
   }
   async function saveUserPreferences(){
     const fallas = num('ec-eq-min', state.preferences.fallas || 3);
@@ -216,8 +206,8 @@
     document.querySelectorAll('[data-ec-action]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const a=btn.dataset.ecAction;
-        if(a==='refresh-all'){ applyEquipoCriteria().then(()=>Promise.all([loadProyectos(1), loadU365()])); }
-        if(a==='toggle-u365') toggleU365();
+        if(a==='refresh-all'){ applyEquipoCriteria().then(()=>Promise.all([loadProyectos(1), state.u365.expanded?loadU365(true):Promise.resolve()])); }
+        if(a==='toggle-u365'){ const opening=!state.u365.expanded; toggleU365(opening); if(opening&&!state.u365.loaded&&!state.u365.loading) loadU365(); }
         if(a==='load-equipos') applyEquipoCriteria();
         if(a==='load-proyectos') loadProyectos(1);
         if(a==='clear-equipos') { ['ec-eq-zona','ec-eq-proyecto','ec-eq-search'].forEach(id=>$(id).value=''); applyPreferencesToInputs(); loadEquipos(1); }
@@ -340,7 +330,7 @@
       // La fuente oficial es el backend: parte de Portafolio y excluye equipos
       // inactivos o con estatus "No en servicio" antes de agrupar por proyecto.
       const data = await fetchJson('/api/proyectos-criticos?'+qs(c));
-      state.pro.rows = await enrichProjectMtbc_uni(data.data || [], c);
+      state.pro.rows = Array.isArray(data.data)?data.data:[];
       state.pro.total = Number(data.pagination?.total || 0);
       state.pro.page = Number(data.pagination?.page || state.pro.page);
       renderProyectos();
@@ -349,44 +339,23 @@
 
 
 
-  async function loadU365(){
+  async function loadU365(force){
+    if(state.u365.loading) return;
+    if(state.u365.loaded&&!force){ renderU365(); return; }
     const body=$('ec-365-body');
     if(body) body.innerHTML='<tr><td colspan="11" class="ec-empty">Cargando...</td></tr>';
+    state.u365.loading=true;
     try{
       if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.loadCriticidadCorporativa(true);
       const criticos=window.EstadosVisuales_gnral?window.EstadosVisuales_gnral.getCriticos365():[];
-      state.u365.rows=await enrichEquipmentMtbc_uni(criticos);
+      state.u365.rows=Array.isArray(criticos)?criticos:[];
+      state.u365.loaded=true;
       renderU365();
     }catch(error){
       if(body) body.innerHTML='<tr><td colspan="11" class="ec-empty">Error: '+esc(error.message)+'</td></tr>';
+    }finally{
+      state.u365.loading=false;
     }
-  }
-  async function enrichEquipmentMtbc_uni(rows){
-    if(!Array.isArray(rows) || !rows.length) return rows || [];
-    const map=new Map();
-    try{
-      let page=1;
-      let pages=1;
-      do{
-        const data=await fetchJson('/api/indicadores/mtbc/equipos?'+qs({page,page_size:100}));
-        (data.data||[]).forEach(item=>map.set(String(item.codigo_equipo||'').trim(),item));
-        const total=Number(data.pagination?.total||0);
-        const pageSize=Number(data.pagination?.page_size||100);
-        pages=Math.max(1,Math.ceil(total/pageSize));
-        page+=1;
-      }while(page<=pages);
-    }catch(error){
-      console.warn('[Equipos Criticos] No se pudo cargar MTBC U365 por equipo:',error.message);
-    }
-    return rows.map(row=>{
-      const metric=map.get(String(row.codigo_equipo||'').trim())||{};
-      return Object.assign({},row,{
-        mtbc_anio:metric.mtbc_anio,
-        mtbc_365:metric.mtbc_365,
-        fallas_blt_anio:metric.fallas_blt_anio ?? row.fallas_blt_anio,
-        fallas_blt_365:metric.fallas_blt_365 ?? row.fallas_blt_365
-      });
-    });
   }
 
   function toggleU365(force){
@@ -410,39 +379,6 @@
     const count=$('ec-365-count'); if(count) count.textContent=rows.length+' equipos';
   }
 
-  async function enrichProjectMtbc_uni(rows, criteria){
-    if(!Array.isArray(rows) || !rows.length) return rows || [];
-    const map = new Map();
-    try{
-      const base = await fetchJson('/api/indicadores/mtbc/proyectos?'+qs({
-        page:1,
-        page_size:100,
-        zona:criteria && criteria.zona,
-        proyecto:criteria && criteria.proyecto
-      }));
-      (base.data || []).forEach(item=>map.set(String(item.proyecto || '').trim(), item));
-
-      const missing = rows.filter(row=>!map.has(String(row.proyecto || '').trim()));
-      for(const row of missing){
-        try{
-          const one = await fetchJson('/api/indicadores/mtbc/proyectos?'+qs({page:1,page_size:5,proyecto:row.proyecto}));
-          const exact = (one.data || []).find(item=>String(item.proyecto || '').trim()===String(row.proyecto || '').trim());
-          if(exact) map.set(String(row.proyecto || '').trim(), exact);
-        }catch(error){ /* El listado operativo sigue visible aunque falle un MTBC puntual. */ }
-      }
-    }catch(error){
-      console.warn('[Equipos Criticos] No se pudo cargar MTBC de proyectos:', error.message);
-    }
-    return rows.map(row=>{
-      const metric = map.get(String(row.proyecto || '').trim()) || {};
-      return Object.assign({}, row, {
-        fallas_blt_anio: metric.fallas_blt_anio,
-        fallas_blt_365: metric.fallas_blt_365,
-        mtbc_anio: metric.mtbc_anio,
-        mtbc_365: metric.mtbc_365
-      });
-    });
-  }
 
   function renderProyectos(){
     const body=$('ec-pro-body');
@@ -726,7 +662,7 @@
     // Así los proyectos, equipos activos y equipos críticos se obtienen desde
     // Portafolio por código de equipo, evitando cruces por nombre de proyecto.
     const result=await fetchJson('/api/proyectos-criticos?'+qs(criteria));
-    const rows=await enrichProjectMtbc_uni(result.data || [],criteria);
+    const rows=Array.isArray(result.data)?result.data:[];
     if(!rows.length) throw new Error('No hay proyectos críticos para exportar con los filtros actuales.');
     window.ManttoPdf_gnral.exportReport({
       title:'Proyectos Críticos',
@@ -811,13 +747,8 @@
     try{
       await loadHtml();
       await loadUserPreferences();
-      if(window.EstadosVisuales_gnral){
-        await Promise.all([
-          window.EstadosVisuales_gnral.load(),
-          window.EstadosVisuales_gnral.loadCriticidadCorporativa()
-        ]);
-      }
-      await Promise.all([loadEquipos(state.eq.page), loadProyectos(state.pro.page), loadU365()]);
+      if(window.EstadosVisuales_gnral) await window.EstadosVisuales_gnral.load();
+      await Promise.all([loadEquipos(state.eq.page), loadProyectos(state.pro.page)]);
     }catch(e){
       const view=$('view-criticos');
       if(view) view.innerHTML = '<div class="ec-page"><section class="ec-head card"><div><p class="ec-eyebrow">Error de carga</p><h1>Equipos Críticos</h1><p>No se pudo inicializar el módulo: '+esc(e.message)+'</p></div></section></div>';

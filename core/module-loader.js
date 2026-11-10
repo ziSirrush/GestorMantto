@@ -193,7 +193,7 @@
 
   const ROUTES = Object.freeze({
     resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20261109-detail-navigation-v003']},
-    criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
+    criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20261110-snapshot-paged-v001']},
     'movimientos-criticos':{css:['./modules/movimientos-criticos/movimientos-criticos.css?v=20261003-fase3-v001'],js:['./modules/movimientos-criticos/movimientos-criticos.js?v=20261003-fase3-v001']},
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
     detalle:{css:[],js:[SEGUIMIENTO_ESPECIAL_GLOBAL_JS]},
