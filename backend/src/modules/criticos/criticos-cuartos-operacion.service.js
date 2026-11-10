@@ -146,6 +146,33 @@ function buildProjectFilters(req, portAlias, zoneAlias) {
   };
 }
 
+async function getProjectMtbcRows(req, projects) {
+  const names = [...new Set((Array.isArray(projects) ? projects : []).map((v) => String(v || '').trim()).filter(Boolean))];
+  if (!names.length) return [];
+  const placeholders = names.map(() => '?').join(',');
+  const today = sqlMexicoCityToday();
+  const sql = [
+    'SELECT p.proyecto,',
+    'COUNT(DISTINCT p.numero_equipo) AS equipos_activos,',
+    'COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(' + today + '),1) THEN t.codigo_equipo END) AS equipos_con_falla_blt_anio,',
+    'COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) THEN t.codigo_equipo END) AS equipos_con_falla_blt_365,',
+    'SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(' + today + '),1) THEN 1 ELSE 0 END) AS fallas_blt_anio,',
+    'SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) THEN 1 ELSE 0 END) AS fallas_blt_365,',
+    'CASE WHEN SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(' + today + '),1) THEN 1 ELSE 0 END)=0 THEN NULL ELSE ROUND(((DATEDIFF(' + today + ',MAKEDATE(YEAR(' + today + '),1))+1) * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(' + today + '),1) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(' + today + '),1) THEN 1 ELSE 0 END),0),3) END AS mtbc_anio,',
+    'CASE WHEN SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) THEN 1 ELSE 0 END)=0 THEN NULL ELSE ROUND((365 * COUNT(DISTINCT CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) THEN t.codigo_equipo END)) / NULLIF(SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) THEN 1 ELSE 0 END),0),3) END AS mtbc_365',
+    'FROM portafolio p',
+    'LEFT JOIN tickets t ON t.codigo_equipo=p.numero_equipo',
+    'AND t.fecha_reporte >= LEAST(MAKEDATE(YEAR(' + today + '),1),DATE_SUB(' + today + ',INTERVAL 364 DAY))',
+    'AND t.fecha_reporte < DATE_ADD(' + today + ',INTERVAL 1 DAY)',
+    "AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'",
+    'WHERE ' + portafolioOperativo('p', req),
+    'AND p.proyecto IN (' + placeholders + ')',
+    'GROUP BY p.proyecto'
+  ].join(' ');
+  const [rows] = await db.query(sql, names);
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function getEquiposCriticos(req, res) {
   const { dias, minFallas } = getUserCriticidadCriteria(req);
   const { page, pageSize, offset } = pagination(req);
@@ -419,9 +446,24 @@ async function getProyectosCriticos(req, res) {
       LIMIT ? OFFSET ?
     `, [...paramsBase, pageSize, offset]);
 
+    const metrics = await getProjectMtbcRows(req, rows.map((row) => row.proyecto));
+    const metricByProject = new Map(metrics.map((row) => [String(row.proyecto || '').trim(), row]));
+    const enriched = rows.map((row) => {
+      const metric = metricByProject.get(String(row.proyecto || '').trim()) || {};
+      return {
+        ...row,
+        fallas_blt_anio: metric.fallas_blt_anio ?? null,
+        fallas_blt_365: metric.fallas_blt_365 ?? null,
+        mtbc_anio: metric.mtbc_anio ?? null,
+        mtbc_365: metric.mtbc_365 ?? null
+      };
+    });
+
     return res.json({
       ok: true,
       source: 'aiven',
+      mode: 'SNAPSHOT_PAGED',
+      snapshot: { version: 'EQUIPOS_CRITICOS_PROYECTOS_V001', detail: 'LAZY' },
       criteria: {
         dias,
         min_fallas_blt: minFallas,
@@ -430,7 +472,7 @@ async function getProyectosCriticos(req, res) {
       },
       alcance: alcanceMeta(req),
       pagination: { page, page_size: pageSize, total: Number(countRows[0]?.total || 0) },
-      data: rows
+      data: enriched
     });
   } catch (error) {
     return res.status(500).json({
@@ -543,12 +585,24 @@ async function getCriticidadCorporativa(req, res) {
         MAX(COALESCE(t.referencia_en_zona_operativa, p.identificacion_sitio)) AS referencia_en_sitio,
         MAX(COALESCE(p.estatus_servicio, t.estatus_equipo_final)) AS estatus_servicio,
         COUNT(*) AS fallas_blt_365,
+        (SELECT COUNT(*) FROM tickets tay
+          WHERE tay.codigo_equipo = t.codigo_equipo
+            AND tay.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}), 1)
+            AND tay.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)
+            AND UPPER(COALESCE(tay.responsabilidad,'')) LIKE '%BLT%') AS fallas_blt_anio,
         (SELECT COUNT(*)
           FROM tickets tx
           WHERE tx.codigo_equipo = t.codigo_equipo
             AND tx.fecha_reporte >= DATE_SUB(${sqlMexicoCityToday()}, INTERVAL 364 DAY)
             AND tx.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()}, INTERVAL 1 DAY)) AS llamadas_365,
-        MAX(t.fecha_reporte) AS ultimo_blt
+        MAX(t.fecha_reporte) AS ultimo_blt,
+        CASE WHEN COUNT(*)=0 THEN NULL ELSE ROUND(365 / NULLIF(COUNT(*),0),3) END AS mtbc_365,
+        (SELECT CASE WHEN COUNT(*)=0 THEN NULL ELSE ROUND((DATEDIFF(${sqlMexicoCityToday()},MAKEDATE(YEAR(${sqlMexicoCityToday()}),1))+1) / NULLIF(COUNT(*),0),3) END
+          FROM tickets tay2
+          WHERE tay2.codigo_equipo=t.codigo_equipo
+            AND tay2.fecha_reporte >= MAKEDATE(YEAR(${sqlMexicoCityToday()}),1)
+            AND tay2.fecha_reporte < DATE_ADD(${sqlMexicoCityToday()},INTERVAL 1 DAY)
+            AND UPPER(COALESCE(tay2.responsabilidad,'')) LIKE '%BLT%') AS mtbc_anio
       FROM tickets t
       INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo
       ${zoneJoin('p', 'z')}
