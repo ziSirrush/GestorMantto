@@ -12,7 +12,7 @@ const frontend = read('modules/instalaciones-dashboard/instalaciones-dashboard_c
 const loader = read('core/module-loader.js');
 const index = read('index.html');
 const sw = read('service-worker.js');
-const REV = '20261109-detail-navigation-v002';
+const REV = '20261110-snapshot-lazy-v001';
 
 test('La version del Dashboard, cargador y service worker invalida la revision anterior', () => {
   assert.ok(loader.includes('instalaciones-dashboard_cor.js?v=' + REV));
