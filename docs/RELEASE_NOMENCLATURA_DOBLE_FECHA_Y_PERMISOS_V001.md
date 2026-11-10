@@ -1,53 +1,43 @@
-# BLT NOW — Versionado de doble fecha y permisos del menú (2026-11-09)
+# BLT NOW — Nomenclatura de commits y metadatos de despliegue
 
-## Autoridad de acceso
+> Estado: este documento reemplaza la regla de “doble fecha” publicada el 09/11/2026.
 
-- Inicio y Usuarios: cualquier usuario autenticado.
-- Panel de Control: roles activos `Programador` (maestro) y `Director General`, principales o secundarios. No se extiende a `Programador United` ni `Programador Corellian`.
-- Agrupación Soporte: rol activo exacto `Soporte`, principal o secundario. No equivale a `Coordinador de Soporte` ni `Supervisor de Soporte`.
-- Resto de agrupaciones y módulos: únicamente los permisos efectivos del catálogo de Panel de Control. No existen excepciones por nombre, correo ni ID de usuario.
-- Experimental NS: permisos individuales `EXPERIMENTAL_NS_*_ACCESO_VISUAL_MODULO.ACCESO_VISUAL`; además, el backend mantiene autenticación, puerta de información, ámbito y alcance territorial `UNITED`, sin permiso automático por rol.
-- Administración Cobranza United: menú por `COBRANZA_UNI_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL`. Dentro del módulo, el backend conserva permisos adicionales de consulta y edición por tabla.
+## Nomenclatura oficial de commits
 
-## Nomenclatura aprobada
+Todo commit de desarrollo en `ziSirrush/GestorMantto` usa:
 
-Formato publicado: `DDMMYY.R_API.DDMMYY.R_FRONT`.
+```
+Version MMDDYY.N
+```
 
-Versión publicada tras QA del fix integrado (la revisión 091126.1 falló la validación del frontend y no se publicó):
-- Versión API: **091126.6**.
-- Versión frontend: **091126.2**.
-- Versión combinada: **091126.6.091126.2**.
+- `MMDDYY`: fecha de trabajo en `America/Mexico_City`.
+- `N`: consecutivo entero global de todo el repositorio para ese día.
+- El consecutivo no se divide por API, Frontend, módulo, persona ni tipo de cambio.
+- Antes de publicar se revisa todo el historial del día para tomar el mayor `N` y usar el siguiente.
+- No se reescribe historial publicado para corregir títulos anteriores sin autorización específica de force-push.
 
-El último despliegue API anterior usaba `Version 110926.5` (formato antiguo MMDDYY). En esta transición se interpreta como el 09/11/2026 revisión 5; el siguiente despliegue de API es revisión 6. No se reescribe el historial de commits anteriores.
+## Metadatos técnicos de despliegue
 
-En un cambio exclusivamente frontend, la versión API se mantiene; el contador frontend sube uno el mismo día y reinicia a 1 al cambiar de fecha según `America/Mexico_City`. En una publicación de API, cambia la versión API y el frontend se vuelve a publicar enlazado a la nueva base, reiniciando el contador frontend a 1.
+Los archivos siguientes continúan existiendo para identificar la pareja técnica desplegada de API/Frontend:
 
-Los manifiestos versionados son:
 - `config/releases/api.json`
 - `config/releases/frontend.json`
 
-Comandos de trabajo desde la raíz del repositorio:
+Su formato histórico `DDMMYY.N` es **metadato de despliegue**, no la nomenclatura del commit.
 
-```bash
-node tools/release-version.js show
-node tools/release-version.js bump frontend
-# O para una actualización API:
-node tools/release-version.js bump api
-node tools/release-version.js verify
+Por lo tanto, un commit correcto puede tener el título:
+
+```
+Version 111026.2
 ```
 
-El comando `verify` valida la consistencia y, en GitHub Actions de tipo `push`, exige que el título del commit sea exactamente `Version <version_combinada>`. Por ejemplo:
+aunque los metadatos técnicos publicados indiquen, por ejemplo, API `101126.19` y Frontend `101126.3`.
 
-```bash
-git commit -m "Version 091126.6.091126.2"
-```
+## Validación CI
 
-Los workflows de CI/CD siguen separados por dominios:
-- `config/releases/api.json` y `backend/**` activan Azure.
-- `config/releases/frontend.json` y los recursos del frontend activan Pages.
+- `tools/release-version.js verify` valida que el commit actual use `Version MMDDYY.N` y que su fecha coincida con Ciudad de México.
+- `tools/release-version.js verify-history` valida además el consecutivo global contra todo el historial.
+- `.github/workflows/commit-version.yml` ejecuta esa validación global en cada push a `main`.
+- Los workflows de Azure y Pages conservan sus filtros selectivos; ya no utilizan la doble fecha como título de commit.
 
-Los dos pipelines también se disparan si cambian los componentes compartidos de CI. El nombre visible de cada ejecución de GitHub Actions procede del mensaje del commit; el frontend empaquetado además contiene `apiVersion`, `frontendVersion` y `version` en `core/build-info.generated.js`.
-
-**Precaución:** un commit con backend y frontend ejecuta ambos workflows. La publicación solo está comprobada cuando ambos terminan correctamente y se valida en Azure y Pages. Que un commit cambie de versión no demuestra por sí mismo que la API esté publicada.
-
-Respaldo anterior del CI/CD (sin alteraciones): rama `backup/ci-before-selective-20261109`, SHA `cb33a88051bb713576bd0b39899ca016b5d340f1`.
+Los commits históricos con nomenclatura anterior permanecen como evidencia; cambiar su mensaje modificaría el SHA y requeriría reescritura de historial.

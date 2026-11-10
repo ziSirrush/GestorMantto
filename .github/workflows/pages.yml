@@ -59,7 +59,7 @@ jobs:
         working-directory: ./backend
         run: npm ci --no-audit --no-fund
 
-      - name: Validar nomenclatura de doble fecha
+      - name: Validar nomenclatura oficial
         run: node tools/release-version.js verify
 
       - name: Pruebas selectivas de frontend
