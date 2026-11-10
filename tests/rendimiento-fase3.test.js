@@ -49,9 +49,10 @@ test('Inbox reutiliza IDs de roles activos y evita usuario_roles cuando existe c
 test('Dashboard inicial no vuelve a consultar supervisores para construir preventivos', () => {
   const initial = dashboardServiceSource.slice(dashboardServiceSource.indexOf('async function getInitialData'));
   assert.match(initial, /getSupervisoresActivosPorZona/);
-  assert.match(initial, /getPreventivosPorZona/);
+  assert.match(initial, /getPreventivosPorMeses/);
   assert.doesNotMatch(initial, /getPreventivosSupervisor\(mes/);
-  assert.match(initial, /buildPreventivosSupervisor\(supervisoresRows, preventivosRows\)/);
+  assert.match(initial, /buildPreventivosByMonth\(supervisoresRows, preventivosRows, meses\)/);
+  assert.match(initial, /monthsWindow\(mes, 12\)/);
 });
 
 test('Dashboard deja de transportar SELECT p.* y t.* en la carga inicial', () => {
