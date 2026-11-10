@@ -40,7 +40,7 @@ assert(service.includes('getPortafolioInicial(informationAccess)'), 'La carga in
 assert(service.includes('getTicketsInicial(informationAccess)'), 'La carga inicial debe consultar Tickets con alcance.');
 assert(service.includes('getSupervisoresActivosPorZona(informationAccess)'), 'La carga inicial debe filtrar supervisores por cuartos.');
 
-assert(frontend.includes("'/api/operacion/dashboard-operativo/inicial?mes='"), 'Frontend no usa la llamada inicial dedicada.');
+assert(frontend.includes("'/api/operacion/dashboard-operativo/inicial?'") && frontend.includes("params.toString()"), 'Frontend no usa la llamada inicial dedicada.');
 assert(frontend.includes("['zona_oficial','zona','zona_operativa'"), 'Frontend no prioriza zona_oficial.');
 assert(frontend.includes("preventivosMes:''"), 'Frontend no controla el mes ya recibido en la carga inicial.');
 assert(frontend.includes('if(state.preventivosMes!==mes)'), 'Frontend volvería a pedir preventivos en el primer render.');
