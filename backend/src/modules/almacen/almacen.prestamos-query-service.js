@@ -75,27 +75,11 @@ const MANUAL_COMPANIES = Object.freeze([
   'Corellian SA de CV'
 ]);
 
-function hasDualCompanyScope(scope) {
-  const ids = new Set((scope && Array.isArray(scope.subsidiaryIds)
-    ? scope.subsidiaryIds : []).map(String));
-  return ids.has('2') && ids.has('5');
-}
-
 function assignmentError(message, status, code) {
   const e = new Error(message);
   e.status = status;
   e.code = code;
   return e;
-}
-
-function requireDualCompanyScope(scope) {
-  if (!hasDualCompanyScope(scope)) {
-    throw assignmentError(
-      'Se requiere alcance simultaneo United y Corellian para clasificar responsables sin empresa.',
-      403,
-      'ALMACEN_PRESTAMOS_EMPRESA_SCOPE_REQUIRED'
-    );
-  }
 }
 
 function loanSource(scope, count) {
@@ -232,10 +216,6 @@ async function getLoans(scope, query = {}) {
 }
 
 async function getPendingCompanyAssignments(scope) {
-  if (!hasDualCompanyScope(scope)) {
-    return {ok:true, available:false, rows:[]};
-  }
-
   const [rows] = await db.query(
     `SELECT TRIM(p.responsable) AS responsable, COUNT(*) AS registros
        FROM almacen_ns_prestamos p
@@ -257,8 +237,6 @@ async function getPendingCompanyAssignments(scope) {
 }
 
 async function assignLoanCompany(scope, input = {}) {
-  requireDualCompanyScope(scope);
-
   const responsable = String(input.responsable || '').trim();
   const empresa = String(input.empresa || '').trim();
 

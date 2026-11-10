@@ -127,13 +127,9 @@ test('sin subsidiarias, no se ejecuta ninguna consulta ni se filtra solo en fron
   assert.equal(queries.length,0);
 });
 
-test('pendientes de empresa: solo se exponen con alcance simultaneo United y Corellian', async () => {
+test('pendientes de empresa: se exponen con el permiso normal de Préstamos', async () => {
   queries.length=0;
-  const hidden=await loans.getPendingCompanyAssignments(scope);
-  assert.deepEqual(hidden,{ok:true,available:false,rows:[]});
-  assert.equal(queries.length,0);
-
-  const out=await loans.getPendingCompanyAssignments(dualScope);
+  const out=await loans.getPendingCompanyAssignments(scope);
   assert.equal(out.available,true);
   assert.deepEqual(out.rows,[
     {responsable:'WILLIAM ALVAREZ',registros:18},
@@ -147,15 +143,11 @@ test('pendientes de empresa: solo se exponen con alcance simultaneo United y Cor
 test('asignacion manual: actualiza solo pendientes del mismo nombre y empresa permitida', async () => {
   queries.length=0;
   await assert.rejects(
-    loans.assignLoanCompany(scope,{responsable:'WILLIAM ALVAREZ',empresa:'United Elevadores'}),
-    {status:403,code:'ALMACEN_PRESTAMOS_EMPRESA_SCOPE_REQUIRED'}
-  );
-  await assert.rejects(
-    loans.assignLoanCompany(dualScope,{responsable:'WILLIAM ALVAREZ',empresa:'Otra empresa'}),
+    loans.assignLoanCompany(scope,{responsable:'WILLIAM ALVAREZ',empresa:'Otra empresa'}),
     {status:400,code:'ALMACEN_PRESTAMOS_EMPRESA_INVALID'}
   );
   const out=await loans.assignLoanCompany(
-    dualScope,
+    scope,
     {responsable:'WILLIAM ALVAREZ',empresa:'United Elevadores'}
   );
   assert.equal(out.actualizados,18);
