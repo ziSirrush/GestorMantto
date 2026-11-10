@@ -83,6 +83,60 @@ function buildAnalytics(raw) {
   };
 }
 
+function emptyU365Result(req) {
+  return {
+    ok: true,
+    source: 'aiven',
+    data: [],
+    criteria: {
+      dias_criticidad: Number(req && req.user && req.user.criticos_periodo) || 35,
+      min_fallas_blt: Number(req && req.user && req.user.criticos_fallas) || 3
+    },
+    pagination: { page: 1, page_size: 100, total: 0 },
+    alcance: { zona_ids: [], zonas: zoneCodes_gnral(req) || [] }
+  };
+}
+
+async function getCallCenterU365Equipos(req) {
+  const unrestricted = hasUnrestrictedUnitedScope_gnral(req);
+  const zoneIds = zoneIds_gnral(req);
+  if (!unrestricted && (!Array.isArray(zoneIds) || !zoneIds.length)) return emptyU365Result(req);
+
+  const result = await repository.getCallCenterU365Equipos(req);
+  return {
+    ok: true,
+    source: 'aiven',
+    view: 'Detalle Llamadas U365D - Equipos',
+    criteria: {
+      dias_criticidad: result.criteria.dias,
+      min_fallas_blt: result.criteria.minFallas
+    },
+    pagination: result.pagination,
+    data: result.rows,
+    alcance: { zona_ids: zoneIds, zonas: zoneCodes_gnral(req) }
+  };
+}
+
+async function getCallCenterU365Proyectos(req) {
+  const unrestricted = hasUnrestrictedUnitedScope_gnral(req);
+  const zoneIds = zoneIds_gnral(req);
+  if (!unrestricted && (!Array.isArray(zoneIds) || !zoneIds.length)) return emptyU365Result(req);
+
+  const result = await repository.getCallCenterU365Proyectos(req);
+  return {
+    ok: true,
+    source: 'aiven',
+    view: 'Detalle Llamadas U365D - Proyectos',
+    criteria: {
+      dias_criticidad: result.criteria.dias,
+      min_fallas_blt: result.criteria.minFallas
+    },
+    pagination: result.pagination,
+    data: result.rows,
+    alcance: { zona_ids: zoneIds, zonas: zoneCodes_gnral(req) }
+  };
+}
+
 async function getInitialData(req) {
   const unrestricted = hasUnrestrictedUnitedScope_gnral(req);
   const zoneIds = zoneIds_gnral(req);
@@ -130,5 +184,7 @@ async function getInitialData(req) {
 }
 
 module.exports = {
-  getInitialData
+  getInitialData,
+  getCallCenterU365Equipos,
+  getCallCenterU365Proyectos
 };

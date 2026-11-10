@@ -160,6 +160,7 @@
     if(!parts.length) return null;
     const route = parts[0];
     if(route === 'detalle' && parts[1] && parts[2]) return { route:'detalle', payload:{ type:parts[1], id:parts.slice(2).join('/') } };
+    if(route === 'callcenter' && parts[1]) return { route:'callcenter', payload:{ view:parts[1] } };
     return { route:route, payload:parts[1] ? { id:parts.slice(1).join('/') } : null };
   }
 
@@ -253,6 +254,8 @@
     let hash = '#/' + encodeURIComponent(route || 'home');
     if(route === 'detalle' && payload && payload.type && payload.id){
       hash += '/' + encodeURIComponent(payload.type) + '/' + encodeURIComponent(payload.id);
+    } else if(route === 'callcenter' && payload && payload.view && payload.view !== 'dashboard'){
+      hash += '/' + encodeURIComponent(payload.view);
     } else if(payload && payload.id) hash += '/' + encodeURIComponent(payload.id);
     return hash;
   }
@@ -297,6 +300,8 @@
         ? {route:data.backRoute || 'help',payload:{section:'my-requests'}}
         : (data.id ? {route:'soporte-solicitudes'} : null);
       case 'portafolio': return data.view === 'categoria' ? {route:'portafolio'} : null;
+      case 'callcenter': return data.view === 'u365-proyectos' || data.view === 'u365-equipos'
+        ? {route:'callcenter',payload:{view:'dashboard'}} : null;
       case 'cobranza-estados-cuenta': return data.mode || data.ppns
         ? {route:'cobranza-estados-cuenta',payload:data.mode === 'edit' && data.ppns ? {ppns:data.ppns} : null} : null;
       case 'cobranza-aditivas': return data.mode || data.id

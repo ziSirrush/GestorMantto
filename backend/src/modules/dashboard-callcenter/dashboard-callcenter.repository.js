@@ -116,6 +116,193 @@ function getCriticidadCriteria(req) {
   };
 }
 
+
+function pagination(req) {
+  const page = positiveInt(req?.query?.page, 1, 1, 100000);
+  const pageSize = positiveInt(req?.query?.page_size || req?.query?.pageSize, 100, 5, 100);
+  return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
+function likeParam(value) {
+  const text = String(value || '').trim();
+  return text ? '%' + text + '%' : null;
+}
+
+function getCallCenterU365TicketAggregate(diasCriticos) {
+  const today = sqlMexicoCityToday();
+  return {
+    sql: [
+      'SELECT',
+      't.codigo_equipo,',
+      'SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(' + today + ', INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS llamadas_365,',
+      "SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%CLIENTE%' THEN 1 ELSE 0 END) AS resp_cliente_365,",
+      "SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN 1 ELSE 0 END) AS fallas_blt_365,",
+      "SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND TRIM(COALESCE(t.responsabilidad,'')) = '' THEN 1 ELSE 0 END) AS sin_responsabilidad_365,",
+      "SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(" + today + "),1) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN 1 ELSE 0 END) AS fallas_blt_anio,",
+      "SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL ? DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN 1 ELSE 0 END) AS fallas_blt_periodo_critico,",
+      'MAX(CASE WHEN t.fecha_reporte >= DATE_SUB(' + today + ', INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(' + today + ', INTERVAL 1 DAY) THEN t.fecha_reporte ELSE NULL END) AS ultima_llamada_365,',
+      "MAX(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN t.fecha_reporte ELSE NULL END) AS ultima_falla_blt_365",
+      'FROM tickets t',
+      "WHERE t.codigo_equipo IS NOT NULL AND TRIM(t.codigo_equipo) <> ''",
+      'AND t.fecha_reporte IS NOT NULL',
+      'AND t.fecha_reporte >= LEAST(DATE_SUB(' + today + ', INTERVAL 364 DAY), MAKEDATE(YEAR(' + today + '),1), DATE_SUB(' + today + ', INTERVAL ? DAY))',
+      'AND t.fecha_reporte < DATE_ADD(' + today + ', INTERVAL 1 DAY)',
+      'GROUP BY t.codigo_equipo'
+    ].join(' '),
+    params: [diasCriticos, diasCriticos]
+  };
+}
+
+function getCallCenterActivePortfolio(req) {
+  const scope = buildPortafolioScopeSql_gnral(req, 'p');
+  return {
+    sql: [
+      'SELECT',
+      'p.numero_equipo,',
+      'MAX(p.proyecto) AS proyecto,',
+      'MAX(z_cc_u365.zona) AS zona,',
+      'MAX(p.identificacion_sitio) AS referencia_en_sitio,',
+      'MAX(p.supervisor_zona) AS supervisor,',
+      'MAX(p.superintendente) AS superintendente',
+      'FROM portafolio p',
+      'INNER JOIN z_op z_cc_u365 ON z_cc_u365.id_zona = p.zona_id AND z_cc_u365.estado = 1',
+      'WHERE p.estado_registro = 1',
+      "AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))",
+      "AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'",
+      'AND (' + scope.sql + ')',
+      "AND p.numero_equipo IS NOT NULL AND TRIM(p.numero_equipo) <> ''",
+      "AND p.proyecto IS NOT NULL AND TRIM(p.proyecto) <> ''",
+      'GROUP BY p.numero_equipo'
+    ].join(' '),
+    params: scope.params || []
+  };
+}
+
+async function getCallCenterU365Equipos(req) {
+  const { page, pageSize, offset } = pagination(req);
+  const criteria = getCriticidadCriteria(req);
+  const zona = likeParam(req?.query?.zona);
+  const proyecto = likeParam(req?.query?.proyecto);
+  const search = likeParam(req?.query?.search || req?.query?.buscar);
+  const clauses = [];
+  const filterParams = [];
+
+  if (zona) {
+    clauses.push('ap.zona LIKE ?');
+    filterParams.push(zona);
+  }
+  if (proyecto) {
+    clauses.push('ap.proyecto LIKE ?');
+    filterParams.push(proyecto);
+  }
+  if (search) {
+    clauses.push('(ap.proyecto LIKE ? OR ap.numero_equipo LIKE ? OR ap.referencia_en_sitio LIKE ? OR ap.zona LIKE ?)');
+    filterParams.push(search, search, search, search);
+  }
+
+  const filterSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
+  const activePortfolio = getCallCenterActivePortfolio(req);
+  const ticketAggregate = getCallCenterU365TicketAggregate(criteria.dias);
+  const today = sqlMexicoCityToday();
+  const baseSql = [
+    'SELECT',
+    'ap.numero_equipo,',
+    'ap.numero_equipo AS codigo_equipo,',
+    'ap.proyecto,',
+    'ap.zona,',
+    'ap.referencia_en_sitio,',
+    'ap.supervisor,',
+    'ap.superintendente,',
+    'COALESCE(ta.llamadas_365,0) AS llamadas_365,',
+    'COALESCE(ta.resp_cliente_365,0) AS resp_cliente_365,',
+    'COALESCE(ta.fallas_blt_365,0) AS fallas_blt_365,',
+    'COALESCE(ta.sin_responsabilidad_365,0) AS sin_responsabilidad_365,',
+    'COALESCE(ta.fallas_blt_anio,0) AS fallas_blt_anio,',
+    'CASE WHEN COALESCE(ta.fallas_blt_anio,0)=0 THEN NULL ELSE ROUND((DATEDIFF(' + today + ', MAKEDATE(YEAR(' + today + '),1))+1)/NULLIF(ta.fallas_blt_anio,0),3) END AS mtbc_anio,',
+    'CASE WHEN COALESCE(ta.fallas_blt_365,0)=0 THEN NULL ELSE ROUND(365/NULLIF(ta.fallas_blt_365,0),3) END AS mtbc_365,',
+    'CASE WHEN COALESCE(ta.fallas_blt_periodo_critico,0) >= ? THEN 1 ELSE 0 END AS es_critico,',
+    'ta.ultima_llamada_365,',
+    'ta.ultima_falla_blt_365',
+    'FROM (' + activePortfolio.sql + ') ap',
+    'INNER JOIN (' + ticketAggregate.sql + ') ta ON ta.codigo_equipo = ap.numero_equipo',
+    'WHERE COALESCE(ta.llamadas_365,0) > 0',
+    filterSql
+  ].join(' ');
+
+  const baseParams = [criteria.minFallas, ...(activePortfolio.params || []), ...ticketAggregate.params, ...filterParams];
+  const [countRows] = await db.query('SELECT COUNT(*) AS total FROM (' + baseSql + ') q', baseParams);
+  const [rows] = await db.query(
+    'SELECT * FROM (' + baseSql + ') q ORDER BY q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.numero_equipo ASC LIMIT ? OFFSET ?',
+    [...baseParams, pageSize, offset]
+  );
+
+  return {
+    criteria,
+    pagination: { page, page_size: pageSize, total: Number(countRows?.[0]?.total || 0) },
+    rows: Array.isArray(rows) ? rows : []
+  };
+}
+
+async function getCallCenterU365Proyectos(req) {
+  const { page, pageSize, offset } = pagination(req);
+  const criteria = getCriticidadCriteria(req);
+  const zona = likeParam(req?.query?.zona);
+  const proyecto = likeParam(req?.query?.proyecto || req?.query?.search || req?.query?.buscar);
+  const clauses = [];
+  const filterParams = [];
+
+  if (zona) {
+    clauses.push('ap.zona LIKE ?');
+    filterParams.push(zona);
+  }
+  if (proyecto) {
+    clauses.push('ap.proyecto LIKE ?');
+    filterParams.push(proyecto);
+  }
+
+  const filterSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
+  const activePortfolio = getCallCenterActivePortfolio(req);
+  const ticketAggregate = getCallCenterU365TicketAggregate(criteria.dias);
+  const today = sqlMexicoCityToday();
+  const baseSql = [
+    'SELECT',
+    'ap.proyecto,',
+    'MAX(ap.zona) AS zona,',
+    'COUNT(*) AS equipos_activos,',
+    'SUM(CASE WHEN COALESCE(ta.llamadas_365,0) > 0 THEN 1 ELSE 0 END) AS equipos_con_llamadas_365,',
+    'SUM(COALESCE(ta.llamadas_365,0)) AS llamadas_365,',
+    'SUM(COALESCE(ta.resp_cliente_365,0)) AS resp_cliente_365,',
+    'SUM(COALESCE(ta.fallas_blt_365,0)) AS fallas_blt_365,',
+    'SUM(COALESCE(ta.sin_responsabilidad_365,0)) AS sin_responsabilidad_365,',
+    'SUM(COALESCE(ta.fallas_blt_anio,0)) AS fallas_blt_anio,',
+    'ROUND(SUM(COALESCE(ta.llamadas_365,0))/NULLIF(COUNT(*),0),3) AS promedio_llamadas_por_equipo,',
+    'CASE WHEN SUM(COALESCE(ta.fallas_blt_anio,0))=0 THEN NULL ELSE ROUND(((DATEDIFF(' + today + ', MAKEDATE(YEAR(' + today + '),1))+1)*COUNT(*))/NULLIF(SUM(COALESCE(ta.fallas_blt_anio,0)),0),3) END AS mtbc_anio,',
+    'CASE WHEN SUM(COALESCE(ta.fallas_blt_365,0))=0 THEN NULL ELSE ROUND((365*COUNT(*))/NULLIF(SUM(COALESCE(ta.fallas_blt_365,0)),0),3) END AS mtbc_365,',
+    'SUM(CASE WHEN COALESCE(ta.fallas_blt_periodo_critico,0) >= ? THEN 1 ELSE 0 END) AS equipos_criticos,',
+    'MAX(ta.ultima_llamada_365) AS ultima_llamada_365,',
+    'MAX(ta.ultima_falla_blt_365) AS ultima_falla_blt_365',
+    'FROM (' + activePortfolio.sql + ') ap',
+    'LEFT JOIN (' + ticketAggregate.sql + ') ta ON ta.codigo_equipo = ap.numero_equipo',
+    'WHERE 1=1',
+    filterSql,
+    'GROUP BY ap.proyecto',
+    'HAVING SUM(COALESCE(ta.llamadas_365,0)) > 0'
+  ].join(' ');
+
+  const baseParams = [criteria.minFallas, ...(activePortfolio.params || []), ...ticketAggregate.params, ...filterParams];
+  const [countRows] = await db.query('SELECT COUNT(*) AS total FROM (' + baseSql + ') q', baseParams);
+  const [rows] = await db.query(
+    'SELECT * FROM (' + baseSql + ') q ORDER BY q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.proyecto ASC LIMIT ? OFFSET ?',
+    [...baseParams, pageSize, offset]
+  );
+
+  return {
+    criteria,
+    pagination: { page, page_size: pageSize, total: Number(countRows?.[0]?.total || 0) },
+    rows: Array.isArray(rows) ? rows : []
+  };
+}
+
 async function getSnapshotAnalytics(req, portafolioScope) {
   const criteria = getCriticidadCriteria(req);
   const scope = portafolioScope || buildPortafolioScopeSql_gnral(req, 'p');
@@ -278,5 +465,7 @@ module.exports = {
   officialProjectZoneSql,
   officialProjectZoneIdSql,
   getCriticidadCriteria,
-  getSnapshotAnalytics
+  getSnapshotAnalytics,
+  getCallCenterU365Equipos,
+  getCallCenterU365Proyectos
 };
