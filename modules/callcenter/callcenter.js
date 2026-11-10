@@ -60,6 +60,19 @@
   async function fetchRows(paths){for(const path of paths){try{const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)continue;const data=await r.json();const rows=Array.isArray(data)?data:(data.data||data.rows||data.tickets||data.equipos||[]);if(Array.isArray(rows)&&rows.length)return rows;}catch(e){}}return[];}
   function positiveInt(value,fallback){const n=parseInt(value,10);return Number.isFinite(n)&&n>0?n:fallback;}
   async function fetchJson(path){const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+  async function fetchU365Pages(path){
+    const rows=[];let page=1,total=0;
+    do{
+      const sep=path.includes('?')?'&':'?';
+      const data=await fetchJson(path+sep+'page='+page+'&page_size=100');
+      const batch=Array.isArray(data)?data:(Array.isArray(data&&data.data)?data.data:[]);
+      if(!batch.length)break;
+      rows.push(...batch);
+      total=Number(data&&data.pagination&&data.pagination.total||rows.length);
+      page+=1;
+    }while(rows.length<total&&page<=1000);
+    return rows;
+  }
   function syncCriticidadFromSession(){
     const user=window.ManttoAuth&&typeof window.ManttoAuth.getUser==='function'?window.ManttoAuth.getUser():null;
     state.critFallas=positiveInt(user&&user.criticos_fallas,state.critFallas||3);
@@ -80,7 +93,7 @@
   function elapsedYearDaysCdmx(){try{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).reduce((a,p)=>{a[p.type]=p.value;return a;},{});const today=Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day));return Math.floor((today-Date.UTC(Number(parts.year),0,1))/86400000)+1;}catch(e){const now=new Date();return Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(now.getFullYear(),0,1))/86400000)+1;}}
   function aggregateMtbc(rows,faultKey,periodDays){const totals=(rows||[]).reduce((a,r)=>{const faults=Number(r&&r[faultKey]||0);if(Number.isFinite(faults)&&faults>0){a.faults+=faults;a.equipment+=1;}return a;},{faults:0,equipment:0});return totals.faults?Math.round((periodDays*totals.equipment/totals.faults)*1000)/1000:null;}
   async function loadHtml(){const view=$('view-callcenter');if(!view||state.loaded)return;let html='<div class="cc-page"><section class="cc-card cc-head"><div><p class="cc-eyebrow">Cargando módulo</p><h1>Dashboard Call Center</h1><p>Inicializando vista...</p></div></section></div>';try{const r=await fetch('./modules/callcenter/callcenter.html?v=20260716-v004',{cache:'no-store'});if(r.ok)html=await r.text();}catch(e){}view.innerHTML=html;bind();state.loaded=true;if(window.EstadosVisuales_gnral)window.EstadosVisuales_gnral.apply(view);}
-  function bind(){const refresh=$('cc-refresh');if(refresh)refresh.addEventListener('click',()=>loadData({forceSecondary:true}));['cc-from','cc-to'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>loadData({periodOnly:true}));});const zona=$('cc-zona');if(zona)zona.addEventListener('change',render);if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}$('cc-search')?.addEventListener('input',renderTable);$('cc-filter-et')?.addEventListener('change',renderTable);$('cc-page-prev')?.addEventListener('click',()=>changePage(-1));$('cc-page-next')?.addEventListener('click',()=>changePage(1));$('cc-modal-close')?.addEventListener('click',closeModal);$('cc-nf-prev')?.addEventListener('click',()=>changeNoFuncPage(-1));$('cc-nf-next')?.addEventListener('click',()=>changeNoFuncPage(1));$('cc-nofunc-toggle')?.addEventListener('click',toggleNoFuncPanel);$('cc-u365-proy-open')?.addEventListener('click',()=>openU365View('u365-proyectos'));$('cc-u365-eq-open')?.addEventListener('click',()=>openU365View('u365-equipos'));$('cc-u365-proy-prev')?.addEventListener('click',()=>changeU365Page('u365-proyectos',-1));$('cc-u365-proy-next')?.addEventListener('click',()=>changeU365Page('u365-proyectos',1));$('cc-u365-eq-prev')?.addEventListener('click',()=>changeU365Page('u365-equipos',-1));$('cc-u365-eq-next')?.addEventListener('click',()=>changeU365Page('u365-equipos',1));document.querySelectorAll('[data-cc-group-toggle]').forEach(el=>el.addEventListener('click',()=>toggleMobileGroup(el.dataset.ccGroupToggle)));$('cc-detail-modal')?.addEventListener('click',e=>{if(e.target.id==='cc-detail-modal')closeModal();});document.querySelectorAll('[data-cc-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.ccDetail)));}
+  function bind(){const refresh=$('cc-refresh');if(refresh)refresh.addEventListener('click',()=>loadData({forceSecondary:true}));['cc-from','cc-to'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>loadData({periodOnly:true}));});const zona=$('cc-zona');if(zona)zona.addEventListener('change',render);if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}$('cc-search')?.addEventListener('input',renderTable);$('cc-filter-et')?.addEventListener('change',renderTable);$('cc-page-prev')?.addEventListener('click',()=>changePage(-1));$('cc-page-next')?.addEventListener('click',()=>changePage(1));$('cc-modal-close')?.addEventListener('click',closeModal);$('cc-nf-prev')?.addEventListener('click',()=>changeNoFuncPage(-1));$('cc-nf-next')?.addEventListener('click',()=>changeNoFuncPage(1));$('cc-nofunc-toggle')?.addEventListener('click',toggleNoFuncPanel);$('cc-u365-proy-open')?.addEventListener('click',()=>openU365View('u365-proyectos'));$('cc-u365-eq-open')?.addEventListener('click',()=>openU365View('u365-equipos'));$('cc-u365-proy-prev')?.addEventListener('click',()=>changeU365Page('u365-proyectos',-1));$('cc-u365-proy-next')?.addEventListener('click',()=>changeU365Page('u365-proyectos',1));$('cc-u365-eq-prev')?.addEventListener('click',()=>changeU365Page('u365-equipos',-1));$('cc-u365-eq-next')?.addEventListener('click',()=>changeU365Page('u365-equipos',1));$('cc-u365-proy-back')?.addEventListener('click',returnToCallCenterDashboard);$('cc-u365-eq-back')?.addEventListener('click',returnToCallCenterDashboard);document.querySelectorAll('[data-cc-group-toggle]').forEach(el=>el.addEventListener('click',()=>toggleMobileGroup(el.dataset.ccGroupToggle)));$('cc-detail-modal')?.addEventListener('click',e=>{if(e.target.id==='cc-detail-modal')closeModal();});document.querySelectorAll('[data-cc-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.ccDetail)));}
   async function init(payload){state.requestedView=normalizeCallCenterView(payload);if(window.EstadosVisuales_gnral){await window.EstadosVisuales_gnral.load();}await loadHtml();syncCriticidadFromSession();if(!state.initialized){initDates();await loadData();state.initialized=true;}else render();await applyCallCenterView(state.requestedView);}
   function initDates(){const today=window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function'?window.ManttoHumanTime.mexicoCityDate():new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const from=today.slice(0,7)+'-01';if($('cc-from'))$('cc-from').value=from;if($('cc-to'))$('cc-to').value=today;}
   async function loadData(options){
@@ -220,14 +233,15 @@
   function toggleNoFuncPanel(){const panel=$('cc-nofunc-section'),btn=$('cc-nofunc-toggle');if(!panel||!btn)return;const opening=panel.hidden;panel.hidden=!opening;btn.classList.toggle('is-active',opening);btn.setAttribute('aria-expanded',String(opening));const sub=btn.querySelector('.sub');if(sub)sub.textContent=opening?'Ocultar tabla':'Mostrar tabla';if(opening)panel.scrollIntoView({behavior:'smooth',block:'nearest'});}
   function normalizeCallCenterView(payload){const view=payload&&payload.view;return view==='u365-proyectos'||view==='u365-equipos'?view:'dashboard';}
   function openU365View(view){if(!window.ManttoRouter)return;window.ManttoRouter.go('callcenter',{view:view});}
+  function returnToCallCenterDashboard(){if(!window.ManttoRouter)return;window.ManttoRouter.back({fallbackRoute:'callcenter',fallbackPayload:{view:'dashboard'}});}
   async function ensureU365Loaded(view){
     if(view!=='u365-proyectos'&&view!=='u365-equipos')return;
     if(state.u365Loaded[view])return;
     if(state.u365Loading[view])return state.u365Loading[view];
-    const path=view==='u365-proyectos'?'/api/callcenter/u365/proyectos':'/api/callcenter/u365/equipos';
+    const path=view==='u365-proyectos'?'/api/operacion/dashboard-call-center/u365/proyectos':'/api/operacion/dashboard-call-center/u365/equipos';
     state.u365Loading[view]=(async()=>{
       setStatus('loading','Cargando detalle U365...');
-      const rows=await fetchMtbcPages(path);
+      const rows=await fetchU365Pages(path);
       if(view==='u365-proyectos')state.u365Proyectos=Array.isArray(rows)?rows:[];
       else state.u365Equipos=Array.isArray(rows)?rows:[];
       state.u365Loaded[view]=true;
