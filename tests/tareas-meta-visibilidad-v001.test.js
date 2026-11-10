@@ -97,5 +97,5 @@ test('el CSS reacomoda la tarjeta en escritorio y pantallas pequenas sin huecos'
   assert.match(css, /\.task-row\.task-row-compact\[data-empty-meta="1"\]\{grid-template-columns:minmax\(0,1fr\)\}/);
   const index = read('index.html');
   assert.match(index, /styles\/home\.css\?v=20261019-tareas-meta-visibles-v001/);
-  assert.match(index, /modules\/home\/home\.js\?v=20261109-detail-navigation-v001/);
+  assert.match(index, /modules\/home\/home\.js\?v=20261109-detail-navigation-v003/);
 });

@@ -215,3 +215,61 @@ test('cerrar sesión limpia el recorrido y bloquea entradas de la sesión anteri
   await settle();
   assert.equal(route(h), 'home');
 });
+
+
+test('main + id se normaliza a detalle global sin pantalla intermedia', async () => {
+  const h = createHarness();
+  await h.window.ManttoRouter.go('proyectos', {id:'P100'});
+  assert.equal(route(h), 'detalle');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.type, 'proyecto');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.id, 'P100');
+
+  await h.window.ManttoRouter.go('portafolio', {id:'EQ-200'});
+  assert.equal(route(h), 'detalle');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.type, 'equipo');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.id, 'EQ-200');
+
+  await h.window.ManttoRouter.go('tickets', {id:'T-300'});
+  assert.equal(route(h), 'detalle');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.type, 'ticket');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.id, 'T-300');
+});
+
+test('Portafolio conserva sus vistas de categoria y no las confunde con Equipo detalle', async () => {
+  const h = createHarness();
+  await h.window.ManttoRouter.go('portafolio', {id:'categoria-cobranza',view:'categoria',categoria:'cobranza'});
+  assert.equal(route(h), 'portafolio');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.view, 'categoria');
+});
+
+test('mains de Ventas con id se resuelven a sus rutas detalle', async () => {
+  const h = createHarness();
+  await h.window.ManttoRouter.go('ventas-clientes', {id:11});
+  assert.equal(route(h), 'ventas-clientes-detalle');
+  await h.window.ManttoRouter.go('ventas-cotizaciones', {id:22});
+  assert.equal(route(h), 'ventas-cotizaciones-detalle');
+  await h.window.ManttoRouter.go('ventas-prospeccion', {id:33});
+  assert.equal(route(h), 'ventas-prospeccion-detalle');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.id_pros, 33);
+  await h.window.ManttoRouter.go('ventas-asignacion-redes', {id:44});
+  assert.equal(route(h), 'ventas-asignacion-redes-detalle');
+});
+
+test('un popstate heredado main + id se reescribe al detalle canonico', async () => {
+  const h = createHarness();
+  const state = {
+    mantto:true,
+    route:'proyectos',
+    payload:{id:'P-LEGACY'},
+    manttoHistory:[{route:'home',payload:null}],
+    manttoDepth:1,
+    manttoEpoch:0
+  };
+  h.window.history.pushState(state,'','#/proyectos/P-LEGACY');
+  h.emit('popstate',{state});
+  await settle();
+  assert.equal(route(h),'detalle');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.type,'proyecto');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.id,'P-LEGACY');
+  assert.equal(h.window.history.state.route,'detalle');
+});

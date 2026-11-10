@@ -791,6 +791,11 @@
     state.selectedTask = null;
     state.selectedDetail = null;
     state.formHistoricalUsers = [];
+    const router=window.ManttoRouter;
+    const current=router&&typeof router.getCurrent==='function'?router.getCurrent():null;
+    if(current&&current.route==='tareas'&&current.payload&&(current.payload.id||current.payload.action==='new')){
+      router.back({fallbackRoute:'home'});
+    }
   }
 
   function askDeleteConfirmation(taskTitle){
@@ -1112,6 +1117,7 @@
 
   async function openTaskDetail(id, options){
     if(!id) return;
+    if(!state.user) state.user=getCurrentUser();
     const local = state.tasks.find(t => String(t.id) === String(id));
     state.selectedTask = local || null;
     const root = document.getElementById('home-task-modal-root');

@@ -167,6 +167,72 @@
     return value === 'logistica-pvo' || value === 'logistica-documentos' ? 'logistica-produccion' : value;
   }
 
+  function directDetailDestination(route,payload){
+    const rawRoute=String(route||'home');
+    const data=payload&&typeof payload==='object'?Object.assign({},payload):payload;
+    if(!data||typeof data!=='object')return {route:rawRoute,payload:data||null};
+
+    const directId=(...values)=>{
+      for(const value of values){
+        if(value!==undefined&&value!==null&&String(value).trim()!=='')return value;
+      }
+      return null;
+    };
+    let id=null;
+
+    if(rawRoute==='proyectos'){
+      id=directId(data.proyecto,data.project,data.codigo,data.id);
+      if(id!=null)return {route:'detalle',payload:Object.assign({},data,{type:'proyecto',id:String(id)})};
+    }
+
+    if(rawRoute==='portafolio'){
+      if(data.view==='categoria'||data.categoria||String(data.id||'').startsWith('categoria-'))return {route:rawRoute,payload:data};
+      id=directId(data.equipo,data.codigo,data.id);
+      if(id!=null)return {route:'detalle',payload:Object.assign({},data,{type:'equipo',id:String(id)})};
+    }
+
+    if(rawRoute==='tickets'){
+      id=directId(data.ticket,data.folio,data.id);
+      if(id!=null)return {route:'detalle',payload:Object.assign({},data,{type:'ticket',id:String(id)})};
+    }
+
+    if(rawRoute==='instalaciones-proyectos'){
+      id=directId(data.id,data.proyecto,data.project,data.codigo);
+      if(id!=null)return {route:'detalle',payload:Object.assign({},data,{
+        type:'proyecto',id:String(id),
+        source:data.source||'instalaciones-proyectos',
+        template:data.template||'cliente-unificado'
+      })};
+    }
+
+    const dedicated={
+      'ventas-clientes':'ventas-clientes-detalle',
+      'ventas-cotizaciones':'ventas-cotizaciones-detalle',
+      'ventas-prospeccion':'ventas-prospeccion-detalle',
+      'ventas-asignacion-redes':'ventas-asignacion-redes-detalle'
+    };
+    if(dedicated[rawRoute]){
+      id=directId(data.id,data.id_cliente,data.id_cotizacion,data.id_pros,data.id_redes);
+      if(id!=null){
+        const next=Object.assign({},data,{id:id});
+        if(rawRoute==='ventas-prospeccion'&&!next.id_pros)next.id_pros=id;
+        return {route:dedicated[rawRoute],payload:next};
+      }
+    }
+
+    if(rawRoute==='logistica-produccion'){
+      id=directId(data.id_produccion,data.id);
+      if(id!=null)return {route:'logistica-produccion-detalle',payload:Object.assign({},data,{id:id})};
+    }
+
+    if(rawRoute==='logistica-reporte'){
+      id=directId(data.detailId,data.id_log_ops,data.id);
+      if(id!=null)return {route:'logistica-reporte',payload:Object.assign({},data,{detailId:id})};
+    }
+
+    return {route:rawRoute,payload:data};
+  }
+
   function label(route){ return routeNames[route] || route || 'Inicio'; }
   function safeText(value){
     const text = value === null || value === undefined ? '' : String(value);
@@ -177,7 +243,9 @@
     historyStack.length = 0;
     if(!Array.isArray(entries)) return;
     entries.slice(-25).forEach(function(entry){
-      if(entry && entry.route) historyStack.push({route:canonicalRoute(entry.route),payload:entry.payload || null,context:null});
+      if(!entry || !entry.route) return;
+      const destination=directDetailDestination(entry.route,entry.payload || null);
+      historyStack.push({route:canonicalRoute(destination.route),payload:destination.payload || null,context:null});
     });
   }
   function routeUrl(route, payload){
@@ -220,6 +288,10 @@
       case 'ventas-cotizaciones-detalle': return {route:'ventas-cotizaciones'};
       case 'logistica-produccion-nuevo':
       case 'logistica-produccion-detalle': return {route:'logistica-produccion'};
+      case 'logistica-reporte': return data.detailId || data.id_log_ops
+        ? {route:'logistica-reporte'} : null;
+      case 'usuarios': return data.id || data.id_SB ? {route:'usuarios'} : null;
+      case 'tareas': return data.id || data.action ? {route:'home'} : null;
       case 'soporte-solicitudes': return data.mode === 'requester'
         ? {route:data.backRoute || 'help',payload:{section:'my-requests'}}
         : (data.id ? {route:'soporte-solicitudes'} : null);
@@ -825,14 +897,12 @@
     updateContext('soporte-solicitudes','Solicitudes de soporte · consulta y seguimiento');
     if(window.ManttoSoporteSolicitudes && window.ManttoSoporteSolicitudes.init){
       const requesterMode = currentPayload && currentPayload.mode === 'requester';
+      const solicitudId = currentPayload && (currentPayload.id || currentPayload.id_solicitud || currentPayload.id_ticket);
       window.ManttoSoporteSolicitudes.init(view.querySelector('[data-ss-root]') || view, {
         mode: requesterMode ? 'requester' : 'support',
-        backRoute: currentPayload && currentPayload.backRoute ? currentPayload.backRoute : (requesterMode ? 'help' : 'soporte-solicitudes')
+        backRoute: currentPayload && currentPayload.backRoute ? currentPayload.backRoute : (requesterMode ? 'help' : 'soporte-solicitudes'),
+        detailId: solicitudId || null
       });
-      const solicitudId = currentPayload && (currentPayload.id || currentPayload.id_solicitud || currentPayload.id_ticket);
-      if(solicitudId && window.ManttoSoporteSolicitudes.openDetail){
-        window.setTimeout(() => window.ManttoSoporteSolicitudes.openDetail(solicitudId), 0);
-      }
     }
     return true;
   }
@@ -843,7 +913,7 @@
     activateViewById('view-usuarios');
     setActiveSide('usuarios');
     updateContext('usuarios','Mi perfil y directorio de usuarios · datos reales desde Aiven');
-    if(window.ManttoUsuarios) window.ManttoUsuarios.init();
+    if(window.ManttoUsuarios) window.ManttoUsuarios.init(currentPayload || {});
     return true;
   }
 
@@ -1092,13 +1162,11 @@
       return;
     }
     if(route==='tareas'){
-      showHome();
-      window.setTimeout(function(){
-        if(window.ManttoHome){
-          if(payload && payload.action === 'new') window.ManttoHome.openTaskForm('create');
-          else if(payload && payload.id) window.ManttoHome.openTaskDetail(payload.id, { focus: payload.focus || null });
-        }
-      }, 0);
+      showHome({loadData:false});
+      if(window.ManttoHome){
+        if(payload && payload.action === 'new') window.ManttoHome.openTaskForm('create');
+        else if(payload && payload.id) window.ManttoHome.openTaskDetail(payload.id, { focus: payload.focus || null });
+      }
       return;
     }
 
@@ -1126,12 +1194,12 @@
     return true;
   }
 
-  function showHome(){
+  function showHome(options){
     activateViewById('view-home');
     setActiveSide('home');
     updateContext('home', 'Home operativo · datos reales desde Aiven cuando existan registros');
     const authenticated = !window.ManttoAuth || Boolean(window.ManttoAuth.getUser && window.ManttoAuth.getUser());
-    if(authenticated && window.ManttoHome && window.ManttoHome.init) window.ManttoHome.init();
+    if(authenticated && window.ManttoHome && window.ManttoHome.init) window.ManttoHome.init(options || null);
   }
 
   async function ensureRouteModule(route){
@@ -1164,8 +1232,9 @@
   async function internalGo(route, payload, opts){
     const options = opts || {};
     const navigationType = options.navigationType || 'forward';
-    const nextRoute = canonicalRoute(route);
-    const nextPayload = payload || null;
+    const destination = directDetailDestination(route,payload);
+    const nextRoute = canonicalRoute(destination.route);
+    const nextPayload = destination.payload || null;
     const same = currentRoute === nextRoute && payloadKey(currentPayload) === payloadKey(nextPayload);
     const sequence = ++navigationSequence;
 
@@ -1206,8 +1275,9 @@
     let context = null;
     if(previous){
       navigationDepth = Math.max(0,navigationDepth - 1);
-      currentRoute = canonicalRoute(previous.route);
-      currentPayload = previous.payload || null;
+      const destination=directDetailDestination(previous.route,previous.payload || null);
+      currentRoute = canonicalRoute(destination.route);
+      currentPayload = destination.payload || null;
       context = previous.context || null;
     } else if(currentRoute !== 'home') {
       navigationDepth = 0;
@@ -1254,8 +1324,13 @@
           if(Array.isArray(state.manttoHistory)) restoreHistoryStack(state.manttoHistory);
           else if(historyStack.length && historyStack[historyStack.length - 1].route === canonicalRoute(state.route)) historyStack.pop();
           navigationDepth = Number.isInteger(Number(state.manttoDepth)) ? Math.max(0,Number(state.manttoDepth)) : historyStack.length;
-          currentRoute = canonicalRoute(state.route);
-          currentPayload = state.payload || null;
+          const destination=directDetailDestination(state.route,state.payload || null);
+          currentRoute = canonicalRoute(destination.route);
+          currentPayload = destination.payload || null;
+          if(currentRoute!==state.route || payloadKey(currentPayload)!==payloadKey(state.payload || null)){
+            state=Object.assign({},state,{route:currentRoute,payload:currentPayload});
+            try{window.history.replaceState(state,'',routeUrl(currentRoute,currentPayload));}catch(error){}
+          }
           saveCurrentRoute();
           try{
             await ensureRouteModule(currentRoute);

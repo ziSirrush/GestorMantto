@@ -15,6 +15,10 @@ const resumen=read('modules/resumen-dia/resumen-dia.js');
 const details=read('core/details.js');
 const instalacionesDoc=read('modules/instalaciones-documentacion/instalaciones-documentacion_cor.js');
 const instalacionesDashboard=read('modules/instalaciones-dashboard/instalaciones-dashboard_cor.js');
+const router=read('core/router.js');
+const soporte=read('modules/soporte-solicitudes/soporte-solicitudes.js');
+const usuarios=read('modules/usuarios/usuarios.js');
+const reporteLogistica=read('modules/reporte-logistica/reporte-logistica.js');
 
 test('Home/Tareas abre Proyecto y Equipo por la ruta global detalle',()=>{
   assert.match(home,/module:'detalle',type:'proyecto',id:t\.proyecto,source:'home-tarea'/);
@@ -80,4 +84,62 @@ test('Instalaciones Documentacion usa identidad Corellian completa para Equipo',
 test('Instalaciones Dashboard abre Proyecto con plantilla unificada',()=>{
   assert.match(instalacionesDashboard,/template:'cliente-unificado',source:'instalaciones-dashboard',projectName:name/);
   assert.match(instalacionesDashboard,/ManttoDetails\.openProyecto\(name,options\)/);
+});
+
+
+test('Router global normaliza main + identificador hacia detalle directo',()=>{
+  assert.match(router,/function directDetailDestination\(route,payload\)/);
+  assert.match(router,/if\(rawRoute==='proyectos'\)/);
+  assert.match(router,/route:'detalle',payload:Object\.assign\(\{\},data,\{type:'proyecto'/);
+  assert.match(router,/if\(rawRoute==='portafolio'\)/);
+  assert.match(router,/type:'equipo'/);
+  assert.match(router,/if\(rawRoute==='tickets'\)/);
+  assert.match(router,/type:'ticket'/);
+  assert.match(router,/'ventas-clientes':'ventas-clientes-detalle'/);
+  assert.match(router,/'ventas-cotizaciones':'ventas-cotizaciones-detalle'/);
+  assert.match(router,/'ventas-prospeccion':'ventas-prospeccion-detalle'/);
+  assert.match(router,/'ventas-asignacion-redes':'ventas-asignacion-redes-detalle'/);
+  assert.match(router,/rawRoute==='logistica-produccion'/);
+  assert.match(router,/route:'logistica-produccion-detalle'/);
+});
+
+test('Router aplica la normalizacion tambien a historial restaurado y Back Forward',()=>{
+  assert.match(router,/const destination=directDetailDestination\(entry\.route,entry\.payload \|\| null\)/);
+  assert.match(router,/const destination=directDetailDestination\(previous\.route,previous\.payload \|\| null\)/);
+  assert.match(router,/const destination=directDetailDestination\(state\.route,state\.payload \|\| null\)/);
+});
+
+test('Soporte abre una solicitud en detalle sin montar primero el listado',()=>{
+  assert.match(router,/detailId: solicitudId \|\| null/);
+  assert.doesNotMatch(router,/setTimeout\(\(\) => window\.ManttoSoporteSolicitudes\.openDetail/);
+  assert.match(soporte,/const directDetailId = options\.detailId \|\| null/);
+  assert.match(soporte,/if \(directDetailId\) \{\s*ssOpenDetail\(directDetailId\);\s*return true;/);
+  assert.match(soporte,/if \(directDetailId\) ssOpenDetail\(directDetailId\);\s*else ssLoad\(\);/);
+});
+
+test('Detalle de Tarea no recarga Home y al cerrar vuelve al origen real',()=>{
+  assert.match(router,/if\(route==='tareas'\)\{\s*showHome\(\{loadData:false\}\)/);
+  assert.doesNotMatch(router,/if\(route==='tareas'\)[\s\S]{0,180}setTimeout/);
+  assert.match(home,/current&&current\.route==='tareas'/);
+  assert.match(home,/router\.back\(\{fallbackRoute:'home'\}\)/);
+});
+
+test('Usuarios consume el id de navegación y abre directamente el contacto solicitado',()=>{
+  assert.match(router,/ManttoUsuarios\.init\(currentPayload \|\| \{\}\)/);
+  assert.match(usuarios,/async function init\(payload\)/);
+  assert.match(usuarios,/const requestedId=String\(payload&&\(payload\.id\|\|payload\.id_SB\)\|\|'\'\)\.trim\(\)/);
+  assert.match(usuarios,/if\(requestedId\) state\.tab='directorio'/);
+  assert.match(usuarios,/state\.selected=state\.usuarios\.find/);
+});
+
+test('Reporte de Logistica evita main intermedio cuando recibe detailId',()=>{
+  assert.match(router,/rawRoute==='logistica-reporte'/);
+  assert.match(router,/detailId:id/);
+  assert.match(reporteLogistica,/if\(state\.detailId\)openDetail\(state\.detailId\);else render\(\)/);
+  assert.match(reporteLogistica,/router\.back\(\{fallbackRoute:'logistica-reporte'\}\)/);
+});
+
+test('Resumen del Dia elimina el ultimo puente historico hacia Tickets main',()=>{
+  assert.match(resumen,/rd-ticket-go-ticket'\); if\(goTicket\) goTicket\.onclick = \(\) => openTicket\(t\.n\)/);
+  assert.doesNotMatch(resumen,/rd-ticket-go-ticket[\s\S]{0,220}module:'tickets'/);
 });

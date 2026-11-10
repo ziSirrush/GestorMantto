@@ -192,7 +192,7 @@
   const SEGUIMIENTO_ESPECIAL_GLOBAL_JS = './modules/seguimiento-especial/seguimiento-especial-global.js?v=20260929-fix-seguimiento-ticket-detalle-permisos-v001-limpieza-v002';
 
   const ROUTES = Object.freeze({
-    resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20261109-detail-navigation-v001']},
+    resumen:{css:['./modules/resumen-dia/resumen-dia.css?v=20260716-v117'],js:['./modules/resumen-dia/resumen-dia.js?v=20261109-detail-navigation-v003']},
     criticos:{css:['./modules/equipos-criticos/equipos-criticos.css?v=20260717-fix5'],js:['./modules/equipos-criticos/equipos-criticos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'movimientos-criticos':{css:['./modules/movimientos-criticos/movimientos-criticos.css?v=20261003-fase3-v001'],js:['./modules/movimientos-criticos/movimientos-criticos.js?v=20261003-fase3-v001']},
     portafolio:{css:['./modules/portafolio/portafolio.css?v=20260817-lote-cobranza-uni-v001'],js:['./modules/portafolio/portafolio.js?v=20260817-lote-cobranza-uni-v001']},
@@ -205,7 +205,7 @@
     movimientos:{css:['./modules/movimientos-portafolio/movimientos-portafolio.css?v=20260830-corte-semanal-v004'],js:['./modules/movimientos-portafolio/movimientos-portafolio.js?v=20260830-corte-semanal-v004']},
 
     'logistica-dashboard':{css:['./modules/dashboard-logistica/dashboard-logistica.css?v=20260923-dashboard-ppns-final-v001','./modules/dashboard-logistica/dashboard-logistica-simulador.css?v=20261021-dashboard-fase5-v001','./modules/dashboard-logistica/dashboard-logistica-catalogo-fletes.css?v=20261105-ticker-v001'],js:['./modules/dashboard-logistica/dashboard-logistica.js?v=20261109-dashboard-logistica-v002','./modules/dashboard-logistica/dashboard-logistica-catalogo-fletes.js?v=20261105-ticker-v001']},
-    'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20260914-horarios-f2-v001']},
+    'logistica-reporte':{css:['./modules/reporte-logistica/reporte-logistica.css?v=20260711-v004'],js:['./modules/reporte-logistica/reporte-logistica.js?v=20261109-detail-navigation-v003']},
     'logistica-produccion':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
     'logistica-produccion-nuevo':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
     'logistica-produccion-detalle':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
@@ -260,10 +260,10 @@
     'almacen-auditoria':{css:[ALMACEN_MODULE_CSS],js:[ALMACEN_MODULE_JS]},
     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001-limpieza-v002'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002-limpieza-v002']},
 
-    usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261015-app-update-v001-limpieza-v002']},
+    usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261109-detail-navigation-v003']},
     'panel-control':{css:['./modules/panel-control/panel-control.css?v=20260928-auditoria-v001'],js:['./modules/panel-control/panel-control.js?v=20261109-sidebar-permissions-v004']},
     'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261023-context-back-only-v001']},
-    'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20261023-back-history-v001']},
+    'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20261109-detail-navigation-v003']},
 
     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-resumen-dia':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-resumen-dia/experimental-resumen-dia.css?v=20260805-fase3-v001'],js:['./modules/experimental-resumen-dia/experimental-resumen-dia.js?v=20260914-horarios-f2-v001',EXPERIMENTAL_SHELL_JS]},

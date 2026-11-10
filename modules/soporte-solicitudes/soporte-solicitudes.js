@@ -512,7 +512,11 @@
           if (!ssIsDetailVisible()) return;
           event.preventDefault();
           event.stopImmediatePropagation();
-          if (SS_STATE.mode === 'requester' && window.ManttoRouter) window.ManttoRouter.back({fallbackRoute:SS_STATE.backRoute || 'help',fallbackPayload:{section:'my-requests'}});
+          const router=window.ManttoRouter;
+          const current=router&&typeof router.getCurrent==='function'?router.getCurrent():null;
+          const routedDetail=Boolean(current&&current.route==='soporte-solicitudes'&&current.payload&&(current.payload.id||current.payload.id_solicitud||current.payload.id_ticket));
+          if (routedDetail && router) router.back({fallbackRoute:SS_STATE.mode === 'requester' ? (SS_STATE.backRoute || 'help') : 'soporte-solicitudes',fallbackPayload:SS_STATE.mode === 'requester' ? {section:'my-requests'} : null});
+          else if (SS_STATE.mode === 'requester' && router) router.back({fallbackRoute:SS_STATE.backRoute || 'help',fallbackPayload:{section:'my-requests'}});
           else ssShowList();
         }, true);
       }
@@ -529,9 +533,14 @@
     options = options || {};
     SS_STATE.mode = options.mode === 'requester' ? 'requester' : 'support';
     SS_STATE.backRoute = options.backRoute || (SS_STATE.mode === 'requester' ? 'help' : 'soporte-solicitudes');
+    const directDetailId = options.detailId || null;
     const target = typeof root === 'string' ? document.querySelector(root) : root;
     if (!target) return false;
     if (SS_STATE.initialized && SS_STATE.root === target) {
+      if (directDetailId) {
+        ssOpenDetail(directDetailId);
+        return true;
+      }
       if (SS_STATE.mode === 'support') ssShowList();
       ssLoad();
       return true;
@@ -545,7 +554,8 @@
     ssRenderFilters();
     ssApplyFilters();
     ssSetStatus('Vista preparada', 'ready');
-    ssLoad();
+    if (directDetailId) ssOpenDetail(directDetailId);
+    else ssLoad();
     return true;
   }
 

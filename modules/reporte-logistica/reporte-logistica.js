@@ -270,8 +270,18 @@
     $('rl-detail-body').innerHTML=detailFieldsHtml(row)+mapHtml(row);
     const main=document.querySelector('.main-content');if(main)main.scrollTop=0;window.scrollTo?.({top:0,behavior:'auto'});
   }
-  function closeDetail(){state.detailId='';$('rl-detail-view').hidden=true;document.querySelectorAll('.rl-list-view').forEach(element=>element.hidden=false);render();}
-  async function load(){setStatus('','Cargando Aiven...');try{state.rows=await fetchRows();state.loaded=true;render();setStatus('ok',`Aiven conectado · ${state.rows.length} registros`);if(state.detailId)openDetail(state.detailId);}catch(error){setStatus('error',error.message);$('rl-stack').innerHTML='<div class="rl-empty">No se pudo cargar Reporte de Logística.</div>';}}
+  function closeDetail(){
+    const router=window.ManttoRouter;
+    const current=router&&typeof router.getCurrent==='function'?router.getCurrent():null;
+    const routedDetail=Boolean(current&&current.route==='logistica-reporte'&&current.payload&&(current.payload.detailId||current.payload.id_log_ops));
+    if(routedDetail&&router&&typeof router.back==='function'){
+      state.detailId='';
+      router.back({fallbackRoute:'logistica-reporte'});
+      return;
+    }
+    state.detailId='';$('rl-detail-view').hidden=true;document.querySelectorAll('.rl-list-view').forEach(element=>element.hidden=false);render();
+  }
+  async function load(){setStatus('','Cargando Aiven...');try{state.rows=await fetchRows();state.loaded=true;setStatus('ok',`Aiven conectado · ${state.rows.length} registros`);if(state.detailId)openDetail(state.detailId);else render();}catch(error){setStatus('error',error.message);$('rl-stack').innerHTML='<div class="rl-empty">No se pudo cargar Reporte de Logística.</div>';}}
   function init(payload){
     const view=$('view-logistica-reporte');if(!view)return;if(!view.querySelector('#rl-refresh')||!view.querySelector('#rl-stack'))view.innerHTML=HTML;
     state.requestedStatus=payload&&payload.estatus?payload.estatus:'';state.detailId=payload&&payload.detailId?String(payload.detailId):'';if(payload&&(payload.search||payload.id_ppns))state.search=String(payload.search||payload.id_ppns||'');

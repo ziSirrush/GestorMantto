@@ -674,7 +674,7 @@
     renderTicketChat(t);
     const voboSave = byId('rd-vobo-save'); if(voboSave) voboSave.onclick = () => saveTicketVobo(t);
     const close = byId('rd-ticket-close'); if(close && close.dataset.bound !== '1'){ close.dataset.bound = '1'; close.addEventListener('click', closeTicketDetail); }
-    const goTicket = byId('rd-ticket-go-ticket'); if(goTicket) goTicket.onclick = () => window.ManttoRouter && window.ManttoRouter.openTarget({module:'tickets',id:t.n,source:'resumen-dia'});
+    const goTicket = byId('rd-ticket-go-ticket'); if(goTicket) goTicket.onclick = () => openTicket(t.n);
     const goEquipo = byId('rd-ticket-go-equipo'); if(goEquipo){ goEquipo.disabled = !t.cod; goEquipo.onclick = () => openEquipo(t.cod); }
     const goProyecto = byId('rd-ticket-go-proyecto'); if(goProyecto){ goProyecto.disabled = !t.pro; goProyecto.onclick = () => openProyecto(t.pro); }
   }
