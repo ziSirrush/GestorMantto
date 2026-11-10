@@ -20,6 +20,23 @@ async function analytics_cor(req, res, next) {
 }
 
 
+
+async function initial_cor(req, res, next) {
+  try {
+    const data = await service.initial_cor(req.query && req.query.anio_promedios);
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      mode: 'SNAPSHOT_FULL',
+      snapshot: { version: 'LOGISTICA_DASHBOARD_SNAPSHOT_V001', detalle_corte: 'LAZY', simulador: 'LAZY' },
+      generated_at: new Date().toISOString(),
+      data
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 // Endpoint de SOLO LECTURA: el mismo Guard del Dashboard protege el handler.
 async function freightSimulation_cor(req, res, next) {
   try {
@@ -50,4 +67,4 @@ async function catalogFletes_cor(req, res, next) {
   }
 }
 
-module.exports = Object.freeze({ analytics_cor, freightSimulation_cor, catalogFletes_cor });
+module.exports = Object.freeze({ analytics_cor, initial_cor, freightSimulation_cor, catalogFletes_cor });

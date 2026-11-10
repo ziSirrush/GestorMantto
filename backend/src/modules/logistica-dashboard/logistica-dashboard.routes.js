@@ -22,6 +22,13 @@ const analyticsGuard_cor = humanInformationGuard_gnral({
 // llaves estructuradas de asesor/supervisor para aplicar record-scope sin
 // ambiguedad, se exige alcance completo CORELLIAN y se falla cerrado.
 
+router.get(
+  '/inicial',
+  ...analyticsGuard_cor,
+  requireCompleteInformationDomain_gnral('CORELLIAN'),
+  controller.initial_cor
+);
+
 // Fase 4: nueva lectura agregada, sin acceso a registros individuales.
 // Aplica el MISMO guard de sesion, permiso, agrupacion y alcance completo.
 router.get(

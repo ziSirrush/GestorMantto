@@ -333,6 +333,30 @@ async function catalogFletes_cor(fechaCorte) {
   return rows;
 }
 
+
+async function dashboardRows_cor(limit = 5000) {
+  const safeLimit = Math.max(1, Math.min(5000, Number.parseInt(limit, 10) || 5000));
+  const [rows] = await db.query(
+    'SELECT * FROM log_ops ORDER BY id_log_ops ASC LIMIT ?',
+    [safeLimit]
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function latestClosedCut_cor() {
+  const [rows] = await db.query(
+    "SELECT * FROM logistica_cortes_semanales WHERE estado='CERRADO' ORDER BY anio_iso DESC, semana_iso DESC LIMIT 1"
+  );
+  return rows && rows[0] ? rows[0] : null;
+}
+
+async function closedCutsCatalog_cor() {
+  const [rows] = await db.query(
+    "SELECT id_corte,anio_iso,semana_iso,fecha_corte,id_corte_anterior,total_log_ops,total_movimientos,total_ingresos,total_cambios_estatus,estado,hash_contenido,created_at FROM logistica_cortes_semanales WHERE estado='CERRADO' ORDER BY anio_iso DESC,semana_iso DESC LIMIT 100"
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
 module.exports = Object.freeze({
   statusCounts_cor,
   deliveredByYear_cor,
@@ -347,5 +371,8 @@ module.exports = Object.freeze({
   periodContainers_cor,
   periodContainerMonths_cor,
   freightSimulationSamples_cor,
-  catalogFletes_cor
+  catalogFletes_cor,
+  dashboardRows_cor,
+  latestClosedCut_cor,
+  closedCutsCatalog_cor
 });

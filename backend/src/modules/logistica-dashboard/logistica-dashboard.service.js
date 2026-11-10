@@ -411,6 +411,33 @@ function freightScenario_cor(samples, mode, startKind, startDay, startDate) {
   };
 }
 
+
+function parseCut_cor(row) {
+  if (!row || typeof row !== 'object') return row || null;
+  const copy = { ...row };
+  for (const key of ['snapshot_json', 'movimientos_json']) {
+    if (typeof copy[key] === 'string') {
+      try { copy[key] = JSON.parse(copy[key]); } catch (_error) { copy[key] = []; }
+    }
+  }
+  return copy;
+}
+
+async function initial_cor(requestedPeriod) {
+  const [rows, latestCut, cuts, analytics] = await Promise.all([
+    repository.dashboardRows_cor(5000),
+    repository.latestClosedCut_cor(),
+    repository.closedCutsCatalog_cor(),
+    analytics_cor(requestedPeriod)
+  ]);
+  return {
+    rows,
+    corte: parseCut_cor(latestCut),
+    cortes: cuts,
+    analytics
+  };
+}
+
 async function freightSimulation_cor(query = {}) {
   if (!query || typeof query !== 'object' || Array.isArray(query)) {
     throw freightInputError_cor('Parámetros de simulacion no validos.');
@@ -536,6 +563,7 @@ module.exports = Object.freeze({
   normalizeContainerMonths_cor,
   normalizeRouteTable_cor,
   analytics_cor,
+  initial_cor,
   freightSimulation_cor,
   catalogFletes_cor
 });
