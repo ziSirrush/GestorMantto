@@ -8,27 +8,27 @@ const root=path.resolve(__dirname,'..');
 
 test('Nomenclatura nueva DDMMYY.API.DDMMYY.FE corresponde a manifiestos',()=>{
   const state=read();
-  assert.equal(state.api,'091126.8');
-  assert.equal(state.frontend,'091126.7');
-  assert.equal(state.combined,'091126.8.091126.7');
+  assert.equal(state.api,'101126.2');
+  assert.equal(state.frontend,'101126.1');
+  assert.equal(state.combined,'101126.2.101126.1');
   assert.match(fs.readFileSync(path.join(root,'tools/generate-build-info.js'),'utf8'),/readReleaseVersion/);
 });
 test('Solo front incrementa su contador sin tocar API',()=>{
   const s=read();
   assert.deepEqual(bump('frontend',s,'091126'),
-    {api:'091126.8',frontend:'091126.8',combined:'091126.8.091126.8'});
+    {api:'101126.2',frontend:'091126.8',combined:'101126.2.091126.8'});
 });
 test('Al cambiar de fecha el front reinicia revision y API permanece estable',()=>{
   const s=read();
   assert.deepEqual(bump('frontend',s,'101126'),
-    {api:'091126.8',frontend:'101126.1',combined:'091126.8.101126.1'});
+    {api:'101126.2',frontend:'101126.2',combined:'101126.2.101126.2'});
 });
 test('Cambio de API incrementa base y reinicia revision frontend',()=>{
   const s=read();
   assert.deepEqual(bump('api',s,'091126'),
-    {api:'091126.9',frontend:'091126.1',combined:'091126.9.091126.1'});
+    {api:'101126.3',frontend:'091126.1',combined:'101126.3.091126.1'});
   assert.deepEqual(bump('api',s,'101126'),
-    {api:'101126.1',frontend:'101126.1',combined:'101126.1.101126.1'});
+    {api:'101126.3',frontend:'101126.1',combined:'101126.3.101126.1'});
 });
 test('El formato rechaza fechas y revisiones invalidas',()=>{
   for(const value of ['311126.1','091326.1','091126.0','110926','-091126.1','091126.1.1']){
