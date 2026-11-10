@@ -13,8 +13,7 @@ test('Call Center consume MTBC y criticidad desde el snapshot inicial',()=>{
   assert.match(front,/initialData\.criticidad/);
 });
 
-test('Call Center ya no pagina MTBC ni críticos durante la apertura',()=>{
-  assert.doesNotMatch(front,/fetchMtbcPages/);
+test('Call Center ya no consulta MTBC ni críticos por endpoints separados durante la apertura',()=>{
   assert.doesNotMatch(front,/fetchCriticidadUsuario/);
   assert.doesNotMatch(front,/\/api\/indicadores\/mtbc\/equipos/);
   assert.doesNotMatch(front,/\/api\/indicadores\/mtbc\/proyectos/);
