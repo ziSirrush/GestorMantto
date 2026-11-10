@@ -22,8 +22,9 @@ assert(front.includes('zon: nrm(row.zona_oficial), asu:'), 'Ticket no usa exclus
 assert((front.match(/zon: nrm\(row\.zona_oficial\)/g) || []).length >= 2, 'Ticket/Portafolio no usan exclusivamente zona_oficial.');
 
 const initialCall = front.indexOf('const initial = await fetchResumenInicial()');
-const criticalCall = front.indexOf('fetchCriticidadUsuario()', initialCall);
-assert(initialCall >= 0 && criticalCall > initialCall, 'La primera carga territorial debe ocurrir antes de criticidad.');
+assert(initialCall >= 0, 'La primera carga territorial dedicada no existe.');
+assert(!front.includes('fetchCriticidadUsuario()'), 'Criticidad ya debe viajar dentro del snapshot inicial.');
+assert(front.includes('data.criticos_codigos'), 'Frontend no consume códigos críticos desde el snapshot.');
 
 assert(routes.includes("groupingCodesAny: ['OPERACION']"), 'Guard no esta fijado a la puerta OPERACION.');
 assert(routes.includes("domain: 'UNITED'"), 'Guard no esta fijado al dominio UNITED.');
