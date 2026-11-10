@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../config/db');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 const {
   buildPortafolioScopeSql_gnral,
   buildPortafolioScopeSqlInline_gnral,
@@ -100,6 +101,62 @@ function initialPeriodFilter(req, alias = 't') {
   };
 }
 
+function positiveInt(value, fallback, min, max) {
+  const n = Number.parseInt(value, 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function getCriticidadCriteria(req) {
+  const userFallas = Number(req && req.user && req.user.criticos_fallas) || 3;
+  const userPeriodo = Number(req && req.user && req.user.criticos_periodo) || 35;
+  return {
+    dias: positiveInt(req && req.query && (req.query.dias || req.query.criticos_periodo), userPeriodo, 1, 3650),
+    minFallas: positiveInt(req && req.query && (req.query.min_fallas || req.query.criticos_fallas), userFallas, 1, 9999)
+  };
+}
+
+async function getSnapshotAnalytics(req, portafolioScope) {
+  const criteria = getCriticidadCriteria(req);
+  const scope = portafolioScope || buildPortafolioScopeSql_gnral(req, 'p');
+  const today = sqlMexicoCityToday();
+  const sql = [
+    'SELECT',
+    'p.numero_equipo AS codigo_equipo,',
+    'MAX(p.proyecto) AS proyecto,',
+    'MAX(z_cc.zona) AS zona,',
+    'MAX(p.zona_id) AS zona_id_oficial,',
+    "SUM(CASE WHEN t.fecha_reporte >= MAKEDATE(YEAR(" + today + "),1) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN 1 ELSE 0 END) AS fallas_blt_anio,",
+    "SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL 364 DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN 1 ELSE 0 END) AS fallas_blt_365,",
+    "SUM(CASE WHEN t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL ? DAY) AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY) AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN 1 ELSE 0 END) AS fallas_blt_periodo_critico,",
+    "MAX(CASE WHEN UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%' THEN t.fecha_reporte ELSE NULL END) AS ultimo_blt",
+    'FROM portafolio p',
+    'INNER JOIN z_op z_cc ON z_cc.id_zona = p.zona_id AND z_cc.estado = 1',
+    'LEFT JOIN tickets t ON t.codigo_equipo = p.numero_equipo',
+    'AND t.fecha_reporte >= LEAST(MAKEDATE(YEAR(' + today + '),1), DATE_SUB(' + today + ', INTERVAL 364 DAY), DATE_SUB(' + today + ', INTERVAL ? DAY))',
+    'AND t.fecha_reporte < DATE_ADD(' + today + ', INTERVAL 1 DAY)',
+    'WHERE p.estado_registro = 1',
+    "AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))",
+    "AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'",
+    'AND (' + scope.sql + ')',
+    "AND p.numero_equipo IS NOT NULL AND p.numero_equipo <> ''",
+    'GROUP BY p.numero_equipo',
+    'HAVING fallas_blt_anio > 0 OR fallas_blt_365 > 0 OR fallas_blt_periodo_critico > 0',
+    'ORDER BY p.numero_equipo ASC',
+    'LIMIT 10001'
+  ].join(' ');
+
+  const [rows] = await db.query(sql, [criteria.dias, criteria.dias, ...(scope.params || [])]);
+  const data = Array.isArray(rows) ? rows : [];
+  if (data.length > 10000) {
+    const error = new Error('El snapshot analítico de Call Center supera 10,000 equipos.');
+    error.code = 'CALLCENTER_SNAPSHOT_LIMIT';
+    error.statusCode = 503;
+    throw error;
+  }
+  return { criteria, rows: data };
+}
+
 async function getInitialData(req) {
   const portafolioScope = buildPortafolioScopeSql_gnral(req, 'p');
   const ticketScope = buildTicketScopeSql_gnral(req, 't');
@@ -110,7 +167,7 @@ async function getInitialData(req) {
   const projectZone = officialProjectZoneSql('t', req);
   const projectZoneId = officialProjectZoneIdSql('t', req);
 
-  const [portafolioResult, ticketsResult] = await Promise.all([
+  const [portafolioResult, ticketsResult, analytics] = await Promise.all([
     db.query(`
       SELECT
         p.id_portafolio,
@@ -191,7 +248,9 @@ async function getInitialData(req) {
         ${period.sql}
       ORDER BY t.id DESC
       LIMIT 50000
-    `, [...(ticketScope.params || []), ...period.params])
+    `, [...(ticketScope.params || []), ...period.params]),
+
+    getSnapshotAnalytics(req, portafolioScope)
   ]);
 
   const portafolioRows = Array.isArray(portafolioResult?.[0]) ? portafolioResult[0] : [];
@@ -207,7 +266,8 @@ async function getInitialData(req) {
     tickets: ticketRows.map((row) => ({
       ...row,
       zona: row.zona_oficial || null
-    }))
+    })),
+    analytics
   };
 }
 
@@ -216,5 +276,7 @@ module.exports = {
   officialEquipmentZoneSql,
   officialEquipmentZoneIdSql,
   officialProjectZoneSql,
-  officialProjectZoneIdSql
+  officialProjectZoneIdSql,
+  getCriticidadCriteria,
+  getSnapshotAnalytics
 };
