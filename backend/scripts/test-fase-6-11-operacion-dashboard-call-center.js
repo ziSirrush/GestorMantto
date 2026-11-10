@@ -23,7 +23,7 @@ const checks = [
   ['no generic tickets fallback in loadData', !loadData.includes("fetchRows(['/api/tickets")],
   ['no generic portfolio fallback in loadData', !loadData.includes("fetchPortafolioPages()") && !loadData.includes("fetchRows(['/api/portafolio")],
   ['snapshot absorbs mtbc and critical secondary calls', !loadData.includes('/api/indicadores/mtbc/equipos') && !loadData.includes('/api/indicadores/mtbc/proyectos') && !loadData.includes('/api/equipos-criticos?')],
-  ['u365 remains lazy outside initial load', frontend.includes("'/api/callcenter/u365/proyectos'") && frontend.includes("'/api/callcenter/u365/equipos'")],
+  ['u365 remains lazy outside initial load', frontend.includes("'/api/operacion/dashboard-call-center/u365/proyectos'") && frontend.includes("'/api/operacion/dashboard-call-center/u365/equipos'")],
   ['exact operation door', route.includes("groupingCode: 'OPERACION'") && route.includes("domain: 'UNITED'")],
   ['real call center permissions', route.includes('OPERACION_DASHBOARD_CALL_CENTER_KPI_TICKETS.VER') && route.includes('OPERACION_DASHBOARD_CALL_CENTER_TABLA_TICKETS_TICKETS_DEL_PERIODO.VER')],
   ['initial portfolio scope', repository.includes('buildPortafolioScopeSql_gnral')],

@@ -29,7 +29,7 @@ test('Bump técnico de frontend no toca API',()=>{
 test('Formato oficial de commit es MMDDYY.N',()=>{
   assert.deepEqual(parseOfficialSubject('Version 111026.2'),{date:'111026',revision:2,version:'111026.2'});
   assert.deepEqual(parseOfficialVersion('111026.9'),{date:'111026',revision:9,version:'111026.9'});
-  for(const value of ['Version 101126.19.101126.3','Version 101126.1','Fix Call Center','Version 113126.1']){
+  for(const value of ['Version 101126.19.101126.3','Version 131026.1','Fix Call Center','Version 113126.1']){
     assert.throws(()=>parseOfficialSubject(value),Error);
   }
 });
