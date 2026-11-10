@@ -287,17 +287,18 @@ test('Nueva ruta conserva Guard General y alcance completo CORELLIAN',()=>{
   const guardCalls=[];
   const route=loadCommonJs(routesSource,{
     express:{Router(){return {get(route,...handlers){records.push({route,handlers});}};}},
-    './logistica-dashboard.controller':{analytics_cor(){},freightSimulation_cor(){},catalogFletes_cor(){}},
+    './logistica-dashboard.controller':{analytics_cor(){},initial_cor(){},freightSimulation_cor(){},catalogFletes_cor(){}},
     '../../middleware/information-access-gnral.middleware':{
       humanInformationGuard_gnral(settings){guardCalls.push(settings);return [function sessionAndPermissions(){}];},
       requireCompleteInformationDomain_gnral(domain){assert.equal(domain,'CORELLIAN');return function completeScope(){};}
     }
   });
   assert.ok(route);
-  assert.deepEqual(records.map(r=>r.route),['/simulacion','/fletes','/']);
+  assert.deepEqual(records.map(r=>r.route),['/inicial','/simulacion','/fletes','/']);
   assert.equal(records[0].handlers.length,3);
   assert.equal(records[1].handlers.length,3);
   assert.equal(records[2].handlers.length,3);
+  assert.equal(records[3].handlers.length,3);
   assert.deepEqual(guardCalls,[{
     permissionCodesAny:['LOGISTICA_DASHBOARD_PIPELINE_POR_ESTATUS_ETAPAS.VER'],
     domain:'CORELLIAN',groupingCodesAny:['LOGISTICA']
