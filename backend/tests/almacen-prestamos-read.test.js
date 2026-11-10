@@ -91,7 +91,7 @@ test('catálogos: Aiven independiente del lote Inventario y con alcance seguro',
   assertSecurity();
 });
 
-test('resumen: KPIs, antigüedad, responsables y valor exacto desde Aiven', async () => {
+test('resumen: valor total suma cantidad por precio unitario de catálogo según AG', async () => {
   queries.length=0;
   const out=await loans.getLoanSummary(scope,{company:'Corellian'});
   assert.deepEqual(out.kpis,{articulos:2,piezas:3.5,valorTotal:100,responsables:1});
@@ -100,6 +100,10 @@ test('resumen: KPIs, antigüedad, responsables y valor exacto desde Aiven', asyn
   assert.equal(out.rows[0].sitios,1);
   assert.equal(out.ages[0].articulos,2);
   assert.ok(queries.every(x=>x.params.includes('Corellian')));
+  assert.ok(queries.every(x=>x.sql.includes('almacen_ns_catalogo_articulos')));
+  assert.ok(queries.every(x=>x.sql.includes('ultimo_precio_compra')));
+  assert.ok(queries.every(x=>x.sql.includes('p.cantidad * cat.costo_unitario_catalogo')));
+  assert.ok(queries.every(x=>!x.sql.includes('SUM(p.valor)')));
   assertSecurity();
 });
 
@@ -117,6 +121,11 @@ test('detalle: parámetros SQL, filtros y paginación por 30', async () => {
   assert.equal(queries.length,2);
   assert.deepEqual(queries[0].params.slice(-2),[30,30]);
   assert.ok(queries.every(x=>x.params.includes('Corellian')&&x.params.includes('ANA')&&x.params.includes('0-6 MESES')));
+  assert.ok(queries.every(x=>x.sql.includes('almacen_ns_catalogo_articulos')));
+  assert.ok(queries.every(x=>x.sql.includes('ultimo_precio_compra')));
+  assert.match(queries[0].sql,/p\.cantidad \* cat\.costo_unitario_catalogo/);
+  assert.doesNotMatch(queries[0].sql,/p\.valor AS costo/);
+  assert.doesNotMatch(queries[0].sql,/p\.costo_unitario AS costoUnitario/);
   assertSecurity();
 });
 

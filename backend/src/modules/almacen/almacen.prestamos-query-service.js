@@ -11,6 +11,47 @@ const RESPONSIBLE_SQL = "COALESCE(NULLIF(CONVERT(TRIM(p.responsable) USING utf8m
 const MAX_QUERY = 120;
 const PAGE_SIZE = 30;
 
+// Costo oficial de Préstamos: ultimo precio de compra del catálogo publicado,
+// relacionado exclusivamente por AG (numero_parte_fabricante_original).
+// Si un mismo AG tiene precios distintos dentro del catálogo activo, el costo
+// queda NULL para evitar escoger un valor arbitrario.
+const CATALOG_COST_JOIN = `LEFT JOIN (
+    SELECT
+      UPPER(CONVERT(TRIM(c.numero_parte_fabricante_original) USING utf8mb4))
+        COLLATE utf8mb4_unicode_ci AS ag_key,
+      CASE
+        WHEN COUNT(DISTINCT c.ultimo_precio_compra)=1
+        THEN MAX(c.ultimo_precio_compra)
+        ELSE NULL
+      END AS costo_unitario_catalogo
+    FROM almacen_ns_catalogo_articulos c
+    WHERE c.id_lote=(
+      SELECT l.id_lote
+      FROM almacen_ns_lotes l
+      WHERE l.tipo_fuente='CATALOGO_ARTICULOS'
+        AND l.modo_carga='COMPLETA'
+        AND l.estado='PUBLICADO'
+        AND l.es_completo=1
+        AND l.publicado_en IS NOT NULL
+        AND l.filas_esperadas>0
+        AND l.filas_esperadas=l.filas_recibidas
+        AND l.filas_validas=l.filas_recibidas
+      ORDER BY l.publicado_en DESC,l.id_lote DESC
+      LIMIT 1
+    )
+      AND c.numero_parte_fabricante_original IS NOT NULL
+      AND TRIM(c.numero_parte_fabricante_original)<>''
+      AND c.ultimo_precio_compra IS NOT NULL
+    GROUP BY
+      UPPER(CONVERT(TRIM(c.numero_parte_fabricante_original) USING utf8mb4))
+        COLLATE utf8mb4_unicode_ci
+  ) cat
+    ON cat.ag_key=
+      UPPER(CONVERT(TRIM(p.ag) USING utf8mb4)) COLLATE utf8mb4_unicode_ci`;
+
+const CATALOG_UNIT_COST_SQL = 'cat.costo_unitario_catalogo';
+const CATALOG_TOTAL_COST_SQL = '(p.cantidad * cat.costo_unitario_catalogo)';
+
 function failScope() {
   const e = new Error('No existe un alcance autorizado para consultar Préstamos.');
   e.status = 403;
@@ -133,17 +174,17 @@ async function getLoanSummary(scope, query = {}) {
   const today = cdmxDate();
   const [stats, ages, responsibles] = await Promise.all([
     db.query('SELECT COUNT(*) AS articulos, SUM(p.cantidad) AS piezas, ' +
-      'SUM(p.valor) AS valorTotal, COUNT(DISTINCT NULLIF(TRIM(p.responsable), \'\')) AS responsables ' +
-      'FROM almacen_ns_prestamos p ' + f.where, f.args),
+      'SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal, COUNT(DISTINCT NULLIF(TRIM(p.responsable), \'\')) AS responsables ' +
+      'FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where, f.args),
     db.query("SELECT COALESCE(NULLIF(TRIM(p.antiguedad), ''), 'SIN CLASIFICAR') AS antiguedad, " +
-      'COUNT(*) AS articulos, SUM(p.valor) AS valorTotal ' +
-      'FROM almacen_ns_prestamos p ' + f.where + ' GROUP BY antiguedad ORDER BY antiguedad', f.args),
+      'COUNT(*) AS articulos, SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal ' +
+      'FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where + ' GROUP BY antiguedad ORDER BY antiguedad', f.args),
     db.query('SELECT ' + RESPONSIBLE_SQL + ' AS responsable, COUNT(*) AS articulos, ' +
-      'SUM(p.cantidad) AS cantidad, SUM(p.valor) AS valorTotal, ' +
+      'SUM(p.cantidad) AS cantidad, SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal, ' +
       'MIN(p.fecha_evento) AS desde, ' +
       'CASE WHEN MIN(p.fecha_evento) IS NULL THEN NULL ELSE GREATEST(0, DATEDIFF(?, MIN(p.fecha_evento))) END AS diasPrestamo, ' +
       "COUNT(DISTINCT NULLIF(TRIM(p.sitio), '')) AS sitios " +
-      'FROM almacen_ns_prestamos p ' + f.where +
+      'FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where +
       ' GROUP BY responsable ORDER BY valorTotal DESC, responsable', [today, ...f.args])
   ]);
   const k = stats[0][0] || {};
@@ -186,13 +227,14 @@ async function getLoans(scope, query = {}) {
   const [data, stats] = await Promise.all([
     db.query('SELECT p.id_prestamo AS id, p.id_articulo_ns AS idArticuloNs, ' +
       'p.nombre_articulo AS articulo, p.codigo, p.ag, p.empresa, ' +
-      'p.responsable, p.sitio, p.cantidad, p.valor AS costo, ' +
-      'p.costo_unitario AS costoUnitario, p.fecha_evento AS fecha, ' +
+      'p.responsable, p.sitio, p.cantidad, ' + CATALOG_TOTAL_COST_SQL + ' AS costo, ' +
+      CATALOG_UNIT_COST_SQL + ' AS costoUnitario, p.fecha_evento AS fecha, ' +
       'CASE WHEN p.fecha_evento IS NULL THEN NULL ELSE GREATEST(0, DATEDIFF(?, p.fecha_evento)) END AS dias, ' +
-      'p.antiguedad FROM almacen_ns_prestamos p ' + f.where +
+      'p.antiguedad FROM almacen_ns_prestamos p ' + CATALOG_COST_JOIN + ' ' + f.where +
       ' ORDER BY p.id_prestamo DESC LIMIT ? OFFSET ?', [today, ...f.args, PAGE_SIZE, offset]),
     db.query('SELECT COUNT(*) AS articulos, SUM(p.cantidad) AS cantidad, ' +
-      'SUM(p.valor) AS valorTotal FROM almacen_ns_prestamos p ' + f.where, f.args)
+      'SUM(' + CATALOG_TOTAL_COST_SQL + ') AS valorTotal FROM almacen_ns_prestamos p ' +
+      CATALOG_COST_JOIN + ' ' + f.where, f.args)
   ]);
   const row = stats[0][0] || {};
   const total = Number(row.articulos || 0);
