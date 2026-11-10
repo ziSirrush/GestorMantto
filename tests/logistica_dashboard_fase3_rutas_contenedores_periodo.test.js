@@ -200,11 +200,11 @@ test('contrato inconsistente entre promedio y contenedores falla cerrado',async(
 });
 
 test('refresco conserva el período elegido en vez de reiniciarlo a año actual',()=>{
-  assert.match(js,/fetchInitialSnapshot\\(\\s*state\\.analytics&&state\\.analytics\\.promedios\\?state\\.analytics\\.promedios\\.periodo:undefined/);
+  assert.ok(js.includes("fetchInitialSnapshot(\n        state.analytics&&state.analytics.promedios?state.analytics.promedios.periodo:undefined"));
 });
 
 test('cache-bust JS y CSS del Dashboard sin afectar PVO',()=>{
-  assert.match(loader,/dashboard-logistica\\.js\\?v=20261110-snapshot-first-v001/);
+  assert.match(loader,/dashboard-logistica\.js\?v=20261110-snapshot-first-v001/);
   assert.match(loader,/dashboard-logistica\.css\?v=20260923-dashboard-ppns-final-v001/);
   assert.match(loader,/logistica-produccion\.js\?v=/);
 });
