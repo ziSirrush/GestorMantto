@@ -213,7 +213,7 @@
     'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
 
     // Mantener este token sincronizado con el despliegue del Dashboard.
-    'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20261109-detail-navigation-v002']},
+    'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20261110-snapshot-lazy-v001']},
     'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'instalaciones-cerrados':{css:['./modules/instalaciones-cerrados/instalaciones-cerrados.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-cerrados/instalaciones-cerrados.js?v=20260821-paginacion-v002']},
     'instalaciones-concentrado-cliente':{css:['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.css?v=20260713-v001'],js:['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.js?v=20260828-fase4-frontend-v001']},

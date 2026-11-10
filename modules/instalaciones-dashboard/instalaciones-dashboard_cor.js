@@ -1262,19 +1262,33 @@
     if(state.loading) return;
     setLoading_cor(true);
     try{
-      const response = await fetchJson_cor('/api/instalaciones/dashboard/bootstrap');
       if(!keepSelection){
         restoreDashboardConfig_cor();
         state.summary = null;
         state.report = null;
       }
-      applyBootstrap_cor(response);
+      const params = queryParams_cor(true);
+      const response = await fetchJson_cor('/api/instalaciones/dashboard/inicial' + (params.toString() ? '?' + params.toString() : ''));
+      if(!response || response.ok !== true || !response.bootstrap) throw new Error('Snapshot inicial de Instalaciones inválido.');
+
+      state.summaryRequest += 1;
+      state.reportRequest += 1;
+      applyBootstrap_cor(response.bootstrap);
       state.loaded = true;
+
+      if(response.summary){
+        renderSummary_cor(response.summary);
+      }else{
+        state.summary = null;
+      }
+
+      if(response.report){
+        renderReport_cor(response.report);
+      }else if(!state.reportSection){
+        state.report = null;
+      }
+
       if(validUniverse_cor()){
-        await Promise.all([
-          loadSummary_cor(),
-          state.reportSection && hasPermission_cor('reporte_listado_ver') ? loadReport_cor() : Promise.resolve()
-        ]);
         setStatus_cor('Dashboard actualizado para: ' + selectedText_cor());
       }else{
         setStatus_cor('Selecciona supervisores para consultar el Dashboard.');
