@@ -3,11 +3,13 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const os=require('node:os');
 const {
   parsePart,normalize,bump,read,releaseDate,
   commitVersionDate,parseOfficialVersion,parseOfficialSubject,nextOfficialRevision
 }=require('../tools/release-version');
 const root=path.resolve(__dirname,'..');
+const {generate:generateBuildInfo}=require('../tools/generate-build-info');
 
 test('Metadatos de despliegue API/Frontend conservan su contrato técnico',()=>{
   const state=read();
@@ -72,4 +74,27 @@ test('CI valida nomenclatura oficial y existe guard global de historial',()=>{
   assert.match(api,/node tools\/release-version\.js verify/);
   assert.match(guard,/fetch-depth: 0/);
   assert.match(guard,/node tools\/release-version\.js verify-history/);
+});
+
+
+test('Build publicado muestra la version oficial del commit y conserva metadatos tecnicos',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'blt-build-info-'));
+  try{
+    const output=path.join(dir,'build-info.generated.js');
+    const payload=generateBuildInfo({
+      output,
+      commit:'a'.repeat(40),
+      message:'Version 111026.4',
+      provider:'GITHUB_PAGES',
+      generatedAt:'2026-11-10T22:30:00.000Z'
+    });
+    const release=read();
+    assert.equal(payload.version,'111026.4');
+    assert.equal(payload.deploymentVersion,release.combined);
+    assert.equal(payload.apiVersion,release.api);
+    assert.equal(payload.frontendVersion,release.frontend);
+    assert.match(fs.readFileSync(output,'utf8'),/"version": "111026\.4"/);
+  }finally{
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
 });

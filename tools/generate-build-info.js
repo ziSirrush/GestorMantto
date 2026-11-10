@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { read: readReleaseVersion } = require('./release-version');
+const { read: readReleaseVersion, parseOfficialSubject } = require('./release-version');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_OUTPUT = path.join(ROOT, 'dist', 'web', 'core', 'build-info.generated.js');
@@ -30,9 +30,12 @@ function generate({ output = DEFAULT_OUTPUT, commit, generatedAt, message, provi
   const buildCommit = String(commit || process.env.GITHUB_SHA || process.env.COMMIT_REF || git(['rev-parse', 'HEAD']) || '').trim();
   const buildMessage = String(message || (buildCommit ? git(['log', '-1', '--pretty=%s', buildCommit]) : '') || process.env.MANTTO_COMMIT_MESSAGE || '').trim();
   const release = readReleaseVersion();
+  let officialVersion = '';
+  try { officialVersion = parseOfficialSubject(buildMessage).version; } catch (_) {}
   const payload = {
     environment: 'DEPLOY',
-    version: release.combined,
+    version: officialVersion || release.combined,
+    deploymentVersion: release.combined,
     apiVersion: release.api,
     frontendVersion: release.frontend,
     provider: provider || providerFromEnvironment(),
