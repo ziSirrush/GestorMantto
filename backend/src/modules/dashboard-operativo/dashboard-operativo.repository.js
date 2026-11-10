@@ -2,6 +2,7 @@
 
 const db = require('../../config/db');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
+const { sqlMexicoCityToday } = require('../../utils/temporal');
 
 function officialProjectZoneSql(ticketAlias) {
   const a = String(ticketAlias || 't');
@@ -182,11 +183,74 @@ async function getPreventivosPorZona(mes, informationAccess = null) {
   return Array.isArray(rows) ? rows : [];
 }
 
+async function getPreventivosPorMeses(meses, informationAccess = null) {
+  const list = [...new Set((Array.isArray(meses) ? meses : [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => /^\d{4}-\d{2}$/.test(value)))];
+  if (!list.length) return [];
+  const scope = informationRecordScope.buildPortafolioScopeSql_gnral(informationAccess, 'p');
+  const placeholders = list.map(() => '?').join(',');
+  const sql = [
+    "SELECT DATE_FORMAT(sp.mes_servicio, '%Y-%m') AS mes,",
+    "z_prev.id_zona, z_prev.zona,",
+    "UPPER(REPLACE(REPLACE(TRIM(z_prev.zona), '-', ''), ' ', '')) AS zona_clave,",
+    "COUNT(*) AS programados,",
+    "SUM(CASE WHEN sp.servicio_realizado = 1 THEN 1 ELSE 0 END) AS realizados",
+    "FROM servicios_preventivos sp",
+    "INNER JOIN portafolio p ON p.numero_equipo = sp.numero_equipo",
+    "INNER JOIN z_op z_prev ON z_prev.id_zona = p.zona_id AND z_prev.estado = 1",
+    "WHERE DATE_FORMAT(sp.mes_servicio, '%Y-%m') IN (" + placeholders + ")",
+    "AND sp.tipo_servicio = 'PREVENTIVO'",
+    "AND p.estado_registro = 1",
+    "AND (p.inactivo IS NULL OR UPPER(TRIM(p.inactivo)) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))",
+    "AND (" + scope.sql + ")",
+    "GROUP BY DATE_FORMAT(sp.mes_servicio, '%Y-%m'), z_prev.id_zona, z_prev.zona"
+  ].join(' ');
+  const [rows] = await db.query(sql, [...list, ...(scope.params || [])]);
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function getCriticosCodigos(dias, minFallas, informationAccess = null) {
+  const scope = informationRecordScope.buildPortafolioScopeSql_gnral(informationAccess, 'p');
+  const safeDias = Math.max(1, Math.min(3650, Number.parseInt(dias, 10) || 35));
+  const safeMin = Math.max(1, Math.min(9999, Number.parseInt(minFallas, 10) || 3));
+  const today = sqlMexicoCityToday();
+  const sql = [
+    "SELECT t.codigo_equipo, COUNT(*) AS fallas_blt_periodo",
+    "FROM tickets t",
+    "INNER JOIN portafolio p ON p.numero_equipo = t.codigo_equipo",
+    "INNER JOIN z_op z_crit ON z_crit.id_zona = p.zona_id AND z_crit.estado = 1",
+    "WHERE p.estado_registro = 1",
+    "AND (p.inactivo IS NULL OR UPPER(TRIM(CAST(p.inactivo AS CHAR))) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))",
+    "AND UPPER(TRIM(COALESCE(p.estatus_servicio,''))) NOT LIKE '%NO EN SERVICIO%'",
+    "AND (" + scope.sql + ")",
+    "AND t.codigo_equipo IS NOT NULL AND t.codigo_equipo <> ''",
+    "AND t.fecha_reporte >= DATE_SUB(" + today + ", INTERVAL ? DAY)",
+    "AND t.fecha_reporte < DATE_ADD(" + today + ", INTERVAL 1 DAY)",
+    "AND UPPER(COALESCE(t.responsabilidad,'')) LIKE '%BLT%'",
+    "GROUP BY t.codigo_equipo",
+    "HAVING COUNT(*) >= ?",
+    "ORDER BY t.codigo_equipo ASC",
+    "LIMIT 10001"
+  ].join(' ');
+  const [rows] = await db.query(sql, [...(scope.params || []), safeDias, safeMin]);
+  const data = Array.isArray(rows) ? rows : [];
+  if (data.length > 10000) {
+    const error = new Error('El snapshot de criticidad operativa supera 10,000 equipos.');
+    error.code = 'DASHBOARD_OPERATIVO_SNAPSHOT_LIMIT';
+    error.statusCode = 503;
+    throw error;
+  }
+  return data;
+}
+
 module.exports = {
   getPortafolioInicial,
   getTicketsInicial,
   getSupervisoresActivosPorZona,
   getPreventivosPorZona,
+  getPreventivosPorMeses,
+  getCriticosCodigos,
   officialProjectZoneSql,
   officialProjectZoneIdSql
 };

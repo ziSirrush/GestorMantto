@@ -100,6 +100,28 @@ function buildPreventivosSupervisor(supervisores, servicios) {
   }));
 }
 
+function monthsWindow(mes, count = 12) {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(mes || '').trim());
+  if (!match) return [];
+  const base = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1, 12));
+  const rows = [];
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(base);
+    d.setUTCMonth(d.getUTCMonth() - i);
+    rows.push(String(d.getUTCFullYear()) + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'));
+  }
+  return rows;
+}
+
+function buildPreventivosByMonth(supervisores, servicios, meses) {
+  const out = {};
+  for (const mes of meses || []) {
+    const rows = (servicios || []).filter((row) => String(row.mes || '') === mes);
+    out[mes.replace('-', '_')] = buildPreventivosSupervisor(supervisores, rows);
+  }
+  return out;
+}
+
 async function getPreventivosSupervisor(mes, informationAccess = null) {
   const [supervisores, servicios] = await Promise.all([
     dashboardOperativoRepository.getSupervisoresActivosPorZona(informationAccess),
@@ -108,7 +130,7 @@ async function getPreventivosSupervisor(mes, informationAccess = null) {
   return buildPreventivosSupervisor(supervisores, servicios);
 }
 
-async function getInitialData(mes, informationAccess = null) {
+async function getInitialData(mes, informationAccess = null, criticidad = {}) {
   const unrestricted = hasUnrestrictedUnitedScope_gnral(informationAccess);
   const zoneIds = normalizePositiveIds(informationAccess?.zona_ids);
   const zoneCodes = normalizeCodes(informationAccess?.zona_codigos);
@@ -126,22 +148,32 @@ async function getInitialData(mes, informationAccess = null) {
       tickets: [],
       supervisores: [],
       preventivos_supervisor: [],
+      preventivos_por_mes: {},
+      criticidad: { dias: Number(criticidad.dias) || 35, min_fallas_blt: Number(criticidad.minFallas) || 3 },
+      criticos_codigos: [],
       alcance: { zona_ids: unrestricted ? null : zoneIds, zonas: unrestricted ? null : zoneCodes }
     };
   }
 
-  const [portafolio, tickets, supervisoresRows, preventivosRows] = await Promise.all([
+  const meses = monthsWindow(mes, 12);
+  const dias = Number(criticidad.dias) || 35;
+  const minFallas = Number(criticidad.minFallas) || 3;
+  const [portafolio, tickets, supervisoresRows, preventivosRows, criticosRows] = await Promise.all([
     dashboardOperativoRepository.getPortafolioInicial(informationAccess),
     dashboardOperativoRepository.getTicketsInicial(informationAccess),
     dashboardOperativoRepository.getSupervisoresActivosPorZona(informationAccess),
-    dashboardOperativoRepository.getPreventivosPorZona(mes, informationAccess)
+    dashboardOperativoRepository.getPreventivosPorMeses(meses, informationAccess),
+    dashboardOperativoRepository.getCriticosCodigos(dias, minFallas, informationAccess)
   ]);
 
   return {
     portafolio,
     tickets,
     supervisores: groupSupervisores(supervisoresRows),
-    preventivos_supervisor: buildPreventivosSupervisor(supervisoresRows, preventivosRows),
+    preventivos_supervisor: buildPreventivosSupervisor(supervisoresRows, preventivosRows.filter((row) => String(row.mes || '') === mes)),
+    preventivos_por_mes: buildPreventivosByMonth(supervisoresRows, preventivosRows, meses),
+    criticidad: { dias, min_fallas_blt: minFallas },
+    criticos_codigos: criticosRows.map((row) => String(row.codigo_equipo || '').trim()).filter(Boolean),
     alcance: { zona_ids: unrestricted ? null : zoneIds, zonas: unrestricted ? null : zoneCodes }
   };
 }
@@ -150,5 +182,7 @@ module.exports = {
   getPreventivosSupervisor,
   getInitialData,
   groupSupervisores,
-  buildPreventivosSupervisor
+  buildPreventivosSupervisor,
+  monthsWindow,
+  buildPreventivosByMonth
 };

@@ -14,18 +14,27 @@ async function getInitialData(req, res) {
     const mes = normalizeMes(req.query.mes);
     const data = await dashboardOperativoService.getInitialData(
       mes,
-      req.informationAccess || null
+      req.informationAccess || null,
+      {
+        dias: Number(req.query.criticos_periodo || req.query.dias || (req.user && req.user.criticos_periodo)) || 35,
+        minFallas: Number(req.query.min_fallas || req.query.criticos_fallas || (req.user && req.user.criticos_fallas)) || 3
+      }
     );
 
     return res.json({
       ok: true,
       source: 'aiven',
+      mode: 'SNAPSHOT_FULL',
+      snapshot: { version: 'DASHBOARD_OPERATIVO_SNAPSHOT_V001', meses_preventivos: 12 },
       mes,
       data: {
         portafolio: data.portafolio,
         tickets: data.tickets,
         supervisores: data.supervisores,
-        preventivos_supervisor: data.preventivos_supervisor
+        preventivos_supervisor: data.preventivos_supervisor,
+        preventivos_por_mes: data.preventivos_por_mes,
+        criticidad: data.criticidad,
+        criticos_codigos: data.criticos_codigos
       },
       alcance: data.alcance,
       total: {
