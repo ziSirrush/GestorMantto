@@ -23,7 +23,6 @@
     'experimental-ns-resumen-dia':'Resumen del Día · NS',
     'experimental-ns-equipos-criticos':'Equipos Críticos · NS',
     'experimental-ns-proyectos-mantenimiento':'Proyectos de Mantenimiento · NS',
-    'experimental-ns-equipos-parados':'Equipos Parados · NS',
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
@@ -1083,7 +1082,7 @@
     if(route==='detalle' && showDetalle(payload)) return;
     // Experimental NS: acceso exclusivo por permisos efectivos del catalogo,
     // sin listas de roles. El backend valida permiso, puerta y alcance UNITED.
-    if(['experimental-ns-resumen-dia','experimental-ns-equipos-criticos','experimental-ns-proyectos-mantenimiento','experimental-ns-equipos-parados'].includes(route)){
+    if(['experimental-ns-resumen-dia','experimental-ns-equipos-criticos','experimental-ns-proyectos-mantenimiento'].includes(route)){
       const nsAuthorized = window.ManttoPermissions?.canNavigate?.(route)===true;
       const nsView = activateViewById('view-' + route);
       if(!nsView) return;
