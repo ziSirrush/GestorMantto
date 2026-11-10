@@ -347,6 +347,20 @@
     return data;
   }
 
+  async function fetchInitialSnapshot(averagePeriod){
+    let url=api()+'/api/logistica/dashboard/inicial';
+    if(averagePeriod!==undefined&&averagePeriod!==null&&String(averagePeriod).trim()!==''){
+      url+='?anio_promedios='+encodeURIComponent(String(averagePeriod));
+    }
+    const j=await fetchJson(url,'Error consultando snapshot de Logística');
+    if(!j||j.ok!==true||!j.data||typeof j.data!=='object')throw new Error('Snapshot de Logística inválido.');
+    const data=j.data;
+    if(!Array.isArray(data.rows)||!Array.isArray(data.cortes)||!data.analytics||typeof data.analytics!=='object'){
+      throw new Error('Snapshot de Logística incompleto.');
+    }
+    return data;
+  }
+
   async function fetchLatestCut(){
     const j=await fetchJson(api()+'/api/logistica/cortes/semanales/ultimo','Error consultando el corte semanal');
     return j.data||null;
@@ -1098,31 +1112,16 @@
     if(state.freightSubmitted)invalidateFreightResult('Actualizando datos; se recalculará la simulación...');
     setStatus('','Cargando Aiven...');
     try{
-      const results=await Promise.all([
-        fetchRows(),
-        fetchLatestCut().then(data=>({data,error:null})).catch(error=>({data:null,error})),
-        fetchCutCatalog().then(data=>({data,error:null})).catch(error=>({data:[],error})),
-        fetchAnalytics(state.analytics&&state.analytics.promedios?state.analytics.promedios.periodo:undefined)
-      ]);
-      state.rows=results[0];
-      state.cut=results[1].data;
-      state.cutError=results[1].error;
-      state.cuts=results[2].data;
-      state.cutCatalogError=results[2].error;
-      state.analytics=results[3];
+      const snapshot=await fetchInitialSnapshot(
+        state.analytics&&state.analytics.promedios?state.analytics.promedios.periodo:undefined
+      );
+      state.rows=snapshot.rows;
+      state.cut=snapshot.corte||null;
+      state.cutError=null;
+      state.cuts=snapshot.cortes;
+      state.cutCatalogError=null;
+      state.analytics=snapshot.analytics;
       state.averageFilterError=null;
-
-      if(!state.cut){
-        const first=closedCuts()[0];
-        if(first){
-          try{
-            state.cut=await fetchCutByWeek(first.anio_iso,first.semana_iso);
-            state.cutError=null;
-          }catch(error){
-            state.cutError=error;
-          }
-        }
-      }
 
       state.selectedCutKey=cutKey(state.cut);
       state.movements=state.cut&&Array.isArray(state.cut.movimientos_json)?state.cut.movimientos_json:[];
