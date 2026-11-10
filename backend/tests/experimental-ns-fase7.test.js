@@ -108,8 +108,8 @@ test('F7: el cargador incorpora JS y CSS del piloto antes de cada modulo NS',()=
   const source=fs.readFileSync(path.join(FRONT,'experimental-ns.js'),'utf8');
   const js=source.match(/experimental-ns-protection\.js/g)||[];
   const css=source.match(/experimental-ns-protection\.css/g)||[];
-  assert.equal(js.length,3);
-  assert.equal(css.length,3);
+  assert.equal(js.length,4);
+  assert.equal(css.length,4);
 });
 test('F7: revocacion de acceso F6 tambien borra borradores F7',()=>{
   const live=fs.readFileSync(path.join(FRONT,'experimental-ns-live.js'),'utf8');

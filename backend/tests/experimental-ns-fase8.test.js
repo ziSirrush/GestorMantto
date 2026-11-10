@@ -147,8 +147,8 @@ test('F8: reconexion y backoff temporal sin impedir consulta manual',async()=>{
 
 test('F8: solo toca Experimental NS y no introduce endpoints de escritura',()=>{
   const shell=fs.readFileSync(path.join(FRONT,'experimental-ns.js'),'utf8');
-  assert.equal((shell.match(/experimental-ns-performance\.js/g)||[]).length,3);
-  assert.equal((shell.match(/experimental-ns-performance\.css/g)||[]).length,3);
+  assert.equal((shell.match(/experimental-ns-performance\.js/g)||[]).length,4);
+  assert.equal((shell.match(/experimental-ns-performance\.css/g)||[]).length,4);
   assert.doesNotMatch(PERF,/ManttoDataSync|\/api\/(?:tickets|portafolio|proyectos)\b/);
   assert.doesNotMatch(PERF,/\b(?:fetch|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB)\b/);
   const files=[
