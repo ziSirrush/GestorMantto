@@ -45,10 +45,34 @@ const dashboardCallCenterInitialGuard_uni = humanInformationGuard_gnral({
   groupingCode: 'OPERACION'
 });
 
+const dashboardCallCenterU365EquipoGuard_uni = humanInformationGuard_gnral({
+  permissionCodesAny: ['OPERACION_DASHBOARD_CALL_CENTER_U365D_LLAMADAS_U365D_EQUIPO.VER'],
+  domain: 'UNITED',
+  groupingCode: 'OPERACION'
+});
+
+const dashboardCallCenterU365ProyectoGuard_uni = humanInformationGuard_gnral({
+  permissionCodesAny: ['OPERACION_DASHBOARD_CALL_CENTER_U365D_LLAMADAS_U365D_PROYECTO.VER'],
+  domain: 'UNITED',
+  groupingCode: 'OPERACION'
+});
+
 router.get(
   '/operacion/dashboard-call-center/inicial',
   ...dashboardCallCenterInitialGuard_uni,
   controller.getInitialData
+);
+
+router.get(
+  '/operacion/dashboard-call-center/u365/equipos',
+  ...dashboardCallCenterU365EquipoGuard_uni,
+  controller.getU365Equipos
+);
+
+router.get(
+  '/operacion/dashboard-call-center/u365/proyectos',
+  ...dashboardCallCenterU365ProyectoGuard_uni,
+  controller.getU365Proyectos
 );
 
 module.exports = router;
