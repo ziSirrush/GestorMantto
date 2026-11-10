@@ -58,32 +58,19 @@
   function mapEquipo(row){const cod=nrm(pick(row,['numero_equipo','Numero de Equipo','codigo_equipo','cod','equipo']));const inactivo=nrm(pick(row,['inactivo','Inactivo'])).toLowerCase();const estatus=nrm(pick(row,['estatus_servicio','Estatus Servicio','estatus','estado_servicio']));const inactive=['1','si','sí','true','inactivo','x'].includes(inactivo);const activo=!inactive&&upper(estatus)!=='NO EN SERVICIO';return{cod,pro:nrm(pick(row,['proyecto','Proyecto','pro'])),zon:nrm(pick(row,['zona_operativa','Z. Oper.','zona','zon'])),ref:nrm(pick(row,['identificacion_sitio','Identificacion en Sitio','referencia_en_zona_operativa','ref'])),estatus,inactivo,activo};}
   function setStatus(kind,msg){const el=$('cc-status');if(!el)return;el.innerHTML='<span class="cc-dot '+kind+'"></span><span>'+esc(msg)+'</span>';}
   async function fetchRows(paths){for(const path of paths){try{const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)continue;const data=await r.json();const rows=Array.isArray(data)?data:(data.data||data.rows||data.tickets||data.equipos||[]);if(Array.isArray(rows)&&rows.length)return rows;}catch(e){}}return[];}
-  async function fetchMtbcPages(path){const rows=[];let page=1,total=0;do{try{const sep=path.includes('?')?'&':'?';const r=await fetch(API()+path+sep+'page='+page+'&page_size=100',{cache:'no-store',headers:headers()});if(!r.ok)break;const data=await r.json();const batch=Array.isArray(data)?data:(data.data||[]);if(!Array.isArray(batch)||!batch.length)break;rows.push(...batch);total=Number(data?.pagination?.total||rows.length);page+=1;}catch(e){break;}}while(rows.length<total&&page<1000);return rows;}
-
   function positiveInt(value,fallback){const n=parseInt(value,10);return Number.isFinite(n)&&n>0?n:fallback;}
   async function fetchJson(path){const r=await fetch(API()+path,{cache:'no-store',headers:headers()});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
-  async function fetchCriticidadUsuario(){
-    let fallas=3,periodo=35;
-    try{
-      const pref=await fetchJson('/api/usuarios/me/criticos-preferencias');
-      const data=pref&&pref.data?pref.data:pref;
-      fallas=positiveInt(data&&data.criticos_fallas,3);
-      periodo=positiveInt(data&&data.criticos_periodo,35);
-    }catch(e){}
-    state.critFallas=fallas;state.critPeriodo=periodo;
-    const rows=[];let page=1,total=0;
-    do{
-      try{
-        const q=new URLSearchParams({min_fallas:String(fallas),dias:String(periodo),page:String(page),page_size:'100'});
-        const data=await fetchJson('/api/equipos-criticos?'+q.toString());
-        const batch=Array.isArray(data)?data:(data.data||[]);
-        if(!Array.isArray(batch)||!batch.length)break;
-        rows.push(...batch);total=Number(data&&data.pagination&&data.pagination.total||rows.length);page+=1;
-      }catch(e){break;}
-    }while(rows.length<total&&page<1000);
-    return rows;
+  function syncCriticidadFromSession(){
+    const user=window.ManttoAuth&&typeof window.ManttoAuth.getUser==='function'?window.ManttoAuth.getUser():null;
+    state.critFallas=positiveInt(user&&user.criticos_fallas,state.critFallas||3);
+    state.critPeriodo=positiveInt(user&&user.criticos_periodo,state.critPeriodo||35);
   }
-  async function refreshCriticidadUsuario(){const rows=await fetchCriticidadUsuario();state.critCods=new Set(rows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));if(state.initialized)render();}
+  async function refreshCriticidadUsuario(event){
+    const detail=event&&event.detail?event.detail:{};
+    state.critFallas=positiveInt(detail.criticos_fallas,state.critFallas||3);
+    state.critPeriodo=positiveInt(detail.criticos_periodo,state.critPeriodo||35);
+    if(state.initialized)await loadData({forceSecondary:true});
+  }
   function mtbcKey(v){return nrm(v).toUpperCase();}
   function proyectoKey(v){return nrm(v).replace(/\s+/g,' ').toUpperCase();}
   function mtbcDays(v){if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isFinite(n)&&n>=0?n:null;}
@@ -94,7 +81,7 @@
   function aggregateMtbc(rows,faultKey,periodDays){const totals=(rows||[]).reduce((a,r)=>{const faults=Number(r&&r[faultKey]||0);if(Number.isFinite(faults)&&faults>0){a.faults+=faults;a.equipment+=1;}return a;},{faults:0,equipment:0});return totals.faults?Math.round((periodDays*totals.equipment/totals.faults)*1000)/1000:null;}
   async function loadHtml(){const view=$('view-callcenter');if(!view||state.loaded)return;let html='<div class="cc-page"><section class="cc-card cc-head"><div><p class="cc-eyebrow">Cargando módulo</p><h1>Dashboard Call Center</h1><p>Inicializando vista...</p></div></section></div>';try{const r=await fetch('./modules/callcenter/callcenter.html?v=20260716-v004',{cache:'no-store'});if(r.ok)html=await r.text();}catch(e){}view.innerHTML=html;bind();state.loaded=true;if(window.EstadosVisuales_gnral)window.EstadosVisuales_gnral.apply(view);}
   function bind(){const refresh=$('cc-refresh');if(refresh)refresh.addEventListener('click',()=>loadData({forceSecondary:true}));['cc-from','cc-to'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>loadData({periodOnly:true}));});const zona=$('cc-zona');if(zona)zona.addEventListener('change',render);if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}$('cc-search')?.addEventListener('input',renderTable);$('cc-filter-et')?.addEventListener('change',renderTable);$('cc-page-prev')?.addEventListener('click',()=>changePage(-1));$('cc-page-next')?.addEventListener('click',()=>changePage(1));$('cc-modal-close')?.addEventListener('click',closeModal);$('cc-nf-prev')?.addEventListener('click',()=>changeNoFuncPage(-1));$('cc-nf-next')?.addEventListener('click',()=>changeNoFuncPage(1));$('cc-nofunc-toggle')?.addEventListener('click',toggleNoFuncPanel);$('cc-u365-proy-open')?.addEventListener('click',()=>openU365View('u365-proyectos'));$('cc-u365-eq-open')?.addEventListener('click',()=>openU365View('u365-equipos'));$('cc-u365-proy-prev')?.addEventListener('click',()=>changeU365Page('u365-proyectos',-1));$('cc-u365-proy-next')?.addEventListener('click',()=>changeU365Page('u365-proyectos',1));$('cc-u365-eq-prev')?.addEventListener('click',()=>changeU365Page('u365-equipos',-1));$('cc-u365-eq-next')?.addEventListener('click',()=>changeU365Page('u365-equipos',1));document.querySelectorAll('[data-cc-group-toggle]').forEach(el=>el.addEventListener('click',()=>toggleMobileGroup(el.dataset.ccGroupToggle)));$('cc-detail-modal')?.addEventListener('click',e=>{if(e.target.id==='cc-detail-modal')closeModal();});document.querySelectorAll('[data-cc-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.ccDetail)));}
-  async function init(payload){state.requestedView=normalizeCallCenterView(payload);if(window.EstadosVisuales_gnral){await window.EstadosVisuales_gnral.load();}await loadHtml();if(!state.initialized){initDates();await loadData();state.initialized=true;}else render();await applyCallCenterView(state.requestedView);}
+  async function init(payload){state.requestedView=normalizeCallCenterView(payload);if(window.EstadosVisuales_gnral){await window.EstadosVisuales_gnral.load();}await loadHtml();syncCriticidadFromSession();if(!state.initialized){initDates();await loadData();state.initialized=true;}else render();await applyCallCenterView(state.requestedView);}
   function initDates(){const today=window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function'?window.ManttoHumanTime.mexicoCityDate():new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const from=today.slice(0,7)+'-01';if($('cc-from'))$('cc-from').value=from;if($('cc-to'))$('cc-to').value=today;}
   async function loadData(options){
     const opts=options||{};
@@ -114,6 +101,8 @@
     const q=new URLSearchParams();
     if(from)q.set('from',from);
     if(to)q.set('to',to);
+    q.set('criticos_periodo',String(state.critPeriodo||35));
+    q.set('min_fallas',String(state.critFallas||3));
     const initial=await fetchJson('/api/operacion/dashboard-call-center/inicial'+(q.toString()?'?'+q.toString():''));
     const initialData=initial&&initial.data?initial.data:{};
     const tRows=Array.isArray(initialData.tickets)?initialData.tickets:[];
@@ -121,21 +110,19 @@
 
     state.tickets=tRows.map(mapTicket).filter(t=>t.n&&t.fr);
     state.portafolio=pRows.map(mapEquipo).filter(e=>e.cod||e.pro);
+    const crit=initialData.criticidad||{};
+    state.critFallas=positiveInt(crit.min_fallas_blt,state.critFallas||3);
+    state.critPeriodo=positiveInt(crit.dias,state.critPeriodo||35);
+    const mtbcEqRows=Array.isArray(initialData.mtbc_equipos)?initialData.mtbc_equipos:[];
+    const mtbcProRows=Array.isArray(initialData.mtbc_proyectos)?initialData.mtbc_proyectos:[];
+    const critCodes=Array.isArray(initialData.criticos_codigos)?initialData.criticos_codigos:[];
+    state.mtbcEquipos=new Map(mtbcEqRows.map(r=>[mtbcKey(r.codigo_equipo),r]));
+    state.mtbcProyectos=new Map(mtbcProRows.map(r=>[mtbcKey(r.proyecto),r]));
+    state.critCods=new Set(critCodes.map(nrm).filter(Boolean));
     populateZona();
 
-    // Las colecciones U365 son detalle y ya NO se descargan en la apertura del dashboard.
-    // MTBC y criticidad permanecen sin cambio funcional en esta fase porque pertenecen
-    // al bloque Criticos/MTBC que se está auditando por separado.
-    if(!opts.periodOnly || opts.forceSecondary || !state.mtbcEquipos.size){
-      const [mtbcEqRows,mtbcProRows,critRows]=await Promise.all([
-        fetchMtbcPages('/api/indicadores/mtbc/equipos'),
-        fetchMtbcPages('/api/indicadores/mtbc/proyectos'),
-        fetchCriticidadUsuario()
-      ]);
-      state.mtbcEquipos=new Map(mtbcEqRows.map(r=>[mtbcKey(r.codigo_equipo),r]));
-      state.mtbcProyectos=new Map(mtbcProRows.map(r=>[mtbcKey(r.proyecto),r]));
-      state.critCods=new Set(critRows.map(r=>nrm(r.codigo_equipo||r.numero_equipo||r.cod)).filter(Boolean));
-    }
+    // Snapshot-first: MTBC y criticidad ya vienen en /inicial.
+    // U365 permanece como detalle bajo demanda para no inflar la apertura.
 
     setStatus(
       state.tickets.length?'ok':'error',
