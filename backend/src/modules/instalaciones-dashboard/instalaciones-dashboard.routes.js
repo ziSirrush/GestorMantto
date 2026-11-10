@@ -69,6 +69,13 @@ const requireReportEdit_cor = requirePermission_cor(
 );
 
 router.get(
+  '/dashboard/inicial',
+  requireAuth,
+  requireAccess_cor,
+  controller.initial_cor
+);
+
+router.get(
   '/dashboard/bootstrap',
   requireAuth,
   requireAccess_cor,

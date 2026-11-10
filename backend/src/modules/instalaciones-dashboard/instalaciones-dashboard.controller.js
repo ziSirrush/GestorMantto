@@ -85,6 +85,69 @@ async function validateDashboardQueryScope_cor(req) {
   return identity;
 }
 
+async function initial_cor(req, res, next) {
+  try {
+    const userId = effectiveUserId_cor(req);
+    const [bootstrap, identity] = await Promise.all([
+      service.getBootstrap_cor(userId),
+      scopeIdentity_cor(req)
+    ]);
+
+    if (!identity.all) {
+      bootstrap.supervisors = (bootstrap.supervisors || []).filter(row =>
+        identity.initials.has(String(row.supervisor || '').trim().toUpperCase())
+      );
+      bootstrap.special_filters = (bootstrap.special_filters || []).filter(row =>
+        String(row.codigo || '').toUpperCase() !== 'AFL' || identity.ids.has(Number(row.usuario_id || 38))
+      );
+    }
+
+    bootstrap.information_scope = {
+      source: identity.scope.legacy ? 'LEGACY_FALLBACK' : 'ALCANCE_INFORMACION',
+      dominio_completo: identity.all && !identity.scope.legacy,
+      usuarios_visibles: identity.all ? null : identity.ids.size
+    };
+
+    const permissions = bootstrap.permissions || {};
+    const requestedSupervisors = supervisorValues_cor(req.query && req.query.supervisores);
+    const special = String((req.query && (req.query.filtro_especial || req.query.special)) || '').trim().toUpperCase();
+    const hasUniverse = special === 'AFL' || requestedSupervisors.length > 0;
+    const canSummary = permissions.selector_ver === true && permissions.selector_filtrar === true;
+    const requestedSection = String((req.query && (req.query.seccion || req.query.estatus)) || '').trim();
+    const canReport = canSummary &&
+      permissions.reporte_selector_ver === true &&
+      permissions.reporte_selector_filtrar === true &&
+      permissions.reporte_listado_ver === true &&
+      (requestedSection || special === 'AFL');
+
+    let summary = null;
+    let report = null;
+    if (hasUniverse && (canSummary || canReport)) {
+      await validateDashboardQueryScope_cor(req);
+      const jobs = [];
+      if (canSummary) jobs.push(service.getSummary_cor(userId, req.query || {}).then(value => { summary = value; }));
+      if (canReport) jobs.push(service.getReport_cor(req.query || {}).then(value => { report = value; }));
+      await Promise.all(jobs);
+    }
+
+    return res.json({
+      ok: true,
+      source: 'aiven',
+      mode: 'SNAPSHOT_LAZY_DETAIL',
+      snapshot: {
+        version: 'INSTALACIONES_DASHBOARD_SNAPSHOT_V001',
+        context_changes: 'LAZY',
+        quick_edit: 'TRANSACTIONAL'
+      },
+      bootstrap,
+      summary,
+      report
+    });
+  } catch (error) {
+    return sendKnownError_cor(error, res, next);
+  }
+}
+
 async function bootstrap_cor(req, res, next) {
   try {
     const userId = effectiveUserId_cor(req);
@@ -172,6 +235,7 @@ async function updateCell_cor(req, res, next) {
 }
 
 module.exports = {
+  initial_cor,
   bootstrap_cor,
   summary_cor,
   report_cor,
