@@ -36,6 +36,7 @@ const DASHBOARD_OPERATIONAL_TABLE_PERMISSION_MAP = Object.freeze({
 
 const DASHBOARD_COMMERCIAL_TABLE_PERMISSIONS = Object.freeze(Object.values(DASHBOARD_COMMERCIAL_TABLE_PERMISSION_MAP));
 const DASHBOARD_OPERATIONAL_TABLE_PERMISSIONS = Object.freeze(Object.values(DASHBOARD_OPERATIONAL_TABLE_PERMISSION_MAP));
+const DASHBOARD_SNAPSHOT_PERMISSIONS = Object.freeze([DASHBOARD_KPI_PERMISSION, ...DASHBOARD_COMMERCIAL_TABLE_PERMISSIONS, ...DASHBOARD_OPERATIONAL_TABLE_PERMISSIONS]);
 
 function dashboardGuard(permissionCodesAny) {
   return humanInformationGuard_gnral({
@@ -104,6 +105,22 @@ async function loadDashboardOperationalTablePermissions(req, _res, next) {
   }
 }
 
+
+async function loadDashboardSnapshotPermissions(req, _res, next) {
+  try {
+    const userId = await effectiveUserId(req);
+    const [commercial, operational, kpis] = await Promise.all([
+      resolveTablePermissions(userId, DASHBOARD_COMMERCIAL_TABLE_PERMISSION_MAP),
+      resolveTablePermissions(userId, DASHBOARD_OPERATIONAL_TABLE_PERMISSION_MAP),
+      hasEffectivePermission(userId, DASHBOARD_KPI_PERMISSION)
+    ]);
+    req.dashboardSnapshotPermissions = { commercial, operational, kpis: kpis === true };
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function loadDashboardPdfPermissions(req, res, next) {
   try {
     const userId = await effectiveUserId(req);
@@ -122,6 +139,7 @@ async function loadDashboardPdfPermissions(req, res, next) {
 }
 
 router.get('/dashboard/usuarios', ...dashboardGuard(DASHBOARD_SELECTOR_PERMISSION), controller.listCommercialUsers);
+router.get('/dashboard/inicial', ...dashboardGuard(DASHBOARD_SNAPSHOT_PERMISSIONS), loadDashboardSnapshotPermissions, controller.getInitialSnapshot);
 router.get('/dashboard/kpis', ...dashboardGuard(DASHBOARD_KPI_PERMISSION), controller.getCommercialKpis);
 router.get('/dashboard/tablas', ...dashboardGuard(DASHBOARD_COMMERCIAL_TABLE_PERMISSIONS), loadDashboardCommercialTablePermissions, controller.getCommercialTables);
 router.get('/dashboard/operacion', ...dashboardGuard(DASHBOARD_OPERATIONAL_TABLE_PERMISSIONS), loadDashboardOperationalTablePermissions, controller.getOperationalTables);

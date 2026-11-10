@@ -365,6 +365,149 @@ async function listCommercialUsers(actionContext = {}) {
   };
 }
 
+function kpiPayload(raw, selection, year, years) {
+  return {
+    ok: true,
+    modo: selection.mode,
+    usuario_id: selection.userId,
+    usuarios_incluidos: selection.userIds.length,
+    anio: year,
+    anios_disponibles: years,
+    kpis: {
+      cotizados: {
+        cotizaciones: Number(raw?.cotizados_cotizaciones || 0),
+        equipos: Number(raw?.cotizados_equipos || 0)
+      },
+      vendidos: {
+        cotizaciones: Number(raw?.vendidos_cotizaciones || 0),
+        equipos: Number(raw?.vendidos_equipos || 0)
+      },
+      perdidos: {
+        cotizaciones: Number(raw?.perdidos_cotizaciones || 0),
+        equipos: Number(raw?.perdidos_equipos || 0)
+      }
+    }
+  };
+}
+
+function snapshotParts(value) {
+  const values = String(value || 'kpis,commercial,operational').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
+  return new Set(values);
+}
+
+async function getInitialSnapshot(query = {}, context = {}) {
+  const selection = await resolveDashboardSelection(query, context);
+  const ventasYear = normalizeDashboardYear(query.anio ?? query.year);
+  const perdidoYear = normalizeDashboardYear(query.anio_perdido ?? query.perdido_year ?? ventasYear);
+  const parts = snapshotParts(query.partes || query.parts);
+  const jobs = [];
+
+  let yearsPromise = null;
+  if (parts.has('kpis') && context.canKpis === true) {
+    yearsPromise = repository.listCommercialYears(db, selection.userIds);
+    jobs.push({
+      key: 'kpis_ventas',
+      run: async () => {
+        const [raw, available] = await Promise.all([
+          repository.getCommercialKpis(db, selection.userIds, ventasYear),
+          yearsPromise
+        ]);
+        const years = [...new Set([mexicoCityYear(), ventasYear, ...available])].map(Number).sort((a,b)=>b-a);
+        return kpiPayload(raw, selection, ventasYear, years);
+      }
+    });
+    if (perdidoYear !== ventasYear) {
+      jobs.push({
+        key: 'kpis_perdido',
+        run: async () => {
+          const [raw, available] = await Promise.all([
+            repository.getCommercialKpis(db, selection.userIds, perdidoYear),
+            yearsPromise
+          ]);
+          const years = [...new Set([mexicoCityYear(), perdidoYear, ...available])].map(Number).sort((a,b)=>b-a);
+          return kpiPayload(raw, selection, perdidoYear, years);
+        }
+      });
+    }
+  }
+
+  if (parts.has('commercial') && (context.allowedCommercialTableKeys || []).length) {
+    jobs.push({
+      key: 'commercial_ventas',
+      run: async () => ({
+        ok:true,
+        modo:selection.mode,
+        usuario_id:selection.userId,
+        usuarios_incluidos:selection.userIds.length,
+        anio:ventasYear,
+        tablas:filterTablesByPermission(
+          await repository.getCommercialTables(db,selection.userIds,ventasYear),
+          context.allowedCommercialTableKeys
+        )
+      })
+    });
+    if (perdidoYear !== ventasYear && (context.allowedCommercialTableKeys || []).includes('perdido')) {
+      jobs.push({
+        key:'commercial_perdido',
+        run:async()=>({
+          ok:true,
+          modo:selection.mode,
+          usuario_id:selection.userId,
+          usuarios_incluidos:selection.userIds.length,
+          anio:perdidoYear,
+          tablas:filterTablesByPermission(
+            await repository.getCommercialTables(db,selection.userIds,perdidoYear),
+            ['perdido']
+          )
+        })
+      });
+    }
+  }
+
+  if (parts.has('operational') && (context.allowedOperationalTableKeys || []).length) {
+    jobs.push({
+      key:'operational',
+      run:async()=>({
+        ok:true,
+        modo:selection.mode,
+        usuario_id:selection.userId,
+        usuarios_incluidos:selection.userIds.length,
+        tablas:filterTablesByPermission(
+          await repository.getOperationalTables(db,selection.userIds),
+          context.allowedOperationalTableKeys
+        )
+      })
+    });
+  }
+
+  const settled = await Promise.allSettled(jobs.map((job)=>job.run()));
+  const result = {};
+  const errors = [];
+  settled.forEach((entry,index)=>{
+    const key=jobs[index].key;
+    if(entry.status==='fulfilled') result[key]={ok:true,data:entry.value};
+    else {
+      result[key]={ok:false,error:String(entry.reason?.message||entry.reason||'Error de snapshot')};
+      errors.push({key,message:result[key].error});
+    }
+  });
+  if(jobs.length && errors.length===jobs.length){
+    const error=new Error(errors[0].message);
+    error.statusCode=503;
+    throw error;
+  }
+
+  return {
+    ok:true,
+    source:'aiven',
+    mode:'SNAPSHOT_CONTEXT',
+    snapshot:{version:'VENTAS_DASHBOARD_SNAPSHOT_V001',usuario_id:selection.userId,ventas_anio:ventasYear,perdido_anio:perdidoYear},
+    jobs:result,
+    errors
+  };
+}
+
+
 async function getCommercialKpis(query = {}, context = {}) {
   const selection = await resolveDashboardSelection(query, context);
   const year = normalizeDashboardYear(query.anio ?? query.year);
@@ -439,6 +582,7 @@ async function getOperationalTables(query = {}, context = {}) {
 
 module.exports = {
   listCommercialUsers,
+  getInitialSnapshot,
   getCommercialKpis,
   getCommercialTables,
   getOperationalTables,

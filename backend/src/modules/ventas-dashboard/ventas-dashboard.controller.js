@@ -70,6 +70,29 @@ async function listCommercialUsers(req, res, next) {
   }
 }
 
+
+async function getInitialSnapshot(req, res, next) {
+  try {
+    const target = await resolveDashboardTarget(req);
+    return res.status(200).json(await service.getInitialSnapshot(
+      { ...req.query, usuario_id: target.userId || 'todos' },
+      {
+        scope: target.scope,
+        selection: {
+          mode: target.userId ? 'USER' : 'ALL',
+          userId: target.userId || null
+        },
+        actionContext: buildActionContext(req),
+        allowedCommercialTableKeys: req.dashboardSnapshotPermissions?.commercial || [],
+        allowedOperationalTableKeys: req.dashboardSnapshotPermissions?.operational || [],
+        canKpis: req.dashboardSnapshotPermissions?.kpis === true
+      }
+    ));
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getCommercialKpis(req, res, next) {
   try {
     const target = await resolveDashboardTarget(req);
@@ -161,6 +184,7 @@ async function getPdfData(req, res, next) {
 
 module.exports = {
   listCommercialUsers,
+  getInitialSnapshot,
   getCommercialKpis,
   getCommercialTables,
   getOperationalTables,
