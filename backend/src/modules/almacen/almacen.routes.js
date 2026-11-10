@@ -39,6 +39,12 @@ function read(handler){
     catch(e){next(e);}
   };
 }
+function write(handler){
+  return async (req,res,next)=>{
+    try{const scope=ns.readScope(req);res.json(await handler(scope,req.body||{},req));}
+    catch(e){next(e);}
+  };
+}
 function auditRead(handler){
   return async (req,res,next)=>{
     try{const scope=ns.readScope(req);res.json(await handler(scope,req));}
@@ -65,7 +71,9 @@ router.get('/stock',...guard(PERMISSION.stock),read((scope,q)=>ns.getStock(scope
 router.get('/stock/reabasto',...guard(PERMISSION.stock),read((scope,q)=>ns.getStockReabasto(scope,q)));
 
 router.get('/prestamos/catalogos',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanCatalogs(scope)));
-router.get('/prestamos/resumen',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanSummary(scope)));
+router.get('/prestamos/pendientes-empresa',...guard(PERMISSION.prestamos),read(scope=>ns.getLoanPendingCompanies(scope)));
+router.patch('/prestamos/pendientes-empresa',...guard(PERMISSION.prestamos),write((scope,body)=>ns.assignLoanCompany(scope,body)));
+router.get('/prestamos/resumen',...guard(PERMISSION.prestamos),read((scope,q)=>ns.getLoanSummary(scope,q)));
 router.get('/prestamos',...guard(PERMISSION.prestamos),read((scope,q)=>ns.getLoans(scope,q)));
 router.get('/resguardos/catalogos',...guard(PERMISSION.resguardos),read(scope=>ns.getGuardCatalogs(scope)));
 router.get('/resguardos',...guard(PERMISSION.resguardos),read((scope,q)=>ns.getGuards(scope,q)));

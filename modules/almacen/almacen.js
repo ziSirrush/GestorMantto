@@ -29,7 +29,7 @@
     warehouse:{ company:'todas', query:'', data:null },
     top:{ mode:'valor', company:'todas', count:'20', data:null },
     stock:{ query:'', company:'todas', abc:'todas', alert:'todas', page:1, data:null },
-    loans:{ company:'todas', view:'resumen', responsible:'todos', age:'todas', query:'', page:1, catalogs:{companies:[],responsibles:[],available:false}, summary:null, detail:null },
+    loans:{ company:'todas', view:'resumen', responsible:'todos', age:'todas', query:'', page:1, catalogs:{companies:[],responsibles:[],available:false}, summary:null, detail:null, pendingCompanies:{available:false,rows:[]}, assigningCompany:'', assignError:'' },
     guards:{ query:'', subsidiary:'todas', department:'todos', exitStatus:'todos', page:1, catalogs:{companies:[],departments:[],available:false}, data:null },
     audit:{ view:'select', company:'todas', warehouseQuery:'', selectedCompany:'', selectedWarehouse:'', catalogs:null, history:[], session:null, result:null, saving:false, saveError:'' },
     requestSeq:0
@@ -416,9 +416,20 @@
     return '<section class="alm-loan-age-grid">'+ages.map(function(row,index){const label=row.antiguedad||'SIN CLASIFICAR';const tone=loanAgeTone(label,index);return '<article class="alm-loan-age alm-loan-age-'+tone+'"><small>'+escapeHtml(label)+'</small><strong>'+number(row.articulos||0,0)+' art.</strong><span>Valor: '+money(row.valorTotal)+'</span></article>';}).join('')+'</section>';
   }
 
+  function renderLoanPendingCompanies(){
+    const pending=state.loans.pendingCompanies||{available:false,rows:[]};
+    if(!pending.available)return '';
+    const rows=(pending.rows||[]).map(function(row){
+      const busy=state.loans.assigningCompany===row.responsable;
+      return '<tr><td><strong>'+escapeHtml(row.responsable||'—')+'</strong><small class="alm-cell-sub">No localizado en usuarios</small></td><td>'+number(row.registros,0)+'</td><td><select class="sel" data-alm-loan-pending-select><option value="">Seleccionar empresa</option><option value="United Elevadores">United Elevadores</option><option value="Corellian SA de CV">Corellian SA de CV</option></select></td><td><button type="button" class="alm-table-action" data-alm-loan-assign-company="'+escapeHtml(row.responsable||'')+'"'+(busy?' disabled':'')+'>'+(busy?'Asignando...':'Asignar')+'</button></td></tr>';
+    });
+    const error=state.loans.assignError?'<div class="alm-error-block"><strong>No fue posible asignar la empresa</strong><small>'+escapeHtml(state.loans.assignError)+'</small></div>':'';
+    return '<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Pendientes de asignar empresa</h2><p>Estos usuarios no están en nuestra BD. Asigna manualmente la empresa y se aplicará a todos los registros que coincidan con el mismo nombre.</p></div>'+statusPill(number((pending.rows||[]).length,0)+' pendientes',(pending.rows||[]).length?'warn':'ok')+'</div>'+error+((pending.rows||[]).length?renderTable(['Responsable','Registros','Empresa','Acción'],rows,760):empty('No existen responsables pendientes de empresa.'))+'</section>';
+  }
+
   function renderLoanSummary(summary){
     const rows=(summary.rows||[]).map(function(row){return '<tr><td><strong>'+escapeHtml(row.responsable||'—')+'</strong></td><td>'+number(row.articulos,0)+'</td><td>'+number(row.cantidad,2)+'</td><td>'+money(row.valorTotal)+'</td><td>'+(row.porcentaje==null?'—':number(row.porcentaje,1)+'%')+'</td><td>'+number(row.diasPrestamo,0)+'</td><td>'+dateText(row.desde)+'</td><td>'+number(row.sitios,0)+'</td><td><button type="button" class="alm-table-action" data-alm-loan-responsible-open="'+escapeHtml(row.responsable||'')+'">Detalle</button></td></tr>';});
-    return loanAgeCards(summary)+'<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Préstamos por responsable</h2><p>Concentrado de la tabla almacen_ns_prestamos en Aiven.</p></div>'+statusPill('Fuente Aiven','ok')+'</div>'+renderTable(['Responsable','Artículos','Cantidad','Valor total','% del total','Días en préstamo','Desde','Sitios','Detalle'],rows,1060)+'</section>';
+    return loanAgeCards(summary)+'<section class="alm-card alm-table-card"><div class="alm-section-head"><div><h2>Préstamos por responsable</h2><p>Concentrado de la tabla almacen_ns_prestamos en Aiven.</p></div>'+statusPill('Fuente Aiven','ok')+'</div>'+renderTable(['Responsable','Artículos','Cantidad','Valor total','% del total','Días en préstamo','Desde','Sitios','Detalle'],rows,1060)+'</section>'+renderLoanPendingCompanies();
   }
 
   function renderLoanDetail(detail){
@@ -435,7 +446,7 @@
   }
   function renderLoans(){
     const catalogs=state.loans.catalogs||{};
-    if(!catalogs.available)return shell('almacen-prestamos',loanSourceCard()+empty('La tabla de Préstamos no contiene registros para las empresas autorizadas.'));
+    if(!catalogs.available)return shell('almacen-prestamos',loanSourceCard()+empty('La tabla de Préstamos no contiene registros para las empresas autorizadas.')+renderLoanPendingCompanies());
     const summary=state.loans.summary||{kpis:{},ages:[],rows:[]}; const k=summary.kpis||{};
     return shell('almacen-prestamos',loanSourceCard()+'<section class="alm-loan-company-row">'+loanCompanyOptions()+'</section><section class="alm-kpi-grid">'+kpi('Total artículos','🔄',number(k.articulos,0),'Registros de préstamo','blue')+kpi('Valor en préstamo','💰',money(k.valorTotal),'Cuando costo/valor viene en fuente','green')+kpi('Piezas totales','📦',number(k.piezas,2),'Cantidad','amber')+kpi('Responsables','👤',number(k.responsables,0),'Con material','purple')+'</section><section class="alm-card alm-inventory-nav"><nav class="alm-subtabs"><button type="button" class="alm-subtab'+(state.loans.view==='resumen'?' is-active':'')+'" data-alm-loan-view="resumen"><span>👥</span>Por responsable</button><button type="button" class="alm-subtab'+(state.loans.view==='detalle'?' is-active':'')+'" data-alm-loan-view="detalle"><span>📋</span>Detalle de artículos</button></nav></section><div class="alm-stack">'+(state.loans.view==='detalle'?renderLoanDetail(state.loans.detail||{rows:[],summary:{},pagination:{page:1,pages:1,total:0}}):renderLoanSummary(summary))+'</div>');
   }
@@ -444,7 +455,8 @@
     view.innerHTML=shell('almacen-prestamos',loading('Consultando préstamos...'));
     try{
       state.loans.catalogs=await get('/api/almacen/prestamos/catalogos',{force:true}); state.source=state.loans.catalogs.source||null;
-      if(!state.loans.catalogs.available){view.innerHTML=renderLoans();return;}
+      state.loans.pendingCompanies=await get('/api/almacen/prestamos/pendientes-empresa',{force:true});
+      if(!state.loans.catalogs.available){view.innerHTML=renderLoans();bindLoans(view);return;}
       if(state.loans.company!=='todas' && !(state.loans.catalogs.companies||[]).includes(state.loans.company))state.loans.company='todas';
       if(state.loans.responsible!=='todos' && !(state.loans.catalogs.responsibles||[]).includes(state.loans.responsible))state.loans.responsible='todos';
       if(state.loans.age!=='todas' && !(state.loans.catalogs.ages||[]).includes(state.loans.age))state.loans.age='todas';
@@ -458,6 +470,29 @@
     view.querySelectorAll('[data-alm-loan-company]').forEach(function(button){button.addEventListener('click',function(){state.loans.company=button.dataset.almLoanCompany||'todas';state.loans.page=1;loadLoans(view);});});
     view.querySelectorAll('[data-alm-loan-view]').forEach(function(button){button.addEventListener('click',function(){state.loans.view=button.dataset.almLoanView||'resumen';state.loans.page=1;loadLoans(view);});});
     view.querySelectorAll('[data-alm-loan-responsible-open]').forEach(function(button){button.addEventListener('click',function(){state.loans.responsible=button.dataset.almLoanResponsibleOpen||'todos';state.loans.view='detalle';state.loans.page=1;loadLoans(view);});});
+    view.querySelectorAll('[data-alm-loan-assign-company]').forEach(function(button){
+      button.addEventListener('click',async function(){
+        const row=button.closest('tr');
+        const select=row&&row.querySelector('[data-alm-loan-pending-select]');
+        const responsable=button.dataset.almLoanAssignCompany||'';
+        const empresa=select?select.value:'';
+        if(!responsable||!empresa)return;
+        state.loans.assigningCompany=responsable;
+        state.loans.assignError='';
+        button.disabled=true;
+        button.textContent='Asignando...';
+        try{
+          await sendJson('/api/almacen/prestamos/pendientes-empresa','PATCH',{responsable:responsable,empresa:empresa});
+          state.loans.assigningCompany='';
+          await loadLoans(view);
+        }catch(error){
+          state.loans.assigningCompany='';
+          state.loans.assignError=error&&error.message?error.message:'No fue posible asignar la empresa.';
+          view.innerHTML=renderLoans();
+          bindLoans(view);
+        }
+      });
+    });
     const resp=view.querySelector('#alm-loan-responsible');if(resp)resp.addEventListener('change',function(){state.loans.responsible=resp.value;state.loans.page=1;loadLoans(view);});
     const age=view.querySelector('#alm-loan-age');if(age)age.addEventListener('change',function(){state.loans.age=age.value;state.loans.page=1;loadLoans(view);});
     const q=view.querySelector('#alm-loan-query');if(q)q.addEventListener('input',debounce(function(){state.loans.query=q.value;state.loans.page=1;loadLoans(view);},350));

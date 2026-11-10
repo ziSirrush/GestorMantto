@@ -352,6 +352,8 @@ function operationalUnavailable(source,kind) {
 async function getLoanCatalogs(scope) {return loanQueries.getLoanCatalogs(scope);}
 async function getLoanSummary(scope,query={}) {return loanQueries.getLoanSummary(scope,query);}
 async function getLoans(scope,query={}) {return loanQueries.getLoans(scope,query);}
+async function getLoanPendingCompanies(scope) {return loanQueries.getPendingCompanyAssignments(scope);}
+async function assignLoanCompany(scope,input={}) {return loanQueries.assignLoanCompany(scope,input);}
 async function getGuardCatalogs(scope) {const s=await activeSource(scope);return {...operationalUnavailable(s,'RESGUARDOS'),companies:[],departments:[]};}
 async function getGuards(scope,query={}) {const s=await activeSource(scope);return {...operationalUnavailable(s,'RESGUARDOS'),kpis:{total:0,conSalida:0,sinSalida:0,filtrados:0},rows:[],pagination:pagination(0,pageValues(query,true))};}
 async function getStockReabasto(scope,query={}) {
@@ -418,6 +420,6 @@ async function getAuditSample(scope,query={}) {
 module.exports={
   readScope,activeSource,listSources,getDashboard,getInventory,getCatalogs,getCompany,
   getWarehouses,getTop,getStock,getStockReabasto,
-  getLoanCatalogs,getLoanSummary,getLoans,getGuardCatalogs,getGuards,
+  getLoanCatalogs,getLoanSummary,getLoans,getLoanPendingCompanies,assignLoanCompany,getGuardCatalogs,getGuards,
   getAuditCatalogs,getAuditSample
 };

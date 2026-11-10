@@ -1,6 +1,6 @@
 'use strict';
 
-// Préstamos Aiven: regresión de contrato, consulta sin escrituras y alcance estricto.
+// Préstamos Aiven: regresión de lectura, alcance estricto y clasificación manual controlada.
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -12,6 +12,12 @@ const queries = [];
 const fakeDb = {
   async query(sql, params = []) {
     queries.push({sql, params});
+    if (sql.includes("WHERE (p.empresa IS NULL OR TRIM(p.empresa) = '')") && sql.includes('GROUP BY TRIM(p.responsable)')) {
+      return [[{responsable:'WILLIAM ALVAREZ',registros:18},{responsable:'CARLOS LOPEZ',registros:11}]];
+    }
+    if (sql.startsWith('UPDATE almacen_ns_prestamos')) {
+      return [{affectedRows:18}];
+    }
     if (/SELECT p.empresa AS empresa, COUNT\(\*\) AS total/.test(sql)) {
       return [[{empresa:'Corellian', total: 2}]];
     }
@@ -48,6 +54,15 @@ const scope = {
   subsidiaryIds:['2'],
   domains:['CORELLIAN'],
   subsidiaries:[{id:'2',domain:'CORELLIAN',aliases:['Corellian','Corellian SA de CV']}]
+};
+const dualScope = {
+  subsidiaryIds:['2','3','5'],
+  domains:['CORELLIAN','UNITED'],
+  subsidiaries:[
+    {id:'2',domain:'CORELLIAN',aliases:['Corellian','Corellian SA de CV']},
+    {id:'3',domain:'NUBIAN',aliases:['Nubian']},
+    {id:'5',domain:'UNITED',aliases:['United','United Elevadores']}
+  ]
 };
 
 function assertSecurity() {
@@ -112,15 +127,60 @@ test('sin subsidiarias, no se ejecuta ninguna consulta ni se filtra solo en fron
   assert.equal(queries.length,0);
 });
 
+test('pendientes de empresa: solo se exponen con alcance simultaneo United y Corellian', async () => {
+  queries.length=0;
+  const hidden=await loans.getPendingCompanyAssignments(scope);
+  assert.deepEqual(hidden,{ok:true,available:false,rows:[]});
+  assert.equal(queries.length,0);
+
+  const out=await loans.getPendingCompanyAssignments(dualScope);
+  assert.equal(out.available,true);
+  assert.deepEqual(out.rows,[
+    {responsable:'WILLIAM ALVAREZ',registros:18},
+    {responsable:'CARLOS LOPEZ',registros:11}
+  ]);
+  assert.equal(queries.length,1);
+  assert.match(queries[0].sql,/empresa IS NULL/);
+  assert.match(queries[0].sql,/GROUP BY TRIM\(p\.responsable\)/);
+});
+
+test('asignacion manual: actualiza solo pendientes del mismo nombre y empresa permitida', async () => {
+  queries.length=0;
+  await assert.rejects(
+    loans.assignLoanCompany(scope,{responsable:'WILLIAM ALVAREZ',empresa:'United Elevadores'}),
+    {status:403,code:'ALMACEN_PRESTAMOS_EMPRESA_SCOPE_REQUIRED'}
+  );
+  await assert.rejects(
+    loans.assignLoanCompany(dualScope,{responsable:'WILLIAM ALVAREZ',empresa:'Otra empresa'}),
+    {status:400,code:'ALMACEN_PRESTAMOS_EMPRESA_INVALID'}
+  );
+  const out=await loans.assignLoanCompany(
+    dualScope,
+    {responsable:'WILLIAM ALVAREZ',empresa:'United Elevadores'}
+  );
+  assert.equal(out.actualizados,18);
+  assert.equal(queries.length,1);
+  assert.match(queries[0].sql,/UPDATE almacen_ns_prestamos/);
+  assert.match(queries[0].sql,/id_prestamo > 0/);
+  assert.match(queries[0].sql,/empresa IS NULL/);
+  assert.match(queries[0].sql,/TRIM\(responsable\) = \?/);
+  assert.deepEqual(queries[0].params,['United Elevadores','WILLIAM ALVAREZ']);
+});
+
 test('contrato: backend conecta rutas de préstamo y frontend abandona Excel', () => {
   const query = fs.readFileSync(path.join(root,'backend/src/modules/almacen/almacen.ns-query-service.js'),'utf8');
   const frontend=fs.readFileSync(path.join(root,'modules/almacen/almacen.js'),'utf8');
+  const routes=fs.readFileSync(path.join(root,'backend/src/modules/almacen/almacen.routes.js'),'utf8');
   const loader=fs.readFileSync(path.join(root,'core/module-loader.js'),'utf8');
   assert.match(query,/loanQueries\.getLoanCatalogs\(scope\)/);
   assert.match(query,/loanQueries\.getLoanSummary\(scope,query\)/);
   assert.match(query,/loanQueries\.getLoans\(scope,query\)/);
   assert.match(frontend,/Tabla: almacen_ns_prestamos/);
   assert.match(frontend,/Fuente Aiven/);
+  assert.match(frontend,/Pendientes de asignar empresa/);
+  assert.match(frontend,/Estos usuarios no están en nuestra BD/);
+  assert.match(routes,/prestamos\/pendientes-empresa/);
+  assert.match(routes,/router\.patch\('\/prestamos\/pendientes-empresa'/);
   assert.doesNotMatch(frontend,/statusPill\('Fuente Excel','ok'\)/);
-  assert.match(loader,/20261105-prestamos-aiven-v001/);
+  assert.match(loader,/20261110-prestamos-empresa-pendiente-v001/);
 });

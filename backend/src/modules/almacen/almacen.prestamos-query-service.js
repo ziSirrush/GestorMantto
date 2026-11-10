@@ -2,7 +2,8 @@
 
 // Préstamos: lectura independiente de la tabla oficial en Aiven.
 // No depende del lote Inventario 230 ni permite consultar fuera de las
-// subsidiarias del usuario efectivo. No realiza escrituras ni infiere valores.
+// subsidiarias del usuario efectivo. La unica escritura humana permitida en
+// este servicio es clasificar la empresa de responsables aun no conciliados.
 const db = require('../../config/db');
 
 const COMPANY_SQL = "REPLACE(REPLACE(REPLACE(UPPER(CONVERT(TRIM(p.empresa) USING utf8mb4)) COLLATE utf8mb4_unicode_ci, '.', ''), ' ', ''), ',', '')";
@@ -67,6 +68,34 @@ function loanWhere(scope, query = {}) {
 
 function numeric(value) {
   return value == null ? null : Number(value);
+}
+
+const MANUAL_COMPANIES = Object.freeze([
+  'United Elevadores',
+  'Corellian SA de CV'
+]);
+
+function hasDualCompanyScope(scope) {
+  const ids = new Set((scope && Array.isArray(scope.subsidiaryIds)
+    ? scope.subsidiaryIds : []).map(String));
+  return ids.has('2') && ids.has('5');
+}
+
+function assignmentError(message, status, code) {
+  const e = new Error(message);
+  e.status = status;
+  e.code = code;
+  return e;
+}
+
+function requireDualCompanyScope(scope) {
+  if (!hasDualCompanyScope(scope)) {
+    throw assignmentError(
+      'Se requiere alcance simultaneo United y Corellian para clasificar responsables sin empresa.',
+      403,
+      'ALMACEN_PRESTAMOS_EMPRESA_SCOPE_REQUIRED'
+    );
+  }
 }
 
 function loanSource(scope, count) {
@@ -202,4 +231,77 @@ async function getLoans(scope, query = {}) {
   };
 }
 
-module.exports = { getLoanCatalogs, getLoanSummary, getLoans };
+async function getPendingCompanyAssignments(scope) {
+  if (!hasDualCompanyScope(scope)) {
+    return {ok:true, available:false, rows:[]};
+  }
+
+  const [rows] = await db.query(
+    `SELECT TRIM(p.responsable) AS responsable, COUNT(*) AS registros
+       FROM almacen_ns_prestamos p
+      WHERE (p.empresa IS NULL OR TRIM(p.empresa) = '')
+        AND p.responsable IS NOT NULL
+        AND TRIM(p.responsable) <> ''
+      GROUP BY TRIM(p.responsable)
+      ORDER BY registros DESC, responsable`
+  );
+
+  return {
+    ok: true,
+    available: true,
+    rows: rows.map(row => ({
+      responsable: row.responsable,
+      registros: Number(row.registros || 0)
+    }))
+  };
+}
+
+async function assignLoanCompany(scope, input = {}) {
+  requireDualCompanyScope(scope);
+
+  const responsable = String(input.responsable || '').trim();
+  const empresa = String(input.empresa || '').trim();
+
+  if (!responsable || responsable.length > 255) {
+    throw assignmentError(
+      'Responsable requerido.',
+      400,
+      'ALMACEN_PRESTAMOS_RESPONSABLE_REQUIRED'
+    );
+  }
+  if (!MANUAL_COMPANIES.includes(empresa)) {
+    throw assignmentError(
+      'Empresa no permitida para la asignacion manual.',
+      400,
+      'ALMACEN_PRESTAMOS_EMPRESA_INVALID'
+    );
+  }
+
+  const [result] = await db.query(
+    `UPDATE almacen_ns_prestamos
+        SET empresa = ?
+      WHERE id_prestamo > 0
+        AND (empresa IS NULL OR TRIM(empresa) = '')
+        AND TRIM(responsable) = ?`,
+    [empresa, responsable]
+  );
+
+  const updated = Number(result && result.affectedRows || 0);
+  if (!updated) {
+    throw assignmentError(
+      'No existen registros pendientes para este responsable.',
+      404,
+      'ALMACEN_PRESTAMOS_PENDIENTE_NOT_FOUND'
+    );
+  }
+
+  return {ok:true, responsable, empresa, actualizados:updated};
+}
+
+module.exports = {
+  getLoanCatalogs,
+  getLoanSummary,
+  getLoans,
+  getPendingCompanyAssignments,
+  assignLoanCompany
+};
