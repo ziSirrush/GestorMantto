@@ -16,7 +16,7 @@ const REV = '20261109-detail-navigation-v002';
 
 test('La version del Dashboard, cargador y service worker invalida la revision anterior', () => {
   assert.ok(loader.includes('instalaciones-dashboard_cor.js?v=' + REV));
-  assert.ok(index.includes('core/module-loader.js?v=20261110-snapshot-first-v004'));
+  assert.ok(index.includes('core/module-loader.js?v=20261110-snapshot-first-v005'));
   assert.ok(sw.includes(REV));
   assert.match(sw, /needsFreshMeetingAsset_cor\(url\)/);
   assert.match(sw, /fetch\(request, \{ cache:'no-store' \}\)/);

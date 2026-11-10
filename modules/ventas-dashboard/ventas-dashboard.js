@@ -834,8 +834,6 @@
     const userValue = allMode ? ALL_USERS_VALUE : String(id);
     const ventasYear = selectedSectionYear('ventas');
     const perdidoYear = selectedSectionYear('perdido');
-    const ventasSuffix = dashboardSuffix(userValue, ventasYear);
-    const perdidoSuffix = dashboardSuffix(userValue, perdidoYear);
     const queryKey = `${userValue}|ventas:${ventasYear}|perdido:${perdidoYear}`;
     const contextChanged = Boolean(cachedQueryKey && cachedQueryKey !== queryKey);
     if (contextChanged) {
@@ -852,24 +850,29 @@
     }
     cachedQueryKey = queryKey;
 
-    const jobs = [];
-    if (parts.kpis) {
-      jobs.push({ key: 'kpis_ventas', promise: req(`/api/ventas/dashboard/kpis${ventasSuffix}`) });
-      if (perdidoYear !== ventasYear) jobs.push({ key: 'kpis_perdido', promise: req(`/api/ventas/dashboard/kpis${perdidoSuffix}`) });
-    }
-    if (parts.commercial) {
-      jobs.push({ key: 'commercial_ventas', promise: req(`/api/ventas/dashboard/tablas${ventasSuffix}`) });
-      if (perdidoYear !== ventasYear) jobs.push({ key: 'commercial_perdido', promise: req(`/api/ventas/dashboard/tablas${perdidoSuffix}`) });
-    }
-    if (parts.operational) jobs.push({ key: 'operational', promise: req(`/api/ventas/dashboard/operacion${ventasSuffix}`) });
-    if (!jobs.length) return false;
+    const requestedParts = [];
+    if(parts.kpis) requestedParts.push('kpis');
+    if(parts.commercial) requestedParts.push('commercial');
+    if(parts.operational) requestedParts.push('operational');
+    if(!requestedParts.length) return false;
 
     if (!silent) msg(allMode ? 'Consultando información de tu alcance comercial...' : 'Consultando información comercial...');
-    const settled = await Promise.allSettled(jobs.map((job) => job.promise));
+    const snapshotQuery=new URLSearchParams();
+    snapshotQuery.set('usuario_id',userValue);
+    snapshotQuery.set('anio',String(ventasYear));
+    snapshotQuery.set('anio_perdido',String(perdidoYear));
+    snapshotQuery.set('partes',requestedParts.join(','));
+    const snapshot=await req('/api/ventas/dashboard/inicial?'+snapshotQuery.toString());
     if (rid !== requestId) return false;
-
-    const results = jobs.map((job, index) => ({ key: job.key, result: settled[index] }));
+    const snapshotJobs=snapshot&&snapshot.jobs&&typeof snapshot.jobs==='object'?snapshot.jobs:{};
+    const results=Object.entries(snapshotJobs).map(([key,entry])=>({
+      key,
+      result:entry&&entry.ok===true
+        ? {status:'fulfilled',value:entry.data}
+        : {status:'rejected',reason:new Error(entry&&entry.error?entry.error:'Sección no disponible')}
+    }));
     const fulfilled = results.filter((entry) => entry.result.status === 'fulfilled');
+    if (!results.length) throw new Error('El snapshot de Ventas no devolvió secciones autorizadas.');
     if (!fulfilled.length) {
       const rejected = results.find((entry) => entry.result.status === 'rejected');
       throw (rejected?.result?.reason || new Error('No fue posible cargar Dashboard Ventas.'));
