@@ -21,6 +21,8 @@ test('Call Center ya no consulta MTBC ni críticos por endpoints separados duran
 });
 
 test('Call Center conserva U365 como detalle lazy',()=>{
-  assert.match(front,/\/api\/callcenter\/u365\/proyectos/);
-  assert.match(front,/\/api\/callcenter\/u365\/equipos/);
+  assert.match(front,/\/api\/operacion\/dashboard-call-center\/u365\/proyectos/);
+  assert.match(front,/\/api\/operacion\/dashboard-call-center\/u365\/equipos/);
+  assert.match(front,/fetchU365Pages/);
+  assert.doesNotMatch(front,/fetchMtbcPages/);
 });
