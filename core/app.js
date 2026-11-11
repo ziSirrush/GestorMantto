@@ -249,7 +249,7 @@
       if(!style){
         style = document.createElement('link');
         style.rel = 'stylesheet';
-        style.href = './modules/customer-experience-encuestas/customer-experience-encuestas.css?v=20261007-fase2-v001';
+        style.href = './modules/customer-experience-encuestas/customer-experience-encuestas.css?v=20261111-single-close-v003';
         style.dataset.manttoCxEncuestas = '1';
         document.head.appendChild(style);
       }
@@ -266,7 +266,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './modules/customer-experience-encuestas/customer-experience-encuestas.js?v=20261007-fase2-v001';
+      script.src = './modules/customer-experience-encuestas/customer-experience-encuestas.js?v=20261111-single-close-v003';
       script.async = true;
       script.dataset.manttoCxEncuestas = '1';
       script.addEventListener('load', () => resolve(window.ManttoCustomerExperienceEncuestas || null), { once:true });

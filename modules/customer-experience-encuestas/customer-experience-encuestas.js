@@ -62,7 +62,6 @@
         '<div class="ce-modal" role="dialog" aria-modal="true" aria-labelledby="ce-detalle-titulo">'+
           '<div class="ce-modal-head"><h2 id="ce-detalle-titulo">Detalle</h2><button type="button" class="ce-modal-close" id="ce-detalle-cerrar" aria-label="Cerrar detalle">✕ <span>Cerrar</span></button></div>'+
           '<div class="ce-modal-body" id="ce-detalle-body"></div>'+
-          '<footer class="ce-modal-footer"><button type="button" id="ce-detalle-cerrar-inferior" class="ce-modal-exit">✕ Cerrar detalle</button></footer>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -309,7 +308,6 @@
     document.querySelectorAll('.ce-tab').forEach(button=>button.addEventListener('click',()=>changeTab(button.dataset.tab)));
     const close=byId('ce-detalle-cerrar');
     if(close) close.addEventListener('click',closeModal);
-    byId('ce-detalle-cerrar-inferior')?.addEventListener('click',closeModal);
     const overlay=byId('ce-detalle-overlay');
     if(overlay) overlay.addEventListener('click',event=>{ if(event.target===overlay) closeModal(); });
 
