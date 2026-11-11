@@ -13,12 +13,13 @@
     'logistica-reporte':['#rl-detail-back'],
     'offline-configuracion':['#off-reader-detail .off-reader-detail-back','#off-reader-home'],
     'ventas-fotos-mapa':['[data-vfm-back]'],
+    'cx-encuestas':['#ce-detalle-overlay:not([hidden]) #ce-detalle-cerrar'],
     'cx-visitas':['#cxv-dialog-overlay .cxv-history .cxv-form-actions [data-cxv-action="detail"]','#cxv-dialog-overlay .cxv-dialog-head [data-cxv-action="close"]']
   });
 
   function contextualBackTarget(){
     const route=window.ManttoRouter?.getCurrent?.()?.route;
-    const view=document.getElementById(route==='cx-visitas'?'view-placeholder':'view-'+route);
+    const view=document.getElementById((route==='cx-visitas'||route==='cx-encuestas')?'view-placeholder':'view-'+route);
     if(!view)return null;
     for(const selector of CONTEXT_BACK_TARGETS[route]||[]){
       const button=view.querySelector(selector);

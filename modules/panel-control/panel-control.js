@@ -76,6 +76,7 @@
     loadTestCapabilities:null,
     loadTestCapabilityError:'',
     loadTestCapabilityLoading:false,
+    scriptTest:{running:false,loading:false,data:null,message:''},
     auditWeek:null,
     auditCompany:'',
     auditModule:'',
@@ -1178,6 +1179,96 @@
     }
   }
 
+
+  // QA efimero: solo se puede iniciar un script aprobado en backend.
+  const SCRIPT_TEST_TAB='script-tests';
+  const SCRIPT_TEST_URL='/api/panel-control/pruebas-scripts/conciliacion-ajustadores';
+  let scriptTestPoll=null;
+  function scriptTestText(){
+    const q=state.scriptTest,d=q.data;
+    if(!d)return q.message||'Sin resultados recientes.';
+    const lines=[
+      'Conciliacion FL / Programacion de Personal',
+      'Estado: '+String(d.estado||'DESCONOCIDO'),
+      'Inicio: '+(d.inicio||'—'),
+      'Fin: '+(d.fin||'—'),
+      'Equipos revisados: '+Number(d.total_equipos||0),
+      'Creadas: '+Number(d.creadas||0),
+      'Actualizadas: '+Number(d.actualizadas||0),
+      'Historicas: '+Number(d.historicas||0),
+      'Conflictos: '+Number(d.conflictos||0),
+      'Incidencias: '+Number(d.errores||0),
+      d.mensaje||''
+    ];
+    if(Array.isArray(d.detalles))d.detalles.forEach(x=>lines.push('Equipo '+String(x.id_ins_fl||'—')+': '+String(x.codigo||'ERROR')));
+    if(q.message)lines.push(q.message);
+    return lines.join('\n');
+  }
+  function updateScriptTestView(){
+    if(state.tab!==SCRIPT_TEST_TAB)return;
+    const button=document.getElementById('pc-script-run');
+    const output=document.getElementById('pc-script-output');
+    if(button){
+      button.disabled=Boolean(state.scriptTest.loading||state.scriptTest.running);
+      button.textContent=state.scriptTest.running?'Conciliando equipos...':'Ejecutar prueba manual';
+    }
+    if(output)output.textContent=scriptTestText();
+  }
+  async function queryScriptTest(){
+    if(state.tab!==SCRIPT_TEST_TAB)return;
+    try{
+      const result=await request(SCRIPT_TEST_URL+'?_='+Date.now(),{method:'GET',cache:'no-store'});
+      state.scriptTest.data=result.data||null;
+      state.scriptTest.running=result.data?.estado==='EN_PROCESO';
+      state.scriptTest.message='';
+    }catch(error){
+      if(Number(error?.status)===404){
+        state.scriptTest.running=false;
+        state.scriptTest.message='Sin resultado temporal en esta instancia.';
+      }else{
+        state.scriptTest.message=error.message||'No se pudo consultar el resultado.';
+        state.scriptTest.running=false;
+      }
+    }finally{
+      state.scriptTest.loading=false;
+      updateScriptTestView();
+      if(scriptTestPoll)window.clearTimeout(scriptTestPoll);
+      if(state.tab===SCRIPT_TEST_TAB&&state.scriptTest.running)
+        scriptTestPoll=window.setTimeout(()=>{void queryScriptTest();},1600);
+    }
+  }
+  function renderScriptTests(){
+    const box=document.getElementById('pc-content');
+    if(!box||state.tab!==SCRIPT_TEST_TAB)return;
+    box.innerHTML='<section class="pc-script-tests"><header><span class="pc-eyebrow">QA TEMPORAL</span><h2>Pruebas de scripts</h2><p>Ejecuciones manuales para verificar funciones específicas. No modifica la programación nocturna.</p></header>'+
+      '<article class="pc-script-entry"><div><h3>Conciliación FL → Programación de Personal</h3><p>Concilia equipos 06-A y registros automáticos existentes. La prueba utiliza datos operativos reales. Solo Programador autorizado.</p></div>'+
+      '<button type="button" class="pc-btn primary" id="pc-script-run">Ejecutar prueba manual</button></article>'+
+      '<section class="pc-script-report"><h3>Resultado temporal</h3><pre id="pc-script-output" role="status" aria-live="polite"></pre></section></section>';
+    box.querySelector('#pc-script-run')?.addEventListener('click',async()=>{
+      if(state.scriptTest.running||state.scriptTest.loading)return;
+      if(!window.confirm('Esta prueba ejecuta una conciliacion real y puede crear o modificar asignaciones automaticas. ¿Confirmas?'))return;
+      state.scriptTest.loading=true;
+      state.scriptTest.message='Solicitando ejecucion...';
+      updateScriptTestView();
+      try{
+        const result=await request(SCRIPT_TEST_URL,{method:'POST'});
+        state.scriptTest.data=result.data||null;
+        state.scriptTest.running=result.data?.estado==='EN_PROCESO';
+        state.scriptTest.message='';
+        if(state.scriptTest.running)void queryScriptTest();
+      }catch(error){
+        state.scriptTest.message=error.message||'No se pudo iniciar la prueba.';
+        state.scriptTest.running=false;
+      }finally{
+        state.scriptTest.loading=false;
+        updateScriptTestView();
+      }
+    });
+    updateSaveButton();
+    updateScriptTestView();
+    if(!state.scriptTest.data&&!state.scriptTest.loading)void queryScriptTest();
+  }
+
   function shell(){
     return `<div class="pc-page">
       <header class="pc-hero"><div><span class="pc-eyebrow">SEGURIDAD Y ACCESOS</span><h1>Panel de Control</h1><p>Configura permisos base por rol y personaliza el acceso efectivo de cada usuario.</p></div><div class="pc-hero-actions"><button class="pc-btn ghost" id="pc-reload">Recargar datos</button><div class="pc-save-stack"><button class="pc-btn primary" id="pc-save" disabled>Guardar cambios <span id="pc-dirty-count">0</span></button><div class="pc-save-status" id="pc-save-status" hidden aria-live="polite"><div class="pc-save-status-line"><span id="pc-save-status-text">Preparando...</span><strong id="pc-save-status-percent">0%</strong></div><div class="pc-save-progress" id="pc-save-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="pc-save-progress-fill"></span></div></div></div></div></header>
@@ -1187,7 +1278,7 @@
         <article><b>${esc(state.totals.permisos_disponibles||0)}</b><span>Permisos disponibles</span></article>
         <article><b>${esc(state.totals.personalizaciones_activas||0)}</b><span>Personalizaciones activas</span></article>
       </section>
-      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="information-scope" class="${state.tab==='information-scope'?'active':''}">Alcance de información</button><button data-tab="notifications" class="${state.tab==='notifications'?'active':''}">Notificaciones</button>${window.ManttoUserViewer?.allowed?.()?`<button data-tab="viewer" class="${state.tab==='viewer'?'active':''}">Visor de usuarios</button>`:''}${loadTestHasAccess()?`<button data-tab="${LOAD_TEST_TAB}" class="${state.tab===LOAD_TEST_TAB?'active':''}">Prueba de Carga</button>`:''}<button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
+      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="information-scope" class="${state.tab==='information-scope'?'active':''}">Alcance de información</button><button data-tab="notifications" class="${state.tab==='notifications'?'active':''}">Notificaciones</button>${window.ManttoUserViewer?.allowed?.()?`<button data-tab="viewer" class="${state.tab==='viewer'?'active':''}">Visor de usuarios</button>`:''}${loadTestHasAccess()?`<button data-tab="${LOAD_TEST_TAB}" class="${state.tab===LOAD_TEST_TAB?'active':''}">Prueba de Carga</button>`:''}<button data-tab="${SCRIPT_TEST_TAB}" class="${state.tab===SCRIPT_TEST_TAB?'active':''}">Pruebas de scripts</button><button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
       <div id="pc-content"></div><div class="pc-toast" id="pc-toast"></div>
     </div>`;
   }
@@ -1197,6 +1288,7 @@
     if(!view)return;
     view.innerHTML=shell();
     document.getElementById('pc-reload')?.addEventListener('click',async()=>{
+      if(state.tab===SCRIPT_TEST_TAB){await queryScriptTest();return;}
       if(state.tab===LOAD_TEST_TAB){
         await loadLoadTestCapabilities({renderAfter:true});
         return;
@@ -1231,6 +1323,7 @@
       if(state.tab==='information-scope'&&state.informationScopeBase){
         state.informationScopeDraft=cloneInformationScopeDraft(state.informationScopeBase);
       }
+      if(scriptTestPoll){window.clearTimeout(scriptTestPoll);scriptTestPoll=null;}
       state.tab=nextTab;
       state.dirty.clear();
       state.notificationDirty.clear();
@@ -1246,6 +1339,7 @@
   function renderMain(){
     const box=document.getElementById('pc-content');
     if(!box)return;
+    if(state.tab===SCRIPT_TEST_TAB){renderScriptTests();return;}
     if(state.tab==='audit'){
       renderChangeAudit(box);
       updateSaveButton();

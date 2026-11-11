@@ -60,7 +60,7 @@
       '<div id="ce-resultado"><div class="ce-status">Cargando...</div></div>'+
       '<div class="ce-modal-overlay" id="ce-detalle-overlay" hidden>'+
         '<div class="ce-modal" role="dialog" aria-modal="true" aria-labelledby="ce-detalle-titulo">'+
-          '<div class="ce-modal-head"><h2 id="ce-detalle-titulo">Detalle</h2><button type="button" class="ce-modal-close" id="ce-detalle-cerrar" aria-label="Cerrar">✕</button></div>'+
+          '<div class="ce-modal-head"><h2 id="ce-detalle-titulo">Detalle</h2><button type="button" class="ce-modal-close" id="ce-detalle-cerrar" aria-label="Cerrar detalle">✕ <span>Cerrar</span></button></div>'+
           '<div class="ce-modal-body" id="ce-detalle-body"></div>'+
         '</div>'+
       '</div>'+

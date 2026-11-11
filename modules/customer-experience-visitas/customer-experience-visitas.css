@@ -95,3 +95,6 @@
   .cxv-table td:nth-child(7) .cxv-link{width:100%;padding:9px 12px;border-radius:8px;background:#eff6ff;text-align:center;text-decoration:none}
   .cxv-title-cell{min-width:0;max-width:none}
 }
+
+/* PWA CX: el boton de cierre sigue visible al desplazarse por el detalle. */
+.cxv-dialog-head{flex-shrink:0;min-height:54px}.cxv-dialog-head h2{min-width:0;overflow-wrap:anywhere}.cxv-close{min-width:44px;min-height:44px;flex-shrink:0;touch-action:manipulation;position:relative;z-index:1}.cxv-dialog-overlay{padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}@media(max-width:760px){.cxv-dialog{max-height:calc(100dvh - 20px)}}

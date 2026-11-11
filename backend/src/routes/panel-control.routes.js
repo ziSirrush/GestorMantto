@@ -4,6 +4,7 @@ const controller = require('../controllers/panel-control.controller');
 const notificationAdminController = require('../controllers/panel-control-notificaciones.controller');
 const informationScopeController = require('../controllers/panel-control-alcance.controller');
 const loadTestRoutes = require('../modules/panel-control-prueba-carga/panel-control-prueba-carga.routes');
+const scriptTests = require('../controllers/panel-control-scripts.controller');
 
 const router = express.Router();
 
@@ -14,6 +15,9 @@ router.post('/viewer-context', requireAuth, controller.postViewerContext);
 router.post('/viewer-close', requireAuth, controller.postViewerClose);
 router.get('/bootstrap', requireAuth, controller.getBootstrap);
 router.use('/prueba-carga', loadTestRoutes);
+// Accion temporal y acotada. Autenticacion y permisos en cada llamada.
+router.post('/pruebas-scripts/conciliacion-ajustadores', requireAuth, scriptTests.authorize, scriptTests.start);
+router.get('/pruebas-scripts/conciliacion-ajustadores', requireAuth, scriptTests.authorize, scriptTests.status);
 router.get('/notificaciones/matriz', requireAuth, notificationAdminController.getNotificationMatrix_gnral);
 router.put('/notificaciones/matriz', requireAuth, notificationAdminController.saveNotificationMatrix_gnral);
 router.get('/roles/:id/permisos', requireAuth, controller.getRolePermissions);

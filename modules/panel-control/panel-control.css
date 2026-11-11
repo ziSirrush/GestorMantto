@@ -510,3 +510,14 @@
   .pc-notification-area-heading{align-items:flex-start;flex-direction:column}
   .pc-notification-area-toggle{width:100%;justify-content:flex-start}
 }
+
+/* QA temporal: boton de scripts y salida textual sin persistencia local. */
+.pc-script-tests{display:flex;flex-direction:column;gap:16px;padding:22px;background:#fff;border:1px solid #dbe4ec;border-radius:14px;color:#172033}
+.pc-script-tests h2{font-size:20px;color:#0d2e6e;margin:6px 0 8px}
+.pc-script-tests h3{font-size:15px;color:#0d2e6e;margin:0 0 7px}
+.pc-script-tests p{color:#64748b;line-height:1.55;margin:0}
+.pc-script-entry{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px}
+.pc-script-entry .pc-btn{flex-shrink:0}
+.pc-script-report{padding:16px;border:1px solid #dbe4ec;border-radius:12px}
+.pc-script-report pre{white-space:pre-wrap;overflow-wrap:anywhere;min-height:140px;margin:12px 0 0;padding:15px;line-height:1.75;font-size:12px;background:#f3f6fa;border-radius:9px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+@media(max-width:760px){.pc-script-tests{padding:14px}.pc-script-entry{flex-direction:column;align-items:stretch}.pc-script-entry .pc-btn{width:100%}}
