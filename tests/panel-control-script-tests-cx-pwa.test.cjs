@@ -90,3 +90,11 @@ test('PWA CX: regreso funcional, único cierre superior y CSS de modal bajo barr
   assert.match(sw,/needsFreshCxAsset_cor\(url\)/);
   assert.match(html,/20261111-cx-encuestas-close-v002/);
 });
+test('Panel de Control conserva EN_PROCESO cuando falla una consulta temporal',()=>{
+  const panel=read('modules/panel-control/panel-control.js');
+  assert.match(panel,/const pending=state\.scriptTest\.running\|\|state\.scriptTest\.data\?\.estado==='EN_PROCESO'/);
+  assert.match(panel,/state\.scriptTest\.running=Boolean\(pending\)/);
+  assert.match(panel,/Math\.min\(30000,1600\*Math\.pow\(2,/);
+  assert.match(panel,/NO vuelvas a ejecutarla/);
+  assert.match(panel,/scriptTestPolling=true/);
+});

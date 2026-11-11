@@ -1184,6 +1184,8 @@
   const SCRIPT_TEST_TAB='script-tests';
   const SCRIPT_TEST_URL='/api/panel-control/pruebas-scripts/conciliacion-ajustadores';
   let scriptTestPoll=null;
+  let scriptTestReadFailures=0;
+  let scriptTestPolling=false;
   function scriptTestText(){
     const q=state.scriptTest,d=q.data;
     if(!d)return q.message||'Sin resultados recientes.';
@@ -1216,26 +1218,43 @@
     if(output)output.textContent=scriptTestText();
   }
   async function queryScriptTest(){
-    if(state.tab!==SCRIPT_TEST_TAB)return;
+    if(state.tab!==SCRIPT_TEST_TAB||scriptTestPolling)return;
+    scriptTestPolling=true;
+    const pending=state.scriptTest.running||state.scriptTest.data?.estado==='EN_PROCESO';
     try{
       const result=await request(SCRIPT_TEST_URL+'?_='+Date.now(),{method:'GET',cache:'no-store'});
       state.scriptTest.data=result.data||null;
       state.scriptTest.running=result.data?.estado==='EN_PROCESO';
       state.scriptTest.message='';
+      scriptTestReadFailures=0;
     }catch(error){
-      if(Number(error?.status)===404){
+      scriptTestReadFailures++;
+      const status=Number(error?.status);
+      if(status===404){
+        // El progreso vive en memoria por instancia: 404 no demuestra fin de otra instancia.
+        state.scriptTest.running=Boolean(pending);
+        state.scriptTest.message=pending
+          ?'Estado temporal no disponible en esta instancia. La ejecución podría continuar. Reintentando lectura; NO inicies otra prueba.'
+          :'No hay resultado temporal disponible en esta instancia.';
+      }else if(status===401||status===403){
         state.scriptTest.running=false;
-        state.scriptTest.message='Sin resultado temporal en esta instancia.';
+        state.scriptTest.message=error?.message||'La sesión o el permiso ya no permite consultar la prueba.';
       }else{
-        state.scriptTest.message=error.message||'No se pudo consultar el resultado.';
-        state.scriptTest.running=false;
+        // Failed to fetch, timeout o 502: conservar ultimo estado confirmado.
+        state.scriptTest.running=Boolean(pending);
+        state.scriptTest.message=pending
+          ?'Sin comunicación con la API ('+String(error?.message||'error de red')+'). Ejecución sin confirmar; reintentando lectura. NO vuelvas a ejecutarla.'
+          :(error?.message||'No se pudo consultar el resultado.');
       }
     }finally{
+      scriptTestPolling=false;
       state.scriptTest.loading=false;
       updateScriptTestView();
       if(scriptTestPoll)window.clearTimeout(scriptTestPoll);
-      if(state.tab===SCRIPT_TEST_TAB&&state.scriptTest.running)
-        scriptTestPoll=window.setTimeout(()=>{void queryScriptTest();},1600);
+      if(state.tab===SCRIPT_TEST_TAB&&state.scriptTest.running){
+        const delay=Math.min(30000,1600*Math.pow(2,Math.min(scriptTestReadFailures,4)));
+        scriptTestPoll=window.setTimeout(()=>{void queryScriptTest();},delay);
+      }
     }
   }
   function renderScriptTests(){
@@ -1258,8 +1277,16 @@
         state.scriptTest.message='';
         if(state.scriptTest.running)void queryScriptTest();
       }catch(error){
-        state.scriptTest.message=error.message||'No se pudo iniciar la prueba.';
-        state.scriptTest.running=false;
+        const msg=String(error?.message||'No se pudo iniciar la prueba.');
+        if(!Number(error?.status) && /failed to fetch|network|load failed|fetch failed|timeout/i.test(msg)){
+          // La solicitud podria haber llegado aunque se haya perdido su respuesta.
+          state.scriptTest.running=true;
+          state.scriptTest.message='No se pudo confirmar el inicio ('+msg+'). Consultando la API; NO vuelvas a ejecutarla.';
+          void queryScriptTest();
+        }else{
+          state.scriptTest.message=msg;
+          state.scriptTest.running=false;
+        }
       }finally{
         state.scriptTest.loading=false;
         updateScriptTestView();
