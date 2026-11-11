@@ -80,6 +80,10 @@
   font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding:1px 7px;
   color:#fff;border:1px solid #1d4284;z-index:1;cursor:pointer}
 .ppc-cal-bar-active{background:linear-gradient(90deg,#1457c0,#2282cb)}
+.ppc-cal-bar-auto{background:linear-gradient(90deg,#1457c0,#2282cb);color:#fff}
+.ppc-cal-bar-manual{background:linear-gradient(90deg,#c65e08,#f58522);color:#fff}
+.ppc-cal-bar-history{border-style:dashed;opacity:.68}
+.ppc-cal-bar-overlap{outline:2px solid #f59e0b;outline-offset:-2px}
 .ppc-cal-bar-outside{background:#8494a6;color:#fff;border-color:#728498;opacity:.83;cursor:not-allowed}
 .ppc-cal-bar:disabled{cursor:not-allowed;opacity:.78}
 .ppc-cal-bar:focus-visible{outline:2px solid #fb923c;outline-offset:1px}

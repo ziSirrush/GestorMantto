@@ -308,6 +308,10 @@ async function updateGroup_cor(req, idValue, groupKey, body = {}) {
     throw knownError_cor(404, 'INSTALACIONES_ADMINISTRACION_REGISTRO_NO_ENCONTRADO', 'Registro de instalacion no encontrado.');
   }
 
+  if(result.changed){
+    await require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
+      .notifySaved(id,Object.keys(result.changes||{}));
+  }
   // FIX 4: no devolver la imagen posterior del registro. El grupo
   // responsables puede cambiar id_sup/id_asesor/id_admin y revocar el alcance
   // del usuario DURANTE el PATCH. El frontend debe hacer GET nuevo bajo Guard.
@@ -418,6 +422,10 @@ async function updateDetail_cor(req, idValue, body = {}, options = {}) {
   if (!result.found) {
     throw knownError_cor(404, 'INSTALACIONES_ADMINISTRACION_REGISTRO_NO_ENCONTRADO',
       'Registro de instalacion no encontrado.');
+  }
+  if(result.changed){
+    await require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
+      .notifySaved(id,Object.keys(result.changes||{}));
   }
   const changedGroups = groupKeys.filter(key => payload.selected[key].fields.some(field => (
     Object.prototype.hasOwnProperty.call(result.changes || {}, field)
@@ -619,6 +627,12 @@ async function updateMulti_cor(req, projectKey, body = {}) {
       }
     }
   });
+  if(results.changed){
+    const reconcile=require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
+    for(const item of results.records||[]){
+      if(item.changed)await reconcile.notifySaved(item.id_ins_fl,item.changed_fields);
+    }
+  }
   // No devolver datos operativos posteriores: algun usuario podria perder alcance.
   return {
     project_key: payload.key,

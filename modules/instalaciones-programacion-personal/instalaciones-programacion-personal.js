@@ -346,12 +346,16 @@
       const {rows,lanes}=lanePositions(items);
       const height=Math.max(46,lanes*27+11);
       const bars=rows.map(({item,from,through,lane})=>{
-        const color=item.visible?'ppc-cal-bar-active':'ppc-cal-bar-outside';
-        const label=item.visible?`${item.proyecto||'Proyecto'} · ${item.equipo||'Equipo'}`:'Ocupado (fuera de tu alcance)';
-        const action=item.visible&&permitted('EDITAR')?'data-ppc="editar-asignacion"':'';
-        const disabled=item.visible&&permitted('EDITAR')?'': 'disabled';
+        const color=!item.visible?'ppc-cal-bar-outside':
+          item.origen==='AUTOMATICA_FL'?'ppc-cal-bar-auto':'ppc-cal-bar-manual';
+        const status=item.es_historico?' ppc-cal-bar-history':'';
+        const overlap=item.traslape?' ppc-cal-bar-overlap':'';
+        const label=item.visible?`${item.proyecto||'Proyecto'} · ${item.equipo||'Equipo'}${item.es_historico?' · Histórico':''}${item.traslape?' · ⚠ Traslape FL':''}`:'Ocupado (fuera de tu alcance)';
+        const canEdit=item.visible&&item.origen==='MANUAL'&&!item.es_historico&&permitted('EDITAR');
+        const action=canEdit?'data-ppc="editar-asignacion"':'';
+        const disabled=canEdit?'': 'disabled';
         return `<button type="button" ${action} data-id="${Number(item.id_asignacion)||0}"
-          class="ppc-cal-bar ${color}" ${disabled} title="${esc(label)} · ${esc(formatWindow(item))}"
+          class="ppc-cal-bar ${color}${status}${overlap}" ${disabled} title="${esc(label)} · ${esc(formatWindow(item))}"
           style="left:${from*CELL_WIDTH+1}px;top:${7+lane*27}px;width:${Math.max(1,(through-from+1)*CELL_WIDTH-2)}px">${esc(label)}</button>`;
       }).join('');
       const desc=p.tipo_personal==='MONTADOR'?[p.contratista,p.puesto].filter(Boolean).join(' · '):p.categoria||'Ajustador';
@@ -367,11 +371,11 @@
     const pending=cal.equipos.map(e=>`<div class="ppc-cal-uncovered-row"><span><b>${esc(e.proyecto)}</b> · ${esc(e.equipo)}<small>${esc(formatWindow(e))}</small></span>
        ${permitted('CREAR')?`<button type="button" class="ppc-btn ppc-small" data-ppc="asignar-equipo" data-equipo="${Number(e.id_ins_fl)}">Asignar</button>`:''}</div>`).join('');
     const invalid=cal.sin_fechas.map(a=>`<div class="ppc-cal-uncovered-row"><span><b>${esc(who.get(Number(a.id_personal))?.nombre||'Personal')}</b> · ${esc(a.proyecto)} · ${esc(a.equipo)}<small>Sin fechas válidas en el reporte</small></span>
-      ${permitted('EDITAR')?`<button type="button" class="ppc-btn ppc-small" data-ppc="editar-asignacion" data-id="${Number(a.id_asignacion)}">Editar fechas</button>`:''}</div>`).join('');
+      ${a.origen==='MANUAL'&&!a.es_historico&&permitted('EDITAR')?`<button type="button" class="ppc-btn ppc-small" data-ppc="editar-asignacion" data-id="${Number(a.id_asignacion)}">Editar fechas</button>`:''}</div>`).join('');
     coverage.innerHTML=`<details class="ppc-cal-extras"><summary>Equipos sin personal (${cal.todosEquipos})${cal.masEquipos?' · primeros 30':''}</summary>
         ${pending||'<p class="ppc-cal-note">Sin equipos pendientes en el periodo.</p>'}</details>
       ${invalid?`<details class="ppc-cal-extras"><summary>Asignaciones sin fechas válidas (${cal.sin_fechas.length})</summary>${invalid}</details>`:''}
-      <p class="ppc-cal-note">Barras grises = ocupación fuera de tu alcance, sin detalles. Un traslape se advierte antes de guardar. Las fechas se calculan desde el reporte de Instalaciones.</p>`;
+      <p class="ppc-cal-note">Azul = automático desde FL; naranja = proyección manual; azul histórico = conserva fechas anteriores. ⚠ señala traslape por cambio FL. Gris = ocupación fuera del alcance.</p>`;
     setCalendarFeedback(cal.feedback,cal.error);
   }
   function assignmentFeedback(message,isError=false){
@@ -445,7 +449,7 @@
   function openEditAssignment(id){
     if(!permitted('EDITAR'))return;
     const item=[...cal.asignaciones,...cal.sin_fechas].find(x=>Number(x.id_asignacion)===Number(id)&&x.visible);
-    if(!item)return;
+    if(!item||item.origen!=='MANUAL'||item.es_historico)return;
     assignment.epoch++;assignment.mode='edit';assignment.item=item;
     const overlay=el('ppc-assignment-overlay');if(!overlay)return;
     el('ppc-a-title').textContent='Editar asignación';
@@ -475,6 +479,7 @@
     const desde=el('ppc-a-desde').value||null,hasta=el('ppc-a-hasta').value||null,
       notas=el('ppc-a-notas').value||null;
     const values={fecha_desde:desde,fecha_hasta:hasta,notas,permitir_traslape:force};
+    if(!desde||!hasta){assignmentFeedback('La proyección manual requiere fecha inicial y final.',true);return;}
     if(!edit){
       values.tipo=state.type;
       values.id_ins_fl=Number(el('ppc-a-equipo').value);
@@ -487,7 +492,7 @@
       const response=edit?await api(`/asignaciones/${assignment.item.id_asignacion}`,'PUT',values)
         :await api('/asignaciones','POST',values);
       if(response.requiere_confirmacion){
-        el('ppc-a-force').hidden=false;
+        el('ppc-a-force').hidden=true;
         assignmentFeedback('Conflictos detectados. Revisa y confirma solo si corresponde:\n'+conflictMessage(response),true);
         return;
       }

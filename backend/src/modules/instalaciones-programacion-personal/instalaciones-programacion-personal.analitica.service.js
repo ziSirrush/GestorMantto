@@ -52,11 +52,12 @@ function projectedDays(window,desde,hasta,today){
   };
 }
 function summaryHistory(rows){
-  const active=rows.filter(x=>x.asignacion_activa);
+  const active=rows.filter(x=>x.asignacion_activa&&!x.es_historico);
   return{
     total_asignaciones:rows.length,
     asignaciones_activas:active.length,
-    asignaciones_retiradas:rows.length-active.length,
+    asignaciones_retiradas:rows.filter(x=>!x.asignacion_activa).length,
+    asignaciones_historicas:rows.filter(x=>x.es_historico).length,
     proyectos_distintos:new Set(rows.map(x=>x.id_ins_fl)).size,
     dias_programados_transcurridos:active.reduce((s,x)=>s+x.dias_programados_transcurridos,0),
     dias_programados_futuros:active.reduce((s,x)=>s+x.dias_programados_futuros,0)
@@ -68,7 +69,7 @@ async function historial(req){
   const limit=intParam(q.limit,30,MAX_PAGINA,'Límite');
   const personId=q.id_personal?shared.positive(q.id_personal,'Persona'):null;
   const term=searchTerm(q.q).toLocaleLowerCase('es');
-  const statuses=new Set(['Pasada','En curso','Futura','Sin fechas','Retirada']);
+  const statuses=new Set(['Pasada','En curso','Futura','Sin fechas','Retirada','Histórica']);
   const status=q.estado?String(q.estado).trim():null;
   if(status&&!statuses.has(status))throw issue(400,'INT9_ESTADO_INVALIDO','Estado de programación inválido.');
   // Filtrar por alcance en SQL, no en navegador. Incluye bajas lógicas para auditoría de programación.
@@ -90,7 +91,7 @@ async function historial(req){
   }
   const [fetched]=await db.query(
     `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,
-            a.notas,a.activo AS asignacion_activa,p.nombre,p.contratista,p.puesto,p.categoria,p.activo AS persona_activa,
+            a.notas,a.origen,a.es_historico,a.activo AS asignacion_activa,p.nombre,p.contratista,p.puesto,p.categoria,p.activo AS persona_activa,
             ${COLUMNAS_EQUIPO}
        FROM instalaciones_programacion_asignaciones a
        JOIN instalaciones_personal p ON p.id_personal=a.id_personal
@@ -101,13 +102,14 @@ async function historial(req){
   const today=shared.mxToday();
   let all=[];
   for(const row of fetched){
-    const x=eqRange(row,type),active=Number(row.asignacion_activa)===1;
+    const x=eqRange(row,type),active=Number(row.asignacion_activa)===1,
+      historical=Number(row.es_historico)===1;
     if(!inWindow(x,period.desde,period.hasta))continue;
-    const stage=!active?'Retirada':!x.valida?'Sin fechas':x.fin<today?'Pasada':x.inicio>today?'Futura':'En curso';
+    const stage=!active?'Retirada':historical?'Histórica':!x.valida?'Sin fechas':x.fin<today?'Pasada':x.inicio>today?'Futura':'En curso';
     if(status&&stage!==status)continue;
     if(term && ![row.nombre,row.contratista,row.proyecto,row.referencia_sitio,row.id_proyecto,row.puesto]
       .map(v=>String(v||'').toLocaleLowerCase('es')).some(v=>v.includes(term)))continue;
-    const days=active?projectedDays(x,period.desde,period.hasta,today):{transcurridos:0,futuros:0};
+    const days=(active&&!historical)?projectedDays(x,period.desde,period.hasta,today):{transcurridos:0,futuros:0};
     all.push({
       id_asignacion:Number(row.id_asignacion),id_personal:Number(row.id_personal),
       id_ins_fl:Number(row.id_ins_fl),nombre:row.nombre,contratista:row.contratista||null,
@@ -115,7 +117,7 @@ async function historial(req){
       proyecto:row.proyecto||row.id_proyecto||null,equipo:row.referencia_sitio||null,
       inicio:x.inicio,fin:x.fin,dias:x.dias,fuente_fin:x.fuente_fin,
       inicio_manual:x.inicio_manual,fin_manual:x.fin_manual,
-      estado:stage,asignacion_activa:active,persona_activa:Number(row.persona_activa)===1,
+      estado:stage,origen:row.origen,es_historico:historical,asignacion_activa:active,persona_activa:Number(row.persona_activa)===1,
       dias_programados_transcurridos:days.transcurridos,dias_programados_futuros:days.futuros,
       notas:row.notas||null
     });
@@ -190,7 +192,7 @@ async function disponibilidad(req){
   const chunks=periods(desde,hasta,gran);
   const people=await shared.fetchPeople(db,type,searchTerm(q.q));
   const assignments=await shared.fetchAssignmentRows(db,type,people.map(x=>x.id_personal),req);
-  const act=activityByPerson(assignments);
+  const act=activityByPerson(assignments.filter(x=>!x.es_historico));
   return{tipo:type,desde,hasta,hoy:shared.mxToday(),granularidad:gran,
     total_personal:people.length,grupos:[...new Set(people.map(p=>type==='MONTADOR'?p.puesto||'Sin puesto':p.categoria||'Sin categoría'))].sort(),
     buckets:chunks.map(b=>({...b,...summarizePeriod(people,act,b.desde,b.hasta,type)})),
@@ -227,7 +229,7 @@ async function simulacion(req){
   if(!Object.values(required).some(n=>n>0))throw issue(400,'INT9_SIMULACION_SIN_PERSONAL','Indica al menos una persona requerida.');
   const people=await shared.fetchPeople(db,type,searchTerm(q.q));
   const assign=await shared.fetchAssignmentRows(db,type,people.map(x=>x.id_personal),req);
-  const act=activityByPerson(assign),libres=[],ocupados=[],indeterminados=[];
+  const act=activityByPerson(assign.filter(x=>!x.es_historico)),libres=[],ocupados=[],indeterminados=[];
   for(const p of people){
     const a=act.get(p.id_personal),inTeam=Boolean(team&&a?.fechadas.some(x=>Number(x.id_ins_fl)===Number(team.id_ins_fl)));
     const conflicting=(a?.fechadas||[]).filter(x=>

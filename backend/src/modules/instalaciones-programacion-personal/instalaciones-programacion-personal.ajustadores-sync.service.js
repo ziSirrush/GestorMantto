@@ -11,11 +11,11 @@ const shared = vinculaciones._shared;
 
 const TIPO = 'AJUSTADOR';
 const CAMPOS_SEGUIDOS = Object.freeze([
-  'activo', 'ajustador', 'fecha_inicio_ajuste', 'fecha_fin_ajuste_real',
+  'estatus', 'activo', 'ajustador', 'fecha_inicio_ajuste', 'fecha_fin_ajuste_real',
   'fecha_fin_ajuste_modificado', 'fecha_fin_ajuste_planeado'
 ]);
 const SELECT_EQUIPO = `f.id_ins_fl,f.id_proyecto,f.referencia_sitio,f.proyecto,
-  f.activo,f.ajustador,f.fecha_inicio_ajuste,f.fecha_fin_ajuste_real,
+  f.estatus,f.activo,f.ajustador,f.fecha_inicio_ajuste,f.fecha_fin_ajuste_real,
   f.fecha_fin_ajuste_modificado,f.fecha_fin_ajuste_planeado`;
 const TAM_LOTE = 40;
 const MAX_CLAVES_POR_SYNC = 3000;
@@ -139,112 +139,8 @@ function resultado(id,estado,extras={}) {
 }
 
 async function reconciliarPorId(idEquipo,opts) {
-  const id=identificador(idEquipo);
-  const {actorId,access=null,tecnico=false}=opts;
-  if (!tecnico && !access) {
-    throw shared.fallo(403,'INT9_F3_ALCANCE_REQUERIDO','Se requiere alcance CORELLIAN verificado.');
-  }
-  if (tecnico && actorId !== null) {
-    throw shared.fallo(403,'INT9_F3_IDENTIDAD_TECNICA','La ejecución técnica no suplanta usuarios.');
-  }
-  const equipo=await obtenerEquipo(db,id,access,false);
-  if (!equipo) {
-    if (tecnico) return resultado(id,'REQUIERE_REVISION',{motivo:'EQUIPO_INACTIVO_O_NO_DISPONIBLE'});
-    throw shared.fallo(404,'INT9_EQUIPO_NO_ENCONTRADO','Equipo no encontrado o fuera de alcance.');
-  }
-  const indice=await catalogoActual();
-  const original=shared.presentarEquipo(equipo,indice);
-  if (original.estado!=='VINCULABLE') {
-    // No retirar asignaciones en una referencia vacia, ambigua o fechas invalidas.
-    return resultado(id,'REQUIERE_REVISION',{motivo:original.estado});
-  }
-  const idsDeseados=original.personas.map(p=>p.id_personal).sort((a,b)=>a-b);
-  const prev=await filasEquipo(db,id);
-  const idsPrevios=prev.map(p=>p.id_personal);
-  const idsParaBloquear=[...new Set([...idsDeseados,...idsPrevios])].sort((a,b)=>a-b);
-  const conn=await db.getConnection();
-  let abierta=false;
-  try {
-    await conn.beginTransaction();abierta=true;
-    // Orden compartido con altas manuales: primero personal, luego equipo.
-    const locked=await bloqueaPersonas(conn,idsParaBloquear);
-    if (locked.length!==idsParaBloquear.length || locked.some((p,i)=>Number(p.id_personal)!==idsParaBloquear[i])) {
-      throw shared.fallo(409,'INT9_F3_PERSONAL_CAMBIO','Cambió el catálogo mientras se preparaba la sincronización.');
-    }
-    const byId=new Map(locked.map(p=>[Number(p.id_personal),p]));
-    for(const p of original.personas) {
-      const now=byId.get(p.id_personal);
-      if(Number(now?.activo)!==1 || shared.nombreClave(now?.nombre)!==shared.nombreClave(p.nombre)) {
-        throw shared.fallo(409,'INT9_F3_IDENTIDAD_CAMBIO','Identidad o actividad del ajustador modificada.');
-      }
-    }
-    const actualEquipo=await obtenerEquipo(conn,id,access,true);
-    if (!actualEquipo) throw shared.fallo(409,'INT9_F3_EQUIPO_CAMBIO','Equipo modificado o fuera de alcance.');
-    const actual=shared.presentarEquipo(actualEquipo,indice);
-    if (huellaEquipo(actual)!==huellaEquipo(original)) {
-      throw shared.fallo(409,'INT9_F3_INS_FL_CAMBIO','Las fechas o la referencia cambiaron durante la sincronización.');
-    }
-    const current=await filasEquipo(conn,id);
-    if (firmaAsignaciones(current)!==firmaAsignaciones(prev)) {
-      throw shared.fallo(409,'INT9_F3_ASIGNACIONES_CAMBIO','Cambió la programación del equipo durante la sincronización.');
-    }
-    if (new Set(current.map(r=>r.id_personal)).size!==current.length) {
-      await conn.rollback();abierta=false;
-      return resultado(id,'REQUIERE_REVISION',{motivo:'ASIGNACIONES_DUPLICADAS'});
-    }
-    const wanted=new Set(idsDeseados);
-    const ya=new Set(current.map(r=>r.id_personal));
-    const nuevas=idsDeseados.filter(pid=>!ya.has(pid));
-    const retirables=current.filter(r=>!wanted.has(r.id_personal)&&gestionada(r));
-    const libres=await ocupaciones(conn,idsDeseados);
-    const revisar=[...new Set([...nuevas,...current.filter(r=>wanted.has(r.id_personal)&&gestionada(r)).map(r=>r.id_personal)])];
-    const conflicto=[];
-    for (const pid of revisar) {
-      const otras=libres.filter(a=>a.id_personal===pid && a.id_ins_fl!==id);
-      if(otras.some(a=>!a.valida)) conflicto.push({id_personal:pid,motivo:'OTRA_ASIGNACION_SIN_FECHAS'});
-      else if(otras.some(a=>asignaciones._read.intersect(a.inicio,a.fin,actual.inicio,actual.fin))) {
-        conflicto.push({id_personal:pid,motivo:'TRASLAPE'});
-      }
-    }
-    if (conflicto.length) {
-      await conn.rollback();abierta=false;
-      return resultado(id,'CONFLICTO',{conflictos:conflicto});
-    }
-    if (!nuevas.length && !retirables.length) {
-      await conn.rollback();abierta=false;
-      return resultado(id,'SIN_CAMBIOS',{existentes:current.length});
-    }
-    for(const row of retirables) {
-      const [updated]=await conn.execute(
-        `UPDATE instalaciones_programacion_asignaciones
-            SET activo=0,updated_by=?
-          WHERE id_asignacion=? AND id_personal=? AND id_ins_fl=? AND activo=1
-            AND notas=? AND fecha_desde IS NULL AND fecha_hasta IS NULL`,
-        [actorId,row.id_asignacion,row.id_personal,id,shared.NOTA_AUTO]);
-      if (Number(updated.affectedRows)!==1) {
-        throw shared.fallo(409,'INT9_F3_RETIRO_CONCURRENTE','La asignación automática fue modificada.');
-      }
-    }
-    for(const pid of nuevas) {
-      const [insert]=await conn.execute(
-        `INSERT INTO instalaciones_programacion_asignaciones
-          (id_personal,id_ins_fl,fecha_desde,fecha_hasta,notas,activo,created_by,updated_by)
-          VALUES(?,?,NULL,NULL,?,1,?,?)`,
-        [pid,id,shared.NOTA_AUTO,actorId,actorId]);
-      if (!Number.isSafeInteger(Number(insert.insertId)) || Number(insert.insertId)<1) {
-        throw shared.fallo(422,'INT9_F3_ID_ASIGNACION','No se obtuvo ID seguro para la asignación.');
-      }
-    }
-    await conn.commit();abierta=false;
-    return resultado(id,'SINCRONIZADO',{
-      creadas:nuevas.length,retiradas:retirables.length,existentes:current.length});
-  } catch(error) {
-    if(abierta) await conn.rollback().catch(()=>{});
-    if(error?.code==='ER_DUP_ENTRY') {
-      throw shared.fallo(409,'INT9_F3_DUPLICADO','Una asignación se duplicó durante el cambio.');
-    }
-    throw error;
-  } finally {conn.release();}
+  return require('./instalaciones-programacion-personal.conciliacion.service')
+    .reconciliarEquipo(idEquipo,opts);
 }
 
 async function reconciliarManual(req) {
@@ -305,7 +201,7 @@ function huboCambioRelevante(a,b) {
 
 function estadoLote(extras={}) {
   return {estado:'SIN_CAMBIOS',claves:0,cambios_relevantes:0,procesados:0,
-    creadas:0,retiradas:0,conflictos:0,revision:0,errores:0,omitidos_por_limite:0,...extras};
+    creadas:0,actualizadas:0,historicas:0,retiradas:0,conflictos:0,revision:0,errores:0,omitidos_por_limite:0,...extras};
 }
 
 async function aplicarCambios(req,antes,despues,keys,erroresIndices) {
@@ -326,7 +222,7 @@ async function aplicarCambios(req,antes,despues,keys,erroresIndices) {
     r.cambios_relevantes++;
     const id=Number(nuevo?.id_ins_fl);
     if(!Number.isSafeInteger(id)||id<1){r.revision++;continue;}
-    if(Number(nuevo.activo)!==1){r.revision++;continue;}
+    // Las bajas tambien deben congelar la barra azul.
     ids.push(id);
   }
   const unicos=[...new Set(ids)].sort((a,b)=>a-b);
@@ -336,9 +232,11 @@ async function aplicarCambios(req,antes,despues,keys,erroresIndices) {
     try {
       const item=await reconciliarPorId(id,{tecnico:true,actorId:null});
       r.procesados++;
-      r.creadas+=item.creadas;
-      r.retiradas+=item.retiradas;
-      if(item.estado==='CONFLICTO')r.conflictos++;
+      r.creadas+=item.creadas||0;
+      r.actualizadas+=item.actualizadas||0;
+      r.historicas+=item.historicas||0;
+      r.retiradas+=item.retiradas||0;
+      r.conflictos+=(item.conflictos||[]).length;
       if(item.estado==='REQUIERE_REVISION')r.revision++;
     } catch(error) {
       r.errores++;
@@ -354,57 +252,45 @@ async function aplicarCambios(req,antes,despues,keys,erroresIndices) {
 }
 
 async function ejecutarSyncConAjustadores(req,res,originalSync) {
-  // Este hook solo admite la identidad técnica ya comprobada por el Guard M2M.
-  // Si la instalación usa AUTH_ENABLED=false, conserva el sync legacy SIN
-  // añadir mutaciones de asignaciones a una ruta sin credencial verificada.
-  if(!integracionVerificada(req)) {
-    return originalSync(req,res);
-  }
-  const rows=Array.isArray(req.body?.rows)?req.body.rows:[];
-  const keys=clavesDeEntrada(rows);
-  let prev=null;
-  let problemaPrevio=null;
-  try {
-    if(keys.length<=MAX_CLAVES_POR_SYNC)prev=await consultarPorClaves(keys);
-    else problemaPrevio='LOTE_EXCESIVO';
-  } catch(error) {
-    problemaPrevio='PRELECTURA_NO_DISPONIBLE';
-    console.error('[INT9_AJUSTADORES_F3_PREFLIGHT_ERROR]',String(error?.code||'ERROR'));
-  }
-  // El controlador original solo usa .status(...) y .json(...). La fachada
-  // conserva su resultado HTTP, pero permite completar F3 antes de responder;
-  // no cambia sus validaciones, transaccion ni resguardo de sync.
-  let capturado=null;
-  let status=200;
+  // Sin precargas ni consultas por todas las claves de FL.
+  // El controlador fuente reporta solamente los IDs relevantes tras COMMIT.
+  if(!integracionVerificada(req))return originalSync(req,res);
+  let capturado=null,status=200;
   const facade={
     status(code){status=code;return this;},
     json(body){capturado=body;return this;}
   };
   await originalSync(req,facade);
-  if(capturado===null)throw Error('INT9_F3_SYNC_SIN_RESPUESTA');
-  if(status>=400 || capturado?.ok!==true) {
-    return res.status(status).json(capturado); // nunca reconciliar un sync fallido
-  }
-  let report;
-  if(problemaPrevio) {
-    report=estadoLote({estado:problemaPrevio,claves:keys.length,
-      omitidos_por_limite:problemaPrevio==='LOTE_EXCESIVO'?keys.length:0});
-  } else {
-    try {
-      const post=await consultarPorClaves(keys);
-      const failed=new Set((capturado.errors||[]).map(e=>Number(e.index)).filter(Number.isSafeInteger));
-      report=await aplicarCambios(req,prev,post,keys,failed);
-    } catch(error) {
-      console.error('[INT9_AJUSTADORES_F3_POST_SYNC_ERROR]',String(error?.code||'ERROR'));
-      report=estadoLote({estado:'ERROR_POST_SYNC',claves:keys.length,errores:1});
+  if(capturado===null)throw Error('INT9_SYNC_SIN_RESPUESTA');
+  if(status>=400||capturado?.ok!==true)return res.status(status).json(capturado);
+  const list=Array.isArray(req.int9CommittedChanges)?req.int9CommittedChanges:[];
+  const unique=[...new Set(list.filter(id=>Number.isSafeInteger(id)&&id>0))].sort((a,b)=>a-b);
+  const picked=unique.slice(0,MAX_AJUSTES_POR_SYNC);
+  const report=estadoLote({estado:'SIN_CAMBIOS',claves:unique.length,
+    cambios_relevantes:unique.length,
+    omitidos_por_limite:Math.max(0,unique.length-picked.length)});
+  for(const id of picked){
+    try{
+      const item=await reconciliarPorId(id,{tecnico:true,actorId:null});
+      report.procesados++;
+      report.creadas+=item.creadas||0;
+      report.actualizadas+=item.actualizadas||0;
+      report.historicas+=item.historicas||0;
+      report.conflictos+=(item.conflictos||[]).length;
+      if(item.estado==='REQUIERE_REVISION')report.revision++;
+    }catch(error){
+      report.errores++;
+      console.error('[INT9_POST_SYNC_RECONCILIACION]',JSON.stringify({id_ins_fl:id,code:error?.code||'ERROR'}));
     }
   }
+  report.estado=(report.errores||report.revision||report.omitidos_por_limite)?'REQUIERE_ATENCION':
+    (report.procesados?'PROCESADO':'SIN_CAMBIOS');
   console.info('[INT9_AJUSTADORES_F3_SYNC]',JSON.stringify({
-    integration_id:req.integrationAuth.integrationId,estado:report.estado,
-    claves:report.claves,cambios:report.cambios_relevantes,procesados:report.procesados,
-    creadas:report.creadas,retiradas:report.retiradas,
-    conflictos:report.conflictos,revision:report.revision,
-    errores:report.errores,omitidos_por_limite:report.omitidos_por_limite
+    estado:report.estado,cambios_relevantes:report.cambios_relevantes,
+    procesados:report.procesados,creadas:report.creadas,
+    actualizadas:report.actualizadas,historicas:report.historicas,
+    conflictos:report.conflictos,errores:report.errores,
+    omitidos_por_limite:report.omitidos_por_limite
   }));
   return res.status(status).json({...capturado,programacion_ajustadores:report});
 }

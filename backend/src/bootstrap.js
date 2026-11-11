@@ -13,6 +13,7 @@ const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = re
 const { startMovimientosCriticosCierreSemanalJob, stopMovimientosCriticosCierreSemanalJob } = require('./jobs/movimientosCriticosCierreSemanal.job');
 const { startInstalacionesAdministracionCalculadosJob, stopInstalacionesAdministracionCalculadosJob } = require('./jobs/instalacionesAdministracionCalculados.job');
 const { startCobranzaUniFkValidatorJob, stopCobranzaUniFkValidatorJob } = require('./jobs/cobranzaUniFkValidator.job');
+const {startJob:startInt9DailyJob,stopJob:stopInt9DailyJob}=require('./jobs/instalacionesProgramacionPersonal.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
@@ -64,6 +65,7 @@ function startScheduledJobs(databaseReady) {
     logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
     logger.warn('Job de calculados de Instalaciones Administracion no iniciado porque MySQL no esta disponible.');
     logger.warn('[COBRANZA_UNI_FK] Validador no iniciado porque MySQL no esta disponible.');
+    logger.warn('[INT9] Revision nocturna de Programacion de Personal pendiente de MySQL.');
     return;
   }
 
@@ -106,6 +108,9 @@ function startScheduledJobs(databaseReady) {
   } catch(error) {
     logger.error('No fue posible iniciar calculados diarios de Instalaciones Administracion.',error);
   }
+
+  try {startInt9DailyJob();}
+  catch(error){logger.error('[INT9] No fue posible iniciar conciliacion nocturna.',error);}
 
   try {
     startCobranzaUniFkValidatorJob();
@@ -188,6 +193,7 @@ function registerShutdownHandlers() {
       stopMovimientosCriticosCierreSemanalJob();
       stopInstalacionesAdministracionCalculadosJob();
       stopCobranzaUniFkValidatorJob();
+      stopInt9DailyJob();
       await db.close();
       logger.info('Servidor y pool MySQL cerrados correctamente.');
       process.exit(0);

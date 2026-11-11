@@ -308,6 +308,13 @@ async function createRowsCor(req, body = {}) {
     }
     await connection.commit();
     transaction = false;
+    // Se notifica despues de COMMIT para evitar escribir asignaciones sobre altas fallidas.
+    const reconciliador=require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
+    for(let i=0;i<created.length;i++){
+      if(String(rows[i]?.estatus??'').trim()==='06-A'){
+        await reconciliador.notifySaved(created[i].id_ins_fl,['estatus']);
+      }
+    }
     // El navegador debe volver a consultar con Guard/scope; no se devuelve
     // la ficha entera desde una mutacion, ni se presupone acceso posterior.
     return {created:created.length, records:created, audit:'ATOMIC_USUARIO_INTERACCIONES'};

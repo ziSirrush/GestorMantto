@@ -157,12 +157,10 @@ async function fetchAssignmentRows(connection, type, personIds, req, opts={}) {
   // CASE evalúa alcance por registro sin filtrar las ocupaciones ajenas.
   // Todo detalle externo se redacta antes de construir la respuesta.
   const [rows]=await connection.query(
-    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,
-            ${equipFields()}, CASE WHEN (${access.sql}) THEN 1 ELSE 0 END AS visible
+    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,a.origen,a.es_historico,$1 WHEN (${access.sql}) THEN 1 ELSE 0 END AS visible
        FROM instalaciones_programacion_asignaciones a
        JOIN instalaciones_personal p ON p.id_personal=a.id_personal
-       JOIN ins_fl f ON f.id_ins_fl=a.id_ins_fl AND f.activo=1
-       WHERE a.activo=1 AND p.tipo_personal=? ${personClause}
+       JOIN ins_fl f ON f.id_ins_fl=a.id_ins_fl AND (f.activo=1 OR a.es_historico=1)$1 AND p.tipo_personal=? ${personClause}
        ORDER BY a.id_personal,a.id_asignacion LIMIT ${MAX_ASIGNACIONES_CONSULTA+1}`,params);
   if (rows.length>MAX_ASIGNACIONES_CONSULTA) {
     throw error(422,'INT9_DEMASIADAS_ASIGNACIONES','Consulta demasiado amplia; usa filtros de personal.');
@@ -170,7 +168,7 @@ async function fetchAssignmentRows(connection, type, personIds, req, opts={}) {
   return rows.map(row=>({
     ...row,
     id_asignacion:Number(row.id_asignacion),id_personal:Number(row.id_personal),id_ins_fl:Number(row.id_ins_fl),
-    visible:Number(row.visible)===1,
+    origen:row.origen||'MANUAL',es_historico:Number(row.es_historico)===1,$1,
     ...windowAsignacion(type,row,row)
   }));
 }
@@ -179,6 +177,7 @@ function redact(row) {
     return {id_asignacion:row.id_asignacion,id_personal:row.id_personal,id_ins_fl:row.id_ins_fl,
       proyecto:row.proyecto||row.id_proyecto||'',id_proyecto:row.id_proyecto||null,equipo:row.referencia_sitio||'',
       estatus:row.estatus||null,notas:row.notas||null,
+      origen:row.origen,es_historico:row.es_historico,traslape:row.traslape===true,
       fecha_desde:parseDate(row.fecha_desde),fecha_hasta:parseDate(row.fecha_hasta),
       inicio:row.inicio,fin:row.fin,dias:row.dias,valida:row.valida,fuente_fin:row.fuente_fin,
       inicio_manual:row.inicio_manual,fin_manual:row.fin_manual,visible:true};
@@ -187,7 +186,7 @@ function redact(row) {
   return {id_asignacion:null,id_personal:row.id_personal,id_ins_fl:null,
     proyecto:null,id_proyecto:null,equipo:null,estatus:null,notas:null,fecha_desde:null,fecha_hasta:null,
     inicio:row.inicio,fin:row.fin,dias:row.dias,valida:row.valida,fuente_fin:null,
-    inicio_manual:false,fin_manual:false,visible:false};
+    inicio_manual:false,fin_manual:false,origen:null,es_historico:row.es_historico,traslape:false,visible:false};
 }
 async function loadEquipo(connection, req, id, lock=false) {
   const sc=scope(req);
@@ -227,7 +226,7 @@ async function equipos(req) {
     const [counts]=await db.query(
       `SELECT a.id_ins_fl,COUNT(*) AS n FROM instalaciones_programacion_asignaciones a
        JOIN instalaciones_personal p ON p.id_personal=a.id_personal
-       WHERE a.activo=1 AND p.tipo_personal=? AND a.id_ins_fl IN (${placeholders(ids.length)})
+       WHERE a.activo=1 AND a.es_historico=0 AND p.tipo_personal=? AND a.id_ins_fl IN (${placeholders(ids.length)})
        GROUP BY a.id_ins_fl`,[type,...ids]);
     for (const row of counts) assigned.set(Number(row.id_ins_fl),Number(row.n));
   }
@@ -255,6 +254,17 @@ async function calendario(req) {
   const personas=await fetchPeople(db,type,req.query?.q||'');
   const ids=personas.map(p=>p.id_personal);
   const all=await fetchAssignmentRows(db,type,ids,req);
+  // Se senala el traslape automatico/manual sin modificar la proyeccion.
+  const groups=new Map();
+  for(const a of all){
+    if(a.es_historico || !a.valida)continue;
+    const id=Number(a.id_personal);
+    if(!groups.has(id))groups.set(id,{auto:[],manual:[]});
+    groups.get(id)[a.origen==='AUTOMATICA_FL'?'auto':'manual'].push(a);
+  }
+  for(const {auto,manual} of groups.values())for(const a of auto)for(const m of manual){
+    if(intersect(a.inicio,a.fin,m.inicio,m.fin)){a.traslape=true;m.traslape=true;}
+  }
   const current=all.filter(a=>a.valida&&intersect(a.inicio,a.fin,desde,hasta)).map(redact);
   const withoutDates=all.filter(a=>!a.valida&&a.visible).map(redact);
   return {tipo:type,fase:type==='MONTADOR'?'montaje':'ajuste',desde,hasta,hoy:mxToday(),
@@ -269,8 +279,7 @@ async function lockPeople(connection, type, ids, requireActive=true) {
   return rows;
 }
 function clashes(all,pid,inicio,fin,excludeId=null,excludeTeam=null) {
-  return all.filter(a=>a.id_personal===pid && a.valida && a.id_asignacion!==excludeId &&
-    a.id_ins_fl!==excludeTeam && intersect(a.inicio,a.fin,inicio,fin));
+  return all.filter(a=>a.id_personal===pid && a.valida && a.id_asignacion!==excludeId && !a.es_historico && intersect(a.inicio,a.fin,inicio,fin));
 }
 function conflictInfo(x) {return {inicio:x.inicio,fin:x.fin,visible:x.visible,
   proyecto:x.visible?(x.proyecto||x.id_proyecto||null):null,
@@ -296,6 +305,8 @@ async function crearAsignaciones(req) {
   const ids=[...new Set(raw.map(v=>positive(v,'Persona')))].sort((a,b)=>a-b);
   const idEquipo=positive(b.id_ins_fl,'Equipo');
   const {desde,hasta}=validateManual(b);
+  if(!desde||!hasta)throw error(400,'INT9_PROYECCION_FECHAS_REQUERIDAS',
+    'La proyeccion manual requiere ambas fechas independientes de FL.');
   const notas=plainText(b.notas,1000,'Notas');
   const uid=actor(req);
   const connection=await db.getConnection();
@@ -306,21 +317,18 @@ async function crearAsignaciones(req) {
     const ventana=windowAsignacion(type,equipo,{fecha_desde:desde,fecha_hasta:hasta});
     if (!ventana.valida) throw error(400,'INT9_EQUIPO_SIN_FECHAS','El equipo no tiene fechas válidas: captura desde y hasta manualmente.');
     const prev=await fetchAssignmentRows(connection,type,ids,req);
-    const repeated=personas.filter(p=>prev.some(a=>a.id_personal===Number(p.id_personal)&&a.id_ins_fl===idEquipo));
+    const repeated=personas.filter(p=>prev.some(a=>a.id_personal===Number(p.id_personal)&&a.id_ins_fl===idEquipo&&a.origen==='MANUAL'&&!a.es_historico));
     if (repeated.length) throw error(409,'INT9_ASIGNACION_DUPLICADA',
       `Ya está asignado al equipo: ${repeated.map(p=>p.nombre).join(', ')}.`);
     const conflicts=personas.map(p=>({p,con:clashes(prev,Number(p.id_personal),ventana.inicio,ventana.fin)}))
       .filter(x=>x.con.length).map(x=>({id_personal:Number(x.p.id_personal),nombre:x.p.nombre,con:x.con.map(conflictInfo)}));
-    if (conflicts.length&&!asFlag(b.permitir_traslape)) {
-      await connection.rollback();
-      return {creadas:[],conflictos:conflicts,requiere_confirmacion:true,ventana};
-    }
+    if(conflicts.length)throw error(409,'INT9_TRASLAPE_MANUAL','La proyeccion manual coincide con otra asignacion. Corrige las fechas antes de guardar.');
     const created=[];
     for (const pid of ids) {
       const [result]=await connection.execute(
         `INSERT INTO instalaciones_programacion_asignaciones
-         (id_personal,id_ins_fl,fecha_desde,fecha_hasta,notas,activo,created_by,updated_by)
-         VALUES(?,?,?,?,?,1,?,?)`,[pid,idEquipo,desde,hasta,notas,uid,uid]);
+         (id_personal,id_ins_fl,fecha_desde,fecha_hasta,notas,origen,es_historico,activo,created_by,updated_by)
+          VALUES(?,?,?,?,?,'MANUAL',0,1,?,?)`,[pid,idEquipo,desde,hasta,notas,uid,uid]);
       created.push(Number(result.insertId));
     }
     await connection.commit();
@@ -333,8 +341,7 @@ async function crearAsignaciones(req) {
 }
 async function getAssignment(connection, id) {
   const [rows]=await connection.query(
-    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,
-      p.tipo_personal,p.nombre FROM instalaciones_programacion_asignaciones a
+    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,a.origen,a.es_historico,$1,p.nombre FROM instalaciones_programacion_asignaciones a
       JOIN instalaciones_personal p ON p.id_personal=a.id_personal
       WHERE a.id_asignacion=? AND a.activo=1 LIMIT 1`,[positive(id,'Asignación')]);
   if (!rows.length) throw error(404,'INT9_ASIGNACION_NO_ENCONTRADA','Asignación no encontrada.');
@@ -351,24 +358,24 @@ async function editarAsignacion(req) {
     // Bloqueo de la persona antes de modificar: serializa altas y cambios concurrentes.
     await lockPeople(connection,initial.tipo_personal,[Number(initial.id_personal)],false);
     const current=await getAssignment(connection,id);
+    if(current.origen!=='MANUAL'||Number(current.es_historico)===1)
+      throw error(403,'INT9_AUTO_SOLO_SISTEMA','La barra azul e historica solo puede modificarse desde FL.');
     const equipo=await loadEquipo(connection,req,current.id_ins_fl,true);
     const fecha_desde=Object.prototype.hasOwnProperty.call(b,'fecha_desde') ? b.fecha_desde : parseDate(current.fecha_desde);
     const fecha_hasta=Object.prototype.hasOwnProperty.call(b,'fecha_hasta') ? b.fecha_hasta : parseDate(current.fecha_hasta);
     const {desde,hasta}=validateManual({fecha_desde,fecha_hasta});
+    if(!desde||!hasta)throw error(400,'INT9_PROYECCION_FECHAS_REQUERIDAS',
+      'La proyeccion manual requiere ambas fechas independientes de FL.');
     const ventana=windowAsignacion(current.tipo_personal,equipo,{fecha_desde:desde,fecha_hasta:hasta});
     if (!ventana.valida) throw error(400,'INT9_EQUIPO_SIN_FECHAS','Captura fechas válidas para esta asignación.');
     const assignments=await fetchAssignmentRows(connection,current.tipo_personal,[Number(current.id_personal)],req);
     const conflicts=clashes(assignments,Number(current.id_personal),ventana.inicio,ventana.fin,id)
       .map(conflictInfo);
-    if (conflicts.length&&!asFlag(b.permitir_traslape)) {
-      await connection.rollback();
-      return {actualizada:false,requiere_confirmacion:true,
-        conflictos:[{id_personal:Number(current.id_personal),nombre:current.nombre,con:conflicts}]};
-    }
+    if(conflicts.length)throw error(409,'INT9_TRASLAPE_MANUAL','La proyeccion manual coincide con otra asignacion. Corrige las fechas antes de guardar.');
     const notas=Object.prototype.hasOwnProperty.call(b,'notas') ? plainText(b.notas,1000,'Notas') : current.notas;
     await connection.execute(`UPDATE instalaciones_programacion_asignaciones
       SET fecha_desde=?,fecha_hasta=?,notas=?,updated_by=?
-      WHERE id_asignacion=? AND activo=1`,[desde,hasta,notas,uid,id]);
+      WHERE id_asignacion=? AND origen='MANUAL' AND activo=1`,[desde,hasta,notas,uid,id]);
     await connection.commit();
     return {actualizada:true,requiere_confirmacion:false,id_asignacion:id,conflictos:[]};
   } catch(ex) {await connection.rollback().catch(()=>{});throw ex;}
@@ -382,9 +389,11 @@ async function eliminarAsignacion(req) {
     const first=await getAssignment(connection,id);
     await lockPeople(connection,first.tipo_personal,[Number(first.id_personal)],false);
     const current=await getAssignment(connection,id);
+    if(current.origen!=='MANUAL'||Number(current.es_historico)===1)
+      throw error(403,'INT9_AUTO_SOLO_SISTEMA','Las barras automaticas e historicas no pueden desactivarse manualmente.');
     await loadEquipo(connection,req,current.id_ins_fl,true);
     await connection.execute(`UPDATE instalaciones_programacion_asignaciones
-      SET activo=0,updated_by=? WHERE id_asignacion=? AND activo=1`,[uid,id]);
+      SET activo=0,updated_by=? WHERE id_asignacion=? AND origen='MANUAL' AND activo=1`,[uid,id]);
     await connection.commit();
     return {id_asignacion:id,activo:false};
   } catch(ex) {await connection.rollback().catch(()=>{});throw ex;}
@@ -398,7 +407,7 @@ async function tieneAsignacionesVigentes(connection, idPersonal) {
      FROM instalaciones_programacion_asignaciones a
      JOIN instalaciones_personal p ON p.id_personal=a.id_personal
      JOIN ins_fl f ON f.id_ins_fl=a.id_ins_fl AND f.activo=1
-     WHERE a.id_personal=? AND a.activo=1`,[positive(idPersonal,'Persona')]);
+     WHERE a.id_personal=? AND a.activo=1 AND a.es_historico=0`[positive(idPersonal,'Persona')]);
   const today=mxToday();
   return rows.filter(row=>{
     const w=windowAsignacion(row.tipo_personal,row,row);

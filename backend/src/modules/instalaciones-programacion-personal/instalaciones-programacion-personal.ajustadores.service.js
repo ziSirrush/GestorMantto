@@ -98,9 +98,10 @@ function presentarEquipo(row, index) {
   const referencia = resolverReferencia(row.ajustador, index);
   // Misma prioridad de fechas (real, modificada, planeada) que el calendario actual.
   const ventana = asignaciones._read.windowEquipo(TIPO, row);
-  const estado = referencia.estado === 'IDENTIFICADO'
-    ? (ventana.valida ? 'VINCULABLE' : 'SIN_FECHAS_VALIDAS')
-    : referencia.estado;
+  const estado = String(row.estatus??'').trim()!=='06-A' ? 'ESTATUS_NO_ELEGIBLE' :
+    (referencia.estado === 'IDENTIFICADO'
+      ? (ventana.valida ? 'VINCULABLE' : 'SIN_FECHAS_VALIDAS')
+      : referencia.estado);
   return {
     id_ins_fl:idEquipo,
     proyecto:row.proyecto || row.id_proyecto || '',
@@ -134,7 +135,7 @@ async function vinculaciones(req) {
   if (id != null) { where.push('f.id_ins_fl=?'); params.push(id); }
   if (cursor != null) { where.push('f.id_ins_fl>?'); params.push(cursor); }
   const [fetched] = await db.query(
-    `SELECT f.id_ins_fl,f.proyecto,f.id_proyecto,f.referencia_sitio,f.ajustador,
+    `SELECT f.id_ins_fl,f.proyecto,f.id_proyecto,f.referencia_sitio,f.ajustador,f.estatus,
             f.fecha_inicio_ajuste,f.fecha_fin_ajuste_real,
             f.fecha_fin_ajuste_modificado,f.fecha_fin_ajuste_planeado
        FROM ins_fl f
@@ -220,115 +221,11 @@ function resumenAuto(candidato, estado, detalle={}) {
 }
 
 async function asignarAutomaticamente(req) {
-  const idEquipo = idEquipoDelBody(req.body);
-  const uid = actorReal(req);
-  const access = asignaciones._read.scope(req); // Motor central CORELLIAN, falla cerrado.
-  const [equipos] = await db.query(equipoSql(access,false),[idEquipo,...access.params]);
-  if (equipos.length !== 1) {
-    throw fallo(404,'INT9_EQUIPO_NO_ENCONTRADO','Equipo no encontrado o fuera de alcance.');
-  }
-
-  const [people] = await db.query(
-    `SELECT id_personal,nombre FROM instalaciones_personal
-      WHERE activo=1 AND tipo_personal=? ORDER BY id_personal ASC
-      LIMIT ${MAX_AJUSTADORES_CATALOGO+1}`, [TIPO]
-  );
-  if (people.length > MAX_AJUSTADORES_CATALOGO) {
-    throw fallo(422,'INT9_CATALOGO_EXCESIVO','Demasiados ajustadores para resolver identidades de forma segura.');
-  }
-  const indice = indicePersonal(people);
-  const candidato = presentarEquipo(equipos[0],indice);
-  if (candidato.estado !== 'VINCULABLE') {
-    return resumenAuto(candidato,'REQUIERE_REVISION',{motivo:candidato.estado});
-  }
-
-  const seleccion = [...candidato.personas].sort((a,b)=>a.id_personal-b.id_personal);
-  const ids = seleccion.map(p=>p.id_personal);
-  const connection = await db.getConnection();
-  let transaccion = false;
-  try {
-    await connection.beginTransaction();
-    transaccion=true;
-    // Mismo orden que las asignaciones manuales: PERSONAS (ordenadas) -> EQUIPO.
-    // Serializa altas para evitar reservas concurrentes del mismo ajustador.
-    const [lockedPeople] = await connection.query(
-      `SELECT p.id_personal,p.nombre FROM instalaciones_personal p
-        WHERE p.tipo_personal=? AND p.activo=1
-          AND p.id_personal IN (${ids.map(()=>'?').join(',')})
-        ORDER BY p.id_personal FOR UPDATE`, [TIPO,...ids]
-    );
-    if (lockedPeople.length !== ids.length || lockedPeople.some((p,i)=>
-        Number(p.id_personal)!==ids[i] || nombreClave(p.nombre)!==nombreClave(seleccion[i].nombre))) {
-      throw fallo(409,'INT9_AUTO_IDENTIDAD_CAMBIO','Cambió el catálogo de ajustadores. Revisa la vinculación.');
-    }
-    const [lockedEquipos] = await connection.query(equipoSql(access,true),[idEquipo,...access.params]);
-    if (lockedEquipos.length !== 1) {
-      throw fallo(409,'INT9_AUTO_ALCANCE_CAMBIO','Equipo no disponible o fuera de alcance durante el guardado.');
-    }
-    const actual = presentarEquipo(lockedEquipos[0],indice);
-    const mismosIds = actual.personas.map(p=>p.id_personal).sort((a,b)=>a-b);
-    if (actual.estado!=='VINCULABLE' || actual.ajustador_origen!==candidato.ajustador_origen ||
-        actual.inicio!==candidato.inicio || actual.fin!==candidato.fin ||
-        actual.fuente_fin!==candidato.fuente_fin ||
-        mismosIds.length!==ids.length || mismosIds.some((n,i)=>n!==ids[i])) {
-      throw fallo(409,'INT9_AUTO_INS_FL_CAMBIO','Cambió ins_fl mientras se preparaba la asignación. Reintenta la vinculación.');
-    }
-
-    // Consulta incluso las ocupaciones de equipos FUERA del alcance sin exponer
-    // identidad de esos equipos. Se usa el servicio compartido para las fechas.
-    const ocupaciones = await asignaciones._read.fetchAssignmentRows(connection,TIPO,ids,req);
-    const existentes=[];
-    const pendientes=[];
-    const conflictos=[];
-    for (const persona of seleccion) {
-      const prev = ocupaciones.filter(a=>a.id_personal===persona.id_personal);
-      if (prev.some(a=>a.id_ins_fl===idEquipo)) {
-        existentes.push({id_personal:persona.id_personal,nombre:persona.nombre});
-        continue; // Asignacion manual o automatica preexistente: no tocar.
-      }
-      const otras = prev.filter(a=>a.id_ins_fl!==idEquipo);
-      const inciertas = otras.some(a=>!a.valida);
-      const solapadas = otras.some(a=>a.valida &&
-        asignaciones._read.intersect(a.inicio,a.fin,actual.inicio,actual.fin));
-      if (inciertas || solapadas) {
-        conflictos.push({id_personal:persona.id_personal,nombre:persona.nombre,
-          motivo:inciertas?'OTRA_ASIGNACION_SIN_FECHAS':'TRASLAPE'});
-      } else {
-        pendientes.push(persona);
-      }
-    }
-    if (conflictos.length) {
-      // Por equipo es TODO O NADA: no generar un grupo parcialmente asignado.
-      await connection.rollback();transaccion=false;
-      return resumenAuto(actual,'CONFLICTO',{existentes,conflictos});
-    }
-
-    const creadas=[];
-    for (const persona of pendientes) {
-      // NULL deja las fechas ligadas a ins_fl, en vez de copiar valores fijos.
-      const [insert] = await connection.execute(
-        `INSERT INTO instalaciones_programacion_asignaciones
-         (id_personal,id_ins_fl,fecha_desde,fecha_hasta,notas,activo,created_by,updated_by)
-         VALUES(?,?,NULL,NULL,?,1,?,?)`,
-        [persona.id_personal,idEquipo,NOTA_AUTO,uid,uid]
-      );
-      const idAsignacion = Number(insert.insertId);
-      if (!Number.isSafeInteger(idAsignacion) || idAsignacion < 1) {
-        throw fallo(422,'INT9_AUTO_ASIGNACION_ID_INVALIDO','No se obtuvo un identificador seguro de asignación.');
-      }
-      creadas.push({id_asignacion:idAsignacion,id_personal:persona.id_personal,nombre:persona.nombre});
-    }
-    await connection.commit();transaccion=false;
-    return resumenAuto(actual,creadas.length?'ASIGNADO':'SIN_CAMBIOS',{creadas,existentes});
-  } catch (error) {
-    if (transaccion) await connection.rollback().catch(()=>{});
-    if (error?.code==='ER_DUP_ENTRY') {
-      throw fallo(409,'INT9_AUTO_ASIGNACION_DUPLICADA','Ya existe una asignación para este ajustador y equipo.');
-    }
-    throw error;
-  } finally {
-    connection.release();
-  }
+  const id=idEquipoDelBody(req.body);
+  const actorId=actorReal(req);
+  const access=asignaciones._read.scope(req);
+  return require('./instalaciones-programacion-personal.conciliacion.service')
+    .reconciliarEquipo(id,{actorId,access,tecnico:false});
 }
 
 module.exports = {

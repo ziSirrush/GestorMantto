@@ -41,14 +41,15 @@
     AMBIGUO:'Referencia ambigua',
     SIN_COINCIDENCIA:'No coincide con el catálogo',
     SIN_FECHAS_VALIDAS:'Revisar fechas',
-    SIN_REFERENCIA:'Sin referencia'
+    SIN_REFERENCIA:'Sin referencia',
+    ESTATUS_NO_ELEGIBLE:'No elegible (requiere 06-A)'
   });
   function stateLabel(code) { return STATES[code] || 'Requiere revisión'; }
   function resultMessage(result) {
     const status=String(result?.estado || '');
     if (status==='ASIGNADO') return `${result.creadas?.length || 0} asignación(es) creada(s).`;
-    if (status==='SINCRONIZADO') return `${Number(result.creadas)||0} creada(s), ${Number(result.retiradas)||0} retirada(s).`;
-    if (status==='SIN_CAMBIOS') return 'La programación ya coincide; sin modificaciones.';
+    if (status==='SINCRONIZADO') return `${Number(result.creadas)||0} creada(s), ${Number(result.actualizadas)||0} actualizada(s), ${Number(result.historicas)||0} histórica(s).${result.conflictos?.length?' ⚠ Traslape con proyección manual.':''}`;
+    if (status==='SIN_CAMBIOS') return `La programación ya coincide; sin modificaciones.${result.conflictos?.length?' ⚠ Traslape con proyección manual.':''}`;
     if (status==='CONFLICTO') return 'Conflicto de fechas detectado. No se modificó el equipo.';
     if (status==='REQUIERE_REVISION') return `Revisión requerida (${String(result.motivo || 'referencia/fechas')}). No se modificó el equipo.`;
     return 'Operación respondida; revisa el estado del equipo.';
@@ -119,7 +120,7 @@
       box.innerHTML=`<details class="ppc-aj-auto-details">
         <summary>Vinculación automática de ajustadores <small>desde ins_fl</small></summary>
         <div class="ppc-aj-auto-content">
-          <p class="ppc-cal-note">Revisa las coincidencias entre el reporte de Instalaciones y el catálogo. Las fechas se heredan de ins_fl. No se asigna personal al consultar.</p>
+          <p class="ppc-cal-note">Revisa las coincidencias entre el reporte de Instalaciones y el catálogo. La programación azul se actualiza desde FL solo en 06-A. No modifica las proyecciones manuales. No se asigna personal al consultar.</p>
           <div class="ppc-aj-auto-toolbar">
             <button type="button" class="ppc-btn ppc-small" data-aj-action="consultar">Consultar / Actualizar</button>
             <span data-aj-status role="status" aria-live="polite">Consulta opcional: no crea asignaciones por sí sola.</span>
