@@ -91,7 +91,7 @@ function harness({allowed=['VER','CREAR','DESACTIVAR'],viewer=false,pages=[],pos
 }
 
 test('F4 está integrado al loader existente con JS y CSS versionados',()=>{
-  assert.match(loader,/instalaciones-programacion-personal-ajustadores\.js\?v=20261027-int9-ajustadores-fase4-v001/);
+  assert.match(loader,/instalaciones-programacion-personal-ajustadores\.js\?v=20261111-int9-incidencias-fl-v001/);
   assert.match(loader,/instalaciones-programacion-personal-ajustadores\.css\?v=20261027-int9-ajustadores-fase4-v001/);
   const entry=loader.match(/'instalaciones-programacion-personal':\{css:\[([\s\S]*?)\],js:\[([\s\S]*?)\]\}/);
   assert.ok(entry);

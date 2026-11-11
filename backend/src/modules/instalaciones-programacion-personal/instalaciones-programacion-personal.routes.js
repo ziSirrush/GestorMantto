@@ -103,6 +103,9 @@ router.delete('/programacion/asignaciones/:id',...readGuard,permissionFor('DESAC
 // Carga diferida para no afectar los flujos existentes ni la integracion M2M.
 router.get('/programacion/ajustadores/vinculaciones',...readGuard,
   reply(req => require('./instalaciones-programacion-personal.ajustadores.service').vinculaciones(req)));
+// Incidencias FL, solo lectura y con los mismos guards CORELLIAN.
+router.get('/programacion/ajustadores/incidencias-fl',...readGuard,
+  reply(req => require('./instalaciones-programacion-personal.ajustadores.service').incidenciasFL(req)));
 
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 2]
 // Escritura explicita protegida por VER + CREAR, puerta CORELLIAN y scope ins_fl.

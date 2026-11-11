@@ -90,6 +90,22 @@ function limitePagina(value) {
   return n;
 }
 
+// Diagnostico de FL: identidad y fechas se evalúan de forma independiente.
+// No modifica asignaciones ni oculta causas cuando faltan varios campos.
+function incidenciasEquipo(row, referencia, ventana) {
+  if (String(row.estatus??'').trim()!=='06-A') return [];
+  const issues=[];
+  if (referencia.estado!=='IDENTIFICADO') issues.push(referencia.estado);
+  const empty=value=>value==null || String(value).trim()==='';
+  if (!ventana.inicio) issues.push(empty(row.fecha_inicio_ajuste)?'INICIO_FALTANTE':'INICIO_INVALIDO');
+  if (!ventana.fin) {
+    const endings=['real','modificado','planeado'].map(source=>row['fecha_fin_ajuste_'+source]);
+    issues.push(endings.every(empty)?'FIN_FALTANTE':'FIN_INVALIDO');
+  } else if (ventana.inicio && ventana.fin<ventana.inicio) {
+    issues.push('FECHAS_INVERTIDAS');
+  }
+  return issues;
+}
 function presentarEquipo(row, index) {
   const idEquipo = Number(row.id_ins_fl);
   if (!Number.isSafeInteger(idEquipo) || idEquipo < 1) {
@@ -109,10 +125,21 @@ function presentarEquipo(row, index) {
     ajustador_origen:String(row.ajustador || '').trim(),
     inicio:ventana.inicio, fin:ventana.fin, fuente_fin:ventana.fuente_fin,
     fechas_validas:ventana.valida,
+    incidencias:incidenciasEquipo(row,referencia,ventana),
     estado, cantidad_nombres:referencia.cantidad_nombres,
     // Solo exponer IDs para una referencia completa e inequívoca.
     personas:referencia.estado === 'IDENTIFICADO' ? referencia.personas : []
   };
+}
+
+async function catalogoAjustadores() {
+  const [people]=await db.query(
+    `SELECT id_personal,nombre FROM instalaciones_personal
+       WHERE activo=1 AND tipo_personal=? ORDER BY id_personal ASC
+       LIMIT ${MAX_AJUSTADORES_CATALOGO+1}`,[TIPO]);
+  if (people.length>MAX_AJUSTADORES_CATALOGO)
+    throw fallo(422,'INT9_CATALOGO_EXCESIVO','Demasiados ajustadores; no es seguro resolver coincidencias.');
+  return indicePersonal(people);
 }
 
 async function vinculaciones(req) {
@@ -128,8 +155,9 @@ async function vinculaciones(req) {
   const access = asignaciones._read.scope(req);
   const where = [
     'f.activo=1', `(${access.sql})`,
-    'f.ajustador IS NOT NULL', "TRIM(f.ajustador)<>''",
-    "LOWER(TRIM(f.ajustador)) NOT IN ('-','n/a','na','sin ajustador','sin asignar','null')"
+    // Los equipos 06-A sin ajustador tambien deben figurar como pendientes de FL.
+    `(TRIM(f.estatus)='06-A' OR (f.ajustador IS NOT NULL AND TRIM(f.ajustador)<>''
+      AND LOWER(TRIM(f.ajustador)) NOT IN ('-','n/a','na','sin ajustador','sin asignar','null')))`
   ];
   const params = [...access.params];
   if (id != null) { where.push('f.id_ins_fl=?'); params.push(id); }
@@ -149,16 +177,8 @@ async function vinculaciones(req) {
     return {registros:[],total_pagina:0,limite:limit,hay_mas:false,siguiente_cursor:null,resumen_pagina:{}};
   }
 
-  // Catalogo de ajustadores existente: no hay nuevas tablas, columnas ni escrituras.
-  const [people] = await db.query(
-    `SELECT id_personal,nombre FROM instalaciones_personal
-      WHERE activo=1 AND tipo_personal=? ORDER BY id_personal ASC
-      LIMIT ${MAX_AJUSTADORES_CATALOGO + 1}`, [TIPO]
-  );
-  if (people.length > MAX_AJUSTADORES_CATALOGO) {
-    throw fallo(422,'INT9_CATALOGO_EXCESIVO','Demasiados ajustadores; no es seguro resolver coincidencias.');
-  }
-  const index=indicePersonal(people);
+  // Catalogo existente y mismo resolvedor de identidad para todas las consultas.
+  const index=await catalogoAjustadores();
   const registros=page.map(row=>presentarEquipo(row,index));
   const resumen_pagina={};
   for (const x of registros) resumen_pagina[x.estado]=(resumen_pagina[x.estado] || 0) + 1;
@@ -167,6 +187,50 @@ async function vinculaciones(req) {
     hay_mas:hasMore, siguiente_cursor:hasMore?registros[registros.length-1].id_ins_fl:null,
     resumen_pagina
   };
+}
+
+// Incidencias vigentes de equipos 06-A. Recorre por cursor solo equipos
+// dentro del alcance, y retorna unicamente las filas que necesitan correccion.
+// Se limita el recorrido por consulta para proteger la API frente a cargas grandes.
+async function incidenciasFL(req) {
+  const query=req.query||{};
+  const cursor=enteroOpcional(query.cursor,'cursor');
+  const limit=limitePagina(query.limit);
+  const access=asignaciones._read.scope(req);
+  const index=await catalogoAjustadores();
+  const batchSize=150,maxScanned=1500;
+  const registros=[],resumen_pagina={};
+  let last=cursor||0,scanned=0,hay_mas=false,finished=false;
+  while(scanned<maxScanned && !finished && registros.length<limit){
+    const size=Math.min(batchSize,maxScanned-scanned);
+    const [batch]=await db.query(
+      `SELECT f.id_ins_fl,f.proyecto,f.id_proyecto,f.referencia_sitio,f.ajustador,f.estatus,
+              f.fecha_inicio_ajuste,f.fecha_fin_ajuste_real,
+              f.fecha_fin_ajuste_modificado,f.fecha_fin_ajuste_planeado
+         FROM ins_fl f
+        WHERE f.activo=1 AND TRIM(f.estatus)='06-A' AND (${access.sql})
+          AND f.id_ins_fl>?
+        ORDER BY f.id_ins_fl ASC LIMIT ${size}`,
+      [...access.params,last]);
+    if(!batch.length){finished=true;break;}
+    for(let i=0;i<batch.length;i++){
+      const equipo=presentarEquipo(batch[i],index);
+      last=equipo.id_ins_fl;scanned++;
+      if(equipo.incidencias.length){
+        registros.push(equipo);
+        for(const issue of equipo.incidencias)
+          resumen_pagina[issue]=(resumen_pagina[issue]||0)+1;
+      }
+      if(registros.length>=limit){
+        hay_mas=i<batch.length-1 || batch.length===size;
+        finished=true;break;
+      }
+    }
+    if(!finished && batch.length<size)finished=true;
+  }
+  if(!finished && scanned>=maxScanned)hay_mas=true;
+  return {registros,total_pagina:registros.length,limite:limit,
+    hay_mas,siguiente_cursor:hay_mas?last:null,resumen_pagina};
 }
 
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 2]
@@ -229,7 +293,7 @@ async function asignarAutomaticamente(req) {
 }
 
 module.exports = {
-  vinculaciones, asignarAutomaticamente,
+  vinculaciones,incidenciasFL,asignarAutomaticamente,
   _shared:Object.freeze({nombreClave,indicePersonal,resolverReferencia,presentarEquipo,NOTA_AUTO,MAX_AJUSTADORES_CATALOGO,fallo}),
-  _test:Object.freeze({nombreClave,indicePersonal,resolverReferencia,enteroOpcional,limitePagina,presentarEquipo})
+  _test:Object.freeze({nombreClave,indicePersonal,resolverReferencia,enteroOpcional,limitePagina,presentarEquipo,incidenciasEquipo})
 };

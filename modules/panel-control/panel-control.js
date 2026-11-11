@@ -1197,7 +1197,8 @@
       'Actualizadas: '+Number(d.actualizadas||0),
       'Historicas: '+Number(d.historicas||0),
       'Conflictos: '+Number(d.conflictos||0),
-      'Incidencias: '+Number(d.errores||0),
+      'Pendientes de corregir en FL: '+Number(d.revisiones||0),
+      'Errores técnicos: '+Number(d.errores||0),
       d.mensaje||''
     ];
     if(Array.isArray(d.detalles))d.detalles.forEach(x=>lines.push('Equipo '+String(x.id_ins_fl||'—')+': '+String(x.codigo||'ERROR')));

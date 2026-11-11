@@ -41,7 +41,7 @@
     AMBIGUO:'Referencia ambigua',
     SIN_COINCIDENCIA:'No coincide con el catálogo',
     SIN_FECHAS_VALIDAS:'Revisar fechas',
-    SIN_REFERENCIA:'Sin referencia',
+    SIN_REFERENCIA:'Ajustador sin registrar en FL',
     ESTATUS_NO_ELEGIBLE:'No elegible (requiere 06-A)'
   });
   function stateLabel(code) { return STATES[code] || 'Requiere revisión'; }
@@ -147,6 +147,12 @@
     if (!model.loaded && !model.loading) {
       target.replaceChildren();footer.replaceChildren();return;
     }
+    const reasons={
+      SIN_REFERENCIA:'Falta ajustador',SIN_COINCIDENCIA:'Nombre sin coincidencia',
+      AMBIGUO:'Referencia ambigua',INICIO_FALTANTE:'Falta fecha inicio',
+      INICIO_INVALIDO:'Inicio inválido',FIN_FALTANTE:'Falta fecha fin',
+      FIN_INVALIDO:'Fin inválido',FECHAS_INVERTIDAS:'Fechas invertidas'
+    };
     const rows=model.items.map(row=>{
       const id=Number(row.id_ins_fl);
       const op=operationFor(row);
@@ -158,7 +164,7 @@
         <td>${escapeHtml(row.proyecto)}<small>${escapeHtml(row.referencia_sitio)}</small></td>
         <td>${escapeHtml(row.ajustador_origen)}<small>${names}</small></td>
         <td>${escapeHtml(date)}</td>
-        <td><span class="ppc-aj-status ppc-aj-status-${statusClass}">${escapeHtml(stateLabel(row.estado))}</span></td>
+        <td><span class="ppc-aj-status ppc-aj-status-${statusClass}">${escapeHtml(stateLabel(row.estado))}</span>${Array.isArray(row.incidencias)&&row.incidencias.length?`<small>${row.incidencias.map(code=>escapeHtml(reasons[code]||code)).join(" · ")}</small>`:""}</td>
         <td>${op ? `<button type="button" class="ppc-btn ppc-small" data-aj-action="${op}" data-equipo="${id}" ${model.writing?'disabled':''}>${op==='reconciliar'?'Sincronizar':'Asignar'}</button>` : '—'}</td>
       </tr>`;
     }).join('');

@@ -59,8 +59,10 @@ async function execute(record){
     record.stats=result;
     record.estado=result.errores?'ERROR':'COMPLETADO';
     record.mensaje=result.errores
-      ?'Conciliacion completada con incidencias. Revisa los codigos reportados.'
-      :'Conciliacion finalizada correctamente.';
+      ?'Conciliacion completada con errores tecnicos. Revisa los codigos reportados.'
+      :(result.revisiones
+        ?'Conciliacion completa. Hay equipos pendientes de corregir en FL.'
+        :'Conciliacion finalizada correctamente.');
   }catch(error){
     record.estado='ERROR';
     record.mensaje='Error tecnico durante la conciliacion.';
@@ -86,7 +88,7 @@ async function start(req,res,next){
     }
     const record={
       id:crypto.randomUUID(),estado:'EN_PROCESO',inicio:new Date().toISOString(),
-      stats:{total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,errores:0,detalles:[]}
+      stats:{total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,revisiones:0,errores:0,detalles:[]}
     };
     execution=record;
     // El proceso puede exceder la ventana de espera HTTP.

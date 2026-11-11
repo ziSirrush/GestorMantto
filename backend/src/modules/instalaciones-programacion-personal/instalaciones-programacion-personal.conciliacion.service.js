@@ -56,7 +56,7 @@ async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false
     index=refs.indicePersonal(people);
     initial=refs.presentarEquipo(preliminary,index);
     if(initial.estado!=='VINCULABLE')
-      return result(id,'REQUIERE_REVISION',{motivo:initial.estado});
+      return result(id,'REQUIERE_REVISION',{motivo:initial.estado,incidencias:initial.incidencias||[]});
   }
   const before=await autoRows(db,id);
   const targets=initial?initial.personas.map(p=>p.id_personal):[];

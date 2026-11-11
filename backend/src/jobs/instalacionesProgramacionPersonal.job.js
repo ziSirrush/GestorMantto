@@ -22,7 +22,7 @@ function cdmxParts(date=new Date()){
 // exactamente la misma conciliacion por equipo. El ensayo no registra
 // fecha alguna en instalaciones_programacion_conciliacion_diaria.
 async function scanEquipos({onProgress=null,shouldStop=null,manual=false}={}){
-  const stats={total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,errores:0,detalles:[]};
+  const stats={total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,revisiones:0,errores:0,detalles:[]};
   let last=0;
   let interrumpida=false;
   outer:for(;;){
@@ -48,8 +48,14 @@ async function scanEquipos({onProgress=null,shouldStop=null,manual=false}={}){
         stats.historicas+=out.historicas||0;
         stats.conflictos+=(out.conflictos||[]).length;
         if(out.estado==='REQUIERE_REVISION'){
-          stats.errores++;
-          if(stats.detalles.length<5)stats.detalles.push({id_ins_fl:id,codigo:String(out.motivo||out.estado).slice(0,100)});
+          // Un dato incompleto en FL no implica una falla tecnica del barrido.
+          const issues=Array.isArray(out.incidencias)?out.incidencias:[];
+          if(issues.length)stats.revisiones++;
+          else stats.errores++;
+          if(stats.detalles.length<5)stats.detalles.push({
+            id_ins_fl:id,codigo:String(out.motivo||out.estado).slice(0,100),
+            codigos:issues.slice(0,8)
+          });
         }
       }catch(error){
         stats.errores++;
@@ -69,7 +75,7 @@ async function executeDaily(date){
     `INSERT IGNORE INTO instalaciones_programacion_conciliacion_diaria
       (fecha_cdmx,estado,inicio_en) VALUES (?,'EN_PROCESO',NOW())`,[date]);
   if(Number(reserved.affectedRows)!==1)return {estado:'YA_REGISTRADO',fecha_cdmx:date};
-  const stats={total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,errores:0};
+  const stats={total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,revisiones:0,errores:0};
   let failure=null;
   try{
     const result=await scanEquipos({onProgress:progress=>Object.assign(stats,progress)});

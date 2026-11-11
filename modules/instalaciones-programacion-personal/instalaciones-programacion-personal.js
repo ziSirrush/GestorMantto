@@ -228,7 +228,8 @@
   // [Mantto Gestor | 2026-10-16 | INT9-F2 | CALENDARIO PERSONAL V001]
   const CELL_WIDTH=30;
   const cal={desde:null,span:31,q:'',epoch:0,personal:[],asignaciones:[],sin_fechas:[],equipos:[],
-    todosEquipos:0,masEquipos:false,hoy:null,loading:false,feedback:'',error:false};
+    todosEquipos:0,masEquipos:false,hoy:null,loading:false,feedback:'',error:false,
+    flIssues:[],flCursor:null,flMore:false,flLoading:false,flError:'',flEpoch:0};
   const assignment={mode:null,item:null,equipo:null,equipos:[],searchTimer:null,selectedPerson:null,focusDate:null,epoch:0};
   const MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const DAY_NAMES=['D','L','M','M','J','V','S'];
@@ -288,9 +289,10 @@
     cal.loading=true;
     setCalendarFeedback('Consultando programación…');
     const params={tipo:state.type,desde:cal.desde,hasta:offsetDate(cal.desde,cal.span-1),q:cal.q};
-    const [program,uncovered]=await Promise.allSettled([
+    const [program,uncovered,issues]=await Promise.allSettled([
       api('/calendario?'+encodeQuery(params)),
-      api('/equipos?'+encodeQuery({tipo:state.type,desde:params.desde,hasta:params.hasta,solo_sin_personal:1,limit:30}))
+      api('/equipos?'+encodeQuery({tipo:state.type,desde:params.desde,hasta:params.hasta,solo_sin_personal:1,limit:30})),
+      state.type==='AJUSTADOR'?api('/ajustadores/incidencias-fl?limit=50'):Promise.resolve(null)
     ]);
     if(epoch!==cal.epoch||!calRoot())return;
     cal.loading=false;
@@ -308,10 +310,43 @@
     cal.equipos=uncovered.status==='fulfilled'?(uncovered.value?.equipos||[]):[];
     cal.todosEquipos=uncovered.status==='fulfilled'?Number(uncovered.value?.total||0):0;
     cal.masEquipos=Boolean(uncovered.status==='fulfilled'&&uncovered.value?.hay_mas);
+    ++cal.flEpoch;
+    cal.flIssues=issues.status==='fulfilled'&&Array.isArray(issues.value?.registros)?issues.value.registros:[];
+    cal.flCursor=issues.status==='fulfilled'&&issues.value?.hay_mas===true?Number(issues.value.siguiente_cursor):null;
+    cal.flMore=issues.status==='fulfilled'&&issues.value?.hay_mas===true;
+    cal.flLoading=false;
+    cal.flError=state.type==='AJUSTADOR'&&issues.status!=='fulfilled'?
+      (issues.reason?.message||'No fue posible consultar incidencias de FL.'):'';
     renderCalendar();
     if(uncovered.status!=='fulfilled'&&program.status==='fulfilled'){
       const elem=el('ppc-cal-cobertura');
       if(elem)elem.insertAdjacentHTML('beforeend',`<p class="ppc-cal-note">Equipos sin personal: ${esc(uncovered.reason?.message||'no disponible')}</p>`);
+    }
+  }
+  async function loadMoreFlIncidencias(){
+    if(state.type!=='AJUSTADOR'||state.view!=='calendario'||!cal.flMore||
+       !Number.isSafeInteger(cal.flCursor)||cal.flLoading)return;
+    const epoch=cal.flEpoch,expected=cal.flCursor;
+    cal.flLoading=true;renderCalendar();
+    try{
+      const next=await api('/ajustadores/incidencias-fl?'+encodeQuery({limit:50,cursor:expected}));
+      if(epoch!==cal.flEpoch||state.view!=='calendario'||state.type!=='AJUSTADOR')return;
+      if(!Array.isArray(next?.registros)||next.registros.length>50)throw Error('Respuesta de incidencias inválida.');
+      let last=expected;
+      for(const item of next.registros){
+        const id=Number(item.id_ins_fl);
+        if(!Number.isSafeInteger(id)||id<=last)throw Error('Paginación de incidencias desordenada.');
+        last=id;
+      }
+      const cursor=next.hay_mas===true?Number(next.siguiente_cursor):null;
+      if(next.hay_mas===true&&(!Number.isSafeInteger(cursor)||cursor<=expected||cursor<last))
+        throw Error('Cursor de incidencias inválido.');
+      cal.flIssues.push(...next.registros);
+      cal.flMore=next.hay_mas===true;cal.flCursor=cursor;cal.flError='';
+    }catch(error){
+      if(epoch===cal.flEpoch)cal.flError=error?.message||'No fue posible cargar más incidencias.';
+    }finally{
+      if(epoch===cal.flEpoch){cal.flLoading=false;renderCalendar();}
     }
   }
   function lanePositions(items){
@@ -368,13 +403,46 @@
           <div class="ppc-cal-days">${dayCells}</div></div>
         ${personRows||'<p class="ppc-cal-note">No hay personal activo para este filtro.</p>'}
       </div></div>`;
-    const pending=cal.equipos.map(e=>`<div class="ppc-cal-uncovered-row"><span><b>${esc(e.proyecto)}</b> · ${esc(e.equipo)}<small>${esc(formatWindow(e))}</small></span>
-       ${permitted('CREAR')?`<button type="button" class="ppc-btn ppc-small" data-ppc="asignar-equipo" data-equipo="${Number(e.id_ins_fl)}">Asignar</button>`:''}</div>`).join('');
+    const issues=state.type==='AJUSTADOR'?cal.flIssues:[];
+    const flMissing=issues.filter(e=>Array.isArray(e.incidencias)&&
+      e.incidencias.some(code=>['SIN_REFERENCIA','AMBIGUO','SIN_COINCIDENCIA'].includes(code)));
+    const flBadDates=issues.filter(e=>Array.isArray(e.incidencias)&&
+      e.incidencias.some(code=>['INICIO_FALTANTE','INICIO_INVALIDO','FIN_FALTANTE','FIN_INVALIDO','FECHAS_INVERTIDAS'].includes(code)));
+    const flLabels={
+      SIN_REFERENCIA:'Ajustador faltante',AMBIGUO:'Referencia ambigua',
+      SIN_COINCIDENCIA:'Ajustador no coincide con el catálogo',
+      INICIO_FALTANTE:'Falta inicio',INICIO_INVALIDO:'Inicio inválido',
+      FIN_FALTANTE:'Falta término',FIN_INVALIDO:'Término inválido',
+      FECHAS_INVERTIDAS:'Fechas invertidas'
+    };
+    const flRows=list=>list.map(e=>`<div class="ppc-cal-uncovered-row"><span>
+      <b>${esc(e.proyecto||'Proyecto')}</b> · ${esc(e.referencia_sitio||'Equipo')} (FL #${Number(e.id_ins_fl)})
+      <small>${(e.incidencias||[]).map(code=>esc(flLabels[code]||code)).join(' · ')} · Corregir en FL</small>
+      </span></div>`).join('');
+    const pendingIds=new Set(cal.equipos.map(e=>Number(e.id_ins_fl)));
+    const flExtra=flMissing.filter(e=>!pendingIds.has(Number(e.id_ins_fl)));
+    const pending=cal.equipos.map(e=>{
+      const issue=flMissing.find(x=>Number(x.id_ins_fl)===Number(e.id_ins_fl));
+      return `<div class="ppc-cal-uncovered-row"><span><b>${esc(e.proyecto)}</b> · ${esc(e.equipo)}
+      <small>${esc(formatWindow(e))}${issue?' · Corregir ajustador en FL':''}</small></span>
+      ${permitted('CREAR')?`<button type="button" class="ppc-btn ppc-small" data-ppc="asignar-equipo" data-equipo="${Number(e.id_ins_fl)}">Asignar</button>`:''}</div>`;
+    }).join('');
     const invalid=cal.sin_fechas.map(a=>`<div class="ppc-cal-uncovered-row"><span><b>${esc(who.get(Number(a.id_personal))?.nombre||'Personal')}</b> · ${esc(a.proyecto)} · ${esc(a.equipo)}<small>Sin fechas válidas en el reporte</small></span>
       ${a.origen==='MANUAL'&&!a.es_historico&&permitted('EDITAR')?`<button type="button" class="ppc-btn ppc-small" data-ppc="editar-asignacion" data-id="${Number(a.id_asignacion)}">Editar fechas</button>`:''}</div>`).join('');
-    coverage.innerHTML=`<details class="ppc-cal-extras"><summary>Equipos sin personal (${cal.todosEquipos})${cal.masEquipos?' · primeros 30':''}</summary>
-        ${pending||'<p class="ppc-cal-note">Sin equipos pendientes en el periodo.</p>'}</details>
-      ${invalid?`<details class="ppc-cal-extras"><summary>Asignaciones sin fechas válidas (${cal.sin_fechas.length})</summary>${invalid}</details>`:''}
+    const flInfo=state.type==='AJUSTADOR'? `
+      <p class="ppc-cal-note">Revisión FL: equipos activos 06-A; pueden aparecer en ambos acordeones si faltan ajustador y fechas.
+      ${cal.flMore?'Los resultados se cargan por páginas.':''}</p>
+      ${cal.flError?`<p class="ppc-cal-feedback ppc-error">${esc(cal.flError)}</p>`:''}
+      ${cal.flMore||cal.flLoading?`<button type="button" class="ppc-btn ppc-small" data-ppc="fl-mas"
+        ${cal.flLoading?'disabled':''}>${cal.flLoading?'Consultando FL…':'Ver más incidencias FL'}</button>`:''}`:'';
+    coverage.innerHTML=`<details class="ppc-cal-extras"><summary>Equipos sin personal / Ajustador pendiente
+        (${cal.todosEquipos}${state.type==='AJUSTADOR'?` + ${flMissing.length} incidencias FL`:''})
+        ${cal.masEquipos?' · primeros 30 del periodo':''}</summary>
+        ${pending||'<p class="ppc-cal-note">Sin equipos pendientes de asignación en el periodo.</p>'}
+        ${state.type==='AJUSTADOR'?flRows(flExtra):''}</details>
+      ${(invalid||flBadDates.length)?`<details class="ppc-cal-extras"><summary>Asignaciones / equipos sin fechas válidas (${cal.sin_fechas.length+flBadDates.length})</summary>
+        ${invalid}${flRows(flBadDates)}</details>`:''}
+      ${flInfo}
       <p class="ppc-cal-note">Azul = automático desde FL; naranja = proyección manual; azul histórico = conserva fechas anteriores. ⚠ señala traslape por cambio FL. Gris = ocupación fuera del alcance.</p>`;
     setCalendarFeedback(cal.feedback,cal.error);
   }
@@ -758,6 +826,7 @@
     else if(action==='cal-next') {cal.desde=offsetDate(cal.desde,cal.span);calendarControls();reloadCalendar();}
     else if(action==='cal-hoy') {cal.desde=weekStart(todayMexico());calendarControls();reloadCalendar();}
     else if(action==='asignar-nueva') openAssignment();
+    else if(action==='fl-mas') loadMoreFlIncidencias();
     else if(action==='asignar-equipo') openAssignment({idEquipo:Number(node.dataset.equipo)});
     else if(action==='cal-celda') trackClicked(event,node);
     else if(action==='editar-asignacion') openEditAssignment(Number(node.dataset.id));
@@ -841,7 +910,9 @@
     hist.res=null;hist.total=0;hist.q='';hist.estado='';hist.desde='';hist.hasta='';hist.page=1;
     disp.res=null;disp.simRes=null;disp.simEquipos=[];disp.simEquipo=null;disp.simQ='';
     closeAssignment();
+    ++cal.flEpoch;
     cal.personal=[];cal.asignaciones=[];cal.sin_fechas=[];cal.equipos=[];cal.todosEquipos=0;cal.masEquipos=false;cal.feedback='';cal.error=false;
+    cal.flIssues=[];cal.flMore=false;cal.flCursor=null;cal.flLoading=false;cal.flError='';
     if(el('ppc-cal-contenido'))el('ppc-cal-contenido').replaceChildren();
     if(el('ppc-cal-cobertura'))el('ppc-cal-cobertura').replaceChildren();
     if(histRoot())histRoot().replaceChildren();
