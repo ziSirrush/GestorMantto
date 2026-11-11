@@ -151,7 +151,7 @@ test('Reconciliación F3 recarga calendario de inmediato y vuelve a consultar es
   assert.equal(h.refreshes,1);
   assert.equal(h.actions.length,3);
   assert.equal(h.actions[1].url,'/api/instalaciones/programacion/ajustadores/reconciliar');
-  assert.match(h.ui.status.textContent,/1 creada\\(s\\), 0 actualizada\\(s\\), 0 histórica\\(s\\)/);
+  assert.equal(h.ui.status.textContent,'1 creada(s), 0 actualizada(s), 0 histórica(s).');
 });
 
 test('Paginación incremental de 50 con cursor; sin búsqueda inicial masiva',async()=>{

@@ -6,6 +6,7 @@
 // Fases 2-4: interfaz, formulas nuevas e integracion con GAS.
 
 const db = require('../../config/db');
+const reconciliadorInt9 = require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
 const visibilityService = require('../ventas/ventas-visibility.service');
 const service = require('./instalaciones-administracion.service');
 const autoService = require('./instalaciones-administracion.auto-service');
@@ -309,10 +310,9 @@ async function createRowsCor(req, body = {}) {
     await connection.commit();
     transaction = false;
     // Se notifica despues de COMMIT para evitar escribir asignaciones sobre altas fallidas.
-    const reconciliador=require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
     for(let i=0;i<created.length;i++){
       if(String(rows[i]?.estatus??'').trim()==='06-A'){
-        await reconciliador.notifySaved(created[i].id_ins_fl,['estatus']);
+        await reconciliadorInt9.notifySaved(created[i].id_ins_fl,['estatus']);
       }
     }
     // El navegador debe volver a consultar con Guard/scope; no se devuelve

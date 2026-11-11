@@ -21,8 +21,8 @@ function createFixture(options={}){
   const plan=row=>{
     const begin=row.fecha_inicio_ajuste;
     const finish=row.fecha_fin_ajuste_real||row.fecha_fin_ajuste_modificado||row.fecha_fin_ajuste_planeado;
-    const valid=typeof begin==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(begin)&&
-      typeof finish==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(finish)&&begin<=finish;
+    const valid=typeof begin==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(begin)&&
+      typeof finish==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(finish)&&begin<=finish;
     return {inicio:valid?begin:null,fin:valid?finish:null,valida:valid};
   };
   const errors=(code,status=409)=>Object.assign(new Error(code),{statusCode:status,code});

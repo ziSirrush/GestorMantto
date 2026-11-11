@@ -5,6 +5,7 @@
 // [Aster | 2026-10-08 | ASTER-MG | FASE_5_INSTALACIONES_ADMINISTRACION_INTEGRACION_QA_V001]
 
 const db = require('../../config/db');
+const reconciliadorInt9 = require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
 const visibilityService = require('../ventas/ventas-visibility.service');
 // [Aster | 2026-10-09 | ASTER-MG | FIX_1_INSTALACIONES_ADMINISTRACION_EDICION_TOTAL_BACKEND_V001]
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
@@ -309,8 +310,7 @@ async function updateGroup_cor(req, idValue, groupKey, body = {}) {
   }
 
   if(result.changed){
-    await require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
-      .notifySaved(id,Object.keys(result.changes||{}));
+    await reconciliadorInt9.notifySaved(id,Object.keys(result.changes||{}));
   }
   // FIX 4: no devolver la imagen posterior del registro. El grupo
   // responsables puede cambiar id_sup/id_asesor/id_admin y revocar el alcance
@@ -424,8 +424,7 @@ async function updateDetail_cor(req, idValue, body = {}, options = {}) {
       'Registro de instalacion no encontrado.');
   }
   if(result.changed){
-    await require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
-      .notifySaved(id,Object.keys(result.changes||{}));
+    await reconciliadorInt9.notifySaved(id,Object.keys(result.changes||{}));
   }
   const changedGroups = groupKeys.filter(key => payload.selected[key].fields.some(field => (
     Object.prototype.hasOwnProperty.call(result.changes || {}, field)
@@ -628,9 +627,8 @@ async function updateMulti_cor(req, projectKey, body = {}) {
     }
   });
   if(results.changed){
-    const reconcile=require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
     for(const item of results.records||[]){
-      if(item.changed)await reconcile.notifySaved(item.id_ins_fl,item.changed_fields);
+      if(item.changed)await reconciliadorInt9.notifySaved(item.id_ins_fl,item.changed_fields);
     }
   }
   // No devolver datos operativos posteriores: algun usuario podria perder alcance.
