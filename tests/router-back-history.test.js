@@ -127,6 +127,44 @@ test('Back y Forward del navegador reconstruyen la pila correcta', async () => {
   assert.equal(route(h), 'resumen');
 });
 
+test('Back sigue detalle a detalle hasta el punto de origen de Call Center', async () => {
+  const h = createHarness();
+  await h.window.ManttoRouter.go('callcenter', {view:'dashboard'});
+  await h.window.ManttoRouter.go('callcenter', {view:'u365-proyectos'});
+  await h.window.ManttoRouter.go('detalle', {type:'proyecto', id:'PROYECTO-1'});
+  await h.window.ManttoRouter.go('detalle', {type:'equipo', id:'EQUIPO-1'});
+
+  await h.window.ManttoRouter.back();
+  assert.equal(route(h), 'detalle');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.type, 'proyecto');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.id, 'PROYECTO-1');
+
+  await h.window.ManttoRouter.back();
+  assert.equal(route(h), 'callcenter');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.view, 'u365-proyectos');
+
+  await h.window.ManttoRouter.back();
+  assert.equal(route(h), 'callcenter');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.view, 'dashboard');
+});
+
+test('Back de la app usa el origen interno aunque la entrada anterior del navegador este obsoleta', async () => {
+  const h = createHarness();
+  await h.window.ManttoRouter.go('callcenter', {view:'dashboard'});
+  await h.window.ManttoRouter.go('callcenter', {view:'u365-equipos'});
+
+  const current = h.browser.entries[h.browser.index];
+  h.browser.entries[h.browser.index - 1] = {
+    state:Object.assign({}, current.state),
+    hash:current.hash
+  };
+
+  await h.window.ManttoRouter.back();
+  assert.equal(route(h), 'callcenter');
+  assert.equal(h.window.ManttoRouter.getCurrent().payload.view, 'dashboard');
+  assert.deepEqual(stack(h), ['home']);
+});
+
 test('Back puede entregar datos al módulo previo sin crear un duplicado', async () => {
   const h = createHarness();
   await h.window.ManttoRouter.go('ventas-clientes');
@@ -178,6 +216,20 @@ test('una recarga sin history.state restaura la pila de sesión', async () => {
   assert.deepEqual(stack(reloaded), ['home', 'resumen']);
   await reloaded.window.ManttoRouter.back();
   assert.equal(route(reloaded), 'resumen');
+});
+
+test('hash de Call Center dashboard no reutiliza una subvista U365 guardada en sesión', async () => {
+  const first = createHarness();
+  await first.window.ManttoRouter.go('callcenter', {view:'dashboard'});
+  await first.window.ManttoRouter.go('callcenter', {view:'u365-proyectos'});
+
+  const browser = {entries:[{state:null,hash:'#/callcenter'}],index:0};
+  const reloaded = createHarness({browser,storage:first.storage});
+  reloaded.emit('mantto:auth-ready');
+  await settle();
+
+  assert.equal(route(reloaded), 'callcenter');
+  assert.equal(reloaded.window.ManttoRouter.getCurrent().payload, null);
 });
 
 test('un hash de detalle editado manualmente prevalece sobre un history.state anterior', async () => {

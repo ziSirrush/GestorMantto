@@ -1276,6 +1276,7 @@
 
   async function internalBack(opts){
     const options = opts || {};
+    const hasPayloadOverride = Object.prototype.hasOwnProperty.call(options,'payload');
     const previous = historyStack.pop();
     const sequence = ++navigationSequence;
     let context = null;
@@ -1283,7 +1284,7 @@
       navigationDepth = Math.max(0,navigationDepth - 1);
       const destination=directDetailDestination(previous.route,previous.payload || null);
       currentRoute = canonicalRoute(destination.route);
-      currentPayload = destination.payload || null;
+      currentPayload = hasPayloadOverride ? (options.payload || null) : (destination.payload || null);
       context = previous.context || null;
     } else if(currentRoute !== 'home') {
       navigationDepth = 0;
@@ -1315,16 +1316,18 @@
       window.clearTimeout(appBack.timer);
     }
     (async function(){
+        // El Back solicitado dentro de BLT NOW sigue la pila real de origen.
+        // El estado anterior del navegador puede estar obsoleto tras una recarga,
+        // restauracion de sesion o actualizacion de la PWA; no debe decidir el destino.
+        if(appBack){
+          return internalBack(Object.assign({},appBack.options || {},{fromBrowser:false}));
+        }
         let state = ev.state;
         if(state && state.mantto){
           if(Number(state.manttoEpoch || 0) !== navigationEpoch){
             historyStack.length = 0;
             navigationDepth = 0;
             return internalGo('home',null,{replace:true,skipHistory:true,navigationType:'back'});
-          }
-          if(appBack && appBack.hasPayloadOverride){
-            state = Object.assign({},state,{payload:appBack.payloadOverride || null,context:null});
-            try{ window.history.replaceState(state,'',routeUrl(state.route,state.payload)); }catch(error){}
           }
           const sequence = ++navigationSequence;
           if(Array.isArray(state.manttoHistory)) restoreHistoryStack(state.manttoHistory);
@@ -1366,25 +1369,26 @@
     const state = window.history && window.history.state;
     const browserEntryMatches = state && state.mantto &&
       Number(state.manttoDepth) === navigationDepth && Number(state.manttoEpoch || 0) === navigationEpoch;
-    if(navigationDepth > 0 && browserEntryMatches && typeof window.history.back === 'function'){
+    if(historyStack.length > 0 && navigationDepth > 0 && browserEntryMatches && typeof window.history.back === 'function'){
       let resolveBack;
       const promise = new Promise(function(resolve){ resolveBack = resolve; });
       const timer = window.setTimeout(function(){
         if(pendingAppBack && pendingAppBack.promise === promise){
           pendingAppBack = null;
-          resolveBack(false);
+          Promise.resolve(internalBack(options || {})).then(resolveBack,function(error){
+            console.error('[Router] No fue posible completar Back desde el historial interno:',error);
+            resolveBack(false);
+          });
         }
       },3000);
       pendingAppBack = {
-        promise:promise,resolve:resolveBack,timer:timer,
-        hasPayloadOverride:Boolean(options && Object.prototype.hasOwnProperty.call(options,'payload')),
-        payloadOverride:options && options.payload
+        promise:promise,resolve:resolveBack,timer:timer,options:options || {}
       };
       try{ window.history.back(); }
       catch(error){
         window.clearTimeout(timer);
         pendingAppBack = null;
-        return internalBack();
+        return internalBack(options || {});
       }
       return promise;
     }
@@ -1397,7 +1401,7 @@
         replace:true,skipHistory:true,navigationType:'back'
       });
     }
-    return internalBack();
+    return internalBack(options || {});
   }
 
   function isCommentNotification(target){
@@ -1490,8 +1494,12 @@
         : (hashRoute || stored || { route:'home', payload:null }));
     if(hashRoute && stored && hashRoute.route === stored.route &&
       (!browserState || !browserState.mantto || Number(browserState.manttoEpoch || 0) === navigationEpoch)){
-      const sameDetail = hashRoute.route !== 'detalle' || (hashRoute.payload && stored.payload && String(hashRoute.payload.type||'')===String(stored.payload.type||'') && String(hashRoute.payload.id||'')===String(stored.payload.id||''));
-      if(sameDetail && !browserStateIsCurrent) target = {
+      const sameAddressedView = hashRoute.route === 'detalle'
+        ? Boolean(hashRoute.payload && stored.payload && String(hashRoute.payload.type||'')===String(stored.payload.type||'') && String(hashRoute.payload.id||'')===String(stored.payload.id||''))
+        : hashRoute.route === 'callcenter'
+          ? String(hashRoute.payload?.view || 'dashboard') === String(stored.payload?.view || 'dashboard')
+          : true;
+      if(sameAddressedView && !browserStateIsCurrent) target = {
         route:hashRoute.route,
         payload:stored.payload || hashRoute.payload ? Object.assign({}, stored.payload || {}, hashRoute.payload || {}) : null
       };

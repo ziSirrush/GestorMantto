@@ -1,43 +1,56 @@
-# BLT NOW — Nomenclatura de commits y metadatos de despliegue
+# BLT NOW — Versionado independiente API + Frontend
 
-> Estado: este documento reemplaza la regla de “doble fecha” publicada el 09/11/2026.
+## Autoridad de acceso
 
-## Nomenclatura oficial de commits
+- Inicio y Usuarios: cualquier usuario autenticado.
+- Panel de Control: roles activos `Programador` (maestro) y `Director General`, principales o secundarios.
+- Agrupación Soporte: rol activo exacto `Soporte`, principal o secundario.
+- Resto de agrupaciones y módulos: únicamente los permisos efectivos del catálogo de Panel de Control.
+- Experimental NS: permisos individuales `EXPERIMENTAL_NS_*_ACCESO_VISUAL_MODULO.ACCESO_VISUAL` y alcance territorial `UNITED`.
+- Administración Cobranza United: permiso `COBRANZA_UNI_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL`.
 
-Todo commit de desarrollo en `ziSirrush/GestorMantto` usa:
+## Nomenclatura aprobada
+
+La versión publicada combina dos versiones independientes:
 
 ```
-Version MMDDYY.N
+Version <VER_API>.<VER_FRONTEND>
 ```
 
-- `MMDDYY`: fecha de trabajo en `America/Mexico_City`.
-- `N`: consecutivo entero global de todo el repositorio para ese día.
-- El consecutivo no se divide por API, Frontend, módulo, persona ni tipo de cambio.
-- Antes de publicar se revisa todo el historial del día para tomar el mayor `N` y usar el siguiente.
-- No se reescribe historial publicado para corregir títulos anteriores sin autorización específica de force-push.
+Cada parte usa `DDMMYY.N` con fecha de `America/Mexico_City`.
 
-## Metadatos técnicos de despliegue
+Estado de esta publicación:
 
-Los archivos siguientes continúan existiendo para identificar la pareja técnica desplegada de API/Frontend:
+- VER API: **111126.1**
+- VER Frontend: **111126.1**
+- Versión combinada: **111126.1.111126.1**
+
+Los manifiestos versionados son:
 
 - `config/releases/api.json`
 - `config/releases/frontend.json`
 
-Su formato histórico `DDMMYY.N` es **metadato de despliegue**, no la nomenclatura del commit.
+Reglas:
 
-Por lo tanto, un commit correcto puede tener el título:
+- Un cambio exclusivamente Frontend conserva VER API e incrementa VER Frontend.
+- Una publicación API incrementa VER API y vuelve a enlazar Frontend en revisión `.1`.
+- Al cambiar la fecha, el componente publicado reinicia su revisión en `.1`.
+- No existe una tercera versión global del repositorio.
 
+## CI/CD separado por YML
+
+- `main_mantto-gestor-api.yml` controla Azure y `config/releases/api.json`.
+- `pages.yml` controla GitHub Pages y `config/releases/frontend.json`.
+- Ambos validan que el título del commit sea exactamente la combinación de los dos manifiestos.
+- La aplicación publica `version`, `apiVersion` y `frontendVersion`; `version` siempre es `API.Frontend`.
+
+Comandos de trabajo:
+
+```bash
+node tools/release-version.js show
+node tools/release-version.js bump frontend
+node tools/release-version.js bump api
+node tools/release-version.js verify
 ```
-Version 111026.2
-```
 
-aunque los metadatos técnicos publicados indiquen, por ejemplo, API `101126.19` y Frontend `101126.3`.
-
-## Validación CI
-
-- `tools/release-version.js verify` valida que el commit actual use `Version MMDDYY.N` y que su fecha coincida con Ciudad de México.
-- `tools/release-version.js verify-history` valida además el consecutivo global contra todo el historial.
-- `.github/workflows/commit-version.yml` ejecuta esa validación global en cada push a `main`.
-- Los workflows de Azure y Pages conservan sus filtros selectivos; ya no utilizan la doble fecha como título de commit.
-
-Los commits históricos con nomenclatura anterior permanecen como evidencia; cambiar su mensaje modificaría el SHA y requeriría reescritura de historial.
+Respaldo anterior del CI/CD: rama `backup/ci-before-selective-20261109`, SHA `cb33a88051bb713576bd0b39899ca016b5d340f1`.

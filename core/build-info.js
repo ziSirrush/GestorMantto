@@ -14,7 +14,6 @@
       generated,
       provider:String(raw.provider||'').trim(),
       version:String(raw.version||'').trim(),
-      deploymentVersion:String(raw.deploymentVersion||'').trim(),
       apiVersion:String(raw.apiVersion||'').trim(),
       frontendVersion:String(raw.frontendVersion||'').trim(),
       localVersion:String(raw.localVersion||'FIX V016.2').trim(),

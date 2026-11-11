@@ -45,12 +45,14 @@ test('U365 conserva alcance United en la consulta',()=>{
   assert.match(service,/zoneIds_gnral\(req\)/);
 });
 
-test('subvistas U365 tienen regreso explicito al Dashboard Call Center',()=>{
+test('subvistas U365 regresan por el historial real y usan Dashboard solo como fallback directo',()=>{
   assert.match(html,/id="cc-u365-proy-back"/);
   assert.match(html,/id="cc-u365-eq-back"/);
-  assert.match(front,/returnToCallCenterDashboard/);
+  assert.match(front,/returnToCallCenterOrigin/);
+  assert.match(front,/ManttoRouter\.back/);
   assert.match(front,/fallbackRoute:'callcenter'/);
   assert.match(front,/fallbackPayload:\{view:'dashboard'\}/);
+  assert.doesNotMatch(front,/ManttoRouter\.go\('callcenter',\{view:'dashboard'\}\)/);
 });
 
 test('router serializa y restaura la subvista U365',()=>{

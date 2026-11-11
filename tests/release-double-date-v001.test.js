@@ -4,14 +4,11 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
-const {
-  parsePart,normalize,bump,read,releaseDate,
-  commitVersionDate,parseOfficialVersion,parseOfficialSubject,nextOfficialRevision
-}=require('../tools/release-version');
-const root=path.resolve(__dirname,'..');
+const {parsePart,normalize,bump,read,releaseDate}=require('../tools/release-version');
 const {generate:generateBuildInfo}=require('../tools/generate-build-info');
+const root=path.resolve(__dirname,'..');
 
-test('Metadatos de despliegue API/Frontend conservan su contrato técnico',()=>{
+test('Nomenclatura DDMMYY.API.DDMMYY.FE corresponde a manifiestos',()=>{
   const state=read();
   const api=parsePart(state.api);
   const frontend=parsePart(state.frontend);
@@ -20,80 +17,74 @@ test('Metadatos de despliegue API/Frontend conservan su contrato técnico',()=>{
   assert.match(fs.readFileSync(path.join(root,'tools/generate-build-info.js'),'utf8'),/readReleaseVersion/);
 });
 
-test('Bump técnico de frontend no toca API',()=>{
-  const s=read(); const api=parsePart(s.api); const frontend=parsePart(s.frontend);
+test('Solo frontend incrementa su contador sin tocar API',()=>{
+  const s=read(); const frontend=parsePart(s.frontend);
   const next=bump('frontend',s,frontend.date);
   assert.equal(next.api,s.api);
   assert.equal(parsePart(next.frontend).date,frontend.date);
   assert.equal(parsePart(next.frontend).revision,frontend.revision+1);
 });
 
-test('Formato oficial de commit es MMDDYY.N',()=>{
-  assert.deepEqual(parseOfficialSubject('Version 111026.2'),{date:'111026',revision:2,version:'111026.2'});
-  assert.deepEqual(parseOfficialVersion('111026.9'),{date:'111026',revision:9,version:'111026.9'});
-  for(const value of ['Version 101126.19.101126.3','Version 131026.1','Fix Call Center','Version 113126.1']){
-    assert.throws(()=>parseOfficialSubject(value),Error);
-  }
+test('Al cambiar de fecha el frontend reinicia revision y API permanece estable',()=>{
+  const s=read(); const next=bump('frontend',s,'121126');
+  assert.equal(next.api,s.api);
+  assert.equal(next.frontend,'121126.1');
 });
 
-test('Consecutivo oficial es global e ignora títulos legacy',()=>{
-  const subjects=[
-    'Version 111026.1',
-    'Version 111026.1',
-    'Version 101126.19.101126.3',
-    'Fix Call Center U365 endpoints y navegacion'
-  ];
-  assert.equal(nextOfficialRevision(subjects,'111026'),2);
-  assert.equal(nextOfficialRevision(subjects,'111126'),1);
+test('Cambio de API incrementa API y reinicia Frontend enlazado',()=>{
+  const s=read(); const api=parsePart(s.api);
+  const same=bump('api',s,api.date);
+  assert.equal(parsePart(same.api).revision,api.revision+1);
+  assert.equal(same.frontend,api.date+'.1');
+  assert.equal(same.combined,same.api+'.'+same.frontend);
+  assert.deepEqual(bump('api',s,'121126'),{
+    api:'121126.1',frontend:'121126.1',combined:'121126.1.121126.1'
+  });
 });
 
-test('Fecha oficial usa America/Mexico_City en MMDDYY',()=>{
-  assert.equal(commitVersionDate(new Date('2026-11-10T02:00:00Z')),'110926');
-  assert.equal(commitVersionDate(new Date('2026-11-10T07:00:00Z')),'111026');
-});
-
-test('Fecha técnica heredada permanece DDMMYY para manifiestos',()=>{
-  assert.equal(releaseDate(new Date('2026-11-10T02:00:00Z')),'091126');
-  assert.equal(releaseDate(new Date('2026-11-10T07:00:00Z')),'101126');
-});
-
-test('Manifiestos técnicos siguen validando fechas y revisiones',()=>{
+test('El formato rechaza fechas y revisiones invalidas',()=>{
   for(const value of ['311126.1','091326.1','091126.0','110926','-091126.1','091126.1.1']){
     assert.throws(()=>parsePart(value),Error);
   }
   assert.throws(()=>normalize({version:'091126.6'},{apiVersion:'091126.5',version:'091126.1'}));
 });
 
-test('CI valida nomenclatura oficial y existe guard global de historial',()=>{
-  const pages=fs.readFileSync(path.join(root,'.github/workflows/pages.yml'),'utf8');
-  const api=fs.readFileSync(path.join(root,'.github/workflows/main_mantto-gestor-api.yml'),'utf8');
-  const guard=fs.readFileSync(path.join(root,'.github/workflows/commit-version.yml'),'utf8');
-  assert.match(pages,/Validar nomenclatura oficial/);
-  assert.match(api,/Validar nomenclatura oficial/);
-  assert.match(pages,/node tools\/release-version\.js verify/);
-  assert.match(api,/node tools\/release-version\.js verify/);
-  assert.match(guard,/fetch-depth: 0/);
-  assert.match(guard,/node tools\/release-version\.js verify-history/);
+test('La fecha del corte de America/Mexico_City se interpreta correctamente',()=>{
+  assert.equal(releaseDate(new Date('2026-11-10T02:00:00Z')),'091126');
+  assert.equal(releaseDate(new Date('2026-11-10T07:00:00Z')),'101126');
 });
 
+test('YML separados validan la combinación y escuchan solo su manifiesto',()=>{
+  const pages=fs.readFileSync(path.join(root,'.github/workflows/pages.yml'),'utf8');
+  const api=fs.readFileSync(path.join(root,'.github/workflows/main_mantto-gestor-api.yml'),'utf8');
+  assert.match(pages,/Validar nomenclatura API \+ Frontend/);
+  assert.match(api,/Validar nomenclatura API \+ Frontend/);
+  assert.match(pages,/config\/releases\/frontend\.json/);
+  assert.doesNotMatch(pages,/config\/releases\/api\.json/);
+  assert.match(api,/config\/releases\/api\.json/);
+  assert.doesNotMatch(api,/config\/releases\/frontend\.json/);
+  assert.match(pages,/node tools\/release-version\.js verify/);
+  assert.match(api,/node tools\/release-version\.js verify/);
+  assert.equal(fs.existsSync(path.join(root,'.github/workflows/commit-version.yml')),false);
+});
 
-test('Build publicado muestra la version oficial del commit y conserva metadatos tecnicos',()=>{
+test('Build publicado muestra API + Frontend y no una tercera versión global',()=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'blt-build-info-'));
   try{
     const output=path.join(dir,'build-info.generated.js');
     const payload=generateBuildInfo({
       output,
       commit:'a'.repeat(40),
-      message:'Version 111026.4',
+      message:'Version 111126.1.111126.1',
       provider:'GITHUB_PAGES',
-      generatedAt:'2026-11-10T22:30:00.000Z'
+      generatedAt:'2026-11-11T06:30:00.000Z'
     });
     const release=read();
-    assert.equal(payload.version,'111026.4');
-    assert.equal(payload.deploymentVersion,release.combined);
+    assert.equal(payload.version,release.combined);
     assert.equal(payload.apiVersion,release.api);
     assert.equal(payload.frontendVersion,release.frontend);
-    assert.match(fs.readFileSync(output,'utf8'),/"version": "111026\.4"/);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload,'deploymentVersion'),false);
+    assert.match(fs.readFileSync(output,'utf8'),/"version": "111126\.1\.111126\.1"/);
   }finally{
     fs.rmSync(dir,{recursive:true,force:true});
   }

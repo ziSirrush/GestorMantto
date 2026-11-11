@@ -40,7 +40,7 @@ jobs:
         working-directory: ./backend
         run: npm ci --no-audit --no-fund
 
-      - name: Validar nomenclatura oficial
+      - name: Validar nomenclatura API + Frontend
         run: node tools/release-version.js verify
 
       - name: Auditar dependencias

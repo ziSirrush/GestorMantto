@@ -1,7 +1,6 @@
 'use strict';
-// BLT NOW
-// Nomenclatura OFICIAL de commits: Version MMDDYY.N (consecutivo global por repositorio y día).
-// Metadatos de despliegue heredados: API DDMMYY.N | Frontend DDMMYY.N | Publicación API.FE.
+// BLT NOW | Versionamiento independiente con doble fecha DDMMYY.
+// API: DDMMYY.N | Frontend: DDMMYY.N | Publicacion: API.FE
 const fs = require('node:fs');
 const path = require('node:path');
 const cp = require('node:child_process');
@@ -9,22 +8,11 @@ const ROOT = path.resolve(__dirname, '..');
 const API_FILE = path.join(ROOT, 'config', 'releases', 'api.json');
 const FRONT_FILE = path.join(ROOT, 'config', 'releases', 'frontend.json');
 
-function zonedParts(date = new Date()) {
-  return Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+function releaseDate(date = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Mexico_City', year: '2-digit', month: '2-digit', day: '2-digit'
   }).formatToParts(date).filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
-}
-
-// Formato heredado usado solo por los manifiestos técnicos de API/Frontend.
-function releaseDate(date = new Date()) {
-  const parts = zonedParts(date);
   return parts.day + parts.month + parts.year;
-}
-
-// Formato oficial de commits definido por la Constitución.
-function commitVersionDate(date = new Date()) {
-  const parts = zonedParts(date);
-  return parts.month + parts.day + parts.year;
 }
 
 function parsePart(value, label = 'version') {
@@ -39,27 +27,6 @@ function parsePart(value, label = 'version') {
   const revision = Number(match[4]);
   if (!Number.isSafeInteger(revision)) throw new Error(label + ' tiene una revision invalida');
   return { date: match[1] + match[2] + match[3], revision };
-}
-
-function parseOfficialVersion(value, label = 'commit') {
-  const source = String(value || '');
-  const match = /^(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(\d{2})\.([1-9]\d*)$/.exec(source);
-  if (!match) throw new Error(label + ' debe ser MMDDYY.N: ' + source);
-  const month = Number(match[1]), day = Number(match[2]), year = 2000 + Number(match[3]);
-  const verified = new Date(Date.UTC(year, month - 1, day));
-  if (verified.getUTCFullYear() !== year || verified.getUTCMonth() !== month - 1 || verified.getUTCDate() !== day) {
-    throw new Error(label + ' contiene una fecha invalida: ' + source);
-  }
-  const revision = Number(match[4]);
-  if (!Number.isSafeInteger(revision)) throw new Error(label + ' tiene una revision invalida');
-  return { date: match[1] + match[2] + match[3], revision, version: source };
-}
-
-function parseOfficialSubject(subject) {
-  const source = String(subject || '').trim();
-  const match = /^Version (.+)$/.exec(source);
-  if (!match) throw new Error('Commit esperado: "Version MMDDYY.N", recibido: "' + source + '"');
-  return parseOfficialVersion(match[1], 'Commit');
 }
 
 function version(part) { return part.date + '.' + part.revision; }
@@ -98,64 +65,16 @@ function save(state) {
   fs.writeFileSync(FRONT_FILE, JSON.stringify({apiVersion:state.api, version:state.frontend}, null, 2) + '\n');
 }
 
-function git(args) {
-  return cp.execFileSync('git', args, {cwd:ROOT, encoding:'utf8'}).trim();
-}
-
 function gitSubject() {
-  return git(['log', '-1', '--pretty=%s']);
-}
-
-function gitCommitDate(ref = 'HEAD') {
-  return git(['show', '-s', '--format=%cI', ref]);
-}
-
-function gitSubjects(ref = 'HEAD') {
-  const out = git(['log', ref, '--pretty=%s']);
-  return out ? out.split(/\r?\n/).filter(Boolean) : [];
-}
-
-function previousSubjects() {
-  try { return gitSubjects('HEAD^'); }
-  catch (_) { return []; }
-}
-
-function nextOfficialRevision(subjects, date) {
-  let max = 0;
-  for (const subject of subjects || []) {
-    try {
-      const parsed = parseOfficialSubject(subject);
-      if (parsed.date === date) max = Math.max(max, parsed.revision);
-    } catch (_) {}
-  }
-  return max + 1;
-}
-
-function nextCommitTitle(date = new Date()) {
-  const commitDate = commitVersionDate(date);
-  return 'Version ' + commitDate + '.' + nextOfficialRevision(gitSubjects(), commitDate);
+  return cp.execFileSync('git', ['log', '-1', '--pretty=%s'], {cwd:ROOT,encoding:'utf8'}).trim();
 }
 
 function verify({checkCommit = process.env.GITHUB_EVENT_NAME === 'push'} = {}) {
-  const current = read();
+  const current=read();
   if (checkCommit) {
-    const parsed = parseOfficialSubject(gitSubject());
-    const actualDate = commitVersionDate(new Date(gitCommitDate('HEAD')));
-    if (parsed.date !== actualDate) {
-      throw new Error('La fecha del commit debe ser ' + actualDate + ' (America/Mexico_City), recibido: ' + parsed.date);
-    }
-    return Object.freeze({...current, commitVersion: parsed.version});
-  }
-  return current;
-}
-
-function verifyHistory() {
-  const current = verify({checkCommit:true});
-  const parsed = parseOfficialVersion(current.commitVersion, 'Commit');
-  const expectedRevision = nextOfficialRevision(previousSubjects(), parsed.date);
-  if (parsed.revision !== expectedRevision) {
-    throw new Error('Consecutivo global esperado para ' + parsed.date + ': .' + expectedRevision +
-      ', recibido: .' + parsed.revision);
+    const expected = 'Version ' + current.combined;
+    const actual = gitSubject();
+    if (actual !== expected) throw new Error('Commit esperado: "' + expected + '", recibido: "' + actual + '"');
   }
   return current;
 }
@@ -164,21 +83,18 @@ function run(args) {
   const command = args[0] || 'show';
   if (command === 'show') {
     const current=read();
-    console.log(JSON.stringify({...current, officialCommitTitle:nextCommitTitle()}, null, 2));
+    console.log(JSON.stringify({...current,commitTitle:'Version '+current.combined}, null, 2));
   } else if (command === 'verify') {
     const current=verify();
-    console.log('Nomenclatura oficial verificada: Version ' + current.commitVersion);
-  } else if (command === 'verify-history') {
-    const current=verifyHistory();
-    console.log('Nomenclatura oficial y consecutivo global verificados: Version ' + current.commitVersion);
+    console.log('Nomenclatura DDMMYY verificada: ' + current.combined);
   } else if (command === 'bump') {
     const before=read();
     const after=bump(args[1],before);
     save(after);
-    console.log('Metadatos de despliegue: ' + before.combined + ' -> ' + after.combined);
-    console.log('Mensaje de commit oficial: ' + nextCommitTitle());
+    console.log('BLT NOW: ' + before.combined + ' -> ' + after.combined);
+    console.log('Mensaje de commit: Version ' + after.combined);
   } else {
-    throw new Error('Uso: node tools/release-version.js show|verify|verify-history|bump api|bump frontend');
+    throw new Error('Uso: node tools/release-version.js show|verify|bump api|bump frontend');
   }
 }
 
@@ -187,7 +103,4 @@ if (require.main === module) {
   catch (error) { console.error('[release-version] ' + error.message); process.exitCode = 1; }
 }
 
-module.exports={
-  releaseDate,commitVersionDate,parsePart,parseOfficialVersion,parseOfficialSubject,
-  normalize,read,bump,save,nextOfficialRevision,nextCommitTitle,verify,verifyHistory
-};
+module.exports={releaseDate,parsePart,normalize,read,bump,save,verify};
