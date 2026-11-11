@@ -17,6 +17,8 @@ function mockService_cor(stubs) {
   const previous=Module._load;
   try {
     Module._load=function(request,parent,isMain){
+      if(parent?.filename===serviceFile && request==='../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
+        return {notifySaved:async()=>({estado:'SIN_CAMBIOS'})};
       if (parent?.filename===serviceFile && Object.hasOwn(stubs,request)) return stubs[request];
       return previous.call(this,request,parent,isMain);
     };

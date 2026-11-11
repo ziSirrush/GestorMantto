@@ -157,10 +157,12 @@ async function fetchAssignmentRows(connection, type, personIds, req, opts={}) {
   // CASE evalúa alcance por registro sin filtrar las ocupaciones ajenas.
   // Todo detalle externo se redacta antes de construir la respuesta.
   const [rows]=await connection.query(
-    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,a.origen,a.es_historico,$1 WHEN (${access.sql}) THEN 1 ELSE 0 END AS visible
+    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,a.origen,a.es_historico,
+             ${equipFields()}, CASE WHEN (${access.sql}) THEN 1 ELSE 0 END AS visible
        FROM instalaciones_programacion_asignaciones a
        JOIN instalaciones_personal p ON p.id_personal=a.id_personal
-       JOIN ins_fl f ON f.id_ins_fl=a.id_ins_fl AND (f.activo=1 OR a.es_historico=1)$1 AND p.tipo_personal=? ${personClause}
+       JOIN ins_fl f ON f.id_ins_fl=a.id_ins_fl AND (f.activo=1 OR a.es_historico=1)
+       WHERE a.activo=1 AND p.tipo_personal=? ${personClause}
        ORDER BY a.id_personal,a.id_asignacion LIMIT ${MAX_ASIGNACIONES_CONSULTA+1}`,params);
   if (rows.length>MAX_ASIGNACIONES_CONSULTA) {
     throw error(422,'INT9_DEMASIADAS_ASIGNACIONES','Consulta demasiado amplia; usa filtros de personal.');
@@ -168,7 +170,8 @@ async function fetchAssignmentRows(connection, type, personIds, req, opts={}) {
   return rows.map(row=>({
     ...row,
     id_asignacion:Number(row.id_asignacion),id_personal:Number(row.id_personal),id_ins_fl:Number(row.id_ins_fl),
-    origen:row.origen||'MANUAL',es_historico:Number(row.es_historico)===1,$1,
+    origen:row.origen||'MANUAL',es_historico:Number(row.es_historico)===1,
+    visible:Number(row.visible)===1,
     ...windowAsignacion(type,row,row)
   }));
 }
@@ -341,7 +344,8 @@ async function crearAsignaciones(req) {
 }
 async function getAssignment(connection, id) {
   const [rows]=await connection.query(
-    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,a.origen,a.es_historico,$1,p.nombre FROM instalaciones_programacion_asignaciones a
+    `SELECT a.id_asignacion,a.id_personal,a.id_ins_fl,a.fecha_desde,a.fecha_hasta,a.notas,a.origen,a.es_historico,
+       p.tipo_personal,p.nombre FROM instalaciones_programacion_asignaciones a
       JOIN instalaciones_personal p ON p.id_personal=a.id_personal
       WHERE a.id_asignacion=? AND a.activo=1 LIMIT 1`,[positive(id,'Asignación')]);
   if (!rows.length) throw error(404,'INT9_ASIGNACION_NO_ENCONTRADA','Asignación no encontrada.');
@@ -407,7 +411,7 @@ async function tieneAsignacionesVigentes(connection, idPersonal) {
      FROM instalaciones_programacion_asignaciones a
      JOIN instalaciones_personal p ON p.id_personal=a.id_personal
      JOIN ins_fl f ON f.id_ins_fl=a.id_ins_fl AND f.activo=1
-     WHERE a.id_personal=? AND a.activo=1 AND a.es_historico=0`[positive(idPersonal,'Persona')]);
+     WHERE a.id_personal=? AND a.activo=1 AND a.es_historico=0`,[positive(idPersonal,'Persona')]);
   const today=mxToday();
   return rows.filter(row=>{
     const w=windowAsignacion(row.tipo_personal,row,row);

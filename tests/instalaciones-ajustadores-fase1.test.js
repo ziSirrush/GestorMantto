@@ -90,7 +90,7 @@ try {
 } finally {Module._load=originalLoad;}
 
 function eq(id,ajustador,options={}) {
-  return {id_ins_fl:id,activo:1,id_sup:10,proyecto:'Proyecto de prueba',referencia_sitio:'Equipo '+id,
+  return {id_ins_fl:id,activo:1,estatus:'06-A',id_sup:10,proyecto:'Proyecto de prueba',referencia_sitio:'Equipo '+id,
     ajustador,fecha_inicio_ajuste:'2026-10-10',fecha_fin_ajuste_real:null,
     fecha_fin_ajuste_modificado:null,fecha_fin_ajuste_planeado:'2026-10-20',...options};
 }

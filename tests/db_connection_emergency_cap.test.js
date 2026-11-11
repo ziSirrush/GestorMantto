@@ -260,7 +260,8 @@ function bootFixture({failedChecks=1}={}) {
     './jobs/equiposCriticosSalidaU35.job':['startEquiposCriticosSalidaU35Job','stopEquiposCriticosSalidaU35Job'],
     './jobs/movimientosCriticosCierreSemanal.job':['startMovimientosCriticosCierreSemanalJob','stopMovimientosCriticosCierreSemanalJob'],
     './jobs/instalacionesAdministracionCalculados.job':['startInstalacionesAdministracionCalculadosJob','stopInstalacionesAdministracionCalculadosJob'],
-    './jobs/cobranzaUniFkValidator.job':['startCobranzaUniFkValidatorJob','stopCobranzaUniFkValidatorJob']
+    './jobs/cobranzaUniFkValidator.job':['startCobranzaUniFkValidatorJob','stopCobranzaUniFkValidatorJob'],
+    './jobs/instalacionesProgramacionPersonal.job':['startJob','stopJob']
   })){
     mocks[file]={};for(const k of keys)mocks[file][k]=()=>{starts[k]=(starts[k]||0)+1;};
   }

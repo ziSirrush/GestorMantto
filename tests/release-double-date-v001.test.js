@@ -84,7 +84,7 @@ test('Build publicado muestra API + Frontend y no una tercera versión global',(
     assert.equal(payload.apiVersion,release.api);
     assert.equal(payload.frontendVersion,release.frontend);
     assert.equal(Object.prototype.hasOwnProperty.call(payload,'deploymentVersion'),false);
-    assert.match(fs.readFileSync(output,'utf8'),/"version": "111126\.1\.111126\.1"/);
+    assert.ok(fs.readFileSync(output,'utf8').includes('"version": "'+release.combined+'"'));
   }finally{
     fs.rmSync(dir,{recursive:true,force:true});
   }
