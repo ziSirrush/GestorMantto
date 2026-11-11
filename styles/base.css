@@ -157,7 +157,8 @@ button{cursor:pointer}
 /* Los detalles a pantalla completa dejan accesible la barra contextual. */
 #view-instalaciones-proyectos #py-detail-page,
 #view-instalaciones-proyectos #py-detail-page-2,
-#view-placeholder #cxv-dialog-overlay{top:var(--app-context-bottom,120px)!important}
+#view-placeholder #cxv-dialog-overlay,
+#view-placeholder #ce-detalle-overlay{top:var(--app-context-bottom,120px)!important}
 
 /* AUTH / LOGIN PRUEBAS V1 */
 .auth-hidden{display:none!important}.hidden{display:none!important}

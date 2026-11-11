@@ -1,5 +1,5 @@
 // [Lumbre | 2026-10-29 | LUMBRE-MG | CACHE_SIDEBAR_PERMISOS_V003]
-const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001-viewer-channel-v002-sidebar-permissions-v004-20261106-modo-junta-cachefix-v004-20261109-dashboard-logistica-v001-20261109-dashboard-logistica-v002-20261109-pvo-comentarios-v001-20261109-detail-navigation-v001-20261109-detail-navigation-v002-20261109-detail-navigation-v003-20261110-expns-equipos-parados-v001-20261110-snapshot-lazy-v001-20261111-cx-script-tests-v001';;
+const SERVICE_WORKER_VERSION = '20261021-offline-http-session-v001-limpieza-v002-back-history-v001-context-back-only-v001-cua-admin-wide-edit-v001-manual-fields-v001-int9-aj-f4-v001-instalaciones-duplicar-fila-v002-altas-cancelar-borrador-v001-csp-v001-viewer-channel-v002-sidebar-permissions-v004-20261106-modo-junta-cachefix-v004-20261109-dashboard-logistica-v001-20261109-dashboard-logistica-v002-20261109-pvo-comentarios-v001-20261109-detail-navigation-v001-20261109-detail-navigation-v002-20261109-detail-navigation-v003-20261110-expns-equipos-parados-v001-20261110-snapshot-lazy-v001-20261111-cx-script-tests-v001-20261111-cx-encuestas-close-v002';;
 // Nueva Fase 5: sincronización por backend protegido; respuestas API nunca se cachean.
 const SHELL_CACHE = `blt-now-shell-${SERVICE_WORKER_VERSION}-catalog-f5-v001`;
 const DEFAULT_URL = './index.html?push_open=notifications';
@@ -160,6 +160,12 @@ function needsFreshMeetingAsset_cor(url) {
     path === 'modules/instalaciones-dashboard/instalaciones-dashboard_cor.js';
 }
 
+function needsFreshCxAsset_cor(url){
+  const scopePath=new URL('./',self.location.href).pathname;
+  if(!url.pathname.startsWith(scopePath))return false;
+  return ['core/app.js','styles/base.css','modules/customer-experience-encuestas/customer-experience-encuestas.js','modules/customer-experience-encuestas/customer-experience-encuestas.css'].includes(url.pathname.slice(scopePath.length));
+}
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -187,7 +193,7 @@ self.addEventListener('fetch', event => {
 
   // Dashboard Modo Junta: consultar la version mas reciente online y seguir
   // permitiendo fallback offline. Nunca cachear respuestas de /api/.
-  if (needsFreshMeetingAsset_cor(url)) {
+  if (needsFreshMeetingAsset_cor(url) || needsFreshCxAsset_cor(url)) {
     event.respondWith((async () => {
       try {
         const live = await fetch(request, { cache:'no-store' });

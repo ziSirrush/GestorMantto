@@ -70,3 +70,21 @@ test('PWA CX: Encuestas y Visitas usan regreso contextual cuando hay detalle abi
   assert.match(encuestaCss,/min-height:44px/);
   assert.match(visitaCss,/\.cxv-close\{min-width:44px/);
 });
+
+test('PWA CX: regreso funcional, doble cierre visible y CSS de modal bajo barra contextual',()=>{
+  const base=read('styles/base.css');
+  const css=read('modules/customer-experience-encuestas/customer-experience-encuestas.css');
+  const js=read('modules/customer-experience-encuestas/customer-experience-encuestas.js');
+  const app=read('core/app.js');
+  const sw=read('service-worker.js');
+  const html=read('index.html');
+  assert.match(base,/#view-placeholder #ce-detalle-overlay\{top:var\(--app-context-bottom,120px\)!important\}/);
+  assert.match(css,/#view-placeholder #ce-detalle-overlay\{top:var\(--app-context-bottom,120px\)!important/);
+  assert.match(css,/max-height:calc\(100dvh - var\(--app-context-bottom,120px\) - 18px\)/);
+  assert.match(js,/id="ce-detalle-cerrar-inferior"/);
+  assert.match(js,/closeDetail:closeModal/);
+  assert.match(js,/if\(!isDetailOpen\(\)\)return false/);
+  assert.match(app,/ManttoCustomerExperienceEncuestas\?\.closeDetail\?\.\(\)/);
+  assert.match(sw,/needsFreshCxAsset_cor\(url\)/);
+  assert.match(html,/20261111-cx-encuestas-close-v002/);
+});

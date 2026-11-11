@@ -609,6 +609,8 @@
       backBtn.removeAttribute('data-route');
       backBtn.addEventListener('click', e=>{
         e.preventDefault();
+        if(window.ManttoRouter?.getCurrent?.()?.route==='cx-encuestas' &&
+           window.ManttoCustomerExperienceEncuestas?.closeDetail?.())return;
         const localBack=contextualBackTarget();
         if(localBack){localBack.click();return;}
         if(window.ManttoRouter && window.ManttoRouter.back) window.ManttoRouter.back();
