@@ -15,48 +15,59 @@ test('QA temporal: no hay ejecucion arbitraria ni cambios a SQL nocturno',()=>{
   assert.match(routes,/scriptTests\.authorize/);
   assert.match(tester,/roles\.includes\('Programador'\)/);
   assert.match(tester,/hasEffectivePermission\(id,PERMISO_PANEL\)/);
-  assert.match(tester,/GET_LOCK\(\?,0\)/);
+  assert.match(job,/GET_LOCK/);
+  assert.doesNotMatch(tester,/db\\.getConnection/);
+  assert.match(job,/RELEASE_LOCK/);
   assert.match(tester,/scanEquipos/);
   assert.match(job,/INSERT IGNORE INTO instalaciones_programacion_conciliacion_diaria/);
   assert.match(job,/clock\.hour!==23\|\|clock\.minute!==59/);
 });
-test('QA temporal: barrido manual reutiliza motor sin consumir cierre diario',async()=>{
+test('QA temporal: barrido manual por capas sin consumir cierre diario',async()=>{
   const source=read('backend/src/jobs/instalacionesProgramacionPersonal.job.js');
-  const sql=[];
-  const db={query:async (text)=>{
-    sql.push(String(text));
-    if(/SELECT f\.id_ins_fl FROM ins_fl/.test(text))return [[{id_ins_fl:7}]];
-    throw Error('El barrido manual no puede escribir en la tabla nocturna');
-  }};
-  let called=0;
+  const queries=[],visited=[];
+  let held=0,peak=0,opened=0,released=0;
+  const rows=[{id_ins_fl:7,estatus:'06-A'},{id_ins_fl:8,estatus:'05-C'}];
+  const con={
+    query:async sql=>{
+      queries.push(sql);
+      if(sql.includes('GET_LOCK'))return [[{acquired:1}]];
+      if(sql.includes('RELEASE_LOCK'))return [[{released:1}]];
+      throw Error('SQL de conexion inesperado: '+sql);
+    },
+    release(){held--;released++;},
+    destroy(){held--;released++;}
+  };
+  const db={
+    query:async(sql,params=[])=>{
+      queries.push(String(sql));
+      if(sql.includes('FROM ins_fl f'))return [rows.filter(row=>row.id_ins_fl>params[0])];
+      if(sql.includes('FROM instalaciones_programacion_asignaciones a'))return [[]];
+      throw Error('El barrido manual no puede escribir en la tabla nocturna');
+    },
+    async getConnection(){opened++;held++;peak=Math.max(peak,held);return con;}
+  };
   const context={
     require:module=>{
       if(module==='../config/db')return db;
-      if(module.includes('conciliacion.service'))return {reconciliarEquipo:async()=>{
-        called++;
+      if(module.includes('conciliacion.service'))return {reconciliarEquipo:async(id,options)=>{
+        assert.equal(options.conexionCompartida,con);
+        visited.push(id);
         return {estado:'SINCRONIZADO',creadas:1,actualizadas:0,historicas:0,conflictos:[]};
       }};
       throw Error(module);
-    },module:{exports:{}},Date,Intl,Number,String,Object,JSON,console,
-    setInterval:()=>null,clearInterval:()=>{}
-  };
-  // Segunda pagina devuelta vacia para que termine la prueba.
-  let queries=0;
-  db.query=async text=>{
-    sql.push(String(text));
-    if(/SELECT f\.id_ins_fl FROM ins_fl/.test(text)){
-      queries++;
-      return [queries===1?[{id_ins_fl:7}]:[]];
-    }
-    throw Error('SQL no esperado en barrido de prueba');
+    },
+    module:{exports:{}},Date,Intl,Number,String,Object,JSON,console,
+    setTimeout,setInterval:()=>null,clearInterval:()=>{}
   };
   vm.runInNewContext(source,context);
   const out=await context.module.exports.scanEquipos({manual:true});
   assert.equal(out.total_equipos,1);
   assert.equal(out.creadas,1);
   assert.equal(out.errores,0);
-  assert.equal(called,1);
-  assert.ok(sql.every(stmt=>!/instalaciones_programacion_conciliacion_diaria/.test(stmt)));
+  assert.deepEqual(visited,[7]);
+  assert.equal(peak,1);
+  assert.equal(opened,released);
+  assert.ok(queries.every(query=>!/instalaciones_programacion_conciliacion_diaria/.test(query)));
 });
 test('PWA CX: Encuestas y Visitas usan regreso contextual cuando hay detalle abierto',()=>{
   const app=read('core/app.js');

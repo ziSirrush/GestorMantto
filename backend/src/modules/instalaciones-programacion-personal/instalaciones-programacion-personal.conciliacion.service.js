@@ -37,17 +37,20 @@ function result(id,estado,extras={}){
   return {id_ins_fl:id,estado,creadas:0,actualizadas:0,historicas:0,retiradas:0,
     existentes:0,conflictos:[],...extras};
 }
-async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false}={}){
+// conexionCompartida se utiliza solo durante un lote tecnico controlado.
+ // Las llamadas normales mantienen su propio ciclo de conexion/transaccion.
+async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false,conexionCompartida=null}={}){
   const id=Number(idValue);
   if(!Number.isSafeInteger(id)||id<1)throw refs.fallo(400,'INT9_ID_INVALIDO','Equipo invalido.');
   if(!tecnico&&!access)throw refs.fallo(403,'INT9_ALCANCE_REQUERIDO','Se requiere alcance CORELLIAN.');
   if(tecnico&&actorId!==null)throw refs.fallo(403,'INT9_IDENTIDAD_TECNICA','No se permite suplantar usuarios.');
 
-  const preliminary=await equipment(db,id,false,access);
+  const executor=conexionCompartida||db;
+  const preliminary=await equipment(executor,id,false,access);
   if(!preliminary)return result(id,'REQUIERE_REVISION',{motivo:'EQUIPO_NO_DISPONIBLE'});
   let index=null, initial=null;
   if(eligible(preliminary)){
-    const [people]=await db.query(
+    const [people]=await executor.query(
       `SELECT id_personal,nombre FROM instalaciones_personal
         WHERE activo=1 AND tipo_personal='AJUSTADOR' ORDER BY id_personal
         LIMIT ${refs.MAX_AJUSTADORES_CATALOGO+1}`);
@@ -58,10 +61,10 @@ async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false
     if(initial.estado!=='VINCULABLE')
       return result(id,'REQUIERE_REVISION',{motivo:initial.estado,incidencias:initial.incidencias||[]});
   }
-  const before=await autoRows(db,id);
+  const before=await autoRows(executor,id);
   const targets=initial?initial.personas.map(p=>p.id_personal):[];
   const lockIds=[...new Set([...before.map(x=>Number(x.id_personal)),...targets])].sort((a,b)=>a-b);
-  const conn=await db.getConnection();
+  const conn=conexionCompartida||await db.getConnection();
   let open=false;
   try{
     await conn.beginTransaction();open=true;
@@ -145,7 +148,7 @@ async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false
     if(open)await conn.rollback().catch(()=>{});
     if(error?.code==='ER_DUP_ENTRY')throw refs.fallo(409,'INT9_AUTO_DUPLICADO','Asignacion automatica duplicada.');
     throw error;
-  }finally{conn.release();}
+  }finally{if(!conexionCompartida)conn.release();}
 }
 const RELEVANT_FIELDS=Object.freeze([
   'estatus','activo','ajustador','fecha_inicio_ajuste','fecha_fin_ajuste_real',

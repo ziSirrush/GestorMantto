@@ -65,19 +65,36 @@ test('INT9: solo equipos activos 06-A dentro del alcance, cursor creciente',asyn
  assert.equal(second.registros[0].id_ins_fl,7);
  assert.ok(second.registros.every(x=>x.id_ins_fl!==4&&x.id_ins_fl!==5&&x.id_ins_fl!==6));
 });
-test('INT9: el barrido contabiliza correcciones FL como revisiones, no errores técnicos',async()=>{
+test('INT9: barrido progresivo cuenta correcciones FL sin declarar error tecnico',async()=>{
  const code=read('backend/src/jobs/instalacionesProgramacionPersonal.job.js');
- let fetched=0;const db={query:async sql=>{
-   if(!/SELECT f\.id_ins_fl FROM ins_fl/.test(sql))throw Error('No se permite escribir');
-   return [fetched++===0?[{id_ins_fl:23}]:[]];
- }};
+ const sql=[];let acquired=0,released=0;
+ const db={
+   query:async(query,params=[])=>{
+     sql.push(String(query));
+     if(query.includes('FROM ins_fl f'))
+       return [[{id_ins_fl:23,estatus:'06-A'}].filter(r=>r.id_ins_fl>Number(params[0]))];
+     if(query.includes('FROM instalaciones_programacion_asignaciones a'))return [[]];
+     throw Error('No se permite escribir en control nocturno');
+   },
+   getConnection:async()=>({
+     query:async query=>{
+       if(query.includes('GET_LOCK')){acquired++;return [[{acquired:1}]];}
+       if(query.includes('RELEASE_LOCK')){released++;return [[{released:1}]];}
+       throw Error('SQL inesperado');
+     },release(){},destroy(){}
+   })
+ };
  const ctx={module:{exports:{}},Date,Intl,JSON,Object,Number,String,console,
-  setInterval:()=>null,clearInterval:()=>{},
+  setTimeout,setInterval:()=>null,clearInterval:()=>{},
   require:p=>p==='../config/db'?db:{reconciliarEquipo:async()=>({
    estado:'REQUIERE_REVISION',motivo:'SIN_REFERENCIA',
    incidencias:['SIN_REFERENCIA','INICIO_FALTANTE'],creadas:0,actualizadas:0})}};
  vm.runInNewContext(code,ctx);
  const out=await ctx.module.exports.scanEquipos({manual:true});
- assert.equal(out.total_equipos,1);assert.equal(out.revisiones,1);assert.equal(out.errores,0);
+ assert.equal(out.total_equipos,1);
+ assert.equal(out.revisiones,1);
+ assert.equal(out.errores,0);
  assert.equal(out.detalles[0].codigos.length,2);
+ assert.equal(acquired,released);
+ assert.ok(sql.every(x=>!x.includes('instalaciones_programacion_conciliacion_diaria')));
 });

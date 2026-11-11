@@ -8,7 +8,6 @@ const job = require('../jobs/instalacionesProgramacionPersonal.job');
 const { hasEffectivePermission } = require('../services/permissions/effective-permission.service');
 
 const PERMISO_PANEL = 'GENERAL_PANEL_DE_CONTROL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-const LOCK_NAME = 'bltnow_int9_prueba_manual_v1';
 const MAX_AGE_MS = 30 * 60 * 1000;
 let execution = null;
 
@@ -40,44 +39,30 @@ function summary(record){
     mensaje:record.mensaje||null
   };
 }
+// El motor obtiene y libera su unico GET_LOCK por bloque de cinco equipos.
+// Nunca reservar una conexion durante toda la prueba: Aiven tiene pool reducido.
 async function execute(record){
-  let conn;
-  let locked=false;
   try{
-    conn=await db.getConnection();
-    const [rows]=await conn.query('SELECT GET_LOCK(?,0) AS acquired',[LOCK_NAME]);
-    if(Number(rows[0]?.acquired)!==1){
-      record.estado='OCUPADO';
-      record.mensaje='Otra instancia esta realizando la misma prueba.';
-      return;
-    }
-    locked=true;
     const result=await job.scanEquipos({
       manual:true,
       onProgress:stats=>{record.stats=stats;}
     });
     record.stats=result;
-    record.estado=result.errores?'ERROR':'COMPLETADO';
-    record.mensaje=result.errores
-      ?'Conciliacion completada con errores tecnicos. Revisa los codigos reportados.'
-      :(result.revisiones
-        ?'Conciliacion completa. Hay equipos pendientes de corregir en FL.'
-        :'Conciliacion finalizada correctamente.');
+    record.estado=result.interrumpida||result.errores?'ERROR':'COMPLETADO';
+    record.mensaje=result.interrumpida?'Conciliacion interrumpida; no se confirma cierre.'
+      :result.errores
+        ?'Conciliacion completada con errores tecnicos. Revisa los codigos reportados.'
+        :result.revisiones
+          ?'Conciliacion completa. Hay equipos pendientes de corregir en FL.'
+          :'Conciliacion finalizada correctamente.';
   }catch(error){
     record.estado='ERROR';
-    record.mensaje='Error tecnico durante la conciliacion.';
+    record.mensaje='Conciliacion detenida por error tecnico o presion de Aiven. No se confirma cierre.';
     record.codigo=String(error?.code||'SCRIPT_ERROR').slice(0,90);
     record.stats.detalles=(record.stats.detalles||[]).slice(0,4);
     record.stats.detalles.push({codigo:record.codigo});
     console.error('[INT9_PRUEBA_ERROR]',record.codigo);
   }finally{
-    if(conn){
-      if(locked){
-        try{await conn.query('SELECT RELEASE_LOCK(?)',[LOCK_NAME]);}
-        catch(error){console.error('[INT9_PRUEBA_RELEASE]',error?.code||'ERROR');}
-      }
-      conn.release();
-    }
     record.fin=new Date().toISOString();
   }
 }
@@ -88,7 +73,7 @@ async function start(req,res,next){
     }
     const record={
       id:crypto.randomUUID(),estado:'EN_PROCESO',inicio:new Date().toISOString(),
-      stats:{total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,revisiones:0,errores:0,detalles:[]}
+      stats:{total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,revisiones:0,errores:0,detalles:[],fase:'EQUIPOS_06_A',equipos_en_capa:0,ultimo_id_ins_fl:0,lotes_completados:0,reintentos:0}
     };
     execution=record;
     // El proceso puede exceder la ventana de espera HTTP.
