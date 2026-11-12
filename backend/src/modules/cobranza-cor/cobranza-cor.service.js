@@ -445,7 +445,7 @@ function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false, recib
     total,
     factura,
     ...(recibirPagado ? { pagado } : {}),
-    estatus_factura_origen: cleanText_cor(row.estatus_factura_origen)
+    estatus_factura_origen: cleanText_cor(row.estatus_factura_origen, 30)
   };
 }
 
@@ -662,6 +662,7 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
               total: hito.total,
               ...(item.record.pagado !== null ? { pagado: item.record.pagado } : {}),
               estatus_factura: pagadaHistorica ? 'Pagado' : 'No pagado',
+              estatus_factura_origen: item.record.estatus_factura_origen,
               fecha_vencimiento: null,
               estatus_cobranza: estatusCobranzaOrigen,
               origen_registro: 'LEGACY_HITO',
