@@ -575,6 +575,7 @@ function facturaSelectSql_cor() {
        cf.total,
        cf.pagado,
        cf.estatus_factura,
+       cf.estatus_factura_origen,
        DATE_FORMAT(cf.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
        cf.estatus_cobranza,
        cf.origen_registro,
