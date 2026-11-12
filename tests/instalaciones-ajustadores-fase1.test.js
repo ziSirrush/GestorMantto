@@ -74,7 +74,7 @@ Module._load=function(request,parent,isMain){
   if(parent?.filename===routesFile){
     if(request==='./instalaciones-programacion-personal.ajustadores-sync.service')return {reconciliarManual:async()=>({})};
     if(request==='./instalaciones-programacion-personal.montadores.service')return {relaciones:async()=>({relaciones:[]})};
-    if(request==='./instalaciones-programacion-personal.tab-permissions')return {onlyTab:()=>()=>{},oneTab:()=>{},byAssignment:()=>{},permisos:async()=>({MONTADOR:true,AJUSTADOR:true})};
+    if(request==='./instalaciones-programacion-personal.tab-permissions')return {onlyTab:()=>((_req,_res,next)=>next()),oneTab:(_req,_res,next)=>next(),byAssignment:(_req,_res,next)=>next(),permisos:async()=>({MONTADOR:true,AJUSTADOR:true})};
     if(request==='express')return express;
     if(request==='./instalaciones-programacion-personal.service')return {};
     if(request==='./instalaciones-programacion-personal.asignaciones.service')return {};
@@ -198,8 +198,9 @@ test('endpoint agregado solo GET con Guard CORELLIAN (regresión rutas previas)'
   assert.equal(res.statusCode,403);
   equipos=[eq(15,'Ana López')];personas=[person(5,'Ana López')];
   const good={...req(),user:{id_SB:42}};
-  await new Promise((resolve,reject)=>endpoint.handlers[0](good,res,()=>resolve())).then(()=>
-    endpoint.handlers[1](good,res,e=>e?Promise.reject(e):undefined));
+  await new Promise((resolve,reject)=>endpoint.handlers[0](good,res,e=>e?reject(e):resolve()));
+  await new Promise((resolve,reject)=>endpoint.handlers[1](good,res,e=>e?reject(e):resolve()));
+  await endpoint.handlers[2](good,res,e=>{if(e)throw e;});
   assert.equal(res.statusCode,200);
   assert.equal(res.body.data.registros[0].estado,'VINCULABLE');
 });
