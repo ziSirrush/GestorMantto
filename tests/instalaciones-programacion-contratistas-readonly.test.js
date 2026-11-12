@@ -51,7 +51,7 @@ test('Contratistas: fuera de alcance no expone el nombre del proyecto',()=>{
 test('Ajustadores: barras azules abren detalle sin escrituras',()=>{
   assert.match(source,/item\.origen==='AUTOMATICA_FL'\?'ppc-cal-bar-auto'/);
   assert.match(source,/canView\?'data-ppc="ver-asignacion"'/);
-  assert.match(source,/function openReadOnlyAssignment\(id\)/);
+  assert.match(source,/function openReadOnlyAssignment\(id,fromContractor=false\)/);
   assert.match(source,/assignment\.mode='view'/);
   assert.match(source,/configureAssignmentReadOnly\(true\)/);
   assert.match(source,/assignment\.mode==='view'\|\|state\.view!=='calendario'/);
