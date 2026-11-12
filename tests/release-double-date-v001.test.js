@@ -28,9 +28,9 @@ test('Solo frontend incrementa su contador sin tocar API',()=>{
 });
 
 test('Al cambiar de fecha el frontend reinicia revision y API permanece estable',()=>{
-  const s=read(); const next=bump('frontend',s,'121126');
+  const s=read(); const next=bump('frontend',s,'131126');
   assert.equal(next.api,s.api);
-  assert.equal(next.frontend,'121126.1');
+  assert.equal(next.frontend,'131126.1');
 });
 
 test('Cambio de API incrementa API y reinicia Frontend enlazado',()=>{
