@@ -405,6 +405,7 @@ function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false } = {}
   const subtotal = decimal_cor(row.subtotal, 'subtotal');
   const iva = decimal_cor(row.iva, 'iva');
   const total = decimal_cor(row.total, 'total');
+  const pagado = decimal_cor(row.pagado !== undefined ? row.pagado : row.PAGADO, 'pagado');
   for (const [field, value] of [['subtotal', subtotal], ['iva', iva], ['total', total]]) {
     if (value !== null && value < 0) throw new Error(`${field} no puede ser negativo.`);
   }
@@ -433,6 +434,7 @@ function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false } = {}
     iva,
     total,
     factura,
+    pagado,
     estatus_factura_origen: cleanText_cor(row.estatus_factura_origen)
   };
 }
@@ -648,6 +650,7 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
               subtotal: hito.subtotal,
               iva: hito.iva,
               total: hito.total,
+              ...(item.record.pagado !== null ? { pagado: item.record.pagado } : {}),
               estatus_factura: pagadaHistorica ? 'Pagado' : 'No pagado',
               fecha_vencimiento: null,
               estatus_cobranza: estatusCobranzaOrigen,

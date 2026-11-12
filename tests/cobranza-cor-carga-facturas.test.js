@@ -167,6 +167,26 @@ test('Factura M2M vincula por Hito, conserva duplicados y rechaza solo faltantes
   assert.equal(connection.events.at(-1), 'RELEASE');
 });
 
+test('Factura M2M recibe PAGADO sin cambiar la logica actual de estatus', async () => {
+  const inserted = [];
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    findHitosFacturaCarga_cor: async () => [{
+      id_fuente_cor: 11, moneda: 'USD', subtotal: 20549, iva: 3287.84, total: 23836.84
+    }],
+    insertRecord_cor: async (_connection, _table, record) => inserted.push(record)
+  }, async () => {
+    const response = await service.cargarFacturas_cor({ registros: [{
+      ...facturaBase, PAGADO: '$1.234,56', estatus_factura_origen: 'EN COBRANZA'
+    }] });
+    assert.equal(response.insertados, 1);
+    assert.equal(response.rechazados, 0);
+  });
+  assert.equal(inserted[0].pagado, 1234.56);
+  assert.equal(inserted[0].estatus_factura, 'No pagado');
+  assert.equal(inserted[0].estatus_cobranza, 'En Cobranza');
+});
+
 test('Un Hito admite tres Facturas con folios distintos', async () => {
   const inserted = [];
   await withRepositoryStub({
