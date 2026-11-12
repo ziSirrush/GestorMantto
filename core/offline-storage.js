@@ -4,12 +4,14 @@
   if(window.ManttoOfflineStorage)return;
 
   const DB_NAME='mantto-offline-v2';
-  const DB_VERSION=2;
+  const DB_VERSION=3;
   const SNAPSHOT_STORE='snapshots';
   const METADATA_STORE='metadata';
   const DIAGNOSTIC_STORE='diagnostics';
   const OUTBOX_STORE='outbox';
   const CHUNK_STORE='backup_chunks';
+  const FORM_DRAFT_STORE='form_drafts';
+  const FORM_DRAFT_MAX_BYTES=4*1024*1024;
   const OFFLINE_PERMISSION='GENERAL_MODO_OFFLINE_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
   const ACCESS_PREFIX='mantto:offline-access:';
   const ACCESS_TTL_MS=24*60*60*1000;
@@ -64,6 +66,11 @@
         if(!db.objectStoreNames.contains(CHUNK_STORE)){
           const chunks=db.createObjectStore(CHUNK_STORE,{keyPath:'key'});
           chunks.createIndex('run_id','run_id',{unique:false});
+        }
+        if(!db.objectStoreNames.contains(FORM_DRAFT_STORE)){
+          const drafts=db.createObjectStore(FORM_DRAFT_STORE,{keyPath:'key'});
+          drafts.createIndex('actor_user_id','actor_user_id',{unique:false});
+          drafts.createIndex('effective_user_id','effective_user_id',{unique:false});
         }
       };
       req.onsuccess=()=>{
@@ -137,6 +144,8 @@
     const row={...part,schema_version:1,read_only:true,downloaded_at:now,
       expires_at:new Date(Date.now()+SNAPSHOT_TTL_MS).toISOString(),
       source_updated_at:metadata?.source_updated_at||payload?.generated_at||null,
+      source_cursor:metadata?.source_cursor&&typeof metadata.source_cursor==='object'?metadata.source_cursor:null,
+      scope_signature:typeof metadata?.scope_signature==='string'?metadata.scope_signature:null,
       record_count:Number.isFinite(Number(metadata?.record_count))?Number(metadata.record_count):recordCount(payload),
       byte_size:sizeOf(payload),payload};
     const db=await openDatabase();
@@ -144,8 +153,47 @@
       const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
       tx.objectStore(SNAPSHOT_STORE).put(row);
       tx.objectStore(METADATA_STORE).put({key:`snapshot:${part.partition_key}`,partition_key:part.partition_key,
-        downloaded_at:now,expires_at:row.expires_at,record_count:row.record_count,byte_size:row.byte_size,read_only:true});
+        downloaded_at:now,expires_at:row.expires_at,record_count:row.record_count,byte_size:row.byte_size,
+        source_cursor:row.source_cursor,scope_signature:row.scope_signature,read_only:true});
       await done;return row;
+    }finally{db.close();}
+  }
+
+
+  function normalizeFormDraftKey(value){
+    const key=String(value||'').trim().replace(/[^A-Za-z0-9:_-]/g,'').slice(0,120);
+    if(!key)throw new Error('Falta la llave del borrador de formulario.');
+    return key;
+  }
+  async function saveFormDraft(context,draftKey,payload,metadata={}){
+    const part=normalizeContext(context),draft_key=normalizeFormDraftKey(draftKey);
+    const byte_size=sizeOf(payload);
+    if(byte_size>FORM_DRAFT_MAX_BYTES)throw new Error('El borrador local excede el limite seguro de almacenamiento.');
+    const row={...part,key:`${part.partition_key}:${draft_key}`,draft_key,
+      saved_at:new Date().toISOString(),schema_version:1,byte_size,payload,
+      metadata:metadata&&typeof metadata==='object'&&!Array.isArray(metadata)?metadata:{}};
+    const db=await openDatabase();
+    try{
+      const tx=db.transaction(FORM_DRAFT_STORE,'readwrite'),done=transactionDone(tx);
+      tx.objectStore(FORM_DRAFT_STORE).put(row);await done;return row;
+    }finally{db.close();}
+  }
+  async function getFormDraft(context,draftKey){
+    const part=normalizeContext(context),key=`${part.partition_key}:${normalizeFormDraftKey(draftKey)}`;
+    const db=await openDatabase();
+    try{
+      const tx=db.transaction(FORM_DRAFT_STORE,'readonly'),done=transactionDone(tx);
+      const row=await requestResult(tx.objectStore(FORM_DRAFT_STORE).get(key));await done;
+      if(!row||row.partition_key!==part.partition_key)return null;
+      return row;
+    }finally{db.close();}
+  }
+  async function deleteFormDraft(context,draftKey){
+    const part=normalizeContext(context),key=`${part.partition_key}:${normalizeFormDraftKey(draftKey)}`;
+    const db=await openDatabase();
+    try{
+      const tx=db.transaction(FORM_DRAFT_STORE,'readwrite'),done=transactionDone(tx);
+      tx.objectStore(FORM_DRAFT_STORE).delete(key);await done;return true;
     }finally{db.close();}
   }
 
@@ -840,10 +888,11 @@
     if(!window.indexedDB)return 0;
     const db=await openDatabase();
     try{
-      const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
-      const snapshots=tx.objectStore(SNAPSHOT_STORE),metadata=tx.objectStore(METADATA_STORE);
+      const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE,FORM_DRAFT_STORE],'readwrite'),done=transactionDone(tx);
+      const snapshots=tx.objectStore(SNAPSHOT_STORE),metadata=tx.objectStore(METADATA_STORE),drafts=tx.objectStore(FORM_DRAFT_STORE);
       const rows=await requestResult(snapshots.getAll());
       const metas=await requestResult(metadata.getAll());
+      const formDrafts=await requestResult(drafts.getAll());
       const removed=(rows||[]).filter(row=>row.actor_user_id!==actor||row.effective_user_id!==effective);
       const staleRuns=[];
       for(const row of removed){
@@ -855,6 +904,10 @@
         if(!String(meta?.key||'').startsWith('draft:')||partitionMatchesIdentity(meta.partition_key,actor,effective))continue;
         metadata.delete(meta.key);
         if(meta.run_id)staleRuns.push(meta.run_id);
+      }
+      for(const draft of formDrafts||[]){
+        if(draft.actor_user_id===actor&&draft.effective_user_id===effective)continue;
+        drafts.delete(draft.key);
       }
       await done;
       for(const runId of [...new Set(staleRuns)]){
@@ -893,6 +946,7 @@
   });
   window.ManttoOfflineStorage={databaseName:DB_NAME,normalizeContext,
     saveSnapshot,getSnapshot,listSnapshots,healthCheck,outboxStatus,readCachedAccess,
+    saveFormDraft,getFormDraft,deleteFormDraft,
     hasCachedAccess(actor,effective){return Boolean(readCachedAccess(actor,effective));},
     beginDownload,appendDownload,finishDownload,abandonDownload,pruneSnapshots,
     verifiedSnapshot,readSnapshotPage,purgeAll,purgeExpiredData,purgeOutsideIdentity,

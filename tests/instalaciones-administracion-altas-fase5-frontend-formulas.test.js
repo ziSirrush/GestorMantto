@@ -114,12 +114,29 @@ test('F5 UI: se conservan fechas reales ya almacenadas; motor puro solo previsua
   assert.equal(row.fecha_fin_montaje_real,'2026-10-15');
   assert.equal(JSON.stringify(row),before);
 });
-test('F5 UI: la capa de captura no escribe en storage ni ejecuta POST sin confirmacion',()=>{
+test('F5 UI: catalogos de alta normalizan valores y autocompletan supervisor/estado',()=>{
+  assert.equal(helpers.enumValueCor('categoria','comercial'),'Comercial');
+  assert.equal(helpers.enumValueCor('carpeta_fisica','fisica'),'Fisica');
+  assert.equal(helpers.enumValueCor('tipo_equipo','ramp-esc'),'RAMP-ESC');
+  assert.equal(helpers.stateLocationCor('PUE'),'Puebla');
+  assert.deepEqual(helpers.supervisorAutofillCor('SUP',{supervisores:[{id_SB:7,iniciales:'SUP',nombre:'Supervisor Prueba',correo:'sup@example.com'}]}),
+    {supervisor_nombre:'Supervisor Prueba',correo_supervisor:'sup@example.com'});
+});
+test('F5 UI: borrador persistido valida estructura antes de restaurarse',()=>{
+  const good=helpers.normalizeStoredDraftCor({schema_version:1,rows:[{draft_id:1,values:{proyecto:'X',id_proyecto:'P1'}}],seq:1,uncertain:false});
+  assert.equal(good.rows.length,1);assert.equal(good.seq,1);
+  assert.equal(helpers.normalizeStoredDraftCor({schema_version:1,rows:[{draft_id:1,values:{id_ins_fl:9}}]}),null);
+});
+test('F5 UI: la capa de captura usa almacenamiento central y no IndexedDB directo; POST exige confirmacion',()=>{
   const source=fs.readFileSync(path.join(folder,'instalaciones-administracion-altas-captura_cor.js'),'utf8');
   assert.match(source,/env\.confirm\('Crear /);
   assert.match(source,/method:'POST'/);
   assert.match(source,/uncertain\s*=\s*true/);
   assert.match(source,/GET verificados/);
+  assert.match(source,/ManttoOfflineStorage/);
+  assert.match(source,/saveFormDraft/);
+  assert.match(source,/getFormDraft/);
+  assert.match(source,/deleteFormDraft/);
   assert.doesNotMatch(source,/\b(?:localStorage|sessionStorage|indexedDB)\./);
 });
 test('F5 UI: cambio de identidad, sesion o visor limpia datos sensibles',()=>{

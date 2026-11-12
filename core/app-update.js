@@ -4,6 +4,7 @@
   const BUILD_INFO_URL='./core/build-info.generated.js';
   const CHECK_INTERVAL_MS=5*60*1000;
   const PROFILE_RECHECK_MS=30*1000;
+  const beforeReloadHandlers=new Set();
   const state={
     available:false,
     checking:false,
@@ -167,12 +168,28 @@
     if(registration.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'});
   }
 
+  function registerBeforeReload(handler){
+    if(typeof handler!=='function')throw new TypeError('El protector previo a recarga debe ser una funcion.');
+    beforeReloadHandlers.add(handler);
+    return ()=>beforeReloadHandlers.delete(handler);
+  }
+
+  async function flushBeforeReload(){
+    const handlers=[...beforeReloadHandlers];
+    if(!handlers.length)return true;
+    const results=await Promise.allSettled(handlers.map(handler=>Promise.resolve().then(()=>handler())));
+    const failed=results.find(result=>result.status==='rejected');
+    if(failed)throw failed.reason||new Error('No fue posible proteger el trabajo pendiente antes de actualizar.');
+    return true;
+  }
+
   async function applyUpdate(){
     if(state.applying)return;
     state.applying=true;
     state.error='';
     emitState();
     try{
+      await flushBeforeReload();
       const operations=await Promise.allSettled([
         updateServiceWorker(),
         clearAppCaches(),
@@ -241,7 +258,9 @@
     getState:publicState,
     parseBuildInfoSource,
     hasNewerBuild,
-    answerServiceWorkerProbe
+    answerServiceWorkerProbe,
+    registerBeforeReload,
+    flushBeforeReload
   });
 
   if(navigator.serviceWorker&&typeof navigator.serviceWorker.addEventListener==='function'){
