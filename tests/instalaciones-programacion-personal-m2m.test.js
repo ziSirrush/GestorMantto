@@ -29,14 +29,20 @@ const db = {
     throw new Error('Consulta de esquema no simulada: ' + sql);
   },
   async execute(sql, values = []) {
+    if (/SELECT id_personal,activo FROM instalaciones_personal/.test(sql)) {
+      const [tipo,nombre,contratista] = values;
+      return [rows.filter(x => x.tipo_personal === tipo && x.nombre === nombre &&
+        (x.contratista || '') === contratista).slice(0,1)];
+    }
     if (/INSERT INTO instalaciones_personal/.test(sql)) {
       const colIniciales = /\biniciales\b/.test(sql);
       if (colIniciales && !schemaHasIniciales) throw new Error('No existe la columna iniciales');
       const [tipo_personal,nombre,contratista,puesto,categoria,experiencia] = values;
       const iniciales = colIniciales ? values[6] : null;
-      const created_by = values[colIniciales ? 7 : 6];
-      const updated_by = values[colIniciales ? 8 : 7];
-      if (rows.some(x => x.tipo_personal === tipo_personal && x.nombre === nombre &&
+      const activo = /,1,\?,\?\)/.test(sql) ? 1 : Number(values[colIniciales ? 7 : 6]);
+      const created_by = values[(colIniciales ? 7 : 6) + (activo === 0 ? 1 : 0)];
+      const updated_by = values[(colIniciales ? 8 : 7) + (activo === 0 ? 1 : 0)];
+      if (activo === 1 && rows.some(x => x.tipo_personal === tipo_personal && x.nombre === nombre &&
           (x.contratista || '') === (contratista || '') && x.activo === 1)) {
         const error = new Error('duplicate');
         error.code = 'ER_DUP_ENTRY';
@@ -44,12 +50,13 @@ const db = {
       }
       const id_personal = ++counter;
       rows.push({id_personal,tipo_personal,nombre,contratista,puesto,categoria,experiencia,iniciales,
-        created_by,updated_by,activo:1,created_at:'2026-10-20',updated_at:'2026-10-20'});
+        created_by,updated_by,activo,created_at:'2026-10-20',updated_at:'2026-10-20'});
       return [{insertId:id_personal}];
     }
-    if (/WHERE id_personal=\? AND tipo_personal=\? AND activo=1/.test(sql)) {
+    if (/WHERE id_personal=\? AND tipo_personal=\?/.test(sql)) {
       const [id,tipo] = values;
-      return [rows.filter(x => x.id_personal === id && x.tipo_personal === tipo && x.activo === 1)];
+      return [rows.filter(x => x.id_personal === id && x.tipo_personal === tipo &&
+        (!sql.includes('AND activo=1') || x.activo === 1))];
     }
     throw new Error(`Consulta DB no simulada: ${sql.slice(0,120)}`);
   }
@@ -385,4 +392,43 @@ test('Duplicados M2M conservan iniciales previas y se rechazan con 409',async()=
   assert.equal(first.statusCode,201);
   assert.equal(second.statusCode,409);
   assert.equal(rows[0].iniciales,'JQ');
+});
+
+test('M2M V004: activo 0 se almacena como inactivo y se devuelve en el alta',async()=>{
+  const payload={...montador,nombre:'Inactivo QA',activo:0};
+  const response=await run(payload,requestHeaders(payload));
+  assert.equal(response.statusCode,201);
+  assert.equal(response.body.data.activo,false);
+  assert.equal(rows[0].activo,0);
+  assert.equal(rows[0].iniciales,'JQ');
+  assert.equal(rows[0].created_by,null);
+});
+
+test('M2M V004: 409 en reenvio de inactivo, sin duplicar',async()=>{
+  const payload={...montador,nombre:'Inactivo QA',activo:0};
+  const first=await run(payload,requestHeaders(payload));
+  const second=await run(payload,requestHeaders(payload));
+  assert.equal(first.statusCode,201);
+  assert.equal(second.statusCode,409);
+  assert.equal(second.body.code,'INT9_PERSONA_DUPLICADA');
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].activo,0);
+});
+
+test('M2M V004: activo existente no se desactiva por POST con activo 0',async()=>{
+  const first=await run(montador,requestHeaders(montador));
+  const inactive={...montador,activo:0};
+  const second=await run(inactive,requestHeaders(inactive));
+  assert.equal(first.statusCode,201);
+  assert.equal(second.statusCode,409);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].activo,1);
+});
+
+test('M2M V004: un estado activo invalido se rechaza con 400',async()=>{
+  const payload={...montador,activo:'false'};
+  const response=await run(payload,requestHeaders(payload));
+  assert.equal(response.statusCode,400);
+  assert.equal(response.body.code,'INT9_ACTIVO_INVALIDO');
+  assert.equal(rows.length,0);
 });

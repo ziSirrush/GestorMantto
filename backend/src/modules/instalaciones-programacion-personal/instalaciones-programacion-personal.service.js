@@ -86,11 +86,24 @@ function actorId(req, allowIntegration = false) {
   return n;
 }
 
+// INT9 V004: ausente -> activo para compatibilidad; solo se aceptan 0/1.
+function estadoPersonal(value) {
+  if (value === undefined || value === null) return 1;
+  // La lectura actual de API entrega booleanos: mantener compatibilidad con editar().
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  const estado = String(value).trim();
+  if (estado !== '0' && estado !== '1') {
+    throw knownError(400, 'INT9_ACTIVO_INVALIDO', 'activo debe ser 0 o 1.');
+  }
+  return Number(estado);
+}
+
 function validatedPayload(tipo, input = {}) {
   const type = tipoPersonal(tipo);
   const nombre = stringValue(input.nombre, 'Nombre', 180, true);
   const categoria = stringValue(input.categoria, 'Categoría', 120);
   const iniciales = stringValue(input.iniciales, 'Iniciales', INICIALES_MAX);
+  const activo = estadoPersonal(input.activo);
   let contratista = null;
   let puesto = null;
   let experiencia = null;
@@ -103,7 +116,7 @@ function validatedPayload(tipo, input = {}) {
   } else {
     experiencia = stringValue(input.experiencia, 'Experiencia', 120);
   }
-  return { tipo_personal: type, nombre, contratista, puesto, categoria, experiencia, iniciales };
+  return { tipo_personal: type, nombre, contratista, puesto, categoria, experiencia, iniciales, activo };
 }
 
 function sqlKnownError(error) {
@@ -138,7 +151,7 @@ function readRecord(row) {
   };
 }
 
-async function getById(tipo, id, connection = db) {
+async function getById(tipo, id, connection = db, incluirInactivo = false) {
   const type = tipoPersonal(tipo);
   const person = personId(id);
   const conIniciales = await inicialesDisponibles();
@@ -146,7 +159,7 @@ async function getById(tipo, id, connection = db) {
     `SELECT id_personal,tipo_personal,nombre,contratista,puesto,categoria,experiencia,
             ${conIniciales ? 'iniciales' : 'NULL AS iniciales'},activo,created_at,updated_at
      FROM instalaciones_personal
-     WHERE id_personal=? AND tipo_personal=? AND activo=1 LIMIT 1`,
+     WHERE id_personal=? AND tipo_personal=? ${incluirInactivo ? '' : 'AND activo=1'} LIMIT 1`,
     [person, type]
   );
   if (!rows.length) throw knownError(404, 'INT9_PERSONA_NO_ENCONTRADA', 'Persona no encontrada.');
@@ -211,15 +224,33 @@ async function crear(req) {
   validarDisponibilidadIniciales(payload.iniciales, conIniciales);
   let result;
   try {
+    // No convertimos un registro existente a inactivo desde el POST M2M.
+    // La unicidad SQL protege solamente a los activos; se evita la duplicación
+    // ordinaria de inactivos/reenvíos y el alta sombra frente a un activo.
+    if (payload.activo === 0) {
+      const [duplicados] = await db.execute(
+        `SELECT id_personal,activo FROM instalaciones_personal
+         WHERE tipo_personal=? AND TRIM(nombre)=?
+           AND COALESCE(TRIM(contratista),'')=? LIMIT 1`,
+        [payload.tipo_personal, payload.nombre, payload.contratista || '']
+      );
+      if (duplicados.length) {
+        throw knownError(409, 'INT9_PERSONA_DUPLICADA',
+          'Ya existe esa persona, activa o inactiva. El POST no cambia su estatus.');
+      }
+    }
     [result] = await db.execute(
       `INSERT INTO instalaciones_personal
         (tipo_personal,nombre,contratista,puesto,categoria,experiencia,${conIniciales ? 'iniciales,' : ''}activo,created_by,updated_by)
-       VALUES (?,?,?,?,?,?,${conIniciales ? '?,' : ''}1,?,?)`,
+       VALUES (?,?,?,?,?,?,${conIniciales ? '?,' : ''}${payload.activo === 1 ? '1' : '?'},?,?)`,
       [payload.tipo_personal,payload.nombre,payload.contratista,payload.puesto,
-        payload.categoria,payload.experiencia,...(conIniciales ? [payload.iniciales] : []),userId,userId]
+        payload.categoria,payload.experiencia,...(conIniciales ? [payload.iniciales] : []),
+        ...(payload.activo === 0 ? [0] : []),userId,userId]
     );
   } catch (error) { sqlKnownError(error); }
-  const personalCreado = await getById(type, result.insertId);
+  // Solo la lectura posterior al INSERT interno puede incluir inactivos;
+  // GET catalogo, calendarios y GET por ID siguen excluyéndolos.
+  const personalCreado = await getById(type, result.insertId, db, payload.activo === 0);
   if (req.integrationAuth?.integrationId) {
     // Registro operativo sin datos personales ni secretos. La identidad M2M
     // queda visible en logs Azure, no en la FK de usuarios (que permanece NULL).
@@ -238,8 +269,12 @@ async function editar(req) {
   if (req.body?.tipo != null && tipoPersonal(req.body.tipo) !== type) {
     throw knownError(400, 'INT9_CAMBIO_TIPO_PROHIBIDO', 'No puedes cambiar el tipo de personal.');
   }
+  if (req.body?.activo != null && estadoPersonal(req.body.activo) !== 1) {
+    throw knownError(400, 'INT9_CAMBIO_ACTIVO_PROHIBIDO',
+      'La edición no cambia el estatus; utiliza la baja autorizada.');
+  }
   const previous = await getById(type, id);
-  const payload = validatedPayload(type, { ...previous, ...req.body });
+  const payload = validatedPayload(type, { ...previous, ...req.body, activo: 1 });
   const userId = actorId(req);
   const conIniciales = await inicialesDisponibles();
   validarDisponibilidadIniciales(payload.iniciales, conIniciales);
@@ -290,5 +325,5 @@ async function desactivar(req) {
 
 module.exports = {
   TIPOS, PUESTOS, opciones, listar, crear, editar, desactivar,
-  _test: { tipoPersonal, validatedPayload, readRecord, personId, resetInicialesSchemaCache }
+  _test: { tipoPersonal, validatedPayload, readRecord, personId, resetInicialesSchemaCache, estadoPersonal }
 };
