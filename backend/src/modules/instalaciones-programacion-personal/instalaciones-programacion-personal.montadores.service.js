@@ -183,7 +183,7 @@ async function relaciones(req){
       id_proyecto:row.id_proyecto,proyecto:row.proyecto||row.id_proyecto,
       equipo:row.referencia_sitio||'',contratista:row.contratista,
       iniciales:row.iniciales,inicio:window.inicio,fin:window.fin,
-      fuente_fin:window.fuente_fin,valida:window.valida};
+      fuente_fin:window.fuente_fin,valida:window.valida,dias:window.dias};
   }).filter(row=>row.valida&&assignments()._read.intersect(row.inicio,row.fin,desde,hasta));
   return {relaciones:result,total:result.length,desde,hasta};
 }

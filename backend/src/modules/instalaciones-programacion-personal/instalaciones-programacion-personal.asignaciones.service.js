@@ -363,11 +363,13 @@ async function editarAsignacion(req) {
     await connection.beginTransaction();
     const initial=await getAssignment(connection,id);
     // Bloqueo de la persona antes de modificar: serializa altas y cambios concurrentes.
-    await lockPeople(connection,initial.tipo_personal,[Number(initial.id_personal)],false);
+    const personas=await lockPeople(connection,initial.tipo_personal,[Number(initial.id_personal)],false);
     const current=await getAssignment(connection,id);
     if(current.origen!=='MANUAL'||Number(current.es_historico)===1)
       throw error(403,'INT9_AUTO_SOLO_SISTEMA','La barra azul e historica solo puede modificarse desde FL.');
     const equipo=await loadEquipo(connection,req,current.id_ins_fl,true);
+    if(current.tipo_personal==='MONTADOR'&&String(equipo.estatus??'').trim()==='04-M')
+      await montaje04M.validarAsignacion(connection,equipo,personas);
     const fecha_desde=Object.prototype.hasOwnProperty.call(b,'fecha_desde') ? b.fecha_desde : parseDate(current.fecha_desde);
     const fecha_hasta=Object.prototype.hasOwnProperty.call(b,'fecha_hasta') ? b.fecha_hasta : parseDate(current.fecha_hasta);
     const {desde,hasta}=validateManual({fecha_desde,fecha_hasta});
