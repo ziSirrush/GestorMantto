@@ -398,13 +398,16 @@ function facturaCargaText_cor(value, fieldName, maxLength, required = false) {
   return text;
 }
 
-function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false } = {}) {
+function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false, recibirPagado = false } = {}) {
   const ppns = facturaCargaText_cor(row.ppns, 'ppns', 100, true);
   const factura = facturaCargaText_cor(row.factura, 'factura', 150, true);
   const moneda = facturaCargaText_cor(row.moneda, 'moneda', 3)?.toUpperCase() || null;
   const subtotal = decimal_cor(row.subtotal, 'subtotal');
   const iva = decimal_cor(row.iva, 'iva');
   const total = decimal_cor(row.total, 'total');
+  const pagado = recibirPagado
+    ? decimal_cor(row.pagado !== undefined ? row.pagado : row.PAGADO, 'pagado')
+    : undefined;
   for (const [field, value] of [['subtotal', subtotal], ['iva', iva], ['total', total]]) {
     if (value !== null && value < 0) throw new Error(`${field} no puede ser negativo.`);
   }
@@ -433,6 +436,7 @@ function normalizeFacturaCarga_cor(row, { permitirHistoricoSheets = false } = {}
     iva,
     total,
     factura,
+    ...(recibirPagado ? { pagado } : {}),
     estatus_factura_origen: cleanText_cor(row.estatus_factura_origen)
   };
 }
@@ -589,7 +593,7 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
   const permitirPagadasIniciales = permitePagadasIniciales_cor(integrationAuth);
   // Excepcion exclusiva de la carga inicial autenticada HMAC de Ventas.
   const normalized = normalizeRows_cor(input, (row) =>
-    normalizeFacturaCarga_cor(row, { permitirHistoricoSheets: permitirPagadasIniciales }));
+    normalizeFacturaCarga_cor(row, { permitirHistoricoSheets: permitirPagadasIniciales, recibirPagado: true }));
   const rejected = normalized.rejected.map((error) => ({
     ...error,
     ppns: cleanText_cor(input[error.fila - 2]?.ppns),
@@ -648,6 +652,7 @@ async function cargarFacturas_cor(payload, integrationAuth = null) {
               subtotal: hito.subtotal,
               iva: hito.iva,
               total: hito.total,
+              ...(item.record.pagado !== null ? { pagado: item.record.pagado } : {}),
               estatus_factura: pagadaHistorica ? 'Pagado' : 'No pagado',
               fecha_vencimiento: null,
               estatus_cobranza: estatusCobranzaOrigen,
