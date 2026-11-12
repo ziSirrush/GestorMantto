@@ -1,70 +1,74 @@
 'use strict';
-// BLT NOW: QA aislado del calendario Contratistas y detalles de solo lectura.
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const file=path.join(__dirname,'../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js');
-const css=fs.readFileSync(path.join(__dirname,'../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css'),'utf8');
 const source=fs.readFileSync(file,'utf8');
-
-function renderer(cal) {
-  const start=source.indexOf('function contractorName(');
-  const stop=source.indexOf('function renderCalendar(){',start);
-  assert.ok(start>0&&stop>start,'Faltan funciones de Contratistas');
-  const esc=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
-  const lanePositions=items=>({rows:items.map((item,i)=>({item,from:0,through:2,lane:i})),lanes:Math.max(1,items.length)});
-  const factory=new Function('cal','esc','CELL_WIDTH','lanePositions','formatWindow',
-    source.slice(start,stop)+'\nreturn {contractorKey,contractorColor,renderContractorCalendar};');
-  return factory(cal,esc,30,lanePositions,()=> '12 nov – 14 nov (3 días)');
+const css=fs.readFileSync(path.join(__dirname,'../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css'),'utf8');
+const esc=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
+function renderer(cal,canMutate=false){
+ const start=source.indexOf('function contractorName('),end=source.indexOf('function renderCalendar(){',start);
+ assert.ok(start>0&&end>start);
+ const permitted=code=>canMutate&&['CREAR','DESACTIVAR'].includes(code);
+ const body=source.slice(start,end);
+ const api=async()=>({}),state={type:'MONTADOR',view:'calendario'};
+ const root=()=>({}),window={};
+ const testAPI=new Function('cal','esc','permitted','api','state','root','window','reloadCalendar',
+   body+'\nreturn {renderContractorCalendar,contractorKey,contractorColor,contractorDrafts,contractorExpanded,openContractorEquipo};');
+ return testAPI(cal,esc,permitted,api,state,root,window,async()=>{});
 }
-
-test('Contratistas: colores estables y agrupación por proyecto',()=>{
-  const cal={desde:'2026-11-12',span:14,personal:[
-    {id_personal:1,nombre:'A',contratista:'Contrato Uno'},
-    {id_personal:2,nombre:'B',contratista:'Contrato Uno'},
-    {id_personal:3,nombre:'C',contratista:'Contrato Dos'}
-  ],asignaciones:[
-    {id_asignacion:10,id_personal:1,id_proyecto:'P1',proyecto:'Plaza Central',equipo:'E1',inicio:'2026-11-12',fin:'2026-11-14',valida:true,visible:true,origen:'AUTOMATICA_FL'},
-    {id_asignacion:11,id_personal:2,id_proyecto:'P1',proyecto:'Plaza Central',equipo:'E2',inicio:'2026-11-12',fin:'2026-11-14',valida:true,visible:true,origen:'MANUAL'},
-    {id_asignacion:12,id_personal:3,id_proyecto:'P2',proyecto:'Obra Sur',equipo:'E3',inicio:'2026-11-12',fin:'2026-11-14',valida:true,visible:true,origen:'AUTOMATICA_FL'}
-  ]};
-  const r=renderer(cal),holder={innerHTML:''};
-  r.renderContractorCalendar(holder,'<span>12</span>');
-  assert.equal((holder.innerHTML.match(/class="ppc-contractor" /g)||[]).length,2);
-  assert.equal((holder.innerHTML.match(/<b>Plaza Central<\/b>/g)||[]).length,1);
-  assert.equal((holder.innerHTML.match(/data-ppc="ver-asignacion"/g)||[]).length,3);
-  assert.doesNotMatch(holder.innerHTML,/data-ppc="(?:editar|asignar|quitar)/);
-  assert.equal(r.contractorColor(r.contractorKey(' Contrato Uno ')),r.contractorColor(r.contractorKey('contrato uno')));
-  assert.match(css,/ppc-contractor-bar/);
+test('Contratistas: proyectos y equipos auto relacionados aparecen sin montador',()=>{
+ const cal={montajeRelations:[{id_ins_fl:11,id_proyecto:'P1',proyecto:'Proyecto A',equipo:'E1',contratista:'AL CA',iniciales:'AL CA',inicio:'2026-11-10',fin:'2026-11-20'},
+   {id_ins_fl:12,id_proyecto:'P1',proyecto:'Proyecto A',equipo:'E2',contratista:'AL CA',iniciales:'AL CA',inicio:'2026-11-10',fin:'2026-11-20'},
+   {id_ins_fl:13,id_proyecto:'P2',proyecto:'Proyecto B',equipo:'E3',contratista:'DC GH',iniciales:'DC GH',inicio:'2026-11-10',fin:'2026-11-20'}],
+   personal:[],asignaciones:[],montajeError:''};
+ const r=renderer(cal),holder={innerHTML:''};
+ r.renderContractorCalendar(holder,'');
+ assert.equal((holder.innerHTML.match(/class="ppc-contractor" /g)||[]).length,2);
+ assert.equal((holder.innerHTML.match(/data-ppc="montaje-detalle"/g)||[]).length,3);
+ assert.match(holder.innerHTML,/Proyecto A/);
+ assert.match(holder.innerHTML,/E1/);
+ assert.match(holder.innerHTML,/DC GH/);
+ assert.doesNotMatch(holder.innerHTML,/data-ppc="montaje-guardar"/);
 });
-
-test('Contratistas: fuera de alcance no expone el nombre del proyecto',()=>{
-  const cal={desde:'2026-11-12',span:14,personal:[{id_personal:1,nombre:'A',contratista:'Contrato Uno'}],
-    asignaciones:[{id_personal:1,id_asignacion:null,id_proyecto:'PRIVADO',proyecto:'PROYECTO_SECRETO',inicio:'2026-11-12',fin:'2026-11-14',valida:true,visible:false}]};
-  const holder={innerHTML:''};
-  renderer(cal).renderContractorCalendar(holder,'<span>12</span>');
-  assert.doesNotMatch(holder.innerHTML,/PROYECTO_SECRETO|PRIVADO|data-ppc="ver-asignacion"/);
-  assert.match(holder.innerHTML,/Ocupación fuera de tu alcance/);
+test('Contratistas: boton guardar solo si CREAR y DESACTIVAR; no permite escritura por clic de equipo',()=>{
+ const cal={montajeRelations:[{id_ins_fl:11,id_proyecto:'P1',proyecto:'Proyecto A',equipo:'E1',contratista:'AL CA',iniciales:'AL CA'}],
+  personal:[],asignaciones:[],montajeError:''};
+ const readonly={innerHTML:''},editable={innerHTML:''};
+ renderer(cal,false).renderContractorCalendar(readonly,'');
+ renderer(cal,true).renderContractorCalendar(editable,'');
+ assert.doesNotMatch(readonly.innerHTML,/data-ppc="montaje-guardar"/);
+ assert.match(editable.innerHTML,/data-ppc="montaje-guardar"/);
+ assert.match(editable.innerHTML,/data-ppc="montaje-detalle"/);
 });
-
-test('Ajustadores: barras azules abren detalle sin escrituras',()=>{
-  assert.match(source,/item\.origen==='AUTOMATICA_FL'\?'ppc-cal-bar-auto'/);
-  assert.match(source,/canView\?'data-ppc="ver-asignacion"'/);
-  assert.match(source,/function openReadOnlyAssignment\(id,fromContractor=false\)/);
-  assert.match(source,/assignment\.mode='view'/);
-  assert.match(source,/configureAssignmentReadOnly\(true\)/);
-  assert.match(source,/assignment\.mode==='view'\|\|state\.view!=='calendario'/);
-  assert.match(source,/fromContractor \? state\.type!=='MONTADOR'/);
+test('Contratistas: fuera de alcance no expone datos de proyecto ajeno',()=>{
+ const cal={montajeRelations:[],personal:[{id_personal:7,nombre:'N',contratista:'AL CA'}],
+  asignaciones:[{id_personal:7,id_ins_fl:null,id_proyecto:'SECRETO',proyecto:'PRIVADO',visible:false,valida:true,
+    inicio:'2026-11-10',fin:'2026-11-20'}],montajeError:''};
+ const holder={innerHTML:''};
+ renderer(cal).renderContractorCalendar(holder,'');
+ assert.doesNotMatch(holder.innerHTML,/SECRETO|PRIVADO/);
+ assert.match(holder.innerHTML,/Ocupación fuera de tu alcance/);
 });
-
-test('Contratistas aparece dentro de Calendario arriba de Personal, sin pestaña independiente',()=>{
-  assert.doesNotMatch(source,/data-vista="contratistas"/);
-  assert.match(source,/class="ppc-contractor-calendar"/);
-  assert.match(source,/class="ppc-contractor-title">CONTRATISTAS<\/h2>/);
-  assert.match(source,/holder\.innerHTML=`\$\{contractorSection\}<div class="ppc-cal-scroll"/);
-  assert.match(source,/if\(state\.type==='MONTADOR'\)renderContractorCalendar\(el\('ppc-contractor-content'\),dayCells\)/);
-  assert.match(source,/if\(fromContractor \? state\.type!=='MONTADOR'/);
-  assert.match(source,/node\.closest\('\.ppc-contractor'\)/);
-  assert.match(css,/\.ppc-contractor-calendar/);
+test('Detalle por equipo agrupa perfiles, conserva revision y no genera altas automaticas',()=>{
+ assert.match(source,/Mecánicos/);
+ assert.match(source,/Ayudantes/);
+ assert.match(source,/data-ppc="montaje-persona"/);
+ assert.match(source,/revision:detail\.revision/);
+ assert.match(source,/contratista:contractor\.name/);
+ assert.match(source,/ids_personal:\[\.\.\.draft\.selected\]/);
+ assert.match(source,/api\('\/montadores\/agrupaciones\/guardar','POST'/);
+ assert.match(source,/api\(`\/montadores\/equipo\/\$\{id\}\/detalle`\)/);
+ assert.match(css,/ppc-contractor-equipo/);
+});
+test('Ajustadores: barras azules mantienen acceso a detalle de solo lectura',()=>{
+ assert.match(source,/item\.origen==='AUTOMATICA_FL'\?'ppc-cal-bar-auto'/);
+ assert.match(source,/function openReadOnlyAssignment\(id,fromContractor=false\)/);
+ assert.match(source,/assignment\.mode='view'/);
+ assert.match(source,/configureAssignmentReadOnly\(true\)/);
+ assert.match(source,/data-ppc="ver-asignacion"/);
+});
+test('Contratistas permanece dentro de Calendario, separado de personal',()=>{
+ assert.match(source,/class="ppc-contractor-calendar"/);
+ assert.match(source,/class="ppc-contractor-title">CONTRATISTAS<\/h2>/);
+ assert.match(source,/if\(state\.type==='MONTADOR'\)renderContractorCalendar\(el\('ppc-contractor-content'\),dayCells\)/);
+ assert.match(css,/\.ppc-contractor-calendar/);
 });

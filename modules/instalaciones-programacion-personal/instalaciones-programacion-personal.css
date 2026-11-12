@@ -172,3 +172,39 @@
 /* BLT NOW | 2026-11-12 | Acordeones de contratistas dentro del calendario de Personal. */
 .ppc-contractor-calendar{margin:0 0 19px;padding-bottom:18px;border-bottom:2px solid #dde6f2}
 .ppc-contractor-title{margin:4px 0 11px;color:#0d2e6e;font-size:13px;font-weight:800;letter-spacing:.04em}
+
+/* INT9 04-M | Jerarquía contratista > proyecto > equipo > personal. */
+.ppc-contractor-projects{display:flex;flex-direction:column;gap:12px;padding:12px;background:#f8fbff}
+.ppc-contractor-project{border:1px solid #dce7f3;border-radius:10px;background:#fff;overflow:hidden}
+.ppc-contractor-project>h3{margin:0;padding:11px 14px;background:#f0f6ff;color:#143b69;
+  font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ppc-contractor-project>h3 small{font-size:11px;color:#59708b;font-weight:500}
+.ppc-contractor-equipo{border-top:1px solid #e7edf5}
+.ppc-contractor-equipo-toggle{background:#fff;border:0;color:#163454;padding:12px 14px;width:100%;
+  display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;font:inherit}
+.ppc-contractor-equipo-toggle:hover:not(:disabled){background:#f7fbff}
+.ppc-contractor-equipo-toggle:disabled{cursor:default;opacity:.7}
+.ppc-contractor-equipo-toggle:focus-visible{outline:2px solid #1d4ed8;outline-offset:-3px}
+.ppc-contractor-equipo-name{min-width:0;flex:1;font-size:13px;font-weight:700;overflow-wrap:anywhere}
+.ppc-contractor-equipo-name small{display:block;font-size:11px;font-weight:400;color:#59708b;margin-top:3px}
+.ppc-contractor-equipo-body{border-top:1px solid #e7edf5;background:#fcfdff;padding:13px 16px}
+.ppc-contractor-detail-head{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.ppc-contractor-detail-head strong{color:#0c3767;font-size:13px}
+.ppc-contractor-detail-head small{color:#64748b;font-size:11px}
+.ppc-contractor-role{padding:11px 0;border-top:1px solid #e3ebf4}
+.ppc-contractor-role h4{font-size:12px;font-weight:700;color:#164679;margin:0 0 9px}
+.ppc-contractor-role h4 small{font-weight:400;color:#64748b}
+.ppc-contractor-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:7px}
+.ppc-contractor-person{display:flex;align-items:center;gap:8px;min-width:0;padding:9px 10px;
+  font-size:12px;border:1px solid #e3eaf4;background:white;border-radius:8px;cursor:pointer}
+.ppc-contractor-person:has(input:checked){border-color:#90b5ed;background:#edf5ff}
+.ppc-contractor-person:has(input:disabled){opacity:.75;cursor:default}
+.ppc-contractor-other{font-size:11px;color:#4c647e;margin-top:9px}
+.ppc-contractor-other ul{margin:6px 0 0 20px}
+.ppc-contractor-pending{font-size:11px;font-weight:700;color:#9a520e}
+.ppc-contractor-save{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 15px;
+  border-top:1px solid #dce7f3;background:#f4f8fe}
+@media(max-width:760px){.ppc-contractor-projects{padding:8px}
+ .ppc-contractor-equipo-body{padding:10px}
+ .ppc-contractor-save{align-items:stretch;flex-direction:column}
+ .ppc-contractor-save button{width:100%}}
