@@ -55,5 +55,16 @@ test('Ajustadores: barras azules abren detalle sin escrituras',()=>{
   assert.match(source,/assignment\.mode='view'/);
   assert.match(source,/configureAssignmentReadOnly\(true\)/);
   assert.match(source,/assignment\.mode==='view'\|\|state\.view!=='calendario'/);
-  assert.match(source,/state\.view==='contratistas'&&state\.type!=='MONTADOR'/);
+  assert.match(source,/fromContractor \? state\.type!=='MONTADOR'/);
+});
+
+test('Contratistas aparece dentro de Calendario arriba de Personal, sin pestaña independiente',()=>{
+  assert.doesNotMatch(source,/data-vista="contratistas"/);
+  assert.match(source,/class="ppc-contractor-calendar"/);
+  assert.match(source,/class="ppc-contractor-title">CONTRATISTAS<\/h2>/);
+  assert.match(source,/holder\.innerHTML=`\$\{contractorSection\}<div class="ppc-cal-scroll"/);
+  assert.match(source,/if\(state\.type==='MONTADOR'\)renderContractorCalendar\(el\('ppc-contractor-content'\),dayCells\)/);
+  assert.match(source,/if\(fromContractor \? state\.type!=='MONTADOR'/);
+  assert.match(source,/node\.closest\('\.ppc-contractor'\)/);
+  assert.match(css,/\.ppc-contractor-calendar/);
 });

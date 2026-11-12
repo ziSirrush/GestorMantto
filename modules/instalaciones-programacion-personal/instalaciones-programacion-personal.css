@@ -168,3 +168,7 @@
   .ppc-contractor>summary{flex-wrap:wrap;gap:6px}
   .ppc-contractor>summary small{margin-left:0;flex-basis:100%;text-align:left;padding-left:24px}
 }
+
+/* BLT NOW | 2026-11-12 | Acordeones de contratistas dentro del calendario de Personal. */
+.ppc-contractor-calendar{margin:0 0 19px;padding-bottom:18px;border-bottom:2px solid #dde6f2}
+.ppc-contractor-title{margin:4px 0 11px;color:#0d2e6e;font-size:13px;font-weight:800;letter-spacing:.04em}
