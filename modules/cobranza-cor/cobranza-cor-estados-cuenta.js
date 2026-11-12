@@ -305,6 +305,222 @@
     return Boolean(code) && code !== 'MXN' && code !== 'SIN_MONEDA';
   }
 
+  const DAY_MS_COR = 24 * 60 * 60 * 1000;
+
+  function roundFrontendAmount_cor(value){
+    const parsed = number_cor(value);
+    return parsed === null
+      ? null
+      : Math.round((parsed + Number.EPSILON) * 100) / 100;
+  }
+
+  function invoiceKey_cor(value){
+    return String(value || '').trim().toUpperCase();
+  }
+
+  function isoDateStamp_cor(value){
+    const raw = String(value || '').trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const stamp = Date.UTC(year,month - 1,day);
+    const date = new Date(stamp);
+    if(
+      date.getUTCFullYear() !== year
+      || date.getUTCMonth() !== month - 1
+      || date.getUTCDate() !== day
+    ){
+      return null;
+    }
+    return stamp;
+  }
+
+  function isoDateFromStamp_cor(stamp){
+    if(!Number.isFinite(stamp)) return null;
+    const date = new Date(stamp);
+    return [
+      String(date.getUTCFullYear()).padStart(4,'0'),
+      String(date.getUTCMonth() + 1).padStart(2,'0'),
+      String(date.getUTCDate()).padStart(2,'0')
+    ].join('-');
+  }
+
+  function estimatedPaymentDate_cor(row){
+    const base = isoDateStamp_cor(row && row.fecha_vencimiento);
+    const conditions = number_cor(row && row.condiciones_pago_dias);
+    if(base === null || conditions === null || !Number.isInteger(conditions)){
+      return null;
+    }
+    return isoDateFromStamp_cor(base + (conditions * DAY_MS_COR));
+  }
+
+  function daysOverdue_cor(estimatedDate,nowValue){
+    const estimated = isoDateStamp_cor(estimatedDate);
+    if(estimated === null) return null;
+    const now = nowValue instanceof Date ? nowValue : new Date();
+    const today = Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    return Math.round((today - estimated) / DAY_MS_COR);
+  }
+
+  function buildPagadoByFactura_cor(detail){
+    const totals = new Map();
+    const facturas = Array.isArray(detail && detail.facturas)
+      ? detail.facturas
+      : [];
+
+    facturas.forEach(row=>{
+      const key = invoiceKey_cor(row && row.factura);
+      const paid = number_cor(row && row.pagado);
+      if(!key || paid === null) return;
+      totals.set(
+        key,
+        roundFrontendAmount_cor((totals.get(key) || 0) + paid)
+      );
+    });
+
+    return totals;
+  }
+
+  function applyFuenteRules_cor(detail,nowValue){
+    const rows = Array.isArray(detail && detail.estado_cuenta)
+      ? detail.estado_cuenta
+      : [];
+    const pagadoByFactura = buildPagadoByFactura_cor(detail);
+
+    return rows.map(row=>{
+      const sourceStatus = String(
+        row && row.estatus_factura_fuente || ''
+      ).trim().toUpperCase();
+      const invoiceKey = invoiceKey_cor(
+        row && (row.factura_fuente || row.factura)
+      );
+
+      const sourcePayment = number_cor(
+        row && row.pago_total_fuente
+      );
+      const currentPayment = number_cor(
+        row && row.pago_total
+      );
+      const accountedPayment = number_cor(
+        row && row.pago_contabilizado
+      );
+
+      let payment = sourcePayment !== null
+        ? sourcePayment
+        : (currentPayment !== null ? currentPayment : accountedPayment);
+
+      if(
+        sourceStatus === 'PARCIAL'
+        && invoiceKey
+        && pagadoByFactura.has(invoiceKey)
+      ){
+        payment = pagadoByFactura.get(invoiceKey);
+      }
+
+      if(payment === null) payment = 0;
+      payment = roundFrontendAmount_cor(payment);
+
+      const estimated = estimatedPaymentDate_cor(row);
+      const days = estimated
+        ? daysOverdue_cor(estimated,nowValue)
+        : number_cor(row && row.dias_vencimiento);
+      const dueStatus = days === null
+        ? (String(row && row.estatus_vencimiento || '').trim() || null)
+        : (days < 31 ? 'CORRIENTE' : 'VENCIDO');
+
+      const total = number_cor(row && row.total);
+      const pending = total === null
+        ? null
+        : roundFrontendAmount_cor(total - payment);
+
+      return {
+        ...row,
+        pago_total: payment,
+        pago_contabilizado: payment,
+        pendiente_calculado: pending,
+        estimado_pago: estimated || (row && row.estimado_pago) || null,
+        dias_vencimiento: days,
+        estatus_vencimiento: dueStatus
+      };
+    });
+  }
+
+  function buildFrontendSummary_cor(rows){
+    const buckets = new Map();
+
+    (Array.isArray(rows) ? rows : []).forEach(row=>{
+      const currency = String(
+        row && row.moneda || 'SIN_MONEDA'
+      ).trim().toUpperCase() || 'SIN_MONEDA';
+
+      if(!buckets.has(currency)){
+        buckets.set(currency,{
+          moneda:currency,
+          registros:0,
+          pagados:0,
+          no_pagados:0,
+          subtotal:0,
+          iva:0,
+          total:0,
+          cobrado:0,
+          pendiente:0
+        });
+      }
+
+      const bucket = buckets.get(currency);
+      const total = number_cor(row && row.total) || 0;
+      const paid = number_cor(row && row.pago_contabilizado) || 0;
+      const pending = number_cor(row && row.pendiente_calculado) || 0;
+
+      bucket.registros += 1;
+      bucket.pagados += Math.abs(pending) <= 0.005 ? 1 : 0;
+      bucket.no_pagados += Math.abs(pending) <= 0.005 ? 0 : 1;
+      bucket.subtotal += number_cor(row && row.subtotal) || 0;
+      bucket.iva += number_cor(row && row.iva) || 0;
+      bucket.total += total;
+      bucket.cobrado += paid;
+      bucket.pendiente += pending;
+    });
+
+    const priority = new Map([
+      ['USD',1],
+      ['MXN',2],
+      ['EUR',3],
+      ['SIN_MONEDA',99]
+    ]);
+
+    return [...buckets.values()]
+      .map(bucket=>{
+        const total = roundFrontendAmount_cor(bucket.total) || 0;
+        const cobrado = roundFrontendAmount_cor(bucket.cobrado) || 0;
+        return {
+          ...bucket,
+          subtotal:roundFrontendAmount_cor(bucket.subtotal) || 0,
+          iva:roundFrontendAmount_cor(bucket.iva) || 0,
+          total,
+          cobrado,
+          pendiente:roundFrontendAmount_cor(bucket.pendiente) || 0,
+          porcentaje_cobrado_calculado:
+            total !== 0
+              ? Math.round((cobrado / total) * 1000000) / 1000000
+              : null
+        };
+      })
+      .sort((a,b)=>{
+        const left = priority.get(a.moneda) ?? 50;
+        const right = priority.get(b.moneda) ?? 50;
+        return left !== right
+          ? left - right
+          : a.moneda.localeCompare(b.moneda);
+      });
+  }
+
   function renderSummaryMini_cor(item,sectionClass){
     if(!item){
       return '<div class="ccor-ec-summary-empty">Sin movimientos</div>';
@@ -969,10 +1185,10 @@
     const quality = detail.calidad || {};
 
     const movements =
-      getMovements_cor(detail);
+      applyFuenteRules_cor(detail);
 
     const summaryItems =
-      getSummaryItems_cor(detail);
+      buildFrontendSummary_cor(movements);
 
     const supplyRows =
       movements.filter(
