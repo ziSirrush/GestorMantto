@@ -77,6 +77,7 @@
     loadTestCapabilityError:'',
     loadTestCapabilityLoading:false,
     scriptTest:{running:false,loading:false,data:null,message:''},
+    scriptMontaje:{running:false,loading:false,data:null,message:''},
     auditWeek:null,
     auditCompany:'',
     auditModule:'',
@@ -1262,13 +1263,97 @@
       }
     }
   }
+  // INT9 04-M: estado y polling separados de Ajustadores; los 404 no significan cierre.
+  const MONTAGE_URL='/api/panel-control/pruebas-scripts/conciliacion-montadores';
+  let montajePoll=null,montajeReading=false,montajeReadErrors=0;
+  function montageText(){
+    const s=state.scriptMontaje,d=s.data;
+    if(!d)return s.message||'Sin ejecución registrada.';
+    return ['Montadores 04-M — Contratistas / Proyecto',
+      'Estado: '+String(d.estado||'DESCONOCIDO'),
+      'Capa: '+String(d.fase||'INICIANDO'),
+      'Equipos revisados: '+Number(d.total_equipos||0),
+      'Relaciones creadas: '+Number(d.creadas||0),
+      'Relaciones históricas: '+Number(d.historicas||0),
+      'Revisiones: '+Number(d.revisiones||0),
+      'Errores: '+Number(d.errores||0),
+      'Lotes: '+Number(d.lotes_completados||0),
+      'Último ID: '+Number(d.ultimo_id_ins_fl||0),
+      ...(Array.isArray(d.detalles)?d.detalles.map(v=>'FL '+v.id_ins_fl+': '+v.codigo):[]),
+      s.message||d.mensaje||''].join('\n');
+  }
+  function updateMontageView(){
+    const stateM=state.scriptMontaje;
+    const button=document.getElementById('pc-montage-run');
+    const output=document.getElementById('pc-montage-output');
+    if(button){
+      button.disabled=Boolean(stateM.running||stateM.loading);
+      button.textContent=stateM.running?'Conciliando montadores 04-M...':'Ejecutar prueba 04-M';
+    }
+    if(output)output.textContent=montageText();
+  }
+  async function pollMontage(){
+    if(state.tab!==SCRIPT_TEST_TAB||montajeReading)return;
+    montajeReading=true;
+    const pending=state.scriptMontaje.running||state.scriptMontaje.data?.estado==='EN_PROCESO';
+    try{
+      const result=await request(MONTAGE_URL+'?_='+Date.now(),{method:'GET',cache:'no-store'});
+      state.scriptMontaje.data=result.data||null;
+      state.scriptMontaje.running=result.data?.estado==='EN_PROCESO';
+      state.scriptMontaje.message='';
+      montajeReadErrors=0;
+    }catch(error){
+      montageReadErrors++;
+      if(Number(error?.status)===403||Number(error?.status)===401){
+        state.scriptMontaje.running=false;state.scriptMontaje.message=error.message||'Sin autorización.';
+      }else{
+        state.scriptMontaje.running=Boolean(pending);
+        state.scriptMontaje.message=pending?
+          'Estado temporal no verificable. NO reinicies la conciliación; reintentando lectura.':
+          'Sin resultado temporal confirmado.';
+      }
+    }finally{
+      montajeReading=false;state.scriptMontaje.loading=false;updateMontageView();
+      if(montajePoll)window.clearTimeout(montajePoll);
+      if(state.tab===SCRIPT_TEST_TAB&&state.scriptMontaje.running)
+        montajePoll=window.setTimeout(()=>{void pollMontage();},
+          Math.min(30000,1600*Math.pow(2,Math.min(montajeReadErrors,4))));
+    }
+  }
+  function bindMontage(){
+    const button=document.getElementById('pc-montage-run');
+    button?.addEventListener('click',async()=>{
+      if(state.scriptMontaje.running||state.scriptMontaje.loading)return;
+      if(!window.confirm('Esta prueba CONCILIA relaciones reales de contratistas y proyectos 04-M en Aiven. No asigna montadores. ¿Confirmas?'))return;
+      state.scriptMontaje.loading=true;state.scriptMontaje.message='Iniciando 04-M...';updateMontageView();
+      try{
+        const result=await request(MONTAGE_URL,{method:'POST'});
+        state.scriptMontaje.data=result.data||null;
+        state.scriptMontaje.running=result.data?.estado==='EN_PROCESO';
+        state.scriptMontaje.message='';
+        if(state.scriptMontaje.running)void pollMontage();
+      }catch(error){
+        const msg=String(error?.message||'Error al iniciar');
+        if(!Number(error?.status)&&/network|fetch|timeout|load failed/i.test(msg)){
+          state.scriptMontaje.running=true;
+          state.scriptMontaje.message='Inicio no confirmado, consultando API. NO reinicies.';
+          void pollMontage();
+        }else{state.scriptMontaje.running=false;state.scriptMontaje.message=msg;}
+      }finally{state.scriptMontaje.loading=false;updateMontageView();}
+    });
+    updateMontageView();
+    if(!state.scriptMontaje.data&&!state.scriptMontaje.loading)void pollMontage();
+  }
   function renderScriptTests(){
     const box=document.getElementById('pc-content');
     if(!box||state.tab!==SCRIPT_TEST_TAB)return;
     box.innerHTML='<section class="pc-script-tests"><header><span class="pc-eyebrow">QA TEMPORAL</span><h2>Pruebas de scripts</h2><p>Ejecuciones manuales para verificar funciones específicas. No modifica la programación nocturna.</p></header>'+
       '<article class="pc-script-entry"><div><h3>Conciliación FL → Programación de Personal</h3><p>Concilia equipos 06-A y registros automáticos existentes. La prueba utiliza datos operativos reales. Solo Programador autorizado.</p></div>'+
       '<button type="button" class="pc-btn primary" id="pc-script-run">Ejecutar prueba manual</button></article>'+
-      '<section class="pc-script-report"><h3>Resultado temporal</h3><pre id="pc-script-output" role="status" aria-live="polite"></pre></section></section>';
+      '<section class="pc-script-report"><h3>Resultado temporal</h3><pre id="pc-script-output" role="status" aria-live="polite"></pre></section>'+
+      '<article class="pc-script-entry"><div><h3>Montadores 04-M — Vincular contratistas</h3><p>Relaciona proyecto e iniciales con su contratista; la asignación personal es manual. Requiere tabla SQL y usa Aiven real.</p></div>'+
+      '<button type="button" class="pc-btn primary" id="pc-montage-run">Ejecutar prueba 04-M</button></article>'+
+      '<section class="pc-script-report"><h3>Resultado 04-M</h3><pre id="pc-montage-output" role="status" aria-live="polite"></pre></section></section>';
     box.querySelector('#pc-script-run')?.addEventListener('click',async()=>{
       if(state.scriptTest.running||state.scriptTest.loading)return;
       if(!window.confirm('Esta prueba ejecuta una conciliacion real y puede crear o modificar asignaciones automaticas. ¿Confirmas?'))return;
@@ -1300,6 +1385,7 @@
     updateSaveButton();
     updateScriptTestView();
     if(!state.scriptTest.data&&!state.scriptTest.loading)void queryScriptTest();
+    bindMontage();
   }
 
   function shell(){
@@ -1357,6 +1443,7 @@
         state.informationScopeDraft=cloneInformationScopeDraft(state.informationScopeBase);
       }
       if(scriptTestPoll){window.clearTimeout(scriptTestPoll);scriptTestPoll=null;}
+      if(montajePoll){window.clearTimeout(montajePoll);montajePoll=null;}
       state.tab=nextTab;
       state.dirty.clear();
       state.notificationDirty.clear();

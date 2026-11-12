@@ -229,7 +229,8 @@
   const CELL_WIDTH=30;
   const cal={desde:null,span:31,q:'',epoch:0,personal:[],asignaciones:[],sin_fechas:[],equipos:[],
     todosEquipos:0,masEquipos:false,hoy:null,loading:false,feedback:'',error:false,
-    flIssues:[],flCursor:null,flMore:false,flLoading:false,flError:'',flEpoch:0};
+    flIssues:[],flCursor:null,flMore:false,flLoading:false,flError:'',flEpoch:0,
+    montajeRelations:[],montajeError:''};
   const assignment={mode:null,item:null,equipo:null,equipos:[],searchTimer:null,selectedPerson:null,focusDate:null,epoch:0};
   const MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const DAY_NAMES=['D','L','M','M','J','V','S'];
@@ -289,10 +290,11 @@
     cal.loading=true;
     setCalendarFeedback('Consultando programación…');
     const params={tipo:state.type,desde:cal.desde,hasta:offsetDate(cal.desde,cal.span-1),q:cal.q};
-    const [program,uncovered,issues]=await Promise.allSettled([
+    const [program,uncovered,issues,montaje]=await Promise.allSettled([
       api('/calendario?'+encodeQuery(params)),
       api('/equipos?'+encodeQuery({tipo:state.type,desde:params.desde,hasta:params.hasta,solo_sin_personal:1,limit:30})),
-      state.type==='AJUSTADOR'?api('/ajustadores/incidencias-fl?limit=50'):Promise.resolve(null)
+      state.type==='AJUSTADOR'?api('/ajustadores/incidencias-fl?limit=50'):Promise.resolve(null),
+      state.type==='MONTADOR'?api('/montadores/relaciones?'+encodeQuery({desde:params.desde,hasta:params.hasta})):Promise.resolve(null)
     ]);
     if(epoch!==cal.epoch||!calRoot())return;
     cal.loading=false;
@@ -307,6 +309,8 @@
       cal.hoy=result.hoy||todayMexico();
       setCalendarFeedback(`${cal.personal.length} personas · ${cal.asignaciones.length} asignaciones en el periodo`);
     }
+    cal.montajeRelations=state.type==='MONTADOR'&&montaje.status==='fulfilled'&&Array.isArray(montaje.value?.relaciones)?montaje.value.relaciones:[];
+    cal.montajeError=state.type==='MONTADOR'&&montaje.status!=='fulfilled'?(montaje.reason?.message||'Relaciones 04-M no disponibles'):'';
     cal.equipos=uncovered.status==='fulfilled'?(uncovered.value?.equipos||[]):[];
     cal.todosEquipos=uncovered.status==='fulfilled'?Number(uncovered.value?.total||0):0;
     cal.masEquipos=Boolean(uncovered.status==='fulfilled'&&uncovered.value?.hay_mas);
@@ -377,6 +381,20 @@
   function renderContractorCalendar(holder, dayCells) {
   const who=new Map(cal.personal.map(person=>[Number(person.id_personal),person]));
   const grouped=new Map();
+  // Primero se muestran proyectos 04-M vinculados, aunque no tengan montadores.
+  for(const relation of cal.montajeRelations||[]){
+    const key=contractorKey(relation.contratista);
+    if(!grouped.has(key))grouped.set(key,{key,name:contractorName(relation.contratista),projects:new Map()});
+    const contractor=grouped.get(key);
+    const projectId=String(relation.id_proyecto||'').trim();
+    const projectKey=projectId?'id:'+projectId:'equipment:'+String(relation.id_ins_fl);
+    if(!contractor.projects.has(projectKey))
+      contractor.projects.set(projectKey,{name:relation.proyecto||projectId||'Proyecto',
+        visible:true,assignments:[],people:new Set(),equipos:new Map(),iniciales:relation.iniciales});
+    const project=contractor.projects.get(projectKey);
+    if(!project.equipos)project.equipos=new Map();
+    project.equipos.set(Number(relation.id_ins_fl),relation);
+  }
   for(const assignment of cal.asignaciones){
     const person=who.get(Number(assignment.id_personal));
     if(!person||!assignment.valida)continue;
@@ -391,7 +409,7 @@
     if(!contractor.projects.has(projectKey)){
       contractor.projects.set(projectKey,{
         name:assignment.visible?(projectName||projectId||'Proyecto'):'Ocupación fuera de tu alcance',
-        visible:Boolean(assignment.visible),assignments:[],people:new Set()
+        visible:Boolean(assignment.visible),assignments:[],people:new Set(),equipos:new Map()
       });
     }
     const project=contractor.projects.get(projectKey);
@@ -410,12 +428,16 @@
     const visibleProjects=projects.filter(p=>p.visible).length;
     const count=projects.reduce((n,p)=>n+p.assignments.length,0);
     const projectRows=projects.map(project=>{
-      const items=project.assignments.sort((a,b)=>a.inicio.localeCompare(b.inicio)||a.fin.localeCompare(b.fin));
+      const pending=[...(project.equipos?.values()||[])].filter(r=>
+        !project.assignments.some(a=>Number(a.id_ins_fl)===Number(r.id_ins_fl)))
+        .map(r=>({...r,_personName:'Montador por asignar',visible:true,esRelacion04M:true,
+          id_asignacion:null,valida:true}));
+      const items=[...project.assignments,...pending].sort((a,b)=>a.inicio.localeCompare(b.inicio)||a.fin.localeCompare(b.fin));
       const {rows,lanes}=lanePositions(items);
       const height=Math.max(46,lanes*27+11);
       const bars=rows.map(({item,from,through,lane})=>{
         const canView=item.visible&&Number.isSafeInteger(Number(item.id_asignacion))&&Number(item.id_asignacion)>0;
-        const label=item.visible?`${item._personName||'Montador'} · ${item.equipo||'Equipo'}`:'Ocupado (fuera de tu alcance)';
+        const label=item.visible?`${item._personName||'Montador'} · ${item.equipo||'Equipo'}${item.esRelacion04M?' · '+(item.iniciales||''):''}`:'Ocupado (fuera de tu alcance)';
         const title=item.visible?`${project.name} · ${label} · ${formatWindow(item)}`:`Ocupado · ${formatWindow(item)}`;
         const classes='ppc-cal-bar ppc-contractor-bar'
           +(item.es_historico?' ppc-cal-bar-history':'')
@@ -439,6 +461,7 @@
             <div class="ppc-cal-days">${dayCells}</div></div>${projectRows}</div></div></details>`;
   }).join('');
   holder.innerHTML=`<p class="ppc-cal-note">Vista de solo lectura: cada proyecto se agrupa bajo su contratista. Las franjas representan asignaciones existentes; no generan nuevos registros.</p>
+    ${cal.montajeError?`<p class="ppc-cal-feedback ppc-error">Relaciones 04-M: ${esc(cal.montajeError)}</p>`:''}
     ${contractors.length?`<details class="ppc-contractor-legend"><summary>Leyenda de contratistas (${contractors.length})</summary><div>${legend}</div></details>`:''}
     <div class="ppc-contractors">${content||'<p class="ppc-cal-note">No hay proyectos programados para el período y filtro seleccionados.</p>'}</div>`;
 }
