@@ -53,7 +53,7 @@ test('Detalle por equipo agrupa perfiles, conserva revision y no genera altas au
  assert.match(source,/Ayudantes/);
  assert.match(source,/data-ppc="montaje-persona"/);
  assert.match(source,/revision:detail\.revision/);
- assert.match(source,/contratista:contractor\.name/);
+ assert.match(source,/contratista:group\.name/);
  assert.match(source,/ids_personal:\[\.\.\.draft\.selected\]/);
  assert.match(source,/api\('\/montadores\/agrupaciones\/guardar','POST'/);
  assert.match(source,/api\(`\/montadores\/equipo\/\$\{id\}\/detalle`\)/);
