@@ -8,7 +8,7 @@
   const BASE = '/api/instalaciones/programacion';
   const CODE = 'INSTALACIONES_PROGRAMACION_PERSONAL_CALENDARIO_PROGRAMACION';
   const TYPES = Object.freeze({MONTADOR:'Montadores', AJUSTADOR:'Ajustadores'});
-  const state = {type:'MONTADOR',view:'calendario',rows:[],options:null,page:1,limit:50,total:0,q:'',ready:false,epoch:0,formId:null,filterTimer:null};
+  const state = {type:'MONTADOR',view:'calendario',tabRights:null,accessEpoch:0,rows:[],options:null,page:1,limit:50,total:0,q:'',ready:false,epoch:0,formId:null,filterTimer:null};
   const root = () => document.getElementById(ROOT_ID);
   const el = id => document.getElementById(id);
   const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -121,9 +121,21 @@
     }
     state.ready = true;
   }
+  const tabAllowed=type=>state.tabRights?.[type]===true;
+  async function refreshTabRights(){
+    const epoch=++state.accessEpoch;
+    state.tabRights=null;
+    const data=await api('/accesos');
+    if(epoch!==state.accessEpoch||!root())return false;
+    state.tabRights={MONTADOR:data?.montadores===true,AJUSTADOR:data?.ajustadores===true};
+    const first=Object.keys(TYPES).find(type=>tabAllowed(type));
+    if(!first)return false;
+    if(!tabAllowed(state.type))state.type=first;
+    return true;
+  }
   function renderTabs() {
     if (!el('ppc-tipos')) return;
-    el('ppc-tipos').innerHTML = Object.entries(TYPES).map(([key,label]) =>
+    el('ppc-tipos').innerHTML = Object.entries(TYPES).filter(([type])=>tabAllowed(type)).map(([key,label]) =>
       `<button type="button" data-ppc="tipo" data-tipo="${key}" class="ppc-tab${state.type===key?' active':''}" aria-pressed="${state.type===key}">${label}</button>`
     ).join('');
     if (el('ppc-new')) el('ppc-new').hidden = !permitted('CREAR');
@@ -156,6 +168,7 @@
     }
   }
   async function reload() {
+    if(!tabAllowed(state.type))return;
     const epoch = ++state.epoch;
     renderTabs();
     setFeedback('Consultando catálogo…');
@@ -192,6 +205,7 @@
       + (!isMont ? field('Experiencia','experiencia',record?.experiencia) : '');
   }
   function openForm(id) {
+    if(!tabAllowed(state.type))return;
     const edit = id !== null;
     if (!(edit?permitted('EDITAR'):permitted('CREAR'))) return;
     const record = edit?state.rows.find(p=>p.id_personal===id):null;
@@ -203,6 +217,7 @@
     el('ppc-fields').querySelector('input')?.focus();
   }
   async function saveForm(form) {
+    if(!tabAllowed(state.type))throw Error('Pestaña no autorizada');
     const edit = state.formId > 0;
     if (!(edit?permitted('EDITAR'):permitted('CREAR'))) throw new Error('Permiso insuficiente.');
     const values = Object.fromEntries(new FormData(form).entries());
@@ -217,6 +232,7 @@
     } finally { if (el('ppc-save')) el('ppc-save').disabled = false; }
   }
   async function deactivate(id) {
+    if(!tabAllowed(state.type))return;
     if (!permitted('DESACTIVAR')) return;
     const record = state.rows.find(p=>p.id_personal===id);
     if (!record || !window.confirm(`¿Desactivar a ${record.nombre}?`)) return;
@@ -284,7 +300,7 @@
     setCalendarFeedback(cal.feedback,cal.error);
   }
   async function reloadCalendar(){
-    if(!calRoot())return;
+    if(!calRoot()||!tabAllowed(state.type))return;
     const epoch=++cal.epoch;
     if(!cal.desde)cal.desde=weekStart(todayMexico());
     cal.loading=true;
@@ -296,7 +312,7 @@
       state.type==='AJUSTADOR'?api('/ajustadores/incidencias-fl?limit=50'):Promise.resolve(null),
       state.type==='MONTADOR'?api('/montadores/relaciones?'+encodeQuery({desde:params.desde,hasta:params.hasta})):Promise.resolve(null)
     ]);
-    if(epoch!==cal.epoch||!calRoot())return;
+    if(epoch!==cal.epoch||!calRoot()||!tabAllowed(state.type))return;
     cal.loading=false;
     if(program.status!=='fulfilled'){
       cal.personal=[];cal.asignaciones=[];cal.sin_fechas=[];
@@ -590,7 +606,7 @@
     root()?.querySelector?.('#ppc-contractor-modal [data-ppc="montaje-cerrar"]')?.focus?.();
   }
   async function openContractorEquipo(id){
-    if(state.type!=='MONTADOR'||state.view!=='calendario'||!canRead())return;
+    if(!tabAllowed('MONTADOR')||state.type!=='MONTADOR'||state.view!=='calendario'||!canRead())return;
     const relation=(cal.montajeRelations||[]).find(x=>Number(x.id_ins_fl)===id);
     if(!relation)return;
     if(contractorExpanded.has(id)){closeContractorDetail();return;}
@@ -624,7 +640,7 @@
     root()?.querySelector?.(`[data-ppc="montaje-persona"][data-equipo="${id}"][value="${pid}"]`)?.focus?.();
   }
   async function saveContractor(key){
-    if(!contractorCanEdit()||contractorSaving.has(key))return;
+    if(!tabAllowed('MONTADOR')||!contractorCanEdit()||contractorSaving.has(key))return;
     const group=contractorGroupData().find(c=>c.key===key);
     if(!group)return;
     const drafts=[...contractorDrafts.entries()].filter(([,d])=>
@@ -802,7 +818,7 @@
     assignmentFeedback(response?.hay_mas?`Mostrando ${response.mostrados} de ${response.total} equipos; utiliza la búsqueda.`:'');
   }
   async function openAssignment(options={}){
-    if(state.view!=='calendario'||!permitted('CREAR')||!calRoot())return;
+    if(!tabAllowed(state.type)||state.view!=='calendario'||!permitted('CREAR')||!calRoot())return;
     configureAssignmentReadOnly(false);
     assignment.epoch++;assignment.mode='new';assignment.item=null;
     assignment.equipo=options.idEquipo||null;
@@ -1101,7 +1117,7 @@
       <div class="ppc-s-people-grid">${persons(r.libres,'Libres confirmados','free')}${persons(r.ocupados,'Ocupados / ya asignados','busy')}${persons(r.indeterminados,'Disponibilidad indeterminada','unknown')}</div>`;
   }
   function loadActiveSection(){
-    if(!canRead())return;
+    if(!canRead()||!tabAllowed(state.type))return;
     if(state.view==='personal')return reload();
     if(state.view==='historial'){historyControls();return loadHistory();}
     if(state.view==='disponibilidad'){availabilityControls();searchSimulationEquipos('');return loadAvailability();}
@@ -1158,7 +1174,7 @@
       const next=node.dataset.vista;
       if(!['calendario','personal','historial','disponibilidad'].includes(next))return;
       contractorExpanded.clear();state.view=next;renderView();loadActiveSection();
-    } else if (action==='tipo' && TYPES[node.dataset.tipo]) {
+    } else if (action==='tipo' && TYPES[node.dataset.tipo] && tabAllowed(node.dataset.tipo)) {
       contractorExpanded.clear();state.type = node.dataset.tipo;state.page=1;state.q='';cal.q='';closeForm();closeAssignment();
       if (el('ppc-query')) el('ppc-query').value='';
       ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
@@ -1263,6 +1279,8 @@
   }
   function clearSensitiveView() {
     ++state.epoch;
+    ++state.accessEpoch;
+    state.tabRights=null;
     ++cal.epoch;
     ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
     clearTimeout(disp.searchTimer);
@@ -1297,15 +1315,23 @@
       state.ready=false;
       return false;
     }
-    await loadActiveSection();return true;
+    try{
+      if(!await refreshTabRights()){
+        clearSensitiveView();if(root())root().innerHTML='<section class="ppc-card" role="alert">Sin acceso a Montadores o Ajustadores.</section>';
+        state.ready=false;return false;
+      }
+    }catch(error){
+      clearSensitiveView();if(root())root().innerHTML='<section class="ppc-card" role="alert">No fue posible verificar permisos de pestañas.</section>';
+      state.ready=false;return false;
+    }
+    renderTabs();await loadActiveSection();return true;
   }
   document.addEventListener('mantto:session-expired',clearSensitiveView);
   document.addEventListener('mantto:view-user-changed',()=>{clearSensitiveView();if(window.ManttoRouter?.getCurrent?.().route==='instalaciones-programacion-personal')init();});
   document.addEventListener('mantto:auth-ready',clearSensitiveView);
   document.addEventListener('mantto:permissions-updated',()=>{
-    if(!canRead()){clearSensitiveView();if(window.ManttoRouter?.getCurrent?.().route==='instalaciones-programacion-personal')window.ManttoRouter?.reset?.();return;}
-    if(!state.ready)return;
-    renderTabs();renderList();if(state.view==='calendario'){calendarControls();renderCalendar();}
+    if(window.ManttoRouter?.getCurrent?.().route!=='instalaciones-programacion-personal')return;
+    clearSensitiveView();state.ready=false;void init();
   });
   window.ManttoInstalacionesProgramacionPersonal = {init,reload:init,dispose:clearSensitiveView};
 })();
