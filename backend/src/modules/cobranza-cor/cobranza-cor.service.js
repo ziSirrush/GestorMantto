@@ -230,7 +230,15 @@ function normalizeFuente_cor(row) {
     subtotal: decimal_cor(field_cor(map, 'SUBTOTAL', 'subtotal'), 'SUBTOTAL'),
     iva: decimal_cor(field_cor(map, 'IVA', 'iva'), 'IVA'),
     total: decimal_cor(field_cor(map, 'TOTAL', 'total'), 'TOTAL'),
+    factura: cleanText_cor(field_cor(map, 'FACTURA', 'factura'), 150),
     pago_total: decimal_cor(field_cor(map, 'PAGO_TOTAL', 'pago_total'), 'PAGO (TOTAL)'),
+    estatus_factura: cleanText_cor(field_cor(
+      map,
+      'ESTATUS_DE_FACTURA',
+      'ESTATUS_FACTURA',
+      'estatus_factura'
+    ), 100),
+    fecha_pago: date_cor(field_cor(map, 'FECHA_DE_PAGO', 'fecha_pago'), 'FECHA DE PAGO'),
     fecha_vencimiento: date_cor(field_cor(map, 'FECHA_DE_VENCIMIENTO_HITO', 'FECHA_DE_VENCIMIENTO', 'fecha_vencimiento'), 'FECHA DE VENCIMIENTO'),
     condiciones_pago_dias: integer_cor(
       field_cor(map, 'CONDICIONES', 'CONDICIONES_PAGO_DIAS', 'condiciones_pago_dias'),
@@ -842,6 +850,9 @@ function serializeFuenteEstadoCuenta_cor(row, applied = 0, pagadaHistorica = fal
     iva: numberOrNull_cor(row?.iva),
     total,
     factura: cleanText_cor(row?.factura),
+    factura_fuente: cleanText_cor(row?.factura),
+    pago_total_fuente: numberOrNull_cor(row?.pago_total),
+    estatus_factura_fuente: cleanText_cor(row?.estatus_factura),
     pago_total: payment.importe_pagado,
     estatus_factura: payment.estatus_factura,
     fecha_pago: cleanText_cor(row?.fecha_pago),
@@ -1015,6 +1026,7 @@ function serializeFacturaEstadoCuenta_cor(row, applied = 0, pagadaHistorica = fa
     subtotal: numberOrNull_cor(row?.subtotal),
     iva: numberOrNull_cor(row?.iva),
     total: numberOrNull_cor(row?.total),
+    pagado: numberOrNull_cor(row?.pagado),
     importe_pagado: payment.importe_pagado,
     saldo: payment.saldo,
     estatus_factura: payment.estatus_factura,

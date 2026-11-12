@@ -573,6 +573,7 @@ function facturaSelectSql_cor() {
        cf.subtotal,
        cf.iva,
        cf.total,
+       cf.pagado,
        cf.estatus_factura,
        DATE_FORMAT(cf.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
        cf.estatus_cobranza,
