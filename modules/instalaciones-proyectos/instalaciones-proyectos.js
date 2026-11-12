@@ -30,6 +30,22 @@ PY_EQUIPOS.forEach(e=>{
 const PY_API_BASE=(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
 const PY_CACHE_DOMAIN='CORELLIAN';
 const PY_CACHE_DATASET='INSTALACIONES-PROYECTOS-LIVE';
+let PY_SYNC_IN_FLIGHT=null;
+let PY_RECONNECT_TIMER=null;
+let PY_RECONNECT_BOUND=false;
+
+function pyReconnectDelayMs(){
+  const ids=pyCacheIds();
+  if(!ids)return 500;
+  return 250+((ids.actor*31+ids.effective*17)%1500);
+}
+function pySetConnectionStatus(message,isError=false){
+  const status=document.getElementById('py-aiven-status');
+  if(!status)return;
+  status.classList.toggle('error',Boolean(isError));
+  status.innerHTML='<span class="py-connection-dot"></span><span>'+pyEsc(message)+'</span>';
+}
+
 function pyCacheIds(){
   const auth=window.ManttoAuth;
   const actor=Number(auth?.getActorUser?.()?.id_SB||auth?.getActorUser?.()?.id||0);
@@ -187,6 +203,61 @@ async function pyIncrementalCoordinated(cached){
   if(!ids||!navigator.locks?.request)return task();
   const lockName='bltnow-instalaciones-proyectos-delta:'+ids.actor+':'+ids.effective;
   return navigator.locks.request(lockName,task);
+}
+
+async function pySynchronizeLive(reason='manual'){
+  if(PY_SYNC_IN_FLIGHT)return PY_SYNC_IN_FLIGHT;
+  PY_SYNC_IN_FLIGHT=(async()=>{
+    const filterState={
+      buscar:document.getElementById('py-f-buscar')?.value||'',
+      estado:document.getElementById('py-f-estado')?.value||'',
+      asesor:document.getElementById('py-f-asesor')?.value||'',
+      supervisor:document.getElementById('py-f-supervisor')?.value||'',
+      activo:document.getElementById('py-f-activo')?.value||'',
+      page:PY_PROYECTOS_PAGE
+    };
+    if(reason==='reconnect')pySetConnectionStatus('Conexion restablecida · sincronizacion incremental pendiente...');
+    else if(reason==='manual')pySetConnectionStatus('Actualizando Aiven...');
+    const warm=await pyLoadWarmCache();
+    let incremental=false;
+    if(warm){
+      try{incremental=await pyIncrementalCoordinated(warm);}
+      catch(error){console.warn('[INSTALACIONES] Delta no disponible; se usa carga completa.',error);}
+    }
+    if(!incremental)await pyCargarDesdeAiven();
+    pyRenderKPIs();
+    pyPopulateFiltrosBasicos();
+    const restore=(id,value)=>{
+      const el=document.getElementById(id);
+      if(el&&[...el.options||[]].some(option=>option.value===value))el.value=value;
+    };
+    const buscar=document.getElementById('py-f-buscar');if(buscar)buscar.value=filterState.buscar;
+    restore('py-f-estado',filterState.estado);restore('py-f-asesor',filterState.asesor);
+    restore('py-f-supervisor',filterState.supervisor);restore('py-f-activo',filterState.activo);
+    PY_PROYECTOS_PAGE=Math.max(1,filterState.page||1);
+    pyRenderProyectos();
+    pySetConnectionStatus('Aiven conectado · '+PY_EQUIPOS.length+' equipos'+(incremental?' · incremental':''));
+    return {ok:true,incremental:Boolean(incremental),reason};
+  })().catch(error=>{
+    pySetConnectionStatus(String(error?.message||error),true);
+    throw error;
+  }).finally(()=>{PY_SYNC_IN_FLIGHT=null;});
+  return PY_SYNC_IN_FLIGHT;
+}
+function pyScheduleReconnectSync(){
+  if(navigator.onLine===false)return;
+  if(PY_RECONNECT_TIMER)window.clearTimeout(PY_RECONNECT_TIMER);
+  const delay=pyReconnectDelayMs();
+  pySetConnectionStatus('Conexion restablecida · sincronizando en '+delay+' ms...');
+  PY_RECONNECT_TIMER=window.setTimeout(()=>{
+    PY_RECONNECT_TIMER=null;
+    pySynchronizeLive('reconnect').catch(error=>console.warn('[INSTALACIONES] Reconexion sin F5 no pudo sincronizar.',error));
+  },delay);
+}
+function pyBindReconnect(){
+  if(PY_RECONNECT_BOUND)return;
+  PY_RECONNECT_BOUND=true;
+  window.addEventListener('online',pyScheduleReconnectSync);
 }
 
 async function pyCargarDesdeAiven(){
@@ -1464,6 +1535,7 @@ async function pyOpenDeepLink(payload){
  if(project)await pyAbrirProyecto(project._id);
 }
 async function pyMount(forceReload,payload){
+ pyBindReconnect();
  const view=document.getElementById('view-instalaciones-proyectos');
  if(!view)return false;
  if(forceReload) view.dataset.pyReady='0';
@@ -1486,19 +1558,8 @@ Object.assign(window,{
 window.ManttoInstalacionesProyectos={
  init:function(payload){return pyMount(false,payload);},
  reload:async function(){
-   try{
-     const status=document.getElementById('py-aiven-status');
-     if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Actualizando Aiven...</span>';
-     const warm=await pyLoadWarmCache();
-     let incremental=false;
-     if(warm){try{incremental=await pyIncrementalCoordinated(warm);}catch(error){console.warn('[INSTALACIONES] Delta manual fallo; carga completa.',error);}}
-     if(!incremental)await pyCargarDesdeAiven();
-     pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();
-     if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>';
-   }catch(error){
-     const status=document.getElementById('py-aiven-status');
-     if(status){status.classList.add('error');status.innerHTML='<span class="py-connection-dot"></span><span>'+pyEsc(error.message||error)+'</span>';}
-   }
+   try{await pySynchronizeLive('manual');}
+   catch(error){console.warn('[INSTALACIONES] Actualizacion manual no disponible.',error);}
  }
 };
 window.showInstalacionesProyectos=function(){return pyMount(false);};
