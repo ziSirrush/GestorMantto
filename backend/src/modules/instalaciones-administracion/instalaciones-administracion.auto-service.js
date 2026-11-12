@@ -279,7 +279,7 @@ async function getEditCatalogs_cor(req) {
   await service.ensureFullEditPermission_cor(req);
   // Usuarios de las areas exactas ya registradas en usuarios.area.
   const [users]=await db.query(
-    `SELECT id_SB,iniciales,area
+    `SELECT id_SB,iniciales,nombre,correo,area
        FROM usuarios
       WHERE estado=1 AND area IN ('Ventas','Instalaciones')
       ORDER BY area ASC,iniciales ASC,id_SB ASC`
@@ -290,7 +290,8 @@ async function getEditCatalogs_cor(req) {
   // exclusivamente mediante projectEquipmentTable_cor, que valida proyecto,
   // permiso y scope por equipo antes de concatenar iniciales.
   const options=area=>users.filter(u=>u.area===area)
-    .map(u=>({id_SB:Number(u.id_SB),iniciales:u.iniciales}));
+    .map(u=>({id_SB:Number(u.id_SB),iniciales:u.iniciales,
+      nombre:String(u.nombre||'').trim()||null,correo:String(u.correo||'').trim()||null}));
   return {
     estatus: rules.STATUS_CODES_COR.map(codigo=>({codigo,nombre:rules.STATUS_LABELS_COR[codigo]})),
     vendedores:options('Ventas'),supervisores:options('Instalaciones'),
