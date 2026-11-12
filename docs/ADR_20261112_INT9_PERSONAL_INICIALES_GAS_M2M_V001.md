@@ -9,7 +9,7 @@ Encabezados exactos A:H:
 `tipo_personal | nombre | contratista | puesto | categoria | experiencia | iniciales | activo`
 
 - **G: iniciales.** Texto capturado, trim de bordes, hasta 30 caracteres, opcional. No calcular, inferir ni convertir a mayusculas.
-- **H: activo.** Solo `1` se envia en POST. `0` se omite sin desactivar.
+- **H: activo.** En GAS V004, tanto `1` como `0` se envían por POST. `0` crea únicamente registros nuevos inactivos; NO desactiva los existentes.
 - Los montadores mantienen contratista obligatorio y puesto `Mecánico` o `Ayudante`. La restriccion sobre experiencia de montadores continua intacta.
 - Los ajustadores siguen sin `contratista` ni `puesto`. Ambos tipos pueden proporcionar `iniciales`.
 - La prevalidacion completa precede a toda solicitud. Mantiene un POST por persona, firma de exactamente los bytes del JSON y los 409 como duplicados no actualizados.
@@ -43,3 +43,11 @@ Este commit no ejecuta DDL ni instala el script en Google Sheets. Apps Script: r
 ## Seguridad y QA
 
 Se conserva M2M/HMAC de Ventas (ID e identidad de integracion existentes, sin claves hardcodeadas), y el flujo JWT para usuarios humanos. Sin acceso M2M a PUT, DELETE ni GET. Las pruebas aisladas comprueban encabezados, offsets, iniciales, compatibilidad SQL antigua y denegacion por columna faltante.
+
+## Adenda V004 — Alta de inactivos (12/11/2026)
+
+El endpoint M2M de alta acepta `activo:0` y `activo:1` sin cambiar el tipo de ruta, credenciales ni permisos. Si no recibe el campo, mantiene `activo=1` para clientes anteriores. La respuesta 201 confirma el estado persistido.
+
+La importación con GAS V004 prepara las filas inactivas sin saltarlas, incrementa el límite de prevalidación a 200 registros y verifica el estado devuelto antes de continuar. Las bajas de personal existente siguen requiriendo el flujo protegido habitual: una fila inactiva cuyo nombre/tipo/contratista ya existe produce 409, sin UPDATE. Los calendarios y listados siguen filtrando `activo=1`. No se requieren nuevas columnas SQL para `activo`; `iniciales` continúa sujeto a la migración independiente si se utiliza.
+
+**Aplicación operativa:** Azure se despliega desde GitHub; el GAS V004 debe instalarse manualmente desde el ZIP autorizado. No se ejecuta Google Sheets ni Aiven al publicar el commit. La comprobación de duplicados inactivos es por consulta previa y no constituye restricción atómica ante cargas concurrentes.

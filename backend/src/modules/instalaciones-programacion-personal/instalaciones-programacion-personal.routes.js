@@ -6,6 +6,7 @@ const service = require('./instalaciones-programacion-personal.service');
 const asignaciones = require('./instalaciones-programacion-personal.asignaciones.service');
 const analitica = require('./instalaciones-programacion-personal.analitica.service');
 const ajustadoresSync = require('./instalaciones-programacion-personal.ajustadores-sync.service');
+const montaje04M = require('./instalaciones-programacion-personal.montadores.service');
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
@@ -89,6 +90,14 @@ router.delete('/programacion/personal/:tipo/:id',...readGuard,permissionFor('DES
 // [Mantto Gestor | 2026-10-16 | INT9-F2 | CALENDARIO Y ASIGNACIONES]
 // La lectura usa el mismo Guard CORELLIAN. Las mutaciones comprueban
 // ademas el permiso especifico y el alcance del equipo EN la transaccion.
+router.get('/programacion/montadores/relaciones',...readGuard,reply(req => montaje04M.relaciones(req)));
+router.post('/programacion/montadores/reconciliar',...readGuard,permissionFor('CREAR'),permissionFor('DESACTIVAR'),
+  reply(req => {
+    const b=req.body||{};
+    if(Object.keys(b).length!==1||!Number.isSafeInteger(Number(b.id_ins_fl))||Number(b.id_ins_fl)<1)
+      throw Object.assign(new Error('Indica exclusivamente id_ins_fl positivo.'),{code:'INT9_MONTAJE_ID_INVALIDO',statusCode:400});
+    return montaje04M.reconcile(Number(b.id_ins_fl),{access:asignaciones._read.scope(req),actorId:Number(req.user?.id_SB||req.user?.id||0)});
+  }));
 router.get('/programacion/equipos',...readGuard,reply(req => asignaciones.equipos(req)));
 router.get('/programacion/calendario',...readGuard,reply(req => asignaciones.calendario(req)));
 router.post('/programacion/asignaciones',...readGuard,permissionFor('CREAR'),
