@@ -91,6 +91,13 @@ router.delete('/programacion/personal/:tipo/:id',...readGuard,permissionFor('DES
 // La lectura usa el mismo Guard CORELLIAN. Las mutaciones comprueban
 // ademas el permiso especifico y el alcance del equipo EN la transaccion.
 router.get('/programacion/montadores/relaciones',...readGuard,reply(req => montaje04M.relaciones(req)));
+router.get('/programacion/montadores/equipo/:id/detalle',...readGuard,
+  reply(req=>require('./instalaciones-programacion-personal.montadores-grupos.service').detalle(req)));
+// Una sola transaccion por contratista: altas/bajas manuales; sin alterar FL.
+router.post('/programacion/montadores/agrupaciones/guardar',...readGuard,
+  permissionFor('CREAR'),permissionFor('DESACTIVAR'),
+  reply(req=>require('./instalaciones-programacion-personal.montadores-grupos.service').guardar(req)));
+
 router.post('/programacion/montadores/reconciliar',...readGuard,permissionFor('CREAR'),permissionFor('DESACTIVAR'),
   reply(req => {
     const b=req.body||{};
