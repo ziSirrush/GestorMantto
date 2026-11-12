@@ -229,7 +229,7 @@
     let rows=[], seq=0, current=null, visible=false, beforeVisibility=new Map(), error='';
     let saving=false, uncertain=false;
     let requestSerial=0, boundHost=null;
-    let draftTimer=null,draftEpoch=0,draftLoadedIdentity=null,draftWrite=Promise.resolve();
+    let draftTimer=null,draftEpoch=0,draftLoadedIdentity=null,draftWrite=Promise.resolve(),unregisterUpdateHook=null;
     const node=id=>host?.querySelector('#'+id)||null;
     const auth=()=>env.ManttoAuth;
     const authIdentity=()=>{
@@ -266,6 +266,28 @@
         }).catch(e=>{if(epoch===draftEpoch&&visible){error='No se pudo proteger el borrador local: '+String(e?.message||e);render();}});
       },120);
     }
+    function draftHasContent(){
+      return uncertain||rows.some(row=>Object.keys(row?.values||{}).length>0);
+    }
+    async function persistDraftImmediately(){
+      const storage=draftStorage(),ctx=draftContext(),identity=authIdentity(),epoch=draftEpoch;
+      if(!storage?.saveFormDraft||!ctx||identity==='NO_SESSION'||viewing()||!draftHasContent())return true;
+      if(draftTimer){env.clearTimeout(draftTimer);draftTimer=null;}
+      if(current){
+        const edit=current,row=rowById(edit.id);
+        const input=host?.querySelector('[data-iadm-altas-row="'+edit.id+'"] [data-iadm-altas-editor-field="'+edit.field+'"]');
+        if(row&&input&&editable(edit.field)){
+          const rawValue=typeof input.value==='string'?input.value:trimmed(input.value);
+          if(rawValue==='')delete row.values[edit.field];else row.values[edit.field]=rawValue;
+          applyAutomaticFields(row,edit.field,rawValue||null);
+        }
+      }
+      await draftWrite.catch(()=>null);
+      if(epoch!==draftEpoch||authIdentity()!==identity||viewing())return false;
+      await storage.saveFormDraft(ctx,DRAFT_KEY,draftPayload(),{route:'instalaciones-administracion',kind:'alta-equipos',reason:'before-reload'});
+      return true;
+    }
+
     async function restorePersistedDraft(){
       const storage=draftStorage(),ctx=draftContext(),identity=authIdentity(),epoch=draftEpoch;
       if(!storage?.getFormDraft||!ctx||identity==='NO_SESSION'||draftLoadedIdentity===identity)return false;
@@ -654,7 +676,17 @@
         if(visible && current?.id===id && current?.field===field)commitCurrent();
       },0);
     }
+    function registerUpdateProtection(){
+      if(unregisterUpdateHook||typeof env.ManttoAppUpdate?.registerBeforeReload!=='function')return;
+      unregisterUpdateHook=env.ManttoAppUpdate.registerBeforeReload(async()=>{
+        if(!visible&&!draftHasContent())return true;
+        const ok=await persistDraftImmediately();
+        if(!ok)throw new Error('No se pudo confirmar la proteccion del borrador de Instalaciones.');
+        return true;
+      });
+    }
     function watch() {
+      registerUpdateProtection();
       const element=document.getElementById('view-instalaciones-administracion');
       if (!element)return;
       if(host!==element) {

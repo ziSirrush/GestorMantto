@@ -156,6 +156,39 @@ async function pyIncrementalFromCache(cached){
   return {ok:true,changes:totalChanges,cursor};
 }
 
+function pyCursorCompare(a,b){
+  const am=Number(a?.updated_ms)||0,bm=Number(b?.updated_ms)||0;
+  if(am!==bm)return am>bm?1:-1;
+  const ai=Number(a?.id)||0,bi=Number(b?.id)||0;
+  return ai===bi?0:(ai>bi?1:-1);
+}
+async function pyIncrementalCoordinated(cached){
+  const ctx=pyCacheContext(),storage=window.ManttoOfflineStorage;
+  const task=async()=>{
+    let candidate=cached;
+    if(storage?.getSnapshot&&ctx){
+      try{
+        const latest=await storage.getSnapshot(ctx);
+        if(latest?.scope_signature===cached?.scope_signature&&latest?.source_cursor&&
+           pyCursorCompare(latest.source_cursor,cached?.source_cursor)>0){
+          const rows=latest?.payload?.data;
+          if(Array.isArray(rows)){
+            pyApplyRows(rows);
+            await pyCargarComentariosJunta();
+            return {ok:true,shared:true,changes:0,cursor:latest.source_cursor};
+          }
+        }
+        if(latest?.scope_signature===cached?.scope_signature&&latest?.source_cursor)candidate=latest;
+      }catch(_error){}
+    }
+    return pyIncrementalFromCache(candidate);
+  };
+  const ids=pyCacheIds();
+  if(!ids||!navigator.locks?.request)return task();
+  const lockName='bltnow-instalaciones-proyectos-delta:'+ids.actor+':'+ids.effective;
+  return navigator.locks.request(lockName,task);
+}
+
 async function pyCargarDesdeAiven(){
   const [equiposJson,fotosJson,cacheState]=await Promise.all([
     pyFetchJson('/api/ins-fl?limit=5000'),
@@ -1409,7 +1442,7 @@ async function pyInit(){
   }
   try{
     let incremental=false;
-    if(warm){try{incremental=await pyIncrementalFromCache(warm);}catch(error){console.warn('[INSTALACIONES] Delta no disponible; se usa carga completa.',error);}}
+    if(warm){try{incremental=await pyIncrementalCoordinated(warm);}catch(error){console.warn('[INSTALACIONES] Delta no disponible; se usa carga completa.',error);}}
     if(!incremental)await pyCargarDesdeAiven();
     const status=document.getElementById('py-aiven-status');
     if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos'+(incremental?' · incremental':'')+'</span>';
@@ -1458,7 +1491,7 @@ window.ManttoInstalacionesProyectos={
      if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Actualizando Aiven...</span>';
      const warm=await pyLoadWarmCache();
      let incremental=false;
-     if(warm){try{incremental=await pyIncrementalFromCache(warm);}catch(error){console.warn('[INSTALACIONES] Delta manual fallo; carga completa.',error);}}
+     if(warm){try{incremental=await pyIncrementalCoordinated(warm);}catch(error){console.warn('[INSTALACIONES] Delta manual fallo; carga completa.',error);}}
      if(!incremental)await pyCargarDesdeAiven();
      pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();
      if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>';
