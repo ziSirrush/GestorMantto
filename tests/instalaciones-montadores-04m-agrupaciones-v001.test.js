@@ -42,5 +42,5 @@ test('Detalle: la revision solo considera manuales, no relaciones automaticas',(
 });
 test('Rutas: lectura con Guard CORELLIAN; escritura necesita CREAR y DESACTIVAR',()=>{
  assert.match(routes,/router\.get\('\/programacion\/montadores\/equipo\/:id\/detalle',\.\.\.readGuard/);
- assert.match(routes,/router\.post\('\/programacion\/montadores\/agrupaciones\/guardar',\.\.\.readGuard,\s*permissionFor\('CREAR'\),permissionFor\('DESACTIVAR'\)/);
+ assert.match(routes,/router\.post\('\/programacion\/montadores\/agrupaciones\/guardar',\.\.\.readGuard,tabPermission\.onlyTab\('MONTADOR'\),\s*permissionFor\('CREAR'\),permissionFor\('DESACTIVAR'\)/);
 });

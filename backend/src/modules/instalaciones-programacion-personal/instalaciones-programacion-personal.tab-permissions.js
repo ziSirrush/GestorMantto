@@ -65,7 +65,7 @@ async function assignmentType(req){
   return rows[0].tipo_personal;
 }
 function byAssignment(req,res,next){
-  assignmentType(req).then(kind=>tabGuard(req,res,next,kind)).catch(next);
+  return assignmentType(req).then(kind=>tabGuard(req,res,next,kind)).catch(next);
 }
 module.exports={CODES,tipo,permisos,onlyTab,oneTab,byAssignment,
   _test:{effectiveId,assignmentType}};

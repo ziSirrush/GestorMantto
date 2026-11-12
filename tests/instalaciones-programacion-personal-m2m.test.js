@@ -99,6 +99,7 @@ Module._load = function(request, parent, isMain) {
     if (request === '../../services/permissions/effective-permission.service') {
       return {hasEffectivePermission:async (userId, code) => Number(userId) === 42 && code.endsWith('.CREAR')};
     }
+    if(request==='./instalaciones-programacion-personal.tab-permissions')return {onlyTab:()=>()=>{},oneTab:()=>{},byAssignment:()=>{},permisos:async()=>({MONTADOR:true,AJUSTADOR:true})};
     // INT9 Ajustadores F3: la ruta importa este servicio en inicializacion.
     // La prueba M2M del catalogo lo aisla para no abrir Aiven/credenciales.
     if (request === './instalaciones-programacion-personal.asignaciones.service' ||
