@@ -1279,27 +1279,35 @@
       'Errores: '+Number(d.errores||0),
       'Lotes: '+Number(d.lotes_completados||0),
       'Último ID: '+Number(d.ultimo_id_ins_fl||0),
+      'Cancelación solicitada: '+(d.cancelacion_solicitada?'Sí':'No'),
       ...(Array.isArray(d.detalles)?d.detalles.map(v=>'FL '+v.id_ins_fl+': '+v.codigo):[]),
       s.message||d.mensaje||''].join('\n');
   }
   function updateMontageView(){
     const stateM=state.scriptMontaje;
     const button=document.getElementById('pc-montage-run');
+    const cancel=document.getElementById('pc-montage-cancel');
     const output=document.getElementById('pc-montage-output');
     if(button){
       button.disabled=Boolean(stateM.running||stateM.loading);
       button.textContent=stateM.running?'Conciliando montadores 04-M...':'Ejecutar prueba 04-M';
+    }
+    if(cancel){
+      cancel.hidden=!stateM.running;
+      cancel.disabled=Boolean(stateM.loading||stateM.data?.estado==='CANCELANDO'||
+        stateM.data?.cancelacion_solicitada||!stateM.data?.id);
+      cancel.textContent=stateM.data?.estado==='CANCELANDO'?'Cancelación solicitada...':'Cancelar prueba 04-M';
     }
     if(output)output.textContent=montageText();
   }
   async function pollMontage(){
     if(state.tab!==SCRIPT_TEST_TAB||montajeReading)return;
     montajeReading=true;
-    const pending=state.scriptMontaje.running||state.scriptMontaje.data?.estado==='EN_PROCESO';
+    const pending=state.scriptMontaje.running||['EN_PROCESO','CANCELANDO'].includes(state.scriptMontaje.data?.estado);
     try{
       const result=await request(MONTAGE_URL+'?_='+Date.now(),{method:'GET',cache:'no-store'});
       state.scriptMontaje.data=result.data||null;
-      state.scriptMontaje.running=result.data?.estado==='EN_PROCESO';
+      state.scriptMontaje.running=['EN_PROCESO','CANCELANDO'].includes(result.data?.estado);
       state.scriptMontaje.message='';
       montajeReadErrors=0;
     }catch(error){
@@ -1329,7 +1337,7 @@
       try{
         const result=await request(MONTAGE_URL,{method:'POST'});
         state.scriptMontaje.data=result.data||null;
-        state.scriptMontaje.running=result.data?.estado==='EN_PROCESO';
+        state.scriptMontaje.running=['EN_PROCESO','CANCELANDO'].includes(result.data?.estado);
         state.scriptMontaje.message='';
         if(state.scriptMontaje.running)void pollMontage();
       }catch(error){
@@ -1340,6 +1348,32 @@
           void pollMontage();
         }else{state.scriptMontaje.running=false;state.scriptMontaje.message=msg;}
       }finally{state.scriptMontaje.loading=false;updateMontageView();}
+    });
+    const cancel=document.getElementById('pc-montage-cancel');
+    cancel?.addEventListener('click',async()=>{
+      const record=state.scriptMontaje.data;
+      if(!state.scriptMontaje.running||state.scriptMontaje.loading||!record?.id||
+         record.estado==='CANCELANDO')return;
+      if(!window.confirm('Se detendrá al terminar la operación en curso. Los cambios ya confirmados permanecerán en Aiven. ¿Solicitar cancelación?'))return;
+      state.scriptMontaje.loading=true;
+      state.scriptMontaje.message='Solicitando cancelación...';
+      updateMontageView();
+      try{
+        const response=await request(MONTAGE_URL+'/cancelar',{method:'POST',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({id:record.id})});
+        state.scriptMontaje.data=response.data||record;
+        state.scriptMontaje.running=['EN_PROCESO','CANCELANDO'].includes(state.scriptMontaje.data?.estado);
+        state.scriptMontaje.message='Esperando confirmación de cancelación...';
+        if(state.scriptMontaje.running)void pollMontage();
+      }catch(error){
+        state.scriptMontaje.message='Cancelación no confirmada ('+
+          String(error?.message||'error')+'). Consultando estado; NO reinicies.';
+        state.scriptMontaje.running=true;
+        void pollMontage();
+      }finally{
+        state.scriptMontaje.loading=false;
+        updateMontageView();
+      }
     });
     updateMontageView();
     if(!state.scriptMontaje.data&&!state.scriptMontaje.loading)void pollMontage();
@@ -1352,7 +1386,8 @@
       '<button type="button" class="pc-btn primary" id="pc-script-run">Ejecutar prueba manual</button></article>'+
       '<section class="pc-script-report"><h3>Resultado temporal</h3><pre id="pc-script-output" role="status" aria-live="polite"></pre></section>'+
       '<article class="pc-script-entry"><div><h3>Montadores 04-M — Vincular contratistas</h3><p>Relaciona proyecto e iniciales con su contratista; la asignación personal es manual. Requiere tabla SQL y usa Aiven real.</p></div>'+
-      '<button type="button" class="pc-btn primary" id="pc-montage-run">Ejecutar prueba 04-M</button></article>'+
+      '<div><button type="button" class="pc-btn primary" id="pc-montage-run">Ejecutar prueba 04-M</button> ' +
+      '<button type="button" class="pc-btn" id="pc-montage-cancel" hidden>Cancelar prueba 04-M</button></div></article>'+
       '<section class="pc-script-report"><h3>Resultado 04-M</h3><pre id="pc-montage-output" role="status" aria-live="polite"></pre></section></section>';
     box.querySelector('#pc-script-run')?.addEventListener('click',async()=>{
       if(state.scriptTest.running||state.scriptTest.loading)return;
