@@ -9,7 +9,11 @@ test('F4: actualizador global ejecuta protectores antes de limpiar caches o reca
   const src=fs.readFileSync(path.join(ROOT,'core/app-update.js'),'utf8');
   assert.match(src,/registerBeforeReload/);
   assert.match(src,/flushBeforeReload/);
-  assert.ok(src.indexOf('await flushBeforeReload()')<src.indexOf('updateServiceWorker()'));
+  const start=src.indexOf('async function applyUpdate()');
+  const end=src.indexOf('function mountProfile()',start);
+  assert.ok(start>=0&&end>start);
+  const applyBlock=src.slice(start,end);
+  assert.ok(applyBlock.indexOf('await flushBeforeReload()')<applyBlock.indexOf('updateServiceWorker()'));
   assert.match(src,/window\.location\.replace/);
 });
 
