@@ -391,33 +391,34 @@
     return [...draft.selected].some(id=>!draft.initial.has(id));
   }
   function contractorGroupData(){
-    const who=new Map((cal.personal||[]).map(person=>[Number(person.id_personal),person]));
+    // Solo las relaciones 04-M vigentes, filtradas por el alcance CORELLIAN
+    // en backend, generan barras. Nunca usar ocupaciones fuera de alcance.
     const grouped=new Map();
-    // Relaciones automaticas: origen unico de proyectos/equipos. Sin personas
-    // asignadas aun, los equipos permanecen visibles.
     for(const relation of cal.montajeRelations||[]){
+      const id=Number(relation.id_ins_fl);
+      if(!Number.isSafeInteger(id)||id<1)continue;
       const key=contractorKey(relation.contratista);
-      if(!grouped.has(key))grouped.set(key,{key,name:contractorName(relation.contratista),projects:new Map(),restricted:0});
-      const group=grouped.get(key),projectId=String(relation.id_proyecto||'').trim();
-      const projectKey=projectId?'id:'+projectId:'equipo:'+relation.id_ins_fl;
-      if(!group.projects.has(projectKey))
-        group.projects.set(projectKey,{key:projectKey,name:relation.proyecto||projectId||'Proyecto',
-          equipos:new Map(),assignments:[],visible:true});
-      group.projects.get(projectKey).equipos.set(Number(relation.id_ins_fl),relation);
-    }
-    for(const assignment of cal.asignaciones||[]){
-      const person=who.get(Number(assignment.id_personal));
-      if(!person||!assignment.valida)continue;
-      const key=contractorKey(person.contratista);
-      if(!grouped.has(key))grouped.set(key,{key,name:contractorName(person.contratista),projects:new Map(),restricted:0});
-      const group=grouped.get(key);
-      if(!assignment.visible){group.restricted++;continue;}
-      const pid=String(assignment.id_proyecto||'').trim();
-      const projectKey=pid?'id:'+pid:'equipo:'+assignment.id_ins_fl;
+      if(!grouped.has(key))grouped.set(key,{
+        key,name:contractorName(relation.contratista),projects:new Map()
+      });
+      const group=grouped.get(key),pid=String(relation.id_proyecto||'').trim();
+      const projectKey=pid?'id:'+pid:'equipo:'+id;
       if(!group.projects.has(projectKey))group.projects.set(projectKey,{
-        key:projectKey,name:assignment.proyecto||pid||'Proyecto',
-        equipos:new Map(),assignments:[],visible:true});
-      group.projects.get(projectKey).assignments.push({...assignment,_personName:person.nombre,_puesto:person.puesto});
+        name:relation.proyecto||pid||'Proyecto',equipos:new Map(),assignments:[]
+      });
+      group.projects.get(projectKey).equipos.set(id,relation);
+    }
+    const people=new Map((cal.personal||[]).map(p=>[Number(p.id_personal),p]));
+    for(const assignment of cal.asignaciones||[]){
+      if(!assignment.visible||!assignment.valida)continue;
+      const person=people.get(Number(assignment.id_personal));
+      if(!person)continue;
+      const group=grouped.get(contractorKey(person.contratista));
+      if(!group)continue;
+      const pid=String(assignment.id_proyecto||'').trim();
+      const project=group.projects.get(pid?'id:'+pid:'equipo:'+assignment.id_ins_fl);
+      if(!project||!project.equipos.has(Number(assignment.id_ins_fl)))continue;
+      project.assignments.push({...assignment,_personName:person.nombre,_puesto:person.puesto});
     }
     return [...grouped.values()].sort((a,b)=>a.name.localeCompare(b.name,'es'));
   }
@@ -455,78 +456,104 @@
       ${contractorDirty(draft)?'<p class="ppc-contractor-pending">Cambios pendientes de guardar</p>':''}
       ${error?`<p class="ppc-cal-feedback ppc-error">${esc(error)}</p>`:''}</div>`;
   }
-  function renderContractorCalendar(holder, dayCells) {
+  // Misma cuadricula por dias que Ajustadores: una fila por contratista,
+  // barras por proyecto/equipo, no filas de personal ni acordeones de proyectos.
+  function renderContractorCalendar(holder,dayCells){
     if(!holder)return;
-    const contractors=contractorGroupData();
-    if(!contractorsInitialized&&contractors.length){
-      contractorsOpen.add(contractors[0].key);
-      contractorsInitialized=true;
-    }
-    const content=contractors.map(group=>{
-      const color=contractorColor(group.key);
-      const projects=[...group.projects.values()].sort((a,b)=>a.name.localeCompare(b.name,'es'));
-      const pending=[...contractorDrafts.values()].filter(d=>
-        contractorKey(d.detail.relacion.contratista)===group.key&&contractorDirty(d));
-      const projectsHTML=projects.map(project=>{
-        const assigned=new Map();
-        for(const a of project.assignments){
-          const id=Number(a.id_ins_fl);
-          if(!assigned.has(id))assigned.set(id,[]);
-          assigned.get(id).push(a);
-        }
-        const equipos=[...project.equipos.values()];
-        for(const [id,as] of assigned){
-          if(!project.equipos.has(id)){
-            equipos.push({id_ins_fl:id,equipo:as[0]?.equipo||'Equipo',
-              proyecto:project.name,id_proyecto:as[0]?.id_proyecto||''});
-          }
-        }
-        equipos.sort((a,b)=>String(a.equipo||'').localeCompare(String(b.equipo||''),'es'));
-        return `<section class="ppc-contractor-project">
-          <h3>${esc(project.name)} <small>${equipos.length} equipo(s)</small></h3>
-          ${equipos.map(e=>{
-            const id=Number(e.id_ins_fl),detailOpen=contractorExpanded.has(id);
-            const active=assigned.get(id)||[];
-            const editable=Boolean(project.equipos.get(id));
-            const names=active.map(a=>a._personName).filter(Boolean);
-            const draft=contractorDrafts.get(id);
-            const badge=draft&&contractorDirty(draft)?'<span class="ppc-contractor-pending">Pendiente</span>':'';
-            return `<div class="ppc-contractor-equipo">
-              <button type="button" class="ppc-contractor-equipo-toggle" data-ppc="montaje-detalle"
-                data-equipo="${id}" aria-expanded="${detailOpen}" ${editable?'':'disabled'}>
-                <span class="ppc-contractor-equipo-name">${esc(e.equipo||'Equipo')} <small>${names.length?esc(names.join(' · ')):'Sin montador asignado'}</small></span>
-                ${badge}<span aria-hidden="true">${detailOpen?'▾':'▸'}</span>
-              </button>
-              ${detailOpen?`<div class="ppc-contractor-equipo-body">${contractorRenderDetail(id,e)}</div>`:''}
-              ${!editable?'<p class="ppc-cal-note">Asignación previa fuera de relación 04-M activa.</p>':''}
-            </div>`;
-          }).join('')}
-        </section>`;
-      }).join('');
-      return `<details class="ppc-contractor" data-contractor-key="${esc(group.key)}"
-        ${contractorsOpen.has(group.key)?'open':''}>
-        <summary><span class="ppc-contractor-swatch" style="background:${color}"></span>
-          <strong>${esc(group.name)}</strong>
-          <small>${projects.length} proyecto(s) ·
-            ${projects.reduce((n,p)=>n+p.equipos.size,0)} equipo(s) ·
-            ${pending.length} cambio(s) pendiente(s)</small>
-          <span class="ppc-contractor-chevron" aria-hidden="true">▾</span></summary>
-        <div class="ppc-contractor-projects">${projectsHTML}
-          ${group.restricted?`<p class="ppc-cal-note">Ocupación fuera de tu alcance: ${group.restricted} asignación(es) (sin detalles de proyecto).</p>`:''}
-        </div>
-        ${contractorCanEdit()?`<div class="ppc-contractor-save">
-          <button type="button" class="ppc-btn ppc-primary" data-ppc="montaje-guardar"
-            data-contratista="${esc(group.key)}"
-            ${pending.length&&!contractorSaving.has(group.key)?'':'disabled'}>
-            ${contractorSaving.has(group.key)?'Guardando…':`Guardar agrupación (${pending.length})`}</button>
-          <span class="ppc-cal-note">Guarda únicamente las asignaciones manuales modificadas de este contratista.</span>
-        </div>`:''}</details>`;
+    const previousScroll=holder.querySelector?.('.ppc-contractor-timeline');
+    const left=previousScroll?.scrollLeft||0,top=previousScroll?.scrollTop||0;
+    const contractors=contractorGroupData(),span=Number(cal.span)||14;
+    const days=dayCells||Array.from({length:span},(_,i)=>{
+      if(!cal.desde)return '';
+      const day=offsetDate(cal.desde,i);
+      const dow=new Date(dateNum(day)*86400000).getUTCDay();
+      return `<span class="ppc-cal-day${day===cal.hoy?' ppc-cal-today':''}" title="${esc(day)}">
+        <b>${day.slice(8)}</b><small>${DAY_NAMES[dow]}</small></span>`;
     }).join('');
-    holder.innerHTML=`<p class="ppc-cal-note">Contratistas vinculados automáticamente desde FL (04-M).
-      Abre cada equipo para asignar cualquier cantidad de mecánicos y ayudantes del mismo contratista.
-      Las asignaciones manuales se guardan por agrupación.</p>
+    const groupsById=new Map();
+    const timelineRows=contractors.map(contractor=>{
+      const color=contractorColor(contractor.key);
+      const items=[];
+      for(const project of contractor.projects.values()){
+        for(const relation of project.equipos.values()){
+          const id=Number(relation.id_ins_fl);
+          if(!relation.inicio||!relation.fin||relation.fin<cal.desde||
+             relation.inicio>offsetDate(cal.desde,span-1))continue;
+          groupsById.set(id,contractor);
+          items.push({...relation,_project:project.name});
+        }
+      }
+      items.sort((a,b)=>a.inicio.localeCompare(b.inicio)||
+        a.fin.localeCompare(b.fin)||String(a._project).localeCompare(String(b._project),'es')||
+        Number(a.id_ins_fl)-Number(b.id_ins_fl));
+      const {rows,lanes}=lanePositions(items);
+      const height=Math.max(52,lanes*28+12);
+      const pending=[...contractorDrafts.values()].filter(d=>
+        contractorKey(d.detail.relacion.contratista)===contractor.key&&contractorDirty(d));
+      const bars=rows.map(({item,from,through,lane})=>{
+        const id=Number(item.id_ins_fl);
+        const label=`${item._project} — ${item.equipo||'Equipo'}`;
+        const opened=contractorExpanded.has(id);
+        const dirty=contractorDirty(contractorDrafts.get(id));
+        return `<button type="button"
+          class="ppc-cal-bar ppc-contractor-bar${opened?' ppc-contractor-bar-open':''}
+            ${dirty?' ppc-contractor-bar-dirty':''}"
+          data-ppc="montaje-detalle" data-equipo="${id}"
+          aria-expanded="${opened}" aria-label="Detalle: ${esc(label)}"
+          title="${esc(label)} · ${esc(formatWindow({...item,valida:true}))}"
+          style="--ppc-contractor-color:${color};left:${from*CELL_WIDTH+1}px;
+            top:${7+lane*28}px;width:${Math.max(1,(through-from+1)*CELL_WIDTH-2)}px">
+          ${esc(label)}</button>`;
+      }).join('');
+      const count=items.length;
+      return `<div class="ppc-cal-row ppc-contractor-row" style="min-height:${height}px">
+        <div class="ppc-cal-person ppc-contractor-row-label"
+          style="border-left:4px solid ${color}" title="${esc(contractor.name)}">
+          <b>${esc(contractor.name)}</b>
+          <small>${count} proyecto/equipo · ${pending.length} pendiente(s)</small>
+          ${contractorCanEdit()?`<button type="button" class="ppc-btn ppc-small"
+            data-ppc="montaje-guardar" data-contratista="${esc(contractor.key)}"
+            ${pending.length&&!contractorSaving.has(contractor.key)?'':'disabled'}>
+            ${contractorSaving.has(contractor.key)?'Guardando…':`Guardar agrupación (${pending.length})`}
+          </button>`:''}
+        </div>
+        <div class="ppc-cal-track" style="width:${span*CELL_WIDTH}px;height:${height}px">
+          ${bars}</div></div>`;
+    }).join('');
+    const opened=[...contractorExpanded].map(id=>({
+      id,relation:(cal.montajeRelations||[]).find(r=>Number(r.id_ins_fl)===id),
+      group:groupsById.get(id)
+    })).filter(x=>x.relation&&x.group);
+    const editors=opened.map(({id,relation,group})=>`
+      <article class="ppc-contractor-editor" id="ppc-contractor-editor-${id}">
+        <div class="ppc-contractor-editor-heading">
+          <div><strong>${esc(group.name)}</strong>
+            <small>${esc(relation.proyecto||relation.id_proyecto||'Proyecto')} —
+              ${esc(relation.equipo||'Equipo')}</small></div>
+          <button type="button" class="ppc-btn ppc-small" data-ppc="montaje-detalle"
+            data-equipo="${id}" aria-label="Cerrar detalle de equipo">Cerrar detalle</button>
+        </div>
+        ${contractorRenderDetail(id,relation)}
+      </article>`).join('');
+    holder.innerHTML=`<p class="ppc-cal-note">
+      Contratista a la izquierda; cada barra muestra Proyecto — Equipo sobre sus fechas de montaje.
+      Selecciona una barra para elegir mecánicos y ayudantes. Guarda por contratista.
+      Los vínculos automáticos 04-M no se modifican.</p>
       ${cal.montajeError?`<p class="ppc-cal-feedback ppc-error">${esc(cal.montajeError)}</p>`:''}
-      <div class="ppc-contractors">${content||'<p class="ppc-cal-note">Sin proyectos vinculados para este periodo.</p>'}</div>`;
+      <div class="ppc-cal-scroll ppc-contractor-timeline" tabindex="0">
+        <div class="ppc-cal-table" style="width:${245+span*CELL_WIDTH}px">
+          <div class="ppc-cal-row ppc-cal-header">
+            <div class="ppc-cal-person"><b>CONTRATISTA</b>
+              <small>Proyectos / Equipos</small></div>
+            <div class="ppc-cal-days">${days}</div>
+          </div>
+          ${timelineRows||'<p class="ppc-cal-note">Sin contratistas vinculados en este periodo.</p>'}
+        </div>
+      </div>
+      ${editors?`<section class="ppc-contractor-editors" aria-label="Detalle de equipos">
+        <h3>Detalle del proyecto / equipo</h3>${editors}</section>`:''}`;
+    const current=holder.querySelector?.('.ppc-contractor-timeline');
+    if(current){current.scrollLeft=left;current.scrollTop=top;}
   }
   async function openContractorEquipo(id){
     if(state.type!=='MONTADOR'||state.view!=='calendario'||!canRead())return;
@@ -630,17 +657,22 @@
       return `<div class="ppc-cal-row" style="min-height:${height}px"><div class="ppc-cal-person" title="${esc(p.nombre)}"><b>${esc(p.nombre)}</b><small>${esc(desc)}</small></div>
         <div class="ppc-cal-track" data-ppc="cal-celda" data-persona="${Number(p.id_personal)}" tabindex="${permitted('CREAR')?'0':'-1'}" aria-label="Asignar a ${esc(p.nombre)} en día disponible" style="width:${cal.span*CELL_WIDTH}px;height:${height}px">${bars}</div></div>`;
     }).join('');
-    const contractorSection=state.type==='MONTADOR'
-      ? '<section class="ppc-contractor-calendar" aria-label="Calendario de contratistas">'
-        + '<h2 class="ppc-contractor-title">CONTRATISTAS</h2><div id="ppc-contractor-content"></div></section>'
-      : '';
-    holder.innerHTML=`${contractorSection}<div class="ppc-cal-scroll" tabindex="0">
-      <div class="ppc-cal-table" style="width:${245+cal.span*CELL_WIDTH}px">
-        <div class="ppc-cal-row ppc-cal-header"><div class="ppc-cal-person"><b>PERSONAL</b><small>Ocupación por día</small></div>
-          <div class="ppc-cal-days">${dayCells}</div></div>
-        ${personRows||'<p class="ppc-cal-note">No hay personal activo para este filtro.</p>'}
-      </div></div>`;
-    if(state.type==='MONTADOR')renderContractorCalendar(el('ppc-contractor-content'),dayCells);
+    if(state.type==='MONTADOR'){
+      holder.innerHTML='<section class="ppc-contractor-calendar" aria-label="Calendario de contratistas">'+
+        '<h2 class="ppc-contractor-title">CONTRATISTAS</h2>'+
+        '<div id="ppc-contractor-content"></div></section>';
+      renderContractorCalendar(el('ppc-contractor-content'),dayCells);
+    }else{
+      // Vista original de Ajustadores 06-A: conserva filas por persona.
+      holder.innerHTML=`<div class="ppc-cal-scroll" tabindex="0">
+        <div class="ppc-cal-table" style="width:${245+cal.span*CELL_WIDTH}px">
+          <div class="ppc-cal-row ppc-cal-header">
+            <div class="ppc-cal-person"><b>PERSONAL</b><small>Ocupación por día</small></div>
+            <div class="ppc-cal-days">${dayCells}</div>
+          </div>
+          ${personRows||'<p class="ppc-cal-note">No hay personal activo para este filtro.</p>'}
+        </div></div>`;
+    }
     const issues=state.type==='AJUSTADOR'?cal.flIssues:[];
     const flMissing=issues.filter(e=>Array.isArray(e.incidencias)&&
       e.incidencias.some(code=>['SIN_REFERENCIA','AMBIGUO','SIN_COINCIDENCIA'].includes(code)));

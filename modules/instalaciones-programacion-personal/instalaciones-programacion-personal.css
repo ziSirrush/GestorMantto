@@ -208,3 +208,31 @@
  .ppc-contractor-equipo-body{padding:10px}
  .ppc-contractor-save{align-items:stretch;flex-direction:column}
  .ppc-contractor-save button{width:100%}}
+
+/* INT9 04-M | Vista Gantt por contratista, igual a la cuadrícula de Ajustadores. */
+.ppc-contractor-timeline{max-height:69vh}
+.ppc-contractor-row-label{display:flex;flex-direction:column;gap:3px;justify-content:center;
+  padding-top:7px;padding-bottom:7px;background:#f9fbff}
+.ppc-contractor-row-label b{font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.ppc-contractor-row-label small{font-size:10px;white-space:normal}
+.ppc-contractor-row-label .ppc-btn{font-size:10px;min-height:24px;line-height:1.2;
+  padding:4px 7px;width:fit-content;max-width:100%;white-space:normal;text-align:center}
+.ppc-contractor-bar{background:var(--ppc-contractor-color);border-color:var(--ppc-contractor-color);
+  color:#fff;font-weight:700;cursor:pointer}
+.ppc-contractor-bar:hover:not(:disabled){filter:brightness(1.1)}
+.ppc-contractor-bar-open{outline:2px solid #f59e0b;outline-offset:-2px}
+.ppc-contractor-bar-dirty::after{content:' •';color:#ffe6a6}
+.ppc-contractor-editors{border-top:1px solid #dce5ef;padding-top:13px;margin-top:16px}
+.ppc-contractor-editors>h3{font-size:13px;font-weight:750;color:#15375b;margin:0 0 12px}
+.ppc-contractor-editor{border:1px solid #dce5ef;background:#fcfdff;border-radius:9px;
+  margin:10px 0;padding:14px}
+.ppc-contractor-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border-bottom:1px solid #e3eaf4;padding-bottom:10px;margin-bottom:8px}
+.ppc-contractor-editor-heading>div{min-width:0;display:flex;flex-direction:column;gap:5px}
+.ppc-contractor-editor-heading strong{font-size:13px;color:#15375b}
+.ppc-contractor-editor-heading small{font-size:11px;color:#62758b}
+@media(max-width:760px){
+  .ppc-contractor-row-label{padding:5px;gap:3px}
+  .ppc-contractor-row-label .ppc-btn{font-size:9px;padding:3px}
+  .ppc-contractor-editor{padding:10px}
+}
