@@ -32,6 +32,20 @@
     'fecha_fin_ajuste_real', 'anio_termino', 'costo_mensual_mantenimiento_cem'
   ]);
   const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl']);
+  const ENUM_OPTIONS = Object.freeze({
+    categoria:Object.freeze(['Comercial','Residencial']),
+    carpeta_fisica:Object.freeze(['Digital','Fisica']),
+    tipo_equipo:Object.freeze(['ELE-MONT','RAMP-ESC'])
+  });
+  const STATE_LOCATION_BY_CODE = Object.freeze({
+    AGU:'Aguascalientes',BCN:'Baja California Norte',BCS:'Baja California Sur',CHH:'Chihuahua',CHP:'Chiapas',COA:'Coahuila',
+    DUR:'Durango',EDO:'Estado de México',GRO:'Guerrero',GUA:'Guanajuato',HID:'Hidalgo',JAL:'Jalisco',MEX:'Ciudad de México',
+    MIC:'Michoacán',MOR:'Morelos',NAY:'Nayarit',NLE:'Nuevo León',OAX:'Oaxaca',PUE:'Puebla',QUE:'Querétaro',ROO:'Quintana Roo',
+    SIN:'Sinaloa',SLP:'San Luis Potosí',TAB:'Tabasco',TAM:'Tamaulipas',TLA:'Tlaxcala',VER:'Veracruz',YUC:'Yucatán'
+  });
+  const DRAFT_DOMAIN='CORELLIAN';
+  const DRAFT_DATASET='INSTALACIONES-ADMINISTRACION-ALTAS';
+  const DRAFT_KEY='AGREGAR-NUEVO';
   const DUPLICATE_OMITTED = new Set(['ph_ns', 'referencia_sitio']);
   const LABELS = Object.freeze({
     proyecto:'Proyecto', id_proyecto:'PP NS', referencia_sitio:'Referencia en sitio',
@@ -43,8 +57,9 @@
     numero_puertas:'No. puertas', velocidad_ms:'Velocidad [m/s]',
     capacidad_kg:'Capacidad [kg]', entrepiso_mm:'Entrepiso [mm]',
     longitud_mm:'Longitud [mm]', ancho_peldano_mm:'Ancho peldano [mm]',
-    vendedor:'Vendedor', supervisor_fl:'Supervisor', cliente_ns:'Cliente NS',
-    ov_ns:'OV NS', ph_ns:'PH NS', rel_admin:'Administrativos relacionados',
+    vendedor:'Vendedor', supervisor_fl:'Supervisor', supervisor_nombre:'Supervisor nombre', correo_supervisor:'Correo supervisor',
+    categoria:'Categoria', carpeta_fisica:'Carpeta fisica', estado:'Estado', estado_localizacion:'Estado localizacion',
+    cliente_ns:'Cliente NS', ov_ns:'OV NS', ph_ns:'PH NS', rel_admin:'Administrativos relacionados',
     anio_termino:'Anio de termino', dias_restantes:'Dias restantes'
   });
   const own = (x,k) => Object.prototype.hasOwnProperty.call(x || {},k);
@@ -55,6 +70,37 @@
   const label = field => LABELS[field] || String(field).replace(/_/g,' ')
     .replace(/^./, c => c.toUpperCase());
   const identityKey = value => trimmed(value).replace(/\s+/g,' ').toLocaleUpperCase('es-MX');
+
+
+  function enumValueCor(field,raw){
+    const value=trimmed(raw),options=ENUM_OPTIONS[field];
+    if(!options)return null;
+    const exact=options.find(item=>item.toLocaleUpperCase('es-MX')===value.toLocaleUpperCase('es-MX'));
+    return exact||null;
+  }
+  function supervisorAutofillCor(initials,catalog){
+    const key=identityKey(initials);
+    if(!key)return {supervisor_nombre:null,correo_supervisor:null};
+    const matches=(catalog?.supervisores||[]).filter(item=>identityKey(item?.iniciales)===key);
+    if(matches.length!==1)return {supervisor_nombre:null,correo_supervisor:null};
+    return {supervisor_nombre:trimmed(matches[0]?.nombre)||null,correo_supervisor:trimmed(matches[0]?.correo)||null};
+  }
+  function stateLocationCor(code){return STATE_LOCATION_BY_CODE[identityKey(code)]||null;}
+  function normalizeStoredDraftCor(payload){
+    if(!payload||payload.schema_version!==1||!Array.isArray(payload.rows)||payload.rows.length<1||payload.rows.length>MAX)return null;
+    const seen=new Set(),rows=[];let maxId=0;
+    for(const item of payload.rows){
+      const id=Number(item?.draft_id);if(!Number.isSafeInteger(id)||id<=0||seen.has(id))return null;
+      if(!item.values||typeof item.values!=='object'||Array.isArray(item.values))return null;
+      const values=Object.create(null);
+      for(const [field,value] of Object.entries(item.values)){
+        if(!editable(field)||value===undefined||value!==null&&!['string','number','boolean'].includes(typeof value))return null;
+        values[field]=value;
+      }
+      seen.add(id);maxId=Math.max(maxId,id);rows.push({draft_id:id,values});
+    }
+    return {rows,seq:Math.max(maxId,Number.isSafeInteger(Number(payload.seq))?Number(payload.seq):0),uncertain:payload.uncertain===true};
+  }
 
   function visibleFields(contract, ghostHelpers) {
     const groups = (Array.isArray(contract?.groups) ? contract.groups : [])
@@ -110,6 +156,10 @@
       return {ok:true,value:value||null};
     }
     if (!value) return {ok:true,value:null};
+    if (ENUM_OPTIONS[field]) {
+      const chosen=enumValueCor(field,value);
+      return chosen?{ok:true,value:chosen}:{ok:false,error:'Selecciona un valor permitido para '+label(field)+'.'};
+    }
     if (typeof helpers.validValue_cor === 'function')
       return helpers.validValue_cor(field,value,meta,catalogs);
     const length=Number(meta.max_length || 20000);
@@ -179,6 +229,7 @@
     let rows=[], seq=0, current=null, visible=false, beforeVisibility=new Map(), error='';
     let saving=false, uncertain=false;
     let requestSerial=0, boundHost=null;
+    let draftTimer=null,draftEpoch=0,draftLoadedIdentity=null,draftWrite=Promise.resolve();
     const node=id=>host?.querySelector('#'+id)||null;
     const auth=()=>env.ManttoAuth;
     const authIdentity=()=>{
@@ -194,9 +245,64 @@
     const allFields=()=>visibleFields(contract,helpers());
     const canUse=()=>authIdentity()!=='NO_SESSION' && !viewing() && canCapture(contract);
     const rowById=id=>rows.find(row=>row.draft_id===Number(id));
+
+    const draftStorage=()=>env.ManttoOfflineStorage;
+    const draftContext=()=>{
+      const client=auth(),actor=Number(client?.getActorUser?.()?.id_SB||client?.getActorUser?.()?.id||0);
+      const effective=Number(client?.getUser?.()?.id_SB||client?.getUser?.()?.id||0);
+      if(!Number.isSafeInteger(actor)||actor<=0||!Number.isSafeInteger(effective)||effective<=0)return null;
+      return {actor_user_id:actor,effective_user_id:effective,domain:DRAFT_DOMAIN,dataset:DRAFT_DATASET};
+    };
+    function draftPayload(){return {schema_version:1,rows:rows.map(row=>({draft_id:row.draft_id,values:{...row.values}})),seq,uncertain};}
+    function scheduleDraftPersist(){
+      const storage=draftStorage(),ctx=draftContext(),identity=authIdentity(),epoch=draftEpoch;
+      if(!storage?.saveFormDraft||!ctx||identity==='NO_SESSION')return;
+      if(draftTimer)env.clearTimeout(draftTimer);
+      draftTimer=env.setTimeout(()=>{
+        draftTimer=null;const payload=draftPayload();
+        draftWrite=draftWrite.catch(()=>null).then(async()=>{
+          if(epoch!==draftEpoch||authIdentity()!==identity||viewing())return false;
+          await storage.saveFormDraft(ctx,DRAFT_KEY,payload,{route:'instalaciones-administracion',kind:'alta-equipos'});return true;
+        }).catch(e=>{if(epoch===draftEpoch&&visible){error='No se pudo proteger el borrador local: '+String(e?.message||e);render();}});
+      },120);
+    }
+    async function restorePersistedDraft(){
+      const storage=draftStorage(),ctx=draftContext(),identity=authIdentity(),epoch=draftEpoch;
+      if(!storage?.getFormDraft||!ctx||identity==='NO_SESSION'||draftLoadedIdentity===identity)return false;
+      draftLoadedIdentity=identity;
+      try{
+        const stored=await storage.getFormDraft(ctx,DRAFT_KEY);
+        if(epoch!==draftEpoch||authIdentity()!==identity||viewing())return false;
+        const normalized=normalizeStoredDraftCor(stored?.payload);
+        if(!normalized)return false;
+        rows=normalized.rows;seq=normalized.seq;uncertain=normalized.uncertain;
+        return true;
+      }catch(e){if(epoch===draftEpoch)console.warn('[Instalaciones Altas] No fue posible restaurar el borrador local.',e);return false;}
+    }
+    async function discardPersistedDraft(){
+      const storage=draftStorage(),ctx=draftContext();
+      if(draftTimer){env.clearTimeout(draftTimer);draftTimer=null;}
+      if(!storage?.deleteFormDraft||!ctx)return false;
+      try{await storage.deleteFormDraft(ctx,DRAFT_KEY);return true;}catch(e){console.warn('[Instalaciones Altas] No fue posible eliminar el borrador local.',e);return false;}
+    }
+    function applyAutomaticFields(row,field,value){
+      if(!row)return;
+      if(field==='supervisor_fl'){
+        const auto=supervisorAutofillCor(value,catalogs);
+        for(const key of ['supervisor_nombre','correo_supervisor']){
+          if(auto[key])row.values[key]=auto[key];else delete row.values[key];
+        }
+      }
+      if(field==='estado'){
+        const location=stateLocationCor(value);
+        if(location)row.values.estado_localizacion=location;else delete row.values.estado_localizacion;
+      }
+    }
+
     function clearSensitive() {
-      ++requestSerial;
-      context=null;contract=null;catalogs=null;prefillValues=null;rows=[];seq=0;current=null;error='';
+      ++requestSerial;++draftEpoch;
+      if(draftTimer){env.clearTimeout(draftTimer);draftTimer=null;}
+      context=null;contract=null;catalogs=null;prefillValues=null;rows=[];seq=0;current=null;error='';draftLoadedIdentity=null;
       // No conservar payload ni datos personales tras cambio de sesion.
       uncertain=false;
       saving=false;
@@ -222,8 +328,8 @@
         panel.id='iadm-cor-altas-panel';panel.hidden=true;
         panel.setAttribute('aria-label','Captura de equipos nuevos');
         panel.innerHTML='<div class="iadm-cor-altas-heading">'+
-          '<div><p class="iadm-cor-eyebrow">Alta de equipos · Borrador local</p>'+
-          '<h2>Agregar equipos nuevos</h2><p>Una fila = un equipo. Los campos opcionales pueden permanecer vacios (NULL).</p></div>'+
+          '<div><p class="iadm-cor-eyebrow">Alta de equipos · Borrador local protegido</p>'+
+          '<h2>Agregar equipos nuevos</h2><p>Una fila = un equipo. La captura se conserva localmente ante cortes de conexion.</p></div>'+
           '<button class="iadm-cor-btn" id="iadm-cor-altas-back" type="button">&larr; Cancelar</button></div>'+
           '<div class="iadm-cor-altas-notice">Misma tabla y edicion fantasma · Todas las columnas autorizadas · '+
           'El lote se envia solo al confirmar; formulas Excel calculadas por servidor. ' +
@@ -265,17 +371,18 @@
         if(serial!==requestSerial || authIdentity()!==identity||viewing())return;
         contract=data;
         const permitted=canUse();
-        if(!permitted){node('iadm-cor-altas-open').hidden=true;if(visible)close(false);return;}
+        if(!permitted){node('iadm-cor-altas-open').hidden=true;await discardPersistedDraft();if(visible)close(false);return;}
         const catalog=await auth().api(ROOT+'/catalogos-edicion',{method:'GET',cache:'no-store'});
         if(serial!==requestSerial || authIdentity()!==identity||viewing())return;
         if(!Array.isArray(catalog?.estatus) || !Array.isArray(catalog?.vendedores) ||
           !Array.isArray(catalog?.supervisores))throw Error('Catalogos incompletos.');
         catalogs=catalog;
+        await restorePersistedDraft();
         node('iadm-cor-altas-open').hidden=false;
       } catch(e) {
         if(serial===requestSerial){
-          node('iadm-cor-altas-open')?.setAttribute('hidden','');
-          if(visible)close(false);
+          if(!visible)node('iadm-cor-altas-open')?.setAttribute('hidden','');
+          if(visible&&contract){error='Conexion interrumpida. El borrador local permanece protegido y puedes continuar capturando.';render();}
         }
       }
     }
@@ -303,13 +410,18 @@
       if(confirmDiscard && (uncertain||rows.some(row=>Object.keys(row.values).length>0)) &&
           !env.confirm(uncertain ?
             'El envio anterior tiene resultado INCIERTO. Para evitar duplicados, primero comprueba los equipos en Aiven. ¿Salir SIN reintentar?' :
-            'Se perderan los equipos nuevos sin guardar. ¿Cancelar y eliminar el borrador?'))return false;
+            '¿Cancelar y eliminar el borrador local de equipos nuevos?'))return false;
       visible=false;current=null;
       const panel=node('iadm-cor-altas-panel');if(panel)panel.hidden=true;
       for(const [id,wasHidden] of beforeVisibility){const n=node(id);if(n)n.hidden=wasHidden;}
       beforeVisibility.clear();rows=[];seq=0;error='';uncertain=false;prefillValues=null;
       const table=node('iadm-cor-altas-table');if(table)table.replaceChildren();
       return true;
+    }
+    function enumOptionsFor(field,selected){
+      const options=ENUM_OPTIONS[field]||[];
+      return '<option value="">Sin asignar</option>'+options.map(value=>'<option value="'+escape(value)+'"'+
+        (identityKey(selected)===identityKey(value)?' selected':'')+'>'+escape(value)+'</option>').join('');
     }
     function optionsFor(field, selected) {
       let options=[];
@@ -328,6 +440,7 @@
       const attrs=' data-iadm-altas-editor="1" data-iadm-altas-editor-field="'+escape(field)+'" aria-label="'+escape(label(field))+'"';
       let input;
       if(LIST_FIELDS.has(field))input='<select'+attrs+'>'+optionsFor(field,value)+'</select>';
+      else if(ENUM_OPTIONS[field])input='<select'+attrs+'>'+enumOptionsFor(field,value)+'</select>';
       else if(kind==='date')input='<input'+attrs+' type="date" min="1900-01-01" max="2100-12-31" value="'+escape(value||'')+'">';
       else if(kind==='money'||kind==='percent')input='<input'+attrs+' type="number" min="0" max="'+
         (kind==='percent'?100:9999999999.99)+'" step="0.01" value="'+escape(trimmed(value).replace(/%$/,''))+'">';
@@ -428,7 +541,8 @@
         input.setAttribute('aria-invalid','true');error=normalized.error;return false;
       }
       if(normalized.value===null)delete row.values[field];else row.values[field]=normalized.value;
-      current=null;error='';render();return true;
+      applyAutomaticFields(row,field,normalized.value);
+      current=null;error='';scheduleDraftPersist();render();return true;
     }
     async function saveBatch() {
       if(!visible||saving||uncertain||!canUse())return false;
@@ -451,7 +565,7 @@
         });}
         catch(e) {
           const rejected=[400,401,403,404,409,413,422].includes(Number(e?.status));
-          if(!rejected)uncertain=true; // Timeout/5xx puede haber hecho COMMIT.
+          if(!rejected){uncertain=true;scheduleDraftPersist();} // Timeout/5xx puede haber hecho COMMIT.
           throw e;
         }
         try {confirmedIds=acceptedPostCor(response,count);}
@@ -473,6 +587,7 @@
           }catch(_e){/* Puede perder alcance tras alta, NO reintentar POST. */}
         }
         saving=false;
+        await discardPersistedDraft();
         close(false);
         const main=env.ManttoInstalacionesAdministracion_cor;
         if(typeof main?.refresh==='function'){
@@ -500,28 +615,28 @@
       if(target.closest('#iadm-cor-altas-save')){event.preventDefault();void saveBatch();return;}
       if(saving){event.preventDefault();return;}
       if(target.closest('#iadm-cor-altas-back, #iadm-cor-altas-cancel')){
-        event.preventDefault();current=null;close();return;}
+        event.preventDefault();current=null;if(close())void discardPersistedDraft();return;}
       if(uncertain){event.preventDefault();return;}
       if(target.closest('#iadm-cor-altas-add')){event.preventDefault();if(current&&!commitCurrent())return;
-        if(rows.length<MAX){rows.push(createRow(++seq,prefillValues));render();}return;}
+        if(rows.length<MAX){rows.push(createRow(++seq,prefillValues));scheduleDraftPersist();render();}return;}
       if(target.closest('#iadm-cor-altas-clear')){event.preventDefault();if(!env.confirm('¿Eliminar todos los borradores de equipos nuevos?'))return;
-        rows=[createRow(++seq,prefillValues)];current=null;error='';render();return;}
+        void discardPersistedDraft();rows=[createRow(++seq,prefillValues)];current=null;error='';render();return;}
       const duplicate=target.closest('[data-iadm-altas-duplicate]');
       if(duplicate){event.preventDefault();if(current&&!commitCurrent())return;if(rows.length>=MAX)return;
         const id=Number(duplicate.dataset.iadmAltasDuplicate),index=rows.findIndex(row=>row.draft_id===id);
         if(index<0)return;
-        rows.splice(index+1,0,duplicateRow(rows[index],++seq));current=null;error='';render();return;}
+        rows.splice(index+1,0,duplicateRow(rows[index],++seq));current=null;error='';scheduleDraftPersist();render();return;}
       const removed=target.closest('[data-iadm-altas-remove]');
       if(removed){event.preventDefault();if(rows.length<=1)return;
         const id=Number(removed.dataset.iadmAltasRemove),row=rowById(id);
         if(row && Object.keys(row.values).length && !env.confirm('¿Quitar esta fila de captura?'))return;
-        rows=rows.filter(x=>x.draft_id!==id);current=null;render();return;}
+        rows=rows.filter(x=>x.draft_id!==id);current=null;scheduleDraftPersist();render();return;}
       const edit=target.closest('[data-iadm-altas-edit]');
       if(edit){event.preventDefault();beginEdit(edit.dataset.iadmAltasId,edit.dataset.iadmAltasField);}
     }
     function onChange(event) {
       if(visible && current && event.target?.matches?.('[data-iadm-altas-editor]') &&
-          (LIST_FIELDS.has(current.field)||meta(current.field).kind==='date'))commitCurrent();
+          (LIST_FIELDS.has(current.field)||ENUM_OPTIONS[current.field]||meta(current.field).kind==='date'))commitCurrent();
     }
     function onKeyDown(event) {
       if(!visible || !current || !event.target?.matches?.('[data-iadm-altas-editor]'))return;
@@ -572,6 +687,7 @@
   }
   return {install, helpers:Object.freeze({
     visibleFields,canCapture,editable,createRow,duplicateRow,projectPrefill,validateDraftCell,assessRows,previewRowCor,
+    enumValueCor,supervisorAutofillCor,stateLocationCor,normalizeStoredDraftCor,
     postRowsCor,acceptedPostCor,MAX,REQUIRED,NO_INPUT
   })};
 });
