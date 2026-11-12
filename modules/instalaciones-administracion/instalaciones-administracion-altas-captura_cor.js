@@ -685,6 +685,25 @@
         return true;
       });
     }
+    let reconnectTimer=null;
+    function reconnectAuthorization(){
+      if(navigator.onLine===false)return;
+      if(reconnectTimer)env.clearTimeout(reconnectTimer);
+      const ids=authIdentity();
+      const delay=350+(String(ids).split('').reduce((sum,ch)=>sum+ch.charCodeAt(0),0)%900);
+      reconnectTimer=env.setTimeout(async()=>{
+        reconnectTimer=null;
+        // Antes de consultar permisos/catalogos se confirma el borrador local.
+        // Una reconexion nunca descarta ni reenvia automaticamente un POST incierto.
+        if(visible||draftHasContent())await persistDraftImmediately();
+        await refreshAuthorization();
+        if(visible){
+          error='';
+          render();
+        }
+      },delay);
+    }
+
     function watch() {
       registerUpdateProtection();
       const element=document.getElementById('view-instalaciones-administracion');
@@ -714,6 +733,7 @@
           env.setTimeout(watch,0);
       });
     }
+    window.addEventListener('online',()=>{void reconnectAuthorization();});
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watch,{once:true});
     else env.setTimeout(watch,0);
   }
