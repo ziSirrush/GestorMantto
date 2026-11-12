@@ -10,6 +10,7 @@ const montaje04M = require('./instalaciones-programacion-personal.montadores.ser
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
+const tabPermission = require('./instalaciones-programacion-personal.tab-permissions');
 
 const router = express.Router();
 const PERMISSION_BASE = 'INSTALACIONES_PROGRAMACION_PERSONAL_CALENDARIO_PROGRAMACION';
@@ -56,8 +57,22 @@ function reply(action, status = 200) {
 }
 
 // /api/instalaciones/programacion/*; mantiene la nomenclatura de INT-9 LAB.
-router.get('/programacion/opciones',...readGuard,reply(() => service.opciones()));
-router.get('/programacion/personal',...readGuard,reply(req => service.listar(req.query)));
+// Visibilidad efectiva, calculada desde Aiven y respetando el Visor de Usuarios.
+router.get('/programacion/accesos',...readGuard,reply(async req=>{
+  const grants=await tabPermission.permisos(req);
+  return {montadores:grants.MONTADOR,ajustadores:grants.AJUSTADOR};
+}));
+router.get('/programacion/opciones',...readGuard,tabPermission.oneTab,reply(async req=>{
+  const grants=await tabPermission.permisos(req);
+  const data=await service.opciones();
+  return {...data,
+    tipos:Object.keys({MONTADOR:grants.MONTADOR,AJUSTADOR:grants.AJUSTADOR})
+      .filter(kind=>grants[kind]),
+    puestos:grants.MONTADOR?data.puestos:[],
+    montadores:grants.MONTADOR?data.montadores:{contratistas:[],categorias:[]},
+    ajustadores:grants.AJUSTADOR?data.ajustadores:{categorias:[]}};
+}));
+router.get('/programacion/personal',...readGuard,tabPermission.onlyTab(req=>req.query?.tipo),reply(req => service.listar(req.query)));
 // [Aster | 2026-10-20 | ASTER-MG | INT9 CATALOGO PERSONAL M2M HMAC V001]
 // Solo el alta del catalogo admite la integracion ventas-appscript existente.
 // La firma se exige siempre, aunque INTEGRATION_AUTH_ENABLED=false.
@@ -83,62 +98,62 @@ router.post('/programacion/personal', (req, res, next) => {
   if (!isM2MAttempt(req)) return next('route');
   return requireVentasM2M(req, res, next);
 }, crearPersonal);
-router.post('/programacion/personal',...readGuard,permissionFor('CREAR'),crearPersonal);
-router.put('/programacion/personal/:tipo/:id',...readGuard,permissionFor('EDITAR'),reply(req => service.editar(req)));
-router.delete('/programacion/personal/:tipo/:id',...readGuard,permissionFor('DESACTIVAR'),reply(req => service.desactivar(req)));
+router.post('/programacion/personal',...readGuard,tabPermission.onlyTab(req=>req.body?.tipo),permissionFor('CREAR'),crearPersonal);
+router.put('/programacion/personal/:tipo/:id',...readGuard,tabPermission.onlyTab(req=>req.params?.tipo),permissionFor('EDITAR'),reply(req => service.editar(req)));
+router.delete('/programacion/personal/:tipo/:id',...readGuard,tabPermission.onlyTab(req=>req.params?.tipo),permissionFor('DESACTIVAR'),reply(req => service.desactivar(req)));
 
 // [Mantto Gestor | 2026-10-16 | INT9-F2 | CALENDARIO Y ASIGNACIONES]
 // La lectura usa el mismo Guard CORELLIAN. Las mutaciones comprueban
 // ademas el permiso especifico y el alcance del equipo EN la transaccion.
-router.get('/programacion/montadores/relaciones',...readGuard,reply(req => montaje04M.relaciones(req)));
-router.get('/programacion/montadores/equipo/:id/detalle',...readGuard,
+router.get('/programacion/montadores/relaciones',...readGuard,tabPermission.onlyTab('MONTADOR'),reply(req => montaje04M.relaciones(req)));
+router.get('/programacion/montadores/equipo/:id/detalle',...readGuard,tabPermission.onlyTab('MONTADOR'),
   reply(req=>require('./instalaciones-programacion-personal.montadores-grupos.service').detalle(req)));
 // Una sola transaccion por contratista: altas/bajas manuales; sin alterar FL.
-router.post('/programacion/montadores/agrupaciones/guardar',...readGuard,
+router.post('/programacion/montadores/agrupaciones/guardar',...readGuard,tabPermission.onlyTab('MONTADOR'),
   permissionFor('CREAR'),permissionFor('DESACTIVAR'),
   reply(req=>require('./instalaciones-programacion-personal.montadores-grupos.service').guardar(req)));
 
-router.post('/programacion/montadores/reconciliar',...readGuard,permissionFor('CREAR'),permissionFor('DESACTIVAR'),
+router.post('/programacion/montadores/reconciliar',...readGuard,tabPermission.onlyTab('MONTADOR'),permissionFor('CREAR'),permissionFor('DESACTIVAR'),
   reply(req => {
     const b=req.body||{};
     if(Object.keys(b).length!==1||!Number.isSafeInteger(Number(b.id_ins_fl))||Number(b.id_ins_fl)<1)
       throw Object.assign(new Error('Indica exclusivamente id_ins_fl positivo.'),{code:'INT9_MONTAJE_ID_INVALIDO',statusCode:400});
     return montaje04M.reconcile(Number(b.id_ins_fl),{access:asignaciones._read.scope(req),actorId:Number(req.user?.id_SB||req.user?.id||0)});
   }));
-router.get('/programacion/equipos',...readGuard,reply(req => asignaciones.equipos(req)));
-router.get('/programacion/calendario',...readGuard,reply(req => asignaciones.calendario(req)));
-router.post('/programacion/asignaciones',...readGuard,permissionFor('CREAR'),
+router.get('/programacion/equipos',...readGuard,tabPermission.onlyTab(req=>req.query?.tipo),reply(req => asignaciones.equipos(req)));
+router.get('/programacion/calendario',...readGuard,tabPermission.onlyTab(req=>req.query?.tipo),reply(req => asignaciones.calendario(req)));
+router.post('/programacion/asignaciones',...readGuard,tabPermission.onlyTab(req=>req.body?.tipo),permissionFor('CREAR'),
   reply(req => asignaciones.crearAsignaciones(req), data => data.requiere_confirmacion?200:201));
-router.put('/programacion/asignaciones/:id',...readGuard,permissionFor('EDITAR'),
+router.put('/programacion/asignaciones/:id',...readGuard,tabPermission.byAssignment,permissionFor('EDITAR'),
   reply(req => asignaciones.editarAsignacion(req)));
-router.delete('/programacion/asignaciones/:id',...readGuard,permissionFor('DESACTIVAR'),
+router.delete('/programacion/asignaciones/:id',...readGuard,tabPermission.byAssignment,permissionFor('DESACTIVAR'),
   reply(req => asignaciones.eliminarAsignacion(req)));
 
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 1]
 // Vista previa solo lectura; no crea asignaciones ni modifica ins_fl.
 // Carga diferida para no afectar los flujos existentes ni la integracion M2M.
-router.get('/programacion/ajustadores/vinculaciones',...readGuard,
+router.get('/programacion/ajustadores/vinculaciones',...readGuard,tabPermission.onlyTab('AJUSTADOR'),
   reply(req => require('./instalaciones-programacion-personal.ajustadores.service').vinculaciones(req)));
 // Incidencias FL, solo lectura y con los mismos guards CORELLIAN.
-router.get('/programacion/ajustadores/incidencias-fl',...readGuard,
+router.get('/programacion/ajustadores/incidencias-fl',...readGuard,tabPermission.onlyTab('AJUSTADOR'),
   reply(req => require('./instalaciones-programacion-personal.ajustadores.service').incidenciasFL(req)));
 
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 2]
 // Escritura explicita protegida por VER + CREAR, puerta CORELLIAN y scope ins_fl.
-router.post('/programacion/ajustadores/asignaciones-automaticas',...readGuard,permissionFor('CREAR'),
+router.post('/programacion/ajustadores/asignaciones-automaticas',...readGuard,tabPermission.onlyTab('AJUSTADOR'),permissionFor('CREAR'),
   reply(req => require('./instalaciones-programacion-personal.ajustadores.service').asignarAutomaticamente(req),
     result => result.creadas?.length ? 201 : 200));
 
 // [Mantto Gestor | 2026-10-16 | INT9-F3 | HISTORIAL Y PROYECCION SOLO LECTURA]
-router.get('/programacion/historial',...readGuard,reply(req => analitica.historial(req)));
-router.get('/programacion/disponibilidad',...readGuard,reply(req => analitica.disponibilidad(req)));
-router.get('/programacion/simulacion',...readGuard,reply(req => analitica.simulacion(req)));
+router.get('/programacion/historial',...readGuard,tabPermission.onlyTab(req=>req.query?.tipo),reply(req => analitica.historial(req)));
+router.get('/programacion/disponibilidad',...readGuard,tabPermission.onlyTab(req=>req.query?.tipo),reply(req => analitica.disponibilidad(req)));
+router.get('/programacion/simulacion',...readGuard,tabPermission.onlyTab(req=>req.query?.tipo),reply(req => analitica.simulacion(req)));
 
 
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES F3]
 // Reintento explicito y acotado: necesita permisos de crear y desactivar,
 // ademas de la puerta/alcance CORELLIAN. No se ejecuta mediante GET.
-router.post('/programacion/ajustadores/reconciliar',...readGuard,
+router.post('/programacion/ajustadores/reconciliar',...readGuard,tabPermission.onlyTab('AJUSTADOR'),
   permissionFor('CREAR'),permissionFor('DESACTIVAR'),
   reply(req => ajustadoresSync.reconciliarManual(req)));
 
