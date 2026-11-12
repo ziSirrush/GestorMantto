@@ -144,6 +144,7 @@
     const row={...part,schema_version:1,read_only:true,downloaded_at:now,
       expires_at:new Date(Date.now()+SNAPSHOT_TTL_MS).toISOString(),
       source_updated_at:metadata?.source_updated_at||payload?.generated_at||null,
+      scope_signature:typeof metadata?.scope_signature==='string'?metadata.scope_signature:null,
       record_count:Number.isFinite(Number(metadata?.record_count))?Number(metadata.record_count):recordCount(payload),
       byte_size:sizeOf(payload),payload};
     const db=await openDatabase();
@@ -151,7 +152,8 @@
       const tx=db.transaction([SNAPSHOT_STORE,METADATA_STORE],'readwrite'),done=transactionDone(tx);
       tx.objectStore(SNAPSHOT_STORE).put(row);
       tx.objectStore(METADATA_STORE).put({key:`snapshot:${part.partition_key}`,partition_key:part.partition_key,
-        downloaded_at:now,expires_at:row.expires_at,record_count:row.record_count,byte_size:row.byte_size,read_only:true});
+        downloaded_at:now,expires_at:row.expires_at,record_count:row.record_count,byte_size:row.byte_size,
+        scope_signature:row.scope_signature,read_only:true});
       await done;return row;
     }finally{db.close();}
   }

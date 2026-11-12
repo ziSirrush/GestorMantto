@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 // [Aster | 2026-08-18 | ASTER-MG | FIX: INSTALACIONES_ALCANCE_USUARIO_V001]
 // Lecturas con alcance efectivo para Instalaciones/Corellian.
 // No altera la sincronizacion ni las mutaciones existentes de ins_fl.
@@ -128,6 +130,35 @@ async function presentProjectPhotoRow(row) {
     copy['FOTO BLT 7'] || copy.foto_blt_7 || null;
 
   return copy;
+}
+
+
+function scopeSignature_cor(scope) {
+  const normalized = {
+    mode: scope?.mode === 'ALL' ? 'ALL' : 'LIMITED',
+    actorId: Number(scope?.actorId || 0) || 0,
+    advisorIds: [...new Set((scope?.advisorIds || []).map(Number)
+      .filter(id => Number.isInteger(id) && id > 0))].sort((a,b)=>a-b)
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
+async function getInsFlCacheState_cor(req, res) {
+  try {
+    const scope = await resolveScope_cor(req);
+    return res.json({
+      ok: true,
+      source: 'scope',
+      scope_signature: scopeSignature_cor(scope),
+      mode: scope?.mode === 'ALL' ? 'ALL' : 'LIMITED'
+    });
+  } catch (error) {
+    return res.status(error.status || error.statusCode || 500).json({
+      ok: false,
+      code: error.code || 'INS_FL_CACHE_STATE_ERROR',
+      message: error.message || 'No fue posible validar el alcance de Instalaciones.'
+    });
+  }
 }
 
 async function getInsFl_cor(req, res) {
@@ -542,6 +573,7 @@ async function getInsFlProjectPhotoManagementScope_cor(req, res) {
 }
 
 module.exports = {
+  getInsFlCacheState_cor,
   getInsFl_cor,
   getInsFlById_cor,
   getInsFlProjects_cor,

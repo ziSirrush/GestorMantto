@@ -28,6 +28,15 @@ PY_EQUIPOS.forEach(e=>{
 
 
 const PY_API_BASE=(window.MANTTO_API_BASE||'http://localhost:3001').replace(/\/$/,'');
+const PY_CACHE_DOMAIN='CORELLIAN';
+const PY_CACHE_DATASET='INSTALACIONES-PROYECTOS-LIVE';
+function pyCacheIds(){
+  const auth=window.ManttoAuth;
+  const actor=Number(auth?.getActorUser?.()?.id_SB||auth?.getActorUser?.()?.id||0);
+  const effective=Number(auth?.getUser?.()?.id_SB||auth?.getUser?.()?.id||0);
+  return Number.isInteger(actor)&&actor>0&&Number.isInteger(effective)&&effective>0?{actor,effective}:null;
+}
+function pyCacheContext(){const ids=pyCacheIds();return ids?{actor_user_id:ids.actor,effective_user_id:ids.effective,domain:PY_CACHE_DOMAIN,dataset:PY_CACHE_DATASET}:null;}
 function pyCurrentDateCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityDate==='function'?window.ManttoHumanTime.mexicoCityDate():new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 function pyCurrentYearCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityYear==='function'?window.ManttoHumanTime.mexicoCityYear():Number(pyCurrentDateCdmx().slice(0,4));}
 function pyCurrentDateLabelCdmx(){return window.ManttoHumanTime&&typeof window.ManttoHumanTime.formatMexicoCityDate==='function'?window.ManttoHumanTime.formatMexicoCityDate():new Date().toLocaleDateString('es-MX',{timeZone:'America/Mexico_City'});}
@@ -80,17 +89,53 @@ function pyMapEquipo(r){return {
   'Activo':r.activo,'Asesor':r.vendedor,'Cliente':r.cliente
 };}
 function pyBuildProjects(rows){const m=new Map();for(const r of rows){const id=r.id_proyecto||'(SIN ID)';if(!m.has(id))m.set(id,{Proyecto:r.proyecto,'ID Proyecto':r.id_proyecto,Ciudad:r.ciudad,Estado:r.estado,'Numero de Equipos':0,Asesor:r.vendedor,Supervisor:r.supervisor_fl,'Aux Administrativo':r.id_admin||null,Cliente:r.cliente,'Cliente N Comercial':r.cliente,'Activo / Inactivo':Number(r.activo)===0?'Inactivos':'Activo',Carpeta:null,'FOTO BLT':null,'FOTO BLT 2':null,'FOTO BLT 3':null,'FOTO BLT 4':null,'FOTO BLT 5':null,'FOTO BLT 6':null,'FOTO BLT 7':null,'Foto Principal':null,id_photo:null});m.get(id)['Numero de Equipos']++;}return [...m.values()];}
+
+function pyApplyRows(rows){
+  const safeRows=Array.isArray(rows)?rows:[];
+  PY_EQUIPOS=safeRows.map(pyMapEquipo);PY_PROYECTOS=pyBuildProjects(safeRows);
+  PY_CLIENTES=[...new Set(PY_PROYECTOS.map(p=>p.Cliente).filter(Boolean))].map(n=>({'Nombre de la Empresa':n,'Razon Social':n}));
+  PY_COBRANZA_POR_ID={};
+  PY_PROYECTOS.forEach((r,i)=>r._id=i);PY_EQUIPOS.forEach((r,i)=>r._id=i);
+  Object.keys(PY_EQUIPOS_POR_PROYECTO).forEach(k=>delete PY_EQUIPOS_POR_PROYECTO[k]);
+  PY_EQUIPOS.forEach(e=>{const id=e['ID PROYECTO'];if(!id)return;(PY_EQUIPOS_POR_PROYECTO[id]||(PY_EQUIPOS_POR_PROYECTO[id]=[])).push(e);});
+}
+async function pyLoadWarmCache(){
+  const storage=window.ManttoOfflineStorage,ctx=pyCacheContext();
+  if(!storage?.getSnapshot||!ctx||navigator.onLine===false)return false;
+  let state;
+  try{state=await pyFetchJson('/api/ins-fl/cache-state');}catch(_error){return false;}
+  if(!/^[a-f0-9]{64}$/.test(String(state?.scope_signature||'')))return false;
+  let cached;
+  try{cached=await storage.getSnapshot(ctx);}catch(_error){return false;}
+  if(!cached||cached.schema_version!==1||cached.scope_signature!==state.scope_signature)return false;
+  const rows=cached?.payload?.data;
+  if(!Array.isArray(rows))return false;
+  pyApplyRows(rows);
+  return true;
+}
+async function pySaveWarmCache(rows,scopeSignature){
+  const storage=window.ManttoOfflineStorage,ctx=pyCacheContext();
+  if(!storage?.saveSnapshot||!ctx||!Array.isArray(rows)||!/^[a-f0-9]{64}$/.test(String(scopeSignature||'')))return false;
+  try{
+    await storage.saveSnapshot(ctx,{data:rows,generated_at:new Date().toISOString()},{
+      record_count:rows.length,scope_signature:scopeSignature,source_updated_at:null
+    });
+    return true;
+  }catch(error){console.warn('[INSTALACIONES] No fue posible conservar la cache verificada.',error);return false;}
+}
+
 async function pyCargarDesdeAiven(){
-  const [equiposJson,fotosJson]=await Promise.all([
+  const [equiposJson,fotosJson,cacheState]=await Promise.all([
     pyFetchJson('/api/ins-fl?limit=5000'),
-    pyFetchJson('/api/ins-fl/proyectos/fotografias?limit=5000').catch(()=>({data:[]}))
+    pyFetchJson('/api/ins-fl/proyectos/fotografias?limit=5000').catch(()=>({data:[]})),
+    pyFetchJson('/api/ins-fl/cache-state').catch(()=>null)
   ]);
   const rows=Array.isArray(equiposJson.data)?equiposJson.data:[];
-  PY_EQUIPOS=rows.map(pyMapEquipo);PY_PROYECTOS=pyBuildProjects(rows);
+  pyApplyRows(rows);
   const fotosPorProyecto=new Map((Array.isArray(fotosJson.data)?fotosJson.data:[]).map(f=>[String(f['ID Proyecto']||'').trim(),f]));
   PY_PROYECTOS.forEach(p=>{const f=fotosPorProyecto.get(String(p['ID Proyecto']||'').trim());if(f)Object.assign(p,f);});
-  PY_CLIENTES=[...new Set(PY_PROYECTOS.map(p=>p.Cliente).filter(Boolean))].map(n=>({'Nombre de la Empresa':n,'Razon Social':n}));PY_COBRANZA_POR_ID={};
-  PY_PROYECTOS.forEach((r,i)=>r._id=i);PY_EQUIPOS.forEach((r,i)=>r._id=i);await pyCargarComentariosJunta();Object.keys(PY_EQUIPOS_POR_PROYECTO).forEach(k=>delete PY_EQUIPOS_POR_PROYECTO[k]);PY_EQUIPOS.forEach(e=>{const id=e['ID PROYECTO'];if(!id)return;(PY_EQUIPOS_POR_PROYECTO[id]||(PY_EQUIPOS_POR_PROYECTO[id]=[])).push(e);});
+  await pySaveWarmCache(rows,cacheState?.scope_signature);
+  await pyCargarComentariosJunta();
 }
 
 /* =========================================================
@@ -1324,6 +1369,12 @@ function pyBindCspSafeEvents(){
   document.getElementById('py-lightbox-next')?.addEventListener('click',()=>pyLightboxNav(1));
 }
 async function pyInit(){
+  const warm=await pyLoadWarmCache();
+  if(warm){
+    pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();
+    const status=document.getElementById('py-aiven-status');
+    if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Cache verificada · actualizando Aiven...</span>';
+  }
   try{ await pyCargarDesdeAiven(); const status=document.getElementById('py-aiven-status'); if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>'; }catch(error){ console.error(error); const page=document.getElementById('py-page'); if(page) page.insertAdjacentHTML('afterbegin',`<div class="py-note">No se pudieron cargar los datos desde Aiven: ${pyEsc(error.message||error)}</div>`); }
   pyRenderKPIs();
   pyPopulateFiltrosBasicos();
