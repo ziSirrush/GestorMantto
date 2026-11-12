@@ -49,7 +49,7 @@ const facturaBase = {
   origen_registro: 'LEGACY_HITO', activo: 1
 };
 
-test('Fuente nueva inserta condiciones y no toma datos de Factura/Pago', async () => {
+test('Fuente M2M recibe FACTURA, ESTATUS DE FACTURA y FECHA DE PAGO sin cambiar la carga actual', async () => {
   const connection = fakeConnection();
   const records = [];
   await withRepositoryStub({
@@ -60,9 +60,11 @@ test('Fuente nueva inserta condiciones y no toma datos de Factura/Pago', async (
       proyecto: 'Proyecto', id_proyecto_origen: 'P14302', porcentaje: 1,
       condicion: 'Llegada a puerto', moneda: 'USD', subtotal: 20549,
       iva: 3287.84, total: 23836.84, pago_total: 0,
+      'FACTURA': 'CFV-8496',
+      'ESTATUS DE FACTURA': 'PAGADA',
+      'FECHA DE PAGO': '2026-10-01',
       FECHA_DE_VENCIMIENTO_HITO: '2026-10-10', CONDICIONES: 30,
-      estimado_pago: 'Octubre', estatus_vencimiento: 'Pendiente', DIAS_DE_VENCIDO: 2,
-      factura: 'IGNORAR', estatus_factura: 'PAGADO', fecha_pago: '2026-10-01'
+      estimado_pago: 'Octubre', estatus_vencimiento: 'Pendiente', DIAS_DE_VENCIDO: 2
     }] });
     assert.equal(response.insertados, 1);
   });
@@ -70,9 +72,9 @@ test('Fuente nueva inserta condiciones y no toma datos de Factura/Pago', async (
   assert.equal(records[0].record.condiciones_pago_dias, 30);
   assert.equal(records[0].record.fecha_vencimiento, '2026-10-10');
   assert.equal(records[0].record.dias_vencimiento, 2);
-  for (const field of ['factura', 'estatus_factura', 'fecha_pago']) {
-    assert.equal(Object.hasOwn(records[0].record, field), false);
-  }
+  assert.equal(records[0].record.factura, 'CFV-8496');
+  assert.equal(records[0].record.estatus_factura, 'PAGADA');
+  assert.equal(records[0].record.fecha_pago, '2026-10-01');
   assert.equal(connection.events.at(-1), 'RELEASE');
 });
 

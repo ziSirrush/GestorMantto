@@ -230,7 +230,15 @@ function normalizeFuente_cor(row) {
     subtotal: decimal_cor(field_cor(map, 'SUBTOTAL', 'subtotal'), 'SUBTOTAL'),
     iva: decimal_cor(field_cor(map, 'IVA', 'iva'), 'IVA'),
     total: decimal_cor(field_cor(map, 'TOTAL', 'total'), 'TOTAL'),
+    factura: cleanText_cor(field_cor(map, 'FACTURA', 'factura'), 150),
     pago_total: decimal_cor(field_cor(map, 'PAGO_TOTAL', 'pago_total'), 'PAGO (TOTAL)'),
+    estatus_factura: cleanText_cor(field_cor(
+      map,
+      'ESTATUS_DE_FACTURA',
+      'ESTATUS_FACTURA',
+      'estatus_factura'
+    ), 100),
+    fecha_pago: date_cor(field_cor(map, 'FECHA_DE_PAGO', 'fecha_pago'), 'FECHA DE PAGO'),
     fecha_vencimiento: date_cor(field_cor(map, 'FECHA_DE_VENCIMIENTO_HITO', 'FECHA_DE_VENCIMIENTO', 'fecha_vencimiento'), 'FECHA DE VENCIMIENTO'),
     condiciones_pago_dias: integer_cor(
       field_cor(map, 'CONDICIONES', 'CONDICIONES_PAGO_DIAS', 'condiciones_pago_dias'),
