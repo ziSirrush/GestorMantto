@@ -39,8 +39,8 @@ test('Cambio de API incrementa API y reinicia Frontend enlazado',()=>{
   assert.equal(parsePart(same.api).revision,api.revision+1);
   assert.equal(same.frontend,api.date+'.1');
   assert.equal(same.combined,same.api+'.'+same.frontend);
-  assert.deepEqual(bump('api',s,'121126'),{
-    api:'121126.1',frontend:'121126.1',combined:'121126.1.121126.1'
+  assert.deepEqual(bump('api',s,'131126'),{
+    api:'131126.1',frontend:'131126.1',combined:'131126.1.131126.1'
   });
 });
 

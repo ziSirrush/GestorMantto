@@ -19,11 +19,23 @@ const TEST_SECRET = 'solo-para-qa-local-int9-valor-no-productivo';
 let rows = [];
 let counter = 100;
 let messages = [];
+let schemaHasIniciales = true;
 
 const db = {
+  async query(sql) {
+    if (/SHOW COLUMNS FROM instalaciones_personal LIKE 'iniciales'/.test(sql)) {
+      return [schemaHasIniciales ? [{Field:'iniciales'}] : []];
+    }
+    throw new Error('Consulta de esquema no simulada: ' + sql);
+  },
   async execute(sql, values = []) {
     if (/INSERT INTO instalaciones_personal/.test(sql)) {
-      const [tipo_personal,nombre,contratista,puesto,categoria,experiencia,created_by,updated_by] = values;
+      const colIniciales = /\biniciales\b/.test(sql);
+      if (colIniciales && !schemaHasIniciales) throw new Error('No existe la columna iniciales');
+      const [tipo_personal,nombre,contratista,puesto,categoria,experiencia] = values;
+      const iniciales = colIniciales ? values[6] : null;
+      const created_by = values[colIniciales ? 7 : 6];
+      const updated_by = values[colIniciales ? 8 : 7];
       if (rows.some(x => x.tipo_personal === tipo_personal && x.nombre === nombre &&
           (x.contratista || '') === (contratista || '') && x.activo === 1)) {
         const error = new Error('duplicate');
@@ -31,7 +43,7 @@ const db = {
         throw error;
       }
       const id_personal = ++counter;
-      rows.push({id_personal,tipo_personal,nombre,contratista,puesto,categoria,experiencia,
+      rows.push({id_personal,tipo_personal,nombre,contratista,puesto,categoria,experiencia,iniciales,
         created_by,updated_by,activo:1,created_at:'2026-10-20',updated_at:'2026-10-20'});
       return [{insertId:id_personal}];
     }
@@ -164,12 +176,14 @@ async function run(body, headers = {}, user = null) {
   throw new Error('Ninguna ruta respondio');
 }
 
-const montador = Object.freeze({tipo:'MONTADOR',nombre:'Juan QATest',contratista:'Alfa Test',puesto:'Mecánico',categoria:'A'});
-const ajustador = Object.freeze({tipo:'AJUSTADOR',nombre:'Miguel QATest',categoria:'B',experiencia:'5 años'});
+const montador = Object.freeze({tipo:'MONTADOR',nombre:'Juan QATest',contratista:'Alfa Test',puesto:'Mecánico',categoria:'A',iniciales:'JQ'});
+const ajustador = Object.freeze({tipo:'AJUSTADOR',nombre:'Miguel QATest',categoria:'B',experiencia:'5 años',iniciales:'MQ'});
 const user = Object.freeze({id_SB:42,domain:'CORELLIAN'});
 
 test.beforeEach(() => {
   rows=[];counter=100;messages=[];
+  schemaHasIniciales=true;
+  service._test.resetInicialesSchemaCache();
   process.env.INTEGRATION_VENTAS_ID='ventas-appscript';
   process.env.INTEGRATION_VENTAS_SECRET=TEST_SECRET;
   process.env.INTEGRATION_AUTH_ENABLED='false';
@@ -187,6 +201,8 @@ test('HMAC valido acepta Montador con flag global off, FK de usuario NULL y log 
   const response=await run({...montador,created_by:123,updated_by:456},requestHeaders({...montador,created_by:123,updated_by:456}));
   assert.equal(response.statusCode,201);
   assert.equal(response.body.data.tipo,'MONTADOR');
+  assert.equal(response.body.data.iniciales,'JQ');
+  assert.equal(rows[0].iniciales,'JQ');
   assert.equal(rows[0].created_by,null);
   assert.equal(rows[0].updated_by,null);
   assert.equal(messages[0]?.[0],'INT9_PERSONAL_ALTA_M2M');
@@ -200,6 +216,8 @@ test('HMAC valido acepta Ajustador sin token JWT',async()=>{
   assert.equal(rows[0].contratista,null);
   assert.equal(rows[0].puesto,null);
   assert.equal(rows[0].experiencia,'5 años');
+  assert.equal(rows[0].iniciales,'MQ');
+  assert.equal(response.body.data.iniciales,'MQ');
 });
 
 test('Sin HMAC ni JWT responde 401 y no inserta',async()=>{
@@ -323,4 +341,48 @@ test('M2M no puede insertar un Montador sin contratista', async () => {
   assert.equal(response.body.code, 'INT9_DATO_OBLIGATORIO');
   assert.equal(rows.length, 0);
   assert.equal(messages.length, 0);
+});
+
+test('Iniciales: límite de 30 caracteres y sin altas parciales',async()=>{
+  const payload={...montador,nombre:'Limite QA',iniciales:'A'.repeat(31)};
+  const response=await run(payload,requestHeaders(payload));
+  assert.equal(response.statusCode,400);
+  assert.equal(response.body.code,'INT9_LONGITUD_INVALIDA');
+  assert.equal(rows.length,0);
+});
+
+test('Iniciales: clientes anteriores conservan el POST sin valor',async()=>{
+  const payload={...montador,nombre:'Anterior QA'};
+  delete payload.iniciales;
+  const response=await run(payload,requestHeaders(payload));
+  assert.equal(response.statusCode,201);
+  assert.equal(response.body.data.iniciales,null);
+  assert.equal(rows[0].iniciales,null);
+});
+
+test('Sin columna en Aiven, rechaza iniciales antes de insertar con 503 explicito',async()=>{
+  schemaHasIniciales=false;
+  const response=await run(montador,requestHeaders(montador));
+  assert.equal(response.statusCode,503);
+  assert.equal(response.body.code,'INT9_COLUMNA_INICIALES_PENDIENTE');
+  assert.equal(rows.length,0);
+});
+
+test('Sin columna en Aiven, el POST heredado sin iniciales sigue funcionando',async()=>{
+  schemaHasIniciales=false;
+  const payload={...montador};
+  delete payload.iniciales;
+  const response=await run(payload,requestHeaders(payload));
+  assert.equal(response.statusCode,201);
+  assert.equal(response.body.data.iniciales,null);
+  assert.equal(rows.length,1);
+});
+
+test('Duplicados M2M conservan iniciales previas y se rechazan con 409',async()=>{
+  const first=await run(montador,requestHeaders(montador));
+  const other={...montador,iniciales:'CAMBIO'};
+  const second=await run(other,requestHeaders(other));
+  assert.equal(first.statusCode,201);
+  assert.equal(second.statusCode,409);
+  assert.equal(rows[0].iniciales,'JQ');
 });

@@ -16,6 +16,37 @@ function knownError(statusCode, code, message) {
   return error;
 }
 
+// Compatibilidad de despliegue: main puede actualizar Azure antes de ejecutar el DDL en Aiven.
+// Una sola consulta de metadatos por ventana; sin alterar datos al leer el catalogo antiguo.
+const INICIALES_MAX = 30;
+const INICIALES_SCHEMA_CACHE_MS = 60000;
+let inicialesSchemaCache = null;
+let inicialesCheckInFlight = null;
+async function inicialesDisponibles() {
+  if (inicialesSchemaCache && Date.now() - inicialesSchemaCache.checkedAt < INICIALES_SCHEMA_CACHE_MS)
+    return inicialesSchemaCache.exists;
+  if (!inicialesCheckInFlight) {
+    inicialesCheckInFlight = db.query("SHOW COLUMNS FROM instalaciones_personal LIKE 'iniciales'")
+      .then(([columns]) => {
+        const exists = Array.isArray(columns) && columns.some(row => String(row.Field || '').toLowerCase() === 'iniciales');
+        inicialesSchemaCache = {checkedAt:Date.now(),exists};
+        return exists;
+      })
+      .finally(() => {inicialesCheckInFlight = null;});
+  }
+  return inicialesCheckInFlight;
+}
+function validarDisponibilidadIniciales(iniciales, disponible) {
+  if (iniciales !== null && !disponible) {
+    throw knownError(503, 'INT9_COLUMNA_INICIALES_PENDIENTE',
+      'Falta aplicar la columna iniciales en instalaciones_personal de Aiven. No se guardó el registro.');
+  }
+}
+function resetInicialesSchemaCache() {
+  inicialesSchemaCache = null;
+  inicialesCheckInFlight = null;
+}
+
 function tipoPersonal(value) {
   const valueUpper = String(value || '').trim().toUpperCase();
   if (valueUpper === 'MONTADOR' || valueUpper === 'MONTADORES') return 'MONTADOR';
@@ -59,6 +90,7 @@ function validatedPayload(tipo, input = {}) {
   const type = tipoPersonal(tipo);
   const nombre = stringValue(input.nombre, 'Nombre', 180, true);
   const categoria = stringValue(input.categoria, 'Categoría', 120);
+  const iniciales = stringValue(input.iniciales, 'Iniciales', INICIALES_MAX);
   let contratista = null;
   let puesto = null;
   let experiencia = null;
@@ -71,7 +103,7 @@ function validatedPayload(tipo, input = {}) {
   } else {
     experiencia = stringValue(input.experiencia, 'Experiencia', 120);
   }
-  return { tipo_personal: type, nombre, contratista, puesto, categoria, experiencia };
+  return { tipo_personal: type, nombre, contratista, puesto, categoria, experiencia, iniciales };
 }
 
 function sqlKnownError(error) {
@@ -98,6 +130,7 @@ function readRecord(row) {
     puesto: tipo === 'MONTADOR' ? row.puesto : null,
     categoria: row.categoria || null,
     experiencia: tipo === 'AJUSTADOR' ? (row.experiencia || null) : null,
+    iniciales: row.iniciales || null,
     grupo: tipo === 'MONTADOR' ? row.puesto : (row.categoria || 'Sin categoría'),
     activo: Number(row.activo) === 1,
     created_at: row.created_at,
@@ -108,9 +141,10 @@ function readRecord(row) {
 async function getById(tipo, id, connection = db) {
   const type = tipoPersonal(tipo);
   const person = personId(id);
+  const conIniciales = await inicialesDisponibles();
   const [rows] = await connection.execute(
     `SELECT id_personal,tipo_personal,nombre,contratista,puesto,categoria,experiencia,
-            activo,created_at,updated_at
+            ${conIniciales ? 'iniciales' : 'NULL AS iniciales'},activo,created_at,updated_at
      FROM instalaciones_personal
      WHERE id_personal=? AND tipo_personal=? AND activo=1 LIMIT 1`,
     [person, type]
@@ -143,11 +177,15 @@ async function listar(query = {}) {
   }
   const pageSize = Math.max(1, Math.min(200, Math.trunc(Number(query.limit) || 50)));
   const skip = (rawPage - 1) * pageSize;
+  const conIniciales = await inicialesDisponibles();
   const conditions = ['tipo_personal=?', 'activo=1'];
   const values = [type];
   if (q) {
-    conditions.push('(nombre LIKE ? OR COALESCE(contratista,\'\') LIKE ? OR COALESCE(puesto,\'\') LIKE ? OR COALESCE(categoria,\'\') LIKE ? OR COALESCE(experiencia,\'\') LIKE ?)');
-    for (let i = 0; i < 5; i += 1) values.push(`%${q}%`);
+    const fields = ['nombre', "COALESCE(contratista,'')", "COALESCE(puesto,'')",
+      "COALESCE(categoria,'')", "COALESCE(experiencia,'')"];
+    if (conIniciales) fields.push("COALESCE(iniciales,'')");
+    conditions.push('(' + fields.map(field => field + ' LIKE ?').join(' OR ') + ')');
+    for (let i = 0; i < fields.length; i += 1) values.push(`%${q}%`);
   }
   const where = conditions.join(' AND ');
   const [totalRows] = await db.execute(
@@ -156,7 +194,7 @@ async function listar(query = {}) {
   // LIMIT/OFFSET se validan y se interpolan exclusivamente como enteros.
   const [rows] = await db.execute(
     `SELECT id_personal,tipo_personal,nombre,contratista,puesto,categoria,experiencia,
-            activo,created_at,updated_at
+            ${conIniciales ? 'iniciales' : 'NULL AS iniciales'},activo,created_at,updated_at
      FROM instalaciones_personal WHERE ${where}
      ORDER BY nombre ASC,id_personal ASC LIMIT ${pageSize} OFFSET ${skip}`,
     values
@@ -169,14 +207,16 @@ async function crear(req) {
   const type = tipoPersonal(req.body?.tipo);
   const payload = validatedPayload(type, req.body);
   const userId = actorId(req, true);
+  const conIniciales = await inicialesDisponibles();
+  validarDisponibilidadIniciales(payload.iniciales, conIniciales);
   let result;
   try {
     [result] = await db.execute(
       `INSERT INTO instalaciones_personal
-        (tipo_personal,nombre,contratista,puesto,categoria,experiencia,activo,created_by,updated_by)
-       VALUES (?,?,?,?,?,?,1,?,?)`,
+        (tipo_personal,nombre,contratista,puesto,categoria,experiencia,${conIniciales ? 'iniciales,' : ''}activo,created_by,updated_by)
+       VALUES (?,?,?,?,?,?,${conIniciales ? '?,' : ''}1,?,?)`,
       [payload.tipo_personal,payload.nombre,payload.contratista,payload.puesto,
-        payload.categoria,payload.experiencia,userId,userId]
+        payload.categoria,payload.experiencia,...(conIniciales ? [payload.iniciales] : []),userId,userId]
     );
   } catch (error) { sqlKnownError(error); }
   const personalCreado = await getById(type, result.insertId);
@@ -201,14 +241,16 @@ async function editar(req) {
   const previous = await getById(type, id);
   const payload = validatedPayload(type, { ...previous, ...req.body });
   const userId = actorId(req);
+  const conIniciales = await inicialesDisponibles();
+  validarDisponibilidadIniciales(payload.iniciales, conIniciales);
   let result;
   try {
     [result] = await db.execute(
       `UPDATE instalaciones_personal
-       SET nombre=?,contratista=?,puesto=?,categoria=?,experiencia=?,updated_by=?
+       SET nombre=?,contratista=?,puesto=?,categoria=?,experiencia=?,${conIniciales ? 'iniciales=?,' : ''}updated_by=?
        WHERE id_personal=? AND tipo_personal=? AND activo=1`,
       [payload.nombre,payload.contratista,payload.puesto,payload.categoria,
-        payload.experiencia,userId,id,type]
+        payload.experiencia,...(conIniciales ? [payload.iniciales] : []),userId,id,type]
     );
   } catch (error) { sqlKnownError(error); }
   if (!result.affectedRows) {
@@ -248,5 +290,5 @@ async function desactivar(req) {
 
 module.exports = {
   TIPOS, PUESTOS, opciones, listar, crear, editar, desactivar,
-  _test: { tipoPersonal, validatedPayload, readRecord, personId }
+  _test: { tipoPersonal, validatedPayload, readRecord, personId, resetInicialesSchemaCache }
 };
