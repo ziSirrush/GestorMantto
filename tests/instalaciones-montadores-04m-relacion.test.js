@@ -1,6 +1,18 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const service=require('../backend/src/modules/instalaciones-programacion-personal/instalaciones-programacion-personal.montadores.service');
+const fs=require('node:fs'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../backend/src/modules/instalaciones-programacion-personal/instalaciones-programacion-personal.montadores.service.js'),'utf8');
+const assignments={_read:{windowEquipo(_type,row){
+ const parse=x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x||''))?x:null;
+ const inicio=parse(row.fecha_inicio_montaje);
+ const fin=parse(row.fecha_fin_montaje_real)||parse(row.fecha_fin_montaje_modificado)||parse(row.fecha_fin_montaje_planeado);
+ return {inicio,fin,valida:!!inicio&&!!fin&&fin>=inicio,fuente_fin:'planeado'};
+},manualDate:()=>null,intersect:()=>true,scope:()=>({sql:'1=1',params:[]})}};
+const holder={exports:{}};
+new Function('module','require',source)(holder,id=>
+ id==='../../config/db'?{}:id==='./instalaciones-programacion-personal.asignaciones.service'?assignments:
+ (()=>{throw new Error('Dependencia no simulada: '+id)})());
+const service=holder.exports;
 const t=service._test;
 const base={id_ins_fl:10,id_proyecto:'P1',estatus:'04-M',activo:1,
   subcontratista:'MA MU',fecha_inicio_montaje:'2026-11-12',fecha_fin_montaje_planeado:'2026-12-12'};

@@ -59,7 +59,8 @@ function normalizedEdited(changes) {
 function loadWithMocks(mocks) {
   const module = {exports:{}};
   new Function('require','module','exports',source)((name)=>{
-    if(name==='../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
+    if(name==='../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service'||
+       name==='../instalaciones-programacion-personal/instalaciones-programacion-personal.montadores.service')
       return {notifySaved:async()=>({estado:'SIN_CAMBIOS'})};
     if (!Object.prototype.hasOwnProperty.call(mocks,name)) throw new Error('Mock no declarado: '+name);
     return mocks[name];

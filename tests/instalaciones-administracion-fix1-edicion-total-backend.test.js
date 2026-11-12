@@ -20,7 +20,8 @@ function withMocks(filename, stubs) {
   const old = Module._load;
   try {
     Module._load = function(request, parent, isMain) {
-      if(parent?.filename===full && request==='../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service')
+      if(parent?.filename===full && (request==='../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service'||
+        request==='../instalaciones-programacion-personal/instalaciones-programacion-personal.montadores.service'))
         return {notifySaved:async()=>({estado:'SIN_CAMBIOS'})};
       if (parent?.filename === full && Object.hasOwn(stubs, request)) return stubs[request];
       return old.call(this, request, parent, isMain);

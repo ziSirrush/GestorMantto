@@ -103,7 +103,8 @@ Module._load = function(request, parent, isMain) {
     // La prueba M2M del catalogo lo aisla para no abrir Aiven/credenciales.
     if (request === './instalaciones-programacion-personal.asignaciones.service' ||
         request === './instalaciones-programacion-personal.analitica.service' ||
-        request === './instalaciones-programacion-personal.ajustadores-sync.service') return {};
+        request === './instalaciones-programacion-personal.ajustadores-sync.service' ||
+        request === './instalaciones-programacion-personal.montadores.service') return {};
   }
   if (parent?.filename === servicePath) {
     if (request === '../../config/db') return db;

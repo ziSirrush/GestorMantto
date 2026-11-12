@@ -73,6 +73,7 @@ Module._load=function(request,parent,isMain){
   }
   if(parent?.filename===routesFile){
     if(request==='./instalaciones-programacion-personal.ajustadores-sync.service')return {reconciliarManual:async()=>({})};
+    if(request==='./instalaciones-programacion-personal.montadores.service')return {relaciones:async()=>({relaciones:[]})};
     if(request==='express')return express;
     if(request==='./instalaciones-programacion-personal.service')return {};
     if(request==='./instalaciones-programacion-personal.asignaciones.service')return {};

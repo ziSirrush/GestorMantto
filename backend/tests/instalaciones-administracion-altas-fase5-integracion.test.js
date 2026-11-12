@@ -213,7 +213,8 @@ test('F5: integration auth permanece ANTES del guard y del controlador GAS',()=>
   assert.match(s,/const releaseOnce\s*=\s*async\s*\(\)\s*=>/);
   assert.match(s,/const syncOriginal\s*=\s*async\s*\(request,response\)/);
   assert.match(s,/finally\s*\{\s*await releaseOnce\(\)/);
-  assert.match(s,/return await ejecutarSyncConAjustadores\(req,res,syncOriginal\)/);
+  assert.match(s,/return await ejecutarSyncConMontadores\(req,res/);
+  assert.match(s,/ejecutarSyncConAjustadores\(request,response,syncOriginal\)/);
 });
 
 function routeFixture(){
@@ -240,6 +241,9 @@ function routeFixture(){
     // resultado del controlador original, no la conciliacion de ajustadores.
     '../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.ajustadores-sync.service':{
       ejecutarSyncConAjustadores:async(req,res,syncOriginal)=>syncOriginal(req,res)
+    },
+    '../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.montadores-sync.service':{
+      ejecutarSyncConMontadores:async(req,res,nextSync)=>nextSync(req,res)
     },
     '../services/storage/storage-file-policy.service':{getLimits_gnral:()=>({maxFileBytes:1000000})},
     '../middleware/integration-auth.middleware':{requireIntegrationAuthFor:()=>()=>{}},
