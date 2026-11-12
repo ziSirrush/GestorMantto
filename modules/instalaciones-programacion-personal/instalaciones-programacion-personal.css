@@ -236,3 +236,24 @@
   .ppc-contractor-row-label .ppc-btn{font-size:9px;padding:3px}
   .ppc-contractor-editor{padding:10px}
 }
+
+/* 04-M: ventana flotante sobre calendario; desplazamiento local, sin mover la página */
+body:has(#ppc-contractor-modal){overflow:hidden}
+.ppc-contractor-modal{z-index:10120;padding:14px;overflow:hidden}
+.ppc-contractor-modal-dialog{width:min(770px,calc(100vw - 28px));max-height:min(90dvh,820px);
+ display:flex;flex-direction:column;overflow:hidden;padding:0}
+.ppc-contractor-modal-header{flex:0 0 auto;background:#f4f8fe;border-bottom:1px solid #dce7f3;
+ padding:14px 20px}
+.ppc-contractor-modal-header h2{font-size:17px;margin:0}
+.ppc-contractor-modal-body{flex:1 1 auto;min-height:0;overflow-y:auto;
+ overscroll-behavior:contain;padding:13px 20px;scrollbar-gutter:stable}
+.ppc-contractor-modal-body .ppc-contractor-editors{border:0;padding:0;margin:0}
+.ppc-contractor-modal-body .ppc-contractor-editor{margin:0;border:0;padding:0;background:transparent}
+.ppc-contractor-modal-footer{flex:0 0 auto;background:#f8fbff;border-top:1px solid #dce7f3;
+ padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.ppc-contractor-modal-footer .ppc-cal-note{margin:0}
+@media(max-width:760px){.ppc-contractor-modal{padding:7px}
+ .ppc-contractor-modal-dialog{width:100%;max-height:94dvh}
+ .ppc-contractor-modal-header{padding:12px}
+ .ppc-contractor-modal-body{padding:12px}
+ .ppc-contractor-modal-footer{padding:10px 12px;flex-wrap:wrap}}

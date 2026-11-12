@@ -116,7 +116,7 @@
       parent.addEventListener('input', onInput);
       parent.addEventListener('change', onChange);
       parent.addEventListener('keydown',onCalendarKeydown);
-      document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { if(assignment.mode)closeAssignment();if(state.formId !== null)closeForm(); } });
+      document.addEventListener('keydown', ev => { if(ev.key==='Escape'&&contractorExpanded.size){ev.preventDefault();closeContractorDetail();return;} if(ev.key==='Escape'){if(assignment.mode)closeAssignment();if(state.formId!==null)closeForm();} });
       state.listenersBound=true;
     }
     state.ready = true;
@@ -462,6 +462,7 @@
     if(!holder)return;
     const previousScroll=holder.querySelector?.('.ppc-contractor-timeline');
     const left=previousScroll?.scrollLeft||0,top=previousScroll?.scrollTop||0;
+    const modalScroll=holder.querySelector?.('.ppc-contractor-modal-body')?.scrollTop||0;
     const contractors=contractorGroupData(),span=Number(cal.span)||14;
     const days=dayCells||Array.from({length:span},(_,i)=>{
       if(!cal.desde)return '';
@@ -550,20 +551,50 @@
           ${timelineRows||'<p class="ppc-cal-note">Sin contratistas vinculados en este periodo.</p>'}
         </div>
       </div>
-      ${editors?`<section class="ppc-contractor-editors" aria-label="Detalle de equipos">
-        <h3>Detalle del proyecto / equipo</h3>${editors}</section>`:''}`;
+      ${editors?`
+        <div id="ppc-contractor-modal" class="ppc-overlay ppc-contractor-modal"
+          data-ppc="montaje-fondo">
+          <section class="ppc-dialog ppc-contractor-modal-dialog" role="dialog"
+            aria-modal="true" aria-labelledby="ppc-contractor-modal-title">
+            <div class="ppc-dialog-header ppc-contractor-modal-header">
+              <h2 id="ppc-contractor-modal-title">Detalle de proyecto / equipo</h2>
+              <button type="button" class="ppc-icon-btn" data-ppc="montaje-cerrar"
+                aria-label="Cerrar detalle">×</button>
+            </div>
+            <div class="ppc-contractor-modal-body">
+              <section class="ppc-contractor-editors" aria-label="Detalle de equipos">
+                ${editors}
+              </section>
+            </div>
+            <div class="ppc-contractor-modal-footer">
+              <span class="ppc-cal-note">Las selecciones se conservan al cerrar. Guarda la agrupación para confirmarlas.</span>
+              <button type="button" class="ppc-btn" data-ppc="montaje-cerrar">Cerrar</button>
+            </div>
+          </section>
+        </div>`:''}`;
     const current=holder.querySelector?.('.ppc-contractor-timeline');
     if(current){current.scrollLeft=left;current.scrollTop=top;}
+    const body=holder.querySelector?.('.ppc-contractor-modal-body');
+    if(body)body.scrollTop=modalScroll;
+  }
+  function closeContractorDetail(){
+    const id=[...contractorExpanded][0];
+    if(!id)return;
+    contractorExpanded.clear();
+    if(state.type==='MONTADOR'&&state.view==='calendario'){
+      renderContractorCalendar(el('ppc-contractor-content'),'');
+      root()?.querySelector?.(`[data-ppc="montaje-detalle"][data-equipo="${id}"]`)?.focus?.();
+    }
+  }
+  function focusContractorDetail(){
+    root()?.querySelector?.('#ppc-contractor-modal [data-ppc="montaje-cerrar"]')?.focus?.();
   }
   async function openContractorEquipo(id){
     if(state.type!=='MONTADOR'||state.view!=='calendario'||!canRead())return;
     const relation=(cal.montajeRelations||[]).find(x=>Number(x.id_ins_fl)===id);
     if(!relation)return;
-    if(contractorExpanded.has(id)){
-      contractorExpanded.delete(id);
-      renderContractorCalendar(el('ppc-contractor-content'),'');
-      return;
-    }
+    if(contractorExpanded.has(id)){closeContractorDetail();return;}
+    contractorExpanded.clear();
     contractorExpanded.add(id);
     if(!contractorDrafts.has(id)){
       if(contractorLoading.has(id))return;
@@ -581,6 +612,7 @@
       }finally{contractorLoading.delete(id);}
     }
     renderContractorCalendar(el('ppc-contractor-content'),'');
+    focusContractorDetail();
   }
   function updateContractorPerson(node){
     if(!contractorCanEdit())return;
@@ -589,6 +621,7 @@
     if(!draft||!draft.detail.personal.some(p=>Number(p.id_personal)===pid))return;
     if(node.checked)draft.selected.add(pid);else draft.selected.delete(pid);
     renderContractorCalendar(el('ppc-contractor-content'),'');
+    root()?.querySelector?.(`[data-ppc="montaje-persona"][data-equipo="${id}"][value="${pid}"]`)?.focus?.();
   }
   async function saveContractor(key){
     if(!contractorCanEdit()||contractorSaving.has(key))return;
@@ -610,6 +643,7 @@
       const result=await api('/montadores/agrupaciones/guardar','POST',
         {contratista:group.name,cambios});
       for(const [id] of drafts){contractorDrafts.delete(id);contractorErrors.delete(id);}
+      contractorExpanded.clear();
       await reloadCalendar();
       window.alert(`Agrupación guardada: ${result.creadas||0} alta(s), ${result.retiradas||0} retiro(s).`);
     }catch(error){
@@ -1123,9 +1157,9 @@
     if(action==='seccion') {
       const next=node.dataset.vista;
       if(!['calendario','personal','historial','disponibilidad'].includes(next))return;
-      state.view=next;renderView();loadActiveSection();
+      contractorExpanded.clear();state.view=next;renderView();loadActiveSection();
     } else if (action==='tipo' && TYPES[node.dataset.tipo]) {
-      state.type = node.dataset.tipo;state.page=1;state.q='';cal.q='';closeForm();closeAssignment();
+      contractorExpanded.clear();state.type = node.dataset.tipo;state.page=1;state.q='';cal.q='';closeForm();closeAssignment();
       if (el('ppc-query')) el('ppc-query').value='';
       ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
       hist.page=1;hist.res=null;disp.res=null;disp.simRes=null;disp.simEquipo=null;
@@ -1145,6 +1179,8 @@
     else if(action==='asignar-nueva') openAssignment();
     else if(action==='fl-mas') loadMoreFlIncidencias();
     else if(action==='montaje-detalle') openContractorEquipo(Number(node.dataset.equipo));
+    else if(action==='montaje-cerrar') closeContractorDetail();
+    else if(action==='montaje-fondo'&&event.target===node) closeContractorDetail();
     else if(action==='montaje-guardar') saveContractor(node.dataset.contratista);
     else if(action==='asignar-equipo') openAssignment({idEquipo:Number(node.dataset.equipo)});
     else if(action==='cal-celda') trackClicked(event,node);

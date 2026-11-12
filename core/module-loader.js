@@ -222,10 +222,10 @@
     'instalaciones-carpetas':{css:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.css?v=20260821-carpetas-disponibles-v002'],js:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-documentacion':{css:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.css?v=20260818-documentacion-fase2-v001'],js:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.js?v=20261109-detail-navigation-v002']},
     'instalaciones-programacion-personal':{css:[
-      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css?v=20261112-int9-contratistas-gantt-v004',
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css?v=20261112-int9-contratistas-modal-v005',
       './modules/instalaciones-programacion-personal/instalaciones-programacion-personal-ajustadores.css?v=20261027-int9-ajustadores-fase4-v001'
     ],js:[
-      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js?v=20261112-int9-contratistas-gantt-v004',
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js?v=20261112-int9-contratistas-modal-v005',
       './modules/instalaciones-programacion-personal/instalaciones-programacion-personal-ajustadores.js?v=20261111-int9-incidencias-fl-v001'
     ]},
     'instalaciones-pmm':{css:['./modules/instalaciones-pmm/instalaciones-pmm_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-pmm/instalaciones-pmm_cor.js?v=20260914-horarios-f2-v001']},

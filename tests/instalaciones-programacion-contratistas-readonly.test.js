@@ -107,3 +107,22 @@ test('06-A conserva las filas individuales PERSONAL y barras de Ajustadores',()=
   assert.match(source,/function openReadOnlyAssignment\(id,fromContractor=false\)/);
   assert.match(source,/configureAssignmentReadOnly\(true\)/);
 });
+
+test('04-M: el detalle de equipo aparece en una ventana flotante con desplazamiento local',()=>{
+ assert.match(source,/id="ppc-contractor-modal" class="ppc-overlay ppc-contractor-modal"/);
+ assert.match(source,/role="dialog"/);
+ assert.match(source,/aria-modal="true"/);
+ assert.match(source,/class="ppc-contractor-modal-body"/);
+ assert.match(source,/data-ppc="montaje-cerrar"/);
+ assert.match(css,/\.ppc-contractor-modal-dialog/);
+ assert.match(css,/overflow-y:auto/);
+ assert.match(source,/function closeContractorDetail\(\)/);
+ assert.match(source,/const modalScroll=holder\.querySelector/);
+});
+test('04-M: un solo modal activo, conserva borradores, Escape cierra y vuelve a barra',()=>{
+ assert.match(source,/contractorExpanded\.clear\(\);\s*contractorExpanded\.add\(id\)/);
+ assert.match(source,/if\(ev\.key==='Escape'&&contractorExpanded\.size\)/);
+ assert.match(source,/contractorDrafts\.set\(id,/);
+ assert.match(source,/focusContractorDetail\(\)/);
+ assert.match(source,/data-ppc="montaje-fondo"/);
+});
