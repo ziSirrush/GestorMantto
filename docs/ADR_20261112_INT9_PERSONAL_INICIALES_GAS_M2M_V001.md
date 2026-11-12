@@ -16,7 +16,23 @@ Encabezados exactos A:H:
 
 ## SQL y despliegue
 
-El respaldo DDL `Corte_Estructura20261110.sql` no incorpora `iniciales`. Ejecutar manualmente y verificar `backend/sql/20261112_int9_personal_iniciales.sql` antes de enviar filas con iniciales.
+El respaldo DDL `Corte_Estructura20261110.sql` no incorpora `iniciales`. Ejecutar manualmente la siguiente migración SQL en Aiven, después de comprobar que la columna aún no existe. Por normas del repositorio, el SQL no se agrega como archivo `.sql` al árbol de GitHub:
+
+```sql
+SELECT COLUMN_NAME FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'instalaciones_personal' AND COLUMN_NAME = 'iniciales';
+
+-- Solo si no existe todavía:
+ALTER TABLE instalaciones_personal
+  ADD COLUMN iniciales VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+  NULL DEFAULT NULL AFTER experiencia;
+
+SELECT COLUMN_NAME,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,IS_NULLABLE
+  FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'instalaciones_personal' AND COLUMN_NAME = 'iniciales';
+```
+
+La migración NO forma parte del despliegue de Azure/GitHub Pages.
 
 El backend comprueba la existencia de la columna con `SHOW COLUMNS` una vez por ventana de un minuto y conserva operaciones de catalogo antiguo si aun no se ha migrado Aiven. Si se intenta crear o editar con `iniciales` no nulas sin la columna, devuelve **HTTP 503 / INT9_COLUMNA_INICIALES_PENDIENTE**, sin realizar la escritura. Las consultas anteriores y altas sin iniciales conservan compatibilidad. La API GET y PUT pueden leer/editar `iniciales` despues de migrar.
 
