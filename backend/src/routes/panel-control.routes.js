@@ -21,6 +21,7 @@ router.post('/pruebas-scripts/conciliacion-ajustadores', requireAuth, scriptTest
 router.get('/pruebas-scripts/conciliacion-ajustadores', requireAuth, scriptTests.authorize, scriptTests.status);
 router.post('/pruebas-scripts/conciliacion-montadores', requireAuth, montageTests.authorize, montageTests.start);
 router.get('/pruebas-scripts/conciliacion-montadores', requireAuth, montageTests.authorize, montageTests.status);
+router.post('/pruebas-scripts/conciliacion-montadores/cancelar', requireAuth, montageTests.authorize, montageTests.cancel);
 router.get('/notificaciones/matriz', requireAuth, notificationAdminController.getNotificationMatrix_gnral);
 router.put('/notificaciones/matriz', requireAuth, notificationAdminController.saveNotificationMatrix_gnral);
 router.get('/roles/:id/permisos', requireAuth, controller.getRolePermissions);

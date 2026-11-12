@@ -14,6 +14,24 @@ const FIELDS=`f.id_ins_fl,f.id_proyecto,f.proyecto,f.referencia_sitio,f.estatus,
   f.subcontratista,f.fecha_inicio_montaje,f.fecha_fin_montaje_real,
   f.fecha_fin_montaje_modificado,f.fecha_fin_montaje_planeado`;
 
+function connectionWithTimeout(waitMs){
+  if(!waitMs)return db.getConnection();
+  return new Promise((resolve,reject)=>{
+    let settled=false;
+    const timer=setTimeout(()=>{
+      settled=true;
+      reject(failure(503,'INT9_MONTAJE_POOL_TIMEOUT',
+        'La conexion de Aiven no estuvo disponible en el tiempo permitido.'));
+    },waitMs);
+    Promise.resolve().then(()=>db.getConnection()).then(conn=>{
+      if(settled){conn.release();return;}
+      settled=true;clearTimeout(timer);resolve(conn);
+    },error=>{
+      if(settled)return;
+      settled=true;clearTimeout(timer);reject(error);
+    });
+  });
+}
 function failure(statusCode,code,message){
   return Object.assign(new Error(message),{statusCode,code});
 }
@@ -67,8 +85,8 @@ async function readiness(){
   return {disponible:columns.length===1&&tables.length===1,
     columna_iniciales:columns.length===1,tabla_relacion:tables.length===1};
 }
-async function candidates(conn,iniciales){
-  const [rows]=await conn.query(
+async function candidates(conn,iniciales,runQuery=conn.query.bind(conn)){
+  const [rows]=await runQuery(
     `SELECT id_personal,nombre,contratista,iniciales,activo FROM instalaciones_personal
       WHERE tipo_personal='MONTADOR' AND activo=1 AND TRIM(iniciales)=?
       ORDER BY id_personal ASC LIMIT ${MAX_CANDIDATOS+1}`,[iniciales]);
@@ -76,21 +94,32 @@ async function candidates(conn,iniciales){
     'Demasiados montadores con las mismas iniciales; revisar catálogo.');
   return rows;
 }
-async function reconcile(idValue,{tecnico=false,actorId=null,access=null}={}){
+async function reconcile(idValue,{tecnico=false,actorId=null,access=null,
+  poolTimeoutMs=0,queryTimeoutMs=0}={}){
   const id=Number(idValue);
   if(!Number.isSafeInteger(id)||id<1)throw failure(400,'INT9_MONTAJE_ID_INVALIDO','ID de equipo inválido.');
   if(!tecnico&&!access)throw failure(403,'INT9_MONTAJE_ALCANCE_REQUERIDO','Falta alcance CORELLIAN.');
   if(tecnico&&actorId!==null)throw failure(403,'INT9_MONTAJE_ACTOR_TECNICO','No se permite suplantar usuarios.');
-  const conn=await db.getConnection();
+  // Los limites son opt-in: solo los barridos QA los solicitan.
+  const bounded=Number.isSafeInteger(queryTimeoutMs)&&queryTimeoutMs>=1000&&queryTimeoutMs<=60000;
+  const sqlValue=sql=>bounded?{sql,timeout:queryTimeoutMs}:sql;
+  const conn=await connectionWithTimeout(
+    Number.isSafeInteger(poolTimeoutMs)&&poolTimeoutMs>=1000&&poolTimeoutMs<=60000
+      ?poolTimeoutMs:0);
+  const query=(sql,params)=>conn.query(sqlValue(sql),params);
   try{
-    await conn.beginTransaction();
-    const [found]=await conn.query(
+    if(bounded)await query('START TRANSACTION');
+    else await conn.beginTransaction();
+    const [found]=await query(
       `SELECT ${FIELDS} FROM ins_fl f WHERE f.id_ins_fl=?
        ${access?'AND ('+access.sql+')':''} LIMIT 1 FOR UPDATE`,
       [id,...(access?.params||[])]);
-    if(!found.length){await conn.rollback();return {id_ins_fl:id,estado:'NO_DISPONIBLE',creadas:0,historicas:0};}
+    if(!found.length){
+      if(bounded)await query('ROLLBACK');else await conn.rollback();
+      return {id_ins_fl:id,estado:'NO_DISPONIBLE',creadas:0,historicas:0};
+    }
     const row=found[0];
-    const [current]=await conn.query(
+    const [current]=await query(
       `SELECT id_relacion,id_proyecto,iniciales,contratista FROM ${TABLE}
        WHERE id_ins_fl=? AND activo=1 FOR UPDATE`,[id]);
     if(current.length>1)throw failure(409,'INT9_MONTAJE_RELACIONES_DUPLICADAS',
@@ -98,36 +127,37 @@ async function reconcile(idValue,{tecnico=false,actorId=null,access=null}={}){
     const ref=current[0]||null;
     const initial=evaluate(row);
     const candidatesRows=initial.estado==='FECHAS_MONTAJE_INVALIDAS'||initial.estado==='NO_ELEGIBLE'
-      ?[]:initial.iniciales?await candidates(conn,initial.iniciales):[];
+      ?[]:initial.iniciales?await candidates(conn,initial.iniciales,query):[];
     const target=evaluate(row,candidatesRows);
     if(target.vinculable&&ref&&
       normalize(ref.id_proyecto)===normalize(row.id_proyecto)&&
       code(ref.iniciales)===target.iniciales&&normalize(ref.contratista)===normalize(target.contratista)){
-      await conn.rollback();
+      if(bounded)await query('ROLLBACK');else await conn.rollback();
       return {id_ins_fl:id,estado:'SIN_CAMBIOS',creadas:0,historicas:0,contratista:ref.contratista};
     }
     let historicas=0;
     if(ref){
-      await conn.query(`UPDATE ${TABLE} SET activo=0,es_historico=1,updated_by=?
+      await query(`UPDATE ${TABLE} SET activo=0,es_historico=1,updated_by=?
         WHERE id_relacion=? AND activo=1`,[actorId,ref.id_relacion]);
       historicas=1;
     }
     let creadas=0;
     if(target.vinculable){
-      await conn.query(
+      await query(
         `INSERT INTO ${TABLE}
          (id_ins_fl,id_proyecto,iniciales,contratista,activo,es_historico,created_by,updated_by)
          VALUES (?,?,?,?,1,0,?,?)`,
         [id,String(row.id_proyecto).trim(),target.iniciales,target.contratista,actorId,actorId]);
       creadas=1;
     }
-    await conn.commit();
+    if(bounded)await query('COMMIT');else await conn.commit();
     return {id_ins_fl:id,estado:target.vinculable?'VINCULADO':
       target.estado==='NO_ELEGIBLE'?'NO_ELEGIBLE':'REQUIERE_REVISION',
       motivo:target.vinculable?null:target.estado,creadas,historicas,
       ...(target.vinculable?{contratista:target.contratista,iniciales:target.iniciales}:{})};
   }catch(error){
-    await conn.rollback().catch(()=>{});
+    if(bounded)await query('ROLLBACK').catch(()=>{});
+    else await conn.rollback().catch(()=>{});
     sqlError(error);
   }finally{conn.release();}
 }
