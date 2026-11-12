@@ -15,6 +15,7 @@ const {
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 3]
 // Enganchar cambios de fechas/nombres despues del COMMIT oficial de ins_fl.
 const { ejecutarSyncConAjustadores } = require('../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.ajustadores-sync.service');
+const { ejecutarSyncConMontadores } = require('../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.montadores-sync.service');
 
 const requireInsFlIntegration = requireIntegrationAuthFor('INTEGRATION_INS_FL_ID');
 
@@ -63,7 +64,8 @@ async function syncWithHeldAltasLockCor(req,res,next) {
       try {return await insFlController.syncInsFl(request,response);}
       finally {await releaseOnce();}
     };
-    return await ejecutarSyncConAjustadores(req,res,syncOriginal);
+    return await ejecutarSyncConMontadores(req,res,(request,response)=>
+      ejecutarSyncConAjustadores(request,response,syncOriginal));
   } catch(error) {
     return next(error);
   } finally {

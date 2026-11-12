@@ -7,6 +7,7 @@
 // La ocupacion de una persona puede considerar equipos fuera del alcance:
 // se devuelven fechas y disponibilidad, NUNCA identificadores/detalles de esos equipos.
 const db = require('../../config/db');
+const montaje04M = require('./instalaciones-programacion-personal.montadores.service');
 const recordScope = require('../../services/information-record-scope-gnral.service');
 
 const TIPOS = Object.freeze(['MONTADOR', 'AJUSTADOR']);
@@ -118,7 +119,7 @@ function equipFields(prefix='f') {
   const a=prefix;
   return `${a}.id_ins_fl,${a}.proyecto,${a}.id_proyecto,${a}.referencia_sitio,${a}.estatus,
     ${a}.fecha_inicio_montaje,${a}.fecha_fin_montaje_planeado,${a}.fecha_fin_montaje_modificado,${a}.fecha_fin_montaje_real,
-    ${a}.fecha_inicio_ajuste,${a}.fecha_fin_ajuste_planeado,${a}.fecha_fin_ajuste_modificado,${a}.fecha_fin_ajuste_real`;
+    ${a}.fecha_inicio_ajuste,${a}.fecha_fin_ajuste_planeado,${a}.fecha_fin_ajuste_modificado,${a}.fecha_fin_ajuste_real,${a}.subcontratista`;
 }
 function placeholders(n) { return Array.from({length:n},()=>'?').join(','); }
 function personName(row) { return String(row.nombre || '').trim(); }
@@ -275,7 +276,7 @@ async function calendario(req) {
 }
 async function lockPeople(connection, type, ids, requireActive=true) {
   const [rows]=await connection.query(
-    `SELECT id_personal,tipo_personal,nombre,puesto,contratista FROM instalaciones_personal
+    `SELECT id_personal,tipo_personal,nombre,puesto,contratista,iniciales FROM instalaciones_personal
       WHERE tipo_personal=? ${requireActive?'AND activo=1':''} AND id_personal IN (${placeholders(ids.length)})
       ORDER BY id_personal FOR UPDATE`,[type,...ids]);
   if (rows.length!==ids.length) throw error(404,'INT9_PERSONA_NO_ENCONTRADA','Una o más personas no están activas en el catálogo.');
@@ -317,6 +318,8 @@ async function crearAsignaciones(req) {
     await connection.beginTransaction();
     const personas=await lockPeople(connection,type,ids);
     const equipo=await loadEquipo(connection,req,idEquipo,true);
+    if(type==='MONTADOR'&&String(equipo.estatus??'').trim()==='04-M')
+      await montaje04M.validarAsignacion(connection,equipo,personas);
     const ventana=windowAsignacion(type,equipo,{fecha_desde:desde,fecha_hasta:hasta});
     if (!ventana.valida) throw error(400,'INT9_EQUIPO_SIN_FECHAS','El equipo no tiene fechas válidas: captura desde y hasta manualmente.');
     const prev=await fetchAssignmentRows(connection,type,ids,req);

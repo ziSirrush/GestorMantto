@@ -1,5 +1,6 @@
 // [Aster | 2026-08-12 | ASTER-MG | PATCH: FASE_4_BACKEND_FLEXIBLE_REGISTRO_V001]
 const db = require('../config/db');
+const INT9_MONTAJE_FIELDS=Object.freeze(['estatus','activo','id_proyecto','proyecto','referencia_sitio','subcontratista','fecha_inicio_montaje','fecha_fin_montaje_real','fecha_fin_montaje_modificado','fecha_fin_montaje_planeado']);
 const INT9_RELEVANT_FIELDS=Object.freeze(['estatus','activo','ajustador',
   'fecha_inicio_ajuste','fecha_fin_ajuste_real','fecha_fin_ajuste_modificado',
   'fecha_fin_ajuste_planeado']);
@@ -347,6 +348,7 @@ async function syncInsFl(req, res) {
 
   const conn = await db.getConnection();
   const int9Changed=[];
+  const int9MontajeChanged=[];
   const summary = {
     received: rows.length,
     inserted: 0,
@@ -400,6 +402,10 @@ async function syncInsFl(req, res) {
             const id=Number(inserted.insertId);
             if(Number.isSafeInteger(id)&&id>0)int9Changed.push(id);
           }
+          if(INT9_MONTAJE_FIELDS.some(field=>incoming[field]!==undefined)){
+            const id=Number(inserted.insertId);
+            if(Number.isSafeInteger(id)&&id>0)int9MontajeChanged.push(id);
+          }
           summary.inserted += 1;
           await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
           continue;
@@ -428,6 +434,8 @@ async function syncInsFl(req, res) {
           comparable(existingRows[0][field])!==comparable(incoming[field]))){
           int9Changed.push(Number(existingRows[0].id_ins_fl));
         }
+        if(INT9_MONTAJE_FIELDS.some(field=>comparable(existingRows[0][field])!==comparable(incoming[field])))
+          int9MontajeChanged.push(Number(existingRows[0].id_ins_fl));
         summary.updated += 1;
         await conn.query(`RELEASE SAVEPOINT ${savepoint}`);
       } catch (rowError) {
@@ -446,6 +454,7 @@ async function syncInsFl(req, res) {
     await conn.commit();
     // Post-commit: el router concilia solo IDs relevantes, sin relectura masiva.
     req.int9CommittedChanges=[...new Set(int9Changed.filter(Number.isSafeInteger))];
+    req.int9MontajeCommittedChanges=[...new Set(int9MontajeChanged.filter(Number.isSafeInteger))];
     return res.json({
       ok: true,
       message: 'ins_fl sincronizada correctamente.',

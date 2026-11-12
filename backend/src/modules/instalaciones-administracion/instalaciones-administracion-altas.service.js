@@ -7,6 +7,7 @@
 
 const db = require('../../config/db');
 const reconciliadorInt9 = require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
+const montajeInt9 = require('../instalaciones-programacion-personal/instalaciones-programacion-personal.montadores.service');
 const visibilityService = require('../ventas/ventas-visibility.service');
 const service = require('./instalaciones-administracion.service');
 const autoService = require('./instalaciones-administracion.auto-service');
@@ -314,6 +315,8 @@ async function createRowsCor(req, body = {}) {
       if(String(rows[i]?.estatus??'').trim()==='06-A'){
         await reconciliadorInt9.notifySaved(created[i].id_ins_fl,['estatus']);
       }
+      if(String(rows[i]?.estatus??'').trim()==='04-M')
+        await montajeInt9.notifySaved(created[i].id_ins_fl,['estatus']);
     }
     // El navegador debe volver a consultar con Guard/scope; no se devuelve
     // la ficha entera desde una mutacion, ni se presupone acceso posterior.

@@ -2,7 +2,8 @@
 // INT9 04-M / Montadores. Vincula proyecto e iniciales a UN contratista.
 // Nunca asigna personas automáticamente; Ajustadores 06-A permanece separado.
 const db=require('../../config/db');
-const assignments=require('./instalaciones-programacion-personal.asignaciones.service');
+// Lazy require: el servicio de asignaciones también importa este motor.
+const assignments=()=>require('./instalaciones-programacion-personal.asignaciones.service');
 const TABLE='instalaciones_programacion_contratistas_fl';
 const MAX_CANDIDATOS=1000;
 const MAX_RELACIONES=5000;
@@ -45,7 +46,7 @@ function evaluate(row,candidates=[]){
   const iniciales=code(row.subcontratista);
   if(!String(row.id_proyecto??'').trim())return {estado:'PROYECTO_SIN_ID',vinculable:false};
   if(!iniciales)return {estado:'SUBCONTRATISTA_SIN_INICIALES',vinculable:false};
-  const window=assignments._read.windowEquipo('MONTADOR',row);
+  const window=assignments()._read.windowEquipo('MONTADOR',row);
   if(!window.valida)return {estado:'FECHAS_MONTAJE_INVALIDAS',vinculable:false,iniciales};
   const resolved=identity(candidates,iniciales);
   return {...resolved,vinculable:resolved.estado==='IDENTIFICADO',
@@ -160,10 +161,10 @@ async function validarAsignacion(conn,equipo,personas){
   return link;
 }
 async function relaciones(req){
-  const scope=assignments._read.scope(req);
+  const scope=assignments()._read.scope(req);
   const query=req.query||{};
-  const desde=assignments._read.manualDate(query.desde,'desde');
-  const hasta=assignments._read.manualDate(query.hasta,'hasta');
+  const desde=assignments()._read.manualDate(query.desde,'desde');
+  const hasta=assignments()._read.manualDate(query.hasta,'hasta');
   if(!desde||!hasta||hasta<desde)throw failure(400,'INT9_MONTAJE_RANGO_INVALIDO',
     'Indica fechas desde y hasta válidas.');
   const [rows]=await db.query(
@@ -177,13 +178,13 @@ async function relaciones(req){
   if(rows.length>MAX_RELACIONES)throw failure(422,'INT9_MONTAJE_RELACIONES_EXCESIVAS',
     'La consulta supera el límite seguro; filtrar por alcance.');
   const result=rows.map(row=>{
-    const window=assignments._read.windowEquipo('MONTADOR',row);
+    const window=assignments()._read.windowEquipo('MONTADOR',row);
     return {id_relacion:Number(row.id_relacion),id_ins_fl:Number(row.id_ins_fl),
       id_proyecto:row.id_proyecto,proyecto:row.proyecto||row.id_proyecto,
       equipo:row.referencia_sitio||'',contratista:row.contratista,
       iniciales:row.iniciales,inicio:window.inicio,fin:window.fin,
       fuente_fin:window.fuente_fin,valida:window.valida};
-  }).filter(row=>row.valida&&assignments._read.intersect(row.inicio,row.fin,desde,hasta));
+  }).filter(row=>row.valida&&assignments()._read.intersect(row.inicio,row.fin,desde,hasta));
   return {relaciones:result,total:result.length,desde,hasta};
 }
 module.exports={reconcile,notifySaved,validarAsignacion,relaciones,readiness,RELEVANT_FIELDS,
