@@ -48,3 +48,13 @@ test('F6 QA: continuidad previa sigue protegida despues de integrar main',()=>{
   assert.match(projects,/bltnow-instalaciones-proyectos-delta/);
   assert.match(projects,/scope_signature/);
 });
+
+
+test('F6 QA: sync combinado conserva Montadores y endpoints incrementales',()=>{
+  const routes=read('backend/src/routes/ins-fl.routes.js');
+  assert.match(routes,/ejecutarSyncConMontadores/);
+  assert.match(routes,/ejecutarSyncConAjustadores/);
+  assert.match(routes,/router\.get\('\/cache-state'/);
+  assert.match(routes,/router\.get\('\/changes'/);
+  assert.match(routes,/protectManualAltasCor/);
+});
