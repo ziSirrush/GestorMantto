@@ -78,6 +78,7 @@ const PROJECT_DETAIL_PHOTO_ACCESS = Object.freeze([
 ]);
 
 router.get('/cache-state', ...instalacionesGuard('INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'), insFlReadController.getInsFlCacheState_cor);
+router.get('/changes', ...instalacionesGuard('INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'), insFlReadController.getInsFlChanges_cor);
 router.get('/', ...instalacionesGuard('INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'), insFlReadController.getInsFl_cor);
 router.get('/proyectos', ...instalacionesGuard('INSTALACIONES_PROYECTOS_TABLA_ACTIVOS_REGISTROS.VER'), insFlReadController.getInsFlProjects_cor);
 router.get(

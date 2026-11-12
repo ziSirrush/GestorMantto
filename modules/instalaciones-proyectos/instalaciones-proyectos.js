@@ -111,17 +111,49 @@ async function pyLoadWarmCache(){
   const rows=cached?.payload?.data;
   if(!Array.isArray(rows))return false;
   pyApplyRows(rows);
-  return true;
+  return cached;
 }
-async function pySaveWarmCache(rows,scopeSignature){
+async function pySaveWarmCache(rows,scopeSignature,sourceCursor=null){
   const storage=window.ManttoOfflineStorage,ctx=pyCacheContext();
   if(!storage?.saveSnapshot||!ctx||!Array.isArray(rows)||!/^[a-f0-9]{64}$/.test(String(scopeSignature||'')))return false;
   try{
     await storage.saveSnapshot(ctx,{data:rows,generated_at:new Date().toISOString()},{
-      record_count:rows.length,scope_signature:scopeSignature,source_updated_at:null
+      record_count:rows.length,scope_signature:scopeSignature,source_updated_at:null,source_cursor:sourceCursor
     });
     return true;
   }catch(error){console.warn('[INSTALACIONES] No fue posible conservar la cache verificada.',error);return false;}
+}
+
+function pyOverlapCursor(cursor,seconds=120){
+  const ms=Number(cursor&&cursor.updated_ms)||0;
+  return {updated_ms:Math.max(0,ms-seconds*1000),id:0};
+}
+function pyMergeRawRows(baseRows,deltaRows){
+  const map=new Map();
+  for(const row of baseRows||[]){const id=Number(row&&row.id_ins_fl);if(Number.isSafeInteger(id)&&id>0)map.set(id,row);}
+  for(const row of deltaRows||[]){const id=Number(row&&row.id_ins_fl);if(Number.isSafeInteger(id)&&id>0)map.set(id,row);}
+  return [...map.values()].sort((a,b)=>Number(a.id_ins_fl)-Number(b.id_ins_fl));
+}
+async function pyIncrementalFromCache(cached){
+  if(!cached||!cached.source_cursor||!Array.isArray(cached.payload&&cached.payload.data))return false;
+  let cursor=pyOverlapCursor(cached.source_cursor),rows=cached.payload.data,scopeSignature=cached.scope_signature;
+  let pageCount=0,totalChanges=0;
+  while(pageCount<30){
+    const qs=new URLSearchParams({from_ms:String(cursor.updated_ms),from_id:String(cursor.id||0),limit:'300'});
+    const answer=await pyFetchJson('/api/ins-fl/changes?'+qs.toString());
+    if(!answer||answer.scope_signature!==scopeSignature)throw new Error('El alcance cambio durante la sincronizacion incremental.');
+    const changes=Array.isArray(answer.data)?answer.data:[];
+    rows=pyMergeRawRows(rows,changes);totalChanges+=changes.length;pageCount++;
+    const next=answer.cursor;
+    if(!next||!Number.isFinite(Number(next.updated_ms)))throw new Error('El backend no devolvio cursor incremental verificable.');
+    cursor={updated_ms:Number(next.updated_ms),id:Number(next.id)||0};
+    if(answer.has_more!==true)break;
+  }
+  if(pageCount>=30)throw new Error('Sincronizacion incremental excedio el limite de paginas.');
+  pyApplyRows(rows);
+  await pySaveWarmCache(rows,scopeSignature,cursor);
+  await pyCargarComentariosJunta();
+  return {ok:true,changes:totalChanges,cursor};
 }
 
 async function pyCargarDesdeAiven(){
@@ -134,7 +166,7 @@ async function pyCargarDesdeAiven(){
   pyApplyRows(rows);
   const fotosPorProyecto=new Map((Array.isArray(fotosJson.data)?fotosJson.data:[]).map(f=>[String(f['ID Proyecto']||'').trim(),f]));
   PY_PROYECTOS.forEach(p=>{const f=fotosPorProyecto.get(String(p['ID Proyecto']||'').trim());if(f)Object.assign(p,f);});
-  await pySaveWarmCache(rows,cacheState?.scope_signature);
+  await pySaveWarmCache(rows,cacheState?.scope_signature,equiposJson?.sync_cursor||null);
   await pyCargarComentariosJunta();
 }
 
@@ -1373,9 +1405,15 @@ async function pyInit(){
   if(warm){
     pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();
     const status=document.getElementById('py-aiven-status');
-    if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Cache verificada · actualizando Aiven...</span>';
+    if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Cache verificada · sincronizando cambios...</span>';
   }
-  try{ await pyCargarDesdeAiven(); const status=document.getElementById('py-aiven-status'); if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>'; }catch(error){ console.error(error); const page=document.getElementById('py-page'); if(page) page.insertAdjacentHTML('afterbegin',`<div class="py-note">No se pudieron cargar los datos desde Aiven: ${pyEsc(error.message||error)}</div>`); }
+  try{
+    let incremental=false;
+    if(warm){try{incremental=await pyIncrementalFromCache(warm);}catch(error){console.warn('[INSTALACIONES] Delta no disponible; se usa carga completa.',error);}}
+    if(!incremental)await pyCargarDesdeAiven();
+    const status=document.getElementById('py-aiven-status');
+    if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos'+(incremental?' · incremental':'')+'</span>';
+  }catch(error){ console.error(error); const page=document.getElementById('py-page'); if(page) page.insertAdjacentHTML('afterbegin',`<div class="py-note">No se pudieron cargar los datos desde Aiven: ${pyEsc(error.message||error)}</div>`); }
   pyRenderKPIs();
   pyPopulateFiltrosBasicos();
   pyRenderProyectos();
@@ -1418,7 +1456,10 @@ window.ManttoInstalacionesProyectos={
    try{
      const status=document.getElementById('py-aiven-status');
      if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Actualizando Aiven...</span>';
-     await pyCargarDesdeAiven();
+     const warm=await pyLoadWarmCache();
+     let incremental=false;
+     if(warm){try{incremental=await pyIncrementalFromCache(warm);}catch(error){console.warn('[INSTALACIONES] Delta manual fallo; carga completa.',error);}}
+     if(!incremental)await pyCargarDesdeAiven();
      pyRenderKPIs();pyPopulateFiltrosBasicos();pyRenderProyectos();
      if(status)status.innerHTML='<span class="py-connection-dot"></span><span>Aiven conectado · '+PY_EQUIPOS.length+' equipos</span>';
    }catch(error){

@@ -161,6 +161,55 @@ async function getInsFlCacheState_cor(req, res) {
   }
 }
 
+
+function validEpochMs_cor(value) {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 && n <= 4102444800000 ? n : null;
+}
+function syncCursorFromRows_cor(rows, fallback) {
+  const fallbackMs = validEpochMs_cor(fallback && fallback.updated_ms);
+  let best = fallbackMs !== null ? {updated_ms:fallbackMs,id:Number(fallback.id)||0} : {updated_ms:0,id:0};
+  for (const row of rows || []) {
+    const ms = validEpochMs_cor(row && row.__sync_updated_ms);
+    const id = Number(row && row.id_ins_fl);
+    if (ms === null || !Number.isSafeInteger(id) || id <= 0) continue;
+    if (ms > best.updated_ms || (ms === best.updated_ms && id > best.id)) best = {updated_ms:ms,id};
+  }
+  return best;
+}
+function stripSyncMeta_cor(rows) {
+  return (rows || []).map(row => { const copy={...row}; delete copy.__sync_updated_ms; return copy; });
+}
+
+async function getInsFlChanges_cor(req, res) {
+  try {
+    const scope = await resolveScope_cor(req);
+    const fromMs = validEpochMs_cor(req.query.from_ms);
+    const fromId = Math.max(0, Number(req.query.from_id) || 0);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 300, 1), 500);
+    if (fromMs === null) return res.status(400).json({ok:false,code:'INS_FL_DELTA_CURSOR_INVALID',message:'Cursor incremental invalido.'});
+    const params = [];
+    const where = [];
+    appendInformationScope_cor(where, params, scope, 'f');
+    where.push('(f.updated_at > FROM_UNIXTIME(? / 1000) OR (f.updated_at = FROM_UNIXTIME(? / 1000) AND f.id_ins_fl > ?))');
+    params.push(fromMs, fromMs, fromId);
+    const [rows] = await db.query(
+      `SELECT f.*, CAST(UNIX_TIMESTAMP(f.updated_at) * 1000 AS UNSIGNED) AS __sync_updated_ms
+         FROM ins_fl f
+        WHERE ${where.join(' AND ')}
+        ORDER BY f.updated_at ASC, f.id_ins_fl ASC
+        LIMIT ?`,
+      [...params, limit + 1]
+    );
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const cursor = syncCursorFromRows_cor(page, {updated_ms:fromMs,id:fromId});
+    return res.json({ok:true,source:'aiven',scope_signature:scopeSignature_cor(scope),data:stripSyncMeta_cor(page),cursor,has_more:hasMore,limit});
+  } catch (error) {
+    return res.status(statusFromError(error)).json({ok:false,code:error.code||'INS_FL_DELTA_ERROR',message:error.message||'Error consultando cambios de ins_fl.'});
+  }
+}
+
 async function getInsFl_cor(req, res) {
   try {
     const scope = await resolveScope_cor(req);
@@ -216,6 +265,7 @@ async function getInsFl_cor(req, res) {
     const [rows] = await db.query(
       `SELECT
          f.*,
+         CAST(UNIX_TIMESTAMP(f.updated_at) * 1000 AS UNSIGNED) AS __sync_updated_ms,
          COALESCE(
            (
              SELECT GROUP_CONCAT(DISTINCT u_admin.iniciales ORDER BY u_admin.iniciales SEPARATOR ', ')
@@ -237,6 +287,7 @@ async function getInsFl_cor(req, res) {
       [...params, limit, offset]
     );
 
+    const syncCursor = syncCursorFromRows_cor(rows);
     rows.forEach(row => {
       const campo = row.foto_principal;
       row.foto_portada =
@@ -249,7 +300,8 @@ async function getInsFl_cor(req, res) {
     return res.json({
       ok: true,
       source: 'aiven',
-      data: rows,
+      data: stripSyncMeta_cor(rows),
+      sync_cursor: syncCursor,
       limit,
       offset
     });
@@ -574,6 +626,7 @@ async function getInsFlProjectPhotoManagementScope_cor(req, res) {
 
 module.exports = {
   getInsFlCacheState_cor,
+  getInsFlChanges_cor,
   getInsFl_cor,
   getInsFlById_cor,
   getInsFlProjects_cor,
