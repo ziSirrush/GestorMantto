@@ -13,7 +13,9 @@ test('Nomenclatura DDMMYY.API.DDMMYY.FE corresponde a manifiestos',()=>{
   const api=parsePart(state.api);
   const frontend=parsePart(state.frontend);
   assert.equal(state.combined,state.api+'.'+state.frontend);
-  assert.equal(frontend.date,api.date);
+  assert.match(api.date,/^\\d{6}$/);
+  assert.match(frontend.date,/^\\d{6}$/);
+  assert.equal(normalize({version:'111126.7'},{apiVersion:'111126.7',version:'121126.1'}).combined,'111126.7.121126.1');
   assert.match(fs.readFileSync(path.join(root,'tools/generate-build-info.js'),'utf8'),/readReleaseVersion/);
 });
 

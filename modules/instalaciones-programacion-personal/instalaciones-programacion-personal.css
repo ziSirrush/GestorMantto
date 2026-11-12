@@ -144,3 +144,27 @@
 @media(max-width:760px){.ppc-analytics-card{padding:12px}.ppc-analytics-filters{align-items:stretch}.ppc-analytics-filters label{min-width:140px}.ppc-s-people-grid{grid-template-columns:1fr}}
 
 .ppc-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* BLT NOW | 2026-11-12 | Calendario Contratistas - acordeones por proyecto */
+.ppc-contractors{display:flex;flex-direction:column;gap:10px}
+.ppc-contractor{border:1px solid #dbe4f0;border-radius:11px;background:#fff;overflow:hidden}
+.ppc-contractor>summary{display:flex;align-items:center;gap:11px;cursor:pointer;list-style:none;padding:13px 14px;color:#15375b}
+.ppc-contractor>summary::-webkit-details-marker{display:none}
+.ppc-contractor>summary strong{font-size:13px;overflow-wrap:anywhere}
+.ppc-contractor>summary small{font-size:11px;color:#657891;margin-left:auto;text-align:right}
+.ppc-contractor[open]>summary{background:#f2f7ff;border-bottom:1px solid #dbe4f0}
+.ppc-contractor-swatch{display:inline-block;width:15px;height:15px;min-width:15px;border-radius:4px;border:1px solid #0002}
+.ppc-contractor-chevron{color:#64748b;transition:transform .15s ease}
+.ppc-contractor[open] .ppc-contractor-chevron{transform:rotate(180deg)}
+.ppc-contractor-scroll{border:0;border-radius:0;max-height:48vh}
+.ppc-contractor-project{background:#fbfdff}
+.ppc-contractor-bar{background:var(--ppc-contractor-color);border-color:var(--ppc-contractor-color)}
+.ppc-contractor-bar:hover:not(:disabled){filter:brightness(1.12)}
+.ppc-contractor-legend{border:1px solid #dbe4f0;border-radius:9px;padding:10px 12px;margin:10px 0}
+.ppc-contractor-legend>summary{font-size:12px;color:#26476a;font-weight:750;cursor:pointer}
+.ppc-contractor-legend>div{display:flex;gap:8px 15px;flex-wrap:wrap;margin-top:10px}
+.ppc-contractor-key{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#405771}
+@media(max-width:760px){
+  .ppc-contractor>summary{flex-wrap:wrap;gap:6px}
+  .ppc-contractor>summary small{margin-left:0;flex-basis:100%;text-align:left;padding-left:24px}
+}
