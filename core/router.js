@@ -28,6 +28,14 @@
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
     'experimental-portal-blt-movimientos':'Movimientos Portafolio · Portal BLT',
+    'portal-blt-jf-movimientos-portafolio':'Movimientos Portafolio (JF)',
+    'portal-blt-jf-portafolio-total':'Portafolio Total (JF)',
+    'portal-blt-jf-equipos-criticos':'Equipos Críticos (JF)',
+    'portal-blt-jf-equipos-parados':'Equipos Parados (JF)',
+    'portal-blt-jf-infografias':'Infografías (JF)',
+    'portal-blt-jf-uso-app':'Uso de la APP (JF)',
+    'portal-blt-jf-tipos-precalculo':'Tipos Precalculo (JF)',
+    'portal-blt-jf-kpis':'KPIS (JF)',
     'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional', 'cobranza-uni-administracion':'Administración'
   };
 
@@ -39,6 +47,17 @@
     'experimental-dashboard-call-center',
     'experimental-proyectos-criticos',
     'experimental-portal-blt-movimientos'
+  ]);
+  // Rutas exclusivas de los modulos JF: nunca reutilizar vistas existentes.
+  const PORTAL_BLT_JF_ROUTES = new Set([
+    'portal-blt-jf-movimientos-portafolio',
+    'portal-blt-jf-portafolio-total',
+    'portal-blt-jf-equipos-criticos',
+    'portal-blt-jf-equipos-parados',
+    'portal-blt-jf-infografias',
+    'portal-blt-jf-uso-app',
+    'portal-blt-jf-tipos-precalculo',
+    'portal-blt-jf-kpis'
   ]);
   const COBRANZA_ROUTES_UNI = new Set([
     'cobranza-uni-dashboard',
@@ -1088,6 +1107,17 @@
 
   function showPlaceholder(route, payload){
     if(route==='detalle' && showDetalle(payload)) return;
+    // Las rutas JF no muestran contenido ni placeholders a usuarios sin permiso.
+    if(PORTAL_BLT_JF_ROUTES.has(route) && window.ManttoPermissions?.canNavigate?.(route)!==true){
+      const view=activateViewById('view-placeholder');
+      if(!view)return;
+      view.innerHTML='<div class="placeholder"><div class="card placeholder-card construction-card">' +
+        '<h1>Acceso restringido</h1><p>No tienes permiso para este modulo de Portal BLT.</p>' +
+        '</div></div>';
+      setActiveSide('');
+      updateContext(route,'Portal BLT · Acceso restringido');
+      return;
+    }
     // Experimental NS: acceso exclusivo por permisos efectivos del catalogo,
     // sin listas de roles. El backend valida permiso, puerta y alcance UNITED.
     if(['experimental-ns-resumen-dia','experimental-ns-equipos-criticos','experimental-ns-proyectos-mantenimiento','experimental-ns-equipos-parados'].includes(route)){
