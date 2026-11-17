@@ -30,6 +30,7 @@
     'usuarios','panel-control','soporte-solicitudes',
     'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
     'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos',
+    'experimental-portal-blt-movimientos',
     'cobranza-uni-dashboard','cobranza-uni-estados-cuenta','cobranza-uni-mp-pro','cobranza-uni-aditivas'
   ]);
   const initializedContexts = new Set();
@@ -271,6 +272,7 @@
     'experimental-equipos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-equipos-criticos/experimental-equipos-criticos.css?v=20260806-fase5-2-v001'],js:['./modules/experimental-equipos-criticos/experimental-equipos-criticos.js?v=20260806-fase5-2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260914-horarios-f2-v001-limpieza-v002',EXPERIMENTAL_SHELL_JS]},
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
+    'experimental-portal-blt-movimientos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-portal-blt/experimental-portal-blt.css?v=20261117-portal-blt-v001'],js:['./modules/experimental-portal-blt/experimental-portal-blt.js?v=20261117-portal-blt-v001',EXPERIMENTAL_SHELL_JS]},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
     'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261015-pagos-proyecto-fuente-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261023-back-history-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001-limpieza-v002']},

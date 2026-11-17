@@ -27,6 +27,7 @@
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
+    'experimental-portal-blt-movimientos':'Movimientos Portafolio · Portal BLT',
     'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional', 'cobranza-uni-administracion':'Administración'
   };
 
@@ -36,7 +37,8 @@
     'experimental-entregas-recientes',
     'experimental-equipos-criticos',
     'experimental-dashboard-call-center',
-    'experimental-proyectos-criticos'
+    'experimental-proyectos-criticos',
+    'experimental-portal-blt-movimientos'
   ]);
   const COBRANZA_ROUTES_UNI = new Set([
     'cobranza-uni-dashboard',
