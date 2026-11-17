@@ -159,7 +159,7 @@ test('PWA renueva scripts de roles del Panel de Control, evitando versiones cach
   const loader=read('core/module-loader.js');
   const worker=read('service-worker.js');
   assert.match(html,/core\/auth\.js\?v=20261117-panel-united-v002/);
-  assert.match(html,/core\/user-viewer\.js\?v=20261117-panel-united-v002/);
+  assert.match(html,/core\/user-viewer\.js\?v=20261117-visor-pwa-sidebar-v001/);
   assert.match(loader,/panel-control\.js\?v=20261117-panel-united-v002/);
   assert.match(worker,/20261117-panel-united-v002/);
   assert.match(worker,/function needsFreshPanelAccessAsset_gnral\(url\)/);

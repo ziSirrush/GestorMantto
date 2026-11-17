@@ -95,8 +95,9 @@
   function panelHtml(){
     return `<section class="user-viewer-panel"><div class="user-viewer-panel-head"><div><span>VISOR DE USUARIOS</span><h2>Abrir vista de otro usuario</h2><p>La vista se abrirá en una pestaña nueva con un contexto independiente del usuario seleccionado.</p></div></div><div class="user-viewer-panel-search"><input id="user-viewer-panel-search" type="search" autocomplete="off" placeholder="Buscar por nombre, correo, rol o empresa..."></div><div class="user-viewer-panel-list" id="user-viewer-panel-list"></div></section>`;
   }
-  function renderPanelList(filter=''){
-    const list=document.getElementById('user-viewer-panel-list');
+  function renderPanelList(container,filter=''){
+    // Consultar dentro de la vista: Panel de Control puede tener otro visor en DOM.
+    const list=container?.querySelector?.('#user-viewer-panel-list');
     if(!list)return;
     const users=filteredUsers(filter);
     list.innerHTML=users.length?users.map(optionHtml).join(''):'<div class="user-viewer-empty">No se encontraron usuarios.</div>';
@@ -104,7 +105,9 @@
   }
   async function loadViewerUsers(force=false){
     if(state.usersLoaded&&!force)return state.users;
+    const epoch=state.permissionEpoch;
     const json=await window.ManttoAuth.apiGet('/api/panel-control/viewer-users');
+    if(epoch!==state.permissionEpoch||!allowed())return [];
     state.users=json.data?.usuarios||[];
     state.usersLoaded=true;
     renderHeaderList(elements().search?.value||'');
@@ -116,11 +119,16 @@
       container.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No tienes autorización para usar el Visor de usuarios.</div></section>';
       return;
     }
+    const epoch=state.permissionEpoch;
     await loadViewerUsers();
+    if(epoch!==state.permissionEpoch||!allowed()){
+      container.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No tienes autorización para usar el Visor de usuarios.</div></section>';
+      return;
+    }
     container.innerHTML=panelHtml();
-    const search=document.getElementById('user-viewer-panel-search');
-    search?.addEventListener('input',()=>renderPanelList(search.value));
-    renderPanelList('');
+    const search=container.querySelector('#user-viewer-panel-search');
+    search?.addEventListener('input',()=>renderPanelList(container,search.value));
+    renderPanelList(container,'');
   }
   function closeHeaderMenu(){
     const {trigger,menu}=elements();
@@ -275,6 +283,7 @@
   function hasModuleAccess(item){
     const permission=item.dataset.permission||'';
     if(permission==='home'||permission==='usuarios')return true;
+    if(permission==='user_viewer')return state.sessionPermissionsReady && allowed();
     // Solo Soporte y Panel de Control son excepciones por rol.
     // El rol puede ser principal o secundario, pero debe estar activo en la sesion
     // validada por el backend; sin catalogo de sesion se conserva fail-closed.
@@ -322,6 +331,8 @@
   }
   function applySidebar(options={}){
     document.querySelectorAll('.side-item[data-permission]').forEach(item=>{item.hidden=!hasModuleAccess(item);});
+    const mobileFooter=document.getElementById('user-viewer-sidebar-footer');
+    if(mobileFooter)mobileFooter.hidden=!(state.sessionPermissionsReady&&allowed());
     document.querySelectorAll('.side-group').forEach(group=>{
       const hasVisibleModule=Array.from(group.querySelectorAll('.side-item')).some(item=>!item.hidden);
       const hasVisualGroupPermission=hasGroupVisualAccess(group);
@@ -418,6 +429,8 @@
     state.permissionStates.clear();
     state.permissionCodes.clear();
     state.canUseViewer=false;
+    state.users=[];
+    state.usersLoaded=false;
   }
   function lockSidebarUntilPermissionsLoad(){
     resetPermissionState();

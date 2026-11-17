@@ -3,7 +3,7 @@
   const routeNames = {
     home:'Inicio', resumen:'Resumen del día', tickets:'Tickets', callcenter:'Dashboard Call Center',
     operativo:'Dashboard Operativo', informes:'Informes', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio', 'movimientos-criticos':'Movimientos Críticos',
-    proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
+    proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios', 'visor-usuarios':'Visor de usuarios',
     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', 'offline-configuracion':'Modo Offline', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
@@ -1188,6 +1188,24 @@
     }
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
+    if(route==='visor-usuarios'){
+      const view=activateViewById('view-visor-usuarios');
+      if(!view)return;
+      const authorized=window.ManttoUserViewer?.allowed?.()===true &&
+        window.ManttoPermissions?.canNavigate?.('visor-usuarios')===true;
+      setActiveSide(authorized?'visor-usuarios':'');
+      updateContext('visor-usuarios',authorized?'Visor de usuarios · solo lectura':'Visor de usuarios · acceso restringido');
+      if(!authorized){
+        view.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No tienes autorización para usar el Visor de usuarios.</div></section>';
+        return;
+      }
+      Promise.resolve(window.ManttoUserViewer.renderPanel(view)).catch(error=>{
+        if(window.ManttoRouter?.getCurrent?.()?.route!=='visor-usuarios')return;
+        console.error('[Visor de usuarios]',error);
+        view.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No fue posible cargar los usuarios. Intenta abrir el visor nuevamente.</div></section>';
+      });
+      return;
+    }
     if(route==='panel-control' && showPanelControl()) return;
     if(route==='offline-configuracion' && showView(route,'Piloto controlado · copia operativa de solo lectura')){
       if(window.ManttoOfflinePilot?.init)window.ManttoOfflinePilot.init();
