@@ -1,6 +1,11 @@
 (function(){
   const VIEWS = Object.freeze({
-    'portal-blt-jf-movimientos-portafolio':{vista:'movimientos',title:'Movimientos Portafolio (JF)'}
+    'portal-blt-jf-movimientos-portafolio':{vista:'movimientos',title:'Movimientos Portafolio (JF)'},
+    'portal-blt-jf-portafolio-total':{vista:'portafolio',title:'Portafolio Total (JF)'},
+    'portal-blt-jf-equipos-criticos':{vista:'equipos-criticos',title:'Equipos Críticos (JF)'},
+    'portal-blt-jf-equipos-parados':{vista:'equipos-parados',title:'Equipos Parados (JF)'},
+    'portal-blt-jf-infografias':{vista:'infografias',title:'Infografías (JF)'},
+    'portal-blt-jf-uso-app':{vista:'uso-app',title:'Uso de la APP (JF)'}
   });
 
   function message(view, title, text){
@@ -24,7 +29,7 @@
       frame.className = 'pblt-frame';
       frame.title = config.title;
       frame.referrerPolicy = 'no-referrer';
-      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
       frame.src = url;
       view.replaceChildren(frame);
     }catch(error){

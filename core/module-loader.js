@@ -31,6 +31,11 @@
     'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
     'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos',
     'portal-blt-jf-movimientos-portafolio',
+    'portal-blt-jf-portafolio-total',
+    'portal-blt-jf-equipos-criticos',
+    'portal-blt-jf-equipos-parados',
+    'portal-blt-jf-infografias',
+    'portal-blt-jf-uso-app',
     'cobranza-uni-dashboard','cobranza-uni-estados-cuenta','cobranza-uni-mp-pro','cobranza-uni-aditivas'
   ]);
   const initializedContexts = new Set();
@@ -272,7 +277,12 @@
     'experimental-equipos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-equipos-criticos/experimental-equipos-criticos.css?v=20260806-fase5-2-v001'],js:['./modules/experimental-equipos-criticos/experimental-equipos-criticos.js?v=20260806-fase5-2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260914-horarios-f2-v001-limpieza-v002',EXPERIMENTAL_SHELL_JS]},
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
-    'portal-blt-jf-movimientos-portafolio':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v001'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v001']},
+    'portal-blt-jf-movimientos-portafolio':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-portafolio-total':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-equipos-criticos':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-equipos-parados':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-infografias':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-uso-app':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
     'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261015-pagos-proyecto-fuente-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261023-back-history-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001-limpieza-v002']},

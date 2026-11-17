@@ -33,3 +33,12 @@ test('se rechazan vistas desconocidas, pases vencidos y otros tokens', () => {
   assert.throws(() => service.verifyPass(acceso), { status: 401 });
   assert.throws(() => service.verifyPass(''), { status: 401 });
 });
+
+test('cada vista JF usa su propio permiso', () => {
+  const vistas = { movimientos: 'MOVIMIENTOS_PORTAFOLIO', portafolio: 'PORTAFOLIO_TOTAL', 'equipos-criticos': 'EQUIPOS_CRITICOS',
+    'equipos-parados': 'EQUIPOS_PARADOS', infografias: 'INFOGRAFIAS', 'uso-app': 'USO_APP' };
+  for (const [vista, sufijo] of Object.entries(vistas)) {
+    assert.equal(service.permissionFor(vista), 'PORTAL_BLT_JF_' + sufijo + '_ACCESO_VISUAL_MODULO.ACCESO_VISUAL');
+    assert.equal(service.verifyPass(service.issuePass(user, vista).pase).vista, vista);
+  }
+});
