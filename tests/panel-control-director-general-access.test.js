@@ -85,6 +85,7 @@ const roles = [
   { description: 'Director General secundario', user: { id_SB: 2, rol: 'Director Mantenimiento', roles: ['Director Mantenimiento', 'Director General'] }, allowed: true },
   { description: 'Programador maestro secundario', user: { id_SB: 3, rol: 'Director Finanzas', roles: ['Director Finanzas', 'Programador'] }, allowed: true },
   { description: 'Programador United con acceso limitado', user: { id_SB: 4, rol: 'Programador United', roles: ['Programador United'] }, allowed: true },
+  { description: 'Programador United como rol principal legacy sin secundarios', user: { id_SB: 7, rol: 'Programador United', roles: [] }, allowed: true },
   { description: 'Programador Corellian sin rol maestro', user: { id_SB: 5, rol: 'Programador Corellian', roles: ['Programador Corellian'] }, allowed: false },
   { description: 'Rol ajeno', user: { id_SB: 6, rol: 'Director Ventas', roles: ['Director Ventas'] }, allowed: false }
 ];
@@ -151,4 +152,18 @@ test('Programador United administra permisos individuales de catalogos United, s
   assert.match(frontend,/function isRestrictedUnited\(\)/);
   assert.match(frontend,/const roleSection=usersMode&&!isRestrictedUnited\(\)/);
   assert.match(frontend,/isRestrictedUnited\(\)\?\x60<button data-tab="users"/);
+});
+
+test('PWA renueva scripts de roles del Panel de Control, evitando versiones cacheadas', () => {
+  const html=read('index.html');
+  const loader=read('core/module-loader.js');
+  const worker=read('service-worker.js');
+  assert.match(html,/core\/auth\.js\?v=20261117-panel-united-v002/);
+  assert.match(html,/core\/user-viewer\.js\?v=20261117-panel-united-v002/);
+  assert.match(loader,/panel-control\.js\?v=20261117-panel-united-v002/);
+  assert.match(worker,/20261117-panel-united-v002/);
+  assert.match(worker,/function needsFreshPanelAccessAsset_gnral\(url\)/);
+  assert.match(worker,/needsFreshPanelAccessAsset_gnral\(url\)/);
+  assert.match(worker,/'core\/auth\.js'/);
+  assert.match(worker,/'core\/user-viewer\.js'/);
 });
