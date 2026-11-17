@@ -87,6 +87,11 @@
 
   const esc=(v)=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const api=()=>window.ManttoAuth;
+  function isRestrictedUnited(){
+    const user=api()?.getUser?.()||{};
+    const roles=new Set([user.rol,...(Array.isArray(user.roles)?user.roles:[])].filter(Boolean));
+    return roles.has('Programador United')&&!roles.has('Programador')&&!roles.has('Director General');
+  }
   const RESET_CREDENTIAL_STORAGE_PREFIX='mantto:panel-control:reset-credential:';
   const NOTIFICATION_KEY_SEPARATOR='\u0000';
   const LOAD_TEST_TAB='load-test';
@@ -568,7 +573,7 @@
     state.error='';
     render();
     try{
-      void loadLoadTestCapabilities({renderAfter:true});
+      if(!isRestrictedUnited())void loadLoadTestCapabilities({renderAfter:true});
       const json=await request('/api/panel-control/bootstrap');
       const data=json.data||{};
       state.roles=data.roles||[];
@@ -1426,18 +1431,19 @@
   function shell(){
     return `<div class="pc-page">
       <header class="pc-hero"><div><span class="pc-eyebrow">SEGURIDAD Y ACCESOS</span><h1>Panel de Control</h1><p>Configura permisos base por rol y personaliza el acceso efectivo de cada usuario.</p></div><div class="pc-hero-actions"><button class="pc-btn ghost" id="pc-reload">Recargar datos</button><div class="pc-save-stack"><button class="pc-btn primary" id="pc-save" disabled>Guardar cambios <span id="pc-dirty-count">0</span></button><div class="pc-save-status" id="pc-save-status" hidden aria-live="polite"><div class="pc-save-status-line"><span id="pc-save-status-text">Preparando...</span><strong id="pc-save-status-percent">0%</strong></div><div class="pc-save-progress" id="pc-save-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="pc-save-progress-fill"></span></div></div></div></div></header>
-      <section class="pc-summary">
+      ${isRestrictedUnited()?'':`<section class="pc-summary">
         <article><b>${esc(state.totals.roles_activos||0)}</b><span>Roles activos</span></article>
         <article><b>${esc(state.totals.usuarios_activos||0)}</b><span>Usuarios activos</span></article>
         <article><b>${esc(state.totals.permisos_disponibles||0)}</b><span>Permisos disponibles</span></article>
         <article><b>${esc(state.totals.personalizaciones_activas||0)}</b><span>Personalizaciones activas</span></article>
-      </section>
-      <nav class="pc-tabs"><button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="information-scope" class="${state.tab==='information-scope'?'active':''}">Alcance de información</button><button data-tab="notifications" class="${state.tab==='notifications'?'active':''}">Notificaciones</button>${window.ManttoUserViewer?.allowed?.()?`<button data-tab="viewer" class="${state.tab==='viewer'?'active':''}">Visor de usuarios</button>`:''}${loadTestHasAccess()?`<button data-tab="${LOAD_TEST_TAB}" class="${state.tab===LOAD_TEST_TAB?'active':''}">Prueba de Carga</button>`:''}<button data-tab="${SCRIPT_TEST_TAB}" class="${state.tab===SCRIPT_TEST_TAB?'active':''}">Pruebas de scripts</button><button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button></nav>
+      </section>`}
+      <nav class="pc-tabs">${isRestrictedUnited()?`<button data-tab="users" class="active">Permisos por usuario</button>`:`<button data-tab="users" class="${state.tab==='users'?'active':''}">Permisos por usuario</button><button data-tab="roles" class="${state.tab==='roles'?'active':''}">Roles y permisos</button><button data-tab="admin-users" class="${state.tab==='admin-users'?'active':''}">Usuarios</button><button data-tab="admin-roles" class="${state.tab==='admin-roles'?'active':''}">Roles</button><button data-tab="information-scope" class="${state.tab==='information-scope'?'active':''}">Alcance de información</button><button data-tab="notifications" class="${state.tab==='notifications'?'active':''}">Notificaciones</button>${window.ManttoUserViewer?.allowed?.()?`<button data-tab="viewer" class="${state.tab==='viewer'?'active':''}">Visor de usuarios</button>`:''}${loadTestHasAccess()?`<button data-tab="${LOAD_TEST_TAB}" class="${state.tab===LOAD_TEST_TAB?'active':''}">Prueba de Carga</button>`:''}<button data-tab="${SCRIPT_TEST_TAB}" class="${state.tab===SCRIPT_TEST_TAB?'active':''}">Pruebas de scripts</button><button data-tab="audit" class="${state.tab==='audit'?'active':''}">Auditoría</button>`}</nav>
       <div id="pc-content"></div><div class="pc-toast" id="pc-toast"></div>
     </div>`;
   }
 
   function render(){
+    if(isRestrictedUnited()&&state.tab!=='users')state.tab='users';
     const view=document.getElementById('view-panel-control');
     if(!view)return;
     view.innerHTML=shell();
@@ -1467,6 +1473,7 @@
     view.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',async()=>{
       if(state.savingPermissions||state.savingNotifications||state.savingInformationScope||state.savingInformationScopeBulk){toast('Espera a que termine el guardado actual.');return;}
       const nextTab=btn.dataset.tab;
+      if(isRestrictedUnited()&&nextTab!=='users')return;
       if(nextTab===state.tab)return;
       const pending=state.tab==='notifications'
         ?state.notificationDirty.size
@@ -1623,7 +1630,7 @@
     if(!selector)return;
     const usersMode=state.tab==='users';
     selector.innerHTML=`<div class="pc-selector-head"><h2>${usersMode?'Usuarios':'Roles'}</h2><p>${usersMode?'Agrupados por área y ordenados por nivel jerárquico.':'Selecciona un rol para configurar su acceso base.'}</p></div>
-      <div class="pc-filters"><input id="pc-search" value="${esc(state.query)}" placeholder="Buscar..."><select id="pc-company"><option value="">Todas las empresas</option>${['GENERAL','UNITED','CORELLIAN'].map(c=>`<option value="${c}" ${state.company===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="pc-filters"><input id="pc-search" value="${esc(state.query)}" placeholder="Buscar..."><select id="pc-company" ${isRestrictedUnited()?'hidden':''}><option value="">Todas las empresas</option>${['GENERAL','UNITED','CORELLIAN'].map(c=>`<option value="${c}" ${state.company===c?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="pc-list" id="pc-selector-list"></div>`;
 
     const search=document.getElementById('pc-search');
@@ -1726,7 +1733,7 @@
     const roleSummary=usersMode&&state.userRoles.length
       ?state.userRoles.map(r=>`<span class="pc-role-summary-item">${esc(r.rol)}${r.principal?' <strong>(Principal)</strong>':''}</span>`).join('')
       :'<span class="pc-role-summary-item muted">Sin roles activos</span>';
-    const roleSection=usersMode
+    const roleSection=usersMode&&!isRestrictedUnited()
       ?`<div class="pc-role-section">
           <div class="pc-role-current"><b>Rol</b><div>${roleSummary}</div></div>
           <button type="button" class="pc-role-trigger" id="pc-role-trigger" aria-expanded="${state.rolePickerOpen?'true':'false'}">
@@ -2293,6 +2300,7 @@
   }
 
   async function saveChanges(){
+    if(isRestrictedUnited()&&state.tab!=='users')return;
     if(state.tab==='notifications'){
       await saveNotificationChanges();
       return;
@@ -3057,7 +3065,7 @@
     setTimeout(()=>t.classList.remove('show'),3200);
   }
 
-  function init(){loadBootstrap();}
+  function init(){if(isRestrictedUnited()){state.tab='users';state.company='';state.rolePickerOpen=false;}loadBootstrap();}
   window.ManttoPanelControl={init};
   consumeSaveMessage();
 })();

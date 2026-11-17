@@ -20,8 +20,20 @@ function actorCanManage(req) {
   return roles.has('Programador') || roles.has('Director General');
 }
 
+function actorCanManageUserPermissions(req) {
+  const roles = new Set([req.user?.rol, ...(Array.isArray(req.user?.roles) ? req.user.roles : [])].filter(Boolean));
+  return actorCanManage(req) || roles.has('Programador United');
+}
+// El alcance de usuarios se conserva; solo se restringe el catalogo de permisos.
+function actorPermissionScope(req) {
+  return actorCanManage(req) ? actorScope(req) : { all: false, companies: ['UNITED'] };
+}
+
 function companySql(column, scope) {
   if (scope.all) return { clause: '1 = 1', params: [] };
+  if (scope.companies.length === 1 && scope.companies[0] === 'UNITED') {
+    return { clause: `UPPER(TRIM(COALESCE(${column}, ''))) IN ('UNITED', 'UNITED ELEVADORES')`, params: [] };
+  }
   return { clause: `${column} IN (?)`, params: [scope.companies] };
 }
 
@@ -84,6 +96,11 @@ async function assertPermissionInScope(conn, permissionId, scope) {
 function denyUnlessManager(req, res) {
   if (actorCanManage(req)) return false;
   res.status(403).json({ ok: false, message: 'No tienes autorización para administrar permisos.' });
+  return true;
+}
+function denyUnlessUserPermissionManager(req, res) {
+  if (actorCanManageUserPermissions(req)) return false;
+  res.status(403).json({ ok: false, message: 'No tienes autorización para administrar permisos por usuario.' });
   return true;
 }
 
@@ -267,13 +284,13 @@ async function ensureVisualCatalogPermissions(conn) {
 
 async function getBootstrap(req, res, next) {
   try {
-    if (denyUnlessManager(req, res)) return;
+    if (denyUnlessUserPermissionManager(req, res)) return;
     await ensureVisualCatalogPermissions(db);
     await ensurePanelControlProgrammerPermissions(db);
     const scope = actorScope(req);
     const roleFilter = companySql('r.empresa', scope);
     const userFilter = userCompanySql('u.empresa', scope);
-    const catalogFilter = companySql('pa.empresa', scope);
+    const catalogFilter = companySql('pa.empresa', actorPermissionScope(req));
 
     const [rolesRows, usersRows, catalogRows, totalsRows] = await Promise.all([
       db.query(`
@@ -669,13 +686,14 @@ async function saveRolePermissions(req, res, next) {
 
 async function getUserPermissions(req, res, next) {
   try {
-    if (denyUnlessManager(req, res)) return;
+    if (denyUnlessUserPermissionManager(req, res)) return;
     await ensureVisualCatalogPermissions(db);
     const userId = Number(req.params.id);
     if (!Number.isInteger(userId) || userId <= 0) return res.status(400).json({ ok: false, message: 'Usuario inválido.' });
     const scope = actorScope(req);
     await assertUserInScope(db, userId, scope);
     const roleFilter = companySql('r.empresa', scope);
+    const permissionFilter = companySql('pa.empresa', actorPermissionScope(req));
 
     const [roles, permissions, groupPermissions, modulePermissions] = await Promise.all([
       db.query(`
@@ -693,6 +711,10 @@ async function getUserPermissions(req, res, next) {
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.fecha_inicio ELSE NULL END) AS fecha_inicio,
                MAX(CASE WHEN up.id_usuario_permiso IS NOT NULL THEN up.fecha_fin ELSE NULL END) AS fecha_fin
         FROM perm_subelemento_acciones psa
+        INNER JOIN perm_subelementos ps ON ps.id_subelemento = psa.id_subelemento
+        INNER JOIN perm_elementos pe ON pe.id_elemento = ps.id_elemento
+        INNER JOIN perm_modulos pm ON pm.id_modulo = pe.id_modulo
+        INNER JOIN perm_agrupaciones pa ON pa.id_agrupacion = pm.id_agrupacion
         LEFT JOIN usuario_roles ur
           ON ur.id_usuario = ? AND ur.activo = 1
         LEFT JOIN rol_permisos rp
@@ -704,12 +726,17 @@ async function getUserPermissions(req, res, next) {
          AND up.activo = 1
          AND (up.fecha_inicio IS NULL OR up.fecha_inicio <= NOW())
          AND (up.fecha_fin IS NULL OR up.fecha_fin >= NOW())
-        WHERE psa.activo = 1
+        WHERE psa.activo = 1 AND ${permissionFilter.clause}
         GROUP BY psa.id_subelemento_accion
         ORDER BY psa.id_subelemento_accion
-      `, [userId, userId]),
-      db.query(`SELECT id_agrupacion, activo FROM perm_agrupaciones ORDER BY orden, id_agrupacion`),
-      db.query(`SELECT id_modulo, activo FROM perm_modulos ORDER BY orden, id_modulo`)
+      `, [userId, userId, ...permissionFilter.params]),
+      db.query(`SELECT pa.id_agrupacion, pa.activo FROM perm_agrupaciones pa
+        WHERE ${permissionFilter.clause}
+        ORDER BY pa.orden, pa.id_agrupacion`, permissionFilter.params),
+      db.query(`SELECT pm.id_modulo, pm.activo FROM perm_modulos pm
+        INNER JOIN perm_agrupaciones pa ON pa.id_agrupacion = pm.id_agrupacion
+        WHERE ${permissionFilter.clause}
+        ORDER BY pm.orden, pm.id_modulo`, permissionFilter.params)
     ]);
 
     res.json({
@@ -750,7 +777,7 @@ async function getUserPermissions(req, res, next) {
 async function saveUserPermissions(req, res, next) {
   const conn = await db.getConnection();
   try {
-    if (denyUnlessManager(req, res)) return;
+    if (denyUnlessUserPermissionManager(req, res)) return;
     const userId = Number(req.params.id);
     const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
     const hierarchyChanges = Array.isArray(req.body?.hierarchy_changes) ? req.body.hierarchy_changes : [];
@@ -766,7 +793,7 @@ async function saveUserPermissions(req, res, next) {
       const permissionId = Number(change.id_subelemento_accion);
       const mode = String(change.mode || '').toLowerCase();
       if (!Number.isInteger(permissionId) || permissionId <= 0) throw new Error('Se recibió un permiso inválido.');
-      await assertPermissionInScope(conn, permissionId, actorScope(req));
+      await assertPermissionInScope(conn, permissionId, actorPermissionScope(req));
       if (!['inherit', 'allow', 'deny'].includes(mode)) throw new Error('Se recibió un modo de permiso inválido.');
 
       if (mode === 'inherit') {

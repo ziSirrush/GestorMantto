@@ -482,7 +482,7 @@
     const roles = new Set((Array.isArray(user.roles) ? user.roles : [user.rol]).filter(Boolean));
     const isProgrammer = roles.has('Programador') || roles.has('Programador United') ||
       roles.has('Programador Corellian');
-    const canUsePanelControl = !isViewingAs() && (roles.has('Programador') || roles.has('Director General'));
+    const canUsePanelControl = !isViewingAs() && (roles.has('Programador') || roles.has('Director General') || roles.has('Programador United'));
     document.querySelectorAll('.programmer').forEach(el=>{
       const allowed = el.dataset?.route === 'panel-control' ? canUsePanelControl : isProgrammer;
       el.style.display = allowed ? '' : 'none';

@@ -84,7 +84,7 @@ const roles = [
   { description: 'Director General principal', user: { id_SB: 1, rol: 'Director General', roles: ['Director General'] }, allowed: true },
   { description: 'Director General secundario', user: { id_SB: 2, rol: 'Director Mantenimiento', roles: ['Director Mantenimiento', 'Director General'] }, allowed: true },
   { description: 'Programador maestro secundario', user: { id_SB: 3, rol: 'Director Finanzas', roles: ['Director Finanzas', 'Programador'] }, allowed: true },
-  { description: 'Programador United sin rol maestro', user: { id_SB: 4, rol: 'Programador United', roles: ['Programador United'] }, allowed: false },
+  { description: 'Programador United con acceso limitado', user: { id_SB: 4, rol: 'Programador United', roles: ['Programador United'] }, allowed: true },
   { description: 'Programador Corellian sin rol maestro', user: { id_SB: 5, rol: 'Programador Corellian', roles: ['Programador Corellian'] }, allowed: false },
   { description: 'Rol ajeno', user: { id_SB: 6, rol: 'Director Ventas', roles: ['Director Ventas'] }, allowed: false }
 ];
@@ -106,9 +106,9 @@ test('Director General no desbloquea las otras superficies reservadas a Programa
   assert.equal(director.services, 'none');
 });
 
-test('Programador United mantiene visibilidad de superficies legacy pero no de Panel de Control', () => {
+test('Programador United mantiene superficies legacy y accede a Panel de Control', () => {
   const united = runHeader({ id_SB: 8, rol: 'Programador United', roles: ['Programador United'] });
-  assert.equal(united.panel, 'none');
+  assert.equal(united.panel, '');
   assert.equal(united.experimental, '');
 });
 
@@ -130,7 +130,25 @@ test('Backend limita Panel de Control a Director General y Programador maestro',
   const controller = read('backend/src/controllers/panel-control.controller.js');
   assert.match(controller, /function actorCanManage\(req\)/);
   assert.match(controller, /roles\.has\('Director General'\)/);
-  const gate=controller.slice(controller.indexOf('function actorCanManage(req)'),controller.indexOf('function companySql('));
+  const gate=controller.slice(controller.indexOf('function actorCanManage(req)'),controller.indexOf('function actorCanManageUserPermissions('));
   assert.doesNotMatch(gate,/Programador United|Programador Corellian/);
   assert.match(read('index.html'), /class="side-item side-standalone programmer" data-permission="panel_control"/);
+});
+
+test('Programador United administra permisos individuales de catalogos United, sin roles', () => {
+  const controller=read('backend/src/controllers/panel-control.controller.js');
+  const frontend=read('modules/panel-control/panel-control.js');
+  const scoped=controller.slice(controller.indexOf('function actorCanManageUserPermissions('),controller.indexOf('function companySql('));
+  const userWriter=controller.slice(controller.indexOf('async function saveUserPermissions('),controller.indexOf('async function saveUserRoles('));
+  const roleWriter=controller.slice(controller.indexOf('async function saveRolePermissions('),controller.indexOf('async function getUserPermissions('));
+  assert.match(scoped,/roles\.has\('Programador United'\)/);
+  assert.match(scoped,/companies:\s*\['UNITED'\]/);
+  assert.match(controller,/'UNITED ELEVADORES'/);
+  assert.match(userWriter,/denyUnlessUserPermissionManager/);
+  assert.match(userWriter,/actorPermissionScope\(req\)/);
+  assert.match(roleWriter,/denyUnlessManager/);
+  assert.doesNotMatch(roleWriter,/denyUnlessUserPermissionManager/);
+  assert.match(frontend,/function isRestrictedUnited\(\)/);
+  assert.match(frontend,/const roleSection=usersMode&&!isRestrictedUnited\(\)/);
+  assert.match(frontend,/isRestrictedUnited\(\)\?\x60<button data-tab="users"/);
 });

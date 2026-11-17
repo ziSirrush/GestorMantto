@@ -290,7 +290,7 @@
       if(!state.sessionPermissionsReady || window.ManttoAuth?.isViewingAs?.())return false;
       const user=window.ManttoAuth?.getUser?.()||{};
       const roles=new Set((Array.isArray(user.roles)?user.roles:[user.rol]).filter(Boolean));
-      return roles.has('Programador') || roles.has('Director General');
+      return roles.has('Programador') || roles.has('Director General') || roles.has('Programador United');
     }
     const exactPermissionCode=String(item.dataset.permissionCode||'').trim();
     const rows=rowsForModule(item).filter(isActiveCatalogRow);
