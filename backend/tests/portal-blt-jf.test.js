@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'portal-blt-test-secret-0123456789';
-const service = require('../src/modules/experimental-portal-blt/experimental-portal-blt.service');
+const service = require('../src/modules/portal-blt-jf/portal-blt-jf.service');
 
 const user = { id_SB: 7, nombre: 'Prueba', correo: 'prueba@blt.mx' };
 

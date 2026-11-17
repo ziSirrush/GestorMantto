@@ -27,7 +27,6 @@
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
-    'experimental-portal-blt-movimientos':'Movimientos Portafolio · Portal BLT',
     'portal-blt-jf-movimientos-portafolio':'Movimientos Portafolio (JF)',
     'portal-blt-jf-portafolio-total':'Portafolio Total (JF)',
     'portal-blt-jf-equipos-criticos':'Equipos Críticos (JF)',
@@ -45,8 +44,7 @@
     'experimental-entregas-recientes',
     'experimental-equipos-criticos',
     'experimental-dashboard-call-center',
-    'experimental-proyectos-criticos',
-    'experimental-portal-blt-movimientos'
+    'experimental-proyectos-criticos'
   ]);
   // Rutas exclusivas de los modulos JF: nunca reutilizar vistas existentes.
   const PORTAL_BLT_JF_ROUTES = new Set([
@@ -1057,6 +1055,16 @@
     return true;
   }
 
+  function showPortalBltJf(route){
+    const view = document.getElementById('view-' + route);
+    if(!view || !window.ManttoPortalBltJf || typeof window.ManttoPortalBltJf.init !== 'function') return false;
+    activateViewById('view-' + route);
+    setActiveSide(route);
+    updateContext(route, 'Portal BLT');
+    window.ManttoPortalBltJf.init(route);
+    return true;
+  }
+
   function showCobranza_uni(route){
     const view = document.getElementById('view-' + route);
     if(!view) return false;
@@ -1137,6 +1145,7 @@
       }
       return;
     }
+    if(PORTAL_BLT_JF_ROUTES.has(route) && showPortalBltJf(route)) return;
     if(EXPERIMENTAL_ROUTES_EXP.has(route) && showExperimental_exp(route)) return;
     if(route==='cobranza-uni-administracion' && showCobranzaAdministracion_uni()) return;
     if(COBRANZA_ROUTES_UNI.has(route) && showCobranza_uni(route)) return;

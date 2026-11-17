@@ -58,9 +58,6 @@
     if(route === 'experimental-proyectos-criticos' && window.ManttoProyectosCriticosExperimental_uni && typeof window.ManttoProyectosCriticosExperimental_uni.init === 'function'){
       return window.ManttoProyectosCriticosExperimental_uni.init(payload || null);
     }
-    if(route.indexOf('experimental-portal-blt-') === 0 && window.ManttoPortalBltExperimental_exp && typeof window.ManttoPortalBltExperimental_exp.init === 'function'){
-      return window.ManttoPortalBltExperimental_exp.init(route);
-    }
     return renderShell_exp(route);
   }
 

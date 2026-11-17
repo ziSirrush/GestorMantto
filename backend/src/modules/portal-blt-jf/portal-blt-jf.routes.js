@@ -4,7 +4,7 @@ const express = require('express');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { createRateLimit } = require('../../middleware/auth-rate-limit.middleware');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
-const service = require('./experimental-portal-blt.service');
+const service = require('./portal-blt-jf.service');
 
 const router = express.Router();
 const verifyRateLimit = createRateLimit({ name: 'portal-blt-verificar', windowMs: 60 * 1000, max: 60 });
@@ -18,7 +18,7 @@ function fail(res, error) {
   });
 }
 
-router.post('/portal-blt/pase', requireAuth, async (req, res) => {
+router.post('/pase', requireAuth, async (req, res) => {
   try {
     if (req.viewerContext && req.viewerContext.active) {
       return res.status(403).json({ ok: false, code: 'PORTAL_BLT_VIEWER_DENIED', message: 'Sal del modo visor para abrir el Portal BLT.' });
@@ -36,7 +36,7 @@ router.post('/portal-blt/pase', requireAuth, async (req, res) => {
 });
 
 // Lo llama el servidor del Portal BLT para validar el pase.
-router.post('/portal-blt/verificar', verifyRateLimit, (req, res) => {
+router.post('/verificar', verifyRateLimit, (req, res) => {
   try {
     return res.json({ ok: true, data: service.verifyPass(req.body && req.body.pase) });
   } catch (error) {

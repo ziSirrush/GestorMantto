@@ -10,7 +10,7 @@ const PASS_SECONDS = 120;
 const PORTAL_EMBED_BASE = 'https://bltmexico.duckdns.org/embed/';
 
 const VIEWS = Object.freeze({
-  movimientos: 'EXPERIMENTAL_PORTAL_BLT_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'
+  movimientos: 'PORTAL_BLT_JF_MOVIMIENTOS_PORTAFOLIO_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'
 });
 
 function invalid(message, status = 400, code = 'PORTAL_BLT_PASS_INVALID') {

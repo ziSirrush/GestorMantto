@@ -52,7 +52,6 @@ test('Los permisos JF no se confunden con modulos de otras agrupaciones',()=>{
     assert.notEqual(code,'EXPERIMENTAL_PORTAL_BLT_MOVIMIENTOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL');
     assert.ok(!code.startsWith('OPERACION_')&&!code.startsWith('PORTAFOLIO_'));
   }
-  assert.match(html,/data-route="experimental-portal-blt-movimientos"/);
   assert.match(html,/data-route="movimientos"/);
   assert.match(html,/data-route="criticos"/);
   assert.match(sw,/20261117-portal-blt-jf-sidebar-v001/);
