@@ -1985,7 +1985,15 @@
     return requestedPpns ? loadDetail_cor(requestedPpns,{force:true}) : loadList_cor({force:true});
   }
 
-  window.ManttoCobranzaCorEstadosCuenta=Object.freeze({init:init_cor,refresh:refresh_cor});
+  // Funciones oficiales compartidas con el DS. No duplicar reglas monetarias o de vencimiento.
+  window.ManttoCobranzaCorEstadosCuenta=Object.freeze({
+    init:init_cor,
+    refresh:refresh_cor,
+    motor: Object.freeze({
+      calcularFilas:applyFuenteRules_cor,
+      resumirFilas:buildFrontendSummary_cor
+    })
+  });
 })();
 
 /* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 4 DETALLE FACTURAS V001] */

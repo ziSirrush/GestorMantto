@@ -107,7 +107,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261118-facturas-consolidacion-v001';
+      script.src = './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261118-ds-f1-v001';
       script.async = true;
       script.dataset.manttoCobranzaCorEstadosCuenta = '1';
       script.addEventListener('load', () => resolve(window.ManttoCobranzaCorEstadosCuenta || null), { once:true });

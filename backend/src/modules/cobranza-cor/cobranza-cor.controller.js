@@ -1,6 +1,7 @@
 'use strict';
 
 const service = require('./cobranza-cor.service');
+const dashboardService = require('./cobranza-cor-dashboard.service');
 
 function sendKnownError(error, res, next) {
   const status = Number(error.statusCode || error.status);
@@ -26,6 +27,16 @@ async function cargarFuente_cor(req, res, next) {
 async function cargarAditivas_cor(req, res, next) {
   try {
     return res.status(200).json(await service.cargarAditivas_cor(req.body || {}));
+  } catch (error) {
+    return sendKnownError(error, res, next);
+  }
+}
+
+async function listarDashboard_cor(req, res, next) {
+  try {
+    return res.status(200).json(
+      await dashboardService.listarDashboard_cor(req.query || {}, req.informationAccess)
+    );
   } catch (error) {
     return sendKnownError(error, res, next);
   }
@@ -205,6 +216,7 @@ module.exports = {
   cargarFuente_cor,
   cargarAditivas_cor,
   cargarFacturas_cor,
+  listarDashboard_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
   catalogoCrearEstadoCuenta_cor,
