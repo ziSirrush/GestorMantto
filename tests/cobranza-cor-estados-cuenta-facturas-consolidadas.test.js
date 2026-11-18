@@ -21,15 +21,15 @@ test('consolida Facturas duplicadas sin duplicar Pagado y aplica Parciales al An
       {
         id_fuente_cor: 1, id_proyecto_origen: 'P-1', condicion: 'Anticipo',
         moneda: 'USD', subtotal: 56823, iva: 9091.68, total: 65914.68,
-        porcentaje: 0.5, orden_hito: 1
+        porcentaje: 0.5, orden_hito: 1, fecha_pago: '2026-09-01'
       },
       {
         id_fuente_cor: 2, id_proyecto_origen: 'P-1', condicion: 'Parcial Anticipo 1',
-        moneda: 'USD', subtotal: 0, iva: 0, total: 0, orden_hito: 2
+        moneda: 'USD', subtotal: 0, iva: 0, total: 0, orden_hito: 2, fecha_pago: '2026-09-15'
       },
       {
         id_fuente_cor: 3, id_proyecto_origen: 'P-1', condicion: 'Parcial Anticipo 2',
-        moneda: 'USD', subtotal: 0, iva: 0, total: 0, orden_hito: 3
+        moneda: 'USD', subtotal: 0, iva: 0, total: 0, orden_hito: 3, fecha_pago: '2026-09-30'
       }
     ],
     listFacturasEstadoCuenta_cor: async () => [
@@ -89,6 +89,18 @@ test('consolida Facturas duplicadas sin duplicar Pagado y aplica Parciales al An
   assert.equal(anticipo.factura, 'CFV-9131');
   assert.equal(anticipo.pago_contabilizado, 31754.18);
   assert.equal(anticipo.pendiente_calculado, 34160.5);
+  assert.equal(anticipo.fecha_pago, '2026-09-01');
+  assert.equal(anticipo.pago_desglose_principal, true);
+  assert.equal(anticipo.desglose_pagos.length, 3);
+  assert.equal(anticipo.desglose_pagos[0].etiqueta, 'Pago inicial');
+  assert.equal(anticipo.desglose_pagos[0].importe, 1163.46);
+  assert.equal(anticipo.desglose_pagos[0].fechas_pago[0], '2026-09-01');
+  assert.equal(anticipo.desglose_pagos[1].etiqueta, 'Parcial Anticipo 1');
+  assert.equal(anticipo.desglose_pagos[1].importe, 30590.72);
+  assert.equal(anticipo.desglose_pagos[1].fechas_pago[0], '2026-09-15');
+  assert.equal(anticipo.desglose_pagos[2].etiqueta, 'Parcial Anticipo 2');
+  assert.equal(anticipo.desglose_pagos[2].importe, 0);
+  assert.equal(anticipo.desglose_pagos[2].fechas_pago[0], '2026-09-30');
   assert.equal(parcial.factura, 'CFV-9242');
   assert.equal(parcial.pago_contabilizado, 0);
   assert.equal(parcial.pago_aplicado_a_principal, 30590.72);
@@ -111,7 +123,27 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   const detail = {
     proyecto: { ppns: 'P-1', proyecto: 'Proyecto' },
     resumen: { monedas: [] },
-    estado_cuenta: [],
+    estado_cuenta: [{
+      id_fuente_cor: 1,
+      condicion: 'Anticipo',
+      factura: 'CFV-9131',
+      moneda: 'USD',
+      porcentaje: 0.5,
+      subtotal: 56823,
+      iva: 9091.68,
+      total: 65914.68,
+      pago_total: 31754.18,
+      pago_contabilizado: 31754.18,
+      pendiente_calculado: 34160.5,
+      fecha_pago: '2026-09-01',
+      fechas_pago: ['2026-09-01'],
+      pago_desglose_principal: true,
+      desglose_pagos: [
+        { etiqueta: 'Pago inicial', factura: 'CFV-9131', importe: 1163.46, fechas_pago: ['2026-09-01'] },
+        { etiqueta: 'Parcial Anticipo 1', factura: 'CFV-9242', importe: 30590.72, fechas_pago: ['2026-09-15'] },
+        { etiqueta: 'Parcial Anticipo 2', factura: null, importe: 0, fechas_pago: ['2026-09-30'] }
+      ]
+    }],
     aditivas: [],
     pagos: [],
     relaciones_pagos: [],
@@ -162,6 +194,9 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   assert.match(section, />1,163\.46<\/b>/);
   assert.match(section, /64,751\.22/);
   assert.match(section, />Parcial<\/span>/);
+  assert.match(view.innerHTML, /data-payment-breakdown-toggle/);
+  assert.match(view.innerHTML, /31,754\.18/);
+  assert.match(view.innerHTML, /01\/09\/2026/);
   assert.equal((section.match(/CFV-9131/g) || []).length, 1);
   assert.ok(handlers.click);
   assert.ok(handlers.keydown);

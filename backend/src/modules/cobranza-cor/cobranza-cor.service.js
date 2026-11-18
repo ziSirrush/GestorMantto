@@ -945,7 +945,7 @@ function buildEstadoCuentaQuality_cor(rows) {
   let filasPagadasSinFecha = 0;
   rows.forEach((row) => {
     if (!row.moneda) filasSinMoneda += 1;
-    if (row.es_pagado && !row.fecha_pago) filasPagadasSinFecha += 1;
+    if (row.es_pagado && !row.fecha_pago && !(Array.isArray(row.fechas_pago) && row.fechas_pago.length)) filasPagadasSinFecha += 1;
     if (row.subtotal !== null && row.iva !== null && row.total !== null) {
       if (Math.abs(roundAmount_cor(row.subtotal + row.iva - row.total)) > 0.05) filasTotalInconsistente += 1;
     }
@@ -1076,6 +1076,117 @@ function buildPaymentMaps_cor(facturaRows, relacionPagoRows) {
   };
 }
 
+function paymentDetailLabel_cor(condition) {
+  return canonicalText_cor(condition) === 'ANTICIPO'
+    ? 'Pago inicial'
+    : (cleanText_cor(condition) || 'Pago');
+}
+
+function buildPaymentDetailsByHito_cor(sourceRows, facturaGroups, pagoRows, relacionPagoRows) {
+  const sourceByHito = new Map();
+  for (const row of Array.isArray(sourceRows) ? sourceRows : []) {
+    const id = integerOrNull_cor(row?.id_fuente_cor);
+    if (id !== null) sourceByHito.set(id, row);
+  }
+
+  const pagoById = new Map();
+  const pagosByFolio = new Map();
+  for (const pago of Array.isArray(pagoRows) ? pagoRows : []) {
+    const idPago = integerOrNull_cor(pago?.id_pago_cor);
+    if (idPago !== null) pagoById.set(idPago, pago);
+    const folioKey = businessReferenceKey_cor(pago?.no_factura);
+    if (!folioKey) continue;
+    if (!pagosByFolio.has(folioKey)) pagosByFolio.set(folioKey, []);
+    pagosByFolio.get(folioKey).push(pago);
+  }
+
+  const relations = Array.isArray(relacionPagoRows) ? relacionPagoRows : [];
+  const buckets = new Map();
+
+  for (const group of Array.isArray(facturaGroups) ? facturaGroups : []) {
+    const idHito = integerOrNull_cor(group?.row?.id_fuente_cor);
+    if (canonicalText_cor(group?.row?.tipo_concepto) !== 'HITO' || idHito === null) continue;
+
+    const source = sourceByHito.get(idHito) || {};
+    if (!buckets.has(idHito)) {
+      buckets.set(idHito, {
+        etiqueta: paymentDetailLabel_cor(source?.condicion ?? group?.row?.hito_condicion),
+        condicion: cleanText_cor(source?.condicion ?? group?.row?.hito_condicion),
+        facturas: new Map(),
+        importe: 0,
+        fechas: new Set()
+      });
+    }
+
+    const bucket = buckets.get(idHito);
+    bucket.importe += numberOrNull_cor(group?.applied) ?? 0;
+
+    const folio = cleanText_cor(group?.row?.factura);
+    const folioKey = businessReferenceKey_cor(folio);
+    if (folio && folioKey && !bucket.facturas.has(folioKey)) bucket.facturas.set(folioKey, folio);
+
+    if ((numberOrNull_cor(group?.applied) ?? 0) > PAYMENT_TOLERANCE_COR) {
+      const ids = new Set((Array.isArray(group?.ids) ? group.ids : []).map(Number).filter(Number.isInteger));
+      let relatedDateFound = false;
+
+      for (const relation of relations) {
+        const idFactura = integerOrNull_cor(relation?.id_factura_cor);
+        if (idFactura === null || !ids.has(idFactura)) continue;
+        const pago = pagoById.get(integerOrNull_cor(relation?.id_pago_cor));
+        const date = cleanText_cor(pago?.fecha_pago);
+        if (date) {
+          bucket.fechas.add(date);
+          relatedDateFound = true;
+        }
+      }
+
+      if (!relatedDateFound && folioKey) {
+        for (const pago of pagosByFolio.get(folioKey) || []) {
+          const date = cleanText_cor(pago?.fecha_pago);
+          if (date) bucket.fechas.add(date);
+        }
+      }
+
+      if (!bucket.fechas.size) {
+        const sourceDate = cleanText_cor(source?.fecha_pago);
+        if (sourceDate) bucket.fechas.add(sourceDate);
+      }
+    }
+  }
+
+  const details = new Map();
+  for (const [idHito, bucket] of buckets) {
+    details.set(idHito, {
+      etiqueta: bucket.etiqueta,
+      condicion: bucket.condicion,
+      factura: [...bucket.facturas.values()].join(', ') || null,
+      importe: roundAmount_cor(bucket.importe),
+      fechas_pago: [...bucket.fechas]
+    });
+  }
+  return details;
+}
+
+function attachPaymentDetailsToHitos_cor(hitos, detailsByHito) {
+  return (Array.isArray(hitos) ? hitos : []).map((row) => {
+    const idHito = integerOrNull_cor(row?.id_fuente_cor);
+    const detail = idHito === null ? null : detailsByHito.get(idHito);
+    const sourceDate = cleanText_cor(row?.fecha_pago);
+    const dates = detail && Array.isArray(detail.fechas_pago) && detail.fechas_pago.length
+      ? [...detail.fechas_pago]
+      : (sourceDate ? [sourceDate] : []);
+    const normalizedDetail = detail
+      ? [{ ...detail, fechas_pago: dates }]
+      : [];
+    return {
+      ...row,
+      fecha_pago: sourceDate || (dates.length === 1 ? dates[0] : null),
+      fechas_pago: dates,
+      desglose_pago_directo: normalizedDetail
+    };
+  });
+}
+
 function serializeFacturaEstadoCuenta_cor(row, applied = 0, pagadaHistorica = false) {
   const tipo = cleanText_cor(row?.tipo_concepto)?.toUpperCase() || null;
   const payment = facturaPaymentState_cor(row?.total, applied, pagadaHistorica);
@@ -1139,7 +1250,16 @@ function serializeFacturaGroup_cor(group) {
 }
 
 function rollupPartialAnticipo_cor(rows) {
-  const result = (Array.isArray(rows) ? rows : []).map((row) => ({ ...row }));
+  const result = (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    fechas_pago: Array.isArray(row?.fechas_pago) ? [...row.fechas_pago] : [],
+    desglose_pago_directo: Array.isArray(row?.desglose_pago_directo)
+      ? row.desglose_pago_directo.map((item) => ({
+          ...item,
+          fechas_pago: Array.isArray(item?.fechas_pago) ? [...item.fechas_pago] : []
+        }))
+      : []
+  }));
   const parentsByCurrency = new Map();
 
   for (const row of result) {
@@ -1155,7 +1275,23 @@ function rollupPartialAnticipo_cor(rows) {
     const parent = parentsByCurrency.get(currency);
     if (!parent) continue;
     const applied = numberOrNull_cor(row?.pago_contabilizado) ?? 0;
-    rolledByParent.set(parent, (rolledByParent.get(parent) || 0) + applied);
+    if (!rolledByParent.has(parent)) rolledByParent.set(parent, { amount: 0, items: [] });
+    const rollup = rolledByParent.get(parent);
+    rollup.amount += applied;
+
+    const direct = Array.isArray(row.desglose_pago_directo) && row.desglose_pago_directo.length
+      ? row.desglose_pago_directo[0]
+      : null;
+    rollup.items.push({
+      etiqueta: cleanText_cor(row?.condicion) || 'Parcial Anticipo',
+      condicion: cleanText_cor(row?.condicion),
+      factura: cleanText_cor(direct?.factura ?? row?.factura),
+      importe: roundAmount_cor(applied),
+      fechas_pago: Array.isArray(direct?.fechas_pago) && direct.fechas_pago.length
+        ? [...direct.fechas_pago]
+        : [...row.fechas_pago]
+    });
+
     row.pago_aplicado_a_principal = roundAmount_cor(applied);
     row.aplicado_a_condicion = 'Anticipo';
     row.pago_total = 0;
@@ -1165,9 +1301,25 @@ function rollupPartialAnticipo_cor(rows) {
     row.es_pagado = true;
   }
 
-  for (const [parent, rolled] of rolledByParent) {
+  for (const [parent, rollup] of rolledByParent) {
     const original = numberOrNull_cor(parent?.pago_contabilizado) ?? 0;
-    const payment = facturaPaymentState_cor(parent?.total, original + rolled);
+    const direct = Array.isArray(parent.desglose_pago_directo) && parent.desglose_pago_directo.length
+      ? parent.desglose_pago_directo[0]
+      : null;
+    const initial = {
+      etiqueta: 'Pago inicial',
+      condicion: cleanText_cor(parent?.condicion),
+      factura: cleanText_cor(direct?.factura ?? parent?.factura),
+      importe: roundAmount_cor(original),
+      fechas_pago: Array.isArray(direct?.fechas_pago) && direct.fechas_pago.length
+        ? [...direct.fechas_pago]
+        : [...parent.fechas_pago]
+    };
+
+    parent.desglose_pagos = [initial, ...rollup.items];
+    parent.pago_desglose_principal = true;
+
+    const payment = facturaPaymentState_cor(parent?.total, original + rollup.amount);
     parent.pago_total = payment.importe_pagado;
     parent.pago_contabilizado = payment.importe_pagado;
     parent.pendiente_calculado = payment.saldo;
@@ -1175,6 +1327,7 @@ function rollupPartialAnticipo_cor(rows) {
     parent.es_pagado = payment.es_pagado;
   }
 
+  for (const row of result) delete row.desglose_pago_directo;
   return result;
 }
 
@@ -1334,14 +1487,23 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
     ]);
     const paymentMaps = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
     const facturas = paymentMaps.facturaGroups.map(serializeFacturaGroup_cor);
-    const serializedRows = sourceRows.map((item) => {
-      const id = integerOrNull_cor(item.id_fuente_cor);
-      return serializeFuenteEstadoCuenta_cor(
-        item,
-        paymentMaps.aplicadoPorHito.get(id) || 0,
-        paymentMaps.hitosHistoricosSinRelacion.has(id)
-      );
-    });
+    const paymentDetailsByHito = buildPaymentDetailsByHito_cor(
+      sourceRows,
+      paymentMaps.facturaGroups,
+      pagoRows,
+      relacionPagoRows
+    );
+    const serializedRows = attachPaymentDetailsToHitos_cor(
+      sourceRows.map((item) => {
+        const id = integerOrNull_cor(item.id_fuente_cor);
+        return serializeFuenteEstadoCuenta_cor(
+          item,
+          paymentMaps.aplicadoPorHito.get(id) || 0,
+          paymentMaps.hitosHistoricosSinRelacion.has(id)
+        );
+      }),
+      paymentDetailsByHito
+    );
     const detailRows = attachFacturaRefsToHitos_cor(
       rollupPartialAnticipo_cor(serializedRows),
       facturas

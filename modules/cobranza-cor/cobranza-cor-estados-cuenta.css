@@ -595,6 +595,11 @@
 .ccor-ec-total-popover span{color:#66778a;font-size:10px;font-weight:750}
 .ccor-ec-total-popover b{font-size:12px;text-align:right}
 .ccor-ec-total-popover .is-total{color:#0b4f91}
+.ccor-ec-payment-popover{width:min(390px,calc(100vw - 16px))}
+.ccor-ec-payment-breakdown-row>span{display:flex;min-width:0;flex-direction:column;align-items:flex-start;gap:2px}
+.ccor-ec-payment-breakdown-row strong{color:#183554;font-size:11px}
+.ccor-ec-payment-breakdown-row small{color:#7a8998;font-size:9px;font-weight:650;white-space:normal;text-align:left}
+.ccor-ec-payment-breakdown-button{white-space:nowrap}
 @media(max-width:1100px){.ccor-ec-factura-form{grid-template-columns:repeat(3,minmax(130px,1fr))}}
 @media(max-width:760px){
   .ccor-ec-facturas-section{width:100%;max-width:100%;min-width:0}

@@ -614,16 +614,42 @@
     return amount && amount > 0 ? formatAmount_cor(amount) : '—';
   }
 
-  function renderPaymentMe_cor(row){
-    return isKnownForeign_cor(row && row.moneda)
-      ? renderPaymentValue_cor(row)
+  function paymentDates_cor(row){
+    const values = Array.isArray(row && row.fechas_pago)
+      ? row.fechas_pago
+      : [];
+    const normalized = [];
+    values.forEach(value=>{
+      const raw=String(value||'').trim();
+      if(raw&&!normalized.includes(raw)) normalized.push(raw);
+    });
+    const direct=String(row&&row.fecha_pago||'').trim();
+    if(!normalized.length&&direct) normalized.push(direct);
+    return normalized;
+  }
+
+  function renderPaymentDates_cor(row){
+    const dates=paymentDates_cor(row);
+    return dates.length
+      ? dates.map(formatDate_cor).join(' · ')
       : '—';
   }
 
-  function renderPaymentMxn_cor(row){
-    return isMxn_cor(row && row.moneda)
-      ? renderPaymentValue_cor(row)
-      : '—';
+  function renderPaymentCell_cor(row,section){
+    const visible = section === 'supply'
+      ? isKnownForeign_cor(row && row.moneda)
+      : isMxn_cor(row && row.moneda);
+    if(!visible) return '—';
+
+    const value=renderPaymentValue_cor(row);
+    const breakdown=Array.isArray(row&&row.desglose_pagos)?row.desglose_pagos:[];
+    if(row&&row.pago_desglose_principal&&breakdown.length){
+      return `<button class="ccor-ec-total-button ccor-ec-payment-breakdown-button" type="button"
+        data-payment-breakdown-toggle
+        data-payment-hito-id="${escapeHtml_cor(String(row.id_fuente_cor||''))}"
+        aria-expanded="false">${escapeHtml_cor(value)}</button>`;
+    }
+    return escapeHtml_cor(value);
   }
 
   function renderMovementRows_cor(rows,section){
@@ -682,20 +708,16 @@
 
         <td>
           ${escapeHtml_cor(
-            formatDate_cor(row.fecha_pago)
+            renderPaymentDates_cor(row)
           )}
         </td>
 
         <td class="ccor-ec-num">
-          ${escapeHtml_cor(
-            renderPaymentMe_cor(row)
-          )}
+          ${renderPaymentCell_cor(row,'supply')}
         </td>
 
         <td class="ccor-ec-num">
-          ${escapeHtml_cor(
-            renderPaymentMxn_cor(row)
-          )}
+          ${renderPaymentCell_cor(row,'installation')}
         </td>
 
         <td>
@@ -968,6 +990,61 @@
       <div><span>Subtotal</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.subtotal,currency))}</b></div>
       <div><span>IVA</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.iva,currency))}</b></div>
       <div class="is-total"><span>Total</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.total,currency))}</b></div>`;
+    popover.hidden=false;
+    button.setAttribute('aria-expanded','true');
+
+    const rect=button.getBoundingClientRect();
+    const popoverRect=popover.getBoundingClientRect();
+    const viewportWidth=window.innerWidth||document.documentElement?.clientWidth||1024;
+    const viewportHeight=window.innerHeight||document.documentElement?.clientHeight||768;
+    const left=Math.max(8,Math.min(rect.left,viewportWidth-popoverRect.width-8));
+    let top=rect.bottom+7;
+    if(top+popoverRect.height>viewportHeight-8) top=Math.max(8,rect.top-popoverRect.height-7);
+    popover.style.left=left+'px';
+    popover.style.top=top+'px';
+  }
+
+  function closePaymentBreakdownPopover_cor(){
+    const popover=document.getElementById('ccor-ec-payment-popover');
+    if(!popover) return;
+    popover.hidden=true;
+    popover.innerHTML='';
+    delete popover.dataset.paymentHitoId;
+    state.root?.querySelectorAll?.('[data-payment-breakdown-toggle][aria-expanded="true"]')
+      .forEach(button=>button.setAttribute('aria-expanded','false'));
+  }
+
+  function togglePaymentBreakdownPopover_cor(button){
+    const popover=document.getElementById('ccor-ec-payment-popover');
+    if(!popover||!button) return;
+    const idHito=Number(button.dataset.paymentHitoId);
+    const row=(Array.isArray(state.detail&&state.detail.estado_cuenta)?state.detail.estado_cuenta:[])
+      .find(item=>Number(item&&item.id_fuente_cor)===idHito);
+    const items=Array.isArray(row&&row.desglose_pagos)?row.desglose_pagos:[];
+    if(!row||!items.length) return;
+
+    const same=popover.dataset.paymentHitoId===String(idHito)&&popover.hidden===false;
+    closePaymentBreakdownPopover_cor();
+    if(same) return;
+
+    const currency=String(row.moneda||'').trim().toUpperCase();
+    popover.dataset.paymentHitoId=String(idHito);
+    popover.innerHTML=items.map(item=>{
+      const dates=Array.isArray(item&&item.fechas_pago)?item.fechas_pago.filter(Boolean):[];
+      const meta=[
+        text_cor(item&&item.factura,''),
+        dates.length?dates.map(formatDate_cor).join(' · '):''
+      ].filter(Boolean).join(' · ');
+      return `<div class="ccor-ec-payment-breakdown-row">
+        <span><strong>${escapeHtml_cor(text_cor(item&&item.etiqueta,'Pago'))}</strong>${meta?`<small>${escapeHtml_cor(meta)}</small>`:''}</span>
+        <b>${escapeHtml_cor(formatMoney_cor(item&&item.importe,currency))}</b>
+      </div>`;
+    }).join('')+`
+      <div class="is-total">
+        <span>Total aplicado</span>
+        <b>${escapeHtml_cor(formatMoney_cor(row.pago_contabilizado,currency))}</b>
+      </div>`;
+
     popover.hidden=false;
     button.setAttribute('aria-expanded','true');
 
@@ -1475,6 +1552,8 @@
         )}
 
 
+        <div id="ccor-ec-payment-popover" class="ccor-ec-total-popover ccor-ec-payment-popover" role="dialog" aria-label="Desglose de pagos del hito" hidden></div>
+
         ${renderAditivasSection_cor(detail)}
 
         ${renderUnknownCurrency_cor(
@@ -1769,9 +1848,20 @@
     root.dataset.ccorEstadosCuentaBound='1';
 
     root.addEventListener('click',event=>{
+      const paymentBreakdown=event.target.closest('[data-payment-breakdown-toggle]');
+      if(paymentBreakdown){
+        closeFacturaTotalPopover_cor();
+        togglePaymentBreakdownPopover_cor(paymentBreakdown);
+        return;
+      }
       const facturaTotal=event.target.closest('[data-factura-total-toggle]');
-      if(facturaTotal){toggleFacturaTotalPopover_cor(facturaTotal);return;}
+      if(facturaTotal){
+        closePaymentBreakdownPopover_cor();
+        toggleFacturaTotalPopover_cor(facturaTotal);
+        return;
+      }
       if(!event.target.closest('#ccor-ec-total-popover')) closeFacturaTotalPopover_cor();
+      if(!event.target.closest('#ccor-ec-payment-popover')) closePaymentBreakdownPopover_cor();
       const pagoAgregar=event.target.closest('[data-pago-agregar]');
       if(pagoAgregar){
         const row=pagoAgregar.closest('[data-pago-id]');
@@ -1811,7 +1901,7 @@
     });
 
     root.addEventListener('keydown',event=>{
-      if(event.key === 'Escape'){closeFacturaTotalPopover_cor();return;}
+      if(event.key === 'Escape'){closeFacturaTotalPopover_cor();closePaymentBreakdownPopover_cor();return;}
       if(event.key !== 'Enter' && event.key !== ' ') return;
       const row=event.target.closest('[data-ppns]');
       if(!row) return;

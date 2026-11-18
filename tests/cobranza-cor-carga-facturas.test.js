@@ -589,6 +589,36 @@ test('Detalle deriva pago parcial/completo, consolida folios repetidos y reviert
   }, pagosRepository));
 });
 
+test('Detalle recupera Fecha pago desde Pagos relacionados cuando FUENTE no la tiene', async () => {
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'P14302', registros_estado_cuenta: 1 }),
+    listFuenteEstadoCuenta_cor: async () => [{
+      id_fuente_cor: 11, id_proyecto_origen: 'P14302', condicion: 'Anticipo',
+      moneda: 'USD', subtotal: 100, iva: 0, total: 100, fecha_pago: null
+    }],
+    listFacturasEstadoCuenta_cor: async () => [{
+      id_factura_cor: 501, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 11,
+      hito_condicion: 'Anticipo', factura: 'CFV-100', moneda: 'USD', total: 100
+    }],
+    listAditivasEstadoCuenta_cor: async () => []
+  }, () => withRepositoryStub({
+    listPagosEstadoCuenta_cor: async () => [{
+      id_pago_cor: 1001, no_factura: 'CFV-100', fecha_pago: '2026-11-05',
+      importe_complemento_pago: 40
+    }],
+    listRelacionesEstadoCuenta_cor: async () => [{
+      id_factura_cor: 501, id_pago_cor: 1001, importe_aplicado: 40
+    }]
+  }, async () => {
+    const detail = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.equal(detail.estado_cuenta[0].pago_contabilizado, 40);
+    assert.equal(detail.estado_cuenta[0].fecha_pago, '2026-11-05');
+    assert.deepEqual(Array.from(detail.estado_cuenta[0].fechas_pago), ['2026-11-05']);
+  }, pagosRepository));
+});
+
 test('Formulario de Estado de Cuenta tambien usa importes aplicados para sus Hitos', async () => {
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   await withRepositoryStub({
