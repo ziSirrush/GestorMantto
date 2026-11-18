@@ -4,6 +4,8 @@
   if(window.ManttoCobranzaCorEstadoCuentaPdf) return;
 
   const ROUTE='cobranza-estados-cuenta';
+  // [BLT NOW | 2026-11-18 | PDF COR PAUSADO] Reactivar solo tras aprobar el formato.
+  const PDF_EXPORT_ENABLED_COR=false;
   const BUTTON_ID='ccor-ec-pdf-export';
   const PRINT_ROOT_ID='ccor-ec-pdf-print-root';
   const PRINT_STYLE_ID='ccor-ec-pdf-print-style';
@@ -73,9 +75,18 @@
     btn.type='button';
     btn.id=BUTTON_ID;
     btn.className='ccor-ec-btn ccor-ec-btn-primary';
-    btn.textContent='Exportar PDF';
-    btn.title='Abrir impresion y elegir Guardar como PDF';
-    btn.setAttribute('aria-label','Exportar Estado de Cuenta a PDF');
+    btn.disabled=!PDF_EXPORT_ENABLED_COR;
+    btn.textContent=PDF_EXPORT_ENABLED_COR?'Exportar PDF':'PDF en revisión';
+    btn.title=PDF_EXPORT_ENABLED_COR
+      ? 'Abrir impresion y elegir Guardar como PDF'
+      : 'Formato PDF pendiente de aprobación';
+    btn.setAttribute('aria-label',PDF_EXPORT_ENABLED_COR
+      ? 'Exportar Estado de Cuenta a PDF'
+      : 'Exportación PDF deshabilitada: formato en revisión');
+    if(!PDF_EXPORT_ENABLED_COR){
+      btn.style.opacity='0.55';
+      btn.style.cursor='not-allowed';
+    }
     host.insertBefore(btn,host.firstChild);
     return true;
   }
@@ -112,6 +123,7 @@
   }
 
   function printEstadoCuenta_cor(){
+    if(!PDF_EXPORT_ENABLED_COR) return false;
     const view=detailView_cor();
     if(!view) return false;
     const existing=document.getElementById(PRINT_ROOT_ID);
@@ -163,6 +175,7 @@
       const btn=event.target.closest('#'+BUTTON_ID);
       if(!btn||!detailView_cor()) return;
       event.preventDefault();
+      if(!PDF_EXPORT_ENABLED_COR) return;
       try{printEstadoCuenta_cor();}
       catch(error){window.alert('No fue posible preparar el PDF: '+String(error&&error.message||error));}
     },true);

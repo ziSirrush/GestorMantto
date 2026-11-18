@@ -43,3 +43,21 @@ test('PDF COR se carga desde la ruta de Estados de Cuenta y no globalmente', () 
   const others = loader.split('\n').filter(line => line.includes('cobranza-cor-estados-cuenta-pdf.js') && !line.includes("'cobranza-estados-cuenta':"));
   assert.equal(others.length, 0, 'El PDF no debe cargarse en otros modulos');
 });
+
+test('PDF COR no permite exportar hasta aprobar el formato', () => {
+  const vm = require('node:vm');
+  assert.match(pdf, /const PDF_EXPORT_ENABLED_COR=false;/);
+  assert.match(pdf, /btn\.disabled=!PDF_EXPORT_ENABLED_COR;/);
+  assert.match(pdf, /PDF en revisión/);
+  assert.match(pdf, /if\(!PDF_EXPORT_ENABLED_COR\) return false;/);
+  let calls = 0;
+  const fakeWindow = { print(){ calls += 1; } };
+  const fakeDocument = {
+    readyState:'loading',
+    addEventListener(){},
+    querySelector(){ throw new Error('La exportacion no debe consultar la vista'); }
+  };
+  vm.runInNewContext(pdf, {window:fakeWindow,document:fakeDocument}, {timeout:1000});
+  assert.equal(fakeWindow.ManttoCobranzaCorEstadoCuentaPdf.print(), false);
+  assert.equal(calls, 0);
+});
