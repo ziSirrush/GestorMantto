@@ -250,8 +250,9 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   assert.match(loaderSource, /cobranza-cor-estados-cuenta\.js\?v=20261118-cobranza-cor-saldo-final-v003/);
 
   const workerSource = read('service-worker.js');
-  assert.match(workerSource, /modules\/cobranza-cor\/cobranza-cor-estados-cuenta\.js/);
-  assert.match(workerSource, /20261118-cobranza-cor-saldo-final-v001/);
+  assert.ok(workerSource.includes('function isLazyModuleAsset_gnral(url)'));
+  assert.ok(workerSource.includes("return /^modules\\/.+\\.(?:js|css)$/i.test(path);"));
+  assert.match(workerSource, /isLazyModuleAsset_gnral\(url\)/);
   assert.equal((section.match(/CFV-9131/g) || []).length, 1);
   assert.ok(handlers.click);
   assert.ok(handlers.keydown);
