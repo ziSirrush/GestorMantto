@@ -604,12 +604,6 @@
   }
 
   function renderPaymentValue_cor(row){
-    const redirected = number_cor(
-      row && row.pago_aplicado_a_principal
-    );
-    if(row && row.aplicado_a_condicion && redirected !== null && redirected > 0){
-      return formatAmount_cor(redirected) + ' → ' + text_cor(row.aplicado_a_condicion);
-    }
     const amount = number_cor(row && row.pago_contabilizado);
     return amount && amount > 0 ? formatAmount_cor(amount) : '—';
   }
@@ -640,8 +634,15 @@
       ? isKnownForeign_cor(row && row.moneda)
       : isMxn_cor(row && row.moneda);
     if(!visible) return '—';
+    return escapeHtml_cor(renderPaymentValue_cor(row));
+  }
 
-    const value=renderPaymentValue_cor(row);
+  function renderPendingCell_cor(row){
+    if(row && row.aplicado_a_condicion){
+      return escapeHtml_cor('Aplicado a ' + text_cor(row.aplicado_a_condicion));
+    }
+
+    const value=formatAmount_cor(row && row.pendiente_calculado);
     const breakdown=Array.isArray(row&&row.desglose_pagos)?row.desglose_pagos:[];
     if(row&&row.pago_desglose_principal&&breakdown.length){
       return `<button class="ccor-ec-total-button ccor-ec-payment-breakdown-button" type="button"
@@ -727,11 +728,7 @@
         </td>
 
         <td class="ccor-ec-num ${row.aplicado_a_condicion ? 'is-applied' : 'is-pending'}">
-          ${escapeHtml_cor(
-            row.aplicado_a_condicion
-              ? 'Aplicado a ' + text_cor(row.aplicado_a_condicion)
-              : formatAmount_cor(row.pendiente_calculado)
-          )}
+          ${renderPendingCell_cor(row)}
         </td>
       </tr>
     `).join('');
@@ -1029,20 +1026,26 @@
 
     const currency=String(row.moneda||'').trim().toUpperCase();
     popover.dataset.paymentHitoId=String(idHito);
-    popover.innerHTML=items.map(item=>{
-      const dates=Array.isArray(item&&item.fechas_pago)?item.fechas_pago.filter(Boolean):[];
-      const meta=[
-        text_cor(item&&item.factura,''),
-        dates.length?dates.map(formatDate_cor).join(' · '):''
-      ].filter(Boolean).join(' · ');
-      return `<div class="ccor-ec-payment-breakdown-row">
-        <span><strong>${escapeHtml_cor(text_cor(item&&item.etiqueta,'Pago'))}</strong>${meta?`<small>${escapeHtml_cor(meta)}</small>`:''}</span>
-        <b>${escapeHtml_cor(formatMoney_cor(item&&item.importe,currency))}</b>
-      </div>`;
-    }).join('')+`
+    const totalLabel='Total ' + text_cor(row.condicion,'Anticipo');
+    popover.innerHTML=`
+      <div class="ccor-ec-payment-breakdown-row">
+        <span><strong>${escapeHtml_cor(totalLabel)}</strong></span>
+        <b>${escapeHtml_cor(formatMoney_cor(row.total,currency))}</b>
+      </div>`+
+      items.map(item=>{
+        const dates=Array.isArray(item&&item.fechas_pago)?item.fechas_pago.filter(Boolean):[];
+        const meta=[
+          dates.length?dates.map(formatDate_cor).join(' · '):'',
+          text_cor(item&&item.factura,'')
+        ].filter(Boolean).join(' · ');
+        return `<div class="ccor-ec-payment-breakdown-row">
+          <span><strong>${escapeHtml_cor(text_cor(item&&item.etiqueta,'Pago'))}</strong>${meta?`<small>${escapeHtml_cor(meta)}</small>`:''}</span>
+          <b>${escapeHtml_cor(formatMoney_cor(item&&item.importe,currency))}</b>
+        </div>`;
+      }).join('')+`
       <div class="is-total">
-        <span>Total aplicado</span>
-        <b>${escapeHtml_cor(formatMoney_cor(row.pago_contabilizado,currency))}</b>
+        <span>Por cobrar</span>
+        <b>${escapeHtml_cor(formatMoney_cor(row.pendiente_calculado,currency))}</b>
       </div>`;
 
     popover.hidden=false;

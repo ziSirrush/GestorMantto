@@ -87,7 +87,8 @@ test('consolida Facturas duplicadas sin duplicar Pagado y aplica Parciales al An
   const anticipo = detail.estado_cuenta.find((row) => row.condicion === 'Anticipo');
   const parcial = detail.estado_cuenta.find((row) => row.condicion === 'Parcial Anticipo 1');
   assert.equal(anticipo.factura, 'CFV-9131');
-  assert.equal(anticipo.pago_contabilizado, 31754.18);
+  assert.equal(anticipo.pago_contabilizado, 1163.46);
+  assert.equal(anticipo.pago_consolidado_anticipo, 31754.18);
   assert.equal(anticipo.pendiente_calculado, 34160.5);
   assert.equal(anticipo.fecha_pago, '2026-09-01');
   assert.equal(anticipo.pago_desglose_principal, true);
@@ -102,7 +103,7 @@ test('consolida Facturas duplicadas sin duplicar Pagado y aplica Parciales al An
   assert.equal(anticipo.desglose_pagos[2].importe, 0);
   assert.equal(anticipo.desglose_pagos[2].fechas_pago[0], '2026-09-30');
   assert.equal(parcial.factura, 'CFV-9242');
-  assert.equal(parcial.pago_contabilizado, 0);
+  assert.equal(parcial.pago_contabilizado, 30590.72);
   assert.equal(parcial.pago_aplicado_a_principal, 30590.72);
   assert.equal(parcial.pendiente_calculado, 0);
   assert.equal(parcial.aplicado_a_condicion, 'Anticipo');
@@ -132,8 +133,9 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
       subtotal: 56823,
       iva: 9091.68,
       total: 65914.68,
-      pago_total: 31754.18,
-      pago_contabilizado: 31754.18,
+      pago_total: 1163.46,
+      pago_contabilizado: 1163.46,
+      pago_consolidado_anticipo: 31754.18,
       pendiente_calculado: 34160.5,
       fecha_pago: '2026-09-01',
       fechas_pago: ['2026-09-01'],
@@ -143,6 +145,38 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
         { etiqueta: 'Parcial Anticipo 1', factura: 'CFV-9242', importe: 30590.72, fechas_pago: ['2026-09-15'] },
         { etiqueta: 'Parcial Anticipo 2', factura: null, importe: 0, fechas_pago: ['2026-09-30'] }
       ]
+    },{
+      id_fuente_cor: 2,
+      condicion: 'Parcial Anticipo 1',
+      factura: 'CFV-9242',
+      moneda: 'USD',
+      porcentaje: 0,
+      subtotal: 0,
+      iva: 0,
+      total: 0,
+      pago_total: 30590.72,
+      pago_contabilizado: 30590.72,
+      pago_aplicado_a_principal: 30590.72,
+      pendiente_calculado: 0,
+      fecha_pago: '2026-09-15',
+      fechas_pago: ['2026-09-15'],
+      aplicado_a_condicion: 'Anticipo'
+    },{
+      id_fuente_cor: 3,
+      condicion: 'Parcial Anticipo 2',
+      factura: null,
+      moneda: 'USD',
+      porcentaje: 0,
+      subtotal: 0,
+      iva: 0,
+      total: 0,
+      pago_total: 0,
+      pago_contabilizado: 0,
+      pago_aplicado_a_principal: 0,
+      pendiente_calculado: 0,
+      fecha_pago: '2026-09-30',
+      fechas_pago: ['2026-09-30'],
+      aplicado_a_condicion: 'Anticipo'
     }],
     aditivas: [],
     pagos: [],
@@ -194,9 +228,21 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   assert.match(section, />1,163\.46<\/b>/);
   assert.match(section, /64,751\.22/);
   assert.match(section, />Parcial<\/span>/);
-  assert.match(view.innerHTML, /data-payment-breakdown-toggle/);
-  assert.match(view.innerHTML, /31,754\.18/);
+  const supplySection = view.innerHTML.split('class="ccor-ec-account-section is-supply"')[1] || '';
+  const initialPaidIndex = supplySection.indexOf('1,163.46');
+  const partialPaidIndex = supplySection.indexOf('30,590.72');
+  const pendingButtonIndex = supplySection.indexOf('data-payment-breakdown-toggle');
+  const pendingValueIndex = supplySection.indexOf('34,160.50');
+  assert.ok(initialPaidIndex >= 0);
+  assert.ok(partialPaidIndex >= 0);
+  assert.ok(pendingButtonIndex > initialPaidIndex);
+  assert.ok(pendingValueIndex > pendingButtonIndex);
+  assert.match(supplySection, /Aplicado a Anticipo/);
   assert.match(view.innerHTML, /01\/09\/2026/);
+
+  const frontendSource = read('modules/cobranza-cor/cobranza-cor-estados-cuenta.js');
+  assert.match(frontendSource, /<span>Por cobrar<\/span>/);
+  assert.match(frontendSource, /formatMoney_cor\(row\.pendiente_calculado,currency\)/);
   assert.equal((section.match(/CFV-9131/g) || []).length, 1);
   assert.ok(handlers.click);
   assert.ok(handlers.keydown);

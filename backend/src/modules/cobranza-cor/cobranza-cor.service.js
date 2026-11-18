@@ -1294,8 +1294,7 @@ function rollupPartialAnticipo_cor(rows) {
 
     row.pago_aplicado_a_principal = roundAmount_cor(applied);
     row.aplicado_a_condicion = 'Anticipo';
-    row.pago_total = 0;
-    row.pago_contabilizado = 0;
+    // El parcial conserva su Pagado propio. Solo su Por cobrar se integra al Anticipo.
     row.pendiente_calculado = 0;
     row.estatus_factura = 'Aplicado a Anticipo';
     row.es_pagado = true;
@@ -1320,8 +1319,8 @@ function rollupPartialAnticipo_cor(rows) {
     parent.pago_desglose_principal = true;
 
     const payment = facturaPaymentState_cor(parent?.total, original + rollup.amount);
-    parent.pago_total = payment.importe_pagado;
-    parent.pago_contabilizado = payment.importe_pagado;
+    // El Anticipo conserva su Pagado directo; el acumulado solo determina el saldo.
+    parent.pago_consolidado_anticipo = payment.importe_pagado;
     parent.pendiente_calculado = payment.saldo;
     parent.estatus_factura = payment.estatus_factura;
     parent.es_pagado = payment.es_pagado;
