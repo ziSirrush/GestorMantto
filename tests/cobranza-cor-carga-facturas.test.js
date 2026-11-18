@@ -589,6 +589,29 @@ test('Detalle deriva pago parcial/completo, consolida folios repetidos y reviert
   }, pagosRepository));
 });
 
+test('Consultas de Pagos recuperan fechas del PPNS aunque id_pp del Pago este vacio', async () => {
+  const calls = [];
+  const connection = {
+    async query(sql, params) {
+      calls.push({ sql, params });
+      return [[], []];
+    }
+  };
+
+  await pagosRepository.listPagosEstadoCuenta_cor(connection, 'P14302');
+  await pagosRepository.listRelacionesEstadoCuenta_cor(connection, 'P14302');
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /FROM cobranza_rel_pagos r/);
+  assert.match(calls[0].sql, /UPPER\(TRIM\(COALESCE\(f\.factura, ''\)\)\) = UPPER\(TRIM\(COALESCE\(p\.no_factura, ''\)\)\)/);
+  assert.deepEqual(calls[0].params, ['P14302', 'P14302', 'P14302']);
+
+  assert.match(calls[1].sql, /UPPER\(TRIM\(f\.ppns\)\) = UPPER\(TRIM\(\?\)\)/);
+  assert.doesNotMatch(calls[1].sql, /fuente\.proyecto/);
+  assert.doesNotMatch(calls[1].sql, /p\.id_pp/);
+  assert.deepEqual(calls[1].params, ['P14302']);
+});
+
 test('Detalle recupera Fecha pago desde Pagos relacionados cuando FUENTE no la tiene', async () => {
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   await withRepositoryStub({

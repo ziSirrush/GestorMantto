@@ -117,13 +117,28 @@ async function listPagosEstadoCuenta_cor(connection, ppns) {
        FROM ${TABLE_PAGOS_COR} p
       WHERE EXISTS (
         SELECT 1
+          FROM ${TABLE_REL_PAGOS_COR} r
+          JOIN ${TABLE_FACTURAS_COR} f ON f.id_factura_cor = r.id_factura_cor
+         WHERE r.id_pago_cor = p.id_pago_cor
+           AND f.activo = 1
+           AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
+      )
+         OR EXISTS (
+        SELECT 1
+          FROM ${TABLE_FACTURAS_COR} f
+         WHERE f.activo = 1
+           AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
+           AND UPPER(TRIM(COALESCE(f.factura, ''))) = UPPER(TRIM(COALESCE(p.no_factura, '')))
+      )
+         OR EXISTS (
+        SELECT 1
           FROM ${TABLE_FUENTE_COR} fuente
          WHERE fuente.activo = 1
            AND ${normalizedProjectKeySql_cor('fuente.id_proyecto_origen')} = ${normalizedProjectKeySql_cor('?')}
            AND ${normalizedProjectKeySql_cor('fuente.proyecto')} = ${normalizedProjectKeySql_cor('p.id_pp')}
       )
       ORDER BY p.id_pago_cor ASC`,
-    [ppns]
+    [ppns, ppns, ppns]
   );
   return rows;
 }
@@ -136,15 +151,8 @@ async function listRelacionesEstadoCuenta_cor(connection, ppns) {
        JOIN ${TABLE_PAGOS_COR} p ON p.id_pago_cor = r.id_pago_cor
       WHERE f.activo = 1
         AND UPPER(TRIM(f.ppns)) = UPPER(TRIM(?))
-        AND EXISTS (
-          SELECT 1
-            FROM ${TABLE_FUENTE_COR} fuente
-           WHERE fuente.activo = 1
-             AND ${normalizedProjectKeySql_cor('fuente.id_proyecto_origen')} = ${normalizedProjectKeySql_cor('?')}
-             AND ${normalizedProjectKeySql_cor('fuente.proyecto')} = ${normalizedProjectKeySql_cor('p.id_pp')}
-        )
       ORDER BY r.id_pago_cor, r.id_factura_cor`,
-    [ppns, ppns]
+    [ppns]
   );
   return rows;
 }
