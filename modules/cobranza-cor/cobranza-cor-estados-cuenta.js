@@ -98,7 +98,7 @@
     if(!status) return 'is-neutral';
     if(status.includes('CORRIENTE') || status.includes('AL DIA') || status.includes('AL DÍA') || status.includes('PAGAD')) return 'is-ok';
     if(status.includes('VENC') || status.includes('NO PAG') || status.includes('ADEUD') || status.includes('ATRAS')) return 'is-danger';
-    if(status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVIS')) return 'is-warn';
+    if(status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVIS') || status.includes('PARCIAL') || status.includes('APLICADO')) return 'is-warn';
     return 'is-neutral';
   }
 
@@ -376,7 +376,9 @@
 
     facturas.forEach(row=>{
       const key = invoiceKey_cor(row && row.factura);
-      const paid = number_cor(row && row.pagado);
+      const paid = number_cor(
+        row && (row.importe_pagado ?? row.pagado)
+      );
       if(!key || paid === null) return;
       totals.set(
         key,
@@ -411,12 +413,14 @@
         row && row.pago_contabilizado
       );
 
-      let payment = sourcePayment !== null
-        ? sourcePayment
-        : (currentPayment !== null ? currentPayment : accountedPayment);
+      let payment = currentPayment !== null
+        ? currentPayment
+        : (accountedPayment !== null ? accountedPayment : sourcePayment);
 
       if(
-        sourceStatus === 'PARCIAL'
+        currentPayment === null
+        && accountedPayment === null
+        && sourceStatus === 'PARCIAL'
         && invoiceKey
         && pagadoByFactura.has(invoiceKey)
       ){
@@ -599,31 +603,26 @@
     return '—';
   }
 
-  function renderPaymentMe_cor(row){
-    if(!isKnownForeign_cor(row && row.moneda)){
-      return '—';
-    }
-
-    const amount = number_cor(
-      row && row.pago_contabilizado
+  function renderPaymentValue_cor(row){
+    const redirected = number_cor(
+      row && row.pago_aplicado_a_principal
     );
+    if(row && row.aplicado_a_condicion && redirected !== null && redirected > 0){
+      return formatAmount_cor(redirected) + ' → ' + text_cor(row.aplicado_a_condicion);
+    }
+    const amount = number_cor(row && row.pago_contabilizado);
+    return amount && amount > 0 ? formatAmount_cor(amount) : '—';
+  }
 
-    return amount && amount > 0
-      ? formatAmount_cor(amount)
+  function renderPaymentMe_cor(row){
+    return isKnownForeign_cor(row && row.moneda)
+      ? renderPaymentValue_cor(row)
       : '—';
   }
 
   function renderPaymentMxn_cor(row){
-    if(!isMxn_cor(row && row.moneda)){
-      return '—';
-    }
-
-    const amount = number_cor(
-      row && row.pago_contabilizado
-    );
-
-    return amount && amount > 0
-      ? formatAmount_cor(amount)
+    return isMxn_cor(row && row.moneda)
+      ? renderPaymentValue_cor(row)
       : '—';
   }
 
@@ -705,9 +704,11 @@
           )}
         </td>
 
-        <td class="ccor-ec-num is-pending">
+        <td class="ccor-ec-num ${row.aplicado_a_condicion ? 'is-applied' : 'is-pending'}">
           ${escapeHtml_cor(
-            formatAmount_cor(row.pendiente_calculado)
+            row.aplicado_a_condicion
+              ? 'Aplicado a ' + text_cor(row.aplicado_a_condicion)
+              : formatAmount_cor(row.pendiente_calculado)
           )}
         </td>
       </tr>
@@ -944,22 +945,87 @@
     return Number.isFinite(parsed)?parsed:null;
   }
 
+  function closeFacturaTotalPopover_cor(){
+    const popover=document.getElementById('ccor-ec-total-popover');
+    if(!popover) return;
+    popover.hidden=true;
+    popover.innerHTML='';
+    state.root?.querySelectorAll?.('[data-factura-total-toggle][aria-expanded="true"]')
+      .forEach(button=>button.setAttribute('aria-expanded','false'));
+  }
+
+  function toggleFacturaTotalPopover_cor(button){
+    const popover=document.getElementById('ccor-ec-total-popover');
+    if(!popover||!button) return;
+    const same=popover.dataset.facturaTotalId===String(button.dataset.facturaTotalId||'')
+      && popover.hidden===false;
+    closeFacturaTotalPopover_cor();
+    if(same) return;
+
+    const currency=String(button.dataset.currency||'').trim().toUpperCase();
+    popover.dataset.facturaTotalId=String(button.dataset.facturaTotalId||'');
+    popover.innerHTML=`
+      <div><span>Subtotal</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.subtotal,currency))}</b></div>
+      <div><span>IVA</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.iva,currency))}</b></div>
+      <div class="is-total"><span>Total</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.total,currency))}</b></div>`;
+    popover.hidden=false;
+    button.setAttribute('aria-expanded','true');
+
+    const rect=button.getBoundingClientRect();
+    const popoverRect=popover.getBoundingClientRect();
+    const viewportWidth=window.innerWidth||document.documentElement?.clientWidth||1024;
+    const viewportHeight=window.innerHeight||document.documentElement?.clientHeight||768;
+    const left=Math.max(8,Math.min(rect.left,viewportWidth-popoverRect.width-8));
+    let top=rect.bottom+7;
+    if(top+popoverRect.height>viewportHeight-8) top=Math.max(8,rect.top-popoverRect.height-7);
+    popover.style.left=left+'px';
+    popover.style.top=top+'px';
+  }
+
+  function facturaIds_cor(row){
+    const ids=Array.isArray(row&&row.ids_factura_cor)
+      ? row.ids_factura_cor.map(Number).filter(Number.isInteger)
+      : [];
+    const primary=Number(row&&row.id_factura_cor);
+    if(Number.isInteger(primary)&&!ids.includes(primary)) ids.unshift(primary);
+    return ids;
+  }
+
   function renderFacturasRows_cor(rows){
-    if(!rows.length) return '<tr><td colspan="11" class="ccor-ec-table-empty">No hay Facturas relacionadas a este Estado de Cuenta.</td></tr>';
-    return rows.map(row=>`
+    if(!rows.length) return '<tr><td colspan="10" class="ccor-ec-table-empty">No hay Facturas relacionadas a este Estado de Cuenta.</td></tr>';
+    return rows.map(row=>{
+      const paid=number_cor(row&&row.importe_pagado) ?? number_cor(row&&row.pagado) ?? 0;
+      const difference=number_cor(row&&row.saldo);
+      const appliedTo=text_cor(row&&row.aplicado_a_condicion,'');
+      return `
       <tr>
         <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
         <td>${escapeHtml_cor(text_cor(row.tipo_concepto))}</td>
         <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.concepto))}</td>
         <td>${escapeHtml_cor(formatDate_cor(row.fecha_factura))}</td>
         <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.subtotal))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.iva))}</td>
-        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(row.total))}</b></td>
+        <td class="ccor-ec-num">
+          <button class="ccor-ec-total-button" type="button"
+            data-factura-total-toggle
+            data-factura-total-id="${escapeHtml_cor(String(row.id_factura_cor||row.factura||''))}"
+            data-subtotal="${escapeHtml_cor(String(row.subtotal??''))}"
+            data-iva="${escapeHtml_cor(String(row.iva??''))}"
+            data-total="${escapeHtml_cor(String(row.total??''))}"
+            data-currency="${escapeHtml_cor(String(row.moneda||''))}"
+            aria-expanded="false">
+            ${escapeHtml_cor(formatAmount_cor(row.total))}
+          </button>
+        </td>
+        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(paid))}</b></td>
+        <td class="ccor-ec-num ${appliedTo?'is-applied':'is-pending'}">
+          ${appliedTo
+            ? `<span class="ccor-ec-badge is-warn">Aplicado a ${escapeHtml_cor(appliedTo)}</span>`
+            : escapeHtml_cor(formatAmount_cor(difference))}
+        </td>
         <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_factura)}">${escapeHtml_cor(text_cor(row.estatus_factura))}</span></td>
         <td>${escapeHtml_cor(formatDate_cor(row.fecha_vencimiento))}</td>
-        <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_cobranza)}">${escapeHtml_cor(text_cor(row.estatus_cobranza))}</span></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   function renderFacturasSection_cor(detail){
@@ -988,10 +1054,11 @@
         </div>
         <div class="ccor-ec-table-wrap ccor-ec-facturas-wrap">
           <table class="ccor-ec-table ccor-ec-facturas-table">
-            <thead><tr><th>Factura</th><th>Tipo</th><th>Concepto</th><th>Fecha</th><th>Mon</th><th>Subtotal</th><th>IVA</th><th>Total</th><th>Estatus factura</th><th>Vencimiento</th><th>Estatus cobranza</th></tr></thead>
+            <thead><tr><th>Factura</th><th>Tipo</th><th>Concepto</th><th>Fecha</th><th>Mon</th><th>Total</th><th>Pagado</th><th>Diferencia</th><th>Estatus</th><th>Vencimiento</th></tr></thead>
             <tbody>${renderFacturasRows_cor(rows)}</tbody>
           </table>
         </div>
+        <div id="ccor-ec-total-popover" class="ccor-ec-total-popover" role="dialog" aria-label="Desglose del total de la factura" hidden></div>
       </section>`;
   }
 
@@ -1001,8 +1068,11 @@
     const ocupadas=new Set((Array.isArray(detail&&detail.relaciones_pagos)?detail.relaciones_pagos:[])
       .map(row=>Number(row&&row.id_factura_cor)));
     const readonly=isViewerReadonly_cor();
-    const facturasById=new Map(facturas.map(row=>[Number(row.id_factura_cor),row]));
-    const disponibles=facturas.filter(row=>!ocupadas.has(Number(row.id_factura_cor)));
+    const facturasById=new Map();
+    facturas.forEach(row=>facturaIds_cor(row).forEach(id=>facturasById.set(id,row)));
+    const disponibles=facturas.filter(row=>
+      !facturaIds_cor(row).some(id=>ocupadas.has(id))
+    );
     const body=pagos.length?pagos.map(pago=>{
       const idPago=Number(pago.id_pago_cor);
       const asignadas=Array.isArray(pago.facturas)?pago.facturas:[];
@@ -1699,6 +1769,9 @@
     root.dataset.ccorEstadosCuentaBound='1';
 
     root.addEventListener('click',event=>{
+      const facturaTotal=event.target.closest('[data-factura-total-toggle]');
+      if(facturaTotal){toggleFacturaTotalPopover_cor(facturaTotal);return;}
+      if(!event.target.closest('#ccor-ec-total-popover')) closeFacturaTotalPopover_cor();
       const pagoAgregar=event.target.closest('[data-pago-agregar]');
       if(pagoAgregar){
         const row=pagoAgregar.closest('[data-pago-id]');
@@ -1738,6 +1811,7 @@
     });
 
     root.addEventListener('keydown',event=>{
+      if(event.key === 'Escape'){closeFacturaTotalPopover_cor();return;}
       if(event.key !== 'Enter' && event.key !== ' ') return;
       const row=event.target.closest('[data-ppns]');
       if(!row) return;
