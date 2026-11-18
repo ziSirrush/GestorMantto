@@ -394,7 +394,7 @@ test('Detalle y KPIs reconocen saldo historico LEGACY_HITO aun despues de desact
 
     relations = [{ id_factura_cor: 501, id_pago_cor: 91, importe_aplicado: 25 }];
     const partial = await service.detalleEstadoCuenta_cor('P14302', access);
-    assert.equal(partial.facturas[0].estatus_factura, 'No pagado');
+    assert.equal(partial.facturas[0].estatus_factura, 'Parcial');
     assert.equal(partial.facturas[0].importe_pagado, 25);
     assert.equal(partial.resumen.monedas[0].cobrado, 25);
     assert.equal(partial.resumen.monedas[0].pendiente, 125);
@@ -458,7 +458,7 @@ test('Factura manual rechaza Pagado y guarda No pagado aunque el campo venga vac
   assert.equal(inserted.estatus_factura, 'No pagado');
 });
 
-test('Detalle deriva pago parcial/completo y revierte al quitar Pago; conserva folios repetidos', async () => {
+test('Detalle deriva pago parcial/completo, consolida folios repetidos y revierte al quitar Pago', async () => {
   const connection = fakeConnection();
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   const sourceRows = [{
@@ -493,13 +493,12 @@ test('Detalle deriva pago parcial/completo y revierte al quitar Pago; conserva f
     }
   }, async () => {
     const partial = await service.detalleEstadoCuenta_cor('P14302', access);
-    assert.equal(partial.facturas.length, 2);
+    assert.equal(partial.facturas.length, 1);
+    assert.deepEqual(Array.from(partial.facturas[0].ids_factura_cor), [501, 502]);
     assert.equal(partial.facturas[0].importe_pagado, 40);
     assert.equal(partial.facturas[0].saldo, 60);
-    assert.equal(partial.facturas[0].estatus_factura, 'No pagado');
-    assert.equal(partial.facturas[1].saldo, null);
-    assert.equal(partial.facturas[1].estatus_factura, 'No pagado');
-    assert.equal(partial.estado_cuenta[0].factura, 'CFV-6925, CFV-6925');
+    assert.equal(partial.facturas[0].estatus_factura, 'Parcial');
+    assert.equal(partial.estado_cuenta[0].factura, 'CFV-6925');
     assert.equal(partial.estado_cuenta[0].pago_total, 40);
     assert.equal(partial.estado_cuenta[0].pago_contabilizado, 40);
     assert.equal(partial.estado_cuenta[0].pendiente_calculado, 60);
@@ -552,7 +551,7 @@ test('Formulario de Estado de Cuenta tambien usa importes aplicados para sus Hit
     const form = await service.formularioEstadoCuenta_cor('P14302', access);
     assert.equal(form.hitos[0].pago_total, 40);
     assert.equal(form.hitos[0].pendiente_calculado, 60);
-    assert.equal(form.hitos[0].estatus_factura, 'No pagado');
+    assert.equal(form.hitos[0].estatus_factura, 'Parcial');
   }, pagosRepository));
 });
 

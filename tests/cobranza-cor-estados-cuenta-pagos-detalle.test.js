@@ -123,7 +123,7 @@ test('un Pago acepta varias Facturas, impide reutilizarlas y limita la suma apli
     [1, 'FUENTE-123', 'Pagado'],
     [2, 'FUENTE-123', 'Pagado'],
     [1, 'FUENTE-123', 'No pagado'],
-    [1, 'FUENTE-123', 'No pagado']
+    [1, 'FUENTE-123', 'Parcial']
   ]);
   for (const index of calls.flatMap((item, position) => item === 'status' ? [position] : [])) {
     assert.equal(calls[index + 1], 'commit');

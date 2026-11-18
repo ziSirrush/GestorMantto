@@ -30,5 +30,5 @@ test('el reacomodo no modifica la distribución de escritorio y renueva el CSS d
   const app = read('core/app.js');
 
   assert.match(css, /\.ccor-ec-summary-grid\{\s*display:grid;\s*grid-template-columns:1fr 1fr;/);
-  assert.match(app, /cobranza-cor-estados-cuenta\.css\?v=20261118-detalle-movil-reacomodo-v001/);
+  assert.match(app, /cobranza-cor-estados-cuenta\.css\?v=20261118-facturas-consolidacion-v001/);
 });
