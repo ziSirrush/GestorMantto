@@ -458,7 +458,7 @@ test('Factura manual rechaza Pagado y guarda No pagado aunque el campo venga vac
   assert.equal(inserted.estatus_factura, 'No pagado');
 });
 
-test('Detalle no duplica pagado historico al consolidar Facturas repetidas', async () => {
+test('Detalle conserva Pagado por fila y consolida solo Por cobrar del Anticipo', async () => {
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   const sourceRows = [
     {
@@ -511,10 +511,13 @@ test('Detalle no duplica pagado historico al consolidar Facturas repetidas', asy
     assert.deepEqual(Array.from(detail.facturas[0].ids_factura_cor), [501, 502]);
     assert.deepEqual(Array.from(detail.facturas[1].ids_factura_cor), [503, 504]);
 
-    assert.equal(detail.estado_cuenta[0].pago_contabilizado, 31754.18);
-    assert.equal(detail.estado_cuenta[1].pago_contabilizado, 0);
+    assert.equal(detail.estado_cuenta[0].pago_contabilizado, 1163.46);
+    assert.equal(detail.estado_cuenta[0].pago_consolidado_anticipo, 31754.18);
+    assert.equal(detail.estado_cuenta[0].pendiente_calculado, 34160.5);
+    assert.equal(detail.estado_cuenta[1].pago_contabilizado, 30590.72);
     assert.equal(detail.estado_cuenta[1].pago_aplicado_a_principal, 30590.72);
     assert.equal(detail.resumen.monedas[0].cobrado, 31754.18);
+    assert.equal(detail.resumen.monedas[0].pendiente, 34160.5);
   }, pagosRepository));
 });
 
