@@ -9,7 +9,7 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 
-test('consolida Facturas duplicadas y aplica Parciales al Anticipo principal', async () => {
+test('consolida Facturas duplicadas sin duplicar Pagado y aplica Parciales al Anticipo principal', async () => {
   const connection = { release() {} };
   const repository = {
     getConnection_cor: async () => connection,
@@ -36,25 +36,25 @@ test('consolida Facturas duplicadas y aplica Parciales al Anticipo principal', a
       {
         id_factura_cor: 101, ppns: 'P-1', tipo_concepto: 'HITO',
         id_fuente_cor: 1, factura: 'CFV-9131', moneda: 'USD',
-        subtotal: 56823, iva: 9091.68, total: 65914.68, pagado: 581.73,
+        subtotal: 56823, iva: 9091.68, total: 65914.68, pagado: 1163.46,
         orden_hito: 1, hito_condicion: 'Anticipo'
       },
       {
         id_factura_cor: 102, ppns: 'P-1', tipo_concepto: 'HITO',
         id_fuente_cor: 1, factura: 'cfv-9131', moneda: 'USD',
-        subtotal: 56823, iva: 9091.68, total: 65914.68, pagado: 581.73,
+        subtotal: 56823, iva: 9091.68, total: 65914.68, pagado: 1163.46,
         orden_hito: 1, hito_condicion: 'Anticipo'
       },
       {
         id_factura_cor: 201, ppns: 'P-1', tipo_concepto: 'HITO',
         id_fuente_cor: 2, factura: 'CFV-9242', moneda: 'USD',
-        subtotal: 0, iva: 0, total: 0, pagado: 15295.36,
+        subtotal: 0, iva: 0, total: 0, pagado: 30590.72,
         orden_hito: 2, hito_condicion: 'Parcial Anticipo 1'
       },
       {
         id_factura_cor: 202, ppns: 'P-1', tipo_concepto: 'HITO',
         id_fuente_cor: 2, factura: 'CFV-9242', moneda: 'USD',
-        subtotal: 0, iva: 0, total: 0, pagado: 15295.36,
+        subtotal: 0, iva: 0, total: 0, pagado: 30590.72,
         orden_hito: 2, hito_condicion: 'Parcial Anticipo 1'
       }
     ],
