@@ -550,6 +550,22 @@
 }
 
 
+/* [Aster | 2026-11-18 | ASTER-MG | COBRANZA COR DETALLE MOVIL REACOMODO V001]
+   En móvil se intercalan las cuentas generales y los hitos de cada bloque.
+   Escritorio conserva la distribución original: ambos resúmenes antes de las tablas. */
+@media (max-width:760px){
+  .ccor-ec-detail-page > *{order:50}
+  .ccor-ec-detail-page > .ccor-ec-detail-toolbar{order:0}
+  .ccor-ec-detail-page > .ccor-ec-detail-title{order:1}
+  .ccor-ec-detail-page > .ccor-ec-project-header{order:2}
+  .ccor-ec-detail-page > .ccor-ec-summary-grid{display:contents}
+  .ccor-ec-detail-page > .ccor-ec-summary-grid > .ccor-ec-summary-card.is-supply{order:3}
+  .ccor-ec-detail-page > .ccor-ec-account-section.is-supply{order:4}
+  .ccor-ec-detail-page > .ccor-ec-summary-grid > .ccor-ec-summary-card.is-installation{order:5}
+  .ccor-ec-detail-page > .ccor-ec-account-section.is-installation{order:6}
+}
+
+
 /* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 4 DETALLE FACTURAS V001] */
 .ccor-ec-facturas-section{overflow:hidden}
 .ccor-ec-facturas-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid #e1e8ef}

@@ -90,7 +90,7 @@
       if(!style){
         style = document.createElement('link');
         style.rel = 'stylesheet';
-        style.href = './modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001';
+        style.href = './modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261118-detalle-movil-reacomodo-v001';
         style.dataset.manttoCobranzaCorEstadosCuenta = '1';
         document.head.appendChild(style);
       }
