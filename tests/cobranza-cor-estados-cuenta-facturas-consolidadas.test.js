@@ -245,6 +245,13 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   assert.match(frontendSource, /formatMoney_cor\(row\.pendiente_calculado,currency\)/);
   assert.match(frontendSource, /const backendPending = number_cor/);
   assert.match(frontendSource, /backendPending !== null/);
+
+  const loaderSource = read('core/module-loader.js');
+  assert.match(loaderSource, /cobranza-cor-estados-cuenta\.js\?v=20261118-cobranza-cor-saldo-final-v003/);
+
+  const workerSource = read('service-worker.js');
+  assert.match(workerSource, /modules\/cobranza-cor\/cobranza-cor-estados-cuenta\.js/);
+  assert.match(workerSource, /20261118-cobranza-cor-saldo-final-v001/);
   assert.equal((section.match(/CFV-9131/g) || []).length, 1);
   assert.ok(handlers.click);
   assert.ok(handlers.keydown);
