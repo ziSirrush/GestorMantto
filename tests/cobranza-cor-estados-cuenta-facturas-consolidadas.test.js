@@ -247,7 +247,7 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   assert.match(frontendSource, /backendPending !== null/);
 
   const loaderSource = read('core/module-loader.js');
-  assert.match(loaderSource, /cobranza-cor-estados-cuenta\.js\?v=20261118-cobranza-cor-saldo-final-v003/);
+  assert.match(loaderSource, /cobranza-cor-estados-cuenta\.js\?v=20261118-ds-f1-v001/);
 
   const workerSource = read('service-worker.js');
   assert.ok(workerSource.includes('function isLazyModuleAsset_gnral(url)'));

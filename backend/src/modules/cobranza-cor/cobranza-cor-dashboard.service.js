@@ -1,7 +1,7 @@
 'use strict';
 
 // DS Cobranza COR: orquestacion de lectura. No implementa ni modifica formulas financieras.
-const estadosCuentaMotor = require('./cobranza-cor.service');
+// El motor se carga al atender una consulta, no al importar el modulo en QA.
 const MAX_PROJECTS_PER_PAGE = 8;
 const DETAIL_CONCURRENCY = 2;
 const CURRENCIES = new Set(['MXN', 'USD', 'EUR', 'SIN_MONEDA']);
@@ -64,7 +64,8 @@ function currencyMatches_cor(project, currency) {
   return currencies.some(v => normalizeKey_cor(v) === currency);
 }
 
-async function listarDashboard_cor(query = {}, informationAccess, motor = estadosCuentaMotor) {
+async function listarDashboard_cor(query = {}, informationAccess, injectedMotor = null) {
+  const motor = injectedMotor || require('./cobranza-cor.service');
   const filters = normalizeDashboardQuery_cor(query);
   // Misma validacion de alcance CORELLIAN y mismo catalogo PPNS que Estados de Cuenta.
   const listado = await motor.listarEstadosCuenta_cor(
