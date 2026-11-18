@@ -6,11 +6,12 @@
   const ROUTE='cobranza-dashboard';
   const ENDPOINT='/api/cobranza-cor/dashboard';
   const PAGE_SIZE=8;
-  const CURRENCY_ORDER=['USD','MXN','EUR','SIN_MONEDA'];
+  const SUMMARY_PAGE_SIZE=24;
+  const CURRENCY_ORDER=['USD','EUR','MXN'];
   const state={
-    root:null,loading:false,sequence:0,total:0,items:[],
+    root:null,loading:false,sequence:0,total:0,items:[],complete:false,riskPage:1,
     years:[],advisors:[],
-    filters:{q:'',anio:'',asesor:'',moneda:''},
+    filters:{q:'',anio_cobro:String(new Date().getFullYear()),asesor:'',moneda:''},
     error:'',initialized:false
   };
 
@@ -52,10 +53,12 @@
       &&check.getUTCDate()===Number(match[3])?stamp:null;
   }
   function month_cor(value){return dateStamp_cor(value)===null?null:String(value).slice(0,7);}
-  function cleanAdvisor_cor(value){
-    const text=String(value||'').trim();
-    if(!text)return 'Sin asesor';
-    return text.split('-').filter(Boolean).length>1?'Varios asesores (revisar)':text;
+  function advisorInfo_cor(project){
+    const count=Number(project?.asesores_distintos)||0;
+    if(count>1)return {key:'MULTIPLE',label:'Varios asesores (revisar)'};
+    const id=Number(project?.id_asesor);
+    if(Number.isSafeInteger(id)&&id>0)return {key:'ID:'+id,label:String(project?.asesor||'ID '+id).trim()};
+    return {key:'SIN_ASESOR',label:'Sin asesor'};
   }
   function bucket_cor(map,key){
     if(!map.has(key))map.set(key,{
@@ -89,7 +92,6 @@
     const projectRisk=new Map();
     const byPPNS=new Set();
     const problems={variosAsesores:0,sinAsesor:0,hitosSinMoneda:0,sinFechaVencimiento:0,fechaFacturaDisponible:0};
-    const requestedYear=filters?.anio?Number(filters.anio):null;
     const requestedCurrency=normalize_cor(filters?.moneda);
     const analyzed=[];
 
@@ -98,13 +100,13 @@
       const ppns=String(project.ppns||'').trim();
       if(!ppns||byPPNS.has(ppns.toUpperCase()))continue;
       byPPNS.add(ppns.toUpperCase());
-      const asesor=cleanAdvisor_cor(project.asesor);
+      const advisor=advisorInfo_cor(project);
+      const asesor=advisor.label;
       if(asesor==='Varios asesores (revisar)')problems.variosAsesores++;
       if(asesor==='Sin asesor')problems.sinAsesor++;
       const allRows=motor.calcularFilas(detail);
       const rows=(Array.isArray(allRows)?allRows:[]).filter(row=>
-        (!requestedYear||Number(row?.anio_proyecto)===requestedYear)
-        &&(!requestedCurrency||normalize_cor(row?.moneda||'SIN_MONEDA')===requestedCurrency)
+        !requestedCurrency||normalize_cor(row?.moneda||'SIN_MONEDA')===requestedCurrency
       );
       const summaries=motor.resumirFilas(rows);
       const matched=new Set(rows.map(r=>Number(r?.id_fuente_cor)).filter(Number.isInteger));
@@ -152,7 +154,8 @@
       for(const summary of Array.isArray(summaries)?summaries:[]){
         const currency=normalize_cor(summary.moneda)||'SIN_MONEDA';
         const main=bucket_cor(byCurrency,currency);
-        const advisorBucket=bucket_cor(byAdvisor,asesor+'|'+currency);
+        const advisorBucket=bucket_cor(byAdvisor,advisor.key+'|'+currency);
+        advisorBucket.asesor=asesor;
         for(const b of [main,advisorBucket]){
           b.proyectos.add(ppns);
           b.total+=num_cor(summary.total)||0;
@@ -165,7 +168,8 @@
       for(const row of rows){
         const moneda=normalize_cor(row.moneda)||'SIN_MONEDA';
         const main=bucket_cor(byCurrency,moneda);
-        const advisorBucket=bucket_cor(byAdvisor,asesor+'|'+moneda);
+        const advisorBucket=bucket_cor(byAdvisor,advisor.key+'|'+moneda);
+        advisorBucket.asesor=asesor;
         const pending=Math.max(num_cor(row.pendiente_calculado)||0,0);
         const days=num_cor(row.dias_vencimiento);
         const overdue=pending>0.005&&normalize_cor(row.estatus_vencimiento)==='VENCIDO';
@@ -191,7 +195,8 @@
       for(const [key,amount] of complementEvents){
         const [moneda,mes]=key.split('|');
         const main=bucket_cor(byCurrency,moneda);
-        const advisorBucket=bucket_cor(byAdvisor,asesor+'|'+moneda);
+        const advisorBucket=bucket_cor(byAdvisor,advisor.key+'|'+moneda);
+        advisorBucket.asesor=asesor;
         addMonth_cor(main.fechasComplemento,mes,amount);
         addMonth_cor(advisorBucket.fechasComplemento,mes,amount);
       }
@@ -218,10 +223,12 @@
   }
 
   function currencyRank_cor(key){const n=CURRENCY_ORDER.indexOf(key);return n<0?99:n;}
+  function fixedCurrencies_cor(stats){return CURRENCY_ORDER.map(currency=>stats.byCurrency.get(currency)||bucket_cor(new Map(),currency));}
   function orderedCurrencies_cor(map){
     return [...map.values()].sort((a,b)=>currencyRank_cor(a.key)-currencyRank_cor(b.key));
   }
   function summarizeCard_cor(bucket){
+    if(!bucket.proyectos.size)return '<article class="ccor-ds-currency"><header><h3>'+escape_cor(bucket.key)+'</h3></header><p class="ccor-ds-muted">Sin proyectos para esta moneda.</p></article>';
     const rate=bucket.total>0?bucket.cobrado/bucket.total:null;
     const risk=bucket.pendiente>0?bucket.vencido/bucket.pendiente:null;
     return '<article class="ccor-ds-currency"><header><h3>'+escape_cor(bucket.key)+'</h3><span>'+integer_cor(bucket.proyectos.size)+' PPNS</span></header>'
@@ -237,6 +244,7 @@
       +'</div></article>';
   }
   function aging_cor(bucket){
+    if(!bucket.proyectos.size)return '<article class="ccor-ds-panel"><h3>Antigüedad · '+escape_cor(bucket.key)+'</h3><p class="ccor-ds-muted">Sin datos en esta moneda.</p></article>';
     const entries=[['corriente','Corriente (hasta 30 d)'],['31-60','31–60 d'],['61-90','61–90 d'],['91-180','91–180 d'],['181+','Más de 180 d'],['indeterminado','Sin días verificables']];
     const max=Math.max(0,...entries.map(x=>bucket.antiguedad[x[0]]||0));
     return '<article class="ccor-ds-panel"><h3>Antigüedad · '+escape_cor(bucket.key)+'</h3>'
@@ -244,133 +252,207 @@
         +(max?Math.round(((bucket.antiguedad[key]||0)/max)*100):0)+'%"></i></div><b>'
         +escape_cor(money_cor(bucket.antiguedad[key]||0,bucket.key))+'</b></div>').join('')+'</article>';
   }
-  function trend_cor(bucket){
-    const months=[...new Set([...bucket.fechasFuente.keys(),...bucket.fechasComplemento.keys()])].sort().slice(-12);
+  function trend_cor(bucket,yearValue){
+    const year=Number(yearValue)||new Date().getFullYear();
+    const monthNames=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const months=monthNames.map((name,index)=>({
+      name,key:String(year)+'-'+String(index+1).padStart(2,'0')
+    }));
     return '<article class="ccor-ds-panel"><h3>Fechas de cobro · '+escape_cor(bucket.key)+'</h3>'
-      +'<p>Dos criterios independientes; no se suman entre sí.</p>'
-      +(!months.length?'<p class="ccor-ds-muted">Sin fechas vinculables a cobros.</p>':
-      '<div class="ccor-ds-table-scroll"><table><thead><tr><th>Mes</th><th>Fecha Fuente (hitos)</th><th>Complementos aplicados</th></tr></thead><tbody>'
-      +months.map(month=>'<tr><td>'+escape_cor(month)+'</td><td>'+escape_cor(money_cor(bucket.fechasFuente.get(month)||0,bucket.key))
-        +'</td><td>'+escape_cor(money_cor(bucket.fechasComplemento.get(month)||0,bucket.key))+'</td></tr>').join('')
+      +'<p>'+year+' · Fuente y complementos separados; nunca se suman entre sí.</p>'
+      +(!bucket.proyectos.size?'<p class="ccor-ds-muted">Sin datos en esta moneda.</p>':
+      '<div class="ccor-ds-table-scroll"><table><thead><tr><th>Mes</th><th>Fuente (hitos)</th><th>Complementos aplicados</th></tr></thead><tbody>'
+      +months.map(month=>'<tr><td>'+month.name+'</td><td>'+escape_cor(money_cor(bucket.fechasFuente.get(month.key)||0,bucket.key))
+        +'</td><td>'+escape_cor(money_cor(bucket.fechasComplemento.get(month.key)||0,bucket.key))+'</td></tr>').join('')
       +'</tbody></table></div>')+'</article>';
   }
   function advisors_cor(stats){
     const groups=orderedCurrencies_cor(stats.byCurrency);
     if(!groups.length)return '';
-    return '<section class="ccor-ds-panel"><h3>Desempeño por asesor</h3><p>Un PPNS se atribuye una sola vez. Casos con varios asesores se muestran aparte.</p>'
+    return '<section class="ccor-ds-panel"><h3>Desempeño por asesor</h3><p>Acumulado por ID de asesor y PPNS, sin duplicar equipos.</p>'
       +groups.map(group=>{
         const currency=group.key;
         const advisors=[...stats.byAdvisor.values()].filter(x=>x.key.endsWith('|'+currency))
           .sort((a,b)=>b.pendiente-a.pendiente);
+        if(!advisors.length)return '';
         return '<h4>'+escape_cor(currency)+'</h4><div class="ccor-ds-table-scroll"><table><thead><tr><th>Asesor</th><th>PPNS</th><th>Cobrado</th><th>Pendiente</th><th>Vencido</th><th>% cobrado</th></tr></thead><tbody>'
-          +advisors.map(a=>'<tr><td>'+escape_cor(a.key.slice(0,-currency.length-1))+'</td><td>'+integer_cor(a.proyectos.size)
+          +advisors.map(a=>'<tr><td>'+escape_cor(a.asesor||'Sin asesor')+'</td><td>'+integer_cor(a.proyectos.size)
             +'</td><td>'+escape_cor(money_cor(a.cobrado,currency))+'</td><td>'+escape_cor(money_cor(a.pendiente,currency))
             +'</td><td>'+escape_cor(money_cor(a.vencido,currency))+'</td><td>'+pct_cor(a.total>0?a.cobrado/a.total:null)+'</td></tr>').join('')
           +'</tbody></table></div>';
       }).join('')+'</section>';
   }
   function risks_cor(stats){
-    return '<section class="ccor-ds-panel"><h3>Proyectos vencidos</h3><p>Saldo vencido por PPNS, sin multiplicar importes por equipos.</p>'
-      +(!stats.riesgos.length?'<p class="ccor-ds-muted">No hay saldos vencidos en los proyectos evaluados.</p>':
+    const total=stats.riesgos.length;
+    const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+    const page=Math.min(Math.max(1,state.riskPage),pages);
+    const selected=stats.riesgos.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+    return '<section class="ccor-ds-panel"><h3>Proyectos vencidos</h3><p>'+integer_cor(total)
+      +' PPNS-moneda vencidos en toda la cartera autorizada. Tabla paginada por '+PAGE_SIZE+'.</p>'
+      +(!total?'<p class="ccor-ds-muted">Sin saldos vencidos identificados por Estados de Cuenta.</p>':
       '<div class="ccor-ds-table-scroll"><table><thead><tr><th>PPNS</th><th>Proyecto</th><th>Asesor</th><th>Moneda</th><th>Saldo vencido</th><th>Hitos</th></tr></thead><tbody>'
-      +stats.riesgos.slice(0,40).map(r=>'<tr><td><button type="button" class="ccor-ds-link" data-ppns="'+escape_cor(r.ppns)+'">'+escape_cor(r.ppns)+'</button></td>'
+      +selected.map(r=>'<tr><td><button type="button" class="ccor-ds-link" data-ppns="'+escape_cor(r.ppns)+'">'+escape_cor(r.ppns)+'</button></td>'
         +'<td>'+escape_cor(r.proyecto)+'</td><td>'+escape_cor(r.asesor)+'</td><td>'+escape_cor(r.moneda)+'</td><td>'
         +escape_cor(money_cor(r.vencido,r.moneda))+'</td><td>'+integer_cor(r.hitos)+'</td></tr>').join('')
-      +'</tbody></table></div>')+'</section>';
+      +'</tbody></table></div>'
+      +'<div class="ccor-ds-pagination"><button type="button" class="ccor-ds-button" data-action="risk-prev"'+(page===1?' disabled':'')+'>Anterior</button>'
+      +'<span>Página '+page+' de '+pages+'</span>'
+      +'<button type="button" class="ccor-ds-button" data-action="risk-next"'+(page===pages?' disabled':'')+'>Siguiente</button></div>')
+      +'</section>';
   }
   function render_cor(){
     if(!state.root||!active_cor())return;
+    const ready=state.complete&&!state.loading&&!state.error;
     const motor=window.ManttoCobranzaCorEstadosCuenta?.motor;
     let stats=null;
-    try{stats=aggregate_cor(state.items,state.filters,motor);}catch(error){
-      state.error=error.message||'Motor no disponible.';
+    if(ready){
+      try{stats=aggregate_cor(state.items,state.filters,motor);}
+      catch(error){state.error=error?.message||'Motor de Estados de Cuenta no disponible.';}
     }
-    const total=state.total;
-    const count=state.items.length;
-    const complete=!state.loading&&!state.error&&count>=total&&total>0;
-    const currencyRows=stats?orderedCurrencies_cor(stats.byCurrency):[];
+    const fixed=stats?fixedCurrencies_cor(stats):[];
     const f=state.filters;
+    const year=Number(f.anio_cobro)||new Date().getFullYear();
+    const years=[...new Set([year,new Date().getFullYear(),...state.years.map(Number).filter(Number.isInteger)])].sort((a,b)=>b-a);
     const selected=(value,target)=>String(value)===String(target)?' selected':'';
     state.root.innerHTML=
       '<div class="ccor-ds-page"><header class="ccor-ds-hero"><div><p class="ccor-ds-eyebrow">Cobranza · CORELLIAN</p>'
-      +'<h1>Dashboard de Seguimiento</h1><p>Importes conciliados por Estados de Cuenta. Monedas independientes.</p></div>'
+      +'<h1>Dashboard de Seguimiento</h1><p>Motor financiero de Estados de Cuenta. Monedas independientes.</p></div>'
       +'<button type="button" class="ccor-ds-button" data-action="refresh">Actualizar</button></header>'
       +'<section class="ccor-ds-panel ccor-ds-filters">'
       +'<label>Buscar PPNS, proyecto o cliente<input id="ccor-ds-q" type="search" maxlength="200" value="'+escape_cor(f.q)+'" placeholder="Proyecto, cliente, PPNS"></label>'
-      +'<label>Año del proyecto<select id="ccor-ds-anio"><option value="">Todos</option>'
-      +state.years.map(y=>'<option value="'+y+'"'+selected(y,f.anio)+'>'+y+'</option>').join('')+'</select></label>'
+      +'<label>Año de cobro<select id="ccor-ds-anio">'
+      +years.map(y=>'<option value="'+y+'"'+selected(y,year)+'>'+y+'</option>').join('')+'</select></label>'
       +'<label>Asesor<select id="ccor-ds-asesor"><option value="">Todos</option>'
-      +state.advisors.map(a=>'<option value="'+escape_cor(a)+'"'+selected(a,f.asesor)+'>'+escape_cor(a)+'</option>').join('')+'</select></label>'
+      +state.advisors.map(a=>'<option value="'+Number(a.id)+'"'+selected(a.id,f.asesor)+'>'+escape_cor(a.iniciales)+'</option>').join('')+'</select></label>'
       +'<label>Moneda<select id="ccor-ds-moneda"><option value="">Todas (independientes)</option>'
       +CURRENCY_ORDER.map(c=>'<option value="'+c+'"'+selected(c,f.moneda)+'>'+escape_cor(c)+'</option>').join('')+'</select></label>'
       +'<button type="button" class="ccor-ds-button is-primary" data-action="apply">Aplicar</button>'
       +'<button type="button" class="ccor-ds-button" data-action="clear">Limpiar</button></section>'
       +'<div class="ccor-ds-status" role="status">'
       +(state.error?'<strong class="is-error">'+escape_cor(state.error)+'</strong>':
-        state.loading?'<strong>Consultando Estados de Cuenta...</strong>':
-        complete?'<strong>Todos los PPNS del filtro evaluados.</strong>':
-        '<strong>Muestra parcial: '+integer_cor(count)+' de '+integer_cor(total)+' PPNS.</strong>')
-      +'<span>Las cifras monetarias corresponden exclusivamente a los '+integer_cor(count)+' proyectos evaluados.</span></div>'
-      +(currencyRows.length?'<section class="ccor-ds-currencies">'+currencyRows.map(summarizeCard_cor).join('')+'</section>':
-        '<section class="ccor-ds-panel"><p>'+(state.loading?'Cargando resultados...':'Sin datos calculados para estos filtros.')+'</p></section>')
-      +(currencyRows.length?'<section class="ccor-ds-analytics">'+currencyRows.map(aging_cor).join('')+currencyRows.map(trend_cor).join('')+'</section>':'')
+        state.loading?'<strong>Consolidando cartera: '+integer_cor(state.items.length)
+          +(state.total?' de '+integer_cor(state.total):'')+' PPNS autorizados...</strong>':
+        ready?'<strong>Indicadores completos para '+integer_cor(state.total)+' PPNS autorizados.</strong>':
+        '<strong>Preparando indicadores globales...</strong>')
+      +'<span>Los importes se muestran solo al concluir la consolidación; las fechas se filtran por '+year+'.</span></div>'
+      +(stats?'<section class="ccor-ds-matrix">'
+         +'<div class="ccor-ds-currencies">'+fixed.map(summarizeCard_cor).join('')+'</div>'
+         +'<div class="ccor-ds-dates">'+fixed.map(x=>trend_cor(x,year)).join('')+'</div>'
+         +'<div class="ccor-ds-ages">'+fixed.map(aging_cor).join('')+'</div>'
+         +'</section>':
+         '<section class="ccor-ds-panel"><p>'+(state.error?'No fue posible consolidar la cartera; no se presentan cifras incompletas.':
+             'Evaluando todos los proyectos autorizados. No se presentan acumulados parciales.')+'</p></section>')
       +(stats&&stats.byAdvisor.size?advisors_cor(stats):'')
       +(stats?risks_cor(stats):'')
-      +(stats?'<section class="ccor-ds-panel ccor-ds-quality"><h3>Cobertura y calidad</h3><p>'
-        +integer_cor(stats.problems.sinAsesor)+' PPNS sin asesor · '+integer_cor(stats.problems.variosAsesores)
-        +' PPNS con varios asesores · '+integer_cor(stats.problems.sinFechaVencimiento)
-        +' hitos pendientes sin días de vencimiento · '+integer_cor(stats.problems.fechaFacturaDisponible)
-        +' facturas con fecha de emisión</p>'
-        +'<p>Promedio por comprobante: solo aplicaciones explícitas con fecha; de lo contrario N/D. Las fechas de Fuente y Complementos no se suman.</p>'
-        +'</section>':'')
-      +(!state.loading&&!state.error&&count<total?
-        '<div class="ccor-ds-more"><button type="button" class="ccor-ds-button is-primary" data-action="more">Cargar siguientes '+PAGE_SIZE+' PPNS</button></div>':'')
-      +'<footer class="ccor-ds-footnote">Lectura por lotes de '+PAGE_SIZE+' proyectos; sin mutaciones. '
-      +'El vencimiento usa la misma regla visible de Estados de Cuenta: VENCIDO desde 31 días. '
-      +'No se combinan MXN, USD y EUR, ni se consideran los resultados de un lote como totales de toda la cartera.</footer></div>';
+      +'<footer class="ccor-ds-footnote">Monedas en orden fijo USD · EUR · MXN. '
+      +'Importes y antigüedad: acumulados del Estado de Cuenta, con todos los PPNS autorizados y sin duplicar equipos. '
+      +'Fechas de cobro: meses enero–diciembre del año seleccionado, sin sumar Fuente con Complementos. '
+      +'Los hitos sin fecha verificable no se clasifican arbitrariamente como vencidos.</footer></div>';
   }
-
-  async function load_cor(reset){
-    if(!active_cor()||state.loading)return;
-    if(reset){state.sequence++;state.items=[];state.total=0;state.error='';}
+  async function load_cor(reset=true){
+    if(!active_cor())return false;
+    if(reset){
+      state.sequence++;
+      state.items=[];state.total=0;state.complete=false;
+      state.riskPage=1;state.error='';
+      state.advisors=[];state.years=[];
+    }
     const seq=state.sequence;
-    const page=Math.floor(state.items.length/PAGE_SIZE)+1;
-    const params=new URLSearchParams({pagina:String(page),tamano:String(PAGE_SIZE)});
-    for(const key of ['q','anio','asesor','moneda'])if(state.filters[key])params.set(key,String(state.filters[key]));
-    state.loading=true;render_cor();
+    state.loading=true;
+    render_cor();
     try{
       const client=window.ManttoHttp;
       if(!client||typeof client.get!=='function')throw new Error('No esta disponible el cliente HTTP.');
-      const response=await client.get(ENDPOINT+'?'+params.toString(),{force:true,cacheTtlMs:0});
-      if(seq!==state.sequence||!active_cor())return;
-      if(!response||response.ok===false||!Array.isArray(response.data))throw new Error(response?.message||'Respuesta del DS no valida.');
-      const pageInfo=response.paginacion||{};
-      const seen=new Set(state.items.map(x=>normalize_cor(x?.proyecto?.ppns)));
-      for(const item of response.data){
-        const key=normalize_cor(item?.proyecto?.ppns);
-        if(key&&!seen.has(key)){state.items.push(item);seen.add(key);}
+      const seen=new Set();
+      const advisors=new Map();
+      const years=new Set([new Date().getFullYear()]);
+      let initialScope=null;
+      let expectedTotal=null;
+      for(let page=1;page<=100000;page++){
+        const params=new URLSearchParams({tipo:'resumen',pagina:String(page),tamano:String(SUMMARY_PAGE_SIZE)});
+        for(const key of ['q','asesor','moneda']){
+          if(state.filters[key])params.set(key,String(state.filters[key]));
+        }
+        const response=await client.get(ENDPOINT+'?'+params.toString(),{force:true,cacheTtlMs:0});
+        if(seq!==state.sequence||!active_cor())return false;
+        if(!response||response.ok===false||!Array.isArray(response.data)||response.tipo!=='resumen'){
+          throw new Error(response?.message||'Respuesta de consolidación no válida.');
+        }
+        const pageInfo=response.paginacion||{};
+        const total=Number(pageInfo.total_proyectos);
+        const totalPages=Number(pageInfo.total_paginas);
+        if(!Number.isSafeInteger(total)||total<0||!Number.isSafeInteger(totalPages)||totalPages<0){
+          throw new Error('Paginación inválida del Dashboard.');
+        }
+        if(initialScope===null)initialScope=response.scope_aplicado;
+        else if(initialScope!==response.scope_aplicado)throw new Error('El alcance de acceso cambió durante la consolidación.');
+        if(expectedTotal===null)expectedTotal=total;
+        else if(total!==expectedTotal)throw new Error('La cartera cambió durante la consolidación. Actualiza el Dashboard.');
+        if(total>0&&page>totalPages)throw new Error('La consolidación se interrumpió antes de completar la cartera.');
+        for(const item of response.data){
+          const ppns=normalize_cor(item?.proyecto?.ppns);
+          if(!ppns||seen.has(ppns))continue;
+          seen.add(ppns);
+          state.items.push(item);
+          for(const row of Array.isArray(item.estado_cuenta)?item.estado_cuenta:[]){
+            const month=month_cor(row.fecha_pago);
+            if(month)years.add(Number(month.slice(0,4)));
+          }
+          for(const pago of Array.isArray(item.pagos)?item.pagos:[]){
+            const month=month_cor(pago.fecha_pago);
+            if(month)years.add(Number(month.slice(0,4)));
+          }
+        }
+        for(const entry of Array.isArray(response.catalogos?.asesores)?response.catalogos.asesores:[]){
+          const id=Number(entry?.id);
+          if(Number.isSafeInteger(id)&&id>0){
+            advisors.set(id,{id,iniciales:String(entry.iniciales||'ID '+id)});
+          }
+        }
+        state.total=total;
+        state.years=[...years].filter(Number.isInteger).sort((a,b)=>b-a);
+        state.advisors=[...advisors.values()].sort((a,b)=>a.iniciales.localeCompare(b.iniciales,'es'));
+        render_cor();
+        if(total===0||page===totalPages){
+          if(seen.size!==total)throw new Error('No se pudo verificar el total de PPNS. Recarga para reintentar.');
+          break;
+        }
+        if(!response.data.length)throw new Error('Se recibió un lote vacío antes de terminar la consolidación.');
       }
-      state.total=Number(pageInfo.total_proyectos)||0;
-      state.years=[...new Set([...(response.catalogos?.anios||[]),...state.years])].sort((a,b)=>b-a);
-      state.advisors=[...new Set([...(response.catalogos?.asesores||[]),...state.advisors])].sort((a,b)=>String(a).localeCompare(String(b),'es'));
-      state.error='';
+      if(seq!==state.sequence||!active_cor())return false;
+      state.complete=true;state.error='';
+      return true;
     }catch(error){
-      if(seq!==state.sequence||!active_cor())return;
+      if(seq!==state.sequence||!active_cor())return false;
+      state.complete=false;
       state.error=error?.message||'No fue posible consultar el Dashboard.';
       console.error('[Cobranza COR · DS]',error);
+      return false;
     }finally{
-      if(seq===state.sequence){state.loading=false;render_cor();}
+      if(seq===state.sequence){
+        state.loading=false;
+        render_cor();
+      }
     }
   }
   function apply_cor(clear){
     if(!state.root||!active_cor())return;
-    state.filters=clear?{q:'',anio:'',asesor:'',moneda:''}:{
+    const year=String(new Date().getFullYear());
+    const previous=state.filters;
+    const next=clear?{q:'',anio_cobro:year,asesor:'',moneda:''}:{
       q:String(state.root.querySelector('#ccor-ds-q')?.value||'').trim(),
-      anio:String(state.root.querySelector('#ccor-ds-anio')?.value||''),
+      anio_cobro:String(state.root.querySelector('#ccor-ds-anio')?.value||year),
       asesor:String(state.root.querySelector('#ccor-ds-asesor')?.value||''),
       moneda:String(state.root.querySelector('#ccor-ds-moneda')?.value||'')
     };
-    if(!state.loading)load_cor(true);
+    state.filters=next;
+    state.riskPage=1;
+    // El año de cobro filtra únicamente meses: no repetir lecturas financieras.
+    if(state.complete&&['q','asesor','moneda'].every(k=>previous[k]===next[k])){
+      render_cor();
+    }else{
+      load_cor(true);
+    }
   }
   function click_cor(event){
     if(!active_cor())return;
@@ -380,12 +462,14 @@
       if(window.ManttoPermissions?.canNavigate?.('cobranza-estados-cuenta')===true){
         window.ManttoRouter?.go?.('cobranza-estados-cuenta',{ppns:button.dataset.ppns},{navigationType:'open'});
       }else{
-        state.error='No tienes permiso para abrir Estados de Cuenta desde este modulo.';render_cor();
+        state.error='No tienes permiso para abrir Estados de Cuenta desde este módulo.';
+        render_cor();
       }
       return;
     }
     const action=button.dataset.action;
-    if(action==='more')load_cor(false);
+    if(action==='risk-prev'){state.riskPage=Math.max(1,state.riskPage-1);render_cor();}
+    if(action==='risk-next'){state.riskPage++;render_cor();}
     if(action==='refresh')load_cor(true);
     if(action==='apply')apply_cor(false);
     if(action==='clear')apply_cor(true);
@@ -399,12 +483,14 @@
       root.dataset.ccorDsBound='1';
       root.addEventListener('click',click_cor);
       root.addEventListener('keydown',event=>{
-        if(event.key==='Enter'&&event.target?.id==='ccor-ds-q'){event.preventDefault();apply_cor(false);}
+        if(event.key==='Enter'&&event.target?.id==='ccor-ds-q'){
+          event.preventDefault();apply_cor(false);
+        }
       });
     }
-    state.initialized=true;state.loading=false;state.sequence++;
-    state.filters={q:'',anio:'',asesor:'',moneda:''};
-    state.items=[];state.total=0;state.error='';
+    state.filters={q:'',anio_cobro:String(new Date().getFullYear()),asesor:'',moneda:''};
+    state.items=[];state.total=0;state.complete=false;
+    state.riskPage=1;state.error='';
     render_cor();
     load_cor(true);
     return true;

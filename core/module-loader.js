@@ -286,10 +286,10 @@
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
     'cobranza-dashboard':{
-      css:['./modules/cobranza-cor/cobranza-cor-dashboard.css?v=20261118-ds-f1-v001'],
+      css:['./modules/cobranza-cor/cobranza-cor-dashboard.css?v=20261118-ds-f2-v001'],
       js:[
         './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261118-ds-f1-v001',
-        './modules/cobranza-cor/cobranza-cor-dashboard.js?v=20261118-ds-f1-v001'
+        './modules/cobranza-cor/cobranza-cor-dashboard.js?v=20261118-ds-f2-v001'
       ]
     },
     'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261118-ds-f1-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261023-back-history-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001-limpieza-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-pdf.js?v=20261118-estado-cuenta-pdf-pausado-v002']},
