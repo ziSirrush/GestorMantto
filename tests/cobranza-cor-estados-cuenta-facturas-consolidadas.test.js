@@ -243,6 +243,8 @@ test('la tabla Facturas muestra Total interactivo, Pagado, Diferencia y Estatus 
   const frontendSource = read('modules/cobranza-cor/cobranza-cor-estados-cuenta.js');
   assert.match(frontendSource, /<span>Por cobrar<\/span>/);
   assert.match(frontendSource, /formatMoney_cor\(row\.pendiente_calculado,currency\)/);
+  assert.match(frontendSource, /const backendPending = number_cor/);
+  assert.match(frontendSource, /backendPending !== null/);
   assert.equal((section.match(/CFV-9131/g) || []).length, 1);
   assert.ok(handlers.click);
   assert.ok(handlers.keydown);

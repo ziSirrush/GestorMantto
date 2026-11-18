@@ -439,9 +439,14 @@
         : (days < 31 ? 'CORRIENTE' : 'VENCIDO');
 
       const total = number_cor(row && row.total);
-      const pending = total === null
-        ? null
-        : roundFrontendAmount_cor(total - payment);
+      const backendPending = number_cor(
+        row && row.pendiente_calculado
+      );
+      const pending = backendPending !== null
+        ? roundFrontendAmount_cor(backendPending)
+        : (total === null
+          ? null
+          : roundFrontendAmount_cor(total - payment));
 
       return {
         ...row,
