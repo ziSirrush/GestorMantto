@@ -18,7 +18,9 @@ test('La version del Dashboard, cargador y service worker invalida la revision a
   assert.ok(loader.includes('instalaciones-dashboard_cor.js?v=' + REV));
   assert.match(index,/core\/module-loader\.js\?v=[^"]+/);
   assert.ok(sw.includes(REV));
-  assert.match(sw, /needsFreshMeetingAsset_cor\(url\)/);
+  assert.match(sw, /function isLazyModuleAsset_gnral\(url\)/);
+  assert.match(sw, /\^modules\\\/\.\+\\\.\(\?:js\|css\)\$/i);
+  assert.match(sw, /isLazyModuleAsset_gnral\(url\)/);
   assert.match(sw, /fetch\(request, \{ cache:'no-store' \}\)/);
 });
 
@@ -100,4 +102,46 @@ test('El service worker consulta Dashboard JS online antes de devolver cache ant
   const result = await responseTask;
   assert.equal(result, networkResponse);
   assert.deepEqual(operations, ['network-first','open','put']);
+});
+
+
+test('El service worker aplica network-first a cualquier JS y CSS lazy de modules', async () => {
+  for (const relativePath of [
+    'modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=prueba-general',
+    'modules/ventas/ventas.css?v=prueba-general'
+  ]) {
+    const listeners = {};
+    const operations = [];
+    const networkResponse = { ok:true, clone:() => ({ok:true}) };
+    const cache = { put: async () => { operations.push('put'); } };
+    const context = {
+      URL,
+      self: {
+        location: new URL('https://zisirrush.github.io/GestorMantto/service-worker.js'),
+        addEventListener: (name, handler) => { listeners[name] = handler; }
+      },
+      caches: {
+        open: async () => { operations.push('open'); return cache; },
+        match: async () => { operations.push('cache-match'); return {ok:true}; }
+      },
+      fetch: async () => { operations.push('network-first'); return networkResponse; },
+      Response: {error:() => ({ok:false})}
+    };
+    vm.runInNewContext(sw, context);
+
+    let responseTask;
+    listeners.fetch({
+      request: {
+        url:'https://zisirrush.github.io/GestorMantto/' + relativePath,
+        method:'GET',
+        mode:'cors'
+      },
+      respondWith: task => { responseTask = task; }
+    });
+
+    assert.ok(responseTask, 'El recurso lazy debe ser manejado por el service worker.');
+    const result = await responseTask;
+    assert.equal(result, networkResponse);
+    assert.deepEqual(operations, ['network-first','open','put']);
+  }
 });
