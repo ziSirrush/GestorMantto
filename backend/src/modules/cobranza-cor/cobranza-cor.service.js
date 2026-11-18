@@ -1024,10 +1024,12 @@ function buildFacturaGroups_cor(facturaRows, relacionPagoRows) {
         && canonicalText_cor(row?.estatus_factura) === 'PAGADO'
       );
     const total = numberOrNull_cor(representative?.total);
+    // Una Factura logica consolidada puede contener filas historicas duplicadas.
+    // El campo pagado representa el pago de la Factura y no debe sumarse por duplicado.
     const applied = hasRelations
       ? relationPaid
       : sourcePayments.length
-        ? sourcePayments.reduce((sum, value) => sum + value, 0)
+        ? sourcePayments[0]
         : historicalFallback && total !== null && total >= 0
           ? total
           : 0;
