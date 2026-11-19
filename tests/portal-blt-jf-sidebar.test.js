@@ -17,16 +17,17 @@ const EXPECTED=[
   ['EQUIPOS_PARADOS','equipos-parados','Equipos Parados'],
   ['INFOGRAFIAS','infografias','Infografías'],
   ['USO_APP','uso-app','Uso de la APP'],
-  ['TIPOS_PRECALCULO','tipos-precalculo','Tipos Precalculo'],
+  ['TIPOS_PRECALCULO','tipos-precalculo','Tiempos Precalculo'],
+  ['ENCUESTAS_SATISFACCION','encuestas-satisfaccion','Encuestas de satisfacción'],
   ['KPIS','kpis','KPIS']
 ];
-test('Portal BLT es una agrupacion UNITED independiente con ocho modulos JF',()=>{
+test('Portal BLT es una agrupacion UNITED independiente con nueve entradas JF',()=>{
   const start='<section class="side-group" data-company="UNITED" data-group="portal-blt-jf">';
   assert.equal(html.split(start).length,2);
   const group=html.split(start)[1].split('</section>')[0];
   assert.match(group,/<b>Portal BLT<\/b>/);
   assert.match(group,/id="side-group-portal-blt-jf"/);
-  assert.equal((group.match(/class="side-item"/g)||[]).length,8);
+  assert.equal((group.match(/class="side-item"/g)||[]).length,9);
   const routes=new Set(),permissions=new Set();
   for(const [code,route,label] of EXPECTED){
     const fullRoute='portal-blt-jf-'+route;
@@ -39,8 +40,10 @@ test('Portal BLT es una agrupacion UNITED independiente con ocho modulos JF',()=
     assert.ok(router.includes("'"+fullRoute+"':'"+label+" (JF)'"),'Falta nombre de ruta JF');
     routes.add(fullRoute);permissions.add(fullPermission);
   }
-  assert.equal(routes.size,8);
-  assert.equal(permissions.size,8);
+  assert.equal(routes.size,9);
+  assert.equal(permissions.size,9);
+  assert.match(html,/id="view-portal-blt-jf-encuestas-satisfaccion"/);
+  assert.match(read('modules/portal-blt-jf/portal-blt-jf.js'),/pending:true/);
   assert.match(router,/const PORTAL_BLT_JF_ROUTES = new Set/);
   assert.match(router,/PORTAL_BLT_JF_ROUTES\.has\(route\) && window\.ManttoPermissions\?\.canNavigate\?\.\(route\)!==true/);
   assert.match(sidebar,/if\(exactPermissionCode\)\{/);

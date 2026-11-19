@@ -33,7 +33,8 @@
     'portal-blt-jf-equipos-parados':'Equipos Parados (JF)',
     'portal-blt-jf-infografias':'Infografías (JF)',
     'portal-blt-jf-uso-app':'Uso de la APP (JF)',
-    'portal-blt-jf-tipos-precalculo':'Tipos Precalculo (JF)',
+    'portal-blt-jf-tipos-precalculo':'Tiempos Precalculo (JF)',
+    'portal-blt-jf-encuestas-satisfaccion':'Encuestas de satisfacción (JF)',
     'portal-blt-jf-kpis':'KPIS (JF)',
     'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional', 'cobranza-uni-administracion':'Administración'
   };
@@ -55,6 +56,7 @@
     'portal-blt-jf-infografias',
     'portal-blt-jf-uso-app',
     'portal-blt-jf-tipos-precalculo',
+    'portal-blt-jf-encuestas-satisfaccion',
     'portal-blt-jf-kpis'
   ]);
   const COBRANZA_ROUTES_UNI = new Set([

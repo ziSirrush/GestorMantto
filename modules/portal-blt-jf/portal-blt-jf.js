@@ -5,7 +5,8 @@
     'portal-blt-jf-equipos-criticos':{vista:'equipos-criticos',title:'Equipos Críticos (JF)'},
     'portal-blt-jf-equipos-parados':{vista:'equipos-parados',title:'Equipos Parados (JF)'},
     'portal-blt-jf-infografias':{vista:'infografias',title:'Infografías (JF)'},
-    'portal-blt-jf-uso-app':{vista:'uso-app',title:'Uso de la APP (JF)'}
+    'portal-blt-jf-uso-app':{vista:'uso-app',title:'Uso de la APP (JF)'},
+    'portal-blt-jf-encuestas-satisfaccion':{title:'Encuestas de satisfacción (JF)',pending:true}
   });
 
   function message(view, title, text){
@@ -18,6 +19,10 @@
     const config = VIEWS[route];
     const view = document.getElementById('view-' + route);
     if(!config || !view) return false;
+    if(config.pending){
+      message(view, config.title, 'La vista está registrada y pendiente de integrar su contenido.');
+      return true;
+    }
     message(view, config.title, 'Abriendo la vista del Portal BLT…');
     try{
       const response = await window.ManttoHttp.request('/api/portal-blt-jf/pase', {
