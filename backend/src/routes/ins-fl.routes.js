@@ -12,10 +12,7 @@ const {
   requireProjectPhotoManager_gnral,
   requireCorellianProjectPhotoScope_gnral
 } = require('../middleware/project-photo.middleware');
-// [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 3]
-// Enganchar cambios de fechas/nombres despues del COMMIT oficial de ins_fl.
-const { ejecutarSyncConAjustadores } = require('../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.ajustadores-sync.service');
-const { ejecutarSyncConMontadores } = require('../modules/instalaciones-programacion-personal/instalaciones-programacion-personal.montadores-sync.service');
+// INT9: la sincronizacion M2M desde Sheets NO crea ni concilia asignaciones.
 
 const requireInsFlIntegration = requireIntegrationAuthFor('INTEGRATION_INS_FL_ID');
 
@@ -57,15 +54,8 @@ async function syncWithHeldAltasLockCor(req,res,next) {
     }
   };
   try {
-    // Conservar el candado durante TODO el sync original de ins_fl, pero
-    // liberarlo tras su resultado/COMMIT antes de la reconciliacion F3.
-    // Asi F3 no bloquea la siguiente carga de Altas desde GAS.
-    const syncOriginal=async(request,response)=>{
-      try {return await insFlController.syncInsFl(request,response);}
-      finally {await releaseOnce();}
-    };
-    return await ejecutarSyncConMontadores(req,res,(request,response)=>
-      ejecutarSyncConAjustadores(request,response,syncOriginal));
+    // Solo sincronizacion FL; las conciliaciones requieren guardado humano.
+    return await insFlController.syncInsFl(req,res);
   } catch(error) {
     return next(error);
   } finally {

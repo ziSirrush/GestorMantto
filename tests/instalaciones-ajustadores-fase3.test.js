@@ -66,11 +66,43 @@ test('F3: la fecha congelada historica no hereda modificaciones',async()=>{
  state.equipment.fecha_fin_ajuste_real='2028-01-01';await api.reconciliarEquipo(21,req);
  assert.equal(byOrigin(state,'AUTOMATICA_FL')[0].fecha_hasta,'2026-11-15');
 });
-test('F3: otra vez 06-A reanima el mismo registro sin INSERT',async()=>{
+test('F3: reingreso de ajustador historico no reabre semanas anteriores',async()=>{
  const {state,api}=createFixture();await api.reconciliarEquipo(21,req);
  state.equipment.estatus='08-T';await api.reconciliarEquipo(21,req);
  state.equipment.estatus='06-A';const r=await api.reconciliarEquipo(21,req);
- assert.equal(r.actualizadas,1);assert.equal(byOrigin(state,'AUTOMATICA_FL').length,1);
+ assert.equal(r.estado,'REQUIERE_REVISION');
+ assert.equal(r.motivo,'AJUSTADOR_REINGRESO_HISTORICO');
+ assert.equal(byOrigin(state,'AUTOMATICA_FL').length,1);
+ assert.equal(byOrigin(state,'AUTOMATICA_FL')[0].es_historico,1);
+});
+test('F3: relevo conserva la semana anterior y fecha propia del nuevo',async()=>{
+ const {state,api}=createFixture({equipment:{fecha_fin_ajuste_planeado:'2026-12-20'},
+  people:[{id_personal:5,nombre:'Ana',activo:1,tipo_personal:'AJUSTADOR'},
+          {id_personal:6,nombre:'Bruno',activo:1,tipo_personal:'AJUSTADOR'}]});
+ await api.reconciliarEquipo(21,req);
+ state.equipment.ajustador='Bruno';
+ const r=await api.reconciliarEquipo(21,{tecnico:true,fechaEfectiva:'2026-11-18'});
+ assert.equal(r.creadas,1);assert.equal(r.historicas,1);
+ const rows=byOrigin(state,'AUTOMATICA_FL');
+ const old=rows.find(x=>x.id_personal===5),fresh=rows.find(x=>x.id_personal===6);
+ assert.equal(old.fecha_hasta,'2026-11-17');
+ assert.equal(old.es_historico,1);
+ assert.equal(fresh.fecha_desde,'2026-11-18');
+ assert.equal(fresh.es_historico,0);
+ const again=await api.reconciliarEquipo(21,{tecnico:true,fechaEfectiva:'2026-11-18'});
+ assert.equal(again.estado,'SIN_CAMBIOS');
+ assert.equal(fresh.fecha_desde,'2026-11-18');
+});
+test('F3: relevo fuera de fechas no inventa semanas de participacion',async()=>{
+ const {state,api}=createFixture({people:[
+   {id_personal:5,nombre:'Ana',activo:1,tipo_personal:'AJUSTADOR'},
+   {id_personal:6,nombre:'Bruno',activo:1,tipo_personal:'AJUSTADOR'}]});
+ await api.reconciliarEquipo(21,req);
+ state.equipment.ajustador='Bruno';
+ const r=await api.reconciliarEquipo(21,{tecnico:true,fechaEfectiva:'2026-11-18'});
+ assert.equal(r.estado,'REQUIERE_REVISION');
+ assert.equal(r.motivo,'RELEVO_FUERA_DE_PERIODO');
+ assert.equal(byOrigin(state,'AUTOMATICA_FL').length,1);
 });
 test('F3: si la identidad es ambigua no muta el sistema',async()=>{
  const {state,api}=createFixture({people:[{id_personal:5,nombre:'Ana',activo:1,tipo_personal:'AJUSTADOR'},

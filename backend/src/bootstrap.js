@@ -13,7 +13,7 @@ const { startEquiposCriticosSalidaU35Job, stopEquiposCriticosSalidaU35Job } = re
 const { startMovimientosCriticosCierreSemanalJob, stopMovimientosCriticosCierreSemanalJob } = require('./jobs/movimientosCriticosCierreSemanal.job');
 const { startInstalacionesAdministracionCalculadosJob, stopInstalacionesAdministracionCalculadosJob } = require('./jobs/instalacionesAdministracionCalculados.job');
 const { startCobranzaUniFkValidatorJob, stopCobranzaUniFkValidatorJob } = require('./jobs/cobranzaUniFkValidator.job');
-const {startJob:startInt9DailyJob,stopJob:stopInt9DailyJob}=require('./jobs/instalacionesProgramacionPersonal.job');
+const {startJob:startInt9DailyJob,stopJob:stopInt9DailyJob}=require('./jobs/instalacionesProgramacionAuditoria.job');
 const storageSchema = require('./services/storage/storage-schema.service');
 
 let server = null;
