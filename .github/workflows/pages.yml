@@ -78,6 +78,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
     steps:
@@ -98,6 +99,33 @@ jobs:
         with:
           name: github-pages-${{ github.run_attempt }}
           path: 'dist/web'
+
+      # Al subir el artefacto, GitHub Actions puede tardar en indexarlo;
+      # deploy-pages lo consulta inmediatamente y falla con "No artifacts named".
+      - name: Confirmar que GitHub Pages reconoce el artefacto publicado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --location --max-time 15 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100" \
+              | jq -e --arg name "$ARTIFACT_NAME" \
+                  '.artifacts | any(.name == $name and .expired == false)' >/dev/null; then
+              echo "Artefacto $ARTIFACT_NAME visible en GitHub Actions"
+              exit 0
+            fi
+            echo "Artefacto aun sin indexar (intento $attempt de 20)"
+            sleep 3
+          done
+          echo "::error::GitHub Actions no indexó el artefacto $ARTIFACT_NAME"
+          exit 1
 
       - name: Deploy to GitHub Pages
         id: deployment
