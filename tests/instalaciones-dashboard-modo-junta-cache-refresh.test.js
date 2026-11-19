@@ -12,12 +12,15 @@ const frontend = read('modules/instalaciones-dashboard/instalaciones-dashboard_c
 const loader = read('core/module-loader.js');
 const index = read('index.html');
 const sw = read('service-worker.js');
-const REV = '20261110-snapshot-lazy-v001';
+const REV = loader.match(/instalaciones-dashboard_cor\.js\?v=([^'"]+)/)?.[1];
+const CSS_REV = loader.match(/instalaciones-dashboard_cor\.css\?v=([^'"]+)/)?.[1];
+const PRIOR_REV = '20261110-snapshot-lazy-v001';
 
-test('La version del Dashboard, cargador y service worker invalida la revision anterior', () => {
-  assert.ok(loader.includes('instalaciones-dashboard_cor.js?v=' + REV));
+test('Dashboard actualiza sus recursos lazy y service worker los consulta en red', () => {
+  assert.ok(REV, 'Debe existir un token de cache para Dashboard JS');
+  assert.equal(REV, CSS_REV, 'Dashboard JS y CSS deben usar el mismo token');
+  assert.notEqual(REV, PRIOR_REV, 'El token del Dashboard no puede ser la revision anterior');
   assert.match(index,/core\/module-loader\.js\?v=[^"]+/);
-  assert.ok(sw.includes(REV));
   assert.match(sw, /function isLazyModuleAsset_gnral\(url\)/);
   assert.match(sw, /\^modules\\\/\.\+\\\.\(\?:js\|css\)\$/i);
   assert.match(sw, /isLazyModuleAsset_gnral\(url\)/);
@@ -25,17 +28,23 @@ test('La version del Dashboard, cargador y service worker invalida la revision a
 });
 
 test('Modo Junta renderiza Asesor, Ciudad, Supervisor y CPVP como celdas editables', () => {
+  const visualStart = frontend.indexOf('function installationStatusStyle_cor(');
+  const visualEnd = frontend.indexOf('const DASHBOARD_CONFIG_KEY_PREFIX_COR', visualStart);
   const blockStart = frontend.indexOf('const QUICK_EDIT_FIELDS_COR =');
   const blockEnd = frontend.indexOf('const PERMISSIONS_COR =', blockStart);
   const editStart = frontend.indexOf('function quickEditConfig_cor(');
   const editEnd = frontend.indexOf('function dateInputValue_cor(', editStart);
   const renderStart = frontend.indexOf('function resolveColumnValue_cor(');
   const renderEnd = frontend.indexOf('async function loadSummary_cor(', renderStart);
+  assert.ok(visualStart >= 0 && visualEnd > visualStart, 'Deben incluirse las funciones visuales reales');
   assert.ok(blockStart >= 0 && blockEnd > blockStart);
   assert.ok(editStart >= 0 && editEnd > editStart);
   assert.ok(renderStart >= 0 && renderEnd > renderStart);
   const node = { innerHTML: '' };
+  const paletteWindow = {};
+  vm.runInNewContext(read('core/instalaciones-estatus-colores.js'), { window:paletteWindow });
   const context = {
+    window:paletteWindow,
     state: { meetingMode: true, report: null },
     raw: value => String(value == null ? '' : value).trim(),
     esc: value => String(value == null ? '' : value),
@@ -48,7 +57,8 @@ test('Modo Junta renderiza Asesor, Ciudad, Supervisor y CPVP como celdas editabl
     bindResultRows_cor: () => {},
     $: id => id === 'idb-cor-report-result' ? node : null
   };
-  const source = frontend.slice(blockStart, blockEnd) + '\n' +
+  const source = frontend.slice(visualStart, visualEnd) + '\n' +
+    frontend.slice(blockStart, blockEnd) + '\n' +
     frontend.slice(editStart, editEnd) + '\n' +
     frontend.slice(renderStart, renderEnd) + '\nthis.paint = renderReport_cor;';
   vm.runInNewContext(source, context);
@@ -69,6 +79,8 @@ test('Modo Junta renderiza Asesor, Ciudad, Supervisor y CPVP como celdas editabl
   }
   assert.match(node.innerHTML, /data-idb-cor-cell-edit/);
   assert.match(node.innerHTML, /aria-label="Editar Asesor/);
+  assert.match(node.innerHTML, /--ins-status-color:#FF9999/, '02-OC conserva el color aprobado');
+  assert.match(node.innerHTML, /idb-cor-equipment-stage/, 'Se distingue visualmente la referencia');
 });
 
 test('El service worker consulta Dashboard JS online antes de devolver cache antiguo', async () => {
