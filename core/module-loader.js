@@ -283,6 +283,7 @@
     'portal-blt-jf-equipos-parados':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
     'portal-blt-jf-infografias':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
     'portal-blt-jf-uso-app':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-encuestas-satisfaccion':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261119-portal-blt-jf-encuestas-v001']},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
     'cobranza-dashboard':{
