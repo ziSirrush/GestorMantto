@@ -4,6 +4,26 @@ const db = require('../../config/db');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
 const { sqlMexicoCityToday } = require('../../utils/temporal');
 
+
+function rangesPreventivosMeses_uni(values) {
+  const keys = [...new Set((Array.isArray(values) ? values : [])
+    .map(value => String(value || '').trim())
+    .filter(value => /^\d{4}-(0[1-9]|1[0-2])$/.test(value)))].sort();
+  const ranges = [];
+  for (const key of keys) {
+    const [year, month] = key.split('-').map(Number);
+    const index = year * 12 + month - 1;
+    const last = ranges[ranges.length - 1];
+    if (last && last.endIndex === index) last.endIndex += 1;
+    else ranges.push({startIndex:index,endIndex:index+1});
+  }
+  const toIso = index => {
+    const year = Math.floor(index / 12), month = index % 12 + 1;
+    return year + '-' + String(month).padStart(2, '0') + '-01';
+  };
+  return ranges.map(range => ({from:toIso(range.startIndex),to:toIso(range.endIndex)}));
+}
+
 function officialProjectZoneSql(ticketAlias) {
   const a = String(ticketAlias || 't');
   return `(
@@ -159,6 +179,12 @@ async function getSupervisoresActivosPorZona(informationAccess = null) {
 
 async function getPreventivosPorZona(mes, informationAccess = null) {
   const scope = informationRecordScope.buildPortafolioScopeSql_gnral(informationAccess, 'p');
+  // Flag reversible: la ruta anterior mantiene el contrato hasta validar Aiven.
+  const interval = process.env.BLT_OPT_PREVENTIVOS_RANGE_V1 === '1'
+    ? rangesPreventivosMeses_uni([mes])[0] : null;
+  const whereMes = interval
+    ? 'sp.mes_servicio >= ? AND sp.mes_servicio < ?'
+    : "DATE_FORMAT(sp.mes_servicio, '%Y-%m') = ?";
   const [rows] = await db.query(`
     SELECT
       z_prev.id_zona,
@@ -172,13 +198,13 @@ async function getPreventivosPorZona(mes, informationAccess = null) {
     INNER JOIN z_op z_prev
       ON z_prev.id_zona = p.zona_id
      AND z_prev.estado = 1
-    WHERE DATE_FORMAT(sp.mes_servicio, '%Y-%m') = ?
+    WHERE ${whereMes}
       AND sp.tipo_servicio = 'PREVENTIVO'
       AND p.estado_registro = 1
       AND (p.inactivo IS NULL OR UPPER(TRIM(p.inactivo)) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))
       AND ${scope.sql}
     GROUP BY z_prev.id_zona, z_prev.zona
-  `, [mes, ...(scope.params || [])]);
+  `, [...(interval ? [interval.from, interval.to] : [mes]), ...(scope.params || [])]);
 
   return Array.isArray(rows) ? rows : [];
 }
@@ -189,7 +215,14 @@ async function getPreventivosPorMeses(meses, informationAccess = null) {
     .filter((value) => /^\d{4}-\d{2}$/.test(value)))];
   if (!list.length) return [];
   const scope = informationRecordScope.buildPortafolioScopeSql_gnral(informationAccess, 'p');
-  const placeholders = list.map(() => '?').join(',');
+  const intervals = process.env.BLT_OPT_PREVENTIVOS_RANGE_V1 === '1'
+    ? rangesPreventivosMeses_uni(list) : null;
+  if (intervals && !intervals.length) return [];
+  const monthWhere = intervals
+    ? '(' + intervals.map(() => '(sp.mes_servicio >= ? AND sp.mes_servicio < ?)').join(' OR ') + ')'
+    : "DATE_FORMAT(sp.mes_servicio, '%Y-%m') IN (" + list.map(() => '?').join(',') + ")";
+  const monthParams = intervals
+    ? intervals.flatMap(range => [range.from, range.to]) : list;
   const sql = [
     "SELECT DATE_FORMAT(sp.mes_servicio, '%Y-%m') AS mes,",
     "z_prev.id_zona, z_prev.zona,",
@@ -199,14 +232,14 @@ async function getPreventivosPorMeses(meses, informationAccess = null) {
     "FROM servicios_preventivos sp",
     "INNER JOIN portafolio p ON p.numero_equipo = sp.numero_equipo",
     "INNER JOIN z_op z_prev ON z_prev.id_zona = p.zona_id AND z_prev.estado = 1",
-    "WHERE DATE_FORMAT(sp.mes_servicio, '%Y-%m') IN (" + placeholders + ")",
+    "WHERE " + monthWhere,
     "AND sp.tipo_servicio = 'PREVENTIVO'",
     "AND p.estado_registro = 1",
     "AND (p.inactivo IS NULL OR UPPER(TRIM(p.inactivo)) NOT IN ('SI','SÍ','1','TRUE','INACTIVO'))",
     "AND (" + scope.sql + ")",
     "GROUP BY DATE_FORMAT(sp.mes_servicio, '%Y-%m'), z_prev.id_zona, z_prev.zona"
   ].join(' ');
-  const [rows] = await db.query(sql, [...list, ...(scope.params || [])]);
+  const [rows] = await db.query(sql, [...monthParams, ...(scope.params || [])]);
   return Array.isArray(rows) ? rows : [];
 }
 
@@ -250,6 +283,7 @@ module.exports = {
   getSupervisoresActivosPorZona,
   getPreventivosPorZona,
   getPreventivosPorMeses,
+  rangesPreventivosMeses_uni,
   getCriticosCodigos,
   officialProjectZoneSql,
   officialProjectZoneIdSql
