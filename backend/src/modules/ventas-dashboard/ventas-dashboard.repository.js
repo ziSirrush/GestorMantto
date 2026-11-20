@@ -353,16 +353,25 @@ async function getCommercialTables(connection, userIds, requestedYear) {
       OR UPPER(TRIM(COALESCE(q.asesor, ''))) = UPPER(TRIM(COALESCE(vc.iniciales, '')))
     )`;
 
+  const optimized=process.env.BLT_OPT_VENTAS_CLIENT_KPIS_V1==='1';
+  const clientStatsSql=optimized
+    ? `(SELECT JSON_OBJECT(
+          'cotizaciones', COUNT(*),
+          'en_proceso', COUNT(CASE WHEN UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) NOT IN ('VENDIDO','PERDIDO') THEN 1 END),
+          'vendidas', COUNT(CASE WHEN UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'VENDIDO' THEN 1 END),
+          'perdidas', COUNT(CASE WHEN UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'PERDIDO' THEN 1 END))
+         FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}) AS __kpi_stats`
+    : `(SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}) AS cotizaciones,
+       (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}
+         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) NOT IN ('VENDIDO', 'PERDIDO')) AS en_proceso,
+       (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}
+         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'VENDIDO') AS vendidas,
+       (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}
+         AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'PERDIDO') AS perdidas`;
   const [clients] = await connection.query(
     `SELECT vc.id_cliente, vc.nombre_empresa, vc.razon_social, vc.iniciales,
             vc.ciudad, vc.estado, vc.tipo_cliente,
-            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}) AS cotizaciones,
-            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}
-              AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) NOT IN ('VENDIDO', 'PERDIDO')) AS en_proceso,
-            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}
-              AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'VENDIDO') AS vendidas,
-            (SELECT COUNT(*) FROM ventas_cotizaciones_cor q WHERE ${quoteRelationSql}
-              AND UPPER(TRIM(COALESCE(q.estatus_proyecto, ''))) = 'PERDIDO') AS perdidas
+            ${clientStatsSql}
        FROM ventas_clientes vc
       WHERE vc.activo = 1
         AND (
@@ -414,7 +423,13 @@ async function getCommercialTables(connection, userIds, requestedYear) {
     cotizaciones: openQuotes,
     ventas: soldQuotes,
     perdido: lostQuotes,
-    clientes: clients,
+    clientes: optimized ? clients.map(row=>{
+      const parsed=typeof row.__kpi_stats==='string'?JSON.parse(row.__kpi_stats):row.__kpi_stats||{};
+      const {__kpi_stats,...clean}=row;
+      return {...clean,cotizaciones:Number(parsed.cotizaciones||0),
+        en_proceso:Number(parsed.en_proceso||0),vendidas:Number(parsed.vendidas||0),
+        perdidas:Number(parsed.perdidas||0)};
+    }) : clients,
     redes: networks,
     prospeccion: prospecting
   };
