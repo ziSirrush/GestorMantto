@@ -225,14 +225,23 @@ async function getDashboard(scope) {
   if (!snap.source) return {ok:true,source:null,kpis:null,companies:[],warehouses:[],topByVolume:[],topByValue:[],coverage:{valor:false}};
   const base=inventorySql(scope,snap.source,snap.catalog);
   const grouped=groupedRows(base);
+  // Un ROLLUP devuelve subtotal por empresa y total global en una sola
+  // evaluacion del agregado. El dominio de empresa siempre es no-NULL:
+  // COALESCE(subsidiaria, id_subsidiaria_ns NOT NULL).
+  const optimized=process.env.BLT_OPT_ALMACEN_FILTERS_V1==='1';
   const [k,co,wc,ws,tv,tv2]=await Promise.all([
-    db.query(`SELECT COUNT(*) AS referencias,COALESCE(SUM(fisico),0) AS piezas,
+    optimized?Promise.resolve([[]]):db.query(`SELECT COUNT(*) AS referencias,COALESCE(SUM(fisico),0) AS piezas,
       SUM(CASE WHEN fisico<=0 THEN 1 ELSE 0 END) AS sinStock,
       SUM(CASE WHEN valor IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,
       SUM(valor) AS valorTotal FROM (${grouped.sql}) g`,grouped.params),
-    db.query(`SELECT empresa,COUNT(*) AS referencias,COALESCE(SUM(fisico),0) AS piezas,
-      SUM(CASE WHEN valor IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,SUM(valor) AS valorTotal
-      FROM (${grouped.sql}) g GROUP BY empresa`,grouped.params),
+    db.query(optimized
+      ? `SELECT empresa,COUNT(*) AS referencias,COALESCE(SUM(fisico),0) AS piezas,
+         SUM(CASE WHEN fisico<=0 THEN 1 ELSE 0 END) AS __sinStock,
+         SUM(CASE WHEN valor IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,SUM(valor) AS valorTotal
+         FROM (${grouped.sql}) g GROUP BY empresa WITH ROLLUP`
+      : `SELECT empresa,COUNT(*) AS referencias,COALESCE(SUM(fisico),0) AS piezas,
+         SUM(CASE WHEN valor IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,SUM(valor) AS valorTotal
+         FROM (${grouped.sql}) g GROUP BY empresa`,grouped.params),
     db.query(`SELECT COUNT(DISTINCT idUbicacionNs) AS almacenes FROM (${base.sql}) v WHERE fisico>0`,base.params),
     db.query(`SELECT almacen,empresa,COUNT(*) AS referencias,COALESCE(SUM(fisico),0) AS piezas,SUM(valor) AS valorTotal
       FROM (${base.sql}) v WHERE fisico>0 GROUP BY idSubsidiariaNs,idUbicacionNs,almacen,empresa
@@ -240,13 +249,15 @@ async function getDashboard(scope) {
     db.query(`SELECT codigo,articulo,empresa,fisico AS total FROM (${grouped.sql}) g WHERE fisico>0 ORDER BY fisico DESC LIMIT 15`,grouped.params),
     db.query(`SELECT codigo,articulo,empresa,valor AS total FROM (${grouped.sql}) g WHERE fisico>0 AND valor IS NOT NULL ORDER BY valor DESC LIMIT 15`,grouped.params)
   ]);
-  const sum=k[0][0]||{};
+  const rollup=optimized?(co[0].find(row=>row.empresa===null)||{}):null;
+  const sum=optimized?{...rollup,sinStock:rollup.__sinStock}:(k[0][0]||{});
+  const companyRows=optimized?co[0].filter(row=>row.empresa!==null).map(({__sinStock,...row})=>row):co[0];
   return {ok:true,source:snap.source,kpis:{
     referencias:Number(sum.referencias||0),piezas:Number(sum.piezas||0),
     almacenes:Number(wc[0][0]?.almacenes||0),sinStock:Number(sum.sinStock||0),
     valorTotal:Number(sum.filasConValor||0)>0 ? Number(sum.valorTotal||0):null
   },coverage:{valor:Number(sum.filasConValor||0)>0},
-  companies:co[0].map(x=>({...convert(x),valorTotal:Number(x.filasConValor||0)>0?Number(x.valorTotal||0):null})),
+  companies:companyRows.map(x=>({...convert(x),valorTotal:Number(x.filasConValor||0)>0?Number(x.valorTotal||0):null})),
   warehouses:ws[0].map(x=>({...convert(x),tipo:warehouseType(x.almacen)})),topByVolume:tv[0].map(convert),topByValue:tv2[0].map(convert)};
 }
 
@@ -279,10 +290,19 @@ async function getCatalogs(scope) {
   const snap=await snapshot(scope);
   if (!snap.source)return {ok:true,source:null,companies:[],categories:[],warehouses:[]};
   const inv=inventorySql(scope,snap.source,snap.catalog);
+  // La empresa y el almacen dependen solo del inventario; omitir la
+  // agregacion de catalogo dos veces sin alterar la consulta de categorias.
+  const optimized=process.env.BLT_OPT_ALMACEN_FILTERS_V1==='1';
+  const rawSql=`SELECT
+      COALESCE(NULLIF(TRIM(i.subsidiaria),''),CONCAT('Subsidiaria ',i.id_subsidiaria_ns)) AS empresa,
+      COALESCE(NULLIF(TRIM(i.almacen_ubicacion),''),CONCAT('Ubicacion ',i.id_ubicacion_ns)) AS almacen
+      FROM almacen_ns_inventario i
+      WHERE i.id_lote=? AND i.id_subsidiaria_ns IN (?)`;
+  const rawParams=[snap.source.loteImportacion,scope.subsidiaryIds];
   const [co,ca,wh]=await Promise.all([
-    db.query(`SELECT DISTINCT empresa AS value FROM (${inv.sql}) v ORDER BY empresa`,inv.params),
+    db.query(`SELECT DISTINCT empresa AS value FROM (${optimized?rawSql:inv.sql}) v ORDER BY empresa`,optimized?rawParams:inv.params),
     db.query(`SELECT DISTINCT categoria AS value FROM (${inv.sql}) v WHERE categoria IS NOT NULL ORDER BY categoria`,inv.params),
-    db.query(`SELECT DISTINCT almacen AS value FROM (${inv.sql}) v ORDER BY almacen`,inv.params)
+    db.query(`SELECT DISTINCT almacen AS value FROM (${optimized?rawSql:inv.sql}) v ORDER BY almacen`,optimized?rawParams:inv.params)
   ]);
   return {ok:true,source:snap.source,companies:co[0].map(x=>x.value),categories:ca[0].map(x=>x.value),warehouses:wh[0].map(x=>x.value)};
 }
