@@ -91,8 +91,11 @@ async function preflight(database=pool()) {
   if (!Array.isArray(foreignKeys) || foreignKeys.length>0) throw blocked('FKs no auditadas');
   return result;
 }
+const statementCache = new Map();
+function sqlCacheEnabled(){return typeof process!=='undefined' && process.env.BLT_OPT_NS_UPSERT_SQL_CACHE_V1==='1';}
 function insertStatement(count) {
   if (!Number.isSafeInteger(count) || count<1 || count>CHUNK_ROWS) throw blocked('fragmento invalido');
+  if(sqlCacheEnabled() && statementCache.has(count))return statementCache.get(count);
   const cols=mapping.COLUMNS.map(name=>'`'+name+'`');
   const fields='('+cols.join(',')+')';
   const params='('+mapping.COLUMNS.map(()=>'?').join(',')+')';
@@ -100,8 +103,10 @@ function insertStatement(count) {
     const col='`'+name+'`';
     return `${col}=COALESCE(VALUES(${col}),${col})`;
   }).join(',');
-  return `INSERT INTO \`${TABLE}\` ${fields} VALUES ${Array(count).fill(params).join(',')} `+
+  const sql=`INSERT INTO \`${TABLE}\` ${fields} VALUES ${Array(count).fill(params).join(',')} `+
     `ON DUPLICATE KEY UPDATE ${changes}`;
+  if(sqlCacheEnabled() && count>=1 && count<=CHUNK_ROWS)statementCache.set(count,sql);
+  return sql;
 }
 async function publishRows(rows,database=pool(),shouldContinue=()=>true) {
   if (!Array.isArray(rows) || rows.length<1 || rows.length>10000) {

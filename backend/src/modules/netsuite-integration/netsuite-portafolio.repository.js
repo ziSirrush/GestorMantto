@@ -74,7 +74,10 @@ async function preflight(database = pool()) {
   return lengths;
 }
 
+const statementCache = new Map();
+function sqlCacheEnabled(){return typeof process!=='undefined' && process.env.BLT_OPT_NS_UPSERT_SQL_CACHE_V1==='1';}
 function insertStatement(count) {
+  if(sqlCacheEnabled() && statementCache.has(count))return statementCache.get(count);
   const cols = mapping.COLUMNS.map(name => '`' + name + '`');
   const fields = '(' + cols.join(',') + ')';
   const values = '(' + cols.map(() => '?').join(',') + ')';
@@ -83,8 +86,10 @@ function insertStatement(count) {
     // Fila nueva: campos vacios -> NULL; fila existente: NULL entrante no borra datos.
     return q + ' = COALESCE(VALUES(' + q + '), ' + q + ')';
   });
-  return `INSERT INTO \`${TABLE}\` ${fields} VALUES ${Array(count).fill(values).join(',')} ` +
+  const sql=`INSERT INTO \`${TABLE}\` ${fields} VALUES ${Array(count).fill(values).join(',')} ` +
     `ON DUPLICATE KEY UPDATE ${changes.join(', ')}`;
+  if(sqlCacheEnabled() && count>=1 && count<=CHUNK_ROWS)statementCache.set(count,sql);
+  return sql;
 }
 
 async function publishRows(rows, database = pool(), shouldContinue = () => true) {
