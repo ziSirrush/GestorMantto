@@ -128,6 +128,21 @@ function likeParam(value) {
   return text ? '%' + text + '%' : null;
 }
 
+// El nuevo contrato usa paginacion real solo si se habilita en backend.
+const U365_SORTABLE = Object.freeze({
+  equipos:new Set(['proyecto','numero_equipo','referencia_en_sitio','zona','llamadas_365','resp_cliente_365','fallas_blt_365','sin_responsabilidad_365','mtbc_anio','mtbc_365','es_critico','ultima_llamada_365','ultima_falla_blt_365']),
+  proyectos:new Set(['proyecto','zona','equipos_activos','equipos_con_llamadas_365','llamadas_365','resp_cliente_365','fallas_blt_365','sin_responsabilidad_365','promedio_llamadas_por_equipo','mtbc_anio','mtbc_365','equipos_criticos','ultima_llamada_365','ultima_falla_blt_365'])
+});
+function u365ServerPagingEnabled() { return process.env.BLT_OPT_CC_U365_SERVER_PAGING === '1'; }
+function orderU365(req,type,legacyOrder) {
+  if (!u365ServerPagingEnabled()) return legacyOrder;
+  const key=String(req?.query?.sort_key||'').trim();
+  if(!U365_SORTABLE[type].has(key))return legacyOrder;
+  const direction=String(req?.query?.sort_dir||'asc').toLowerCase()==='desc'?'DESC':'ASC';
+  const identity=type==='equipos'?'numero_equipo':'proyecto';
+  return 'q.'+String.fromCharCode(96)+key+String.fromCharCode(96)+' '+direction+', q.'+String.fromCharCode(96)+identity+String.fromCharCode(96)+' ASC';
+}
+
 
 // Optimización de lectura controlada: 1 agregación por página con total SQL.
 // Habilitar expresamente en Azure solo después de validar MySQL 8 / EXPLAIN.
@@ -260,13 +275,13 @@ async function getCallCenterU365Equipos(req) {
   const baseParams = [criteria.minFallas, ...(activePortfolio.params || []), ...ticketAggregate.params, ...filterParams];
   const result = await readU365Page(
     baseSql, baseParams,
-    'q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.numero_equipo ASC',
+    orderU365(req, 'equipos', 'q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.numero_equipo ASC'),
     page, pageSize, offset
   );
 
   return {
     criteria,
-    pagination: { page, page_size: pageSize, total: result.total },
+    pagination: { page, page_size: pageSize, total: result.total, ...(u365ServerPagingEnabled()?{mode:'SERVER_PAGED'}:{}) },
     rows: result.rows
   };
 }
@@ -320,13 +335,13 @@ async function getCallCenterU365Proyectos(req) {
   const baseParams = [criteria.minFallas, ...(activePortfolio.params || []), ...ticketAggregate.params, ...filterParams];
   const result = await readU365Page(
     baseSql, baseParams,
-    'q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.proyecto ASC',
+    orderU365(req, 'proyectos', 'q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.proyecto ASC'),
     page, pageSize, offset
   );
 
   return {
     criteria,
-    pagination: { page, page_size: pageSize, total: result.total },
+    pagination: { page, page_size: pageSize, total: result.total, ...(u365ServerPagingEnabled()?{mode:'SERVER_PAGED'}:{}) },
     rows: result.rows
   };
 }
