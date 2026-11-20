@@ -81,7 +81,7 @@ test('repositorios de lote preservan identidad PPNS y limitan a 24',async()=>{
    assert.match(query.text,/__ppns_key/);
    assert.deepEqual(query.params,[['P1','P2']]);
  }
- assert.throws(()=>dbRepository.listFuenteEstadoCuentaBatch_cor(connection,Array(25).fill('P')),TypeError);
+ await assert.rejects(dbRepository.listFuenteEstadoCuentaBatch_cor(connection,Array(25).fill('P')),TypeError);
 });
 test.after(()=>{
  if(oldFlag===undefined)delete process.env.BLT_OPT_COBRANZA_COR_BATCH_V1;
