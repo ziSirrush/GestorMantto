@@ -5,15 +5,20 @@
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const PAGE_SIZE = 30;
   const API_LIMIT = 5000;
+  const INSTALLATION_PALETTE_COR=window.ManttoInstalacionesEstatus;
+  function installationStageColor_cor(code){
+    return INSTALLATION_PALETTE_COR&&INSTALLATION_PALETTE_COR.color(code)||'#0D2E6E';
+  }
 
   const STAGES = Object.freeze([
-    { code:'03-PM', name:'Equipos Próximos a Montar', short:'Próx. Montar', color:'#eab308' },
-    { code:'04-M', name:'Equipos en Montaje', short:'Montaje', color:'#2583d8' },
-    { code:'05-PA', name:'Equipos Próximos a Ajustar', short:'Próx. Ajustar', color:'#6f58c9' },
-    { code:'06-A', name:'Equipos en Ajuste', short:'Ajuste', color:'#32a6ae' },
-    { code:'07-PE', name:'Equipos Próximos a Entregar', short:'Próx. Entregar', color:'#2f96a8' },
-    { code:'01-SUS', name:'Equipos Suspendidos', short:'Suspendidos', color:'#e85b50' },
-    { code:'08-T', name:'Equipos Entregados', short:'Entregados', color:'#3aa65a' }
+    {code:'03-PM',name:'Equipos Próximos a Montar',short:'Próx. Montar',color:installationStageColor_cor('03-PM')},
+    {code:'04-M',name:'Equipos en Montaje',short:'Montaje',color:installationStageColor_cor('04-M')},
+    {code:'05-PA',name:'Equipos Próximos a Ajustar',short:'Próx. Ajustar',color:installationStageColor_cor('05-PA')},
+    {code:'06-A',name:'Equipos en Ajuste',short:'Ajuste',color:installationStageColor_cor('06-A')},
+    {code:'07-PE',name:'Equipos Próximos a Entregar',short:'Próx. Entregar',color:installationStageColor_cor('07-PE')},
+    {code:'01-SUS',name:'Equipos Suspendidos',short:'Suspendidos',color:installationStageColor_cor('01-SUS')},
+    {code:'02-OC',name:'Equipos en Obra Civil',short:'Obra Civil',color:installationStageColor_cor('02-OC')},
+    {code:'08-T',name:'Equipos Entregados',short:'Entregados',color:installationStageColor_cor('08-T')}
   ]);
 
   const STAGE_BY_CODE = new Map(STAGES.map(stage => [stage.code, stage]));
@@ -406,11 +411,16 @@
     columns.push(
       { label:'EDO', value:row => value_cor(row.estado) },
       { label:'PROYECTO', html:row => '<button type="button" class="ir-cor-project-link" data-ir-project="' + esc(row.id_proyecto) + '" data-ir-project-name="' + esc(row.proyecto) + '">' + esc(value_cor(row.proyecto)) + '</button>' },
-      { label:'REFERENCIA', value:row => value_cor(row.referencia_sitio) }
+      { label:'REFERENCIA', html:row => installationReference_cor(value_cor(row.referencia_sitio),row.estatus) }
     );
     return columns;
   }
 
+  function installationReference_cor(reference,status){
+    const label=raw(reference)||'—';
+    const color=installationStageColor_cor(status);
+    return '<span class="ir-cor-reference-stage" style="--stage-color:'+color+'">'+esc(label)+'</span>';
+  }
   function stageColumns_cor(code){
     const commonOc = [
       { label:'CPVP', value:row => formatDate_cor(row.fecha_cpvp) },
@@ -657,19 +667,8 @@
   }
 
   function pdfLegacyStages_cor(){
-    const selectedStatus = currentFilter_cor('ir-cor-estatus');
-    const obraCivil = Object.freeze({
-      code:'02-OC',
-      name:'Equipos en Obra Civil',
-      short:'Obra Civil',
-      color:'#64748b'
-    });
-    const pdfStages = [];
-    STAGES.forEach(stage => {
-      pdfStages.push(stage);
-      if(stage.code === '01-SUS') pdfStages.push(obraCivil);
-    });
-    return selectedStatus ? pdfStages.filter(stage => stage.code === selectedStatus) : pdfStages;
+    const selectedStatus=currentFilter_cor('ir-cor-estatus');
+    return selectedStatus?STAGES.filter(stage=>stage.code===selectedStatus):STAGES;
   }
 
   function pdfLegacySortBySupervisorEstado_cor(rows){
@@ -804,7 +803,7 @@
       : '';
 
     return '<div class="ir-cor-pdf-foto-grupo">' +
-      '<div class="ir-cor-pdf-foto-grupo-title">' + esc(stage.code) + ' &middot; ' + esc(stage.name) +
+      '<div class="ir-cor-pdf-foto-grupo-title" style="border-left:5px solid ' + stage.color + '">' + esc(stage.code) + ' &middot; ' + esc(stage.name) +
       ' <span class="count">(' + rows.length + ')</span></div>' +
       legend +
       '<div class="ir-cor-pdf-table-wrap"><table class="ir-cor-pdf-table-reporte">' +
@@ -818,7 +817,8 @@
     const counts = stages.map(stage => ({
       code:stage.code,
       name:stage.name,
-      total:stageRowsFrom_cor(allRows, stage.code).length
+      total:stageRowsFrom_cor(allRows, stage.code).length,
+      color:stage.color
     }));
     const max = Math.max(1, ...counts.map(item => item.total));
 
@@ -829,7 +829,7 @@
         const valueInside = width > 20;
         return '<div class="ir-cor-pdf-grafica-fila">' +
           '<div class="ir-cor-pdf-grafica-label">' + esc(item.code + ' ' + item.name) + '</div>' +
-          '<div class="ir-cor-pdf-grafica-barra-fondo"><div class="ir-cor-pdf-grafica-barra" style="width:' + width + '%;">' +
+          '<div class="ir-cor-pdf-grafica-barra-fondo"><div class="ir-cor-pdf-grafica-barra" style="width:' + width + '%;background:' + item.color + ';">' +
           (valueInside ? '<span class="ir-cor-pdf-grafica-valor">' + item.total + '</span>' : '') +
           '</div></div>' +
           (!valueInside ? '<span class="ir-cor-pdf-grafica-valor fuera">' + item.total + '</span>' : '') +

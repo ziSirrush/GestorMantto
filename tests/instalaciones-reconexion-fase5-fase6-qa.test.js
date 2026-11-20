@@ -50,10 +50,10 @@ test('F6 QA: continuidad previa sigue protegida despues de integrar main',()=>{
 });
 
 
-test('F6 QA: sync combinado conserva Montadores y endpoints incrementales',()=>{
+test('F6 QA: sync de Sheets conserva endpoints y desacopla conciliaciones',()=>{
   const routes=read('backend/src/routes/ins-fl.routes.js');
-  assert.match(routes,/ejecutarSyncConMontadores/);
-  assert.match(routes,/ejecutarSyncConAjustadores/);
+  assert.match(routes,/return await insFlController\.syncInsFl\(req,res\)/);
+  assert.doesNotMatch(routes,/ejecutarSyncConMontadores|ejecutarSyncConAjustadores/);
   assert.match(routes,/router\.get\('\/cache-state'/);
   assert.match(routes,/router\.get\('\/changes'/);
   assert.match(routes,/protectManualAltasCor/);

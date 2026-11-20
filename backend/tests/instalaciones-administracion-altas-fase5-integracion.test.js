@@ -208,13 +208,12 @@ test('F5: integracion GAS con 409 sigue fail-closed, no ejecuta controller',asyn
 test('F5: integration auth permanece ANTES del guard y del controlador GAS',()=>{
   const s=fs.readFileSync(INS_ROUTE,'utf8');
   assert.match(s,/router\.post\('\/sync', requireInsFlIntegration, protectManualAltasCor, syncWithHeldAltasLockCor\)/);
-  // F3 mantiene la liberacion una sola vez despues del controlador GAS,
-  // usando releaseOnce() tanto en syncOriginal como en el finally exterior.
+  // GAS recibe exclusivamente syncInsFl, sin reconciliacion de INT9.
+  // El guard se libera en finally, incluso si la peticion se interrumpe.
   assert.match(s,/const releaseOnce\s*=\s*async\s*\(\)\s*=>/);
-  assert.match(s,/const syncOriginal\s*=\s*async\s*\(request,response\)/);
   assert.match(s,/finally\s*\{\s*await releaseOnce\(\)/);
-  assert.match(s,/return await ejecutarSyncConMontadores\(req,res/);
-  assert.match(s,/ejecutarSyncConAjustadores\(request,response,syncOriginal\)/);
+  assert.match(s,/return await insFlController\.syncInsFl\(req,res\)/);
+  assert.doesNotMatch(s,/ejecutarSyncConMontadores|ejecutarSyncConAjustadores/);
 });
 
 function routeFixture(){

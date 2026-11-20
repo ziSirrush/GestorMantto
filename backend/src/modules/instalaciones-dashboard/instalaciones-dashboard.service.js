@@ -3,6 +3,8 @@
 const db = require('../../config/db');
 const interactionsService = require('../../services/interactions/interactions.service');
 const repository = require('./instalaciones-dashboard.repository');
+const ajusteInt9 = require('../instalaciones-programacion-personal/instalaciones-programacion-personal.conciliacion.service');
+const montajeInt9 = require('../instalaciones-programacion-personal/instalaciones-programacion-personal.montadores.service');
 const documentationRepository = require('../instalaciones-documentacion/instalaciones-documentacion.repository');
 const { DATE_FIELDS_COR, PERCENT_FIELDS_COR, MULTILINE_FIELDS_COR, normalizeEditedFields_cor } =
   require('../instalaciones-administracion/instalaciones-administracion.field-policy');
@@ -738,6 +740,10 @@ async function updateQuickEdit_cor(req, userId, idInsFl, body = {}) {
     }, { executor: connection });
 
     await connection.commit();
+    // Guardado humano confirmado: reconciliar solo este equipo y el campo editado.
+    // Cada motor decide si debe crear, actualizar, historizar o no modificar.
+    await ajusteInt9.notifySaved(id,[field]);
+    await montajeInt9.notifySaved(id,[field]);
     return {
       changed: true,
       field,

@@ -31,8 +31,13 @@ test('L-03: lockfile contiene las versiones transitivas corregidas', () => {
   // instalar una dependencia vulnerable para conservar una ruta historica.
   assert.equal(versionAt('node_modules/glob'), undefined);
   assert.equal(versionAt('node_modules/rimraf'), undefined);
-  assert.equal(versionAt('node_modules/minimatch'), '11.0.4');
-  assert.equal(versionAt('node_modules/brace-expansion'), '5.0.12');
+  // Nodemon se retiro por la cadena vulnerable chokidar -> picomatch.
+  assert.equal(versionAt('node_modules/nodemon'), undefined);
+  assert.equal(versionAt('node_modules/picomatch'), undefined);
+  assert.equal(versionAt('node_modules/minimatch'), undefined);
+  // Las dependencias productivas XML deben permanecer en versiones corregidas.
+  assert.equal(versionAt('node_modules/fast-xml-parser'), '5.12.0');
+  assert.equal(versionAt('node_modules/is-unsafe'), '2.0.3');
 });
 
 const backendRequire = require('node:module').createRequire(path.join(root, 'backend', 'package.json'));
@@ -57,11 +62,13 @@ test('Google Drive conserva solicitudes HTTP con la dependencia gaxios corregida
   }
 });
 
-test('Nodemon conserva globstar, filtro de extension y exclusiones con minimatch corregido', () => {
-  const match = backendRequire('nodemon/lib/monitor/match');
-  const folder = path.join(root, 'compat-patterns');
-  const files = ['src/index.js', 'src/nested/test.js', 'src/readme.md', 'node_modules/test.js']
-    .map(name => path.join(folder, name));
-  const rules = [path.join(folder, '**', '*.js'), '!' + path.join(folder, 'node_modules', '**')];
-  assert.deepEqual(match(files, rules, 'js').result.sort(), files.slice(0, 2).sort());
+test('Desarrollo usa Node 22 watch sin dependencias vulnerables de nodemon', () => {
+  assert.equal(manifest.scripts.dev, 'node --watch server.js');
+  assert.equal(manifest.devDependencies?.nodemon, undefined);
+  assert.equal(manifest.overrides?.nodemon, undefined);
+  assert.equal(lock.packages[''].devDependencies?.nodemon, undefined);
+  assert.equal(versionAt('node_modules/nodemon'), undefined);
+  assert.equal(versionAt('node_modules/chokidar'), undefined);
+  assert.equal(versionAt('node_modules/anymatch'), undefined);
+  assert.equal(versionAt('node_modules/picomatch'), undefined);
 });

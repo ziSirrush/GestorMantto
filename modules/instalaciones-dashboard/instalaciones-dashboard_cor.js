@@ -5,6 +5,21 @@
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
+  function installationStatusStyle_cor(code){
+    const palette=window.ManttoInstalacionesEstatus;
+    const color=palette&&palette.color(code);
+    return color?'--ins-status-color:'+color+';--ins-status-text:'+palette.textColor(code):'';
+  }
+  function installationStatusBadge_cor(code){
+    const label=raw(code)||'—';
+    const style=installationStatusStyle_cor(label);
+    return style?'<span class="idb-cor-installation-status" style="'+style+'">'+esc(label)+'</span>':esc(label);
+  }
+  function installationEquipmentAccent_cor(reference,code){
+    const label=esc(raw(reference)||'—');
+    const style=installationStatusStyle_cor(code);
+    return style?'<span class="idb-cor-equipment-stage" style="'+style+'">'+label+'</span>':label;
+  }
   const DASHBOARD_CONFIG_KEY_PREFIX_COR = 'mantto:instalaciones-dashboard:config:v1:';
   const QUICK_EDIT_FIELDS_COR = Object.freeze({
     '01-SUS': Object.freeze({
@@ -803,7 +818,10 @@
       (quickEditConfig_cor(context.sectionCode, context.field)?.type === 'date' ? 'fecha' : 'texto');
     const value = resolveColumnValue_cor(row, column ? column[1] : context.field);
     const span = context.cell.querySelector('.idb-cor-cell-value');
-    if(span) span.textContent = displayColumn_cor(value, type);
+    if(span){
+      if(context.field==='estatus')span.innerHTML=installationStatusBadge_cor(value);
+      else span.textContent=displayColumn_cor(value,type);
+    }
     const alertCell = context.cell.closest('tr')?.lastElementChild;
     if(alertCell && Array.isArray(row.notificaciones)){
       alertCell.innerHTML = row.notificaciones.length
@@ -1082,9 +1100,11 @@
       ? (field.find(key => raw(row[key]) && raw(row[key]) !== '-' && raw(row[key]) !== '.') || field[field.length - 1])
       : '';
     const config = state.meetingMode && hasPermission_cor('reporte_editar') ? quickEditConfig_cor(sectionCode, editableField) : null;
-    if(!config) return '<td>' + esc(display) + '</td>';
+    const cellContent = editableField === 'estatus' || raw(label).toLowerCase() === 'estatus'
+      ? installationStatusBadge_cor(display) : esc(display);
+    if(!config) return '<td>' + cellContent + '</td>';
     return '<td class="idb-cor-cell-editable" tabindex="0" role="button" data-idb-cor-cell-edit data-row-id="' + esc(row.id_ins_fl) + '" data-section="' + esc(sectionCode) + '" data-field="' + esc(editableField) + '" aria-label="Editar ' + esc(config.label) + ' de ' + esc(row.referencia_sitio || 'equipo') + '">' +
-      '<span class="idb-cor-cell-value">' + esc(display) + '</span></td>';
+      '<span class="idb-cor-cell-value">' + cellContent + '</span></td>';
   }
 
   function renderReport_cor(response){
@@ -1113,11 +1133,11 @@
       const attrs = canOpen && raw(row.proyecto) && raw(row.referencia_sitio)
         ? ' class="idb-cor-clickable" data-equipment-project="' + esc(row.proyecto) + '" data-equipment-reference="' + esc(row.referencia_sitio) + '"'
         : '';
-      return '<tr' + attrs + '><td>' + esc(row.proyecto || '—') + '</td><td>' + esc(row.referencia_sitio || '—') + '</td>' + dynamic + '<td>' + alerts + '</td></tr>';
+      return '<tr' + attrs + '><td>' + esc(row.proyecto || '—') + '</td><td>' + installationEquipmentAccent_cor(row.referencia_sitio,row.estatus||sectionCode) + '</td>' + dynamic + '<td>' + alerts + '</td></tr>';
     }).join('') : emptyRow_cor(header.length, 'Sin equipos para esta sección y universo seleccionado.');
 
     const editHint = quickEditVisible ? ' · <span class="idb-cor-edit-hint">Edición rápida activa</span>' : '';
-    host.innerHTML = '<div class="idb-cor-note idb-cor-note-neutral"><strong>' + esc(section.codigo + ' · ' + section.nombre) + '</strong> · <span id="idb-cor-report-count">' + esc(formatInteger_cor(response.total)) + '</span> equipos' + (response.section_forced ? ' · Sección forzada por AFL' : '') + editHint + '</div>' +
+    host.innerHTML = '<div class="idb-cor-note idb-cor-note-neutral">' + installationStatusBadge_cor(sectionCode) + ' · <strong>' + esc(section.nombre) + '</strong> · <span id="idb-cor-report-count">' + esc(formatInteger_cor(response.total)) + '</span> equipos' + (response.section_forced ? ' · Sección forzada por AFL' : '') + editHint + '</div>' +
       '<div class="idb-cor-table-wrap"><table class="idb-cor-table"><thead><tr>' + header.map(label => '<th>' + esc(label) + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
     bindResultRows_cor();
   }

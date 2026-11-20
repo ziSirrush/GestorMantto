@@ -1,0 +1,3 @@
+.pblt-frame{display:block;width:100%;height:calc(100vh - 150px);min-height:520px;border:0;border-radius:12px;background:#fff}
+.pblt-msg{margin:16px;padding:20px;border-radius:12px;background:var(--card,#fff)}
+.pblt-msg h2{margin-top:0}

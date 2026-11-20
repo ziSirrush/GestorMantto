@@ -109,7 +109,9 @@ const DB_FIELDS = [
   'categoria',
   'codigo_mantenimiento',
   'equipos_mojados',
-  'sup_1'
+  'sup_1',
+  // Carga inicial desde FL_Res_VS: encabezado CLIENTES VIP (texto operativo).
+  'clientes_vip'
 ];
 
 // [Aster | 2026-08-31 | ASTER-MG | FIX: INS_FL_COPIA_FIEL_MARCADORES_V001]
@@ -119,6 +121,8 @@ const DB_FIELDS = [
 // La politica de id_ins_fl/id_admin para la carga inicial se cierra en Fase 2.
 // created_at, updated_at e id_script tampoco forman parte de DB_FIELDS/SYNC_FIELDS.
 const SYNC_FIELDS = DB_FIELDS.filter(field => field !== 'id_admin');
+// No sobrescribir asignaciones existentes por IDs vacios en la carga FL.
+const SYNC_IDS_PROTEGIDOS = new Set(['id_sup', 'id_asesor']);
 
 const REQUIRED_FIELDS = ['proyecto', 'id_proyecto', 'referencia_sitio'];
 const PROJECT_PHOTO_FIELDS = Object.freeze([
@@ -281,6 +285,14 @@ function normalizeNumber(value, { integer = false, percent = false } = {}) {
   return integer ? Math.trunc(numeric) : numeric;
 }
 
+// Acepta exclusivamente IDs enteros positivos; vacios e invalidos no sustituyen responsables.
+function normalizeAssignmentId(value) {
+  const cleaned = cleanValue(value);
+  if (cleaned === null || !/^\d+$/.test(String(cleaned))) return null;
+  const id = Number(cleaned);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 function normalizeActive(value) {
   const cleaned = cleanValue(value);
   if (cleaned === null) return 1;
@@ -308,7 +320,7 @@ function normalizeIncomingRow(row) {
     // El resto de columnas operativas de ins_fl son VARCHAR/TEXT y deben
     // conservar exactamente marcadores, porcentajes, fechas y textos.
     if (field === 'id_sup' || field === 'id_asesor') {
-      incoming[field] = normalizeNumber(row[field], { integer: true });
+      incoming[field] = normalizeAssignmentId(row[field]);
       continue;
     }
 
@@ -332,7 +344,8 @@ function comparable(value) {
 
 function rowChanged(existing, incoming) {
   return SYNC_FIELDS.some(
-    field => comparable(existing[field]) !== comparable(incoming[field])
+    field => !(SYNC_IDS_PROTEGIDOS.has(field) && incoming[field] === null)
+      && comparable(existing[field]) !== comparable(incoming[field])
   );
 }
 
@@ -417,7 +430,12 @@ async function syncInsFl(req, res) {
           continue;
         }
 
-        const assignments = SYNC_FIELDS.map(field => `${field} = ?`).join(', ');
+        // COALESCE protege el valor actual incluso si cambia entre SELECT y UPDATE.
+        const assignments = SYNC_FIELDS.map(field =>
+          SYNC_IDS_PROTEGIDOS.has(field)
+            ? `${field} = COALESCE(?, ${field})`
+            : `${field} = ?`
+        ).join(', ');
         const values = [
           ...SYNC_FIELDS.map(field => incoming[field]),
           existingRows[0].id_ins_fl

@@ -8,7 +8,7 @@
   const BASE = '/api/instalaciones/programacion';
   const CODE = 'INSTALACIONES_PROGRAMACION_PERSONAL_CALENDARIO_PROGRAMACION';
   const TYPES = Object.freeze({MONTADOR:'Montadores', AJUSTADOR:'Ajustadores'});
-  const state = {type:'MONTADOR',view:'calendario',rows:[],options:null,page:1,limit:50,total:0,q:'',ready:false,epoch:0,formId:null,filterTimer:null};
+  const state = {type:'MONTADOR',view:'calendario',tabRights:null,accessEpoch:0,rows:[],options:null,page:1,limit:50,total:0,q:'',ready:false,epoch:0,formId:null,filterTimer:null};
   const root = () => document.getElementById(ROOT_ID);
   const el = id => document.getElementById(id);
   const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -116,14 +116,26 @@
       parent.addEventListener('input', onInput);
       parent.addEventListener('change', onChange);
       parent.addEventListener('keydown',onCalendarKeydown);
-      document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { if(assignment.mode)closeAssignment();if(state.formId !== null)closeForm(); } });
+      document.addEventListener('keydown', ev => { if(ev.key==='Escape'&&contractorExpanded.size){ev.preventDefault();closeContractorDetail();return;} if(ev.key==='Escape'){if(assignment.mode)closeAssignment();if(state.formId!==null)closeForm();} });
       state.listenersBound=true;
     }
     state.ready = true;
   }
+  const tabAllowed=type=>state.tabRights?.[type]===true;
+  async function refreshTabRights(){
+    const epoch=++state.accessEpoch;
+    state.tabRights=null;
+    const data=await api('/accesos');
+    if(epoch!==state.accessEpoch||!root())return false;
+    state.tabRights={MONTADOR:data?.montadores===true,AJUSTADOR:data?.ajustadores===true};
+    const first=Object.keys(TYPES).find(type=>tabAllowed(type));
+    if(!first)return false;
+    if(!tabAllowed(state.type))state.type=first;
+    return true;
+  }
   function renderTabs() {
     if (!el('ppc-tipos')) return;
-    el('ppc-tipos').innerHTML = Object.entries(TYPES).map(([key,label]) =>
+    el('ppc-tipos').innerHTML = Object.entries(TYPES).filter(([type])=>tabAllowed(type)).map(([key,label]) =>
       `<button type="button" data-ppc="tipo" data-tipo="${key}" class="ppc-tab${state.type===key?' active':''}" aria-pressed="${state.type===key}">${label}</button>`
     ).join('');
     if (el('ppc-new')) el('ppc-new').hidden = !permitted('CREAR');
@@ -156,6 +168,7 @@
     }
   }
   async function reload() {
+    if(!tabAllowed(state.type))return;
     const epoch = ++state.epoch;
     renderTabs();
     setFeedback('Consultando catálogo…');
@@ -192,6 +205,7 @@
       + (!isMont ? field('Experiencia','experiencia',record?.experiencia) : '');
   }
   function openForm(id) {
+    if(!tabAllowed(state.type))return;
     const edit = id !== null;
     if (!(edit?permitted('EDITAR'):permitted('CREAR'))) return;
     const record = edit?state.rows.find(p=>p.id_personal===id):null;
@@ -203,6 +217,7 @@
     el('ppc-fields').querySelector('input')?.focus();
   }
   async function saveForm(form) {
+    if(!tabAllowed(state.type))throw Error('Pestaña no autorizada');
     const edit = state.formId > 0;
     if (!(edit?permitted('EDITAR'):permitted('CREAR'))) throw new Error('Permiso insuficiente.');
     const values = Object.fromEntries(new FormData(form).entries());
@@ -217,6 +232,7 @@
     } finally { if (el('ppc-save')) el('ppc-save').disabled = false; }
   }
   async function deactivate(id) {
+    if(!tabAllowed(state.type))return;
     if (!permitted('DESACTIVAR')) return;
     const record = state.rows.find(p=>p.id_personal===id);
     if (!record || !window.confirm(`¿Desactivar a ${record.nombre}?`)) return;
@@ -284,7 +300,7 @@
     setCalendarFeedback(cal.feedback,cal.error);
   }
   async function reloadCalendar(){
-    if(!calRoot())return;
+    if(!calRoot()||!tabAllowed(state.type))return;
     const epoch=++cal.epoch;
     if(!cal.desde)cal.desde=weekStart(todayMexico());
     cal.loading=true;
@@ -296,7 +312,7 @@
       state.type==='AJUSTADOR'?api('/ajustadores/incidencias-fl?limit=50'):Promise.resolve(null),
       state.type==='MONTADOR'?api('/montadores/relaciones?'+encodeQuery({desde:params.desde,hasta:params.hasta})):Promise.resolve(null)
     ]);
-    if(epoch!==cal.epoch||!calRoot())return;
+    if(epoch!==cal.epoch||!calRoot()||!tabAllowed(state.type))return;
     cal.loading=false;
     if(program.status!=='fulfilled'){
       cal.personal=[];cal.asignaciones=[];cal.sin_fechas=[];
@@ -365,106 +381,294 @@
     return{rows:result,lanes:Math.max(laneEnds.length,1)};
   }
   function contractorName(value) {
-  return String(value ?? '').trim() || 'Sin contratista';
-}
+    return String(value ?? '').trim() || 'Sin contratista';
+  }
   function contractorKey(value) {
-  return contractorName(value).normalize('NFKC').toLocaleLowerCase('es-MX');
-}
+    return contractorName(value).normalize('NFKC').toLocaleLowerCase('es-MX');
+  }
   function contractorColor(key) {
-  let hash=2166136261;
-  for (const letter of String(key)) hash=Math.imul(hash ^ letter.codePointAt(0),16777619);
-  const n=hash>>>0;
-  return `hsl(${n%360} ${60+(n>>>9)%14}% ${31+(n>>>18)%10}%)`;
-}
-    const contractorsOpen=new Set();
+    let hash=2166136261;
+    for(const letter of String(key))hash=Math.imul(hash ^ letter.codePointAt(0),16777619);
+    const n=hash>>>0;
+    return `hsl(${n%360} ${60+(n>>>9)%14}% ${31+(n>>>18)%10}%)`;
+  }
+  const contractorsOpen=new Set();
   let contractorsInitialized=false;
-  function renderContractorCalendar(holder, dayCells) {
-  const who=new Map(cal.personal.map(person=>[Number(person.id_personal),person]));
-  const grouped=new Map();
-  // Primero se muestran proyectos 04-M vinculados, aunque no tengan montadores.
-  for(const relation of cal.montajeRelations||[]){
-    const key=contractorKey(relation.contratista);
-    if(!grouped.has(key))grouped.set(key,{key,name:contractorName(relation.contratista),projects:new Map()});
-    const contractor=grouped.get(key);
-    const projectId=String(relation.id_proyecto||'').trim();
-    const projectKey=projectId?'id:'+projectId:'equipment:'+String(relation.id_ins_fl);
-    if(!contractor.projects.has(projectKey))
-      contractor.projects.set(projectKey,{name:relation.proyecto||projectId||'Proyecto',
-        visible:true,assignments:[],people:new Set(),equipos:new Map(),iniciales:relation.iniciales});
-    const project=contractor.projects.get(projectKey);
-    if(!project.equipos)project.equipos=new Map();
-    project.equipos.set(Number(relation.id_ins_fl),relation);
+  const contractorDrafts=new Map();
+  const contractorExpanded=new Set();
+  const contractorLoading=new Set();
+  const contractorSaving=new Set();
+  const contractorErrors=new Map();
+  const contractorDraftKey=id=>Number(id);
+  const contractorCanEdit=()=>permitted('CREAR')&&permitted('DESACTIVAR');
+  function contractorDirty(draft){
+    if(!draft)return false;
+    if(draft.selected.size!==draft.initial.size)return true;
+    return [...draft.selected].some(id=>!draft.initial.has(id));
   }
-  for(const assignment of cal.asignaciones){
-    const person=who.get(Number(assignment.id_personal));
-    if(!person||!assignment.valida)continue;
-    const key=contractorKey(person.contratista);
-    if(!grouped.has(key))grouped.set(key,{key,name:contractorName(person.contratista),projects:new Map()});
-    const contractor=grouped.get(key);
-    const projectId=String(assignment.id_proyecto||'').trim();
-    const projectName=String(assignment.proyecto||'').trim();
-    const projectKey=assignment.visible
-      ? (projectId?'id:'+projectId:(projectName?'name:'+projectName.toLocaleLowerCase('es-MX'):'equipment:'+String(assignment.id_ins_fl)))
-      : 'restricted:'+String(person.id_personal);
-    if(!contractor.projects.has(projectKey)){
-      contractor.projects.set(projectKey,{
-        name:assignment.visible?(projectName||projectId||'Proyecto'):'Ocupación fuera de tu alcance',
-        visible:Boolean(assignment.visible),assignments:[],people:new Set(),equipos:new Map()
+  function contractorGroupData(){
+    // Solo las relaciones 04-M vigentes, filtradas por el alcance CORELLIAN
+    // en backend, generan barras. Nunca usar ocupaciones fuera de alcance.
+    const grouped=new Map();
+    for(const relation of cal.montajeRelations||[]){
+      const id=Number(relation.id_ins_fl);
+      if(!Number.isSafeInteger(id)||id<1)continue;
+      const key=contractorKey(relation.contratista);
+      if(!grouped.has(key))grouped.set(key,{
+        key,name:contractorName(relation.contratista),projects:new Map()
       });
+      const group=grouped.get(key),pid=String(relation.id_proyecto||'').trim();
+      const projectKey=pid?'id:'+pid:'equipo:'+id;
+      if(!group.projects.has(projectKey))group.projects.set(projectKey,{
+        name:relation.proyecto||pid||'Proyecto',equipos:new Map(),assignments:[]
+      });
+      group.projects.get(projectKey).equipos.set(id,relation);
     }
-    const project=contractor.projects.get(projectKey);
-    project.assignments.push({...assignment,_personName:person.nombre});
-    project.people.add(Number(person.id_personal));
+    const people=new Map((cal.personal||[]).map(p=>[Number(p.id_personal),p]));
+    for(const assignment of cal.asignaciones||[]){
+      if(!assignment.visible||!assignment.valida)continue;
+      const person=people.get(Number(assignment.id_personal));
+      if(!person)continue;
+      const group=grouped.get(contractorKey(person.contratista));
+      if(!group)continue;
+      const pid=String(assignment.id_proyecto||'').trim();
+      const project=group.projects.get(pid?'id:'+pid:'equipo:'+assignment.id_ins_fl);
+      if(!project||!project.equipos.has(Number(assignment.id_ins_fl)))continue;
+      project.assignments.push({...assignment,_personName:person.nombre,_puesto:person.puesto});
+    }
+    return [...grouped.values()].sort((a,b)=>a.name.localeCompare(b.name,'es'));
   }
-  const contractors=[...grouped.values()].sort((a,b)=>a.name.localeCompare(b.name,'es'));
-  if(!contractorsInitialized && contractors.length){
-    contractorsOpen.add(contractors[0].key);
-    contractorsInitialized=true;
+  function contractorRenderDetail(id,relation){
+    if(contractorLoading.has(id))return '<p class="ppc-cal-note">Cargando personal y asignaciones…</p>';
+    const draft=contractorDrafts.get(id),error=contractorErrors.get(id);
+    if(!draft)return `<p class="ppc-cal-note">${error?esc(error):'Selecciona el equipo para consultar su detalle.'}</p>`;
+    const detail=draft.detail,readOnly=!contractorCanEdit();
+    const selected=draft.selected;
+    const renderRole=(name,role)=>{
+      const all=(detail.personal||[]).filter(p=>p.puesto===role);
+      const selectedCount=all.filter(p=>selected.has(Number(p.id_personal))).length;
+      return `<section class="ppc-contractor-role"><h4>${name} <small>(${selectedCount})</small></h4>
+        <div class="ppc-contractor-people">${all.map(p=>`
+          <label class="ppc-contractor-person">
+            <input type="checkbox" data-ppc="montaje-persona" data-equipo="${id}"
+              value="${Number(p.id_personal)}" ${selected.has(Number(p.id_personal))?'checked':''}
+              ${readOnly?'disabled':''}>
+            <span>${esc(p.nombre)}</span></label>`).join('')||
+          '<span class="ppc-cal-note">Sin personal elegible en el catálogo.</span>'}</div></section>`;
+    };
+    const originals=(detail.otras_asignaciones||[]).map(a=>`
+      <li>${esc(a.nombre)} · ${esc(a.puesto)} ·
+        ${esc(a.origen==='AUTOMATICA_FL'?'Automática FL':'No editable desde esta agrupación')}</li>`).join('');
+    return `<div class="ppc-contractor-detail">
+      <div class="ppc-contractor-detail-head"><strong>${esc(detail.relacion.proyecto)} — ${esc(detail.relacion.equipo)}</strong>
+      <small>Contratista: ${esc(detail.relacion.contratista)} · Iniciales: ${esc(detail.relacion.iniciales)}
+        · ${detail.relacion.inicio?esc(detail.relacion.inicio):'Sin inicio'}
+        → ${detail.relacion.fin?esc(detail.relacion.fin):'Sin término'}</small></div>
+      ${renderRole('Mecánicos','Mecánico')}${renderRole('Ayudantes','Ayudante')}
+      ${originals?`<div class="ppc-contractor-other"><strong>Asignaciones no editables aquí</strong><ul>${originals}</ul></div>`:''}
+      <p class="ppc-cal-note">Puedes seleccionar varias personas. Se guardarán por contratista; los cambios pendientes
+      no modifican Aiven hasta pulsar Guardar agrupación.
+      ${detail.relacion.fechas_validas?'':'No hay fechas válidas para nuevas asignaciones.'}</p>
+      ${contractorDirty(draft)?'<p class="ppc-contractor-pending">Cambios pendientes de guardar</p>':''}
+      ${error?`<p class="ppc-cal-feedback ppc-error">${esc(error)}</p>`:''}</div>`;
   }
-  const legend=contractors.map(c=>`<span class="ppc-contractor-key"><span class="ppc-contractor-swatch" style="background:${contractorColor(c.key)}"></span>${esc(c.name)}</span>`).join('');
-  const content=contractors.map(contractor=>{
-    const color=contractorColor(contractor.key);
-    const projects=[...contractor.projects.values()].sort((a,b)=>Number(b.visible)-Number(a.visible)||a.name.localeCompare(b.name,'es'));
-    const visibleProjects=projects.filter(p=>p.visible).length;
-    const count=projects.reduce((n,p)=>n+p.assignments.length,0);
-    const projectRows=projects.map(project=>{
-      const pending=[...(project.equipos?.values()||[])].filter(r=>
-        !project.assignments.some(a=>Number(a.id_ins_fl)===Number(r.id_ins_fl)))
-        .map(r=>({...r,_personName:'Montador por asignar',visible:true,esRelacion04M:true,
-          id_asignacion:null,valida:true}));
-      const items=[...project.assignments,...pending].sort((a,b)=>a.inicio.localeCompare(b.inicio)||a.fin.localeCompare(b.fin));
-      const {rows,lanes}=lanePositions(items);
-      const height=Math.max(46,lanes*27+11);
-      const bars=rows.map(({item,from,through,lane})=>{
-        const canView=item.visible&&Number.isSafeInteger(Number(item.id_asignacion))&&Number(item.id_asignacion)>0;
-        const label=item.visible?`${item._personName||'Montador'} · ${item.equipo||'Equipo'}${item.esRelacion04M?' · '+(item.iniciales||''):''}`:'Ocupado (fuera de tu alcance)';
-        const title=item.visible?`${project.name} · ${label} · ${formatWindow(item)}`:`Ocupado · ${formatWindow(item)}`;
-        const classes='ppc-cal-bar ppc-contractor-bar'
-          +(item.es_historico?' ppc-cal-bar-history':'')
-          +(item.traslape?' ppc-cal-bar-overlap':'')
-          +(item.visible?'':' ppc-cal-bar-outside');
-        return `<button type="button" class="${classes}" ${canView?'data-ppc="ver-asignacion" data-id="'+Number(item.id_asignacion)+'"':'disabled'}
-          title="${esc(title)}" style="--ppc-contractor-color:${color};left:${from*CELL_WIDTH+1}px;top:${7+lane*27}px;width:${Math.max(1,(through-from+1)*CELL_WIDTH-2)}px">${esc(label)}</button>`;
-      }).join('');
-      const description=project.visible?`${project.people.size} montador(es) · ${items.length} asignación(es)`:'Detalle de proyecto protegido por alcance';
-      return `<div class="ppc-cal-row" style="min-height:${height}px">
-        <div class="ppc-cal-person ppc-contractor-project" style="border-left:4px solid ${color}" title="${esc(project.name)}"><b>${esc(project.name)}</b><small>${esc(description)}</small></div>
-        <div class="ppc-cal-track" style="width:${cal.span*CELL_WIDTH}px;height:${height}px;cursor:default">${bars}</div></div>`;
+  // Misma cuadricula por dias que Ajustadores: una fila por contratista,
+  // barras por proyecto/equipo, no filas de personal ni acordeones de proyectos.
+  function renderContractorCalendar(holder,dayCells){
+    if(!holder)return;
+    const previousScroll=holder.querySelector?.('.ppc-contractor-timeline');
+    const left=previousScroll?.scrollLeft||0,top=previousScroll?.scrollTop||0;
+    const modalScroll=holder.querySelector?.('.ppc-contractor-modal-body')?.scrollTop||0;
+    const contractors=contractorGroupData(),span=Number(cal.span)||14;
+    const days=dayCells||Array.from({length:span},(_,i)=>{
+      if(!cal.desde)return '';
+      const day=offsetDate(cal.desde,i);
+      const dow=new Date(dateNum(day)*86400000).getUTCDay();
+      return `<span class="ppc-cal-day${day===cal.hoy?' ppc-cal-today':''}" title="${esc(day)}">
+        <b>${day.slice(8)}</b><small>${DAY_NAMES[dow]}</small></span>`;
     }).join('');
-    return `<details class="ppc-contractor" data-contractor-key="${esc(contractor.key)}" ${contractorsOpen.has(contractor.key)?'open':''}>
-      <summary><span class="ppc-contractor-swatch" style="background:${color}"></span>
-        <strong>${esc(contractor.name)}</strong><small>${visibleProjects} proyecto(s) visibles · ${count} asignación(es)</small>
-        <span class="ppc-contractor-chevron" aria-hidden="true">▾</span></summary>
-      <div class="ppc-cal-scroll ppc-contractor-scroll" tabindex="0">
-        <div class="ppc-cal-table" style="width:${245+cal.span*CELL_WIDTH}px">
-          <div class="ppc-cal-row ppc-cal-header"><div class="ppc-cal-person"><b>PROYECTO</b><small>Programación existente</small></div>
-            <div class="ppc-cal-days">${dayCells}</div></div>${projectRows}</div></div></details>`;
-  }).join('');
-  holder.innerHTML=`<p class="ppc-cal-note">Vista de solo lectura: cada proyecto se agrupa bajo su contratista. Las franjas representan asignaciones existentes; no generan nuevos registros.</p>
-    ${cal.montajeError?`<p class="ppc-cal-feedback ppc-error">Relaciones 04-M: ${esc(cal.montajeError)}</p>`:''}
-    ${contractors.length?`<details class="ppc-contractor-legend"><summary>Leyenda de contratistas (${contractors.length})</summary><div>${legend}</div></details>`:''}
-    <div class="ppc-contractors">${content||'<p class="ppc-cal-note">No hay proyectos programados para el período y filtro seleccionados.</p>'}</div>`;
-}
+    const groupsById=new Map();
+    const timelineRows=contractors.map(contractor=>{
+      const color=contractorColor(contractor.key);
+      const items=[];
+      for(const project of contractor.projects.values()){
+        for(const relation of project.equipos.values()){
+          const id=Number(relation.id_ins_fl);
+          if(!relation.inicio||!relation.fin||relation.fin<cal.desde||
+             relation.inicio>offsetDate(cal.desde,span-1))continue;
+          groupsById.set(id,contractor);
+          items.push({...relation,_project:project.name});
+        }
+      }
+      items.sort((a,b)=>a.inicio.localeCompare(b.inicio)||
+        a.fin.localeCompare(b.fin)||String(a._project).localeCompare(String(b._project),'es')||
+        Number(a.id_ins_fl)-Number(b.id_ins_fl));
+      const {rows,lanes}=lanePositions(items);
+      const height=Math.max(52,lanes*28+12);
+      const pending=[...contractorDrafts.values()].filter(d=>
+        contractorKey(d.detail.relacion.contratista)===contractor.key&&contractorDirty(d));
+      const bars=rows.map(({item,from,through,lane})=>{
+        const id=Number(item.id_ins_fl);
+        const label=`${item._project} — ${item.equipo||'Equipo'}`;
+        const opened=contractorExpanded.has(id);
+        const dirty=contractorDirty(contractorDrafts.get(id));
+        return `<button type="button"
+          class="ppc-cal-bar ppc-contractor-bar${opened?' ppc-contractor-bar-open':''}
+            ${dirty?' ppc-contractor-bar-dirty':''}"
+          data-ppc="montaje-detalle" data-equipo="${id}"
+          aria-expanded="${opened}" aria-label="Detalle: ${esc(label)}"
+          title="${esc(label)} · ${esc(formatWindow({...item,valida:true}))}"
+          style="--ppc-contractor-color:${color};left:${from*CELL_WIDTH+1}px;
+            top:${7+lane*28}px;width:${Math.max(1,(through-from+1)*CELL_WIDTH-2)}px">
+          ${esc(label)}</button>`;
+      }).join('');
+      const count=items.length;
+      return `<div class="ppc-cal-row ppc-contractor-row" style="min-height:${height}px">
+        <div class="ppc-cal-person ppc-contractor-row-label"
+          style="border-left:4px solid ${color}" title="${esc(contractor.name)}">
+          <b>${esc(contractor.name)}</b>
+          <small>${count} proyecto/equipo · ${pending.length} pendiente(s)</small>
+          ${contractorCanEdit()?`<button type="button" class="ppc-btn ppc-small"
+            data-ppc="montaje-guardar" data-contratista="${esc(contractor.key)}"
+            ${pending.length&&!contractorSaving.has(contractor.key)?'':'disabled'}>
+            ${contractorSaving.has(contractor.key)?'Guardando…':`Guardar agrupación (${pending.length})`}
+          </button>`:''}
+        </div>
+        <div class="ppc-cal-track" style="width:${span*CELL_WIDTH}px;height:${height}px">
+          ${bars}</div></div>`;
+    }).join('');
+    const opened=[...contractorExpanded].map(id=>({
+      id,relation:(cal.montajeRelations||[]).find(r=>Number(r.id_ins_fl)===id),
+      group:groupsById.get(id)
+    })).filter(x=>x.relation&&x.group);
+    const editors=opened.map(({id,relation,group})=>`
+      <article class="ppc-contractor-editor" id="ppc-contractor-editor-${id}">
+        <div class="ppc-contractor-editor-heading">
+          <div><strong>${esc(group.name)}</strong>
+            <small>${esc(relation.proyecto||relation.id_proyecto||'Proyecto')} —
+              ${esc(relation.equipo||'Equipo')}</small></div>
+          <button type="button" class="ppc-btn ppc-small" data-ppc="montaje-detalle"
+            data-equipo="${id}" aria-label="Cerrar detalle de equipo">Cerrar detalle</button>
+        </div>
+        ${contractorRenderDetail(id,relation)}
+      </article>`).join('');
+    holder.innerHTML=`<p class="ppc-cal-note">
+      Contratista a la izquierda; cada barra muestra Proyecto — Equipo sobre sus fechas de montaje.
+      Selecciona una barra para elegir mecánicos y ayudantes. Guarda por contratista.
+      Los vínculos automáticos 04-M no se modifican.</p>
+      ${cal.montajeError?`<p class="ppc-cal-feedback ppc-error">${esc(cal.montajeError)}</p>`:''}
+      <div class="ppc-cal-scroll ppc-contractor-timeline" tabindex="0">
+        <div class="ppc-cal-table" style="width:${245+span*CELL_WIDTH}px">
+          <div class="ppc-cal-row ppc-cal-header">
+            <div class="ppc-cal-person"><b>CONTRATISTA</b>
+              <small>Proyectos / Equipos</small></div>
+            <div class="ppc-cal-days">${days}</div>
+          </div>
+          ${timelineRows||'<p class="ppc-cal-note">Sin contratistas vinculados en este periodo.</p>'}
+        </div>
+      </div>
+      ${editors?`
+        <div id="ppc-contractor-modal" class="ppc-overlay ppc-contractor-modal"
+          data-ppc="montaje-fondo">
+          <section class="ppc-dialog ppc-contractor-modal-dialog" role="dialog"
+            aria-modal="true" aria-labelledby="ppc-contractor-modal-title">
+            <div class="ppc-dialog-header ppc-contractor-modal-header">
+              <h2 id="ppc-contractor-modal-title">Detalle de proyecto / equipo</h2>
+              <button type="button" class="ppc-icon-btn" data-ppc="montaje-cerrar"
+                aria-label="Cerrar detalle">×</button>
+            </div>
+            <div class="ppc-contractor-modal-body">
+              <section class="ppc-contractor-editors" aria-label="Detalle de equipos">
+                ${editors}
+              </section>
+            </div>
+            <div class="ppc-contractor-modal-footer">
+              <span class="ppc-cal-note">Las selecciones se conservan al cerrar. Guarda la agrupación para confirmarlas.</span>
+              <button type="button" class="ppc-btn" data-ppc="montaje-cerrar">Cerrar</button>
+            </div>
+          </section>
+        </div>`:''}`;
+    const current=holder.querySelector?.('.ppc-contractor-timeline');
+    if(current){current.scrollLeft=left;current.scrollTop=top;}
+    const body=holder.querySelector?.('.ppc-contractor-modal-body');
+    if(body)body.scrollTop=modalScroll;
+  }
+  function closeContractorDetail(){
+    const id=[...contractorExpanded][0];
+    if(!id)return;
+    contractorExpanded.clear();
+    if(state.type==='MONTADOR'&&state.view==='calendario'){
+      renderContractorCalendar(el('ppc-contractor-content'),'');
+      root()?.querySelector?.(`[data-ppc="montaje-detalle"][data-equipo="${id}"]`)?.focus?.();
+    }
+  }
+  function focusContractorDetail(){
+    root()?.querySelector?.('#ppc-contractor-modal [data-ppc="montaje-cerrar"]')?.focus?.();
+  }
+  async function openContractorEquipo(id){
+    if(!tabAllowed('MONTADOR')||state.type!=='MONTADOR'||state.view!=='calendario'||!canRead())return;
+    const relation=(cal.montajeRelations||[]).find(x=>Number(x.id_ins_fl)===id);
+    if(!relation)return;
+    if(contractorExpanded.has(id)){closeContractorDetail();return;}
+    contractorExpanded.clear();
+    contractorExpanded.add(id);
+    if(!contractorDrafts.has(id)){
+      if(contractorLoading.has(id))return;
+      contractorLoading.add(id);
+      renderContractorCalendar(el('ppc-contractor-content'),'');
+      try{
+        const detail=await api(`/montadores/equipo/${id}/detalle`);
+        if(!root()||state.type!=='MONTADOR')return;
+        const all=(detail.asignaciones||[]).map(a=>Number(a.id_personal));
+        contractorDrafts.set(id,{detail,revision:detail.revision,
+          initial:new Set(all),selected:new Set(all)});
+        contractorErrors.delete(id);
+      }catch(error){
+        contractorErrors.set(id,error.message||'No se pudo cargar el detalle.');
+      }finally{contractorLoading.delete(id);}
+    }
+    renderContractorCalendar(el('ppc-contractor-content'),'');
+    focusContractorDetail();
+  }
+  function updateContractorPerson(node){
+    if(!contractorCanEdit())return;
+    const id=Number(node.dataset.equipo),pid=Number(node.value);
+    const draft=contractorDrafts.get(id);
+    if(!draft||!draft.detail.personal.some(p=>Number(p.id_personal)===pid))return;
+    if(node.checked)draft.selected.add(pid);else draft.selected.delete(pid);
+    renderContractorCalendar(el('ppc-contractor-content'),'');
+    root()?.querySelector?.(`[data-ppc="montaje-persona"][data-equipo="${id}"][value="${pid}"]`)?.focus?.();
+  }
+  async function saveContractor(key){
+    if(!tabAllowed('MONTADOR')||!contractorCanEdit()||contractorSaving.has(key))return;
+    const group=contractorGroupData().find(c=>c.key===key);
+    if(!group)return;
+    const drafts=[...contractorDrafts.entries()].filter(([,d])=>
+      contractorKey(d.detail.relacion.contratista)===key&&contractorDirty(d));
+    if(!drafts.length)return;
+    if(drafts.length>25){
+      window.alert('La agrupación excede 25 equipos modificados. Guarda por lotes menores.');
+      return;
+    }
+    if(!window.confirm(`Guardar ${drafts.length} equipo(s) modificados del contratista ${group.name}? Los vínculos automáticos no se alterarán.`))return;
+    contractorSaving.add(key);
+    renderContractorCalendar(el('ppc-contractor-content'),'');
+    try{
+      const cambios=drafts.map(([id,draft])=>({id_ins_fl:id,
+        ids_personal:[...draft.selected],revision:draft.revision}));
+      const result=await api('/montadores/agrupaciones/guardar','POST',
+        {contratista:group.name,cambios});
+      for(const [id] of drafts){contractorDrafts.delete(id);contractorErrors.delete(id);}
+      contractorExpanded.clear();
+      await reloadCalendar();
+      window.alert(`Agrupación guardada: ${result.creadas||0} alta(s), ${result.retiradas||0} retiro(s).`);
+    }catch(error){
+      window.alert(error.message||'No fue posible guardar la agrupación; los cambios siguen pendientes.');
+    }finally{
+      contractorSaving.delete(key);
+      renderContractorCalendar(el('ppc-contractor-content'),'');
+    }
+  }
   function renderCalendar(){
     if(!calRoot()||state.view!=='calendario')return;
     // No reconstruir los controles al cambiar resultados; conserva foco/búsqueda.
@@ -503,17 +707,22 @@
       return `<div class="ppc-cal-row" style="min-height:${height}px"><div class="ppc-cal-person" title="${esc(p.nombre)}"><b>${esc(p.nombre)}</b><small>${esc(desc)}</small></div>
         <div class="ppc-cal-track" data-ppc="cal-celda" data-persona="${Number(p.id_personal)}" tabindex="${permitted('CREAR')?'0':'-1'}" aria-label="Asignar a ${esc(p.nombre)} en día disponible" style="width:${cal.span*CELL_WIDTH}px;height:${height}px">${bars}</div></div>`;
     }).join('');
-    const contractorSection=state.type==='MONTADOR'
-      ? '<section class="ppc-contractor-calendar" aria-label="Calendario de contratistas">'
-        + '<h2 class="ppc-contractor-title">CONTRATISTAS</h2><div id="ppc-contractor-content"></div></section>'
-      : '';
-    holder.innerHTML=`${contractorSection}<div class="ppc-cal-scroll" tabindex="0">
-      <div class="ppc-cal-table" style="width:${245+cal.span*CELL_WIDTH}px">
-        <div class="ppc-cal-row ppc-cal-header"><div class="ppc-cal-person"><b>PERSONAL</b><small>Ocupación por día</small></div>
-          <div class="ppc-cal-days">${dayCells}</div></div>
-        ${personRows||'<p class="ppc-cal-note">No hay personal activo para este filtro.</p>'}
-      </div></div>`;
-    if(state.type==='MONTADOR')renderContractorCalendar(el('ppc-contractor-content'),dayCells);
+    if(state.type==='MONTADOR'){
+      holder.innerHTML='<section class="ppc-contractor-calendar" aria-label="Calendario de contratistas">'+
+        '<h2 class="ppc-contractor-title">CONTRATISTAS</h2>'+
+        '<div id="ppc-contractor-content"></div></section>';
+      renderContractorCalendar(el('ppc-contractor-content'),dayCells);
+    }else{
+      // Vista original de Ajustadores 06-A: conserva filas por persona.
+      holder.innerHTML=`<div class="ppc-cal-scroll" tabindex="0">
+        <div class="ppc-cal-table" style="width:${245+cal.span*CELL_WIDTH}px">
+          <div class="ppc-cal-row ppc-cal-header">
+            <div class="ppc-cal-person"><b>PERSONAL</b><small>Ocupación por día</small></div>
+            <div class="ppc-cal-days">${dayCells}</div>
+          </div>
+          ${personRows||'<p class="ppc-cal-note">No hay personal activo para este filtro.</p>'}
+        </div></div>`;
+    }
     const issues=state.type==='AJUSTADOR'?cal.flIssues:[];
     const flMissing=issues.filter(e=>Array.isArray(e.incidencias)&&
       e.incidencias.some(code=>['SIN_REFERENCIA','AMBIGUO','SIN_COINCIDENCIA'].includes(code)));
@@ -609,7 +818,7 @@
     assignmentFeedback(response?.hay_mas?`Mostrando ${response.mostrados} de ${response.total} equipos; utiliza la búsqueda.`:'');
   }
   async function openAssignment(options={}){
-    if(state.view!=='calendario'||!permitted('CREAR')||!calRoot())return;
+    if(!tabAllowed(state.type)||state.view!=='calendario'||!permitted('CREAR')||!calRoot())return;
     configureAssignmentReadOnly(false);
     assignment.epoch++;assignment.mode='new';assignment.item=null;
     assignment.equipo=options.idEquipo||null;
@@ -908,7 +1117,7 @@
       <div class="ppc-s-people-grid">${persons(r.libres,'Libres confirmados','free')}${persons(r.ocupados,'Ocupados / ya asignados','busy')}${persons(r.indeterminados,'Disponibilidad indeterminada','unknown')}</div>`;
   }
   function loadActiveSection(){
-    if(!canRead())return;
+    if(!canRead()||!tabAllowed(state.type))return;
     if(state.view==='personal')return reload();
     if(state.view==='historial'){historyControls();return loadHistory();}
     if(state.view==='disponibilidad'){availabilityControls();searchSimulationEquipos('');return loadAvailability();}
@@ -964,9 +1173,9 @@
     if(action==='seccion') {
       const next=node.dataset.vista;
       if(!['calendario','personal','historial','disponibilidad'].includes(next))return;
-      state.view=next;renderView();loadActiveSection();
-    } else if (action==='tipo' && TYPES[node.dataset.tipo]) {
-      state.type = node.dataset.tipo;state.page=1;state.q='';cal.q='';closeForm();closeAssignment();
+      contractorExpanded.clear();state.view=next;renderView();loadActiveSection();
+    } else if (action==='tipo' && TYPES[node.dataset.tipo] && tabAllowed(node.dataset.tipo)) {
+      contractorExpanded.clear();state.type = node.dataset.tipo;state.page=1;state.q='';cal.q='';closeForm();closeAssignment();
       if (el('ppc-query')) el('ppc-query').value='';
       ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
       hist.page=1;hist.res=null;disp.res=null;disp.simRes=null;disp.simEquipo=null;
@@ -985,6 +1194,10 @@
     else if(action==='cal-hoy') {cal.desde=weekStart(todayMexico());calendarControls();reloadCalendar();}
     else if(action==='asignar-nueva') openAssignment();
     else if(action==='fl-mas') loadMoreFlIncidencias();
+    else if(action==='montaje-detalle') openContractorEquipo(Number(node.dataset.equipo));
+    else if(action==='montaje-cerrar') closeContractorDetail();
+    else if(action==='montaje-fondo'&&event.target===node) closeContractorDetail();
+    else if(action==='montaje-guardar') saveContractor(node.dataset.contratista);
     else if(action==='asignar-equipo') openAssignment({idEquipo:Number(node.dataset.equipo)});
     else if(action==='cal-celda') trackClicked(event,node);
     else if(action==='editar-asignacion') openEditAssignment(Number(node.dataset.id));
@@ -1029,6 +1242,10 @@
     state.filterTimer = setTimeout(()=>{state.q=newQuery;state.page=1;reload();},300);
   }
   function onChange(event) {
+    const montajeNode=event.target.closest?.('[data-ppc="montaje-persona"]');
+    if(montajeNode&&root()?.contains(montajeNode)){
+      updateContractorPerson(montajeNode);return;
+    }
     const target=event.target;
     if(target?.id==='ppc-cal-desde' && target.value) {cal.desde=target.value;reloadCalendar();}
     else if(target?.id==='ppc-cal-span'){cal.span=Number(target.value)||31;reloadCalendar();}
@@ -1062,6 +1279,8 @@
   }
   function clearSensitiveView() {
     ++state.epoch;
+    ++state.accessEpoch;
+    state.tabRights=null;
     ++cal.epoch;
     ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
     clearTimeout(disp.searchTimer);
@@ -1096,15 +1315,23 @@
       state.ready=false;
       return false;
     }
-    await loadActiveSection();return true;
+    try{
+      if(!await refreshTabRights()){
+        clearSensitiveView();if(root())root().innerHTML='<section class="ppc-card" role="alert">Sin acceso a Montadores o Ajustadores.</section>';
+        state.ready=false;return false;
+      }
+    }catch(error){
+      clearSensitiveView();if(root())root().innerHTML='<section class="ppc-card" role="alert">No fue posible verificar permisos de pestañas.</section>';
+      state.ready=false;return false;
+    }
+    renderTabs();await loadActiveSection();return true;
   }
   document.addEventListener('mantto:session-expired',clearSensitiveView);
   document.addEventListener('mantto:view-user-changed',()=>{clearSensitiveView();if(window.ManttoRouter?.getCurrent?.().route==='instalaciones-programacion-personal')init();});
   document.addEventListener('mantto:auth-ready',clearSensitiveView);
   document.addEventListener('mantto:permissions-updated',()=>{
-    if(!canRead()){clearSensitiveView();if(window.ManttoRouter?.getCurrent?.().route==='instalaciones-programacion-personal')window.ManttoRouter?.reset?.();return;}
-    if(!state.ready)return;
-    renderTabs();renderList();if(state.view==='calendario'){calendarControls();renderCalendar();}
+    if(window.ManttoRouter?.getCurrent?.().route!=='instalaciones-programacion-personal')return;
+    clearSensitiveView();state.ready=false;void init();
   });
   window.ManttoInstalacionesProgramacionPersonal = {init,reload:init,dispose:clearSensitiveView};
 })();

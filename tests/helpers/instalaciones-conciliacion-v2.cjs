@@ -66,7 +66,7 @@ function createFixture(options={}){
           }else if(sql.includes('es_historico=1')){
             const [from,to,,id]=params;
             const row=workingRows.find(a=>a.id_asignacion===id);
-            Object.assign(row,{fecha_desde:row.fecha_desde??from,fecha_hasta:row.fecha_hasta??to,es_historico:1});
+            Object.assign(row,{fecha_desde:row.fecha_desde??from,fecha_hasta:to,es_historico:1});
           }else throw Error('UPDATE no permitido: '+sql);
           return [{affectedRows:1}];
         }

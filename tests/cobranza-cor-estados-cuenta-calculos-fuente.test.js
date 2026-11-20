@@ -8,14 +8,14 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname,'..');
 const read = (rel) => fs.readFileSync(path.join(ROOT,rel),'utf8');
 
-test('Fuente expone datos crudos y Facturas expone pagado para calculos de frontend', () => {
+test('Fuente expone datos crudos y Facturas expone el pago consolidado para frontend', () => {
   const service = read('backend/src/modules/cobranza-cor/cobranza-cor.service.js');
   const repository = read('backend/src/modules/cobranza-cor/cobranza-cor.repository.js');
 
   assert.match(service,/factura_fuente:\s*cleanText_cor\(row\?\.factura\)/);
   assert.match(service,/pago_total_fuente:\s*numberOrNull_cor\(row\?\.pago_total\)/);
   assert.match(service,/estatus_factura_fuente:\s*cleanText_cor\(row\?\.estatus_factura\)/);
-  assert.match(service,/pagado:\s*numberOrNull_cor\(row\?\.pagado\)/);
+  assert.match(service,/pagado:\s*payment\.importe_pagado/);
   assert.match(repository,/cf\.pagado/);
 });
 

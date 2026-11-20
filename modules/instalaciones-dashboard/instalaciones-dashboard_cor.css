@@ -89,3 +89,8 @@
 .idb-cor-cell-editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:11px}.idb-cor-cell-editor-actions button{min-height:34px;border-radius:9px;padding:7px 11px;font:inherit;font-size:10px;font-weight:900}.idb-cor-cell-editor-cancel{border:1px solid #cfd8e8;background:#fff;color:#344054;cursor:pointer}.idb-cor-cell-editor-save{border:1px solid #1f56d8;background:#1f56d8;color:#fff}.idb-cor-cell-editor-save:disabled{opacity:.42;cursor:not-allowed}
 @media (hover:none){.idb-cor-cell-editable:focus{background:#f7faff!important}.idb-cor-cell-editable:active{background:#eaf2ff!important}}
 @media (max-width:640px){.idb-cor-cell-editor{left:10px!important;right:10px!important;top:auto!important;bottom:max(10px,env(safe-area-inset-bottom));width:auto!important;max-width:none;border-radius:16px;padding:15px;box-shadow:0 16px 50px rgba(16,24,40,.3)}.idb-cor-cell-editor-textarea{min-height:110px}.idb-cor-cell-editor-actions button{flex:1}}
+
+/* Colores de estatus de equipo, independientes de los Estados Visuales. */
+.idb-cor-installation-status{display:inline-flex;align-items:center;justify-content:center;min-height:23px;padding:3px 8px;border-radius:999px;background:var(--ins-status-color,#E2E8F0);color:var(--ins-status-text,#0F172A);font-size:10px;font-weight:900;white-space:nowrap}
+.idb-cor-equipment-stage{display:inline-flex;align-items:center;gap:7px;font-weight:850}
+.idb-cor-equipment-stage:before{content:"";width:5px;height:20px;border-radius:4px;background:var(--ins-status-color,#CBD5E1);flex:0 0 5px}

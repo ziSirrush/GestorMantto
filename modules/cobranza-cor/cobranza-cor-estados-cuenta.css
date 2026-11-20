@@ -351,6 +351,7 @@
 .ccor-ec-aditivas-table .ccor-ec-aditivas-description{text-align:left;min-width:260px;white-space:normal}
 .ccor-ec-num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right!important}
 .ccor-ec-detail-table .is-pending{font-weight:850;color:#9f2f28}
+.ccor-ec-detail-table .is-applied{font-weight:850;color:#8a6100}
 
 .ccor-ec-total-row td{
   background:#edf5fd!important;
@@ -550,6 +551,22 @@
 }
 
 
+/* [Aster | 2026-11-18 | ASTER-MG | COBRANZA COR DETALLE MOVIL REACOMODO V001]
+   En móvil se intercalan las cuentas generales y los hitos de cada bloque.
+   Escritorio conserva la distribución original: ambos resúmenes antes de las tablas. */
+@media (max-width:760px){
+  .ccor-ec-detail-page > *{order:50}
+  .ccor-ec-detail-page > .ccor-ec-detail-toolbar{order:0}
+  .ccor-ec-detail-page > .ccor-ec-detail-title{order:1}
+  .ccor-ec-detail-page > .ccor-ec-project-header{order:2}
+  .ccor-ec-detail-page > .ccor-ec-summary-grid{display:contents}
+  .ccor-ec-detail-page > .ccor-ec-summary-grid > .ccor-ec-summary-card.is-supply{order:3}
+  .ccor-ec-detail-page > .ccor-ec-account-section.is-supply{order:4}
+  .ccor-ec-detail-page > .ccor-ec-summary-grid > .ccor-ec-summary-card.is-installation{order:5}
+  .ccor-ec-detail-page > .ccor-ec-account-section.is-installation{order:6}
+}
+
+
 /* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 4 DETALLE FACTURAS V001] */
 .ccor-ec-facturas-section{overflow:hidden}
 .ccor-ec-facturas-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid #e1e8ef}
@@ -566,9 +583,23 @@
 .ccor-ec-factura-form-actions{display:flex;align-items:end;justify-content:flex-end;gap:8px;grid-column:span 2}
 .ccor-ec-factura-form-actions .ccor-ec-btn:not(.ccor-ec-btn-primary){padding:9px 14px;background:#e9eef4;color:#294866}
 .ccor-ec-factura-note{grid-column:1/-1;color:#6f7f90;font-size:9.5px;line-height:1.35}
-.ccor-ec-facturas-table{min-width:1450px}
+.ccor-ec-facturas-table{min-width:1220px}
 .ccor-ec-facturas-table .ccor-ec-condition{min-width:250px;text-align:left}
 .ccor-ec-facturas-table th,.ccor-ec-facturas-table td{white-space:nowrap}
+.ccor-ec-total-button{border:0;border-bottom:1px dashed #1768b5;background:transparent;color:#124f85;padding:2px 1px;font:inherit;font-weight:850;cursor:pointer}
+.ccor-ec-total-button:hover,.ccor-ec-total-button:focus-visible{color:#0b66c3;border-bottom-style:solid;outline:none}
+.ccor-ec-total-popover{position:fixed;z-index:10050;width:min(260px,calc(100vw - 16px));padding:10px 12px;border:1px solid #a9bfd5;border-radius:10px;background:#fff;box-shadow:0 12px 35px rgba(11,43,85,.24);color:#183554}
+.ccor-ec-total-popover[hidden]{display:none!important}
+.ccor-ec-total-popover>div{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:6px 2px;border-bottom:1px solid #e4ebf2}
+.ccor-ec-total-popover>div:last-child{border-bottom:0}
+.ccor-ec-total-popover span{color:#66778a;font-size:10px;font-weight:750}
+.ccor-ec-total-popover b{font-size:12px;text-align:right}
+.ccor-ec-total-popover .is-total{color:#0b4f91}
+.ccor-ec-payment-popover{width:min(390px,calc(100vw - 16px))}
+.ccor-ec-payment-breakdown-row>span{display:flex;min-width:0;flex-direction:column;align-items:flex-start;gap:2px}
+.ccor-ec-payment-breakdown-row strong{color:#183554;font-size:11px}
+.ccor-ec-payment-breakdown-row small{color:#7a8998;font-size:9px;font-weight:650;white-space:normal;text-align:left}
+.ccor-ec-payment-breakdown-button{white-space:nowrap}
 @media(max-width:1100px){.ccor-ec-factura-form{grid-template-columns:repeat(3,minmax(130px,1fr))}}
 @media(max-width:760px){
   .ccor-ec-facturas-section{width:100%;max-width:100%;min-width:0}
@@ -576,7 +607,7 @@
   .ccor-ec-factura-form{grid-template-columns:1fr 1fr}
   .ccor-ec-factura-form label.is-wide,.ccor-ec-factura-form-actions{grid-column:1/-1}
   .ccor-ec-facturas-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto!important;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-  .ccor-ec-facturas-table{display:table;width:100%;min-width:1450px!important}
+  .ccor-ec-facturas-table{display:table;width:100%;min-width:1220px!important}
   .ccor-ec-facturas-table thead{display:table-header-group}
   .ccor-ec-facturas-table tbody{display:table-row-group}
   .ccor-ec-facturas-table tr{display:table-row}

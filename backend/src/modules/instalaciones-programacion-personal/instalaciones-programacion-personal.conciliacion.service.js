@@ -37,9 +37,25 @@ function result(id,estado,extras={}){
   return {id_ins_fl:id,estado,creadas:0,actualizadas:0,historicas:0,retiradas:0,
     existentes:0,conflictos:[],...extras};
 }
+// Fecha del guardado en CDMX: nunca atribuir a un relevo todo el periodo del equipo.
+function fechaActualCDMX(){
+  const pairs=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',
+    year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const p=Object.fromEntries(pairs.filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+  return p.year+'-'+p.month+'-'+p.day;
+}
+function diaAnterior(fecha){
+  const d=new Date(fecha+'T12:00:00Z');
+  if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==fecha)return null;
+  d.setUTCDate(d.getUTCDate()-1);
+  return d.toISOString().slice(0,10);
+}
 // conexionCompartida se utiliza solo durante un lote tecnico controlado.
  // Las llamadas normales mantienen su propio ciclo de conexion/transaccion.
-async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false,conexionCompartida=null}={}){
+async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false,conexionCompartida=null,fechaEfectiva=null}={}){
+  if(fechaEfectiva!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(String(fechaEfectiva))||
+      diaAnterior(String(fechaEfectiva))===null))
+    throw refs.fallo(400,'INT9_RELEVO_FECHA_INVALIDA','La fecha efectiva del relevo es invalida.');
   const id=Number(idValue);
   if(!Number.isSafeInteger(id)||id<1)throw refs.fallo(400,'INT9_ID_INVALIDO','Equipo invalido.');
   if(!tecnico&&!access)throw refs.fallo(403,'INT9_ALCANCE_REQUERIDO','Se requiere alcance CORELLIAN.');
@@ -94,41 +110,64 @@ async function reconciliarEquipo(idValue,{actorId=null,access=null,tecnico=false
       throw refs.fallo(409,'INT9_IDENTIDAD_CAMBIO','Ajustador no estable durante conciliacion.');
     const autos=current.filter(x=>x.origen===AUTO);
     const desired=new Set(isEligible?targets:[]);
+    const live=autos.filter(a=>Number(a.es_historico)!==1);
+    const historical=autos.filter(a=>Number(a.es_historico)===1);
+    // No reabrir periodos cerrados: la clave unica actual permite una sola
+    // asignacion activa por persona/equipo; requiere revision de modelo.
+    if(historical.some(a=>desired.has(Number(a.id_personal)))){
+      await conn.rollback();open=false;
+      return result(id,'REQUIERE_REVISION',{motivo:'AJUSTADOR_REINGRESO_HISTORICO'});
+    }
+    const newIds=[...desired].filter(pid=>!live.some(a=>Number(a.id_personal)===pid));
+    const hasHandoff=isEligible&&live.length>0&&(newIds.length>0||live.some(a=>!desired.has(Number(a.id_personal))));
+    const effective=fechaEfectiva||fechaActualCDMX();
+    const beforeEffective=hasHandoff?diaAnterior(effective):null;
+    if(isEligible&&newIds.length&&autos.length&&(effective<updated.inicio||effective>updated.fin)){
+      await conn.rollback();open=false;
+      return result(id,'REQUIERE_REVISION',{motivo:'RELEVO_FUERA_DE_PERIODO',fecha_efectiva:effective});
+    }
+    // Cada tecnico conserva su fecha de ingreso despues del primer relevo.
     let creadas=0,actualizadas=0,historicas=0;
-    for(const a of autos){
+    for(const a of live){
+      const originalStart=assignments._read.parseDate(a.fecha_desde);
+      const originalEnd=assignments._read.parseDate(a.fecha_hasta);
       if(desired.has(Number(a.id_personal))){
-        const start=assignments._read.parseDate(a.fecha_desde);
-        const end=assignments._read.parseDate(a.fecha_hasta);
-        if(start!==updated.inicio||end!==updated.fin||Number(a.es_historico)!==0){
+        const start=historical.length?originalStart||updated.inicio:updated.inicio;
+        if(start!==originalStart||originalEnd!==updated.fin){
           await conn.execute(
             `UPDATE instalaciones_programacion_asignaciones
                 SET fecha_desde=?,fecha_hasta=?,es_historico=0,updated_by=?
               WHERE id_asignacion=? AND origen='AUTOMATICA_FL' AND activo=1`,
-            [updated.inicio,updated.fin,actorId,a.id_asignacion]);
+            [start,updated.fin,actorId,a.id_asignacion]);
           actualizadas++;
         }
-      }else if(Number(a.es_historico)!==1){
+      }else{
         const fallback=assignments._read.windowEquipo(TYPE,row);
+        const start=originalStart||(fallback.valida?fallback.inicio:null);
+        const oldEnd=originalEnd||(fallback.valida?fallback.fin:null);
+        const end=hasHandoff?(oldEnd&&oldEnd<beforeEffective?oldEnd:beforeEffective):
+          (assignments._read.parseDate(row.fecha_fin_ajuste_real)||oldEnd);
+        if(!start||!end||end<start){
+          await conn.rollback();open=false;
+          return result(id,'REQUIERE_REVISION',{motivo:'PERIODO_RELEVO_INVALIDO'});
+        }
         await conn.execute(
           `UPDATE instalaciones_programacion_asignaciones
               SET fecha_desde=COALESCE(fecha_desde,?),
-                  fecha_hasta=COALESCE(fecha_hasta,?),
-                  es_historico=1,updated_by=?
+                  fecha_hasta=?,es_historico=1,updated_by=?
             WHERE id_asignacion=? AND origen='AUTOMATICA_FL' AND activo=1`,
-          [fallback.valida?fallback.inicio:null,fallback.valida?fallback.fin:null,
-            actorId,a.id_asignacion]);
+          [start,end,actorId,a.id_asignacion]);
         historicas++;
       }
     }
-    const known=new Set(autos.map(x=>Number(x.id_personal)));
-    for(const pid of desired){
-      if(known.has(pid))continue;
+    for(const pid of newIds){
+      const start=autos.length?effective:updated.inicio;
       await conn.execute(
         `INSERT INTO instalaciones_programacion_asignaciones
           (id_personal,id_ins_fl,origen,es_historico,fecha_desde,fecha_hasta,notas,
            activo,created_by,updated_by)
          VALUES(?,?,'AUTOMATICA_FL',0,?,?,?,1,?,?)`,
-        [pid,id,updated.inicio,updated.fin,refs.NOTA_AUTO,actorId,actorId]);
+        [pid,id,start,updated.fin,refs.NOTA_AUTO,actorId,actorId]);
       creadas++;
     }
     // El traslape automatico NO cancela la asignacion; se muestra una marca.

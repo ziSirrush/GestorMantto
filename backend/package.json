@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "node --watch server.js",
     "check": "node scripts/validate-structure.js && node scripts/validate-clean-tree.js",
     "test": "npm run test:unit && npm run test:validation && npm run test:backend && npm run test:contracts && npm run test:storage",
     "test:unit": "node --test --test-concurrency=4 ../tests/*.test.js ../tests/*.test.cjs",
@@ -40,18 +40,12 @@
     "@azure/identity": "4.13.0",
     "@azure/storage-blob": "^12.33.0"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
-  },
   "overrides": {
     "@azure/msal-node": {
       "uuid": "11.1.1"
     },
     "googleapis-common": {
       "gaxios": "7.3.1"
-    },
-    "nodemon": {
-      "minimatch": "11.0.4"
     }
   }
 }

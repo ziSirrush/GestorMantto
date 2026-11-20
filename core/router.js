@@ -3,7 +3,7 @@
   const routeNames = {
     home:'Inicio', resumen:'Resumen del día', tickets:'Tickets', callcenter:'Dashboard Call Center',
     operativo:'Dashboard Operativo', informes:'Informes', portafolio:'Dashboard Portafolio', movimientos:'Movimientos Portafolio', 'movimientos-criticos':'Movimientos Críticos',
-    proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios',
+    proyectos:'Proyectos', criticos:'Equipos Críticos', usuarios:'Usuarios', 'visor-usuarios':'Visor de usuarios',
     tareas:'Tareas', activity:'Actividad reciente', 'panel-control':'Panel de Control', 'offline-configuracion':'Modo Offline', control:'Centro de Control',
     help:'Centro de Ayuda', notifications:'Notificaciones', services:'Estado de servicios',
     profile:'Perfil de usuario', 'support-request':'Solicitud de soporte', detalle:'Detalle',
@@ -27,6 +27,15 @@
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
     'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
     'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
+    'portal-blt-jf-movimientos-portafolio':'Movimientos Portafolio (JF)',
+    'portal-blt-jf-portafolio-total':'Portafolio Total (JF)',
+    'portal-blt-jf-equipos-criticos':'Equipos Críticos (JF)',
+    'portal-blt-jf-equipos-parados':'Equipos Parados (JF)',
+    'portal-blt-jf-infografias':'Infografías (JF)',
+    'portal-blt-jf-uso-app':'Uso de la APP (JF)',
+    'portal-blt-jf-tipos-precalculo':'Tiempos Precalculo (JF)',
+    'portal-blt-jf-encuestas-satisfaccion':'Encuestas de satisfacción (JF)',
+    'portal-blt-jf-kpis':'KPIS (JF)',
     'cobranza-uni-dashboard':'Dashboard Cobranza', 'cobranza-uni-estados-cuenta':'Gestión de Crédito', 'cobranza-uni-mp-pro':'Mantenimiento Preventivo', 'cobranza-uni-aditivas':'Venta Adicional', 'cobranza-uni-administracion':'Administración'
   };
 
@@ -37,6 +46,18 @@
     'experimental-equipos-criticos',
     'experimental-dashboard-call-center',
     'experimental-proyectos-criticos'
+  ]);
+  // Rutas exclusivas de los modulos JF: nunca reutilizar vistas existentes.
+  const PORTAL_BLT_JF_ROUTES = new Set([
+    'portal-blt-jf-movimientos-portafolio',
+    'portal-blt-jf-portafolio-total',
+    'portal-blt-jf-equipos-criticos',
+    'portal-blt-jf-equipos-parados',
+    'portal-blt-jf-infografias',
+    'portal-blt-jf-uso-app',
+    'portal-blt-jf-tipos-precalculo',
+    'portal-blt-jf-encuestas-satisfaccion',
+    'portal-blt-jf-kpis'
   ]);
   const COBRANZA_ROUTES_UNI = new Set([
     'cobranza-uni-dashboard',
@@ -1036,6 +1057,16 @@
     return true;
   }
 
+  function showPortalBltJf(route){
+    const view = document.getElementById('view-' + route);
+    if(!view || !window.ManttoPortalBltJf || typeof window.ManttoPortalBltJf.init !== 'function') return false;
+    activateViewById('view-' + route);
+    setActiveSide(route);
+    updateContext(route, 'Portal BLT');
+    window.ManttoPortalBltJf.init(route);
+    return true;
+  }
+
   function showCobranza_uni(route){
     const view = document.getElementById('view-' + route);
     if(!view) return false;
@@ -1086,6 +1117,17 @@
 
   function showPlaceholder(route, payload){
     if(route==='detalle' && showDetalle(payload)) return;
+    // Las rutas JF no muestran contenido ni placeholders a usuarios sin permiso.
+    if(PORTAL_BLT_JF_ROUTES.has(route) && window.ManttoPermissions?.canNavigate?.(route)!==true){
+      const view=activateViewById('view-placeholder');
+      if(!view)return;
+      view.innerHTML='<div class="placeholder"><div class="card placeholder-card construction-card">' +
+        '<h1>Acceso restringido</h1><p>No tienes permiso para este modulo de Portal BLT.</p>' +
+        '</div></div>';
+      setActiveSide('');
+      updateContext(route,'Portal BLT · Acceso restringido');
+      return;
+    }
     // Experimental NS: acceso exclusivo por permisos efectivos del catalogo,
     // sin listas de roles. El backend valida permiso, puerta y alcance UNITED.
     if(['experimental-ns-resumen-dia','experimental-ns-equipos-criticos','experimental-ns-proyectos-mantenimiento','experimental-ns-equipos-parados'].includes(route)){
@@ -1105,6 +1147,7 @@
       }
       return;
     }
+    if(PORTAL_BLT_JF_ROUTES.has(route) && showPortalBltJf(route)) return;
     if(EXPERIMENTAL_ROUTES_EXP.has(route) && showExperimental_exp(route)) return;
     if(route==='cobranza-uni-administracion' && showCobranzaAdministracion_uni()) return;
     if(COBRANZA_ROUTES_UNI.has(route) && showCobranza_uni(route)) return;
@@ -1154,8 +1197,43 @@
       if(window.ManttoLogisticaProduccion) window.ManttoLogisticaProduccion.init(route,currentPayload||null);
       return;
     }
+    if(route==='cobranza-dashboard'){
+      const view=activateViewById('view-placeholder');
+      if(!view)return;
+      const authorized=window.ManttoPermissions?.canNavigate?.(route)===true;
+      setActiveSide(authorized?route:'');
+      updateContext(route,authorized?'Cobranza COR · Dashboard de Seguimiento':'Cobranza COR · acceso restringido');
+      if(!authorized){
+        view.innerHTML='<div class="placeholder"><div class="card placeholder-card construction-card"><h1>Acceso restringido</h1><p>No tienes permiso para abrir el Dashboard de Cobranza COR.</p></div></div>';
+        return;
+      }
+      if(window.ManttoCobranzaCorDashboard&&typeof window.ManttoCobranzaCorDashboard.init==='function'){
+        window.ManttoCobranzaCorDashboard.init();
+      }else{
+        view.innerHTML='<div class="placeholder"><div class="card placeholder-card construction-card"><h1>Dashboard Cobranza</h1><p>No fue posible iniciar el modulo.</p></div></div>';
+      }
+      return;
+    }
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
+    if(route==='visor-usuarios'){
+      const view=activateViewById('view-visor-usuarios');
+      if(!view)return;
+      const authorized=window.ManttoUserViewer?.allowed?.()===true &&
+        window.ManttoPermissions?.canNavigate?.('visor-usuarios')===true;
+      setActiveSide(authorized?'visor-usuarios':'');
+      updateContext('visor-usuarios',authorized?'Visor de usuarios · solo lectura':'Visor de usuarios · acceso restringido');
+      if(!authorized){
+        view.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No tienes autorización para usar el Visor de usuarios.</div></section>';
+        return;
+      }
+      Promise.resolve(window.ManttoUserViewer.renderPanel(view)).catch(error=>{
+        if(window.ManttoRouter?.getCurrent?.()?.route!=='visor-usuarios')return;
+        console.error('[Visor de usuarios]',error);
+        view.innerHTML='<section class="user-viewer-panel"><div class="user-viewer-empty">No fue posible cargar los usuarios. Intenta abrir el visor nuevamente.</div></section>';
+      });
+      return;
+    }
     if(route==='panel-control' && showPanelControl()) return;
     if(route==='offline-configuracion' && showView(route,'Piloto controlado · copia operativa de solo lectura')){
       if(window.ManttoOfflinePilot?.init)window.ManttoOfflinePilot.init();

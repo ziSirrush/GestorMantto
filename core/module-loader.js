@@ -30,6 +30,12 @@
     'usuarios','panel-control','soporte-solicitudes',
     'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
     'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos',
+    'portal-blt-jf-movimientos-portafolio',
+    'portal-blt-jf-portafolio-total',
+    'portal-blt-jf-equipos-criticos',
+    'portal-blt-jf-equipos-parados',
+    'portal-blt-jf-infografias',
+    'portal-blt-jf-uso-app',
     'cobranza-uni-dashboard','cobranza-uni-estados-cuenta','cobranza-uni-mp-pro','cobranza-uni-aditivas'
   ]);
   const initializedContexts = new Set();
@@ -213,19 +219,19 @@
     'logistica-documentos':{css:['./modules/logistica-produccion/logistica-produccion.css?v=20261109-pvo-comentarios-v001'],js:['./modules/logistica-produccion/logistica-produccion.js?v=20261109-detail-navigation-v001']},
 
     // Mantener este token sincronizado con el despliegue del Dashboard.
-    'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20261110-snapshot-lazy-v001']},
+    'instalaciones-dashboard':{css:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.css?v=20261119-paleta-estatus-v001'],js:['./modules/instalaciones-dashboard/instalaciones-dashboard_cor.js?v=20261119-paleta-estatus-v001']},
     'instalaciones-proyectos':{css:['./modules/instalaciones-proyectos/instalaciones-proyectos.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-proyectos/instalaciones-proyectos.js?v=20260914-horarios-f2-v001-limpieza-v002']},
     'instalaciones-cerrados':{css:['./modules/instalaciones-cerrados/instalaciones-cerrados.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-cerrados/instalaciones-cerrados.js?v=20260821-paginacion-v002']},
     'instalaciones-concentrado-cliente':{css:['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.css?v=20260713-v001'],js:['./modules/instalaciones-concentrado-cliente/instalaciones-concentrado-cliente.js?v=20260828-fase4-frontend-v001']},
-    'instalaciones-reporte':{css:['./modules/instalaciones-reporte/instalaciones-reporte_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-reporte/instalaciones-reporte_cor.js?v=20260914-horarios-f2-v001-limpieza-v002']},
+    'instalaciones-reporte':{css:['./modules/instalaciones-reporte/instalaciones-reporte_cor.css?v=20261119-paleta-estatus-v001'],js:['./modules/instalaciones-reporte/instalaciones-reporte_cor.js?v=20261119-paleta-estatus-v001']},
     'instalaciones-ajuste':{css:['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.css?v=20260821-paginacion-30-v002'],js:['./modules/instalaciones-ajuste/instalaciones-ajuste_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-carpetas':{css:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.css?v=20260821-carpetas-disponibles-v002'],js:['./modules/instalaciones-carpetas/instalaciones-carpetas_cor.js?v=20260914-horarios-f2-v001']},
     'instalaciones-documentacion':{css:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.css?v=20260818-documentacion-fase2-v001'],js:['./modules/instalaciones-documentacion/instalaciones-documentacion_cor.js?v=20261109-detail-navigation-v002']},
     'instalaciones-programacion-personal':{css:[
-      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css?v=20261112-int9-contratistas-inline-v002',
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.css?v=20261112-int9-tab-access-v006',
       './modules/instalaciones-programacion-personal/instalaciones-programacion-personal-ajustadores.css?v=20261027-int9-ajustadores-fase4-v001'
     ],js:[
-      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js?v=20261112-int9-contratistas-inline-v002',
+      './modules/instalaciones-programacion-personal/instalaciones-programacion-personal.js?v=20261112-int9-tab-access-v006',
       './modules/instalaciones-programacion-personal/instalaciones-programacion-personal-ajustadores.js?v=20261111-int9-incidencias-fl-v001'
     ]},
     'instalaciones-pmm':{css:['./modules/instalaciones-pmm/instalaciones-pmm_cor.css?v=20260907-emojis-limpios-v001'],js:['./modules/instalaciones-pmm/instalaciones-pmm_cor.js?v=20260914-horarios-f2-v001']},
@@ -261,7 +267,7 @@
     'almacen-carga':{css:[ALMACEN_MODULE_CSS,'./modules/almacen-carga/almacen-carga.css?v=20260830-v001-limpieza-v002'],js:['./modules/almacen-carga/almacen-carga.js?v=20260901-historico-global-v002-limpieza-v002']},
 
     usuarios:{css:['./modules/usuarios/usuarios.css?v=20261015-app-update-v001'],js:['./modules/usuarios/usuarios.js?v=20261109-detail-navigation-v003']},
-    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20261111-pruebas-scripts-v001'],js:['./modules/panel-control/panel-control.js?v=20261111-int9-lotes-v001']},
+    'panel-control':{css:['./modules/panel-control/panel-control.css?v=20261111-pruebas-scripts-v001'],js:['./modules/panel-control/panel-control.js?v=20261117-panel-united-v002']},
     'offline-configuracion':{css:['./modules/offline-pilot/offline-pilot.css?v=20261020-fase2-v001'],js:['./modules/offline-pilot/offline-pilot.js?v=20261023-context-back-only-v001']},
     'soporte-solicitudes':{css:['./modules/soporte-solicitudes/soporte-solicitudes.css?v=20260803-cffaa03-v001'],js:['./modules/soporte-solicitudes/soporte-solicitudes.js?v=20261109-detail-navigation-v003']},
 
@@ -271,9 +277,23 @@
     'experimental-equipos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-equipos-criticos/experimental-equipos-criticos.css?v=20260806-fase5-2-v001'],js:['./modules/experimental-equipos-criticos/experimental-equipos-criticos.js?v=20260806-fase5-2-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260914-horarios-f2-v001-limpieza-v002',EXPERIMENTAL_SHELL_JS]},
     'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
+    'portal-blt-jf-movimientos-portafolio':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-portafolio-total':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-equipos-criticos':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-equipos-parados':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-infografias':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-uso-app':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
+    'portal-blt-jf-encuestas-satisfaccion':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261119-portal-blt-jf-encuestas-v001']},
 
     // [Aster | 2026-09-12 | ASTER-MG | FIX FASE 4 COBRANZA COR ADITIVAS CRUD V001]
-    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261015-pagos-proyecto-fuente-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261023-back-history-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001-limpieza-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-pdf.js?v=20261118-estado-cuenta-pdf-v001']},
+    'cobranza-dashboard':{
+      css:['./modules/cobranza-cor/cobranza-cor-dashboard.css?v=20261118-ds-f2-v001'],
+      js:[
+        './modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261118-ds-f1-v001',
+        './modules/cobranza-cor/cobranza-cor-dashboard.js?v=20261118-ds-f2-v001'
+      ]
+    },
+    'cobranza-estados-cuenta':{css:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.css?v=20261001-cobranza-pagos-detalle-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.css?v=20260930-cobranza-consolidacion-f3-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.css?v=20261002-cobranza-fase6-acciones-v001'],js:['./modules/cobranza-cor/cobranza-cor-estados-cuenta.js?v=20261118-ds-f1-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-form.js?v=20261023-back-history-v001','./modules/cobranza-cor/cobranza-cor-estados-cuenta-acciones.js?v=20261002-cobranza-fase6-acciones-v001-limpieza-v002','./modules/cobranza-cor/cobranza-cor-estados-cuenta-pdf.js?v=20261118-estado-cuenta-pdf-pausado-v002']},
     'cobranza-pagos':{css:['./modules/cobranza-cor/cobranza-cor-pagos.css?v=20261002-cobranza-pagos-list-buscable-tradicional-v004'],js:['./modules/cobranza-cor/cobranza-cor-pagos.js?v=20261015-pagos-proyecto-fuente-v002']},
     'cobranza-aditivas':{css:['./modules/cobranza-cor/cobranza-cor-aditivas.css?v=20260912-aditivas-crud-v001'],js:['./modules/cobranza-cor/cobranza-cor-aditivas.js?v=20260914-horarios-f2-v001']},
 

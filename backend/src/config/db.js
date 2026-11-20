@@ -183,11 +183,12 @@ assertDatabaseEnvironment();
 // Certificado y nombre del servidor verificados antes de crear el pool.
 const dbTlsOptions = buildAivenTlsOptions();
 // Contención operativa: Aiven agotó max_connections durante el despliegue.
-// El valor histórico sigue siendo configurable, pero cada instancia de Azure
-// queda limitada por defecto a dos conexiones y conserva solo una ociosa. El
-// cap puede elevarse explícitamente cuando Aiven tenga capacidad confirmada.
-const requestedConnectionLimit = positiveNumber(process.env.DB_CONNECTION_LIMIT, 10, 1);
-const connectionLimitCap = positiveNumber(process.env.DB_CONNECTION_LIMIT_CAP, 2, 1);
+// Ampliación controlada 2026-11-19: máximo predeterminado de 20 conexiones por
+// instancia de Azure. El límite sigue siendo configurable por entorno.
+// Se conservan una conexión ociosa predeterminada, la cola acotada y el
+// cortacircuitos ante presión de conexiones.
+const requestedConnectionLimit = positiveNumber(process.env.DB_CONNECTION_LIMIT, 20, 1);
+const connectionLimitCap = positiveNumber(process.env.DB_CONNECTION_LIMIT_CAP, 20, 1);
 const connectionLimit = Math.max(1, Math.floor(Math.min(requestedConnectionLimit, connectionLimitCap)));
 const maxIdleConnections = Math.max(1, Math.floor(Math.min(
   connectionLimit,

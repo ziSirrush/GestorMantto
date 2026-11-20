@@ -98,7 +98,7 @@
     if(!status) return 'is-neutral';
     if(status.includes('CORRIENTE') || status.includes('AL DIA') || status.includes('AL DÍA') || status.includes('PAGAD')) return 'is-ok';
     if(status.includes('VENC') || status.includes('NO PAG') || status.includes('ADEUD') || status.includes('ATRAS')) return 'is-danger';
-    if(status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVIS')) return 'is-warn';
+    if(status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVIS') || status.includes('PARCIAL') || status.includes('APLICADO')) return 'is-warn';
     return 'is-neutral';
   }
 
@@ -376,7 +376,9 @@
 
     facturas.forEach(row=>{
       const key = invoiceKey_cor(row && row.factura);
-      const paid = number_cor(row && row.pagado);
+      const paid = number_cor(
+        row && (row.importe_pagado ?? row.pagado)
+      );
       if(!key || paid === null) return;
       totals.set(
         key,
@@ -411,12 +413,14 @@
         row && row.pago_contabilizado
       );
 
-      let payment = sourcePayment !== null
-        ? sourcePayment
-        : (currentPayment !== null ? currentPayment : accountedPayment);
+      let payment = currentPayment !== null
+        ? currentPayment
+        : (accountedPayment !== null ? accountedPayment : sourcePayment);
 
       if(
-        sourceStatus === 'PARCIAL'
+        currentPayment === null
+        && accountedPayment === null
+        && sourceStatus === 'PARCIAL'
         && invoiceKey
         && pagadoByFactura.has(invoiceKey)
       ){
@@ -435,9 +439,14 @@
         : (days < 31 ? 'CORRIENTE' : 'VENCIDO');
 
       const total = number_cor(row && row.total);
-      const pending = total === null
-        ? null
-        : roundFrontendAmount_cor(total - payment);
+      const backendPending = number_cor(
+        row && row.pendiente_calculado
+      );
+      const pending = backendPending !== null
+        ? roundFrontendAmount_cor(backendPending)
+        : (total === null
+          ? null
+          : roundFrontendAmount_cor(total - payment));
 
       return {
         ...row,
@@ -599,32 +608,54 @@
     return '—';
   }
 
-  function renderPaymentMe_cor(row){
-    if(!isKnownForeign_cor(row && row.moneda)){
-      return '—';
-    }
+  function renderPaymentValue_cor(row){
+    const amount = number_cor(row && row.pago_contabilizado);
+    return amount && amount > 0 ? formatAmount_cor(amount) : '—';
+  }
 
-    const amount = number_cor(
-      row && row.pago_contabilizado
-    );
+  function paymentDates_cor(row){
+    const values = Array.isArray(row && row.fechas_pago)
+      ? row.fechas_pago
+      : [];
+    const normalized = [];
+    values.forEach(value=>{
+      const raw=String(value||'').trim();
+      if(raw&&!normalized.includes(raw)) normalized.push(raw);
+    });
+    const direct=String(row&&row.fecha_pago||'').trim();
+    if(!normalized.length&&direct) normalized.push(direct);
+    return normalized;
+  }
 
-    return amount && amount > 0
-      ? formatAmount_cor(amount)
+  function renderPaymentDates_cor(row){
+    const dates=paymentDates_cor(row);
+    return dates.length
+      ? dates.map(formatDate_cor).join(' · ')
       : '—';
   }
 
-  function renderPaymentMxn_cor(row){
-    if(!isMxn_cor(row && row.moneda)){
-      return '—';
+  function renderPaymentCell_cor(row,section){
+    const visible = section === 'supply'
+      ? isKnownForeign_cor(row && row.moneda)
+      : isMxn_cor(row && row.moneda);
+    if(!visible) return '—';
+    return escapeHtml_cor(renderPaymentValue_cor(row));
+  }
+
+  function renderPendingCell_cor(row){
+    if(row && row.aplicado_a_condicion){
+      return escapeHtml_cor('Aplicado a ' + text_cor(row.aplicado_a_condicion));
     }
 
-    const amount = number_cor(
-      row && row.pago_contabilizado
-    );
-
-    return amount && amount > 0
-      ? formatAmount_cor(amount)
-      : '—';
+    const value=formatAmount_cor(row && row.pendiente_calculado);
+    const breakdown=Array.isArray(row&&row.desglose_pagos)?row.desglose_pagos:[];
+    if(row&&row.pago_desglose_principal&&breakdown.length){
+      return `<button class="ccor-ec-total-button ccor-ec-payment-breakdown-button" type="button"
+        data-payment-breakdown-toggle
+        data-payment-hito-id="${escapeHtml_cor(String(row.id_fuente_cor||''))}"
+        aria-expanded="false">${escapeHtml_cor(value)}</button>`;
+    }
+    return escapeHtml_cor(value);
   }
 
   function renderMovementRows_cor(rows,section){
@@ -683,20 +714,16 @@
 
         <td>
           ${escapeHtml_cor(
-            formatDate_cor(row.fecha_pago)
+            renderPaymentDates_cor(row)
           )}
         </td>
 
         <td class="ccor-ec-num">
-          ${escapeHtml_cor(
-            renderPaymentMe_cor(row)
-          )}
+          ${renderPaymentCell_cor(row,'supply')}
         </td>
 
         <td class="ccor-ec-num">
-          ${escapeHtml_cor(
-            renderPaymentMxn_cor(row)
-          )}
+          ${renderPaymentCell_cor(row,'installation')}
         </td>
 
         <td>
@@ -705,10 +732,8 @@
           )}
         </td>
 
-        <td class="ccor-ec-num is-pending">
-          ${escapeHtml_cor(
-            formatAmount_cor(row.pendiente_calculado)
-          )}
+        <td class="ccor-ec-num ${row.aplicado_a_condicion ? 'is-applied' : 'is-pending'}">
+          ${renderPendingCell_cor(row)}
         </td>
       </tr>
     `).join('');
@@ -944,22 +969,148 @@
     return Number.isFinite(parsed)?parsed:null;
   }
 
+  function closeFacturaTotalPopover_cor(){
+    const popover=document.getElementById('ccor-ec-total-popover');
+    if(!popover) return;
+    popover.hidden=true;
+    popover.innerHTML='';
+    state.root?.querySelectorAll?.('[data-factura-total-toggle][aria-expanded="true"]')
+      .forEach(button=>button.setAttribute('aria-expanded','false'));
+  }
+
+  function toggleFacturaTotalPopover_cor(button){
+    const popover=document.getElementById('ccor-ec-total-popover');
+    if(!popover||!button) return;
+    const same=popover.dataset.facturaTotalId===String(button.dataset.facturaTotalId||'')
+      && popover.hidden===false;
+    closeFacturaTotalPopover_cor();
+    if(same) return;
+
+    const currency=String(button.dataset.currency||'').trim().toUpperCase();
+    popover.dataset.facturaTotalId=String(button.dataset.facturaTotalId||'');
+    popover.innerHTML=`
+      <div><span>Subtotal</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.subtotal,currency))}</b></div>
+      <div><span>IVA</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.iva,currency))}</b></div>
+      <div class="is-total"><span>Total</span><b>${escapeHtml_cor(formatMoney_cor(button.dataset.total,currency))}</b></div>`;
+    popover.hidden=false;
+    button.setAttribute('aria-expanded','true');
+
+    const rect=button.getBoundingClientRect();
+    const popoverRect=popover.getBoundingClientRect();
+    const viewportWidth=window.innerWidth||document.documentElement?.clientWidth||1024;
+    const viewportHeight=window.innerHeight||document.documentElement?.clientHeight||768;
+    const left=Math.max(8,Math.min(rect.left,viewportWidth-popoverRect.width-8));
+    let top=rect.bottom+7;
+    if(top+popoverRect.height>viewportHeight-8) top=Math.max(8,rect.top-popoverRect.height-7);
+    popover.style.left=left+'px';
+    popover.style.top=top+'px';
+  }
+
+  function closePaymentBreakdownPopover_cor(){
+    const popover=document.getElementById('ccor-ec-payment-popover');
+    if(!popover) return;
+    popover.hidden=true;
+    popover.innerHTML='';
+    delete popover.dataset.paymentHitoId;
+    state.root?.querySelectorAll?.('[data-payment-breakdown-toggle][aria-expanded="true"]')
+      .forEach(button=>button.setAttribute('aria-expanded','false'));
+  }
+
+  function togglePaymentBreakdownPopover_cor(button){
+    const popover=document.getElementById('ccor-ec-payment-popover');
+    if(!popover||!button) return;
+    const idHito=Number(button.dataset.paymentHitoId);
+    const row=(Array.isArray(state.detail&&state.detail.estado_cuenta)?state.detail.estado_cuenta:[])
+      .find(item=>Number(item&&item.id_fuente_cor)===idHito);
+    const items=Array.isArray(row&&row.desglose_pagos)?row.desglose_pagos:[];
+    if(!row||!items.length) return;
+
+    const same=popover.dataset.paymentHitoId===String(idHito)&&popover.hidden===false;
+    closePaymentBreakdownPopover_cor();
+    if(same) return;
+
+    const currency=String(row.moneda||'').trim().toUpperCase();
+    popover.dataset.paymentHitoId=String(idHito);
+    const totalLabel='Total ' + text_cor(row.condicion,'Anticipo');
+    popover.innerHTML=`
+      <div class="ccor-ec-payment-breakdown-row">
+        <span><strong>${escapeHtml_cor(totalLabel)}</strong></span>
+        <b>${escapeHtml_cor(formatMoney_cor(row.total,currency))}</b>
+      </div>`+
+      items.map(item=>{
+        const dates=Array.isArray(item&&item.fechas_pago)?item.fechas_pago.filter(Boolean):[];
+        const meta=[
+          dates.length?dates.map(formatDate_cor).join(' · '):'',
+          text_cor(item&&item.factura,'')
+        ].filter(Boolean).join(' · ');
+        return `<div class="ccor-ec-payment-breakdown-row">
+          <span><strong>${escapeHtml_cor(text_cor(item&&item.etiqueta,'Pago'))}</strong>${meta?`<small>${escapeHtml_cor(meta)}</small>`:''}</span>
+          <b>${escapeHtml_cor(formatMoney_cor(item&&item.importe,currency))}</b>
+        </div>`;
+      }).join('')+`
+      <div class="is-total">
+        <span>Por cobrar</span>
+        <b>${escapeHtml_cor(formatMoney_cor(row.pendiente_calculado,currency))}</b>
+      </div>`;
+
+    popover.hidden=false;
+    button.setAttribute('aria-expanded','true');
+
+    const rect=button.getBoundingClientRect();
+    const popoverRect=popover.getBoundingClientRect();
+    const viewportWidth=window.innerWidth||document.documentElement?.clientWidth||1024;
+    const viewportHeight=window.innerHeight||document.documentElement?.clientHeight||768;
+    const left=Math.max(8,Math.min(rect.left,viewportWidth-popoverRect.width-8));
+    let top=rect.bottom+7;
+    if(top+popoverRect.height>viewportHeight-8) top=Math.max(8,rect.top-popoverRect.height-7);
+    popover.style.left=left+'px';
+    popover.style.top=top+'px';
+  }
+
+  function facturaIds_cor(row){
+    const ids=Array.isArray(row&&row.ids_factura_cor)
+      ? row.ids_factura_cor.map(Number).filter(Number.isInteger)
+      : [];
+    const primary=Number(row&&row.id_factura_cor);
+    if(Number.isInteger(primary)&&!ids.includes(primary)) ids.unshift(primary);
+    return ids;
+  }
+
   function renderFacturasRows_cor(rows){
-    if(!rows.length) return '<tr><td colspan="11" class="ccor-ec-table-empty">No hay Facturas relacionadas a este Estado de Cuenta.</td></tr>';
-    return rows.map(row=>`
+    if(!rows.length) return '<tr><td colspan="10" class="ccor-ec-table-empty">No hay Facturas relacionadas a este Estado de Cuenta.</td></tr>';
+    return rows.map(row=>{
+      const paid=number_cor(row&&row.importe_pagado) ?? number_cor(row&&row.pagado) ?? 0;
+      const difference=number_cor(row&&row.saldo);
+      const appliedTo=text_cor(row&&row.aplicado_a_condicion,'');
+      return `
       <tr>
         <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
         <td>${escapeHtml_cor(text_cor(row.tipo_concepto))}</td>
         <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.concepto))}</td>
         <td>${escapeHtml_cor(formatDate_cor(row.fecha_factura))}</td>
         <td><b>${escapeHtml_cor(text_cor(row.moneda))}</b></td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.subtotal))}</td>
-        <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.iva))}</td>
-        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(row.total))}</b></td>
+        <td class="ccor-ec-num">
+          <button class="ccor-ec-total-button" type="button"
+            data-factura-total-toggle
+            data-factura-total-id="${escapeHtml_cor(String(row.id_factura_cor||row.factura||''))}"
+            data-subtotal="${escapeHtml_cor(String(row.subtotal??''))}"
+            data-iva="${escapeHtml_cor(String(row.iva??''))}"
+            data-total="${escapeHtml_cor(String(row.total??''))}"
+            data-currency="${escapeHtml_cor(String(row.moneda||''))}"
+            aria-expanded="false">
+            ${escapeHtml_cor(formatAmount_cor(row.total))}
+          </button>
+        </td>
+        <td class="ccor-ec-num"><b>${escapeHtml_cor(formatAmount_cor(paid))}</b></td>
+        <td class="ccor-ec-num ${appliedTo?'is-applied':'is-pending'}">
+          ${appliedTo
+            ? `<span class="ccor-ec-badge is-warn">Aplicado a ${escapeHtml_cor(appliedTo)}</span>`
+            : escapeHtml_cor(formatAmount_cor(difference))}
+        </td>
         <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_factura)}">${escapeHtml_cor(text_cor(row.estatus_factura))}</span></td>
         <td>${escapeHtml_cor(formatDate_cor(row.fecha_vencimiento))}</td>
-        <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_cobranza)}">${escapeHtml_cor(text_cor(row.estatus_cobranza))}</span></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   function renderFacturasSection_cor(detail){
@@ -988,10 +1139,11 @@
         </div>
         <div class="ccor-ec-table-wrap ccor-ec-facturas-wrap">
           <table class="ccor-ec-table ccor-ec-facturas-table">
-            <thead><tr><th>Factura</th><th>Tipo</th><th>Concepto</th><th>Fecha</th><th>Mon</th><th>Subtotal</th><th>IVA</th><th>Total</th><th>Estatus factura</th><th>Vencimiento</th><th>Estatus cobranza</th></tr></thead>
+            <thead><tr><th>Factura</th><th>Tipo</th><th>Concepto</th><th>Fecha</th><th>Mon</th><th>Total</th><th>Pagado</th><th>Diferencia</th><th>Estatus</th><th>Vencimiento</th></tr></thead>
             <tbody>${renderFacturasRows_cor(rows)}</tbody>
           </table>
         </div>
+        <div id="ccor-ec-total-popover" class="ccor-ec-total-popover" role="dialog" aria-label="Desglose del total de la factura" hidden></div>
       </section>`;
   }
 
@@ -1001,8 +1153,11 @@
     const ocupadas=new Set((Array.isArray(detail&&detail.relaciones_pagos)?detail.relaciones_pagos:[])
       .map(row=>Number(row&&row.id_factura_cor)));
     const readonly=isViewerReadonly_cor();
-    const facturasById=new Map(facturas.map(row=>[Number(row.id_factura_cor),row]));
-    const disponibles=facturas.filter(row=>!ocupadas.has(Number(row.id_factura_cor)));
+    const facturasById=new Map();
+    facturas.forEach(row=>facturaIds_cor(row).forEach(id=>facturasById.set(id,row)));
+    const disponibles=facturas.filter(row=>
+      !facturaIds_cor(row).some(id=>ocupadas.has(id))
+    );
     const body=pagos.length?pagos.map(pago=>{
       const idPago=Number(pago.id_pago_cor);
       const asignadas=Array.isArray(pago.facturas)?pago.facturas:[];
@@ -1405,6 +1560,8 @@
         )}
 
 
+        <div id="ccor-ec-payment-popover" class="ccor-ec-total-popover ccor-ec-payment-popover" role="dialog" aria-label="Desglose de pagos del hito" hidden></div>
+
         ${renderAditivasSection_cor(detail)}
 
         ${renderUnknownCurrency_cor(
@@ -1699,6 +1856,20 @@
     root.dataset.ccorEstadosCuentaBound='1';
 
     root.addEventListener('click',event=>{
+      const paymentBreakdown=event.target.closest('[data-payment-breakdown-toggle]');
+      if(paymentBreakdown){
+        closeFacturaTotalPopover_cor();
+        togglePaymentBreakdownPopover_cor(paymentBreakdown);
+        return;
+      }
+      const facturaTotal=event.target.closest('[data-factura-total-toggle]');
+      if(facturaTotal){
+        closePaymentBreakdownPopover_cor();
+        toggleFacturaTotalPopover_cor(facturaTotal);
+        return;
+      }
+      if(!event.target.closest('#ccor-ec-total-popover')) closeFacturaTotalPopover_cor();
+      if(!event.target.closest('#ccor-ec-payment-popover')) closePaymentBreakdownPopover_cor();
       const pagoAgregar=event.target.closest('[data-pago-agregar]');
       if(pagoAgregar){
         const row=pagoAgregar.closest('[data-pago-id]');
@@ -1738,6 +1909,7 @@
     });
 
     root.addEventListener('keydown',event=>{
+      if(event.key === 'Escape'){closeFacturaTotalPopover_cor();closePaymentBreakdownPopover_cor();return;}
       if(event.key !== 'Enter' && event.key !== ' ') return;
       const row=event.target.closest('[data-ppns]');
       if(!row) return;
@@ -1813,7 +1985,15 @@
     return requestedPpns ? loadDetail_cor(requestedPpns,{force:true}) : loadList_cor({force:true});
   }
 
-  window.ManttoCobranzaCorEstadosCuenta=Object.freeze({init:init_cor,refresh:refresh_cor});
+  // Funciones oficiales compartidas con el DS. No duplicar reglas monetarias o de vencimiento.
+  window.ManttoCobranzaCorEstadosCuenta=Object.freeze({
+    init:init_cor,
+    refresh:refresh_cor,
+    motor: Object.freeze({
+      calcularFilas:applyFuenteRules_cor,
+      resumirFilas:buildFrontendSummary_cor
+    })
+  });
 })();
 
 /* [Aster | 2026-09-30 | ASTER-MG | COBRANZA COR FASE 4 DETALLE FACTURAS V001] */

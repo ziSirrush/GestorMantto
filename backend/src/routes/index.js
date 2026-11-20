@@ -64,6 +64,7 @@ const experimentalNsEquiposCriticosRoutes = require('../modules/experimental-ns/
 const experimentalNsProyectosMantenimientoRoutes = require('../modules/experimental-ns/experimental-ns-proyectos-mantenimiento.routes');
 const experimentalNsEquiposParadosRoutes = require('../modules/experimental-ns/experimental-ns-equipos-parados.routes');
 const experimentalNsLiveRoutes = require('../modules/experimental-ns/experimental-ns-live.routes');
+const portalBltJfRoutes = require('../modules/portal-blt-jf/portal-blt-jf.routes');
 // [NS Integration | 2026-10-26 | receptor V001 - sin escritura hasta aprobacion de destino]
 const netsuiteIntegrationRoutes = require('../modules/netsuite-integration/netsuite-integration.routes');
 
@@ -121,6 +122,7 @@ router.use('/experimental', experimentalEntregasRecientesRoutes);
 router.use('/experimental', experimentalEquiposCriticosRoutes);
 router.use('/experimental', experimentalDashboardCallCenterRoutes);
 router.use('/experimental', experimentalProyectosCriticosRoutes);
+router.use('/portal-blt-jf', portalBltJfRoutes);
 router.use('/movimientos-criticos', movimientosCriticosRoutes);
 router.use('/customer-experience', customerExperienceRoutes);
 router.use('/entregas', entregasControlRoutes);

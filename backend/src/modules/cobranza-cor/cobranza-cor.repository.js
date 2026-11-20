@@ -370,6 +370,31 @@ async function getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds = null
   return rows[0] || null;
 }
 
+// DS: relacion estable de asesores por PPNS. La lista se limita a los PPNS
+// previamente autorizados por el catalogo oficial de Estados de Cuenta.
+async function listDashboardAdvisors_cor(connection, allowedPpns = []) {
+  const keys = [...new Set((Array.isArray(allowedPpns) ? allowedPpns : [])
+    .map(value => String(value ?? '').trim().toUpperCase()).filter(Boolean))];
+  const rows = [];
+  for (let i = 0; i < keys.length; i += 250) {
+    const batch = keys.slice(i, i + 250);
+    const holders = batch.map(() => '?').join(', ');
+    const [result] = await connection.query(
+      `SELECT DISTINCT ${normalizedKeySql_cor('fl.id_proyecto')} AS ppns_key,
+              fl.id_asesor,
+              NULLIF(TRIM(u.iniciales), '') AS iniciales
+         FROM ins_fl fl
+         LEFT JOIN usuarios u
+           ON u.id_SB = fl.id_asesor AND u.estado = 1
+        WHERE fl.activo = 1
+          AND fl.id_asesor IS NOT NULL AND fl.id_asesor > 0
+          AND ${normalizedKeySql_cor('fl.id_proyecto')} IN (${holders})`,
+      batch
+    );
+    rows.push(...result);
+  }
+  return rows;
+}
 async function listFuenteEstadoCuenta_cor(connection, ppns) {
   const [rows] = await connection.query(
     `SELECT
@@ -1068,6 +1093,7 @@ module.exports = {
   updateAditiva_cor,
   canAccessPpns_cor,
   listEstadosCuenta_cor,
+  listDashboardAdvisors_cor,
   getEstadoCuentaByPpns_cor,
   listFuenteEstadoCuenta_cor,
   listCrearEstadoCuentaProyectos_cor,

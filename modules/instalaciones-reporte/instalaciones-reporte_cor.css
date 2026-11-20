@@ -107,3 +107,9 @@
 .ir-cor-visual-badge{min-width:0;height:auto;min-height:0;padding:0;border:0;border-radius:0;background:transparent;color:inherit}
 .ir-cor-visual-badge-wide{min-height:0;padding:0}
 table.ir-cor-pdf-table-reporte td.col-icono.con-alerta{color:inherit;background:transparent}
+
+/* Acentos por etapa de Instalaciones; no reemplazan Estados Visuales. */
+.ir-cor-stage-code{color:#0F172A}
+.ir-cor-stage-code:before{content:"";display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--stage-color);vertical-align:middle}
+.ir-cor-reference-stage{display:inline-flex;align-items:center;gap:7px;font-weight:800}
+.ir-cor-reference-stage:before{content:"";width:5px;height:19px;border-radius:4px;flex:0 0 5px;background:var(--stage-color,#CBD5E1)}

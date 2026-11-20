@@ -37,7 +37,7 @@ function silenceGuard(callback) {
 
 // Preserva pruebas previas de contencion de la version 102026.12.
 test('cada instancia limita por defecto su ocupación de conexiones Aiven', () => {
-  assert.match(dbSource, /DB_CONNECTION_LIMIT_CAP,\s*2/);
+  assert.match(dbSource, /DB_CONNECTION_LIMIT_CAP,\s*20\b/);
   assert.match(dbSource, /Math\.min\(requestedConnectionLimit, connectionLimitCap\)/);
   assert.match(dbSource, /connectionLimit,/);
 });
@@ -155,15 +155,21 @@ function loadDb({mode='mysqlFull',observability=true,connections=10,queue='0',ac
   return {pool:exported,options,hits:()=>hits,logs};
 }
 
-test('el pool limita a 2 conexiones y 30 pendientes aun con cola=0 configurada', () => {
+test('el pool limita a 20 conexiones y 30 pendientes aun con cola=0 configurada', () => {
   const {options}=loadDb({mode:'ok',connections:50,queue:'0'});
-  assert.equal(options.connectionLimit,2);
+  assert.equal(options.connectionLimit,20);
   assert.equal(options.maxIdle,1);
   assert.equal(options.queueLimit,30);
   assert.equal(options.waitForConnections,true);
   assert.equal(options.charset,'utf8mb4');
   assert.equal(options.timezone,'Z');
   assert.deepEqual(options.ssl,{rejectUnauthorized:true});
+});
+
+test('el pool respeta un limite solicitado menor que el tope sin forzar 20 conexiones', () => {
+  const {options}=loadDb({mode:'ok',connections:5,queue:'0'});
+  assert.equal(options.connectionLimit,5);
+  assert.equal(options.queueLimit,30);
 });
 
 test('El pool exige TLS verificado incluso en el fixture de pruebas',()=>{
@@ -173,11 +179,11 @@ test('El pool exige TLS verificado incluso en el fixture de pruebas',()=>{
 });
 
 test('DB_POOL_WAIT registra adquisiciones lentas sin cambiar el limite del pool', async () => {
-  const f=loadDb({mode:'ok',acquireDelayMs:5,poolWaitWarnMs:'1'});
+  const f=loadDb({mode:'ok',connections:50,acquireDelayMs:5,poolWaitWarnMs:'1'});
   const connection=await f.pool.getConnection();
   connection.release();
   assert.ok(f.logs.warn.some(line=>line.includes('[DB_POOL_WAIT]') && line.includes('\"outcome\":\"acquired\"')));
-  assert.ok(f.logs.warn.some(line=>line.includes('\"effective_connection_limit\":2')));
+  assert.ok(f.logs.warn.some(line=>line.includes('\"effective_connection_limit\":20')));
 });
 
 test('DB_POOL_WAIT limita avisos repetidos durante una rafaga', async () => {
@@ -261,7 +267,7 @@ function bootFixture({failedChecks=1}={}) {
     './jobs/movimientosCriticosCierreSemanal.job':['startMovimientosCriticosCierreSemanalJob','stopMovimientosCriticosCierreSemanalJob'],
     './jobs/instalacionesAdministracionCalculados.job':['startInstalacionesAdministracionCalculadosJob','stopInstalacionesAdministracionCalculadosJob'],
     './jobs/cobranzaUniFkValidator.job':['startCobranzaUniFkValidatorJob','stopCobranzaUniFkValidatorJob'],
-    './jobs/instalacionesProgramacionPersonal.job':['startJob','stopJob']
+    './jobs/instalacionesProgramacionAuditoria.job':['startJob','stopJob']
   })){
     mocks[file]={};for(const k of keys)mocks[file][k]=()=>{starts[k]=(starts[k]||0)+1;};
   }

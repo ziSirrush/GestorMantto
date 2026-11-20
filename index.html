@@ -16,7 +16,7 @@
 <script src="./core/early-bootstrap.js?v=20261029-csp-v001"></script>
 <link href="./assets/img/icons/favicon.ico" rel="icon" sizes="any"/>
 <link href="./assets/img/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles/base.css?v=20261111-cx-encuestas-close-v002" rel="stylesheet"/>
+<link href="./styles/base.css?v=20261117-visor-pwa-sidebar-v001" rel="stylesheet"/>
 <link href="./styles/home.css?v=20261019-tareas-meta-visibles-v001" rel="stylesheet"/>
 <style id="mantto-critical-visibility">
     .hidden,.auth-hidden{display:none!important}
@@ -198,6 +198,22 @@
 <button class="side-item" data-permission="experimental_ns_equipos_parados" data-permission-code="EXPERIMENTAL_NS_EQUIPOS_PARADOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="experimental-ns-equipos-parados" type="button"><span>⛔</span><b>Equipos Parados</b></button>
 </div>
 </section>
+<section class="side-group" data-company="UNITED" data-group="portal-blt-jf">
+<button aria-controls="side-group-portal-blt-jf" aria-expanded="false" class="side-group-toggle" type="button">
+<span class="side-group-icon">📊</span><b>Portal BLT</b><i>⌄</i>
+</button>
+<div class="side-group-items" id="side-group-portal-blt-jf">
+<button class="side-item" data-permission="portal_blt_jf_movimientos_portafolio" data-permission-code="PORTAL_BLT_JF_MOVIMIENTOS_PORTAFOLIO_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-movimientos-portafolio" type="button"><span>⇄</span><b>Movimientos Portafolio (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_portafolio_total" data-permission-code="PORTAL_BLT_JF_PORTAFOLIO_TOTAL_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-portafolio-total" type="button"><span>🏢</span><b>Portafolio Total (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_equipos_criticos" data-permission-code="PORTAL_BLT_JF_EQUIPOS_CRITICOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-equipos-criticos" type="button"><span>⚠️</span><b>Equipos Críticos (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_equipos_parados" data-permission-code="PORTAL_BLT_JF_EQUIPOS_PARADOS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-equipos-parados" type="button"><span>⛔</span><b>Equipos Parados (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_infografias" data-permission-code="PORTAL_BLT_JF_INFOGRAFIAS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-infografias" type="button"><span>📊</span><b>Infografías (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_uso_app" data-permission-code="PORTAL_BLT_JF_USO_APP_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-uso-app" type="button"><span>📱</span><b>Uso de la APP (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_tipos_precalculo" data-permission-code="PORTAL_BLT_JF_TIPOS_PRECALCULO_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-tipos-precalculo" type="button"><span>🧮</span><b>Tiempos Precalculo (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_encuestas_satisfaccion" data-permission-code="PORTAL_BLT_JF_ENCUESTAS_SATISFACCION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-encuestas-satisfaccion" type="button"><span>📝</span><b>Encuestas de satisfacción (JF)</b></button>
+<button class="side-item" data-permission="portal_blt_jf_kpis" data-permission-code="PORTAL_BLT_JF_KPIS_ACCESO_VISUAL_MODULO.ACCESO_VISUAL" data-route="portal-blt-jf-kpis" type="button"><span>📈</span><b>KPIS (JF)</b></button>
+</div>
+</section>
 <section class="side-group" data-group="operacion">
 <button aria-controls="side-group-operacion" aria-expanded="false" class="side-group-toggle" type="button">
 <span class="side-group-icon">🛠️</span><b>Operación</b><i>⌄</i>
@@ -361,6 +377,12 @@
 <button class="side-item side-standalone" data-permission="usuarios" data-route="usuarios" type="button"><span>👥</span><b>Usuarios</b></button>
 <button class="side-item side-standalone programmer" data-permission="panel_control" data-route="panel-control" type="button"><span>⚙️</span><b>Panel de Control</b></button>
 </nav>
+<!-- Visor exclusivo de la navegacion movil, anclado bajo los modulos. -->
+<div class="side-viewer-footer" id="user-viewer-sidebar-footer" hidden>
+  <button class="side-item side-standalone" data-permission="user_viewer" data-route="visor-usuarios" id="user-viewer-sidebar-trigger" type="button" aria-label="Abrir Visor de usuarios">
+    <span aria-hidden="true">👁</span><b>Visor de usuarios</b>
+  </button>
+</div>
 </aside>
 <main class="main-content">
 <section class="view active" data-view="home" id="view-home"></section>
@@ -382,6 +404,7 @@
 <section aria-label="Portafolio" class="view pf-view" data-view="portafolio" id="view-portafolio"></section>
 <section aria-label="Usuarios" class="view usr-view" data-view="usuarios" id="view-usuarios"></section>
 <section aria-label="Panel de Control" class="view pc-view" data-view="panel-control" id="view-panel-control"></section>
+<section aria-label="Visor de usuarios" class="view viewer-mobile-page" data-view="visor-usuarios" id="view-visor-usuarios"></section>
 <section aria-label="Configuración de Modo Offline" class="view off-view" data-view="offline-configuracion" id="view-offline-configuracion"></section>
 <section aria-label="Proyectos" class="view proy-view" data-view="proyectos" id="view-proyectos"></section>
 <section aria-label="Dashboard de Instalaciones" class="view idb-cor-view" data-view="instalaciones-dashboard" id="view-instalaciones-dashboard"></section>
@@ -696,6 +719,13 @@
 <section aria-label="Movimientos de Portafolio" class="view mov-view" data-view="movimientos" id="view-movimientos"></section>
 <section aria-label="Movimientos Críticos" class="view mc-view" data-view="movimientos-criticos" id="view-movimientos-criticos"></section>
 <section aria-label="Equipos críticos" class="view" data-view="criticos" id="view-criticos"></section>
+<section aria-label="Movimientos Portafolio (JF)" class="view" data-view="portal-blt-jf-movimientos-portafolio" id="view-portal-blt-jf-movimientos-portafolio"></section>
+<section aria-label="Portafolio Total (JF)" class="view" data-view="portal-blt-jf-portafolio-total" id="view-portal-blt-jf-portafolio-total"></section>
+<section aria-label="Equipos Críticos (JF)" class="view" data-view="portal-blt-jf-equipos-criticos" id="view-portal-blt-jf-equipos-criticos"></section>
+<section aria-label="Equipos Parados (JF)" class="view" data-view="portal-blt-jf-equipos-parados" id="view-portal-blt-jf-equipos-parados"></section>
+<section aria-label="Infografías (JF)" class="view" data-view="portal-blt-jf-infografias" id="view-portal-blt-jf-infografias"></section>
+<section aria-label="Uso de la APP (JF)" class="view" data-view="portal-blt-jf-uso-app" id="view-portal-blt-jf-uso-app"></section>
+<section aria-label="Encuestas de satisfacción (JF)" class="view" data-view="portal-blt-jf-encuestas-satisfaccion" id="view-portal-blt-jf-encuestas-satisfaccion"></section>
 <section class="view" data-view="placeholder" id="view-placeholder"></section>
 </main>
 </div>
@@ -769,21 +799,22 @@
 <script src="./core/project-name.js?v=20260817-lote-cobranza-uni-v001"></script>
 <script src="./core/push-notifications.js?v=20261023-back-history-v001"></script>
 <script src="./core/device-permissions.js?v=20260805-native-local-v002"></script>
-<script src="./core/auth.js?v=20261109-permisos-v001"></script>
+<script src="./core/auth.js?v=20261117-panel-united-v002"></script>
 <script src="./core/viewer-readonly.js?v=20260805-visor-completo-v001"></script>
 <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
 <script src="./core/data-sync.js?v=20261005-movimientos-criticos-fase4-v002"></script>
 <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
 <script src="./core/module-loader.js?v=20261110-origin-history-v002"></script>
-<script src="./core/router.js?v=20261110-origin-history-v002"></script>
+<script src="./core/router.js?v=20261117-visor-pwa-sidebar-v001"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
 <script src="./core/rich-text.js?v=20260913-rich-text-v001"></script>
 <script src="./modules/home/home.js?v=20261109-detail-navigation-v003"></script>
 <script src="./modules/support/support.js?v=20260914-human-time-v001"></script>
-<script src="./core/details.js?v=20261109-detail-navigation-v002"></script>
+<script src="./core/instalaciones-estatus-colores.js?v=20261119-paleta-estatus-v001"></script>
+<script src="./core/details.js?v=20261119-paleta-estatus-v001"></script>
 <script src="./core/offline-storage.js?v=20261020-offline-f2-v001"></script>
-<script src="./core/user-viewer.js?v=20261109-permisos-v001"></script>
+<script src="./core/user-viewer.js?v=20261117-visor-pwa-sidebar-v001"></script>
 <script src="./core/offline-scheduler.js?v=20261021-offline-http-session-v001"></script>
 <script src="./modules/cobranza-uni/administracion/admin-menu.js?v=20261023-cua-nav-v001"></script>
 <script src="./modules/experimental-ns/experimental-ns.js?v=20261110-equipos-parados-v001"></script>

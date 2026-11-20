@@ -340,3 +340,23 @@ body.viewer-readonly input[type="file"].viewer-readonly-control{pointer-events:n
   .app-context-title-wrap #app-context-title,.app-context-title-wrap #app-context-subtitle{white-space:normal;overflow-wrap:anywhere}
   .daily-phrase{display:none}
 }
+
+/* Visor de usuarios en PWA: anclado al pie del panel lateral movil. */
+.side-viewer-footer{display:none}
+@media(max-width:920px){
+  .sidebar{display:flex;flex-direction:column}
+  .sidebar .side-nav{flex:1 1 auto;min-height:0;height:auto}
+  .side-viewer-footer{display:block;flex:0 0 auto;padding:10px;border-top:1px solid rgba(255,255,255,.19);background:#0a2558;padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px))}
+  .side-viewer-footer[hidden]{display:none!important}
+  .side-viewer-footer .side-item{min-height:46px;color:#fff;background:rgba(255,255,255,.10)}
+  .side-viewer-footer .side-item:hover,.side-viewer-footer .side-item.active{background:rgba(255,255,255,.18)}
+}
+.viewer-mobile-page{padding:clamp(12px,3vw,28px);background:var(--bg)}
+.viewer-mobile-page .user-viewer-panel{max-width:760px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:clamp(14px,3vw,24px);box-shadow:var(--shadow)}
+.viewer-mobile-page .user-viewer-panel-head span{display:block;font-size:10px;letter-spacing:.09em;font-weight:900;color:var(--blue)}
+.viewer-mobile-page .user-viewer-panel-head h2{font-size:20px;color:var(--navy);margin:7px 0}
+.viewer-mobile-page .user-viewer-panel-head p{font-size:12px;line-height:1.5;color:var(--muted);margin-bottom:18px}
+.viewer-mobile-page .user-viewer-panel-search input{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:11px;padding:0 12px;font-size:14px;color:var(--navy);outline:none}
+.viewer-mobile-page .user-viewer-panel-search input:focus{border-color:#2f67c7;box-shadow:0 0 0 3px rgba(47,103,199,.12)}
+.viewer-mobile-page .user-viewer-panel-list{margin-top:12px;display:flex;flex-direction:column;max-height:min(58vh,510px);overflow-y:auto;gap:4px;overscroll-behavior:contain}
+.viewer-mobile-page .user-viewer-option{min-height:58px;border-bottom:1px solid #eef2f7}

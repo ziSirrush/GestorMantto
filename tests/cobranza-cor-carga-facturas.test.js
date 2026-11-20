@@ -394,7 +394,7 @@ test('Detalle y KPIs reconocen saldo historico LEGACY_HITO aun despues de desact
 
     relations = [{ id_factura_cor: 501, id_pago_cor: 91, importe_aplicado: 25 }];
     const partial = await service.detalleEstadoCuenta_cor('P14302', access);
-    assert.equal(partial.facturas[0].estatus_factura, 'No pagado');
+    assert.equal(partial.facturas[0].estatus_factura, 'Parcial');
     assert.equal(partial.facturas[0].importe_pagado, 25);
     assert.equal(partial.resumen.monedas[0].cobrado, 25);
     assert.equal(partial.resumen.monedas[0].pendiente, 125);
@@ -458,7 +458,70 @@ test('Factura manual rechaza Pagado y guarda No pagado aunque el campo venga vac
   assert.equal(inserted.estatus_factura, 'No pagado');
 });
 
-test('Detalle deriva pago parcial/completo y revierte al quitar Pago; conserva folios repetidos', async () => {
+test('Detalle conserva Pagado por fila y consolida solo Por cobrar del Anticipo', async () => {
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  const sourceRows = [
+    {
+      id_fuente_cor: 11, id_proyecto_origen: 'P14302', condicion: 'Anticipo',
+      moneda: 'USD', subtotal: 56823, iva: 9091.68, total: 65914.68
+    },
+    {
+      id_fuente_cor: 12, id_proyecto_origen: 'P14302', condicion: 'Parcial Anticipo 1',
+      moneda: 'USD', subtotal: 0, iva: 0, total: 0
+    }
+  ];
+  const facturaRows = [
+    {
+      id_factura_cor: 501, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 11,
+      hito_condicion: 'Anticipo', factura: 'CFV-9131', moneda: 'USD',
+      total: 65914.68, pagado: 1163.46
+    },
+    {
+      id_factura_cor: 502, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 11,
+      hito_condicion: 'Anticipo', factura: 'CFV-9131', moneda: 'USD',
+      total: 65914.68, pagado: 1163.46
+    },
+    {
+      id_factura_cor: 503, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 12,
+      hito_condicion: 'Parcial Anticipo 1', factura: 'CFV-9242', moneda: 'USD',
+      total: 0, pagado: 30590.72
+    },
+    {
+      id_factura_cor: 504, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 12,
+      hito_condicion: 'Parcial Anticipo 1', factura: 'CFV-9242', moneda: 'USD',
+      total: 0, pagado: 30590.72
+    }
+  ];
+
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'P14302', registros_estado_cuenta: 2 }),
+    listFuenteEstadoCuenta_cor: async () => sourceRows,
+    listFacturasEstadoCuenta_cor: async () => facturaRows,
+    listAditivasEstadoCuenta_cor: async () => []
+  }, () => withRepositoryStub({
+    listPagosEstadoCuenta_cor: async () => [],
+    listRelacionesEstadoCuenta_cor: async () => []
+  }, async () => {
+    const detail = await service.detalleEstadoCuenta_cor('P14302', access);
+
+    assert.equal(detail.facturas.length, 2);
+    assert.equal(detail.facturas[0].importe_pagado, 1163.46);
+    assert.equal(detail.facturas[1].importe_pagado, 30590.72);
+    assert.deepEqual(Array.from(detail.facturas[0].ids_factura_cor), [501, 502]);
+    assert.deepEqual(Array.from(detail.facturas[1].ids_factura_cor), [503, 504]);
+
+    assert.equal(detail.estado_cuenta[0].pago_contabilizado, 1163.46);
+    assert.equal(detail.estado_cuenta[0].pago_consolidado_anticipo, 31754.18);
+    assert.equal(detail.estado_cuenta[0].pendiente_calculado, 34160.5);
+    assert.equal(detail.estado_cuenta[1].pago_contabilizado, 30590.72);
+    assert.equal(detail.estado_cuenta[1].pago_aplicado_a_principal, 30590.72);
+    assert.equal(detail.resumen.monedas[0].cobrado, 31754.18);
+    assert.equal(detail.resumen.monedas[0].pendiente, 34160.5);
+  }, pagosRepository));
+});
+
+test('Detalle deriva pago parcial/completo, consolida folios repetidos y revierte al quitar Pago', async () => {
   const connection = fakeConnection();
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   const sourceRows = [{
@@ -493,13 +556,12 @@ test('Detalle deriva pago parcial/completo y revierte al quitar Pago; conserva f
     }
   }, async () => {
     const partial = await service.detalleEstadoCuenta_cor('P14302', access);
-    assert.equal(partial.facturas.length, 2);
+    assert.equal(partial.facturas.length, 1);
+    assert.deepEqual(Array.from(partial.facturas[0].ids_factura_cor), [501, 502]);
     assert.equal(partial.facturas[0].importe_pagado, 40);
     assert.equal(partial.facturas[0].saldo, 60);
-    assert.equal(partial.facturas[0].estatus_factura, 'No pagado');
-    assert.equal(partial.facturas[1].saldo, null);
-    assert.equal(partial.facturas[1].estatus_factura, 'No pagado');
-    assert.equal(partial.estado_cuenta[0].factura, 'CFV-6925, CFV-6925');
+    assert.equal(partial.facturas[0].estatus_factura, 'Parcial');
+    assert.equal(partial.estado_cuenta[0].factura, 'CFV-6925');
     assert.equal(partial.estado_cuenta[0].pago_total, 40);
     assert.equal(partial.estado_cuenta[0].pago_contabilizado, 40);
     assert.equal(partial.estado_cuenta[0].pendiente_calculado, 60);
@@ -530,6 +592,36 @@ test('Detalle deriva pago parcial/completo y revierte al quitar Pago; conserva f
   }, pagosRepository));
 });
 
+test('Detalle recupera Fecha pago desde Pagos relacionados cuando FUENTE no la tiene', async () => {
+  const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
+  await withRepositoryStub({
+    getConnection_cor: async () => fakeConnection(),
+    getEstadoCuentaByPpns_cor: async () => ({ ppns: 'P14302', registros_estado_cuenta: 1 }),
+    listFuenteEstadoCuenta_cor: async () => [{
+      id_fuente_cor: 11, id_proyecto_origen: 'P14302', condicion: 'Anticipo',
+      moneda: 'USD', subtotal: 100, iva: 0, total: 100, fecha_pago: null
+    }],
+    listFacturasEstadoCuenta_cor: async () => [{
+      id_factura_cor: 501, ppns: 'P14302', tipo_concepto: 'HITO', id_fuente_cor: 11,
+      hito_condicion: 'Anticipo', factura: 'CFV-100', moneda: 'USD', total: 100
+    }],
+    listAditivasEstadoCuenta_cor: async () => []
+  }, () => withRepositoryStub({
+    listPagosEstadoCuenta_cor: async () => [{
+      id_pago_cor: 1001, no_factura: 'CFV-100', fecha_pago: '2026-11-05',
+      importe_complemento_pago: 40
+    }],
+    listRelacionesEstadoCuenta_cor: async () => [{
+      id_factura_cor: 501, id_pago_cor: 1001, importe_aplicado: 40
+    }]
+  }, async () => {
+    const detail = await service.detalleEstadoCuenta_cor('P14302', access);
+    assert.equal(detail.estado_cuenta[0].pago_contabilizado, 40);
+    assert.equal(detail.estado_cuenta[0].fecha_pago, '2026-11-05');
+    assert.deepEqual(Array.from(detail.estado_cuenta[0].fechas_pago), ['2026-11-05']);
+  }, pagosRepository));
+});
+
 test('Formulario de Estado de Cuenta tambien usa importes aplicados para sus Hitos', async () => {
   const access = { dominio: 'CORELLIAN', requiere_filtro_usuario: false };
   await withRepositoryStub({
@@ -552,7 +644,7 @@ test('Formulario de Estado de Cuenta tambien usa importes aplicados para sus Hit
     const form = await service.formularioEstadoCuenta_cor('P14302', access);
     assert.equal(form.hitos[0].pago_total, 40);
     assert.equal(form.hitos[0].pendiente_calculado, 60);
-    assert.equal(form.hitos[0].estatus_factura, 'No pagado');
+    assert.equal(form.hitos[0].estatus_factura, 'Parcial');
   }, pagosRepository));
 });
 

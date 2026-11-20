@@ -94,15 +94,17 @@ test('F2: historico no sigue fechas posteriores de FL',async()=>{
   await api.reconciliarEquipo(21,auto);
   assert.equal(byOrigin(state,'AUTOMATICA_FL')[0].fecha_hasta,'2026-11-15');
 });
-test('F2: 06-A recuperado actualiza el mismo registro historico',async()=>{
+test('F2: reingreso no atribuye semanas nuevas a un registro historico cerrado',async()=>{
   const {state,api}=f();await api.reconciliarEquipo(21,auto);
   const id=byOrigin(state,'AUTOMATICA_FL')[0].id_asignacion;
   state.equipment.estatus='05-PA';await api.reconciliarEquipo(21,auto);
   state.equipment.estatus='06-A';state.equipment.fecha_fin_ajuste_real='2026-11-18';
   const r=await api.reconciliarEquipo(21,auto);
-  assert.equal(r.actualizadas,1);assert.equal(byOrigin(state,'AUTOMATICA_FL').length,1);
+  assert.equal(r.estado,'REQUIERE_REVISION');
+  assert.equal(r.motivo,'AJUSTADOR_REINGRESO_HISTORICO');
+  assert.equal(byOrigin(state,'AUTOMATICA_FL').length,1);
   assert.equal(byOrigin(state,'AUTOMATICA_FL')[0].id_asignacion,id);
-  assert.equal(byOrigin(state,'AUTOMATICA_FL')[0].es_historico,0);
+  assert.equal(byOrigin(state,'AUTOMATICA_FL')[0].es_historico,1);
 });
 test('F2: no acepta IDs fraccionarios ni menores que uno',async()=>{
   const {api}=f();
