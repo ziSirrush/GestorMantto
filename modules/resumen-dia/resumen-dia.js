@@ -4,6 +4,7 @@
   const AGUA_KW = ['agua','filtracion','filtración','inundacion','inundación','goteras','humedad'];
   const VOLTAJE_KW = ['voltaje','variacion de voltaje','variación de voltaje','sobre voltaje','bajo voltaje','pico de voltaje','falla electrica','falla eléctrica','corte de luz','falla de energia','falla de energía','sin energia','sin energía','apagon','apagón'];
   let allTickets = [], portafolioItems = [], dates = [], currentDayIdx = 0, currentDayTickets = [], tableFiltered = [], page = 0;
+  let lazyDays=false, dayFromSnapshot=null, serverDates=[], loadedDays=new Set();
   let criticalEquipmentCodes = new Set();
   let criticalCriteria = { fallas: 3, periodo: 35 };
   let criticalListenerBound = false;
@@ -221,7 +222,7 @@
       criticalCriteria={fallas:Number(crit.min_fallas_blt)||criticalCriteria.fallas||3,periodo:Number(crit.dias)||criticalCriteria.periodo||35};
       criticalEquipmentCodes=new Set((Array.isArray(data.criticos_codigos)?data.criticos_codigos:[]).map(nrm).filter(Boolean));
       setStatus('ok','Aiven · '+tickets.length.toLocaleString('es-MX')+' tickets');
-      return { tickets, portafolio, alcance: payload.alcance || null };
+      return { tickets, portafolio, alcance: payload.alcance || null, lazy:payload.mode==='SNAPSHOT_DAY', day:payload.snapshot?.day||null, historyDates:Array.isArray(data.history_dates)?data.history_dates:[] };
     }catch(error){
       console.error('[Resumen del Día] Error en carga inicial territorial:', error);
       setStatus('error','Sin datos reales desde Aiven');
@@ -273,7 +274,7 @@
     return label.charAt(0).toUpperCase()+label.slice(1);
   }
   function initData(){
-    dates = [...new Set(allTickets.map(t=>t.fr).filter(Boolean))].sort().reverse();
+    dates=lazyDays&&dayFromSnapshot?[dayFromSnapshot,...new Set(serverDates.filter(key=>key!==dayFromSnapshot))]:[...new Set(allTickets.map(t=>t.fr).filter(Boolean))].sort().reverse();
     if(currentDayIdx >= dates.length) currentDayIdx = 0;
   }
   function hasTxt(t,kws){ const s = (t.asu+' '+t.cau+' '+t.acc).toLowerCase(); return kws.some(k=>s.includes(k)); }
@@ -696,7 +697,30 @@
     }
   }
 
-  function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); if(!criticalListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',onCriticalPreferencesUpdated);criticalListenerBound=true;} byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
+  function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); if(!criticalListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',onCriticalPreferencesUpdated);criticalListenerBound=true;} byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1)selectDay(currentDayIdx+1); }); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0)selectDay(currentDayIdx-1); }); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
+  async function selectDay(index){
+    if(index<0||index>=dates.length)return;
+    const day=dates[index];
+    if(!lazyDays||loadedDays.has(day)){currentDayIdx=index;render();return;}
+    setStatus('loading','Cargando tickets del día solicitado...');
+    try{
+      const params=new URLSearchParams({fecha:day});
+      const response=await fetch(apiUrl('/api/operacion/resumen-dia/periodo?'+params.toString()),{
+        cache:'no-store',headers:Object.assign({'Accept':'application/json'},window.ManttoAuth?window.ManttoAuth.authHeaders():{})
+      });
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const payload=await response.json();
+      const tickets=(Array.isArray(payload?.data?.tickets)?payload.data.tickets:[]).map(mapTicket).filter(t=>t.n&&t.fr===day);
+      allTickets.push(...tickets);
+      loadedDays.add(day);
+      currentDayIdx=index;
+      setStatus('ok','Aiven · día '+day+' cargado');
+      render();
+    }catch(error){
+      console.error('[Resumen del Día] No se pudo cargar el día solicitado:',error);
+      setStatus('error','No fue posible cargar los tickets del día');
+    }
+  }
   async function load(){
     ensureResumenVisualFixes();
 
@@ -705,6 +729,10 @@
     const initial = await fetchResumenInicial();
     allTickets = initial.tickets;
     portafolioItems = initial.portafolio;
+    lazyDays=initial.lazy===true;
+    dayFromSnapshot=initial.day||null;
+    serverDates=Array.isArray(initial.historyDates)?initial.historyDates:[];
+    loadedDays=new Set(dayFromSnapshot?[dayFromSnapshot]:[]);
 
     await (window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.load() : Promise.resolve());
 
