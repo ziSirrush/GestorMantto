@@ -1,6 +1,9 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const root=path.resolve(__dirname,'../src/modules/cobranza-uni-administracion');
+const dbPath=require.resolve('../src/config/db.js');
+const previousDb=require.cache[dbPath];
+require.cache[dbPath]={id:dbPath,filename:dbPath,loaded:true,exports:{getConnection:async()=>{throw Error('No DB real en tests');}}};
 const forms=require.resolve(path.join(root,'cobranza-uni-administracion.pc-formulas.js'));
 const modPath=require.resolve(path.join(root,'cobranza-uni-administracion.pc-service.js'));
 const oldForms=require.cache[forms],oldMod=require.cache[modPath];
@@ -51,4 +54,5 @@ test.after(()=>{
  if(previous===undefined)delete process.env.BLT_OPT_UNI_PC_WINDOW_COUNT_V1;else process.env.BLT_OPT_UNI_PC_WINDOW_COUNT_V1=previous;
  if(oldForms)require.cache[forms]=oldForms;else delete require.cache[forms];
  if(oldMod)require.cache[modPath]=oldMod;else delete require.cache[modPath];
+ if(previousDb)require.cache[dbPath]=previousDb;else delete require.cache[dbPath];
 });
