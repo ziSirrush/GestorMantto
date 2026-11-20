@@ -63,6 +63,8 @@ test('las consultas de Almacen normalizan MAX de texto con y sin catalogo public
 
 
 test('el listado usa el conteo de su mismo resumen y ejecuta solo dos agregaciones filtradas', async () => {
+  const oldFlag = process.env.BLT_OPT_ALMACEN_INVENTORY_COUNT_V1;
+  process.env.BLT_OPT_ALMACEN_INVENTORY_COUNT_V1='1';
   const previousQuery = fakeDb.query;
   const previousCatalog = includeCatalog;
   const executed = [];
@@ -106,5 +108,7 @@ test('el listado usa el conteo de su mismo resumen y ejecuta solo dos agregacion
   } finally {
     fakeDb.query = previousQuery;
     includeCatalog = previousCatalog;
+    if(oldFlag===undefined)delete process.env.BLT_OPT_ALMACEN_INVENTORY_COUNT_V1;
+    else process.env.BLT_OPT_ALMACEN_INVENTORY_COUNT_V1=oldFlag;
   }
 });

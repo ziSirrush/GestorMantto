@@ -287,16 +287,19 @@ async function getInventory(scope,query={}) {
   if(max!==null){filter.push('g.valor<=?');args.push(max);}
   if(String(query.stockOnly||'').toLowerCase()==='true'||String(query.stockOnly||'')==='1')filter.push('g.fisico>0');
   const where=filter.length?`WHERE ${filter.join(' AND ')}`:'';
-  // El resumen ya calcula COUNT(*): no repetir la misma agregacion.
-  // Se mantienen alcance, filtros, paginacion y semantica de NULL.
-  const [result,summary]=await Promise.all([
+  // Rollout granular: mantener las tres consultas legacy hasta habilitar
+  // la reutilizacion de COUNT, para poder medir y revertir por separado.
+  const optimized=process.env.BLT_OPT_ALMACEN_INVENTORY_COUNT_V1==='1';
+  const [result,summary,count]=await Promise.all([
     db.query(`SELECT * FROM (${grouped.sql}) g ${where} ORDER BY articulo,codigo LIMIT ? OFFSET ?`,[...grouped.params,...args,pg.pageSize,pg.offset]),
     db.query(`SELECT COUNT(*) AS registros,COALESCE(SUM(fisico),0) AS piezas,
       SUM(CASE WHEN valor IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,SUM(valor) AS valorTotal
-      FROM (${grouped.sql}) g ${where}`,[...grouped.params,...args])
+      FROM (${grouped.sql}) g ${where}`,[...grouped.params,...args]),
+    optimized?Promise.resolve(null):db.query(`SELECT COUNT(*) AS total FROM (${grouped.sql}) g ${where}`,[...grouped.params,...args])
   ]);
   const sm=summary[0][0]||{};
-  return {ok:true,source:snap.source,rows:result[0].map(convert),pagination:pagination(sm.registros,pg),summary:{
+  const total=optimized?sm.registros:count[0][0]?.total;
+  return {ok:true,source:snap.source,rows:result[0].map(convert),pagination:pagination(total,pg),summary:{
     registros:Number(sm.registros||0),piezas:Number(sm.piezas||0),valorTotal:Number(sm.filasConValor||0)>0?Number(sm.valorTotal||0):null
   }};
 }
