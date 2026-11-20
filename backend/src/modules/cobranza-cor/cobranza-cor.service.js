@@ -1469,7 +1469,7 @@ async function listarEstadosCuenta_cor(query = {}, informationAccess) {
   }
 }
 
-async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
+async function detalleEstadoCuenta_cor(ppnsValue, informationAccess, options = {}) {
   const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
   const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
   const connection = await repository.getConnection_cor();
@@ -1480,7 +1480,7 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
     const [sourceRows, facturaRows, aditivaRows, pagoRows, relacionPagoRows] = await Promise.all([
       repository.listFuenteEstadoCuenta_cor(connection, ppns),
       repository.listFacturasEstadoCuenta_cor(connection, ppns),
-      repository.listAditivasEstadoCuenta_cor(connection, project.ppns),
+      options?.omitAditivasForDashboard === true ? Promise.resolve([]) : repository.listAditivasEstadoCuenta_cor(connection, project.ppns),
       pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
       pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
     ]);

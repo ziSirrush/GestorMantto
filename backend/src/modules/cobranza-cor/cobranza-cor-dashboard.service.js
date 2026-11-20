@@ -179,7 +179,9 @@ async function listarDashboard_cor(query = {}, informationAccess, injectedMotor 
   for (let i = 0; i < selected.length; i += DETAIL_CONCURRENCY) {
     const batch = selected.slice(i, i + DETAIL_CONCURRENCY);
     const resolved = await Promise.all(batch.map(async row => {
-      const detail = await motor.detalleEstadoCuenta_cor(row.ppns, informationAccess);
+      const detail = await motor.detalleEstadoCuenta_cor(row.ppns, informationAccess,
+          process.env.BLT_OPT_COBRANZA_COR_SUMMARY_V1==='1' && filters.tipo==='RESUMEN'
+            ? {omitAditivasForDashboard:true} : undefined);
       const project = {
         ...detail.proyecto, id_asesor: row.id_asesor,
         asesor: row.asesor, asesores_distintos: row.asesores_distintos
