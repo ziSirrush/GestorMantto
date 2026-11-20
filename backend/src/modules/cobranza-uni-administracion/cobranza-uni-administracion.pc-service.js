@@ -18,7 +18,7 @@ async function listVentaAdicionalAdmin_uni(req,dependencies={}){
   const sql=buildPcListQuery_uni(params,scopeBuilder(req,'pc'));
   const conn=dependencies.connection||await db.getConnection();
   try{
-    const optimized=process.env.BLT_OPT_UNI_PC_WINDOW_COUNT_V1==='1';
+    const optimized=typeof process!=='undefined' && process.env.BLT_OPT_UNI_PC_WINDOW_COUNT_V1==='1';
     const offset=(params.page-1)*params.pageSize;
     let total,rows=[];
     if(optimized){
