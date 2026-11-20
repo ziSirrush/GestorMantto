@@ -1101,6 +1101,16 @@ function buildPaymentDetailsByHito_cor(sourceRows, facturaGroups, pagoRows, rela
   }
 
   const relations = Array.isArray(relacionPagoRows) ? relacionPagoRows : [];
+  // Indexar relaciones una sola vez evita recorrer todos los pagos por factura.
+  // El indice conserva la posicion original para no alterar el orden de fechas.
+  const indexed=typeof process!=='undefined' && process.env.BLT_OPT_COBRANZA_COR_PAYMENT_INDEX_V1==='1';
+  const relatedByInvoice=new Map();
+  if(indexed)relations.forEach((relation,index)=>{
+    const id=integerOrNull_cor(relation?.id_factura_cor);
+    if(id===null)return;
+    if(!relatedByInvoice.has(id))relatedByInvoice.set(id,[]);
+    relatedByInvoice.get(id).push({index,relation});
+  });
   const buckets = new Map();
 
   for (const group of Array.isArray(facturaGroups) ? facturaGroups : []) {
@@ -1129,7 +1139,11 @@ function buildPaymentDetailsByHito_cor(sourceRows, facturaGroups, pagoRows, rela
       const ids = new Set((Array.isArray(group?.ids) ? group.ids : []).map(Number).filter(Number.isInteger));
       let relatedDateFound = false;
 
-      for (const relation of relations) {
+      const selectedRelations=indexed
+        ? [...ids].flatMap(id=>relatedByInvoice.get(id)||[])
+            .sort((a,b)=>a.index-b.index).map(item=>item.relation)
+        : relations;
+      for (const relation of selectedRelations) {
         const idFactura = integerOrNull_cor(relation?.id_factura_cor);
         if (idFactura === null || !ids.has(idFactura)) continue;
         const pago = pagoById.get(integerOrNull_cor(relation?.id_pago_cor));
@@ -2674,6 +2688,7 @@ module.exports = {
   cargarFacturas_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
+  buildPaymentDetailsByHito_cor,
   catalogoCrearEstadoCuenta_cor,
   formularioEstadoCuenta_cor,
   crearEstadoCuenta_cor,
