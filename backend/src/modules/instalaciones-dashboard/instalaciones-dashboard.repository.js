@@ -43,6 +43,8 @@ function activeProjectsDerivedSql_cor(supervisors, options = {}) {
   const selectedKey = projectKeySql_cor('s');
   const allKey = projectKeySql_cor('f');
   const selectedSupervisor = supervisorClause_cor('s', supervisors);
+  const skipRedundantSelection=process.env.BLT_OPT_INSTALACIONES_PROJECT_JOIN_V1==='1' &&
+    (!Array.isArray(supervisors)||!supervisors.filter(Boolean).length) && !ajusteActivo;
 
   if (ajusteActivo) {
     const scopedSupervisor = supervisorClause_cor('f', supervisors);
@@ -86,13 +88,12 @@ function activeProjectsDerivedSql_cor(supervisors, options = {}) {
         SUM(CASE WHEN COALESCE(TRIM(f.estatus), '') <> '08-T' THEN 1 ELSE 0 END) AS equipos_no_entregados,
         MAX(CASE WHEN NULLIF(TRIM(f.id_proyecto), '') IS NULL THEN 1 ELSE 0 END) AS sin_id_proyecto
       FROM ins_fl f
-      INNER JOIN (
+      ${skipRedundantSelection?'':`INNER JOIN (
         SELECT DISTINCT ${selectedKey} AS project_key
         FROM ins_fl s
         WHERE ${validProjectSql_cor('s')}
           ${selectedSupervisor.sql}
-      ) seleccionados
-        ON seleccionados.project_key = ${allKey}
+      ) seleccionados ON seleccionados.project_key = ${allKey}`}
       WHERE ${validProjectSql_cor('f')}
       GROUP BY ${allKey}
       HAVING sin_id_proyecto = 1 OR equipos_no_entregados > 0
