@@ -43,4 +43,6 @@ router.get(
   dashboardOperativoController.getPreventivosSupervisor
 );
 
+router.get('/operacion/dashboard-operativo/historico',...dashboardOperativoInitialGuard_uni,dashboardOperativoController.getTicketsHistorical);
+
 module.exports = router;

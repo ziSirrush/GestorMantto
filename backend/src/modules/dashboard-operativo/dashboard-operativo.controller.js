@@ -25,7 +25,7 @@ async function getInitialData(req, res) {
       ok: true,
       source: 'aiven',
       mode: 'SNAPSHOT_FULL',
-      snapshot: { version: 'DASHBOARD_OPERATIVO_SNAPSHOT_V001', meses_preventivos: 12 },
+      snapshot: { version: 'DASHBOARD_OPERATIVO_SNAPSHOT_V001', meses_preventivos: 12, ...(process.env.BLT_OPT_OPERATIVO_TICKETS_WINDOW_V1==='1'?{tickets_window:'SIX_MONTHS'}:{}) },
       mes,
       data: {
         portafolio: data.portafolio,
@@ -83,7 +83,20 @@ async function getPreventivosSupervisor(req, res) {
   }
 }
 
+async function getTicketsHistorical(req,res,next) {
+  try {
+    if(process.env.BLT_OPT_OPERATIVO_TICKETS_WINDOW_V1!=='1')return res.status(404).json({ok:false});
+    const mes=String(req.query?.mes||'').trim();
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes))return res.status(400).json({ok:false,message:'Mes inválido.'});
+    const data=await dashboardOperativoService.getTicketsByMonth(mes,req.informationAccess||null);
+    return res.json({ok:true,source:'aiven',mes,data:{tickets:data}});
+  } catch(error) {
+    if(typeof next==='function')return next(error);
+    return res.status(500).json({ok:false,message:'No fue posible cargar el mes.'});
+  }
+}
 module.exports = {
   getInitialData,
+  getTicketsHistorical,
   getPreventivosSupervisor
 };

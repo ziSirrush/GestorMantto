@@ -160,7 +160,7 @@ async function getInitialData(mes, informationAccess = null, criticidad = {}) {
   const minFallas = Number(criticidad.minFallas) || 3;
   const [portafolio, tickets, supervisoresRows, preventivosRows, criticosRows] = await Promise.all([
     dashboardOperativoRepository.getPortafolioInicial(informationAccess),
-    dashboardOperativoRepository.getTicketsInicial(informationAccess),
+    dashboardOperativoRepository.getTicketsInicial(informationAccess,mes,6),
     dashboardOperativoRepository.getSupervisoresActivosPorZona(informationAccess),
     dashboardOperativoRepository.getPreventivosPorMeses(meses, informationAccess),
     dashboardOperativoRepository.getCriticosCodigos(dias, minFallas, informationAccess)
@@ -178,7 +178,15 @@ async function getInitialData(mes, informationAccess = null, criticidad = {}) {
   };
 }
 
+async function getTicketsByMonth(mes, informationAccess) {
+  const unrestricted=hasUnrestrictedUnitedScope_gnral(informationAccess);
+  const zoneIds=normalizePositiveIds(informationAccess?.zona_ids);
+  if(!informationAccess || informationAccess.dominio!=='UNITED' ||
+     (!unrestricted && (informationAccess.requiere_filtro_zona!==true || !zoneIds.length))) return [];
+  return dashboardOperativoRepository.getTicketsInicial(informationAccess,mes,1);
+}
 module.exports = {
+  getTicketsByMonth,
   getPreventivosSupervisor,
   getInitialData,
   groupSupervisores,
