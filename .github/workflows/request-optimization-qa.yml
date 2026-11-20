@@ -1,0 +1,39 @@
+name: QA optimizaciones request (sin despliegues)
+run-name: "Request QA · ${{ github.sha }}"
+on:
+  push:
+    branches: [request]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "request-optimization-qa"
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Instalar dependencias solo para QA
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+      - name: Validacion estructural
+        working-directory: backend
+        run: npm run check
+      - name: Regresiones de optimizacion con DB simulada
+        run: |
+          node --test tests/almacen-ns-collation-read.test.js tests/almacen-ns-optimized-filters.test.js tests/almacen-ns-core-queries.test.js tests/almacen-ns-stock-rollup.test.js backend/tests/dashboard-callcenter-u365-window-count.test.js backend/tests/dashboard-operativo-preventivos-range.test.js
+      - name: Suites backend y frontend (sin despliegue)
+        working-directory: backend
+        run: npm test
