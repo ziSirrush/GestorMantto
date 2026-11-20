@@ -18,11 +18,31 @@ async function listVentaAdicionalAdmin_uni(req,dependencies={}){
   const sql=buildPcListQuery_uni(params,scopeBuilder(req,'pc'));
   const conn=dependencies.connection||await db.getConnection();
   try{
-    const [countRows]=await conn.query(sql.countSql,sql.countParams);
-    const total=Number(countRows?.[0]?.total);
-    if(!Number.isSafeInteger(total)||total<0)throw new Error('Conteo de registros no confiable.');
+    const optimized=process.env.BLT_OPT_UNI_PC_WINDOW_COUNT_V1==='1';
     const offset=(params.page-1)*params.pageSize;
-    const [rows]=total>offset?await conn.query(sql.selectSql,sql.selectParams):[[]];
+    let total,rows=[];
+    if(optimized){
+      // Fila + total en una sola consulta. Si la pagina esta fuera de rango,
+      // consultar el total con el SQL protegido anterior.
+      const windowSql=sql.selectSql.replace(/^SELECT /,'SELECT COUNT(*) OVER() AS __blt_total, ');
+      const [pageRows]=await conn.query(windowSql,sql.selectParams);
+      if(Array.isArray(pageRows)&&pageRows.length){
+        total=Number(pageRows[0].__blt_total);
+        rows=pageRows.map(({__blt_total,...row})=>row);
+      } else {
+        const [countRows]=await conn.query(sql.countSql,sql.countParams);
+        total=Number(countRows?.[0]?.total);
+      }
+    } else {
+      const [countRows]=await conn.query(sql.countSql,sql.countParams);
+      total=Number(countRows?.[0]?.total);
+      if(Number.isSafeInteger(total)&&total>offset){
+        const [pageRows]=await conn.query(sql.selectSql,sql.selectParams);
+        rows=pageRows;
+      }
+    }
+    if(!Number.isSafeInteger(total)||total<0||!Array.isArray(rows))
+      throw new Error('Conteo de registros no confiable.');
     const cutoff=todayMexicoCity_uni(dependencies.now||new Date());
     let relationPreview=null;
     let formulaRows=rows;
