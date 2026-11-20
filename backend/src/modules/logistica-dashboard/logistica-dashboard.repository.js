@@ -234,7 +234,8 @@ async function periodContainerMonths_cor(year = null) {
     `SELECT
        CAST(SUBSTRING(TRIM(fecha_salida_estimada), 6, 2) AS UNSIGNED) AS mes,
        COALESCE(SUM(contenedores_20_dc), 0) AS contenedores_20_dc,
-       COALESCE(SUM(contenedores_40_hq), 0) AS contenedores_40_hq
+       COALESCE(SUM(contenedores_40_hq), 0) AS contenedores_40_hq,
+       COUNT(CASE WHEN contenedores_20_dc IS NOT NULL OR contenedores_40_hq IS NOT NULL THEN 1 END) AS operaciones_con_dato
      FROM log_ops
      WHERE TRIM(COALESCE(fecha_salida_estimada, '')) REGEXP ?
        AND CAST(LEFT(TRIM(fecha_salida_estimada), 4) AS UNSIGNED) BETWEEN 1900 AND 2200

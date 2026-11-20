@@ -224,15 +224,23 @@ async function analytics_cor(requestedPeriod) {
   const averageYears = normalizeAverageYears_cor(averageYearRows);
   const analysisYears = normalizeAverageYears_cor(analysisYearRows);
 
+  const combinePeriod=process.env.BLT_OPT_LOGISTICA_PERIOD_AGG_V1==='1';
   const [departureRows, transitRows, routeRows, periodContainerRow, periodContainerMonthRows, freightRoutes] = await Promise.all([
     repository.averageDepartureByPort_cor(averageFilter.year),
     repository.averageTransitByPortMode_cor(averageFilter.year),
     repository.averageByRoute_cor(averageFilter.year),
-    repository.periodContainers_cor(averageFilter.year),
+    combinePeriod?Promise.resolve(null):repository.periodContainers_cor(averageFilter.year),
     repository.periodContainerMonths_cor(averageFilter.year),
     repository.freightRouteCatalogCurrentYear_cor(currentYear)
   ]);
 
+  const periodSummary=combinePeriod
+    ? (periodContainerMonthRows||[]).reduce((sum,row)=>({
+        contenedores_20_dc:sum.contenedores_20_dc+toNumber(row.contenedores_20_dc),
+        contenedores_40_hq:sum.contenedores_40_hq+toNumber(row.contenedores_40_hq),
+        operaciones_con_dato:sum.operaciones_con_dato+toNumber(row.operaciones_con_dato)
+      }),{contenedores_20_dc:0,contenedores_40_hq:0,operaciones_con_dato:0})
+    : periodContainerRow;
   return {
     anio_actual: currentYear,
     promedios: {
@@ -266,7 +274,7 @@ async function analytics_cor(requestedPeriod) {
       meses: normalizeContainerMonths_cor(containerMonthRows)
     },
     contenedores_periodo: {
-      ...normalizeContainers_cor(periodContainerRow, averageFilter.value),
+      ...normalizeContainers_cor(periodSummary, averageFilter.value),
       periodo: averageFilter.value,
       etiqueta: averageFilter.all ? 'Todos los años (ETD)' : `ETD ${averageFilter.year}`,
       meses: normalizeContainerMonths_cor(periodContainerMonthRows)
