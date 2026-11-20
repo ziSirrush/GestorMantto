@@ -31,9 +31,28 @@ jobs:
       - name: Validacion estructural
         working-directory: backend
         run: npm run check
-      - name: Regresiones de optimizacion con DB simulada
+      - name: Regresiones de las optimizaciones con DB simulada
         run: |
-          node --test tests/almacen-ns-collation-read.test.js tests/almacen-ns-optimized-filters.test.js tests/almacen-ns-core-queries.test.js tests/almacen-ns-stock-rollup.test.js backend/tests/dashboard-callcenter-u365-window-count.test.js backend/tests/dashboard-operativo-preventivos-range.test.js
+          node --test \
+            tests/almacen-ns-collation-read.test.js \
+            tests/almacen-ns-optimized-filters.test.js \
+            tests/almacen-ns-core-queries.test.js \
+            tests/almacen-ns-stock-rollup.test.js \
+            tests/callcenter-u365-server-paging.test.js \
+            tests/resumen-dia-day-on-demand.test.js \
+            tests/dashboard-operativo-history-on-demand.test.js \
+            backend/tests/dashboard-callcenter-u365-window-count.test.js \
+            backend/tests/dashboard-operativo-preventivos-range.test.js \
+            backend/tests/cobranza-cor-dashboard-batch.test.js \
+            backend/tests/cobranza-cor-payment-index.test.js \
+            backend/tests/cobranza-uni-window-count.test.js \
+            backend/tests/logistica-period-aggregate.test.js \
+            backend/tests/ventas-dashboard-client-kpis-aggregate.test.js \
+            backend/tests/instalaciones-dashboard-optimized-join.test.js \
+            backend/tests/experimental-ns-combined-revision.test.js \
+            backend/tests/experimental-ns-resumen-projection.test.js \
+            backend/tests/netsuite-upsert-sql-cache.test.js \
+            backend/tests/optimization-indexes-readonly-contract.test.js
       - name: Suites backend y frontend (sin despliegue)
         working-directory: backend
         run: npm test
