@@ -92,7 +92,19 @@ async function getPortafolioInicial(informationAccess) {
   }));
 }
 
-async function getTicketsInicial(informationAccess) {
+async function getTicketsInicial(informationAccess, mes=null, countMonths=6) {
+  const optimized=process.env.BLT_OPT_OPERATIVO_TICKETS_WINDOW_V1==='1' &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(String(mes||''));
+  let rangeParams=[];
+  if(optimized) {
+    const [y,m]=mes.split('-').map(Number);
+    const count=Math.max(1,Math.min(12,countMonths));
+    const from=new Date(Date.UTC(y,m-count,1));
+    const to=new Date(Date.UTC(y,m,1));
+    const iso=d=>d.toISOString().slice(0,10);
+    rangeParams=[iso(from),iso(to)];
+  }
+  const whereWindow=optimized?' AND t.fecha_reporte >= ? AND t.fecha_reporte < ?':'';
   const scope = informationRecordScope.buildTicketScopeSql_gnral(informationAccess, 't');
   const [rows] = await db.query(`
     SELECT
@@ -134,9 +146,10 @@ async function getTicketsInicial(informationAccess) {
       ON z_equipo_op.id_zona = p_equipo_op.zona_id
      AND z_equipo_op.estado = 1
     WHERE ${scope.sql}
+    ${whereWindow}
     ORDER BY t.id DESC
     LIMIT 50000
-  `, scope.params || []);
+  `, [...(scope.params||[]),...rangeParams]);
 
   return (Array.isArray(rows) ? rows : []).map((row) => ({
     ...row,
