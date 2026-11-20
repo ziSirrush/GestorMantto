@@ -1492,8 +1492,8 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess, options = {
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
     const project = serializeEstadoCuentaMain_cor(row);
     const [sourceRows, facturaRows, aditivaRows, pagoRows, relacionPagoRows] = await Promise.all([
-      repository.listFuenteEstadoCuenta_cor(connection, ppns),
-      repository.listFacturasEstadoCuenta_cor(connection, ppns),
+      Array.isArray(options.prefetchedSourceRows) ? Promise.resolve(options.prefetchedSourceRows) : repository.listFuenteEstadoCuenta_cor(connection, ppns),
+      Array.isArray(options.prefetchedInvoiceRows) ? Promise.resolve(options.prefetchedInvoiceRows) : repository.listFacturasEstadoCuenta_cor(connection, ppns),
       options?.omitAditivasForDashboard === true ? Promise.resolve([]) : repository.listAditivasEstadoCuenta_cor(connection, project.ppns),
       pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
       pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
