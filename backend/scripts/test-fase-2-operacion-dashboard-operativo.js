@@ -37,7 +37,7 @@ assert(!preventivosBlock.includes('TRIM(p.zona_operativa)'), 'Preventivos no deb
 assert(service.includes('informationAccess.requiere_filtro_zona !== true'), 'La carga inicial debe fallar cerrado sin filtro de cuartos.');
 assert(service.includes('!zoneIds.length'), 'La carga inicial debe fallar cerrado sin zonas asignadas.');
 assert(service.includes('getPortafolioInicial(informationAccess)'), 'La carga inicial debe consultar Portafolio con alcance.');
-assert(service.includes('getTicketsInicial(informationAccess)'), 'La carga inicial debe consultar Tickets con alcance.');
+assert(/getTicketsInicial\(informationAccess(?:,\s*mes,\s*6)?\)/.test(service), 'La carga inicial debe consultar Tickets con alcance, con ventana opcional.');
 assert(service.includes('getSupervisoresActivosPorZona(informationAccess)'), 'La carga inicial debe filtrar supervisores por cuartos.');
 
 assert(frontend.includes("'/api/operacion/dashboard-operativo/inicial?'") && frontend.includes("params.toString()"), 'Frontend no usa la llamada inicial dedicada.');
