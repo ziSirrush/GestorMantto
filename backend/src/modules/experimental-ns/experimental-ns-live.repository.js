@@ -53,9 +53,22 @@ function queries(req) {
 
 async function revision(req) {
   const q = queries(req);
-  // Secuencial para respetar el limite de conexiones del backend Azure.
-  const [pRows] = await db.query(q.portafolio,q.pParams);
-  const [tRows] = await db.query(q.tickets,q.tParams);
+  // Flag opcional: mismo alcance y misma huella mediante un unico viaje SQL.
+  // Las dos subconsultas conservan ventana/aggregados y filtros originales.
+  let pRows,tRows;
+  if(process.env.BLT_OPT_NS_REVISION_COMBINED_V1==='1'){
+    const sql='SELECT p.total AS p_total,p.max_id AS p_max_id,p.ultima AS p_ultima,p.suma AS p_suma,'+
+      't.total AS t_total,t.max_id AS t_max_id,t.ultima AS t_ultima,t.suma AS t_suma '+
+      'FROM ('+q.portafolio+') p CROSS JOIN ('+q.tickets+') t';
+    scope.assertNoProductionTables(sql);
+    const [rows]=await db.query(sql,[...q.pParams,...q.tParams]);
+    const x=Array.isArray(rows)?rows[0]:null;
+    pRows=x?[{total:x.p_total,max_id:x.p_max_id,ultima:x.p_ultima,suma:x.p_suma}]:[];
+    tRows=x?[{total:x.t_total,max_id:x.t_max_id,ultima:x.t_ultima,suma:x.t_suma}]:[];
+  }else{
+    [pRows]=await db.query(q.portafolio,q.pParams);
+    [tRows]=await db.query(q.tickets,q.tParams);
+  }
   if (!Array.isArray(pRows)||pRows.length!==1||!Array.isArray(tRows)||tRows.length!==1) {
     const err = new Error('No fue posible leer el estado de las tablas NS.');
     err.statusCode=503;err.code='EXPERIMENTAL_NS_LIVE_REVISION_UNAVAILABLE';throw err;
