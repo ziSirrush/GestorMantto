@@ -367,17 +367,24 @@ async function getStock(scope,query={}) {
   const filterABC=text(query.abc).toLowerCase();const filterAlert=text(query.alert).toLowerCase();
   const none=(filterABC&&filterABC!=='todas')||(filterAlert&&filterAlert!=='todas');
   const inv=groupedRows(filteredRows(inventorySql(scope,snap.source,snap.catalog),query));
+  const optimized=process.env.BLT_OPT_ALMACEN_FILTERS_V1==='1';
   const [c,companies,items]=await Promise.all([
-    db.query(`SELECT COUNT(*) AS articulos FROM (${inv.sql}) g`,inv.params),
-    db.query(`SELECT DISTINCT empresa AS value FROM (${inv.sql}) g ORDER BY empresa`,inv.params),
+    optimized?Promise.resolve([[]]):db.query(`SELECT COUNT(*) AS articulos FROM (${inv.sql}) g`,inv.params),
+    db.query(optimized
+      ? `SELECT empresa,COUNT(*) AS articulos FROM (${inv.sql}) g GROUP BY empresa WITH ROLLUP`
+      : `SELECT DISTINCT empresa AS value FROM (${inv.sql}) g ORDER BY empresa`,inv.params),
     none?Promise.resolve([[]]):db.query(`SELECT id,codigo,articulo,empresa,fisico,
       NULL AS abc,NULL AS criticidad,NULL AS demanda,NULL AS stockSeguridad,
       NULL AS puntoReorden,NULL AS minimo,NULL AS maximo,'sin_parametros' AS alerta
       FROM (${inv.sql}) g ORDER BY articulo,codigo LIMIT ? OFFSET ?`,[...inv.params,pg.pageSize,pg.offset])
   ]);
-  return {ok:true,source:snap.source,coverage,kpis:{articulos:Number(c[0][0]?.articulos||0),criticos:0,reorden:0,exceso:0},
-    classSummary:[],companies:companies[0].map(x=>x.value),rows:items[0].map(convert),
-    pagination:pagination(none?0:c[0][0]?.articulos,pg),stockMetricsStatus:'PENDIENTE_FASE_2'};
+  const stockTotal=optimized?Number(companies[0].find(row=>row.empresa===null)?.articulos||0)
+    :Number(c[0][0]?.articulos||0);
+  const companyNames=optimized?companies[0].filter(row=>row.empresa!==null).map(row=>row.empresa)
+    :companies[0].map(row=>row.value);
+  return {ok:true,source:snap.source,coverage,kpis:{articulos:stockTotal,criticos:0,reorden:0,exceso:0},
+    classSummary:[],companies:companyNames,rows:items[0].map(convert),
+    pagination:pagination(none?0:stockTotal,pg),stockMetricsStatus:'PENDIENTE_FASE_2'};
 }
 
 function operationalUnavailable(source,kind) {
