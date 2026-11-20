@@ -1,6 +1,6 @@
 (function(){
   const STORAGE_KEY='mantto_operativo_servicio_confirm_v1';
-  const state={loaded:false,initialized:false,tickets:[],portfolio:[],supervisoresMantenimiento:[],preventivosSupervisor:[],preventivosPorMes:{},preventivosMes:'',confirm:{},filteredPortfolio:[],critCods:new Set(),critFallas:3,critPeriodo:35,critListenerBound:false};
+  const state={loaded:false,initialized:false,tickets:[],portfolio:[],supervisoresMantenimiento:[],preventivosSupervisor:[],preventivosPorMes:{},preventivosMes:'',confirm:{},filteredPortfolio:[],critCods:new Set(),critFallas:3,critPeriodo:35,critListenerBound:false,windowed:false,loadedMonths:new Set(),pendingMonths:new Map()};
   function $(id){return document.getElementById(id);}
   function esc(v){return String(v==null||v===''?'—':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
   function nrm(v){return (v==null?'':String(v)).trim();}
@@ -76,8 +76,29 @@
   function ticketsForSupervisor(supervisor,tickets){const target=normalizeForCompare(supervisor&&supervisor.nombre);if(!target)return[];return (tickets||[]).filter(ticket=>normalizeForCompare(ticket&&ticket.sup)===target);}
   async function loadHtml(){const view=$('view-operativo');if(!view||state.loaded)return;let html='<div class="op-page"><section class="op-card op-head"><div><p class="op-eyebrow">Cargando módulo</p><h1>Dashboard Operativo</h1><p>Inicializando vista...</p></div></section></div>';try{const r=await fetch('./modules/dashboard-operativo/dashboard-operativo.html?v=20260718-v005',{cache:'default'});if(r.ok)html=await r.text();}catch(e){}view.innerHTML=html;bind();state.loaded=true;}
   function months(){const out=[];for(let i=0;i<12;i++){const key=window.ManttoHumanTime&&typeof window.ManttoHumanTime.mexicoCityMonthOffset==='function'?window.ManttoHumanTime.mexicoCityMonthOffset(-i,undefined,'_'):currentMesKey();const parts=key.split('_').map(Number);const d=new Date(Date.UTC(parts[0],parts[1]-1,1,12));const label=new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(d);out.push({key,label});}return out;}
-  function bind(){const ids=['op-mes','op-zona','op-supervisor','op-tipo'];ids.forEach(id=>{const el=$(id);if(el)el.addEventListener('change',render);});if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}const ref=$('op-refresh');if(ref)ref.addEventListener('click',()=>init(true));const search=$('op-eq-search');if(search)search.addEventListener('input',renderEquiposList);const fs=$('op-eq-filter-serv');if(fs)fs.addEventListener('change',renderEquiposList);const close=$('op-modal-close');if(close)close.addEventListener('click',closeModal);const modal=$('op-detail-modal');if(modal)modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});document.querySelectorAll('#view-operativo [data-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.detail)));}
+  function bind(){const ids=['op-zona','op-supervisor','op-tipo'];ids.forEach(id=>{const el=$(id);if(el)el.addEventListener('change',render);});$('op-mes')?.addEventListener('change',onMonthChange);if(!state.critListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',refreshCriticidadUsuario);state.critListenerBound=true;}const ref=$('op-refresh');if(ref)ref.addEventListener('click',()=>init(true));const search=$('op-eq-search');if(search)search.addEventListener('input',renderEquiposList);const fs=$('op-eq-filter-serv');if(fs)fs.addEventListener('change',renderEquiposList);const close=$('op-modal-close');if(close)close.addEventListener('click',closeModal);const modal=$('op-detail-modal');if(modal)modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});document.querySelectorAll('#view-operativo [data-detail]').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.detail)));}
   function populateFilters(){const mes=$('op-mes');if(mes)mes.innerHTML=months().map((m,i)=>`<option value="${m.key}" ${i===0?'selected':''}>${esc(m.label)}</option>`).join('');const zonas=[...new Set(state.portfolio.map(e=>e.zon).filter(Boolean))].sort();const sups=state.supervisoresMantenimiento.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));const tipos=[...new Set(state.portfolio.map(e=>e.tipo).filter(Boolean))].sort();const z=$('op-zona');if(z)z.innerHTML='<option value="">Todas</option>'+zonas.map(v=>`<option>${esc(v)}</option>`).join('');const s=$('op-supervisor');if(s)s.innerHTML='<option value="">Todos</option>'+sups.map(v=>`<option value="${esc(v.nombre)}">${esc(v.nombre+' · '+supervisorZonesLabel(v))}</option>`).join('');const t=$('op-tipo');if(t)t.innerHTML='<option value="">Todos</option>'+tipos.map(v=>`<option>${esc(v)}</option>`).join('');}
+  async function onMonthChange(){
+    const mes=$('op-mes')?.value||currentMesKey();
+    if(!state.windowed||state.loadedMonths.has(mes)){render();return;}
+    if(state.pendingMonths.has(mes))return state.pendingMonths.get(mes);
+    const request=(async()=>{
+      setStatus('loading','Consultando tickets del mes '+mes+'...');
+      const params=new URLSearchParams({mes:mes.replace('_','-')});
+      const r=await fetch(API()+'/api/operacion/dashboard-operativo/historico?'+params.toString(),{cache:'no-store',headers:headers()});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const payload=await r.json();
+      const tickets=(Array.isArray(payload?.data?.tickets)?payload.data.tickets:[]).map(mapTicket).filter(t=>monthKeyFromDate(t.fr)===mes);
+      state.tickets.push(...tickets);state.loadedMonths.add(mes);
+      if(mes===($('op-mes')?.value||currentMesKey()))render();
+      setStatus('ok','Tickets del período cargados desde Aiven');
+    })().catch(error=>{
+      console.warn('[Operativo] No fue posible cargar mes:',error);
+      setStatus('error','No fue posible consultar el mes seleccionado');
+    }).finally(()=>state.pendingMonths.delete(mes));
+    state.pendingMonths.set(mes,request);
+    return request;
+  }
   async function loadData(){
     setStatus('loading','Consultando Aiven...');
     const mes=currentMesKey();
@@ -99,6 +120,9 @@
 
       state.portfolio=equiposRaw.map(mapEquipo).filter(e=>e.cod&&e.active!==false);
       state.tickets=ticketsRaw.map(mapTicket).filter(t=>t.n||t.cod||t.pro);
+      state.windowed=initialPayload?.snapshot?.tickets_window==='SIX_MONTHS';
+      state.loadedMonths=new Set(state.windowed?months().slice(0,6).map(m=>m.key):[]);
+      state.pendingMonths=new Map();
       state.supervisoresMantenimiento=supervisoresRaw.map(mapSupervisorMantenimiento).filter(s=>s.id&&s.nombre&&s.roles.some(r=>normalizeForCompare(r).startsWith('SUPERVISOR MANTENIMIENTO')));
 
       // Snapshot-first: preventivos de 12 meses y criticidad ya vienen en /inicial.
@@ -119,6 +143,7 @@
     }catch(error){
       state.portfolio=[];
       state.tickets=[];
+      state.windowed=false;state.loadedMonths=new Set();state.pendingMonths=new Map();
       state.supervisoresMantenimiento=[];
       state.preventivosSupervisor=[];
       state.preventivosPorMes={};
