@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const CONTROLLER_FILE = path.resolve(__dirname, '../src/controllers/ins-fl.controller.js');
-function fixture({existing = {}, incoming = {}} = {}) {
+function fixture({existing = {}, incoming = {}, found = true} = {}) {
   const stored = Object.assign({
     id_ins_fl:91,proyecto:'Punto Norte',id_proyecto:'P14302',referencia_sitio:'Equipo 1',
     id_sup:12,id_asesor:34,id_admin:56,activo:1
@@ -14,7 +14,7 @@ function fixture({existing = {}, incoming = {}} = {}) {
     async beginTransaction(){},async commit(){},async rollback(){},release(){},
     async query(sql,params=[]){
       sqlLog.push({sql,params});
-      if(/SELECT id_ins_fl,/.test(sql))return [[stored]];
+      if(/SELECT id_ins_fl,/.test(sql))return [found ? [stored] : []];
       if(/UPDATE ins_fl/.test(sql)){
         const part=sql.slice(sql.indexOf('SET')+3,sql.lastIndexOf('WHERE'));
         const items=[...part.matchAll(/\b([a-z_][a-z0-9_]*)\s*=\s*(COALESCE\(\?,\s*[a-z_][a-z0-9_]*\)|\?)/g)];
@@ -85,4 +85,27 @@ test('cambia un ID sin borrar el otro',async()=>{
 test('conserva el ID restante si el otro ya era NULL',async()=>{
   const f=fixture({existing:{id_sup:null},incoming:{proyecto:'Otro proyecto',id_asesor:null}}),r=await f.run();
   assert.equal(r.payload.updated,1);assert.equal(f.stored.id_sup,null);assert.equal(f.stored.id_asesor,34);
+});
+
+test('CLIENTES VIP se recibe y actualiza sin escribir campos tecnicos protegidos',async()=>{
+  const f=fixture({existing:{clientes_vip:'NORMAL'},incoming:{clientes_vip:'VIP',id_admin:999,id_script:'IGNORAR'}});
+  const r=await f.run();
+  assert.equal(r.statusCode,200);assert.equal(r.payload.updated,1);
+  assert.equal(f.stored.clientes_vip,'VIP');
+  assert.equal(f.stored.id_admin,56);
+  assert.equal(Object.hasOwn(f.stored,'id_script'),false);
+  const sql=f.sqlLog.find(q=>/UPDATE ins_fl/.test(q.sql)).sql;
+  assert.match(sql,/\bclientes_vip\s*=\s*\?/);
+  assert.doesNotMatch(sql,/\bid_admin\s*=/);
+  assert.doesNotMatch(sql,/\bid_script\s*=/);
+});
+test('CLIENTES VIP se inserta como texto sin reinterpretar marcadores',async()=>{
+  const f=fixture({found:false,incoming:{clientes_vip:'N/A',id_admin:999,id_script:'IGNORAR'}});
+  const r=await f.run();
+  assert.equal(r.statusCode,200);assert.equal(r.payload.inserted,1);
+  assert.equal(f.stored.clientes_vip,'N/A');
+  const sql=f.sqlLog.find(q=>/INSERT INTO ins_fl/.test(q.sql)).sql;
+  assert.match(sql,/\bclientes_vip\b/);
+  assert.doesNotMatch(sql,/\bid_admin\b/);
+  assert.doesNotMatch(sql,/\bid_script\b/);
 });

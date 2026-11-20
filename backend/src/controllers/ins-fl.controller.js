@@ -109,7 +109,9 @@ const DB_FIELDS = [
   'categoria',
   'codigo_mantenimiento',
   'equipos_mojados',
-  'sup_1'
+  'sup_1',
+  // Carga inicial desde FL_Res_VS: encabezado CLIENTES VIP (texto operativo).
+  'clientes_vip'
 ];
 
 // [Aster | 2026-08-31 | ASTER-MG | FIX: INS_FL_COPIA_FIEL_MARCADORES_V001]
