@@ -128,6 +128,34 @@ function likeParam(value) {
   return text ? '%' + text + '%' : null;
 }
 
+
+// Optimización de lectura controlada: 1 agregación por página con total SQL.
+// Habilitar expresamente en Azure solo después de validar MySQL 8 / EXPLAIN.
+// El contrato legacy permanece activo por defecto para Netlify y Pages.
+async function readU365Page(baseSql, baseParams, orderBy, page, pageSize, offset) {
+  const sql = 'SELECT * FROM (' + baseSql + ') q ORDER BY ' + orderBy + ' LIMIT ? OFFSET ?';
+  if (process.env.BLT_OPT_CC_U365_WINDOW_COUNT === '1') {
+    const [rows] = await db.query(
+      'SELECT q.*, COUNT(*) OVER() AS __blt_total FROM (' + baseSql + ') q ORDER BY ' + orderBy + ' LIMIT ? OFFSET ?',
+      [...baseParams, pageSize, offset]
+    );
+    // Una página fuera de rango no incluye COUNT OVER; consultar total sin
+    // repetir la agregación de la página. No alterar el resultado HTTP.
+    if (rows.length) {
+      const total = Number(rows[0].__blt_total || 0);
+      return {
+        rows: rows.map(({ __blt_total, ...row }) => row),
+        total
+      };
+    }
+    const [countRows] = await db.query('SELECT COUNT(*) AS total FROM (' + baseSql + ') q', baseParams);
+    return { rows: [], total: Number(countRows?.[0]?.total || 0) };
+  }
+  const [countRows] = await db.query('SELECT COUNT(*) AS total FROM (' + baseSql + ') q', baseParams);
+  const [rows] = await db.query(sql, [...baseParams, pageSize, offset]);
+  return { rows: Array.isArray(rows) ? rows : [], total: Number(countRows?.[0]?.total || 0) };
+}
+
 function getCallCenterU365TicketAggregate(diasCriticos) {
   const today = sqlMexicoCityToday();
   return {
@@ -230,16 +258,16 @@ async function getCallCenterU365Equipos(req) {
   ].join(' ');
 
   const baseParams = [criteria.minFallas, ...(activePortfolio.params || []), ...ticketAggregate.params, ...filterParams];
-  const [countRows] = await db.query('SELECT COUNT(*) AS total FROM (' + baseSql + ') q', baseParams);
-  const [rows] = await db.query(
-    'SELECT * FROM (' + baseSql + ') q ORDER BY q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.numero_equipo ASC LIMIT ? OFFSET ?',
-    [...baseParams, pageSize, offset]
+  const result = await readU365Page(
+    baseSql, baseParams,
+    'q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.numero_equipo ASC',
+    page, pageSize, offset
   );
 
   return {
     criteria,
-    pagination: { page, page_size: pageSize, total: Number(countRows?.[0]?.total || 0) },
-    rows: Array.isArray(rows) ? rows : []
+    pagination: { page, page_size: pageSize, total: result.total },
+    rows: result.rows
   };
 }
 
@@ -290,16 +318,16 @@ async function getCallCenterU365Proyectos(req) {
   ].join(' ');
 
   const baseParams = [criteria.minFallas, ...(activePortfolio.params || []), ...ticketAggregate.params, ...filterParams];
-  const [countRows] = await db.query('SELECT COUNT(*) AS total FROM (' + baseSql + ') q', baseParams);
-  const [rows] = await db.query(
-    'SELECT * FROM (' + baseSql + ') q ORDER BY q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.proyecto ASC LIMIT ? OFFSET ?',
-    [...baseParams, pageSize, offset]
+  const result = await readU365Page(
+    baseSql, baseParams,
+    'q.llamadas_365 DESC, q.fallas_blt_365 DESC, q.ultima_llamada_365 DESC, q.proyecto ASC',
+    page, pageSize, offset
   );
 
   return {
     criteria,
-    pagination: { page, page_size: pageSize, total: Number(countRows?.[0]?.total || 0) },
-    rows: Array.isArray(rows) ? rows : []
+    pagination: { page, page_size: pageSize, total: result.total },
+    rows: result.rows
   };
 }
 
