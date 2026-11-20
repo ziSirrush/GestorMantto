@@ -44,4 +44,6 @@ router.get(
   controller.getInitialData
 );
 
+router.get('/operacion/resumen-dia/periodo',...resumenDiaGuard,controller.getDayData);
+
 module.exports = router;

@@ -55,13 +55,14 @@ async function getInitialData(req) {
   return {
     ok: true,
     source: 'aiven',
-    mode: 'SNAPSHOT_FULL',
-    snapshot:{version:'RESUMEN_DIA_SNAPSHOT_V001',refresh:'ACTUALIZAR'},
+    mode: data.day ? 'SNAPSHOT_DAY' : 'SNAPSHOT_FULL',
+    snapshot:{version:'RESUMEN_DIA_SNAPSHOT_V001',refresh:'ACTUALIZAR',...(data.day?{day:data.day}:{} )},
     data: {
       tickets: data.tickets,
       portafolio: data.portafolio,
       criticidad:data.criticidad,
-      criticos_codigos:data.criticos_codigos
+      criticos_codigos:data.criticos_codigos,
+      ...(Array.isArray(data.history_dates)?{history_dates:data.history_dates}:{} )
     },
     alcance: {
       zona_ids: unrestricted ? null : zoneIds,
@@ -74,6 +75,16 @@ async function getInitialData(req) {
   };
 }
 
+async function getDayData(req) {
+  const access=req?.informationAccess||null;
+  const unrestricted=hasUnrestrictedUnitedScope_gnral(req);
+  const ids=normalizePositiveIds(access?.zona_ids);
+  if(!access || access.dominio!=='UNITED' || (!unrestricted &&
+     (access.requiere_filtro_zona!==true || !ids.length))) return {ok:true,source:'aiven',data:{tickets:[]}};
+  const rows=await repository.getDayData(req,req?.query?.fecha);
+  return {ok:true,source:'aiven',data:{tickets:rows},fecha:req?.query?.fecha};
+}
 module.exports = {
-  getInitialData
+  getInitialData,
+  getDayData
 };
