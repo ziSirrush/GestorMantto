@@ -41,8 +41,12 @@ async function getInitialData(req) {
   const pScope = scope.portafolioScope(req);
   const tScope = scope.ticketsScope(req);
 
+  // El frontend de Resumen NS solo consume tres datos de Portafolio.
+  // Proyeccion reversible; evita enviar el registro completo por equipo.
+  const fields=process.env.BLT_OPT_NS_RESUMEN_PROJECTION_V1==='1'
+    ? 'p.numero_equipo,p.proyecto,p.identificacion_sitio' : 'p.*';
   const sqlPortafolio = `
-    SELECT p.*, NULLIF(TRIM(p.zona_operativa), '') AS zona_oficial
+    SELECT ${fields}, NULLIF(TRIM(p.zona_operativa), '') AS zona_oficial
     FROM ns_portafolio_pruebas p
     WHERE (${pScope.sql})
     ORDER BY p.id_portafolio DESC LIMIT ?`;
