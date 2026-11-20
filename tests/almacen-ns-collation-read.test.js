@@ -60,3 +60,51 @@ test('las consultas de Almacen normalizan MAX de texto con y sin catalogo public
     }
   }
 });
+
+
+test('el listado usa el conteo de su mismo resumen y ejecuta solo dos agregaciones filtradas', async () => {
+  const previousQuery = fakeDb.query;
+  const previousCatalog = includeCatalog;
+  const executed = [];
+  try {
+    includeCatalog = false;
+    fakeDb.query = async (sql, params = []) => {
+      executed.push({ sql, params });
+      if (sql.includes('SELECT id_lote AS loteImportacion') && sql.includes('FROM almacen_ns_lotes')) {
+        return [[{ loteImportacion: 'inventario-actual', fechaCorte: '2026-11-04', fechaImportacion: '2026-11-05' }]];
+      }
+      if (sql.includes('SELECT COUNT(*) AS filas FROM almacen_ns_inventario')) return [[{ filas: 3 }]];
+      if (sql.includes('SELECT id_lote AS idLote FROM almacen_ns_lotes')) return [[]];
+      if (sql.includes('SELECT * FROM (SELECT MIN(v.id) AS id')) {
+        return [[{ id: 3, codigo: 'REF-3', fisico: '7', valor: '70.00' }]];
+      }
+      if (sql.includes('SELECT COUNT(*) AS registros,COALESCE(SUM(fisico),0) AS piezas')) {
+        return [[{ registros: 2, piezas: '12', filasConValor: 2, valorTotal: '120.00' }]];
+      }
+      throw new Error('Consulta SQL inesperada: ' + sql);
+    };
+    const result = await ns.getInventory(scope, {
+      page: 2, pageSize: 1, company: 'CORELLIAN', stockOnly: true,
+      minValue: 10, maxValue: 100
+    });
+    const grouped = executed.filter(({ sql }) => sql.includes('SELECT MIN(v.id) AS id'));
+    assert.equal(grouped.length, 2, 'lista y resumen: dos consultas, nunca tres');
+    assert.equal(grouped.filter(({ sql }) => sql.includes('COUNT(*) AS registros')).length, 1);
+    assert.equal(grouped.filter(({ sql }) => sql.includes('COUNT(*) AS total')).length, 0);
+    assert.deepEqual(result.pagination, { page: 2, pageSize: 1, total: 2, pages: 2 });
+    assert.deepEqual(result.summary, { registros: 2, piezas: 12, valorTotal: 120 });
+    assert.equal(result.rows[0].fisico, 7);
+    assert.equal(result.rows[0].valor, 70);
+    for (const { sql, params } of grouped) {
+      assert.match(sql, /id_subsidiaria_ns IN \(\?\)/);
+      assert.match(sql, /v\.empresa=\?/);
+      assert.match(sql, /g\.valor>=\?/);
+      assert.match(sql, /g\.valor<=\?/);
+      assert.match(sql, /g\.fisico>0/);
+      assert.ok(params.some(value => Array.isArray(value) && value.join(',') === '2,3,5'));
+    }
+  } finally {
+    fakeDb.query = previousQuery;
+    includeCatalog = previousCatalog;
+  }
+});

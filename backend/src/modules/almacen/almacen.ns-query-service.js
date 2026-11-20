@@ -261,15 +261,16 @@ async function getInventory(scope,query={}) {
   if(max!==null){filter.push('g.valor<=?');args.push(max);}
   if(String(query.stockOnly||'').toLowerCase()==='true'||String(query.stockOnly||'')==='1')filter.push('g.fisico>0');
   const where=filter.length?`WHERE ${filter.join(' AND ')}`:'';
-  const [result,count,summary]=await Promise.all([
+  // El resumen ya calcula COUNT(*): no repetir la misma agregacion.
+  // Se mantienen alcance, filtros, paginacion y semantica de NULL.
+  const [result,summary]=await Promise.all([
     db.query(`SELECT * FROM (${grouped.sql}) g ${where} ORDER BY articulo,codigo LIMIT ? OFFSET ?`,[...grouped.params,...args,pg.pageSize,pg.offset]),
-    db.query(`SELECT COUNT(*) AS total FROM (${grouped.sql}) g ${where}`,[...grouped.params,...args]),
     db.query(`SELECT COUNT(*) AS registros,COALESCE(SUM(fisico),0) AS piezas,
       SUM(CASE WHEN valor IS NOT NULL THEN 1 ELSE 0 END) AS filasConValor,SUM(valor) AS valorTotal
       FROM (${grouped.sql}) g ${where}`,[...grouped.params,...args])
   ]);
   const sm=summary[0][0]||{};
-  return {ok:true,source:snap.source,rows:result[0].map(convert),pagination:pagination(count[0][0]?.total,pg),summary:{
+  return {ok:true,source:snap.source,rows:result[0].map(convert),pagination:pagination(sm.registros,pg),summary:{
     registros:Number(sm.registros||0),piezas:Number(sm.piezas||0),valorTotal:Number(sm.filasConValor||0)>0?Number(sm.valorTotal||0):null
   }};
 }
