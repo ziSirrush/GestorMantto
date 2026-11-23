@@ -65,15 +65,26 @@ function save(state) {
   fs.writeFileSync(FRONT_FILE, JSON.stringify({apiVersion:state.api, version:state.frontend}, null, 2) + '\n');
 }
 
-function gitSubject() {
-  return cp.execFileSync('git', ['log', '-1', '--pretty=%s'], {cwd:ROOT,encoding:'utf8'}).trim();
+// Verificar el mensaje almacenado completo; %s solo valida el asunto y omite el cuerpo.
+function extractGitMessage(rawCommit) {
+  const raw=String(rawCommit);
+  const separator=raw.indexOf('\n\n');
+  if (separator<0) throw new Error('No se pudo leer el mensaje completo del commit.');
+  const message=raw.slice(separator+2);
+  // Git puede almacenar un salto final; cualquier salto adicional es invalido.
+  return message.endsWith('\n') ? message.slice(0,-1) : message;
+}
+
+function gitMessage() {
+  const raw=cp.execFileSync('git', ['cat-file', 'commit', 'HEAD'], {cwd:ROOT,encoding:'utf8'});
+  return extractGitMessage(raw);
 }
 
 function verify({checkCommit = process.env.GITHUB_EVENT_NAME === 'push'} = {}) {
   const current=read();
   if (checkCommit) {
     const expected = 'Version ' + current.combined;
-    const actual = gitSubject();
+    const actual = gitMessage();
     if (actual !== expected) throw new Error('Commit esperado: "' + expected + '", recibido: "' + actual + '"');
   }
   return current;
@@ -103,4 +114,4 @@ if (require.main === module) {
   catch (error) { console.error('[release-version] ' + error.message); process.exitCode = 1; }
 }
 
-module.exports={releaseDate,parsePart,normalize,read,bump,save,verify};
+module.exports={releaseDate,parsePart,normalize,read,bump,save,verify,extractGitMessage};
