@@ -47,7 +47,7 @@ function sql_cor() {
     statement_cor('p','p','cobranza_pagos_cor p JOIN '+projectMatches+
       " ON "+norm('p.id_pp')+" = projects.project_key",
       payments,"projects.ppns IN (?)"),
-    statement_cor('rp','rp','cobranza_rel_pagos rp JOIN cobranza_facturas_cor cf "+
+    statement_cor('rp','rp','cobranza_rel_pagos rp JOIN cobranza_facturas_cor cf '+
       "ON cf.id_factura_cor = rp.id_factura_cor",
       relations,relations+" IN (?)")
   ];
