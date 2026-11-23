@@ -1,0 +1,36 @@
+name: QA temporal cache Cobranza COR
+on:
+  push:
+    branches: [qa-cobranza-cor-cache-231126]
+permissions:
+  contents: read
+concurrency:
+  group: qa-cobranza-cor-cache-231126
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Instalar dependencias
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+      - name: Validar sintaxis del frontend COR
+        run: node --check modules/cobranza-cor/cobranza-cor-dashboard.js
+      - name: Validaciones de estructura
+        working-directory: backend
+        run: npm run check
+      - name: Pruebas incrementales COR
+        working-directory: backend
+        run: node --test tests/cobranza-cor-incremental-cache.test.js ../tests/cobranza-cor-dashboard-cache-contract.test.js
+      - name: Suite backend y frontend completa
+        working-directory: backend
+        run: npm test
