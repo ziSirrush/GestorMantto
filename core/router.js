@@ -1197,23 +1197,6 @@
       if(window.ManttoLogisticaProduccion) window.ManttoLogisticaProduccion.init(route,currentPayload||null);
       return;
     }
-    if(route==='cobranza-dashboard'){
-      const view=activateViewById('view-placeholder');
-      if(!view)return;
-      const authorized=window.ManttoPermissions?.canNavigate?.(route)===true;
-      setActiveSide(authorized?route:'');
-      updateContext(route,authorized?'Cobranza COR · Dashboard de Seguimiento':'Cobranza COR · acceso restringido');
-      if(!authorized){
-        view.innerHTML='<div class="placeholder"><div class="card placeholder-card construction-card"><h1>Acceso restringido</h1><p>No tienes permiso para abrir el Dashboard de Cobranza COR.</p></div></div>';
-        return;
-      }
-      if(window.ManttoCobranzaCorDashboard&&typeof window.ManttoCobranzaCorDashboard.init==='function'){
-        window.ManttoCobranzaCorDashboard.init();
-      }else{
-        view.innerHTML='<div class="placeholder"><div class="card placeholder-card construction-card"><h1>Dashboard Cobranza</h1><p>No fue posible iniciar el modulo.</p></div></div>';
-      }
-      return;
-    }
     if(route==='soporte-solicitudes' && showSoporteSolicitudes()) return;
     if(route==='usuarios' && showUsuarios()) return;
     if(route==='visor-usuarios'){

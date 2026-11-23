@@ -18,12 +18,6 @@ const requireCobranzaCorIntegration = requireIntegrationAuthFor('INTEGRATION_VEN
   whenDisabled: [requireAuth, requireHistoricalSyncEnabled]
 });
 
-const requireDashboardCor = humanInformationGuard_gnral({
-  permissionCode: 'COBRANZA_DASHBOARD_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
-  domain: 'CORELLIAN',
-  groupingCode: 'COBRANZA'
-});
-
 const requireEstadosCuentaCor = humanInformationGuard_gnral({
   permissionCode: 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL',
   domain: 'CORELLIAN',
@@ -66,8 +60,6 @@ router.put('/pagos/proyecto/masivo', ...requirePagosCor, requirePagosCorComplete
 router.put('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.asignarProyecto_cor);
 router.delete('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.quitarProyecto_cor);
 
-router.get('/dashboard', ...requireDashboardCor, controller.listarDashboard_cor);
-router.post('/dashboard/sync', ...requireDashboardCor, controller.sincronizarDashboard_cor);
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
 router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, controller.catalogoCrearEstadoCuenta_cor);
 router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearEstadoCuenta_cor);

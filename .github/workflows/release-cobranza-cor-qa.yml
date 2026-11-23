@@ -37,7 +37,7 @@ jobs:
       - name: Regresiones financieras COR aisladas
         working-directory: backend
         run: |
-          node --test tests/cobranza-cor-dashboard.test.js tests/cobranza-cor-dashboard-batch.test.js tests/cobranza-cor-payment-index.test.js
+          node --test tests/cobranza-cor-payment-index.test.js
       - name: Todas las pruebas del backend
         working-directory: backend
         run: npm test

@@ -1,4 +1,6 @@
 # Corellian / Cobranza COR — Liberación aislada por capas
+
+> **Histórico (23/11/2026):** El Dashboard de Cobranza COR fue retirado de `main` y su vista volvió a «En construcción». Las rutas, el backend y el caché exclusivos del Dashboard ya no están disponibles. Las fases de activación SUMMARY, BATCH y DELTA_CACHE de este documento quedan canceladas. La optimización PAYMENT_INDEX pertenece al Estado de Cuenta y se conserva. Este documento se mantiene solo como registro de decisiones.
 Fecha: 2026-11-23
 Rama: release-cobranza-cor-opt-v1 (derivada de main, no de request)
 Fuente de optimizaciones: request, commit 073c9d7b65f51f1d33b1bc187be12dedf9f7b16c

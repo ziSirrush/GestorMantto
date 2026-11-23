@@ -370,104 +370,6 @@ async function getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds = null
   return rows[0] || null;
 }
 
-// DS: relacion estable de asesores por PPNS. La lista se limita a los PPNS
-// previamente autorizados por el catalogo oficial de Estados de Cuenta.
-async function listDashboardAdvisors_cor(connection, allowedPpns = []) {
-  const keys = [...new Set((Array.isArray(allowedPpns) ? allowedPpns : [])
-    .map(value => String(value ?? '').trim().toUpperCase()).filter(Boolean))];
-  const rows = [];
-  for (let i = 0; i < keys.length; i += 250) {
-    const batch = keys.slice(i, i + 250);
-    const holders = batch.map(() => '?').join(', ');
-    const [result] = await connection.query(
-      `SELECT DISTINCT ${normalizedKeySql_cor('fl.id_proyecto')} AS ppns_key,
-              fl.id_asesor,
-              NULLIF(TRIM(u.iniciales), '') AS iniciales
-         FROM ins_fl fl
-         LEFT JOIN usuarios u
-           ON u.id_SB = fl.id_asesor AND u.estado = 1
-        WHERE fl.activo = 1
-          AND fl.id_asesor IS NOT NULL AND fl.id_asesor > 0
-          AND ${normalizedKeySql_cor('fl.id_proyecto')} IN (${holders})`,
-      batch
-    );
-    rows.push(...result);
-  }
-  return rows;
-}
-function normalizePpnsBatch_cor(list) {
-  if (!Array.isArray(list) || list.length>24) throw new TypeError('Lote COR fuera de limite seguro.');
-  return [...new Set(list.map(value=>String(value??'').trim().toUpperCase()).filter(Boolean))];
-}
-
-async function listFuenteEstadoCuentaBatch_cor(connection, ppnsList) {
-  const keys=normalizePpnsBatch_cor(ppnsList);
-  if(!keys.length)return [];
-  const [rows]=await connection.query(
-    `SELECT
-       f.id_fuente_cor,
-       f.proyecto,
-       f.id_proyecto_origen,
-       f.cliente,
-       f.contractual,
-       f.porcentaje,
-       f.fondo_garantia,
-       f.porcentaje_fondo_garantia,
-       f.iva_general_pct,
-       f.condicion,
-       f.moneda,
-       f.subtotal,
-       f.iva,
-       f.total,
-       f.factura,
-       f.pago_total,
-       f.estatus_factura,
-       DATE_FORMAT(f.fecha_pago, '%Y-%m-%d') AS fecha_pago,
-       DATE_FORMAT(f.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
-       f.condiciones_pago_dias,
-       f.dias_vencimiento,
-       f.estimado_pago,
-       f.estatus_vencimiento,
-       f.orden_hito,
-       DATE_FORMAT(f.fecha_programada, '%Y-%m-%d') AS fecha_programada,
-       DATE_FORMAT(f.fecha_notificada, '%Y-%m-%d') AS fecha_notificada,
-       f.estatus_hito,
-       f.anio_proyecto,
-       ${normalizedKeySql_cor('f.id_proyecto_origen')} AS __ppns_key
-     FROM ${TABLES_COR.fuente} f
-     WHERE f.activo = 1
-       AND ${usablePpnsSql_cor('f.id_proyecto_origen')}
-       AND ${normalizedKeySql_cor('f.id_proyecto_origen')} IN (?)
-     ORDER BY COALESCE(f.orden_hito, 2147483647) ASC, f.id_fuente_cor ASC`,
-    [keys]
-  );
-  if(!Array.isArray(rows))throw new Error('Respuesta por lote de Cobranza COR invalida.');
-  return rows;
-}
-
-async function listFacturasEstadoCuentaBatch_cor(connection, ppnsList) {
-  const keys=normalizePpnsBatch_cor(ppnsList);
-  if(!keys.length)return [];
-  const [rows]=await connection.query(
-    `SELECT${facturaSelectSql_cor()}, ${normalizedKeySql_cor('cf.ppns')} AS __ppns_key
-       FROM ${TABLES_COR.facturas} cf
-       LEFT JOIN ${TABLES_COR.fuente} f
-         ON cf.tipo_concepto = 'HITO'
-        AND f.id_fuente_cor = cf.id_fuente_cor
-       LEFT JOIN ${TABLES_COR.aditivas} a
-         ON cf.tipo_concepto = 'ADITIVA'
-        AND a.id_aditiva_cor = cf.id_aditiva_cor
-      WHERE cf.activo = 1
-        AND ${normalizedKeySql_cor('cf.ppns')} IN (?)
-      ORDER BY
-        CASE cf.tipo_concepto WHEN 'HITO' THEN 1 WHEN 'ADITIVA' THEN 2 ELSE 9 END,
-        COALESCE(f.orden_hito, 2147483647) ASC,
-        cf.id_factura_cor ASC`,
-    [keys]
-  );
-  if(!Array.isArray(rows))throw new Error('Respuesta por lote de Cobranza COR invalida.');
-  return rows;
-}
 async function listFuenteEstadoCuenta_cor(connection, ppns) {
   const [rows] = await connection.query(
     `SELECT
@@ -1166,11 +1068,8 @@ module.exports = {
   updateAditiva_cor,
   canAccessPpns_cor,
   listEstadosCuenta_cor,
-  listDashboardAdvisors_cor,
   getEstadoCuentaByPpns_cor,
   listFuenteEstadoCuenta_cor,
-  listFuenteEstadoCuentaBatch_cor,
-  listFacturasEstadoCuentaBatch_cor,
   listCrearEstadoCuentaProyectos_cor,
   listCrearEstadoCuentaEquipos_cor,
   listCrearEstadoCuentaLogOps_cor,
