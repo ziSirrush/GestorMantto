@@ -1,0 +1,43 @@
+name: QA aislada Corellian Cobranza COR
+on:
+  push:
+    branches: [release-cobranza-cor-opt-v1]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/src/modules/cobranza-cor/**'
+      - 'backend/tests/cobranza-cor-*.test.js'
+      - 'backend/.env.example'
+      - 'backend/docs/LIBERACION_COBRANZA_COR_CAPAS.md'
+      - '.github/workflows/release-cobranza-cor-qa.yml'
+permissions:
+  contents: read
+concurrency:
+  group: cobranza-cor-release-qa
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Instalar dependencias
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+      - name: Validar estructura
+        working-directory: backend
+        run: npm run check
+      - name: Regresiones financieras COR aisladas
+        working-directory: backend
+        run: |
+          node --test tests/cobranza-cor-dashboard.test.js tests/cobranza-cor-dashboard-batch.test.js tests/cobranza-cor-payment-index.test.js
+      - name: Todas las pruebas del backend
+        working-directory: backend
+        run: npm test

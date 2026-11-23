@@ -174,12 +174,46 @@ async function listarDashboard_cor(query = {}, informationAccess, injectedMotor 
   const start = (filters.pagina - 1) * filters.tamano;
   const selected = allowed.slice(start, start + filters.tamano);
   const data = [];
+  const useBatch=typeof process!=='undefined' && process.env.BLT_OPT_COBRANZA_COR_BATCH_V1==='1' &&
+    filters.tipo==='RESUMEN' && selected.length>0 &&
+    typeof repository.listFuenteEstadoCuentaBatch_cor==='function' &&
+    typeof repository.listFacturasEstadoCuentaBatch_cor==='function';
+  const sourceByKey=new Map(),invoiceByKey=new Map();
+  if(useBatch){
+    const authorized=new Set(selected.map(row=>normalizeKey_cor(row.ppns)));
+    const conn=await repository.getConnection_cor();
+    try{
+      const keys=selected.map(row=>row.ppns);
+      const [sources,invoices]=await Promise.all([
+        repository.listFuenteEstadoCuentaBatch_cor(conn,keys),
+        repository.listFacturasEstadoCuentaBatch_cor(conn,keys)
+      ]);
+      const partition=(rows,map)=>{
+        if(!Array.isArray(rows))throw new Error('Lote COR incompleto.');
+        for(const row of rows){
+          const key=normalizeKey_cor(row.__ppns_key);
+          if(!authorized.has(key))throw new Error('Lote COR fuera del alcance autorizado.');
+          const {__ppns_key,...value}=row;
+          if(!map.has(key))map.set(key,[]);
+          map.get(key).push(value);
+        }
+      };
+      partition(sources,sourceByKey);partition(invoices,invoiceByKey);
+    }finally{conn.release();}
+  }
 
   // Solo dos conexiones de detalle simultaneas; cada detalle usa el motor existente.
   for (let i = 0; i < selected.length; i += DETAIL_CONCURRENCY) {
     const batch = selected.slice(i, i + DETAIL_CONCURRENCY);
     const resolved = await Promise.all(batch.map(async row => {
-      const detail = await motor.detalleEstadoCuenta_cor(row.ppns, informationAccess);
+      const opt=useBatch?{
+        prefetchedSourceRows:sourceByKey.get(normalizeKey_cor(row.ppns))||[],
+        prefetchedInvoiceRows:invoiceByKey.get(normalizeKey_cor(row.ppns))||[]
+      }:{};
+      if(process.env.BLT_OPT_COBRANZA_COR_SUMMARY_V1==='1' && filters.tipo==='RESUMEN')
+        opt.omitAditivasForDashboard=true;
+      const detail=await motor.detalleEstadoCuenta_cor(row.ppns,informationAccess,
+        Object.keys(opt).length?opt:undefined);
       const project = {
         ...detail.proyecto, id_asesor: row.id_asesor,
         asesor: row.asesor, asesores_distintos: row.asesores_distintos
