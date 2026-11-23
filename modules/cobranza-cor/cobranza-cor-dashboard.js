@@ -533,7 +533,7 @@
         const rows=checked?checked.items:response.data;
         if(!checked)mayPersist=false;
         if(checked)pagesToSave.push(checked);
-        if(rows.length!==Number(pageInfo.proyectos_pagina))
+        if(checked&&rows.length!==Number(pageInfo.proyectos_pagina))
           throw new Error('El lote validado no coincide con la paginacion.');
         for(const item of rows){
           const ppns=normalize_cor(item?.proyecto?.ppns);
