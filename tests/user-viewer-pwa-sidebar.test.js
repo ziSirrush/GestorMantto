@@ -30,7 +30,7 @@ test('Permisos validados antes de navegar, sin nuevos endpoints',()=>{
   assert.match(viewer,/state\.usersLoaded=false/);
   assert.match(sw,/20261117-visor-pwa-sidebar-v001/);
   assert.match(html,/core\/user-viewer\.js\?v=20261117-visor-pwa-sidebar-v001/);
-  assert.match(html,/core\/router\.js\?v=20261117-visor-pwa-sidebar-v001/);
+  assert.match(html,/core\/router\.js\?v=20261123-cobranza-cor-placeholder-v001/);
 });
 async function simulate({permission,viewingAs=false,fail=false}){
   const footer={hidden:true};
