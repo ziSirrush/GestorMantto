@@ -644,12 +644,14 @@
     load_cor(true);
     return true;
   }
-  document.addEventListener('mantto:data-mutated',event=>{
-    const detail=event?.detail;
-    const ppns=detail?.ppns||detail?.id_proyecto_origen||detail?.proyecto?.ppns;
-    cacheInvalidate_cor(ppns);
-  });
-  document.addEventListener('mantto:view-user-changed',cacheInvalidateAll_cor);
+  if(typeof document!=='undefined'&&typeof document.addEventListener==='function'){
+    document.addEventListener('mantto:data-mutated',event=>{
+      const detail=event?.detail;
+      const ppns=detail?.ppns||detail?.id_proyecto_origen||detail?.proyecto?.ppns;
+      cacheInvalidate_cor(ppns);
+    });
+    document.addEventListener('mantto:view-user-changed',cacheInvalidateAll_cor);
+  }
   window.ManttoCobranzaCorDashboard=Object.freeze({
     init:init_cor,refresh:()=>load_cor(true,{force:true}),
     aggregate:aggregate_cor
