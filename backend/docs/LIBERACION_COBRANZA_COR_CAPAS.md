@@ -49,3 +49,22 @@ Main base: cec9f086f8f575298c2a59336132b52e5e6f6ac6
 - El QA del commit original request 073c9d7b paso en Github Actions (suites automatizadas con datos simulados).
 - La rama aislada debe completar su propio QA CI; no afirmar QA vivo, métricas o reconciliacion financiera antes de ejecutarlas.
 - Aprobación humana pendiente para promover cualquier codigo y para activar flags en Azure.
+
+## COR-7 — Caché incremental de Dashboard (preparado en main, apagado)
+Fecha de preparación: 23/11/2026. Bandera: `BLT_OPT_COBRANZA_COR_DELTA_CACHE_V1=0` por defecto.
+
+- El GET `/dashboard` mantiene el contrato anterior. POST `/dashboard/sync` usa el mismo guard CORELLIAN y alcance efectivo.
+- El Dashboard conserva datos en `sessionStorage` dentro de la pestaña por usuario/visor y filtros, con máximo dos horas y 3 MB. No utiliza `localStorage`, no escribe en Aiven y no muestra resultados guardados antes de validación en línea.
+- En cada solicitud de sincronización se vuelve a resolver la lista de PPNS autorizados. La API calcula revisiones de Fuente, Facturas, Pagos y relaciones por PPNS, junto con cabeceras y día de Ciudad de México. Solo los PPNS modificados requieren recalcular su detalle financiero.
+- La revisión es independiente de la versión API/Frontend y utiliza el contrato `COR_FINANCIAL_SUMMARY_V1`. Si cambian fórmulas, campos interpretados o contratos, **se debe incrementar este contrato** antes de publicar para invalidar cachés incompatibles.
+- El botón Actualizar fuerza lecturas nuevas. Si el backend todavía no cuenta con `/dashboard/sync`, el frontend vuelve al GET original. Estados de Cuenta editable permanece sin caché persistida.
+- El checksum es un indicador probabilístico, no una garantía absoluta contra colisiones. La vigencia se valida en línea, la sesión caduca y existe actualización forzada. No activar sin QA financiero real y análisis EXPLAIN.
+- No se crearon tablas, columnas, índices ni scripts SQL. No se alteraron fórmulas, permisos o módulos United.
+- QA aislada aprobada: https://github.com/ziSirrush/GestorMantto/actions/runs/45234694198. No sustituye QA con Aiven real.
+
+### Puerta COR-7 de activación
+1. Confirmar que la bandera está en 0 en Azure y medir baseline sin caché.
+2. Autorizar pruebas de solo lectura y comparar bandera 0/1 con mismos usuarios, PPNS y periodos: pagos parciales, 24 proyectos por lote, cambios de una factura y permisos revocados.
+3. Medir SQL por solicitud, p50/p95, latencia de la consulta de revisión, filas transmitidas y CPU/MySQL. NO GO si empeora el p95 o cambia cualquier saldo o permiso.
+4. Activar únicamente la nueva bandera en una ventana autorizada, sin activar a la vez SUMMARY/PAYMENT_INDEX/BATCH.
+5. Revertir bandera a 0 ante cualquier discrepancia. No hay migración de Aiven que revertir.

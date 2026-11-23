@@ -1,0 +1,24 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
+const script=fs.readFileSync(path.resolve(__dirname,'../modules/cobranza-cor/cobranza-cor-dashboard.js'),'utf8');
+const routes=fs.readFileSync(path.resolve(__dirname,'../backend/src/modules/cobranza-cor/cobranza-cor.routes.js'),'utf8');
+const controller=fs.readFileSync(path.resolve(__dirname,'../backend/src/modules/cobranza-cor/cobranza-cor.controller.js'),'utf8');
+test('cache COR sobrevive cambios de version backend pero verifica on-line por PPNS',()=>{
+ assert.match(script,/sessionStorage/);
+ assert.doesNotMatch(script,/window\.localStorage/);
+ assert.match(script,/cacheFilters_cor/);
+ assert.match(script,/scopeKey/);
+ assert.match(script,/\/sync/);
+ assert.match(script,/checkedPageRows_cor/);
+ assert.match(script,/response\.cache\.revisions/);
+ assert.match(script,/prevTokens\.get\(key\)===rev\.revision/);
+ assert.match(script,/cacheSave_cor\(pagesToSave/);
+ assert.match(script,/cacheInvalidate_cor/);
+ assert.match(script,/cacheInvalidateAll_cor/);
+ assert.match(script,/cache\.contract|value\?\.contract/);
+ assert.match(script,/COR_CACHE_MAX_AGE_MS/);
+ assert.match(script,/force:true/);
+ assert.match(routes,/router\.post\('\/dashboard\/sync', \.\.\.requireDashboardCor/);
+ assert.match(controller,/payload\.query\|\|\{\},req\.informationAccess/);
+});

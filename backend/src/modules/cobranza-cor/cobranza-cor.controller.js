@@ -42,6 +42,20 @@ async function listarDashboard_cor(req, res, next) {
   }
 }
 
+async function sincronizarDashboard_cor(req, res, next) {
+  try {
+    // POST es lectura; scope CORELLIAN se obtiene solo del guard, nunca del body.
+    const payload=req.body&&typeof req.body==='object'?req.body:{};
+    res.set('Cache-Control','no-store');
+    return res.status(200).json(await dashboardService.listarDashboard_cor(
+      payload.query||{},req.informationAccess,null,null,
+      {requested:true,known:payload.known||[]}
+    ));
+  } catch(error) {
+    return sendKnownError(error,res,next);
+  }
+}
+
 async function listarEstadosCuenta_cor(req, res, next) {
   try {
     return res.status(200).json(
@@ -217,6 +231,7 @@ module.exports = {
   cargarAditivas_cor,
   cargarFacturas_cor,
   listarDashboard_cor,
+  sincronizarDashboard_cor,
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
   catalogoCrearEstadoCuenta_cor,

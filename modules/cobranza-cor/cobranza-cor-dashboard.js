@@ -15,6 +15,105 @@
     error:'',initialized:false
   };
 
+
+  // La revision de datos/contrato es distinta de la version de API/Frontend:
+  // un cambio de conexion o deploy no descarta un resultado compatible.
+  // Solo sessionStorage (pestana), nunca localStorage ni almacenamiento del servidor.
+  const COR_CACHE_CONTRACT='COR_FINANCIAL_SUMMARY_V1';
+  const COR_CACHE_PREFIX='blt:cor:dashboard:session:v1:';
+  const COR_CACHE_MAX_AGE_MS=2*60*60*1000;
+  const COR_CACHE_MAX_BYTES=3*1024*1024;
+  function cacheKey_cor(){
+    const identity=window.ManttoHttp?.scopeKey?.();
+    if(typeof identity!=='string'||!identity||identity==='anon:anon:anon')return null;
+    return COR_CACHE_PREFIX+encodeURIComponent(identity);
+  }
+  function cacheFilters_cor(){
+    return JSON.stringify(['q','asesor','moneda'].map(key=>String(state.filters[key]||'')));
+  }
+  function cacheRead_cor(){
+    try{
+      const key=cacheKey_cor();
+      if(!key||!window.sessionStorage)return null;
+      const content=window.sessionStorage.getItem(key);
+      if(!content)return null;
+      const value=JSON.parse(content);
+      if(value?.contract!==COR_CACHE_CONTRACT ||
+        value?.filters!==cacheFilters_cor() ||
+        !Number.isFinite(value.savedAt) ||
+        Date.now()-value.savedAt<0 ||
+        Date.now()-value.savedAt>COR_CACHE_MAX_AGE_MS ||
+        !Array.isArray(value.pages))return null;
+      return value;
+    }catch(_error){return null;}
+  }
+  function cacheSave_cor(pages,scope){
+    try{
+      const key=cacheKey_cor();
+      if(!key||!window.sessionStorage||pages.length>1000)return;
+      const text=JSON.stringify({contract:COR_CACHE_CONTRACT,
+        filters:cacheFilters_cor(),savedAt:Date.now(),scope,pages});
+      if(text.length>COR_CACHE_MAX_BYTES)return;
+      window.sessionStorage.setItem(key,text);
+    }catch(_error){
+      // Espacio insuficiente o almacenamiento deshabilitado: leer desde API.
+    }
+  }
+  function cacheInvalidate_cor(ppns){
+    try{
+      const key=cacheKey_cor();
+      if(!key||!window.sessionStorage)return;
+      const previous=cacheRead_cor();
+      if(!previous||!ppns){window.sessionStorage.removeItem(key);return;}
+      const normalized=normalize_cor(ppns);
+      for(const page of previous.pages){
+        page.revisions=(page.revisions||[]).filter(row=>normalize_cor(row.ppns)!==normalized);
+      }
+      cacheSave_cor(previous.pages,previous.scope);
+    }catch(_error){}
+  }
+  function cacheInvalidateAll_cor(){
+    try{
+      if(!window.sessionStorage)return;
+      for(let i=window.sessionStorage.length-1;i>=0;i--){
+        const key=window.sessionStorage.key(i);
+        if(key&&key.startsWith(COR_CACHE_PREFIX))window.sessionStorage.removeItem(key);
+      }
+    }catch(_error){}
+  }
+  function checkedPageRows_cor(response,cachedPage,allowedToReuse){
+    if(response?.cache?.contract!==COR_CACHE_CONTRACT)return null;
+    const revisions=response.cache.revisions;
+    if(!Array.isArray(revisions)||revisions.length>SUMMARY_PAGE_SIZE)
+      throw new Error('Revision financiera incompleta.');
+    const previous=new Map();
+    const prevTokens=new Map();
+    if(allowedToReuse&&cachedPage){
+      for(const row of cachedPage.items||[]){
+        const key=normalize_cor(row?.proyecto?.ppns);
+        if(key)previous.set(key,row);
+      }
+      for(const rev of cachedPage.revisions||[]){
+        const key=normalize_cor(rev.ppns);
+        if(key)prevTokens.set(key,rev.revision);
+      }
+    }
+    const fresh=new Map((response.data||[]).map(row=>[normalize_cor(row?.proyecto?.ppns),row]));
+    const seen=new Set();
+    const rows=revisions.map(rev=>{
+      const key=normalize_cor(rev?.ppns);
+      if(!key||seen.has(key)||!/^[a-f0-9]{64}$/i.test(String(rev?.revision||'')))
+        throw new Error('Identificador de revision COR invalido.');
+      seen.add(key);
+      if(fresh.has(key))return fresh.get(key);
+      if(prevTokens.get(key)===rev.revision && previous.has(key))return previous.get(key);
+      throw new Error('La cache de Cobranza no coincide con el servidor.');
+    });
+    if(fresh.size>seen.size || [...fresh.keys()].some(key=>!seen.has(key)))
+      throw new Error('La respuesta financiera contiene un proyecto fuera de pagina.');
+    return {items:rows,revisions};
+  }
+
   function active_cor(){
     return window.ManttoRouter?.getCurrent?.()?.route===ROUTE;
   }
@@ -349,7 +448,7 @@
       +'Fechas de cobro: meses enero–diciembre del año seleccionado, sin sumar Fuente con Complementos. '
       +'Los hitos sin fecha verificable no se clasifican arbitrariamente como vencidos.</footer></div>';
   }
-  async function load_cor(reset=true){
+  async function load_cor(reset=true,options={}){
     if(!active_cor())return false;
     if(reset){
       state.sequence++;
@@ -358,38 +457,85 @@
       state.advisors=[];state.years=[];
     }
     const seq=state.sequence;
+    const force=options?.force===true;
+    const originalCache=force?null:cacheRead_cor();
+    const pagesToSave=[];
+    let mayPersist=true;
     state.loading=true;
     render_cor();
     try{
       const client=window.ManttoHttp;
-      if(!client||typeof client.get!=='function')throw new Error('No esta disponible el cliente HTTP.');
+      if(!client||typeof client.get!=='function')
+        throw new Error('No esta disponible el cliente HTTP.');
       const seen=new Set();
       const advisors=new Map();
       const years=new Set([new Date().getFullYear()]);
       let initialScope=null;
       let expectedTotal=null;
       for(let page=1;page<=100000;page++){
-        const params=new URLSearchParams({tipo:'resumen',pagina:String(page),tamano:String(SUMMARY_PAGE_SIZE)});
+        const params=new URLSearchParams({tipo:'resumen',pagina:String(page),
+          tamano:String(SUMMARY_PAGE_SIZE)});
         for(const key of ['q','asesor','moneda']){
           if(state.filters[key])params.set(key,String(state.filters[key]));
         }
-        const response=await client.get(ENDPOINT+'?'+params.toString(),{force:true,cacheTtlMs:0});
+        const cachedPage=originalCache?.pages?.[page-1]||null;
+        const reusable=Boolean(cachedPage&&originalCache?.scope);
+        const known=(!force&&reusable)?(cachedPage.revisions||[]).filter(rev=>
+          /^[a-f0-9]{64}$/i.test(String(rev?.revision||''))&&
+          (cachedPage.items||[]).some(row=>
+            normalize_cor(row?.proyecto?.ppns)===normalize_cor(rev?.ppns))
+        ):[];
+        let response;
+        if(typeof client.request==='function'){
+          try{
+            response=await client.request(ENDPOINT+'/sync',{
+              method:'POST',dedupe:false,
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({query:Object.fromEntries(params.entries()),known})
+            });
+          }catch(error){
+            // Compatible con API anterior durante despliegues desacoplados.
+            if(error?.status!==404&&error?.status!==405)throw error;
+            response=await client.get(ENDPOINT+'?'+params.toString(),
+              {force:true,cacheTtlMs:0});
+          }
+        }else{
+          response=await client.get(ENDPOINT+'?'+params.toString(),
+            {force:true,cacheTtlMs:0});
+        }
         if(seq!==state.sequence||!active_cor())return false;
-        if(!response||response.ok===false||!Array.isArray(response.data)||response.tipo!=='resumen'){
-          throw new Error(response?.message||'Respuesta de consolidación no válida.');
+        if(!response||response.ok===false||!Array.isArray(response.data)||
+          response.tipo!=='resumen'){
+          throw new Error(response?.message||'Respuesta de consolidacion no valida.');
         }
         const pageInfo=response.paginacion||{};
         const total=Number(pageInfo.total_proyectos);
         const totalPages=Number(pageInfo.total_paginas);
-        if(!Number.isSafeInteger(total)||total<0||!Number.isSafeInteger(totalPages)||totalPages<0){
-          throw new Error('Paginación inválida del Dashboard.');
+        if(!Number.isSafeInteger(total)||total<0||
+          !Number.isSafeInteger(totalPages)||totalPages<0){
+          throw new Error('Paginacion invalida del Dashboard.');
         }
         if(initialScope===null)initialScope=response.scope_aplicado;
-        else if(initialScope!==response.scope_aplicado)throw new Error('El alcance de acceso cambió durante la consolidación.');
+        else if(initialScope!==response.scope_aplicado)
+          throw new Error('El alcance de acceso cambio durante la consolidacion.');
         if(expectedTotal===null)expectedTotal=total;
-        else if(total!==expectedTotal)throw new Error('La cartera cambió durante la consolidación. Actualiza el Dashboard.');
-        if(total>0&&page>totalPages)throw new Error('La consolidación se interrumpió antes de completar la cartera.');
-        for(const item of response.data){
+        else if(total!==expectedTotal)
+          throw new Error('La cartera cambio durante la consolidacion. Actualiza el Dashboard.');
+        if(total>0&&page>totalPages)
+          throw new Error('La consolidacion se interrumpio antes de completar la cartera.');
+
+        // Si el alcance de permisos cambio, no reutilizar datos de la sesion anterior.
+        if(originalCache&&originalCache.scope!==response.scope_aplicado&&known.length){
+          cacheInvalidate_cor();
+          throw new Error('El alcance de permisos cambio. Vuelve a actualizar el Dashboard.');
+        }
+        const checked=checkedPageRows_cor(response,cachedPage,reusable&&!force);
+        const rows=checked?checked.items:response.data;
+        if(!checked)mayPersist=false;
+        if(checked)pagesToSave.push(checked);
+        if(checked&&rows.length!==Number(pageInfo.proyectos_pagina))
+          throw new Error('El lote validado no coincide con la paginacion.');
+        for(const item of rows){
           const ppns=normalize_cor(item?.proyecto?.ppns);
           if(!ppns||seen.has(ppns))continue;
           seen.add(ppns);
@@ -405,22 +551,25 @@
         }
         for(const entry of Array.isArray(response.catalogos?.asesores)?response.catalogos.asesores:[]){
           const id=Number(entry?.id);
-          if(Number.isSafeInteger(id)&&id>0){
+          if(Number.isSafeInteger(id)&&id>0)
             advisors.set(id,{id,iniciales:String(entry.iniciales||'ID '+id)});
-          }
         }
         state.total=total;
         state.years=[...years].filter(Number.isInteger).sort((a,b)=>b-a);
-        state.advisors=[...advisors.values()].sort((a,b)=>a.iniciales.localeCompare(b.iniciales,'es'));
+        state.advisors=[...advisors.values()].sort((a,b)=>
+          a.iniciales.localeCompare(b.iniciales,'es'));
         render_cor();
         if(total===0||page===totalPages){
-          if(seen.size!==total)throw new Error('No se pudo verificar el total de PPNS. Recarga para reintentar.');
+          if(seen.size!==total)
+            throw new Error('No se pudo verificar el total de PPNS. Recarga para reintentar.');
           break;
         }
-        if(!response.data.length)throw new Error('Se recibió un lote vacío antes de terminar la consolidación.');
+        if(!rows.length)throw new Error('Se recibio un lote vacio antes de terminar.');
       }
       if(seq!==state.sequence||!active_cor())return false;
       state.complete=true;state.error='';
+      if(mayPersist)cacheSave_cor(pagesToSave,initialScope);
+      else cacheInvalidate_cor();
       return true;
     }catch(error){
       if(seq!==state.sequence||!active_cor())return false;
@@ -470,7 +619,7 @@
     const action=button.dataset.action;
     if(action==='risk-prev'){state.riskPage=Math.max(1,state.riskPage-1);render_cor();}
     if(action==='risk-next'){state.riskPage++;render_cor();}
-    if(action==='refresh')load_cor(true);
+    if(action==='refresh')load_cor(true,{force:true});
     if(action==='apply')apply_cor(false);
     if(action==='clear')apply_cor(true);
   }
@@ -495,5 +644,16 @@
     load_cor(true);
     return true;
   }
-  window.ManttoCobranzaCorDashboard=Object.freeze({init:init_cor,refresh:()=>load_cor(true),aggregate:aggregate_cor});
+  if(typeof document!=='undefined'&&typeof document.addEventListener==='function'){
+    document.addEventListener('mantto:data-mutated',event=>{
+      const detail=event?.detail;
+      const ppns=detail?.ppns||detail?.id_proyecto_origen||detail?.proyecto?.ppns;
+      cacheInvalidate_cor(ppns);
+    });
+    document.addEventListener('mantto:view-user-changed',cacheInvalidateAll_cor);
+  }
+  window.ManttoCobranzaCorDashboard=Object.freeze({
+    init:init_cor,refresh:()=>load_cor(true,{force:true}),
+    aggregate:aggregate_cor
+  });
 })();
