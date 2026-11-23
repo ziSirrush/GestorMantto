@@ -44,7 +44,7 @@ function sql_cor() {
   const parts=[
     statement_cor('f','f','cobranza_fuente_cor f',source,source+" IN (?)"),
     statement_cor('cf','cf','cobranza_facturas_cor cf',invoice,invoice+" IN (?)"),
-    statement_cor('p','p','cobranza_pagos_cor p JOIN "+projectMatches+
+    statement_cor('p','p','cobranza_pagos_cor p JOIN '+projectMatches+
       " ON "+norm('p.id_pp')+" = projects.project_key",
       payments,"projects.ppns IN (?)"),
     statement_cor('rp','rp','cobranza_rel_pagos rp JOIN cobranza_facturas_cor cf "+

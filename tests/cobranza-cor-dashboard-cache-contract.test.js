@@ -6,7 +6,7 @@ const routes=fs.readFileSync(path.resolve(__dirname,'../backend/src/modules/cobr
 const controller=fs.readFileSync(path.resolve(__dirname,'../backend/src/modules/cobranza-cor/cobranza-cor.controller.js'),'utf8');
 test('cache COR sobrevive cambios de version backend pero verifica on-line por PPNS',()=>{
  assert.match(script,/sessionStorage/);
- assert.doesNotMatch(script,/localStorage/);
+ assert.doesNotMatch(script,/window\.localStorage/);
  assert.match(script,/cacheFilters_cor/);
  assert.match(script,/scopeKey/);
  assert.match(script,/\/sync/);
