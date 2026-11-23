@@ -2,6 +2,9 @@
 
 // DS Cobranza COR: orquestacion de lectura. No implementa ni modifica formulas financieras.
 // El motor se carga al atender una consulta, no al importar el modulo en QA.
+const crypto=require('node:crypto');
+const cacheRepository=require('./cobranza-cor-cache.repository');
+const COR_CACHE_CONTRACT='COR_FINANCIAL_SUMMARY_V1';
 const MAX_PROJECTS_PER_PAGE = 8;
 const MAX_SUMMARY_PAGE_SIZE = 24;
 const DETAIL_CONCURRENCY = 2;
@@ -125,7 +128,49 @@ function projectFinancialSummary_cor(detail, project) {
   };
 }
 
-async function listarDashboard_cor(query = {}, informationAccess, injectedMotor = null, injectedRepository = null) {
+
+function mexicoCityDay_cor(){
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Mexico_City',
+    year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+  return [values.year,values.month,values.day].join('-');
+}
+function knownRevisions_cor(known){
+  if(!Array.isArray(known)||known.length>MAX_SUMMARY_PAGE_SIZE)
+    throw badRequestDashboard_cor('Revisiones COR fuera de limite.');
+  const result=new Map();
+  for(const entry of known){
+    const ppns=normalizeKey_cor(entry?.ppns);
+    const token=String(entry?.revision||'').trim().toLowerCase();
+    if(!ppns||ppns.length>100||!/^[a-f0-9]{64}$/.test(token)||result.has(ppns))
+      throw badRequestDashboard_cor('Revision COR invalida.');
+    result.set(ppns,token);
+  }
+  return result;
+}
+function tokenByProject_cor(selected,rows){
+  const allowed=new Set(selected.map(row=>normalizeKey_cor(row.ppns)));
+  const fragments=new Map([...allowed].map(key=>[key,[]]));
+  for(const row of rows){
+    const key=normalizeKey_cor(row?.ppns);
+    if(!allowed.has(key)||!['f','cf','p','rp'].includes(row?.tipo))
+      throw new Error('Revision COR fuera del alcance permitido.');
+    fragments.get(key).push([row.tipo,String(row.registros??'0'),
+      String(row.suma??'0'),String(row.xor_checksum??'0')]);
+  }
+  const day=mexicoCityDay_cor();
+  return selected.map(row=>{
+    const ppns=normalizeKey_cor(row.ppns);
+    const header={ppns,proyecto:row.proyecto,cliente:row.cliente,
+      asesor:row.asesor,id_asesor:row.id_asesor,
+      asesores_distintos:row.asesores_distintos,monedas:row.monedas,anios:row.anios};
+    const content=JSON.stringify({contract:COR_CACHE_CONTRACT,day,header,
+      fragments:fragments.get(ppns).sort((a,b)=>a[0].localeCompare(b[0]))});
+    return {ppns,revision:crypto.createHash('sha256').update(content).digest('hex')};
+  });
+}
+
+async function listarDashboard_cor(query = {}, informationAccess, injectedMotor = null, injectedRepository = null, syncOptions = null) {
   const filters = normalizeDashboardQuery_cor(query);
   const motor = injectedMotor || require('./cobranza-cor.service');
   const repository = injectedRepository || require('./cobranza-cor.repository');
@@ -173,17 +218,34 @@ async function listarDashboard_cor(query = {}, informationAccess, injectedMotor 
   const totalPages = Math.ceil(allowed.length / filters.tamano);
   const start = (filters.pagina - 1) * filters.tamano;
   const selected = allowed.slice(start, start + filters.tamano);
+  const syncEnabled=syncOptions?.requested===true &&
+    process.env.BLT_OPT_COBRANZA_COR_DELTA_CACHE_V1==='1' && filters.tipo==='RESUMEN';
+  let revisions=null, changedSelected=selected;
+  if(syncEnabled) {
+    const known=knownRevisions_cor(syncOptions.known);
+    const cacheConn=await repository.getConnection_cor();
+    let rows;
+    try {
+      const revisionsRepo=syncOptions.repository||cacheRepository;
+      rows=await revisionsRepo.listDashboardRevisionRows_cor(cacheConn,
+        selected.map(row=>row.ppns));
+    } finally { cacheConn.release(); }
+    revisions=tokenByProject_cor(selected,rows);
+    const unchanged=new Set(revisions.filter(entry=>
+      known.get(entry.ppns)===entry.revision).map(entry=>entry.ppns));
+    changedSelected=selected.filter(row=>!unchanged.has(normalizeKey_cor(row.ppns)));
+  }
   const data = [];
   const useBatch=typeof process!=='undefined' && process.env.BLT_OPT_COBRANZA_COR_BATCH_V1==='1' &&
-    filters.tipo==='RESUMEN' && selected.length>0 &&
+    filters.tipo==='RESUMEN' && changedSelected.length>0 &&
     typeof repository.listFuenteEstadoCuentaBatch_cor==='function' &&
     typeof repository.listFacturasEstadoCuentaBatch_cor==='function';
   const sourceByKey=new Map(),invoiceByKey=new Map();
   if(useBatch){
-    const authorized=new Set(selected.map(row=>normalizeKey_cor(row.ppns)));
+    const authorized=new Set(changedSelected.map(row=>normalizeKey_cor(row.ppns)));
     const conn=await repository.getConnection_cor();
     try{
-      const keys=selected.map(row=>row.ppns);
+      const keys=changedSelected.map(row=>row.ppns);
       const [sources,invoices]=await Promise.all([
         repository.listFuenteEstadoCuentaBatch_cor(conn,keys),
         repository.listFacturasEstadoCuentaBatch_cor(conn,keys)
@@ -203,8 +265,8 @@ async function listarDashboard_cor(query = {}, informationAccess, injectedMotor 
   }
 
   // Solo dos conexiones de detalle simultaneas; cada detalle usa el motor existente.
-  for (let i = 0; i < selected.length; i += DETAIL_CONCURRENCY) {
-    const batch = selected.slice(i, i + DETAIL_CONCURRENCY);
+  for (let i = 0; i < changedSelected.length; i += DETAIL_CONCURRENCY) {
+    const batch = changedSelected.slice(i, i + DETAIL_CONCURRENCY);
     const resolved = await Promise.all(batch.map(async row => {
       const opt=useBatch?{
         prefetchedSourceRows:sourceByKey.get(normalizeKey_cor(row.ppns))||[],
@@ -236,9 +298,10 @@ async function listarDashboard_cor(query = {}, informationAccess, injectedMotor 
       anio: filters.anio, anio_cobro: filters.anio_cobro },
     paginacion: { pagina: filters.pagina, tamano: filters.tamano,
       total_proyectos: allowed.length, total_paginas: totalPages,
-      proyectos_pagina: data.length },
+      proyectos_pagina: selected.length },
     catalogos: { anios: catalogYears, asesores: catalogAdvisors },
-    data
+    data,
+    ...(syncEnabled?{cache:{contract:COR_CACHE_CONTRACT,revisions}}:{})
   };
 }
 
@@ -249,5 +312,8 @@ module.exports = {
   currencyMatches_cor,
   groupAssignments_cor,
   assignAdvisor_cor,
-  projectFinancialSummary_cor
+  projectFinancialSummary_cor,
+  knownRevisions_cor,
+  tokenByProject_cor,
+  COR_CACHE_CONTRACT
 };
