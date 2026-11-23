@@ -67,6 +67,7 @@ router.put('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorComp
 router.delete('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.quitarProyecto_cor);
 
 router.get('/dashboard', ...requireDashboardCor, controller.listarDashboard_cor);
+router.post('/dashboard/sync', ...requireDashboardCor, controller.sincronizarDashboard_cor);
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
 router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, controller.catalogoCrearEstadoCuenta_cor);
 router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearEstadoCuenta_cor);
