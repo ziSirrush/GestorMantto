@@ -115,6 +115,29 @@ function scope(req) {
   }
   return recordScope.buildInsFlScopeSql_gnral(req,'f');
 }
+// Filtro de presentación del calendario de Ajustadores; siempre intersecta el alcance central.
+// No afecta la resolución de traslapes ni las mutaciones del módulo original.
+function calendarScope(req,type='AJUSTADOR') {
+  const access=scope(req);
+  const raw=req.query?.supervisores;
+  if(raw===undefined)return access;
+  if(type!=='AJUSTADOR'||typeof raw!=='string'||raw.length>2000)
+    throw error(400,'INT9_SUPERVISORES_INVALIDOS','Filtro de supervisores inválido.');
+  const supervisors=[...new Set(raw.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))].sort();
+  if(!supervisors.length||supervisors.length>100||supervisors.some(x=>x.length>40))
+    throw error(400,'INT9_SUPERVISORES_INVALIDOS','Selecciona supervisores válidos.');
+  return {...access,sql:`(${access.sql}) AND UPPER(TRIM(COALESCE(f.supervisor_fl,''))) IN (${placeholders(supervisors.length)})`,
+    params:[...access.params,...supervisors],supervisores:supervisors};
+}
+function selectCalendarPeople(personas,assignments,desde,hasta,selection) {
+  if(!selection.supervisores)return personas;
+  // No hay supervisor propio en instalaciones_personal. Las vinculaciones
+  // vigentes y el historial visible en el periodo identifican su universo.
+  const linked=new Set(assignments.filter(a=>a.visible &&
+    (!a.es_historico||(a.valida&&intersect(a.inicio,a.fin,desde,hasta))))
+    .map(a=>Number(a.id_personal)));
+  return personas.filter(p=>linked.has(Number(p.id_personal)));
+}
 function equipFields(prefix='f') {
   const a=prefix;
   return `${a}.id_ins_fl,${a}.proyecto,${a}.id_proyecto,${a}.referencia_sitio,${a}.estatus,
@@ -148,7 +171,7 @@ async function fetchPeople(connection, type, query='', limit=MAX_CALENDARIO_PERS
 }
 async function fetchAssignmentRows(connection, type, personIds, req, opts={}) {
   if (Array.isArray(personIds) && !personIds.length) return [];
-  const access=scope(req);
+  const access=opts.calendarSelection || scope(req);
   const params=[...access.params,type];
   let personClause='';
   if (Array.isArray(personIds)) {
@@ -208,7 +231,7 @@ function actor(req) {
 }
 async function equipos(req) {
   const type=tipo(req.query?.tipo);
-  const access=scope(req);
+  const access=calendarScope(req,type);
   const q=plainText(req.query?.q||'',120,'Búsqueda');
   const params=[...access.params];
   const where=[`f.activo=1`, `(${access.sql})`];
@@ -250,14 +273,18 @@ async function equipos(req) {
   if (!Number.isSafeInteger(limit)||limit<1||limit>MAX_EQUIPOS_RESPUESTA) {
     throw error(400,'INT9_LIMITE_INVALIDO',`El límite debe ser de 1 a ${MAX_EQUIPOS_RESPUESTA}.`);
   }
-  return {tipo:type,equipos:all.slice(0,limit),total:all.length,mostrados:Math.min(all.length,limit),hay_mas:all.length>limit};
+  return {tipo:type,equipos:all.slice(0,limit),total:all.length,mostrados:Math.min(all.length,limit),hay_mas:all.length>limit,...(access.supervisores?{supervisores:access.supervisores}:{})};
 }
 async function calendario(req) {
   const type=tipo(req.query?.tipo);
   const {desde,hasta}=range(req.query||{});
-  const personas=await fetchPeople(db,type,req.query?.q||'');
-  const ids=personas.map(p=>p.id_personal);
-  const all=await fetchAssignmentRows(db,type,ids,req);
+  const selection=calendarScope(req,type);
+  const catalog=await fetchPeople(db,type,req.query?.q||'');
+  const ids=catalog.map(p=>p.id_personal);
+  const rows=await fetchAssignmentRows(db,type,ids,req,{calendarSelection:selection});
+  const personas=selectCalendarPeople(catalog,rows,desde,hasta,selection);
+  const visiblePeople=new Set(personas.map(p=>p.id_personal));
+  const all=selection.supervisores?rows.filter(row=>visiblePeople.has(row.id_personal)):rows;
   // Se senala el traslape automatico/manual sin modificar la proyeccion.
   const groups=new Map();
   for(const a of all){
@@ -272,7 +299,7 @@ async function calendario(req) {
   const current=all.filter(a=>a.valida&&intersect(a.inicio,a.fin,desde,hasta)).map(redact);
   const withoutDates=all.filter(a=>!a.valida&&a.visible).map(redact);
   return {tipo:type,fase:type==='MONTADOR'?'montaje':'ajuste',desde,hasta,hoy:mxToday(),
-    personal:personas,asignaciones:current,sin_fechas:withoutDates};
+    personal:personas,asignaciones:current,sin_fechas:withoutDates,...(selection.supervisores?{supervisores:selection.supervisores}:{})};
 }
 async function lockPeople(connection, type, ids, requireActive=true) {
   const [rows]=await connection.query(
@@ -426,6 +453,6 @@ async function tieneAsignacionesVigentes(connection, idPersonal) {
 module.exports={
   equipos,calendario,crearAsignaciones,editarAsignacion,eliminarAsignacion,tieneAsignacionesVigentes,
   _read:Object.freeze({parseDate,manualDate,dayNumber,addDays,inclusiveDays,intersect,mxToday,
-    windowEquipo,windowAsignacion,scope,fetchPeople,fetchAssignmentRows,redact,positive,tipo}),
-  _test:{parseDate,manualDate,windowEquipo,windowAsignacion,range,mxToday,clashes,redact}
+    windowEquipo,windowAsignacion,scope,calendarScope,fetchPeople,fetchAssignmentRows,redact,positive,tipo}),
+  _test:{parseDate,manualDate,windowEquipo,windowAsignacion,range,mxToday,clashes,redact,selectCalendarPeople}
 };

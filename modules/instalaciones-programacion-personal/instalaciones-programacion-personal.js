@@ -10,6 +10,7 @@
   function createProgrammingInstance_cor({embedded=false,rootId='view-instalaciones-programacion-personal'}={}){
   const ROOT_ID = rootId;
   let embeddedMounted=false,mountEpoch=0,mountTask=null,mutationTimer=null;
+  let calendarSupervisors=null;
   const instanceActive=()=>{
     const route=window.ManttoRouter?.getCurrent?.()?.route;
     return !embedded||(embeddedMounted&&(!route||route==='instalaciones-dashboard'));
@@ -41,10 +42,18 @@
 
   async function api(path, method = 'GET', payload) {
     if (!window.ManttoAuth || typeof window.ManttoAuth.api !== 'function') throw new Error('Sesión de Mantto Gestor requerida.');
-    const result = await window.ManttoAuth.api(BASE + path, {
+    // La selección se aplica a todas las lecturas del calendario: barras,
+    // cobertura, incidencias paginadas y selector de equipos del formulario.
+    const selected=embedded&&method==='GET'&&calendarSupervisors&&
+      /^\/(calendario|equipos|ajustadores\/incidencias-fl)\?/.test(path)
+      ? [...calendarSupervisors] : null;
+    const url=selected?path+'&supervisores='+encodeURIComponent(selected.join(',')):path;
+    const result = await window.ManttoAuth.api(BASE + url, {
       method,
       ...(payload === undefined ? {} : {body:JSON.stringify(payload)})
     });
+    if(selected&&JSON.stringify(result?.data?.supervisores)!==JSON.stringify(selected))
+      throw new Error('La API no confirmó el filtro de supervisores. Actualiza cuando finalice el despliegue.');
     return result?.data;
   }
   function encodeQuery(params) {
@@ -380,7 +389,7 @@
     cal.flLoading=true;renderCalendar();
     try{
       const next=await api('/ajustadores/incidencias-fl?'+encodeQuery({limit:50,cursor:expected}));
-      if(epoch!==cal.flEpoch||state.view!=='calendario'||state.type!=='AJUSTADOR')return;
+      if(epoch!==cal.flEpoch||state.view!=='calendario'||state.type!=='AJUSTADOR'||!instanceActive())return;
       if(!Array.isArray(next?.registros)||next.registros.length>50)throw Error('Respuesta de incidencias inválida.');
       let last=expected;
       for(const item of next.registros){
@@ -1387,9 +1396,19 @@
     state.ready=false;
     root()?.replaceChildren();
   }
-  async function mountEmbedded({refresh=false}={}){
+  async function mountEmbedded({refresh=false,supervisors}={}){
     if(!embedded||!root())return false;
     if(!canRead()){disposeEmbedded();return false;}
+    if(supervisors!==undefined){
+      const next=supervisors===null?null:
+        [...new Set((Array.isArray(supervisors)?supervisors:[]).map(x=>String(x).trim().toUpperCase()).filter(Boolean))].sort();
+      if(next&&next.length===0){disposeEmbedded();return false;}
+      if(JSON.stringify(next)!==JSON.stringify(calendarSupervisors)){
+        // Descarta inmediatamente datos, solicitudes y editores del filtro anterior.
+        disposeEmbedded();
+        calendarSupervisors=next;
+      }
+    }
     if(mountTask)return mountTask;
     if(!refresh&&embeddedMounted&&state.ready&&tabAllowed('AJUSTADOR')&&calRoot())return true;
     embeddedMounted=true;

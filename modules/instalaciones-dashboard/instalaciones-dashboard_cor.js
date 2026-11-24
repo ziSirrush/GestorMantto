@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20261124-dashboard-calendario-ajustadores-v001';
+  const VERSION_COR = '20261124-dashboard-calendario-supervisores-v002';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
@@ -149,7 +149,8 @@
     editor:null,
     personalCatalog:null,
     personalCatalogPromise:null,
-    calendarMountRequest:0
+    calendarMountRequest:0,
+    calendarScopeKey:null
   };
 
   const $ = id => document.getElementById(id);
@@ -400,11 +401,13 @@
 
   function calendarAllowed_cor(){
     const route=window.ManttoRouter?.getCurrent?.()?.route;
-    return state.ready&&validUniverse_cor()&&hasPermission_cor('acceso_visual')&&
-      hasPermission_cor('reporte_listado_ver')&&(!route||route==='instalaciones-dashboard');
+    return state.ready&&validUniverse_cor()&&effectiveReportSections_cor().includes(AJUSTE_STATUS_COR)&&
+      hasPermission_cor('acceso_visual')&&hasPermission_cor('reporte_listado_ver')&&
+      (!route||route==='instalaciones-dashboard');
   }
   function disposeAdjustersCalendar_cor(reset=false){
     state.calendarMountRequest+=1;
+    state.calendarScopeKey=null;
     const card=$('idb-cor-adjusters-card');
     if(card)card.hidden=true;
     window.ManttoInstalacionesCalendarioAjustadores_cor?.dispose({reset});
@@ -414,9 +417,14 @@
     const calendar=window.ManttoInstalacionesCalendarioAjustadores_cor;
     if(!card||!calendar)return;
     if(!calendarAllowed_cor()){disposeAdjustersCalendar_cor();return;}
+    // AFL fuerza 06-A y muestra todos los ajustadores autorizados, incluso
+    // si también hay supervisores ordinarios activos. VIP no amplía el filtro.
+    const supervisors=state.afl?null:[...new Set(state.selectedSupervisors.map(code=>raw(code).toUpperCase()).filter(Boolean))].sort();
+    const key=JSON.stringify(supervisors);
+    if(key!==state.calendarScopeKey){card.hidden=true;state.calendarScopeKey=key;}
     const ticket=++state.calendarMountRequest;
     try{
-      const allowed=await calendar.mount({refresh});
+      const allowed=await calendar.mount({refresh,supervisors});
       if(ticket===state.calendarMountRequest&&calendarAllowed_cor())card.hidden=allowed!==true;
     }catch(_error){
       if(ticket===state.calendarMountRequest)disposeAdjustersCalendar_cor();
@@ -530,6 +538,7 @@
     closeCellEditor_cor();
     renderSectionButtons_cor();
     persistDashboardConfig_cor();
+    void syncAdjustersCalendar_cor();
     if(hasReportSelection_cor()&&validUniverse_cor())void loadReport_cor();
     else clearReport_cor();
     return true;
@@ -1536,7 +1545,7 @@
       state.reportRequest += 1;
       applyBootstrap_cor(response.bootstrap);
       state.loaded = true;
-      // Independiente de las etapas, VIP y del modo del reporte.
+      // Visible solo en 06-A; sincroniza el supervisor seleccionado.
       void syncAdjustersCalendar_cor(true);
 
       if(response.summary){

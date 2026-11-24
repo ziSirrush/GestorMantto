@@ -196,7 +196,7 @@ async function incidenciasFL(req) {
   const query=req.query||{};
   const cursor=enteroOpcional(query.cursor,'cursor');
   const limit=limitePagina(query.limit);
-  const access=asignaciones._read.scope(req);
+  const access=query.supervisores===undefined?asignaciones._read.scope(req):asignaciones._read.calendarScope(req,'AJUSTADOR');
   const index=await catalogoAjustadores();
   const batchSize=150,maxScanned=1500;
   const registros=[],resumen_pagina={};
@@ -230,7 +230,7 @@ async function incidenciasFL(req) {
   }
   if(!finished && scanned>=maxScanned)hay_mas=true;
   return {registros,total_pagina:registros.length,limite:limit,
-    hay_mas,siguiente_cursor:hay_mas?last:null,resumen_pagina};
+    hay_mas,siguiente_cursor:hay_mas?last:null,resumen_pagina,...(access.supervisores?{supervisores:access.supervisores}:{})};
 }
 
 // [BLT NOW | 2026-10-27 | INT9 AJUSTADORES FASE 2]

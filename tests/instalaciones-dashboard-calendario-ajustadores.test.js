@@ -38,14 +38,16 @@ const window={ManttoRouter:{getCurrent:()=>({route})},ManttoPermissions:{state:c
   ManttoAuth:{isViewingAs:()=>viewer,api:async(url,options)=>{
     calls.push({url,method:options.method});
     if(url.endsWith('/accesos'))return {data:{montadores:true,ajustadores:tabRead}};
+    const match=/[?&]supervisores=([^&]+)/.exec(url);
+    const selection=match?{supervisores:decodeURIComponent(match[1]).split(',')}:{};
     if(url.includes('/calendario?')){
       if(hold)await new Promise(resolve=>{release=resolve;});
-      return {data:{hoy:iso,personal:[{id_personal:1,nombre:'Libre',tipo_personal:'AJUSTADOR'},{id_personal:2,nombre:'Asignado',tipo_personal:'AJUSTADOR'},{id_personal:3,nombre:'Ocupado fuera',tipo_personal:'AJUSTADOR'}],asignaciones:[
+      return {data:{...selection,hoy:iso,personal:[{id_personal:1,nombre:'Libre',tipo_personal:'AJUSTADOR'},{id_personal:2,nombre:'Asignado',tipo_personal:'AJUSTADOR'},{id_personal:3,nombre:'Ocupado fuera',tipo_personal:'AJUSTADOR'}],asignaciones:[
         {id_personal:2,id_asignacion:20,valida:true,visible:true,origen:'MANUAL',inicio:iso,fin:iso,proyecto:'Proyecto autorizado',equipo:'EQ-1'},
         {id_personal:3,id_asignacion:30,valida:true,visible:false,origen:'AUTOMATICA_FL',inicio:iso,fin:iso,proyecto:'SECRETO',equipo:'OCULTO'}],sin_fechas:[]}};
     }
-    if(url.includes('/equipos?'))return {data:{equipos:[],total:0}};
-    if(url.includes('/ajustadores/incidencias-fl'))return {data:{registros:[],hay_mas:false}};
+    if(url.includes('/equipos?'))return {data:{...selection,equipos:[],total:0}};
+    if(url.includes('/ajustadores/incidencias-fl'))return {data:{...selection,registros:[],hay_mas:false}};
     throw Error('Unexpected request '+url);
   }}};
 class QueryParams {
@@ -65,7 +67,13 @@ check(holder.innerHTML.includes('Proyecto autorizado')&&holder.innerHTML.include
 check(nodes.has('idb-cal-ppc-a-title')&&root.innerHTML.includes('aria-labelledby="idb-cal-ppc-a-title"')&&normal.innerHTML==='NORMAL','IDs aislados y ARIA');
 check(nodes.get('idb-cal-ppc-calendario').innerHTML.includes('data-ppc="asignar-nueva"')&&holder.innerHTML.includes('data-ppc="editar-asignacion"'),'Conserva controles de asignación con permiso');
 let before=calls.length;
-check(await comp.mount()===true&&calls.length===before,'Cambiar modo o filtros no repite consulta');
+check(await comp.mount()===true&&calls.length===before,'Cambiar modo sin cambiar alcance no repite consulta');
+before=calls.length;
+check(await comp.mount({supervisors:['CD','AB']})===true,'Monta con supervisores');
+check(calls.slice(before).filter(c=>!c.url.endsWith('/accesos')).every(c=>c.url.includes('supervisores=AB%2CCD')),'Todas las lecturas incluidas en el filtro');
+before=calls.length;
+check(await comp.mount({supervisors:['AB','CD']})===true&&calls.length===before,'No duplica solicitudes al mantener selección');
+check(await comp.mount({supervisors:null})===true&&calls.slice(before).every(c=>!c.url.includes('supervisores=')),'AFL restaura todas las lecturas autorizadas');
 viewer=true;check(await comp.mount({refresh:true})===true,'Visor conserva lectura autorizada');
 check(!nodes.get('idb-cal-ppc-calendario').innerHTML.includes('data-ppc="asignar-nueva"')&&!nodes.get('idb-cal-ppc-cal-contenido').innerHTML.includes('data-ppc="editar-asignacion"'),'Visor no ofrece escritura');
 viewer=false;
@@ -81,9 +89,24 @@ comp.dispose({reset:true});
 check(warnings.length===0,'Sin errores inesperados de montaje');
 check(html.indexOf('id="idb-cor-report-card"')<html.indexOf('id="idb-cor-adjusters-card"')&&html.indexOf('id="idb-cor-adjusters-card"')<html.indexOf('id="idb-cor-documentation-card"'),'Ubicación bajo reporte');
 const allowedCode=dash.slice(dash.indexOf('function calendarAllowed_cor('),dash.indexOf('function disposeAdjustersCalendar_cor('));
-check(!allowedCode.includes('meetingMode')&&!allowedCode.includes('reportSection')&&!allowedCode.includes('vipOnly'),'Visible en ambos modos, independiente de etapa y VIP');
+check(!allowedCode.includes('meetingMode')&&allowedCode.includes('effectiveReportSections_cor().includes(AJUSTE_STATUS_COR)')&&!allowedCode.includes('vipOnly'),'Visible en ambos modos solo con 06-A efectivo');
+const ds={ready:true,reportSections:['02-OC'],selectedSupervisors:['AB'],afl:false,calendarMountRequest:0,calendarScopeKey:null,meetingMode:false};
+const card={hidden:true},mounts=[],disposes=[];
+const dashFns=dash.slice(dash.indexOf('function calendarAllowed_cor('),dash.indexOf('function updateSelectionUi_cor('));
+const dashboard=new Function('state','window','$','raw','validUniverse_cor','effectiveReportSections_cor','AJUSTE_STATUS_COR','hasPermission_cor',dashFns+'\nreturn {calendarAllowed_cor,syncAdjustersCalendar_cor};')(
+  ds,{ManttoRouter:{getCurrent:()=>({route:'instalaciones-dashboard'})},ManttoInstalacionesCalendarioAjustadores_cor:{mount:async o=>{mounts.push(o);return true;},dispose:o=>disposes.push(o)}},()=>card,String,()=>ds.afl||ds.selectedSupervisors.length>0,()=>ds.afl?['06-A']:ds.reportSections,'06-A',()=>true);
+await dashboard.syncAdjustersCalendar_cor();
+check(card.hidden&&mounts.length===0,'Sin 06-A no monta ni consulta');
+ds.reportSections.push('06-A');await dashboard.syncAdjustersCalendar_cor();
+check(!card.hidden&&same(mounts.at(-1).supervisors,['AB']),'06-A consulta el supervisor activo');
+ds.selectedSupervisors=['CD','AB'];ds.meetingMode=true;await dashboard.syncAdjustersCalendar_cor();
+check(!card.hidden&&same(mounts.at(-1).supervisors,['AB','CD']),'Junta admite varios supervisores');
+ds.afl=true;await dashboard.syncAdjustersCalendar_cor();
+check(!card.hidden&&mounts.at(-1).supervisors===null,'AFL muestra todos incluso con otros supervisores activos');
+ds.afl=false;ds.reportSections=['02-OC'];await dashboard.syncAdjustersCalendar_cor();
+check(card.hidden&&disposes.length>0,'Deseleccionar 06-A desmonta');
 check(dash.includes('void syncAdjustersCalendar_cor(true);')&&dash.includes('clearPersonalCatalog_cor();disposeAdjustersCalendar_cor();return;'),'Integra actualización y salida');
-check(loader.split('instalaciones-programacion-personal.js?v=20261124-int9-calendario-compartido-v001').length===3,'Misma versión de JS en ambas rutas');
+check(loader.split('instalaciones-programacion-personal.js?v=20261124-int9-calendario-supervisores-v002').length===3,'Misma versión de JS en ambas rutas');
 check(loader.split('instalaciones-programacion-personal.css?v=20261124-int9-calendario-compartido-v001').length===3,'Mismo CSS en ambas rutas');
 
 });
