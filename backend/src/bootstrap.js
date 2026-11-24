@@ -65,7 +65,7 @@ function startScheduledJobs(databaseReady) {
     logger.warn('CFFAA-01D: job de Storage no iniciado porque MySQL no está disponible.');
     logger.warn('Job de calculados de Instalaciones Administracion no iniciado porque MySQL no esta disponible.');
     logger.warn('[COBRANZA_UNI_FK] Validador no iniciado porque MySQL no esta disponible.');
-    logger.warn('[INT9] Revision nocturna de Programacion de Personal pendiente de MySQL.');
+    logger.warn('[INT9] Conciliacion nocturna de Programacion de Personal pendiente de MySQL.');
     return;
   }
 

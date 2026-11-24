@@ -1,5 +1,6 @@
 'use strict';
-// INT9: auditoria nocturna de lectura. No repara, crea ni historiza registros.
+// INT9: conciliacion nocturna 23:59 CDMX, motores independientes en serie.
+// audit() permanece de solo lectura; la ejecucion diaria concilia y verifica.
 const db=require('../config/db');
 const PAGE=50,MAX_DETAILS=30,POLL_MS=10000;
 let timer=null,working=false,executed=null;
@@ -119,17 +120,103 @@ async function audit(){
   }
   return stats;
 }
+// Control diario preexistente del motor de Ajustadores. No crear esquema.
+// Sin reserva unica y comprobable por fecha no ejecutar escrituras operativas.
+async function reserveDaily(day,connection){
+  const [indexes]=await connection.query('SHOW INDEX FROM instalaciones_programacion_conciliacion_diaria');
+  const unique=new Map();
+  for(const row of indexes){
+    if(Number(row.Non_unique)!==0)continue;
+    const name=String(row.Key_name);
+    if(!unique.has(name))unique.set(name,[]);
+    unique.get(name).push(String(row.Column_name));
+  }
+  if(![...unique.values()].some(cols=>cols.length===1&&cols[0]==='fecha_cdmx'))
+    throw Object.assign(new Error('El control diario requiere clave unica por fecha_cdmx.'),{code:'INT9_CONTROL_DIARIO_NO_UNICO'});
+  await connection.query('SELECT estado,fin_en,total_equipos,creadas,actualizadas,historicas,conflictos,errores,ultimo_error FROM instalaciones_programacion_conciliacion_diaria LIMIT 0');
+  try{
+    const [reserved]=await connection.query(
+      "INSERT INTO instalaciones_programacion_conciliacion_diaria (fecha_cdmx,estado,inicio_en) VALUES (?,'EN_PROCESO',NOW())",[day]);
+    if(Number(reserved.affectedRows)===1)return true;
+    throw Object.assign(new Error('No se pudo reservar la conciliacion nocturna.'),{code:'INT9_CONTROL_DIARIO_RESERVA_FALLIDA'});
+  }catch(error){
+    if(error?.code!=='ER_DUP_ENTRY')throw error;
+    const [existing]=await connection.query(
+      'SELECT estado FROM instalaciones_programacion_conciliacion_diaria WHERE fecha_cdmx=? LIMIT 1',[day]);
+    if(existing.length===1)return false;
+    throw error;
+  }
+}
+function pressureFailure(error){
+  return ['INT9_PRESION_DB','INT9_BLOQUE_OCUPADO','INT9_CONCILIACION_OCUPADA',
+    'INT9_MONTAJE_EN_PROCESO','INT9_MONTAJE_POOL_TIMEOUT','DB_POOL_QUEUE_FULL','DB_CONNECTION_CAPACITY',
+    'ER_CON_COUNT_ERROR','ER_TOO_MANY_USER_CONNECTIONS','ETIMEDOUT','ECONNRESET','EPIPE','PROTOCOL_CONNECTION_LOST']
+    .includes(String(error?.dbErrorCode||error?.code||'').toUpperCase()) ||
+    /queue limit reached/i.test(String(error?.message||''));
+}
+async function executeDaily(day,{
+  connection=db,
+  scanAdjusters=options=>require('./instalacionesProgramacionPersonal.job').scanEquipos(options),
+  scanInstallers=options=>require('./instalacionesProgramacionMontadores.job').scanEquipos(options),
+  verifyAfter=audit
+}={}){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(day)))
+    throw Object.assign(new Error('Fecha de conciliacion invalida.'),{code:'INT9_FECHA_DIARIA_INVALIDA'});
+  if(!await reserveDaily(day,connection))return {estado:'YA_REGISTRADO',fecha_cdmx:day};
+  const phases={ajustadores:null,montadores:null,auditoria:null};
+  const failures=[];
+  let blocked=false;
+  // Cada motor valida FL y aplica solo los cambios pertinentes. No ejecutar
+  // los dos a la vez ni reservar una conexion del pool durante todo el barrido.
+  for(const [name,run] of [['ajustadores',scanAdjusters],['montadores',scanInstallers]]){
+    if(blocked){phases[name]={omitida:true,motivo:'PRESION_O_CONCURRENCIA'};failures.push(name+':OMITIDO');continue;}
+    try{
+      const result=await run({onProgress:progress=>{phases[name]={...progress};}});
+      phases[name]={...result};
+      if(!result||result.interrumpida||Number(result.errores)>0){
+        failures.push(name+':'+(result?.motivo_interrupcion||'ERRORES_O_INCOMPLETO'));
+        if(result?.detalles?.some(item=>pressureFailure({code:item.codigo})))blocked=true;
+      }
+    }catch(error){
+      phases[name]={...(phases[name]||{}),error:String(error?.code||'ERROR')};
+      failures.push(name+':'+String(error?.code||'ERROR'));
+      blocked=pressureFailure(error);
+    }
+  }
+  if(!blocked){
+    try{phases.auditoria=await verifyAfter();if(!phases.auditoria||Number(phases.auditoria.errores)>0)failures.push('auditoria:ERRORES');}
+    catch(error){phases.auditoria={error:String(error?.code||'ERROR')};failures.push('auditoria:'+String(error?.code||'ERROR'));}
+  }else{phases.auditoria={omitida:true,motivo:'PRESION_O_CONCURRENCIA'};failures.push('auditoria:OMITIDA');}
+  const totals={total_equipos:0,creadas:0,actualizadas:0,historicas:0,conflictos:0,errores:0};
+  for(const result of [phases.ajustadores,phases.montadores]){
+    for(const key of Object.keys(totals))totals[key]+=Number(result?.[key])||0;
+  }
+  totals.errores=Math.max(totals.errores,failures.length);
+  const pending=(Number(phases.auditoria?.revisiones)||0)>0 ||
+    [phases.ajustadores,phases.montadores].some(x=>Number(x?.revisiones)>0||Number(x?.conflictos)>0);
+  const estado=failures.length?'ERROR':pending?'REQUIERE_REVISION':'COMPLETADO';
+  // El control diario previo admite EN_PROCESO/ERROR/COMPLETADO.
+  // Una revision pendiente no equivale a un cierre limpio.
+  const persisted=estado==='COMPLETADO'?'COMPLETADO':'ERROR';
+  const detail=failures.length?failures.join('; '):pending?'REQUIERE_REVISION':null;
+  const [closed]=await connection.query(
+    "UPDATE instalaciones_programacion_conciliacion_diaria SET estado=?,fin_en=NOW(),total_equipos=?,creadas=?,actualizadas=?,historicas=?,conflictos=?,errores=?,ultimo_error=? WHERE fecha_cdmx=? AND estado='EN_PROCESO'",
+    [persisted,totals.total_equipos,totals.creadas,totals.actualizadas,totals.historicas,totals.conflictos,totals.errores,detail?.slice(0,500)||null,day]);
+  if(Number(closed.affectedRows)!==1)
+    throw Object.assign(new Error('No se pudo confirmar el cierre diario.'),{code:'INT9_CONTROL_DIARIO_CIERRE_FALLIDO'});
+  return {fecha_cdmx:day,estado,...totals,fases:phases,fallos:failures};
+}
 async function checkDaily(now=new Date()){
   const nowMx=clock(now);
   if(nowMx.hour!==23||nowMx.minute!==59)return {estado:'FUERA_DE_VENTANA'};
   if(working||executed===nowMx.day)return {estado:'YA_EJECUTADO'};
   working=true;executed=nowMx.day;
   try{
-    const stats=await audit();
-    console.info('[INT9_AUDITORIA_NOCHE]',JSON.stringify({fecha_cdmx:nowMx.day,...stats}));
-    return {estado:stats.revisiones?'REQUIERE_REVISION':'COMPLETADO',...stats};
+    const result=await executeDaily(nowMx.day);
+    console.info('[INT9_CONCILIACION_NOCHE]',JSON.stringify(result));
+    return result;
   }catch(error){
-    console.error('[INT9_AUDITORIA_NOCHE_ERROR]',String(error?.code||error?.message||'ERROR'));
+    console.error('[INT9_CONCILIACION_NOCHE_ERROR]',String(error?.code||error?.message||'ERROR'));
     return {estado:'ERROR',fecha_cdmx:nowMx.day};
   }finally{working=false;}
 }
@@ -141,4 +228,4 @@ function startJob(){
   return timer;
 }
 function stopJob(){if(timer)clearInterval(timer);timer=null;}
-module.exports={startJob,stopJob,checkDaily,audit,clock};
+module.exports={startJob,stopJob,checkDaily,executeDaily,audit,clock};

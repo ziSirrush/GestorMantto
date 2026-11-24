@@ -19,10 +19,14 @@ test('INT9: ambos guardados humanos concilian por ID tras COMMIT',()=>{
   assert.match(administration,/reconciliadorInt9\.notifySaved\(id,Object\.keys\(result\.changes/);
   assert.match(administration,/montajeInt9\.notifySaved\(id,Object\.keys\(result\.changes/);
 });
-test('INT9: auditor nocturno ejecuta exclusivamente consultas de lectura',()=>{
+test('INT9: nocturna concilia ambos motores y conserva auditoria final de lectura',()=>{
   assert.match(boot,/require\('\.\/jobs\/instalacionesProgramacionAuditoria\.job'\)/);
   assert.match(audit,/const PAGE=50/);
   assert.match(audit,/WHERE id_ins_fl>\?/);
-  assert.doesNotMatch(audit,/\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/i);
-  assert.doesNotMatch(audit,/reconcile\(|reconciliarEquipo\(/);
+  const reader=audit.slice(audit.indexOf('async function audit(){'),audit.indexOf('async function reserveDaily('));
+  assert.doesNotMatch(reader,/\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/i);
+  assert.doesNotMatch(reader,/reconcile\(|reconciliarEquipo\(/);
+  assert.match(audit,/instalacionesProgramacionPersonal\.job'\)\.scanEquipos/);
+  assert.match(audit,/instalacionesProgramacionMontadores\.job'\)\.scanEquipos/);
+  assert.match(audit,/const result=await executeDaily\(nowMx\.day\)/);
 });
