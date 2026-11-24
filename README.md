@@ -18,6 +18,17 @@ ni sustituyen la validacion funcional en un entorno autorizado.
 
 ## Publicacion
 
+**Versionado obligatorio — reforma 2026-11-19.1.** Leer
+[la norma operativa de doble fecha](docs/RELEASE_NOMENCLATURA_DOBLE_FECHA_Y_PERMISOS_V001.md#nomenclatura-aprobada)
+antes de preparar una publicación. API y Frontend conservan fechas y revisiones
+funcionales independientes; incrementar API nunca reinicia Frontend.
+Usar `node tools/release-version.js bump api|frontend|both` según el impacto
+real, y `node tools/release-version.js show` para obtener el mensaje exacto.
+Los cambios sin impacto funcional conservan ambas versiones. Tras crear el
+commit y antes del push, ejecutar `node tools/release-version.js verify --commit`.
+Los dos pipelines aplican esa misma validación antes de desplegar.
+
+
 Preparar el frontend con `node tools/build-frontend.js`. El build genera ambos
 metadatos de despliegue directamente en **dist/web/core** y actualiza solamente
 el `index.html` del artefacto. El destino es **dist/web**, no la raiz del repo;
