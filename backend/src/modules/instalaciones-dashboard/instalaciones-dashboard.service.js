@@ -112,6 +112,7 @@ const QUICK_EDIT_EXTRA_FIELDS_COR = Object.freeze({
   '02-OC': ['fecha_posible_recepcion_cubo'],
   '04-M': ['fecha_minuta_revision_ajuste', 'fecha_liberacion_ajuste'],
   '05-PA': ['ajustador', 'numero_pisos', 'numero_desembarques', 'numero_puertas', 'capacidad_kg'],
+  '06-A': ['numero_pisos', 'numero_desembarques', 'numero_puertas', 'capacidad_kg'],
   '07-PE': ['comentarios_fl'],
   '08-T': ['comentarios_fl']
 });

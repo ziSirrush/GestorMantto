@@ -94,3 +94,7 @@
 .idb-cor-installation-status{display:inline-flex;align-items:center;justify-content:center;min-height:23px;padding:3px 8px;border-radius:999px;background:var(--ins-status-color,#E2E8F0);color:var(--ins-status-text,#0F172A);font-size:10px;font-weight:900;white-space:nowrap}
 .idb-cor-equipment-stage{display:inline-flex;align-items:center;gap:7px;font-weight:850}
 .idb-cor-equipment-stage:before{content:"";width:5px;height:20px;border-radius:4px;background:var(--ins-status-color,#CBD5E1);flex:0 0 5px}
+
+/* Dashboard: el nombre del proyecto y las alertas comparten celda. */
+.idb-cor-project-with-alerts{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.idb-cor-project-with-alerts .idb-cor-alerts{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px}

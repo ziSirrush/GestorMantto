@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20261106-dashboard-modo-junta-edicion-total-v003';
+  const VERSION_COR = '20261124-dashboard-operacional-v001';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
@@ -635,10 +635,22 @@
   }
 
   function reportColumns_cor(section){
-    const base = Array.isArray(section && section.columnas)
+    let base = Array.isArray(section && section.columnas)
       ? section.columnas.map(item => Array.isArray(item) ? [item[0], item[1], item[2]] : item)
       : [];
     const sectionCode = raw(section && section.codigo);
+    if(sectionCode === '06-A'){
+      const technical = [
+        ['No. Pisos','numero_pisos','texto'],
+        ['No. Desembarques','numero_desembarques','texto'],
+        ['No. Puertas','numero_puertas','texto'],
+        ['Capacidad (kg)','capacidad_kg','texto']
+      ];
+      const fields = new Set(technical.map(item => item[1]));
+      base = base.filter(item => !fields.has(item[1]));
+      const commentIndex = base.findIndex(item => item[1] === 'comentarios_fl');
+      base.splice(commentIndex < 0 ? base.length : commentIndex + 1, 0, ...technical);
+    }
     const existing = new Set();
     base.forEach(item => {
       if(Array.isArray(item) && typeof item[1] === 'string') existing.add(item[1]);
@@ -805,7 +817,7 @@
       if(!rows.length){
         const tbody = $('idb-cor-report-result')?.querySelector('.idb-cor-table tbody');
         const section = state.report.section;
-        if(tbody) tbody.innerHTML = emptyRow_cor(6 + reportColumns_cor(section).length, 'Sin equipos para esta sección y universo seleccionado.');
+        if(tbody) tbody.innerHTML = emptyRow_cor(5 + reportColumns_cor(section).length, 'Sin equipos para esta sección y universo seleccionado.');
       }
       return true;
     }
@@ -822,13 +834,9 @@
       if(context.field==='estatus')span.innerHTML=installationStatusBadge_cor(value);
       else span.textContent=displayColumn_cor(value,type);
     }
-    const alertCell = context.cell.closest('tr')?.lastElementChild;
-    if(alertCell && Array.isArray(row.notificaciones)){
-      alertCell.innerHTML = row.notificaciones.length
-        ? '<div class="idb-cor-alerts">' + row.notificaciones.map(alert =>
-          '<span class="idb-cor-alert" role="img" aria-label="' + esc(alert.texto) +
-          '" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + '</span>').join('') + '</div>'
-        : '<span class="idb-cor-muted">—</span>';
+    const projectCell = context.cell.closest('tr')?.querySelector('[data-idb-cor-project-alerts]');
+    if(projectCell && Array.isArray(row.notificaciones)){
+      projectCell.innerHTML = projectCellContent_cor(row);
     }
     return true;
   }
@@ -1090,6 +1098,15 @@
     return raw(value) || '—';
   }
 
+  function projectCellContent_cor(row){
+    const alerts = Array.isArray(row.notificaciones) && row.notificaciones.length
+      ? '<span class="idb-cor-alerts">' + row.notificaciones.map(alert =>
+        '<span class="idb-cor-alert" role="img" aria-label="' + esc(alert.texto) +
+        '" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + '</span>').join('') + '</span>'
+      : '';
+    return '<span class="idb-cor-project-with-alerts"><strong>' + esc(row.proyecto || '—') + '</strong>' + alerts + '</span>';
+  }
+
   function renderReportCell_cor(row, item, sectionCode){
     const label = Array.isArray(item) ? item[0] : '';
     const field = Array.isArray(item) ? item[1] : '';
@@ -1123,17 +1140,14 @@
     const columns = reportColumns_cor(section);
     const quickEditVisible = state.meetingMode && hasPermission_cor('reporte_editar') && Boolean(QUICK_EDIT_FIELDS_COR[sectionCode]);
     const identity = [['Ciudad','ciudad','texto'],['Supervisor','supervisor_fl','texto'],['Asesor','vendedor','texto']];
-    const header = ['Proyecto','Equipo','Ciudad','Supervisor','Asesor'].concat(columns.map(item => item[0])).concat(['Alertas']);
+    const header = ['Proyecto','Equipo','Ciudad','Supervisor','Asesor'].concat(columns.map(item => item[0]));
     const canOpen = hasPermission_cor('reporte_abrir_detalle');
     const body = rows.length ? rows.map(row => {
       const dynamic = identity.concat(columns).map(item => renderReportCell_cor(row, item, sectionCode)).join('');
-      const alerts = Array.isArray(row.notificaciones) && row.notificaciones.length
-        ? '<div class="idb-cor-alerts">' + row.notificaciones.map(alert => '<span class="idb-cor-alert" role="img" aria-label="' + esc(alert.texto) + '" title="' + esc(alert.texto) + '">' + esc(alert.emoji) + '</span>').join('') + '</div>'
-        : '<span class="idb-cor-muted">—</span>';
       const attrs = canOpen && raw(row.proyecto) && raw(row.referencia_sitio)
         ? ' class="idb-cor-clickable" data-equipment-project="' + esc(row.proyecto) + '" data-equipment-reference="' + esc(row.referencia_sitio) + '"'
         : '';
-      return '<tr' + attrs + '><td>' + esc(row.proyecto || '—') + '</td><td>' + installationEquipmentAccent_cor(row.referencia_sitio,row.estatus||sectionCode) + '</td>' + dynamic + '<td>' + alerts + '</td></tr>';
+      return '<tr' + attrs + '><td data-idb-cor-project-alerts>' + projectCellContent_cor(row) + '</td><td>' + installationEquipmentAccent_cor(row.referencia_sitio,row.estatus||sectionCode) + '</td>' + dynamic + '</tr>';
     }).join('') : emptyRow_cor(header.length, 'Sin equipos para esta sección y universo seleccionado.');
 
     const editHint = quickEditVisible ? ' · <span class="idb-cor-edit-hint">Edición rápida activa</span>' : '';
