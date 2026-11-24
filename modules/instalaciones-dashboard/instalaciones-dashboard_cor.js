@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20261124-dashboard-personal-v002';
+  const VERSION_COR = '20261124-dashboard-multiseccion-vip-v001';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
@@ -112,7 +112,7 @@
     selector_ver:'INSTALACIONES_DASHBOARD_SELECTOR_SUPERVISORES_SELECTOR.VER',
     selector_filtrar:'INSTALACIONES_DASHBOARD_SELECTOR_SUPERVISORES_SELECTOR.FILTRAR',
     comentarios_ver:'INSTALACIONES_DASHBOARD_COMENTARIOS_JUNTA_LISTADO.VER',
-    reporte_selector_fer:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.VER',
+    reporte_selector_ver:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.VER',
     reporte_selector_filtrar:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.FILTRAR',
     reporte_listado_ver:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_LISTADO.VER',
     reporte_abrir_detalle:'INSTALACIONES_DASHBOARD_REPORTE_SECCION_LISTADO.ABRIR_DETALLE',
@@ -138,7 +138,8 @@
     selectedSupervisors:[],
     afl:false,
     meetingMode:false,
-    reportSection:'',
+    reportSections:[],
+    vipOnly:false,
     summary:null,
     report:null,
     documentationPage:1,
@@ -191,7 +192,9 @@
       meetingMode:Boolean(state.meetingMode),
       selectedSupervisors:Array.isArray(state.selectedSupervisors) ? [...state.selectedSupervisors] : [],
       afl:Boolean(state.afl),
-      reportSection:raw(state.reportSection),
+      reportSections:[...state.reportSections],
+      vipOnly:Boolean(state.vipOnly),
+      reportSection:state.reportSections[0]||'', // compatibilidad con frontend anterior
       updatedAt:new Date().toISOString()
     };
     try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(_error){}
@@ -205,7 +208,9 @@
       ? config.selectedSupervisors.map(raw).filter(Boolean)
       : [];
     state.afl = config.afl === true;
-    state.reportSection = raw(config.reportSection);
+    state.reportSections = [...new Set((Array.isArray(config.reportSections)
+      ? config.reportSections : [config.reportSection]).map(raw).filter(code => /^0[1-8]-[A-Z]+$/.test(code)))];
+    state.vipOnly = config.vipOnly === true;
     return true;
   }
 
@@ -302,9 +307,11 @@
     }
     const selector = $('idb-cor-supervisor-chips');
     if(selector) selector.classList.toggle('idb-cor-loading', !hasPermission_cor('selector_filtrar'));
-    const sectionSelect = $('idb-cor-section-select');
-    if(sectionSelect){
-      sectionSelect.disabled = state.afl || state.loading || !hasPermission_cor('reporte_selector_filtrar');
+    const sectionButtons = $('idb-cor-section-buttons');
+    if(sectionButtons){
+      sectionButtons.querySelectorAll('button').forEach(button=>{
+        button.disabled = !canFilterSections_cor() || (state.afl && button.dataset.sectionCode !== 'VIP');
+      });
     }
   }
 
@@ -430,29 +437,76 @@
     updateSelectionUi_cor();
   }
 
-  function renderSectionSelect_cor(){
-    const select = $('idb-cor-section-select');
+  function canFilterSections_cor(){
+    return !state.loading && hasPermission_cor('reporte_selector_ver') &&
+      hasPermission_cor('reporte_selector_filtrar') && hasPermission_cor('reporte_listado_ver');
+  }
+
+  function effectiveReportSections_cor(){
+    return state.afl ? [AJUSTE_STATUS_COR] : state.reportSections;
+  }
+
+  function hasReportSelection_cor(){
+    return effectiveReportSections_cor().length>0 || state.vipOnly;
+  }
+
+  function renderSectionButtons_cor(){
+    const host = $('idb-cor-section-buttons');
     const help = $('idb-cor-report-help');
     const scope = $('idb-cor-report-scope');
-    if(!select) return;
-
-    select.innerHTML = '<option value="">Selecciona una sección...</option>' + state.sections.map(section =>
-      '<option value="' + esc(section.codigo) + '">' + esc(section.codigo + ' - ' + section.nombre) + '</option>'
-    ).join('');
-
-    if(state.afl){
-      state.reportSection = AJUSTE_STATUS_COR;
-      select.value = AJUSTE_STATUS_COR;
-      select.disabled = true;
-      if(help) help.textContent = 'AFL fuerza la sección 06-A para mostrar únicamente equipos activos en Ajuste.';
-      if(scope){ scope.hidden = false; scope.textContent = 'AFL activo · Estatus 06-A · activo = 1' + (state.selectedSupervisors.length ? ' · supervisores: ' + state.selectedSupervisors.join(', ') : ' · todos los supervisores'); }
-    }else{
-      if(!state.sections.some(section => section.codigo === state.reportSection)) state.reportSection = '';
-      select.value = state.reportSection;
-      select.disabled = state.loading || !hasPermission_cor('reporte_selector_filtrar');
-      if(help) help.textContent = 'Selecciona una etapa para consultar sus equipos.';
-      if(scope){ scope.hidden = true; scope.textContent = ''; }
+    if(!host)return;
+    const valid=new Set(state.sections.map(section=>raw(section.codigo)));
+    state.reportSections=state.reportSections.filter(code=>valid.has(code));
+    const selected=effectiveReportSections_cor();
+    const button=(code,label,active,style,disabled)=>
+      '<button type="button" class="idb-cor-section-btn'+(active?' active':'')+
+      (code==='VIP'?' vip':'')+'" data-section-code="'+esc(code)+'" aria-label="'+esc(label)+
+      '" title="'+esc(label)+'" aria-pressed="'+String(active)+'"'+
+      (style?' style="'+style+'"':'')+(disabled?' disabled':'')+
+      ' data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.FILTRAR" data-permission-behavior="disable">'+esc(code)+'</button>';
+    const disabled=!canFilterSections_cor();
+    host.innerHTML=state.sections.map(section=>{
+      const code=raw(section.codigo);
+      return button(code,code+' · '+section.nombre,selected.includes(code),
+        installationStatusStyle_cor(code),disabled||state.afl);
+    }).join('')+button('VIP','VIP · Solo clientes VIP',state.vipOnly,'',disabled);
+    if(help)help.textContent=state.afl
+      ? 'AFL conserva únicamente 06-A; VIP permite limitar ese resultado.'
+      : 'Selecciona una o varias etapas. VIP restringe a los clientes VIP de los supervisores seleccionados.';
+    if(scope){
+      const notes=[];
+      if(state.afl)notes.push('AFL activo · Estatus 06-A · activo = 1'+
+        (state.selectedSupervisors.length?' · supervisores: '+state.selectedSupervisors.join(', '):' · todos los supervisores del filtro AFL'));
+      if(state.vipOnly)notes.push('VIP activo · solo equipos con CLIENTES VIP registrado'+
+        (!state.afl&&!state.reportSections.length?' · todas las etapas':''));
+      scope.hidden=!notes.length;
+      scope.textContent=notes.join(' · ');
     }
+  }
+
+  function clearReport_cor(){
+    state.reportRequest+=1;
+    state.report=null;
+    closeCellEditor_cor();
+    const host=$('idb-cor-report-result');
+    if(host)host.innerHTML='<div class="idb-cor-empty idb-cor-inline-empty"><span aria-hidden="true">📋</span><strong>Sin sección consultada</strong><p>Selecciona una o varias etapas o VIP.</p></div>';
+  }
+
+  function toggleReportSection_cor(code){
+    if(!canFilterSections_cor())return false;
+    if(code==='VIP')state.vipOnly=!state.vipOnly;
+    else{
+      if(state.afl||!state.sections.some(section=>section.codigo===code))return false;
+      state.reportSections=state.reportSections.includes(code)
+        ? state.reportSections.filter(item=>item!==code)
+        : [...state.reportSections,code].sort();
+    }
+    closeCellEditor_cor();
+    renderSectionButtons_cor();
+    persistDashboardConfig_cor();
+    if(hasReportSelection_cor()&&validUniverse_cor())void loadReport_cor();
+    else clearReport_cor();
+    return true;
   }
 
   function applyBootstrap_cor(response){
@@ -467,7 +521,7 @@
     if(!currentAfl_cor()) state.afl = false;
 
     renderSupervisorChips_cor();
-    renderSectionSelect_cor();
+    renderSectionButtons_cor();
     applyPermissions_cor();
     persistDashboardConfig_cor();
   }
@@ -483,7 +537,14 @@
       params.set('modo_junta', '1');
       params.set('documentacion_page', String(state.documentationPage || 1));
     }
-    if(includeSection && state.reportSection) params.set('seccion', state.reportSection);
+    if(includeSection){
+      const selected=effectiveReportSections_cor();
+      if(selected.length){
+        params.set('secciones',selected.join(','));
+        if(selected.length===1&&!state.vipOnly)params.set('seccion',selected[0]);
+      }
+      if(state.vipOnly)params.set('vip','1');
+    }
     return params;
   }
 
@@ -617,8 +678,8 @@
 
   function quickEditConfig_cor(sectionCode, field){
     if(!field || ['dias_restantes','dias_sin_visita','dias_sin_ccnr'].includes(field)) return null;
-    const section = state.report && state.report.section;
-    if(!section || raw(section.codigo) !== raw(sectionCode)) return null;
+    const section = reportSectionsFromResponse_cor(state.report).find(item=>raw(item.codigo)===raw(sectionCode));
+    if(!section) return null;
     const fixed = [
       ['Ciudad','ciudad','texto'],
       ['Supervisor','supervisor_fl','texto'],
@@ -886,22 +947,26 @@
     const index = rows.findIndex(item => raw(item.id_ins_fl) === context.rowId);
     if(index < 0 || !context.cell || !context.cell.isConnected) return false;
     const row = { ...rows[index], ...response.row };
+    const report=state.report;
     const moved = raw(row.estatus) !== raw(context.sectionCode);
-    if(moved){
-      rows.splice(index, 1);
-      context.cell.closest('tr')?.remove();
-      state.report.total = rows.length;
-      const count = $('idb-cor-report-count');
-      if(count) count.textContent = formatInteger_cor(rows.length);
-      if(!rows.length){
-        const tbody = $('idb-cor-report-result')?.querySelector('.idb-cor-table tbody');
-        const section = state.report.section;
-        if(tbody) tbody.innerHTML = emptyRow_cor(5 + reportColumns_cor(section).length, 'Sin equipos para esta sección y universo seleccionado.');
-      }
+    const sections=reportSectionsFromResponse_cor(report);
+    const section=sections.find(item=>raw(item.codigo)===raw(context.sectionCode));
+    const allowed=sections.some(item=>raw(item.codigo)===raw(row.estatus));
+    const supervisors=Array.isArray(report.selected_supervisors)?report.selected_supervisors:[];
+    const outsideSupervisor=supervisors.length>0&&!supervisors.some(code=>
+      raw(code).toUpperCase()===raw(row.supervisor_fl).toUpperCase());
+    const outsideYear=raw(row.estatus)==='08-T'&&report.current_year!=null&&
+      Number.parseInt(raw(row.anio_termino),10)!==Number(report.current_year);
+    if(moved||outsideSupervisor||outsideYear||Number(row.activo)===0){
+      if(allowed&&!outsideSupervisor&&!outsideYear&&Number(row.activo)!==0)rows[index]=row;
+      else rows.splice(index,1);
+      report.total=rows.length;
+      // Cambios de pertenencia: reagrupar en memoria sin consultar otra vez.
+      renderReport_cor(report);
       return true;
     }
     rows[index] = row;
-    const columns = reportColumns_cor(state.report.section);
+    const columns = reportColumns_cor(section);
     const column = columns.find(item => Array.isArray(item) && (
       item[1] === context.field || (Array.isArray(item[1]) && item[1].includes(context.field))
     ));
@@ -1219,18 +1284,12 @@
       '<span class="idb-cor-cell-value">' + cellContent + '</span></td>';
   }
 
-  function renderReport_cor(response){
-    closeCellEditor_cor();
-    state.report = response;
-    const host = $('idb-cor-report-result');
-    if(!host) return;
-    const section = response && response.section ? response.section : null;
-    const rows = Array.isArray(response && response.rows) ? response.rows : [];
-    if(!section){
-      host.innerHTML = '<div class="idb-cor-empty idb-cor-inline-empty"><span>📋</span><strong>Sin sección consultada</strong></div>';
-      return;
-    }
+  function reportSectionsFromResponse_cor(response){
+    if(Array.isArray(response?.sections))return response.sections;
+    return response?.section?[response.section]:[];
+  }
 
+  function renderReportGroup_cor(section,rows,response){
     const sectionCode = raw(section.codigo);
     const columns = reportColumns_cor(section);
     const quickEditVisible = state.meetingMode && hasPermission_cor('reporte_editar') && Boolean(QUICK_EDIT_FIELDS_COR[sectionCode]);
@@ -1244,11 +1303,51 @@
         : '';
       return '<tr' + attrs + '><td data-idb-cor-project-alerts>' + projectCellContent_cor(row) + '</td><td>' + installationEquipmentAccent_cor(row.referencia_sitio,row.estatus||sectionCode) + '</td>' + dynamic + '</tr>';
     }).join('') : emptyRow_cor(header.length, 'Sin equipos para esta sección y universo seleccionado.');
-
     const editHint = quickEditVisible ? ' · <span class="idb-cor-edit-hint">Edición rápida activa</span>' : '';
-    host.innerHTML = '<div class="idb-cor-note idb-cor-note-neutral">' + installationStatusBadge_cor(sectionCode) + ' · <strong>' + esc(section.nombre) + '</strong> · <span id="idb-cor-report-count">' + esc(formatInteger_cor(response.total)) + '</span> equipos' + (response.section_forced ? ' · Sección forzada por AFL' : '') + editHint + '</div>' +
-      '<div class="idb-cor-table-wrap"><table class="idb-cor-table"><thead><tr>' + header.map(label => '<th>' + esc(label) + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+    return '<div class="idb-cor-report-group" data-report-section="'+esc(sectionCode)+'">' +
+      '<div class="idb-cor-note idb-cor-note-neutral">' + installationStatusBadge_cor(sectionCode) + ' · <strong>' + esc(section.nombre) + '</strong> · <span data-report-count>'+esc(formatInteger_cor(rows.length))+'</span> equipos' +
+      (response.section_forced ? ' · Sección forzada por AFL' : '') + (response.vip_only?' · VIP':'') + editHint + '</div>' +
+      '<div class="idb-cor-table-wrap"><table class="idb-cor-table"><thead><tr>' + header.map(label => '<th>' + esc(label) + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table></div></div>';
+  }
+
+  function renderReport_cor(response){
+    closeCellEditor_cor();
+    state.report=response;
+    const host=$('idb-cor-report-result');
+    if(!host)return;
+    const sections=reportSectionsFromResponse_cor(response);
+    const rows=Array.isArray(response?.rows)?response.rows:[];
+    if(!sections.length){
+      host.innerHTML='<div class="idb-cor-empty idb-cor-inline-empty"><span>📋</span><strong>Sin sección consultada</strong></div>';
+      return;
+    }
+    const groups=new Map(sections.map(section=>[raw(section.codigo),[]]));
+    for(const row of rows){
+      const code=raw(row.estatus)||(sections.length===1?raw(sections[0].codigo):'');
+      groups.get(code)?.push(row);
+    }
+    const displayed=response.vip_only&&Array.isArray(response.requested_sections)&&
+      !response.requested_sections.length&&!response.section_forced
+      ? sections.filter(section=>groups.get(raw(section.codigo)).length>0) : sections;
+    const summary=sections.length>1||response.vip_only
+      ? '<div class="idb-cor-note idb-cor-note-neutral"><strong>'+esc(formatInteger_cor(rows.length))+'</strong> equipos en total'+(response.vip_only?' · VIP':'')+'</div>' : '';
+    host.innerHTML=summary+(displayed.length
+      ? displayed.map(section=>renderReportGroup_cor(section,groups.get(raw(section.codigo)),response)).join('')
+      : '<div class="idb-cor-empty idb-cor-inline-empty"><strong>Sin equipos VIP para los supervisores seleccionados</strong></div>');
     bindResultRows_cor();
+  }
+
+  function assertReportContract_cor(response){
+    if(!response||response.ok!==true)throw new Error('Respuesta del reporte inválida.');
+    const expected=effectiveReportSections_cor();
+    if((state.vipOnly&&response.vip_only!==true) ||
+       (expected.length>1&&!Array.isArray(response.sections)))
+      throw new Error('La API todavía no admite los filtros seleccionados. Actualiza cuando termine su despliegue.');
+    const codes=reportSectionsFromResponse_cor(response).map(section=>raw(section.codigo));
+    if(expected.length&&(codes.length!==expected.length||expected.some(code=>!codes.includes(code))))
+      throw new Error('La respuesta no corresponde a las etapas seleccionadas.');
+    if(!state.vipOnly&&response.vip_only===true)throw new Error('La respuesta corresponde a otro filtro.');
+    return response;
   }
 
   async function loadSummary_cor(){
@@ -1266,37 +1365,43 @@
   }
 
   async function loadReport_cor(){
-    if(!validUniverse_cor() || !state.reportSection || !hasPermission_cor('reporte_listado_ver')) return;
+    if(!validUniverse_cor() || !hasReportSelection_cor() ||
+       !hasPermission_cor('reporte_listado_ver') || !hasPermission_cor('reporte_selector_filtrar') ||
+       !hasPermission_cor('reporte_selector_ver')){clearReport_cor();return false;}
     closeCellEditor_cor();
+    state.report=null;
     const requestId = ++state.reportRequest;
     const host = $('idb-cor-report-result');
     if(host) host.innerHTML = '<div class="idb-cor-empty idb-cor-inline-empty"><span>⏳</span><strong>Consultando sección...</strong></div>';
     try{
       const params = queryParams_cor(true);
       const response = await fetchJson_cor('/api/instalaciones/dashboard/reporte?' + params.toString());
-      if(requestId !== state.reportRequest) return;
-      renderReport_cor(response);
+      if(requestId !== state.reportRequest) return false;
+      renderReport_cor(assertReportContract_cor(response));
+      return true;
     }catch(error){
       if(requestId !== state.reportRequest) return;
       if(host) host.innerHTML = '<div class="idb-cor-note idb-cor-note-warning">' + esc(error.message) + '</div>';
       setStatus_cor('No se pudo cargar el reporte: ' + error.message);
+      return false;
     }
   }
 
   async function reloadUniverse_cor(){
     clearPersonalCatalog_cor();
     updateSelectionUi_cor();
-    renderSectionSelect_cor();
+    renderSectionButtons_cor();
     if(!validUniverse_cor()){
+      state.summaryRequest+=1;
       state.summary = null;
-      state.report = null;
+      clearReport_cor();
       return;
     }
     setLoading_cor(true);
     try{
       await Promise.all([
         loadSummary_cor(),
-        state.reportSection && hasPermission_cor('reporte_listado_ver') ? loadReport_cor() : Promise.resolve()
+        hasReportSelection_cor() ? loadReport_cor() : Promise.resolve(clearReport_cor())
       ]);
       setStatus_cor('Dashboard actualizado para: ' + selectedText_cor());
     }finally{
@@ -1333,10 +1438,10 @@
     host.querySelector('[data-special-filter="AFL"]')?.addEventListener('click', () => {
       state.afl = !state.afl;
       state.documentationPage = 1;
-      if(state.afl) state.reportSection = AJUSTE_STATUS_COR;
+      // AFL fuerza 06-A mientras está activo; no borra las etapas elegidas.
       persistDashboardConfig_cor();
       renderSupervisorChips_cor();
-      renderSectionSelect_cor();
+      renderSectionButtons_cor();
       reloadUniverse_cor().catch(() => {});
     });
   }
@@ -1377,21 +1482,18 @@
       updateModeUi_cor();
       if(validUniverse_cor()) reloadUniverse_cor().catch(() => {});
     });
-    $('idb-cor-section-select')?.addEventListener('change', event => {
-      if(state.afl) return;
-      state.reportSection = raw(event.target.value);
-      persistDashboardConfig_cor();
-      if(state.reportSection && validUniverse_cor()) loadReport_cor().catch(() => {});
-      else{
-        const host = $('idb-cor-report-result');
-        if(host) host.innerHTML = '<div class="idb-cor-empty idb-cor-inline-empty"><span aria-hidden="true">📋</span><strong>Sin sección consultada</strong><p>Selecciona una etapa del reporte para mostrar la tabla.</p></div>';
-      }
+    $('idb-cor-section-buttons')?.addEventListener('click',event=>{
+      const button=event.target?.closest?.('[data-section-code]');
+      if(!button||button.disabled)return;
+      toggleReportSection_cor(raw(button.dataset.sectionCode));
     });
   }
 
   async function refresh_cor(keepSelection){
     if(state.loading) return;
     clearPersonalCatalog_cor();
+    clearReport_cor();
+    state.summaryRequest+=1;
     setLoading_cor(true);
     try{
       if(!keepSelection){
@@ -1415,9 +1517,14 @@
       }
 
       if(response.report){
-        renderReport_cor(response.report);
-      }else if(!state.reportSection){
-        state.report = null;
+        renderReport_cor(assertReportContract_cor({...response.report,ok:true}));
+      }else{
+        clearReport_cor();
+        if(validUniverse_cor()&&hasReportSelection_cor()&&hasPermission_cor('reporte_listado_ver')&&
+            hasPermission_cor('reporte_selector_ver')&&hasPermission_cor('reporte_selector_filtrar')){
+          // Un frontend recién publicado no debe presentar un resultado incompleto de la API anterior.
+          if(!await loadReport_cor())return;
+        }
       }
 
       if(validUniverse_cor()){

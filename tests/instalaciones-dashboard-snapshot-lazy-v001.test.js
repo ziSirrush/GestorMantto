@@ -21,7 +21,8 @@ test('Cambios de contexto conservan resumen y reporte lazy',()=>{
   assert.match(front,/async function loadSummary_cor/);
   assert.match(front,/async function loadReport_cor/);
   assert.match(front,/reloadUniverse_cor/);
-  assert.match(front,/idb-cor-section-select/);
+  assert.match(front,/idb-cor-section-buttons/);
+  assert.doesNotMatch(front,/idb-cor-section-select/);
 });
 
 test('Edición de celda permanece mutación separada',()=>{

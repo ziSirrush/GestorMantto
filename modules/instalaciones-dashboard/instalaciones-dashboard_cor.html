@@ -71,19 +71,13 @@
           <span class="idb-cor-step">2</span>
           <div>
             <h2>Reporte de instalaciones por sección</h2>
-            <p id="idb-cor-report-help">Selecciona una etapa para consultar sus equipos.</p>
+            <p id="idb-cor-report-help">Selecciona una o varias etapas para consultar sus equipos.</p>
           </div>
         </div>
         <div class="idb-cor-report-controls"
              data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.VER">
-          <label for="idb-cor-section-select">
-            <span>Sección</span>
-            <select id="idb-cor-section-select"
-                    data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_SELECTOR.FILTRAR"
-                    data-permission-behavior="disable">
-              <option value="">Selecciona una sección...</option>
-            </select>
-          </label>
+          <span class="idb-cor-report-filter-label">Secciones</span>
+          <div id="idb-cor-section-buttons" class="idb-cor-section-buttons" role="group" aria-label="Filtrar secciones del reporte"></div>
         </div>
       </div>
       <div id="idb-cor-report-scope" class="idb-cor-scope-banner" hidden></div>
@@ -91,7 +85,7 @@
            data-permission-code="INSTALACIONES_DASHBOARD_REPORTE_SECCION_LISTADO.VER">
         <div class="idb-cor-empty idb-cor-inline-empty">
           <span aria-hidden="true">📋</span><strong>Sin sección consultada</strong>
-          <p>Selecciona una etapa del reporte para mostrar la tabla.</p>
+          <p>Selecciona una o varias etapas o VIP para mostrar las tablas.</p>
         </div>
       </div>
     </section>

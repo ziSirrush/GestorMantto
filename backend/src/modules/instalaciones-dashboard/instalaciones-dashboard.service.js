@@ -582,44 +582,46 @@ async function getSummary_cor(userId, query) {
   };
 }
 
-async function getReport_cor(query) {
+function reportSelection_cor(query, scope) {
+  const modern = Object.prototype.hasOwnProperty.call(query,'secciones') ||
+    Object.prototype.hasOwnProperty.call(query,'vip');
+  const vipOnly = booleanQuery_cor(query.vip);
+  const rawRequested = Object.prototype.hasOwnProperty.call(query,'secciones')
+    ? query.secciones : (query.seccion || query.estatus || '');
+  const requested = [...new Set((Array.isArray(rawRequested) ? rawRequested : [rawRequested])
+    .flatMap(value => String(value ?? '').split(',')).map(value => value.trim()).filter(Boolean))];
+  const forced = repository.AJUSTE_STATUS_COR || '06-A';
+  const selected = scope.ajusteActivo ? [forced] :
+    (!requested.length && vipOnly ? REPORT_SECTIONS_COR.map(item => item.codigo) : requested);
+  if (!selected.length || selected.length > REPORT_SECTIONS_COR.length ||
+      selected.some(code => !REPORT_STATUS_CODES_COR.has(code)) ||
+      (!modern && !scope.ajusteActivo && selected.length !== 1)) {
+    throw makeError_cor(400,'INSTALACIONES_DASHBOARD_SECTION_INVALID',
+      'Selecciona una o más secciones válidas entre 01-SUS y 08-T, o el filtro VIP.');
+  }
+  return {modern,vipOnly,requested,sections:REPORT_SECTIONS_COR.filter(item => selected.includes(item.codigo))};
+}
+
+async function getReport_cor(query = {}) {
   const scope = dashboardScope_cor(query);
   const supervisors = scope.supervisors;
-  const requestedStatus = String(query.seccion || query.estatus || '').trim();
-  const status = scope.ajusteActivo ? (repository.AJUSTE_STATUS_COR || '06-A') : requestedStatus;
-  const section = REPORT_SECTIONS_COR.find(item => item.codigo === status);
-  if (!section) {
-    throw makeError_cor(
-      400,
-      'INSTALACIONES_DASHBOARD_SECTION_INVALID',
-      'Selecciona una sección válida entre 01-SUS y 08-T.'
-    );
-  }
-
+  const {modern,vipOnly,requested,sections} = reportSelection_cor(query,scope);
+  const statuses = sections.map(item => item.codigo);
   const rules = await repository.getRulesDate_cor();
+  // Una sola consulta para todas las etapas; filas sin duplicar.
   const rows = await repository.listReportRows_cor(
-    supervisors,
-    status,
-    rules.anio_actual,
-    { ajusteActivo: scope.ajusteActivo }
+    supervisors, modern ? statuses : statuses[0], rules.anio_actual,
+    { ajusteActivo: scope.ajusteActivo, ...(vipOnly ? {vipOnly:true} : {}) }
   );
-  const data = rows.map(row => ({
-    ...row,
-    notificaciones: notificationsForRow_cor(row, rules.fecha_actual)
-  }));
-
+  const data = rows.map(row => ({...row,notificaciones:notificationsForRow_cor(row,rules.fecha_actual)}));
   return {
-    generated_at: new Date().toISOString(),
-    rules_date: rules.fecha_actual,
-    current_year: rules.anio_actual,
-    selected_supervisors: supervisors,
-    filtro_especial: scope.filtroEspecial,
-    modo_junta: scope.modoJunta,
-    requested_section: requestedStatus || null,
-    section_forced: scope.ajusteActivo,
-    section,
-    total: data.length,
-    rows: data
+    generated_at:new Date().toISOString(), rules_date:rules.fecha_actual,
+    current_year:rules.anio_actual, selected_supervisors:supervisors,
+    filtro_especial:scope.filtroEspecial, modo_junta:scope.modoJunta,
+    requested_section:requested[0] || null, section_forced:scope.ajusteActivo,
+    section:sections.length===1?sections[0]:null,
+    ...(modern ? {sections,requested_sections:requested,vip_only:vipOnly} : {}),
+    total:data.length, rows:data
   };
 }
 

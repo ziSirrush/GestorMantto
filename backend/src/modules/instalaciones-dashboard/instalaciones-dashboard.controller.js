@@ -73,7 +73,9 @@ async function validateDashboardQueryScope_cor(req) {
   if (identity.all) return identity;
 
   const special = String(req.query?.filtro_especial || req.query?.special || '').trim().toUpperCase();
-  if (special === 'AFL' && !identity.ids.has(38)) {
+  const ajusteActivo = special === 'AFL' ||
+    ['1','true','yes','on','si','sí'].includes(String(req.query?.ajuste_activo ?? '').trim().toLowerCase());
+  if (ajusteActivo && !identity.ids.has(38)) {
     throw scopeError_cor('El filtro AFL queda fuera de tu Alcance de Información.');
   }
 
@@ -113,12 +115,13 @@ async function initial_cor(req, res, next) {
     const special = String((req.query && (req.query.filtro_especial || req.query.special)) || '').trim().toUpperCase();
     const hasUniverse = special === 'AFL' || requestedSupervisors.length > 0;
     const canSummary = permissions.selector_ver === true && permissions.selector_filtrar === true;
-    const requestedSection = String((req.query && (req.query.seccion || req.query.estatus)) || '').trim();
+    const requestedSection = String((req.query && (req.query.secciones || req.query.seccion || req.query.estatus)) || '').trim();
+    const requestedVip = ['1','true','yes','on','si','sí'].includes(String(req.query?.vip ?? '').trim().toLowerCase());
     const canReport = canSummary &&
       permissions.reporte_selector_ver === true &&
       permissions.reporte_selector_filtrar === true &&
       permissions.reporte_listado_ver === true &&
-      (requestedSection || special === 'AFL');
+      (requestedSection || requestedVip || special === 'AFL');
 
     let summary = null;
     let report = null;

@@ -306,12 +306,20 @@ async function listActiveProjects_cor(supervisors, options = {}) {
 
 async function listReportRows_cor(supervisors, status, currentYear, options = {}) {
   const supervisor = supervisorClause_cor('f', supervisors);
-  const params = [...supervisor.params, status];
+  const statuses = [...new Set(Array.isArray(status) ? status : [status])];
+  if (!statuses.length || statuses.length > 8 ||
+      statuses.some(code => !['01-SUS','02-OC','03-PM','04-M','05-PA','06-A','07-PE','08-T'].includes(code))) {
+    throw Object.assign(new Error('Secciones del reporte inválidas.'),{statusCode:400,code:'INSTALACIONES_DASHBOARD_SECTION_INVALID'});
+  }
+  const params = [...supervisor.params, ...statuses];
   let yearClause = '';
-  if (status === '08-T') {
-    yearClause = 'AND CAST(TRIM(f.anio_termino) AS UNSIGNED) = ?';
+  if (statuses.includes('08-T')) {
+    yearClause = "AND (f.estatus <> '08-T' OR CAST(TRIM(f.anio_termino) AS UNSIGNED) = ?)";
     params.push(currentYear);
   }
+  // VIP restringe el universo seleccionado; no se expone el texto del campo.
+  const vipClause = options.vipOnly === true
+    ? "AND TRIM(COALESCE(f.clientes_vip, '')) NOT IN ('', '-')" : '';
 
   const [rows] = await db.query(
     `SELECT
@@ -369,9 +377,10 @@ async function listReportRows_cor(supervisors, status, currentYear, options = {}
      FROM ins_fl f
      WHERE f.activo = 1
        ${supervisor.sql}
-       AND f.estatus = ?
+       AND f.estatus IN (${placeholders_cor(statuses)})
        ${yearClause}
-     ORDER BY f.proyecto ASC, f.referencia_sitio ASC, f.id_ins_fl ASC`,
+       ${vipClause}
+     ORDER BY f.estatus ASC, f.proyecto ASC, f.referencia_sitio ASC, f.id_ins_fl ASC`,
     params
   );
   return rows;
