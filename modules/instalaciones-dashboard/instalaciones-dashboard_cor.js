@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20261124-dashboard-operacional-v001';
+  const VERSION_COR = '20261124-dashboard-personal-v002';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
@@ -37,11 +37,12 @@
     }),
     '04-M': Object.freeze({
       estatus:{ label:'Estatus', type:'select' },
+      subcontratista:{ label:'Subcontratista', type:'personal', field:'subcontratista' },
       comentarios_fl:{ label:'Comentario', type:'textarea' }
     }),
     '05-PA': Object.freeze({
       estatus:{ label:'Estatus', type:'select' },
-      ajustador:{ label:'Ajustador', type:'text' },
+      ajustador:{ label:'Ajustador', type:'personal', field:'ajustador' },
       fecha_posible_inicio_ajuste:{ label:'Posible inicio de Ajuste', type:'date' },
       comentarios_fl:{ label:'Comentario', type:'textarea' }
     }),
@@ -50,7 +51,7 @@
       fecha_inicio_ajuste:{ label:'Fecha Inicio Ajuste', type:'date' },
       fecha_fin_ajuste_planeado:{ label:'Fecha Fin Ajuste', type:'date' },
       fecha_fin_ajuste_modificado:{ label:'Fecha Fin Ajuste Modificado', type:'date' },
-      ajustador:{ label:'Ajustador', type:'text' },
+      ajustador:{ label:'Ajustador', type:'personal', field:'ajustador' },
       comentarios_fl:{ label:'Comentario', type:'textarea' }
     }),
     '07-PE': Object.freeze({
@@ -144,7 +145,9 @@
     summaryRequest:0,
     reportRequest:0,
     pendingOpenReset:false,
-    editor:null
+    editor:null,
+    personalCatalog:null,
+    personalCatalogPromise:null
   };
 
   const $ = id => document.getElementById(id);
@@ -705,8 +708,79 @@
     return match ? match[1] + '-' + match[2] + '-' + match[3] : '';
   }
 
+  function personalEditorAllowed_cor(){
+    const current=window.ManttoRouter?.getCurrent?.();
+    return state.meetingMode && hasPermission_cor('reporte_editar') &&
+      hasPermission_cor('reporte_listado_ver') && !window.ManttoAuth?.isViewingAs?.() &&
+      (!current?.route || current.route==='instalaciones-dashboard');
+  }
+
+  function clearPersonalCatalog_cor(){
+    state.personalCatalog=null;
+    state.personalCatalogPromise=null;
+    if(state.editor && ['ajustador','subcontratista'].includes(state.editor.field))closeCellEditor_cor();
+  }
+
+  async function loadPersonalCatalog_cor(){
+    if(!personalEditorAllowed_cor())throw new Error('Edición de personal no autorizada.');
+    const shared=window.ManttoInstalacionesPersonalSelectores_cor;
+    if(!shared)throw new Error('Selector de personal no disponible. Actualiza la aplicación.');
+    if(state.personalCatalog)return state.personalCatalog;
+    if(state.personalCatalogPromise)return state.personalCatalogPromise;
+    const params=queryParams_cor(false);
+    const pending=fetchJson_cor('/api/instalaciones/dashboard/catalogos-edicion/personal?'+params.toString()).then(data=>{
+      if(state.personalCatalogPromise!==pending||!personalEditorAllowed_cor())
+        throw new Error('El contexto de edición cambió.');
+      state.personalCatalog=shared.assertPersonalCatalog_cor(data);
+      return state.personalCatalog;
+    });
+    state.personalCatalogPromise=pending;
+    try{return await pending;}finally{
+      if(state.personalCatalogPromise===pending)state.personalCatalogPromise=null;
+    }
+  }
+
+  async function populatePersonalEditor_cor(context,config){
+    const stillCurrent=()=>state.editor===context&&state.report===context.reportRef&&
+      context.cell.isConnected&&personalEditorAllowed_cor();
+    try{
+      const data=await loadPersonalCatalog_cor();
+      if(!stillCurrent())return;
+      const shared=window.ManttoInstalacionesPersonalSelectores_cor;
+      if(!shared.personalValues_cor(context.field,data))
+        throw new Error('El catálogo de iniciales no está disponible.');
+      const editor=$('idb-cor-cell-editor');
+      const control=$('idb-cor-cell-editor-control');
+      const save=editor?.querySelector('[data-idb-cor-editor-save]');
+      const note=editor?.querySelector('[data-idb-cor-editor-note]');
+      if(!control||!save)return;
+      control.innerHTML=shared.personalOptions_cor(context.field,data,context.previousValue,esc);
+      control.disabled=false;
+      control.removeAttribute('aria-busy');
+      save.disabled=false;
+      if(note)note.textContent='Selecciona personal activo. El valor histórico se conserva hasta que lo cambies.';
+      control.focus();
+      positionCellEditor_cor();
+    }catch(error){
+      if(!stillCurrent())return;
+      const editor=$('idb-cor-cell-editor');
+      const note=editor?.querySelector('[data-idb-cor-editor-note]');
+      const control=$('idb-cor-cell-editor-control');
+      if(control)control.removeAttribute('aria-busy');
+      if(note)note.textContent=error.message||'No se pudo cargar el catálogo de personal.';
+      setStatus_cor('Catálogo de personal no disponible; no se modificó el equipo.');
+      positionCellEditor_cor();
+    }
+  }
+
   function editorControl_cor(config, value){
     const current = raw(value);
+    if(config.type === 'personal'){
+      const shared=window.ManttoInstalacionesPersonalSelectores_cor;
+      const options=shared?shared.personalOptions_cor(config.field,state.personalCatalog,value,esc):
+        '<option selected disabled>'+esc(current||'Consultando personal...')+'</option>';
+      return '<select id="idb-cor-cell-editor-control" class="idb-cor-cell-editor-control" disabled aria-busy="true">'+options+'</select>';
+    }
     if(config.type === 'select'){
       const options = state.sections.map(section => {
         const code = raw(section.codigo);
@@ -767,6 +841,8 @@
     const rowId = raw(cell.dataset.rowId);
     const config = quickEditConfig_cor(sectionCode, field);
     if(!config) return;
+    const personal=config.type==='personal';
+    if(personal&&!personalEditorAllowed_cor())return;
     const rows = Array.isArray(state.report && state.report.rows) ? state.report.rows : [];
     const row = rows.find(item => raw(item.id_ins_fl) === rowId);
     if(!row) return;
@@ -787,16 +863,19 @@
       '<button type="button" class="idb-cor-cell-editor-close" data-idb-cor-editor-close aria-label="Cerrar">×</button></div>' +
       '<div class="idb-cor-cell-editor-context"><span>' + esc(row.referencia_sitio || 'Equipo') + '</span><small>' + esc(row.proyecto || '') + '</small></div>' +
       '<label class="idb-cor-cell-editor-label"><span>Valor</span>' + editorControl_cor(config, row[field]) + '</label>' +
-      '<div class="idb-cor-cell-editor-note" data-idb-cor-editor-note>El cambio sobrescribirá únicamente esta celda.</div>' +
+      '<div class="idb-cor-cell-editor-note" data-idb-cor-editor-note>' +
+        (personal?'Consultando catálogo de personal...':'El cambio sobrescribirá únicamente esta celda.') + '</div>' +
       '<div class="idb-cor-cell-editor-actions"><button type="button" class="idb-cor-cell-editor-cancel" data-idb-cor-editor-close>Cancelar</button>' +
-      '<button type="button" class="idb-cor-cell-editor-save" data-idb-cor-editor-save>Guardar</button></div>';
+      '<button type="button" class="idb-cor-cell-editor-save" data-idb-cor-editor-save'+
+        (personal?' disabled':'')+'>Guardar</button></div>';
     document.body.appendChild(editor);
 
     editor.querySelectorAll('[data-idb-cor-editor-close]').forEach(button => button.addEventListener('click', closeCellEditor_cor));
     editor.querySelector('[data-idb-cor-editor-save]')?.addEventListener('click', () => saveCellEditor_cor());
     positionCellEditor_cor();
     const control = $('idb-cor-cell-editor-control');
-    if(control) window.setTimeout(() => control.focus(), 0);
+    if(personal)void populatePersonalEditor_cor(state.editor,config);
+    else if(control)window.setTimeout(() => control.focus(), 0);
     setStatus_cor('Edición rápida · ' + sectionCode + ' · ' + raw(row.referencia_sitio) + ' · ' + config.label + '.');
   }
 
@@ -849,7 +928,23 @@
     const save = editor && editor.querySelector('[data-idb-cor-editor-save]');
     const cancel = editor && editor.querySelector('.idb-cor-cell-editor-cancel');
     const note = editor && editor.querySelector('[data-idb-cor-editor-note]');
-    if(!editor || !control || !save) return;
+    if(!editor || !control || !save || control.disabled || save.disabled) return;
+
+    let value=control.value;
+    if(['ajustador','subcontratista'].includes(context.field)){
+      if(!personalEditorAllowed_cor()||state.report!==context.reportRef||!context.cell.isConnected)return;
+      if(raw(value)===raw(context.previousValue)){
+        closeCellEditor_cor();setStatus_cor('Sin cambios · se conserva la asignación actual.');return;
+      }
+      const shared=window.ManttoInstalacionesPersonalSelectores_cor;
+      const parsed=shared?.validatePersonalValue_cor(context.field,value,{max_length:255},state.personalCatalog);
+      if(!parsed?.ok){
+        if(note)note.textContent=parsed?.error||'Catálogo de personal no disponible.';
+        return;
+      }
+      // El PATCH existente representa una asignación vacía mediante cadena vacía.
+      value=parsed.value??'';
+    }
 
     save.disabled = true;
     if(cancel) cancel.disabled = true;
@@ -864,7 +959,7 @@
         'PATCH',
         {
           campo:context.field,
-          valor:control.value,
+          valor:value,
           valor_anterior:context.previousValue == null ? '' : String(context.previousValue),
           seccion:context.sectionCode,
           modo_junta:true
@@ -1172,6 +1267,7 @@
 
   async function loadReport_cor(){
     if(!validUniverse_cor() || !state.reportSection || !hasPermission_cor('reporte_listado_ver')) return;
+    closeCellEditor_cor();
     const requestId = ++state.reportRequest;
     const host = $('idb-cor-report-result');
     if(host) host.innerHTML = '<div class="idb-cor-empty idb-cor-inline-empty"><span>⏳</span><strong>Consultando sección...</strong></div>';
@@ -1188,6 +1284,7 @@
   }
 
   async function reloadUniverse_cor(){
+    clearPersonalCatalog_cor();
     updateSelectionUi_cor();
     renderSectionSelect_cor();
     if(!validUniverse_cor()){
@@ -1294,6 +1391,7 @@
 
   async function refresh_cor(keepSelection){
     if(state.loading) return;
+    clearPersonalCatalog_cor();
     setLoading_cor(true);
     try{
       if(!keepSelection){
@@ -1340,6 +1438,7 @@
   }
 
   function resetOpenState_cor(){
+    clearPersonalCatalog_cor();
     closeCellEditor_cor();
     restoreDashboardConfig_cor();
     state.summary = null;
@@ -1367,7 +1466,10 @@
 
   document.addEventListener('mantto:navigation', event => {
     const detail = event && event.detail ? event.detail : {};
-    if(detail.route !== 'instalaciones-dashboard' || detail.type !== 'open') return;
+    if(detail.route !== 'instalaciones-dashboard'){
+      clearPersonalCatalog_cor();return;
+    }
+    if(detail.type !== 'open')return;
     if(!state.ready && !state.loaded) return;
     if(state.loading){ state.pendingOpenReset = true; return; }
     resetOpenState_cor();
@@ -1375,12 +1477,17 @@
   });
 
   document.addEventListener('mantto:permissions-updated', () => {
+    clearPersonalCatalog_cor();
     const current = window.ManttoRouter && window.ManttoRouter.getCurrent ? window.ManttoRouter.getCurrent() : null;
     if(current && current.route === 'instalaciones-dashboard'){
       state.loaded = false;
       refresh_cor(true).catch(() => {});
     }
   });
+
+  for(const event of ['mantto:auth-ready','mantto:view-user-changed','mantto:session-expired','mantto:logout']){
+    document.addEventListener(event,clearPersonalCatalog_cor);
+  }
 
   window.ManttoInstalacionesDashboard_cor = {
     init:init_cor,

@@ -8,10 +8,13 @@
  */
 (function (root, factory) {
   'use strict';
-  const exported = Object.freeze(factory());
+  const shared = typeof module !== 'undefined' && module.exports
+    ? require('../instalaciones-programacion-personal/instalaciones-personal-selectores_cor.js')
+    : root?.ManttoInstalacionesPersonalSelectores_cor;
+  const exported = Object.freeze(factory(shared));
   if (typeof module !== 'undefined' && module.exports) module.exports = exported;
   if (root) root.ManttoInstalacionesGhost_cor = exported;
-})(typeof window === 'object' ? window : null, function () {
+})(typeof window === 'object' ? window : null, function (shared) {
   'use strict';
 
   const ROOT = '/api/instalaciones/administracion';
@@ -83,38 +86,14 @@
     return (users || []).filter(row => validId(row?.id_SB) &&
       stringValue(row?.iniciales) && counts.get(stringValue(row.iniciales)) === 1);
   }
-  function isPersonalField_cor(field) {return PERSONAL_FIELDS.has(field);}
-  function personalValues_cor(field,catalog) {
-    const values=catalog?.personal?.[field];
-    return isPersonalField_cor(field)&&Array.isArray(values)?[...new Set(values.map(stringValue).filter(Boolean))]:null;
-  }
-  function personalOptions_cor(field,catalog,current,escape) {
-    const values=personalValues_cor(field,catalog);
-    const chosen=stringValue(current);
-    const option=(value,label,selected=false,disabled=false)=>'<option value="'+escape(value)+'"'+
-      (selected?' selected':'')+(disabled?' disabled':'')+'>'+escape(label)+'</option>';
-    if(!values)return option(chosen,chosen||'Catálogo no disponible',true,true);
-    return option('','Sin asignar',!chosen)+
-      (chosen&&!values.includes(chosen)?option(chosen,chosen+' (valor actual)',true,true):'')+
-      values.map(value=>option(value,value,value===chosen)).join('');
-  }
-  function assertPersonalCatalog_cor(data) {
-    if(!Array.isArray(data?.personal?.ajustador) ||
-       !(Array.isArray(data.personal.subcontratista)||data.personal.subcontratista===null))
-      throw error_cor('Catálogo de personal no disponible.','ADMIN_PERSONAL_CATALOG_INVALID');
-    return data;
-  }
+  // Los dos editores comparten la construcción y validación del catálogo.
+  const {isPersonalField_cor,personalValues_cor,personalOptions_cor,
+    assertPersonalCatalog_cor,validatePersonalValue_cor}=shared;
   function validValue_cor(field, raw, fieldMeta = {}, catalog = null) {
     const v = String(raw == null ? '' : raw).trim();
     const kind = fieldMeta.kind || 'text';
     if (READONLY.has(field)) return {ok:false,error:'Este campo se actualiza automaticamente.'};
-    if (isPersonalField_cor(field)) {
-      const values=personalValues_cor(field,catalog);
-      if(!values)return {ok:false,error:'Catálogo de personal no disponible. Actualiza e inténtalo de nuevo.'};
-      if(!v)return {ok:true,value:null};
-      return values.includes(v)&&v.length<=Number(fieldMeta.max_length||20000)
-        ? {ok:true,value:v} : {ok:false,error:'Selecciona un valor del catálogo de personal activo.'};
-    }
+    if (isPersonalField_cor(field)) return validatePersonalValue_cor(field,v,fieldMeta,catalog);
     if (LIST_FIELDS.has(field)) {
       if (field === 'estatus') {
         return STATUS_SET.has(v) && (catalog?.estatus || []).some(item => item.codigo === v)

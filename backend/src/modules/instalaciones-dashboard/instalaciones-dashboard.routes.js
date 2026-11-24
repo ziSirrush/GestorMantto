@@ -104,6 +104,20 @@ router.get(
 );
 
 
+// Catálogo mínimo de asignaciones, no concede acceso a Administración ni INT9.
+router.get(
+  '/dashboard/catalogos-edicion/personal',
+  requireAuth,
+  requireAccess_cor,
+  requireSupervisorView_cor,
+  requireSupervisorFilter_cor,
+  requireReportSelectorView_cor,
+  requireReportSelector_cor,
+  requireReportList_cor,
+  requireReportEdit_cor,
+  controller.personalCatalog_cor
+);
+
 router.patch(
   '/dashboard/reporte/:id_ins_fl/celda',
   requireAuth,

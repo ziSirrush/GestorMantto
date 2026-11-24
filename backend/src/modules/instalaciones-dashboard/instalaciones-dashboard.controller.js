@@ -197,6 +197,19 @@ async function report_cor(req, res, next) {
   }
 }
 
+async function personalCatalog_cor(req,res,next){
+  try{
+    if(req.viewerContext?.active)throw scopeError_cor('El Visor de usuarios es de solo lectura.','VIEWER_READ_ONLY');
+    if(String(req.query?.modo_junta)!=='1')throw scopeError_cor('El catálogo de edición solo está disponible en Modo Junta.');
+    if(!supervisorValues_cor(req.query?.supervisores).length &&
+        String(req.query?.filtro_especial||'').trim().toUpperCase()!=='AFL')
+      throw scopeError_cor('Selecciona un supervisor para consultar el catálogo.');
+    await validateDashboardQueryScope_cor(req);
+    const personal=await require('../instalaciones-programacion-personal/instalaciones-programacion-personal.service').catalogoAsignacion_cor();
+    return res.json({ok:true,source:'aiven',personal});
+  }catch(error){return sendKnownError_cor(error,res,next);}
+}
+
 async function assertRowInInformationScope_cor(req, idInsFl) {
   const identity = await scopeIdentity_cor(req);
   if (identity.all) return;
@@ -239,5 +252,6 @@ module.exports = {
   bootstrap_cor,
   summary_cor,
   report_cor,
+  personalCatalog_cor,
   updateCell_cor
 };
