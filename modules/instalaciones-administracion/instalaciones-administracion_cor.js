@@ -28,7 +28,7 @@
     selectedProject:null,projectsTotal:0,projectRecordsTotal:0,projectsOffset:0,equipmentOffset:0,tableColumns:[],
     filtersLoaded:false,filterOptions:null,projectsSeq:0,equipmentSeq:0,page:'projects',
     selectedRecord:null,selectedSummary:null,activeGroup:null,editingGroup:null,editingDetail:false,touched:new Set(),users:null,usersLoadingPromise:null,
-    seq:0,detailSeq:0,conflict:false,contextEpoch:0,contextKey:null,personalCatalog:null,personalCatalogPromise:null,
+    seq:0,detailSeq:0,conflict:false,contextEpoch:0,contextKey:null,personalCatalog:null,personalCatalogPromise:null,editCatalog:null,editCatalogPromise:null,
     bulkSelected:new Map(),bulkSnapshots:new Map(),bulkTouched:new Set(),bulkSeq:0,bulkConflict:false,
     autoQueue:new Map(),autoStates:new Map(),autoOriginal:new Map(),autoSeq:0,autoRunning:false,autoActiveField:null,autoBlocked:false,listStale:false};
   const $=id=>document.getElementById(id);
@@ -51,7 +51,7 @@
   // Inyeccion local: el helper no escribe; toma exclusivamente el contrato de lectura actual.
   const ghost=window.ManttoInstalacionesGhost_cor?.create({
     st,$,view,groups,canEdit,esc,label,meta,display,isoDate,previewNumber,canonicalCompare,
-    userOptions,loadUsers,loadPersonalCatalog:loadPersonalCatalog_cor,pager:pager_cor,
+    userOptions,loadUsers,loadPersonalCatalog:loadPersonalCatalog_cor,loadEditCatalog:loadEditCatalog_cor,pager:pager_cor,
     isViewingAs:()=>Boolean(window.ManttoAuth?.isViewingAs?.()),
     currentContext:currentContext_cor,
     announce:status,onSave:saveTableDrafts_cor
@@ -439,7 +439,11 @@
     if(!editable)return '<div class="iadm-cor-form-field" data-locked="true"><label>'+esc(label(f))+'</label><span class="iadm-cor-static">'+esc(display(f,original))+'</span><small class="iadm-cor-help">Campo bloqueado por politica.</small></div>';
     const id='iadm-cor-input-'+f,attr=' id="'+id+'" name="'+esc(f)+'" data-field-control="'+esc(f)+'"';
     let control='',help='',legacy='';
-    if(isPersonalField_cor(f)){
+    if(isCatalogListField_cor(f)){
+      const ready=listAvailable_cor(f);
+      control='<select'+attr+(ready?'':' disabled aria-busy="true"')+'>'+listOptionsFor_cor(f,original)+'</select>';
+      help=ready?'Selecciona una opcion del catalogo.':'Cargando catalogo de opciones...';
+    }else if(isPersonalField_cor(f)){
       const ready=personnelAvailable_cor(f);
       control='<select'+attr+(ready?'':' disabled aria-busy="true"')+'>'+personalInputOptions_cor(f,original)+'</select>';
       help=ready?'Selecciona una opción del personal activo.':'Cargando catálogo de personal...';
@@ -468,7 +472,7 @@
     }
     return '<div class="iadm-cor-form-field" data-field-wrap="'+esc(f)+'" data-changed="false">'+
       '<label for="'+id+'">'+esc(label(f))+'</label>'+control+
-      (help?'<small class="iadm-cor-help"'+(kind==='user'?' data-user-hint="'+esc(f)+'"':isPersonalField_cor(f)?' data-personal-hint="'+esc(f)+'"':'')+'>'+esc(help)+'</small>':'')+
+      (help?'<small class="iadm-cor-help"'+(kind==='user'?' data-user-hint="'+esc(f)+'"':isPersonalField_cor(f)?' data-personal-hint="'+esc(f)+'"':isCatalogListField_cor(f)?' data-list-hint="'+esc(f)+'"':'')+'>'+esc(help)+'</small>':'')+
       (legacy?'<small class="iadm-cor-help iadm-cor-legacy">Valor legado: '+esc(legacy)+'</small>':'')+
       (kind!=='boolean'?'<span class="iadm-cor-inline-actions"><button type="button" class="iadm-cor-btn iadm-cor-btn-compact" data-clear-field="'+esc(f)+'">Vaciar campo</button></span>':'')+
       '<small class="iadm-cor-help" data-field-error="'+esc(f)+'" data-error="true" hidden></small>'+
@@ -547,11 +551,16 @@
     if(st.editingDetail){
       loadEditableUsersWithoutBlocking_cor(ensureContext_cor(),st.detailSeq,Number(st.selectedRecord?.id_ins_fl));
       loadEditablePersonalWithoutBlocking_cor(ensureContext_cor(),st.detailSeq,Number(st.selectedRecord?.id_ins_fl));
+      loadEditableListsWithoutBlocking_cor(ensureContext_cor(),st.detailSeq,Number(st.selectedRecord?.id_ins_fl));
     }
   }
   function readControl(f,inputPrefix='iadm-cor-input-'){
     const input=$(inputPrefix+f);if(!input)return {ok:false,error:'Falta el campo.'};
     const kind=meta(f).kind||'text',v=raw(input.value);
+    if(isCatalogListField_cor(f)){
+      if(inputPrefix==='iadm-cor-input-'&&raw(st.autoOriginal.get(f))===v)return {ok:true,value:v||null};
+      return personnelHelpers.validateCatalogList_cor(f,v,meta(f),st.editCatalog);
+    }
     if(isPersonalField_cor(f)){
       if(inputPrefix==='iadm-cor-input-'&&raw(st.autoOriginal.get(f))===v)
         return {ok:true,value:v||null};
@@ -672,6 +681,49 @@
   async function loadContract(){const epoch=ensureContext_cor();const contract=await api(ROOT+'/contrato');if(!isCurrentContext_cor(epoch))return false;st.contract=contract;return true;}
   function clearPersonalCatalog_cor(){
     st.personalCatalog=null;st.personalCatalogPromise=null;
+    st.editCatalog=null;st.editCatalogPromise=null;
+  }
+  const isCatalogListField_cor=field=>personnelHelpers?.isCatalogListField_cor(field)===true;
+  const listAvailable_cor=field=>personnelHelpers.catalogListAvailable_cor(field,st.editCatalog);
+  const listOptionsFor_cor=(field,value)=>personnelHelpers.catalogListOptions_cor(field,st.editCatalog,value,esc);
+  async function loadEditCatalog_cor(){
+    const epoch=ensureContext_cor();
+    if(window.ManttoAuth?.isViewingAs?.())throw new Error('El Visor de Usuarios es de solo lectura.');
+    if(st.editCatalog)return st.editCatalog;
+    if(st.editCatalogPromise)return st.editCatalogPromise;
+    const pending=api(ROOT+'/catalogos-edicion').then(data=>{
+      if(!isCurrentContext_cor(epoch)||st.editCatalogPromise!==pending)throw contextChangedError_cor();
+      if(!Array.isArray(data?.estatus)||!Array.isArray(data?.vendedores)||!Array.isArray(data?.supervisores))
+        throw new Error('Catalogo de edicion no disponible.');
+      st.editCatalog=data;
+      return data;
+    });
+    st.editCatalogPromise=pending;
+    try{return await pending;}finally{if(st.editCatalogPromise===pending)st.editCatalogPromise=null;}
+  }
+  function loadEditableListsWithoutBlocking_cor(epoch,detailSeq,recordId){
+    const fields=groups().filter(g=>canEdit(g)).flatMap(g=>(g.editable_fields||[]).filter(isCatalogListField_cor));
+    if(!fields.length)return;
+    const stillCurrent=()=>isCurrentContext_cor(epoch)&&detailSeq===st.detailSeq&&
+      Number(st.selectedRecord?.id_ins_fl)===recordId&&st.page==='detalle'&&st.editingDetail;
+    const hint=field=>view()?.querySelector('[data-list-hint="'+field+'"]');
+    loadEditCatalog_cor().then(()=>{
+      if(!stillCurrent())return;
+      for(const field of fields){
+        const input=$('iadm-cor-input-'+field);
+        if(!input||!input.disabled)continue;
+        input.innerHTML=listOptionsFor_cor(field,st.autoOriginal.get(field));
+        input.disabled=!listAvailable_cor(field);
+        input.removeAttribute('aria-busy');
+        const help=hint(field);if(help)help.textContent=input.disabled?'Catalogo no disponible; se conserva el valor actual.':'Selecciona una opcion del catalogo.';
+      }
+    }).catch(()=>{
+      if(!stillCurrent())return;
+      for(const field of fields){
+        $('iadm-cor-input-'+field)?.removeAttribute('aria-busy');
+        const help=hint(field);if(help)help.textContent='Catalogo no disponible; se conserva el valor actual.';
+      }
+    });
   }
   async function loadPersonalCatalog_cor(){
     const epoch=ensureContext_cor();
@@ -717,7 +769,8 @@
     });
   }
   function assignAutoControl_cor(input,field,value){
-    if(isPersonalField_cor(field))input.innerHTML=personalInputOptions_cor(field,value);
+    if(isCatalogListField_cor(field))input.innerHTML=listOptionsFor_cor(field,value);
+    else if(isPersonalField_cor(field))input.innerHTML=personalInputOptions_cor(field,value);
     else input.value=autoInputValue_cor(field,value);
   }
   async function loadUsers(){
@@ -1036,7 +1089,8 @@
     const m=meta(f),kind=m.kind||'text',id='iadm-cor-bulk-input-'+f;
     const attr=' id="'+id+'" data-bulk-control="'+esc(f)+'" disabled';
     let control='',help='Dejar vacio y marcar aplicar eliminara el valor de este campo.';
-    if(isPersonalField_cor(f))control='<select'+attr+'>'+personalInputOptions_cor(f,null)+'</select>';
+    if(isCatalogListField_cor(f))control='<select'+attr+'>'+listOptionsFor_cor(f,null)+'</select>';
+    else if(isPersonalField_cor(f))control='<select'+attr+'>'+personalInputOptions_cor(f,null)+'</select>';
     else if(kind==='user')control='<select'+attr+'>'+userOptions(null)+'</select>';
     else if(kind==='boolean')control='<select'+attr+'><option value="">Selecciona un valor</option><option value="1">Activo</option><option value="0">Inactivo</option></select>';
     else if(kind==='date'){
@@ -1116,7 +1170,7 @@
     for(const g of editableBulkGroups_cor()){
       for(const f of g.editable_fields||[]){
         const apply=st.bulkTouched.has(f),input=$('iadm-cor-bulk-input-'+f);
-        if(input)input.disabled=!apply||st.loading||st.saving||(isPersonalField_cor(f)&&!personnelAvailable_cor(f));
+        if(input)input.disabled=!apply||st.loading||st.saving||(isPersonalField_cor(f)&&!personnelAvailable_cor(f))||(isCatalogListField_cor(f)&&!listAvailable_cor(f));
         const wrap=view()?.querySelector('[data-bulk-field-wrap="'+f+'"]');
         if(wrap){wrap.dataset.changed=apply?'true':'false';wrap.dataset.invalid=has(payload.errors,f)?'true':'false';}
         const error=view()?.querySelector('[data-bulk-error="'+f+'"]');
@@ -1147,6 +1201,8 @@
       }
       if(editableBulkGroups_cor().some(g=>(g.editable_fields||[]).some(f=>USER_IDS.has(f))))await loadUsers();
       if(editableBulkGroups_cor().some(g=>(g.editable_fields||[]).some(isPersonalField_cor)))await loadPersonalCatalog_cor();
+      if(editableBulkGroups_cor().some(g=>(g.editable_fields||[]).some(isCatalogListField_cor)))
+        await loadEditCatalog_cor().catch(()=>null);
       if(!isCurrentContext_cor(epoch)||seq!==st.bulkSeq||key!==st.selectedProject?.project_key)return false;
       st.bulkSnapshots=snapshots;st.bulkTouched.clear();st.bulkConflict=false;
       showPage_cor('multiple');renderBulkEditor_cor();status('Edicion multiple preparada','ready');
@@ -1278,7 +1334,7 @@
         st.touched.add(field);
         // Seleccion, fecha y cambio discreto: guardar al cambiar.
         // Texto y textarea: guardar SOLO al perder el foco, no por tecla.
-        if(type==='change'&&(['user','boolean','date'].includes(meta(field).kind)||isPersonalField_cor(field)))queueAutoSave_cor(field);
+        if(type==='change'&&(['user','boolean','date'].includes(meta(field).kind)||isPersonalField_cor(field)||isCatalogListField_cor(field)))queueAutoSave_cor(field);
         else{setAutoState_cor(field,'editing','Pendiente: sal del campo para guardar.');updateDirtyUi();}
       }
       if(type==='change'&&e.target?.dataset?.bulkRecordId){
@@ -1354,5 +1410,5 @@
     const id=st.selectedRecord?.id_ins_fl;
     refreshAfterContextSwitch_cor({recordId:id});
   });
-  window.ManttoInstalacionesAdministracion_cor=Object.freeze({init,refresh,getAltaContext:getAltaContext_cor,loadPersonalCatalog:loadPersonalCatalog_cor});
+  window.ManttoInstalacionesAdministracion_cor=Object.freeze({init,refresh,getAltaContext:getAltaContext_cor,loadPersonalCatalog:loadPersonalCatalog_cor,loadEditCatalog:loadEditCatalog_cor});
 })();

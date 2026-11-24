@@ -281,6 +281,8 @@ async function createRowsCor(req, body = {}) {
     await connection.beginTransaction();
     transaction = true;
     await validateExistingCor(connection, rows);
+    if(rows.some(row=>Object.hasOwn(row,'estado')||Object.hasOwn(row,'estatus_produccion')))
+      await require('./instalaciones-administracion.estados.service').assertCatalogChanges_cor(connection,rows);
     const created = [];
     const today = rules.zonedToday_cor();
     for (const original of rows) {

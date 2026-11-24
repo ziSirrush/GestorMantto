@@ -12,6 +12,7 @@ const visibilityService = require('../ventas/ventas-visibility.service');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 const repository = require('./instalaciones-administracion.repository');
 const auditService = require('./instalaciones-administracion.audit-service');
+const estadosCatalog_cor = require('./instalaciones-administracion.estados.service');
 const {
   GROUPS_COR,
   SYSTEM_READONLY_FIELDS_COR,
@@ -287,6 +288,8 @@ async function updateGroup_cor(req, idValue, groupKey, body = {}) {
   const expected = expectedValues_cor(body, initialChanges);
   const changes = normalizeEditedFields_cor(initialChanges);
   await validateResponsibleIds_cor(changes);
+  if(Object.hasOwn(changes,'estado')||Object.hasOwn(changes,'estatus_produccion'))
+    await estadosCatalog_cor.assertCatalogChanges_cor(db,changes,[expected]);
 
   const scope = await resolveScope_cor(req);
   const result = await repository.updateRecordById_cor({
@@ -397,6 +400,8 @@ async function updateDetail_cor(req, idValue, body = {}, options = {}) {
   // peticion; nunca basta ACCESO_VISUAL ni la declaracion del frontend.
   await ensureFullEditPermission_cor(req);
   await validateResponsibleIds_cor(payload.changes);
+  if(Object.hasOwn(payload.changes,'estado')||Object.hasOwn(payload.changes,'estatus_produccion'))
+    await estadosCatalog_cor.assertCatalogChanges_cor(db,payload.changes,[payload.expected]);
   const scope = await resolveScope_cor(req);
 
   const result = await repository.updateRecordById_cor({
@@ -605,6 +610,9 @@ async function updateMulti_cor(req, projectKey, body = {}) {
   // Verificacion unica por lote, tras validar los grupos y campos.
   await ensureFullEditPermission_cor(req);
   await validateResponsibleIds_cor(payload.changes);
+  if(Object.hasOwn(payload.changes,'estado')||Object.hasOwn(payload.changes,'estatus_produccion'))
+    await estadosCatalog_cor.assertCatalogChanges_cor(db,payload.changes,
+    payload.ids.map(id=>payload.expectedById[id]));
   const scope = await resolveScope_cor(req);
   const results = await repository.updateProjectBatch_cor({
     projectKey: payload.key,

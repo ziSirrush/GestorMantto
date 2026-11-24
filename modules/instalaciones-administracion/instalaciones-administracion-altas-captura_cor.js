@@ -7,13 +7,16 @@
  */
 (function (root, factory) {
   'use strict';
-  const api = Object.freeze(factory());
+  const states = typeof module !== 'undefined' && module.exports
+    ? require('./instalaciones-administracion-ghost_cor.js').helpers
+    : root?.ManttoInstalacionesGhost_cor?.helpers;
+  const api = Object.freeze(factory(states));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root && root.document) {
     root.ManttoInstalacionesAltasCaptura_cor = api;
     api.install(root);
   }
-})(typeof window === 'object' ? window : null, function () {
+})(typeof window === 'object' ? window : null, function (states) {
   'use strict';
 
   const ROOT = '/api/instalaciones/administracion';
@@ -32,17 +35,11 @@
     'fecha_fin_ajuste_real', 'anio_termino', 'costo_mensual_mantenimiento_cem'
   ]);
   const PERSONAL_FIELDS = new Set(['ajustador','subcontratista']);
-  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl', ...PERSONAL_FIELDS]);
+  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl', 'estado', 'estatus_produccion', ...PERSONAL_FIELDS]);
   const ENUM_OPTIONS = Object.freeze({
     categoria:Object.freeze(['Comercial','Residencial']),
     carpeta_fisica:Object.freeze(['Digital','Fisica']),
     tipo_equipo:Object.freeze(['ELE-MONT','RAMP-ESC'])
-  });
-  const STATE_LOCATION_BY_CODE = Object.freeze({
-    AGU:'Aguascalientes',BCN:'Baja California Norte',BCS:'Baja California Sur',CHH:'Chihuahua',CHP:'Chiapas',COA:'Coahuila',
-    DUR:'Durango',EDO:'Estado de México',GRO:'Guerrero',GUA:'Guanajuato',HID:'Hidalgo',JAL:'Jalisco',MEX:'Ciudad de México',
-    MIC:'Michoacán',MOR:'Morelos',NAY:'Nayarit',NLE:'Nuevo León',OAX:'Oaxaca',PUE:'Puebla',QUE:'Querétaro',ROO:'Quintana Roo',
-    SIN:'Sinaloa',SLP:'San Luis Potosí',TAB:'Tabasco',TAM:'Tamaulipas',TLA:'Tlaxcala',VER:'Veracruz',YUC:'Yucatán'
   });
   const DRAFT_DOMAIN='CORELLIAN';
   const DRAFT_DATASET='INSTALACIONES-ADMINISTRACION-ALTAS';
@@ -86,7 +83,7 @@
     if(matches.length!==1)return {supervisor_nombre:null,correo_supervisor:null};
     return {supervisor_nombre:trimmed(matches[0]?.nombre)||null,correo_supervisor:trimmed(matches[0]?.correo)||null};
   }
-  function stateLocationCor(code){return STATE_LOCATION_BY_CODE[identityKey(code)]||null;}
+  function stateLocationCor(code,catalog){return states?.stateLocation_cor(code,catalog)||null;}
   function normalizeStoredDraftCor(payload){
     if(!payload||payload.schema_version!==1||!Array.isArray(payload.rows)||payload.rows.length<1||payload.rows.length>MAX)return null;
     const seen=new Set(),rows=[];let maxId=0;
@@ -156,6 +153,7 @@
       if (value.length>100) return {ok:false,error:'PP NS excede 100 caracteres.'};
       return {ok:true,value:value||null};
     }
+    if(states?.isCatalogListField_cor(field))return states.validateCatalogList_cor(field,value,meta,catalogs);
     if (!value) return {ok:true,value:null};
     if (ENUM_OPTIONS[field]) {
       const chosen=enumValueCor(field,value);
@@ -173,7 +171,7 @@
     if(!calculator || typeof calculator.calculateCor!=='function')return null;
     return calculator.calculateCor(values, today ? {today} : {});
   }
-  function assessRows(rows) {
+  function assessRows(rows,catalogs) {
     const identities = new Map(), names = new Map();
     const issues = [];
     if (!Array.isArray(rows) || rows.length<1 || rows.length>MAX)
@@ -183,6 +181,10 @@
       const missing=REQUIRED.filter(f => !identityKey(row[f]) ||
         ['-','NULL','N/A','N/D','SIN PP NS'].includes(identityKey(row[f])));
       if (missing.length) issues.push(`Fila ${index+1}: falta ${missing.map(label).join(', ')}.`);
+      if(catalogs!==undefined){
+        for(const field of ['estado','estatus_produccion'])if(trimmed(row[field])&&!states?.validateCatalogList_cor(field,row[field],{},catalogs)?.ok)
+          issues.push(`Fila ${index+1}: selecciona un valor vigente de ${label(field)}.`);
+      }
       if (missing.some(f=>f==='id_proyecto')) continue;
       const ppns=identityKey(row.id_proyecto), project=identityKey(row.proyecto);
       if (names.has(ppns) && project && names.get(ppns) && names.get(ppns)!==project)
@@ -198,8 +200,8 @@
     return {ok:issues.length===0,issues,count:rows?.length||0};
   }
 
-  function postRowsCor(rows) {
-    const verdict=assessRows(rows);
+  function postRowsCor(rows,catalogs) {
+    const verdict=assessRows(rows,catalogs);
     if(!verdict.ok)throw Error(verdict.issues.join(' '));
     return {rows:rows.map(item=>{
       const value=item.values||{};
@@ -318,7 +320,7 @@
         }
       }
       if(field==='estado'){
-        const location=stateLocationCor(value);
+        const location=stateLocationCor(value,catalogs);
         if(location)row.values.estado_localizacion=location;else delete row.values.estado_localizacion;
       }
     }
@@ -396,7 +398,8 @@
         contract=data;
         const permitted=canUse();
         if(!permitted){node('iadm-cor-altas-open').hidden=true;await discardPersistedDraft();if(visible)close(false);return;}
-        const catalog=await auth().api(ROOT+'/catalogos-edicion',{method:'GET',cache:'no-store'});
+        const shared=env.ManttoInstalacionesAdministracion_cor?.loadEditCatalog;
+        const catalog=await (shared?shared():auth().api(ROOT+'/catalogos-edicion',{method:'GET',cache:'no-store'}));
         if(serial!==requestSerial || authIdentity()!==identity||viewing())return;
         if(!Array.isArray(catalog?.estatus) || !Array.isArray(catalog?.vendedores) ||
           !Array.isArray(catalog?.supervisores))throw Error('Catalogos incompletos.');
@@ -448,6 +451,7 @@
         (identityKey(selected)===identityKey(value)?' selected':'')+'>'+escape(value)+'</option>').join('');
     }
     function optionsFor(field, selected) {
+      if(states?.isCatalogListField_cor(field))return states.catalogListOptions_cor(field,catalogs,selected,escape);
       if(PERSONAL_FIELDS.has(field))return helpers().personalOptions_cor(field,catalogs,selected,escape);
       let options=[];
       if(field==='estatus')options=(catalogs?.estatus||[]).map(x=>({value:x.codigo,label:x.codigo+' · '+(x.nombre||x.codigo)}));
@@ -532,9 +536,9 @@
       const back=node('iadm-cor-altas-back');if(back)back.disabled=saving;
       const cancel=node('iadm-cor-altas-cancel');if(cancel)cancel.disabled=saving;
       const save=node('iadm-cor-altas-save');
-      if(save){save.disabled=saving||uncertain||!canUse()||!engine?.calculateCor||!assessRows(rows).ok;
+      if(save){save.disabled=saving||uncertain||!canUse()||!engine?.calculateCor||!assessRows(rows,catalogs).ok;
         save.textContent=saving?'Guardando lote...':'Guardar '+rows.length+' equipo'+(rows.length===1?'':'s');}
-      const result=assessRows(rows);
+      const result=assessRows(rows,catalogs);
       const feedback=node('iadm-cor-altas-feedback');if(feedback) {
         feedback.textContent=error||calcError||(result.ok?'Vista previa calculada; confirma para guardar el lote.':
           result.issues.slice(0,4).join(' ')+(result.issues.length>4?' (+ mas pendientes)':''));
@@ -552,6 +556,9 @@
       const ticket=++editorRequest,serial=requestSerial,identity=authIdentity();
       const valid=()=>visible&&!saving&&!uncertain&&canUse()&&ticket===editorRequest&&
         serial===requestSerial&&identity===authIdentity()&&Boolean(rowById(id));
+      if(states?.isCatalogListField_cor(field)&&!states.catalogListAvailable_cor(field,catalogs)){
+        error='Catalogo de opciones no disponible; actualiza la aplicacion.';render();return;
+      }
       if(PERSONAL_FIELDS.has(field)){
         try{
           const shared=env.ManttoInstalacionesAdministracion_cor?.loadPersonalCatalog;
@@ -573,7 +580,7 @@
       if(!row){current=null;return false;}
       const input=host?.querySelector('[data-iadm-altas-row="'+currentEdit.id+'"] [data-iadm-altas-editor-field="'+field+'"]');
       if(!input)return false;
-      if(PERSONAL_FIELDS.has(field)&&trimmed(input.value)===trimmed(row.values[field])){
+      if((PERSONAL_FIELDS.has(field)||states?.isCatalogListField_cor(field))&&trimmed(input.value)===trimmed(row.values[field])){
         current=null;error='';render();return true;
       }
       const normalized=validateDraftCell(field,input.value,meta(field),catalogs,helpers());
@@ -591,7 +598,7 @@
       if(current && !commitCurrent())return false;
       if(!formulaEngine()?.calculateCor){error='El calculador de formulas no esta disponible.';render();return false;}
       let payload;
-      try {payload=postRowsCor(rows);}
+      try {payload=postRowsCor(rows,catalogs);}
       catch(e){error=e.message;render();return false;}
       const count=payload.rows.length;
       const projects=new Set(payload.rows.map(item=>item.id_proyecto));

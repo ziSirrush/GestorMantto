@@ -30,7 +30,7 @@
   const HIDDEN = new Set(HIDDEN_FIELDS);
   const READONLY = new Set([...HIDDEN_FIELDS, ...DERIVED_FIELDS, 'rel_admin']);
   const PERSONAL_FIELDS = new Set(['ajustador','subcontratista']);
-  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl', ...PERSONAL_FIELDS]);
+  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl', 'estado', 'estatus_produccion', ...PERSONAL_FIELDS]);
   const STATUS_CODES = Object.freeze([
     '01-SUS', '02-OC', '03-PM', '04-M', '05-PA', '06-A', '07-PE', '08-T'
   ]);
@@ -89,10 +89,77 @@
   // Los dos editores comparten la construcción y validación del catálogo.
   const {isPersonalField_cor,personalValues_cor,personalOptions_cor,
     assertPersonalCatalog_cor,validatePersonalValue_cor}=shared;
+  function stateCatalogValues_cor(catalog){
+    if(!Array.isArray(catalog?.estados)||!catalog.estados.length)return null;
+    const seen=new Set(),result=[];
+    for(const item of catalog.estados){
+      const codigo=String(item?.codigo??'').trim();
+      const nombre=String(item?.nombre??'').trim();
+      const key=codigo.toUpperCase();
+      if(!codigo||seen.has(key))return null;
+      seen.add(key);result.push({codigo,nombre});
+    }
+    return result;
+  }
+  function stateLocation_cor(value,catalog){
+    return stateCatalogValues_cor(catalog)?.find(item=>item.codigo===String(value??'').trim())?.nombre||null;
+  }
+  function catalogOptionsHtml_cor(options,value,escape){
+    const current=String(value??'').trim();
+    const legacy=current&&!options?.some(item=>item.codigo===current);
+    return '<option value=""'+(!current?' selected':'')+'>Sin asignar</option>'+
+      (legacy?'<option value="'+escape(current)+'" selected disabled>'+escape(current)+' (valor anterior)</option>':'')+
+      (options||[]).map(item=>'<option value="'+escape(item.codigo)+'"'+
+        (current===item.codigo?' selected':'')+'>'+escape(item.codigo+(item.nombre?' · '+item.nombre:''))+'</option>').join('');
+  }
+  function stateOptions_cor(catalog,value,escape){
+    return catalogOptionsHtml_cor(stateCatalogValues_cor(catalog),value,escape);
+  }
+  function productionStatusValues_cor(catalog){
+    if(!Array.isArray(catalog?.estatus))return null;
+    const options=STATUS_CODES.map(codigo=>{
+      const matches=catalog.estatus.filter(item=>item?.codigo===codigo);
+      return matches.length===1?{codigo,nombre:String(matches[0].nombre||codigo)}:null;
+    });
+    return options.every(Boolean)?options:null;
+  }
+  function productionStatusOptions_cor(catalog,value,escape){
+    return catalogOptionsHtml_cor(productionStatusValues_cor(catalog),value,escape);
+  }
+  function validateProductionStatus_cor(value,catalog){
+    const options=productionStatusValues_cor(catalog);
+    if(!options)return {ok:false,error:'Catalogo de estatus de produccion no disponible.'};
+    const v=String(value??'').trim();
+    if(!v)return {ok:true,value:null};
+    return options.some(item=>item.codigo===v)?{ok:true,value:v}:
+      {ok:false,error:'Selecciona uno de los ocho estatus autorizados.'};
+  }
+  function isCatalogListField_cor(field){return field==='estado'||field==='estatus_produccion';}
+  function catalogListAvailable_cor(field,catalog){
+    return Boolean(field==='estado'?stateCatalogValues_cor(catalog):
+      field==='estatus_produccion'?productionStatusValues_cor(catalog):null);
+  }
+  function catalogListOptions_cor(field,catalog,value,escape){
+    return field==='estado'?stateOptions_cor(catalog,value,escape):
+      productionStatusOptions_cor(catalog,value,escape);
+  }
+  function validateCatalogList_cor(field,value,meta,catalog){
+    return field==='estado'?validateStateValue_cor(value,meta,catalog):
+      validateProductionStatus_cor(value,catalog);
+  }
+  function validateStateValue_cor(value,meta,catalog){
+    const v=String(value??'').trim(),options=stateCatalogValues_cor(catalog);
+    if(!options)return {ok:false,error:'Catalogo de estados abreviados no disponible.'};
+    if(!v)return {ok:true,value:null};
+    if(v.length>(Number(meta?.max_length)||20000)||!options.some(item=>item.codigo===v))
+      return {ok:false,error:'Selecciona una abreviatura activa del Catalogo General.'};
+    return {ok:true,value:v};
+  }
   function validValue_cor(field, raw, fieldMeta = {}, catalog = null) {
     const v = String(raw == null ? '' : raw).trim();
     const kind = fieldMeta.kind || 'text';
     if (READONLY.has(field)) return {ok:false,error:'Este campo se actualiza automaticamente.'};
+    if (isCatalogListField_cor(field)) return validateCatalogList_cor(field,v,fieldMeta,catalog);
     if (isPersonalField_cor(field)) return validatePersonalValue_cor(field,v,fieldMeta,catalog);
     if (LIST_FIELDS.has(field)) {
       if (field === 'estatus') {
@@ -305,7 +372,7 @@
       if (catalogs) return catalogs;
       if (catalogPromise) return catalogPromise;
       const current = ctx(), serial = epoch;
-      const request = api(ROOT + '/catalogos-edicion');
+      const request = opts.loadEditCatalog ? opts.loadEditCatalog() : api(ROOT + '/catalogos-edicion');
       catalogPromise = Promise.resolve(request).then(data => {
         if (!validCurrent(current,serial)) throw error_cor(
           'Cambio de sesion o proyecto.','ADMIN_V2_CONTEXT_CHANGED');
@@ -318,6 +385,7 @@
       return catalogPromise;
     }
     function optionsFor(field,value) {
+      if(isCatalogListField_cor(field))return catalogListOptions_cor(field,catalogs,value,esc);
       if(isPersonalField_cor(field))return personalOptions_cor(field,personalCatalog,value,esc);
       if (!catalogs) return '';
       const chosen = stringValue(value);
@@ -488,7 +556,11 @@
             personalCatalog=data;
             if(!personalValues_cor(field,personalCatalog))throw error_cor(
               'No están disponibles las iniciales del catálogo de personal.','ADMIN_PERSONAL_CATALOG_INVALID');
-          }else await loadCatalogs();
+          }else{
+            await loadCatalogs();
+            if(isCatalogListField_cor(field)&&!catalogListAvailable_cor(field,catalogs))throw error_cor(
+              'Catalogo de opciones no disponible.','ADMIN_LIST_CATALOG_INVALID');
+          }
         } catch (error) {
           if (validCurrent(context,serial)&&ticket===editorRequest) setMessage(error?.message || 'No se pudo leer el catalogo.','error');
           return;
@@ -648,7 +720,7 @@
         entry.id+'"][data-iadm-ghost-field="'+entry.field+'"] [data-iadm-v2-control]');
       if (!input) return false;
       if (!entry.touched) {active=null;redrawCell(entry.id,entry.field);return true;}
-      if(isPersonalField_cor(entry.field)&&!entry.mixed&&
+      if((isPersonalField_cor(entry.field)||isCatalogListField_cor(entry.field))&&!entry.mixed&&
          stringValue(input.value)===stringValue(row[entry.field])){
         active=null;redrawCell(entry.id,entry.field);return true;
       }
@@ -798,6 +870,9 @@
   }
   return {create,helpers:Object.freeze({visibleColumns_cor,editable_cor,validCivilDate_cor,
     uniqueInitials_cor,isPersonalField_cor,personalValues_cor,personalOptions_cor,assertPersonalCatalog_cor,
+    stateCatalogValues_cor,stateLocation_cor,stateOptions_cor,validateStateValue_cor,
+    productionStatusValues_cor,productionStatusOptions_cor,validateProductionStatus_cor,
+    isCatalogListField_cor,catalogListAvailable_cor,catalogListOptions_cor,validateCatalogList_cor,
     validValue_cor,payload_cor,persistVerified_cor,
     buildMultiPayload_cor,persistVerifiedMulti_cor,MAX_MULTI,
     HIDDEN_FIELDS,DERIVED_FIELDS,STATUS_CODES})};

@@ -118,7 +118,8 @@ test('F5 UI: catalogos de alta normalizan valores y autocompletan supervisor/est
   assert.equal(helpers.enumValueCor('categoria','comercial'),'Comercial');
   assert.equal(helpers.enumValueCor('carpeta_fisica','fisica'),'Fisica');
   assert.equal(helpers.enumValueCor('tipo_equipo','ramp-esc'),'RAMP-ESC');
-  assert.equal(helpers.stateLocationCor('PUE'),'Puebla');
+  assert.equal(helpers.stateLocationCor('PUE',{estados:[{codigo:'PUE',nombre:'Puebla'}]}),'Puebla');
+  assert.equal(helpers.stateLocationCor('PUE'),null);
   assert.deepEqual(helpers.supervisorAutofillCor('SUP',{supervisores:[{id_SB:7,iniciales:'SUP',nombre:'Supervisor Prueba',correo:'sup@example.com'}]}),
     {supervisor_nombre:'Supervisor Prueba',correo_supervisor:'sup@example.com'});
 });

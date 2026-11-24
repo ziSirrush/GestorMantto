@@ -21,6 +21,7 @@ const { normalizeEditedFields_cor } =
 const rules = require('./instalaciones-administracion.auto-rules');
 const newRowPersist = require('./instalaciones-administracion-altas-persist');
 const newRowOrigin = require('./instalaciones-administracion-altas-origin');
+const estadosCatalog_cor = require('./instalaciones-administracion.estados.service');
 
 const MAX_MULTI_COR = 20;
 const ALLOWED_FIELDS_COR = [...ALL_OPERATIONAL_FIELDS_COR];
@@ -217,6 +218,8 @@ async function updateDirect_cor(req,projectKey,idRaw,body) {
     if (changed_cor(before[field],expected)) throw rules.knownError_cor(409,
       'INSTALACIONES_ADMINISTRACION_CONFLICTO_CONCURRENCIA',
       'La celda cambio en el servidor. Actualiza la tabla antes de reintentar.');
+    if(field==='estado'||field==='estatus_produccion')
+      await estadosCatalog_cor.assertCatalogChanges_cor(connection,{[field]:value},[before]);
     const row=await persistOne_cor(req,connection,id,before,field,value,today);
     await connection.commit();started=false;
     // Nunca retornar after ni nuevas FK: puede cambiar alcance tras el PATCH.
@@ -262,6 +265,8 @@ async function updateDirectMulti_cor(req,projectKey,body) {
         'La informacion de un equipo cambio. Ningun equipo fue modificado.');
       originalRows.set(id,row);
     }
+    if(field==='estado'||field==='estatus_produccion')
+      await estadosCatalog_cor.assertCatalogChanges_cor(connection,{[field]:value},[...originalRows.values()]);
     const records=[];
     for (const id of ids) {
       records.push(await persistOne_cor(req,connection,id,originalRows.get(id),field,value,today));
@@ -295,6 +300,7 @@ async function getEditCatalogs_cor(req) {
   return {
     estatus: rules.STATUS_CODES_COR.map(codigo=>({codigo,nombre:rules.STATUS_LABELS_COR[codigo]})),
     vendedores:options('Ventas'),supervisores:options('Instalaciones'),
+    estados:await estadosCatalog_cor.listEstados_cor(db),
     reglas:{max_equipos_por_lote:MAX_MULTI_COR, solo_una_celda:true,
       requiere_confirmacion_multiple:true, readonly:rules.DIRECT_READONLY_FIELDS_COR}
   };
