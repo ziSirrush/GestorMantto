@@ -66,7 +66,7 @@ let rejected=false;try{render.assertReportContract_cor({ok:true,section:stages[0
 check(rejected,'Respuesta antigua no se presenta como VIP');
 const bstate={loading:false,sections:stages,reportSections:['02-OC'],vipOnly:false,afl:false,selectedSupervisors:['AB'],reportRequest:0};
 const bhost={innerHTML:''},help={},scope={};let loads=0;
-const ctrl=new Function('state','raw','esc','$','hasPermission_cor','installationStatusStyle_cor','AJUSTE_STATUS_COR','closeCellEditor_cor','persistDashboardConfig_cor','validUniverse_cor','loadReport_cor',frag(front,'function canFilterSections_cor(','function applyBootstrap_cor(response)')+'\nreturn {renderSectionButtons_cor,toggleReportSection_cor};')(bstate,raw,esc,id=>({'idb-cor-section-buttons':bhost,'idb-cor-report-help':help,'idb-cor-report-scope':scope}[id]),()=>true,()=>'', '06-A',()=>{},()=>{},()=>true,()=>{loads++;});
+const ctrl=new Function('state','raw','esc','$','hasPermission_cor','installationStatusStyle_cor','AJUSTE_STATUS_COR','closeCellEditor_cor','persistDashboardConfig_cor','validUniverse_cor','loadReport_cor','syncAdjustersCalendar_cor',frag(front,'function canFilterSections_cor(','function applyBootstrap_cor(response)')+'\nreturn {renderSectionButtons_cor,toggleReportSection_cor};')(bstate,raw,esc,id=>({'idb-cor-section-buttons':bhost,'idb-cor-report-help':help,'idb-cor-report-scope':scope}[id]),()=>true,()=>'', '06-A',()=>{},()=>{},()=>true,()=>{loads++;},()=>{});
 ctrl.renderSectionButtons_cor();
 check(bhost.innerHTML.includes('data-section-code="VIP"')&&bhost.innerHTML.includes('data-section-code="02-OC"')&&!bhost.innerHTML.includes('<select'),'Botones reales');
 ctrl.toggleReportSection_cor('06-A');check(same(bstate.reportSections,['02-OC','06-A']),'Selección múltiple');

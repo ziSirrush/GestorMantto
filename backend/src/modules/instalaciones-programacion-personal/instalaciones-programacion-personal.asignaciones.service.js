@@ -129,14 +129,23 @@ function calendarScope(req,type='AJUSTADOR') {
   return {...access,sql:`(${access.sql}) AND UPPER(TRIM(COALESCE(f.supervisor_fl,''))) IN (${placeholders(supervisors.length)})`,
     params:[...access.params,...supervisors],supervisores:supervisors};
 }
-function selectCalendarPeople(personas,assignments,desde,hasta,selection) {
+async function selectCalendarPeople(connection,personas,selection,identityCatalog=personas) {
   if(!selection.supervisores)return personas;
-  // No hay supervisor propio en instalaciones_personal. Las vinculaciones
-  // vigentes y el historial visible en el periodo identifican su universo.
-  const linked=new Set(assignments.filter(a=>a.visible &&
-    (!a.es_historico||(a.valida&&intersect(a.inicio,a.fin,desde,hasta))))
-    .map(a=>Number(a.id_personal)));
-  return personas.filter(p=>linked.has(Number(p.id_personal)));
+  // Fuente oficial: nombres registrados en FL, independientemente de las barras existentes.
+  const refs=require('./instalaciones-programacion-personal.ajustadores.service')._shared;
+  const index=refs.indicePersonal(identityCatalog);
+  const [rows]=await connection.query(
+    `SELECT DISTINCT CAST(f.ajustador AS BINARY) AS ajustador
+       FROM ins_fl f WHERE f.activo=1 AND TRIM(f.estatus)='06-A'
+       AND (${selection.sql}) AND f.ajustador IS NOT NULL AND TRIM(f.ajustador)<>''
+       LIMIT 5001`,selection.params);
+  if(rows.length>5000)throw error(422,'INT9_REFERENCIAS_EXCESIVAS','Demasiadas referencias de Ajustadores; reduce los supervisores.');
+  const linked=new Set();
+  for(const row of rows){
+    const match=refs.resolverReferencia(row.ajustador,index);
+    if(match.estado==='IDENTIFICADO')for(const person of match.personas)linked.add(person.id_personal);
+  }
+  return personas.filter(person=>linked.has(person.id_personal));
 }
 function equipFields(prefix='f') {
   const a=prefix;
@@ -171,7 +180,7 @@ async function fetchPeople(connection, type, query='', limit=MAX_CALENDARIO_PERS
 }
 async function fetchAssignmentRows(connection, type, personIds, req, opts={}) {
   if (Array.isArray(personIds) && !personIds.length) return [];
-  const access=opts.calendarSelection || scope(req);
+  const access=scope(req);
   const params=[...access.params,type];
   let personClause='';
   if (Array.isArray(personIds)) {
@@ -279,12 +288,13 @@ async function calendario(req) {
   const type=tipo(req.query?.tipo);
   const {desde,hasta}=range(req.query||{});
   const selection=calendarScope(req,type);
-  const catalog=await fetchPeople(db,type,req.query?.q||'');
-  const ids=catalog.map(p=>p.id_personal);
-  const rows=await fetchAssignmentRows(db,type,ids,req,{calendarSelection:selection});
-  const personas=selectCalendarPeople(catalog,rows,desde,hasta,selection);
-  const visiblePeople=new Set(personas.map(p=>p.id_personal));
-  const all=selection.supervisores?rows.filter(row=>visiblePeople.has(row.id_personal)):rows;
+  const search=req.query?.q||'';
+  const catalog=await fetchPeople(db,type,search);
+  const identityCatalog=selection.supervisores&&String(search).trim()
+    ? await fetchPeople(db,type,'') : catalog;
+  const personas=await selectCalendarPeople(db,catalog,selection,identityCatalog);
+  // El supervisor limita los nombres, no las barras autorizadas de esas personas.
+  const all=await fetchAssignmentRows(db,type,personas.map(p=>p.id_personal),req);
   // Se senala el traslape automatico/manual sin modificar la proyeccion.
   const groups=new Map();
   for(const a of all){

@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20261124-dashboard-calendario-supervisores-v002';
+  const VERSION_COR = '20261124-dashboard-ajustadores-fl-v003';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
