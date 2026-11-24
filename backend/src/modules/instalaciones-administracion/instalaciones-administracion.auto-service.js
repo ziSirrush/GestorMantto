@@ -300,8 +300,14 @@ async function getEditCatalogs_cor(req) {
   };
 }
 
+async function getPersonalEditCatalogs_cor(req) {
+  await service.ensureFullEditPermission_cor(req);
+  const personal = await require('../instalaciones-programacion-personal/instalaciones-programacion-personal.service').catalogoAsignacion_cor();
+  return {personal};
+}
+
 module.exports = {
   MAX_MULTI_COR, normalizeSingleCell_cor, expectedCell_cor,
   exactUserByInitials_cor, adminForSales_cor, rowChanges_cor, sqlError_cor,
-  updateDirect_cor, updateDirectMulti_cor, getEditCatalogs_cor
+  updateDirect_cor, updateDirectMulti_cor, getEditCatalogs_cor, getPersonalEditCatalogs_cor
 };

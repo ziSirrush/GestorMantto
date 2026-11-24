@@ -323,7 +323,46 @@ async function desactivar(req) {
   } finally { connection.release(); }
 }
 
+// Opciones mínimas para los editores de ins_fl. Reutiliza las identidades de INT9;
+ // el catálogo no otorga permiso para consultar ni modificar Programación de Personal.
+function catalogoAsignacionRows_cor(rows, conIniciales, ajustadores, montadores) {
+  const index = ajustadores.indicePersonal(rows.filter(row => row.tipo_personal === 'AJUSTADOR' && Number(row.activo) === 1));
+  const names = [];
+  for (const group of index.values()) {
+    if (group.length !== 1) continue;
+    const name = group[0].nombre;
+    if (ajustadores.resolverReferencia(name,index).estado === 'IDENTIFICADO') names.push(name);
+  }
+  const sort = values => values.sort((a,b) => a.localeCompare(b,'es-MX'));
+  const groups = new Map();
+  if (conIniciales) {
+    for (const row of rows) {
+      if (row.tipo_personal !== 'MONTADOR' || Number(row.activo) !== 1) continue;
+      const key = montadores.code(row.iniciales);
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(row);
+    }
+  }
+  const initials = [...groups].filter(([key,people]) =>
+    montadores.identity(people,key).estado === 'IDENTIFICADO').map(([key]) => key);
+  return {ajustador:sort(names),subcontratista:conIniciales?sort(initials):null};
+}
+async function catalogoAsignacion_cor() {
+  const conIniciales = await inicialesDisponibles();
+  const [rows] = await db.query(
+    `SELECT id_personal,tipo_personal,nombre,contratista,${conIniciales?'iniciales':'NULL AS iniciales'},activo
+       FROM instalaciones_personal
+      WHERE activo=1 AND tipo_personal IN ('AJUSTADOR','MONTADOR')
+      ORDER BY id_personal LIMIT 20001`
+  );
+  if (rows.length>20000) throw knownError(422,'INT9_CATALOGO_EXCESIVO','El catálogo de asignación supera el límite de lectura.');
+  const ajustadores = require('./instalaciones-programacion-personal.ajustadores.service')._shared;
+  const montadores = require('./instalaciones-programacion-personal.montadores.service').identidadCatalogo;
+  return catalogoAsignacionRows_cor(rows,conIniciales,ajustadores,montadores);
+}
+
 module.exports = {
-  TIPOS, PUESTOS, opciones, listar, crear, editar, desactivar,
+  TIPOS, PUESTOS, opciones, listar, crear, editar, desactivar, catalogoAsignacion_cor,
   _test: { tipoPersonal, validatedPayload, readRecord, personId, resetInicialesSchemaCache, estadoPersonal }
 };

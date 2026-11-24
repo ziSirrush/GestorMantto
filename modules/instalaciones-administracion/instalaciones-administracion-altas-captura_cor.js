@@ -31,7 +31,8 @@
     'meses_garantia_restantes', 'fecha_fin_montaje_real',
     'fecha_fin_ajuste_real', 'anio_termino', 'costo_mensual_mantenimiento_cem'
   ]);
-  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl']);
+  const PERSONAL_FIELDS = new Set(['ajustador','subcontratista']);
+  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl', ...PERSONAL_FIELDS]);
   const ENUM_OPTIONS = Object.freeze({
     categoria:Object.freeze(['Comercial','Residencial']),
     carpeta_fisica:Object.freeze(['Digital','Fisica']),
@@ -229,6 +230,7 @@
     let rows=[], seq=0, current=null, visible=false, beforeVisibility=new Map(), error='';
     let saving=false, uncertain=false;
     let requestSerial=0, boundHost=null;
+    let editorRequest=0;
     let draftTimer=null,draftEpoch=0,draftLoadedIdentity=null,draftWrite=Promise.resolve(),unregisterUpdateHook=null;
     const node=id=>host?.querySelector('#'+id)||null;
     const auth=()=>env.ManttoAuth;
@@ -322,7 +324,7 @@
     }
 
     function clearSensitive() {
-      ++requestSerial;++draftEpoch;
+      ++requestSerial;++draftEpoch;++editorRequest;
       if(draftTimer){env.clearTimeout(draftTimer);draftTimer=null;}
       context=null;contract=null;catalogs=null;prefillValues=null;rows=[];seq=0;current=null;error='';draftLoadedIdentity=null;
       // No conservar payload ni datos personales tras cambio de sesion.
@@ -446,6 +448,7 @@
         (identityKey(selected)===identityKey(value)?' selected':'')+'>'+escape(value)+'</option>').join('');
     }
     function optionsFor(field, selected) {
+      if(PERSONAL_FIELDS.has(field))return helpers().personalOptions_cor(field,catalogs,selected,escape);
       let options=[];
       if(field==='estatus')options=(catalogs?.estatus||[]).map(x=>({value:x.codigo,label:x.codigo+' · '+(x.nombre||x.codigo)}));
       else {
@@ -542,10 +545,24 @@
         if(control){control.focus();if(typeof control.select==='function' && control.type==='text')control.select();}
       }
     }
-    function beginEdit(id,field) {
+    async function beginEdit(id,field) {
       if(!visible||saving||uncertain||!canUse()||!catalogs||!editable(field))return;
       if(!rowById(id)|| (field!=='id_proyecto'&&!allFields().includes(field)))return;
       if(current && !commitCurrent())return;
+      const ticket=++editorRequest,serial=requestSerial,identity=authIdentity();
+      const valid=()=>visible&&!saving&&!uncertain&&canUse()&&ticket===editorRequest&&
+        serial===requestSerial&&identity===authIdentity()&&Boolean(rowById(id));
+      if(PERSONAL_FIELDS.has(field)){
+        try{
+          const shared=env.ManttoInstalacionesAdministracion_cor?.loadPersonalCatalog;
+          const data=helpers().assertPersonalCatalog_cor(await (shared?shared():
+            auth().api(ROOT+'/catalogos-edicion/personal',{method:'GET',cache:'no-store'})));
+          if(!valid())return;
+          catalogs={...catalogs,personal:data.personal};
+          if(!helpers().personalValues_cor(field,catalogs))throw Error('Catálogo de iniciales no disponible.');
+        }catch(e){if(valid()){error=e.message||'No fue posible consultar personal.';render();}return;}
+      }
+      if(!valid())return;
       current={id:Number(id),field};error='';render();
     }
     function commitCurrent() {
@@ -556,6 +573,9 @@
       if(!row){current=null;return false;}
       const input=host?.querySelector('[data-iadm-altas-row="'+currentEdit.id+'"] [data-iadm-altas-editor-field="'+field+'"]');
       if(!input)return false;
+      if(PERSONAL_FIELDS.has(field)&&trimmed(input.value)===trimmed(row.values[field])){
+        current=null;error='';render();return true;
+      }
       const normalized=validateDraftCell(field,input.value,meta(field),catalogs,helpers());
       if(!normalized.ok){
         const msg=input.parentElement?.querySelector('[data-iadm-altas-error]');

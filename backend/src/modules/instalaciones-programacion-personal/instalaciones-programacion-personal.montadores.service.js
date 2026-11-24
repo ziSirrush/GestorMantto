@@ -218,4 +218,5 @@ async function relaciones(req){
   return {relaciones:result,total:result.length,desde,hasta};
 }
 module.exports={reconcile,notifySaved,validarAsignacion,relaciones,readiness,RELEVANT_FIELDS,
+  identidadCatalogo:Object.freeze({code,identity}),
   _test:{normalize,code,identity,evaluate}};

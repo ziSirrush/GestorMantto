@@ -26,7 +26,8 @@
   ]);
   const HIDDEN = new Set(HIDDEN_FIELDS);
   const READONLY = new Set([...HIDDEN_FIELDS, ...DERIVED_FIELDS, 'rel_admin']);
-  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl']);
+  const PERSONAL_FIELDS = new Set(['ajustador','subcontratista']);
+  const LIST_FIELDS = new Set(['estatus', 'vendedor', 'supervisor_fl', ...PERSONAL_FIELDS]);
   const STATUS_CODES = Object.freeze([
     '01-SUS', '02-OC', '03-PM', '04-M', '05-PA', '06-A', '07-PE', '08-T'
   ]);
@@ -82,10 +83,38 @@
     return (users || []).filter(row => validId(row?.id_SB) &&
       stringValue(row?.iniciales) && counts.get(stringValue(row.iniciales)) === 1);
   }
+  function isPersonalField_cor(field) {return PERSONAL_FIELDS.has(field);}
+  function personalValues_cor(field,catalog) {
+    const values=catalog?.personal?.[field];
+    return isPersonalField_cor(field)&&Array.isArray(values)?[...new Set(values.map(stringValue).filter(Boolean))]:null;
+  }
+  function personalOptions_cor(field,catalog,current,escape) {
+    const values=personalValues_cor(field,catalog);
+    const chosen=stringValue(current);
+    const option=(value,label,selected=false,disabled=false)=>'<option value="'+escape(value)+'"'+
+      (selected?' selected':'')+(disabled?' disabled':'')+'>'+escape(label)+'</option>';
+    if(!values)return option(chosen,chosen||'Catálogo no disponible',true,true);
+    return option('','Sin asignar',!chosen)+
+      (chosen&&!values.includes(chosen)?option(chosen,chosen+' (valor actual)',true,true):'')+
+      values.map(value=>option(value,value,value===chosen)).join('');
+  }
+  function assertPersonalCatalog_cor(data) {
+    if(!Array.isArray(data?.personal?.ajustador) ||
+       !(Array.isArray(data.personal.subcontratista)||data.personal.subcontratista===null))
+      throw error_cor('Catálogo de personal no disponible.','ADMIN_PERSONAL_CATALOG_INVALID');
+    return data;
+  }
   function validValue_cor(field, raw, fieldMeta = {}, catalog = null) {
     const v = String(raw == null ? '' : raw).trim();
     const kind = fieldMeta.kind || 'text';
     if (READONLY.has(field)) return {ok:false,error:'Este campo se actualiza automaticamente.'};
+    if (isPersonalField_cor(field)) {
+      const values=personalValues_cor(field,catalog);
+      if(!values)return {ok:false,error:'Catálogo de personal no disponible. Actualiza e inténtalo de nuevo.'};
+      if(!v)return {ok:true,value:null};
+      return values.includes(v)&&v.length<=Number(fieldMeta.max_length||20000)
+        ? {ok:true,value:v} : {ok:false,error:'Selecciona un valor del catálogo de personal activo.'};
+    }
     if (LIST_FIELDS.has(field)) {
       if (field === 'estatus') {
         return STATUS_SET.has(v) && (catalog?.estatus || []).some(item => item.codigo === v)
@@ -249,6 +278,8 @@
     let epoch = 0;
     let catalogs = null;
     let catalogPromise = null;
+    let personalCatalog = null;
+    let editorRequest = 0;
     let message = 'Edita una celda. Texto: Enter o salir. Listas y fechas: al seleccionar.';
     let messageKind = 'ready';
     let verificationRequired = false;
@@ -308,6 +339,7 @@
       return catalogPromise;
     }
     function optionsFor(field,value) {
+      if(isPersonalField_cor(field))return personalOptions_cor(field,personalCatalog,value,esc);
       if (!catalogs) return '';
       const chosen = stringValue(value);
       if (field === 'estatus') {
@@ -441,6 +473,8 @@
       st.saving = false;
       catalogs = null;
       catalogPromise = null;
+      personalCatalog = null;
+      ++editorRequest;
       verificationRequired = false;
       selected.clear();
       message = 'Edita una celda. Texto: Enter o salir. Listas y fechas: al seleccionar.';
@@ -465,13 +499,22 @@
         active = null;
         redrawCell(previous.id,previous.field);
       }
-      const context = ctx(), serial = epoch;
+      const context = ctx(), serial = epoch, ticket=++editorRequest;
       if (LIST_FIELDS.has(field)) {
-        try {await loadCatalogs();} catch (error) {
-          if (validCurrent(context,serial)) setMessage(error?.message || 'No se pudo leer el catalogo.','error');
+        try {
+          if(isPersonalField_cor(field)){
+            const data=assertPersonalCatalog_cor(await (opts.loadPersonalCatalog
+              ? opts.loadPersonalCatalog() : api(ROOT+'/catalogos-edicion/personal')));
+            if(!validCurrent(context,serial)||ticket!==editorRequest)return;
+            personalCatalog=data;
+            if(!personalValues_cor(field,personalCatalog))throw error_cor(
+              'No están disponibles las iniciales del catálogo de personal.','ADMIN_PERSONAL_CATALOG_INVALID');
+          }else await loadCatalogs();
+        } catch (error) {
+          if (validCurrent(context,serial)&&ticket===editorRequest) setMessage(error?.message || 'No se pudo leer el catalogo.','error');
           return;
         }
-        if (!validCurrent(context,serial)) return;
+        if (!validCurrent(context,serial)||ticket!==editorRequest) return;
       }
       if (!canEditCell(field,findRecord(id))) return;
       const batchSize = bulkMode() && selected.has(Number(id)) ? selected.size : 0;
@@ -626,7 +669,12 @@
         entry.id+'"][data-iadm-ghost-field="'+entry.field+'"] [data-iadm-v2-control]');
       if (!input) return false;
       if (!entry.touched) {active=null;redrawCell(entry.id,entry.field);return true;}
-      const parsed = validValue_cor(entry.field,input.value,meta(entry.field),catalogs);
+      if(isPersonalField_cor(entry.field)&&!entry.mixed&&
+         stringValue(input.value)===stringValue(row[entry.field])){
+        active=null;redrawCell(entry.id,entry.field);return true;
+      }
+      const parsed = validValue_cor(entry.field,input.value,meta(entry.field),
+        isPersonalField_cor(entry.field)?personalCatalog:catalogs);
       if (!parsed.ok) {showError(parsed.error);return false;}
       if (entry.batchSize >= 2) return commitBulk_cor(entry,parsed,input);
       if (canonicalCompare(entry.field,row[entry.field]) === canonicalCompare(entry.field,parsed.value)) {
@@ -770,7 +818,8 @@
       setSaveMessage:()=>{},ackSaved:()=>{}});
   }
   return {create,helpers:Object.freeze({visibleColumns_cor,editable_cor,validCivilDate_cor,
-    uniqueInitials_cor,validValue_cor,payload_cor,persistVerified_cor,
+    uniqueInitials_cor,isPersonalField_cor,personalValues_cor,personalOptions_cor,assertPersonalCatalog_cor,
+    validValue_cor,payload_cor,persistVerified_cor,
     buildMultiPayload_cor,persistVerifiedMulti_cor,MAX_MULTI,
     HIDDEN_FIELDS,DERIVED_FIELDS,STATUS_CODES})};
 });

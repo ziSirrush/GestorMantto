@@ -96,6 +96,12 @@ router.get('/administracion/catalogos-edicion',...accessGuard_cor,async(req,res,
   catch(error){return autoKnownError_cor(error,res,next);}
 });
 
+// Solo nombres/iniciales necesarios para asignar en ins_fl; mismo permiso EDITAR y puerta CORELLIAN.
+router.get('/administracion/catalogos-edicion/personal',...accessGuard_cor,async(req,res,next)=>{
+  try {return res.json({ok:true,source:'aiven',...await autoService.getPersonalEditCatalogs_cor(req)});}
+  catch(error){return autoKnownError_cor(error,res,next);}
+});
+
 router.patch('/administracion/proyectos/:projectKey/equipos/edicion-multiple-directa',
   ...accessGuard_cor,async(req,res,next)=>{
     try {return res.json({ok:true,source:'aiven',
