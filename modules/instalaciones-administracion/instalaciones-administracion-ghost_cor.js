@@ -110,18 +110,16 @@
     return '<option value=""'+(!current?' selected':'')+'>Sin asignar</option>'+
       (legacy?'<option value="'+escape(current)+'" selected disabled>'+escape(current)+' (valor anterior)</option>':'')+
       (options||[]).map(item=>'<option value="'+escape(item.codigo)+'"'+
-        (current===item.codigo?' selected':'')+'>'+escape(item.codigo+(item.nombre?' · '+item.nombre:''))+'</option>').join('');
+        (current===item.codigo?' selected':'')+'>'+escape(item.codigo+(item.nombre&&item.nombre!==item.codigo?' · '+item.nombre:''))+'</option>').join('');
   }
   function stateOptions_cor(catalog,value,escape){
     return catalogOptionsHtml_cor(stateCatalogValues_cor(catalog),value,escape);
   }
   function productionStatusValues_cor(catalog){
-    if(!Array.isArray(catalog?.estatus))return null;
-    const options=STATUS_CODES.map(codigo=>{
-      const matches=catalog.estatus.filter(item=>item?.codigo===codigo);
-      return matches.length===1?{codigo,nombre:String(matches[0].nombre||codigo)}:null;
-    });
-    return options.every(Boolean)?options:null;
+    // No reutilizar estatus general ni admitir un catálogo antiguo/incompleto.
+    // El backend publica los seis valores de producción como fuente única.
+    if(!Array.isArray(catalog?.estatus_produccion)||catalog.estatus_produccion.length!==6)return null;
+    return stateCatalogValues_cor({estados:catalog.estatus_produccion});
   }
   function productionStatusOptions_cor(catalog,value,escape){
     return catalogOptionsHtml_cor(productionStatusValues_cor(catalog),value,escape);
@@ -132,7 +130,7 @@
     const v=String(value??'').trim();
     if(!v)return {ok:true,value:null};
     return options.some(item=>item.codigo===v)?{ok:true,value:v}:
-      {ok:false,error:'Selecciona uno de los ocho estatus autorizados.'};
+      {ok:false,error:'Selecciona uno de los seis estatus de produccion autorizados.'};
   }
   function isCatalogListField_cor(field){return field==='estado'||field==='estatus_produccion';}
   function catalogListAvailable_cor(field,catalog){

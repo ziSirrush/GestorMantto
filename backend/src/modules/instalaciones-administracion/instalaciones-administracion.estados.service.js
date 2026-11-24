@@ -1,6 +1,8 @@
 'use strict';
 
-// Fuente oficial para la captura humana de ins_fl.estado.
+// Catalogos de captura humana de ins_fl: Estado geográfico y Estatus de producción.
+// Producción tiene su propio catálogo operativo, independiente de estatus (01-SUS a 08-T).
+const PRODUCTION_STATUS_CODES_COR=Object.freeze(["En Bodega","En Produccion","En Sitio","En Transito","Liberando","Sin Produccion"]);
 async function listEstados_cor(executor) {
   const repository=require('../catalogo-general/catalogo-general.repository');
   const rows=await repository.list(executor,{area:'General',elemento:'Estado Abreviado'});
@@ -37,12 +39,12 @@ function assertProductionStatus_cor(changes,originals=[]){
     const value=stateValue_cor(row.estatus_produccion);
     if(!value||originals.length&&originals.every(before=>stateValue_cor(before?.estatus_produccion)===value))continue;
     const rules=require('./instalaciones-administracion.auto-rules');
-    if(!rules.STATUS_CODES_COR.includes(value))throw rules.knownError_cor(400,
-      'INSTALACIONES_ESTATUS_PRODUCCION_INVALIDO','Selecciona uno de los ocho estatus autorizados.',{field:'estatus_produccion'});
+    if(!PRODUCTION_STATUS_CODES_COR.includes(value))throw rules.knownError_cor(400,
+      'INSTALACIONES_ESTATUS_PRODUCCION_INVALIDO','Selecciona uno de los seis estatus de produccion autorizados.',{field:'estatus_produccion'});
   }
 }
 async function assertCatalogChanges_cor(executor,changes,originals=[]){
   assertProductionStatus_cor(changes,originals);
   await assertEstados_cor(executor,changes,originals);
 }
-module.exports={listEstados_cor,assertEstados_cor,assertProductionStatus_cor,assertCatalogChanges_cor};
+module.exports={PRODUCTION_STATUS_CODES_COR,listEstados_cor,assertEstados_cor,assertProductionStatus_cor,assertCatalogChanges_cor};

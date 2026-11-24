@@ -299,6 +299,7 @@ async function getEditCatalogs_cor(req) {
       nombre:String(u.nombre||'').trim()||null,correo:String(u.correo||'').trim()||null}));
   return {
     estatus: rules.STATUS_CODES_COR.map(codigo=>({codigo,nombre:rules.STATUS_LABELS_COR[codigo]})),
+    estatus_produccion: estadosCatalog_cor.PRODUCTION_STATUS_CODES_COR.map(codigo=>({codigo,nombre:codigo})),
     vendedores:options('Ventas'),supervisores:options('Instalaciones'),
     estados:await estadosCatalog_cor.listEstados_cor(db),
     reglas:{max_equipos_por_lote:MAX_MULTI_COR, solo_una_celda:true,
