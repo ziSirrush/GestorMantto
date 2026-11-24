@@ -13,6 +13,8 @@ const ROUTES=path.resolve(__dirname,'../src/routes/ins-fl.routes.js');
 const FRONT=path.resolve(__dirname,'../../modules/instalaciones-administracion/instalaciones-administracion-altas-captura_cor.js');
 const persistence=require(path.join(MOD,'instalaciones-administracion-altas-persist.js'));
 const origin=require(path.join(MOD,'instalaciones-administracion-altas-origin.js'));
+// Servicio real: su lectura del catalogo solo se ejecuta cuando cambia un campo de lista.
+const estadosCatalog=require(path.join(MOD,'instalaciones-administracion.estados.service.js'));
 const capture=require(FRONT);
 function mockRequire(file,deps){
   const module={exports:{}};
@@ -242,6 +244,7 @@ test('edicion posterior de equipo nuevo recalcula Excel; legado conserva reglas 
     './instalaciones-administracion.validation':{},
     './instalaciones-administracion.field-policy':{},
     './instalaciones-administracion.auto-rules':rules,
+    './instalaciones-administracion.estados.service':estadosCatalog,
     './instalaciones-administracion-altas-persist':persistence,
     './instalaciones-administracion-altas-origin':{}
   });
@@ -285,6 +288,7 @@ test('edicion directa del nuevo equipo rechaza modificar formula desde HTTP',asy
     },
     './instalaciones-administracion.field-policy':{normalizeEditedFields_cor:v=>v},
     './instalaciones-administracion.auto-rules':rules,
+    './instalaciones-administracion.estados.service':estadosCatalog,
     './instalaciones-administracion-altas-persist':persistence,
     './instalaciones-administracion-altas-origin':{humanCreatedIdsCor:async()=>new Set([101])}
   });
