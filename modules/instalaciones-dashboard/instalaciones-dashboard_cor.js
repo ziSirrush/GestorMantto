@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const VERSION_COR = '20261124-dashboard-multiseccion-vip-v001';
+  const VERSION_COR = '20261124-dashboard-calendario-ajustadores-v001';
   const API_BASE = (window.MANTTO_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
   const AFL_CODE_COR = 'AFL';
   const AJUSTE_STATUS_COR = '06-A';
@@ -148,7 +148,8 @@
     pendingOpenReset:false,
     editor:null,
     personalCatalog:null,
-    personalCatalogPromise:null
+    personalCatalogPromise:null,
+    calendarMountRequest:0
   };
 
   const $ = id => document.getElementById(id);
@@ -395,6 +396,31 @@
     if(comments) comments.classList.toggle('idb-cor-hidden-by-junta', state.meetingMode);
     if(projects) projects.classList.toggle('idb-cor-hidden-by-junta', state.meetingMode);
     if(documentation) documentation.hidden = !state.meetingMode || !validUniverse_cor();
+  }
+
+  function calendarAllowed_cor(){
+    const route=window.ManttoRouter?.getCurrent?.()?.route;
+    return state.ready&&validUniverse_cor()&&hasPermission_cor('acceso_visual')&&
+      hasPermission_cor('reporte_listado_ver')&&(!route||route==='instalaciones-dashboard');
+  }
+  function disposeAdjustersCalendar_cor(reset=false){
+    state.calendarMountRequest+=1;
+    const card=$('idb-cor-adjusters-card');
+    if(card)card.hidden=true;
+    window.ManttoInstalacionesCalendarioAjustadores_cor?.dispose({reset});
+  }
+  async function syncAdjustersCalendar_cor(refresh=false){
+    const card=$('idb-cor-adjusters-card');
+    const calendar=window.ManttoInstalacionesCalendarioAjustadores_cor;
+    if(!card||!calendar)return;
+    if(!calendarAllowed_cor()){disposeAdjustersCalendar_cor();return;}
+    const ticket=++state.calendarMountRequest;
+    try{
+      const allowed=await calendar.mount({refresh});
+      if(ticket===state.calendarMountRequest&&calendarAllowed_cor())card.hidden=allowed!==true;
+    }catch(_error){
+      if(ticket===state.calendarMountRequest)disposeAdjustersCalendar_cor();
+    }
   }
 
   function updateSelectionUi_cor(){
@@ -1391,6 +1417,7 @@
     clearPersonalCatalog_cor();
     updateSelectionUi_cor();
     renderSectionButtons_cor();
+    void syncAdjustersCalendar_cor();
     if(!validUniverse_cor()){
       state.summaryRequest+=1;
       state.summary = null;
@@ -1509,6 +1536,8 @@
       state.reportRequest += 1;
       applyBootstrap_cor(response.bootstrap);
       state.loaded = true;
+      // Independiente de las etapas, VIP y del modo del reporte.
+      void syncAdjustersCalendar_cor(true);
 
       if(response.summary){
         renderSummary_cor(response.summary);
@@ -1566,6 +1595,7 @@
       restoreDashboardConfig_cor();
       applyPermissions_cor();
       if(!state.loaded) await refresh_cor(true);
+      else void syncAdjustersCalendar_cor();
     }catch(error){
       setStatus_cor(error.message);
     }
@@ -1574,9 +1604,9 @@
   document.addEventListener('mantto:navigation', event => {
     const detail = event && event.detail ? event.detail : {};
     if(detail.route !== 'instalaciones-dashboard'){
-      clearPersonalCatalog_cor();return;
+      clearPersonalCatalog_cor();disposeAdjustersCalendar_cor();return;
     }
-    if(detail.type !== 'open')return;
+    if(detail.type !== 'open'){void syncAdjustersCalendar_cor();return;}
     if(!state.ready && !state.loaded) return;
     if(state.loading){ state.pendingOpenReset = true; return; }
     resetOpenState_cor();
@@ -1585,6 +1615,7 @@
 
   document.addEventListener('mantto:permissions-updated', () => {
     clearPersonalCatalog_cor();
+    disposeAdjustersCalendar_cor(true);
     const current = window.ManttoRouter && window.ManttoRouter.getCurrent ? window.ManttoRouter.getCurrent() : null;
     if(current && current.route === 'instalaciones-dashboard'){
       state.loaded = false;
@@ -1593,7 +1624,10 @@
   });
 
   for(const event of ['mantto:auth-ready','mantto:view-user-changed','mantto:session-expired','mantto:logout']){
-    document.addEventListener(event,clearPersonalCatalog_cor);
+    document.addEventListener(event,()=>{
+      clearPersonalCatalog_cor();
+      disposeAdjustersCalendar_cor(true);
+    });
   }
 
   window.ManttoInstalacionesDashboard_cor = {

@@ -4,13 +4,27 @@
 // Fase 1: catálogo de personal; Fase 2: calendario y asignaciones.
 // Fase 3: historial, disponibilidad, simulación, permisos, menú, router y carga perezosa.
 (function () {
-  const ROOT_ID = 'view-instalaciones-programacion-personal';
+  // Motor compartido; cada vista conserva su estado y DOM independientes.
+  let embeddedCalendar=null;
+  function notifyEmbeddedCalendar(){embeddedCalendar?.scheduleRefresh();}
+  function createProgrammingInstance_cor({embedded=false,rootId='view-instalaciones-programacion-personal'}={}){
+  const ROOT_ID = rootId;
+  let embeddedMounted=false,mountEpoch=0,mountTask=null,mutationTimer=null;
+  const instanceActive=()=>{
+    const route=window.ManttoRouter?.getCurrent?.()?.route;
+    return !embedded||(embeddedMounted&&(!route||route==='instalaciones-dashboard'));
+  };
   const BASE = '/api/instalaciones/programacion';
   const CODE = 'INSTALACIONES_PROGRAMACION_PERSONAL_CALENDARIO_PROGRAMACION';
   const TYPES = Object.freeze({MONTADOR:'Montadores', AJUSTADOR:'Ajustadores'});
-  const state = {type:'MONTADOR',view:'calendario',tabRights:null,accessEpoch:0,rows:[],options:null,page:1,limit:50,total:0,q:'',ready:false,epoch:0,formId:null,filterTimer:null};
+  const state = {type:embedded?'AJUSTADOR':'MONTADOR',view:'calendario',tabRights:null,accessEpoch:0,rows:[],options:null,page:1,limit:50,total:0,q:'',ready:false,epoch:0,formId:null,filterTimer:null};
   const root = () => document.getElementById(ROOT_ID);
-  const el = id => document.getElementById(id);
+  const idFor = id => embedded?'idb-cal-'+id:id;
+  const el = id => document.getElementById(idFor(id));
+  function scopeMarkup(html){
+    return embedded?html.replace(/\b(id|aria-labelledby|for)="(ppc-[a-z0-9-]+)"/g,
+      (_match,attr,id)=>attr+'="'+idFor(id)+'"'):html;
+  }
   const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // [Aster | 2026-10-17 | FIX_INT9_PERMISOS_PANEL_V001]
   // El Panel publica la propiedad 'efectivo' en session-permissions.
@@ -21,7 +35,8 @@
     return permission?.exists === true && permission.efectivo === true;
   }
   const permitted = code => panelEffective(code)
-    && window.ManttoAuth?.isViewingAs?.() !== true;
+    && window.ManttoAuth?.isViewingAs?.() !== true
+    && (!embedded || (instanceActive()&&tabAllowed('AJUSTADOR')));
   const fmt = v => v === null || v === undefined || v === '' ? '—' : esc(v);
 
   async function api(path, method = 'GET', payload) {
@@ -41,10 +56,42 @@
     target.textContent = message || '';
     target.classList.toggle('ppc-error',isError);
   }
+  function assignmentDialogMarkup(){return `
+        <div id="ppc-assignment-overlay" class="ppc-overlay" hidden>
+          <section class="ppc-dialog ppc-a-dialog" role="dialog" aria-modal="true" aria-labelledby="ppc-a-title">
+            <div class="ppc-dialog-header"><h2 id="ppc-a-title">Asignación</h2>
+              <button type="button" class="ppc-icon-btn" data-ppc="cerrar-asignacion" aria-label="Cerrar">×</button></div>
+            <form id="ppc-a-form" autocomplete="off">
+              <div id="ppc-a-new">
+                <label class="ppc-a-label">Buscar equipo <input type="search" id="ppc-a-eq-search" placeholder="Proyecto o referencia" maxlength="120"></label>
+                <label class="ppc-a-label">Equipo <select id="ppc-a-equipo" required><option value="">Selecciona equipo</option></select></label>
+                <p id="ppc-a-rango" class="ppc-cal-note"></p>
+                <label class="ppc-a-label">Buscar personal <input type="search" id="ppc-a-person-search" placeholder="Nombre o puesto"></label>
+                <div id="ppc-a-persons" class="ppc-a-persons"></div>
+              </div>
+              <div id="ppc-a-edit" hidden><p id="ppc-a-edit-info" class="ppc-cal-note"></p></div>
+              <div class="ppc-fields ppc-a-dates">
+                <label><span id="ppc-a-desde-label">Desde (manual, opcional)</span><input type="date" id="ppc-a-desde"></label>
+                <label><span id="ppc-a-hasta-label">Hasta (manual, opcional)</span><input type="date" id="ppc-a-hasta"></label>
+              </div>
+              <p class="ppc-cal-note">Las fechas vacías se obtienen del reporte de Instalaciones (real → modificado → planeado).</p>
+              <label class="ppc-a-label">Notas <textarea id="ppc-a-notas" maxlength="1000" rows="3"></textarea></label>
+              <p id="ppc-a-feedback" class="ppc-cal-feedback" role="status" aria-live="polite"></p>
+              <div class="ppc-form-actions">
+                <button type="button" class="ppc-btn ppc-danger" id="ppc-a-delete" data-ppc="quitar-asignacion" hidden>Quitar</button>
+                <button type="button" class="ppc-btn" data-ppc="cerrar-asignacion">Cancelar</button>
+                <button type="button" class="ppc-btn ppc-danger" id="ppc-a-force" data-ppc="confirmar-traslape" hidden>Asignar de todos modos</button>
+                <button type="submit" class="ppc-btn ppc-primary" id="ppc-a-submit">Guardar asignación</button>
+              </div>
+            </form>
+          </section>
+        </div>`;}
   function shell() {
     const parent = root();
     if (!parent) return;
-    parent.innerHTML = `
+    parent.innerHTML = scopeMarkup(embedded
+      ? '<div class="ppc-page ppc-dashboard-calendar"><div id="ppc-calendario" role="tabpanel"></div>'+assignmentDialogMarkup()+'</div>'
+      : `
       <div class="ppc-page">
         <header class="ppc-head"><div><h1>Programación de Personal</h1>
           <p>Calendario, asignaciones y catálogo · Instalaciones</p></div>
@@ -80,53 +127,33 @@
             </form>
           </section>
         </div>
-        <div id="ppc-assignment-overlay" class="ppc-overlay" hidden>
-          <section class="ppc-dialog ppc-a-dialog" role="dialog" aria-modal="true" aria-labelledby="ppc-a-title">
-            <div class="ppc-dialog-header"><h2 id="ppc-a-title">Asignación</h2>
-              <button type="button" class="ppc-icon-btn" data-ppc="cerrar-asignacion" aria-label="Cerrar">×</button></div>
-            <form id="ppc-a-form" autocomplete="off">
-              <div id="ppc-a-new">
-                <label class="ppc-a-label">Buscar equipo <input type="search" id="ppc-a-eq-search" placeholder="Proyecto o referencia" maxlength="120"></label>
-                <label class="ppc-a-label">Equipo <select id="ppc-a-equipo" required><option value="">Selecciona equipo</option></select></label>
-                <p id="ppc-a-rango" class="ppc-cal-note"></p>
-                <label class="ppc-a-label">Buscar personal <input type="search" id="ppc-a-person-search" placeholder="Nombre o puesto"></label>
-                <div id="ppc-a-persons" class="ppc-a-persons"></div>
-              </div>
-              <div id="ppc-a-edit" hidden><p id="ppc-a-edit-info" class="ppc-cal-note"></p></div>
-              <div class="ppc-fields ppc-a-dates">
-                <label><span id="ppc-a-desde-label">Desde (manual, opcional)</span><input type="date" id="ppc-a-desde"></label>
-                <label><span id="ppc-a-hasta-label">Hasta (manual, opcional)</span><input type="date" id="ppc-a-hasta"></label>
-              </div>
-              <p class="ppc-cal-note">Las fechas vacías se obtienen del reporte de Instalaciones (real → modificado → planeado).</p>
-              <label class="ppc-a-label">Notas <textarea id="ppc-a-notas" maxlength="1000" rows="3"></textarea></label>
-              <p id="ppc-a-feedback" class="ppc-cal-feedback" role="status" aria-live="polite"></p>
-              <div class="ppc-form-actions">
-                <button type="button" class="ppc-btn ppc-danger" id="ppc-a-delete" data-ppc="quitar-asignacion" hidden>Quitar</button>
-                <button type="button" class="ppc-btn" data-ppc="cerrar-asignacion">Cancelar</button>
-                <button type="button" class="ppc-btn ppc-danger" id="ppc-a-force" data-ppc="confirmar-traslape" hidden>Asignar de todos modos</button>
-                <button type="submit" class="ppc-btn ppc-primary" id="ppc-a-submit">Guardar asignación</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      </div>`;
-    if(!state.listenersBound){
+        ${assignmentDialogMarkup()}
+      </div>`);
+    if(state.boundRoot!==parent){
       parent.addEventListener('click', onClick);
       parent.addEventListener('submit', onSubmit);
       parent.addEventListener('input', onInput);
       parent.addEventListener('change', onChange);
       parent.addEventListener('keydown',onCalendarKeydown);
-      document.addEventListener('keydown', ev => { if(ev.key==='Escape'&&contractorExpanded.size){ev.preventDefault();closeContractorDetail();return;} if(ev.key==='Escape'){if(assignment.mode)closeAssignment();if(state.formId!==null)closeForm();} });
+      state.boundRoot=parent;
+    }
+    if(!state.listenersBound){
+      document.addEventListener('keydown', ev => {
+        const route=window.ManttoRouter?.getCurrent?.()?.route;
+        if(!instanceActive()||(!embedded&&route&&route!=='instalaciones-programacion-personal'))return;
+        if(ev.key==='Escape'&&contractorExpanded.size){ev.preventDefault();closeContractorDetail();return;}
+        if(ev.key==='Escape'){if(assignment.mode)closeAssignment();if(state.formId!==null)closeForm();}
+      });
       state.listenersBound=true;
     }
     state.ready = true;
   }
-  const tabAllowed=type=>state.tabRights?.[type]===true;
+  const tabAllowed=type=>state.tabRights?.[type]===true&&(!embedded||type==='AJUSTADOR');
   async function refreshTabRights(){
     const epoch=++state.accessEpoch;
     state.tabRights=null;
     const data=await api('/accesos');
-    if(epoch!==state.accessEpoch||!root())return false;
+    if(epoch!==state.accessEpoch||!root()||!instanceActive())return false;
     state.tabRights={MONTADOR:data?.montadores===true,AJUSTADOR:data?.ajustadores===true};
     const first=Object.keys(TYPES).find(type=>tabAllowed(type));
     if(!first)return false;
@@ -245,7 +272,7 @@
   const CELL_WIDTH=30;
   const cal={desde:null,span:31,q:'',epoch:0,personal:[],asignaciones:[],sin_fechas:[],equipos:[],
     todosEquipos:0,masEquipos:false,hoy:null,loading:false,feedback:'',error:false,
-    flIssues:[],flCursor:null,flMore:false,flLoading:false,flError:'',flEpoch:0,
+    lastRequestedAt:0,flIssues:[],flCursor:null,flMore:false,flLoading:false,flError:'',flEpoch:0,
     montajeRelations:[],montajeError:''};
   const assignment={mode:null,item:null,equipo:null,equipos:[],searchTimer:null,selectedPerson:null,focusDate:null,epoch:0};
   const MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -283,7 +310,7 @@
     const target=calRoot();if(!target)return;
     renderTabs();
     if(!cal.desde)cal.desde=weekStart(todayMexico());
-    target.innerHTML=`<div class="ppc-card ppc-cal-shell">
+    target.innerHTML=scopeMarkup(`<div class="ppc-card ppc-cal-shell">
       <div class="ppc-cal-controls">
         <div class="ppc-cal-actions"><button type="button" class="ppc-btn ppc-small" data-ppc="cal-prev" title="Periodo anterior">◀</button>
           <button type="button" class="ppc-btn ppc-small" data-ppc="cal-hoy">Hoy</button>
@@ -291,17 +318,19 @@
         <label>Desde <input type="date" id="ppc-cal-desde" value="${esc(cal.desde)}"></label>
         <label>Periodo <select id="ppc-cal-span">${[[14,'2 semanas'],[31,'1 mes'],[62,'2 meses'],[93,'3 meses']].map(([n,t])=>`<option value="${n}" ${cal.span===n?'selected':''}>${t}</option>`).join('')}</select></label>
         <label class="ppc-cal-search">Personal <input type="search" id="ppc-cal-query" maxlength="120" value="${esc(cal.q)}" placeholder="Nombre, contratista, puesto…" autocomplete="off"></label>
+        ${embedded?'<button type="button" class="ppc-btn ppc-small" data-ppc="actualizar">↻ Actualizar calendario</button>':''}
         ${state.view==='calendario'&&permitted('CREAR')?'<button type="button" class="ppc-btn ppc-primary" data-ppc="asignar-nueva">+ Asignar a equipo</button>':''}
       </div>
       <p id="ppc-cal-feedback" class="ppc-cal-feedback" role="status" aria-live="polite"></p>
       <div id="ppc-cal-contenido" class="ppc-cal-contenido"><p class="ppc-cal-note">Consultando calendario…</p></div>
       <div id="ppc-cal-cobertura" class="ppc-cal-cobertura"></div>
-    </div>`;
+    </div>`);
     setCalendarFeedback(cal.feedback,cal.error);
   }
   async function reloadCalendar(){
-    if(!calRoot()||!tabAllowed(state.type))return;
+    if(!calRoot()||!tabAllowed(state.type)||!instanceActive()||!canRead())return;
     const epoch=++cal.epoch;
+    cal.lastRequestedAt=Date.now();
     if(!cal.desde)cal.desde=weekStart(todayMexico());
     cal.loading=true;
     setCalendarFeedback('Consultando programación…');
@@ -312,7 +341,7 @@
       state.type==='AJUSTADOR'?api('/ajustadores/incidencias-fl?limit=50'):Promise.resolve(null),
       state.type==='MONTADOR'?api('/montadores/relaciones?'+encodeQuery({desde:params.desde,hasta:params.hasta})):Promise.resolve(null)
     ]);
-    if(epoch!==cal.epoch||!calRoot()||!tabAllowed(state.type))return;
+    if(epoch!==cal.epoch||!calRoot()||!tabAllowed(state.type)||!instanceActive()||!canRead())return;
     cal.loading=false;
     if(program.status!=='fulfilled'){
       cal.personal=[];cal.asignaciones=[];cal.sin_fechas=[];
@@ -344,7 +373,8 @@
     }
   }
   async function loadMoreFlIncidencias(){
-    if(state.type!=='AJUSTADOR'||state.view!=='calendario'||!cal.flMore||
+    if(!instanceActive()||!canRead()||!tabAllowed('AJUSTADOR')||
+       state.type!=='AJUSTADOR'||state.view!=='calendario'||!cal.flMore||
        !Number.isSafeInteger(cal.flCursor)||cal.flLoading)return;
     const epoch=cal.flEpoch,expected=cal.flCursor;
     cal.flLoading=true;renderCalendar();
@@ -669,15 +699,23 @@
       renderContractorCalendar(el('ppc-contractor-content'),'');
     }
   }
+  function orderedCalendarPeople_cor(personal,entries,type){
+    if(type!=='AJUSTADOR')return personal;
+    const occupied=[],free=[];
+    for(const person of personal)(entries.has(Number(person.id_personal))?occupied:free).push(person);
+    return occupied.concat(free);
+  }
   function renderCalendar(){
-    if(!calRoot()||state.view!=='calendario')return;
+    if(!calRoot()||state.view!=='calendario'||!instanceActive())return;
     // No reconstruir los controles al cambiar resultados; conserva foco/búsqueda.
     const holder=el('ppc-cal-contenido'),coverage=el('ppc-cal-cobertura');
     if(!holder||!coverage)return;
     const who=new Map(cal.personal.map(p=>[Number(p.id_personal),p]));
     const entries=new Map();
+    const until=offsetDate(cal.desde,cal.span-1);
     for(const a of cal.asignaciones){
-      const id=Number(a.id_personal);if(!who.has(id)||!a.valida)continue;
+      const id=Number(a.id_personal);
+      if(!who.has(id)||!a.valida||!a.inicio||!a.fin||a.fin<cal.desde||a.inicio>until)continue;
       if(!entries.has(id))entries.set(id,[]);
       entries.get(id).push(a);
     }
@@ -685,7 +723,7 @@
       const day=offsetDate(cal.desde,i),utcDow=new Date(dateNum(day)*86400000).getUTCDay();
       return `<span class="ppc-cal-day${day===cal.hoy?' ppc-cal-today':''}" title="${esc(day)}"><b>${day.slice(8)}</b><small>${DAY_NAMES[utcDow]}</small></span>`;
     }).join('');
-    const personRows=cal.personal.map(p=>{
+    const personRows=orderedCalendarPeople_cor(cal.personal,entries,state.type).map(p=>{
       const items=(entries.get(Number(p.id_personal))||[]).sort((a,b)=>a.inicio.localeCompare(b.inicio)||a.fin.localeCompare(b.fin));
       const {rows,lanes}=lanePositions(items);
       const height=Math.max(46,lanes*27+11);
@@ -818,7 +856,7 @@
     assignmentFeedback(response?.hay_mas?`Mostrando ${response.mostrados} de ${response.total} equipos; utiliza la búsqueda.`:'');
   }
   async function openAssignment(options={}){
-    if(!tabAllowed(state.type)||state.view!=='calendario'||!permitted('CREAR')||!calRoot())return;
+    if(!instanceActive()||!tabAllowed(state.type)||state.view!=='calendario'||!permitted('CREAR')||!calRoot())return;
     configureAssignmentReadOnly(false);
     assignment.epoch++;assignment.mode='new';assignment.item=null;
     assignment.equipo=options.idEquipo||null;
@@ -870,7 +908,7 @@
   if(close)close.textContent=enabled?'Cerrar':'Cancelar';
 }
   function openReadOnlyAssignment(id,fromContractor=false) {
-  if(!canRead()||state.view!=='calendario')return;
+  if(!instanceActive()||!canRead()||!tabAllowed(state.type)||state.view!=='calendario')return;
   const item=[...cal.asignaciones,...cal.sin_fechas]
     .find(row=>Number(row.id_asignacion)===Number(id)&&row.visible===true);
   if(!item)return;
@@ -916,26 +954,30 @@
       if(!values.ids_personal.length){assignmentFeedback('Selecciona una o más personas.',true);return;}
       if(!values.id_ins_fl){assignmentFeedback('Selecciona un equipo.',true);return;}
     }
+    const operationEpoch=assignment.epoch;
     el('ppc-a-submit').disabled=true;
     try{
       const response=edit?await api(`/asignaciones/${assignment.item.id_asignacion}`,'PUT',values)
         :await api('/asignaciones','POST',values);
+      if(operationEpoch!==assignment.epoch||!instanceActive())return;
       if(response.requiere_confirmacion){
         el('ppc-a-force').hidden=true;
         assignmentFeedback('Conflictos detectados. Revisa y confirma solo si corresponde:\n'+conflictMessage(response),true);
         return;
       }
       closeAssignment();await reloadCalendar();
-    }catch(ex){assignmentFeedback(ex.message||'Error al guardar asignación.',true);}
-    finally{if(el('ppc-a-submit'))el('ppc-a-submit').disabled=false;}
+    }catch(ex){if(operationEpoch===assignment.epoch&&instanceActive())assignmentFeedback(ex.message||'Error al guardar asignación.',true);}
+    finally{if(instanceActive()&&el('ppc-a-submit'))el('ppc-a-submit').disabled=false;}
   }
   async function deleteAssignment(){
     if(assignment.mode!=='edit'||!assignment.item||!permitted('DESACTIVAR'))return;
     if(!window.confirm('¿Quitar esta asignación? Se desactivará sin borrar su registro.'))return;
+    const operationEpoch=assignment.epoch;
     try{
       await api(`/asignaciones/${assignment.item.id_asignacion}`,'DELETE');
+      if(operationEpoch!==assignment.epoch||!instanceActive())return;
       closeAssignment();await reloadCalendar();
-    }catch(ex){assignmentFeedback(ex.message||'No fue posible quitar la asignación.',true);}
+    }catch(ex){if(operationEpoch===assignment.epoch&&instanceActive())assignmentFeedback(ex.message||'No fue posible quitar la asignación.',true);}
   }
   function trackClicked(event,node){
     if(state.view!=='calendario'||!permitted('CREAR'))return;
@@ -1126,6 +1168,7 @@
   function notifyProgrammingMutation(event){
     const path=String(event?.detail?.path||'').toLowerCase();
     if(!path.startsWith('/api/instalaciones/')&&!path.startsWith('/api/ins-fl'))return;
+    notifyEmbeddedCalendar();
     const sync=window.ManttoDataSync;
     if(sync&&typeof sync.notifyMutation==='function'){
       sync.notifyMutation({route:'instalaciones-programacion-personal'});
@@ -1133,15 +1176,16 @@
       loadActiveSection();
     }
   }
-  document.addEventListener('mantto:data-mutated',notifyProgrammingMutation);
+  if(!embedded)document.addEventListener('mantto:data-mutated',notifyProgrammingMutation);
   // ManttoDataSync difunde tambien cambios de ins_fl desde otras pestañas.
   // Si la ruta de Programacion no estaba montada en la pestaña emisora,
   // no formaba parte de ROUTE_GROUPS: marcamos nuestra ruta al recibirlos.
-  if(typeof BroadcastChannel==='function'){
+  if(!embedded&&typeof BroadcastChannel==='function'){
     const inputChannel=new BroadcastChannel('mantto-data-sync');
     inputChannel.onmessage=event=>{
       if(event.data?.type!=='mutation')return;
       const routes=Array.isArray(event.data.routes)?event.data.routes:[];
+      if(routes.some(r=>String(r).startsWith('instalaciones-')))notifyEmbeddedCalendar();
       if(routes.includes('instalaciones-programacion-personal'))return;
       if(!routes.some(r=>String(r).startsWith('instalaciones-')))return;
       const sync=window.ManttoDataSync;
@@ -1151,7 +1195,7 @@
         sync.refresh?.('instalaciones-programacion-personal','otra-pestana-inst', {force:true});
     };
   }
-  if(window.ManttoDataSync?.register){
+  if(!embedded&&window.ManttoDataSync?.register){
     window.ManttoDataSync.register('instalaciones-programacion-personal',{
       backgroundSync:async()=>{
         if(window.ManttoRouter?.getCurrent?.().route!=='instalaciones-programacion-personal')return false;
@@ -1170,6 +1214,9 @@
     const node = event.target.closest('[data-ppc]');
     if (!node || !root()?.contains(node)) return;
     const action = node.dataset.ppc;
+    if(embedded&&(!instanceActive()||!canRead()||!tabAllowed('AJUSTADOR')||
+      !['actualizar','cal-prev','cal-next','cal-hoy','asignar-nueva','fl-mas','asignar-equipo','cal-celda',
+        'editar-asignacion','ver-asignacion','cerrar-asignacion','confirmar-traslape','quitar-asignacion'].includes(action)))return;
     if(action==='seccion') {
       const next=node.dataset.vista;
       if(!['calendario','personal','historial','disponibilidad'].includes(next))return;
@@ -1180,7 +1227,7 @@
       ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
       hist.page=1;hist.res=null;disp.res=null;disp.simRes=null;disp.simEquipo=null;
       loadActiveSection();
-    } else if(action==='actualizar'){loadActiveSection();}
+    } else if(action==='actualizar'){if(embedded)void mountEmbedded({refresh:true});else loadActiveSection();}
     else if(action==='hist-prev'&&hist.page>1){hist.page--;loadHistory();}
     else if(action==='hist-next'&&hist.page*hist.limit<hist.total){hist.page++;loadHistory();}
     else if(action==='disp-preset'){
@@ -1213,66 +1260,70 @@
     else if (action==='siguiente' && state.page*state.limit < state.total) { state.page+=1;reload(); }
   }
   function onInput(event) {
-    if(event.target?.id==='ppc-s-query') {
+    if(embedded&&(!instanceActive()||!canRead()||!tabAllowed('AJUSTADOR')))return;
+    if(event.target?.id===idFor('ppc-s-query')) {
       disp.simQ=String(event.target.value||'').trim();
       clearTimeout(disp.searchTimer);
       disp.searchTimer=setTimeout(()=>searchSimulationEquipos(disp.simQ),350);
       return;
     }
-    if(event.target?.id==='ppc-cal-query') {
+    if(event.target?.id===idFor('ppc-cal-query')) {
       const term=event.target.value;
       clearTimeout(state.filterTimer);
       state.filterTimer=setTimeout(()=>{cal.q=term;reloadCalendar();},350);
       return;
     }
-    if(event.target?.id==='ppc-a-eq-search') {
+    if(event.target?.id===idFor('ppc-a-eq-search')) {
       const term=event.target.value;
       clearTimeout(assignment.searchTimer);
       assignment.searchTimer=setTimeout(async()=>{try{await searchEquipos(term);}catch(ex){assignmentFeedback(ex.message,true);}},350);
       return;
     }
-    if(event.target?.id==='ppc-a-person-search') {
+    if(event.target?.id===idFor('ppc-a-person-search')) {
       const query=String(event.target.value||'').toLowerCase();
       el('ppc-a-persons')?.querySelectorAll('.ppc-a-person').forEach(p=>p.hidden=Boolean(query)&&!p.dataset.name.includes(query));
       return;
     }
-    if (event.target?.id !== 'ppc-query') return;
+    if (event.target?.id !== idFor('ppc-query')) return;
     const newQuery = event.target.value;
     clearTimeout(state.filterTimer);
     state.filterTimer = setTimeout(()=>{state.q=newQuery;state.page=1;reload();},300);
   }
   function onChange(event) {
+    if(embedded&&(!instanceActive()||!canRead()||!tabAllowed('AJUSTADOR')))return;
     const montajeNode=event.target.closest?.('[data-ppc="montaje-persona"]');
     if(montajeNode&&root()?.contains(montajeNode)){
       updateContractorPerson(montajeNode);return;
     }
     const target=event.target;
-    if(target?.id==='ppc-cal-desde' && target.value) {cal.desde=target.value;reloadCalendar();}
-    else if(target?.id==='ppc-cal-span'){cal.span=Number(target.value)||31;reloadCalendar();}
-    else if(target?.id==='ppc-a-equipo'){assignment.equipo=Number(target.value)||null;showEquipoRange();}
-    else if(target?.id==='ppc-s-equipo'){
+    if(target?.id===idFor('ppc-cal-desde') && target.value) {cal.desde=target.value;reloadCalendar();}
+    else if(target?.id===idFor('ppc-cal-span')){cal.span=Number(target.value)||31;reloadCalendar();}
+    else if(target?.id===idFor('ppc-a-equipo')){assignment.equipo=Number(target.value)||null;showEquipoRange();}
+    else if(target?.id===idFor('ppc-s-equipo')){
       disp.simEquipo=Number(target.value)||null;
       const team=disp.simEquipos.find(t=>Number(t.id_ins_fl)===disp.simEquipo);
       const hint=el('ppc-s-equipo-info');if(hint)hint.textContent=team?(team.valida?`Fechas del reporte: ${team.inicio} a ${team.fin}. Puedes sustituirlas manualmente.`:'Equipo sin fechas: indica inicio y fin.'):'Indica ambas fechas para simular sin equipo.';
     }
   }
   function onCalendarKeydown(event) {
+    if(embedded&&(!instanceActive()||!canRead()||!tabAllowed('AJUSTADOR')))return;
     if(event.target?.dataset?.ppc==='cal-celda'&&(event.key==='Enter'||event.key===' ')) {
       event.preventDefault();trackClicked(null,event.target);
     }
   }
   async function onSubmit(event) {
-    if(event.target?.id==='ppc-h-filters'){
+    if(embedded&&(!instanceActive()||!canRead()||!tabAllowed('AJUSTADOR')))return;
+    if(event.target?.id===idFor('ppc-h-filters')){
       event.preventDefault();readHistoryFilters();hist.page=1;await loadHistory();return;
     }
-    if(event.target?.id==='ppc-d-form'){
+    if(event.target?.id===idFor('ppc-d-form')){
       event.preventDefault();disp.desde=el('ppc-d-desde').value;
       disp.hasta=el('ppc-d-hasta').value;disp.granularidad=el('ppc-d-gran').value;
       await loadAvailability();return;
     }
-    if(event.target?.id==='ppc-s-form'){event.preventDefault();await simulate();return;}
-    if(event.target?.id==='ppc-a-form'){event.preventDefault();await saveAssignment(false);return;}
-    if (event.target?.id !== 'ppc-form') return;
+    if(event.target?.id===idFor('ppc-s-form')){event.preventDefault();await simulate();return;}
+    if(event.target?.id===idFor('ppc-a-form')){event.preventDefault();await saveAssignment(false);return;}
+    if (event.target?.id !== idFor('ppc-form')) return;
     event.preventDefault();
     try { await saveForm(event.target); }
     catch(error) { setFeedback(error.message || 'No fue posible guardar.',true); }
@@ -1282,6 +1333,7 @@
     ++state.accessEpoch;
     state.tabRights=null;
     ++cal.epoch;
+    cal.loading=false;
     ++hist.epoch;++disp.epoch;++disp.simEpoch;++disp.searchEpoch;
     clearTimeout(disp.searchTimer);
     clearTimeout(state.filterTimer);
@@ -1326,6 +1378,54 @@
     }
     renderTabs();await loadActiveSection();return true;
   }
+  function disposeEmbedded({reset=false}={}){
+    if(!embedded)return;
+    embeddedMounted=false;++mountEpoch;mountTask=null;
+    clearTimeout(mutationTimer);mutationTimer=null;
+    clearSensitiveView();
+    if(reset){cal.desde=null;cal.span=31;cal.q='';}
+    state.ready=false;
+    root()?.replaceChildren();
+  }
+  async function mountEmbedded({refresh=false}={}){
+    if(!embedded||!root())return false;
+    if(!canRead()){disposeEmbedded();return false;}
+    if(mountTask)return mountTask;
+    if(!refresh&&embeddedMounted&&state.ready&&tabAllowed('AJUSTADOR')&&calRoot())return true;
+    embeddedMounted=true;
+    const ticket=++mountEpoch;
+    const task=(async()=>{
+      try{
+        if(!await refreshTabRights()||ticket!==mountEpoch||!instanceActive()||!canRead()){
+          if(ticket===mountEpoch)disposeEmbedded();
+          return false;
+        }
+        if(!state.ready||state.boundRoot!==root())shell();
+        else closeAssignment();
+        calendarControls();
+        await reloadCalendar();
+        return ticket===mountEpoch&&instanceActive()&&canRead()&&tabAllowed('AJUSTADOR');
+      }catch(error){
+        if(ticket===mountEpoch){
+          console.warn('[INT9] Calendario integrado no disponible.',error);
+          disposeEmbedded();
+        }
+        return false;
+      }
+    })();
+    mountTask=task;
+    try{return await task;}finally{if(mountTask===task)mountTask=null;}
+  }
+  function scheduleRefresh(){
+    if(!embedded||!instanceActive()||!tabAllowed('AJUSTADOR')||!canRead()||!calRoot())return;
+    const at=Date.now();
+    clearTimeout(mutationTimer);
+    mutationTimer=setTimeout(()=>{
+      mutationTimer=null;
+      if(instanceActive()&&tabAllowed('AJUSTADOR')&&canRead()&&cal.lastRequestedAt<at)void reloadCalendar();
+    },250);
+  }
+  if(!embedded){
   document.addEventListener('mantto:session-expired',clearSensitiveView);
   document.addEventListener('mantto:view-user-changed',()=>{clearSensitiveView();if(window.ManttoRouter?.getCurrent?.().route==='instalaciones-programacion-personal')init();});
   document.addEventListener('mantto:auth-ready',clearSensitiveView);
@@ -1333,5 +1433,15 @@
     if(window.ManttoRouter?.getCurrent?.().route!=='instalaciones-programacion-personal')return;
     clearSensitiveView();state.ready=false;void init();
   });
-  window.ManttoInstalacionesProgramacionPersonal = {init,reload:init,dispose:clearSensitiveView};
+  }
+  return embedded?{mount:mountEmbedded,dispose:disposeEmbedded,scheduleRefresh}:{init,reload:init,dispose:clearSensitiveView};
+  }
+  window.ManttoInstalacionesProgramacionPersonal=createProgrammingInstance_cor();
+  window.ManttoInstalacionesCalendarioAjustadores_cor=Object.freeze({
+    mount(options){
+      if(!embeddedCalendar)embeddedCalendar=createProgrammingInstance_cor({embedded:true,rootId:'idb-cor-adjusters-calendar'});
+      return embeddedCalendar.mount(options);
+    },
+    dispose(options){embeddedCalendar?.dispose(options);}
+  });
 })();

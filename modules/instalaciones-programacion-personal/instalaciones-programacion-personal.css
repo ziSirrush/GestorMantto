@@ -257,3 +257,8 @@ body:has(#ppc-contractor-modal){overflow:hidden}
  .ppc-contractor-modal-header{padding:12px}
  .ppc-contractor-modal-body{padding:12px}
  .ppc-contractor-modal-footer{padding:10px 12px;flex-wrap:wrap}}
+
+/* Mismo calendario de Ajustadores, integrado en Dashboard. */
+.ppc-dashboard-calendar{padding:0;max-width:none;margin:0}
+.ppc-dashboard-calendar .ppc-cal-shell{padding:0;border:0;box-shadow:none}
+.ppc-a-dialog #idb-cal-ppc-a-delete:not([hidden]){margin-right:auto}
