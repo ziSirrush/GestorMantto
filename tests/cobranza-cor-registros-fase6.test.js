@@ -15,7 +15,8 @@ function loadService(overrides={}){
     beginTransaction:async()=>calls.push('begin'),
     commit:async()=>calls.push('commit'),
     rollback:async()=>calls.push('rollback'),
-    release:()=>calls.push('release')
+    release:()=>calls.push('release'),
+    ...(overrides.connection||{})
   };
   const estadoCuentaService={
     detalleEstadoCuenta_cor:async(ppns,scope)=>{
@@ -77,15 +78,37 @@ test('editar Factura valida PPNS/concepto, recalcula estatus y confirma en una t
   assert.equal(calls.includes('rollback'),false);
 });
 
-test('eliminar Factura limpia primero relaciones y luego elimina solo el registro solicitado',async()=>{
+test('inactivacion de Factura espera migracion SQL y nunca elimina fisicamente',async()=>{
   const {service,calls}=loadService();
-  const result=await service.eliminarFactura_cor('P100',10,{dominio:'CORELLIAN'});
-  assert.equal(result.ok,true);
-  assert.equal(result.relaciones_eliminadas,2);
-  const relIndex=calls.findIndex(item=>Array.isArray(item)&&item[0]==='deleteFacturaRelations');
-  const facturaIndex=calls.findIndex(item=>Array.isArray(item)&&item[0]==='deleteFactura');
-  const commitIndex=calls.indexOf('commit');
-  assert.ok(relIndex<facturaIndex&&facturaIndex<commitIndex);
+  await assert.rejects(service.eliminarFactura_cor('P100',10,{dominio:'CORELLIAN'},77),/migracion SQL/);
+  assert.ok(calls.includes('rollback'));
+  assert.equal(calls.some(item=>Array.isArray(item)&&/^deleteFactura/.test(item[0])),false);
+});
+test('inactivacion conserva relaciones y bloquea facturas con pagos netos',async()=>{
+  for(const pagado of ['0.00','10.00']){
+    const statements=[];
+    const {service,calls}=loadService({
+      repository:{pagosManualesSchemaReady_cor:async()=>true},
+      connection:{query:async(sql,args)=>{
+        statements.push([sql,args]);
+        if(sql.startsWith('SELECT pagado'))return [[{pagado}]];
+        if(sql.startsWith('SELECT importe_aplicado'))return [pagado==='0.00'?[]:[{importe_aplicado:pagado}]];
+        if(sql.startsWith('UPDATE cobranza_facturas_cor SET activo=0'))return [{affectedRows:1}];
+        throw new Error('SQL inesperado: '+sql);
+      }}
+    });
+    if(pagado==='0.00'){
+      const result=await service.eliminarFactura_cor('P100',10,{dominio:'CORELLIAN'},77);
+      assert.equal(result.inactiva,true);assert.equal(result.relaciones_eliminadas,0);
+      assert.equal(statements.at(-1)[1][0],77);
+      assert.ok(calls.includes('commit'));
+    }else{
+      await assert.rejects(service.eliminarFactura_cor('P100',10,{dominio:'CORELLIAN'},77),/pagos netos/);
+      assert.ok(calls.includes('rollback'));
+      assert.equal(statements.some(([sql])=>sql.startsWith('UPDATE')),false);
+    }
+    assert.equal(calls.some(item=>Array.isArray(item)&&/^deleteFactura/.test(item[0])),false);
+  }
 });
 
 test('editar Pago falla cerrado si el nuevo importe es menor a lo ya aplicado',async()=>{
@@ -121,7 +144,7 @@ test('rutas CRUD usan guardas existentes y se montan sin reemplazar el router Co
     "router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor'"
   ]) assert.ok(routes.includes(expected));
   assert.match(routes,/\.\.\.requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments\.requireEditIfEnabled_cor, controller/);
-  assert.match(routes,/\.\.\.requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments\.rejectLegacyIfEnabled_cor, controller/);
+  assert.match(routes,/\.\.\.requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments\.rejectLegacyEstadoCuentaIfReady_cor, controller/);
   const index=read('backend/src/routes/index.js');
   assert.match(index,/const cobranzaCorRoutes = require\('\.\.\/modules\/cobranza-cor\/cobranza-cor\.routes'\);/);
   assert.match(index,/const cobranzaCorRegistrosRoutes = require\('\.\.\/modules\/cobranza-cor\/cobranza-cor-registros\.routes'\);/);

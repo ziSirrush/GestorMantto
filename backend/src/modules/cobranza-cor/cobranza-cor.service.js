@@ -5,7 +5,10 @@ const pagosRepository = require('./cobranza-cor-pagos.repository');
 
 const BATCH_SIZE = 300;
 const MAX_RECORDS = 5000;
-function manualMode_cor() { return typeof process !== 'undefined' && process.env && process.env.BLT_COBRANZA_COR_PAGOS_MANUALES_V1 === '1'; }
+async function manualMode_cor(connection) {
+  return typeof repository.pagosManualesSchemaReady_cor === 'function'
+    && await repository.pagosManualesSchemaReady_cor(connection);
+}
 
 const ROUTES_COR = Object.freeze({
   carga_fuente: '/api/cobranza-cor/carga/fuente',
@@ -1488,10 +1491,10 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
   const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
   const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
   const connection = await repository.getConnection_cor();
-  const manual = manualMode_cor();
-  const manualIntegration = manual ? require('./cobranza-cor-pagos-manuales.integration') : null;
   let readTransaction = false;
   try {
+    const manual = await manualMode_cor(connection);
+    const manualIntegration = manual ? require('./cobranza-cor-pagos-manuales.integration') : null;
     if (manual) {
       await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
@@ -1514,7 +1517,7 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
     });
     const movimientos = manual ? await manualIntegration.listMovements_cor(connection, project.ppns) : [];
     const refs = manual ? manualIntegration.dateReferences_cor(movimientos) : { payments: pagoRows, relations: relacionPagoRows };
-    const puedeEditar = manual && await manualIntegration.canEdit_cor({ actor: informationAccess?.actor_user_id, informationAccess });
+    const puedeEditar = manual && await manualIntegration.canEdit_cor({ actor: informationAccess?.actor_user_id, informationAccess, connection });
     const paymentDetailsByHito = buildPaymentDetailsByHito_cor(
       sourceRows,
       paymentMaps.facturaGroups,
@@ -1540,7 +1543,7 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
     if (readTransaction) { await connection.commit(); readTransaction = false; }
     return {
       ok: true,
-      ...(manual ? { pagos_manuales: { habilitado: true, puede_editar: puedeEditar, movimientos } } : {}),
+      pagos_manuales: { habilitado: true, estructura_lista: manual, puede_editar: puedeEditar, movimientos },
       source: 'aiven',
       domain: 'CORELLIAN',
       route: ROUTES_COR.estado_cuenta_detalle,
@@ -1697,7 +1700,7 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
       repository.listEquiposEstadoCuenta_cor(connection, ppns),
       repository.listPartidasEstadoCuenta_cor(connection, ppns),
       repository.listFacturasEstadoCuenta_cor(connection, ppns),
-      manualMode_cor() ? Promise.resolve([]) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
+      await manualMode_cor(connection) ? Promise.resolve([]) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
     ]);
     if (!sourceRows.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
 

@@ -49,9 +49,9 @@ function rejectViewerMutation_cor(req, res, next) {
   return next();
 }
 
-router.post('/carga/fuente', requireCobranzaCorIntegration, manualPayments.rejectLegacyIfEnabled_cor, controller.cargarFuente_cor);
+router.post('/carga/fuente', requireCobranzaCorIntegration, manualPayments.rejectLegacyEstadoCuentaIfReady_cor, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
-router.post('/carga/facturas', requireCobranzaCorIntegration, manualPayments.rejectLegacyIfEnabled_cor, controller.cargarFacturas_cor);
+router.post('/carga/facturas', requireCobranzaCorIntegration, manualPayments.rejectLegacyEstadoCuentaIfReady_cor, controller.cargarFacturas_cor);
 router.post('/carga/pagos', requireCobranzaCorIntegration, manualPayments.rejectLegacyIfEnabled_cor, pagosController.cargarPagos_cor);
 
 // Modulo Pagos: toda la operacion se realiza desde la tabla main.
@@ -68,8 +68,8 @@ router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_
 router.get('/estados-cuenta/:ppns/formulario', ...requireEstadosCuentaCor, controller.formularioEstadoCuenta_cor);
 router.put('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.actualizarEstadoCuenta_cor);
 router.post('/estados-cuenta/:ppns/facturas', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.crearFacturaEstadoCuenta_cor);
-router.put('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.guardarRelacionPagoFacturaEstadoCuenta_cor);
-router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.quitarRelacionPagoFacturaEstadoCuenta_cor);
+router.put('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyEstadoCuentaIfReady_cor, controller.guardarRelacionPagoFacturaEstadoCuenta_cor);
+router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyEstadoCuentaIfReady_cor, controller.quitarRelacionPagoFacturaEstadoCuenta_cor);
 router.post('/estados-cuenta/:ppns/facturas/:idFacturaCor/pagos-manuales', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.handler_cor('crear'));
 router.put('/estados-cuenta/:ppns/facturas/:idFacturaCor/pagos-manuales/:idRelPago', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.handler_cor('editar'));
 router.post('/estados-cuenta/:ppns/facturas/:idFacturaCor/pagos-manuales/:idRelPago/revertir', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.handler_cor('revertir'));

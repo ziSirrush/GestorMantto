@@ -1,6 +1,6 @@
 'use strict';
 
-// Capa interna: no montar rutas hasta validar el permiso granular y el corte Aiven.
+// Servicio de Estado de Cuenta: escrituras solo con esquema migrado y permiso efectivo.
 const { normalizarPago_cor, contramovimiento_cor, saldoFactura_cor } = require('./cobranza-cor-pagos-manuales.domain');
 
 const FLAG = 'BLT_COBRANZA_COR_PAGOS_MANUALES_V1';
@@ -34,10 +34,10 @@ function blocked(row) {
   return row.id_rel_pago_origen != null || row.origen_registro !== 'MANUAL' || !['Parcial', 'Pagado'].includes(row.estatus_pago);
 }
 
-function createService_cor({ repository, authorizeMutation, enabled = () => process.env[FLAG] === '1' }) {
+function createService_cor({ repository, authorizeMutation, enabled = () => false }) {
   // authorizeMutation debe usar el guard granular efectivo, nunca datos del formulario.
   async function mutate({ ppns, facturaId, pagoId, actor, informationAccess, payload = {} }, action) {
-    if (!enabled()) fail('Pagos manuales no habilitados.', 503);
+    if (!await enabled()) fail('La estructura SQL de pagos manuales esta pendiente de migracion.', 503);
     if (typeof authorizeMutation !== 'function' || await authorizeMutation({ actor, informationAccess }) !== true) fail('Edicion no autorizada.', 403);
     const actorId = id(actor);
     if (Number(informationAccess?.actor_user_id) !== actorId) fail('Actor no autorizado.', 403);

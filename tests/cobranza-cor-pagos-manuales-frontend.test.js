@@ -17,7 +17,7 @@ function fixture(){
   const detail={proyecto:{ppns:'P1'},facturas:[
     {id_factura_cor:1,factura:'F-1',moneda:'USD',saldo:25,puede_recibir_pago:true},
     {id_factura_cor:2,factura:'F-2',moneda:'MXN',saldo:0,saldo_a_favor:5,puede_recibir_pago:false}],
-    pagos_manuales:{habilitado:true,puede_editar:true,movimientos:[
+    pagos_manuales:{habilitado:true,estructura_lista:true,puede_editar:true,movimientos:[
       {id_rel_pago:5,id_factura_cor:1,factura:'F-1',moneda:'USD',importe_aplicado:10,fecha_pago:'2026-11-26',estatus_pago:'Parcial',bloqueado:false},
       {id_rel_pago:6,id_factura_cor:1,factura:'F-1',moneda:'USD',importe_aplicado:-10,estatus_pago:'Devuelto',bloqueado:true}
     ]}};
@@ -55,4 +55,20 @@ test('Facturas y Pagos usan el mismo flujo, con conciliacion separada y BG no in
   assert.match(actions,/data-ccor-manual-open/);
   assert.match(general,/API_PATH\+'\/conciliacion'/);
   assert.match(general,/BG pendiente de integrar/);
+});
+
+test('antes de SQL se ve el nuevo flujo y formulario, pero Guardar queda bloqueado',()=>{
+  const {ui,detail,form}=fixture();
+  const preview={...detail,pagos_manuales:{habilitado:true,estructura_lista:false,puede_editar:false,movimientos:[]}};
+  ui.state.detail=preview;
+  const html=ui.renderPagosSection_cor(preview);
+  assert.match(html,/data-ccor-manual-open/);
+  assert.match(html,/Pendiente de migrar SQL/);
+  assert.match(html,/Historial pendiente de migración/);
+  assert.doesNotMatch(html,/Sin pagos registrados|data-pago-agregar/);
+  ui.openManualForm_cor();
+  assert.match(form.innerHTML,/F-1/);
+  assert.doesNotMatch(form.innerHTML,/F-2/);
+  assert.match(form.innerHTML,/type="submit"[^>]+disabled/);
+  assert.match(form.innerHTML,/completar la migración SQL/);
 });

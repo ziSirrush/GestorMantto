@@ -5,7 +5,10 @@
 const estadoCuentaService = require('./cobranza-cor.service');
 const repository = require('./cobranza-cor.repository');
 const registrosRepository = require('./cobranza-cor-registros.repository');
-function manualMode_cor() { return typeof process !== 'undefined' && process.env && process.env.BLT_COBRANZA_COR_PAGOS_MANUALES_V1 === '1'; }
+async function manualMode_cor(connection) {
+  return typeof repository.pagosManualesSchemaReady_cor === 'function'
+    && await repository.pagosManualesSchemaReady_cor(connection);
+}
 
 
 function httpError(statusCode, message, code) {
@@ -151,8 +154,9 @@ async function actualizarFactura_cor(ppnsValue, idFacturaValue, payload, informa
       const current = await registrosRepository.lockFactura_cor(connection, ppns, idFacturaCor);
       if (!current) throw httpError(404, 'Factura no encontrada en este Estado de Cuenta.');
       const concepto = await resolverConceptoFactura(connection, ppns, input);
+      const manual = await manualMode_cor(connection);
       let manualPaid = null;
-      if (manualMode_cor()) {
+      if (manual) {
         const [locked] = await connection.query('SELECT pagado FROM cobranza_facturas_cor WHERE id_factura_cor=? FOR UPDATE', [idFacturaCor]);
         const [movements] = await connection.query('SELECT id_rel_pago FROM cobranza_rel_pagos WHERE id_factura_cor=? FOR UPDATE', [idFacturaCor]);
         manualPaid = locked[0]?.pagado ?? '0.00';
@@ -167,7 +171,7 @@ async function actualizarFactura_cor(ppnsValue, idFacturaValue, payload, informa
       });
       // El estatus de la Factura sigue siendo derivado de los importes aplicados.
       // Si cambia el total, se recalcula dentro de la misma transaccion.
-      if (manualMode_cor()) {
+      if (manual) {
         const paid = Number(manualPaid);
         const estatus = paid > 0 && input.total > 0 && paid >= input.total - 0.005 ? 'Pagado' : paid > 0 ? 'Parcial' : 'No pagado';
         await connection.query('UPDATE cobranza_facturas_cor SET estatus_factura=? WHERE id_factura_cor=? AND activo=1', [estatus, idFacturaCor]);
@@ -192,23 +196,19 @@ async function eliminarFactura_cor(ppnsValue, idFacturaValue, informationAccess,
     try {
       const current = await registrosRepository.lockFactura_cor(connection, ppns, idFacturaCor);
       if (!current) throw httpError(404, 'Factura no encontrada en este Estado de Cuenta.');
-      if (manualMode_cor()) {
-        const actor = actorId(actorUserId);
-        if (!actor) throw httpError(403, 'Usuario responsable no identificado.');
-        const [locked] = await connection.query('SELECT pagado FROM cobranza_facturas_cor WHERE id_factura_cor=? FOR UPDATE', [idFacturaCor]);
-        const [movements] = await connection.query('SELECT importe_aplicado FROM cobranza_rel_pagos WHERE id_factura_cor=? FOR UPDATE', [idFacturaCor]);
-        const net = movements.reduce((sum, item) => sum + Math.round(Number(item.importe_aplicado) * 100), 0);
-        if (!Number.isSafeInteger(net) || net !== 0 || Number(locked[0]?.pagado || 0) !== 0) throw httpError(409, 'La factura tiene pagos netos. Revierta los pagos antes de inactivarla.');
-        const [result] = await connection.query('UPDATE cobranza_facturas_cor SET activo=0, updated_by=? WHERE id_factura_cor=? AND activo=1', [actor, idFacturaCor]);
-        if (Number(result.affectedRows) !== 1) throw httpError(409, 'La Factura cambio durante la inactivacion.');
-        await connection.commit();
-        return { ok: true, ppns, id_factura_cor: idFacturaCor, inactiva: true, relaciones_eliminadas: 0 };
+      if (!await manualMode_cor(connection)) {
+        throw httpError(409, 'La inactivacion de Facturas requiere terminar la migracion SQL de pagos manuales.');
       }
-      const relaciones_eliminadas = await registrosRepository.deleteFacturaRelations_cor(connection, idFacturaCor);
-      const eliminadas = await registrosRepository.deleteFactura_cor(connection, ppns, idFacturaCor);
-      if (eliminadas !== 1) throw httpError(409, 'La Factura cambio durante la eliminacion. Vuelve a intentarlo.');
+      const actor = actorId(actorUserId);
+      if (!actor) throw httpError(403, 'Usuario responsable no identificado.');
+      const [locked] = await connection.query('SELECT pagado FROM cobranza_facturas_cor WHERE id_factura_cor=? FOR UPDATE', [idFacturaCor]);
+      const [movements] = await connection.query('SELECT importe_aplicado FROM cobranza_rel_pagos WHERE id_factura_cor=? FOR UPDATE', [idFacturaCor]);
+      const net = movements.reduce((sum, item) => sum + Math.round(Number(item.importe_aplicado) * 100), 0);
+      if (!Number.isSafeInteger(net) || net !== 0 || Number(locked[0]?.pagado || 0) !== 0) throw httpError(409, 'La factura tiene pagos netos. Revierta los pagos antes de inactivarla.');
+      const [result] = await connection.query('UPDATE cobranza_facturas_cor SET activo=0, updated_by=? WHERE id_factura_cor=? AND activo=1', [actor, idFacturaCor]);
+      if (Number(result.affectedRows) !== 1) throw httpError(409, 'La Factura cambio durante la inactivacion.');
       await connection.commit();
-      return { ok: true, ppns, id_factura_cor: idFacturaCor, relaciones_eliminadas };
+      return { ok: true, ppns, id_factura_cor: idFacturaCor, inactiva: true, relaciones_eliminadas: 0 };
     } catch (error) {
       try { await connection.rollback(); } catch (_rollbackError) {}
       throw error;

@@ -1,25 +1,29 @@
 'use strict';
 
-// El flujo nuevo permanece desactivado hasta el corte y la conciliacion de Aiven.
-// El codigo de permiso debe ser el codigo granular real confirmado por el administrador.
+// El Estado de Cuenta se publica sin activacion de Azure. Solo la escritura
+// y la lectura de columnas nuevas esperan la migracion SQL de Aiven.
+// El permiso granular se registra/asigna en la matriz existente, nunca en el JWT.
 const { createService_cor, FLAG } = require('./cobranza-cor-pagos-manuales.service');
 const repository = require('./cobranza-cor.repository');
 const { hasEffectivePermission } = require('../../services/permissions/effective-permission.service');
 
+// Flag anterior reservado al modulo general Pagos, fuera del alcance de esta fase.
 function enabled_cor() { return process.env[FLAG] === '1'; }
-function permissionCode_cor() {
-  const code = String(process.env.BLT_COBRANZA_COR_EDICION_PERMISSION || '').trim();
-  return /^COBRANZA_ESTADOS_CUENTA_[A-Z0-9_]+\.EDITAR$/.test(code) ? code : null;
+function permissionCode_cor() { return 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.EDITAR'; }
+async function estadoCuentaReady_cor() {
+  const connection = await repository.getConnection_cor();
+  try { return await repository.pagosManualesSchemaReady_cor(connection); }
+  finally { connection.release(); }
 }
-async function canEdit_cor({ actor, informationAccess }) {
+async function canEdit_cor({ actor, informationAccess, connection }) {
   const code = permissionCode_cor();
   const uid = Number(actor);
-  if (!enabled_cor() || !code || !Number.isSafeInteger(uid) || uid <= 0) return false;
+  if (!Number.isSafeInteger(uid) || uid <= 0) return false;
   if (String(informationAccess?.dominio || informationAccess?.empresa || '').toUpperCase() !== 'CORELLIAN'
       || Number(informationAccess.actor_user_id) !== uid
       || Number(informationAccess.effective_user_id) !== uid
       || informationAccess.acceso_puerta !== true) return false;
-  return hasEffectivePermission(uid, code);
+  return hasEffectivePermission(uid, code, connection);
 }
 function guardActor_cor(req) {
   if (req.viewerContext?.active) return null;
@@ -33,8 +37,8 @@ function jsonError_cor(error, res, next) {
   return next(error);
 }
 async function requireEditIfEnabled_cor(req, res, next) {
-  if (!enabled_cor()) return next();
   try {
+    if (!await estadoCuentaReady_cor()) return next();
     if (!await canEdit_cor({ actor: guardActor_cor(req), informationAccess: req.informationAccess })) {
       return res.status(403).json({ ok: false, code: 'COBRANZA_COR_EDICION_REQUERIDA', message: 'Edicion de Estado de Cuenta no autorizada.' });
     }
@@ -45,7 +49,13 @@ function rejectLegacyIfEnabled_cor(req, res, next) {
   if (!enabled_cor()) return next();
   return res.status(409).json({ ok: false, code: 'COBRANZA_COR_FLUJO_MANUAL', message: 'Esta operacion de Pagos NS ya no esta disponible. Actualice la aplicacion.' });
 }
-const service = createService_cor({ repository, authorizeMutation: canEdit_cor, enabled: enabled_cor });
+async function rejectLegacyEstadoCuentaIfReady_cor(req, res, next) {
+  try {
+    if (!await estadoCuentaReady_cor()) return next();
+    return res.status(409).json({ ok:false, code:'COBRANZA_COR_FLUJO_MANUAL', message:'Esta operacion de Estado de Cuenta ya fue sustituida por pagos manuales.' });
+  } catch (error) { return next(error); }
+}
+const service = createService_cor({ repository, authorizeMutation: canEdit_cor, enabled: estadoCuentaReady_cor });
 function handler_cor(action) {
   return async (req, res, next) => {
     try {
@@ -158,4 +168,4 @@ async function conciliacion_cor(req, res, next) {
   }
 }
 module.exports = { conciliacion_cor, enabled_cor, canEdit_cor, permissionCode_cor, requireEditIfEnabled_cor,
-  rejectLegacyIfEnabled_cor, handler_cor, listMovements_cor, dateReferences_cor, invoiceFields_cor };
+  rejectLegacyIfEnabled_cor, rejectLegacyEstadoCuentaIfReady_cor, estadoCuentaReady_cor, handler_cor, listMovements_cor, dateReferences_cor, invoiceFields_cor };

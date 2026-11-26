@@ -28,7 +28,7 @@ function rejectViewerMutation_cor(req, res, next) {
 
 router.put('/estados-cuenta/:ppns/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.actualizarFactura_cor);
 router.delete('/estados-cuenta/:ppns/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.eliminarFactura_cor);
-router.put('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.actualizarPago_cor);
-router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.eliminarPago_cor);
+router.put('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyEstadoCuentaIfReady_cor, controller.actualizarPago_cor);
+router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyEstadoCuentaIfReady_cor, controller.eliminarPago_cor);
 
 module.exports = router;

@@ -95,6 +95,26 @@ async function getConnection_cor() {
   return db.getConnection();
 }
 
+// Contrato SQL de la migracion de Edo. de Cta. No requiere variable de Azure.
+// estatus_pago, moneda y origen_registro se hacen NOT NULL exclusivamente
+// al terminar el backfill y la validacion de saldos historicos.
+async function pagosManualesSchemaReady_cor(connection) {
+  const required = [
+    'id_rel_pago', 'id_factura_cor', 'id_pago_cor', 'importe_aplicado',
+    'fecha_pago', 'estatus_pago', 'moneda', 'tipo_cambio', 'importe_mxn',
+    'id_rel_pago_origen', 'origen_registro', 'created_by', 'updated_by'
+  ];
+  const [rows] = await connection.query(
+    'SELECT COLUMN_NAME AS column_name, IS_NULLABLE AS is_nullable, COLUMN_TYPE AS column_type FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+    ['cobranza_rel_pagos']
+  );
+  const columns = new Map(rows.map(row => [String(row.column_name).toLowerCase(), row]));
+  return required.every(name => columns.has(name))
+    && ['id_pago_cor', 'id_rel_pago_origen', 'tipo_cambio', 'importe_mxn'].every(name => columns.get(name).is_nullable === 'YES')
+    && ['estatus_pago', 'moneda', 'origen_registro'].every(name => columns.get(name).is_nullable === 'NO')
+    && /^decimal\(18,2\)$/i.test(String(columns.get('importe_aplicado').column_type));
+}
+
 async function insertRecord_cor(connection, tableName, record) {
   if (!Object.values(TABLES_COR).includes(tableName)) {
     throw new Error(`Tabla Cobranza COR no autorizada: ${tableName}`);
@@ -1064,6 +1084,7 @@ async function getAditiva_cor(connection, idAditivaCor, visibleUserIds = null) {
 module.exports = {
   TABLES_COR,
   getConnection_cor,
+  pagosManualesSchemaReady_cor,
   insertRecord_cor,
   updateAditiva_cor,
   canAccessPpns_cor,

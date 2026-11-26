@@ -18,18 +18,41 @@ function fixture(env = {}, permission = true, repository = {}, facturaGroups = (
   return { api:module.exports, calls };
 }
 const flag = 'BLT_COBRANZA_COR_PAGOS_MANUALES_V1';
-const code = 'COBRANZA_ESTADOS_CUENTA_TEST.EDITAR'; // fixture, not a production permission
+const code = 'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.EDITAR';
 const context = { dominio:'CORELLIAN', actor_user_id:8, effective_user_id:8, acceso_puerta:true };
-test('permiso no inventado: requiere bandera, codigo real configurado y actor efectivo',async()=>{
-  for(const env of [{},{[flag]:'1'},{[flag]:'1',BLT_COBRANZA_COR_EDICION_PERMISSION:'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'}]){
-    const f=fixture(env); assert.equal(await f.api.canEdit_cor({actor:8,informationAccess:context}),false); assert.equal(f.calls.length,0);
+test('el permiso granular se evalua sin bandera Azure y sin ampliar acceso visual',async()=>{
+  for(const env of [{},{[flag]:'1'},{BLT_COBRANZA_COR_EDICION_PERMISSION:'COBRANZA_ESTADOS_CUENTA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL'}]){
+    const f=fixture(env,false);
+    assert.equal(await f.api.canEdit_cor({actor:8,informationAccess:context}),false);
+    assert.equal(f.calls[0][1],code);
   }
-  const f=fixture({[flag]:'1',BLT_COBRANZA_COR_EDICION_PERMISSION:code});
+  const f=fixture();
   assert.equal(await f.api.canEdit_cor({actor:8,informationAccess:context}),true);
   assert.equal(f.calls[0][1],code);
   assert.equal(await f.api.canEdit_cor({actor:8,informationAccess:{...context,effective_user_id:9}}),false);
-  const denied=fixture({[flag]:'1',BLT_COBRANZA_COR_EDICION_PERMISSION:code},false);
-  assert.equal(await denied.api.canEdit_cor({actor:8,informationAccess:context}),false);
+  assert.equal(await f.api.canEdit_cor({actor:8,informationAccess:{...context,dominio:'UNITED'}}),false);
+});
+test('solo el esquema SQL final permite el nuevo flujo de Edo. de Cta., independiente de Pagos general',async()=>{
+  let ready=false, releases=0, nextCalls=0, status;
+  const repo={
+    getConnection_cor:async()=>({release(){releases++;}}),
+    pagosManualesSchemaReady_cor:async()=>ready
+  };
+  const f=fixture({},true,repo);
+  const res={status(n){status=n;return this;},json(v){return v;}};
+  const next=err=>{if(err)throw err;nextCalls++;};
+  assert.equal(await f.api.estadoCuentaReady_cor(),false);
+  await f.api.rejectLegacyEstadoCuentaIfReady_cor({},res,next);
+  assert.equal(nextCalls,1);
+  ready=true;
+  assert.equal(await f.api.estadoCuentaReady_cor(),true);
+  await f.api.rejectLegacyEstadoCuentaIfReady_cor({},res,next);
+  assert.equal(status,409);
+  assert.equal(nextCalls,1);
+  f.api.rejectLegacyIfEnabled_cor({},res,next);
+  assert.equal(nextCalls,2);
+  assert.equal(releases,4);
+  assert.equal(f.api.enabled_cor(),false);
 });
 test('historial se obtiene por factura sin NS y fechas omiten contramovimientos y originales revertidos',async()=>{
   const f=fixture();

@@ -1083,7 +1083,7 @@
       const difference=number_cor(row&&row.saldo);
       const appliedTo=text_cor(row&&row.aplicado_a_condicion,'');
       return `
-      <tr ${manualMode_cor()?`data-ccor-manual-factura="${escapeHtml_cor(row.id_factura_cor)}" data-ccor-manual-eligible="${row.puede_recibir_pago===true?1:0}"`:''}>
+      <tr ${manualMode_cor()?`data-ccor-manual-factura="${escapeHtml_cor(row.id_factura_cor)}" data-ccor-manual-eligible="${manualInvoiceEligible_cor(row)?1:0}"`:''}>
         <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
         <td>${escapeHtml_cor(text_cor(row.tipo_concepto))}</td>
         <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.concepto))}</td>
@@ -1115,7 +1115,7 @@
 
   function renderFacturasSection_cor(detail){
     const rows=getFacturas_cor(detail);
-    const readonly=isViewerReadonly_cor()||(manualMode_cor(detail)&&!manualCanEdit_cor(detail));
+    const readonly=isViewerReadonly_cor()||(manualReady_cor(detail)&&!manualCanEdit_cor(detail));
     return `
       <section class="ccor-ec-card ccor-ec-facturas-section">
         <div class="ccor-ec-facturas-head">
@@ -1151,8 +1151,20 @@
   function manualMode_cor(detail=state.detail){
     return detail?.pagos_manuales?.habilitado===true;
   }
+  function manualReady_cor(detail=state.detail){
+    return manualMode_cor(detail)&&detail.pagos_manuales.estructura_lista===true;
+  }
   function manualCanEdit_cor(detail=state.detail){
-    return manualMode_cor(detail)&&detail.pagos_manuales.puede_editar===true&&!isViewerReadonly_cor();
+    return manualReady_cor(detail)&&detail.pagos_manuales.puede_editar===true&&!isViewerReadonly_cor();
+  }
+  function manualCanPreview_cor(detail=state.detail){
+    return manualMode_cor(detail)&&!manualReady_cor(detail)&&!isViewerReadonly_cor();
+  }
+  function manualInvoiceEligible_cor(row,detail=state.detail){
+    if(manualReady_cor(detail))return row?.puede_recibir_pago===true;
+    // Antes del corte solo se previsualiza; la API validara el saldo real.
+    return Number(row?.saldo)>0 && ['MXN','USD','EUR'].includes(String(row?.moneda||'').toUpperCase())
+      && !/^(PAGADO|CANCEL|ANUL|APLICADO)/i.test(String(row?.estatus_factura||'').trim());
   }
   function manualMovements_cor(detail=state.detail){
     return Array.isArray(detail?.pagos_manuales?.movimientos)?detail.pagos_manuales.movimientos:[];
@@ -1168,6 +1180,8 @@
   }
   function renderManualPaymentsSection_cor(detail){
     const editable=manualCanEdit_cor(detail);
+    const preview=manualCanPreview_cor(detail);
+    const pending=!manualReady_cor(detail);
     const rows=manualMovements_cor(detail);
     const credits=new Map();
     getFacturas_cor(detail).forEach(row=>{
@@ -1186,16 +1200,17 @@
         <button type="button" class="ccor-f6-btn ccor-f6-btn-danger" data-ccor-manual-reverse="${escapeHtml_cor(row.id_rel_pago)}">Eliminar</button>
       </div>`}</td>`:''}
       </tr>`).join('');
-    const available=getFacturas_cor(detail).some(row=>row.puede_recibir_pago===true);
+    const available=getFacturas_cor(detail).some(row=>manualInvoiceEligible_cor(row,detail));
     return `<section class="ccor-ec-card ccor-ec-pagos-section">
       <div class="ccor-ec-facturas-head"><div><b>PAGOS</b><span>Pagos registrados directamente contra Facturas de este Estado de Cuenta.</span></div>
-        ${editable?`<button type="button" class="ccor-ec-btn ccor-ec-btn-primary" data-ccor-manual-open ${available?'':'disabled'}>+ Crear nuevo</button>`:''}</div>
+        ${editable||preview?`<button type="button" class="ccor-ec-btn ccor-ec-btn-primary" data-ccor-manual-open ${available||preview?'':'disabled'}>+ Crear nuevo</button>`:''}</div>
+      ${pending?'<p class="ccor-ec-inline-status is-warn">Pendiente de migrar SQL: se conservan los saldos vigentes de Fuente y Facturas. El nuevo formulario está disponible para revisión, sin guardar pagos todavía.</p>':''}
       ${credits.size?`<p><b>Saldo a favor:</b> ${[...credits].map(([currency,value])=>escapeHtml_cor(formatMoney_cor(value,currency)+' '+currency)).join(' · ')}</p>`:''}
       <div id="ccor-ec-pago-status" class="ccor-ec-inline-status" aria-live="polite"></div>
       <form id="ccor-ec-manual-form" class="ccor-ec-factura-form" hidden></form>
       <div class="ccor-ec-table-wrap ccor-ec-pagos-wrap"><table class="ccor-ec-table ccor-ec-pagos-manuales-table">
         <thead><tr><th>Factura</th><th>Valor</th><th>Mon</th><th>Fecha de Pago</th><th>Estatus</th><th>TDC</th>${editable?'<th>Acciones</th>':''}</tr></thead>
-        <tbody>${body||`<tr><td colspan="${editable?7:6}" class="ccor-ec-table-empty">Sin pagos registrados.</td></tr>`}</tbody>
+        <tbody>${body||`<tr><td colspan="${editable?7:6}" class="ccor-ec-table-empty">${pending?'Historial pendiente de migración.':'Sin pagos registrados.'}</td></tr>`}</tbody>
       </table></div></section>`;
   }
   function closeManualForm_cor(){
@@ -1222,7 +1237,9 @@
     if(!enabled)field.value='';
   }
   function openManualForm_cor({facturaId=null,pagoId=null,reverse=false}={}){
-    if(!manualCanEdit_cor()||state.paymentSaving)return;
+    const editable=manualCanEdit_cor();
+    const preview=manualCanPreview_cor();
+    if((!editable&&!preview)||state.paymentSaving||(!editable&&(pagoId!=null||reverse)))return;
     const form=document.getElementById('ccor-ec-manual-form');
     if(!form)return;
     const movement=pagoId==null?null:manualMovements_cor().find(row=>Number(row.id_rel_pago)===Number(pagoId));
@@ -1231,8 +1248,8 @@
     if(movement)facturaId=movement.id_factura_cor;
     const selected=manualInvoice_cor(facturaId);
     if(movement&&!selected)return;
-    const candidates=movement?[selected]:getFacturas_cor(state.detail).filter(row=>row.puede_recibir_pago===true);
-    if(!candidates.length||(!movement&&facturaId!=null&&!candidates.some(row=>Number(row.id_factura_cor)===Number(facturaId))))return;
+    const candidates=movement?[selected]:getFacturas_cor(state.detail).filter(row=>manualInvoiceEligible_cor(row));
+    if((!candidates.length&&!preview)||(!movement&&facturaId!=null&&!candidates.some(row=>Number(row.id_factura_cor)===Number(facturaId))))return;
     form.dataset.mode=reverse?'revertir':movement?'editar':'crear';
     form.dataset.pagoId=movement?String(movement.id_rel_pago):'';
     form.dataset.facturaId=movement?String(movement.id_factura_cor):'';
@@ -1248,7 +1265,7 @@
         <label><span>Estatus *</span><select name="estatus_pago" required><option value="">Seleccionar...</option>${['Parcial','Pagado'].map(value=>`<option value="${value}"${movement?.estatus_pago===value?' selected':''}>${value}</option>`).join('')}</select></label>
         <label data-manual-tdc-label hidden><span>TDC</span><input type="checkbox" name="tdc" ${movement?.tipo_cambio!=null?'checked':''}></label>
         <label data-manual-tdc-field hidden><span>Tipo de cambio (MXN/USD)</span><input name="tipo_cambio" type="number" min="0.000001" step="0.000001" value="${escapeHtml_cor(movement?.tipo_cambio??'')}"></label>
-        <div class="ccor-ec-factura-form-actions"><button type="button" class="ccor-ec-btn" data-ccor-manual-close>Cancelar</button><button type="submit" class="ccor-ec-btn ccor-ec-btn-primary">Guardar</button></div>`;
+        <div class="ccor-ec-factura-form-actions"><button type="button" class="ccor-ec-btn" data-ccor-manual-close>Cancelar</button><button type="submit" class="ccor-ec-btn ccor-ec-btn-primary" ${editable?'':'disabled'}>Guardar</button></div>${preview?'<small class="ccor-ec-factura-note">El guardado estará disponible al completar la migración SQL y validar el permiso de edición.</small>':''}`;
     }
     form.hidden=false;
     syncManualTdc_cor();
@@ -1261,7 +1278,7 @@
     if(!['crear','editar','revertir'].includes(mode))return;
     const invoiceId=Number(form.dataset.facturaId||form.querySelector('[name=factura]')?.value);
     const invoice=manualInvoice_cor(invoiceId);
-    if(!invoice||(mode==='crear'&&invoice.puede_recibir_pago!==true))return;
+    if(!invoice||(mode==='crear'&&!manualInvoiceEligible_cor(invoice)))return;
     const ppns=String(state.detail?.proyecto?.ppns||'');
     if(!ppns)return;
     const payload={estatus_pago:form.querySelector('[name=estatus_pago]')?.value};
@@ -1571,7 +1588,7 @@
           </div>
 
           <div class="ccor-ec-hero-actions">
-            ${manualMode_cor(detail)&&!manualCanEdit_cor(detail)?'':`<button id="ccor-ec-edit" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Editar</button>`}
+            ${manualReady_cor(detail)&&!manualCanEdit_cor(detail)?'':`<button id="ccor-ec-edit" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Editar</button>`}
             <span
               class="ccor-ec-badge ${statusClass_cor(project.contractual)}"
             >
