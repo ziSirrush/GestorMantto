@@ -97,8 +97,9 @@
     state.editSnapshot=null;
   }
 
-  function actionCellHtml_cor(kind,id){
+  function actionCellHtml_cor(kind,id,canPay=false){
     return `<div class="ccor-f6-actions" data-f6-actions="${escapeHtml_cor(kind)}:${escapeHtml_cor(id)}">
+      ${canPay?`<button class="ccor-f6-btn" type="button" data-ccor-manual-open="${escapeHtml_cor(id)}">Pago</button>`:''}
       <button class="ccor-f6-btn" type="button" data-f6-edit data-kind="${escapeHtml_cor(kind)}" data-id="${escapeHtml_cor(id)}">Editar</button>
       <button class="ccor-f6-btn ccor-f6-btn-danger" type="button" data-f6-delete data-kind="${escapeHtml_cor(kind)}" data-id="${escapeHtml_cor(id)}">Eliminar</button>
     </div>`;
@@ -114,13 +115,13 @@
   }
 
 
-  function renderActionCell_cor(cell,kind,id){
+  function renderActionCell_cor(cell,kind,id,canPay=false){
     if(!cell) return;
     const confirm=state.deletePending===`${kind}:${Number(id)}`;
-    const desired=(confirm?'confirm:':'actions:')+kind+':'+Number(id);
+    const desired=(confirm?'confirm:':'actions:')+kind+':'+Number(id)+':'+(canPay?'pago':'normal');
     if(cell.dataset.f6State===desired) return;
     cell.dataset.f6State=desired;
-    cell.innerHTML=confirm?confirmDeleteHtml_cor(kind,id):actionCellHtml_cor(kind,id);
+    cell.innerHTML=confirm?confirmDeleteHtml_cor(kind,id):actionCellHtml_cor(kind,id,canPay);
   }
 
   function removeActions_cor(table){
@@ -132,7 +133,8 @@
   function decorateFacturas_cor(){
     const table=document.querySelector('.ccor-ec-facturas-table');
     if(!table||!state.detail) return false;
-    if(isViewerReadonly_cor()){
+    const manual=table.dataset.ccorManualMode==='1';
+    if(isViewerReadonly_cor()||(manual&&table.dataset.ccorManualEditable!=='1')){
       removeActions_cor(table);
       return true;
     }
@@ -146,7 +148,7 @@
     const facturas=Array.isArray(state.detail.facturas)?state.detail.facturas:[];
     const rows=Array.from(table.querySelectorAll('tbody tr')).filter(row=>!row.querySelector('.ccor-ec-table-empty'));
     rows.forEach((row,index)=>{
-      const factura=facturas[index];
+      const factura=manual?facturaById_cor(row.dataset.ccorManualFactura):facturas[index];
       const id=Number(factura&&factura.id_factura_cor);
       if(!Number.isInteger(id)||id<=0) return;
       row.dataset.facturaId=String(id);
@@ -157,7 +159,7 @@
         row.appendChild(cell);
       }
       if(state.editing===`factura:${id}`) return;
-      renderActionCell_cor(cell,'factura',id);
+      renderActionCell_cor(cell,'factura',id,manual&&row.dataset.ccorManualEligible==='1');
     });
     return true;
   }
@@ -192,7 +194,7 @@
   }
 
   function decorate_cor(){
-    if(!activePpns_cor()||!state.detail) return false;
+    if(!activePpns_cor()||!state.detail||activePpns_cor().toUpperCase()!==state.ppns.toUpperCase()) return false;
     const a=decorateFacturas_cor();
     const b=decoratePagos_cor();
     return a||b;

@@ -1083,7 +1083,7 @@
       const difference=number_cor(row&&row.saldo);
       const appliedTo=text_cor(row&&row.aplicado_a_condicion,'');
       return `
-      <tr>
+      <tr ${manualMode_cor()?`data-ccor-manual-factura="${escapeHtml_cor(row.id_factura_cor)}" data-ccor-manual-eligible="${row.puede_recibir_pago===true?1:0}"`:''}>
         <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
         <td>${escapeHtml_cor(text_cor(row.tipo_concepto))}</td>
         <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.concepto))}</td>
@@ -1105,7 +1105,7 @@
         <td class="ccor-ec-num ${appliedTo?'is-applied':'is-pending'}">
           ${appliedTo
             ? `<span class="ccor-ec-badge is-warn">Aplicado a ${escapeHtml_cor(appliedTo)}</span>`
-            : escapeHtml_cor(formatAmount_cor(difference))}
+            : (Number(row.saldo_a_favor)>0?`<span class="ccor-ec-badge is-ok">A favor ${escapeHtml_cor(formatAmount_cor(row.saldo_a_favor))}</span>`:escapeHtml_cor(formatAmount_cor(difference)))}
         </td>
         <td><span class="ccor-ec-badge ${statusClass_cor(row.estatus_factura)}">${escapeHtml_cor(text_cor(row.estatus_factura))}</span></td>
         <td>${escapeHtml_cor(formatDate_cor(row.fecha_vencimiento))}</td>
@@ -1115,7 +1115,7 @@
 
   function renderFacturasSection_cor(detail){
     const rows=getFacturas_cor(detail);
-    const readonly=isViewerReadonly_cor();
+    const readonly=isViewerReadonly_cor()||(manualMode_cor(detail)&&!manualCanEdit_cor(detail));
     return `
       <section class="ccor-ec-card ccor-ec-facturas-section">
         <div class="ccor-ec-facturas-head">
@@ -1138,7 +1138,7 @@
           <small class="ccor-ec-factura-note">El estatus de cobranza no se calcula automáticamente desde las asignaciones de Pagos.</small>
         </div>
         <div class="ccor-ec-table-wrap ccor-ec-facturas-wrap">
-          <table class="ccor-ec-table ccor-ec-facturas-table">
+          <table class="ccor-ec-table ccor-ec-facturas-table" ${manualMode_cor(detail)?`data-ccor-manual-mode="1" data-ccor-manual-editable="${readonly?0:1}"`:''}>
             <thead><tr><th>Factura</th><th>Tipo</th><th>Concepto</th><th>Fecha</th><th>Mon</th><th>Total</th><th>Pagado</th><th>Diferencia</th><th>Estatus</th><th>Vencimiento</th></tr></thead>
             <tbody>${renderFacturasRows_cor(rows)}</tbody>
           </table>
@@ -1147,7 +1147,149 @@
       </section>`;
   }
 
+
+  function manualMode_cor(detail=state.detail){
+    return detail?.pagos_manuales?.habilitado===true;
+  }
+  function manualCanEdit_cor(detail=state.detail){
+    return manualMode_cor(detail)&&detail.pagos_manuales.puede_editar===true&&!isViewerReadonly_cor();
+  }
+  function manualMovements_cor(detail=state.detail){
+    return Array.isArray(detail?.pagos_manuales?.movimientos)?detail.pagos_manuales.movimientos:[];
+  }
+  function manualInvoice_cor(id){
+    return getFacturas_cor(state.detail).find(row=>Number(row.id_factura_cor)===Number(id));
+  }
+  function manualToday_cor(){
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+      timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'
+    }).formatToParts(new Date()).map(item=>[item.type,item.value]));
+    return parts.year+'-'+parts.month+'-'+parts.day;
+  }
+  function renderManualPaymentsSection_cor(detail){
+    const editable=manualCanEdit_cor(detail);
+    const rows=manualMovements_cor(detail);
+    const credits=new Map();
+    getFacturas_cor(detail).forEach(row=>{
+      const credit=number_cor(row.saldo_a_favor)||0;
+      if(credit>0)credits.set(row.moneda,(credits.get(row.moneda)||0)+credit);
+    });
+    const body=rows.map(row=>`<tr data-ccor-manual-id="${escapeHtml_cor(row.id_rel_pago)}">
+      <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
+      <td class="ccor-ec-num">${escapeHtml_cor(formatAmount_cor(row.importe_aplicado))}</td>
+      <td>${escapeHtml_cor(text_cor(row.moneda))}</td>
+      <td>${escapeHtml_cor(formatDate_cor(row.fecha_pago))}</td>
+      <td>${escapeHtml_cor(text_cor(row.estatus_pago))}</td>
+      <td>${row.tipo_cambio==null?'—':escapeHtml_cor(row.tipo_cambio+' · '+formatMoney_cor(row.importe_mxn,'MXN'))}</td>
+      ${editable?`<td>${row.bloqueado!==false?'Histórico / revertido':`<div class="ccor-f6-actions">
+        <button type="button" class="ccor-f6-btn" data-ccor-manual-edit="${escapeHtml_cor(row.id_rel_pago)}">Editar</button>
+        <button type="button" class="ccor-f6-btn ccor-f6-btn-danger" data-ccor-manual-reverse="${escapeHtml_cor(row.id_rel_pago)}">Eliminar</button>
+      </div>`}</td>`:''}
+      </tr>`).join('');
+    const available=getFacturas_cor(detail).some(row=>row.puede_recibir_pago===true);
+    return `<section class="ccor-ec-card ccor-ec-pagos-section">
+      <div class="ccor-ec-facturas-head"><div><b>PAGOS</b><span>Pagos registrados directamente contra Facturas de este Estado de Cuenta.</span></div>
+        ${editable?`<button type="button" class="ccor-ec-btn ccor-ec-btn-primary" data-ccor-manual-open ${available?'':'disabled'}>+ Crear nuevo</button>`:''}</div>
+      ${credits.size?`<p><b>Saldo a favor:</b> ${[...credits].map(([currency,value])=>escapeHtml_cor(formatMoney_cor(value,currency)+' '+currency)).join(' · ')}</p>`:''}
+      <div id="ccor-ec-pago-status" class="ccor-ec-inline-status" aria-live="polite"></div>
+      <form id="ccor-ec-manual-form" class="ccor-ec-factura-form" hidden></form>
+      <div class="ccor-ec-table-wrap ccor-ec-pagos-wrap"><table class="ccor-ec-table ccor-ec-pagos-manuales-table">
+        <thead><tr><th>Factura</th><th>Valor</th><th>Mon</th><th>Fecha de Pago</th><th>Estatus</th><th>TDC</th>${editable?'<th>Acciones</th>':''}</tr></thead>
+        <tbody>${body||`<tr><td colspan="${editable?7:6}" class="ccor-ec-table-empty">Sin pagos registrados.</td></tr>`}</tbody>
+      </table></div></section>`;
+  }
+  function closeManualForm_cor(){
+    const form=document.getElementById('ccor-ec-manual-form');
+    if(form&&!state.paymentSaving){form.hidden=true;form.innerHTML='';}
+  }
+  function syncManualTdc_cor(){
+    const form=document.getElementById('ccor-ec-manual-form');
+    if(!form||form.hidden||form.dataset.mode==='revertir')return;
+    const invoice=manualInvoice_cor(form.querySelector('[name=factura]')?.value);
+    const currency=invoice?.moneda||'';
+    const code=form.querySelector('[data-manual-moneda]');
+    if(code)code.textContent=currency;
+    const check=form.querySelector('[name=tdc]');
+    const field=form.querySelector('[name=tipo_cambio]');
+    const checkLabel=form.querySelector('[data-manual-tdc-label]');
+    const fieldLabel=form.querySelector('[data-manual-tdc-field]');
+    if(!check||!field||!checkLabel||!fieldLabel)return;
+    const usd=currency==='USD';
+    checkLabel.hidden=!usd;check.disabled=!usd;
+    if(!usd)check.checked=false;
+    const enabled=usd&&check.checked;
+    fieldLabel.hidden=!enabled;field.disabled=!enabled;field.required=enabled;
+    if(!enabled)field.value='';
+  }
+  function openManualForm_cor({facturaId=null,pagoId=null,reverse=false}={}){
+    if(!manualCanEdit_cor()||state.paymentSaving)return;
+    const form=document.getElementById('ccor-ec-manual-form');
+    if(!form)return;
+    const movement=pagoId==null?null:manualMovements_cor().find(row=>Number(row.id_rel_pago)===Number(pagoId));
+    if(pagoId!=null&&(!movement||movement.bloqueado!==false))return;
+    if(reverse&&!movement)return;
+    if(movement)facturaId=movement.id_factura_cor;
+    const selected=manualInvoice_cor(facturaId);
+    if(movement&&!selected)return;
+    const candidates=movement?[selected]:getFacturas_cor(state.detail).filter(row=>row.puede_recibir_pago===true);
+    if(!candidates.length||(!movement&&facturaId!=null&&!candidates.some(row=>Number(row.id_factura_cor)===Number(facturaId))))return;
+    form.dataset.mode=reverse?'revertir':movement?'editar':'crear';
+    form.dataset.pagoId=movement?String(movement.id_rel_pago):'';
+    form.dataset.facturaId=movement?String(movement.id_factura_cor):'';
+    if(reverse){
+      form.innerHTML=`<div class="is-wide"><b>Revertir pago · ${escapeHtml_cor(movement.factura)}</b><p>Se conserva el pago original. Nuevo movimiento: ${escapeHtml_cor(formatMoney_cor(-Number(movement.importe_aplicado),movement.moneda))}</p></div>
+        <label><span>Estatus</span><select name="estatus_pago" required><option value="">Seleccionar...</option><option value="Cancelado">Cancelado</option><option value="Devuelto">Devuelto</option></select></label>
+        <div class="ccor-ec-factura-form-actions"><button type="button" class="ccor-ec-btn" data-ccor-manual-close>Volver</button><button class="ccor-ec-btn ccor-ec-btn-primary" type="submit">Confirmar</button></div>`;
+    }else{
+      const options=candidates.map(row=>`<option value="${escapeHtml_cor(row.id_factura_cor)}"${Number(row.id_factura_cor)===Number(facturaId)?' selected':''}>${escapeHtml_cor(text_cor(row.factura)+' · '+text_cor(row.concepto,'')+' · '+text_cor(row.moneda)+' · Pendiente '+formatAmount_cor(row.saldo))}</option>`).join('');
+      form.innerHTML=`<label class="is-wide"><span>Factura *</span><select name="factura" required ${movement?'disabled':''}><option value="">Seleccionar factura...</option>${options}</select></label>
+        <label><span>Valor (<span data-manual-moneda></span>) *</span><input name="importe_aplicado" type="number" step="0.01" min="0.01" required value="${escapeHtml_cor(movement?.importe_aplicado??'')}"></label>
+        <label><span>Fecha de Pago *</span><input name="fecha_pago" type="date" required value="${escapeHtml_cor(movement?.fecha_pago||manualToday_cor())}"></label>
+        <label><span>Estatus *</span><select name="estatus_pago" required><option value="">Seleccionar...</option>${['Parcial','Pagado'].map(value=>`<option value="${value}"${movement?.estatus_pago===value?' selected':''}>${value}</option>`).join('')}</select></label>
+        <label data-manual-tdc-label hidden><span>TDC</span><input type="checkbox" name="tdc" ${movement?.tipo_cambio!=null?'checked':''}></label>
+        <label data-manual-tdc-field hidden><span>Tipo de cambio (MXN/USD)</span><input name="tipo_cambio" type="number" min="0.000001" step="0.000001" value="${escapeHtml_cor(movement?.tipo_cambio??'')}"></label>
+        <div class="ccor-ec-factura-form-actions"><button type="button" class="ccor-ec-btn" data-ccor-manual-close>Cancelar</button><button type="submit" class="ccor-ec-btn ccor-ec-btn-primary">Guardar</button></div>`;
+    }
+    form.hidden=false;
+    syncManualTdc_cor();
+    form.scrollIntoView?.({block:'nearest'});
+    form.querySelector('select:not([disabled]),input:not([disabled])')?.focus();
+  }
+  async function saveManualForm_cor(form){
+    if(!manualCanEdit_cor()||state.paymentSaving||!form.reportValidity())return;
+    const mode=form.dataset.mode;
+    if(!['crear','editar','revertir'].includes(mode))return;
+    const invoiceId=Number(form.dataset.facturaId||form.querySelector('[name=factura]')?.value);
+    const invoice=manualInvoice_cor(invoiceId);
+    if(!invoice||(mode==='crear'&&invoice.puede_recibir_pago!==true))return;
+    const ppns=String(state.detail?.proyecto?.ppns||'');
+    if(!ppns)return;
+    const payload={estatus_pago:form.querySelector('[name=estatus_pago]')?.value};
+    if(mode!=='revertir'){
+      payload.importe_aplicado=form.querySelector('[name=importe_aplicado]')?.value;
+      payload.fecha_pago=form.querySelector('[name=fecha_pago]')?.value;
+      payload.tipo_cambio=invoice.moneda==='USD'&&form.querySelector('[name=tdc]')?.checked
+        ?form.querySelector('[name=tipo_cambio]')?.value:null;
+    }
+    let path=LIST_PATH+'/'+encodeURIComponent(ppns)+'/facturas/'+invoiceId+'/pagos-manuales';
+    if(mode!=='crear')path+='/'+Number(form.dataset.pagoId);
+    if(mode==='revertir')path+='/revertir';
+    state.paymentSaving=true;
+    const submit=form.querySelector('[type=submit]');
+    if(submit)submit.disabled=true;
+    setPagoStatus_cor('Guardando pago...','loading');
+    try{
+      await apiRequest_cor(path,{method:mode==='editar'?'PUT':'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload),dedupe:false});
+      window.ManttoHttp?.invalidate?.(LIST_PATH+'/'+encodeURIComponent(ppns));
+      window.ManttoHttp?.invalidate?.('/api/cobranza-cor/pagos/conciliacion');
+      if(isActive_cor()&&String(state.selectedPpns||'').toUpperCase()===ppns.toUpperCase())await loadDetail_cor(ppns,{force:true});
+    }catch(error){
+      if(isActive_cor()&&String(state.selectedPpns||'').toUpperCase()===ppns.toUpperCase())setPagoStatus_cor(text_cor(error?.message,'No fue posible guardar el pago.'),'error');
+    }finally{state.paymentSaving=false;if(submit)submit.disabled=false;}
+  }
+
   function renderPagosSection_cor(detail){
+    if(manualMode_cor(detail))return renderManualPaymentsSection_cor(detail);
     const pagos=getPagos_cor(detail);
     const facturas=getFacturas_cor(detail);
     const ocupadas=new Set((Array.isArray(detail&&detail.relaciones_pagos)?detail.relaciones_pagos:[])
@@ -1429,7 +1571,7 @@
           </div>
 
           <div class="ccor-ec-hero-actions">
-            <button id="ccor-ec-edit" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Editar</button>
+            ${manualMode_cor(detail)&&!manualCanEdit_cor(detail)?'':`<button id="ccor-ec-edit" class="ccor-ec-btn ccor-ec-btn-primary" type="button">Editar</button>`}
             <span
               class="ccor-ec-badge ${statusClass_cor(project.contractual)}"
             >
@@ -1855,7 +1997,17 @@
     if(!root || root.dataset.ccorEstadosCuentaBound === '1') return;
     root.dataset.ccorEstadosCuentaBound='1';
 
+    root.addEventListener('submit',event=>{
+      if(event.target.id==='ccor-ec-manual-form'){event.preventDefault();saveManualForm_cor(event.target);}
+    });
     root.addEventListener('click',event=>{
+      const createManual=event.target.closest('[data-ccor-manual-open]');
+      if(createManual){openManualForm_cor({facturaId:createManual.dataset.ccorManualOpen||null});return;}
+      const editManual=event.target.closest('[data-ccor-manual-edit]');
+      if(editManual){openManualForm_cor({pagoId:editManual.dataset.ccorManualEdit});return;}
+      const reverseManual=event.target.closest('[data-ccor-manual-reverse]');
+      if(reverseManual){openManualForm_cor({pagoId:reverseManual.dataset.ccorManualReverse,reverse:true});return;}
+      if(event.target.closest('[data-ccor-manual-close]')){closeManualForm_cor();return;}
       const paymentBreakdown=event.target.closest('[data-payment-breakdown-toggle]');
       if(paymentBreakdown){
         closeFacturaTotalPopover_cor();
@@ -1918,6 +2070,7 @@
     });
 
     root.addEventListener('change',event=>{
+      if(event.target.closest('#ccor-ec-manual-form')&&['factura','tdc'].includes(event.target.name)){syncManualTdc_cor();return;}
       if(event.target.id === 'ccor-ec-factura-tipo'){ syncFacturaConceptOptions_cor(); return; }
       if(event.target.id === 'ccor-ec-factura-concepto'){ prefillFacturaConcept_cor(); return; }
       if(event.target.id === 'ccor-ec-year'){

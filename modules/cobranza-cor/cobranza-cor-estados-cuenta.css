@@ -636,3 +636,9 @@
   .ccor-ec-pagos-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
   .ccor-ec-pagos-table{display:table;width:100%;min-width:1120px!important}
 }
+
+/* Cobranza COR: captura directa de pagos. */
+#ccor-ec-manual-form [hidden]{display:none!important}
+#ccor-ec-manual-form input[type=checkbox]{width:18px;min-height:18px;align-self:flex-start;accent-color:#17365d}
+.ccor-ec-pagos-manuales-table{min-width:700px}
+.ccor-ec-pagos-manuales-table th,.ccor-ec-pagos-manuales-table td{vertical-align:middle;white-space:nowrap}

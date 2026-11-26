@@ -32,7 +32,8 @@
     activeProjectInput:null,
     activeProjectResults:[],
     activeProjectIndex:-1,
-    globalComboEventsBound:false
+    globalComboEventsBound:false,
+    conciliacionMode:null
   };
 
   function currentNavigation_cor(){
@@ -81,9 +82,9 @@
     }).format(new Date()).replace(',',' -');
   }
 
-  function apiGet_cor(path){
+  function apiGet_cor(path,options){
     if(!window.ManttoHttp||typeof window.ManttoHttp.get!=='function') return Promise.reject(new Error('Cliente HTTP central no disponible.'));
-    return window.ManttoHttp.get(path);
+    return window.ManttoHttp.get(path,options||{});
   }
   function apiRequest_cor(path,options){
     if(!window.ManttoHttp||typeof window.ManttoHttp.request!=='function') return Promise.reject(new Error('Cliente HTTP central no disponible.'));
@@ -417,6 +418,19 @@
     }
   }
 
+  function renderConciliacion_cor(response){
+    if(!state.root)return;
+    closeProjectDropdown_cor();
+    state.selectedIds.clear();
+    state.rowDrafts.clear();
+    const rows=Array.isArray(response?.data)?response.data:[];
+    const body=rows.map(row=>`<tr><td>${escapeHtml_cor(text_cor(row.ppns))}</td><td>${escapeHtml_cor(text_cor(row.proyecto))}</td><td>${escapeHtml_cor(text_cor(row.cliente))}</td><td>${escapeHtml_cor(text_cor(row.moneda))}</td><td class="ccor-pg-num">${escapeHtml_cor(formatAmount_cor(row.aplicado))}</td><td class="ccor-pg-num">${escapeHtml_cor(formatAmount_cor(row.total_bg))}</td><td class="ccor-pg-num">${escapeHtml_cor(formatAmount_cor(row.diferencia))}</td></tr>`).join('');
+    state.root.innerHTML=`<div class="ccor-pg-page" data-ccor-pg-root>
+      <section class="ccor-pg-hero"><div><p class="ccor-pg-eyebrow">Cobranza CORELLIAN</p><h1>Pagos · Conciliación</h1><p>Comparación independiente del Estado de Cuenta, por PPNS y moneda.</p></div><button class="ccor-pg-btn ccor-pg-btn-primary" data-ccor-pg-refresh type="button">Actualizar</button></section>
+      <div class="ccor-pg-message" id="ccor-pg-message" aria-live="polite">${response?.bg_disponible===true?'':'BG pendiente de integrar. Los importes de BG y las diferencias no están disponibles.'}</div>
+      <section class="ccor-pg-card ccor-pg-table-card"><div class="ccor-pg-table-wrap"><table class="ccor-pg-table"><thead><tr><th>PPNS</th><th>Proyecto</th><th>Cliente</th><th>Moneda</th><th>Aplicado en Edo. de Cta.</th><th>BG NS</th><th>Diferencia</th></tr></thead><tbody>${body||'<tr><td colspan="7" class="ccor-pg-empty">Sin importes para mostrar.</td></tr>'}</tbody></table></div></section></div>`;
+  }
+
   async function refresh_cor(options={}){
     if(!state.root||!isActive_cor()) return false;
     if(options.resetPage) state.pagination.page=1;
@@ -424,6 +438,14 @@
     setLoading_cor(true);
     setText_cor('ccor-pg-message','Consultando Pagos...');
     try{
+      if(state.conciliacionMode!==false){
+        let mode;
+        try { mode=await apiGet_cor(API_PATH+'/conciliacion',{force:true,cacheTtlMs:0}); }
+        catch(error){ if(Number(error?.status||error?.statusCode)!==404)throw error; }
+        if(sequence!==state.requestSequence||!isActive_cor())return false;
+        state.conciliacionMode=mode?.habilitado===true;
+        if(state.conciliacionMode){renderConciliacion_cor(mode);return true;}
+      }
       await loadProjects_cor();
       const response=await apiGet_cor(API_PATH+'?'+buildQuery_cor());
       if(sequence!==state.requestSequence||!isActive_cor()) return false;
@@ -662,6 +684,7 @@
     if(!root||!isActive_cor()) return false;
     state.root=root;
     state.boundRoot=null;
+    state.conciliacionMode=null;
     state.selectedIds.clear();
     state.rowDrafts.clear();
     renderShell_cor();
