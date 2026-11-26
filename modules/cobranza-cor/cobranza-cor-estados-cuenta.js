@@ -1083,7 +1083,7 @@
       const difference=number_cor(row&&row.saldo);
       const appliedTo=text_cor(row&&row.aplicado_a_condicion,'');
       return `
-      <tr ${manualMode_cor()?`data-ccor-manual-factura="${escapeHtml_cor(row.id_factura_cor)}" data-ccor-manual-eligible="${manualInvoiceEligible_cor(row)?1:0}"`:''}>
+      <tr ${manualMode_cor()?`data-ccor-manual-factura="${escapeHtml_cor(row.id_factura_cor)}"`:''}>
         <td><b>${escapeHtml_cor(text_cor(row.factura))}</b></td>
         <td>${escapeHtml_cor(text_cor(row.tipo_concepto))}</td>
         <td class="ccor-ec-condition">${escapeHtml_cor(text_cor(row.concepto))}</td>

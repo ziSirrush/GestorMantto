@@ -97,9 +97,8 @@
     state.editSnapshot=null;
   }
 
-  function actionCellHtml_cor(kind,id,canPay=false){
+  function actionCellHtml_cor(kind,id){
     return `<div class="ccor-f6-actions" data-f6-actions="${escapeHtml_cor(kind)}:${escapeHtml_cor(id)}">
-      ${canPay?`<button class="ccor-f6-btn" type="button" data-ccor-manual-open="${escapeHtml_cor(id)}">Pago</button>`:''}
       <button class="ccor-f6-btn" type="button" data-f6-edit data-kind="${escapeHtml_cor(kind)}" data-id="${escapeHtml_cor(id)}">Editar</button>
       <button class="ccor-f6-btn ccor-f6-btn-danger" type="button" data-f6-delete data-kind="${escapeHtml_cor(kind)}" data-id="${escapeHtml_cor(id)}">Eliminar</button>
     </div>`;
@@ -115,13 +114,13 @@
   }
 
 
-  function renderActionCell_cor(cell,kind,id,canPay=false){
+  function renderActionCell_cor(cell,kind,id){
     if(!cell) return;
     const confirm=state.deletePending===`${kind}:${Number(id)}`;
-    const desired=(confirm?'confirm:':'actions:')+kind+':'+Number(id)+':'+(canPay?'pago':'normal');
+    const desired=(confirm?'confirm:':'actions:')+kind+':'+Number(id);
     if(cell.dataset.f6State===desired) return;
     cell.dataset.f6State=desired;
-    cell.innerHTML=confirm?confirmDeleteHtml_cor(kind,id):actionCellHtml_cor(kind,id,canPay);
+    cell.innerHTML=confirm?confirmDeleteHtml_cor(kind,id):actionCellHtml_cor(kind,id);
   }
 
   function removeActions_cor(table){
@@ -159,7 +158,7 @@
         row.appendChild(cell);
       }
       if(state.editing===`factura:${id}`) return;
-      renderActionCell_cor(cell,'factura',id,manual&&row.dataset.ccorManualEligible==='1');
+      renderActionCell_cor(cell,'factura',id);
     });
     return true;
   }
