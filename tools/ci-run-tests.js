@@ -1,5 +1,7 @@
 'use strict';
 // BLT NOW CI selectivo. Sin dependencias externas ni acceso a servicios productivos.
+// Los contratos que referencian ambas capas (p. ej. detalle de Estado de Cuenta)
+// deben comprobarse en ambos workflows, incluso al corregir solo sus fixtures.
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');

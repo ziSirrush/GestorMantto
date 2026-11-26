@@ -20,6 +20,16 @@ test('Aditivas del detalle se consultan en su tabla con el PPNS del registro FUE
   const connection = {
     query: async (sql, params) => {
       queries.push({ sql, params });
+      if (/FROM information_schema\.COLUMNS/i.test(sql)) {
+        // Esquema previo al corte de Aiven: la API conserva los saldos existentes.
+        return [[
+          { column_name: 'id_rel_pago', is_nullable: 'NO', column_type: 'bigint unsigned' },
+          { column_name: 'id_factura_cor', is_nullable: 'NO', column_type: 'bigint unsigned' },
+          { column_name: 'id_pago_cor', is_nullable: 'NO', column_type: 'bigint unsigned' },
+          { column_name: 'importe_aplicado', is_nullable: 'NO', column_type: 'decimal(18,2)' }
+        ]];
+      }
+      assert.match(sql, /FROM cobranza_aditivas_cor a/);
       return [[{
         id_aditiva_cor: 7, no_cot: 'COT-7', fecha_cot: '2026-09-30',
         departamento: 'Operaciones', equipo: 'Equipo A', descripcion: 'Trabajo adicional',
@@ -52,13 +62,23 @@ test('Aditivas del detalle se consultan en su tabla con el PPNS del registro FUE
   assert.equal(detail.aditivas[0].monto_pagado, 300);
   assert.equal(detail.aditivas[0].pendiente_pago, 900);
   assert.equal(detail.facturacion_catalogo.aditivas[0].id_concepto, 7);
-  assert.equal(queries.length, 1);
-  assert.deepEqual(Array.from(queries[0].params), ['FUENTE-123']);
-  assert.match(queries[0].sql, /FROM cobranza_aditivas_cor a/);
-  assert.match(queries[0].sql, /a\.activo = 1/);
-  assert.match(queries[0].sql, /UPPER\(TRIM\(COALESCE\(a\.pp_ns, ''\)\)\) = UPPER\(TRIM\(COALESCE\(\?, ''\)\)\)/);
+  assert.equal(detail.pagos_manuales.habilitado, true);
+  assert.equal(detail.pagos_manuales.estructura_lista, false);
+  assert.equal(detail.pagos_manuales.puede_editar, false);
+  assert.equal(detail.pagos_manuales.movimientos.length, 0);
+  assert.equal(queries.length, 2);
+  const schemaQueries = queries.filter(query => /FROM information_schema\.COLUMNS/i.test(query.sql));
+  assert.equal(schemaQueries.length, 1);
+  assert.deepEqual(Array.from(schemaQueries[0].params), ['cobranza_rel_pagos']);
+  const aditivaQueries = queries.filter(query => /FROM cobranza_aditivas_cor a/.test(query.sql));
+  assert.equal(aditivaQueries.length, 1);
+  const aditivaQuery = aditivaQueries[0];
+  assert.deepEqual(Array.from(aditivaQuery.params), ['FUENTE-123']);
+  assert.match(aditivaQuery.sql, /FROM cobranza_aditivas_cor a/);
+  assert.match(aditivaQuery.sql, /a\.activo = 1/);
+  assert.match(aditivaQuery.sql, /UPPER\(TRIM\(COALESCE\(a\.pp_ns, ''\)\)\) = UPPER\(TRIM\(COALESCE\(\?, ''\)\)\)/);
   for (const column of ['fecha_cot', 'departamento', 'equipo', 'estatus_trabajos', 'monto_total', 'monto_pagado', 'pendiente_pago']) {
-    assert.match(queries[0].sql, new RegExp(column));
+    assert.match(aditivaQuery.sql, new RegExp(column));
   }
 });
 
