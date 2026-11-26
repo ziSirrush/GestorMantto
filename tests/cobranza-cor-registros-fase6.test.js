@@ -120,7 +120,8 @@ test('rutas CRUD usan guardas existentes y se montan sin reemplazar el router Co
     "router.put('/estados-cuenta/:ppns/pagos/:idPagoCor'",
     "router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor'"
   ]) assert.ok(routes.includes(expected));
-  assert.match(routes,/\.\.\.requireEstadosCuentaCor, rejectViewerMutation_cor, controller/);
+  assert.match(routes,/\.\.\.requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments\.requireEditIfEnabled_cor, controller/);
+  assert.match(routes,/\.\.\.requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments\.rejectLegacyIfEnabled_cor, controller/);
   const index=read('backend/src/routes/index.js');
   assert.match(index,/const cobranzaCorRoutes = require\('\.\.\/modules\/cobranza-cor\/cobranza-cor\.routes'\);/);
   assert.match(index,/const cobranzaCorRegistrosRoutes = require\('\.\.\/modules\/cobranza-cor\/cobranza-cor-registros\.routes'\);/);

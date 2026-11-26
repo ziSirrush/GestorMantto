@@ -4,6 +4,7 @@
 
 const express = require('express');
 const controller = require('./cobranza-cor-registros.controller');
+const manualPayments = require('./cobranza-cor-pagos-manuales.integration');
 const { humanInformationGuard_gnral } = require('../../middleware/information-access-gnral.middleware');
 
 const router = express.Router();
@@ -25,9 +26,9 @@ function rejectViewerMutation_cor(req, res, next) {
   return next();
 }
 
-router.put('/estados-cuenta/:ppns/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.actualizarFactura_cor);
-router.delete('/estados-cuenta/:ppns/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.eliminarFactura_cor);
-router.put('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.actualizarPago_cor);
-router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.eliminarPago_cor);
+router.put('/estados-cuenta/:ppns/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.actualizarFactura_cor);
+router.delete('/estados-cuenta/:ppns/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.eliminarFactura_cor);
+router.put('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.actualizarPago_cor);
+router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.eliminarPago_cor);
 
 module.exports = router;

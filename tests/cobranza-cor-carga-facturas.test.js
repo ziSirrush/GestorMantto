@@ -726,7 +726,7 @@ test('Sincronizacion SQL de estatus queda acotada por id de Factura y PPNS', asy
 
 test('Ruta nueva comparte HMAC y firma invalida responde 401', async () => {
   const routes = fs.readFileSync(path.join(__dirname, '../backend/src/modules/cobranza-cor/cobranza-cor.routes.js'), 'utf8');
-  assert.match(routes, /router\.post\('\/carga\/facturas', requireCobranzaCorIntegration, controller\.cargarFacturas_cor\)/);
+  assert.match(routes, /router\.post\('\/carga\/facturas', requireCobranzaCorIntegration, manualPayments\.rejectLegacyIfEnabled_cor, controller\.cargarFacturas_cor\)/);
   const previous = {
     enabled: process.env.INTEGRATION_AUTH_ENABLED,
     id: process.env.INTEGRATION_VENTAS_ID,

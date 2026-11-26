@@ -65,6 +65,7 @@ function createService_cor({ repository, authorizeMutation, enabled = () => proc
         let resultId;
         if (action === 'crear') {
           if (before.estatus_factura === 'Pagado') fail('Factura ya liquidada.');
+          if (Number(factura.total) <= 0) fail('Factura sin total positivo; requiere revision del concepto.');
           const record = { ...normalizarPago_cor(payload, factura.moneda), id_factura_cor: factura.id_factura_cor, id_rel_pago_origen: null, origen_registro: 'MANUAL', created_by: actorId, updated_by: actorId };
           next.push(record);
           resultId = await insert(connection, record);

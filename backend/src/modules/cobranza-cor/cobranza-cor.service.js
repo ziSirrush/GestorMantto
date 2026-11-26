@@ -5,6 +5,7 @@ const pagosRepository = require('./cobranza-cor-pagos.repository');
 
 const BATCH_SIZE = 300;
 const MAX_RECORDS = 5000;
+function manualMode_cor() { return typeof process !== 'undefined' && process.env && process.env.BLT_COBRANZA_COR_PAGOS_MANUALES_V1 === '1'; }
 
 const ROUTES_COR = Object.freeze({
   carga_fuente: '/api/cobranza-cor/carga/fuente',
@@ -1487,7 +1488,15 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
   const ppns = requiredText_cor(ppnsValue, 'ppns', 100);
   const visibleUserIds = resolveVisibleUserIds_cor(informationAccess);
   const connection = await repository.getConnection_cor();
+  const manual = manualMode_cor();
+  const manualIntegration = manual ? require('./cobranza-cor-pagos-manuales.integration') : null;
+  let readTransaction = false;
   try {
+    if (manual) {
+      await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+      await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
+      readTransaction = true;
+    }
     const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
     const project = serializeEstadoCuentaMain_cor(row);
@@ -1495,16 +1504,22 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       repository.listFuenteEstadoCuenta_cor(connection, ppns),
       repository.listFacturasEstadoCuenta_cor(connection, ppns),
       repository.listAditivasEstadoCuenta_cor(connection, project.ppns),
-      pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
-      pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
+      manual ? Promise.resolve([]) : pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
+      manual ? Promise.resolve([]) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
     ]);
     const paymentMaps = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
-    const facturas = paymentMaps.facturaGroups.map(serializeFacturaGroup_cor);
+    const facturas = paymentMaps.facturaGroups.map(group => {
+      const serialized = serializeFacturaGroup_cor(group);
+      return manual ? manualIntegration.invoiceFields_cor(serialized, group.row) : serialized;
+    });
+    const movimientos = manual ? await manualIntegration.listMovements_cor(connection, project.ppns) : [];
+    const refs = manual ? manualIntegration.dateReferences_cor(movimientos) : { payments: pagoRows, relations: relacionPagoRows };
+    const puedeEditar = manual && await manualIntegration.canEdit_cor({ actor: informationAccess?.actor_user_id, informationAccess });
     const paymentDetailsByHito = buildPaymentDetailsByHito_cor(
       sourceRows,
       paymentMaps.facturaGroups,
-      pagoRows,
-      relacionPagoRows
+      refs.payments,
+      refs.relations
     );
     const serializedRows = attachPaymentDetailsToHitos_cor(
       sourceRows.map((item) => {
@@ -1522,8 +1537,10 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       facturas
     );
     const summary = buildEstadoCuentaSummary_cor(detailRows);
+    if (readTransaction) { await connection.commit(); readTransaction = false; }
     return {
       ok: true,
+      ...(manual ? { pagos_manuales: { habilitado: true, puede_editar: puedeEditar, movimientos } } : {}),
       source: 'aiven',
       domain: 'CORELLIAN',
       route: ROUTES_COR.estado_cuenta_detalle,
@@ -1546,7 +1563,7 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       }
     };
   } finally {
-    connection.release();
+    try { if (readTransaction) await connection.rollback(); } finally { connection.release(); }
   }
 }
 
@@ -1680,7 +1697,7 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
       repository.listEquiposEstadoCuenta_cor(connection, ppns),
       repository.listPartidasEstadoCuenta_cor(connection, ppns),
       repository.listFacturasEstadoCuenta_cor(connection, ppns),
-      pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
+      manualMode_cor() ? Promise.resolve([]) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
     ]);
     if (!sourceRows.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
 
@@ -2689,6 +2706,7 @@ module.exports = {
   listarEstadosCuenta_cor,
   detalleEstadoCuenta_cor,
   buildPaymentDetailsByHito_cor,
+  buildFacturaGroups_cor,
   catalogoCrearEstadoCuenta_cor,
   formularioEstadoCuenta_cor,
   crearEstadoCuenta_cor,

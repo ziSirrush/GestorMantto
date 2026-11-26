@@ -4,6 +4,7 @@ const express = require('express');
 const controller = require('./cobranza-cor.controller');
 const pagosController = require('./cobranza-cor-pagos.controller');
 const pagosModuloController = require('./cobranza-cor-pagos-modulo.controller');
+const manualPayments = require('./cobranza-cor-pagos-manuales.integration');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireHistoricalSyncEnabled } = require('../../middleware/historical-sync.middleware');
 const { requireIntegrationAuthFor } = require('../../middleware/integration-auth.middleware');
@@ -48,26 +49,30 @@ function rejectViewerMutation_cor(req, res, next) {
   return next();
 }
 
-router.post('/carga/fuente', requireCobranzaCorIntegration, controller.cargarFuente_cor);
+router.post('/carga/fuente', requireCobranzaCorIntegration, manualPayments.rejectLegacyIfEnabled_cor, controller.cargarFuente_cor);
 router.post('/carga/aditivas', requireCobranzaCorIntegration, controller.cargarAditivas_cor);
-router.post('/carga/facturas', requireCobranzaCorIntegration, controller.cargarFacturas_cor);
-router.post('/carga/pagos', requireCobranzaCorIntegration, pagosController.cargarPagos_cor);
+router.post('/carga/facturas', requireCobranzaCorIntegration, manualPayments.rejectLegacyIfEnabled_cor, controller.cargarFacturas_cor);
+router.post('/carga/pagos', requireCobranzaCorIntegration, manualPayments.rejectLegacyIfEnabled_cor, pagosController.cargarPagos_cor);
 
 // Modulo Pagos: toda la operacion se realiza desde la tabla main.
-router.get('/pagos', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.listarPagos_cor);
-router.get('/pagos/proyectos', ...requirePagosCor, requirePagosCorCompleteDomain, pagosModuloController.listarProyectos_cor);
-router.put('/pagos/proyecto/masivo', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.asignarProyectoMasivo_cor);
-router.put('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.asignarProyecto_cor);
-router.delete('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, pagosModuloController.quitarProyecto_cor);
+router.get('/pagos/conciliacion', ...requirePagosCor, requirePagosCorCompleteDomain, manualPayments.conciliacion_cor);
+router.get('/pagos', ...requirePagosCor, requirePagosCorCompleteDomain, manualPayments.rejectLegacyIfEnabled_cor, pagosModuloController.listarPagos_cor);
+router.get('/pagos/proyectos', ...requirePagosCor, requirePagosCorCompleteDomain, manualPayments.rejectLegacyIfEnabled_cor, pagosModuloController.listarProyectos_cor);
+router.put('/pagos/proyecto/masivo', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, pagosModuloController.asignarProyectoMasivo_cor);
+router.put('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, pagosModuloController.asignarProyecto_cor);
+router.delete('/pagos/:idPagoCor/proyecto', ...requirePagosCor, requirePagosCorCompleteDomain, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, pagosModuloController.quitarProyecto_cor);
 
 router.get('/estados-cuenta', ...requireEstadosCuentaCor, controller.listarEstadosCuenta_cor);
 router.get('/estados-cuenta/crear-nuevo/catalogo', ...requireEstadosCuentaCor, controller.catalogoCrearEstadoCuenta_cor);
-router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearEstadoCuenta_cor);
+router.post('/estados-cuenta', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.crearEstadoCuenta_cor);
 router.get('/estados-cuenta/:ppns/formulario', ...requireEstadosCuentaCor, controller.formularioEstadoCuenta_cor);
-router.put('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.actualizarEstadoCuenta_cor);
-router.post('/estados-cuenta/:ppns/facturas', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.crearFacturaEstadoCuenta_cor);
-router.put('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.guardarRelacionPagoFacturaEstadoCuenta_cor);
-router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, controller.quitarRelacionPagoFacturaEstadoCuenta_cor);
+router.put('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.actualizarEstadoCuenta_cor);
+router.post('/estados-cuenta/:ppns/facturas', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.requireEditIfEnabled_cor, controller.crearFacturaEstadoCuenta_cor);
+router.put('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.guardarRelacionPagoFacturaEstadoCuenta_cor);
+router.delete('/estados-cuenta/:ppns/pagos/:idPagoCor/facturas/:idFacturaCor', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.rejectLegacyIfEnabled_cor, controller.quitarRelacionPagoFacturaEstadoCuenta_cor);
+router.post('/estados-cuenta/:ppns/facturas/:idFacturaCor/pagos-manuales', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.handler_cor('crear'));
+router.put('/estados-cuenta/:ppns/facturas/:idFacturaCor/pagos-manuales/:idRelPago', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.handler_cor('editar'));
+router.post('/estados-cuenta/:ppns/facturas/:idFacturaCor/pagos-manuales/:idRelPago/revertir', ...requireEstadosCuentaCor, rejectViewerMutation_cor, manualPayments.handler_cor('revertir'));
 router.get('/estados-cuenta/:ppns', ...requireEstadosCuentaCor, controller.detalleEstadoCuenta_cor);
 
 router.get('/aditivas', ...requireAditivasCor, controller.aditivas_cor);

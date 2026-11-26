@@ -36,7 +36,8 @@ async function eliminarFactura_cor(req, res, next) {
     return res.status(200).json(await service.eliminarFactura_cor(
       req.params.ppns,
       req.params.idFacturaCor,
-      req.informationAccess
+      req.informationAccess,
+      req.actorUser && req.actorUser.id_SB
     ));
   } catch (error) {
     return sendKnownError(error, res, next);
