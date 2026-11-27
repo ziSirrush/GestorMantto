@@ -10,7 +10,8 @@ const code=fs.readFileSync(path.join(root,'core/user-viewer.js'),'utf8');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const NS='EXPERIMENTAL_NS_RESUMEN_DIA_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
 const ADMIN='COBRANZA_UNI_ADMINISTRACION_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
-function fixture(user,{ns=true,admin=true,active=true}={}){
+const ATP='ATENCION_PRIORITARIA_EXP_ACCESO_VISUAL_MODULO.ACCESO_VISUAL';
+function fixture(user,{ns=true,admin=true,active=true,atp=true,atpActive=true}={}){
   const elements=[];
   const groups=[];
   function item(route,permission,group,code){
@@ -29,6 +30,9 @@ function fixture(user,{ns=true,admin=true,active=true}={}){
   const nsGroup=group('experimental-ns','UNITED');
   const adminGroup=group('cobranza-uni','UNITED');
   const supportGroup=group('soporte');
+  const opGroup=group('operacion');
+  const atpNode=item('experimental-atencion-prioritaria','atencion_prioritaria_exp',opGroup,ATP);
+  opGroup.children.push(atpNode);
   const nsNode=item('experimental-ns-resumen-dia','experimental_ns_resumen_dia',nsGroup,NS);
   const adminNode=item('cobranza-uni-administracion','cobranza_uni_administracion',adminGroup,ADMIN);
   const supportNode=item('soporte-dashboard','soporte_dashboard',supportGroup);
@@ -42,7 +46,10 @@ function fixture(user,{ns=true,admin=true,active=true}={}){
       modulo_nombre:'Resumen del Dia',modulo_activo:active?1:0,modulo_interno_visual:0,codigo_permiso:NS},
     {id_subelemento_accion:2,agrupacion_codigo:'COBRANZA_UNI',agrupacion_nombre:'Cobranza',
       agrupacion_empresa:'UNITED',agrupacion_activo:1,modulo_codigo:'COBRANZA_UNI_ADMINISTRACION',
-      modulo_nombre:'Administracion',modulo_activo:1,modulo_interno_visual:0,codigo_permiso:ADMIN}
+      modulo_nombre:'Administracion',modulo_activo:1,modulo_interno_visual:0,codigo_permiso:ADMIN},
+    {id_subelemento_accion:3,agrupacion_codigo:'EXPERIMENTAL',agrupacion_nombre:'Experimental',
+      agrupacion_empresa:'UNITED',agrupacion_activo:1,modulo_codigo:'ATENCION_PRIORITARIA_EXP',
+      modulo_nombre:'Atención Prioritaria',modulo_activo:atpActive?1:0,modulo_interno_visual:0,codigo_permiso:ATP}
   ];
   const document={
     body:{classList:{toggle(){}}},
@@ -54,7 +61,7 @@ function fixture(user,{ns=true,admin=true,active=true}={}){
     querySelectorAll(selector){
       if(selector==='.side-item[data-permission]')return elements;
       if(selector==='.side-group')return groups;
-      if(selector==='[data-permission-code]')return [nsNode,adminNode];
+      if(selector==='[data-permission-code]')return [nsNode,adminNode,atpNode];
       return [];
     },
     addEventListener(){},dispatchEvent(){}
@@ -63,12 +70,13 @@ function fixture(user,{ns=true,admin=true,active=true}={}){
     getUser:()=>user,getActorUser:()=>user,isViewingAs:()=>false,
     apiGet:async()=>({data:{usuario_id:user.id_SB,catalogo:catalog,permisos:[
       {id_subelemento_accion:1,configurado:true,efectivo:ns},
-      {id_subelemento_accion:2,configurado:true,efectivo:admin}
+      {id_subelemento_accion:2,configurado:true,efectivo:admin},
+      {id_subelemento_accion:3,configurado:true,efectivo:atp}
     ]}})
   },ManttoRouter:{getCurrent:()=>({route:'home'}),reset(){}},setTimeout(){}};
   vm.runInNewContext(code,{window:win,document,console,Element:class{},MutationObserver:class{observe(){}},
     CSS:{escape:x=>String(x)},CustomEvent:class{}});
-  return {win,nsNode,adminNode,supportNode,home,users,panel,nsGroup,supportGroup,
+  return {win,nsNode,adminNode,supportNode,home,users,panel,nsGroup,supportGroup,opGroup,atpNode,
     init:()=>win.ManttoUserViewer.init()};
 }
 
@@ -135,4 +143,21 @@ test('Inicio y Usuarios no requieren check del catalogo',async()=>{
   assert.equal(f.home.hidden,false);
   assert.equal(f.users.hidden,false);
   assert.equal(f.panel.hidden,true);
+});
+
+test('Atención Prioritaria se presenta en Operación con su permiso efectivo original',async()=>{
+  const op=html.match(/<section class="side-group" data-group="operacion">[\s\S]*?<\/section>/);
+  const exp=html.match(/<section class="side-group" data-group="experimental">[\s\S]*?<\/section>/);
+  assert.ok(op&&exp);
+  assert.match(op[0],/data-permission-code="ATENCION_PRIORITARIA_EXP_ACCESO_VISUAL_MODULO\.ACCESO_VISUAL" data-route="experimental-atencion-prioritaria"/);
+  assert.doesNotMatch(exp[0],/data-route="experimental-atencion-prioritaria"/);
+  assert.equal((html.match(/data-route="experimental-atencion-prioritaria"/g)||[]).length,1);
+  for(const options of [{},{atp:false},{atpActive:false}]){
+    const f=fixture({id_SB:11,rol:'Supervisor',roles:['Supervisor']},options);
+    await f.init();
+    const expected=options.atp!==false&&options.atpActive!==false;
+    assert.equal(f.atpNode.hidden,!expected);
+    assert.equal(f.opGroup.hidden,!expected);
+    assert.equal(f.win.ManttoPermissions.canNavigate('experimental-atencion-prioritaria'),expected);
+  }
 });

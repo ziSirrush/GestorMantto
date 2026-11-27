@@ -91,7 +91,7 @@
       <div class="atp-exp-page" data-atp-exp-root>
         <section class="atp-exp-head">
           <div>
-            <p class="atp-exp-eyebrow">🚨 Experimental</p>
+            <p class="atp-exp-eyebrow">🚨 Operación</p>
             <h1>Alertas prioritarias</h1>
             <p class="atp-exp-description">Vista ejecutiva de incidencias que requieren atención inmediata.</p>
           </div>

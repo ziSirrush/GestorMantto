@@ -1050,7 +1050,7 @@
     if(!view) return false;
     activateViewById('view-' + route);
     setActiveSide(route);
-    updateContext(route, 'Agrupación Experimental · estructura base preparada para integración con Aiven');
+    updateContext(route, route === 'experimental-atencion-prioritaria' ? 'Operación · Alertas prioritarias' : 'Agrupación Experimental · estructura base preparada para integración con Aiven');
     if(window.ManttoExperimental_exp && window.ManttoExperimental_exp.init){
       window.ManttoExperimental_exp.init(route, currentPayload || null);
     }
