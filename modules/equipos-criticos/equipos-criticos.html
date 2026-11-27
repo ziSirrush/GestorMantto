@@ -3,7 +3,7 @@
     <div>
       <p class="ec-eyebrow">Módulo en pruebas</p>
       <h1>Equipos Críticos</h1>
-      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. El criterio de Equipos es personal por usuario y también gobierna el emoji de criticidad en los demás módulos.</p>
+      <p>Consulta equipos y proyectos con reincidencia de fallas con responsabilidad BLT. El criterio de Equipos es personal por usuario y también determina la criticidad en los demás módulos.</p>
     </div>
     <button type="button" class="ec-btn ec-btn-soft" data-ec-action="refresh-all">↻ Actualizar todo</button>
   </section>
@@ -29,9 +29,8 @@
       <button type="button" class="ec-btn ec-btn-primary" data-ec-action="load-equipos" id="ec-eq-apply">Aplicar y guardar</button>
     </div>
 
-    <div class="ec-note">Criterio personal activo: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. Se guarda en el usuario y gobierna qué equipos reciben 💥 en el Gestor. MTBC individual: días transcurridos desde el 1 de enero ÷ fallas BLT del equipo (Año Actual); 365 ÷ fallas BLT del equipo (U365).</div>
+    <div class="ec-note">Criterio personal activo: <b id="ec-eq-criteria">3 fallas BLT en 35 días</b>. Se guarda en el usuario y determina la criticidad de los equipos en el Gestor. MTBC individual: días transcurridos desde el 1 de enero ÷ fallas BLT del equipo (Año Actual); 365 ÷ fallas BLT del equipo (U365).</div>
 
-    <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
       <table class="ec-table">
         <thead><tr><th>Zona</th><th>Proyecto</th><th>Código</th><th>Ref. sitio</th><th>Estatus</th><th>Calls año</th><th>Fallas BLT período</th><th>BLT fuera del período</th><th>Último BLT</th><th>Resp. Cliente período</th><th>Cliente fuera del período</th><th>Último Cliente</th><th title="Días transcurridos desde el 1 de enero ÷ fallas BLT del equipo en el año">MTBC Año Actual</th><th title="365 ÷ fallas BLT del equipo en U365">MTBC U365</th><th></th></tr></thead>
@@ -75,7 +74,6 @@
 
     <div class="ec-note">Criterio actual de esta tabla: <b id="ec-pro-criteria">5 fallas BLT en 35 días</b>. La regla de equipos críticos dentro del proyecto usa su propio mínimo. MTBC de proyecto: (días del período × equipos activos con fallas BLT en el período) ÷ total de fallas BLT. Año Actual usa los días transcurridos desde el 1 de enero; U365 usa 365 días.</div>
 
-    <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
     <div class="ec-table-wrap">
       <table class="ec-table">
         <thead><tr><th>Zona</th><th>Proyecto</th><th>Ciudad</th><th>Supervisor</th><th>Equipos activos</th><th>Fallas BLT período</th><th>Equipos con falla</th><th>Equipos críticos</th><th>Último BLT</th><th title="Días desde el 1 de enero × equipos activos con falla BLT en el año ÷ total de fallas BLT del año">MTBC Año Actual</th><th title="365 × equipos activos con falla BLT en U365 ÷ total de fallas BLT U365">MTBC U365</th><th></th></tr></thead>
@@ -94,7 +92,6 @@
       <button type="button" class="ec-btn ec-btn-danger" id="ec-detail-pdf">PDF detalle</button>
     </div>
     <div class="ec-detail-body">
-      <div class="estado-leyenda-host-gnral" data-estados-leyenda="CRITICO,ATRAPADO,FILTRACION,VOLTAJE,NO_FUNCIONANDO,FUERA_SLA" data-estados-excluir="CRITICO"></div>
       <div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>Ticket</th><th>Fecha reporte</th><th>Estado</th><th>Proyecto</th><th>Equipo</th><th>Zona</th><th>Responsabilidad</th><th>Causa</th><th>T. llegada</th><th>T. solución</th></tr></thead><tbody id="ec-detail-body"></tbody></table></div>
     </div>
   </div>
