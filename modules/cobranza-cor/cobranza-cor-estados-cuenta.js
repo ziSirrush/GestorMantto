@@ -96,8 +96,8 @@
   function statusClass_cor(value){
     const status = String(value || '').trim().toUpperCase();
     if(!status) return 'is-neutral';
-    if(status.includes('CORRIENTE') || status.includes('AL DIA') || status.includes('AL DÍA') || status.includes('PAGAD')) return 'is-ok';
     if(status.includes('VENC') || status.includes('NO PAG') || status.includes('ADEUD') || status.includes('ATRAS')) return 'is-danger';
+    if(status.includes('CORRIENTE') || status.includes('AL DIA') || status.includes('AL DÍA') || status.includes('PAGAD')) return 'is-ok';
     if(status.includes('PROCESO') || status.includes('ESPERA') || status.includes('REVIS') || status.includes('PARCIAL') || status.includes('APLICADO')) return 'is-warn';
     return 'is-neutral';
   }

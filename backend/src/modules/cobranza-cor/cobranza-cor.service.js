@@ -984,7 +984,7 @@ function facturaLogicalKey_cor(row) {
     : ['ID', id ?? 'SIN_ID'].join('|');
 }
 
-function buildFacturaGroups_cor(facturaRows, relacionPagoRows) {
+function buildFacturaGroups_cor(facturaRows, relacionPagoRows, ledgerAuthoritative = false) {
   const relacionesPorFactura = new Map();
   for (const relation of Array.isArray(relacionPagoRows) ? relacionPagoRows : []) {
     const id = integerOrNull_cor(relation?.id_factura_cor);
@@ -1020,7 +1020,7 @@ function buildFacturaGroups_cor(facturaRows, relacionPagoRows) {
     const sourcePayments = sortedRows
       .map((row) => numberOrNull_cor(row?.pagado))
       .filter((value) => value !== null);
-    const historicalFallback = !hasRelations
+    const historicalFallback = !ledgerAuthoritative && !hasRelations
       && sourcePayments.length === 0
       && sortedRows.some((row) =>
         canonicalText_cor(row?.tipo_concepto) === 'HITO'
@@ -1029,10 +1029,11 @@ function buildFacturaGroups_cor(facturaRows, relacionPagoRows) {
       );
     const total = numberOrNull_cor(representative?.total);
     // Una Factura logica consolidada puede contener filas historicas duplicadas.
-    // El campo pagado representa el pago de la Factura y no debe sumarse por duplicado.
+    // El campo pagado historico no debe sumarse por duplicado. Tras migrar,
+    // REL Pagos es la unica fuente del neto, incluso cuando no tiene movimientos.
     const applied = hasRelations
       ? relationPaid
-      : sourcePayments.length
+      : !ledgerAuthoritative && sourcePayments.length
         ? sourcePayments[0]
         : historicalFallback && total !== null && total >= 0
           ? total
@@ -1048,8 +1049,8 @@ function buildFacturaGroups_cor(facturaRows, relacionPagoRows) {
   });
 }
 
-function buildPaymentMaps_cor(facturaRows, relacionPagoRows) {
-  const facturaGroups = buildFacturaGroups_cor(facturaRows, relacionPagoRows);
+function buildPaymentMaps_cor(facturaRows, relacionPagoRows, ledgerAuthoritative = false) {
+  const facturaGroups = buildFacturaGroups_cor(facturaRows, relacionPagoRows, ledgerAuthoritative);
   const aplicadoPorFactura = new Map();
   const aplicadoPorHito = new Map();
   const historicasSinRelacion = new Set();
@@ -1510,22 +1511,26 @@ async function detalleEstadoCuenta_cor(ppnsValue, informationAccess) {
       manual ? Promise.resolve([]) : pagosRepository.listPagosEstadoCuenta_cor(connection, project.ppns),
       manual ? Promise.resolve([]) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, project.ppns)
     ]);
-    const paymentMaps = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
+    const movimientos = manual ? await manualIntegration.listMovements_cor(connection, project.ppns) : [];
+    // Incluir los contramovimientos negativos en el neto. Las referencias de
+    // fechas (solo movimientos vigentes) son un conjunto separado del calculo.
+    const paymentMaps = buildPaymentMaps_cor(facturaRows, manual ? movimientos : relacionPagoRows, manual);
     const facturas = paymentMaps.facturaGroups.map(group => {
       const serialized = serializeFacturaGroup_cor(group);
       return manual ? manualIntegration.invoiceFields_cor(serialized, group.row) : serialized;
     });
-    const movimientos = manual ? await manualIntegration.listMovements_cor(connection, project.ppns) : [];
     const refs = manual ? manualIntegration.dateReferences_cor(movimientos) : { payments: pagoRows, relations: relacionPagoRows };
     const puedeEditar = manual && await manualIntegration.canEdit_cor({ actor: informationAccess?.actor_user_id, informationAccess, connection });
+    // En modo manual no recuperar fechas antiguas de Fuente tras una reversion.
+    const paymentSourceRows = manual ? sourceRows.map(item => ({ ...item, fecha_pago: null })) : sourceRows;
     const paymentDetailsByHito = buildPaymentDetailsByHito_cor(
-      sourceRows,
+      paymentSourceRows,
       paymentMaps.facturaGroups,
       refs.payments,
       refs.relations
     );
     const serializedRows = attachPaymentDetailsToHitos_cor(
-      sourceRows.map((item) => {
+      paymentSourceRows.map((item) => {
         const id = integerOrNull_cor(item.id_fuente_cor);
         return serializeFuenteEstadoCuenta_cor(
           item,
@@ -1693,6 +1698,7 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
     const row = await repository.getEstadoCuentaByPpns_cor(connection, ppns, visibleUserIds);
     if (!row) throw httpError(404, 'PPNS no encontrado o fuera del alcance autorizado.');
 
+    const manual = await manualMode_cor(connection);
     const [sourceRows, equipmentRows, logOpsRows, relationRows, partidaRows, facturaRows, relacionPagoRows] = await Promise.all([
       repository.listFuenteEstadoCuenta_cor(connection, ppns),
       repository.listCrearEstadoCuentaEquipos_cor(connection, ppns),
@@ -1700,13 +1706,13 @@ async function formularioEstadoCuenta_cor(ppnsValue, informationAccess) {
       repository.listEquiposEstadoCuenta_cor(connection, ppns),
       repository.listPartidasEstadoCuenta_cor(connection, ppns),
       repository.listFacturasEstadoCuenta_cor(connection, ppns),
-      await manualMode_cor(connection) ? Promise.resolve([]) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
+      manual ? require('./cobranza-cor-pagos-manuales.integration').listMovements_cor(connection, ppns) : pagosRepository.listRelacionesEstadoCuenta_cor(connection, ppns)
     ]);
     if (!sourceRows.length) throw httpError(404, 'El PPNS no tiene un Estado de Cuenta activo para editar.');
 
     const project = serializeEstadoCuentaMain_cor(row);
     const ivaGeneral = resolveIvaGeneralFromRows_cor(sourceRows);
-    const paymentMaps = buildPaymentMaps_cor(facturaRows, relacionPagoRows);
+    const paymentMaps = buildPaymentMaps_cor(facturaRows, relacionPagoRows, manual);
     return {
       ok: true,
       source: 'aiven',

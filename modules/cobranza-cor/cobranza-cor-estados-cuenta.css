@@ -642,3 +642,9 @@
 #ccor-ec-manual-form input[type=checkbox]{width:18px;min-height:18px;align-self:flex-start;accent-color:#17365d}
 .ccor-ec-pagos-manuales-table{min-width:700px}
 .ccor-ec-pagos-manuales-table th,.ccor-ec-pagos-manuales-table td{vertical-align:middle;white-space:nowrap}
+
+/* Las cabeceras monetarias siguen la alineacion de sus celdas. */
+.ccor-ec-facturas-table thead th:nth-child(6),
+.ccor-ec-facturas-table thead th:nth-child(7),
+.ccor-ec-facturas-table thead th:nth-child(8),
+.ccor-ec-pagos-manuales-table thead th:nth-child(2){text-align:right}
