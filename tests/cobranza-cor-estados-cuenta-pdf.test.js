@@ -81,7 +81,11 @@ function buildFixture(opts = {}) {
     }
     setProperties(v){this.props=v;} setFont(){} setFontSize(){} setTextColor(){}
     setDrawColor(){} setLineWidth(){} setFillColor(){} roundedRect(){}
-    rect(){} line(){}
+    rect(){} line(x1,y1,x2,y2){
+      this.lineCalls=this.lineCalls||[];
+      if(![x1,y1,x2,y2].every(Number.isFinite)) throw new Error('Invalid arguments passed to jsPDF.line');
+      this.lineCalls.push([x1,y1,x2,y2]);
+    }
     addImage(...args){this.images.push(args);}
     splitTextToSize(v){return [String(v)];}
     text(v,x,y,options){this.texts.push({value:v,x,y,options,page:this.currentPage});}
@@ -201,4 +205,17 @@ test('Sin módulo activo no genera ningún documento',async()=>{
   const f=buildFixture({enable:true,route:'home'});
   assert.equal(await f.window.ManttoCobranzaCorEstadoCuentaPdf.generate(),false);
   assert.equal(f.created.length,0);
+});
+test('Separadores usan coordenadas validas de AutoTable cuando row.y no existe',async()=>{
+  const f=buildFixture();
+  assert.equal(await f.window.ManttoCobranzaCorEstadoCuentaPdf.generate(),true);
+  const doc=f.created[0];
+  const drawCell=doc.autoTables[0].didDrawCell;
+  assert.equal(typeof drawCell,'function');
+  const before=(doc.lineCalls||[]).length;
+  drawCell({section:'body',column:{index:0},row:{index:0,height:22},cell:{x:32,y:227,height:22}});
+  assert.equal(doc.lineCalls.length,before+1);
+  assert.deepEqual(doc.lineCalls.at(-1),[32,249,1158,249]);
+  drawCell({section:'body',column:{index:0},row:{index:1,height:22},cell:{x:32,y:undefined,height:22}});
+  assert.equal(doc.lineCalls.length,before+1);
 });

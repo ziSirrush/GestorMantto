@@ -243,7 +243,10 @@
       didDrawCell:function(data){
         // Separadores discretos como en los dos dummys aprobados.
         if(data.section==='body'&&data.column.index===0){
-          const bottom=data.row.y+data.row.height;
+          // AutoTable exposes row.height, but the vertical coordinate belongs to cell.y.
+          const cell=data.cell;
+          if(!cell||!Number.isFinite(cell.y)||!Number.isFinite(cell.height)) return;
+          const bottom=cell.y+cell.height;
           doc.setDrawColor(229,237,245);doc.setLineWidth(.35);
           doc.line(MARGIN,bottom,doc.internal.pageSize.getWidth()-MARGIN,bottom);
         }
