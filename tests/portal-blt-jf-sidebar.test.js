@@ -59,5 +59,6 @@ test('Los permisos JF no se confunden con modulos de otras agrupaciones',()=>{
   assert.match(html,/data-route="criticos"/);
   assert.match(sw,/20261117-portal-blt-jf-sidebar-v001/);
   assert.match(sw,/'core\/router\.js'/);
-  assert.match(html,/core\/router\.js\?v=20261123-cobranza-cor-placeholder-v001/);
+  // El comportamiento del router se verifica arriba; la etiqueta de caché cambia con cada publicación.
+  assert.match(html,/<script src="\.\/core\/router\.js\?v=[0-9A-Za-z._-]+"><\/script>/);
 });
