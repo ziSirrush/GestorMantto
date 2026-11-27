@@ -66,9 +66,6 @@
     'experimental-atencion-prioritaria':'ManttoAtencionPrioritaria_exp',
     'experimental-resumen-dia':'ManttoResumenDiaExperimental_exp',
     'experimental-entregas-recientes':'ManttoEntregasRecientesExperimental_uni',
-    'experimental-equipos-criticos':'ManttoEquiposCriticosExperimental_uni',
-    'experimental-dashboard-call-center':'ManttoDashboardCallCenterExperimental_uni',
-    'experimental-proyectos-criticos':'ManttoProyectosCriticosExperimental_uni',
 
     'logistica-dashboard':'ManttoDashboardLogistica',
     'logistica-reporte':'ManttoReporteLogistica',
@@ -124,16 +121,13 @@
     tickets:Object.freeze([
       'home','resumen','criticos','callcenter','operativo','portafolio','proyectos',
       'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
-      'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos'
     ]),
     portafolio:Object.freeze([
       'resumen','criticos','callcenter','portafolio','proyectos','movimientos','operativo',
-      'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos'
     ]),
     criticosPreferencias:Object.freeze([
       'resumen','criticos','callcenter','operativo',
       'experimental-atencion-prioritaria','experimental-entregas-recientes',
-      'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos'
     ]),
     tareas:Object.freeze(['home','ventas-dashboard']),
     usuarios:Object.freeze(['usuarios','panel-control']),
@@ -167,7 +161,6 @@
     soporte:Object.freeze(['soporte-solicitudes','home']),
     experimental:Object.freeze([
       'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
-      'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos'
     ]),
     cx:Object.freeze(['cx-dashboard','cx-encuestas','cx-visitas']),
     legal:Object.freeze(['legal-dashboard','legal-contratos','legal-suspendidos'])

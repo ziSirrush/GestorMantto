@@ -2,10 +2,7 @@
   const MODULES_EXP = Object.freeze({
     'experimental-atencion-prioritaria':{title:'Atención Prioritaria',icon:'🚨',phase:'Fase 2',source:'Desarrollo_United_Experimental'},
     'experimental-resumen-dia':{title:'Resumen del Día',icon:'📅',phase:'Fase 3',source:'Desarrollo_United_Experimental'},
-    'experimental-entregas-recientes':{title:'Entregas Recientes',icon:'📦',phase:'Fase 4',source:'Desarrollo_United_Experimental'},
-    'experimental-equipos-criticos':{title:'Equipos Críticos',icon:'⚠️',phase:'Fase 5',source:'Desarrollo_United_Experimental'},
-    'experimental-dashboard-call-center':{title:'Dashboard Call Center',icon:'☎️',phase:'Fase 6',source:'Desarrollo_United_Experimental'},
-    'experimental-proyectos-criticos':{title:'Proyectos Críticos',icon:'🏗️',phase:'Fase 7',source:'Desarrollo_United_Experimental'}
+    'experimental-entregas-recientes':{title:'Entregas Recientes',icon:'📦',phase:'Fase 4',source:'Desarrollo_United_Experimental'}
   });
 
   function escapeHtml_exp(value){
@@ -48,15 +45,6 @@
     }
     if(route === 'experimental-entregas-recientes' && window.ManttoEntregasRecientesExperimental_uni && typeof window.ManttoEntregasRecientesExperimental_uni.init === 'function'){
       return window.ManttoEntregasRecientesExperimental_uni.init(payload || null);
-    }
-    if(route === 'experimental-equipos-criticos' && window.ManttoEquiposCriticosExperimental_uni && typeof window.ManttoEquiposCriticosExperimental_uni.init === 'function'){
-      return window.ManttoEquiposCriticosExperimental_uni.init(payload || null);
-    }
-    if(route === 'experimental-dashboard-call-center' && window.ManttoDashboardCallCenterExperimental_uni && typeof window.ManttoDashboardCallCenterExperimental_uni.init === 'function'){
-      return window.ManttoDashboardCallCenterExperimental_uni.init(payload || null);
-    }
-    if(route === 'experimental-proyectos-criticos' && window.ManttoProyectosCriticosExperimental_uni && typeof window.ManttoProyectosCriticosExperimental_uni.init === 'function'){
-      return window.ManttoProyectosCriticosExperimental_uni.init(payload || null);
     }
     return renderShell_exp(route);
   }

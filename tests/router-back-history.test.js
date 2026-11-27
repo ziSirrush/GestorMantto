@@ -325,3 +325,29 @@ test('un popstate heredado main + id se reescribe al detalle canonico', async ()
   assert.equal(h.window.ManttoRouter.getCurrent().payload.id,'P-LEGACY');
   assert.equal(h.window.history.state.route,'detalle');
 });
+
+test('rutas Experimental retiradas vuelven a Inicio sin cargar un módulo ni conservar su payload', async () => {
+  for(const retired of ['experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos']){
+    const h=createHarness();
+    const loaded=[];
+    h.window.ManttoModuleLoader={ensure:async route=>{loaded.push(route);}};
+    await h.window.ManttoRouter.go(retired,{id:'OLD'});
+    assert.equal(route(h),'home');
+    assert.equal(h.window.ManttoRouter.getCurrent().payload,null);
+    assert.equal(h.window.location.hash,'#/home');
+    assert.deepEqual(loaded,['home']);
+    const old=createHarness({browser:{entries:[{state:null,hash:'#/'+retired+'/OLD'}],index:0}});
+    old.emit('mantto:auth-ready');
+    await settle();
+    assert.equal(route(old),'home');
+    assert.equal(old.window.ManttoRouter.getCurrent().payload,null);
+    assert.equal(old.window.location.hash,'#/home');
+    const state={mantto:true,route:retired,payload:{id:'OLD'},manttoEpoch:0,manttoDepth:1,manttoHistory:[{route:'home',payload:null}]};
+    h.window.history.pushState(state,'','#/'+retired+'/OLD');
+    h.emit('popstate',{state});
+    await settle();
+    assert.equal(route(h),'home');
+    assert.equal(h.window.ManttoRouter.getCurrent().payload,null);
+    assert.equal(h.window.history.state.route,'home');
+  }
+});

@@ -25,8 +25,7 @@
     'experimental-ns-proyectos-mantenimiento':'Proyectos de Mantenimiento · NS',
     'experimental-ns-equipos-parados':'Equipos Parados · NS',
     'experimental-atencion-prioritaria':'Atención Prioritaria', 'experimental-resumen-dia':'Resumen del Día',
-    'experimental-entregas-recientes':'Entregas Recientes', 'experimental-equipos-criticos':'Equipos Críticos',
-    'experimental-dashboard-call-center':'Dashboard Call Center', 'experimental-proyectos-criticos':'Proyectos Críticos',
+    'experimental-entregas-recientes':'Entregas Recientes',
     'portal-blt-jf-movimientos-portafolio':'Movimientos Portafolio (JF)',
     'portal-blt-jf-portafolio-total':'Portafolio Total (JF)',
     'portal-blt-jf-equipos-criticos':'Equipos Críticos (JF)',
@@ -42,7 +41,11 @@
   const EXPERIMENTAL_ROUTES_EXP = new Set([
     'experimental-atencion-prioritaria',
     'experimental-resumen-dia',
-    'experimental-entregas-recientes',
+    'experimental-entregas-recientes'
+  ]);
+  // Rutas retiradas de la interfaz. Los marcadores y estados de navegación
+  // anteriores regresan a Inicio sin conceder acceso a otra agrupación.
+  const RETIRED_EXPERIMENTAL_ROUTES_EXP = new Set([
     'experimental-equipos-criticos',
     'experimental-dashboard-call-center',
     'experimental-proyectos-criticos'
@@ -187,11 +190,13 @@
 
   function canonicalRoute(route){
     const value = String(route || 'home');
+    if(RETIRED_EXPERIMENTAL_ROUTES_EXP.has(value))return 'home';
     return value === 'logistica-pvo' || value === 'logistica-documentos' ? 'logistica-produccion' : value;
   }
 
   function directDetailDestination(route,payload){
     const rawRoute=String(route||'home');
+    if(RETIRED_EXPERIMENTAL_ROUTES_EXP.has(rawRoute))return {route:'home',payload:null};
     const data=payload&&typeof payload==='object'?Object.assign({},payload):payload;
     if(!data||typeof data!=='object')return {route:rawRoute,payload:data||null};
 
@@ -1398,7 +1403,7 @@
           currentRoute = canonicalRoute(destination.route);
           currentPayload = destination.payload || null;
           if(currentRoute!==state.route || payloadKey(currentPayload)!==payloadKey(state.payload || null)){
-            state=Object.assign({},state,{route:currentRoute,payload:currentPayload});
+            state=Object.assign({},state,{route:currentRoute,payload:currentPayload},RETIRED_EXPERIMENTAL_ROUTES_EXP.has(state.route)?{context:null,scrollY:0}:{});
             try{window.history.replaceState(state,'',routeUrl(currentRoute,currentPayload));}catch(error){}
           }
           saveCurrentRoute();

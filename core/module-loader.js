@@ -29,7 +29,6 @@
     'almacen-resguardos','almacen-auditoria','almacen-carga',
     'usuarios','panel-control','soporte-solicitudes',
     'experimental-atencion-prioritaria','experimental-resumen-dia','experimental-entregas-recientes',
-    'experimental-equipos-criticos','experimental-dashboard-call-center','experimental-proyectos-criticos',
     'portal-blt-jf-movimientos-portafolio',
     'portal-blt-jf-portafolio-total',
     'portal-blt-jf-equipos-criticos',
@@ -189,7 +188,7 @@
 
   const CONTACTO_FORM_JS = './modules/ventas-contacto-form/ventas-contacto-form.js?v=20260729-v011';
   const CONTACTO_FORM_CSS = './modules/ventas-contacto-form/ventas-contacto-form.css?v=20260729-v011';
-  const EXPERIMENTAL_SHELL_JS = './modules/experimental/experimental.js?v=20260806-fase7-2-v001';
+  const EXPERIMENTAL_SHELL_JS = './modules/experimental/experimental.js?v=20261127-retiro-exp-f4-v001';
   const EXPERIMENTAL_SHELL_CSS = './modules/experimental/experimental.css?v=20260805-fase1-v001';
   const ALMACEN_MODULE_JS = './modules/almacen/almacen.js?v=20261110-prestamos-costo-discrepancia-v001';
   const ALMACEN_MODULE_CSS = './modules/almacen/almacen.css?v=20260830-almacen-integracion-v002';
@@ -274,9 +273,6 @@
     'experimental-atencion-prioritaria':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.css?v=20260805-fase2-v001'],js:['./modules/experimental-atencion-prioritaria/experimental-atencion-prioritaria.js?v=20261127-atencion-operacion-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-resumen-dia':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-resumen-dia/experimental-resumen-dia.css?v=20261127-resumen-exp-f1-v001'],js:['./modules/experimental-resumen-dia/experimental-resumen-dia.js?v=20261127-resumen-exp-f1-v001',EXPERIMENTAL_SHELL_JS]},
     'experimental-entregas-recientes':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-entregas-recientes/experimental-entregas-recientes.css?v=20260806-fix-er-v001'],js:['./modules/experimental-entregas-recientes/experimental-entregas-recientes.js?v=20260806-fix-er-v001',EXPERIMENTAL_SHELL_JS]},
-    'experimental-equipos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-equipos-criticos/experimental-equipos-criticos.css?v=20260806-fase5-2-v001'],js:['./modules/experimental-equipos-criticos/experimental-equipos-criticos.js?v=20260806-fase5-2-v001',EXPERIMENTAL_SHELL_JS]},
-    'experimental-dashboard-call-center':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.css?v=20260806-fase6-2-v001'],js:['./modules/experimental-dashboard-call-center/experimental-dashboard-call-center.js?v=20260914-horarios-f2-v001-limpieza-v002',EXPERIMENTAL_SHELL_JS]},
-    'experimental-proyectos-criticos':{css:[EXPERIMENTAL_SHELL_CSS,'./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.css?v=20260806-fase7-2-v001'],js:['./modules/experimental-proyectos-criticos/experimental-proyectos-criticos.js?v=20260806-fase7-2-v001',EXPERIMENTAL_SHELL_JS]},
     'portal-blt-jf-movimientos-portafolio':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
     'portal-blt-jf-portafolio-total':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
     'portal-blt-jf-equipos-criticos':{css:['./modules/portal-blt-jf/portal-blt-jf.css?v=20261117-portal-blt-jf-v002'],js:['./modules/portal-blt-jf/portal-blt-jf.js?v=20261117-portal-blt-jf-v002']},
