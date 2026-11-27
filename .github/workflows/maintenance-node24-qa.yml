@@ -1,0 +1,90 @@
+name: QA aislada Node 22 y Node 24
+on:
+  push:
+    branches: [maintenance/node24]
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    if: github.ref == 'refs/heads/maintenance/node24'
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Confirmar runtime e instalar dependencias reproducibles
+        id: install
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          npm ci --no-audit --no-fund
+      - name: Validacion, suites completas y bcrypt (sin red externa)
+        if: steps.install.outcome == 'success' && !cancelled()
+        run: |
+          set -euo pipefail
+          # Aislar red y habilitar solamente loopback para pruebas HTTP locales.
+          # No usar secretos, entornos productivos ni endpoints externos.
+          sudo env "PATH=$PATH" "HOME=$HOME" unshare --net -- bash -ec '
+            ip link set lo up
+            exec setpriv --reuid "$SUDO_UID" --regid "$SUDO_GID" --init-groups bash -s
+          ' <<'QA'
+          set -uo pipefail
+          result=0
+          for task in check test:unit test:validation test:backend test:contracts test:storage; do
+            echo "::group::npm run $task"
+            if npm run "$task"; then
+              echo "PASS: $task"
+            else
+              echo "::error::FAIL: $task"
+              result=1
+            fi
+            echo "::endgroup::"
+          done
+          echo "::group::bcrypt y dependencias de runtime"
+          if node <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          for (const dependency of Object.keys(pkg.dependencies)) {
+            require(dependency);
+            console.log('IMPORT OK:', dependency);
+          }
+          const bcrypt = require('bcrypt');
+          (async () => {
+            const value = 'synthetic-node-compatibility-test';
+            const hash = await bcrypt.hash(value, 10);
+            assert.equal(await bcrypt.compare(value, hash), true);
+            assert.equal(await bcrypt.compare('invalid-value', hash), false);
+            assert.equal(bcrypt.compareSync(value, bcrypt.hashSync(value, 10)), true);
+            console.log('BCRYPT OK: hash y compare asincrono y sincrono');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
+          then
+            echo "PASS: dependencias y bcrypt"
+          else
+            echo "::error::FAIL: dependencias o bcrypt"
+            result=1
+          fi
+          echo "::endgroup::"
+          exit "$result"
+          QA
+      - name: Auditoria de dependencias
+        if: steps.install.outcome == 'success' && !cancelled()
+        run: npm audit --audit-level=moderate
