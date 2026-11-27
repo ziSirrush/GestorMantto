@@ -329,3 +329,9 @@ body.rd-modal-open{overflow:hidden}
 }
 @media(max-width:1000px){.rd-ex-bubbles{grid-template-columns:repeat(3,minmax(0,1fr))}.rd-ex-head{flex-direction:column}.rd-ex-head-actions{justify-content:flex-start}}
 @media(max-width:760px){#view-resumen{padding:14px}.rd-ex-main{grid-template-columns:1fr}.rd-ex-card{padding:16px}.rd-ex-filter-row{grid-template-columns:1fr;gap:6px}.rd-ex-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}.rd-ex-chip{flex-shrink:0}.rd-ex-bubbles{grid-template-columns:repeat(2,minmax(0,1fr))}.rd-ex-ticket-section{padding:10px}.rd-ex-averages strong{font-size:17px}}
+
+/* Resumen DGB: filtro exclusivo de Dirección General, fase 3. */
+#view-resumen .rd-ex-recent{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #dbe4f0;border-radius:9px;color:#0d2e6e;background:#fff;font-size:12px;font-weight:700;cursor:pointer}
+#view-resumen .rd-ex-recent input{width:16px;height:16px;margin:0;accent-color:#1b4fd8;flex-shrink:0;cursor:pointer}
+#view-resumen .rd-ex-recent:has(input:checked){background:#eff6ff;border-color:#93c5fd}
+#view-resumen .rd-ex-recent:has(input:disabled){opacity:.6;cursor:default}

@@ -3,6 +3,7 @@
 const repository = require('./experimental-resumen-dia.repository');
 const informationRecordScope = require('../../services/information-record-scope-gnral.service');
 const canonicalZoneUni = require('../../services/alcance/united-canonical-zone.service');
+const { receptionDateSql_uni } = require('../../utils/portafolio-fecha-recepcion');
 
 const TIME_ZONE_EXP = 'America/Mexico_City';
 const MAX_ARRIVAL_HOURS_EXP = 744;
@@ -294,6 +295,22 @@ async function getResumenDia_exp(req, now = new Date(), options = {}) {
   const historic = buildFilters_exp(req, yearStart + ' 00:00:00', today + ' 00:00:00');
   const zoneJoinSql = canonicalZoneUni.ticketZoneJoinSql_uni('t', zoneAlias);
   const supervisorJoin = supervisorJoin_exp(zoneAlias);
+  // No leer esta opción desde req.query: sólo el servicio oficial de Operación
+  // la habilita tras autorizar al Director General. La cohorte es móvil,
+  // desde hace 12 meses hasta el día operativo actual (ambos inclusive).
+  const recent = options.entregasRecientes === true;
+  if (recent) {
+    const reference = dateKeyInTimeZone_exp(now);
+    const reception = receptionDateSql_uni('p_sup_exp');
+    const clause = ` AND (${reception} >= DATE_SUB(CAST(? AS DATE), INTERVAL 12 MONTH)
+      AND ${reception} <= CAST(? AS DATE))`;
+    // Aplicar al universo antes de calcular los filtros disponibles y a los
+    // agregados históricos, de modo que los KPI compartan la misma cohorte.
+    for (const scope of [filters, historic]) {
+      scope.where += clause;
+      scope.params.push(reference, reference);
+    }
+  }
   const portafolioScope = informationRecordScope.buildPortafolioScopeSql_gnral(req, 'p');
   const zoneScope = informationRecordScope.buildZoneIdScopeSql_gnral(req, 'z.id_zona');
 
@@ -325,7 +342,7 @@ async function getResumenDia_exp(req, now = new Date(), options = {}) {
       COALESCE(SUM(CASE WHEN t.fecha_reporte >= ? THEN 1 ELSE 0 END), 0) AS month_total
     FROM tickets t
     ${zoneJoinSql}
-    ${selection.selected.supervisor ? supervisorJoin : ''}
+    ${(selection.selected.supervisor || recent) ? supervisorJoin : ''}
     WHERE ${historic.where} AND (${selection.sql})
   `;
 

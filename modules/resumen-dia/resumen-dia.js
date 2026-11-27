@@ -9,6 +9,7 @@
   let criticalListenerBound = false;
   let selectedDay='', operationalToday='', filtersRd={estado:'',zona:'',supervisor:''}, filterCatalog=null, averagesRd=null;
   let offlineMode=false, dataReady=false, loadingRd=false, requestRevision=0, requestController=null;
+  let recentAvailableRd=false, recentActiveRd=false;
   const pageSize = 30;
 
   function byId(id){ return document.getElementById(id); }
@@ -208,6 +209,7 @@
     const params=new URLSearchParams({vista:'ejecutiva',criticos_periodo:String(criticalCriteria.periodo||35),min_fallas:String(criticalCriteria.fallas||3)});
     if(selectedDay) params.set('fecha',selectedDay);
     for(const key of ['estado','zona','supervisor'])if(filtersRd[key])params.set(key,filtersRd[key]);
+    if(recentActiveRd && canUseRecentRd())params.set('entregas_recientes','1');
     // El puente Offline conserva la misma ruta e ignora los parámetros.
     const response = await fetch(apiUrl('/api/operacion/resumen-dia/inicial?'+params.toString()), {
       cache:'no-store', signal:requestController?.signal,
@@ -223,12 +225,18 @@
       throw new Error('La API aún no devuelve el Resumen ejecutivo. Actualiza nuevamente.');
     if(!Array.isArray(data.tickets)||(isLocal&&!Array.isArray(data.portafolio)))
       throw new Error('Respuesta incompleta.');
+    const recent=payload.entregas_recientes;
+    const recentAvailable=!isLocal&&recent?.disponible===true&&recent?.meses===12&&isOwnDirectorSessionRd();
+    const recentActive=recentAvailable&&recent?.activa===true;
+    // Nunca mostrar la vista general bajo una selección de recientes.
+    if(!isLocal && recentActive!==params.has('entregas_recientes'))
+      throw new Error('La API no confirmó el filtro de Entregas Recientes. Actualiza nuevamente.');
     return {
       tickets:data.tickets.map(mapTicket).filter(t=>t.n&&t.fr),
       portafolio:(Array.isArray(data.portafolio)?data.portafolio:[]).map(mapPortafolio).filter(p=>p.cod||p.pro),
       criticalCodes:isLocal?null:new Set(data.criticos_codigos.map(nrm).filter(Boolean)),
       criticidad:data.criticidad||null, offline:isLocal, period:payload.period||null,
-      filters:payload.filters||null, averages:payload.promedios||null
+      filters:payload.filters||null, averages:payload.promedios||null, recentAvailable,recentActive
     };
   }
   function syncCriticalCriteriaFromSession(){
@@ -315,6 +323,24 @@
   function canRdAny(codes){return String(codes||'').split('|').some(code=>code&&canRd(code));}
   function canFilterRd(){return canRdAny(RD_PERIOD+'.FILTRAR|GRAFICAS_ESTADO_TICKETS.FILTRAR');}
   function canLinkRd(type){return canRd(RD_PERIOD+'.VER_'+type.toUpperCase());}
+  function isOwnDirectorSessionRd(){
+    const auth=window.ManttoAuth;
+    const actor=auth?.getActorUser?.(), effective=auth?.getUser?.();
+    const id=Number(actor?.id_SB);
+    if(!auth||auth.isViewingAs?.()!==false||!Number.isSafeInteger(id)||id<=0||Number(effective?.id_SB)!==id)return false;
+    return new Set([actor.rol,...(Array.isArray(actor.roles)?actor.roles:[])]).has('Director General');
+  }
+  function canUseRecentRd(){
+    return recentAvailableRd&&!offlineMode&&window.ManttoOfflineNavigation?.isOffline?.()!==true&&isOwnDirectorSessionRd();
+  }
+  function renderRecentControlRd(){
+    const host=byId('rd-recent-control'),check=byId('rd-recent-check');
+    if(!host||!check)return;
+    const allowed=canUseRecentRd();
+    host.hidden=!allowed;
+    check.checked=allowed&&recentActiveRd;
+    check.disabled=!allowed||!dataReady||loadingRd;
+  }
   function applyExecutivePermissions(){
     const view=byId('view-resumen');
     if(!view)return;
@@ -327,6 +353,7 @@
     const search=byId('rd-search'),status=byId('rd-filter-et');
     if(search)search.hidden=!canRd(RD_PERIOD+'.BUSCAR');
     if(status)status.hidden=!canRd(RD_PERIOD+'.FILTRAR');
+    renderRecentControlRd();
   }
   function todayKeyRd(){
     const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -799,6 +826,11 @@
       selectedDay=ev.target.value;load();
     });
     byId('rd-refresh')?.addEventListener('click',load);
+    byId('rd-recent-check')?.addEventListener('change',ev=>{
+      if(!canUseRecentRd()||!dataReady||loadingRd){renderRecentControlRd();return;}
+      recentActiveRd=ev.target.checked===true;
+      page=0;hideDetail();load();
+    });
     byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();});
     byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();});
     byId('rd-page-prev')?.addEventListener('click',()=>{if(page>0){page--;renderTable();}});
@@ -814,6 +846,7 @@
   function clearContextRd(){
     requestRevision++;requestController?.abort();requestController=null;
     dataReady=false;loadingRd=false;offlineMode=false;selectedDay='';operationalToday='';
+    recentAvailableRd=false;recentActiveRd=false;
     filtersRd={estado:'',zona:'',supervisor:''};filterCatalog=null;averagesRd=null;
     allTickets=[];portafolioItems=[];dates=[];currentDayIdx=0;criticalEquipmentCodes=new Set();
     if(byId('rd-search'))byId('rd-search').value='';
@@ -831,6 +864,7 @@
       offlineMode=false;
       if(selectedDay&&selectedDay===operationalToday&&todayKeyRd()>operationalToday)selectedDay='';
     }
+    if(!canUseRecentRd()){recentActiveRd=false;recentAvailableRd=false;}
     if(!offlineMode&&!canFilterRd())filtersRd={estado:'',zona:'',supervisor:''};
     renderEmptyState();setStatus('loading','Cargando resumen...');
     try{
@@ -839,6 +873,7 @@
       if(revision!==requestRevision)return;
       allTickets=initial.tickets;portafolioItems=initial.portafolio;
       offlineMode=initial.offline;
+      recentAvailableRd=initial.recentAvailable;recentActiveRd=initial.recentActive;
       operationalToday=initial.period?.operational_today||todayKeyRd();
       if(offlineMode)prepareOfflineRd();
       else{
@@ -851,12 +886,12 @@
       if(!offlineMode&&window.EstadosVisuales_gnral)await window.EstadosVisuales_gnral.load();
       if(revision!==requestRevision)return;
       loadingRd=false;dataReady=true;
-      setStatus('ok',offlineMode?'Copia local verificada':'Aiven · datos del periodo');
+      setStatus('ok',offlineMode?'Copia local verificada · Vista general':recentActiveRd?'Aiven · Entregas recientes (12 meses)':'Aiven · datos del periodo');
       render();if(!offlineMode&&window.EstadosVisuales_gnral)window.EstadosVisuales_gnral.apply(byId('view-resumen'));
       ensureResumenVisualFixes();
     }catch(error){
       if(revision!==requestRevision||error?.name==='AbortError')return;
-      loadingRd=false;dataReady=false;offlineMode=false;allTickets=[];portafolioItems=[];filterCatalog=null;averagesRd=null;criticalEquipmentCodes=new Set();
+      loadingRd=false;dataReady=false;offlineMode=false;recentAvailableRd=false;recentActiveRd=false;allTickets=[];portafolioItems=[];filterCatalog=null;averagesRd=null;criticalEquipmentCodes=new Set();
       renderEmptyState();setStatus('error','Resumen no disponible: '+String(error?.message||'Error de consulta').slice(0,200));
     }finally{if(revision===requestRevision){loadingRd=false;renderDatesRd();applyExecutivePermissions();}}
   }
