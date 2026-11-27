@@ -96,3 +96,17 @@ test('DGB: permisos efectivos, respaldo local y promedio de días completos',()=
   f.setOffline(true);assert.equal(f.canRd('KPI_TICKETS.VER'),true);
   window.ManttoOfflineResumenDia.routeAllowed=()=>false;assert.equal(f.canRd('KPI_TICKETS.VER'),false);
 });
+
+test('DGB: ancho disponible, filtros adaptables y desplazamiento interno de la tabla',()=>{
+  const css=read('modules/resumen-dia/resumen-dia.css');
+  assert.match(css,/\.rd-executive\{[^}]*width:100%;max-width:none;min-width:0;[^}]*grid-template-columns:minmax\(0,1fr\)/);
+  assert.doesNotMatch(css,/\.rd-executive\{[^}]*max-width:\s*\d+px/);
+  assert.match(css,/\.rd-ex-chips\{[^}]*flex-wrap:wrap/);
+  assert.match(css,/@media\(max-width:760px\)[^\n]*\.rd-ex-chips\{flex-wrap:nowrap;overflow-x:auto/);
+  assert.match(css,/#view-resumen \.rd-ex-ticket-section \.rd-table-wrap\{width:100%;max-width:100%;min-width:0;overflow:auto\}/);
+  assert.match(css,/\.rd-tickets-contextual-uni\{min-width:2580px\}/);
+  const loader=read('core/module-loader.js');
+  const html=read('index.html');
+  assert.match(loader,/resumen-dia\.css\?v=20261127-resumen-dgb-ancho-v001/);
+  assert.match(html,/core\/module-loader\.js\?v=20261127-resumen-dgb-ancho-v001/);
+});
