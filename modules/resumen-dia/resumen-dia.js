@@ -7,6 +7,8 @@
   let criticalEquipmentCodes = new Set();
   let criticalCriteria = { fallas: 3, periodo: 35 };
   let criticalListenerBound = false;
+  let selectedDay='', operationalToday='', filtersRd={estado:'',zona:'',supervisor:''}, filterCatalog=null, averagesRd=null;
+  let offlineMode=false, dataReady=false, loadingRd=false, requestRevision=0, requestController=null;
   const pageSize = 30;
 
   function byId(id){ return document.getElementById(id); }
@@ -124,7 +126,7 @@
     if(low.includes('cerr')) return 'Cerrado';
     if(low.includes('curso') || low.includes('proceso')) return 'En curso';
     if(low.includes('abier') || low.includes('pend')) return 'Abierto';
-    return raw || 'Abierto';
+    return raw || 'Sin estado';
   }
   function pick(row, names){
     for(const name of names){
@@ -158,7 +160,7 @@
     else if(tso == null) tso = tso2 ?? tsoCalcFromReport;
     return {
       n: nrm(pick(row,['ticket','No_Ticket','folio','n','id_interno','ID_Interno','id'])),
-      et: estadoTicket({estado_ticket:pick(row,['estado_ticket','Estado_Ticket']), estado:pick(row,['estado','Estado','et'])}),
+      et: estadoTicket({estado_ticket:pick(row,['estado_ticket','Estado_Ticket'])}),
       edo: nrm(pick(row,['estado','Estado','edo'])), ciu: nrm(pick(row,['ciudad','Ciudad','ciu'])), pro: nrm(pick(row,['proyecto','Proyecto','pro'])),
       cod: nrm(pick(row,['codigo_equipo','Codigo_Equipo','equipo','cod'])), ref: nrm(pick(row,['referencia_en_zona_operativa','Referencia_en_Zona_Operativa','identificacion_sitio','Identificacion_en_Sitio','ref'])),
       // FASE 1/11: zona oficial desde z_op a traves de portafolio.zona_id.
@@ -193,7 +195,7 @@
       ref: nrm(row.identificacion_sitio || row.referencia_en_zona_operativa || row.ref),
       inactivo: nrm(row.inactivo).toLowerCase(),
       estatus: nrm(row.estatus_servicio || row.estatus || row.estado_servicio),
-      estadoRegistro: row.estado_registro
+      estadoRegistro: row.estado_registro, estado:nrm(row.estado), supervisor:nrm(row.supervisor_zona)
     };
   }
   function isActiveEquipo(pf){
@@ -203,30 +205,31 @@
     return !inactive && estadoReg;
   }
   async function fetchResumenInicial(){
-    setStatus('loading','Cargando Aiven...');
-    try{
-      const params=new URLSearchParams({criticos_periodo:String(criticalCriteria.periodo||35),min_fallas:String(criticalCriteria.fallas||3)});
-      const response = await fetch(apiUrl('/api/operacion/resumen-dia/inicial?'+params.toString()), {
-        cache:'no-store',
-        headers:Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {})
-      });
-      if(!response.ok) throw new Error('HTTP '+response.status);
-      const payload = await response.json();
-      const data = payload && payload.data ? payload.data : {};
-      const ticketRows = Array.isArray(data.tickets) ? data.tickets : [];
-      const portafolioRows = Array.isArray(data.portafolio) ? data.portafolio : [];
-      const tickets = ticketRows.map(mapTicket).filter(t=>t.n && t.fr);
-      const portafolio = portafolioRows.map(mapPortafolio).filter(p=>p.cod || p.pro);
-      const crit=data.criticidad||{};
-      criticalCriteria={fallas:Number(crit.min_fallas_blt)||criticalCriteria.fallas||3,periodo:Number(crit.dias)||criticalCriteria.periodo||35};
-      criticalEquipmentCodes=new Set((Array.isArray(data.criticos_codigos)?data.criticos_codigos:[]).map(nrm).filter(Boolean));
-      setStatus('ok','Aiven · '+tickets.length.toLocaleString('es-MX')+' tickets');
-      return { tickets, portafolio, alcance: payload.alcance || null };
-    }catch(error){
-      console.error('[Resumen del Día] Error en carga inicial territorial:', error);
-      setStatus('error','Sin datos reales desde Aiven');
-      return { tickets: [], portafolio: [], alcance: null };
-    }
+    const params=new URLSearchParams({vista:'ejecutiva',criticos_periodo:String(criticalCriteria.periodo||35),min_fallas:String(criticalCriteria.fallas||3)});
+    if(selectedDay) params.set('fecha',selectedDay);
+    for(const key of ['estado','zona','supervisor'])if(filtersRd[key])params.set(key,filtersRd[key]);
+    // El puente Offline conserva la misma ruta e ignora los parámetros.
+    const response = await fetch(apiUrl('/api/operacion/resumen-dia/inicial?'+params.toString()), {
+      cache:'no-store', signal:requestController?.signal,
+      headers:Object.assign({'Accept':'application/json'}, window.ManttoAuth ? window.ManttoAuth.authHeaders() : {})
+    });
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    const payload = await response.json();
+    if(!payload || payload.ok!==true)throw new Error('Respuesta no válida.');
+    const data = payload.data || {};
+    const isLocal=payload.offline===true&&payload.source==='indexeddb';
+    if(!isLocal && (payload.mode!=='RESUMEN_DIA_EJECUTIVO_V001' || !payload.period?.today ||
+       !payload.filters?.disponibilidad || !payload.promedios || !Array.isArray(data.criticos_codigos)))
+      throw new Error('La API aún no devuelve el Resumen ejecutivo. Actualiza nuevamente.');
+    if(!Array.isArray(data.tickets)||(isLocal&&!Array.isArray(data.portafolio)))
+      throw new Error('Respuesta incompleta.');
+    return {
+      tickets:data.tickets.map(mapTicket).filter(t=>t.n&&t.fr),
+      portafolio:(Array.isArray(data.portafolio)?data.portafolio:[]).map(mapPortafolio).filter(p=>p.cod||p.pro),
+      criticalCodes:isLocal?null:new Set(data.criticos_codigos.map(nrm).filter(Boolean)),
+      criticidad:data.criticidad||null, offline:isLocal, period:payload.period||null,
+      filters:payload.filters||null, averages:payload.promedios||null
+    };
   }
   function syncCriticalCriteriaFromSession(){
     const user=window.ManttoAuth&&typeof window.ManttoAuth.getUser==='function'?window.ManttoAuth.getUser():null;
@@ -266,7 +269,7 @@
     const dia=String(Number(m[3]) || m[3]);
     return dia + ' de ' + (meses[m[2]] || m[2]) + ' #' + numero;
   }
-  function setStatus(type,msg){ const el=byId('rd-api-status'); if(!el) return; el.className='rd-status '+type; el.innerHTML='<span class="dot"></span><span>'+msg+'</span>'; }
+  function setStatus(type,msg){ const el=byId('rd-api-status'); if(!el) return; el.className='rd-status '+type; el.textContent=msg; }
   function formatDay(key){
     const [y,m,d] = key.split('-').map(Number); const dt = new Date(y,m-1,d);
     const label = dt.toLocaleDateString('es-MX',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -300,92 +303,159 @@
   }
   function avgMin(arr){ const nums = arr.map(num).filter(n=>n!=null && n>0 && n<744); return nums.length ? Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*60) : null; }
   function cafCount(rows){ const map={}; rows.forEach(t=>{ const k=(t.caf||'SIN DATO').replace(/^\d+ - /,'').trim() || 'SIN DATO'; map[k]=(map[k]||0)+1; }); return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([l,v])=>({l,v})); }
+  // Acciones existentes del catálogo DGB. No se crean permisos nuevos.
+  const RD_PERMISSION_PREFIX='OPERACION_RESUMEN_DEL_DIA_';
+  const RD_PERIOD='TICKET_PERIODO_TICKETS_DEL_PERIODO';
+  function offlineAllowedRd(){
+    return offlineMode&&window.ManttoOfflineResumenDia?.routeAllowed?.()===true;
+  }
+  function canRd(code){
+    return offlineMode?offlineAllowedRd():window.ManttoPermissions?.state?.(RD_PERMISSION_PREFIX+code)?.efectivo===true;
+  }
+  function canRdAny(codes){return String(codes||'').split('|').some(code=>code&&canRd(code));}
+  function canFilterRd(){return canRdAny(RD_PERIOD+'.FILTRAR|GRAFICAS_ESTADO_TICKETS.FILTRAR');}
+  function canLinkRd(type){return canRd(RD_PERIOD+'.VER_'+type.toUpperCase());}
+  function applyExecutivePermissions(){
+    const view=byId('view-resumen');
+    if(!view)return;
+    view.querySelectorAll('[data-rd-view-perm]').forEach(el=>{el.hidden=!canRdAny(el.dataset.rdViewPerm);});
+    view.querySelectorAll('[data-rd-action-perm]').forEach(el=>{
+      el.disabled=!canRdAny(el.dataset.rdActionPerm)||!dataReady||loadingRd||
+        (offlineMode&&el.dataset.rdDetail==='criticos');
+    });
+    const filters=byId('rd-filter-card');if(filters)filters.hidden=!canFilterRd();
+    const search=byId('rd-search'),status=byId('rd-filter-et');
+    if(search)search.hidden=!canRd(RD_PERIOD+'.BUSCAR');
+    if(status)status.hidden=!canRd(RD_PERIOD+'.FILTRAR');
+  }
+  function todayKeyRd(){
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const values=Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+    return values.year+'-'+values.month+'-'+values.day;
+  }
+  function shiftDayRd(key,delta){
+    const d=new Date(key+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);
+  }
+  function filterKeyRd(v){return nrm(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+  function ticketMatchesRd(t){
+    return [['estado','edo'],['zona','zon'],['supervisor','sup']].every(([key,field])=>!filtersRd[key]||filterKeyRd(t[field])===filterKeyRd(filtersRd[key]));
+  }
+  function prepareOfflineRd(){
+    const byCode=new Map(portafolioItems.filter(p=>p.cod&&String(p.estadoRegistro)==='1').map(p=>[p.cod,p]));
+    for(const ticket of allTickets){
+      const p=byCode.get(ticket.cod);
+      ticket.sup=p&&p.zon&&ticket.zon&&filterKeyRd(p.zon)===filterKeyRd(ticket.zon)?p.supervisor:'';
+    }
+    dates=[...new Set(allTickets.map(t=>t.fr))].sort().reverse();
+    if(!dates.includes(selectedDay))selectedDay=dates[0]||todayKeyRd();
+    currentDayIdx=Math.max(0,dates.indexOf(selectedDay));
+  }
+  function offlineCatalogRd(dayRows){
+    const result={disponibilidad:{}};
+    const fields=[['estados','estado','edo'],['zonas','zon','zon'],['supervisores','supervisor','sup']];
+    for(const [key,pfField,ticketField] of fields){
+      const values=new Map(),enabled=new Set();
+      const add=v=>{if(filterKeyRd(v)&&!values.has(filterKeyRd(v)))values.set(filterKeyRd(v),nrm(v));};
+      portafolioItems.filter(p=>String(p.estadoRegistro)==='1').forEach(p=>add(p[pfField]));
+      dayRows.forEach(t=>{add(t[ticketField]);if(filterKeyRd(t[ticketField]))enabled.add(filterKeyRd(t[ticketField]));});
+      result[key]=[...values.values()].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+      result.disponibilidad[key]=result[key].filter(v=>enabled.has(filterKeyRd(v)));
+    }
+    return result;
+  }
+  function offlineAveragesRd(day){
+    const period=start=>{
+      const dias=Math.round((Date.parse(day+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000);
+      const tickets=allTickets.filter(t=>t.fr>=start&&t.fr<day&&ticketMatchesRd(t)).length;
+      return {dias,tickets,promedio:dias>0?Math.round(tickets/dias*100)/100:null};
+    };
+    return {mes:period(day.slice(0,7)+'-01'),anio:period(day.slice(0,4)+'-01-01')};
+  }
+  function renderFiltersRd(){
+    const data=filterCatalog||{disponibilidad:{}};
+    for(const [key,field] of [['estado','estados'],['zona','zonas'],['supervisor','supervisores']]){
+      const host=byId('rd-filter-'+key);if(!host)continue;
+      const values=[...(Array.isArray(data[field])?data[field]:[])];
+      if(filtersRd[key]&&!values.includes(filtersRd[key]))values.push(filtersRd[key]);
+      const enabled=new Set(data.disponibilidad?.[field]||[]);
+      host.replaceChildren();
+      for(const value of ['',...values]){
+        const button=document.createElement('button');
+        button.type='button';button.className='rd-ex-chip'+(value===filtersRd[key]?' active':'');
+        button.textContent=value||(key==='zona'?'Todas':'Todos');
+        button.setAttribute('aria-pressed',String(value===filtersRd[key]));
+        button.disabled=!canFilterRd()||(value!==''&&!enabled.has(value));
+        if(value&&!enabled.has(value))button.title='Sin tickets en el día seleccionado';
+        button.addEventListener('click',()=>{
+          if(button.disabled)return;
+          filtersRd[key]=value;page=0;hideDetail();
+          if(offlineMode&&dataReady)render();else load();
+        });
+        host.appendChild(button);
+      }
+    }
+  }
+  function renderAverageRd(key,period,total){
+    const valid=period?.promedio!=null&&Number.isFinite(Number(period.promedio));
+    const format=n=>Number(n).toLocaleString('es-MX',{maximumFractionDigits:2});
+    txt('rd-promedio-'+key,valid?format(period.promedio)+' / día':'—');
+    const delta=valid?Math.round((total-Number(period.promedio))*100)/100:null;
+    txt('rd-delta-'+key,valid?(delta>0?'+':'')+format(delta)+' vs. promedio':period?.dias===0?'Sin días completos':'');
+  }
+  function renderDatesRd(){
+    const key=selectedDay||operationalToday||todayKeyRd();
+    txt('rd-day-label',formatDay(key));
+    txt('rd-day-sub',offlineMode?'Fecha de la copia local':'Fecha operativa · Ciudad de México');
+    const input=byId('rd-date-input');
+    if(input){input.value=key;input.max=operationalToday||todayKeyRd();input.disabled=offlineMode||loadingRd;}
+    const prev=byId('rd-prev-day'),next=byId('rd-next-day');
+    if(prev)prev.disabled=loadingRd||(offlineMode&&currentDayIdx>=dates.length-1);
+    if(next)next.disabled=loadingRd||(offlineMode?currentDayIdx<=0:key>=(operationalToday||todayKeyRd()));
+    const refresh=byId('rd-refresh');if(refresh)refresh.disabled=loadingRd;
+  }
   function renderEmptyState(){
-    txt('rd-day-label','Sin datos reales');
-    txt('rd-day-sub','Verifica que el backend local esté activo y conectado a Aiven');
-    ['rd-total','rd-cerrados','rd-encurso','rd-abiertos','rd-blt','rd-cli','rd-atrap','rd-agua','rd-voltaje','rd-criticos-dia','rd-nofunc','rd-avg-llegada','rd-avg-cierre','rd-sla'].forEach(id=>txt(id,'0'));
-    ['rd-cerrados-pct','rd-encurso-pct','rd-abiertos-pct','rd-blt-pct','rd-cli-pct','rd-sla-pct','rd-count'].forEach(id=>txt(id,'—'));
-    ['rd-leg-estado','rd-leg-resp','rd-leg-caf-blt','rd-leg-caf-cli','rd-bar-zona','rd-bar-tipo','rd-bar-edo'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<div class="rd-empty">Sin datos reales para mostrar.</div>'; });
-    ['rd-tbody'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML = '<tr><td colspan="18" class="rd-empty">Sin datos reales para mostrar.</td></tr>'; });
-    ['rd-svg-estado','rd-svg-resp','rd-svg-caf-blt','rd-svg-caf-cli'].forEach(id=>{ const el=byId(id); if(el) el.innerHTML=''; });
-    hideDetail();
-    const pageInfo = byId('rd-page-info'); if(pageInfo) pageInfo.textContent='Página 0 de 0';
+    currentDayTickets=[];tableFiltered=[];window.ManttoResumenDia._detailData={};
+    ['rd-total','rd-cerrados','rd-encurso','rd-abiertos','rd-atrap','rd-agua','rd-voltaje','rd-criticos-dia','rd-nofunc','rd-sla','rd-cerrados-pct','rd-encurso-pct','rd-abiertos-pct','rd-promedio-mes','rd-promedio-anio','rd-delta-mes','rd-delta-anio','rd-count','rd-page-info'].forEach(id=>txt(id,'—'));
+    ['abiertos','encurso','cerrados'].forEach(key=>{const bar=byId('rd-bar-'+key);if(bar)bar.style.width='0%';});
+    const th=byId('rd-thead'),tb=byId('rd-tbody');if(th)th.innerHTML=ticketsContextualUniHead();
+    if(tb)tb.innerHTML='<tr><td colspan="18" class="rd-empty">Sin datos disponibles para mostrar.</td></tr>';
+    const p=byId('rd-page-prev'),n=byId('rd-page-next');if(p)p.disabled=true;if(n)n.disabled=true;
+    hideDetail();renderDatesRd();renderFiltersRd();applyExecutivePermissions();
   }
 
   function render(){
-    if(!dates.length){ renderEmptyState(); return; }
-    const key = dates[currentDayIdx]; currentDayTickets = allTickets.filter(t=>t.fr===key);
-    txt('rd-day-label', formatDay(key)); txt('rd-day-sub', currentDayIdx===0?'Día más reciente':'Día '+(currentDayIdx+1)+' de '+dates.length);
-    const prev=byId('rd-prev-day'), next=byId('rd-next-day'); if(prev) prev.disabled=currentDayIdx>=dates.length-1; if(next) next.disabled=currentDayIdx===0;
-    const tks=currentDayTickets, total=tks.length, closed=tks.filter(t=>t.et==='Cerrado'), cerr=closed.length, curso=tks.filter(t=>t.et==='En curso').length, abiertos=tks.filter(t=>t.et==='Abierto').length;
-    const blt=closed.filter(t=>t.res==='BLT').length, cli=closed.filter(t=>t.res==='CLIENTE').length, crit=critSet();
-    const data = {
-      atrap:tks.filter(t=>hasTxt(t,ATRAP_KW)), agua:tks.filter(t=>hasTxt(t,AGUA_KW)), voltaje:tks.filter(t=>hasTxt(t,VOLTAJE_KW)), criticos:tks.filter(t=>crit.has(t.cod)), nofunc:tks.filter(t=>String(t.eqf||'').toLowerCase()==='no funcionando'), sla:tks.filter(t=>t.xat),
-      cerrados:closed, encurso:tks.filter(t=>t.et==='En curso'), abiertos:tks.filter(t=>t.et==='Abierto'), blt:closed.filter(t=>t.res==='BLT'), cliente:closed.filter(t=>t.res==='CLIENTE')
+    if(!dataReady){renderEmptyState();return;}
+    if(offlineMode&&!offlineAllowedRd()){clearContextRd();setStatus('error','Respaldo Offline no autorizado o vencido.');return;}
+    if(offlineMode){
+      const dayRows=allTickets.filter(t=>t.fr===selectedDay);
+      filterCatalog=offlineCatalogRd(dayRows);
+      currentDayTickets=dayRows.filter(ticketMatchesRd);
+      averagesRd=offlineAveragesRd(selectedDay);
+    }else currentDayTickets=allTickets;
+    const tks=currentDayTickets,total=tks.length,crit=critSet();
+    const data={
+      todos:tks,
+      abiertos:tks.filter(t=>t.et==='Abierto'),
+      encurso:tks.filter(t=>t.et==='En curso'),
+      cerrados:tks.filter(t=>t.et==='Cerrado'),
+      atrap:tks.filter(t=>hasTxt(t,ATRAP_KW)),
+      agua:tks.filter(t=>hasTxt(t,AGUA_KW)),
+      voltaje:tks.filter(t=>hasTxt(t,VOLTAJE_KW)),
+      criticos:offlineMode?[]:tks.filter(t=>crit.has(t.cod)),
+      nofunc:tks.filter(t=>String(t.eqf||'').toLowerCase()==='no funcionando'),
+      sla:tks.filter(t=>t.xat)
     };
-    window.ManttoResumenDia._detailData = data;
-    txt('rd-total', total||'—'); txt('rd-cerrados', cerr); txt('rd-cerrados-pct', pct(cerr,total)); txt('rd-encurso', curso); txt('rd-encurso-pct', pct(curso,total)); txt('rd-abiertos', abiertos); txt('rd-abiertos-pct', pct(abiertos,total));
-    txt('rd-blt', blt); txt('rd-blt-pct', pct(blt,closed.length)); txt('rd-cli', cli); txt('rd-cli-pct', pct(cli,closed.length));
-    txt('rd-atrap', data.atrap.length); txt('rd-agua', data.agua.length); txt('rd-voltaje', data.voltaje.length); txt('rd-criticos-dia', new Set(data.criticos.map(t=>t.cod).filter(Boolean)).size); txt('rd-nofunc', data.nofunc.length); txt('rd-sla', data.sla.length); txt('rd-sla-pct', total?pct(data.sla.length,total)+' del total':'—');
-    const avgLlegVal = avgMin(closed.map(t=>t.tll)); const avgCierreVal = avgMin(closed.filter(t=>String(t.eqf||'').toLowerCase().includes('funcion')).map(t=>t.tso)); txt('rd-avg-llegada', avgLlegVal!=null ? avgLlegVal+' min' : '—'); txt('rd-avg-cierre', avgCierreVal!=null ? avgCierreVal+' min' : '—');
-    drawDonut('rd-svg-estado','rd-leg-estado',[{l:'Cerrados',v:cerr,rows:data.cerrados},{l:'En curso',v:curso,rows:data.encurso},{l:'Abiertos',v:abiertos,rows:data.abiertos}], total);
-    drawDonut('rd-svg-resp','rd-leg-resp',[{l:'BLT',v:blt,rows:data.blt},{l:'Cliente',v:cli,rows:data.cliente},{l:'Sin dato',v:closed.filter(t=>!t.res).length,rows:closed.filter(t=>!t.res)}], closed.length||1);
-    const bltRows=tks.filter(t=>t.res==='BLT'), cliRows=tks.filter(t=>t.res==='CLIENTE'); drawDonut('rd-svg-caf-blt','rd-leg-caf-blt', cafCount(bltRows).map(x=>({...x,rows:bltRows.filter(t=>((t.caf||'SIN DATO').replace(/^\d+ - /,'').trim()||'SIN DATO')===x.l)})), bltRows.length||1); drawDonut('rd-svg-caf-cli','rd-leg-caf-cli', cafCount(cliRows).map(x=>({...x,rows:cliRows.filter(t=>((t.caf||'SIN DATO').replace(/^\d+ - /,'').trim()||'SIN DATO')===x.l)})), cliRows.length||1);
-    drawBars('rd-bar-zona', groupRows(tks,'zon'), total); drawBars('rd-bar-tipo', groupRows(tks,'prd'), total); drawBars('rd-bar-edo', groupRows(tks,'edo'), total);
-    page=0; renderTable(); hideDetail();
-  }
-  function groupRows(rows,key){ const map={}; rows.forEach(t=>{ const k=t[key]||'Sin dato'; if(!map[k]) map[k]=[]; map[k].push(t); }); return Object.keys(map).sort().map(l=>({l,v:map[l].length,rows:map[l]})).sort((a,b)=>b.v-a.v); }
-  function donutPath(cx,cy,r,start,end){ const a0=(start-90)*Math.PI/180, a1=(end-90)*Math.PI/180; const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0), x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1); const large=(end-start)>180?1:0; return `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`; }
-  function drawDonut(svgId,legId,items,total){
-    const svg=byId(svgId), leg=byId(legId); if(!svg||!leg) return; svg.innerHTML=''; leg.innerHTML=''; const sum=items.reduce((a,b)=>a+b.v,0)||0; let angle=0;
-    if(!sum){ svg.innerHTML='<circle cx="65" cy="65" r="48" fill="#F1F5F9"></circle><text x="65" y="70" text-anchor="middle" fill="#667085" font-size="11" font-weight="800">Sin datos</text>'; return; }
-    const positive = items.filter(it=>it.v>0);
-    if(positive.length === 1){
-      const it = positive[0];
-      const colorIndex = Math.max(0, items.indexOf(it));
-      const full = document.createElementNS('http://www.w3.org/2000/svg','circle');
-      full.setAttribute('cx','65'); full.setAttribute('cy','65'); full.setAttribute('r','54');
-      full.setAttribute('fill', COLORS[colorIndex%COLORS.length]); full.style.cursor='pointer';
-      full.addEventListener('click',()=>showDetail(it.l,it.rows||[]));
-      svg.appendChild(full);
-    } else {
-      items.forEach((it,i)=>{ if(!it.v) return; const deg=(it.v/sum)*360; const p=document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d',donutPath(65,65,54,angle,angle+deg)); p.setAttribute('fill',COLORS[i%COLORS.length]); p.style.cursor='pointer'; p.addEventListener('click',()=>showDetail(it.l,it.rows||[])); svg.appendChild(p); angle+=deg; });
+    window.ManttoResumenDia._detailData=data;
+    txt('rd-total',total);
+    for(const key of ['abiertos','encurso','cerrados']){
+      txt('rd-'+key,data[key].length);txt('rd-'+key+'-pct',total?pct(data[key].length,total):'0%');
+      const bar=byId('rd-bar-'+key);if(bar)bar.style.width=(total?data[key].length/total*100:0)+'%';
     }
-    const c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('cx','65'); c.setAttribute('cy','65'); c.setAttribute('r','31'); c.setAttribute('fill','#fff'); svg.appendChild(c); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x','65'); tx.setAttribute('y','70'); tx.setAttribute('text-anchor','middle'); tx.setAttribute('fill','#0D2E6E'); tx.setAttribute('font-size','18'); tx.setAttribute('font-weight','900'); tx.textContent=sum; svg.appendChild(tx);
-    items.forEach((it,i)=>{ const row=document.createElement('button'); row.type='button'; row.className='rd-legend-item'; row.innerHTML=`<span class="rd-legend-left"><span class="rd-color" style="background:${COLORS[i%COLORS.length]}"></span><span class="rd-legend-label">${it.l}</span></span><span class="rd-legend-val">${it.v}</span>`; row.addEventListener('click',()=>showDetail(it.l,it.rows||[])); leg.appendChild(row); });
+    for(const key of ['atrap','agua','voltaje','nofunc','sla'])txt('rd-'+key,data[key].length);
+    txt('rd-criticos-dia',offlineMode?'—':new Set(data.criticos.map(t=>t.cod).filter(Boolean)).size);
+    renderAverageRd('mes',averagesRd?.mes,total);renderAverageRd('anio',averagesRd?.anio,total);
+    renderDatesRd();renderFiltersRd();applyExecutivePermissions();page=0;renderTable();hideDetail();
   }
-  function drawBars(id,items,total){ const el=byId(id); if(!el) return; el.innerHTML=''; if(!items.length){ el.innerHTML='<div class="empty-state">Sin datos</div>'; return; } items.slice(0,12).forEach((it,i)=>{ const pct=total?Math.round(it.v/total*100):0; const row=document.createElement('div'); row.className='rd-bar-row'; row.innerHTML=`<div class="rd-bar-top"><span class="rd-bar-label" title="${it.l}">${it.l}</span><span class="rd-bar-value">${it.v} · ${pct}%</span></div><div class="rd-bar-track"><div class="rd-bar-fill" style="width:${pct}%;background:${COLORS[i%COLORS.length]}"></div></div>`; row.addEventListener('click',()=>showDetail(it.l,it.rows||[])); el.appendChild(row); }); }
-  function topEquiposData(rows){
-    const crit = critSet();
-    const map = {};
-    rows.forEach(t=>{
-      if(!t.cod) return;
-      const pf = pfByCod(t.cod);
-      if(!map[t.cod]) map[t.cod] = {cod:t.cod, zon:t.zon || (pf&&pf.zon) || '—', pro:t.pro || (pf&&pf.pro) || '—', ref:t.ref || (pf&&pf.ref) || '—', total:0, blt:0, cli:0, critico:crit.has(t.cod), rows:[]};
-      map[t.cod].total++; map[t.cod].rows.push(t);
-      if(t.res==='BLT') map[t.cod].blt++;
-      if(t.res==='CLIENTE') map[t.cod].cli++;
-    });
-    return Object.values(map).sort((a,b)=>b.total-a.total || a.cod.localeCompare(b.cod)).slice(0,20);
-  }
-  function topProyectosData(rows){
-    const crit = critSet();
-    const map = {};
-    rows.forEach(t=>{
-      const pro = t.pro || 'Sin proyecto';
-      if(!map[pro]) map[pro] = {pro, zon:t.zon || '—', total:0, blt:0, cli:0, cods:new Set(), critCods:new Set(), rows:[]};
-      map[pro].total++; map[pro].rows.push(t);
-      if(t.zon && map[pro].zon==='—') map[pro].zon=t.zon;
-      if(t.res==='BLT') map[pro].blt++;
-      if(t.res==='CLIENTE') map[pro].cli++;
-      if(t.cod){ map[pro].cods.add(t.cod); if(crit.has(t.cod)) map[pro].critCods.add(t.cod); }
-    });
-    return Object.values(map).map(p=>{
-      const activosPf = portafolioItems.filter(x=>x.pro===p.pro && isActiveEquipo(x));
-      return {...p, activos: activosPf.length || p.cods.size, criticos: p.critCods.size};
-    }).sort((a,b)=>b.total-a.total || a.pro.localeCompare(b.pro)).slice(0,20);
-  }
-
 
   function badge(et){ const cls=et==='Cerrado'?'cerrado':et==='En curso'?'curso':'abierto'; return `<span class="rd-badge ${cls}">${et||'—'}</span>`; }
 
@@ -420,15 +490,27 @@
         <td class="rd-cell-wide">${tableText(t.caf)}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="18" style="text-align:center;color:#667085;padding:20px">Sin tickets</td></tr>';
-    tbody.querySelectorAll('[data-ticket]').forEach(btn=>btn.addEventListener('click',()=>{ hideDetail(); openTicket(btn.dataset.ticket); }));
-    tbody.querySelectorAll('[data-proyecto]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openProyecto(btn.dataset.proyecto); }));
-    tbody.querySelectorAll('[data-equipo]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); openEquipo(btn.dataset.equipo); }));
+    for(const [type,open] of [['ticket',openTicket],['proyecto',openProyecto],['equipo',openEquipo]]){
+      tbody.querySelectorAll('[data-'+type+']').forEach(btn=>{
+        btn.disabled=!canLinkRd(type)||!btn.dataset[type];
+        btn.addEventListener('click',ev=>{
+          if(btn.disabled||!canLinkRd(type))return;
+          ev.stopPropagation();hideDetail();open(btn.dataset[type]);
+        });
+      });
+    }
   }
   function renderTable(){
-    const search=nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase();
-    const et=nrm(byId('rd-filter-et')&&byId('rd-filter-et').value);
+    if(!dataReady)return;
+    if(!canRd(RD_PERIOD+'.VER')){
+      const body=byId('rd-tbody');if(body)body.innerHTML='';
+      tableFiltered=[];txt('rd-count','—');txt('rd-page-info','—');
+      return;
+    }
+    const search=canRd(RD_PERIOD+'.BUSCAR')?nrm(byId('rd-search')&&byId('rd-search').value).toLowerCase():'';
+    const et=canRd(RD_PERIOD+'.FILTRAR')?nrm(byId('rd-filter-et')&&byId('rd-filter-et').value):'';
     tableFiltered=currentDayTickets.filter(t=>(!et||t.et===et)&&(!search||[
-      t.n,t.pro,t.cod,t.edo,t.asu,t.eqi,t.eqf,t.cau,t.acc,t.res,t.caf
+      t.n,t.pro,t.cod,t.edo,t.zon,t.sup,t.asu,t.eqi,t.eqf,t.cau,t.acc,t.res,t.caf
     ].join(' ').toLowerCase().includes(search))).sort((a,b)=>((b.fr||'')+(b.hr||'')).localeCompare((a.fr||'')+(a.hr||'')) || String(b.n||'').localeCompare(String(a.n||'')));
     const totalPages=Math.max(1,Math.ceil(tableFiltered.length/pageSize));
     if(page>=totalPages) page=totalPages-1;
@@ -696,23 +778,102 @@
     }
   }
 
-  function bind(){ document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') hideDetail(); }); if(!criticalListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',onCriticalPreferencesUpdated);criticalListenerBound=true;} byId('rd-prev-day')?.addEventListener('click',()=>{ if(currentDayIdx<dates.length-1){ currentDayIdx++; render(); }}); byId('rd-next-day')?.addEventListener('click',()=>{ if(currentDayIdx>0){ currentDayIdx--; render(); }}); byId('rd-refresh')?.addEventListener('click',load); byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();}); byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();}); byId('rd-page-prev')?.addEventListener('click',()=>{ if(page>0){page--;renderTable();} }); byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();}); document.querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{ const key=el.dataset.rdDetail; const rows=(window.ManttoResumenDia._detailData||{})[key]||[]; showDetail(el.querySelector('.lbl')?.textContent || key, rows); })); }
-  async function load(){
-    ensureResumenVisualFixes();
-
-    syncCriticalCriteriaFromSession();
-    // Snapshot territorial: tickets + portafolio + criticidad en una sola llamada.
-    const initial = await fetchResumenInicial();
-    allTickets = initial.tickets;
-    portafolioItems = initial.portafolio;
-
-    await (window.EstadosVisuales_gnral ? window.EstadosVisuales_gnral.load() : Promise.resolve());
-
-    initData();
-    render();
-    if(window.EstadosVisuales_gnral) window.EstadosVisuales_gnral.apply(byId('view-resumen'));
-    ensureResumenVisualFixes();
+  function changeDayRd(delta){
+    if(loadingRd)return;
+    if(offlineMode){
+      const next=currentDayIdx-delta;
+      if(next<0||next>=dates.length)return;
+      currentDayIdx=next;selectedDay=dates[next];render();return;
+    }
+    const key=shiftDayRd(selectedDay||operationalToday||todayKeyRd(),delta);
+    if(key>(operationalToday||todayKeyRd()))return;
+    selectedDay=key;load();
   }
-  function init(){ if(!byId('view-resumen')) return; ensureResumenVisualFixes(); if(byId('rd-refresh')?.dataset.bound==='1') return; if(byId('rd-refresh')) byId('rd-refresh').dataset.bound='1'; bind(); load(); }
+  function bind(){
+    document.addEventListener('keydown',ev=>{if(ev.key==='Escape')hideDetail();});
+    if(!criticalListenerBound){document.addEventListener('mantto:criticos-preferencias-updated',onCriticalPreferencesUpdated);criticalListenerBound=true;}
+    byId('rd-prev-day')?.addEventListener('click',()=>changeDayRd(-1));
+    byId('rd-next-day')?.addEventListener('click',()=>changeDayRd(1));
+    byId('rd-date-input')?.addEventListener('change',ev=>{
+      if(offlineMode||loadingRd||!ev.target.value||ev.target.value>(operationalToday||todayKeyRd())){renderDatesRd();return;}
+      selectedDay=ev.target.value;load();
+    });
+    byId('rd-refresh')?.addEventListener('click',load);
+    byId('rd-search')?.addEventListener('input',()=>{page=0;renderTable();});
+    byId('rd-filter-et')?.addEventListener('change',()=>{page=0;renderTable();});
+    byId('rd-page-prev')?.addEventListener('click',()=>{if(page>0){page--;renderTable();}});
+    byId('rd-page-next')?.addEventListener('click',()=>{page++;renderTable();});
+    byId('view-resumen').querySelectorAll('[data-rd-detail]').forEach(el=>el.addEventListener('click',()=>{
+      if(!dataReady||loadingRd||el.disabled||el.hidden||
+         (el.dataset.rdViewPerm&&!canRdAny(el.dataset.rdViewPerm))||!canRdAny(el.dataset.rdActionPerm)||
+         (offlineMode&&el.dataset.rdDetail==='criticos'))return;
+      const key=el.dataset.rdDetail,rows=(window.ManttoResumenDia._detailData||{})[key]||[];
+      showDetail(el.dataset.rdTitle||key,rows);
+    }));
+  }
+  function clearContextRd(){
+    requestRevision++;requestController?.abort();requestController=null;
+    dataReady=false;loadingRd=false;offlineMode=false;selectedDay='';operationalToday='';
+    filtersRd={estado:'',zona:'',supervisor:''};filterCatalog=null;averagesRd=null;
+    allTickets=[];portafolioItems=[];dates=[];currentDayIdx=0;criticalEquipmentCodes=new Set();
+    if(byId('rd-search'))byId('rd-search').value='';
+    if(byId('rd-filter-et'))byId('rd-filter-et').value='';
+    if(byId('view-resumen')){renderEmptyState();setStatus('loading','Sin datos cargados');}
+  }
+  async function load(){
+    if(!byId('view-resumen'))return;
+    requestController?.abort();
+    requestController=typeof AbortController==='function'?new AbortController():null;
+    const revision=++requestRevision;
+    loadingRd=true;dataReady=false;hideDetail();
+    // La copia no autoriza una sesión en línea después de recuperar la conexión.
+    if(window.ManttoOfflineNavigation?.isOffline?.()!==true){
+      offlineMode=false;
+      if(selectedDay&&selectedDay===operationalToday&&todayKeyRd()>operationalToday)selectedDay='';
+    }
+    if(!offlineMode&&!canFilterRd())filtersRd={estado:'',zona:'',supervisor:''};
+    renderEmptyState();setStatus('loading','Cargando resumen...');
+    try{
+      syncCriticalCriteriaFromSession();
+      const initial = await fetchResumenInicial();
+      if(revision!==requestRevision)return;
+      allTickets=initial.tickets;portafolioItems=initial.portafolio;
+      offlineMode=initial.offline;
+      operationalToday=initial.period?.operational_today||todayKeyRd();
+      if(offlineMode)prepareOfflineRd();
+      else{
+        selectedDay=initial.period.today;
+        filterCatalog=initial.filters;averagesRd=initial.averages;
+      }
+      const crit=initial.criticidad||{};
+      criticalCriteria={fallas:Number(crit.min_fallas_blt)||criticalCriteria.fallas,periodo:Number(crit.dias)||criticalCriteria.periodo};
+      criticalEquipmentCodes=initial.criticalCodes||new Set();
+      if(!offlineMode&&window.EstadosVisuales_gnral)await window.EstadosVisuales_gnral.load();
+      if(revision!==requestRevision)return;
+      loadingRd=false;dataReady=true;
+      setStatus('ok',offlineMode?'Copia local verificada':'Aiven · datos del periodo');
+      render();if(!offlineMode&&window.EstadosVisuales_gnral)window.EstadosVisuales_gnral.apply(byId('view-resumen'));
+      ensureResumenVisualFixes();
+    }catch(error){
+      if(revision!==requestRevision||error?.name==='AbortError')return;
+      loadingRd=false;dataReady=false;offlineMode=false;allTickets=[];portafolioItems=[];filterCatalog=null;averagesRd=null;criticalEquipmentCodes=new Set();
+      renderEmptyState();setStatus('error','Resumen no disponible: '+String(error?.message||'Error de consulta').slice(0,200));
+    }finally{if(revision===requestRevision){loadingRd=false;renderDatesRd();applyExecutivePermissions();}}
+  }
+  function init(){
+    if(!byId('view-resumen'))return;
+    ensureResumenVisualFixes();
+    const refresh=byId('rd-refresh');
+    if(refresh&&refresh.dataset.bound!=='1'){refresh.dataset.bound='1';bind();}
+    if(!dataReady&&!loadingRd)return load();
+  }
+  document.addEventListener('mantto:view-user-changed',clearContextRd);
+  document.addEventListener('mantto:logout',clearContextRd);
+  document.addEventListener('mantto:auth-ready',clearContextRd);
+  document.addEventListener('mantto:permissions-updated',()=>{
+    if(window.ManttoOfflineNavigation?.isOffline?.()===true)return;
+    clearContextRd();
+    if(window.ManttoRouter?.getCurrent?.().route==='resumen'&&window.ManttoPermissions?.canNavigate?.('resumen')===true)init();
+  });
   window.ManttoResumenDia = { init, load, openTicket, _detailData:{} };
 })();

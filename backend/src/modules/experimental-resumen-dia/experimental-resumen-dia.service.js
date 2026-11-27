@@ -266,15 +266,31 @@ function mapTicket_exp(row) {
   };
 }
 
-async function getResumenDia_exp(req, now = new Date()) {
-  const today = dateKeyInTimeZone_exp(now);
+// Motor compartido; sólo Operación pasa fecha y consulta de un día.
+function resolveDay_exp(now, requested) {
+  const current = dateKeyInTimeZone_exp(now);
+  if (requested == null || requested === '') return current;
+  const key = String(requested);
+  const parsed = new Date(key + 'T00:00:00Z');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !Number.isFinite(parsed.getTime()) ||
+      parsed.toISOString().slice(0,10) !== key || key > current) {
+    const error = new Error('Fecha operativa inválida o posterior al día actual.');
+    error.status = 400;
+    error.code = 'RESUMEN_DIA_FECHA_INVALIDA';
+    throw error;
+  }
+  return key;
+}
+
+async function getResumenDia_exp(req, now = new Date(), options = {}) {
+  const today = resolveDay_exp(now, options.fecha);
   const yesterday = shiftDateKey_exp(today, -1);
   const tomorrow = shiftDateKey_exp(today, 1);
   const yearStart = today.slice(0,4) + '-01-01';
   const monthStart = today.slice(0,7) + '-01';
   const zoneAlias = 'z_exp_ticket';
   const selection = buildSelection_exp(req, zoneAlias);
-  const filters = buildFilters_exp(req, yesterday + ' 00:00:00', tomorrow + ' 00:00:00');
+  const filters = buildFilters_exp(req, (options.soloDia ? today : yesterday) + ' 00:00:00', tomorrow + ' 00:00:00');
   const historic = buildFilters_exp(req, yearStart + ' 00:00:00', today + ' 00:00:00');
   const zoneJoinSql = canonicalZoneUni.ticketZoneJoinSql_uni('t', zoneAlias);
   const supervisorJoin = supervisorJoin_exp(zoneAlias);
@@ -344,7 +360,7 @@ async function getResumenDia_exp(req, now = new Date()) {
     ok: true,
     source: 'aiven',
     timezone: TIME_ZONE_EXP,
-    period: { today, yesterday },
+    period: { today, yesterday, operational_today: dateKeyInTimeZone_exp(now) },
     selected_filters: selection.selected,
     alcance: { zona_ids: informationRecordScope.zoneIds_gnral(req), zonas },
     filters: filterOptions_exp(catalogResult[0] || [], allToday, allYesterday),

@@ -437,70 +437,42 @@
 <section aria-label="Administración de Instalaciones" class="view iadm-cor-view" data-view="instalaciones-administracion" id="view-instalaciones-administracion"></section>
 <section aria-label="Programación de Personal" class="view" data-view="instalaciones-programacion-personal" id="view-instalaciones-programacion-personal"></section>
 <section aria-label="Resumen del día" class="view resumen-page" data-view="resumen" id="view-resumen">
-<div class="rd-card rd-header">
-<div class="rd-title">
-<h1>Resumen del día</h1>
-<p>Vista ejecutiva diaria con tickets, responsabilidades, alertas, tiempos, gráficas y tabla detallada.</p>
-</div>
-<div class="rd-actions">
-<button class="rd-btn" id="rd-prev-day" type="button">← Día anterior</button>
-<div class="rd-date-box">
-<div class="rd-date-label" id="rd-day-label">—</div>
-<div class="rd-date-sub" id="rd-day-sub">Sin datos cargados</div>
-</div>
-<button class="rd-btn" id="rd-next-day" type="button">Día siguiente →</button>
+<div class="rd-executive">
+<header class="rd-ex-head rd-ex-card">
+<div><p class="rd-ex-eyebrow">Operación</p><h1>Resumen del día</h1><p class="rd-ex-description">Tickets del periodo y comparación contra el promedio mensual y anual.</p><p class="rd-ex-date" id="rd-day-label">—</p><small id="rd-day-sub"></small></div>
+<div class="rd-ex-head-actions">
+<div class="rd-ex-date-controls"><button class="rd-btn" id="rd-prev-day" type="button" aria-label="Día anterior">←</button><input type="date" id="rd-date-input" aria-label="Fecha del periodo"/><button class="rd-btn" id="rd-next-day" type="button" aria-label="Día siguiente">→</button></div>
 <button class="rd-btn primary" id="rd-refresh" type="button">↻ Actualizar</button>
-<div class="rd-status loading" id="rd-api-status"><span class="dot"></span><span>Cargando Aiven...</span></div>
+<div class="rd-status loading" id="rd-api-status" role="status">Cargando Aiven...</div>
+</div></header>
+<section class="rd-ex-card rd-ex-filter" id="rd-filter-card" aria-label="Filtros del Resumen del día" hidden>
+<div class="rd-ex-filter-row"><span>Estado</span><div id="rd-filter-estado" class="rd-ex-chips"></div></div>
+<div class="rd-ex-filter-row"><span>Zona Operativa</span><div id="rd-filter-zona" class="rd-ex-chips"></div></div>
+<div class="rd-ex-filter-row"><span>Supervisor</span><div id="rd-filter-supervisor" class="rd-ex-chips"></div></div>
+<small>Se habilitan las opciones con tickets en el día seleccionado.</small>
+</section>
+<div class="rd-ex-main">
+<article class="rd-ex-card" data-rd-view-perm="KPI_TICKETS.VER" hidden><h2>Tickets del día</h2><button type="button" class="rd-ex-total" data-rd-detail="todos" data-rd-title="Tickets del día" data-rd-view-perm="KPI_TICKETS.VER" data-rd-action-perm="KPI_TICKETS.ABRIR_DETALLE" disabled><strong id="rd-total">—</strong><span>reportados en el periodo</span></button>
+<div class="rd-ex-averages"><div><small>Promedio mensual</small><strong id="rd-promedio-mes">—</strong><span id="rd-delta-mes"></span></div><div><small>Promedio anual</small><strong id="rd-promedio-anio">—</strong><span id="rd-delta-anio"></span></div></div>
+<p class="rd-ex-description">Días completos anteriores del mes y año de la fecha seleccionada, incluidos días sin tickets.</p></article>
+<article class="rd-ex-card" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER|KPI_EN_CURSO.VER|KPI_CERRADOS.VER" hidden><h2>Estado de tickets</h2><div class="rd-ex-states"><button type="button" class="rd-ex-status open" data-rd-detail="abiertos" data-rd-title="Abiertos" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER" data-rd-action-perm="GRAFICAS_ESTADO_TICKETS.ABRIR_DETALLE" disabled hidden><span>Abiertos</span><strong id="rd-abiertos">—</strong><small id="rd-abiertos-pct">—</small></button>
+<button type="button" class="rd-ex-status progress" data-rd-detail="encurso" data-rd-title="En curso" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER|KPI_EN_CURSO.VER" data-rd-action-perm="GRAFICAS_ESTADO_TICKETS.ABRIR_DETALLE|KPI_EN_CURSO.ABRIR_DETALLE" disabled hidden><span>En curso</span><strong id="rd-encurso">—</strong><small id="rd-encurso-pct">—</small></button>
+<button type="button" class="rd-ex-status closed" data-rd-detail="cerrados" data-rd-title="Cerrados" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER|KPI_CERRADOS.VER" data-rd-action-perm="GRAFICAS_ESTADO_TICKETS.ABRIR_DETALLE|KPI_CERRADOS.ABRIR_DETALLE" disabled hidden><span>Cerrados</span><strong id="rd-cerrados">—</strong><small id="rd-cerrados-pct">—</small></button></div><div class="rd-ex-progress" aria-label="Distribución de estados de tickets"><button type="button" id="rd-bar-abiertos" class="rd-ex-bar open" style="width:0%" aria-label="Abiertos" data-rd-detail="abiertos" data-rd-title="Abiertos" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER" data-rd-action-perm="GRAFICAS_ESTADO_TICKETS.ABRIR_DETALLE" disabled hidden></button>
+<button type="button" id="rd-bar-encurso" class="rd-ex-bar progress" style="width:0%" aria-label="En curso" data-rd-detail="encurso" data-rd-title="En curso" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER|KPI_EN_CURSO.VER" data-rd-action-perm="GRAFICAS_ESTADO_TICKETS.ABRIR_DETALLE|KPI_EN_CURSO.ABRIR_DETALLE" disabled hidden></button>
+<button type="button" id="rd-bar-cerrados" class="rd-ex-bar closed" style="width:0%" aria-label="Cerrados" data-rd-detail="cerrados" data-rd-title="Cerrados" data-rd-view-perm="GRAFICAS_ESTADO_TICKETS.VER|KPI_CERRADOS.VER" data-rd-action-perm="GRAFICAS_ESTADO_TICKETS.ABRIR_DETALLE|KPI_CERRADOS.ABRIR_DETALLE" disabled hidden></button></div></article>
 </div>
-</div>
-<div class="rd-grid kpi-6">
-<article class="rd-kpi g-blue"><div class="ico" data-estado-visual="TICKET">🎫</div><div class="val" id="rd-total">—</div><div class="lbl">Tickets</div><div class="sub">Reportados en el día</div></article>
-<article class="rd-kpi g-green clickable" data-rd-detail="cerrados"><div class="ico" data-estado-visual="CERRADO">✓</div><div class="val" id="rd-cerrados">—</div><div class="lbl">Cerrados</div><div class="sub" id="rd-cerrados-pct">—</div></article>
-<article class="rd-kpi g-amber clickable" data-rd-detail="encurso"><div class="ico" data-estado-visual="EN_CURSO">⏳</div><div class="val" id="rd-encurso">—</div><div class="lbl">En curso</div><div class="sub" id="rd-encurso-pct">—</div></article>
-<article class="rd-kpi g-orange clickable" data-rd-detail="abiertos"><div class="ico" data-estado-visual="ABIERTO">🔴</div><div class="val" id="rd-abiertos">—</div><div class="lbl">Abiertos</div><div class="sub" id="rd-abiertos-pct">—</div></article>
-<article class="rd-kpi g-blue clickable" data-rd-detail="blt"><div class="ico" data-estado-visual="RESPONSABILIDAD_BLT">🛠</div><div class="val" id="rd-blt">—</div><div class="lbl">Resp. BLT</div><div class="sub" id="rd-blt-pct">—</div></article>
-<article class="rd-kpi g-cyan clickable" data-rd-detail="cliente"><div class="ico" data-estado-visual="RESPONSABILIDAD_CLIENTE">👤</div><div class="val" id="rd-cli">—</div><div class="lbl">Resp. Cliente</div><div class="sub" id="rd-cli-pct">—</div></article>
-</div>
-<div class="rd-grid kpi-5">
-<article class="rd-kpi g-red clickable" data-rd-detail="atrap"><div class="ico" data-estado-visual="ATRAPADO">🚨</div><div class="val" id="rd-atrap">—</div><div class="lbl">Atrapados</div><div class="sub">Ver detalle</div></article>
-<article class="rd-kpi g-cyan clickable" data-rd-detail="agua"><div class="ico" data-estado-visual="FILTRACION">💧</div><div class="val" id="rd-agua">—</div><div class="lbl">Filtraciones</div><div class="sub">Ver detalle</div></article>
-<article class="rd-kpi g-purple clickable" data-rd-detail="voltaje"><div class="ico" data-estado-visual="VOLTAJE">⚡</div><div class="val" id="rd-voltaje">—</div><div class="lbl">Voltaje</div><div class="sub">Ver detalle</div></article>
-<article class="rd-kpi g-critical clickable" data-rd-detail="criticos"><div aria-label="Críticos" class="ico">💥</div><div class="val" id="rd-criticos-dia">—</div><div class="lbl">En críticos</div><div class="sub">Ver detalle</div></article>
-<article class="rd-kpi g-dark clickable" data-rd-detail="nofunc"><div class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</div><div class="val" id="rd-nofunc">—</div><div class="lbl">No funcionando</div><div class="sub">Ver detalle</div></article>
-</div>
-<div class="rd-detail rd-card" id="rd-detail"></div>
-<div class="rd-grid kpi-3">
-<article class="rd-kpi g-teal"><div class="ico">⏱</div><div class="val" id="rd-avg-llegada">—</div><div class="lbl">Prom. llegada</div><div class="sub">minutos</div></article>
-<article class="rd-kpi g-blue"><div class="ico">🕐</div><div class="val" id="rd-avg-cierre">—</div><div class="lbl">Prom. cierre</div><div class="sub">equipos resueltos</div></article>
-<article class="rd-kpi g-slate clickable" data-rd-detail="sla"><div class="ico" data-estado-visual="FUERA_SLA">⌛</div><div class="val" id="rd-sla">—</div><div class="lbl">Fuera de SLA</div><div class="sub" id="rd-sla-pct">—</div></article>
-</div>
-<div class="rd-grid two">
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Estado tickets</h2><small>clic en leyenda</small></div><div class="rd-donut"><svg height="150" id="rd-svg-estado" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-estado"></div></div></div>
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Responsabilidad</h2><small>cerrados</small></div><div class="rd-donut"><svg height="150" id="rd-svg-resp" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-resp"></div></div></div>
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — BLT</h2><small>clic para detalle</small></div><div class="rd-donut"><svg height="150" id="rd-svg-caf-blt" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-caf-blt"></div></div></div>
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Causa falla — Cliente</h2><small>clic para detalle</small></div><div class="rd-donut"><svg height="150" id="rd-svg-caf-cli" viewbox="0 0 130 130" width="150"></svg><div class="rd-legend" id="rd-leg-caf-cli"></div></div></div>
-</div>
-<div class="rd-grid two">
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Tickets por zona operativa</h2></div><div class="rd-bars" id="rd-bar-zona"></div></div>
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Por tipo de equipo</h2></div><div class="rd-bars" id="rd-bar-tipo"></div></div>
-</div>
-<div class="rd-card rd-section"><div class="rd-section-head"><h2>Fallas por estado de la República</h2></div><div class="rd-bars" id="rd-bar-edo"></div></div>
-<div class="rd-card rd-section">
-<div class="rd-section-head">
-<h2>Tickets del periodo <small id="rd-count"></small></h2>
-<div class="rd-filters"><input id="rd-search" placeholder="Buscar ticket, proyecto, zona..." type="search"/><select id="rd-filter-et"><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select></div>
-</div>
-<div aria-label="Leyenda de emojis de tickets" class="rd-ticket-emoji-note" id="rd-ticket-emoji-note" role="note">
-<strong>Leyenda:</strong>
-<span>🚨 Atrapado</span>
-<span>💧 Filtración</span>
-<span>⚡ Voltaje</span>
-<span>🚧 No funcionando</span>
-<span>⌛ Fuera de SLA</span>
-<span>💥 Equipo crítico</span>
-</div>
+<div class="rd-ex-bubbles" aria-label="Alertas del día"><button type="button" class="rd-ex-bubble rd-ex-bubble-atrap" data-rd-detail="atrap" data-rd-title="Atrapados" data-rd-view-perm="KPI_ATRAPADOS.VER" data-rd-action-perm="KPI_ATRAPADOS.ABRIR_DETALLE" disabled hidden><span class="ico" data-estado-visual="ATRAPADO">🚨</span><strong id="rd-atrap">—</strong><span>Atrapados</span></button>
+<button type="button" class="rd-ex-bubble rd-ex-bubble-agua" data-rd-detail="agua" data-rd-title="Filtración" data-rd-view-perm="KPI_FILTRACIONES.VER" data-rd-action-perm="KPI_FILTRACIONES.ABRIR_DETALLE" disabled hidden><span class="ico" data-estado-visual="FILTRACION">💧</span><strong id="rd-agua">—</strong><span>Filtración</span></button>
+<button type="button" class="rd-ex-bubble rd-ex-bubble-voltaje" data-rd-detail="voltaje" data-rd-title="Voltaje" data-rd-view-perm="KPI_VOLTAJE.VER" data-rd-action-perm="KPI_VOLTAJE.ABRIR_DETALLE" disabled hidden><span class="ico" data-estado-visual="VOLTAJE">⚡</span><strong id="rd-voltaje">—</strong><span>Voltaje</span></button>
+<button type="button" class="rd-ex-bubble rd-ex-bubble-criticos" data-rd-detail="criticos" data-rd-title="En críticos" data-rd-view-perm="KPI_EN_CRITICOS.VER" data-rd-action-perm="KPI_EN_CRITICOS.ABRIR_DETALLE" disabled hidden><span class="ico" data-estado-visual="CRITICO">💥</span><strong id="rd-criticos-dia">—</strong><span>En críticos</span></button>
+<button type="button" class="rd-ex-bubble rd-ex-bubble-nofunc" data-rd-detail="nofunc" data-rd-title="No funcionando" data-rd-view-perm="KPI_NO_FUNCIONANDO.VER" data-rd-action-perm="KPI_NO_FUNCIONANDO.ABRIR_DETALLE" disabled hidden><span class="ico" data-estado-visual="NO_FUNCIONANDO">🚧</span><strong id="rd-nofunc">—</strong><span>No funcionando</span></button>
+<button type="button" class="rd-ex-bubble rd-ex-bubble-sla" data-rd-detail="sla" data-rd-title="Fuera de SLA" data-rd-view-perm="KPI_FUERA_DE_SLA.VER" data-rd-action-perm="KPI_FUERA_DE_SLA.ABRIR_DETALLE" disabled hidden><span class="ico" data-estado-visual="FUERA_SLA">⌛</span><strong id="rd-sla">—</strong><span>Fuera de SLA</span></button></div>
+<div class="rd-card rd-section rd-ex-ticket-section" data-rd-view-perm="TICKET_PERIODO_TICKETS_DEL_PERIODO.VER" hidden>
+<div class="rd-section-head"><h2>Tickets del periodo <small id="rd-count"></small></h2><div class="rd-filters"><input id="rd-search" placeholder="Buscar ticket, proyecto, zona..." type="search" hidden/><select id="rd-filter-et" aria-label="Estatus del ticket" hidden><option value="">Todos</option><option>Cerrado</option><option>En curso</option><option>Abierto</option></select></div></div>
+<div aria-label="Leyenda de emojis de tickets" class="rd-ticket-emoji-note" id="rd-ticket-emoji-note" role="note"><strong>Leyenda:</strong><span>🚨 Atrapado</span><span>💧 Filtración</span><span>⚡ Voltaje</span><span>🚧 No funcionando</span><span>⌛ Fuera de SLA</span><span>💥 Equipo crítico</span></div>
 <div class="rd-table-wrap"><table class="rd-table rd-tickets-contextual-uni"><thead id="rd-thead"></thead><tbody id="rd-tbody"></tbody></table></div>
 <div class="rd-pagination"><button id="rd-page-prev" type="button">← Anterior</button><span id="rd-page-info">—</span><button id="rd-page-next" type="button">Siguiente →</button></div>
+</div>
 </div>
 </section>
 <section aria-label="Centro de Ayuda" class="view" data-view="help" id="view-help">
@@ -804,7 +776,7 @@
 <script src="./core/http.js?v=20260828-fase4-http-v001"></script>
 <script src="./core/data-sync.js?v=20261005-movimientos-criticos-fase4-v002"></script>
 <script src="./core/human-time.js?v=20260914-horarios-f2-v001"></script>
-<script src="./core/module-loader.js?v=20261127-resumen-exp-f1-v001"></script>
+<script src="./core/module-loader.js?v=20261127-resumen-dgb-f2-v001"></script>
 <script src="./core/router.js?v=20261127-atencion-operacion-v001"></script>
 <script src="./core/estados-visuales.js?v=20260723-v031-2a"></script>
 <script src="./core/pdf/pdf-engine.js?v=20260914-horarios-f2-v001"></script>
