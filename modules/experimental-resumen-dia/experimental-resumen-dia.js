@@ -10,7 +10,9 @@
     controller:null,
     estado:'',
     zona:'',
-    filters:{estados:[],zonas:[]},
+    supervisor:'',
+    filters:{estados:[],zonas:[],supervisores:[],disponibilidad:{}},
+    promedios:null,
     period:{today:null,yesterday:null},
     today:null,
     yesterday:null,
@@ -79,7 +81,7 @@
           <div>
             <p class="rdx-exp-eyebrow">📅 Experimental</p>
             <h1>Resumen del día</h1>
-            <p class="rdx-exp-description">Resumen ejecutivo diario con comparación contra el día anterior.</p>
+            <p class="rdx-exp-description">Resumen ejecutivo diario frente al promedio del mes y del año en curso.</p>
             <p class="rdx-exp-date" data-rdx-exp-date></p>
           </div>
           <div class="rdx-exp-head-actions">
@@ -97,6 +99,11 @@
             <span class="rdx-exp-filter-label">Zona operativa</span>
             <div class="rdx-exp-chips" data-rdx-exp-zonas></div>
           </div>
+          <div class="rdx-exp-filter-row">
+            <span class="rdx-exp-filter-label">Supervisor</span>
+            <div class="rdx-exp-chips" data-rdx-exp-supervisores></div>
+          </div>
+          <p class="rdx-exp-filter-note">Se habilitan las opciones con tickets reportados hoy dentro de tu alcance.</p>
         </section>
 
         <div class="rdx-exp-feedback" data-rdx-exp-feedback hidden></div>
@@ -106,7 +113,11 @@
             <header><span class="rdx-exp-card-icon">🎟️</span><h2>Tickets del día</h2></header>
             <strong class="rdx-exp-big" data-rdx-exp="total">0</strong>
             <p>reportados hoy</p>
-            <div class="rdx-exp-compare" data-rdx-exp-compare="tickets" data-tone="neutral">= igual que ayer</div>
+            <div class="rdx-exp-averages" aria-label="Comparación de tickets por día">
+              <div><small>Promedio mensual</small><strong data-rdx-exp="promedio_mes">—</strong><span data-rdx-exp="delta_mes"></span></div>
+              <div><small>Promedio anual</small><strong data-rdx-exp="promedio_anio">—</strong><span data-rdx-exp="delta_anio"></span></div>
+            </div>
+            <p>Días completos del mes y año actuales, incluidos los días sin tickets.</p>
           </article>
 
           <article class="rdx-exp-card">
@@ -117,14 +128,14 @@
               <div data-rdx-exp-drill="En curso" style="cursor:pointer"><span class="rdx-exp-dot rdx-exp-dot-progress"></span><small>En curso</small><strong data-rdx-exp="en_curso">0</strong></div>
             </div>
             <div class="rdx-exp-progress" aria-label="Distribución de estados">
-              <span class="rdx-exp-progress-open" data-rdx-exp-bar="abiertos"></span>
-              <span class="rdx-exp-progress-closed" data-rdx-exp-bar="cerrados"></span>
-              <span class="rdx-exp-progress-current" data-rdx-exp-bar="en_curso"></span>
+              <span class="rdx-exp-progress-open" data-rdx-exp-bar="abiertos" data-rdx-exp-drill="Abierto" role="button" tabindex="0" aria-label="Ver tickets Abierto"></span>
+              <span class="rdx-exp-progress-closed" data-rdx-exp-bar="cerrados" data-rdx-exp-drill="Cerrado" role="button" tabindex="0" aria-label="Ver tickets Cerrado"></span>
+              <span class="rdx-exp-progress-current" data-rdx-exp-bar="en_curso" data-rdx-exp-drill="En curso" role="button" tabindex="0" aria-label="Ver tickets En curso"></span>
             </div>
             <div class="rdx-exp-pct-grid">
-              <span data-rdx-exp-pct="abiertos">0%</span>
-              <span data-rdx-exp-pct="cerrados">0%</span>
-              <span data-rdx-exp-pct="en_curso">0%</span>
+              <span data-rdx-exp-pct="abiertos" data-rdx-exp-drill="Abierto" role="button" tabindex="0" aria-label="Ver tickets Abierto">0%</span>
+              <span data-rdx-exp-pct="cerrados" data-rdx-exp-drill="Cerrado" role="button" tabindex="0" aria-label="Ver tickets Cerrado">0%</span>
+              <span data-rdx-exp-pct="en_curso" data-rdx-exp-drill="En curso" role="button" tabindex="0" aria-label="Ver tickets En curso">0%</span>
             </div>
           </article>
 
@@ -150,8 +161,8 @@
               <div data-rdx-exp-drill="CLIENTE" style="cursor:pointer"><small>Cliente</small><strong data-rdx-exp="cliente">0</strong><span data-rdx-exp-pct="cliente">0%</span></div>
             </div>
             <div class="rdx-exp-progress rdx-exp-progress-responsibility">
-              <span class="rdx-exp-progress-blt" data-rdx-exp-bar="blt"></span>
-              <span class="rdx-exp-progress-client" data-rdx-exp-bar="cliente"></span>
+              <span class="rdx-exp-progress-blt" data-rdx-exp-bar="blt" data-rdx-exp-drill="BLT" role="button" tabindex="0" aria-label="Ver tickets BLT"></span>
+              <span class="rdx-exp-progress-client" data-rdx-exp-bar="cliente" data-rdx-exp-drill="CLIENTE" role="button" tabindex="0" aria-label="Ver tickets CLIENTE"></span>
             </div>
           </article>
 
@@ -194,21 +205,41 @@
     }
   }
 
-  function renderChips_exp(container, items, selected, kind){
+  function renderChips_exp(container, items, enabledItems, selected, kind){
     if (!container) return;
-    const allLabel = kind === 'estado' ? 'Todos' : 'Todas';
+    const allLabel = kind === 'zona' ? 'Todas' : 'Todos';
     const values = [''].concat(Array.isArray(items) ? items : []);
+    const enabled = new Set(Array.isArray(enabledItems) ? enabledItems : []);
+    // Permitir siempre limpiar la selección, incluso si no hay tickets.
     container.innerHTML = values.map(function(value){
       const active = value === selected;
-      return `<button type="button" class="rdx-exp-chip${active ? ' active' : ''}" data-rdx-exp-filter-kind="${kind}" data-rdx-exp-filter-value="${escapeHtml_exp(value)}" aria-pressed="${active}">${escapeHtml_exp(value || allLabel)}</button>`;
+      const disabled = value !== '' && !enabled.has(value);
+      return '<button type="button" class="rdx-exp-chip'+(active?' active':'')+
+        '" data-rdx-exp-filter-kind="'+kind+'" data-rdx-exp-filter-value="'+escapeHtml_exp(value)+
+        '" aria-pressed="'+active+'"'+(disabled?' disabled aria-disabled="true" title="Sin tickets hoy"':'')+
+        '>'+escapeHtml_exp(value || allLabel)+'</button>';
     }).join('');
   }
 
   function renderFilters_exp(){
     const root = root_exp();
     if (!root) return;
-    renderChips_exp(root.querySelector('[data-rdx-exp-estados]'), state_exp.filters.estados, state_exp.estado, 'estado');
-    renderChips_exp(root.querySelector('[data-rdx-exp-zonas]'), state_exp.filters.zonas, state_exp.zona, 'zona');
+    const available = state_exp.filters.disponibilidad || {};
+    renderChips_exp(root.querySelector('[data-rdx-exp-estados]'), state_exp.filters.estados, available.estados, state_exp.estado, 'estado');
+    renderChips_exp(root.querySelector('[data-rdx-exp-zonas]'), state_exp.filters.zonas, available.zonas, state_exp.zona, 'zona');
+    renderChips_exp(root.querySelector('[data-rdx-exp-supervisores]'), state_exp.filters.supervisores, available.supervisores, state_exp.supervisor, 'supervisor');
+  }
+
+  function renderAverage_exp(key, period, total){
+    const valid = period && period.promedio != null && Number.isFinite(Number(period.promedio));
+    const format = value => Number(value).toLocaleString('es-MX',{maximumFractionDigits:2});
+    setText_exp('promedio_'+key, valid ? format(period.promedio)+' / día' : '—');
+    if(!valid || total == null){
+      setText_exp('delta_'+key, period && period.dias === 0 ? 'Sin días completos' : '');
+      return;
+    }
+    const delta = Math.round((Number(total)-Number(period.promedio))*100)/100;
+    setText_exp('delta_'+key,(delta>0?'+':'')+format(delta)+' hoy vs. promedio');
   }
 
   function setText_exp(name, value){
@@ -278,7 +309,8 @@
     setPercentage_exp('cliente', responsibilityPct.cliente);
 
     setText_exp('equipos_parados', formatCount_exp(today.equipos_parados));
-    setComparison_exp('tickets', state_exp.comparisons.tickets);
+    renderAverage_exp('mes', state_exp.promedios && state_exp.promedios.mes, state_exp.today && state_exp.today.total);
+    renderAverage_exp('anio', state_exp.promedios && state_exp.promedios.anio, state_exp.today && state_exp.today.total);
     setComparison_exp('equipos_parados', state_exp.comparisons.equipos_parados);
     setComparison_exp('no_funcionando', state_exp.comparisons.no_funcionando);
 
@@ -291,15 +323,16 @@
     }
   }
 
-  function openTicket_exp(ticket){
-    const value = String(ticket || '').trim();
+  function openReference_exp(type, reference){
+    const value = String(reference || '').trim();
     if (!value) return;
-    if (window.ManttoDetails && typeof window.ManttoDetails.openTicket === 'function') {
-      window.ManttoDetails.openTicket(value);
-      return;
-    }
-    if (window.ManttoRouter && typeof window.ManttoRouter.go === 'function') {
-      window.ManttoRouter.go('detalle', {type:'ticket', id:value});
+    closeDrill_exp();
+    const methods = {ticket:'openTicket',proyecto:'openProyecto',equipo:'openEquipo'};
+    const details = window.ManttoDetails;
+    if (details && typeof details[methods[type]] === 'function') {
+      details[methods[type]](value);
+    } else if (window.ManttoRouter && typeof window.ManttoRouter.go === 'function') {
+      window.ManttoRouter.go('detalle', {type,id:value});
     }
   }
 
@@ -311,19 +344,16 @@
   function drillRows_exp(type){
     const tickets = Array.isArray(state_exp.tickets) ? state_exp.tickets : [];
     if (type === 'todos') return tickets;
-    if (type === 'parados') return tickets.filter(t => String(t.estado_ticket || '').toLowerCase().indexOf('cerr') === -1);
-    if (type === 'Funcionando') return tickets.filter(t => String(t.estado_ticket || '').toLowerCase().indexOf('cerr') >= 0 && String(t.estatus_equipo_final || '').toLowerCase().indexOf('func') >= 0 && String(t.estatus_equipo_final || '').toLowerCase().indexOf('no func') === -1);
-    if (type === 'NoFuncionando') return tickets.filter(t => String(t.estado_ticket || '').toLowerCase().indexOf('cerr') >= 0 && String(t.estatus_equipo_final || '').toLowerCase().indexOf('no func') >= 0);
-    if (type === 'conLlegada') return tickets.filter(t => Number(t.tiempo_llegada) > 0);
-    if (type === 'BLT') return tickets.filter(t => String(t.responsabilidad || '').toUpperCase() === 'BLT');
-    if (type === 'CLIENTE') return tickets.filter(t => String(t.responsabilidad || '').toUpperCase() === 'CLIENTE');
-    return tickets.filter(t => {
-      const status = String(t.estado_ticket || '').toLowerCase();
-      if (type === 'Abierto') return status.indexOf('abier') >= 0 || status.indexOf('pend') >= 0;
-      if (type === 'En curso') return status.indexOf('curso') >= 0 || status.indexOf('proceso') >= 0;
-      if (type === 'Cerrado') return status.indexOf('cerr') >= 0;
-      return true;
-    });
+    const statuses = {'Abierto':'abierto','En curso':'en_curso','Cerrado':'cerrado'};
+    if (statuses[type]) return tickets.filter(t => t.estado_ticket_normalizado === statuses[type]);
+    if (type === 'parados') return tickets.filter(t => t.codigo_equipo && t.estado_ticket_normalizado !== 'cerrado');
+    if (type === 'Funcionando' || type === 'NoFuncionando') {
+      return tickets.filter(t => t.estado_ticket_normalizado === 'cerrado' &&
+        t.estatus_final_normalizado === (type === 'Funcionando' ? 'funcionando' : 'no_funcionando'));
+    }
+    if (type === 'conLlegada') return tickets.filter(t => t.llegada_valida === true);
+    if (type === 'BLT' || type === 'CLIENTE') return tickets.filter(t => t.responsabilidad_normalizada === type.toLowerCase());
+    return [];
   }
 
   function drillTitle_exp(type){
@@ -331,18 +361,39 @@
     return titles[type] || 'Tickets';
   }
 
+  // Mismo contrato de 18 columnas que el listado contextual de Operación.
+  const TICKETS_CONTEXTUAL_UNI_HEADERS = ['No. Ticket','Proyecto','Equipo','Estado','Fecha Reporte','Hora Reporte','Asunto','Estatus inicial','Fecha Llegada','Hora Llegada','T. llegada','Fecha Solución','Hora Solución','Estatus final','Causa','Acción cierre','Responsabilidad','Causa de falla'];
+  function drillTable_exp(rows){
+    const cell = value => '<td>'+escapeHtml_exp(value == null || value === '' ? '—' : value)+'</td>';
+    const link = (type, value, label) => {
+      if(!value) return cell('');
+      return '<td><button type="button" class="rdx-exp-drill-link" data-rdx-exp-reference="'+type+'" data-rdx-exp-value="'+escapeHtml_exp(value)+'">'+escapeHtml_exp(label || value)+'</button></td>';
+    };
+    const hours = value => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('es-MX',{maximumFractionDigits:2})+' h';
+    return '<table class="rdx-exp-drill-table"><thead><tr>'+TICKETS_CONTEXTUAL_UNI_HEADERS.map(h=>'<th scope="col">'+escapeHtml_exp(h)+'</th>').join('')+
+      '</tr></thead><tbody>'+(rows.length ? rows.map(r=>{
+        const project = window.ManttoFormat && window.ManttoFormat.projectName ? window.ManttoFormat.projectName(r.proyecto) : r.proyecto;
+        return '<tr>'+link('ticket',r.ticket)+link('proyecto',r.proyecto,project)+link('equipo',r.codigo_equipo)+
+          [r.estado,formatDate_exp(r.fecha_reporte),r.h_reporte,r.descripcion,r.estatus_equipo_ir,
+           formatDate_exp(r.fecha_llegada),r.h_llegada,hours(r.tiempo_llegada),formatDate_exp(r.fecha_cierre),
+           r.h_solucion,r.estatus_equipo_final,r.causa,r.accion_en_cierre,r.responsabilidad,r.causa_falla].map(cell).join('')+'</tr>';
+      }).join('') : '<tr><td colspan="18">Sin tickets para este indicador.</td></tr>')+'</tbody></table>';
+  }
+
   function openDrill_exp(type){
+    if (state_exp.loading || !state_exp.today) return;
     closeDrill_exp();
     const rows=drillRows_exp(type);
     const overlay=document.createElement('div');
     overlay.id='rdx-exp-drill-modal';
-    overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;';
-    overlay.innerHTML='<div style="width:min(900px,100%);max-height:85vh;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.25);display:flex;flex-direction:column">'+
-      '<div style="display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid #E2E8F0"><div><strong style="display:block;color:#0D2E6E;font-size:16px">'+escapeHtml_exp(drillTitle_exp(type))+'</strong><span style="font-size:11px;color:#94A3B8">'+rows.length+' tickets</span></div><button type="button" data-rdx-exp-close style="margin-left:auto;border:0;background:#F1F5F9;border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:18px">×</button></div>'+
-      '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead style="background:#0D2E6E;color:#fff"><tr><th style="padding:9px 12px;text-align:left;font-size:11px">Ticket</th><th style="padding:9px 12px;text-align:left;font-size:11px">Estado</th><th style="padding:9px 12px;text-align:left;font-size:11px">Proyecto</th><th style="padding:9px 12px;text-align:left;font-size:11px">Zona</th><th style="padding:9px 12px;text-align:left;font-size:11px">Responsabilidad</th></tr></thead><tbody data-rdx-exp-drill-body></tbody></table></div></div>';
+    overlay.className='rdx-exp-drill-overlay';
+    overlay.innerHTML='<div class="rdx-exp-drill-dialog" role="dialog" aria-modal="true" aria-label="'+escapeHtml_exp(drillTitle_exp(type))+'">'+
+      '<header><div><strong>'+escapeHtml_exp(drillTitle_exp(type))+'</strong><small>'+rows.length+' tickets</small></div>'+
+      '<button type="button" data-rdx-exp-close aria-label="Cerrar">×</button></header>'+
+      '<div class="rdx-exp-drill-scroll">'+drillTable_exp(rows)+'</div></div>';
     document.body.appendChild(overlay);
-    const body=overlay.querySelector('[data-rdx-exp-drill-body]');
-    body.innerHTML=rows.length ? rows.map(r=>'<tr data-rdx-exp-ticket="'+escapeHtml_exp(r.ticket)+'" style="border-bottom:1px solid #F1F5F9;cursor:pointer"><td style="padding:9px 12px;font-size:12px;font-weight:700;color:#1B4FD8">'+escapeHtml_exp(r.ticket)+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.estado_ticket || '—')+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.proyecto || '—')+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.zona || '—')+'</td><td style="padding:9px 12px;font-size:12px">'+escapeHtml_exp(r.responsabilidad || '—')+'</td></tr>').join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:#94A3B8;font-size:12px">Sin tickets para este indicador.</td></tr>';
+    const close=overlay.querySelector('[data-rdx-exp-close]');
+    if(close)close.focus();
   }
 
   function bind_exp(){
@@ -351,32 +402,32 @@
     root.dataset.rdxExpBound = '1';
     document.addEventListener('click', function(event){
       const modal = document.getElementById('rdx-exp-drill-modal');
-      if (!modal) return;
-      if (event.target === modal) closeDrill_exp();
-      const close = event.target.closest('[data-rdx-exp-close]');
-      if (close) closeDrill_exp();
-      const ticket = event.target.closest('[data-rdx-exp-ticket]');
-      if (ticket) openTicket_exp(ticket.dataset.rdxExpTicket);
+      if (!modal || !modal.contains(event.target)) return;
+      if (event.target === modal || event.target.closest('[data-rdx-exp-close]')) {
+        closeDrill_exp();
+        return;
+      }
+      const link = event.target.closest('[data-rdx-exp-reference]');
+      if (link) {
+        event.preventDefault();
+        openReference_exp(link.dataset.rdxExpReference,link.dataset.rdxExpValue);
+      }
+    });
+    document.addEventListener('keydown',function(event){
+      if(event.key === 'Escape') closeDrill_exp();
+    });
+    root.addEventListener('keydown',function(event){
+      const target = event.target.closest('[data-rdx-exp-drill][role="button"]');
+      if(target && (event.key === 'Enter' || event.key === ' ')){
+        event.preventDefault();
+        openDrill_exp(target.dataset.rdxExpDrill);
+      }
     });
     root.addEventListener('click', function(event){
       const drill = event.target.closest('[data-rdx-exp-drill]');
       if (drill) {
         event.preventDefault();
         openDrill_exp(drill.dataset.rdxExpDrill);
-        return;
-      }
-
-      const modalClose = event.target.closest('[data-rdx-exp-close]');
-      if (modalClose) {
-        event.preventDefault();
-        closeDrill_exp();
-        return;
-      }
-
-      const drillTicket = event.target.closest('[data-rdx-exp-ticket]');
-      if (drillTicket) {
-        event.preventDefault();
-        openTicket_exp(drillTicket.dataset.rdxExpTicket);
         return;
       }
 
@@ -387,12 +438,13 @@
         return;
       }
       const chip = event.target.closest('[data-rdx-exp-filter-kind]');
-      if (!chip) return;
+      if (!chip || chip.disabled) return;
       event.preventDefault();
       const kind = chip.dataset.rdxExpFilterKind;
       const value = chip.dataset.rdxExpFilterValue || '';
       if (kind === 'estado') state_exp.estado = value;
       if (kind === 'zona') state_exp.zona = value;
+      if (kind === 'supervisor') state_exp.supervisor = value;
       renderFilters_exp();
       load_exp(true);
     });
@@ -402,6 +454,7 @@
     const params = new URLSearchParams();
     if (state_exp.estado) params.set('estado', state_exp.estado);
     if (state_exp.zona) params.set('zona', state_exp.zona);
+    if (state_exp.supervisor) params.set('supervisor', state_exp.supervisor);
     const query = params.toString();
     const response = await fetch(apiBase_exp() + ENDPOINT_EXP + (query ? '?' + query : ''), {
       method:'GET',
@@ -427,12 +480,26 @@
     if (state_exp.controller) state_exp.controller.abort();
     state_exp.controller = typeof AbortController === 'function' ? new AbortController() : null;
     const requestId = ++state_exp.requestId;
+    closeDrill_exp();
     setLoading_exp(true);
     setFeedback_exp('loading', 'Actualizando resumen del día...');
     try {
       const payload = await request_exp();
       if (requestId !== state_exp.requestId) return;
-      state_exp.filters = payload.filters || {estados:[],zonas:[]};
+      // Evitar presentar un filtro nuevo como efectivo durante un despliegue
+      // escalonado si la API aún entrega el contrato anterior.
+      if(!payload.promedios || !payload.filters || !payload.filters.disponibilidad ||
+          !Array.isArray(payload.filters.supervisores)){
+        throw new Error('Resumen del día: API aún no compatible con los nuevos filtros. Actualiza nuevamente.');
+      }
+      state_exp.filters = payload.filters;
+      state_exp.promedios = payload.promedios;
+      // Si el catálogo cambió, mantener seleccionable la opción de limpiar.
+      for(const [kind,field] of [['estado','estados'],['zona','zonas'],['supervisor','supervisores']]){
+        if(state_exp[kind] && !state_exp.filters[field].includes(state_exp[kind])) {
+          state_exp.filters[field] = state_exp.filters[field].concat(state_exp[kind]);
+        }
+      }
       state_exp.period = payload.period || {today:null,yesterday:null};
       state_exp.today = payload.today || null;
       state_exp.yesterday = payload.yesterday || null;
@@ -447,6 +514,7 @@
       if (requestId !== state_exp.requestId) return;
       state_exp.today = null;
       state_exp.yesterday = null;
+      state_exp.promedios = null;
       state_exp.tickets = [];
       state_exp.comparisons = {tickets:0,equipos_parados:0,no_funcionando:0};
       renderData_exp();
@@ -455,6 +523,29 @@
       if (requestId === state_exp.requestId) setLoading_exp(false);
     }
   }
+
+  function resetContext_exp(){
+    if(state_exp.controller) state_exp.controller.abort();
+    state_exp.requestId++;
+    Object.assign(state_exp,{initialized:false,loading:false,controller:null,estado:'',zona:'',supervisor:'',
+      filters:{estados:[],zonas:[],supervisores:[],disponibilidad:{}},period:{today:null,yesterday:null},
+      today:null,yesterday:null,tickets:[],promedios:null,generatedAt:null,
+      comparisons:{tickets:0,equipos_parados:0,no_funcionando:0}});
+    closeDrill_exp();
+    setLoading_exp(false);
+    renderFilters_exp();
+    renderData_exp();
+    setFeedback_exp('','');
+  }
+
+  document.addEventListener('mantto:view-user-changed',resetContext_exp);
+  document.addEventListener('mantto:logout',resetContext_exp);
+  document.addEventListener('mantto:auth-ready',resetContext_exp);
+  document.addEventListener('mantto:permissions-updated',function(){
+    resetContext_exp();
+    if(window.ManttoRouter?.getCurrent?.().route === ROUTE_EXP &&
+        window.ManttoPermissions?.canNavigate?.(ROUTE_EXP) === true) init_exp();
+  });
 
   function init_exp(){
     if (!root_exp()) return false;

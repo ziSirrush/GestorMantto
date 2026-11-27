@@ -120,7 +120,7 @@ function buildSummary_exp(rows) {
 
   const pctAbiertos = percentage_exp(abiertos, total);
   const pctCerrados = percentage_exp(cerrados, total);
-  const pctEnCurso = total > 0 ? Math.max(0, 100 - pctAbiertos - pctCerrados) : 0;
+  const pctEnCurso = percentage_exp(enCurso, total);
   const totalCierre = funcionando + noFuncionando;
   const averageArrival = arrivalHours.length
     ? arrivalHours.reduce((sum, value) => sum + value, 0) / arrivalHours.length
@@ -157,134 +157,207 @@ function buildSummary_exp(rows) {
   };
 }
 
-function buildFilters_exp(req, startDateTime, endDateTime, zoneAlias) {
-  const ticketScope = informationRecordScope.buildTicketScopeSql_gnral(req, 't');
-  const clauses = [
-    't.fecha_reporte >= ?',
-    't.fecha_reporte < ?',
-    ticketScope.sql
-  ];
-  const params = [startDateTime, endDateTime, ...ticketScope.params];
+// El supervisor corresponde al equipo y a su zona canónica actual. Un ticket sin
+// equipo identificable conserva supervisor vacío; no se infiere por proyecto.
+function supervisorJoin_exp(zoneAlias) {
+  return `LEFT JOIN portafolio p_sup_exp
+    ON p_sup_exp.estado_registro = 1
+   AND NULLIF(TRIM(t.codigo_equipo), '') IS NOT NULL
+   AND p_sup_exp.numero_equipo = TRIM(t.codigo_equipo)
+   AND p_sup_exp.zona_id = ${zoneAlias}.id_zona`;
+}
+
+function buildSelection_exp(req, zoneAlias) {
+  const clauses = [];
+  const params = [];
   const estado = normalizeFilter_exp(req.query && req.query.estado);
   const zona = normalizeFilter_exp(req.query && req.query.zona);
-
+  const supervisor = normalizeFilter_exp(req.query && req.query.supervisor);
   if (estado) {
     clauses.push("TRIM(COALESCE(t.estado, '')) = ?");
     params.push(estado);
   }
   if (zona) {
-    clauses.push(canonicalZoneUni.zoneColumnFilterSql_uni(zoneAlias || 'z_exp_ticket'));
+    clauses.push(canonicalZoneUni.zoneColumnFilterSql_uni(zoneAlias));
     params.push(zona);
   }
+  if (supervisor) {
+    clauses.push("TRIM(COALESCE(p_sup_exp.supervisor_zona, '')) = ?");
+    params.push(supervisor);
+  }
+  return { sql: clauses.join(' AND ') || '1 = 1', params, selected: { estado, zona, supervisor } };
+}
 
+function buildFilters_exp(req, startDateTime, endDateTime) {
+  const ticketScope = informationRecordScope.buildTicketScopeSql_gnral(req, 't');
   return {
-    where: clauses.join(' AND '),
-    params,
-    selected: { estado, zona }
+    where: ['t.fecha_reporte >= ?', 't.fecha_reporte < ?', ticketScope.sql].join(' AND '),
+    params: [startDateTime, endDateTime, ...ticketScope.params]
   };
 }
 
-async function getResumenDia_exp(req) {
-  const today = dateKeyInTimeZone_exp(new Date());
+function averagePeriods_exp(today, row) {
+  const yearStart = today.slice(0, 4) + '-01-01';
+  const monthStart = today.slice(0, 7) + '-01';
+  const days = start => Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(start + 'T00:00:00Z')) / 86400000);
+  const period = (start, count) => {
+    const dias = days(start);
+    const tickets = Number(count || 0);
+    return { desde:start, hasta:shiftDateKey_exp(today, -1), dias, tickets,
+      promedio: dias > 0 ? Number((tickets / dias).toFixed(2)) : null };
+  };
+  return { mes: period(monthStart, row.month_total), anio: period(yearStart, row.year_total) };
+}
+
+function filterOptions_exp(catalogRows, dayRows, previousRows) {
+  const fields = { estados:'estado', zonas:'zona', supervisores:'supervisor' };
+  const catalog = {};
+  const disponibilidad = {};
+  for (const [key, field] of Object.entries(fields)) {
+    const values = new Map();
+    const counts = new Map();
+    for (const row of [...catalogRows, ...dayRows, ...previousRows]) {
+      const value = String(row[field] || '').trim();
+      const normalized = normalizeText_exp(value);
+      if (normalized && !values.has(normalized)) values.set(normalized, value);
+    }
+    for (const row of dayRows) {
+      const normalized = normalizeText_exp(row[field]);
+      if (normalized) counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    }
+    catalog[key] = [...values.values()].sort((a,b) => a.localeCompare(b,'es',{sensitivity:'base'}));
+    disponibilidad[key] = catalog[key].filter(value => counts.has(normalizeText_exp(value)));
+  }
+  return { ...catalog, disponibilidad };
+}
+
+function mapTicket_exp(row) {
+  const text = value => String(value == null ? '' : value).trim();
+  return {
+    id: row.id,
+    ticket: text(row.ticket || row.folio || row.id),
+    estado_ticket: text(row.estado_ticket),
+    estado_ticket_normalizado: normalizeTicketStatus_exp(row.estado_ticket),
+    estado: text(row.estado),
+    proyecto: text(row.proyecto),
+    zona: text(row.zona),
+    zona_legacy: text(row.zona_legacy) || null,
+    zona_id_oficial: row.zona_id_oficial == null ? null : Number(row.zona_id_oficial),
+    codigo_equipo: text(row.codigo_equipo),
+    supervisor: text(row.supervisor),
+    descripcion: text(row.descripcion),
+    estatus_equipo_ir: text(row.estatus_equipo_ir),
+    fecha_reporte: row.fecha_reporte_fecha || null,
+    h_reporte: text(row.h_reporte),
+    fecha_llegada: row.fecha_llegada_fecha || null,
+    h_llegada: text(row.h_llegada),
+    tiempo_llegada: row.tiempo_llegada == null ? null : Number(row.tiempo_llegada),
+    llegada_valida: finiteArrival_exp(row.tiempo_llegada) !== null,
+    fecha_cierre: row.fecha_cierre_fecha || null,
+    h_solucion: text(row.h_solucion),
+    estatus_equipo_final: text(row.estatus_equipo_final),
+    estatus_final_normalizado: normalizeFinalEquipmentStatus_exp(row.estatus_equipo_final),
+    causa: text(row.causa),
+    accion_en_cierre: text(row.accion_en_cierre),
+    responsabilidad: text(row.responsabilidad),
+    responsabilidad_normalizada: normalizeResponsibility_exp(row.responsabilidad),
+    causa_falla: text(row.causa_falla),
+    ticket_excede: text(row.ticket_excede)
+  };
+}
+
+async function getResumenDia_exp(req, now = new Date()) {
+  const today = dateKeyInTimeZone_exp(now);
   const yesterday = shiftDateKey_exp(today, -1);
   const tomorrow = shiftDateKey_exp(today, 1);
+  const yearStart = today.slice(0,4) + '-01-01';
+  const monthStart = today.slice(0,7) + '-01';
   const zoneAlias = 'z_exp_ticket';
-  const filters = buildFilters_exp(
-    req,
-    `${yesterday} 00:00:00`,
-    `${tomorrow} 00:00:00`,
-    zoneAlias
-  );
-  const catalogScope = informationRecordScope.buildTicketScopeSql_gnral(req, 't');
+  const selection = buildSelection_exp(req, zoneAlias);
+  const filters = buildFilters_exp(req, yesterday + ' 00:00:00', tomorrow + ' 00:00:00');
+  const historic = buildFilters_exp(req, yearStart + ' 00:00:00', today + ' 00:00:00');
   const zoneJoinSql = canonicalZoneUni.ticketZoneJoinSql_uni('t', zoneAlias);
+  const supervisorJoin = supervisorJoin_exp(zoneAlias);
+  const portafolioScope = informationRecordScope.buildPortafolioScopeSql_gnral(req, 'p');
+  const zoneScope = informationRecordScope.buildZoneIdScopeSql_gnral(req, 'z.id_zona');
 
+  // Sólo dos días de filas, dentro del alcance autorizado. La selección se
+  // calcula con SQL para usar la misma colación que los agregados históricos.
   const ticketsSql = `
-    SELECT
-      t.id,
-      t.ticket,
-      t.folio,
-      t.estado_ticket,
-      t.estado,
-      t.zona AS zona_legacy,
-      ${zoneAlias}.zona AS zona,
-      ${zoneAlias}.id_zona AS zona_id_oficial,
-      t.codigo_equipo,
-      t.estatus_equipo_final,
-      t.responsabilidad,
-      t.tiempo_llegada,
-      DATE_FORMAT(t.fecha_reporte, '%Y-%m-%d') AS fecha_reporte_fecha
+    SELECT t.id,t.ticket,t.folio,t.estado_ticket,t.estado,t.proyecto,
+      t.zona AS zona_legacy,${zoneAlias}.zona AS zona,
+      ${zoneAlias}.id_zona AS zona_id_oficial,t.codigo_equipo,
+      TRIM(p_sup_exp.supervisor_zona) AS supervisor,
+      t.descripcion,t.estatus_equipo_ir,t.estatus_equipo_final,t.responsabilidad,
+      t.tiempo_llegada,t.h_reporte,t.h_llegada,t.h_solucion,t.causa,
+      t.accion_en_cierre,t.causa_falla,t.ticket_excede,
+      DATE_FORMAT(t.fecha_reporte, '%Y-%m-%d') AS fecha_reporte_fecha,
+      DATE_FORMAT(t.fecha_llegada, '%Y-%m-%d') AS fecha_llegada_fecha,
+      DATE_FORMAT(t.fecha_cierre, '%Y-%m-%d') AS fecha_cierre_fecha,
+      CASE WHEN ${selection.sql} THEN 1 ELSE 0 END AS selected_filter
     FROM tickets t
     ${zoneJoinSql}
+    ${supervisorJoin}
     WHERE ${filters.where}
     ORDER BY t.fecha_reporte DESC, t.id DESC
   `;
 
-  const filterCatalogSql = `
-    SELECT TRIM(t.estado) AS valor
+  // El histórico no viaja al cliente: se devuelven únicamente dos conteos.
+  // El día en curso queda excluido del numerador y del denominador.
+  const averagesSql = `
+    SELECT COUNT(*) AS year_total,
+      COALESCE(SUM(CASE WHEN t.fecha_reporte >= ? THEN 1 ELSE 0 END), 0) AS month_total
     FROM tickets t
-    WHERE ${catalogScope.sql}
-      AND t.estado IS NOT NULL AND TRIM(t.estado) <> ''
-    GROUP BY TRIM(t.estado)
-    ORDER BY valor ASC
+    ${zoneJoinSql}
+    ${selection.selected.supervisor ? supervisorJoin : ''}
+    WHERE ${historic.where} AND (${selection.sql})
   `;
 
-  const [ticketsResult, catalogResult] = await Promise.all([
-    repository.query(ticketsSql, filters.params),
-    repository.query(filterCatalogSql, catalogScope.params)
+  // Catálogo completo de registros vigentes del alcance y de zonas activas,
+  // sin consultar todo el histórico de tickets por cada cambio de filtro.
+  const filterCatalogSql = `
+    SELECT DISTINCT TRIM(p.estado) AS estado, TRIM(z.zona) AS zona,
+      TRIM(p.supervisor_zona) AS supervisor
+    FROM portafolio p
+    INNER JOIN z_op z ON z.id_zona = p.zona_id AND z.estado = 1
+    WHERE p.estado_registro = 1 AND (${portafolioScope.sql})
+    UNION ALL
+    SELECT NULL AS estado, TRIM(z.zona) AS zona, NULL AS supervisor
+    FROM z_op z WHERE z.estado = 1 AND (${zoneScope.sql})
+  `;
+  const [ticketsResult, catalogResult, averagesResult] = await Promise.all([
+    repository.query(ticketsSql, [...selection.params, ...filters.params]),
+    repository.query(filterCatalogSql, [...portafolioScope.params, ...zoneScope.params]),
+    repository.query(averagesSql, [monthStart + ' 00:00:00', ...historic.params, ...selection.params])
   ]);
 
   const rows = ticketsResult[0] || [];
-  const catalogRows = catalogResult[0] || [];
-  const todayRows = rows.filter((row) => String(row.fecha_reporte_fecha || '') === today);
-  const yesterdayRows = rows.filter((row) => String(row.fecha_reporte_fecha || '') === yesterday);
+  const allToday = rows.filter(row => row.fecha_reporte_fecha === today);
+  const allYesterday = rows.filter(row => row.fecha_reporte_fecha === yesterday);
+  const todayRows = allToday.filter(row => Number(row.selected_filter) === 1);
+  const yesterdayRows = allYesterday.filter(row => Number(row.selected_filter) === 1);
   const todaySummary = buildSummary_exp(todayRows);
   const yesterdaySummary = buildSummary_exp(yesterdayRows);
-  const todayTickets = todayRows.map((row) => ({
-    id: row.id,
-    ticket: String(row.ticket || row.folio || row.id || '').trim(),
-    estado_ticket: String(row.estado_ticket || '').trim(),
-    estado: String(row.estado || '').trim(),
-    zona: String(row.zona || '').trim(),
-    zona_legacy: String(row.zona_legacy || '').trim() || null,
-    zona_id_oficial: row.zona_id_oficial == null ? null : Number(row.zona_id_oficial),
-    codigo_equipo: String(row.codigo_equipo || '').trim(),
-    responsabilidad: String(row.responsabilidad || '').trim(),
-    estatus_equipo_final: String(row.estatus_equipo_final || '').trim(),
-    tiempo_llegada: row.tiempo_llegada == null ? null : Number(row.tiempo_llegada),
-    fecha_reporte: row.fecha_reporte_fecha || null
-  }));
-
-  const estados = catalogRows
-    .map((row) => String(row.valor || '').trim())
-    .filter(Boolean);
   const zonas = informationRecordScope.zoneCodes_gnral(req);
 
   return {
     ok: true,
     source: 'aiven',
     timezone: TIME_ZONE_EXP,
-    period: {
-      today,
-      yesterday
-    },
-    selected_filters: filters.selected,
-    alcance: {
-      zona_ids: informationRecordScope.zoneIds_gnral(req),
-      zonas
-    },
-    filters: {
-      estados,
-      zonas
-    },
+    period: { today, yesterday },
+    selected_filters: selection.selected,
+    alcance: { zona_ids: informationRecordScope.zoneIds_gnral(req), zonas },
+    filters: filterOptions_exp(catalogResult[0] || [], allToday, allYesterday),
     today: todaySummary,
     yesterday: yesterdaySummary,
-    tickets: todayTickets,
+    tickets: todayRows.map(mapTicket_exp),
+    promedios: averagePeriods_exp(today, (averagesResult[0] || [])[0] || {}),
     comparisons: {
       tickets: todaySummary.total - yesterdaySummary.total,
       equipos_parados: todaySummary.equipos_parados - yesterdaySummary.equipos_parados,
       no_funcionando: todaySummary.cierre_dia.no_funcionando - yesterdaySummary.cierre_dia.no_funcionando
     },
-    generated_at: new Date().toISOString()
+    generated_at: now.toISOString()
   };
 }
 
@@ -293,6 +366,8 @@ module.exports = {
   _test: {
     buildSummary_exp,
     dateKeyInTimeZone_exp,
-    shiftDateKey_exp
+    shiftDateKey_exp,
+    averagePeriods_exp,
+    filterOptions_exp
   }
 };

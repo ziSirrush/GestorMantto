@@ -74,3 +74,23 @@
   .rdx-exp-status-grid{gap:3px}.rdx-exp-status-grid small{font-size:9px}.rdx-exp-status-grid strong{font-size:24px}
   .rdx-exp-dual{gap:7px}.rdx-exp-dual>div{padding:10px 6px}.rdx-exp-dual strong{font-size:26px}
 }
+
+/* Resumen Experimental, revisión MTTO 2026-11-27, fase 1. */
+.rdx-exp-chip:disabled{opacity:.42;cursor:not-allowed;background:#f1f5f9;border-color:#dbe4f0;color:#64748b}
+.rdx-exp-chip.active:disabled{outline:2px solid #93c5fd}
+.rdx-exp-filter-note{margin:4px 0 8px;color:#64748b;font-size:11px}
+.rdx-exp-averages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+.rdx-exp-averages>div{border:1px solid #dbe4f0;border-radius:10px;padding:10px;min-width:0}
+.rdx-exp-averages small,.rdx-exp-averages span{display:block;color:#64748b;font-size:11px}
+.rdx-exp-averages strong{display:block;color:#0d2e6e;font-size:19px;line-height:1.4}
+.rdx-exp-progress [data-rdx-exp-drill],.rdx-exp-pct-grid [data-rdx-exp-drill]{cursor:pointer}
+.rdx-exp-drill-overlay{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:12px}
+.rdx-exp-drill-dialog{width:min(1450px,100%);max-height:85vh;background:#fff;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.25)}
+.rdx-exp-drill-dialog>header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #e2e8f0}
+.rdx-exp-drill-dialog header strong,.rdx-exp-drill-dialog header small{display:block;color:#0d2e6e}.rdx-exp-drill-dialog header small{color:#64748b}
+.rdx-exp-drill-dialog header button{margin-left:auto;border:0;background:#f1f5f9;border-radius:8px;width:34px;height:34px;font-size:20px;cursor:pointer}
+.rdx-exp-drill-scroll{overflow:auto;overscroll-behavior:contain}
+.rdx-exp-drill-table{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px;color:#1e293b}
+.rdx-exp-drill-table th{position:sticky;top:0;background:#0d2e6e;color:#fff;text-align:left;padding:10px;white-space:nowrap}
+.rdx-exp-drill-table td{padding:9px 10px;vertical-align:top;border-bottom:1px solid #e2e8f0;min-width:92px;max-width:300px;white-space:normal;overflow-wrap:anywhere}
+.rdx-exp-drill-link{border:0;background:transparent;color:#1b4fd8;text-align:left;font:inherit;font-weight:700;padding:0;cursor:pointer;text-decoration:underline}

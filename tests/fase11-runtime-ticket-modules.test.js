@@ -8,6 +8,8 @@ const root = path.resolve(__dirname, '..');
 const infoScopeStub = {
   buildTicketScopeSql_gnral: () => ({ sql:'1 = 1', params:[] }),
   buildTicketScopeSqlInline_gnral: () => ({ sql:'1 = 1', params:[] }),
+  buildPortafolioScopeSql_gnral: () => ({ sql:'1 = 1', params:[] }),
+  buildZoneIdScopeSql_gnral: () => ({ sql:'1 = 1', params:[] }),
   zoneCodes_gnral: () => ['CNA-01','CNA-02','CNA-03'],
   zoneIds_gnral: () => [4,5,6]
 };
@@ -49,9 +51,10 @@ function load(relativePath, repo) {
     async query(sql) {
       if (sql.includes('ORDER BY t.fecha_reporte DESC')) return [[{
         id:2,ticket:'T2',folio:'',estado_ticket:'Abierto',estado:'CDMX',zona_legacy:'CNA-03',zona:'CNA-01',zona_id_oficial:4,
-        codigo_equipo:'E2',estatus_equipo_final:'No Funcionando',responsabilidad:'BLT',tiempo_llegada:1,fecha_reporte_fecha:today
+        codigo_equipo:'E2',estatus_equipo_final:'No Funcionando',responsabilidad:'BLT',tiempo_llegada:1,fecha_reporte_fecha:today,selected_filter:1
       }], []];
-      if (sql.includes('SELECT TRIM(t.estado) AS valor')) return [[{valor:'CDMX'}], []];
+      if (sql.includes('SELECT DISTINCT TRIM(p.estado)')) return [[{estado:'CDMX',zona:'CNA-01',supervisor:'SUP A'}], []];
+      if (sql.includes('SELECT COUNT(*) AS year_total')) return [[{year_total:12,month_total:3}], []];
       throw new Error('SQL resumen no esperado');
     }
   };
