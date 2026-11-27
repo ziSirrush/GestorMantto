@@ -107,6 +107,8 @@ test('DGB: ancho disponible, filtros adaptables y desplazamiento interno de la t
   assert.match(css,/\.rd-tickets-contextual-uni\{min-width:2580px\}/);
   const loader=read('core/module-loader.js');
   const html=read('index.html');
-  assert.match(loader,/resumen-dia\.css\?v=20261127-resumen-dgb-ancho-v001/);
-  assert.match(html,/core\/module-loader\.js\?v=20261127-resumen-dgb-ancho-v001/);
+  // La etiqueta de caché del cargador global cambia al publicar otros módulos.
+  // La prueba exige que el CSS versionado siga asociado a la ruta oficial.
+  assert.match(loader,/\bresumen:\{css:\['\.\/modules\/resumen-dia\/resumen-dia\.css\?v=[0-9A-Za-z._-]+'/);
+  assert.match(html,/<script src="\.\/core\/module-loader\.js\?v=[0-9A-Za-z._-]+"><\/script>/);
 });
